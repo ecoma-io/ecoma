@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+CLUSTER_NAME="dev-cluster"
+CONFIG_FILE="$(dirname "$0")/dev-cluster.yaml"
+
+create_cluster() {
+    echo "🚀 Creating K3d cluster: $CLUSTER_NAME..."
+    k3d cluster create --config $CONFIG_FILE --verbose
+    echo "✅ Cluster $CLUSTER_NAME created!"
+}
+
+delete_cluster() {
+    echo "🗑 Deleting K3d cluster: $CLUSTER_NAME..."
+    k3d cluster delete $CLUSTER_NAME
+    echo "✅ Cluster $CLUSTER_NAME deleted!"
+}
+
+recreate_cluster() {
+    delete_cluster
+    create_cluster
+}
+
+show_help() {
+    script_name=$(basename "$0")
+    echo ""
+    echo "Usage: $script_name {create|delete|recreate}"
+    echo ""
+    exit 1
+}
+
+case "$1" in
+    create) create_cluster ;;
+    delete) delete_cluster ;;
+    recreate) recreate_cluster ;;
+    *) show_help ;;
+esac
