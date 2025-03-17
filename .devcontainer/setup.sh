@@ -73,6 +73,20 @@ else
     echo "✅ helm installed"
 fi
 
+# Install argocd-autopilot
+echo "=============================="
+echo "🚀 Installing argocd-autopilot..."
+if [ -f /usr/local/bin/argocd-autopilot ]; then
+    echo "✅ argocd-autopilot is already installed"
+else
+    ARGOCD_AUTOPILOT_VERSION=$(curl --silent "https://api.github.com/repos/argoproj-labs/argocd-autopilot/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+    ARGOCD_AUTOPILOT_TAR="$TMP_DIR/argocd-autopilot-linux-amd64.tar.gz"
+    curl -Lo "$ARGOCD_AUTOPILOT_TAR" https://github.com/argoproj-labs/argocd-autopilot/releases/download/$ARGOCD_AUTOPILOT_VERSION/argocd-autopilot-linux-amd64.tar.gz 
+    tar -xvzf "$ARGOCD_AUTOPILOT_TAR" -C "$TMP_DIR" argocd-autopilot-linux-amd64
+    sudo sudo mv "$TMP_DIR/argocd-autopilot-linux-amd64" /usr/local/bin/argocd-autopilot
+    echo "✅ argocd-autopilot installed"
+fi
+
 # Install zsh-autosuggestions
 echo "=============================="
 echo "🚀 Installing zsh plugins..."
