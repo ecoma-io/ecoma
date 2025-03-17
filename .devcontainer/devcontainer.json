@@ -1,0 +1,19 @@
+{
+  "name": "Ecoma infrastructure devcontainer",
+  "image": "mcr.microsoft.com/devcontainers/go",
+  "runArgs": [
+    "--name=ecoma-infrastructure-devcontainer"
+  ],
+  "postCreateCommand": "sh .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "redhat.vscode-yaml"
+      ]
+    }
+  }
+}

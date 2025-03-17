@@ -1,0 +1,5 @@
+{
+  "name": "argo-cd",
+  "namespace": "argocd",
+  "syncWave": "-2"
+}

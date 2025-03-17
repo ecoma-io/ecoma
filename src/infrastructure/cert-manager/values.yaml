@@ -1,0 +1,47 @@
+cert-manager:
+  installCRDs: true
+  controller:
+    podAntiAffinityPreset: hard
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 1
+    pdb:
+      create: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 150m
+        memory: 196Mi
+  webhook:
+    podAntiAffinityPreset: hard
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 1
+    pdb:
+      create: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 150m
+        memory: 196Mi
+  cainjector:
+    podAntiAffinityPreset: hard
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 1
+    pdb:
+      create: true
+      minAvailable: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 150m
+        memory: 196Mi

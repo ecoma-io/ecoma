@@ -1,0 +1,5 @@
+{
+    "name": "sealed-secrets",
+    "namespace": "kube-system",
+    "syncWave": "-2"
+  }

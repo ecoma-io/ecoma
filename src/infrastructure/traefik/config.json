@@ -1,0 +1,5 @@
+{
+    "name": "traefik",
+    "namespace": "kube-system",
+    "syncWave": "-2"
+  }

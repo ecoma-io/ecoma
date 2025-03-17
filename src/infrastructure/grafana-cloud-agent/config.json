@@ -1,0 +1,5 @@
+{
+  "name": "grafana-cloud-agent",
+  "namespace": "monitoring",
+  "syncWave": "-2"
+}

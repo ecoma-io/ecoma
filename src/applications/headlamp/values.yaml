@@ -1,0 +1,23 @@
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: cluster-issuer  
+    traefik.ingress.kubernetes.io/router.middlewares: headlamp-oauth2@kubernetescrd 
+  ingressClassName: "traefik"
+  hosts:
+    - host: headlamp.ecoma.io
+      paths:
+      - path: /
+        type: ImplementationSpecific
+  tls: 
+    - secretName: headlamp-tls
+      hosts:
+        - headlamp.ecoma.io
+
+resources:
+  limits:
+    cpu: 150m
+    memory: 196Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

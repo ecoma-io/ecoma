@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflare-tunnel
+  namespace: kube-system
+  labels: 
+    app.kubernetes.io/name:  cloudflare-tunnel
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name:  cloudflare-tunnel
+  minAvailable: 1

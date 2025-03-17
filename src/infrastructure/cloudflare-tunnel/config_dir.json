@@ -1,0 +1,7 @@
+{
+  "name": "cloudflare-tunnel",
+  "namespace": "kube-system",
+  "exclude": "*.json",
+  "include": "**/*.yaml",
+  "syncWave": "-2"
+}

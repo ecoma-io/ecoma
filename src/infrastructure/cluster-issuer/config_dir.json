@@ -1,0 +1,7 @@
+{
+  "name": "cluster-issuer",
+  "namespace": "kube-system",
+  "exclude": "*.json",
+  "include": "*.yaml",
+  "syncWave": "-2"
+}

@@ -1,0 +1,91 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd-autopilot.argoproj-labs.io/default-dest-server: https://kubernetes.default.svc
+    argocd.argoproj.io/sync-options: PruneLast=true
+    argocd.argoproj.io/sync-wave: "-2"
+  name: infrastructure
+  namespace: argocd
+spec:
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  description: infrastructure project
+  destinations:
+  - namespace: '*'
+    server: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - '*'
+status: {}
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  name: infrastructure
+  namespace: argocd
+spec:
+  generators:
+  - git:
+      files:
+      - path: src/infrastructure/**/config.json
+      repoURL: https://github.com/ecoma-io/infrastructure.git
+      requeueAfterSeconds: 20
+      revision: ""
+      template:
+        metadata: {}
+        spec:
+          destination: {}
+          project: ""
+  - git:
+      files:
+      - path: src/infrastructure/**/config_dir.json
+      repoURL: https://github.com/ecoma-io/infrastructure.git
+      requeueAfterSeconds: 20
+      revision: ""
+      template:
+        metadata: {}
+        spec:
+          destination: {}
+          project: ""
+          source:
+            directory:
+              exclude: '{{ exclude }}'
+              include: '{{ include }}'
+              jsonnet: {}
+              recurse: true
+            repoURL: ""
+  syncPolicy: {}
+  template:
+    metadata:          
+      annotations:
+        argocd.argoproj.io/sync-wave: "-1000"
+      labels:
+        app.kubernetes.io/name: '{{ name }}'
+      name: '{{ name }}'
+      namespace: argocd
+    spec:    
+      project: infrastructure
+      source:
+        path: 'src/infrastructure/{{ name }}'
+        repoURL: https://github.com/ecoma-io/infrastructure.git
+      destination:
+        namespace: '{{ namespace }}'
+        server: https://kubernetes.default.svc
+      ignoreDifferences:
+      - group: argoproj.io
+        jsonPointers:
+        - /status
+        kind: Application
+      syncPolicy:
+        automated:
+          allowEmpty: true
+          prune: true
+          selfHeal: true
+status: {}

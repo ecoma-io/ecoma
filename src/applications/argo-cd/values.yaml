@@ -1,0 +1,120 @@
+fullnameOverride: argocd
+
+## Globally shared configuration
+global:
+  # -- Default domain used by all components
+  ## Used for ingresses, certificates, SSO, notifications, etc.
+  domain: argocd.ecoma.io
+  
+  # Default logging options used by all components
+  logging:
+    # -- Set the global logging format. Either: `text` or `json`
+    format: json
+    # -- Set the global logging level. One of: `debug`, `info`, `warn` or `error`
+    level: warn
+
+
+## Argo Configs
+configs:
+  # General Argo CD configuration
+  ## Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/argocd-cm.yaml
+  cm:
+    url: "https://argocd.ecoma.io"
+    ## Ref: https://argo-cd.readthedocs.io/en/stable/user-guide/kustomize
+    kustomize.buildOptions: --enable-helm
+    resource.customizations: |
+      networking.k8s.io/Ingress:
+        ignoreDifferences: |
+          jsonPointers:
+          - /status
+      networking.k8s.io/Ingress:
+        health.lua: |
+          hs = {}
+          hs.status = "Healthy"
+          hs.message = "Not verifying for Ingress"
+          return hs
+    # -- Timeout for reconciliation
+    timeout.reconciliation: 15s
+    dex.config: |
+      connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: $dex-secret:clientID
+          clientSecret: $dex-secret:clientSecret
+          redirectURI: https://argocd.ecoma.io/auth/callback
+        orgs:
+        - name: ecoma-io
+          teams:
+            - admin
+            - devops            
+            - developers
+
+            
+  params:
+    server.insecure: true
+
+  rbac:  
+    scopes: '[email, profile, filteredgroups]'
+    policy.default: role:none
+    policy.csv: |
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, logs, get, */*, allow
+      p, role:readonly, applications, action/apps/Deployment/restart, */*, allow
+
+      p, role:admin, applications, get, */*, allow
+      p, role:admin, applications, update, */*, allow
+      p, role:admin, applications, delete, */*, allow
+      p, role:admin, applications, sync, */*, allow
+      p, role:admin, applications, override, */*, allow
+      p, role:admin, applications, action/*, */*, allow
+      p, role:admin, logs, get, */*, allow
+      p, role:admin, clusters, get, *, allow
+      p, role:admin, projects, get, *, allow
+      p, role:admin, repositories, get, *, allow
+      p, role:admin, certificates, get, *, allow
+
+      g, ecoma-io:admin, role:admin
+      g, ecoma-io:devops, role:admin
+      g, ecoma-io:developers, role:readonly
+
+  repositories:
+    ecoma:
+      name: ecoma
+      url: https://github.com/ecoma-io/infrastructure.git      
+      type: git
+dex:
+  enabled: true
+
+server:
+  certificate:
+    # -- Deploy a Certificate resource (requires cert-manager)
+    enabled: true
+    # -- The name of the Secret that will be automatically created and managed by this Certificate resource
+    secretName: argocd-server-tls
+    # -- Certificate primary domain (commonName)
+    domain: argocd.ecoma.io
+    # Certificate issuer
+    ## Ref: https://cert-manager.io/docs/concepts/issuer
+    issuer:
+      # -- Certificate issuer group. Set if using an external issuer. Eg. `cert-manager.io`
+      group: "cert-manager.io"
+      # -- Certificate issuer kind. Either `Issuer` or `ClusterIssuer`
+      kind: "ClusterIssuer"
+      # -- Certificate issuer name. Eg. `letsencrypt`
+      name: "cluster-issuer"
+
+  ingress:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    ingressClassName: traefik
+    hosts:
+      - argocd.ecoma.io
+    tls:
+      - hosts:
+          - argocd.ecoma.io
+        secretName: argocd-server-tls
+    # -- Uses `server.service.servicePortHttps` instead `server.service.servicePortHttp`
+    https: false
