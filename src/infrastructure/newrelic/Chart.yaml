@@ -2,6 +2,7 @@ apiVersion: v2
 name: newrelic
 version: 1.0.0
 dependencies:
-- name: newrelic
+- name: nri-bundle
   version: 5.0.115
   repository: https://helm-charts.newrelic.com
+  alias: newrelic
