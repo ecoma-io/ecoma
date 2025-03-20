@@ -81,6 +81,6 @@ affinity: {}
 #                  All designs can be viewed here: https://github.com/vrana/adminer/tree/master/designs
 # ADMINER_DEFAULT_SERVER - This specifies the default server to connect to.
 # Example:
-env:
-  ADMINER_PLUGINS: "tables-filter tinymce"
+# env:
+  # ADMINER_PLUGINS: "tables-filter tinymce"
   # ADMINER_DESIGN: "pepa-linha-dark"
