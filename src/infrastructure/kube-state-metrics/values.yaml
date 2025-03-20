@@ -1,4 +1,5 @@
 kms:
+  fullnameOverride: kube-state-metrics
   selfMonitor:
     enabled: true
   resources:
