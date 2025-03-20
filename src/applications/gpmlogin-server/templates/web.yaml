@@ -81,9 +81,11 @@ spec:
             - name: env-file
               mountPath: /var/www/html/.env
               subPath: .env
-            - name: storage-framework
-              mountPath: /var/www/html/storage/framework
-            - name: storage-logs
+            - name: cache
+              mountPath: /var/www/html/storage/framework/cache            
+            - name: sessions
+              mountPath: /var/www/html/storage/framework/sessions      
+            - name: logs
               mountPath: /var/www/html/storage/logs
             - name: app-pvc
               mountPath: /var/www/html/storage/app
@@ -91,9 +93,11 @@ spec:
         - name: env-file
           secret:
             secretName: gpm-login-env
-        - name: storage-framework
+        - name: cache
+          emptyDir: {}        
+        - name: sessions
           emptyDir: {}
-        - name: storage-logs
+        - name: logs
           emptyDir: {}
   volumeClaimTemplates:
     - metadata:
