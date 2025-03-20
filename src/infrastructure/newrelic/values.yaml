@@ -5,7 +5,7 @@ newrelic:
 
   nri-prometheus:
     # nri-prometheus.enabled -- Install the [`nri-prometheus` chart](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
-    enabled: false
+    enabled: true
 
   nri-metadata-injection:
     # nri-metadata-injection.enabled -- Install the [`nri-metadata-injection` chart](https://github.com/newrelic/k8s-metadata-injection/tree/main/charts/nri-metadata-injection)
