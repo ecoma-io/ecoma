@@ -19,4 +19,5 @@ provisioner:
         - "2"      
       storageClass:
         provisioner: local-provisioner
-        reclaimPolicy: Delete      
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true      
