@@ -5,7 +5,7 @@ mariadb:
     username: admin
     existingSecret: mariadb-secret
   persistence:
-    size: 1Gb
+    size: 1Gi
     storageClass: local-storage
   primary:
     priorityClassName: gpmlogin-server-cristical
