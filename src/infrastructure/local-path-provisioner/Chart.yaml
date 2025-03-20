@@ -1,0 +1,8 @@
+apiVersion: v2
+name: local-path-provisioner
+version: 1.0.0
+dependencies:
+- name: local-path-provisioner
+  version: 2.0.0
+  repository: https://kubernetes-sigs.github.io/sig-storage-local-static-provisioner
+  alias: provisioner

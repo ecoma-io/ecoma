@@ -1,0 +1,24 @@
+provisioner:
+  fullnameOverride: local-path-provisioner
+  priorityClassName: system-node-critical
+  resources:
+    requests:
+      cpu: 50m
+      memory: 48Mi
+    limits:
+      cpu: 75m
+      memory: 72Mi
+  classes:
+    - name: local-storage
+      hostDir: /data/local-path-provisioner
+      volumeMode: Filesystem
+      namePattern: "*"
+      allowedTopologies:
+      blockCleanerCommand:
+        - "/scripts/shred.sh"
+        - "2"      
+      storageClass:
+        provisioner: local-provisioner
+        reclaimPolicy: Delete
+        isDefaultClass: true
+      
