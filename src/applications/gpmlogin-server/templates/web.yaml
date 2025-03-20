@@ -1,0 +1,102 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: gpm-login-env
+  namespace: gpmlogin-server
+spec:
+  encryptedData:
+    .env: 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
+  template:
+    metadata:
+      creationTimestamp: null
+      name: gpm-login-env
+      namespace: gpmlogin-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpm-login-web-service
+  namespace: gpmlogin-server
+spec:
+  selector:
+    app:  gpm-login-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gpm-login-web-ingress
+  namespace: gpmlogin-server
+spec:
+  rules:
+    - host: gpm.ecoma.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gpm-login-web-service
+                port:
+                  number: 80
+---
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gpm-login-web
+  namespace: gpmlogin-server
+  labels:
+    app: gpm-login-web
+spec:
+  serviceName: gpm-login-web-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpm-login-web
+  template:
+    metadata:
+      labels:
+        app: gpm-login-web
+    spec:
+      priorityClassName: gpmlogin-server-critical
+      containers:
+        - name: web
+          image: ngochoaitn/gpm-login-private-server:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: env-file
+              mountPath: /var/www/html/.env
+              subPath: .env
+            - name: storage-empty
+              mountPath: /var/www/html/storage
+            - name: profiles-pvc
+              mountPath: /var/www/html/storage/app/public/profiles
+              subPath: profiles
+      volumes:
+        - name: env-file
+          secret:
+            secretName: gpm-login-env
+        - name: storage-empty
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: profiles-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 8Gi
