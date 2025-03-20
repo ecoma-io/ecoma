@@ -1,0 +1,5 @@
+{
+  "name": "kube-state-metrics",
+  "namespace": "kube-system",
+  "syncWave": "-2"
+}

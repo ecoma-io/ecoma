@@ -1,0 +1,10 @@
+kms:
+  selfMonitor:
+    enabled: true
+  resources:
+    limits:
+      cpu: 75m
+      memory: 96i
+    requests:
+      cpu: 50m
+      memory: 64Mi
