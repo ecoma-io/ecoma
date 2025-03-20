@@ -72,13 +72,13 @@ global:
   cluster: default
 
   # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
-  licenseKey: 6a0256f0144f5c6ca5c18d15875f9dcaFFFFNRAL
+  licenseKey: ""
   # -- The license key for your New Relic Account. This will be preferred configuration option if both `insightsKey` and `customSecret` are specified.
   insightsKey: ""
   # -- Name of the Secret object where the license key is stored
-  customSecretName: ""
+  customSecretName: license
   # -- Key in the Secret object where the license key is stored
-  customSecretLicenseKey: ""
+  customSecretLicenseKey: newrelic-license-secret
 
   # -- Additional labels for chart objects
   labels: {}
