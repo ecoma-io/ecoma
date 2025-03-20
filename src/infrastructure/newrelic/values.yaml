@@ -1,3 +1,13 @@
+kms:
+  selfMonitor:
+    enabled: true
+  resources:
+    limits:
+      cpu: 75m
+      memory: 96i
+    requests:
+      cpu: 50m
+      memory: 64Mi
 newrelic:
   newrelic-infrastructure:
     # newrelic-infrastructure.enabled -- Install the [`newrelic-infrastructure` chart](https://github.com/newrelic/nri-kubernetes/tree/main/charts/newrelic-infrastructure)
