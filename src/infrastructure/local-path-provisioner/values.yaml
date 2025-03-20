@@ -12,11 +12,11 @@ provisioner:
     - name: local-storage
       hostDir: /data/local-path-provisioner
       volumeMode: Filesystem
+      fsType: ext4
       namePattern: "*"
       allowedTopologies:
       blockCleanerCommand:
         - "/scripts/shred.sh"
         - "2"      
       storageClass:
-        provisioner: local-provisioner
         reclaimPolicy: Delete
