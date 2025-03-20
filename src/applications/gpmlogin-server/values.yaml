@@ -8,7 +8,7 @@ mariadb:
     priorityClassName: gpmlogin-server-cristical    
     persistence:
       size: 1Gi
-      storageClass: local-storage
+      storageClass: local-path
     nodeSelector: 
       kubernetes.io/hostname: node1
     resources:
