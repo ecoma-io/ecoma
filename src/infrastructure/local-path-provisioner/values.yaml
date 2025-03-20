@@ -20,4 +20,3 @@ provisioner:
       storageClass:
         provisioner: local-provisioner
         reclaimPolicy: Delete
-        allowVolumeExpansion: true      
