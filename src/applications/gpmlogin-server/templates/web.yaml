@@ -45,7 +45,6 @@ spec:
                 port:
                   number: 80
 ---
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -65,6 +64,8 @@ spec:
         app: gpm-login-web
     spec:
       priorityClassName: gpmlogin-server-critical
+      nodeSelector: 
+        kubernetes.io/hostname: node1
       containers:
         - name: web
           image: ngochoaitn/gpm-login-private-server:latest
@@ -103,6 +104,7 @@ spec:
     - metadata:
         name: app-pvc
       spec:
+        storageClassName: local-path
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
