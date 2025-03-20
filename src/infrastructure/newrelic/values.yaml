@@ -102,7 +102,7 @@ newrelic:
 
     # -- (bool) Sets pod's hostNetwork
     # @default -- false
-    hostNetwork:
+    hostNetwork: true
     # -- Sets pod's dnsConfig
     dnsConfig: {}
 
