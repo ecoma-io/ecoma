@@ -1,4 +1,4 @@
 apiVersion: v2
 version: 1.0.0
-appVersion: 4.17.1
+appVersion: 5.0.6
 name: adminer
