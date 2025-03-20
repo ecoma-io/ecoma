@@ -4,11 +4,11 @@ mariadb:
     database: gpmlogin
     username: admin
     existingSecret: mariadb-secret
-  persistence:
-    size: 1Gi
-    storageClass: local-storage
   primary:
-    priorityClassName: gpmlogin-server-cristical
+    priorityClassName: gpmlogin-server-cristical    
+    persistence:
+      size: 1Gi
+      storageClass: local-storage
     nodeSelector: 
       kubernetes.io/hostname: node1
     resources:
