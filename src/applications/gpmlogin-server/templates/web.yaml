@@ -81,20 +81,23 @@ spec:
             - name: env-file
               mountPath: /var/www/html/.env
               subPath: .env
-            - name: storage-empty
-              mountPath: /var/www/html/storage
-            - name: profiles-pvc
-              mountPath: /var/www/html/storage/app/public/profiles
-              subPath: profiles
+            - name: storage-framework
+              mountPath: /var/www/html/storage/framework
+            - name: storage-logs
+              mountPath: /var/www/html/storage/logs
+            - name: app-pvc
+              mountPath: /var/www/html/storage/app
       volumes:
         - name: env-file
           secret:
             secretName: gpm-login-env
-        - name: storage-empty
+        - name: storage-framework
+          emptyDir: {}
+        - name: storage-logs
           emptyDir: {}
   volumeClaimTemplates:
     - metadata:
-        name: profiles-pvc
+        name: app-pvc
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:
