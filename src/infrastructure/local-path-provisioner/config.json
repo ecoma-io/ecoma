@@ -1,5 +1,0 @@
-{
-    "name": "local-path-provisioner",
-    "namespace": "kube-system",
-    "syncWave": "-2"
-  }
