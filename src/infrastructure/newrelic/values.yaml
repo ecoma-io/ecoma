@@ -21,6 +21,14 @@ newrelic:
           requests:
             cpu: 100m
             memory: 64Mi
+      forwarder:      
+        resources:
+          limits:
+            cpu: 150m
+            memory: 96Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
     controlPlane:
       enabled: true
       resources:
@@ -58,7 +66,7 @@ newrelic:
     # This is mandatory if `infrastructure.enabled` is set to `true` and the user does not provide its own instance of KSM version >=1.8 and <=2.0. Note, kube-state-metrics v2+ disables labels/annotations
     # metrics by default. You can enable the target labels/annotations metrics to be monitored by using the metricLabelsAllowlist/metricAnnotationsAllowList options described [here](https://github.com/prometheus-community/helm-charts/blob/159cd8e4fb89b8b107dcc100287504bb91bf30e0/charts/kube-state-metrics/values.yaml#L274) in
     # your Kubernetes clusters.
-    enabled: false
+    enabled: true
     resources:
       limits:
         cpu: 75m
