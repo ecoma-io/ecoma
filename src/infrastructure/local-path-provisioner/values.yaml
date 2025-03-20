@@ -19,6 +19,4 @@ provisioner:
         - "2"      
       storageClass:
         provisioner: local-provisioner
-        reclaimPolicy: Delete
-        isDefaultClass: true
-      
+        reclaimPolicy: Delete      
