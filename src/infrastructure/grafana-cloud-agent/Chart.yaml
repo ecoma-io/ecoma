@@ -1,7 +1,0 @@
-apiVersion: v2
-name: grafana-cloud-agent
-version: 1.0.0
-dependencies:
-- name: k8s-monitoring
-  version: 2.0.19
-  repository: https://grafana.github.io/helm-charts
