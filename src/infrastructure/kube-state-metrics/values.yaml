@@ -4,8 +4,8 @@ kms:
     enabled: true
   resources:
     limits:
-      cpu: 75m
-      memory: 96i
+      cpu: 150m
+      memory: 144Mi
     requests:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 100m
+      memory: 96Mi
