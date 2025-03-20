@@ -8,7 +8,7 @@ helmCharts:
   - name: headlamp
     repo: https://headlamp-k8s.github.io/headlamp
     version: 0.28.1
-    namespace: headlamp
+    namespace: system-tools
     releaseName: headlamp
     additionalValuesFiles:  
       - values.yaml
