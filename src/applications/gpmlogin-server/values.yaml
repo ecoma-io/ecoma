@@ -1,4 +1,5 @@
 mariadb:
+  fullnameOverride: mariadb
   architecture: standalone
   auth:
     database: gpmlogin
