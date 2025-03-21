@@ -62,25 +62,7 @@ keycloak:
           "enabled": true,
           "attributes": {
             "frontendUrl": https://keycloak.ecoma.io
-          },
-          "identityProviders": [
-            {
-              "alias": "google",
-              "providerId": "google",
-              "config": {
-                "clientId": "${GOOGLE_CLIENT_ID}",
-                "clientSecret": "${GOOGLE_CLIENT_SECRET}"
-              }
-            },
-            {
-              "alias": "github",
-              "providerId": "github",
-              "config": {
-                "clientId": "${GITHUB_CLIENT_ID}",
-                "clientSecret": "${GITHUB_CLIENT_SECRET}"
-              }
-            }
-          ],
+          },        
           "groups": [
             { "name": "admins" },
             { "name": "devops" },
