@@ -28,9 +28,8 @@ keycloak:
   nodeSelector: 
     kubernetes.io/hostname: node1
   auth:
-    adminUser: admin
-    existingSecret: keycloak-secret
-    passwordSecretKey: admin-password
+    adminUser: "" # don't create admin user account
+    adminPassword: ""
   postgresql:
     enabled: false
   externalDatabase:
@@ -51,14 +50,96 @@ keycloak:
   proxy: edge
   keycloakConfigCli:
     enabled: true
-    configuration:
-      ecoma.json: |
+    configuration: 
+      master.json: |
         {
-          "realm" : "ecoma",
+          "realm" : "master",
           "attributes": {
             "frontendUrl": https://keycloak.ecoma.io
           }
         }
+      ecoma.json: |
+        {
+          "realm": "ecoma",
+          "displayName": "Ecoma",
+          "enabled": true,
+          "identityProviders": [
+            {
+              "alias": "google",
+              "providerId": "google",
+              "config": {
+                "clientId": "${GOOGLE_CLIENT_ID}",
+                "clientSecret": "${GOOGLE_CLIENT_SECRET}"
+              }
+            },
+            {
+              "alias": "github",
+              "providerId": "github",
+              "config": {
+                "clientId": "${GITHUB_CLIENT_ID}",
+                "clientSecret": "${GITHUB_CLIENT_SECRET}"
+              }
+            }
+          ],
+          "groups": [
+            { "name": "admins" },
+            { "name": "devops" },
+            { "name": "developers" }
+          ],
+          "users": [
+            {
+              "username": "${ADMIN_USERNAME}",
+              "email": "${ADMIN_EMAIL}",
+              "enabled": true,
+              "emailVerified": true,
+              "requiredActions": [],
+              "credentials": [],
+              "federatedIdentities": [
+                {
+                  "identityProvider": "google",
+                  "userId": "${ADMIN_EMAIL}",
+                  "userName": "${ADMIN_USERNAME}"
+                },
+                {
+                  "identityProvider": "github",
+                  "userId": "${ADMIN_EMAIL}",
+                  "userName": "${ADMIN_USERNAME}"
+                }
+              ],
+              "realmRoles": ["offline_access", "uma_authorization"],
+              "clientRoles": {
+                "realm-management": ["realm-admin"],
+                "security-admin-console": ["admin"],
+                "master-realm": ["admin"]
+              }
+            }
+          ],
+        }
+    extraEnvVars:
+      - name: ADMIN_EMAIL
+        value: ${ADMIN_EMAIL}
+      - name: ADMIN_USERNAME
+        value: ${ADMIN_USERNAME}
+      - name: GOOGLE_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-secret
+            key: google-client-id
+      - name: GOOGLE_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-secret
+            key: google-client-secret
+      - name: GITHUB_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-secret
+            key: github-client-id
+      - name: GITHUB_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-secret
+            key: github-client-secret
   ingress:
     enabled: true
     ingressClassName: traefik
