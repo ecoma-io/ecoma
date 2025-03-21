@@ -52,18 +52,14 @@ keycloak:
   keycloakConfigCli:
     enabled: true
     configuration: 
-      master.json: |
-        {
-          "realm" : "master",
-          "attributes": {
-            "frontendUrl": https://keycloak.ecoma.io
-          }
-        }
       ecoma.json: |
         {
           "realm": "ecoma",
           "displayName": "Ecoma",
           "enabled": true,
+          "attributes": {
+            "frontendUrl": https://keycloak.ecoma.io
+          },
           "identityProviders": [
             {
               "alias": "google",
