@@ -62,25 +62,6 @@ keycloak:
           "verifyEmail": true,  
           "loginWithEmailAllowed": true,     
           "duplicateEmailsAllowed": false,
-          "clients": [], 
-          "identityProviders": [
-            {
-              "alias": "google",
-              "providerId": "google",
-              "config": {
-                "clientId": "${GOOGLE_CLIENT_ID}",
-                "clientSecret": "${GOOGLE_CLIENT_SECRET}"
-              }
-            },
-            {
-              "alias": "github",
-              "providerId": "github",
-              "config": {
-                "clientId": "${GITHUB_CLIENT_ID}",
-                "clientSecret": "${GITHUB_CLIENT_SECRET}"
-              }
-            }
-          ],  
           "groups": [
             {
               "name": "Admins"
@@ -91,7 +72,8 @@ keycloak:
             {
               "name": "Developers"
             }
-          ]
+          ],            
+          "clients": []            
         }
     extraEnvVars:
       - name: ADMIN_EMAIL
