@@ -101,6 +101,50 @@ keycloak:
           "clients": []
             
         }
+      ecoma.json: |
+        {
+          "realm": "ecoma",  
+          "enabled": true,          
+          "groups": [
+            {
+              "name": "Admins"
+            },            
+            {
+              "name": "Operators"              
+            },
+            {
+              "name": "Developers"
+            }
+          ],
+          "identityProviders": [
+            {
+              "alias": "google",
+              "providerId": "google",
+              "enabled": true,
+              "config": {
+                "syncMode": "IMPORT",
+                "clientId": "$(env:GOOGLE_CLIENT_ID)",
+                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)"
+              }
+            },
+            {
+              "alias": "github",
+              "providerId": "github",
+              "enabled": true,
+              "trustEmail": true,
+              "config": {
+                "syncMode": "IMPORT",
+                "clientId": "$(env:GITHUB_CLIENT_ID)",
+                "clientSecret": "$(env:GITHUB_CLIENT_SECRET)",    
+                "defaultScope": "email profile",            
+                "prompt": "consent",
+                "useJwksUrl": "true",
+                "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
+              }
+            }
+          ],          
+          "clients": []            
+        }
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
         value: "true" 
