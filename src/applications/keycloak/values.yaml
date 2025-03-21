@@ -28,8 +28,9 @@ keycloak:
   nodeSelector: 
     kubernetes.io/hostname: node1
   auth:
-    adminUser: "" # don't create admin user account
-    adminPassword: ""
+    adminUser: "admin"
+    existingSecret: keycloak-secret
+    passwordSecretKey: ""  
   postgresql:
     enabled: false
   externalDatabase:
