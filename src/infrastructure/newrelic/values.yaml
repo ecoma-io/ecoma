@@ -44,6 +44,22 @@ newrelic:
     enabled: true 
     config:  
       scrape_duration: 60s
+      transformations: 
+        ignore_metrics:
+          # Ignore the following metrics.
+          # These metrics are already collected by the New Relic Kubernetes Integration.
+          - prefixes:
+            - kube_daemonset_
+            - kube_deployment_
+            - kube_endpoint_
+            - kube_namespace_
+            - kube_node_
+            - kube_persistentvolume_
+            - kube_pod_
+            - kube_replicaset_
+            - kube_service_
+            - kube_statefulset_
+
     resources:
       limits:
         cpu: 75m
