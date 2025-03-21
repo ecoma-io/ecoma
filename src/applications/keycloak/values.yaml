@@ -49,51 +49,6 @@ keycloak:
       memory: 768Mi
   adminRealm: "ecoma"
   proxy: edge
-  keycloakConfigCli:
-    enabled: true
-    backoffLimit: 3
-    cleanupAfterFinished:
-      enabled: true
-      seconds: 60
-    configuration: 
-      ecoma.json: |
-        {
-          "realm": "master",
-          "enabled": true,
-          "attributes": {
-            "frontendUrl": https://keycloak.ecoma.io
-          },        
-          "groups": [
-            { "name": "admins" },
-            { "name": "devops" },
-            { "name": "developers" }
-          ]
-        }
-    extraEnvVars:
-      - name: ADMIN_EMAIL
-        value: ${ADMIN_EMAIL}
-      - name: ADMIN_USERNAME
-        value: ${ADMIN_USERNAME}
-      - name: GOOGLE_CLIENT_ID
-        valueFrom:
-          secretKeyRef:
-            name: keycloak-secret
-            key: google-client-id
-      - name: GOOGLE_CLIENT_SECRET
-        valueFrom:
-          secretKeyRef:
-            name: keycloak-secret
-            key: google-client-secret
-      - name: GITHUB_CLIENT_ID
-        valueFrom:
-          secretKeyRef:
-            name: keycloak-secret
-            key: github-client-id
-      - name: GITHUB_CLIENT_SECRET
-        valueFrom:
-          secretKeyRef:
-            name: keycloak-secret
-            key: github-client-secret
   ingress:
     enabled: true
     ingressClassName: traefik
