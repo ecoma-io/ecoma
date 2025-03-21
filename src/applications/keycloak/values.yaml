@@ -51,16 +51,7 @@ keycloak:
     enabled: true
     ingressClassName: traefik
     hostname: iam.ecoma.io
-    tls: true
-    secrets:
-      - hosts:
-          - iam.ecoma.io
-        secretName: keycloak-tls
-  # adminIngress:
-  #   enabled: true
-  #   ingressClassName: traefik
-  #   hostname: keycloak.ecoma.io
-  #   tls:
-  #     - hosts:
-  #         - keycloak.ecoma.io
-  #       secretName: keycloak-admin-tls
+  adminIngress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: keycloak.ecoma.io   
