@@ -61,15 +61,9 @@ keycloak:
           "realm": "master",  
           "enabled": true,          
           "groups": [
-            {
-              "name": "admins"
-            },            
-            {
-              "name": "operators"              
-            },
-            {
-              "name": "developers"
-            }
+            { "name": "admins" },            
+            { "name": "operators" },
+            { "name": "developers" }
           ],
           "identityProviders": [           
             {
@@ -87,9 +81,19 @@ keycloak:
                 "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
               }
             }
-          ],          
-          "clients": []
-            
+          ],    
+          "users": [
+            {
+              "username": "johnitvn",
+              "email": "john.itvn@gmail.com",
+              "enabled": true,
+              "enabled": true,
+              "realmRoles": [
+                "admin"
+              ]
+            }
+          ]              
+          "clients": []            
         }
       ecoma.json: |
         {
