@@ -58,7 +58,7 @@ keycloak:
     configuration: 
       ecoma.json: |
         {
-          "realm": "master",
+          "realm": "ecoma",
           "attributes": {
             "frontendUrl": "https://keycloak.ecoma.io"
           },     
