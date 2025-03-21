@@ -103,7 +103,7 @@ keycloak:
             
         }
     extraEnvVars:
-      - name: IMPORT_VARSUBSTITUTION
+      - name: IMPORT_VARSUBSTITUTION_ENABLED
         value: "true" 
       - name: GOOGLE_CLIENT_ID
         valueFrom:
