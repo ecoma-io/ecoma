@@ -47,7 +47,7 @@ keycloak:
     limits:
       cpu: 750m
       memory: 768Mi
-  adminRealm: ecoma
+  adminRealm: master
   proxy: edge
   keycloakConfigCli:
     enabled: true
@@ -58,7 +58,7 @@ keycloak:
     configuration: 
       ecoma.json: |
         {
-          "realm": "ecoma",          
+          "realm": "master",          
           "clients": [],   
           "groups": [
             {
