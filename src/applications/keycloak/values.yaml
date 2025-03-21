@@ -30,7 +30,7 @@ keycloak:
   auth:
     adminUser: "admin"
     existingSecret: keycloak-secret
-    passwordSecretKey: ""  
+    passwordSecretKey: admin-password 
   postgresql:
     enabled: false
   externalDatabase:
