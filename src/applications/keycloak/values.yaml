@@ -32,9 +32,6 @@ keycloak:
     adminUser: admin
     existingSecret: keycloak-secret
     passwordSecretKey: admin-password
-  extraEnvVars:
-    - name: KEYCLOAK_LOG_LEVEL
-      value: DEBUG
   postgresql:
     enabled: false
   externalDatabase:
