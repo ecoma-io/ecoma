@@ -57,7 +57,7 @@ configs:
 
   rbac:  
     scopes: '[email, profile, filteredgroups]'
-    policy.default: role:none
+    policy.default: role:admin
     policy.csv: |
       p, role:readonly, applications, get, */*, allow
       p, role:readonly, logs, get, */*, allow
