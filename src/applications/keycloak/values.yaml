@@ -76,7 +76,6 @@ keycloak:
               "alias": "google",
               "providerId": "google",
               "enabled": true,
-              "storage"
               "config": {
                 "syncMode": "IMPORT",
                 "clientId": "$(env:GOOGLE_CLIENT_ID)",
