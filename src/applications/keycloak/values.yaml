@@ -69,11 +69,10 @@ keycloak:
             },            
             {
               "name": "Operators"              
-            }
+            },
             {
               "name": "Developers"
-            },
-          ]
+            }
         }
     extraEnvVars:
       - name: ADMIN_EMAIL
