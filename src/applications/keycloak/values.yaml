@@ -47,6 +47,17 @@ keycloak:
     limits:
       cpu: 750m
       memory: 768Mi
+  proxy: edge
+  keycloakConfigCli:
+    enabled: true
+    configuration:
+      master.json: |
+        {
+          "realm" : "master",
+          "attributes": {
+            "frontendUrl": https://keycloak.ecoma.io
+          }
+        }
   ingress:
     enabled: true
     ingressClassName: traefik
