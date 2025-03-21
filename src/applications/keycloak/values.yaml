@@ -62,26 +62,16 @@ keycloak:
           "enabled": true,          
           "groups": [
             {
-              "name": "Admins"
+              "name": "admins"
             },            
             {
-              "name": "Operators"              
+              "name": "operators"              
             },
             {
-              "name": "Developers"
+              "name": "developers"
             }
           ],
-          "identityProviders": [
-            {
-              "alias": "google",
-              "providerId": "google",
-              "enabled": true,
-              "config": {
-                "syncMode": "IMPORT",
-                "clientId": "$(env:GOOGLE_CLIENT_ID)",
-                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)"
-              }
-            },
+          "identityProviders": [           
             {
               "alias": "github",
               "providerId": "github",
@@ -91,7 +81,7 @@ keycloak:
                 "syncMode": "IMPORT",
                 "clientId": "$(env:GITHUB_CLIENT_ID)",
                 "clientSecret": "$(env:GITHUB_CLIENT_SECRET)",    
-                "defaultScope": "email profile",            
+                "defaultScope": "openid email profile", 
                 "prompt": "consent",
                 "useJwksUrl": "true",
                 "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
@@ -104,18 +94,7 @@ keycloak:
       ecoma.json: |
         {
           "realm": "ecoma",  
-          "enabled": true,          
-          "groups": [
-            {
-              "name": "Admins"
-            },            
-            {
-              "name": "Operators"              
-            },
-            {
-              "name": "Developers"
-            }
-          ],
+          "enabled": true,
           "identityProviders": [
             {
               "alias": "google",
@@ -124,24 +103,14 @@ keycloak:
               "config": {
                 "syncMode": "IMPORT",
                 "clientId": "$(env:GOOGLE_CLIENT_ID)",
-                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)"
-              }
-            },
-            {
-              "alias": "github",
-              "providerId": "github",
-              "enabled": true,
-              "trustEmail": true,
-              "config": {
-                "syncMode": "IMPORT",
-                "clientId": "$(env:GITHUB_CLIENT_ID)",
-                "clientSecret": "$(env:GITHUB_CLIENT_SECRET)",    
-                "defaultScope": "email profile",            
+                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)",                
+                "defaultScope": "openid email profile",
+                "firstBrokerLoginFlowAlias": "first broker login",                          
                 "prompt": "consent",
                 "useJwksUrl": "true",
                 "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
               }
-            }
+            }            
           ],          
           "clients": []            
         }
@@ -171,7 +140,7 @@ keycloak:
   ingress:
     enabled: true
     ingressClassName: traefik
-    hostname: iam.ecoma.io
+    hostname: accounts.ecoma.io
   adminIngress:
     enabled: true
     ingressClassName: traefik
