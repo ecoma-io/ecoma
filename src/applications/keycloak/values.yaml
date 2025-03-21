@@ -59,9 +59,7 @@ keycloak:
       master.json: |
         {
           "realm": "master",  
-          "verifyEmail": true,  
-          "loginWithEmailAllowed": true,     
-          "duplicateEmailsAllowed": false,
+          "enabled": true,          
           "groups": [
             {
               "name": "Admins"
@@ -72,8 +70,31 @@ keycloak:
             {
               "name": "Developers"
             }
-          ],            
-          "clients": []            
+          ],
+          "identityProviders": [
+            {
+              "alias": "google",
+              "providerId": "google",
+              "enabled": true,
+              "config": {
+                "syncMode": "IMPORT",
+                "clientId": "${GOOGLE_CLIENT_ID}",
+                "clientSecret": "${GOOGLE_CLIENT_SECRET}"
+              }
+            },
+            {
+              "alias": "github",
+              "providerId": "github",
+              "enabled": true,
+              "config": {
+                "syncMode": "IMPORT",
+                "clientId": "${GITHUB_CLIENT_ID}",
+                "clientSecret": "${GITHUB_CLIENT_SECRET}"
+              }
+            }
+          ],          
+          "clients": []
+            
         }
     extraEnvVars:
       - name: ADMIN_EMAIL
