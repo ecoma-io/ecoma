@@ -26,25 +26,7 @@ spec:
       port: 80
       targetPort: 80
   type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: gpm-login-web-ingress-backup
-  namespace: gpmlogin-server
-spec:
-  rules:
-    - host: gpm.ecoma.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: gpm-login-web-service
-                port:
-                  number: 80
----                  
+---              
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
