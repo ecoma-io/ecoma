@@ -80,25 +80,7 @@ keycloak:
                 "useJwksUrl": "true",
                 "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
               }
-            }
-          ],    
-          "users": [
-            {
-              "username": "johnitvn",
-              "email": "john.itvn@gmail.com",
-              "enabled": true,
-              "realmRoles": [
-                "admin"
-              ]
-            }
-          ]              
-          "clients": []            
-        }
-      ecoma.json: |
-        {
-          "realm": "ecoma",  
-          "enabled": true,
-          "identityProviders": [
+            },
             {
               "alias": "google",
               "providerId": "google",
@@ -113,10 +95,20 @@ keycloak:
                 "useJwksUrl": "true",
                 "jwksUrl": "https://www.googleapis.com/oauth2/v3/certs"
               }
-            }            
-          ],          
+            }      
+          ],    
+          "users": [
+            {
+              "username": "johnitvn",
+              "email": "john.itvn@gmail.com",
+              "enabled": true,
+              "realmRoles": [
+                "admin"
+              ]
+            }
+          ],              
           "clients": []            
-        }
+        }     
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
         value: "true" 
