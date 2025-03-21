@@ -41,7 +41,9 @@ newrelic:
 
   nri-prometheus:
     # nri-prometheus.enabled -- Install the [`nri-prometheus` chart](https://github.com/newrelic/nri-prometheus/tree/main/charts/nri-prometheus)
-    enabled: true   
+    enabled: true 
+    config:  
+      scrape_duration: 60s
     resources:
       limits:
         cpu: 75m
