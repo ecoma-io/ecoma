@@ -56,9 +56,13 @@ keycloak:
       enabled: true
       seconds: 60
     configuration: 
-      ecoma.json: |
+      master.json: |
         {
-          "realm": "master",          
+          "realm": "master",  
+          "verifyEmail": true,  
+          "registrationEmailAsUsername": true,
+          "loginWithEmailAllowed": true,     
+          "duplicateEmailsAllowed": false,
           "clients": [],   
           "groups": [
             {
