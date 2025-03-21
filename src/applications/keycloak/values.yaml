@@ -1,0 +1,69 @@
+postgresql:
+  fullnameOverride: postgresql
+  architecture: standalone
+  auth:
+    username: keycloak  
+    database: keycloak
+    existingSecret: keycloak-secret
+    secretKeys:
+      adminPasswordKey: postgresql-admin-password
+      userPasswordKey: postgresql-password
+      replicationPasswordKey: postgresql-replication-password
+  primary:    
+    nodeSelector: 
+      kubernetes.io/hostname: node1
+    persistence:
+      size: 1Gi
+      storageClass: local-path
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 750m
+        memory: 768Mi
+
+keycloak:
+  fullnameOverride: keycloak
+  architecture: standalone
+  nodeSelector: 
+    kubernetes.io/hostname: node1
+  auth:
+    adminUser: admin
+    existingSecret: keycloak-secret
+    passwordSecretKey: admin-password
+  extraEnvVars:
+    - name: KEYCLOAK_LOG_LEVEL
+      value: DEBUG
+  postgresql:
+    enabled: false
+  externalDatabase:
+    existingSecret: postgresql-secret    
+    existingSecretHostKey: postgresql-host
+    existingSecretPortKey: postgresql-port
+    existingSecretUserKey: postgresql-username
+    existingSecretDatabaseKey: postgresql-database
+    existingSecretPasswordKey: postgresql-password
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: iam.ecoma.io
+    tls:
+      - hosts:
+          - iam.ecoma.io
+        secretName: keycloak-tls
+  adminIngress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: keycloak.ecoma.io
+    tls:
+      - hosts:
+          - keycloak.ecoma.io
+        secretName: keycloak-admin-tls
