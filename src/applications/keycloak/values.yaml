@@ -60,7 +60,7 @@ keycloak:
         {
           "realm": "master",
           "attributes": {
-            "frontendUrl": https://keycloak.ecoma.io
+            "frontendUrl": "https://keycloak.ecoma.io"
           },     
           "clients": [],   
           "groups": [
