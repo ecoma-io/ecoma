@@ -23,43 +23,43 @@ postgresql:
         cpu: 750m
         memory: 768Mi
 
-# keycloak:
-#   fullnameOverride: keycloak
-#   nodeSelector: 
-#     kubernetes.io/hostname: node1
-#   auth:
-#     adminUser: admin
-#     existingSecret: keycloak-secret
-#     passwordSecretKey: admin-password
-#   postgresql:
-#     enabled: false
-#   externalDatabase:
-#     existingSecret: postgresql-secret    
-#     existingSecretHostKey: postgresql-host
-#     existingSecretPortKey: postgresql-port
-#     existingSecretUserKey: postgresql-username
-#     existingSecretDatabaseKey: postgresql-database
-#     existingSecretPasswordKey: postgresql-password
-#   resources:
-#     requests:
-#       cpu: 500m
-#       memory: 512Mi
-#     limits:
-#       cpu: 750m
-#       memory: 768Mi
-#   ingress:
-#     enabled: true
-#     ingressClassName: traefik
-#     hostname: iam.ecoma.io
-#     tls:
-#       - hosts:
-#           - iam.ecoma.io
-#         secretName: keycloak-tls
-#   adminIngress:
-#     enabled: true
-#     ingressClassName: traefik
-#     hostname: keycloak.ecoma.io
-#     tls:
-#       - hosts:
-#           - keycloak.ecoma.io
-#         secretName: keycloak-admin-tls
+keycloak:
+  fullnameOverride: keycloak
+  nodeSelector: 
+    kubernetes.io/hostname: node1
+  auth:
+    adminUser: admin
+    existingSecret: postgresql-secret
+    passwordSecretKey: admin-password
+  postgresql:
+    enabled: false
+  externalDatabase:
+    existingSecret: postgresql-secret    
+    existingSecretHostKey: postgresql-host
+    existingSecretPortKey: postgresql-port
+    existingSecretUserKey: postgresql-username
+    existingSecretDatabaseKey: postgresql-database
+    existingSecretPasswordKey: postgresql-password
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 750m
+      memory: 768Mi
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: traefik
+  #   hostname: iam.ecoma.io
+  #   tls:
+  #     - hosts:
+  #         - iam.ecoma.io
+  #       secretName: keycloak-tls
+  # adminIngress:
+  #   enabled: true
+  #   ingressClassName: traefik
+  #   hostname: keycloak.ecoma.io
+  #   tls:
+  #     - hosts:
+  #         - keycloak.ecoma.io
+  #       secretName: keycloak-admin-tls
