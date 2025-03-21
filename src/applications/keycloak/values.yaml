@@ -65,17 +65,14 @@ keycloak:
           "clients": [],   
           "groups": [
             {
-              "name": "Developers",
-              "attributes": {
-                "description": "Group for software developers"
-              }
-            },
+              "name": "Admins"
+            },            
             {
-              "name": "Testers",
-              "attributes": {
-                "description": "Group for QA testers"
-              }
+              "name": "Operators"              
             }
+            {
+              "name": "Developers"
+            },
           ]
         }
     extraEnvVars:
