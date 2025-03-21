@@ -58,11 +58,13 @@ keycloak:
     configuration: 
       master.json: |
         {
-          "realm": "master",  
-          "verifyEmail": true,  
-          "registrationEmailAsUsername": true,
-          "loginWithEmailAllowed": true,     
-          "duplicateEmailsAllowed": false,
+          "realm": "master",
+          "clients": []
+        }
+      ecoma.json: |
+        {
+          "realm": "ecoma", 
+          "displayName": "ecoma",          
           "clients": [],   
           "groups": [
             {
