@@ -47,14 +47,15 @@ keycloak:
     limits:
       cpu: 750m
       memory: 768Mi
-  # ingress:
-  #   enabled: true
-  #   ingressClassName: traefik
-  #   hostname: iam.ecoma.io
-  #   tls:
-  #     - hosts:
-  #         - iam.ecoma.io
-  #       secretName: keycloak-tls
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: iam.ecoma.io
+    tls: true
+    secrets:
+      - hosts:
+          - iam.ecoma.io
+        secretName: keycloak-tls
   # adminIngress:
   #   enabled: true
   #   ingressClassName: traefik
