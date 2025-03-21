@@ -47,13 +47,14 @@ keycloak:
     limits:
       cpu: 750m
       memory: 768Mi
+  adminRealm: "ecoma"
   proxy: edge
   keycloakConfigCli:
     enabled: true
     configuration:
-      master.json: |
+      ecoma.json: |
         {
-          "realm" : "master",
+          "realm" : "ecoma",
           "attributes": {
             "frontendUrl": https://keycloak.ecoma.io
           }
