@@ -73,15 +73,9 @@ keycloak:
             "uma_authorization"
           ],
           "groups": [
-            {
-              "name": "admins"
-            },
-            {
-              "name": "operators"
-            },
-            {
-              "name": "developers"
-            }
+            { "name": "admins" },
+            { "name": "operators" },
+            { "name": "developers" }
           ],
           "identityProviders": [
             {
@@ -119,12 +113,8 @@ keycloak:
               "email": "john.itvn@gmail.com",
               "enabled": true,
               "emailVerified": true,
-              "realmRoles": [
-                "admin"
-              ],
-              "groups": [
-                "admins"
-              ]
+              "realmRoles": [ "admin" ],
+              "groups": [ "admins" ]              
             }
           ],
           "clients": [
@@ -146,6 +136,22 @@ keycloak:
                 "configure": false,
                 "manage": true
               }
+              "protocolMappers": [
+                {
+                  "name": "groups",
+                  "protocol": "openid-connect",
+                  "protocolMapper": "oidc-usermodel-groups-mapper",
+                  "consentRequired": false,
+                  "config": {
+                    "full.path": "false",
+                    "id.token.claim": "true",
+                    "access.token.claim": "true",
+                    "userinfo.token.claim": "true",
+                    "claim.name": "groups",
+                    "jsonType.label": "String"
+                  }
+                }
+              ]
             }
           ]
         }         
