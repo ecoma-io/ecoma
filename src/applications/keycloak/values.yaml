@@ -111,11 +111,7 @@ keycloak:
             }
           ],              
           "clients": [
-            {
-              "clientId": "argo-cd",
-              "name": "ArgoCD Client",
-              "enabled": true              
-            }
+            
           ]            
         }     
     extraEnvVars:
