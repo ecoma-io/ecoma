@@ -35,24 +35,25 @@ configs:
           return hs
     # -- Timeout for reconciliation
     timeout.reconciliation: 15s
-    dex.config: |
-      connectors:
-      - type: oidc
-        id: keycloak
-        name: Keycloak
-        config:
-          issuer: https://accounts.ecoma.io/realms/master
-          clientID: argo-cd
-          clientSecret: test-secret         
-          claimMapping:
-            groups: groups
-            name: email
-            
+    oidc.config: |
+      name: Keycloak
+      issuer: https://accounts.ecoma.io/realms/master
+      clientID: argo-cd
+      clientSecret: test-secret  
+      redirectURI: https://accounts.ecoma.io/auth/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      claimMapping:
+        groups: groups
+   
   params:
     server.insecure: true
 
   rbac:  
-    scopes: '[email groups]'
+    scopes: '[groups]'
     policy.default: role:none
     policy.csv: |
       p, role:readonly, applications, get, */*, allow
@@ -79,8 +80,10 @@ configs:
       name: ecoma
       url: https://github.com/ecoma-io/infrastructure.git      
       type: git
+
+
 dex:
-  enabled: true
+  enabled: false
 
 server:
   certificate:
