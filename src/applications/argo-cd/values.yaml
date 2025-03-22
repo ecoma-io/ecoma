@@ -44,13 +44,6 @@ configs:
           issuer: https://accounts.ecoma.io/realms/master
           clientID: argo-cd
           clientSecret: test-secret
-          scopes:
-            - openid
-            - profile
-            - email
-            - groups
-          claimMapping:
-            groups: groups
             
   params:
     server.insecure: true
