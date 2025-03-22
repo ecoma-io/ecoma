@@ -51,7 +51,6 @@ keycloak:
   proxy: edge
   keycloakConfigCli:
     enabled: true
-    backoffLimit: 3
     cleanupAfterFinished:
       enabled: true
       seconds: 60
