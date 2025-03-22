@@ -37,20 +37,20 @@ configs:
     timeout.reconciliation: 15s
     dex.config: |
       connectors:
-      - type: github
-        id: github
-        name: GitHub
+      - type: oidc
+        id: keycloak
+        name: Keycloak
         config:
-          clientID: $dex-secret:clientID
-          clientSecret: $dex-secret:clientSecret
-          redirectURI: https://argocd.ecoma.io/auth/callback
-        orgs:
-        - name: ecoma-io
-          teams:
-            - admin
-            - devops            
-            - developers
-
+          issuer: https://accounts.ecoma.io/realms/master
+          clientID: argo-cd
+          clientSecret: test-secret
+          scopes:
+            - openid
+            - profile
+            - email
+            - groups
+          claimMapping:
+            groups: groups
             
   params:
     server.insecure: true

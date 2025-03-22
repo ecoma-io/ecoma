@@ -134,7 +134,7 @@ keycloak:
               "clientAuthenticatorType": "client-secret",
               "secret": "$(env:ARGOCD_CLIENT_SECRET)",
               "redirectUris": [
-                "https://argocd.ecoma.io/callback"
+                "https://argocd.ecoma.io/api/dex/callback"
               ],
               "webOrigins": [
                 "https:///argocd.ecoma.io"
