@@ -118,6 +118,7 @@ keycloak:
               "username": "john.itvn@gmail.com",
               "email": "john.itvn@gmail.com",
               "enabled": true,
+              "emailVerified": true,
               "realmRoles": [
                 "admin"
               ],

@@ -44,12 +44,17 @@ configs:
           issuer: https://accounts.ecoma.io/realms/master
           clientID: argo-cd
           clientSecret: test-secret
+          scopes:
+            - email
+            - groups
+          claimMapping:
+            groups: groups
             
   params:
     server.insecure: true
 
   rbac:  
-    scopes: '[openid email groups]'
+    scopes: '[email groups]'
     policy.default: role:none
     policy.csv: |
       p, role:readonly, applications, get, */*, allow
