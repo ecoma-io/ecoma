@@ -135,7 +135,7 @@ keycloak:
                 "view": true,
                 "configure": false,
                 "manage": true
-              }
+              },
               "protocolMappers": [
                 {
                   "name": "groups",
