@@ -40,7 +40,7 @@ configs:
       issuer: https://accounts.ecoma.io/realms/master
       clientID: argo-cd
       clientSecret: test-secret  
-      redirectURI: https://accounts.ecoma.io/auth/callback
+      redirectURI: https://argocd.ecoma.io/auth/callback
       scopes:
         - openid
         - profile
