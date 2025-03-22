@@ -42,9 +42,10 @@ configs:
       clientSecret: test-secret  
       redirectURI: https://argocd.ecoma.io/auth/callback
       scopes:
+        - openid
+        - profile
         - email       
-      claimMapping:
-        groups: groups
+
    
   params:
     server.insecure: true
