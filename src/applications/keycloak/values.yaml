@@ -49,6 +49,9 @@ keycloak:
       memory: 768Mi
   adminRealm: master
   proxy: edge
+  logging: #FATAL, ERROR, WARN, INFO, DEBUG, TRACE, ALL, OFF
+    output: default
+    level: DEBUG
   keycloakConfigCli:
     enabled: true
     cleanupAfterFinished:
