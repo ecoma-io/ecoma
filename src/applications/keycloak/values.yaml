@@ -113,7 +113,27 @@ keycloak:
               "groups": [ "admins" ]
             }
           ],              
-          "clients": []            
+          "clients": [
+            {
+                "clientId": "argo-cd",
+                "name": "ArgoCD Client",
+                "enabled": true,
+                "clientAuthenticatorType": "client-secret",
+                "secret": "$(env:ARGOCD_CLIENT_SECRET)",  // Gán thông qua secret trong môi trường
+                "redirectUris": [
+                  "https://your-argocd-url.com/callback"  // Cấu hình URL callback cho ArgoCD
+                ],
+                "webOrigins": [
+                  "https://your-argocd-url.com"
+                ],
+                "protocol": "openid-connect",  // Protocol cho OIDC
+                "access": {
+                  "view": true,
+                  "configure": false,
+                  "manage": true
+                }
+              }
+          ]            
         }     
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
