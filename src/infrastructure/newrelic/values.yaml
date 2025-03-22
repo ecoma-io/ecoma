@@ -144,12 +144,13 @@ newrelic:
       common:        
         scrape_interval: 60s 
     resources:
-      limits:
-        cpu: 75m
-        memory: 96Mi
-      requests:
-        cpu: 50m
-        memory: 64Mi
+      prometheus:
+        limits:
+          cpu: 75m
+          memory: 96Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     
 
   newrelic-eapm-agent:
