@@ -61,6 +61,11 @@ keycloak:
           "realm": "master",  
           "enabled": true,      
           "displayName": "Ecoma",  
+          "registrationAllowed": true,
+          "registrationEmailAsUsername": true,
+          "verifyEmail": true,
+          "resetPasswordAllowed": true,
+          "rememberMe": true,
           "defaultRoles": [ "offline_access", "uma_authorization" ],  
           "groups": [
             { "name": "admins" },            
