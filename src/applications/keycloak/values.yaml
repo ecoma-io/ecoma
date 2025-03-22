@@ -51,7 +51,6 @@ keycloak:
   proxy: edge
   keycloakConfigCli:
     enabled: true
-    backoffLimit: 3
     cleanupAfterFinished:
       enabled: true
       seconds: 60
@@ -115,21 +114,7 @@ keycloak:
             {
               "clientId": "argo-cd",
               "name": "ArgoCD Client",
-              "enabled": true,
-              "clientAuthenticatorType": "client-secret",
-              "secret": "test-secret", 
-              "redirectUris": [
-                "https://argocd.ecoma.io/auth/callback"  
-              ],
-              "webOrigins": [
-                "https://argocd.ecoma.io"
-              ],
-              "protocol": "openid-connect", 
-              "access": {
-                "view": true,
-                "configure": false,
-                "manage": true
-              }
+              "enabled": true              
             }
           ]            
         }     
