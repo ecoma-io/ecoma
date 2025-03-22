@@ -41,8 +41,9 @@ configs:
         id: github
         name: GitHub
         config:
-          clientID: $dex-secret:clientID
-          clientSecret: $dex-secret:clientSecret
+          issuer: https://accounts.ecoma.io/realms/master
+          clientID: argo-cd
+          clientSecret: test-secret
           redirectURI: https://argocd.ecoma.io/auth/callback
         orgs:
         - name: ecoma-io
@@ -56,8 +57,8 @@ configs:
     server.insecure: true
 
   rbac:  
-    scopes: '[email, profile, filteredgroups]'
-    policy.default: role:admin
+    scopes: '[openid email groups]'
+    policy.default: role:none
     policy.csv: |
       p, role:readonly, applications, get, */*, allow
       p, role:readonly, logs, get, */*, allow
@@ -75,9 +76,9 @@ configs:
       p, role:admin, repositories, get, *, allow
       p, role:admin, certificates, get, *, allow
 
+      g, ecoma-io:developers, role:readonly
       g, ecoma-io:admin, role:admin
       g, ecoma-io:devops, role:admin
-      g, ecoma-io:developers, role:readonly
 
   repositories:
     ecoma:
