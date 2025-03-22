@@ -51,7 +51,7 @@ configs:
     server.insecure: true
 
   rbac:  
-    scopes: '[groups]'
+    # scopes: '[groups]'
     policy.default: role:none
     # policy.csv: |
     #   p, role:readonly, applications, get, */*, allow
