@@ -37,32 +37,30 @@ configs:
     timeout.reconciliation: 15s
     dex.config: |
       connectors:
-      - type: oidc
-        id: keycloak
-        name: Keycloak
+      - type: github
+        id: github
+        name: GitHub
         config:
-          issuer: https://accounts.ecoma.io/realms/master
-          clientID: argo-cd
-          clientSecret: test-secret
+          clientID: $dex-secret:clientID
+          clientSecret: $dex-secret:clientSecret
           redirectURI: https://argocd.ecoma.io/auth/callback
-          scopes:
-            - openid
-            - profile
-            - email
-            - groups
-          claimMapping:
-            groups: groups
+        orgs:
+        - name: ecoma-io
+          teams:
+            - admin
+            - devops            
+            - developers
+
             
   params:
     server.insecure: true
 
   rbac:  
-    scopes: '[groups]'
+    scopes: '[openid email groups]'
     policy.default: role:none
     policy.csv: |
       p, role:readonly, applications, get, */*, allow
       p, role:readonly, logs, get, */*, allow
-      p, role:readonly, applications, action/apps/Deployment/restart, */*, allow
 
       p, role:admin, applications, get, */*, allow
       p, role:admin, applications, update, */*, allow
