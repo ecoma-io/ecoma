@@ -107,34 +107,7 @@ keycloak:
               }
             }
           ],
-          "clientScopes": {
-            "default": [
-              {
-                "name": "groups",
-                "protocol": "openid-connect",
-                "attributes": {
-                  "include.in.token.scope": "true",
-                  "display.on.consent.screen": "false"
-                },
-                "protocolMappers": [
-                  {
-                    "name": "groups",
-                    "protocol": "openid-connect",
-                    "protocolMapper": "oidc-usermodel-groups-mapper",
-                    "consentRequired": false,
-                    "config": {
-                      "full.path": "false",
-                      "id.token.claim": "true",
-                      "access.token.claim": "true",
-                      "userinfo.token.claim": "true",
-                      "claim.name": "groups",
-                      "jsonType.label": "String"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
+          
           "users": [
             {
               "username": "john.itvn@gmail.com",
