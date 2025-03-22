@@ -61,7 +61,7 @@ keycloak:
           "realm": "master",  
           "enabled": true,      
           "displayName": "Ecoma",  
-          "defaultRoles": [ "offline_access", "uma_authorization" ]  
+          "defaultRoles": [ "offline_access", "uma_authorization" ],  
           "groups": [
             { "name": "admins" },            
             { "name": "operators" },
