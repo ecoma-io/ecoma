@@ -110,27 +110,7 @@ keycloak:
               "groups": [ "admins" ]
             }
           ],              
-          "clients": [
-            {
-              "clientId": "argo-cd",
-              "name": "ArgoCD Client",
-              "enabled": true,
-              "clientAuthenticatorType": "client-secret",
-              "secret": "test-secret", 
-              "redirectUris": [
-                "https://argocd.ecoma.io/auth/callback"  
-              ],
-              "webOrigins": [
-                "https://argocd.ecoma.io"
-              ],
-              "protocol": "openid-connect", 
-              "access": {
-                "view": true,
-                "configure": false,
-                "manage": true
-              }
-            }
-          ]            
+          "clients": []            
         }     
     extraEnvVars:
       - name: IMPORT_VARSUBSTITUTION_ENABLED
