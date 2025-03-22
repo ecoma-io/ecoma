@@ -45,10 +45,13 @@ configs:
           clientID: argo-cd
           clientSecret: test-secret
           scopes:
+            - openid
+            - profile
             - email
             - groups
           claimMapping:
             groups: groups
+            name: email
             
   params:
     server.insecure: true
