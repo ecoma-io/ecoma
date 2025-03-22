@@ -60,21 +60,30 @@ keycloak:
     configuration: 
       master.json: |
         {
-          "realm": "master",  
-          "enabled": true,      
-          "displayName": "Ecoma",  
+          "realm": "master",
+          "enabled": true,
+          "displayName": "Ecoma",
           "registrationAllowed": true,
           "registrationEmailAsUsername": true,
           "verifyEmail": true,
           "resetPasswordAllowed": true,
           "rememberMe": true,
-          "defaultRoles": [ "offline_access", "uma_authorization" ],  
-          "groups": [
-            { "name": "admins" },            
-            { "name": "operators" },
-            { "name": "developers" }
+          "defaultRoles": [
+            "offline_access",
+            "uma_authorization"
           ],
-          "identityProviders": [           
+          "groups": [
+            {
+              "name": "admins"
+            },
+            {
+              "name": "operators"
+            },
+            {
+              "name": "developers"
+            }
+          ],
+          "identityProviders": [
             {
               "alias": "github",
               "providerId": "github",
@@ -84,8 +93,8 @@ keycloak:
               "config": {
                 "syncMode": "IMPORT",
                 "clientId": "$(env:GITHUB_CLIENT_ID)",
-                "clientSecret": "$(env:GITHUB_CLIENT_SECRET)",    
-                "defaultScope": "openid email profile", 
+                "clientSecret": "$(env:GITHUB_CLIENT_SECRET)",
+                "defaultScope": "openid email profile",
                 "prompt": "none"
               }
             },
@@ -98,43 +107,47 @@ keycloak:
               "config": {
                 "syncMode": "IMPORT",
                 "clientId": "$(env:GOOGLE_CLIENT_ID)",
-                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)",                
-                "defaultScope": "openid email profile",                                          
+                "clientSecret": "$(env:GOOGLE_CLIENT_SECRET)",
+                "defaultScope": "openid email profile",
                 "prompt": "none"
               }
-            }      
-          ],    
+            }
+          ],
           "users": [
             {
               "username": "john.itvn@gmail.com",
               "email": "john.itvn@gmail.com",
               "enabled": true,
-              "realmRoles": [ "admin" ],
-              "groups": [ "admins" ]
+              "realmRoles": [
+                "admin"
+              ],
+              "groups": [
+                "admins"
+              ]
             }
-          ],              
+          ],
           "clients": [
-          {
+            {
               "clientId": "argo-cd",
               "name": "ArgoCD Client",
               "enabled": true,
               "clientAuthenticatorType": "client-secret",
-              "secret": "$(env:ARGOCD_CLIENT_SECRET)",  // Gán thông qua secret trong môi trường
+              "secret": "$(env:ARGOCD_CLIENT_SECRET)",
               "redirectUris": [
-                "https://your-argocd-url.com/callback"  // Cấu hình URL callback cho ArgoCD
+                "https://argocd.ecoma.io/callback"
               ],
               "webOrigins": [
-                "https://your-argocd-url.com"
+                "https:///argocd.ecoma.io"
               ],
-              "protocol": "openid-connect",  // Protocol cho OIDC
+              "protocol": "openid-connect",
               "access": {
                 "view": true,
                 "configure": false,
                 "manage": true
               }
             }
-          ]            
-        }     
+          ]
+        }         
     extraEnvVars:
       - name: ARGOCD_CLIENT_SECRET
         value: test-secret 
