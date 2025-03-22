@@ -52,25 +52,25 @@ configs:
   rbac:  
     scopes: '[groups]'
     policy.default: role:none
-    policy.csv: |
-      p, role:readonly, applications, get, */*, allow
-      p, role:readonly, logs, get, */*, allow
+    # policy.csv: |
+    #   p, role:readonly, applications, get, */*, allow
+    #   p, role:readonly, logs, get, */*, allow
 
-      p, role:admin, applications, get, */*, allow
-      p, role:admin, applications, update, */*, allow
-      p, role:admin, applications, delete, */*, allow
-      p, role:admin, applications, sync, */*, allow
-      p, role:admin, applications, override, */*, allow
-      p, role:admin, applications, action/*, */*, allow
-      p, role:admin, logs, get, */*, allow
-      p, role:admin, clusters, get, *, allow
-      p, role:admin, projects, get, *, allow
-      p, role:admin, repositories, get, *, allow
-      p, role:admin, certificates, get, *, allow
+    #   p, role:admin, applications, get, */*, allow
+    #   p, role:admin, applications, update, */*, allow
+    #   p, role:admin, applications, delete, */*, allow
+    #   p, role:admin, applications, sync, */*, allow
+    #   p, role:admin, applications, override, */*, allow
+    #   p, role:admin, applications, action/*, */*, allow
+    #   p, role:admin, logs, get, */*, allow
+    #   p, role:admin, clusters, get, *, allow
+    #   p, role:admin, projects, get, *, allow
+    #   p, role:admin, repositories, get, *, allow
+    #   p, role:admin, certificates, get, *, allow
 
-      g, ecoma-io:developers, role:readonly
-      g, ecoma-io:admin, role:admin
-      g, ecoma-io:devops, role:admin
+    #   g, ecoma-io:developers, role:readonly
+    #   g, ecoma-io:admin, role:admin
+    #   g, ecoma-io:devops, role:admin
 
   repositories:
     ecoma:
