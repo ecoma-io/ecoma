@@ -1,0 +1,3 @@
+# Ecoma
+
+Ecoma là **Digital Business Operating System** (Hệ điều hành Doanh nghiệp số) dành cho thương mại điện tử — nền tảng hợp nhất toàn bộ luồng dữ liệu doanh nghiệp (CRM, HRM, Accounting, Sales) trên một hệ thống duy nhất. Sứ mệnh của Ecoma là dân chủ hóa công nghệ quản trị, trao quyền cho mọi quy mô tổ chức — từ cá nhân kinh doanh đến tập đoàn lớn — thông qua tự động hóa và AI mà không có rào cản về công nghệ hay chi phí ban đầu.Dự án này được phát triển dự trên 3 phương pháp luận trụ cột: Domain Drivent Development, Agentic Driven Development và Continuous Adaptation Software Development. Repo này là monorepo chứa mọi thứ liên quan đến ecoma là "Single of Truth"

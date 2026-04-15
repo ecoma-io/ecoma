@@ -1,0 +1,31 @@
+# Enforce LF endings for text files
+* text=auto eol=lf
+
+# Explicitly force LF for common text files
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+
+# Binary files (do not attempt to normalize)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.pdf binary
+*.jar binary
+*.exe binary
+
+# Add exceptions if you need CRLF in specific files:
+# *.sln text eol=crlf

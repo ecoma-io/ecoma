@@ -1,0 +1,50 @@
+# GitHub Environment Configuration for Production
+# This file documents the required environment configuration
+# Actual configuration must be done via GitHub UI: Settings > Environments
+
+name: production
+url: https://ecoma.io
+
+# Protection rules (configure in GitHub UI)
+protection_rules:
+  required_reviewers:
+    count: 1
+    teams:
+      - platform
+      - security
+  
+  wait_timer: 0  # No wait timer, manual approval only
+  
+  prevent_self_review: true
+  
+  deployment_branches:
+    - main
+
+# Environment secrets (configure in GitHub UI)
+secrets:
+  - name: ARGOCD_TOKEN
+    description: ArgoCD API token for deployment verification
+  
+  - name: SLACK_WEBHOOK_URL
+    description: Slack webhook for deployment notifications
+
+# Environment variables
+variables:
+  - name: ENVIRONMENT
+    value: production
+  
+  - name: ARGOCD_SERVER
+    value: argocd.ecoma.io
+  
+  - name: GRAFANA_URL
+    value: https://grafana.ecoma.io
+
+# Deployment protection rules
+deployment_protection:
+  # Require approval from platform team
+  required_reviewers: true
+  
+  # Prevent deployments outside business hours (optional)
+  # allowed_hours: "09:00-18:00"
+  # allowed_days: "Mon-Fri"
+  # timezone: "Asia/Ho_Chi_Minh"

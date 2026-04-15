@@ -1,0 +1,45 @@
+{
+  "id": "shell",
+  "name": "Zsh with Oh My Zsh and Powerlevel10k",
+  "description": "Setup Zsh shell with Oh My Zsh, custom plugins, and Powerlevel10k theme",
+  "options": {
+    "preInstalledPlugins": {
+      "type": "string",
+      "default": "git",
+      "description": "Pre-installed Oh My Zsh plugins to activate (e.g. 'git,git-auto-fetch')"
+    },
+    "customPlugins": {
+      "type": "string",
+      "default": "",
+      "description": "Custom plugins to install: 'plugin-name1:url1,plugin-name2:url2' - supports .git and .zip URLs"
+    },
+    "deleteInactivePlugins": {
+      "type": "boolean",
+      "default": false,
+      "description": "Remove unactivated plugins"
+    },
+    "powerlevel10kVersion": {
+      "type": "string",
+      "default": "latest",
+      "description": "Powerlevel10k version to install"
+    },
+    "powerlevel10kConfig": {
+      "type": "string",
+      "default": "",
+      "description": "URL to download Powerlevel10k configuration file"
+    },
+    "deletePreinstalledThemes": {
+      "type": "boolean",
+      "default": false,
+      "description": "Remove pre-installed themes before installing Powerlevel10k"
+    },
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable debug logging"
+    }
+  },
+  "dependsOn": {
+    "ghcr.io/devcontainers/features/common-utils": {}
+  }
+}

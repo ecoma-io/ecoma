@@ -1,0 +1,51 @@
+# GitHub Environment Configuration for Production Canary
+# This file documents the required environment configuration
+# Actual configuration must be done via GitHub UI: Settings > Environments
+
+name: production-canary
+url: https://ecoma.io
+
+# Protection rules (configure in GitHub UI)
+protection_rules:
+  required_reviewers:
+    count: 2  # Require 2 approvals for canary
+    teams:
+      - platform
+      - sre
+  
+  wait_timer: 0
+  
+  prevent_self_review: true
+  
+  deployment_branches:
+    - main
+
+# Environment secrets (configure in GitHub UI)
+secrets:
+  - name: ARGOCD_TOKEN
+    description: ArgoCD API token for deployment verification
+  
+  - name: SLACK_WEBHOOK_URL
+    description: Slack webhook for deployment notifications
+
+# Environment variables
+variables:
+  - name: ENVIRONMENT
+    value: production-canary
+  
+  - name: ARGOCD_SERVER
+    value: argocd.ecoma.io
+  
+  - name: GRAFANA_URL
+    value: https://grafana.ecoma.io
+  
+  - name: MAX_CANARY_WEIGHT
+    value: "20"  # Maximum 20% traffic for canary
+
+# Deployment protection rules
+deployment_protection:
+  # Require approval from 2 platform/SRE members
+  required_reviewers: true
+  
+  # Canary deployments should be carefully monitored
+  # Consider restricting to business hours only

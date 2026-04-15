@@ -1,0 +1,63 @@
+{
+  "name": "Ecoma Devcontainer",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "runArgs": ["--name=ecoma-devcontainer", "--network=host", "--privileged"],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "containerEnv": {
+    "NX_DAEMON": "true"
+  },
+  "features": {
+    "./shell": {
+      "preInstalledPlugins": "git,git-auto-fetch",
+      "customPlugins": "zsh-syntax-highlighting:https://github.com/zsh-users/zsh-syntax-highlighting.git,you-should-use:https://github.com/MichaelAquilina/zsh-you-should-use.git,zsh-autosuggestions:https://github.com/zsh-users/zsh-autosuggestions/archive/refs/tags/v0.7.1.zip",
+      "deleteInactivePlugins": true,
+      "powerlevel10kVersion": "latest",
+      "deletePreinstalledThemes": true
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts",
+      "pnpmVersion": "10.32.1"
+    },
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.26"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.14"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-python.python",
+        "golang.go",
+        "nrwl.angular-console",
+        "Vue.volar"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "python.defaultInterpreterPath": "/usr/local/python/current/bin/python",
+        "mcp": {
+          "servers": {
+            "github": {
+              "type": "http",
+              "url": "https://api.githubcopilot.com/mcp/"
+            },
+            "sequential-thinking": {
+              "command": "npx",
+              "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+            },
+            "playwright": {
+              "command": "npx",
+              "args": ["@playwright/mcp@latest", "--output-dir", "tmp/playwright-mcp"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "analytics": false,
+  "tui": {
+    "enabled": false
+  },
+  "neverConnectToCloud": true,
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/.eslintrc.json",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
+      "!{projectRoot}/tsconfig.spec.json"
+    ],
+    "sharedGlobals": []
+  },
+  "targetDefaults": {
+    "docker:build": {
+      "dependsOn": ["build"]
+    }
+  },
+  "plugins": [
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    },
+    {
+      "plugin": "@nx/vitest",
+      "options": {
+        "testTargetName": "test",
+        "ciTargetName": "test-ci",
+        "testMode": "watch"
+      }
+    },
+    {
+      "plugin": "@nxlv/python"
+    },
+    {
+      "plugin": "@nx/docker",
+      "options": {
+        "runTarget": "docker:run",
+        "buildTarget": {
+          "name": "docker:build",
+          "args": [
+            "--build-arg",
+            "BUILD_DATE={currentDate}",
+            "--label",
+            "org.opencontainers.image.title={projectName}",
+            "--label",
+            "org.opencontainers.image.revision={commitSha}",
+            "--label",
+            "org.opencontainers.image.created={currentDate}",
+            "--tag",
+            "{imageRef}:{shortCommitSha}"
+          ],
+          "cwd": "{projectRoot}",
+          "env": {
+            "DOCKER_BUILDKIT": "1"
+          }
+        }
+      }
+    }
+  ],
+  "sync": {
+    "globalGenerators": ["@nxlv/python:pkg-sync"]
+  },
+  "release": {
+    "projectsRelationship": "independent",
+    "groups": {
+      "apps": {
+        "projects": ["apps/*"],
+        "releaseTagPattern": "{projectName}@{version}",
+        "version": {
+          "conventionalCommits": true
+        },
+        "changelog": {
+          "createRelease": false
+        },
+        "docker": {
+          "registryUrl": "ghcr.io",
+          "versionSchemes": {
+            "production": "{currentDate|YYMM.DD}.{env.BUILD_NUMBER}",
+            "staging": "{currentDate|YYMM.DD}-staging.{shortCommitSha}",
+            "ci": "{env.BUILD_NUMBER}-{shortCommitSha}"
+          }
+        }
+      },
+      "packages": {
+        "projects": ["packages/*"],
+        "releaseTagPattern": "{projectName}@{version}",
+        "version": {
+          "conventionalCommits": true
+        },
+        "changelog": {
+          "createRelease": "github"
+        }
+      }
+    }
+  }
+}

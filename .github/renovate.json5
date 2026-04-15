@@ -1,0 +1,124 @@
+{
+  // Renovate configuration for automated dependency updates
+  // https://docs.renovatebot.com/configuration-options/
+  
+  extends: [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    "group:monorepos",
+    "group:recommended",
+    "workarounds:all"
+  ],
+  
+  timezone: "Asia/Ho_Chi_Minh",
+  schedule: ["before 3am on Monday"],
+  labels: ["dependencies", "renovate"],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  stabilityDays: 3,
+  
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["security"],
+    stabilityDays: 0,
+    schedule: ["at any time"]
+  },
+  
+  packageRules: [
+    {
+      description: "Automerge non-major updates",
+      matchUpdateTypes: ["minor", "patch", "pin", "digest"],
+      automerge: true,
+      automergeType: "pr",
+      automergeStrategy: "squash",
+      platformAutomerge: true,
+      minimumReleaseAge: "3 days"
+    },
+    {
+      description: "Require approval for major updates",
+      matchUpdateTypes: ["major"],
+      automerge: false,
+      labels: ["dependencies", "major-update"]
+    },
+    {
+      description: "Group all non-major dependencies",
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "all non-major dependencies",
+      groupSlug: "all-minor-patch"
+    },
+    {
+      description: "Docker images - check daily",
+      matchDatasources: ["docker"],
+      schedule: ["after 2am every day"],
+      automerge: false,
+      labels: ["docker", "dependencies"]
+    },
+    {
+      description: "GitHub Actions - automerge",
+      matchManagers: ["github-actions"],
+      automerge: true,
+      automergeType: "pr",
+      minimumReleaseAge: "3 days"
+    },
+    {
+      description: "Kubernetes manifests",
+      matchFileNames: ["deploy/**/*.yaml"],
+      automerge: false,
+      labels: ["kubernetes", "dependencies"]
+    },
+    {
+      description: "Critical security updates - immediate",
+      matchDatasources: ["npm"],
+      matchUpdateTypes: ["patch"],
+      vulnerabilitySeverity: ["critical", "high"],
+      automerge: true,
+      automergeType: "pr",
+      minimumReleaseAge: "0 days",
+      schedule: ["at any time"],
+      labels: ["security", "critical"]
+    },
+    {
+      description: "Nx monorepo - group together",
+      matchPackagePatterns: ["^@nx/", "^nx$"],
+      groupName: "Nx monorepo",
+      automerge: false,
+      labels: ["nx", "dependencies"]
+    },
+    {
+      description: "React ecosystem - group together",
+      matchPackagePatterns: ["^react", "^@types/react"],
+      groupName: "React ecosystem",
+      automerge: false
+    },
+    {
+      description: "Testing libraries - group together",
+      matchPackagePatterns: ["^@testing-library/", "^vitest", "^@vitest/", "^playwright"],
+      groupName: "Testing libraries",
+      automerge: true,
+      minimumReleaseAge: "3 days"
+    },
+    {
+      description: "ESLint and Prettier - group together",
+      matchPackagePatterns: ["^eslint", "^@typescript-eslint/", "^prettier"],
+      groupName: "Linting and formatting",
+      automerge: true,
+      minimumReleaseAge: "3 days"
+    }
+  ],
+  
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 3am on the first day of the month"],
+    automerge: true,
+    automergeType: "pr"
+  },
+  
+  dependencyDashboard: true,
+  dependencyDashboardTitle: "🤖 Dependency Updates Dashboard",
+  commitMessagePrefix: "chore(deps):",
+  commitMessageAction: "update",
+  commitMessageTopic: "{{depName}}",
+  commitMessageExtra: "to {{newVersion}}"
+}
