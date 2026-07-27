@@ -1,0 +1,64 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TooltipStories from "./Tooltip.stories";
+
+<Meta of={TooltipStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Tooltip
+
+Gợi ý ngắn, **không tương tác**, hiện khi hover/focus vào trigger — nhãn cho nút chỉ-icon, một lời
+giải thích cô đọng. Reka UI mở bằng chuột và cả focus bàn phím, đóng bằng Esc/blur, và nối làm
+`aria-describedby`. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Tooltip, Button } from "@ecoma-io/ui";
+```
+
+```vue
+<Tooltip content="Cắt clip tại playhead (S)">
+  <template #trigger>
+    <Button variant="subtle" size="icon" aria-label="Cắt clip">
+      <Scissors class="h-4 w-4" />
+    </Button>
+  </template>
+</Tooltip>
+```
+
+<Canvas of={TooltipStories.Demo} />
+
+## Quy tắc accessible name
+
+Tooltip **bổ sung** mô tả, **không** thay thế accessible name. Nút chỉ-icon vẫn **bắt buộc** có
+`aria-label` của riêng nó — nếu chỉ dựa vào tooltip, người dùng bàn phím/đọc màn hình có thể mất nhãn.
+
+## Chọn đúng overlay
+
+| Dùng           | Khi                                           |
+| -------------- | --------------------------------------------- |
+| `Tooltip`      | gợi ý **không tương tác** khi hover/focus     |
+| `Popover`      | nội dung **tương tác** người dùng chủ động mở |
+| `DropdownMenu` | danh sách **lệnh**                            |
+
+## Cơ chế
+
+- Nội dung qua prop `content` hoặc default slot.
+- `side`/`sideOffset` chỉnh vị trí; `delay` là độ trễ hover (focus bàn phím hiện ngay).
+- `open` hỗ trợ `v-model:open` khi cần điều khiển thủ công.
+- `TooltipProvider` đã bọc sẵn để một Tooltip lẻ chạy ngay; app nhiều tooltip có thể nâng một
+  provider chung lên cao hơn sau.
+- Motion: `animate-scale-in` **mọc ra từ điểm neo** (popper origin), **chỉ** ở lần mở có độ trễ hover
+  (`delayed-open`); focus bàn phím hiện tức thì. Xem ghi chú Presence ở `Select`/`Popover`.
+
+## Props
+
+<ArgTypes of={TooltipStories} />
+
+## Do / Don't
+
+- ✅ Dùng cho nhãn nút icon, giải thích ngắn.
+- ✅ Giữ nút icon vẫn có `aria-label` riêng.
+- ❌ Đừng đặt link/nút/nội dung bấm được vào tooltip — dùng `Popover`.
+- ❌ Đừng viết cả đoạn dài; tooltip là câu ngắn.
+
+</div>

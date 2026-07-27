@@ -1,0 +1,32 @@
+{
+  "name": "design-system-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "shared/apps/design-system-e2e/src",
+  "tags": ["type:e2e", "scope:shared"],
+  "implicitDependencies": ["design-system", "core-ui", "dev-cli"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "tsc --noEmit"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers . && node ../../../shared/tools/dev-cli/src/main.mjs check-e2e-story-coverage ../../libs/core-ui/src"
+      }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "dependsOn": [{ "projects": ["design-system"], "target": "build" }],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node ../../../shared/tools/dev-cli/src/main.mjs run-e2e"
+      }
+    }
+  }
+}

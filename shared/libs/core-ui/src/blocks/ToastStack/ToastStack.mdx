@@ -1,0 +1,55 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ToastStackStories from "./ToastStack.stories";
+
+<Meta of={ToastStackStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# ToastStack
+
+Render **hàng đợi toast của host** qua **một** provider/viewport chung — nhiều toast đồng thời
+xếp chồng dọc có gap, thay vì mỗi `Toast` tự mang viewport riêng và đè lên nhau ở cùng một góc.
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { ToastStack, type ToastStackItem } from "@ecoma-io/ui";
+```
+
+<Canvas of={ToastStackStories.Demo} />
+
+## Hàng đợi vẫn thuộc về host
+
+`Toast` cố ý không chứa queue (doc header của nó) — block này cũng vậy. Host giữ mảng entry
+(ví dụ một `toast.ts` phía host: capped, oldest-drop-first), truyền vào `items`, và xoá entry
+khi `dismiss` bắn — đóng tay, swipe, Esc hay auto-dismiss đều đi qua cùng một đường. ToastStack
+chỉ sở hữu phần trình bày viewport-chung.
+
+## Hình học viewport — viết cho cả hai đầu dải
+
+Viewport chung được đo cho đúng hai đầu mà nó thật sự rơi vào:
+
+- **Bề rộng `min(92vw, 24rem)`** — điện thoại nhận một thẻ gần tràn viền, desktop nhận một thẻ có
+  trần.
+- **Đáy đi qua `env(safe-area-inset-bottom)`** — trên máy có home indicator, một `p-4` phẳng đặt
+  toast mới nhất, kèm nút đóng của nó, nằm dưới thanh cử chỉ hệ thống. Padding đáy vì thế là
+  `max(1rem, env(safe-area-inset-bottom))`.
+- **Chồng có trần chiều cao** (`max-h-dvh` + `overflow-hidden`) — host đưa nhiều entry hơn sức chứa
+  thì cái cũ nhất bị đẩy khỏi mép trên, thay vì mọc thành một cột cao hơn màn hình. `dvh` chứ không
+  phải `vh`: chrome của trình duyệt mobile co viewport thị giác lại và `vh` không đi theo.
+
+## Khi nào dùng gì
+
+| Dùng         | Khi                                                              |
+| ------------ | ---------------------------------------------------------------- |
+| `Toast`      | một thông báo đơn lẻ, tự quản `open` — provider/viewport tự chứa |
+| `ToastStack` | host có queue — nhiều toast có thể sống cùng lúc                 |
+
+## Props & events
+
+<ArgTypes of={ToastStackStories} />
+
+`ToastStackItem`: `id` · `title` · `description?` · `variant?` (`info` · `success` · `warning` ·
+`destructive` · `ai`) · `duration?` (mặc định 4000ms — stack luân chuyển nhanh hơn toast lẻ).
+Sự kiện `dismiss` mang `id` của entry cần gỡ.
+
+</div>

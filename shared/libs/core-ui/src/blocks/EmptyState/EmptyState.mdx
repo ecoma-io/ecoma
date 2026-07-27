@@ -1,0 +1,66 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as EmptyStateStories from "./EmptyState.stories";
+
+<Meta of={EmptyStateStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# EmptyState
+
+Khuôn chung cho **vùng rỗng**: icon → tiêu đề → mô tả (tuỳ chọn) → **tối đa một** CTA — hiện
+thực hoá quy tắc empty state của **Design System › Principles §6**. Import từ `@ecoma-io/ui`:
+
+```ts
+import { EmptyState } from "@ecoma-io/ui";
+```
+
+<Canvas of={EmptyStateStories.Demo} />
+
+## Rỗng là lời mời, không phải lỗi
+
+Một vùng rỗng phải **tự giải thích** (đây là gì, vì sao chưa có gì) và **mời bước tiếp theo**
+(một CTA duy nhất — nhiều CTA là một menu, không còn là empty state). Phân biệt ba tình huống
+dễ lẫn:
+
+- **Chưa có dữ liệu** (lần đầu, đã xoá hết) → `EmptyState` — giọng mời gọi, hướng hành động.
+- **Tải thất bại** → `InlineError` — đó là lỗi, đừng nguỵ trang thành "chưa có gì".
+- **Đang tải** → `Skeleton`/`Spinner` — đừng nháy `EmptyState` lên trước khi biết kết quả rỗng
+  thật (một empty state chớp qua rồi biến mất là một lời nói dối ngắn).
+
+## Vào cảnh — staggered fade-rise
+
+Bốn phần tử vào cảnh lần lượt cách nhau 60ms (icon → tiêu đề → mô tả → CTA), mỗi phần
+`animate-fade-rise`. Đây là **nội dung xuất hiện**, không phải feedback của một hành động, nên
+ngân sách tính theo làn panel (xem **Motion › Staggered reveal**) chứ không bị trần 200ms ràng
+buộc. Icon là trang trí (`aria-hidden`); tên/hành vi của CTA do host sở hữu qua slot `action`.
+
+## Huy hiệu icon — 20px trong một đĩa hairline
+
+Icon **không** đứng trần giữa vùng trống. Nó nằm trong một **đĩa hairline**: hình tròn 48px,
+nền `bg-subtle`, viền `border` một hairline — và bản thân glyph khoá ở **20px**, đúng bậc "nhấn
+mạnh / empty state" của **Design System › Iconography**. Một nét 20px đứng một mình giữa một vùng
+trắng lớn không có gì neo, nên nó đọc như một vết mực lạc; cái đĩa cho nó một hình để tựa mà không
+phải thêm shadow (**Elevation** — đĩa là bề mặt + hairline, không bao giờ là một khối nổi).
+`bg-subtle` chứ không phải `bg-card`, để đĩa vẫn thấy được cả khi block nằm trên `bg-card` lẫn
+`bg-background` — nó bị thả vào cả hai.
+
+Chữ lấy từ **thang tên** (`text-title` cho tiêu đề, `text-small` cho mô tả), không phải `text-sm`/
+`text-xs` chọn tay: **Design System › Typography** sở hữu các bậc, và vùng rỗng là một khoảnh khắc
+có tiêu đề, không phải một dòng chú thích.
+
+## Props & slots
+
+<ArgTypes of={EmptyStateStories} />
+
+Slot `icon` nhận một icon (đĩa tự khoá glyph ở 20px, màu `muted-foreground`); slot `action`
+nhận CTA — thường là một `Button variant="primary"` (vùng rỗng thường là nơi duy nhất trong
+khung có primary).
+
+## Do / Don't
+
+- ✅ Tiêu đề nói **cái gì chưa có**; mô tả nói **làm gì để có** — cụ thể, không sáo rỗng.
+- ✅ Một CTA duy nhất, và chỉ khi thật sự có hành động hợp lý tiếp theo.
+- ❌ Đừng dùng cho trạng thái lỗi hay đang tải (xem bảng phân biệt ở trên).
+- ❌ Đừng nhồi minh hoạ lớn/nhiều đoạn văn — vùng rỗng vẫn thuộc ngôn ngữ "silent surfaces".
+
+</div>

@@ -1,0 +1,47 @@
+name: PR doctrine review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Rapid pushes supersede each other's reviews — only the newest diff matters.
+concurrency:
+  group: pr-doctrine-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # Each model runs a multi-turn investigation (up to 4 completions on a
+    # slow free tier), so the ceiling budgets for several sequential calls;
+    # cancel-in-progress still supersedes stale runs on rapid pushes.
+    timeout-minutes: 20
+    steps:
+      # Check out the base ref, not the default PR merge commit: repo-care
+      # reads the PR diff via the GitHub API, so the checkout exists only to
+      # provide repo-care's own source — which must be the trusted base-branch
+      # version, never code the PR author can modify, because this job holds a
+      # pull-requests: write token (same-repo branches don't get GitHub's
+      # automatic fork-PR token downgrade).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Advisory only — this job's outcome must never gate a merge, so it is
+      # not part of the required CI workflow. repo-care runs on bare node
+      # (dependency-free by design): no pnpm install.
+      - name: Doctrine-review the pull request
+        run: node shared/tools/repo-care/src/main.mjs review-pr --pr "$PR"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}

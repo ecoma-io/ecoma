@@ -1,0 +1,162 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as ComponentsOverviewDemos from "./_demo/gallery.stories";
+
+<Meta title="Components/Overview" />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Components
+
+Thư viện component dựng trên hệ thiết kế **Alloy** (xem `Design/Introduction`) — dùng chung
+token màu/typography/motion/elevation và một theme mặc định duy nhất cho mọi sản phẩm trong hệ
+sinh thái Ecoma. Hai lớp:
+
+```
+tokens → PRIMITIVES → BLOCKS → features → layouts
+```
+
+- **primitive** = mảnh nhỏ nhất, không mang logic nghiệp vụ (Button, Badge, Surface, Menubar,
+  WindowControls…). Xây trên **shadcn-vue / Reka UI** khi cần a11y (menu, dialog, popover…), và
+  tạo mới khi cần chất riêng.
+- **block** = tổ hợp primitive có "hình hài sản phẩm" nhưng vẫn thuần trình bày (presentational)
+  — không ôm IPC, store hay i18n; phát sự kiện ra ngoài, host (app desktop) mới nối vào
+  runtime của shell / Pinia / `vue-i18n` (TitleBar).
+- **feature** = block + trạng thái/dữ liệu thật (AssetLibrary, TimelineTrack, ChatPanel…).
+- **layout** = ghép feature thành màn hình (EditorShell, Dashboard…).
+
+Đây là lát cắt đầu tiên để duyệt _gu thẩm mỹ_ và _ngôn ngữ micro-motion_ trước khi feature/layout
+dựng dần theo roadmap.
+
+## Primitives
+
+<Canvas of={ComponentsOverviewDemos.Primitives} />
+
+Mỗi primitive có trang riêng với variants, sizes, props và hướng dẫn dùng đầy đủ:
+
+- **Primitives › Button** — mã hoá "ngôn ngữ press" của Alloy: hover nâng bằng _fill_ (không
+  bóng), active **lún xuống** (`scale 0.97`), focus **nở halo thép** trên ring, loading quét
+  **shimmer** thay vì spinner chết.
+- **Primitives › Badge** — chip trạng thái/meta; biến thể `ai` mang màu đồng của lực lượng
+  agent, dùng nhất quán để báo hiệu việc agent làm khắp sản phẩm.
+- **Primitives › Surface** — panel/card. Elevation bằng **hairline** trên nền giấy sáng
+  (card trắng nổi hơn nền — xem `Design/Elevation`).
+- **Primitives › Menubar** — dải menu kiểu desktop (File · View · Help), data-driven, có bàn phím
+  a11y; nền tảng cho block **TitleBar**.
+- **Primitives › WindowControls** — cụm minimize · maximize · close cho cửa sổ frameless.
+- **Primitives › Switch** — toggle thiết lập boolean có hiệu lực tức thì; critical path 0.1
+  (`Settings › Chung › Telemetry`), dựng trên Reka UI.
+- **Primitives › Select** — chọn một trong danh sách đóng (ngôn ngữ en/vi…); critical path 0.1,
+  dựng trên Reka UI.
+- **Primitives › SegmentedControl** — 2–5 lựa chọn loại trừ thấy-hết-được (Sáng/Tối/Auto; mức mật độ
+  Simple/Studio); critical path 0.1.
+- **Primitives › NumberField** — nhập số có đơn vị, **kéo-chỉnh** được (toạ độ/kích thước/góc/frame); critical
+  path **0.2** (Inspector), dựng trên Reka UI.
+- **Primitives › Slider** — giá trị liên tục bị chặn (volume 0–1); critical path **0.2** (Inspector · Settings
+  media), dựng trên Reka UI.
+- **Primitives › InlineError** — hợp đồng lỗi thống nhất (A5): `text-destructive` +
+  `role="alert"`, persist-until-resolved (không tự ẩn theo timeout). Dùng cho mọi lỗi
+  field/section-level — vd trạng thái `missing` của `ProjectCard`, banner mở project thất bại
+  trên Dashboard; xem ranh giới dùng ở `Components/Primitives/InlineError`.
+
+**Nhập liệu (form).** Bộ primitive nhập liệu dùng chung cho mọi sản phẩm — gieo sẵn ở core-ui để
+các nhánh không tự chế lại (và đụng nhau) khi dựng UI song song:
+
+- **Primitives › TextField** — nhập văn bản một dòng (text · email · password · search…), có
+  `#leading`/`#trailing`, trạng thái `invalid` + `aria-invalid`. Số → `NumberField`, nhiều dòng →
+  `Textarea`.
+- **Primitives › Textarea** — nhập văn bản nhiều dòng; cùng ngôn ngữ viền/focus/lỗi với TextField.
+- **Primitives › Field** — hàng form chuẩn hoá: nhãn + control (slot) + hint + lỗi (`InlineError`);
+  hết tự dựng layout label/lỗi rời rạc.
+- **Primitives › Checkbox** — chọn boolean trong form (khác `Switch` — thiết lập có hiệu lực ngay);
+  hỗ trợ trạng thái `indeterminate`, dựng trên Reka UI.
+- **Primitives › RadioGroup** — danh sách lựa chọn loại trừ **theo chiều dọc** có nhãn/mô tả (khác
+  `SegmentedControl` — toggle ngang nén), dựng trên Reka UI.
+
+**Overlay.** Bề mặt nổi dựng trên Reka UI (portal + focus + Presence) — a11y khó tự làm đúng, nên
+tập trung một chỗ:
+
+- **Primitives › Popover** — panel nổi neo trigger cho nội dung phụ **tương tác** người dùng chủ
+  động mở.
+- **Primitives › Dialog** — modal **chặn** cả màn cho tác vụ phải quyết định (xác nhận phá huỷ,
+  form tập trung).
+- **Primitives › DropdownMenu** — menu **lệnh** data-driven bật từ một nút (khác `Menubar` — dải
+  thường trực).
+- **Primitives › Tooltip** — gợi ý **không tương tác** khi hover/focus; bổ sung chứ không thay
+  accessible name.
+
+**Phản hồi & hiển thị.**
+
+- **Primitives › Separator** — đường phân cách ngang/dọc, dựng trên Reka UI.
+- **Primitives › Spinner** — loader **không xác định thời lượng** (`role="status"`); màu theo
+  `currentColor`.
+- **Primitives › Skeleton** — placeholder khi tải nội dung đã biết bố cục (text · circle · rect).
+- **Primitives › Progress** — thanh tiến trình **xác định %** (khác Spinner — không rõ thời lượng),
+  dựng trên Reka UI.
+- **Primitives › Avatar** — ảnh đại diện người/agent, tự rơi về initials khi ảnh lỗi, dựng trên
+  Reka UI.
+- **Primitives › Tabs** — chuyển giữa các panel/view (khác `SegmentedControl` — chỉ chọn giá trị,
+  không có panel), dựng trên Reka UI.
+- **Primitives › Toast** — thông báo thoáng qua **tự ẩn** (khác `Dialog` — chặn; khác `InlineError`
+  — giữ tới khi xử lý); thuần trình bày, host sở hữu hàng đợi.
+
+Khung demo phía trên ghép ba primitive nền (Button · Badge · Surface) cạnh nhau; xem trang từng
+component để biết chi tiết và demo riêng.
+
+### Attrs Convention — primitive wrapping Reka composite structure
+
+Primitive bọc một cấu trúc Reka nhiều tầng (Slider · Select · NumberField) dùng `inheritAttrs: false` rồi
+**tách `useAttrs()`**: `class` merge vào **phần tử layout ngoài cùng được render** qua `cn()` với class của
+caller **đứng sau** (twMerge last-wins); mọi attr còn lại (`data-testid`, `aria-*`…) bind vào **phần tử tương
+tác bên trong**. Lý do: class sizing/layout của caller (`flex-1`, `w-28`) phải rơi trúng phần tử **tham gia
+layout** và phải **thắng** default của chính primitive — spread `class` chung trong `v-bind="$attrs"` chỉ nối hai
+list class (không Tailwind-aware), nên `w-full` của primitive có thể nuốt mất `w-28` của caller tuỳ thứ tự khai
+báo. (Khi root Reka **không render node DOM** — `SelectRoot` — phần tử ngoài cùng chính là phần tử tương tác:
+`class` và attr còn lại cùng rơi vào trigger.)
+
+<div style={{ marginTop: "1rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Bấm nút "shimmer" trong demo để thấy trạng thái loading; bấm bất kỳ nút nào để cảm nhận press.
+  Dùng thanh <em>Viewport</em> trong preview để thu bố cục xuống 1280 · 768 · 480 — mỗi preset
+  render story trong một viewport thật, nên breakpoint Tailwind đáp đúng như trên máy người dùng.
+  Muốn xem phía rộng hơn (<code>3xl</code> trở lên) thì phóng to cửa sổ trình duyệt: preset chỉ thu
+  vào được, không nới ra quá bề rộng cửa sổ đang có.
+</div>
+
+## Blocks
+
+**Block = tổ hợp primitive, có ngữ cảnh domain nhưng vẫn thuần trình bày** (presentational) —
+không ôm IPC, store hay i18n. Chúng phát sự kiện ra ngoài; host (app desktop) mới nối vào
+runtime của shell / Pinia / `vue-i18n`.
+
+**Chrome — khung bao quanh nội dung.** Ba dải ngang dễ nhầm nhau vì cùng "ghim trên đỉnh"; chọn
+theo _cái gì_ đang được đóng khung, không theo hình dáng:
+
+- **Blocks › TitleBar** — chrome của **cửa sổ desktop**: thương hiệu + Menubar + WindowControls
+  trên một vùng kéo (drag). Chỉ những cụm thật sự nhận click mới `no-drag`.
+- **Blocks › AppHeader** — dải shell của **ứng dụng web**: brand · tìm kiếm toàn cục · tổ chức ·
+  thông báo · tài khoản. Đúng **một** cái cho mỗi ứng dụng; dưới `sm` ô tìm kiếm xuống hàng riêng.
+- **Blocks › PageHeader** — dải tiêu đề của **một surface**: tên + số lượng + một dòng định
+  hướng + hành động chính, tách khỏi vùng làm việc bằng hairline. Mỗi surface một cái.
+- **Blocks › SidebarNav** — landmark `<nav>` điều hướng bên trái trên mặt phẳng `sunken`, có chế
+  độ thu gọn còn icon (nhãn chuyển vào Tooltip, `aria-label` giữ tên accessible).
+
+**Bố cục & nội dung.**
+
+- **Blocks › DashboardGrid** — lưới tile tự co giãn (`auto-fit` + `minmax`), số cột suy ra từ bề
+  rộng container thật, không có breakpoint nào được viết ra.
+- **Blocks › EmptyState** — khuôn vùng rỗng: icon → tiêu đề → mô tả → **tối đa một** CTA, vào cảnh
+  stagger. Rỗng là lời mời, không phải lỗi.
+- **Blocks › RowActions** — nhóm hành động của một hàng list dày: im lúc nghỉ, hiện khi hover
+  _hoặc_ khi bàn phím focus vào hàng, và không bao giờ rời tab order; con trỏ thô thì luôn hiện.
+
+**Phản hồi & surface chuyên biệt.**
+
+- **Blocks › ToastStack** — render hàng đợi toast của host qua **một** provider/viewport chung, để
+  nhiều toast xếp chồng có gap thay vì đè lên nhau ở cùng một góc.
+
+### Why blocks remain presentational
+
+Giữ block không phụ thuộc host để: (1) xem/duyệt được ngay trong docs này, (2) app desktop bọc một
+lớp mỏng nối IPC + i18n mà không phải sửa design system, (3) sau này host thứ hai (server/web) tái
+dùng y nguyên. Đây là cùng nguyên tắc "core host-agnostic" ở `Product/Architecture`.
+
+</div>

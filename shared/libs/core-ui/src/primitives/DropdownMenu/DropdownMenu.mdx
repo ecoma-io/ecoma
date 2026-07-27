@@ -1,0 +1,63 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as DropdownMenuStories from "./DropdownMenu.stories";
+
+<Meta of={DropdownMenuStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# DropdownMenu
+
+Một nút mở ra danh sách **lệnh** — roving focus, typeahead, Esc/bấm-ngoài để đóng. Data-driven: chọn
+một item phát `select` kèm `value`, host ánh xạ id đó thành hành động (giữ primitive không dính logic
+ứng dụng — cùng hợp đồng với `Menubar`). Import từ `@ecoma-io/ui`:
+
+```ts
+import { DropdownMenu, Button } from "@ecoma-io/ui";
+```
+
+```vue
+<DropdownMenu :items="items" @select="run">
+  <template #trigger><Button variant="outline">Thao tác</Button></template>
+</DropdownMenu>
+```
+
+<Canvas of={DropdownMenuStories.Demo} />
+
+## `items` — các loại entry
+
+| Kiểu        | Trường                                                | Hiển thị                     |
+| ----------- | ----------------------------------------------------- | ---------------------------- |
+| lệnh        | `label`, `value`, `shortcut?`, `danger?`, `disabled?` | dòng bấm được, phát `select` |
+| tiêu đề mục | `heading: true`, `label`                              | nhãn nhóm không tương tác    |
+| phân cách   | `separator: true`                                     | đường kẻ                     |
+
+## Chọn đúng thành phần
+
+| Dùng           | Khi                                                |
+| -------------- | -------------------------------------------------- |
+| `DropdownMenu` | menu **lệnh** bật theo yêu cầu từ một nút          |
+| `Menubar`      | **dải** menu thường trực kiểu desktop (File·View)  |
+| `Popover`      | panel **tương tác** (form nhỏ) chứ không phải lệnh |
+| `Select`       | danh sách **chính là giá trị** của một field       |
+
+## Cơ chế
+
+- `#trigger` render `as-child` — nút của bạn chính là trigger.
+- `open` hỗ trợ `v-model:open` nếu host cần điều khiển; bỏ trống để tự quản.
+- `danger` tô item theo token `destructive`; `disabled` làm item trơ.
+- Motion: menu `animate-scale-in` **mọc ra từ trigger** (popper origin) và các item hiện dần theo
+  **stagger** (cùng idiom với danh sách của `Select`), **chỉ** ở trạng thái mở (xem ghi chú Presence ở
+  `Select`/`Popover`).
+
+## Props
+
+<ArgTypes of={DropdownMenuStories} />
+
+## Do / Don't
+
+- ✅ Mỗi item là một **lệnh** rõ ràng; nhóm bằng `heading`/`separator`.
+- ✅ Hành động phá huỷ để cuối, đặt `danger`.
+- ❌ Đừng nhét form/tương tác phức tạp — dùng `Popover`.
+- ❌ Đừng dùng cho việc chọn giá trị của field — dùng `Select`.
+
+</div>

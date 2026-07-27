@@ -1,0 +1,105 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as AppHeaderStories from "./AppHeader.stories";
+
+<Meta of={AppHeaderStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# AppHeader
+
+Thanh **trên cùng của ứng dụng web** — dải chrome ở cấp shell, luôn hiện trên mọi surface bên
+dưới. Import từ `@ecoma-io/ui`:
+
+```ts
+import { AppHeader } from "@ecoma-io/ui";
+```
+
+<Canvas of={AppHeaderStories.Demo} />
+
+## Không phải `PageHeader`, cũng không phải `TitleBar`
+
+Ba thứ dễ nhầm vì cùng là "dải ngang ghim trên đỉnh":
+
+- **`AppHeader`** (đây) — dải shell của **ứng dụng web**: brand, tìm kiếm toàn cục, tổ chức,
+  thông báo, tài khoản. Chỉ có **một** trên mỗi ứng dụng.
+- **`PageHeader`** — dải tiêu đề của **một surface**, nằm _trong_ vùng nội dung mà `AppHeader`
+  đứng trên. Một ứng dụng có nhiều `PageHeader`, mỗi surface một cái.
+- **`TitleBar`** — chrome của **cửa sổ desktop** (vùng kéo cửa sổ, nút minimize/maximize/close).
+  `AppHeader` là nội dung trong trang web, không phải khung cửa sổ.
+
+## Ba vùng, và một `ml-auto` thay cho khoảng đệm
+
+Bố cục là **brand (trái) · tìm kiếm (tuỳ chọn) · cụm hành động cuối (tổ chức · thông báo · tài
+khoản)**. Mỗi vùng là một named slot — block chỉ sở hữu hình học và độ nổi của dải, không sở hữu
+nội dung hay hành vi bên trong, cùng hợp đồng với `PageHeader`/`EmptyState`. Vùng nào không được
+truyền slot thì không chiếm chỗ.
+
+Cụm cuối được đẩy sang phải bằng `ml-auto` của **chính nó**, không phải bằng một thẻ đệm `flex-1`.
+Thẻ đệm cũng chạy được, nhưng nó là một hộp co giãn **thứ hai** cạnh ô tìm kiếm, nên hai bên chia
+nhau khoảng trống thay vì ô tìm kiếm lấy đúng phần còn lại. `ml-auto` không tốn một thẻ nào và
+không tốn bề rộng nào.
+
+## Dưới `sm` là hai hàng — đây mới là phần responsive thật
+
+Brand + một ô tìm kiếm thật + cụm tổ chức/thông báo/tài khoản **không vừa** một hàng ở 390px. Đo
+trên chính nội dung của Demo: ô tìm kiếm còn lại khoảng 60px và render thành một cái kính lúp ép
+sát tên tổ chức — một control có mặt về mặt kỹ thuật và vô dụng về mặt sử dụng.
+
+Nên dưới `sm`, ô tìm kiếm **xuống hàng riêng chiếm trọn bề rộng** (`basis-full` + `order-last`),
+chiều cao thanh chuyển từ cố định sang `min-h-14`, và từ `sm` trở lên nó bật lại về đúng một hàng
+`flex-nowrap`. **Xuống hàng chứ không ẩn đi**: host slot ô tìm kiếm vào vì người dùng của họ cần
+nó, và một block không có quyền quyết định rằng trên điện thoại thì họ cần ít hơn.
+
+Một điều cần nhớ nếu sửa chỗ này: `order-last` đẩy ô tìm kiếm xuống _dưới_ cụm cuối về mặt thị
+giác nhưng vẫn để nó _trước_ cụm cuối trong DOM, nên trên điện thoại thứ tự Tab chạm ô tìm kiếm
+trước. Đó là bên nhẹ hơn trong hai cái lệch (tìm kiếm là control dùng nhiều hơn), nhưng vẫn là
+một cái lệch — đừng mở rộng `order-*` sang các vùng còn lại.
+
+## Bề rộng — bậc thang, không phải một con số
+
+| Mốc          | Gutter | Chiều cao    | Trần ô tìm kiếm       |
+| ------------ | ------ | ------------ | --------------------- |
+| mặc định     | 12px   | `min-h` 56px | hàng riêng, tràn 100% |
+| `sm` (640)   | 16px   | 56px         | `max-w-sm`            |
+| `lg` (1024)  | 24px   | 56px         | `max-w-md`            |
+| `3xl` (1920) | 32px   | 64px         | `max-w-md`            |
+
+Nới ra chứ không chỉ co lại — một gutter 16px cạnh canvas 1920px đọc như một sơ suất
+(**Principles §4**).
+
+## Phân tầng — hairline, không đổ bóng
+
+Dải này nằm trên `bg-card` (mặt phẳng **nổi**), cao hơn một bậc so với nội dung nó đứng trên —
+khác với `PageHeader` dùng chung mặt phẳng `bg-background` với vùng nội dung của chính nó. Tách
+bằng một hairline `border-b`, không phải shadow (**Design System › Elevation**).
+
+Vì nội dung cuộn _bên dưới_ dải, mặt phẳng này là **kính mờ**: `bg-card` đục khai trước làm
+fallback, rồi `supports-[backdrop-filter]:bg-card/80` + `backdrop-blur-md` — đúng khuôn "chrome
+ghim" ở **Design System › Elevation**. Không thêm shadow: cái nói "còn nội dung ở dưới" là lớp mờ,
+không phải bóng đổ.
+
+## Trung tính có chủ đích
+
+`AppHeader` là chrome shell — dùng chung cho mọi hành động của cả người và agent, nên nó **không**
+mang `--primary`/`--agent`. Luật lực lượng (**Design System › Signature**) chỉ tô màu một bề mặt
+khi có một lực lượng cụ thể đang làm việc _trên_ nó; bản thân dải chrome không phải là hành động.
+
+## Props & slots
+
+<ArgTypes of={AppHeaderStories} />
+
+- `brand` — logo/tên sản phẩm, trái nhất.
+- `search` — ô tìm kiếm toàn cục (tuỳ chọn); ghép `TextField` với leading icon, như trong Demo.
+- `orgSwitcher` / `notifications` / `userMenu` — cụm hành động cuối, theo đúng thứ tự đó; mỗi
+  slot thường ghép `DropdownMenu` làm khung mở, `Button`/`Avatar` làm trigger.
+
+## Do / Don't
+
+- ✅ Chỉ **một** `AppHeader` cho mỗi ứng dụng — nó là chrome cấp shell, không phải chrome của
+  từng surface.
+- ✅ Slot `search` nhận đúng một ô tìm kiếm; đừng nhồi thêm bộ lọc — bộ lọc thuộc `PageHeader`
+  hoặc vùng nội dung.
+- ❌ Đừng dùng cho tiêu đề của một surface (`PageHeader` đã có).
+- ❌ Đừng dùng làm chrome cửa sổ desktop (`TitleBar` đã có).
+
+</div>

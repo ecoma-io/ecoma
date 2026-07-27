@@ -1,0 +1,74 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as RowActionsStories from "./RowActions.stories";
+
+<Meta of={RowActionsStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# RowActions
+
+Nhóm hành động của **một hàng** trong danh sách dày: im lặng lúc nghỉ, hiện ra khi trỏ chuột
+_hoặc_ khi bàn phím focus vào hàng. Import từ `@ecoma-io/ui`:
+
+```ts
+import { RowActions } from "@ecoma-io/ui";
+```
+
+<Canvas of={RowActionsStories.Demo} />
+
+## Vì sao là component, không phải ba class chép tay
+
+Vì cú lộ diện này mang một **hợp đồng accessibility** rất dễ làm sai theo kiểu **không có gì
+báo đỏ**:
+
+- **Lộ bằng `opacity`, không bao giờ bằng `display`/`v-if`.** Hành động ẩn bằng `hidden` hoặc chưa
+  mount cho tới lúc hover thì **rơi khỏi tab order** — người dùng bàn phím hoặc screen reader
+  không cách nào tới được. Đường chuột vẫn chạy, nên test vẫn xanh: đó chính là chỗ nguy hiểm.
+- **`group-focus-within`, không chỉ `group-hover`.** Tab vào hàng phải kéo nhóm hành động hiện lên;
+  thiếu nó, focus đáp xuống một thứ vô hình và vòng focus ring như mọc ra từ hư không.
+- **Hành động luôn tồn tại và luôn có tên.** Mỗi con giữ `aria-label` của chính nó — cú lộ diện
+  đổi thứ _nhìn thấy_, không đổi thứ _tồn tại_.
+- **`pointer-coarse` bỏ hẳn cú lộ diện.** Trên màn hình cảm ứng, một cú lộ-khi-hover **không có
+  cò**: không có trạng thái hover nào để bước vào, và `focus-within` chỉ nổ _sau khi_ ngón tay đã
+  chạm trúng một thứ vô hình. Nên với con trỏ thô, nhóm hành động đơn giản là **luôn hiện** — lộ
+  diện là một tinh chỉnh dành cho con trỏ chính xác, không phải một cái cổng chắn đường tới hành
+  động.
+
+Đặt bốn điều đó vào một chỗ để mỗi view không phải suy luận lại; suy luận lại là lúc một trong số
+đó rụng mất.
+
+Cú lộ diện đi kèm một cú **trượt vào 4px** cùng nhịp với fade, để nó đọc như nhóm hành động _đang
+tới_ chứ không phải một tấm panel nhấp nháy bật lên (**Principles §3** — chuyển động kể quan hệ
+nhân quả). Cả hai đều ở bậc token, `duration-fast`, và luật `prefers-reduced-motion` toàn cục dẹp
+cả hai cùng lúc.
+
+## Cách dùng
+
+Hàng chứa phải mang class `group` của Tailwind — cú lộ diện scope theo group đó, nên các hàng
+khác vẫn im.
+
+```vue
+<li class="group flex items-center gap-3 px-3 py-2.5">
+  <div class="min-w-0 flex-1"><!-- nội dung hàng --></div>
+  <RowActions>
+    <Button size="icon-sm" variant="ghost" :aria-label="`Xóa ${row.name}`">
+      <Trash2 />
+    </Button>
+  </RowActions>
+</li>
+```
+
+`size="icon-sm"` là cỡ đi kèm cho hành động trên hàng dày (32×32 — xem **Button › Sizes**).
+
+## Do / Don't
+
+- ✅ Mỗi hành động là icon-only **kèm `aria-label`** — tên đó là hợp đồng với screen reader và
+  với e2e, không phải chữ hiện trên màn hình.
+- ✅ Để **hành động chính của hàng** (vd "Chạy") **ngoài** `RowActions`, luôn hiện — một hàng nên
+  có đúng một control nhìn thấy lúc nghỉ.
+- ❌ Đừng bọc hành động **phá huỷ không thể hoàn tác** mà thiếu bước xác nhận: lộ-khi-hover làm
+  nút dễ bấm nhầm hơn, nên `Dialog` xác nhận vẫn là bắt buộc.
+- ❌ Đừng dùng cho hành động mà người dùng **phải thấy mới biết là có** (một CTA rỗng, một bước
+  onboarding) — cái gì cần được phát hiện thì không được ẩn.
+
+</div>

@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Nightly full-workspace run, and the same on demand. Every other trigger
+  # judges a selection: a PR runs `nx affected`, which is only ever as complete
+  # as the dependency edges the graph can see — an implicit edge nobody declared
+  # (a glob reaching into another project, a file read off disk) makes a real
+  # break invisible to the PR that caused it. This run has no selection and no
+  # warm cache to shortcut, so it is where that class of miss surfaces, on main,
+  # once a day rather than at the next unlucky PR.
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+# A new push to a PR supersedes the in-flight run for it. A push to main gets a
+# group of its own per commit — grouping main by ref instead would let a newer
+# commit cancel an older one that is still queued (cancel-in-progress only
+# spares runs that have already started), leaving that commit with no result in
+# main's history.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NX_DAEMON: "false"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Checkout cannot move into ./.github/actions/setup with the rest of the
+      # prelude: a local action is resolved from the workspace, which is empty
+      # until the repository is on disk. Full history (fetch-depth: 0) because
+      # both `nx affected` and `commitlint --from origin/<base>` diff against
+      # history, not just the tip commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      # Rebase-merge lands every branch commit on main verbatim, and the local
+      # commit-msg hook cannot see amended/rebased history — so both message
+      # gates re-run here per PR commit (merge commits are ignored, matching
+      # commitlint's own defaults).
+      - name: Commit messages (Conventional + scope ↔ path)
+        if: github.event_name == 'pull_request'
+        run: |
+          pnpm commitlint --from "origin/${{ github.base_ref }}" --to HEAD
+          for sha in $(git rev-list --no-merges "origin/${{ github.base_ref }}..HEAD"); do
+            node shared/tools/dev-cli/src/main.mjs check-commit-scope --commit "$sha"
+          done
+
+      # Repo-wide doc gates that `nx affected` can't cover: journey markers
+      # (Rule 13) in files no nx project owns (root docs, the subsystem-root
+      # CLAUDE.md files, .github, .claude), and broken relative Markdown links.
+      - name: Journey markers in workspace-level docs
+        run: node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
+      - name: Broken Markdown links
+        run: node shared/tools/dev-cli/src/main.mjs check-doc-links
+      - name: Per-subproject CLAUDE.md present
+        run: node shared/tools/dev-cli/src/main.mjs check-claude-md
+      - name: Doctrine index cites live rules
+        run: node shared/tools/dev-cli/src/main.mjs check-doctrine-index
+      - name: Subsystem-root READMEs declare their area
+        run: node shared/tools/dev-cli/src/main.mjs check-subsystem-readmes
+      - name: Subproject READMEs present and structured
+        run: node shared/tools/dev-cli/src/main.mjs check-subproject-readmes
+      - name: Project structure conventions
+        run: node shared/tools/dev-cli/src/main.mjs check-project-conventions
+
+      # Polyglot toolchains. Go and Rust are UNCONDITIONAL: dev-cli's
+      # scaffold-lib integration tests drive the real `go vet` and
+      # `cargo check` on every run, whether or not any Go/Rust project
+      # exists yet. golangci-lint and uv only matter once a real project
+      # does, so they key off the workspace marker files. With the first
+      # Rust crate, add Swatinem/rust-cache next to the toolchain step.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.24"
+          cache: false # no root go.sum yet; enable with the first Go project
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 → stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - name: Install golangci-lint (Go lint targets run through it)
+        if: hashFiles('go.work') != ''
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v2.5.0/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        if: hashFiles('pyproject.toml') != ''
+
+      - name: Lint, test, typecheck, build
+        uses: ./.github/actions/nx-run
+        with:
+          targets: lint test typecheck build
+
+  # Separate from `checks` so the Playwright/Chromium download never blocks the
+  # fast feedback loop, and so this job can grow a runner matrix without
+  # dragging the doc gates and the Go/Rust toolchains along — nothing in the
+  # `e2e` target set touches those.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      # Cache the downloaded browser binaries only, never the OS packages
+      # `--with-deps` installs — apt state isn't safely cacheable across
+      # runs, so a cache hit still needs `install-deps` to satisfy Chromium's
+      # shared-library requirements on a fresh runner. No restore-keys: a
+      # partial match would restore browsers built for a different Playwright
+      # version, and `install` would then be skipped on a stale hit.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: e2e
+        uses: ./.github/actions/nx-run
+        with:
+          targets: e2e
+
+  # The single fixed-name check for branch protection. A job named directly in
+  # branch protection pins its own name: the moment `e2e` becomes a runner
+  # matrix its checks are reported as `e2e (ubuntu-latest)` etc., so the
+  # required check would have to be re-pointed on every leg added or removed.
+  # Gating on this instead keeps one stable name across that change, and makes
+  # a job that is never added to `needs` below impossible to leave ungated.
+  ci-gate:
+    runs-on: ubuntu-latest
+    needs: [checks, e2e]
+    # `always()`, not `!cancelled()`: a required check that ends *skipped*
+    # counts as satisfied by branch protection, which is exactly the hole this
+    # job exists to close. The price is a red gate on a cancelled run — a
+    # superseded run, which nobody merges on anyway.
+    if: always()
+    steps:
+      # Derived from `needs` rather than a second hand-written job list, so
+      # adding a job above is one edit, not two that can drift (Rule 14).
+      - name: Require every CI job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key) ended \(.value.result)"' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            while IFS= read -r line; do echo "::error::$line, not success"; done <<< "$failed"
+            exit 1
+          fi

@@ -1,0 +1,101 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SidebarNavStories from "./SidebarNav.stories";
+
+<Meta of={SidebarNavStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# SidebarNav
+
+Chrome **điều hướng** bên trái của operator console: một landmark `<nav>` gồm các mục và
+(tuỳ chọn) nhóm có tiêu đề, cộng chế độ **thu gọn còn icon**. Import từ `@ecoma-io/ui`:
+
+```ts
+import { SidebarNav } from "@ecoma-io/ui";
+```
+
+<Canvas of={SidebarNavStories.Demo} />
+
+## Vì sao là chrome, không phải nội dung
+
+Đây là **mặt phẳng trũng nhất** trong nhịp ba lớp của app shell (Design System › Elevation):
+`bg-sunken`, luôn tối hơn vùng nội dung nó phục vụ — sidebar không bao giờ nổi hơn cái nó dẫn tới.
+Khác với `PageHeader` (tiêu đề của chính vùng nội dung, nằm trên `bg-background`) hay `AppHeader`
+(dải trên cùng của shell, nằm trên `bg-card`), `SidebarNav` chỉ làm một việc: cho biết đang ở đâu
+và có thể đi đâu.
+
+## Hover nâng lên mặt phẳng nổi, không tô `--subtle`
+
+`--subtle` là fill hover trung tính dành cho bề mặt đứng trên `--background` (96% L), nơi nó rơi
+xuống 94% và **đọc được**. Nav này đứng trên `--sunken` (93% L) — cùng con `--subtle` 94% chỉ hơn
+đúng **một phần trăm** độ sáng, tức là trạng thái hover có mặt trong markup nhưng không có mặt trên
+màn hình. Nên hàng đang được trỏ **nâng lên `bg-card`**: đó chính là câu trả lời của nhịp ba lớp
+(sunken < background < card — **Design System › Elevation**), hàng dưới con trỏ bước ra trước.
+
+Bài học chung, không riêng block này: một token hover chỉ có nghĩa **so với mặt phẳng nó nằm trên**;
+chép nó sang một mặt phẳng khác là cách làm mất một trạng thái mà không có gì báo đỏ.
+
+## Một lực — thép, không pha đồng
+
+Mục **active** mang fill phẳng `bg-primary/10` cộng một **thanh accent inset** bên trái, thuần
+`--primary`. Đây là lựa chọn của **con người** (đang đứng ở surface nào), nên chỉ mang lực thép —
+không bao giờ pha `--agent` (Design System › Signature: "màu kể ai đang làm"; chrome điều hướng
+không phải nơi báo cáo việc agent làm).
+
+## Props
+
+<ArgTypes of={SidebarNavStories} />
+
+| Prop        | Kiểu                  | Ghi chú                                                                      |
+| ----------- | --------------------- | ---------------------------------------------------------------------------- |
+| `sections`  | `SidebarNavSection[]` | Mỗi section: `label?` (bỏ qua = nhóm không tiêu đề) + `items`.               |
+| `collapsed` | `boolean`             | Rail chỉ-icon: nhãn/tiêu đề nhóm ẩn, tên mục chuyển vào `Tooltip`.           |
+| `ariaLabel` | `string`              | Tên accessible cho `<nav>` — host tự đặt chữ (cùng quy ước với `AppHeader`). |
+
+Một `item` (`SidebarNavItem`): `icon?` (component Lucide, ví dụ `Home` từ `@lucide/vue`), `label`,
+`active?`, `href?` (render `<a>` thật thay `<button>`), `badge?` (số/chữ ngắn sau nhãn).
+
+`icon` chỉ nhận **component**, không nhận tên chuỗi để tra cứu — repo chưa có bảng ánh xạ
+tên→icon, và dựng một cái chỉ cho block này sẽ là từ vựng dùng chung mới ngoài phạm vi đổi này
+(xem CLAUDE.md của `core-ui`: mọi từ vựng dùng chung phải lên trang design system tương ứng
+trong cùng một lần đổi). Mọi block khác trong repo cũng truyền icon dưới dạng component
+(`PageHeaderDemo`, `RowActionsDemo`, …) — cách này đi theo đúng quy ước đó.
+
+## Presentational only
+
+`SidebarNav` không tự theo dõi route hiện tại — host quyết định mục nào `active`, cũng như host
+sở hữu router (`href` chỉ render thẻ `<a>` thật, không điều hướng bằng JS). Bấm chọn phát ra
+event `select` mang theo cả `item`, để host tự map sang hành động của mình.
+
+## Thu gọn còn icon
+
+Ở `collapsed`, tiêu đề nhóm và nhãn chữ ẩn, mỗi mục co về icon-only vuông. Vì nhãn nhìn thấy biến
+mất, tên accessible chuyển sang `aria-label` trên chính thẻ `<a>`/`<button>` — `Tooltip` (mở khi
+hover/focus) chỉ **bổ trợ** bằng `aria-describedby`, không bao giờ là nguồn tên duy nhất (đúng
+hợp đồng đã ghi ở đầu file `Tooltip.vue`). `badge` cũng ẩn khỏi bố cục lúc này; giá trị của nó
+không mất — nó nhập vào cùng nội dung Tooltip với nhãn.
+
+Hàng thu gọn là **ô vuông** (36×36) chứ không kéo full width, nên nav **tự canh giữa** các con của
+nó ở chế độ này. Bề rộng của rail là việc của **host** — và host có thể thu muộn, hoặc không thu:
+thiếu cú canh giữa, một nav đã `collapsed` mà container còn nguyên bề rộng cũ để lại một cột icon
+dính sát mép trái của một tấm panel rộng trống trơn. Canh giữa làm chế độ này đọc đúng ở **mọi** bề
+rộng container, và cú animate bề rộng của host sau đó chỉ còn việc siết lại một thứ vốn đã đúng
+hình. Trong Demo, host thu container về `3.25rem` (ô 2.25rem + `p-2` của nav) với một
+`transition-[width]` — đó là phần mà consumer cần chép theo.
+
+## Bàn phím
+
+Mỗi mục là một `<a>`/`<button>` thật, nên thứ tự Tab và Enter/Space đến từ chính nền tảng, không
+phải JS tự viết — không có bẫy focus, không có phím tắt phải học riêng.
+
+## Do / Don't
+
+- ✅ Đúng một mục `active` trong danh sách đang hiển thị — đó là "đang ở đâu", không phải "đã
+  từng ở đâu".
+- ✅ Bỏ `label` của section đầu khi nó không cần tên (nhóm mặc định "trang chính").
+- ❌ Đừng dùng cho một menu lệnh tạm thời (`DropdownMenu`/`Menubar` đã có) — đây là landmark điều
+  hướng thường trực, không phải overlay.
+- ❌ Đừng tự tô `--agent` lên mục active dù nó dẫn tới một surface do agent vận hành — màu lực
+  lượng tả _ai vừa làm việc_, còn "đang ở trang nào" luôn là quyết định của người.
+
+</div>

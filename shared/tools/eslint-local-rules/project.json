@@ -1,0 +1,23 @@
+{
+  "name": "eslint-local-rules",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "shared/tools/eslint-local-rules",
+  "tags": ["type:lib", "scope:shared"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node no-journey-markers.test.mjs && node no-journey-marker-names.test.mjs && node require-project-tags.test.mjs && node no-focused-or-skipped-tests.test.mjs && node no-unmocked-internal-imports.test.mjs"
+      }
+    }
+  }
+}

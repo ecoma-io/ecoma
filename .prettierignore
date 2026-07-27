@@ -1,0 +1,12 @@
+**/dist/**
+**/out/**
+**/coverage/**
+**/node_modules/**
+**/.nx/**
+tmp/**
+pnpm-lock.yaml
+# Prettier's `mdx` parser implements the MDX v1 grammar and corrupts MDX v3
+# syntax this repo relies on (JSX comments `{/* */}` -> emphasis `{/_ _/}`;
+# re-indents JSX blocks nested in list items until the closing tag escapes the
+# listItem and the file no longer compiles). Content MDX is also the immutable
+# ledger — a formatter must not rewrite committed entries at commit time.

@@ -1,0 +1,60 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SkeletonStories from "./Skeleton.stories";
+
+<Meta of={SkeletonStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Skeleton
+
+Khối giữ chỗ khi nội dung đang tải nhưng **đã biết trước hình dạng layout** (card, avatar, dòng
+danh sách) — giúp trang không "nhảy" bố cục khi nội dung thật hiện ra. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Skeleton } from "@ecoma-io/ui";
+```
+
+<Canvas of={SkeletonStories.Demo} />
+
+## Khi nào dùng
+
+- Đã biết **hình dạng nội dung sắp hiện** (số dòng text, avatar tròn, khối ảnh) — ghép nhiều
+  `Skeleton` để dựng lại layout thật trước khi dữ liệu về.
+- Nếu **chưa biết** layout sắp tới hoặc chỉ cần báo "đang xử lý" chung chung — dùng `Spinner` thay
+  vì cố dựng khung Skeleton giả.
+
+## Variants
+
+| Variant  | Hình dạng      | Dùng cho                   |
+| -------- | -------------- | -------------------------- |
+| `text`   | `h-4 rounded`  | một dòng chữ               |
+| `circle` | `rounded-full` | avatar, icon tròn          |
+| `rect`   | `rounded-md`   | ảnh, thumbnail, khối tuỳ ý |
+
+Chiều rộng/cao cụ thể truyền qua `class` (vd `class="h-10 w-10"` cho avatar, `class="w-2/3"` cho một
+dòng text ngắn hơn) — component không tự đặt kích thước cố định ngoài `variant`.
+
+## Motion
+
+Một **dải sáng mờ quét ngang** nền `muted` (`animate-shimmer`) — ngôn ngữ shimmer của Alloy
+nhưng giữ trung tính, tương phản thấp để trang đang tải đọc như "đang tới" chứ không rối. Dưới
+`prefers-reduced-motion` dải dừng lại thành một khối `muted` phẳng (rule chặn chung ở `global.css`).
+
+## Accessibility
+
+Skeleton mang `aria-hidden="true"` — nó thuần tuý là hình khối thị giác, **không** tự công bố trạng
+thái loading cho trình đọc màn hình. Nếu cần báo trạng thái tải cho AT, ghép thêm một vùng
+`aria-live` hoặc `Spinner` có `label` ở gần đó; đừng trông chờ Skeleton tự làm việc đó.
+
+## Props
+
+<ArgTypes of={SkeletonStories} />
+
+## Do / Don't
+
+- ✅ Ghép nhiều Skeleton theo đúng bố cục thật (avatar + text, ảnh + text…) để giảm "nhảy" layout.
+- ✅ Đặt `class="w-*"/"h-*"` khớp kích thước nội dung thật sắp thay thế.
+- ❌ Đừng dùng Skeleton cho chờ không xác định layout — dùng `Spinner`.
+- ❌ Đừng quên báo trạng thái loading cho AT ở nơi khác — Skeleton tự nó im lặng với screen reader.
+
+</div>

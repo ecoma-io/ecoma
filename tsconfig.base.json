@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ecoma-io/ui": ["shared/libs/core-ui/src/index.ts"],
+      "@ecoma-io/ui/styles/*": ["shared/libs/core-ui/src/styles/*"],
+      "@ecoma-io/ui/a11y": ["shared/libs/core-ui/src/lib/a11y-scope.ts"],
+      "@ecoma-io/core-tauri": ["shared/libs/core-tauri/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "out"]
+}

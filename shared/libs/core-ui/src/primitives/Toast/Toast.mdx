@@ -1,0 +1,76 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ToastStories from "./Toast.stories";
+
+<Meta of={ToastStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Toast
+
+Thông báo **thoáng qua, tự ẩn** mà người dùng không bắt buộc thao tác — lưu thành công, render xong,
+một lỗi có thể phục hồi. Reka UI thông báo cho trợ năng (`role`/`aria-live`), tạm dừng khi hover/focus,
+và có thể vuốt/Esc để đóng. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Toast, Button } from "@ecoma-io/ui";
+```
+
+```vue
+<Toast
+  v-model:open="open"
+  variant="success"
+  title="Đã lưu composition"
+  description="Đồng bộ lúc 14:32."
+  action-label="Hoàn tác"
+  @action="undo"
+/>
+```
+
+<Canvas of={ToastStories.Demo} />
+
+## Presentational — host sở hữu hàng đợi
+
+Toast **thuần trình bày** và tự chứa (đã bọc sẵn provider + viewport để một toast lẻ chạy ngay). Nó
+**không** ôm logic hàng đợi: host quyết định _khi nào_ mở toast nào (primitive này render **một** cái).
+App hiển thị nhiều toast cùng lúc giữ hàng đợi phía host và render nó qua block **`ToastStack`** —
+một provider/viewport chung để các toast đồng thời xếp chồng có gap thay vì đè nhau (N `Toast` lẻ
+= N viewport ở cùng toạ độ). Queue vẫn cố ý không nhét vào đơn vị design-system.
+
+## Variants
+
+| Variant       | Dùng cho                              |
+| ------------- | ------------------------------------- |
+| `info`        | thông tin trung tính                  |
+| `success`     | thao tác hoàn tất                     |
+| `warning`     | cảnh báo cần chú ý, chưa phải lỗi     |
+| `destructive` | lỗi (có thể phục hồi)                 |
+| `ai`          | kết quả/hành động từ agent (màu đồng) |
+
+## Chọn đúng thành phần
+
+| Dùng          | Khi                                                        |
+| ------------- | ---------------------------------------------------------- |
+| `Toast`       | thông báo thoáng qua, **không bắt buộc** thao tác          |
+| `Dialog`      | xác nhận **chặn** cần người dùng quyết định                |
+| `InlineError` | lỗi field/section **giữ tới khi được xử lý** (không tự ẩn) |
+
+## Cơ chế
+
+- `open` hỗ trợ `v-model:open`; `duration` (ms) tự ẩn, tạm dừng khi hover/focus.
+- `actionLabel` render một nút hành động inline, phát `action`; `closable` hiện nút ✕.
+- Motion: card **trượt vào từ mép phải** (trục vuốt-đóng) rồi settle bằng `--ease-spring`; animation
+  chạy trên card bên trong, **không** trên `ToastRoot` (Reka giữ transform của `ToastRoot` cho cử chỉ
+  vuốt).
+
+## Props
+
+<ArgTypes of={ToastStories} />
+
+## Do / Don't
+
+- ✅ Câu ngắn, rõ hệ quả; kèm `Hoàn tác` khi có thể.
+- ✅ Lỗi phục hồi được → `destructive` + hành động thử lại.
+- ❌ Đừng dùng Toast cho lỗi phải xử lý ngay — dùng `InlineError`/`Dialog`.
+- ❌ Đừng nhồi nội dung dài hay nhiều nút.
+
+</div>

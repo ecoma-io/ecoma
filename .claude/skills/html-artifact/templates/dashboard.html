@@ -1,0 +1,246 @@
+<!-- html-artifact template: dashboard. Replace every TODO_REPLACE; restyle tokens per artifact-design.
+     Charts: load the dataviz skill first — the .chart slots below are placeholders, not chart guidance. -->
+<title>TODO_REPLACE — Dashboard</title>
+<style>
+  :root {
+    /* TODO_REPLACE: placeholder palette — restyle per artifact-design */
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+    /* Semantic status colors — separate from the accent by design */
+    --good: #178a4c;
+    --warn: #b06a00;
+    --bad: #c4363a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --surface: #1d2126;
+      --text: #e7eaee;
+      --muted: #97a1ac;
+      --line: #2b3138;
+      --accent: #7da2ff;
+      --good: #4cc38a;
+      --warn: #e2a83d;
+      --bad: #ef6a6e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1d2126;
+    --text: #e7eaee;
+    --muted: #97a1ac;
+    --line: #2b3138;
+    --accent: #7da2ff;
+    --good: #4cc38a;
+    --warn: #e2a83d;
+    --bad: #ef6a6e;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+    --good: #178a4c;
+    --warn: #b06a00;
+    --bad: #c4363a;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+  }
+  .wrap {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding: clamp(16px, 3vw, 32px);
+  }
+
+  .wrap > header {
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(1.3rem, 4vw, 1.7rem);
+    margin: 0 0 4px;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  h2 {
+    font-size: 1.05rem;
+    margin: 28px 0 12px;
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .kpi .label {
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .kpi .value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 4px;
+  }
+  .kpi .delta {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .delta.up {
+    color: var(--good);
+  }
+  .delta.down {
+    color: var(--bad);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+  }
+  .chart {
+    min-height: 220px;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .pill.good {
+    color: var(--good);
+    border-color: var(--good);
+  }
+  .pill.warn {
+    color: var(--warn);
+    border-color: var(--warn);
+  }
+  .pill.bad {
+    color: var(--bad);
+    border-color: var(--bad);
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+  }
+  td.num,
+  th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>TODO_REPLACE Dashboard title</h1>
+    <p class="meta">TODO_REPLACE scope · data as of …</p>
+  </header>
+
+  <section class="kpis" aria-label="Key metrics">
+    <div class="kpi">
+      <div class="label">TODO_REPLACE Metric</div>
+      <div class="value">TODO_REPLACE</div>
+      <div class="delta up">TODO_REPLACE ▲ vs last period</div>
+    </div>
+    <div class="kpi">
+      <div class="label">TODO_REPLACE Metric</div>
+      <div class="value">TODO_REPLACE</div>
+      <div class="delta down">TODO_REPLACE ▼ vs last period</div>
+    </div>
+  </section>
+
+  <h2>TODO_REPLACE Trends</h2>
+  <section class="cards">
+    <div class="card">
+      <h3>TODO_REPLACE Chart title</h3>
+      <div class="chart">TODO_REPLACE — build this chart per the dataviz skill</div>
+    </div>
+    <div class="card">
+      <h3>TODO_REPLACE Chart title</h3>
+      <div class="chart">TODO_REPLACE — build this chart per the dataviz skill</div>
+    </div>
+  </section>
+
+  <h2>TODO_REPLACE Detail</h2>
+  <div class="scroll-x">
+    <table>
+      <thead>
+        <tr>
+          <th>TODO_REPLACE Item</th>
+          <th>Status</th>
+          <th class="num">TODO_REPLACE Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>TODO_REPLACE</td>
+          <td><span class="pill good">OK</span></td>
+          <td class="num">TODO_REPLACE</td>
+        </tr>
+        <tr>
+          <td>TODO_REPLACE</td>
+          <td><span class="pill bad">Failing</span></td>
+          <td class="num">TODO_REPLACE</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,72 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as NumberFieldStories from "./NumberField.stories";
+
+<Meta of={NumberFieldStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# NumberField
+
+Nhập một số có ràng buộc, **có thể kéo-chỉnh** (scrub trên nhãn/thân) ngoài gõ trực tiếp — cùng cảm giác "kéo số"
+của editor chuyên nghiệp. Là xương sống của `Inspector` (x/y/width/height/rotation/fontSize/startFrame/…). Dựng trên
+**Reka UI `NumberField`** (a11y + spinbutton sẵn), style bằng token Alloy. Import từ `@ecoma-io/ui`:
+
+```ts
+import { NumberField } from "@ecoma-io/ui";
+```
+
+<Canvas of={NumberFieldStories.Demo} />
+
+## Anatomy
+
+| Phần               | Vai trò                                                                      |
+| ------------------ | ---------------------------------------------------------------------------- |
+| field              | ô nhập `bg-background border-input rounded-md`, chữ `tabular` (số thẳng cột) |
+| scrub area         | kéo ngang trên field/nhãn để tăng/giảm theo `step`; con trỏ `ew-resize`      |
+| unit               | hậu tố mờ (`px`, `deg`, `f`) — trình bày, không nằm trong giá trị            |
+| stepper (tuỳ chọn) | ▲▼ nhỏ; ẩn mặc định để gọn Inspector, hiện khi hover                         |
+
+## Props
+
+<ArgTypes of={NumberFieldStories} />
+
+## Events (transient/committed contract — I2)
+
+| Sự kiện              | Khi nào                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| `@update:modelValue` | **transient** — mỗi bước kéo / mỗi phím (revision không tăng)   |
+| `@commit`            | **committed** — thả kéo · blur · Enter (một checkpoint undo I9) |
+
+Tách hai sự kiện để một lần kéo dài = **một** checkpoint, không phải một checkpoint mỗi pixel — đúng ranh giới
+`CanvasStage` dùng.
+
+## States
+
+nghỉ / focus (**ring thép**) / đang-scrub (con trỏ `ew-resize`, giá trị chạy) / disabled (mờ) / ngoài min-max
+(kẹp giá trị, không nhấp nháy) / **invalid** (`invalid` — viền + outline destructive, `aria-invalid` trên
+spinbutton; cùng ngôn ngữ lỗi với TextField/Textarea/Select, dùng khi giá trị vi phạm một ràng buộc mà
+min/max không kẹp được — vd hai field mâu thuẫn nhau).
+
+## A11y
+
+`role="spinbutton"` + `aria-valuenow/min/max`; ↑↓ đổi theo `step` (`Shift`=×10); `PageUp`/`PageDown`=×10 và
+`Home`/`End` về min/max (Reka UI bind sẵn); gõ số trực tiếp; label liên kết từ hàng Inspector (`aria-labelledby`).
+Kéo-chỉnh là **bổ trợ**, không thay được bàn phím.
+
+## Motion
+
+Không tween trên giá trị (bám tay). Chỉ stepper hover có `transition-opacity duration-fast`. Tôn trọng
+`prefers-reduced-motion`.
+
+## Do / Don't
+
+- ✅ Giá trị số có đơn vị trong Inspector (toạ độ, kích thước, góc, frame, fontSize).
+- ❌ Giá trị liên tục 0–1 có ý nghĩa "mức" (volume/opacity) → `Slider`.
+- ❌ Chọn từ tập rời rạc (fit cover/contain) → `Select`.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Components/Blocks/Inspector</code> · <code>Mockup/Editor</code> (pane
+  Studio).
+</div>
+
+</div>

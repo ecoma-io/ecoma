@@ -1,0 +1,8 @@
+{
+  "$comment": "Single source of the workspace's human-language triad. `code` is the language tag used in filenames and model-facing enums; `label` is the language's own endonym, rendered verbatim in the README language-switcher nav line and in repo-care's translation comment headings. The list is ordered and English is canonical: a consumer needing a default takes the first entry. Consumers: shared/tools/dev-cli/src/readme-schema.mjs (README variant filenames, nav line, parity audit), shared/tools/repo-care/src/translate-thread.mjs (source-language enum, translation targets, section headings). The value lives here rather than in either tool because a cross-project source import between them would be an edge the Nx project graph cannot see — the same reason journey-markers.config.json and doctrine-index.json sit at the root.",
+  "languages": [
+    { "code": "en", "label": "English" },
+    { "code": "vi", "label": "Tiếng Việt" },
+    { "code": "zh", "label": "中文" }
+  ]
+}

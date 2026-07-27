@@ -1,0 +1,65 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SelectStories from "./Select.stories";
+
+<Meta of={SelectStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Select
+
+Chọn **một** giá trị trong một danh sách đóng — trigger gọn + popover listbox.
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { Select } from "@ecoma-io/ui";
+```
+
+Dùng trên **critical path 0.1**: `Settings › Chung › Ngôn ngữ` (en/vi). Sau đó tái dùng cho trần cache (0.2)
+và model-theo-tác-vụ (0.3). Dựng trên **Reka UI `Select`** (a11y sẵn), style bằng token Alloy.
+
+<Canvas of={SelectStories.Demo} />
+
+## Anatomy
+
+| Phần    | Vai trò                                                                                                    |
+| ------- | ---------------------------------------------------------------------------------------------------------- |
+| trigger | giá trị hiện tại + chevron — `border-input bg-background`, cùng ngôn ngữ input của hệ                      |
+| popover | `bg-popover border-border rounded-md shadow-md`, mở sát dưới trigger                                       |
+| item    | một dòng lựa chọn; selected mang `bg-primary-muted text-primary` (cùng ngôn ngữ "active" của Settings nav) |
+
+## Props
+
+<ArgTypes of={SelectStories} />
+
+## States
+
+đóng / mở · hover item · selected · focus-visible trên trigger (ring thép) · disabled (trigger và per-item) ·
+**invalid** (`invalid` — viền + outline destructive, `aria-invalid` trên trigger; cùng ngôn ngữ lỗi với
+TextField/Textarea/NumberField, dùng khi Select nằm trong một `Field` đang báo lỗi).
+
+## Sizes
+
+`size` dùng **cùng thang với TextField** (`sm` 32px · `md` 36px mặc định · `lg` 44px) để một form row trộn
+Select cạnh TextField không bao giờ lệch chiều cao. Đừng tự chỉnh `h-*` qua class — đổi `size`.
+
+## A11y
+
+Pattern listbox của Reka UI: mũi tên ↑↓ di chuyển, Enter chọn, Esc đóng, typeahead theo ký tự đầu; trigger mang
+`aria-expanded` + `aria-haspopup="listbox"`.
+
+## Motion
+
+Popover vào bằng `animate-fade-rise` (cùng ngôn ngữ đổi-nội-dung của Settings panel), ra tức thì; item đổi nền
+`transition-colors duration-fast`.
+
+## Do / Don't
+
+- ✅ Danh sách đóng ~3–15 mục, một giá trị luôn được chọn (ngôn ngữ, độ phân giải, model).
+- ❌ 2–5 lựa chọn nên thấy-hết-được → `SegmentedControl`.
+- ❌ Tập lớn/cần tìm kiếm (font, asset) → block combobox riêng khi tới mốc cần nó, không nhồi vào Select.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Mockup/Settings</code> (dropdown Ngôn ngữ).
+</div>
+
+</div>

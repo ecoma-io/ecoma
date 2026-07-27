@@ -1,0 +1,44 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as WindowControlsStories from "./WindowControls.stories";
+
+<Meta of={WindowControlsStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# WindowControls
+
+Cụm **minimize · maximize · close** cho cửa sổ frameless (chrome tự vẽ). Import từ `@ecoma-io/ui`:
+
+```ts
+import { WindowControls } from "@ecoma-io/ui";
+```
+
+<Canvas of={WindowControlsStories.Demo} />
+
+## Presentational
+
+Chỉ phát _ý định_; host nối vào nền tảng (cầu nối window của desktop shell). Bố cục kiểu Windows —
+trên macOS hệ điều hành tự vẽ traffic-lights nên **ẩn cụm này ở macOS**.
+
+```vue
+<WindowControls
+  :is-maximized="isMax"
+  @minimize="win.minimize()"
+  @maximize="win.maximizeToggle()"
+  @close="win.close()"
+/>
+```
+
+## Props
+
+<ArgTypes of={WindowControlsStories} />
+
+## Design Notes
+
+- Nút mỗi cái rộng `w-11`, cao tràn thanh; hover nền `subtle` trung tính.
+- **Close** là chỗ duy nhất `destructive` được dùng **không cần xác nhận**: đóng cửa sổ là hành vi
+  quen thuộc, mở lại được — hover hoá đỏ (`bg-destructive`) để cảnh báo nhẹ.
+- Vùng nút đặt `-webkit-app-region: no-drag` để bấm được trên thanh kéo (drag) của titlebar.
+- Mỗi nút có `aria-label`; icon là SVG `currentColor` nên theo màu theme.
+
+</div>

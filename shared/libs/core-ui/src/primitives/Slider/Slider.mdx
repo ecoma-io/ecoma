@@ -1,0 +1,65 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SliderStories from "./Slider.stories";
+
+<Meta of={SliderStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Slider
+
+Chọn một **giá trị liên tục trong dải bị chặn** — khác `NumberField` (số bất kỳ có đơn vị) và `Switch` (nhị phân).
+Ca chuẩn 0.2: `volume` 0–1 của video/audio (khớp `VideoElementSchema.volume`). Dựng trên **Reka UI `Slider`**
+(a11y sẵn), style token Alloy. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Slider } from "@ecoma-io/ui";
+```
+
+<Canvas of={SliderStories.Demo} />
+
+## Anatomy
+
+| Phần             | Vai trò                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| track            | rãnh `bg-muted rounded-full`                                   |
+| range            | phần đã lấp `bg-primary` (thép — giá trị do người đặt)         |
+| thumb            | núm `bg-background` + shadow + `border-primary`; kéo dọc track |
+| value (tuỳ chọn) | số nhỏ `tabular` cạnh slider (host cấp)                        |
+
+## Props
+
+<ArgTypes of={SliderStories} />
+
+## Events (I2)
+
+| Sự kiện              | Khi nào                                      |
+| -------------------- | -------------------------------------------- |
+| `@update:modelValue` | **transient** — đang kéo thumb               |
+| `@commit`            | **committed** — thả (một checkpoint undo I9) |
+
+## States
+
+nghỉ / hover (thumb lớn nhẹ) / focus (**ring thép** trên thumb) / đang kéo / disabled (mờ, không kéo).
+
+## A11y
+
+`role="slider"` + `aria-valuenow/min/max`; ←→ đổi theo `step`, Home/End = min/max; label từ hàng
+(`aria-labelledby`).
+
+## Motion
+
+Thumb bám tay (không tween khi kéo); range đổi màu tức thì. Hover thumb `transition-transform duration-fast`. Tôn
+trọng `prefers-reduced-motion`.
+
+## Do / Don't
+
+- ✅ Giá trị liên tục có dải rõ (volume 0–1; sau này opacity 0–1 ở grade 0.10; trần cache % ở Settings media).
+- ❌ Số có đơn vị không chặn dải (toạ độ, góc) → `NumberField`.
+- ❌ Bật/tắt → `Switch`; chọn rời rạc → `SegmentedControl`/`Select`.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Components/Blocks/Inspector</code> (volume) · <code>Mockup/Settings</code>{" "}
+  (trần cache).
+</div>
+
+</div>

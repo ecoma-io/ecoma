@@ -1,0 +1,139 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Elevation" />
+
+export const Sample = ({ label, shadow, note }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+    <div
+      style={{
+        height: "5rem",
+        borderRadius: "0.75rem",
+        background: "hsl(var(--card))",
+        border: "1px solid hsl(var(--border))",
+        boxShadow: shadow,
+      }}
+    />
+    <div>
+      <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "hsl(var(--foreground))" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>{note}</div>
+    </div>
+  </div>
+);
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Elevation
+
+**Hairline-over-shadow.** Alloy phân tầng chủ yếu bằng **đường viền mảnh** và **độ sáng
+bề mặt**, không phải bóng đổ. Bóng mềm lạnh chỉ dành cho những gì thật sự _nổi trên_ mặt phẳng:
+popover, dropdown, dialog, toast.
+
+Điều này giữ giao diện phẳng, sạch, "công cụ pro" — thay vì trôi nổi kiểu web marketing.
+
+## Nhịp ba lớp của app shell
+
+Một app Alloy phân vùng bằng **độ sáng nền theo đúng một trật tự**:
+
+| Lớp    | Token                            | Vai trò                                                          |
+| ------ | -------------------------------- | ---------------------------------------------------------------- |
+| Sunken | `--sunken` (`bg-sunken`)         | chrome điều hướng — sidebar, rail. **Trũng nhất**, lùi về sau.   |
+| Base   | `--background`                   | vùng nội dung làm việc.                                          |
+| Raised | `--card` (`bg-card` / `Surface`) | card, hàng list, panel — **trắng, sáng hơn nền**, viền hairline. |
+
+Sidebar không bao giờ _sáng hơn_ vùng nội dung — phần phục vụ định hướng phải lùi lại,
+nội dung công việc là nhân vật chính.
+
+## Chrome ghim — kính mờ, vẫn hairline
+
+Một dải **ghim** (`position: sticky`) là trường hợp duy nhất mà nội dung _chạy bên dưới_ một mặt
+phẳng khác. Nếu dải đó đục hoàn toàn, cuộn trang thành ra nội dung "biến mất" ở một đường cắt phẳng —
+mắt không đọc được là có gì bị che hay đã hết. Phản xạ quen thuộc là đổ bóng xuống dưới dải để tạo
+chiều sâu; Alloy **không làm vậy** — bóng ở đây sẽ là bóng thường trực trên một thứ không hề nổi.
+
+Thay vào đó: **mặt phẳng bán trong + `backdrop-blur`, và giữ nguyên hairline `border-b`**. Cái mờ
+phía sau kính nói "còn nội dung nữa ở dưới", còn cạnh vẫn là một đường 1px chứ không phải vệt bóng.
+
+Ba ràng buộc, đủ để không tự do diễn giải:
+
+- **Nền đục khai trước, alpha khai sau `supports-[backdrop-filter]`.** `backdrop-filter` không được
+  hỗ trợ ở mọi nơi (và bị tắt trong một số chế độ tiết kiệm năng lượng); nơi nào không blur được thì
+  dải phải đục hẳn, không bao giờ là một tấm trong suốt nhìn xuyên qua.
+- **Alpha ở 0.8, không thấp hơn.** Đây là chrome phải đọc được, không phải một hiệu ứng.
+- **Dải giữ mặt phẳng của chính nó.** `AppHeader` ghim trên `--card`, `PageHeader` ghim trên
+  `--background` — kính mờ không đổi bậc của dải trong nhịp ba lớp, nó chỉ nói rằng có thứ đang trôi
+  bên dưới.
+
+<div
+  style={{
+    marginTop: "1rem",
+    height: "8rem",
+    overflowY: "auto",
+    borderRadius: "0.75rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--background))",
+  }}
+>
+  <div
+    style={{
+      position: "sticky",
+      top: 0,
+      padding: "0.75rem 1rem",
+      borderBottom: "1px solid hsl(var(--border))",
+      background: "hsl(var(--card) / 0.8)",
+      backdropFilter: "blur(12px)",
+      fontSize: "0.8125rem",
+      fontWeight: 500,
+      color: "hsl(var(--foreground))",
+    }}
+  >
+    Dải ghim — cuộn để thấy nội dung đi qua lớp kính
+  </div>
+  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", padding: "1rem" }}>
+    {Array.from({ length: 8 }).map((_, i) => (
+      <div
+        key={i}
+        style={{
+          height: "2rem",
+          borderRadius: "0.5rem",
+          border: "1px solid hsl(var(--border))",
+          background: "hsl(var(--card))",
+        }}
+      />
+    ))}
+  </div>
+</div>
+
+## Hai bậc viền
+
+Hairline mặc định (`--border`) giữ trầm để lưới không ồn; `--border-strong`
+(`border-border-strong`) dành cho khối cần khẳng định cạnh (panel đang active, vùng
+target bàn phím). Không dùng strong đại trà — hai bậc chỉ có nghĩa khi bậc mạnh hiếm.
+
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))",
+    gap: "1.5rem",
+    padding: "1.5rem",
+    borderRadius: "0.75rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--background))",
+    marginTop: "1rem",
+  }}
+>
+  <Sample label="Hairline (mặc định)" shadow="none" note="card, panel, input — chỉ viền" />
+  <Sample label="shadow-sm" shadow="var(--shadow-sm)" note="chip active, phần tử nổi nhẹ" />
+  <Sample label="shadow-md" shadow="var(--shadow-md)" note="popover, dropdown, menu" />
+  <Sample label="shadow-lg" shadow="var(--shadow-lg)" note="dialog, modal, command palette" />
+</div>
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trên nền giấy sáng của Alloy, tầng nổi thể hiện bằng bề mặt **trắng hơn nền** (card trắng trên
+  giấy kỹ thuật) cộng hairline; bóng giữ mờ, lạnh, và chỉ leo thang theo mức độ "nổi thật" (popover
+  → dialog). Không có glow: phát sáng không phải ngôn ngữ của hệ này — màu lực lượng và mối hàn mới
+  là chữ ký (xem <code>Signature</code>).
+</div>
+
+</div>

@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "analytics": false,
+  "tui": {
+    "enabled": false
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
+      "!{projectRoot}/**/*_test.go",
+      "!{projectRoot}/**/*_test.py",
+      "!{projectRoot}/tests/**/*.rs",
+      "!{projectRoot}/conftest.py",
+      "!{projectRoot}/playwright.config.ts"
+    ],
+    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "lint": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/eslint.config.mjs",
+        "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
+        "{workspaceRoot}/journey-markers.config.json",
+        "{workspaceRoot}/shared/tools/dev-cli/**/*"
+      ]
+    },
+    "test": {
+      "cache": true
+    }
+  },
+  "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"]
+}

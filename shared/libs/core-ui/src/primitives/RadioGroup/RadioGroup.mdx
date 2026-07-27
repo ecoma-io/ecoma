@@ -1,0 +1,63 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as RadioGroupStories from "./RadioGroup.stories";
+
+<Meta of={RadioGroupStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# RadioGroup
+
+Danh sách **dọc** các lựa chọn loại trừ lẫn nhau, mỗi lựa chọn có nhãn hiển thị (và mô tả tuỳ chọn) —
+dùng cho các lựa chọn/cài đặt dài hoặc cần giải thích. Dựng trên `RadioGroupRoot`/`RadioGroupItem`/
+`RadioGroupIndicator` của Reka UI (roving tabindex, điều hướng bằng phím mũi tên). Import từ
+`@ecoma-io/ui`:
+
+```ts
+import { RadioGroup, type RadioOption } from "@ecoma-io/ui";
+```
+
+<Canvas of={RadioGroupStories.Demo} />
+
+## RadioGroup vs SegmentedControl
+
+- **`SegmentedControl`** — chuyển đổi **ngang, gọn**, tất cả lựa chọn hiển thị cùng lúc, nhãn ngắn (2
+  đến 5 mục) — vd chuyển chế độ xem, mật độ hiển thị.
+- **`RadioGroup`** — danh sách **dọc** có nhãn (và mô tả) đầy đủ — vd chọn gói dịch vụ, cài đặt có
+  giải thích dài, biểu mẫu.
+
+Nhãn ngắn, ít mục, cần gọn trong thanh công cụ → `SegmentedControl`. Nhãn dài/cần mô tả, hoặc nằm
+trong biểu mẫu/trang cài đặt → `RadioGroup`.
+
+## Options
+
+Mỗi phần tử của mảng `options` là một `RadioOption`:
+
+| Field         | Kiểu      | Bắt buộc | Ý nghĩa                           |
+| ------------- | --------- | -------- | --------------------------------- |
+| `value`       | `string`  | có       | Giá trị khớp với `modelValue`     |
+| `label`       | `string`  | có       | Nhãn hiển thị                     |
+| `description` | `string`  | không    | Mô tả phụ, hiển thị nhỏ dưới nhãn |
+| `disabled`    | `boolean` | không    | Vô hiệu hoá riêng lựa chọn này    |
+
+## Đặt tên (accessible name)
+
+Mỗi hàng tự đặt tên qua `<label>` bọc quanh `RadioGroupItem` + chữ nhãn — không cần `aria-label`
+riêng. Đặt `name` khi `RadioGroup` nằm trong một `<form>` gửi thật (submit HTML thuần).
+
+## Motion
+
+Chấm chọn **bung vào** bằng `animate-scale-in`, vòng tròn lún nhẹ khi bấm (`active:scale-90`, `transform`
+chạy `--ease-spring` còn viền giữ `--ease-out` — cùng ngôn ngữ press với Checkbox/Switch). Tôn trọng
+`prefers-reduced-motion` (rule chặn chung ở `global.css`).
+
+## Props
+
+<ArgTypes of={RadioGroupStories} />
+
+## Do / Don't
+
+- ✅ Dùng `RadioGroup` khi nhãn dài hoặc cần mô tả kèm theo.
+- ✅ Dùng `SegmentedControl` khi các lựa chọn ngắn và cần hiển thị gọn theo hàng ngang.
+- ❌ Đừng dùng `RadioGroup` cho danh sách quá dài — cân nhắc `Select`.
+
+</div>

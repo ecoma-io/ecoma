@@ -1,0 +1,19 @@
+name: Setup workspace
+description: >-
+  pnpm, Node 22, and a frozen-lockfile install — the prelude every CI job needs
+  after checkout. Factored out so the jobs cannot drift apart on it (Rule 14).
+  Checkout itself stays in the caller: a local action cannot be resolved until
+  the repository is on disk, so a job's first step must be actions/checkout.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash

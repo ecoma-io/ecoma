@@ -1,0 +1,238 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as Demos from "./_demo/gallery.stories";
+
+<Meta title="Design System/Motion" />
+
+export const durs = [
+  { name: "instant", v: "80ms", use: "state tức thời (checkbox, toggle)" },
+  { name: "fast", v: "140ms", use: "hover, press, menu mở" },
+  { name: "base", v: "200ms", use: "mặc định — trần cho feedback UI" },
+  { name: "slow", v: "320ms", use: "panel trượt, sheet" },
+  { name: "slower", v: "480ms", use: "chuyển cảnh lớn, onboarding" },
+];
+
+export const eases = [
+  { name: "ease-out", v: "cubic-bezier(0.2, 0, 0, 1)", use: "Mặc định — mọi thứ đi vào / mở ra" },
+  {
+    name: "ease-spring",
+    v: "cubic-bezier(0.34, 1.4, 0.64, 1)",
+    use: "Overshoot nhẹ — popover, menu, và pha thả (release) của control rời rạc hay bấm (button, switch, segmented, stepper)",
+  },
+  {
+    name: "ease-in-out",
+    v: "cubic-bezier(0.65, 0, 0.35, 1)",
+    use: "Di chuyển đối xứng — indicator trượt, seam trôi",
+  },
+  { name: "ease-in", v: "cubic-bezier(0.4, 0, 1, 1)", use: "Thoát ra / biến mất" },
+];
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Motion
+
+Chuyển động là **ngữ nghĩa**, không phải trang trí. Đây là chất riêng lớn nhất của Alloy:
+mọi thay đổi trạng thái đều có micro-animation ngắn, truyền đạt **quan hệ nhân–quả** —
+bấm thì lún, mở thì nở, agent đang làm thì dẫn nhịp, mối hàn đang cộng tác thì trôi.
+
+**Trần 200ms cho mọi feedback UI.** Nhanh để cảm thấy tức thời, không bao giờ ì ạch.
+
+## Duration scale
+
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    padding: "1rem 1.25rem",
+    borderRadius: "0.75rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--card))",
+  }}
+>
+  {durs.map((d) => (
+    <div
+      key={d.name}
+      style={{ display: "flex", alignItems: "center", gap: "1rem", fontSize: "0.8125rem" }}
+    >
+      <code style={{ width: "5rem", color: "hsl(var(--primary))" }}>{d.name}</code>
+      <code style={{ width: "4rem", color: "hsl(var(--muted-foreground))" }}>{d.v}</code>
+      <span style={{ color: "hsl(var(--foreground))" }}>{d.use}</span>
+    </div>
+  ))}
+</div>
+
+## Easing
+
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    padding: "1rem 1.25rem",
+    borderRadius: "0.75rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--card))",
+  }}
+>
+  {eases.map((e) => (
+    <div
+      key={e.name}
+      style={{ display: "flex", alignItems: "center", gap: "1rem", fontSize: "0.8125rem" }}
+    >
+      <code style={{ width: "6.5rem", color: "hsl(var(--primary))" }}>{e.name}</code>
+      <span style={{ color: "hsl(var(--foreground))" }}>{e.use}</span>
+    </div>
+  ))}
+</div>
+
+## Keyframe library (demo)
+
+Bấm **Replay** để xem lại. `fade` chỉ mờ (nền overlay không được dịch chuyển), `fade-rise` và
+`scale-in` cho nội dung xuất hiện; `toast-in` cho Toast trượt vào theo trục swipe; `conduct` là
+nhịp dẫn đồng báo hiệu agent đang làm việc; `seam-flow` cho mối hàn sống khi cộng tác người↔agent
+đang chạy; `progress-indeterminate` là đoạn quét khi chưa có phần trăm để vẽ; các làn easing cho
+thấy khác biệt về cảm giác.
+
+<Canvas of={Demos.Motion} />
+
+<div style={{ marginTop: "1rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Tất cả tôn trọng <code>prefers-reduced-motion</code>: khi người dùng tắt hiệu ứng, mọi
+  animation/transition rút về ~0ms. Xem khối cuối trong <code>global.css</code>.
+</div>
+
+## Enter animation under Reka Presence
+
+Nội dung mount dưới một Reka **Presence** (dropdown `Select`, `Popover`, `Dialog`, `Tooltip`,
+`DropdownMenu`) phải **scope enter animation theo state**: `data-[state=open]:animate-*` (hoặc
+`data-[state=delayed-open]:*` cho Tooltip), **không bao giờ** `animate-*` trần. Một animation
+mount-only trần để phần tử **đã đóng** treo mãi như một lớp vô hình chặn tương tác: Presence chờ một
+`animationend` không bao giờ fire lại; còn animation scope-theo-state tính ra `animation-name: none` khi đóng —
+đúng nhánh unmount-tức-thì của Presence (`usePresence` đọc `getAnimationName`). Xem `Select.vue`.
+
+**Ngoại lệ — Toast:** Reka lái _chính_ `ToastRoot` bằng transform cho cử chỉ swipe-dismiss, nên đặt
+enter-transform thẳng lên đó sẽ đóng băng swipe. Cho `ToastRoot` **không** mang animation (Presence
+unmount tức thì khi đóng vì `animation-name: none`) và chạy `animate-toast-in` trên **một card con bên
+trong**. Xem `Toast.vue`.
+
+## Patterns within the token tier
+
+Vài công thức đưa tầng token gần hơn với "wow" mà không đụng tới GSAP — tất cả vẫn nằm trong trần
+200ms cho feedback (hoặc, với staggered reveal, cùng ngân sách `--dur-slow` mà panel/sheet đã
+dùng), và đều thuần CSS.
+
+**Springy transform, steady color** — cho `transform` easing riêng bằng `--ease-spring`, tách khỏi
+`--ease-out` của color/shadow, qua một `style="transition: ..."` tĩnh liệt kê từng cặp
+thuộc-tính/duration/easing — các utility `transition-[props]`/`duration-*`/`ease-*` của Tailwind chỉ
+áp một duration/easing chung cho mọi thuộc tính trong `transition-property`, không tách riêng được
+theo từng thuộc tính. Lún đọc như có kiểm soát, thả đọc như một cú nảy nhẹ có tiết chế — dùng lại
+đúng curve đã dùng cho popover/menu, chỉ trỏ thêm vào press/release. Xem `Button.vue`.
+
+**Kinetic swap cho control đổi nội dung theo trạng thái** — khi một control phải _thay_ nội dung
+(nhãn → vòng progress + loading text của Button `loading`), đừng cắt cảnh: xếp hai lớp nội dung
+chồng nhau trong **cùng một ô grid** (`[grid-area:1/1]` — control giữ nguyên bề rộng của lớp rộng
+nhất), đặt state lên phần tử gốc (`data-loading` + class `group`) rồi dàn cảnh bằng transition
+thuần theo `group-data-[loading]:*`: lớp cũ trượt lên và mờ đi (`--ease-out`), phần tử mới nảy
+vào bằng `--ease-spring`, dòng chữ phụ dâng lên sau cùng với `delay-75` — stagger vẫn nằm trong
+trần 200ms vì delay + duration của beat cuối ≤ 200ms. Ba quy tắc giữ phim sạch: (1) delay chỉ áp
+ở **chiều vào** (`group-data-[loading]:delay-75`, chiều ra về `0`) để cú thoát gọn; (2) phần tử
+mang `animate-spin` phải nằm **trong một wrapper riêng** — keyframe spin sở hữu `transform` nên
+sẽ đè mất scale/translate của cú vào nếu đặt cùng phần tử; (3) hai lớp **hoán đổi `aria-hidden`**
+theo state — opacity 0 không ẩn nội dung khỏi assistive tech, thiếu nó screen reader đọc cả hai
+lớp cùng lúc. Xem `Button.vue`.
+
+**Staggered reveal cho nội dung theo nhóm** — khi một list mount cùng lúc (option list của Select,
+item của một menu), cho mỗi hàng một `:style="{ animationDelay: ... }"` theo index trong `v-for`
+(`Math.min(i, 5) * 24ms` — chặn trần để list dài không kéo dài thêm mãi) cùng `animate-fade-rise`.
+Đây là nội dung **xuất hiện**, không phải feedback của một hành động rời rạc, nên không bị trần
+200ms ràng buộc — tính ngân sách như panel/sheet (`--dur-slow`, 320ms). Xem `Select.vue`.
+
+**Measured-position slide cho pill/indicator dùng chung** — khi nhiều lựa chọn chia nhau một pill nền
+(SegmentedControl), đừng suy `left`/`width` từ index/kích thước cố định: đọc trực tiếp
+`offsetLeft`/`offsetWidth` của phần tử đang active (`[data-state=checked]`) rồi gán qua `:style` động,
+cùng `style="transition: left ..., width ..."` tĩnh dùng lại `--dur-fast`/`--ease-spring`. Mỗi lần đo,
+`ResizeObserver` **retarget lại chính item đang active** (disconnect rồi observe lại) thay vì bám cố định
+khung chứa — bắt được cả list đổi, label đổi độ rộng, lẫn một reflow muộn do class đổi (vd. `font-medium`
+lúc chuyển active) trên đúng item đó. Gọi một lần trong `onMounted` trước khi trình duyệt paint frame đầu
+để không có cú trượt-từ-góc lúc mount. `transition-duration`
+`!important` của rule `prefers-reduced-motion` (`global.css`) áp dụng tự động, không cần xử lý riêng. Xem
+`SegmentedControl.vue`.
+
+**Anchor-origin growth cho overlay neo theo trigger** — panel nổi trên popper (`Popover`, `Tooltip`,
+`DropdownMenu`) phải nở ra _từ_ điểm neo, không phải từ tâm: đặt `style="transform-origin:
+var(--reka-popper-transform-origin)"` rồi `data-[state=open]:animate-scale-in`. Reka tính sẵn origin
+theo `side`/`align` đang dùng, nên cùng một `scale-in` tự "mọc" từ đúng cạnh trigger — kết đôi thẳng với
+quy tắc scope-theo-state ở mục trên. Xem `Popover.vue`.
+
+---
+
+## Two tiers of motion
+
+Alloy chia motion làm **hai tầng**, dùng đúng công cụ cho đúng việc:
+
+| Tầng                                  | Công cụ                                                   | Dùng cho                                                                                        | Trần                               |
+| ------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **Micro-motion** (mặc định, ~90%)     | Token CSS + keyframe (`--dur-*`, `--ease-*`, `animate-*`) | Feedback UI thường ngày: hover, press, menu mở, panel trượt, `conduct`, `seam-flow`             | **200ms**                          |
+| **Điểm nhấn ấn tượng** (accent, hiếm) | **GSAP timeline**                                         | Khoảnh khắc cần "wow": agent bàn giao kết quả, quy trình hoàn tất, onboarding hero, empty-state | Không có trần cứng, nhưng tiết chế |
+
+Nguyên tắc: **mặc định luôn là tầng token.** Nếu một tương tác chỉ cần nói "đã nhận / đã đổi
+trạng thái" thì CSS token là đủ và nhanh nhất. Chỉ leo lên GSAP khi khoảnh khắc đó **xứng đáng
+được nhớ** — và những chỗ như thế phải _đếm trên đầu ngón tay_ mỗi màn hình, nếu không "ấn tượng"
+sẽ thành ồn ào.
+
+## Why GSAP
+
+GSAP **đã có sẵn trong stack** và là công cụ chuẩn của tầng accent. Cùng một
+mô hình tư duy — timeline, position parameter, ease, `stagger` — nên không phải học công cụ mới,
+chỉ là mang nó lên lớp UI cho vài điểm nhấn, chạy theo đồng hồ thật.
+
+Khi nào token CSS đuối và nên leo lên GSAP:
+
+- **Dàn cảnh nhiều bước** phụ thuộc nhau (quầng sáng → prompt nảy → kết quả trồi theo `stagger`).
+- **Overshoot / vật lý** vượt ngoài `--ease-spring` (`back.out(1.7)`, `elastic`, `expo.out`).
+- **Điều phối theo thời gian** cần tua lại / đảo chiều / đồng bộ nhiều phần tử trên một mốc.
+- **Lái một biến, để CSS lo hình học** — GSAP tween một custom property, CSS biến nó thành
+  `transform`/`opacity` (kỹ thuật `--pz-progress` của block parallax-zoom).
+
+## Accent example — AI returns result moment
+
+Đây chính là loại motion mà tầng token cố tình _không_ làm: quầng đồng bung ra khi agent bàn
+giao, rồi kết quả trồi lên theo `stagger` với overshoot `back.out`. Bấm **Diễn lại accent**.
+
+<Canvas of={Demos.GsapAccent} />
+
+```ts
+import gsap from "gsap";
+
+const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+// Quầng đồng bung ra khi agent bàn giao (accent, không phải feedback)
+tl.fromTo(
+  ".burst",
+  { scale: 0.6, opacity: 0.85 },
+  { scale: 2.4, opacity: 0, duration: 0.7, ease: "power2.out" },
+  0,
+);
+
+// Kết quả trồi lên theo stagger, overshoot bằng back.out
+tl.fromTo(
+  ".tile",
+  { y: 26, opacity: 0, scale: 0.92 },
+  { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.7)", stagger: 0.12 },
+  0.12,
+);
+```
+
+## Rules to keep accents on-brand
+
+- **Vẫn tôn trọng token.** Ease/thời lượng GSAP soi chiếu theo thang ở trên: các bước ngắn bám
+  `--ease-out`, overshoot là họ hàng của `--ease-spring`. Accent không được _lệch tông_ khỏi hệ.
+- **Điểm chạm là nhân vật chính.** Accent gần như luôn xoay quanh khoảnh khắc hai lực lượng gặp
+  nhau — agent bàn giao, người phê duyệt, mối hàn khép — đó là lý do nó "ấn tượng" mà vẫn nhất quán.
+- **Reduced-motion là bắt buộc, không phải tuỳ chọn.** Với `prefers-reduced-motion: reduce`, bỏ
+  toàn bộ dàn cảnh và hiện thẳng trạng thái cuối (demo trên đã làm đúng vậy).
+- **Dọn dẹp.** Chạy accent trong `gsap.context()` và `revert()` khi unmount / trước khi diễn lại,
+  tránh rò tween khi điều hướng.
+- **Tiết chế.** Một accent mất "wow" ngay khi nó lặp lại lần thứ ba. Nếu thứ gì đó diễn ra liên
+  tục, nó thuộc tầng token, không phải tầng accent.
+
+</div>

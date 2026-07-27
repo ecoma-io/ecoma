@@ -1,0 +1,60 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SwitchStories from "./Switch.stories";
+
+<Meta of={SwitchStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Switch
+
+Toggle bật/tắt một thiết lập boolean **có hiệu lực tức thì** — không có bước "Save".
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { Switch } from "@ecoma-io/ui";
+```
+
+Dùng trên **critical path 0.1**: `Settings › Chung › Telemetry` (Roadmap mục 7). Dựng trên
+**Reka UI `Switch`** (a11y sẵn), style bằng token Alloy.
+
+<Canvas of={SwitchStories.Demo} />
+
+## Anatomy
+
+| Phần                | Vai trò                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| track               | nền thanh — `bg-primary` khi on, `bg-muted-foreground/30` khi off                           |
+| thumb               | núm tròn `bg-background` + shadow, trượt trái ↔ phải                                        |
+| label + description | **không thuộc component** — hàng setting bên ngoài cung cấp, liên kết qua `aria-labelledby` |
+
+## Props
+
+<ArgTypes of={SwitchStories} />
+
+## States
+
+on / off · hover · focus-visible (**ring thép** như Button) · disabled (giảm opacity, không tương tác).
+
+## A11y
+
+`role="switch"` + `aria-checked`; toggle bằng Space/Enter; label liên kết từ hàng setting
+(`aria-labelledby`/`aria-describedby`).
+
+## Motion
+
+Thumb trượt trái↔phải bằng `left` với `--dur-instant`/`--ease-out`; khi active, `transform` (hiệu ứng squish)
+dùng `--dur-fast`/`--ease-spring`. Track đổi `background-color, filter, box-shadow` cũng bằng
+`--dur-instant`/`--ease-out` — đúng như wireframe Settings đang vẽ. Tôn trọng `prefers-reduced-motion`
+(đổi trạng thái tức thì, không trượt).
+
+## Do / Don't
+
+- ✅ Thiết lập có hiệu lực ngay (telemetry, bật/tắt skill 0.4, loại media job 0.8).
+- ❌ Đừng dùng cho hành động cần xác nhận/submit — đó là việc của form + Button.
+- ❌ Đừng dùng cho lựa chọn nhiều-trong-một (đó là `SegmentedControl` hoặc `Select`).
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Mockup/Settings</code> (mục Chung).
+</div>
+
+</div>

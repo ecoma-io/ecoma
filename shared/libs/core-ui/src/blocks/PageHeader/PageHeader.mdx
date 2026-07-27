@@ -1,0 +1,83 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as PageHeaderStories from "./PageHeader.stories";
+
+<Meta of={PageHeaderStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# PageHeader
+
+Dải tiêu đề **ghim trên đỉnh** của một surface: tên surface + số lượng đang có + một dòng định
+hướng, và các hành động chính của surface đó. Import từ `@ecoma-io/ui`:
+
+```ts
+import { PageHeader } from "@ecoma-io/ui";
+```
+
+<Canvas of={PageHeaderStories.Demo} />
+
+## Vì sao là một block, không phải mỗi màn tự viết
+
+Đây là **khác biệt giữa "một trang" và "một surface của workspace"**. Khi tiêu đề nằm _trong_
+vùng cuộn, nó trôi đi mất: cuộn xuống hàng thứ mười là không còn gì nói bạn đang ở đâu và không
+còn chỗ bấm hành động chính. Ghim nó lại biến bố cục thành **khung ba dải** — dải tiêu đề ·
+vùng làm việc cuộn được · (tuỳ surface) dải chân — và vùng làm việc mới có **đáy** để chiếm hết
+chiều cao còn lại. Chính cái đáy đó là thứ khiến một danh sách ba dòng đọc như "danh sách đang
+có ba dòng" thay vì "trang chưa làm xong".
+
+Ghim bằng `position: sticky`, nên nó **cần một ancestor cuộn được**. Header không chịu ghim gần
+như luôn là do một ancestor đang `overflow: hidden`, không phải do component.
+
+## Phân tầng — hairline, không đổ bóng
+
+Dải này nằm trên `bg-background` (cùng mặt phẳng với vùng làm việc) và tách bằng **một hairline
+`border-b`**, không phải shadow — xem **Design System › Elevation**. Nó không lấy `sunken`: đó là
+mặt phẳng của _chrome điều hướng_ (sidebar), còn đây là tiêu đề của chính vùng nội dung.
+
+Hàng cuộn _bên dưới_ dải, nên mặt phẳng là **kính mờ** theo đúng khuôn "chrome ghim" của trang
+Elevation: `bg-background` đục khai trước làm fallback, rồi `backdrop-blur-md` cộng
+`supports-[backdrop-filter]:bg-background/80`. Không có shadow — bậc của dải không đổi, lớp mờ chỉ
+nói rằng có nội dung đang trôi qua phía dưới.
+
+## Co giãn — gutter theo bậc, đo chữ có trần
+
+Gutter đi theo bậc thay vì giữ một con số: `16px / 12px` mặc định, `24px / 16px` từ `sm`, và `32px`
+ngang từ `3xl` (1920px) — nới ra cho canvas rộng, không chỉ co lại cho mobile (**Principles §4**).
+
+`description` bị chặn ở `max-w-prose` chứ không bám theo viewport. Một dòng định hướng kéo ngang
+màn hình ultra-wide là một dòng không đọc nổi; chỗ rộng ra thuộc về hành động và vùng làm việc bên
+dưới, không phải về một đo chữ dài hơn. Tiêu đề thì không cần trần — nó `truncate`, nên vĩnh viễn
+chỉ chiếm một dòng.
+
+Khi hẹp, **cụm `actions` xuống hàng riêng** thay vì chen cạnh một tiêu đề đã bị cắt còn vài ký tự:
+khối tiêu đề khai `basis-56` làm ngưỡng ngắt dòng (flex đọc basis để chia hàng), và cụm hành động
+dùng `ml-auto` — không phải `justify-between` của header — để khi đã xuống hàng nó vẫn nằm bên
+phải chứ không rơi về sát mép trái dưới tiêu đề.
+
+## Số đếm là số, nên nó `tabular`
+
+`count` render bằng `.tabular` (mono + tabular-nums, **Principles §5**) để tiêu đề bên cạnh không
+bị xê dịch mỗi khi một mục được xử lý xong. Nó **cố ý không phải `Badge`** — badge là chip _trạng
+thái_, còn "bên dưới có bao nhiêu dòng" là một _dữ kiện_. Chỉ bọc `Badge` ở call site trên surface
+hiếm hoi mà bản thân con số _là_ lời cảnh báo (một hàng chờ duyệt đang dài ra).
+
+Bỏ hẳn `count` thay vì truyền `0`: số 0 cạnh tiêu đề đọc như fetch hỏng, còn "chưa có gì" là việc
+của `EmptyState`.
+
+## Props & slots
+
+<ArgTypes of={PageHeaderStories} />
+
+Slot `actions` nhận các hành động của surface — theo **Principles §2** chỉ **một** nút
+`variant="primary"`, phần còn lại `outline`/`subtle`.
+
+## Do / Don't
+
+- ✅ `description` nói surface này **để làm gì**, không lặp lại tên.
+- ✅ Một primary duy nhất trong `actions`.
+- ❌ Đừng nhét bộ lọc dài hay tab điều hướng vào đây — dải này là danh tính + hành động; bộ lọc
+  thuộc về vùng làm việc ngay dưới nó.
+- ❌ Đừng dùng cho tiêu đề _bên trong_ một section (dùng `text-title`), cũng không dùng cho
+  tiêu đề dialog (`Dialog` đã có).
+
+</div>

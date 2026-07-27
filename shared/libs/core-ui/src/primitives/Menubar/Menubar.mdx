@@ -1,0 +1,73 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as MenubarStories from "./Menubar.stories";
+
+<Meta of={MenubarStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Menubar
+
+Dải menu kiểu ứng dụng desktop (File · View · Help…) — mảnh a11y nền cho **TitleBar**.
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { Menubar, type MenubarMenu } from "@ecoma-io/ui";
+```
+
+<Canvas of={MenubarStories.Demo} />
+
+## Data-driven
+
+Menubar không ôm logic ứng dụng: truyền mảng `menus`, component tự lo mở/đóng, hover-để-chuyển,
+điều hướng bàn phím và click-ra-ngoài. Chọn một dòng thì phát `select` kèm `command` id — host tự
+ánh xạ id đó sang hành động (giữ primitive tách khỏi nghiệp vụ).
+
+```vue
+<Menubar :menus="menus" @select="run($event)" />
+```
+
+## Keyboard & a11y
+
+Theo mẫu WAI-ARIA menubar (`role="menubar"`/`menu`/`menuitem`, `aria-expanded`/`aria-haspopup`):
+
+| Phím                                 | Hành vi                                    |
+| ------------------------------------ | ------------------------------------------ |
+| `↓` / `Enter` / `Space` trên trigger | Mở menu, focus dòng đầu                    |
+| `↑` `↓`                              | Di chuyển dòng (bỏ qua separator/disabled) |
+| `←` `→`                              | Chuyển sang menu trước/kế                  |
+| `Home` / `End`                       | Dòng đầu / cuối                            |
+| `Esc`                                | Đóng                                       |
+| click ra ngoài                       | Đóng                                       |
+
+> Khi cần focus-trapping sâu hơn, có thể thay lõi bằng **Reka UI** mà không đổi API gọi.
+
+## Types
+
+```ts
+interface MenubarItem {
+  label: string;
+  command?: string; // id phát qua @select
+  shortcut?: string; // gợi ý phím tắt, canh phải
+  separator?: boolean;
+  disabled?: boolean;
+}
+interface MenubarMenu {
+  id: string;
+  label: string;
+  items: MenubarItem[];
+}
+```
+
+## Props
+
+<ArgTypes of={MenubarStories} />
+
+## Visual Language
+
+- **Hover/mở dùng nền `subtle` trung tính, KHÔNG tô màu thép.** Màu hành động dành cho hành động chính — menu
+  là điều hướng, không phải điểm nhấn.
+- Dropdown nở bằng `animate-scale-in` (140ms, `ease-spring`) từ góc trên-trái; tôn trọng
+  `prefers-reduced-motion`.
+- `shortcut` canh phải bằng `.tabular` (Geist Mono) để phím tắt thẳng hàng.
+
+</div>

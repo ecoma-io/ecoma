@@ -1,0 +1,59 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SpinnerStories from "./Spinner.stories";
+
+<Meta of={SpinnerStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Spinner
+
+Chỉ báo loading **không xác định thời lượng** — dùng khi chưa biết chờ bao lâu và chưa biết hình
+dạng nội dung sắp hiện ra. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Spinner } from "@ecoma-io/ui";
+```
+
+<Canvas of={SpinnerStories.Demo} />
+
+## Khi nào dùng
+
+- Đang chờ một thao tác **không đoán trước được thời lượng** (gọi API, submit form, xử lý nền) và
+  chưa biết layout nội dung sắp thay thế.
+- Nếu đã biết **hình dạng layout** sắp hiện (danh sách, card, avatar) — dùng `Skeleton` thay vì
+  Spinner, để người dùng thấy trước bố cục đang tới.
+- Nếu chỉ cần chia bố cục tĩnh (không phải trạng thái tải) — đó là `Separator`, không phải Spinner.
+
+## Accessibility
+
+Gốc component mang `role="status"` và `aria-label` (từ prop `label`, mặc định "Đang tải") — trình
+đọc màn hình công bố trạng thái chờ qua label này. Vòng cung SVG bên trong là trang trí thuần tuý
+(`aria-hidden`) vì ý nghĩa đã nằm trọn trong label. **Luôn** truyền `label` mô tả cụ thể việc đang
+chờ (vd "Đang lưu thay đổi") thay vì để mặc định chung chung khi ngữ cảnh không tự rõ.
+
+## Sizes
+
+| Size | Kích thước | Dùng cho                        |
+| ---- | ---------- | ------------------------------- |
+| `sm` | `h-4 w-4`  | inline cạnh text, trong nút bấm |
+| `md` | `h-5 w-5`  | mặc định, khối nội dung vừa     |
+| `lg` | `h-8 w-8`  | toàn trang / khối lớn           |
+
+## Màu sắc
+
+Spinner dùng `text-current`/`stroke-current`/`fill-current` — nó **thừa hưởng** màu chữ của phần tử
+cha, không tự vẽ màu. Đặt `text-{color}` (hoặc token màu) trên container bao quanh để đổi màu
+spinner, không sửa trong component.
+
+## Props
+
+<ArgTypes of={SpinnerStories} />
+
+## Do / Don't
+
+- ✅ Truyền `label` mô tả đúng việc đang chờ.
+- ✅ Bọc trong phần tử có màu chữ mong muốn (`text-primary`, `text-muted-foreground`…).
+- ❌ Đừng dùng Spinner khi đã biết trước layout — dùng `Skeleton`.
+- ❌ Đừng để Spinner chạy vô thời hạn không có cách huỷ/timeout ở tầng gọi nó.
+
+</div>

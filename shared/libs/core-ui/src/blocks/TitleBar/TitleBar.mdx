@@ -1,0 +1,109 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TitleBarStories from "./TitleBar.stories";
+
+<Meta of={TitleBarStories} />
+
+<div style={{ maxWidth: "52rem" }}>
+
+# TitleBar
+
+Chrome cửa sổ tuỳ biến cho các app desktop trong hệ sinh thái Ecoma (frameless) — ví dụ dưới đây
+minh hoạ bằng một host desktop giả định. Là một **block**: ghép từ primitive, có ngữ cảnh domain
+nhưng vẫn thuần trình bày. Import từ `@ecoma-io/ui`:
+
+```ts
+import { TitleBar, type MenubarMenu } from "@ecoma-io/ui";
+```
+
+`app-name` là prop **bắt buộc, không có default** — block không mang danh tính riêng; thương
+hiệu trên thanh luôn do host app khai báo.
+
+<Canvas of={TitleBarStories.Demo} />
+
+## Layout
+
+```
+[ ⬡ brand ] [ File View Help ]  ····· vùng kéo / tiêu đề ····· [ – ▢ ✕ ]
+```
+
+Cả thanh là vùng kéo cửa sổ (`-webkit-app-region: drag`); **chỉ** các cụm thật sự nhận click
+(Menubar, WindowControls) tự `no-drag` để bấm được. Cụm thương hiệu **ở lại trong vùng kéo** —
+không có gì trong đó tương tác, mà góc logo lại đúng là chỗ người ta với tay tới để di chuyển cửa
+sổ; cho nó `no-drag` là lấy đi thao tác đó mà không đổi lại được gì.
+
+Thương hiệu mang **BrandMark** (hai khối một mộng ghép) trên nền `bg-primary` — lực **thép**
+(người), điểm màu duy nhất trên một thanh chrome còn lại là trung tính (**Design System ›
+Signature**).
+
+## Components
+
+| Vùng       | Primitive        | Vai trò                                                                           |
+| ---------- | ---------------- | --------------------------------------------------------------------------------- |
+| Brand      | —                | BrandMark + tên app                                                               |
+| Menu       | `Menubar`        | File / View / Help, phát `select(command)`                                        |
+| Tiêu đề    | —                | Dự án/composition đang mở, canh giữa, `truncate` — nội dung theo quy tắc A11 dưới |
+| Điều khiển | `WindowControls` | minimize · maximize · close                                                       |
+
+## Integration with desktop app
+
+Block không biết nó đang chạy trong shell nào. Host bọc một lớp mỏng, nối window bridge + i18n +
+command runner. Ví dụ dưới đây minh hoạ một host desktop giả định (namespace `window.appShell`)
+— một host khác trong hệ sinh thái sẽ nối theo đúng khuôn này với namespace riêng của app đó:
+
+```vue
+<TitleBar
+  :app-name="t('app.name')"
+  :title="projectTitle"
+  :menus="menus"
+  :is-maximized="isMaximized"
+  @select="run($event)"
+  @minimize="window.appShell.window.minimize()"
+  @maximize="window.appShell.window.maximizeToggle()"
+  @close="window.appShell.window.close()"
+/>
+```
+
+> `apps/desktop/.../TitleBar.vue` hiện còn dùng token hyperframes cũ (`bg-surface`, `text-text`…);
+> việc rewire sang block Alloy này nằm trong hạng mục "chuyển desktop sang preset Alloy".
+
+## Title content rules (A11)
+
+Multi-window kiểu VSCode (Vision §4) đòi hỏi taskbar/window-switcher phân biệt được nhiều cửa sổ project:
+
+- **Có project mở** → `prop title` = `"<TênProject> — <appName>"` (ví dụ:
+  `"<TênProject> — MyApp"`); host **đồng thời** gọi `BrowserWindow.setTitle` bên main để OS-level
+  taskbar/switcher khớp theo (block chỉ vẽ chrome trong cửa sổ, không tự set tiêu đề OS).
+- **Dashboard / chưa có project** → `prop title` rỗng, `appName` một mình giữ tagline của host
+  (ví dụ: `"MyApp"`).
+
+## Back to Editor from Settings (C9)
+
+Khi `select` chuyển hướng sang route Settings (xem `Mockup/Editor` § Nav seam — ngữ nghĩa click TitleBar + cây
+file), Settings cần một nút quay lại tường minh ("◂ Back to editor" / "Done") — chi tiết vị trí/microcopy ở
+`Mockup/Settings`; ghi ở đây vì đây là nơi tiêu đề/route của cửa sổ được mô tả.
+
+## Home · Settings — fixed icons (design-ahead, not yet real prop)
+
+`Mockup/Editor` chốt TitleBar mang **2 icon cố định** (Home → route Dashboard · Settings → route Settings,
+Architecture §9 mục 7), thay cho activity rail cũ. Block ở trên **chưa có prop cho cụm icon này** — cụm chỉ
+được vẽ chồng (overlay, `no-drag`) trong composition `Mockup/Editor` để duyệt hình dạng đích trước; đưa nó
+thành prop thật của `TitleBar` (và bớt phụ thuộc vào lệnh Menubar `nav.settings`) là việc còn lại khi mở gate
+code cho nav seam, ngoài phạm vi tài liệu này.
+
+## Props
+
+<ArgTypes of={TitleBarStories} />
+
+## Events
+
+|                                   | Kiểu                | Ghi chú                  |
+| --------------------------------- | ------------------- | ------------------------ |
+| `select`                          | `(command: string)` | Chuyển tiếp từ Menubar   |
+| `minimize` · `maximize` · `close` | `()`                | Ý định điều khiển cửa sổ |
+
+---
+
+Muốn xem TitleBar **trong ngữ cảnh toàn khung ứng dụng**, xem `Mockup/Editor` — nguồn sự thật duy nhất
+cho hình dạng shell (5 lens, cây file hợp nhất, status bar).
+
+</div>

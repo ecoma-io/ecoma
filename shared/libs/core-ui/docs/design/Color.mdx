@@ -1,0 +1,126 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Color" />
+
+export const swatches = [
+  { name: "sunken", v: "--sunken" },
+  { name: "background", v: "--background" },
+  { name: "card", v: "--card" },
+  { name: "muted", v: "--muted" },
+  { name: "subtle", v: "--subtle" },
+  { name: "border", v: "--border" },
+  { name: "border-strong", v: "--border-strong" },
+  { name: "foreground", v: "--foreground" },
+  { name: "primary · Human (thép)", v: "--primary" },
+  { name: "primary-muted", v: "--primary-muted" },
+  { name: "agent · Agent (đồng)", v: "--agent" },
+  { name: "agent-muted", v: "--agent-muted" },
+  { name: "secondary", v: "--secondary" },
+  { name: "destructive", v: "--destructive" },
+  { name: "success", v: "--success" },
+  { name: "warning", v: "--warning" },
+  { name: "info", v: "--info" },
+];
+
+export const Chip = ({ v, name }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+    <div
+      style={{
+        height: "3.25rem",
+        borderRadius: "0.5rem",
+        border: "1px solid hsl(var(--border))",
+        background: `hsl(var(${v}))`,
+      }}
+    />
+    <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "hsl(var(--foreground))" }}>
+      {name}
+    </div>
+    <code style={{ fontSize: "0.6875rem", color: "hsl(var(--muted-foreground))" }}>{v}</code>
+  </div>
+);
+
+export const Palette = () => (
+  <div
+    style={{
+      background: "hsl(var(--background))",
+      padding: "1.25rem",
+      borderRadius: "0.75rem",
+      border: "1px solid hsl(var(--border))",
+    }}
+  >
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(7rem, 1fr))",
+        gap: "1rem",
+      }}
+    >
+      {swatches.map((s) => (
+        <Chip key={s.v} v={s.v} name={s.name} />
+      ))}
+    </div>
+  </div>
+);
+
+export const Seam = () => (
+  <div
+    style={{
+      height: "2.5rem",
+      borderRadius: "0.5rem",
+      border: "1px solid hsl(var(--border))",
+      background: "var(--seam)",
+    }}
+  />
+);
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Color
+
+Bảng màu Alloy là **hai lực lượng trên nền giấy**: trung tính giấy kỹ thuật sáng (lạnh nhẹ về
+phía thép) làm nền cho toàn bộ UI, và **hai màu có vai trò** — không phải một accent trang trí.
+
+### Human — thép (`--primary`)
+
+Màu của **con người**: những gì người tạo, sửa, quyết. Kiêm màu hành động mặc định — nút
+primary, CTA, focus ring, trạng thái bật/chọn của control — vì người cầm lái UI. Wash
+`--primary-muted` cho nền selected/active.
+
+### Agent — đồng (`--agent`)
+
+Màu của **lực lượng lao động agent**: badge agent, bước quy trình do agent chạy, tiến độ tự
+động, nhịp `conduct`. Wash `--agent-muted` cho bề mặt agent. Đồng không phải "màu phụ" của
+thép — hai lực lượng ngang hàng, mỗi bên một việc. Không dùng đồng cho hành động của người,
+không dùng thép cho việc agent đang chạy: **màu kể ai đang làm**, trộn vai là mất nghĩa.
+
+### Mối hàn — `--seam`
+
+<Seam />
+
+Gradient thép→đồng, nội suy **OKLCH** để đoạn giữa không xỉn. Chỉ ở điểm chạm hai lực lượng —
+luật đầy đủ ở `Signature`. Không bao giờ dưới chữ nội dung, không trên phần tử nhỏ hơn 20px,
+không làm nền lớn.
+
+### Neutral (giấy kỹ thuật)
+
+Tông hue ~213° chroma thấp — nền sáng `--background`, bề mặt trắng `--card`, chrome điều hướng
+trũng `--sunken`. Phân tầng bằng **độ sáng bề mặt + hairline**, không phải bóng đổ đậm (xem
+_Elevation_).
+
+### Functional
+
+`--destructive` / `--success` / `--warning` / `--info` được chỉnh đậm đủ đọc trên nền sáng
+(fill kèm chữ trắng đạt AA). Hue cố ý tách khỏi cả hai lực lượng: info không được lẫn với thép,
+warning không được lẫn với đồng — nếu không màu lực lượng ngừng mang nghĩa.
+
+## Default palette
+
+<Palette />
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Màu lưu dưới dạng kênh HSL cách nhau bởi khoảng trắng để Tailwind ghép alpha:
+  <code>hsl(var(--primary) / 0.12)</code>. Đổi giá trị ở <code>tokens.css</code> là cả hệ đổi theo.
+  Theme mặc định duy nhất là theme sáng; theme tối là seam dành sẵn (xem <code>tokens.css</code>).
+</div>
+
+</div>

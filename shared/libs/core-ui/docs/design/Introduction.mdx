@@ -1,0 +1,77 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Introduction" />
+
+<div style={{ maxWidth: "42rem" }}>
+
+# Alloy
+
+**Hệ thiết kế dùng chung của hệ sinh thái Ecoma.** Đây là _tài liệu sống_ — nơi
+diễn giải bằng văn xuôi và trình bày demo cho toàn bộ ngôn ngữ thị giác dùng
+chung giữa các sản phẩm. Không phải một playground để nghịch props; mà là nơi
+để **hiểu và duyệt** thiết kế.
+
+Ecoma là nền tảng no-code để một tổ chức số hoá vận hành của chính mình, trong
+đó **AI agent là một lực lượng lao động hạng nhất**. Alloy mã hoá đúng mệnh đề
+đó thành ngôn ngữ thị giác — khí chất **enterprise · flexible · creative**:
+
+> **«Hai kim loại, một hợp kim — mối hàn là chỗ ánh kim đổi màu.»**
+
+- **Hai màu chính có vai trò, không phải một.** **Human — thép** (`--primary`)
+  cho những gì con người tạo và quyết, kiêm màu hành động mặc định vì người cầm
+  lái UI. **Agent — đồng** (`--agent`) cho việc tự động đang chạy và kết quả
+  agent làm ra. Màu kể _ai đang làm_.
+- **Mối hàn (seam) là ngữ nghĩa, không phải trang trí.** Gradient thép→đồng
+  (`--seam`) chỉ xuất hiện đúng nơi hai lực lượng chạm nhau: điểm bàn giao
+  người↔agent, tài sản đồng tác giả, khoảnh khắc nhận diện.
+- **Light-first.** Công cụ vận hành văn phòng dùng ban ngày — nền giấy kỹ thuật
+  sáng, phân tầng bằng hairline + độ sáng bề mặt, không glow.
+- **Chuyển động là ngữ nghĩa** (motion-as-meaning): mọi thay đổi trạng thái đều
+  có micro-animation ngắn (≤200ms) truyền đạt quan hệ nhân–quả, không trang trí.
+
+Đây _không_ phải cái nhìn "AI-startup chung chung" (nền tối + gradient tím-xanh
+loang khắp nơi). Alloy đi hướng ngược lại: **màu phẳng kỷ luật làm nền tảng —
+gradient chỉ được phép ở nơi nó mang nghĩa.**
+
+## Documentation Map
+
+`Design` chỉ còn **ngôn ngữ hệ thống** — nguyên tắc và token nền tảng, không chứa component cụ thể:
+
+- **Principles** — 5 nguyên tắc nền tảng, kim chỉ nam cho mọi quyết định.
+- **Color** — bảng token màu của theme mặc định duy nhất, luật hai lực lượng.
+- **Typography** — Geist + Geist Mono, thang chữ, numerics.
+- **Motion** — thang thời lượng, easing, thư viện keyframe (có demo chạy).
+- **Iconography** — Lucide, thang cỡ 14/16/20, stroke 1.5, custom icons.
+- **Elevation** — hairline-over-shadow, các tầng nổi.
+- **Signature** — định luật hai lực lượng và các chữ ký mọi control cùng mặc.
+
+Component cụ thể (Button, Badge, Surface, TitleBar…) sống ở section riêng **`Components`** — bắt
+đầu từ `Components/Overview`.
+
+<div
+  style={{
+    marginTop: "2rem",
+    padding: "0.875rem 1rem",
+    borderRadius: "0.625rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--muted))",
+    fontSize: "0.8125rem",
+    color: "hsl(var(--muted-foreground))",
+  }}
+>
+  <strong style={{ color: "hsl(var(--foreground))" }}>Nguồn sự thật.</strong> Toàn bộ token nằm ở{" "}
+  <code>shared/libs/core-ui/src/styles/tokens.css</code> và được ánh xạ sang Tailwind qua{" "}
+  <code>tailwind.preset.js</code>. Storybook và bất kỳ ứng dụng nào trong hệ sinh thái Ecoma dùng
+  chung một nguồn —{" "}
+  <strong style={{ color: "hsl(var(--foreground))" }}>một theme mặc định duy nhất</strong> (sáng),
+  không có runtime light/dark switch; theme tối là seam dành sẵn, quay lại cùng bề mặt đầu tiên cần
+  nó.
+  <br />
+  <br />
+  <strong style={{ color: "hsl(var(--foreground))" }}>Ultrawide.</strong> Giao diện mọi sản phẩm
+  trong hệ sinh thái Ecoma phải hoạt động tốt từ cửa sổ hẹp đến màn hình ultrawide, không chỉ
+  responsive thu nhỏ xuống mobile. Dùng thanh <em>Viewport</em> trong preview để kiểm tra bố cục ở
+  nhiều bề rộng, kể cả mức "Full" (không giới hạn) để mô phỏng canvas ultrawide.
+</div>
+
+</div>

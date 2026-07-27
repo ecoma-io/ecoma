@@ -1,0 +1,66 @@
+# Git hooks — see CONTRIBUTING.md
+# Everything runs through Nx (the only task runner in this repo).
+
+pre-commit:
+  parallel: false
+  commands:
+    commit-identity:
+      # Refuse a commit still carrying the cloud-sandbox agent-bot identity
+      # (author/committer noreply@anthropic.com). git resolves the identity
+      # before this runs, so the guard resets the repo config to the session
+      # operator and fails loud — the commit is re-run under the human. Closes
+      # the session-timing gap that SessionStart alone cannot.
+      run: node shared/tools/dev-cli/src/main.mjs ensure-commit-identity --check
+    format:
+      # Auto-format changed files, then re-stage what Prettier rewrote.
+      run: pnpm nx format:write --uncommitted
+      stage_fixed: true
+    lint:
+      # Lint only the projects affected by the staged changes.
+      run: pnpm nx affected -t lint --uncommitted
+    journey-workspace:
+      # Journey markers (Rule 13) in files no nx project owns — root docs, the
+      # subsystem-root CLAUDE.md files, .github, .claude — the per-project lint's
+      # blind spot. Not affected-aware, so it lives outside `nx affected`.
+      run: node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
+    doc-links:
+      # Relative Markdown links across the repo must resolve to existing files.
+      # Repo-wide (a link crosses project boundaries), so outside `nx affected`.
+      run: node shared/tools/dev-cli/src/main.mjs check-doc-links
+    doctrine-index:
+      # Every doctrine card must still find the rule text it cites. Edits to a
+      # CLAUDE.md and edits to the index land in different projects, so no
+      # per-project lint sees both sides — this belongs outside `nx affected`.
+      run: node shared/tools/dev-cli/src/main.mjs check-doctrine-index
+
+pre-push:
+  commands:
+    verify:
+      # Heavy deterministic gates, once per push: the definition-of-done minus
+      # e2e (which needs Chromium/xvfb + built apps — CI stays its
+      # authoritative home). typecheck is first-class here because the
+      # Vite/esbuild build targets strip types without checking them.
+      run: pnpm nx affected -t typecheck test build
+
+prepare-commit-msg:
+  commands:
+    strip-agent-trailers:
+      # Remove auto-appended "Co-Authored-By: Claude" / "Claude-Session:" lines
+      # so commits stay under the human author with a clean message.
+      #
+      # `.claude/settings.json` > attribution now stops Claude Code from adding
+      # them at all; this stays as the net that does not depend on one agent's
+      # settings — a contributor on another tool, or a message typed by hand,
+      # reaches the same clean commit.
+      run: node shared/tools/dev-cli/src/main.mjs strip-claude-trailers {1}
+
+commit-msg:
+  commands:
+    commitlint:
+      # Tier 1: Conventional Commit shape + scope vocabulary (commitlint.config.mjs).
+      run: pnpm commitlint --edit {1}
+    scope-paths:
+      # Tier 2: the scope must be the narrowest one covering every staged path
+      # (see CONTRIBUTING.md). Best-effort under --amend/rebase; CI re-runs the
+      # same check per PR commit as the authoritative net.
+      run: node shared/tools/dev-cli/src/main.mjs check-commit-scope {1}

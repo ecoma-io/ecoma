@@ -1,0 +1,255 @@
+<!-- html-artifact template: diagram. Replace every TODO_REPLACE; restyle tokens per artifact-design.
+     Prefer the mermaid block; use the pan/zoom stage for custom SVG or large diagrams. -->
+<title>TODO_REPLACE — Diagram</title>
+<style>
+  :root {
+    /* TODO_REPLACE: placeholder palette — restyle per artifact-design */
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --surface: #1d2126;
+      --text: #e7eaee;
+      --muted: #97a1ac;
+      --line: #2b3138;
+      --accent: #7da2ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1d2126;
+    --text: #e7eaee;
+    --muted: #97a1ac;
+    --line: #2b3138;
+    --accent: #7da2ff;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin-inline: auto;
+    padding: clamp(16px, 3vw, 32px);
+  }
+  h1 {
+    font-size: clamp(1.4rem, 4vw, 1.9rem);
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: 1.1rem;
+    margin: 32px 0 12px;
+  }
+  .lead {
+    color: var(--muted);
+    margin: 0 0 8px;
+    max-width: 68ch;
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+  }
+  pre.mermaid {
+    margin: 0;
+  }
+
+  .stage {
+    position: relative;
+    overflow: hidden;
+    touch-action: none;
+    height: min(70svh, 640px);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .stage .pz {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 0;
+  }
+  .stage .pz svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .stage-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+  }
+  .stage-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .stage-controls button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .hint {
+    color: var(--muted);
+    font-size: 0.82rem;
+    margin-top: 6px;
+  }
+</style>
+
+<div class="wrap">
+  <h1>TODO_REPLACE Diagram title</h1>
+  <p class="lead">TODO_REPLACE One-line statement of what this diagram answers.</p>
+
+  <h2>TODO_REPLACE Overview</h2>
+  <div class="scroll-x">
+    <pre class="mermaid">
+flowchart TD
+  A[TODO_REPLACE Source] --> B[TODO_REPLACE Processor]
+  B --> C[TODO_REPLACE Sink]
+    </pre>
+  </div>
+
+  <h2>TODO_REPLACE Detail (pan/zoom)</h2>
+  <!-- A page may hold several .stage blocks (hybrid pages: see references/hybrid.md) —
+       the script initializes each one independently. -->
+  <div class="stage">
+    <div class="pz">
+      <!-- TODO_REPLACE: custom SVG diagram — set viewBox, generate coordinates by script if complex -->
+      <svg viewBox="0 0 800 500" role="img" aria-label="TODO_REPLACE diagram description">
+        <rect x="40" y="40" width="200" height="80" rx="10" fill="none" stroke="currentColor" />
+        <text x="140" y="85" text-anchor="middle" fill="currentColor">TODO_REPLACE</text>
+      </svg>
+    </div>
+    <div class="stage-controls">
+      <button class="pz-in" type="button" aria-label="Zoom in">+</button>
+      <button class="pz-out" type="button" aria-label="Zoom out">−</button>
+      <button class="pz-reset" type="button" aria-label="Reset view">⟲</button>
+    </div>
+  </div>
+  <p class="hint">Drag to pan · scroll or pinch to zoom · buttons for touch reset.</p>
+</div>
+
+<script>
+  function initStage(stage) {
+    const pz = stage.querySelector(".pz");
+    let tx = 0,
+      ty = 0,
+      scale = 1;
+    const pointers = new Map();
+    let lastDist = 0;
+
+    function apply() {
+      pz.style.transform = "translate(" + tx + "px, " + ty + "px) scale(" + scale + ")";
+    }
+
+    function zoomAt(factor, cx, cy) {
+      const next = Math.min(8, Math.max(0.25, scale * factor));
+      const k = next / scale;
+      tx = cx - k * (cx - tx);
+      ty = cy - k * (cy - ty);
+      scale = next;
+      apply();
+    }
+
+    stage.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".stage-controls")) return;
+      stage.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      lastDist = 0;
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) {
+        tx += e.clientX - prev.x;
+        ty += e.clientY - prev.y;
+        apply();
+      } else if (pointers.size === 2) {
+        const pts = [...pointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (lastDist) {
+          const r = stage.getBoundingClientRect();
+          zoomAt(
+            dist / lastDist,
+            (pts[0].x + pts[1].x) / 2 - r.left,
+            (pts[0].y + pts[1].y) / 2 - r.top,
+          );
+        }
+        lastDist = dist;
+      }
+    });
+    function endPointer(e) {
+      pointers.delete(e.pointerId);
+      lastDist = 0;
+    }
+    stage.addEventListener("pointerup", endPointer);
+    stage.addEventListener("pointercancel", endPointer);
+
+    stage.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const r = stage.getBoundingClientRect();
+        zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top);
+      },
+      { passive: false },
+    );
+
+    stage
+      .querySelector(".pz-in")
+      .addEventListener("click", () => zoomAt(1.25, stage.clientWidth / 2, stage.clientHeight / 2));
+    stage
+      .querySelector(".pz-out")
+      .addEventListener("click", () =>
+        zoomAt(1 / 1.25, stage.clientWidth / 2, stage.clientHeight / 2),
+      );
+    // Reset fits the diagram inside the stage — a wide viewBox otherwise renders taller
+    // than the stage and scale 1 would leave the bottom silently clipped.
+    function resetView() {
+      tx = 0;
+      ty = 0;
+      scale = 1;
+      apply();
+      const c = pz.firstElementChild;
+      if (c) {
+        const r = c.getBoundingClientRect();
+        const fit = Math.min(1, stage.clientWidth / r.width, stage.clientHeight / r.height);
+        if (fit < 1) {
+          scale = fit;
+          apply();
+        }
+      }
+    }
+    stage.querySelector(".pz-reset").addEventListener("click", resetView);
+    resetView();
+  }
+
+  document.querySelectorAll(".stage").forEach(initStage);
+</script>

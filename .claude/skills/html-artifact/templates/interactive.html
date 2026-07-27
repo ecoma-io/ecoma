@@ -1,0 +1,213 @@
+<!-- html-artifact template: interactive. Replace every TODO_REPLACE; restyle tokens per artifact-design.
+     Controls + live output: instant feedback on input, inline validation, deterministic logic only. -->
+<title>TODO_REPLACE — Tool</title>
+<style>
+  :root {
+    /* TODO_REPLACE: placeholder palette — restyle per artifact-design */
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+    --bad: #c4363a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --surface: #1d2126;
+      --text: #e7eaee;
+      --muted: #97a1ac;
+      --line: #2b3138;
+      --accent: #7da2ff;
+      --bad: #ef6a6e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1d2126;
+    --text: #e7eaee;
+    --muted: #97a1ac;
+    --line: #2b3138;
+    --accent: #7da2ff;
+    --bad: #ef6a6e;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+    --bad: #c4363a;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 960px;
+    margin-inline: auto;
+    padding: clamp(16px, 3vw, 32px);
+  }
+  h1 {
+    font-size: clamp(1.4rem, 4vw, 1.8rem);
+    margin: 0 0 4px;
+  }
+  .lead {
+    color: var(--muted);
+    margin: 0 0 20px;
+    max-width: 68ch;
+  }
+
+  .tool {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1024px) {
+    .tool {
+      grid-template-columns: 360px 1fr;
+      align-items: start;
+    }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+  }
+  .field {
+    display: grid;
+    gap: 4px;
+  }
+  .field label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .field input,
+  .field select {
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+  }
+  .field input:focus-visible,
+  .field select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .field .hint {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+  .field .error {
+    color: var(--bad);
+    font-size: 0.78rem;
+    min-height: 1em;
+  }
+
+  .out {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .out .label {
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .out .big {
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0 8px;
+  }
+  .out .detail {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+</style>
+
+<div class="wrap">
+  <h1>TODO_REPLACE Tool name</h1>
+  <p class="lead">TODO_REPLACE What this tool answers, in one sentence.</p>
+
+  <div class="tool">
+    <form class="panel" id="controls">
+      <div class="field">
+        <label for="qty">TODO_REPLACE Quantity</label>
+        <input
+          id="qty"
+          name="qty"
+          type="number"
+          inputmode="numeric"
+          min="1"
+          max="100000"
+          value="10"
+          required
+        />
+        <span class="hint">TODO_REPLACE 1–100 000</span>
+        <span class="error" id="qty-error"></span>
+      </div>
+      <div class="field">
+        <label for="mode">TODO_REPLACE Mode</label>
+        <select id="mode" name="mode">
+          <option value="a">TODO_REPLACE Option A</option>
+          <option value="b">TODO_REPLACE Option B</option>
+        </select>
+      </div>
+    </form>
+
+    <section class="out" aria-live="polite">
+      <div class="label">TODO_REPLACE Result</div>
+      <div class="big" id="result">—</div>
+      <div class="detail" id="detail"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById("controls");
+  const result = document.getElementById("result");
+  const detail = document.getElementById("detail");
+  const qtyError = document.getElementById("qty-error");
+
+  function compute() {
+    const qty = form.elements.qty;
+    if (!qty.checkValidity()) {
+      qtyError.textContent = "TODO_REPLACE Enter a whole number between 1 and 100 000.";
+      result.textContent = "—";
+      detail.textContent = "";
+      return;
+    }
+    qtyError.textContent = "";
+    const n = Number(qty.value);
+    const mode = form.elements.mode.value;
+    // TODO_REPLACE: real, deterministic computation — never a faked result.
+    const value = mode === "a" ? n * 2 : n * 3;
+    result.textContent = String(value);
+    detail.textContent =
+      "TODO_REPLACE how this was computed (" + n + " × " + (mode === "a" ? 2 : 3) + ")";
+  }
+
+  form.addEventListener("input", compute);
+  form.addEventListener("submit", (e) => e.preventDefault());
+  compute();
+</script>

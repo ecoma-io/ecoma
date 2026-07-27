@@ -1,0 +1,60 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TextFieldStories from "./TextField.stories";
+
+<Meta of={TextFieldStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# TextField
+
+Ô nhập văn bản một dòng — text · email · password · search · url · tel. Viền, ring focus và trạng
+thái lỗi nằm trên **khung ngoài**, nên phần trang trí `#leading`/`#trailing` (icon tìm kiếm, đơn vị)
+nằm _bên trong_ field và dùng chung hiệu ứng focus. Import từ `@ecoma-io/ui`:
+
+```ts
+import { TextField } from "@ecoma-io/ui";
+```
+
+<Canvas of={TextFieldStories.Demo} />
+
+## Khi nào dùng
+
+- Nhập **chữ** một dòng. Cho **số** dùng `NumberField` (kéo-chỉnh, đơn vị); cho giá trị liên tục bị
+  chặn dùng `Slider`; cho nhiều dòng dùng `Textarea`.
+- Ghép với `Field` để có nhãn + mô tả + lỗi chuẩn hoá thay vì tự dựng layout.
+
+## Đặt tên (accessible name)
+
+`TextField` là primitive **trần** — nó chỉ được đặt tên bởi host. Truyền `aria-label` (chuỗi) hoặc
+`aria-labelledby` (id của nhãn hiển thị). Khi bọc trong `Field`, `Field` lo phần nối nhãn.
+
+## Trạng thái lỗi
+
+`invalid` tô viền/ring `destructive` **và** gắn `aria-invalid` — báo lỗi cho cả người nhìn lẫn trình
+đọc màn hình, không chỉ đổi màu. Thông điệp lỗi đi kèm dùng `InlineError` (thường qua `Field`).
+
+## Sizes
+
+| Size | Cao           | Dùng cho                  |
+| ---- | ------------- | ------------------------- |
+| `sm` | 32px (`h-8`)  | toolbar, hàng nén, inline |
+| `md` | 36px (`h-9`)  | mặc định                  |
+| `lg` | 44px (`h-11`) | form thoáng, onboarding   |
+
+## Adornments
+
+`#leading`/`#trailing` nhận icon hoặc text ngắn (đơn vị, nút xoá). Chúng `pointer-events` bình thường
+— đặt nút bấm được vào `#trailing` nếu cần (vd nút hiện/ẩn mật khẩu).
+
+## Props
+
+<ArgTypes of={TextFieldStories} />
+
+## Do / Don't
+
+- ✅ Luôn đặt tên qua `aria-label`/`aria-labelledby` (hoặc `Field`).
+- ✅ Lỗi → `invalid` + `InlineError` cạnh field.
+- ❌ Đừng nhét số vào `TextField` khi cần kéo-chỉnh — dùng `NumberField`.
+- ❌ Đừng nhồi nhiều icon `#leading` làm rối vùng nhập.
+
+</div>

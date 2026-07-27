@@ -1,0 +1,153 @@
+{
+  "$comment": "Machine-readable doctrine index. Each card points at the CLAUDE.md tier that OWNS the rule and never restates it at length — the prose stays the single source of truth. `quote` is the machine anchor: `dev-cli check-doctrine-index` fails when the cited text no longer appears in `source`, so a rule that is edited or deleted cannot leave a stale card behind. A quote (not a content hash) is the anchor because doctrine churn here is overwhelmingly ADDITIVE — a section hash would fail on unrelated additions, and a gate that cries wolf is a gate that gets bypassed. The gate covers 'the cited text still exists'; whether a summary is still semantically right stays on review, the same split as check-claude-md and check-doc-links.",
+  "$admission": "A rule earns a card only when it satisfies at least one of: (i) FOREIGN-SCOPE — written in one tree but governing paths in another, so nested-CLAUDE.md auto-loading never delivers it where it applies; (ii) PATTERN-SCOPED — its real scope is a filename pattern that a directory hierarchy cannot express; (iii) NARROW + SILENT — an invariant whose violation is silent and expensive, scoped tightly enough to fire rarely. A rule that applies to everything adds no routing information and stays out. A rule that is FULLY enforced by a deterministic gate stays out too — `gate` beats a card. Excluded on that ground today: the leaf-independence dependency boundary (`@nx/enforce-module-boundaries`), the committed `.skip`/`.only` ban (`local/no-focused-or-skipped-tests`), and primitive artifact existence (`dev-cli check-primitive-artifacts`).",
+  "pathCards": [
+    {
+      "id": "primitive-doc-pairing",
+      "scope": ["shared/libs/core-ui/src/primitives/**", "shared/libs/core-ui/src/blocks/**"],
+      "summary": "Changing a primitive's props, defaults, or behavior obligates updating its `.mdx` design page in the same pass — docs lead, upstream-first.",
+      "source": "shared/libs/core-ui/CLAUDE.md",
+      "quote": "changing props/defaults/behavior obligates updating this page in the same pass",
+      "admission": "narrow-silent",
+      "gate": null,
+      "gateNote": "`dev-cli check-primitive-artifacts` gates that the page EXISTS; that it was updated to match is not mechanically decidable"
+    },
+    {
+      "id": "design-vocabulary-sync",
+      "scope": [
+        "shared/libs/core-ui/src/primitives/**",
+        "shared/libs/core-ui/src/blocks/**",
+        "shared/libs/core-ui/src/styles/**"
+      ],
+      "summary": "Introducing or changing SHARED vocabulary (a keyframe, `animate-*` utility, token, reusable overlay/motion pattern) obligates updating the owning `docs/design/*` page and its `_demo` gallery in the same pass — a primitive's own `.mdx` does not discharge the spec tier.",
+      "source": "shared/libs/core-ui/CLAUDE.md",
+      "quote": "obligates updating the owning design page **and its `_demo` gallery** in the same pass",
+      "admission": "foreign-scope",
+      "gate": null,
+      "gateNote": "distinguishing shared vocabulary from primitive-local detail is a judgment call"
+    },
+    {
+      "id": "tailwind-arbitrary-property",
+      "scope": ["**/*.vue"],
+      "summary": "Tailwind v4 landmine: bare arbitrary-property utilities such as `[transition:a,b,c]` do not compile in this repo — use an inline `style` binding instead.",
+      "source": "shared/libs/core-ui/CLAUDE.md",
+      "quote": "bare arbitrary-property utilities like `[transition:a,b,c]` do not compile",
+      "admission": "pattern-scoped",
+      "gate": null,
+      "gateNote": "fails silently at build — the class simply never generates, nothing errors"
+    },
+    {
+      "id": "test-tier-by-filename",
+      "scope": ["**/*.test.ts", "**/*.test.mjs", "**/*.integration.test.mjs"],
+      "summary": "The filename picks the tier: `Foo.test.ts` isolates the file under test and mocks every project-internal collaborator; `Foo.integration.test.ts` may use real ones, and only when the interaction itself is what is under test.",
+      "source": "CLAUDE.md",
+      "quote": "The three test tiers are the same in every language; only the mechanism differs.",
+      "admission": "pattern-scoped",
+      "gate": "eslint local/no-unmocked-internal-imports",
+      "gateNote": "the mock-isolation half is linted; choosing the right tier for a NEW test is not"
+    },
+    {
+      "id": "fixture-git-isolation",
+      "scope": ["**/*.test.mjs", "**/*.integration.test.mjs", "**/*.test.ts"],
+      "summary": "A test must never spawn `git` without pinning BOTH the repository and the environment — an inherited `GIT_DIR` under a git hook makes an unqualified call write into the developer's real repository. Use `initFixtureRepo`/`fixtureGit`.",
+      "source": "shared/tools/dev-cli/CLAUDE.md",
+      "quote": "Never drive git from a test with a bare `execFileSync(\"git\", …)`",
+      "admission": "foreign-scope",
+      "gate": null,
+      "gateNote": "a lint rule is proposed in issue #96; the runtime guard only fires at fixture creation, so a new bare call bypasses it"
+    },
+    {
+      "id": "readme-language-parity",
+      "scope": ["**/README*.md"],
+      "summary": "The 3 language variants of a README must not diverge in meaning; wording may differ, facts/instructions/links may not.",
+      "source": "CLAUDE.md",
+      "quote": "The 3 language variants of any README must stay in semantic agreement: facts, instructions, and links must not diverge across languages, though wording may.",
+      "admission": "narrow-silent",
+      "shape": "parity",
+      "gate": "dev-cli check-subsystem-readmes + dev-cli check-subproject-readmes",
+      "gateNote": "the gates hold existence/structure plus technical-token parity (every variant names the same inline code spans as the English canonical); the residue this card covers is whether the prose AROUND those tokens says the same thing — never re-report a differing token, the gate already failed on it"
+    }
+  ],
+  "diffCards": [
+    {
+      "id": "weakened-test",
+      "summary": "a test was changed so it can pass without exercising the behavior its title promises (assertions removed or made trivial)",
+      "source": "CLAUDE.md",
+      "quote": "a test is inadequate if the important logic can change without failing it",
+      "gate": null,
+      "gateNote": "requires reading the test against the behavior it claims to pin"
+    },
+    {
+      "id": "fake-done",
+      "summary": "a stub or placeholder silently returns a fabricated success so a check goes green, instead of failing or TODO-ing loudly",
+      "source": "CLAUDE.md",
+      "quote": "a placeholder that returns a fake value to turn a check green",
+      "gate": null,
+      "gateNote": "a fabricated value is indistinguishable from a real one to any checker"
+    },
+    {
+      "id": "smuggled-refactor",
+      "summary": "unrelated refactoring, renaming, or polish mixed into an otherwise focused change",
+      "source": "CLAUDE.md",
+      "quote": "Don't refactor or polish stable/unrelated code while making a surgical change",
+      "gate": null,
+      "gateNote": "relatedness is judged against the change's stated goal"
+    },
+    {
+      "id": "doc-boilerplate",
+      "summary": "an added or edited CLAUDE.md/doc is contentless boilerplate restating generic rules instead of file-specific invariants",
+      "source": "CLAUDE.md",
+      "quote": "padding to look thorough is itself a violation",
+      "gate": "dev-cli check-claude-md",
+      "gateNote": "the gate enforces EXISTENCE only; content quality is explicitly left to review"
+    },
+    {
+      "id": "desc-mismatch",
+      "summary": "the PR description claims something the diff contradicts (e.g. 'tests added' with no test changes)",
+      "source": "CLAUDE.md",
+      "quote": "Never mark work complete if anything was silently skipped",
+      "gate": null,
+      "gateNote": "needs the description and the diff compared against each other"
+    },
+    {
+      "id": "journey-marker",
+      "summary": "an added code comment or durable name (symbol, file, config key, test title) describes the transient process that produced it — 'temporary', 'for now', 'new'/'old'/'previous', 'replaces X', 'phase/step N', 'WIP' — instead of the end-state behavior it should name (Rule 13); the numeric version/ticket subset is already linted, so report only the fuzzy prose a regex cannot safely match",
+      "source": "CLAUDE.md",
+      "quote": "Durable names must describe what a thing _is_, never the transient process that produced it",
+      "gate": "local/no-journey-markers + local/no-journey-marker-names + dev-cli check-journey-markers",
+      "gateNote": "the regex-safe subset is gated; the fuzzy prose residue is what this card covers"
+    },
+    {
+      "id": "thin-test-intent",
+      "summary": "a newly added or edited test only asserts that code ran or returned something (truthy, no-throw, a snapshot of trivia) instead of pinning the specific behavior its title promises, so that behavior could break without failing the test (Rule 8) — distinct from weakened-test, which removes teeth an existing test had",
+      "source": "CLAUDE.md",
+      "quote": "Tests encode why behavior matters",
+      "gate": null,
+      "gateNote": "coverage tools count lines executed, not behavior pinned"
+    },
+    {
+      "id": "untested-behavior-change",
+      "summary": "the diff changes real branching or logic in a source file, yet no test anywhere in the same diff exercises that new behavior — it ships unpinned (Rule 8); report only when the source change is present in the diff and no covering test is",
+      "source": "CLAUDE.md",
+      "quote": "a test is inadequate if the important logic can change without failing it",
+      "gate": null,
+      "gateNote": "requires matching a source change to whether any test actually covers it"
+    },
+    {
+      "id": "ladder-skip",
+      "summary": "the diff hand-rolls bespoke code for something a language built-in or a dependency already imported in the same diff plainly does — added complexity a simpler rung already covered (Rule 2)",
+      "source": "CLAUDE.md",
+      "quote": "walk the ladder and stop at the first rung that meets the requirement",
+      "gate": null,
+      "gateNote": "knowing a lower rung existed requires knowing the stdlib and the installed deps"
+    },
+    {
+      "id": "unjustified-hardcode",
+      "summary": "the diff hardcodes a literal value that an existing source of truth could derive at read time, or that should live in one shared named config, instead of climbing derive → configure → hardcode (Rule 14) — flag especially when the same value is duplicated across ≥2 files instead of centralized",
+      "source": "CLAUDE.md",
+      "quote": "climb the same ladder as Rule 2, applied to _values_ instead of code",
+      "gate": null,
+      "gateNote": "knowing whether a source of truth to derive from already exists requires reading the surrounding code"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as PopoverStories from "./Popover.stories";
+
+<Meta of={PopoverStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Popover
+
+Panel nổi neo vào trigger, dành cho **nội dung phụ người dùng chủ động mở** — bộ lọc, color picker,
+thẻ chi tiết. Focus chuyển vào panel; Esc / bấm ngoài để đóng. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Popover, Button } from "@ecoma-io/ui";
+```
+
+```vue
+<Popover v-model:open="open" side="bottom">
+  <template #trigger><Button variant="outline">Bộ lọc</Button></template>
+  <!-- nội dung panel -->
+</Popover>
+```
+
+<Canvas of={PopoverStories.Demo} />
+
+## Chọn đúng overlay
+
+| Dùng           | Khi                                                         |
+| -------------- | ----------------------------------------------------------- |
+| `Popover`      | nội dung phụ **tương tác** người dùng mở (form nhỏ, filter) |
+| `DropdownMenu` | danh sách **lệnh** (roving focus, typeahead)                |
+| `Tooltip`      | gợi ý **không tương tác** khi hover/focus                   |
+| `Dialog`       | tác vụ phải **chặn** phần còn lại của UI                    |
+
+## Cơ chế
+
+- `#trigger` render `as-child` — Button của bạn **chính là** trigger, không bị phần tử bọc nuốt mất
+  accessible name. Slot mặc định là thân panel.
+- `open` hỗ trợ `v-model` (`v-model:open`); bỏ trống để Popover tự quản trạng thái.
+- `side`/`align`/`sideOffset` điều khiển vị trí; `arrow` bật/tắt notch chỉ hướng.
+- Motion: panel `animate-scale-in` **mọc ra từ trigger** (`transform-origin` = popper origin của
+  Reka), và **chỉ** ở trạng thái mở — closed content tính `animation-name: none` để Reka Presence
+  unmount ngay (tránh overlay vô hình chặn input).
+
+## Props
+
+<ArgTypes of={PopoverStories} />
+
+## Do / Don't
+
+- ✅ Trigger là phần tử bấm được thật (Button) với nhãn rõ.
+- ✅ Nội dung tương tác nhẹ; nếu là danh sách lệnh, dùng `DropdownMenu`.
+- ❌ Đừng nhồi nguyên form dài — cân nhắc `Dialog`.
+- ❌ Đừng dùng Popover cho gợi ý hover đơn thuần — đó là `Tooltip`.
+
+</div>

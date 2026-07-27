@@ -1,0 +1,70 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SurfaceStories from "./Surface.stories";
+
+<Meta of={SurfaceStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Surface
+
+Primitive panel / card — khối nền để nhóm nội dung. Alloy biểu đạt **độ cao bằng hairline +
+độ sáng nền**, không bằng bóng đổ nặng ("hairline over shadow"). Import từ `@ecoma-io/ui`:
+
+```ts
+import { Surface } from "@ecoma-io/ui";
+```
+
+<Canvas of={SurfaceStories.Demo} />
+
+## Variants
+
+| Variant   | Vai trò                   | Elevation                                                         |
+| --------- | ------------------------- | ----------------------------------------------------------------- |
+| `card`    | mặc định — panel nội dung | hairline `border` trên nền `card` trắng — đã đọc là nổi trên giấy |
+| `muted`   | panel chìm/thứ cấp        | nền `muted`, viền trong suốt                                      |
+| `overlay` | lớp nổi (menu, popover)   | `shadow-md` — bóng **chỉ** dành cho vật thật sự nổi               |
+
+## Pad
+
+Khoảng đệm trong dựng sẵn để không phải nhớ token spacing:
+
+| Pad    | Giá trị                          |
+| ------ | -------------------------------- |
+| `none` | `p-0` — tự kiểm soát padding con |
+| `sm`   | `p-3`                            |
+| `md`   | `p-4` (mặc định)                 |
+| `lg`   | `p-6`                            |
+
+## Props
+
+<ArgTypes of={SurfaceStories} />
+
+Nội dung truyền qua **default slot**. `surfaceVariants` (cùng export) cho phép tái dùng
+class-set ở nơi khác.
+
+## Interactive — một ngôn ngữ hover cho mọi hàng bấm được
+
+`interactive` bật ngôn ngữ bề-mặt-bấm-được dùng chung: nâng bằng fill (`hover:bg-subtle/60`),
+hairline khẳng định (`hover:border-border-strong`), con trỏ pointer, nhấn giữ đậm thêm một nấc.
+Hàng list / card chọn được trong view compose prop này thay vì mỗi nơi tự viết `hover:bg-…`.
+Surface vẫn là `div` trình bày — host tự gắn click handler, role và tabindex cho ngữ nghĩa
+tương tác thật.
+
+## Elevation — shadow only for floating objects
+
+Chỉ `overlay` mang bóng (`shadow-md`). `card`/`muted` **không đổ bóng xuống**, tách nhau
+bằng hairline và độ sáng nền — trên nền giấy sáng, một card trắng viền hairline đã đọc là
+"built, not floating". Bóng đổ là tín hiệu "đang nổi trên mọi thứ", nên chỉ dùng cho
+menu/dialog/popover — không rải khắp mọi card.
+
+## Do / Don't
+
+- ✅ Dùng `overlay` cho menu/popover nổi; `card` cho panel tĩnh.
+- ❌ Đừng thêm drop `shadow` thủ công lên `card` — hairline + nền trắng đã đủ; bóng đổ vi phạm "hairline over shadow".
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  <code>card</code>/<code>muted</code>/<code>overlay</code> đều đọc theo token nền chung — đổi giá
+  trị ở <code>tokens.css</code> là cả ba đổi theo.
+</div>
+
+</div>

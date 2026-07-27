@@ -1,0 +1,3 @@
+# Third-party reference clones (tmp) — their package.json
+# and configs must never enter the workspace graph.
+tmp/**

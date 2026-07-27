@@ -1,0 +1,102 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ButtonStories from "./Button.stories";
+
+<Meta of={ButtonStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Button
+
+Nút bấm — primitive làm việc nhiều nhất, và là nơi **mã hoá "ngôn ngữ press" của Alloy**.
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { Button } from "@ecoma-io/ui";
+```
+
+<Canvas of={ButtonStories.Demo} />
+
+## Press Language
+
+Mọi tương tác đều truyền **nhân–quả** trong ≤140ms (`duration-fast`), không dùng bóng đổ để "nhấc":
+
+- **Hover** — nâng bằng _fill_ (đổi nền), không đổ bóng.
+- **Active** — **lún xuống** `scale(0.97)`, cho cảm giác vật lý khi bấm.
+- **Focus** — **nở ring thép** (`outline` 2px, offset 2px) — cùng màu focus toàn hệ.
+- **Loading** — một **thước phim kinetic** ba beat (mục dưới) dưới lớp **shimmer**
+  (`animate-shimmer`) — không bao giờ là một spinner chết cắt cảnh đột ngột.
+
+## Loading — một thước phim trong trần 200ms
+
+Bật `loading` không _đổi_ nội dung nút — nó **dàn cảnh** cú đổi đó. Hai lớp nội dung (nhãn
+và lớp loading) xếp chồng trong cùng một ô grid (`[grid-area:1/1]`) nên **bề rộng nút không
+đổi giữa chừng**; toàn bộ vũ đạo là transition thuần CSS theo `data-loading`:
+
+| Beat | Thời điểm  | Chuyển động                                                                                |
+| ---- | ---------- | ------------------------------------------------------------------------------------------ |
+| 1    | 0 → 140ms  | **Nhãn cuốn lên và mờ đi** (`-translate-y-1` + fade, `--ease-out`) — chữ rời sân khấu      |
+| 2    | 0 → 140ms  | **Vòng progress nảy vào** từ dưới (`scale 0.5→1` + rise, `--ease-spring`) — nhịp overshoot |
+| 3    | 75 → 175ms | **`loadingText` dâng lên sau cùng** (fade-rise, `delay-75`) — dòng phụ đề khép cảnh        |
+
+Khi `loading` tắt, phim **tua ngược**: delay của beat 3 chỉ áp ở chiều vào (chiều ra về `0`)
+nên cú thoát gọn, không rớt nhịp. Với `prefers-reduced-motion`, mọi beat rút về swap tức thời
+(kể cả delay). Chi tiết kỹ thuật của pattern này (vì sao svg quay phải nằm trong wrapper riêng,
+vì sao hai lớp phải hoán đổi `aria-hidden`) ở **Design System › Motion — Kinetic swap**.
+
+Accessibility đi cùng phim: nút mang `aria-busy`, lớp nhãn ẩn khỏi assistive tech khi loading
+và ngược lại — screen reader chỉ nghe **một** trạng thái tại một thời điểm. Nút loading giữ
+**nguyên độ đậm** (không mờ 50% như disabled) — nó đang _làm việc_, không phải _bất khả dụng_.
+
+## Variants
+
+| Variant       | Vai trò                            | Khi nào dùng                                          |
+| ------------- | ---------------------------------- | ----------------------------------------------------- |
+| `primary`     | Hành động chính (màu thép — Human) | CTA chính của một khung — **tối đa một cái** mỗi nhóm |
+| `secondary`   | Hành động phụ ngang hàng           | đứng cạnh primary nhưng ít trọng lượng hơn            |
+| `outline`     | Phụ, có ranh giới rõ               | trên nền phẳng cần đường viền để tách                 |
+| `subtle`      | Phụ, chìm                          | hành động lặp lại, mật độ cao                         |
+| `ghost`       | Ẩn tới khi hover                   | toolbar/icon, hàng dày đặc                            |
+| `destructive` | Hành động phá huỷ                  | xoá scene/asset — luôn kèm xác nhận                   |
+
+> **Quy tắc màu Human:** chỉ `primary` (và trạng thái loading) được mang thép đậm. Đừng tô
+> thép cho nút phụ — màu hành động dành cho _một_ hành động quan trọng nhất.
+
+## Sizes
+
+| Size      | Cao           | Dùng cho                                                  |
+| --------- | ------------- | --------------------------------------------------------- |
+| `sm`      | 32px (`h-8`)  | toolbar, hàng nén, inline                                 |
+| `md`      | 36px (`h-9`)  | mặc định                                                  |
+| `lg`      | 44px (`h-11`) | CTA nổi bật, màn onboarding                               |
+| `icon`    | 36×36 vuông   | chỉ icon — **bắt buộc** kèm `aria-label`                  |
+| `icon-sm` | 32×32 vuông   | icon trong **hàng list dày** — cũng bắt buộc `aria-label` |
+
+`icon-sm` khớp chiều cao với `sm` để một hành động trên hàng thẳng hàng với các control chữ cùng
+hàng. 32px vẫn vượt xa sàn **24px** của WCAG 2.2 SC 2.5.8 (Target Size) — nén hàng không phải trả
+giá bằng khả năng bấm trúng. Nó tồn tại vì consumer đang dùng `size="icon"` rồi tự đè
+`class="h-8 w-8"`, tức mỗi call site lại tự phán xử lại câu hỏi target-size một lần.
+
+## Props
+
+<ArgTypes of={ButtonStories} />
+
+Nội dung nút truyền qua **default slot**. `buttonVariants` (cùng export) cho phép tái dùng
+class-set ở nơi khác (vd một `<a>` trông như nút).
+
+## Do / Don't
+
+- ✅ Một `primary` mỗi khung; phần còn lại là `secondary`/`subtle`/`ghost`.
+- ✅ `icon` luôn có `aria-label`.
+- ✅ Tác vụ dài → `loading` **kèm `loading-text`** để nút tự kể nó đang làm gì ("Đang lưu…"),
+  thay vì bắt người dùng đoán từ một vòng quay câm.
+- ❌ Đừng xếp nhiều `primary` cạnh nhau (mất tiêu điểm hành động).
+- ❌ Đừng thêm bóng đổ để tạo "nhấc" — Alloy nhấc bằng fill.
+- ❌ Đừng tự đổi nội dung slot khi loading (`{{ loading ? "Đang lưu…" : "Lưu" }}`) — cú swap
+  đó cắt cảnh thô và phá vũ đạo; đó chính là việc của `loading-text`.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Bấm "Bấm để xem loading" để xem thước phim kinetic; giữ chuột trên bất kỳ nút nào để cảm nhận
+  press.
+</div>
+
+</div>

@@ -1,0 +1,64 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as DialogStories from "./Dialog.stories";
+
+<Meta of={DialogStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Dialog
+
+Bề mặt tác vụ **modal** — chặn phần còn lại của UI cho tới khi giải quyết xong (xác nhận hành động
+phá huỷ, một form tập trung). Reka UI lo focus trap, Esc-đóng, `aria-modal`, và nối tiêu đề làm
+accessible name. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Dialog, Button } from "@ecoma-io/ui";
+```
+
+```vue
+<Dialog v-model:open="open" title="Xoá scene?" description="Không thể hoàn tác.">
+  <template #trigger><Button variant="destructive">Xoá</Button></template>
+  <template #footer>
+    <Button variant="subtle" @click="open = false">Giữ lại</Button>
+    <Button variant="destructive" @click="remove">Xoá vĩnh viễn</Button>
+  </template>
+</Dialog>
+```
+
+<Canvas of={DialogStories.Demo} />
+
+## Chọn đúng overlay
+
+| Dùng      | Khi                                                     |
+| --------- | ------------------------------------------------------- |
+| `Dialog`  | tác vụ **phải chặn** cả màn (xác nhận, form tập trung)  |
+| `Popover` | nội dung phụ **không chặn**, neo vào trigger            |
+| `Toast`   | thông báo thoáng qua, người dùng **không cần** thao tác |
+
+## Cơ chế
+
+- `title` là prop **bắt buộc** — luôn render `DialogTitle` để có accessible name. Cần ẩn phần nhìn
+  nhưng giữ cho screen reader thì bật `hideTitle` (title thành `sr-only`).
+- `#trigger` render `as-child` (Button của bạn chính là trigger). Có thể bỏ trigger và điều khiển
+  hoàn toàn bằng `v-model:open` từ host.
+- `#footer` cho hàng nút hành động; `closable` (mặc định bật) hiện nút ✕ góc trên — Esc và bấm nền
+  luôn đóng được.
+- `size` chọn bề ngang panel — `md` (32rem, mặc định) cho confirm/form ngắn, `lg` (44rem) cho form
+  nhiều section, `xl` (64rem) cho bề mặt authoring (một editor sống trong dialog). Bề ngang là
+  quyết định của primitive — không passthrough class; overlay giữ scrim 70% để nền sau lưng là
+  ngữ cảnh, không phải nội dung cạnh tranh.
+- Motion: overlay `animate-fade` (chỉ mờ, nền không dịch chuyển), panel `animate-scale-in`, **chỉ** ở trạng thái mở — closed
+  content tính `animation-name: none` để Reka Presence unmount ngay (tránh overlay vô hình chặn input).
+
+## Props
+
+<ArgTypes of={DialogStories} />
+
+## Do / Don't
+
+- ✅ Xác nhận hành động phá huỷ bằng Dialog + nút `destructive` ở footer.
+- ✅ Tiêu đề nói rõ hệ quả ("Xoá scene?"), không chung chung ("Bạn chắc chứ?").
+- ❌ Đừng dùng Dialog cho thông tin phụ không chặn — đó là `Popover`.
+- ❌ Đừng lồng nhiều Dialog chồng nhau.
+
+</div>

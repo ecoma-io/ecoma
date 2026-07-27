@@ -1,0 +1,66 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as DashboardGridStories from "./DashboardGrid.stories";
+
+<Meta of={DashboardGridStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# DashboardGrid
+
+Khung **lưới CSS tự co giãn** cho các panel/tile của một dashboard: đặt càng nhiều cột
+`minTileWidth`-rộng vào vừa container, xuống 1 cột khi hết chỗ — không breakpoint nào được viết
+ra ở component hay ở call site. Import từ `@ecoma-io/ui`:
+
+```ts
+import { DashboardGrid } from "@ecoma-io/ui";
+```
+
+<Canvas of={DashboardGridStories.Demo} />
+
+## `auto-fit` + `minmax`, không phải `grid-cols-N` theo breakpoint
+
+Một số cột cố định (`grid-cols-3`, `md:grid-cols-4`, …) cần một breakpoint riêng cho mỗi bề rộng
+container mà host chạy trên — sai ngay khi component nằm trong sidebar hẹp hơn viewport đầy đủ.
+`DashboardGrid` dùng `grid-template-columns: repeat(auto-fit, minmax(min(100%, minTileWidth), 1fr))`:
+số cột tính lại từ bề rộng **container thật**, nên nó co giãn giống nhau dù đứng full-bleed hay bị
+sidebar ép hẹp lại (**Design System › Principles §4**). `min(100%, …)` đảm bảo một tile không bao
+giờ ép container tràn ngang khi container hẹp hơn cả `minTileWidth`.
+
+## Props & slots
+
+<ArgTypes of={DashboardGridStories} />
+
+- `minTileWidth` — ngưỡng dưới của một tile trước khi lưới rớt cột; mọi độ dài CSS hợp lệ.
+- `gap` — bậc khoảng cách, từ `sm` (640px) trở lên đi theo đúng thang `pad` của `Surface`
+  (sm 12px · md 16px · lg 24px) — không có bậc riêng nào được thêm mới. **Dưới `sm` mỗi bậc lùi
+  một nấc** (8 / 12 / 16px): ở bề rộng điện thoại lưới vốn đã còn một cột, nên 24px khí giữa các
+  tile xếp chồng không mua thêm chút phân tách nào mà viền tile chưa có sẵn — nó chỉ đẩy tile thứ
+  hai ra khỏi màn hình.
+- Slot mặc định (không tên) nhận panel bất kỳ theo thứ tự — thường là `Surface` bọc nội dung.
+
+## Panel rộng — `col-span-*` ở call site, không phải một prop
+
+`DashboardGrid` không đếm hay biết bao nhiêu panel nó đang chứa, nên việc một panel chiếm nhiều
+cột là việc của **chính panel đó**, bằng `sm:col-span-2`/`md:col-span-3`/… trên wrapper của nó —
+xem panel "Hoạt động gần đây" trong Demo. Cách này tận dụng đúng cơ chế Tailwind sẵn có thay vì
+`DashboardGrid` phải phát minh một prop `span` riêng cho việc CSS grid đã làm được.
+
+## Panel KPI dựng từ primitive có sẵn, không phải primitive mới
+
+Mỗi tile trong dải KPI của Demo là `Surface` (khung + đệm) bọc ba lớp: nhãn (`text-small
+text-muted-foreground`), giá trị lớn (`text-display` + `.tabular` — số **mang ý nghĩa** nên căn
+thẳng hàng, **Design System › Typography**), và delta là một `Badge` (`success`/`destructive`)
+kèm icon `TrendingUp`/`TrendingDown`. Không có "StatTile" nào được thêm vào core-ui — ba primitive
+đã đủ.
+
+## Do / Don't
+
+- ✅ Đặt `minTileWidth` bằng bề rộng nhỏ nhất mà nội dung một tile còn đọc được, không phải một
+  số cột mong muốn — số cột là kết quả suy ra, không phải input.
+- ✅ Panel rộng dùng `col-span-*` của Tailwind trên wrapper của nó.
+- ❌ Đừng thêm `columns` cố định kiểu `grid-cols-4` cạnh `minTileWidth` — hai cơ chế co giãn khác
+  nhau đá vào nhau ngay khi container đổi bề rộng.
+- ❌ Đừng dùng cho một danh sách một cột đơn giản — đó là việc của bố cục `flex flex-col`, lưới
+  chỉ có ý nghĩa khi có nhiều panel cần co giãn theo bề rộng.
+
+</div>

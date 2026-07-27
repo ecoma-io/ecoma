@@ -1,0 +1,59 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as AvatarStories from "./Avatar.stories";
+
+<Meta of={AvatarStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Avatar
+
+Ảnh đại diện của một **người dùng hoặc agent**, luôn có phương án dự phòng bằng chữ cái đầu tên khi
+không có ảnh, ảnh lỗi, hoặc ảnh đang tải. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Avatar } from "@ecoma-io/ui";
+```
+
+<Canvas of={AvatarStories.Demo} />
+
+## Hành vi fallback
+
+`Avatar` chỉ hiện ảnh (`AvatarImage`) sau khi ảnh **tải thành công** — chữ cái đầu tên (`fallback`)
+luôn hiện sẵn và chỉ biến mất đúng lúc ảnh thật đã sẵn sàng. Nhờ vậy không có khoảng trống hay icon
+"ảnh vỡ": không có `src`, `src` rỗng, hoặc ảnh tải lỗi đều dẫn về cùng một trạng thái — hiện
+`fallback`.
+
+Prop `fallback` nhận chuỗi chữ cái đầu do phía gọi tự tính (vd "Ada Lovelace" → `"AL"`) — component
+không tự suy ra từ `alt`.
+
+## Đặt tên (accessible name)
+
+Luôn truyền `alt` mô tả người/agent trong ảnh — nó được gắn trực tiếp lên `<img>` bên trong
+(`AvatarImage` yêu cầu `alt` để trình đọc màn hình công bố đúng nội dung ảnh).
+
+## Sizes
+
+| Size | Kích thước  | Dùng cho                     |
+| ---- | ----------- | ---------------------------- |
+| `sm` | `h-8 w-8`   | hàng danh sách nén, comment  |
+| `md` | `h-10 w-10` | mặc định, thẻ thành viên     |
+| `lg` | `h-12 w-12` | header hồ sơ, trang chi tiết |
+
+## Motion
+
+Ảnh chỉ được Reka paint khi đã tải xong, nên `animate-scale-in` chạy đúng khoảnh khắc ảnh thay chỗ
+initials — một cú settle nhẹ thay vì "nhảy" cứng. Tôn trọng `prefers-reduced-motion` (rule chặn chung
+ở `global.css`).
+
+## Props
+
+<ArgTypes of={AvatarStories} />
+
+## Do / Don't
+
+- ✅ Luôn truyền `alt` mô tả người/agent, ngay cả khi đang dùng `fallback`.
+- ✅ Truyền `fallback` là chữ cái đầu đã được tính sẵn, ngắn gọn (1–2 ký tự).
+- ❌ Đừng bỏ trống cả `src` lẫn `fallback` — người dùng sẽ thấy một vòng tròn trống không có nghĩa.
+- ❌ Đừng dùng `Avatar` cho icon trang trí thuần tuý không đại diện cho ai — dùng icon thường.
+
+</div>

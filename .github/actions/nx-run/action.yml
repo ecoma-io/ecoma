@@ -1,0 +1,25 @@
+name: Run Nx targets
+description: >-
+  Run a set of Nx targets over the right project selection for the event: the
+  diff against the PR base, or the whole workspace on main. Every job that runs
+  Nx goes through here so the selection rule lives in one place (Rule 14).
+
+inputs:
+  targets:
+    description: Space-separated Nx target names, e.g. "lint test typecheck build".
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TARGETS: ${{ inputs.targets }}
+      # $TARGETS is deliberately unquoted: word splitting is what turns the
+      # input into separate arguments after `-t`.
+      run: |
+        if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+          pnpm nx affected -t $TARGETS --base="origin/$GITHUB_BASE_REF" --head=HEAD
+        else
+          pnpm nx run-many -t $TARGETS
+        fi

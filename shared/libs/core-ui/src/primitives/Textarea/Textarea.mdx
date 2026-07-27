@@ -1,0 +1,54 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TextareaStories from "./Textarea.stories";
+
+<Meta of={TextareaStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Textarea
+
+Ô nhập văn bản **nhiều dòng** — native `<textarea>`. Viền, ring focus và trạng thái lỗi nằm trực tiếp
+trên chính phần tử (không có khung bọc như `TextField`, vì không có `#leading`/`#trailing`). Import từ
+`@ecoma-io/ui`:
+
+```ts
+import { Textarea } from "@ecoma-io/ui";
+```
+
+<Canvas of={TextareaStories.Demo} />
+
+## Khi nào dùng
+
+- Nhập **nhiều dòng** — mô tả, ghi chú, phản hồi. Cho một dòng dùng `TextField`; cho số dùng
+  `NumberField`.
+- Ghép với `Field` để có nhãn + mô tả + lỗi chuẩn hoá thay vì tự dựng layout.
+
+## Đặt tên (accessible name)
+
+`Textarea` là primitive **trần** — nó chỉ được đặt tên bởi host. Truyền `aria-label` (chuỗi) hoặc
+`aria-labelledby` (id của nhãn hiển thị). Khi bọc trong `Field`, `Field` lo phần nối nhãn.
+
+## Trạng thái lỗi
+
+`invalid` tô viền/ring `destructive` **và** gắn `aria-invalid` — báo lỗi cho cả người nhìn lẫn trình
+đọc màn hình, không chỉ đổi màu. Thông điệp lỗi đi kèm dùng `InlineError` (thường qua `Field`).
+
+## Rows & resize
+
+| Prop     | Mặc định     | Ghi chú                                                |
+| -------- | ------------ | ------------------------------------------------------ |
+| `rows`   | `3`          | Chiều cao ban đầu tính theo số dòng.                   |
+| `resize` | `"vertical"` | `"none"` khoá kích thước — dùng khi layout đã cố định. |
+
+## Props
+
+<ArgTypes of={TextareaStories} />
+
+## Do / Don't
+
+- ✅ Luôn đặt tên qua `aria-label`/`aria-labelledby` (hoặc `Field`).
+- ✅ Lỗi → `invalid` + `InlineError` cạnh field.
+- ❌ Đừng dùng `Textarea` cho nhập một dòng — dùng `TextField`.
+- ❌ Đừng khoá `resize="none"` khi người dùng cần xem trước nội dung dài.
+
+</div>

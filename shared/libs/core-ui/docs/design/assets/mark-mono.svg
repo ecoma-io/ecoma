@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Ecoma brand mark - mono ink, for print and neutral contexts. Geometry locked: dual-face, nose amp 6, seam 2.8 (gap via mask - transparent on any background). -->
+  <defs>
+    <clipPath id="cl"><path d="M48 18 C 48 28 47.7 36 47.58 42 C 48.9 48 54 51 54 56 C 54 60 48.88 61.5 47.2 65 C 47.7 68 48 70.5 48 73 L 48 78 L 0 96 L 0 0 Z"/></clipPath>
+    <clipPath id="cr"><path d="M48 18 C 48 28 47.7 36 47.58 42 C 48.9 48 54 51 54 56 C 54 60 48.88 61.5 47.2 65 C 47.7 68 48 70.5 48 73 L 48 78 L 96 96 L 96 0 Z"/></clipPath>
+    <mask id="gap"><rect width="96" height="96" fill="#fff"/><path d="M48 18 C 48 28 47.7 36 47.58 42 C 48.9 48 54 51 54 56 C 54 60 48.88 61.5 47.2 65 C 47.7 68 48 70.5 48 73 L 48 78" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round"/></mask>
+  </defs>
+  <g mask="url(#gap)">
+    <g clip-path="url(#cl)"><path d="M30 18 H66 A16 16 0 0 1 82 34 V62 A16 16 0 0 1 66 78 H30 A16 16 0 0 1 14 62 V34 A16 16 0 0 1 30 18 Z" fill="#1B2431"/></g>
+    <g clip-path="url(#cr)"><path d="M30 18 H66 A16 16 0 0 1 82 34 V62 A16 16 0 0 1 66 78 H30 A16 16 0 0 1 14 62 V34 A16 16 0 0 1 30 18 Z" fill="#1B2431"/></g>
+  </g>
+  <path d="M23.8 43 Q31 36.8 38.2 43 Q31 49.2 23.8 43 Z" fill="#fff"/><circle cx="31" cy="43" r="2.7" fill="#1B2431"/>
+  <rect x="59" y="38.2" width="11.5" height="9.6" rx="2.6" fill="#fff"/><rect x="62.6" y="41.2" width="4.3" height="3.6" rx="1" fill="#1B2431"/>
+</svg>

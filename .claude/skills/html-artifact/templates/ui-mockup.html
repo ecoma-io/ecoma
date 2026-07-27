@@ -1,0 +1,498 @@
+<!-- html-artifact template: ui-mockup.
+     Replace every TODO_REPLACE. Set SIZES to the target app's supported range (min → max).
+     Each screen/state lives in its own <template data-screen> and renders inside an iframe,
+     so its media queries respond to the selected preset width, not the reviewer's window. -->
+<title>TODO_REPLACE — UI mockup</title>
+<style>
+  :root {
+    /* TODO_REPLACE: placeholder palette — restyle per artifact-design */
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --surface: #1d2126;
+      --text: #e7eaee;
+      --muted: #97a1ac;
+      --line: #2b3138;
+      --accent: #7da2ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1d2126;
+    --text: #e7eaee;
+    --muted: #97a1ac;
+    --line: #2b3138;
+    --accent: #7da2ff;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+  }
+
+  .vp-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 8px clamp(12px, 3vw, 20px);
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .vp-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  /* Below sm (640) the wrapped toolbar exceeds the ~56px sticky-chrome budget — let it scroll away. */
+  @media (max-width: 639px) {
+    .vp-bar {
+      position: static;
+    }
+  }
+  .vp-bar button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .vp-bar button[aria-pressed="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .vp-bar button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .vp-bar button:focus-visible,
+  .vp-bar input:focus-visible,
+  .vp-bar select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .vp-bar select {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  .vp-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .vp-custom {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .vp-custom input {
+    width: 72px;
+    min-height: 44px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+  .vp-label {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vp-stage {
+    padding: clamp(12px, 3vw, 24px);
+    display: flex;
+    justify-content: center;
+  }
+  /* content-box: JS sets the content size to the frame's visual size; the border sits outside
+     instead of eating 2px of the mockup under overflow:hidden. */
+  .vp-wrap {
+    box-sizing: content-box;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  }
+  .vp-wrap.actual {
+    overflow: auto;
+  }
+  .vp-wrap iframe {
+    display: block;
+    border: 0;
+    transform-origin: 0 0;
+  }
+</style>
+
+<!-- Each .vph section is one self-contained mockup viewer: the script renders its toolbar and
+     stage, and picks up the <template data-screen> fragments INSIDE the section. A page may hold
+     several .vph sections (hybrid pages: see references/hybrid.md) — give later ones their own
+     data-sizes JSON when their supported range differs from the shared SIZES default. -->
+<section class="vph" data-title="TODO_REPLACE Mockup name">
+  <!-- One template per screen/state (loaded, empty, error…). Duplicate this whole block with its
+     own data-screen name and its own <style> — the toolbar gains a screen switcher automatically. -->
+  <template data-screen="TODO_REPLACE Screen name">
+    <style>
+      /* Tokens duplicated on purpose — the iframe is a separate document. Keep in sync with the shell. */
+      :root {
+        --bg: #ffffff;
+        --surface: #f4f5f7;
+        --text: #1c1f23;
+        --muted: #5b6470;
+        --line: #dfe3e8;
+        --accent: #3b6ff0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14171a;
+          --surface: #1d2126;
+          --text: #e7eaee;
+          --muted: #97a1ac;
+          --line: #2b3138;
+          --accent: #7da2ff;
+        }
+      }
+      :root[data-theme="dark"] {
+        --bg: #14171a;
+        --surface: #1d2126;
+        --text: #e7eaee;
+        --muted: #97a1ac;
+        --line: #2b3138;
+        --accent: #7da2ff;
+      }
+      :root[data-theme="light"] {
+        --bg: #ffffff;
+        --surface: #f4f5f7;
+        --text: #1c1f23;
+        --muted: #5b6470;
+        --line: #dfe3e8;
+        --accent: #3b6ff0;
+      }
+
+      /* TODO_REPLACE: demo mockup below — replace with the real UI. It exists to show the
+       expected shape: responsive chrome (sidebar collapses under md 768), token-driven colors. */
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+      }
+      .app {
+        display: grid;
+        grid-template-rows: 48px 1fr;
+        height: 100svh;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar .brand {
+        font-weight: 700;
+      }
+      .menu-btn {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: none;
+        color: var(--text);
+        padding: 6px 10px;
+      }
+      .body {
+        display: grid;
+        grid-template-columns: 1fr;
+        overflow: hidden;
+      }
+      .side {
+        display: none;
+        background: var(--surface);
+        border-right: 1px solid var(--line);
+        padding: 12px;
+      }
+      .side a {
+        display: block;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .side a[aria-current="page"] {
+        background: var(--bg);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .content {
+        overflow: auto;
+        padding: 16px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+      @media (min-width: 768px) {
+        .body {
+          grid-template-columns: 220px 1fr;
+        }
+        .side {
+          display: block;
+        }
+        .menu-btn {
+          display: none;
+        }
+      }
+    </style>
+    <div class="app">
+      <header class="topbar">
+        <button class="menu-btn" type="button" aria-label="Menu">☰</button>
+        <span class="brand">TODO_REPLACE App</span>
+      </header>
+      <div class="body">
+        <nav class="side">
+          <a href="#" aria-current="page">TODO_REPLACE Nav A</a>
+          <a href="#">TODO_REPLACE Nav B</a>
+        </nav>
+        <main class="content">
+          <div class="cards">
+            <div class="card">
+              <h3>TODO_REPLACE Card</h3>
+              <p>TODO_REPLACE content</p>
+            </div>
+            <div class="card">
+              <h3>TODO_REPLACE Card</h3>
+              <p>TODO_REPLACE content</p>
+            </div>
+            <div class="card">
+              <h3>TODO_REPLACE Card</h3>
+              <p>TODO_REPLACE content</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </template>
+</section>
+
+<script>
+  // TODO_REPLACE: set SIZES to the target app's supported range (see references/genres/ui-mockup.md).
+  // Desktop/web widths snap to the workspace breakpoint scale (sm 640 · md 768 · lg 1024 · xl 1280 ·
+  // 2xl 1536 · 3xl 1920 · 4xl 2560 · 5xl 3440) — include only the steps the app actually supports;
+  // phone/tablet presets use real device viewports (360×740, 390×844, 430×932, 768×1024) instead.
+  // Desktop app example below: declared minimum → ultrawide maximum, plus Fit (free-flow).
+  // Shared default; a .vph section overrides it with data-sizes='[{"label":"Fit","fit":true},…]'
+  // when its mockup targets a different range (invalid JSON fails loudly — no silent fallback).
+  const SIZES = [
+    { label: "Fit", fit: true },
+    { label: "Min 1024", w: 1024, h: 640 },
+    { label: "1280", w: 1280, h: 800 },
+    { label: "1920 FHD", w: 1920, h: 1080 },
+    { label: "2560 QHD", w: 2560, h: 1440 },
+    { label: "Max 3440", w: 3440, h: 1440 },
+  ];
+
+  function initHarness(root) {
+    const sizes = root.dataset.sizes ? JSON.parse(root.dataset.sizes) : SIZES;
+    root.insertAdjacentHTML(
+      "afterbegin",
+      '<header class="vp-bar">' +
+        '<span class="vp-title"></span>' +
+        '<select class="vp-screens" aria-label="Screen" hidden></select>' +
+        '<div class="vp-presets"></div>' +
+        '<button class="vp-rotate" type="button" title="Rotate (swap width/height)" aria-pressed="false">⟳</button>' +
+        '<button class="vp-actual" type="button" title="Actual size — scroll to pan" aria-pressed="false">1:1</button>' +
+        '<form class="vp-custom">' +
+        '<input class="vp-w" type="number" inputmode="numeric" min="240" max="3840" placeholder="W" aria-label="Custom width (px)">' +
+        " × " +
+        '<input class="vp-h" type="number" inputmode="numeric" min="240" max="3840" placeholder="H" aria-label="Custom height (px)">' +
+        '<button type="submit">Set</button>' +
+        "</form>" +
+        '<span class="vp-label" aria-live="polite"></span>' +
+        "</header>" +
+        '<div class="vp-stage"><div class="vp-wrap"><iframe title="Mockup preview"></iframe></div></div>',
+    );
+    root.querySelector(".vp-title").textContent = root.dataset.title || "";
+
+    const frame = root.querySelector("iframe");
+    const wrap = root.querySelector(".vp-wrap");
+    const stage = root.querySelector(".vp-stage");
+    const label = root.querySelector(".vp-label");
+    const presets = root.querySelector(".vp-presets");
+    const rotateBtn = root.querySelector(".vp-rotate");
+    const actualBtn = root.querySelector(".vp-actual");
+    const screenSel = root.querySelector(".vp-screens");
+    const screens = Array.from(root.querySelectorAll("template[data-screen]"));
+    let current = sizes.find((s) => !s.fit) || sizes[0];
+    let rotated = false;
+    let actual = false;
+
+    function buildDoc(tpl) {
+      return (
+        '<!doctype html><html><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1"></head><body>' +
+        tpl.innerHTML +
+        "</body></html>"
+      );
+    }
+    function loadScreen(i) {
+      frame.srcdoc = buildDoc(screens[i]);
+    }
+    if (screens.length > 1) {
+      screenSel.hidden = false;
+      screens.forEach((t, i) => screenSel.add(new Option(t.dataset.screen, String(i))));
+      screenSel.addEventListener("change", () => loadScreen(Number(screenSel.value)));
+    }
+
+    // Mirror the artifact viewer's theme toggle into the iframe document.
+    function syncTheme() {
+      const doc = frame.contentDocument;
+      if (!doc || !doc.documentElement) return;
+      const t = document.documentElement.getAttribute("data-theme");
+      if (t) doc.documentElement.setAttribute("data-theme", t);
+      else doc.documentElement.removeAttribute("data-theme");
+    }
+    frame.addEventListener("load", syncTheme);
+    new MutationObserver(syncTheme).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    function dims() {
+      return rotated ? { w: current.h, h: current.w } : { w: current.w, h: current.h };
+    }
+
+    function layout() {
+      presets
+        .querySelectorAll("button")
+        .forEach((b, i) => b.setAttribute("aria-pressed", String(sizes[i] === current)));
+      rotateBtn.disabled = !!current.fit;
+      rotateBtn.setAttribute("aria-pressed", String(rotated && !current.fit));
+      actualBtn.disabled = !!current.fit;
+      actualBtn.setAttribute("aria-pressed", String(actual && !current.fit));
+      wrap.classList.toggle("actual", actual && !current.fit);
+      if (current.fit) {
+        wrap.style.width = "calc(100% - 2px)";
+        wrap.style.height = "min(75svh, 720px)";
+        frame.style.width = "100%";
+        frame.style.height = "100%";
+        frame.style.transform = "none";
+        label.textContent = "fit";
+        return;
+      }
+      const { w, h } = dims();
+      const pad = parseFloat(getComputedStyle(stage).paddingLeft) || 0;
+      const avail = Math.max(120, stage.clientWidth - pad * 2);
+      frame.style.width = w + "px";
+      frame.style.height = h + "px";
+      if (actual) {
+        frame.style.transform = "none";
+        wrap.style.width = Math.min(avail, w) + "px";
+        wrap.style.height = Math.min(Math.round(window.innerHeight * 0.75), h) + "px";
+        label.textContent = w + "×" + h + " · 100%";
+        return;
+      }
+      const scale = Math.min(1, avail / w);
+      frame.style.transform = scale < 1 ? "scale(" + scale + ")" : "none";
+      wrap.style.width = Math.round(w * scale) + "px";
+      wrap.style.height = Math.round(h * scale) + "px";
+      label.textContent = w + "×" + h + (scale < 1 ? " · " + Math.round(scale * 100) + "%" : "");
+    }
+
+    sizes.forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = s.label;
+      b.addEventListener("click", () => {
+        current = s;
+        layout();
+      });
+      presets.appendChild(b);
+    });
+
+    rotateBtn.addEventListener("click", () => {
+      rotated = !rotated;
+      layout();
+    });
+    actualBtn.addEventListener("click", () => {
+      actual = !actual;
+      layout();
+    });
+
+    root.querySelector(".vp-custom").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const w = Number(root.querySelector(".vp-w").value);
+      const h = Number(root.querySelector(".vp-h").value);
+      if (w >= 240 && h >= 240) {
+        current = { label: "custom", w, h };
+        rotated = false;
+        layout();
+      }
+    });
+
+    window.addEventListener("resize", layout);
+    if (screens.length) loadScreen(0);
+    layout();
+  }
+
+  document.querySelectorAll(".vph").forEach(initHarness);
+</script>

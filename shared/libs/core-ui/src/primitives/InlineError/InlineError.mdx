@@ -1,0 +1,70 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as InlineErrorStories from "./InlineError.stories";
+
+<Meta of={InlineErrorStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# InlineError
+
+Hợp đồng lỗi thống nhất — trước khi có primitive này, cùng một lớp lỗi trình bày **bốn kiểu
+khác nhau** (`<p>`/`<span>`/Badge/không-gì) và không phần tử nào có `role="alert"`. Một component tái dùng ở mọi
+điểm lỗi field/section-level: mở project thất bại (A3), player boot timeout (A4), commit bị từ chối, banner
+conflict watcher (P10). Import từ `@ecoma-io/ui`:
+
+```ts
+import { InlineError } from "@ecoma-io/ui";
+```
+
+<Canvas of={InlineErrorStories.Demo} />
+
+## Anatomy
+
+| Phần    | Vai trò                                                            |
+| ------- | ------------------------------------------------------------------ |
+| icon    | `TriangleAlert` (`@lucide/vue`), `aria-hidden`                     |
+| message | prop `message` hoặc default slot (slot thắng khi cả hai có mặt)    |
+| action  | slot `action` (tuỳ chọn) — nút retry/remove, layout riêng bên phải |
+
+## Props
+
+<ArgTypes of={InlineErrorStories} />
+
+Không prop nào có fallback text cứng (I1) — block/host luôn truyền chuỗi đã dịch qua prop hoặc slot; primitive
+không tự `import` i18n.
+
+## Boundary: InlineError vs banner conflict
+
+- **InlineError** — gắn với **một field/section** cụ thể (một project card, một ô Inspector, một panel), nằm
+  ngay cạnh nguyên nhân, **persist cho tới khi nguyên nhân được giải quyết** (không tự ẩn theo timeout, không
+  có nút đóng độc lập — nó biến mất khi trạng thái lỗi hết, không phải khi người dùng bấm tắt).
+- **banner conflict** (P10, watcher/`project.json` fail schema) — gắn với **toàn bộ document/surface đang mở**,
+  nằm cố định đầu surface (sticky), có thể có lối ra dismissible (giữ bản của tôi / tải lại) độc lập với việc
+  nguyên nhân gốc đã hết hay chưa. Dùng InlineError khi lỗi thuộc về **một phần** UI người dùng đang nhìn vào;
+  dùng banner khi lỗi thuộc về **cả** document đang mở.
+
+## A11y
+
+`role="alert"` trên root — trình đọc màn hình công bố ngay khi phần tử xuất hiện trong DOM (live region ngầm
+định của `alert`, không cần `aria-live` tường minh). Vì vậy **luôn dùng `v-if`** (mount/unmount), không dùng
+`v-show` (ẩn bằng CSS vẫn còn trong DOM, `role="alert"` có thể không công bố lại khi nội dung đổi).
+
+## Motion
+
+Không animation vào/ra riêng — xuất hiện/biến mất theo `v-if` của host (tức thời, không tween nội dung lỗi).
+Nút trong slot `action` dùng motion của chính nó (`Button`/text-button thường).
+
+## Do / Don't
+
+- ✅ Mở project thất bại, thẻ recent mất folder, player boot timeout, commit bị từ chối.
+- ✅ Kèm action slot khi có lối khắc phục trực tiếp (Retry, Remove from recent).
+- ❌ Toast/notice tạm thời tự ẩn (khác persist-until-resolved) → xem `StatusBar`/toast pattern riêng.
+- ❌ Lỗi ở cấp toàn document (external file conflict) → banner (P10), không phải InlineError.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Components/Blocks/ProjectCard</code> (trạng thái
+  <code>missing</code>) · <code>Mockup/Home</code> (A3) · <code>Mockup/Editor</code> (A4, player
+  boot).
+</div>
+
+</div>

@@ -1,0 +1,53 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as FieldStories from "./Field.stories";
+
+<Meta of={FieldStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Field
+
+Khung **hàng form** ghép nhãn + control + mô tả (hint) + lỗi, để caller ngừng tự dựng layout
+label/error mỗi lần. Không phải component reka — chỉ là composition thuần: slot mặc định là control
+(`TextField`, `Select`, `Textarea`, …). Import từ `@ecoma-io/ui`:
+
+```ts
+import { Field } from "@ecoma-io/ui";
+```
+
+<Canvas of={FieldStories.Demo} />
+
+## Khi nào dùng
+
+- Bọc **bất kỳ** control nào (`TextField`, `NumberField`, `Select`, `Textarea`, …) cần nhãn + mô tả +
+  lỗi chuẩn hoá trong một form.
+- Không dùng cho control đã tự có nhãn (vd `Checkbox` với prop `label`) — khi đó `Field` chỉ cần cho
+  layout nếu muốn thêm hint/error.
+
+## Nối nhãn (label association)
+
+`for` là `id` của control bên trong slot. Khi cả `label` **và** `for` đều có, `Field` render
+`<label :for="for">` — click vào nhãn sẽ focus đúng control. Khi chỉ có `label` (không có `for`),
+`Field` render một `<span>` thường thay vì `<label>` không liên kết — vẫn đọc được bằng mắt nhưng
+không giả vờ có liên kết ngữ nghĩa mà nó không có.
+
+## Hint & error
+
+- `hint` hiển thị khi **không có** `error` — không hiện cả hai cùng lúc (một thông điệp tại một thời
+  điểm).
+- `error` render qua `InlineError` — trạng thái lỗi thị giác (viền `destructive`) vẫn phải đặt trực
+  tiếp trên control qua prop `invalid` của chính nó; `Field` chỉ lo phần thông điệp.
+
+## Props
+
+<ArgTypes of={FieldStories} />
+
+## Do / Don't
+
+- ✅ Luôn truyền `for` khớp `id` của control khi có `label`.
+- ✅ Đặt `invalid` trên control **và** `error` trên `Field` cùng lúc — hai nửa của một trạng thái lỗi.
+- ❌ Đừng bỏ `for` rồi trông chờ `<label>` tự liên kết — không có `for`, `Field` sẽ không render
+  `<label>`.
+- ❌ Đừng nhồi cả `hint` và `error` — `error` luôn thắng khi cả hai đều có.
+
+</div>

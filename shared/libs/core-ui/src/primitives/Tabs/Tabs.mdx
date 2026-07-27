@@ -1,0 +1,82 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TabsStories from "./Tabs.stories";
+
+<Meta of={TabsStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Tabs
+
+Chuyển đổi giữa các **panel/view**, với nội dung của panel active hiển thị **bên dưới**. Dựng trên
+Reka UI `Tabs` (roving tabindex, mũi tên ←→ điều hướng, a11y theo mẫu `tab`/`tabpanel`). Import từ
+`@ecoma-io/ui`:
+
+```ts
+import { Tabs } from "@ecoma-io/ui";
+```
+
+<Canvas of={TabsStories.Demo} />
+
+## Tabs vs SegmentedControl
+
+Cả hai đều "chọn một trong nhiều", nhưng khác mục đích:
+
+|                   | `Tabs`                                        | `SegmentedControl`                                |
+| ----------------- | --------------------------------------------- | ------------------------------------------------- |
+| Chọn gì           | Chuyển view/panel                             | Một giá trị của một setting                       |
+| Nội dung bên dưới | Có — mỗi tab render một panel khác nhau       | Không — control tự thân là kết quả                |
+| Ví dụ             | Tổng quan / Hoạt động / Cài đặt của một asset | Giao diện Sáng/Tối/Auto, mức mật độ Simple/Studio |
+
+Nhầm lẫn phổ biến: dùng `Tabs` chỉ để đổi màu chữ một nhãn (không có panel) — khi đó `SegmentedControl`
+đúng hơn vì nó không tạo ra `tabpanel` rỗng.
+
+## Anatomy
+
+| Phần      | Vai trò                                                                                                                                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| list      | dải trigger, viền dưới `border-border` — "rãnh" chứa các tab                                                                                    |
+| trigger   | một tab; active đổi `text-foreground` (inactive `text-muted-foreground`), không tự vẽ nền                                                       |
+| indicator | gạch chân `h-0.5 bg-primary`, đo vị trí/độ rộng theo tab active rồi trượt tới đó (Reka `TabsIndicator`, các biến CSS `--reka-tabs-indicator-*`) |
+| content   | panel tương ứng, nhận nội dung qua named slot theo `value` của tab                                                                              |
+
+## Panels qua named slot
+
+Mỗi phần tử trong `tabs` cần một slot cùng tên `value` chứa nội dung panel:
+
+```vue
+<Tabs v-model="active" :tabs="tabs">
+  <template #overview>…</template>
+  <template #activity>…</template>
+</Tabs>
+```
+
+## Props
+
+<ArgTypes of={TabsStories} />
+
+## States
+
+active / inactive · hover · focus-visible (ring thép trên trigger) · disabled (per-tab: giảm opacity,
+không nhận click/phím, indicator không trượt tới).
+
+## A11y
+
+`role="tablist"`; mỗi trigger `role="tab"` + `aria-selected`, mỗi panel `role="tabpanel"`; mũi tên ←→
+di chuyển selection trong list, Tab thoát list (roving tabindex — Reka UI lo sẵn).
+
+## Motion
+
+Indicator dùng chung trượt tới trigger active (`--dur-fast`/`--ease-spring`, đo bằng các biến CSS Reka
+cấp qua `ResizeObserver` nội bộ); trigger tự thân chỉ đổi màu chữ bằng `--ease-out`. Panel active
+`animate-fade-rise` mỗi lần đổi tab (nội dung trồi nhẹ lên đồng thời với indicator trượt). Tôn trọng
+`prefers-reduced-motion` qua rule chặn chung của Alloy (`global.css`), không cần xử lý riêng.
+
+## Do / Don't
+
+- ✅ Chuyển đổi giữa các view/panel có nội dung khác nhau (Tổng quan / Hoạt động / Cài đặt).
+- ✅ Panel nào cũng cần một slot cùng `value` — thiếu slot thì panel đó trống, không lỗi.
+- ❌ Chỉ chọn một giá trị setting, không có panel bên dưới → `SegmentedControl`.
+- ❌ Hơn một vài tab dài dòng khiến `TabsList` tràn ngang → cân nhắc điều hướng khác (chưa có scroll
+  trong primitive này).
+
+</div>

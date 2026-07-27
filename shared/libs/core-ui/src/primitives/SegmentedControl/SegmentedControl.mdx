@@ -1,0 +1,68 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SegmentedControlStories from "./SegmentedControl.stories";
+
+<Meta of={SegmentedControlStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# SegmentedControl
+
+Chọn **một trong 2–5 lựa chọn loại trừ nhau, thấy hết cùng lúc** — luôn có một giá trị active.
+Import từ `@ecoma-io/ui`:
+
+```ts
+import { SegmentedControl } from "@ecoma-io/ui";
+```
+
+Dùng thật ở: `Settings › Chung › Giao diện` (Sáng/Tối/Auto), và **mức mật độ** `Simple · Studio` ở status bar
+editor — dạng nén `size="sm"` (Mockup › Editor) — hai giá trị loại-trừ. Code là _lens toggle_ `‹/›` riêng bên
+cạnh, **không** phải segment thứ ba (Vision §2 — hai trục vuông góc). Dựng trên **Reka UI `RadioGroup`**
+(single-choice luôn có giá trị, a11y sẵn), style bằng token Alloy.
+
+<Canvas of={SegmentedControlStories.Demo} />
+
+## Anatomy
+
+| Phần      | Vai trò                                                                                                                      |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| group     | khung `bg-muted border-input rounded-md p-0.5` — "rãnh" chứa các segment                                                     |
+| indicator | pill dùng chung, đo vị trí/độ rộng theo segment active rồi trượt tới đó, mang `bg-card shadow-sm`                            |
+| segment   | một lựa chọn; active chỉ đổi `font-medium text-foreground` (nền/shadow do indicator lo), inactive là `text-muted-foreground` |
+
+## Props
+
+<ArgTypes of={SegmentedControlStories} />
+
+`size="sm"` là dạng nén cho chrome dày đặc — segment `px-1.5 py-px text-[11px]`, vừa status bar cao 24px.
+`disabled` per-option giữ segment hiện diện nhưng khoá tương tác; nút Code `‹/›` là toggle riêng cạnh control,
+chưa có chức năng nên còn disabled (Mockup › Editor).
+
+## States
+
+active / inactive · hover (inactive: `hover:bg-subtle`) · focus-visible (ring thép trên segment) · disabled
+(per-segment: giảm opacity, không nhận click/phím).
+
+## A11y
+
+`role="radiogroup"`; mỗi segment `role="radio"` + `aria-checked`; mũi tên ←→ di chuyển selection trong group, Tab
+thoát group (roving tabindex — Reka UI lo sẵn).
+
+## Motion
+
+Một indicator dùng chung trượt tới segment active (`--dur-fast`/`--ease-spring`, đo bằng
+`offsetLeft`/`offsetWidth` của segment `[data-state=checked]`, cập nhật lại qua `ResizeObserver`); segment
+tự thân chỉ đổi màu chữ/độ đậm bằng `--ease-out`. Tôn trọng `prefers-reduced-motion` qua rule chặn chung của
+Alloy (`global.css`), không cần xử lý riêng.
+
+## Do / Don't
+
+- ✅ 2–5 lựa chọn loại trừ, nhãn ngắn, luôn có một giá trị (color mode, mức mật độ Simple/Studio, tier S/M/L của Timeline 0.6).
+- ❌ Hơn 5 lựa chọn hoặc nhãn dài → `Select`.
+- ❌ Bật/tắt một thứ duy nhất → `Switch`.
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Trong ngữ cảnh: <code>Mockup/Settings</code> (Sáng/Tối/Auto) và <code>Mockup/Editor</code> (mức
+  mật độ Simple/Studio).
+</div>
+
+</div>

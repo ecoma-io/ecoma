@@ -1,0 +1,117 @@
+/**
+ * Alloy — Ecoma design tokens
+ * ===================================
+ * The single source of truth for the visual language shared across every
+ * product in the Ecoma ecosystem.
+ *
+ * Positioning it encodes: Ecoma is a no-code platform where an organization
+ * digitizes its own operations and AI agents are a first-class workforce.
+ * The form language is dual-force (Design System › Signature):
+ *   - Human (thép / steel) — what people author and decide; doubles as the
+ *     default action color because a person drives the UI.
+ *   - Agent (đồng / copper) — work an agent is running or has produced.
+ *   - The seam (mối hàn) — a steel→copper gradient — appears ONLY where the
+ *     two forces meet: handoffs, co-authored assets, brand moments. Never
+ *     under body text, never on elements smaller than 20px; interaction
+ *     states stay flat.
+ *
+ * Colors are authored as space-separated HSL channels so Tailwind can compose
+ * them with alpha:  hsl(var(--primary) / 0.5).  (shadcn-vue convention.)
+ *
+ * Light-first: Ecoma is a daytime operations tool, so the paper-light theme
+ * is the single default theme — no runtime light/dark switch. A symmetric
+ * dark theme is a reserved seam that returns with the first surface needing
+ * it. This file is host-agnostic: consumed by Storybook and by the desktop
+ * renderer alike. Do not import framework CSS here.
+ */
+
+:root {
+  /* ---- Neutrals: giấy kỹ thuật, lạnh nhẹ về phía thép ------------------ */
+  --background: 213 25% 96%;
+  --foreground: 213 29% 15%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 213 29% 15%;
+
+  /* workspace chrome (sidebar, rails) — the SUNKEN layer of the elevation
+   * rhythm: sunken < background < card, so work surfaces read as lifted and
+   * navigation recedes (see Design System › Elevation). */
+  --sunken: 213 22% 93%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 213 29% 15%;
+
+  --muted: 213 18% 91%;
+  --muted-foreground: 213 14% 41%;
+
+  /* two border weights: the default hairline recedes; strong is for the few
+   * blocks that must assert their edge (active panel, keyboard target zone) */
+  --border: 213 16% 87%;
+  --border-strong: 213 14% 78%;
+  --input: 213 15% 82%;
+
+  /* neutral hover/press fill (shadcn "accent" is a neutral, not the brand) */
+  --subtle: 213 20% 94%;
+  --subtle-foreground: 213 29% 18%;
+
+  /* ---- Force 1 · Human — thép: default action, structure, decisions ---- */
+  --primary: 211 37% 32%;
+  --primary-foreground: 0 0% 100%;
+  --primary-muted: 211 35% 92%; /* steel wash for selected/active backgrounds */
+
+  /* ---- Force 2 · Agent — đồng: automated work running / produced ------- */
+  --agent: 18 56% 39%;
+  --agent-foreground: 0 0% 100%;
+  --agent-muted: 18 50% 93%; /* copper wash for agent-driven surfaces */
+
+  --secondary: 213 18% 91%;
+  --secondary-foreground: 213 29% 18%;
+
+  /* focus ring = Human steel: keyboard focus is a person acting */
+  --ring: 211 37% 32%;
+
+  /* ---- Functional (hues distinct from both forces) --------------------- */
+  --destructive: 356 65% 41%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 45% 30%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 28%;
+  --warning-foreground: 0 0% 100%;
+  --info: 202 65% 35%;
+  --info-foreground: 0 0% 100%;
+
+  /* ---- The seam (mối hàn): the two forces meeting. OKLCH interpolation so
+   * the midpoint never turns muddy. Handoff points and brand moments only —
+   * the law lives in Design System › Signature. -------------------------- */
+  --seam: linear-gradient(90deg in oklch, hsl(211 37% 32%), hsl(18 56% 39%));
+
+  /* ---- Shape: "phay CNC" — small, even fillets, never blobby ----------- */
+  --radius: 0.5rem; /* 8px controls; sm 4 / lg 12 / xl 16 derived in preset.
+   * Nesting law: inner radius = outer radius − padding (min 2px). */
+
+  /* ---- Motion: durations + easings. Motion is meaning, not decoration -- */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1); /* emphasized decelerate — the default */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1); /* restrained overshoot */
+
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur: 200ms; /* UI feedback ceiling — feel snappy, never sluggish */
+  --dur-slow: 320ms;
+  --dur-slower: 480ms;
+
+  /* ---- Elevation: hairline-first; cool soft shadows, reserved for true
+   * overlays — never a glow ---------------------------------------------- */
+  --shadow-sm: 0 1px 2px 0 hsl(213 30% 12% / 0.07);
+  --shadow-md: 0 4px 12px -2px hsl(213 30% 12% / 0.1), 0 2px 6px -2px hsl(213 30% 12% / 0.07);
+  --shadow-lg: 0 12px 32px -6px hsl(213 30% 12% / 0.14), 0 4px 10px -4px hsl(213 30% 12% / 0.08);
+
+  /* ---- Focus halo: a steel haze AROUND the crisp --ring outline (added on
+   * top, never replacing it — outline still shows under forced-colors) ---- */
+  --halo: 0 0 0 4px hsl(211 37% 32% / 0.15);
+
+  /* ---- Type ----------------------------------------------------------- */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+}

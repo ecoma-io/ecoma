@@ -1,0 +1,98 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as Demos from "./_demo/gallery.stories";
+
+<Meta title="Design System/Logo" />
+
+export const rules = [
+  {
+    rule: "Geometry đã khoá",
+    detail:
+      "Sống mũi, vị trí và cỡ hai mắt, bo góc là quyết định đã chốt với founder — không tinh chỉnh tuỳ tiện.",
+  },
+  {
+    rule: "Gradient display chỉ cho mark",
+    detail:
+      "Thép #3A63D9→#79ADFF và ember #EF5F26→#FFA659 chỉ sống trong mark. UI dùng token --primary / --agent / --seam (xem Signature) — không bao giờ lấy gradient của logo làm màu giao diện.",
+  },
+  {
+    rule: "Khe sống mũi trong suốt",
+    detail:
+      "Khe giữa hai nửa cắt bằng mask nên mark đứng được trên mọi nền, không cần hộp trắng đệm. Riêng app icon full-bleed không có nền sau lưng nên sống mũi là nếp mực sẫm #0F141C thay vì khe hở.",
+  },
+  {
+    rule: "Chọn biến thể theo ngữ cảnh",
+    detail:
+      "Duotone là mặc định trên nền sáng; mono ink #1B2431 cho in ấn và ngữ cảnh trung tính; inverse paper #F3F5F8 cho nền tối; app icon là bản full-bleed rx 21 cho tile hệ điều hành.",
+  },
+  {
+    rule: "Trong UI dùng BrandMark",
+    detail:
+      "Bản 24-grid mono qua createLucideIcon, lấy màu từ currentColor như mọi icon (xem Iconography). SVG duotone chỉ dành cho bề mặt thương hiệu: splash, about, marketing, README.",
+  },
+  {
+    rule: "Clear space ≥ ¼ chiều cao",
+    detail:
+      "Mỗi phía của mark chừa trống tối thiểu một phần tư chiều cao mark; không đặt wordmark, chữ hay phần tử khác lấn vào vùng đó.",
+  },
+];
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Logo
+
+Mark của Ecoma là **«Một gương mặt, hai lực lượng»**: một gương mặt vuông bo chia đôi bằng
+sống mũi trừu tượng — nửa trái là con người (thép, mắt hạnh nhân), nửa phải là agent
+(ember, mắt chữ nhật). Đường chia không phải vết nứt mà là sống mũi: hai nửa thuộc cùng
+một gương mặt — tổ chức. Đây là phát biểu hình học của dual-force law trong
+[Signature](?path=/docs/design-system-signature--docs): màu kể ai đang làm, mối hàn kể nơi họ
+gặp nhau.
+
+## Quy tắc
+
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+    padding: "1rem 1.25rem",
+    borderRadius: "0.75rem",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--card))",
+  }}
+>
+  {rules.map((r) => (
+    <div
+      key={r.rule}
+      style={{ display: "flex", gap: "1rem", fontSize: "0.8125rem", alignItems: "baseline" }}
+    >
+      <strong style={{ width: "10rem", flexShrink: 0, color: "hsl(var(--foreground))" }}>
+        {r.rule}
+      </strong>
+      <span style={{ color: "hsl(var(--muted-foreground))" }}>{r.detail}</span>
+    </div>
+  ))}
+</div>
+
+## Demo
+
+Bốn biến thể, thang cỡ với khe sống mũi dày lên theo luật optical ở cỡ nhỏ (cùng luật
+với stroke 2.5 cho icon ≤ 12px trong [Iconography](?path=/docs/design-system-iconography--docs)),
+vùng clear space, và `BrandMark` trong ngữ cảnh UI:
+
+<Canvas of={Demos.Logo} />
+
+## Assets
+
+Nguồn duy nhất của bộ SVG là `shared/libs/core-ui/docs/design/assets/`:
+
+- `mark.svg` — duotone, khe mũi trong suốt bằng mask.
+- `mark-mono.svg` — ink `#1B2431`, một màu.
+- `mark-inverse.svg` — paper `#F3F5F8` trên nền tối, hai mắt đục xuyên thành nền tối.
+- `app-icon.svg` — full-bleed, rx 21 nướng sẵn; nền tảng tự bo góc (Android, macOS
+  dạng squircle) thì thay path khối mặt bằng `<rect>` thường rồi để hệ điều hành mask.
+
+Micro cut cho cỡ nhỏ không phải file riêng: cùng geometry, chỉ đổi
+`stroke-width` của khe sống mũi — `2.8` gốc, `3.6` ở 32px, `4.4` ở favicon 16px
+(gallery ở trên sinh đúng bằng phép thay đó).
+
+</div>

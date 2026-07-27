@@ -1,0 +1,181 @@
+<!-- html-artifact template: document. Replace every TODO_REPLACE; restyle tokens per artifact-design. -->
+<title>TODO_REPLACE — Document title</title>
+<style>
+  :root {
+    /* TODO_REPLACE: placeholder palette — restyle per artifact-design */
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --surface: #1d2126;
+      --text: #e7eaee;
+      --muted: #97a1ac;
+      --line: #2b3138;
+      --accent: #7da2ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1d2126;
+    --text: #e7eaee;
+    --muted: #97a1ac;
+    --line: #2b3138;
+    --accent: #7da2ff;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --text: #1c1f23;
+    --muted: #5b6470;
+    --line: #dfe3e8;
+    --accent: #3b6ff0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    line-height: 1.65;
+    -webkit-text-size-adjust: 100%;
+  }
+  .doc {
+    max-width: 68ch;
+    margin-inline: auto;
+    padding: clamp(20px, 5vw, 48px) clamp(16px, 4vw, 32px) 72px;
+  }
+
+  .doc > header {
+    margin-bottom: 2.5rem;
+  }
+  h1 {
+    font-size: clamp(1.7rem, 5vw, 2.4rem);
+    line-height: 1.2;
+    margin: 0 0 0.5rem;
+    text-wrap: balance;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  h2 {
+    font-size: clamp(1.25rem, 3.5vw, 1.5rem);
+    margin: 2.5em 0 0.75em;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.05rem;
+    margin: 2em 0 0.5em;
+  }
+  p {
+    margin: 0 0 1em;
+  }
+
+  .callout {
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 1.5em 0;
+  }
+  .callout p:last-child {
+    margin-bottom: 0;
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+    margin: 1.5em 0;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.95rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+  }
+  td.num,
+  th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 16px;
+    overflow-x: auto;
+  }
+  code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.9em;
+  }
+
+  figure {
+    margin: 1.5em 0;
+  }
+  figure img,
+  figure svg {
+    max-width: 100%;
+    height: auto;
+  }
+  figcaption {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 0.5em;
+  }
+
+  a {
+    color: var(--accent);
+  }
+</style>
+
+<article class="doc">
+  <header>
+    <h1>TODO_REPLACE Document title</h1>
+    <p class="meta">TODO_REPLACE audience · status · date</p>
+  </header>
+
+  <h2>TODO_REPLACE First section</h2>
+  <p>TODO_REPLACE Body text — real content, never lorem.</p>
+
+  <div class="callout">
+    <p>TODO_REPLACE Key takeaway or warning the reader must not miss.</p>
+  </div>
+
+  <h2>TODO_REPLACE Data section</h2>
+  <div class="scroll-x">
+    <table>
+      <thead>
+        <tr>
+          <th>TODO_REPLACE Item</th>
+          <th class="num">TODO_REPLACE Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>TODO_REPLACE</td>
+          <td class="num">TODO_REPLACE</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</article>

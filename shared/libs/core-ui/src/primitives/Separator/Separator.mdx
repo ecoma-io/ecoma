@@ -1,0 +1,55 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as SeparatorStories from "./Separator.stories";
+
+<Meta of={SeparatorStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Separator
+
+Đường chia mảnh — phân tách hai nhóm nội dung về mặt **thị giác và ngữ nghĩa**. Built trên Reka
+UI's Separator. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Separator } from "@ecoma-io/ui";
+```
+
+<Canvas of={SeparatorStories.Demo} />
+
+## Khi nào dùng
+
+- Ngăn cách hai **nhóm nội dung đã tự rõ ràng** (hai section trong form, hai mục trong toolbar) —
+  không cần viền/khung bao quanh, chỉ một đường mảnh.
+- **Không** dùng thay cho spacing đơn thuần — nếu chỉ cần khoảng cách, dùng `gap`/`margin`; Separator
+  vẽ một đường có thể nhìn thấy.
+- So với `Spinner`/`Skeleton` (trạng thái loading), Separator là chia bố cục **tĩnh**, không liên
+  quan đến trạng thái tải dữ liệu.
+
+## Orientation
+
+| Orientation  | Kích thước              | Dùng cho                               |
+| ------------ | ----------------------- | -------------------------------------- |
+| `horizontal` | `h-px w-full`           | chia hai khối xếp dọc (mặc định)       |
+| `vertical`   | `w-px h-full` (stretch) | chia các mục trong hàng ngang, toolbar |
+
+Khi dùng `vertical`, đặt Separator trong một container có chiều cao xác định (`h-*` hoặc
+`items-stretch`) — nó tự giãn hết chiều cao (`self-stretch`) nhưng cần một chiều cao cha để giãn vào.
+
+## Decorative
+
+`decorative` (mặc định `true`) tắt `role="separator"` cho trình đọc màn hình — dùng khi đường chia
+chỉ là trang trí thị giác giữa nội dung đã có cấu trúc riêng (heading, list…). Đặt `decorative={false}`
+khi đường chia **là** ranh giới ngữ nghĩa duy nhất giữa hai vùng không có landmark nào khác.
+
+## Props
+
+<ArgTypes of={SeparatorStories} />
+
+## Do / Don't
+
+- ✅ Dùng `vertical` trong hàng công cụ/toolbar để tách các nhóm hành động.
+- ✅ Để `decorative` mặc định trừ khi Separator là ranh giới ngữ nghĩa duy nhất.
+- ❌ Đừng dùng Separator chỉ để tạo khoảng cách — dùng `gap`.
+- ❌ Đừng lồng Separator bên trong một component đã có viền/khung riêng (dư thừa thị giác).
+
+</div>

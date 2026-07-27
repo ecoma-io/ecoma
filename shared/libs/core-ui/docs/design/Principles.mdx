@@ -1,0 +1,103 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Principles" />
+
+<div style={{ maxWidth: "42rem" }}>
+
+# Principles
+
+Sáu nguyên tắc này là kim chỉ nam. Khi phân vân giữa hai lựa chọn thiết kế, chọn
+cái tuân theo các nguyên tắc bên dưới.
+
+## 1. Silent surfaces, content speaks
+
+UI gần như đơn sắc và **lùi ra sau**. Màu được để dành cho _ý nghĩa_ — và trong Alloy, ý
+nghĩa số một là **ai đang làm**: thép cho người, đồng cho agent, mối hàn cho điểm hai lực
+lượng gặp nhau (xem `Signature`). Công việc của tổ chức luôn là nhân vật chính — UI chrome
+lùi lại để quy trình và dữ liệu nổi bật.
+
+## 2. Refined minimalism
+
+**Hairline thay cho shadow.** Phân tầng bằng đường viền mảnh và độ sáng bề mặt, không
+phải bằng đổ bóng nặng. Khoảng thở rộng nhưng có kỷ luật. **Hai màu lực lượng, mỗi màu một
+vai — ngoài ra là trung tính**; gradient chỉ được phép ở mối hàn. Bóng đổ chỉ dùng cho
+overlay thật sự (popover, menu, dialog).
+
+## 3. Motion as meaning
+
+Mọi thay đổi trạng thái có chuyển động **nhanh (≤200ms) và có chủ đích**; micro-interaction
+truyền đạt quan hệ nhân–quả (bấm → lún xuống, mở → nở ra). Không có gì lặp vô hạn để trang
+trí, trừ loader. **Luôn tôn trọng `prefers-reduced-motion`.**
+
+## 4. Progressive density, adaptive canvas
+
+Mặc định **thoải mái** cho non-tech (mobile-first). Power-user có thể **nén lại** đậm đặc
+hơn qua token mật độ. Cùng một hệ, hai mức sử dụng — _không phải hai ứng dụng_.
+
+Cùng nguyên tắc đó áp dụng theo chiều ngược lại: bố cục phải **giãn nở có kỷ luật** lên tới
+màn hình **ultrawide** (workspace nhiều panel, timeline dài) — không chỉ co lại cho mobile mà
+còn mở rộng đúng cách cho canvas rộng, tránh nội dung bị kéo dãn vô nghĩa hoặc trơ trọi giữa
+khoảng trắng lớn.
+
+**Breakpoint (chiều rộng).** Preset giữ nguyên `sm…2xl` mặc định của Tailwind và nối thêm ba
+mốc cho desktop rộng — dùng đúng tên này, không bao giờ px tùy tiện:
+
+- `3xl` — **1920px** · desktop FHD, cửa sổ phóng to trên một màn hình
+- `4xl` — **2560px** · QHD / 1440p
+- `5xl` — **3440px** · ultra-wide 21:9
+
+**Cap chiều rộng nội dung.** Khi rộng ra, một cột văn bản/form/list **không** giãn theo — nó
+dừng ở một `max-width` để mắt còn đọc được. Không gian dư dùng để **thêm cột/panel** hoặc giữ
+canvas ở giữa và nới máng hai bên, chứ không phải kéo dãn một cột duy nhất.
+
+**Kích thước cửa sổ tối thiểu — mỗi app khai báo một trong hai chế độ.** Không có mặc định
+chung: lib shell dùng chung cố ý floor-agnostic, sàn là quyết định sản phẩm của từng app.
+
+- **Fixed** — tool nhỏ một-layout: khóa kích thước (`resizable: false`), thiết kế đúng một khổ,
+  không dùng breakpoint. Đây là lựa chọn hạng nhất, không phải sự lười.
+- **Bounded-resizable** — workspace: `minWidth` bằng **một breakpoint có tên** (cái sàn), không
+  đặt `maxWidth`, thiết kế responsive từ sàn lên `5xl`. Dưới sàn là **vùng không hỗ trợ** —
+  không thiết kế, không QA cho nó.
+
+Cơ chế đấu dây cụ thể (cấu hình window của shell, px sàn của từng app) sống trong `CLAUDE.md`
+của từng app — trang này chỉ giữ ý đồ thiết kế.
+
+## 5. Honest & precise
+
+Số liệu mang ý nghĩa (mã chứng từ, số lượng, thời lượng) dùng **mono, tabular numerics** để
+căn thẳng hàng. Kỹ thuật nhưng không lạnh lùng — hơi ấm đồng của lực lượng agent giữ cho sản
+phẩm có hồn.
+
+## 6. Feedback có thứ bậc, chờ đợi có hình dạng
+
+Phản hồi chọn **kênh theo mức độ chặn**, không theo sở thích — và lỗi mà người dùng cần biết
+thì phải _hiện ra_, không bao giờ chỉ nằm trong console:
+
+- **Gắn với một field/hành động cụ thể** → lỗi hiện _tại chỗ_ (`InlineError`), ngay cạnh thứ
+  gây ra nó — người dùng sửa mà không phải đi tìm.
+- **Nền, không chặn luồng** (sync fail, một mục trong list không tải được) → `Toast` — báo rồi
+  tự lui, không đòi một quyết định.
+- **Chặn, cần một quyết định** → `Dialog` — kênh hiếm nhất; dùng cho lỗi nền là phá vỡ tôn ti.
+
+Chờ đợi cũng phải **mang đúng hình dạng của cái đang đến**:
+
+- Dưới ~200ms: **không hiện gì** — một indicator chớp tắt ồn hơn im lặng.
+- Không đo được, layout chưa biết → `Spinner`. Layout đã biết (card, hàng list) → `Skeleton`,
+  để chỗ trống đọc như nội dung sắp tới. Đo được phần trăm → `Progress`.
+- Control khởi phát tác vụ **biến hình tại chỗ** (Button `loading` — xem _Motion › Kinetic
+  swap_) thay vì khoá cả màn hình; phần UI không liên quan vẫn sống.
+- Chờ một **con người** duyệt (HITL) là một _trạng thái hiển thị được_ — async, resumable —
+  không bao giờ là modal chặn.
+- Vùng **rỗng** tự giải thích và mời bước tiếp theo bằng khuôn `EmptyState` (icon → tiêu đề →
+  mô tả → tối đa một CTA, vào cảnh stagger) — rỗng là lời mời, không phải lỗi, và không bao
+  giờ chớp lên trong lúc còn đang tải.
+
+<hr style={{ margin: "2rem 0", border: 0, borderTop: "1px solid hsl(var(--border))" }} />
+
+<div style={{ fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Các nguyên tắc này phục vụ triết lý sản phẩm của từng agent trong hệ sinh thái Ecoma — mỗi sản
+  phẩm diễn giải chúng qua vision riêng của nó. Xem trang <strong>Product › Vision</strong> của từng
+  sản phẩm.
+</div>
+
+</div>

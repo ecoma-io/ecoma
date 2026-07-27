@@ -1,0 +1,47 @@
+# No trailing slash: a directory-only pattern misses a SYMLINK named
+# node_modules, which an agent worktree may create. Git then stages it, and a
+# fresh CI clone dies in `pnpm install` with `ENOTDIR: not a directory, mkdir
+# .../node_modules`. Keep this bare so both the real directory and a symlink
+# are ignored.
+node_modules
+dist/
+out/
+build/
+.nx/cache
+.nx/workspace-data
+.vite/
+.astro/
+*.log
+.DS_Store
+coverage/
+test-results/
+playwright-report/
+.env
+.env.local
+release/
+tmp
+**/__pycache__
+
+# Storybook
+storybook-static/
+
+# Vitest browser mode writes these only when a test FAILS — a screenshot of the
+# page and the attachments that go with it. They are debugging output for the
+# run that produced them, worthless to anyone else, and without this a red run
+# leaves untracked files sitting in `git status` waiting to be swept into
+# someone's `git add -A`.
+.vitest-attachments/
+**/__screenshots__/
+
+.claude/worktrees
+.claude/**/.eval-labs
+.claude/**/.state
+# Plan files are local-only resume aids (see CLAUDE.md > Development Workflow) — never committed
+.claude/plans/
+# Single-use gate tokens (pipeline spec §7) — the durable record is frontmatter status + date
+.claude/gate-tokens/
+
+.nx/polygraph
+.nx/self-healing
+.nx/migrate-runs
+target/

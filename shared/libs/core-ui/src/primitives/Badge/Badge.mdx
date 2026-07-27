@@ -1,0 +1,61 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as BadgeStories from "./Badge.stories";
+
+<Meta of={BadgeStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Badge
+
+Chip trạng thái / meta nhỏ — nhãn không tương tác, gắn cạnh nội dung để báo _loại_, _trạng
+thái_ hoặc _sự hiện diện của AI_. Import từ `@ecoma-io/ui`:
+
+```ts
+import { Badge } from "@ecoma-io/ui";
+```
+
+<Canvas of={BadgeStories.Demo} />
+
+## Variants
+
+| Variant       | Ý nghĩa                           | Ghi chú                                          |
+| ------------- | --------------------------------- | ------------------------------------------------ |
+| `neutral`     | meta chung, không nhấn            | mặc định                                         |
+| `outline`     | meta chìm, chỉ có viền            | dùng khi nền đã dày                              |
+| `primary`     | nhấn bằng thép (wash nhạt)        | trạng thái quan trọng gắn brand                  |
+| `success`     | kết quả tốt (đã render, hợp lệ)   | xanh `--success`                                 |
+| `warning`     | suy giảm / cần chú ý sớm          | vàng `--warning` — chưa hỏng, nhưng đừng bỏ qua  |
+| `info`        | thông tin trung tính (selection…) | xanh lạnh `--info`, **không** phải màu lực lượng |
+| `destructive` | lỗi / thất bại (job lỗi, xoá)     | đỏ `--destructive`                               |
+| `ai`          | **báo hiệu agent** — màu đồng     | dùng nhất quán khắp sản phẩm cho việc agent làm  |
+
+> **`ai` là biến thể đặc trưng:** màu đồng của lực lượng agent (wash `--agent-muted`, chữ và
+> viền `--agent`) là _tín hiệu agent_ thống nhất xuyên suốt mọi sản phẩm trong hệ sinh thái
+> Ecoma — luật hai lực lượng ở Design System › Signature. Đừng dùng `ai` cho nội dung không
+> phải việc agent làm, và đừng tự pha màu đồng viết tay tại chỗ — mọi giá trị đọc từ token
+> (`tokens.css`) để đổi một chỗ lan hết mọi nơi.
+
+## Differences with Button
+
+Badge **không bấm được** — không hover-lift, không press, không focus ring. Nếu cần một "chip"
+bấm được (filter, xoá tag) thì đó là một block tương tác khác, **không** phải Badge.
+
+## Props
+
+<ArgTypes of={BadgeStories} />
+
+Nội dung (text, dấu `✦`, số…) truyền qua **default slot**.
+
+## Do / Don't
+
+- ✅ Giữ nhãn ngắn (1–2 từ hoặc một số).
+- ✅ `info` (xanh lạnh) cho selection/metadata; để dành màu lực lượng cho `ai`/`primary`.
+- ❌ Đừng dùng Badge như nút — nó không có affordance tương tác.
+- ❌ Đừng rải nhiều `ai`/`primary` tới mức màu lực lượng mất nghĩa "ai đang làm".
+
+<div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+  Màu đồng của <code>ai</code> dùng token <code>--agent</code>/<code>--agent-muted</code>, nên tự
+  đồng bộ nếu giá trị token đổi.
+</div>
+
+</div>

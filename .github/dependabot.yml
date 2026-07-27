@@ -1,0 +1,10 @@
+# Keeps the SHA-pinned actions in .github/workflows from rotting: Dependabot
+# bumps the pinned commit and its trailing "# vX.Y.Z" comment together. Only
+# the github-actions ecosystem is enrolled — npm deps stay on the workspace's
+# own update discipline.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

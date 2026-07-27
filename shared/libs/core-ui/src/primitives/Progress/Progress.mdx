@@ -1,0 +1,65 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as ProgressStories from "./Progress.stories";
+
+<Meta of={ProgressStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Progress
+
+Thanh tiến trình **xác định** — dùng khi biết được **phần trăm** hoàn thành của một tác vụ (upload,
+bước 3/5, xử lý hàng loạt). Import từ `@ecoma-io/ui`:
+
+```ts
+import { Progress } from "@ecoma-io/ui";
+```
+
+<Canvas of={ProgressStories.Demo} />
+
+## Khi nào dùng
+
+- Đã biết **tỉ lệ %** của tác vụ đang chạy (upload, tiến độ nhiều bước, xử lý hàng loạt) — dùng
+  `Progress` với `modelValue` là số 0–`max`.
+- Chưa biết **thời lượng lẫn tỉ lệ %** (gọi API, chờ phản hồi không đoán trước) — dùng `Spinner`
+  thay vì đoán một giá trị `modelValue` giả.
+- Đã biết **hình dạng layout** sắp hiện nhưng chưa có dữ liệu — dùng `Skeleton`.
+
+## Xác định vs không xác định
+
+- **Xác định** (`modelValue` là số): thanh tô màu `primary` theo đúng tỉ lệ
+  `modelValue / max`, dịch chuyển bằng `transform: translateX(...)` bên trong khung `overflow-hidden`.
+- **Không xác định** (`modelValue` là `null`/`undefined`): một **đoạn ngắn quét qua track** lặp lại
+  (`animate-progress-indeterminate`, `--ease-in-out`) — motion nói "đang chạy" mà không đoán một giá
+  trị giả để tô màu. Dùng khi tác vụ đã bắt đầu nhưng phần trăm cụ thể chưa có sẵn (vd đang chờ server
+  trả về kích thước tổng trước khi tính % upload).
+
+## Beat hoàn thành
+
+Chạm `100%` là một khoảnh khắc, không phải một trạng thái câm: fill **chuyển từ thép sang
+`--success`** (ease vào cùng làn `--dur-slow` với chuyển động fill) — việc đã xong đọc ra
+"xong" ngay bằng màu, theo luật Alloy _màu kể trạng thái của việc_. Không có gì lặp: màu
+chuyển một lần rồi đứng yên cùng thanh.
+
+## Clamp giá trị
+
+`modelValue` được kẹp về khoảng `[0, max]` trước khi tính phần trăm — một giá trị âm hoặc vượt
+`max` không bao giờ khiến thanh tràn ra ngoài khung.
+
+## Đặt tên (accessible name)
+
+`Progress` là primitive **trần** — gốc mang `role="progressbar"` cùng `aria-valuenow`/`min`/`max`
+tự động. Truyền `aria-label` hoặc `aria-labelledby` để mô tả **tác vụ đang chạy** (vd "Đang tải lên
+video.mp4"), ghi đè lên nhãn phần trăm mặc định của Reka UI.
+
+## Props
+
+<ArgTypes of={ProgressStories} />
+
+## Do / Don't
+
+- ✅ Truyền `aria-label`/`aria-labelledby` mô tả tác vụ, không chỉ để nhãn phần trăm mặc định.
+- ✅ Dùng `Progress` khi có tỉ lệ % thật; nếu chỉ có "đang chờ" thì dùng `Spinner`.
+- ❌ Đừng gán một `modelValue` giả để tránh trạng thái không xác định — cứ để `null`/`undefined`.
+- ❌ Đừng dùng `Progress` cho một khối nội dung tĩnh chưa tải xong — đó là `Skeleton`.
+
+</div>

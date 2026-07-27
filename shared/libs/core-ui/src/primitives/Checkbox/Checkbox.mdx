@@ -1,0 +1,60 @@
+import { Meta, Canvas, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as CheckboxStories from "./Checkbox.stories";
+
+<Meta of={CheckboxStories} />
+
+<div style={{ maxWidth: "46rem" }}>
+
+# Checkbox
+
+Một lựa chọn boolean **bên trong biểu mẫu** — chọn một mục trong danh sách nhiều lựa chọn, xác nhận
+điều khoản, chọn hàng trong bảng. Dựng trên `CheckboxRoot`/`CheckboxIndicator` của Reka UI
+(`role="checkbox"` + `aria-checked`, Space để bật/tắt). Import từ `@ecoma-io/ui`:
+
+```ts
+import { Checkbox } from "@ecoma-io/ui";
+```
+
+<Canvas of={CheckboxStories.Demo} />
+
+## Checkbox vs Switch
+
+- **`Switch`** — bật/tắt một **cài đặt có hiệu lực ngay lập tức**, không nằm trong biểu mẫu chờ
+  "Lưu" (vd bật thông báo, chế độ tối).
+- **`Checkbox`** — một lựa chọn **trong biểu mẫu**, hoặc chọn nhiều mục trong một danh sách (multi-
+  select), thường đi kèm nút Lưu/Gửi.
+
+Nếu hành động xảy ra ngay khi bấm → `Switch`. Nếu giá trị chỉ được ghi nhận khi biểu mẫu được gửi →
+`Checkbox`.
+
+## Trạng thái "indeterminate"
+
+`modelValue="indeterminate"` hiển thị dấu gạch ngang thay vì dấu tick — dùng cho checkbox cha đại
+diện một nhóm con đang **chọn một phần** (không phải tất cả, không phải không có). Bấm vào ô ở trạng
+thái này sẽ chuyển sang `true` (đã chọn), giống hành vi checkbox cha tiêu chuẩn.
+
+## Đặt tên (accessible name)
+
+Có hai cách:
+
+- Truyền `label` — hiển thị chữ ngay cạnh ô, cả `<label>` bọc ngoài đảm nhiệm việc đặt tên.
+- Không có nhãn hiển thị (vd ô chọn hàng trong bảng) → truyền `aria-label` hoặc `aria-labelledby`
+  thẳng vào `Checkbox`.
+
+## Motion
+
+Dấu tick **bung vào** bằng `animate-scale-in` khi đổi trạng thái, ô lún nhẹ khi bấm (`active:scale-90`
+với `transform` chạy `--ease-spring` còn màu nền/viền giữ `--ease-out` tức thời — cùng "ngôn ngữ press"
+của Button/Switch). Tôn trọng `prefers-reduced-motion` (rule chặn chung ở `global.css`).
+
+## Props
+
+<ArgTypes of={CheckboxStories} />
+
+## Do / Don't
+
+- ✅ Dùng `Checkbox` cho lựa chọn trong biểu mẫu/multi-select; dùng `Switch` cho cài đặt tức thời.
+- ✅ Luôn đặt tên qua `label` hoặc `aria-label`/`aria-labelledby`.
+- ❌ Đừng dùng `Checkbox` để bật một tính năng có hiệu lực ngay — dùng `Switch`.
+
+</div>
