@@ -21,6 +21,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 import {
   auditClaudeMdPointer,
@@ -130,9 +131,8 @@ export function findProjectReadmeIssues(
 
 /** Scans every git-tracked project.json's subproject README triad. Returns a process exit code. */
 export function checkSubprojectReadmes() {
-  const files = execFileSync("git", ["ls-files", "--", "*project.json"], {
-    encoding: "utf8",
-  })
+  const files = listTrackedFiles(["*project.json"])
+    .join("\n")
     .split("\n")
     .filter((f) => basename(f) === "project.json");
 

@@ -22,6 +22,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 import { PYTEST_EMPTY_SUITE_MASK } from "./scaffold-lib.mjs";
 
@@ -179,9 +180,7 @@ export function findConventionViolations(trackedFiles, readFile) {
 
 /** CLI entry — scans the git index. Returns a process exit code. */
 export function checkProjectConventions() {
-  const trackedFiles = execFileSync("git", ["ls-files"], { encoding: "utf8" })
-    .split("\n")
-    .filter(Boolean);
+  const trackedFiles = listTrackedFiles().join("\n").split("\n").filter(Boolean);
   const violations = findConventionViolations(trackedFiles, (p) => readFileSync(p, "utf8"));
   for (const v of violations) console.error(v);
   return violations.length > 0 ? 1 : 0;

@@ -12,6 +12,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 // Inline links and images: [text](target) / ![alt](target), with an optional
 // "title" and optional <angle-bracket> target.
@@ -42,11 +43,7 @@ export function findBrokenLinks(text, filePath, exists = existsSync) {
 
 /** Scans every git-tracked Markdown file in the repo. Returns a process exit code. */
 export function checkDocLinks() {
-  const files = execFileSync("git", ["ls-files", "--", "*.md", "*.mdx"], {
-    encoding: "utf8",
-  })
-    .split("\n")
-    .filter(Boolean);
+  const files = listTrackedFiles(["*.md", "*.mdx"]).join("\n").split("\n").filter(Boolean);
 
   let failed = false;
   for (const file of files) {

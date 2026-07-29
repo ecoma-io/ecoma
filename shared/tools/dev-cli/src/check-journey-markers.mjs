@@ -19,6 +19,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 // Patterns live in journey-markers.config.json at the repo root — the single
 // source shared with the `local/no-journey-markers` and
@@ -154,15 +155,8 @@ export function workspaceLevelFiles(files, projectManifests) {
  * Returns an exit code.
  */
 export function checkWorkspaceDocs() {
-  const manifests = execFileSync("git", ["ls-files", "*/project.json", "project.json"], {
-    encoding: "utf8",
-  })
-    .split("\n")
-    .filter(Boolean);
-  const files = workspaceLevelFiles(
-    execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean),
-    manifests,
-  );
+  const manifests = listTrackedFiles(["*/project.json", "project.json"]);
+  const files = workspaceLevelFiles(listTrackedFiles(), manifests);
 
   const contentHits = scanAndReportContents(files.filter((f) => !ESLINT_COVERED_RE.test(f)));
   const nameHits = scanAndReportNames([...files, ...manifests.map((m) => dirname(m))]);

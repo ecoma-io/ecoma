@@ -30,6 +30,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 import {
   auditDescription,
@@ -111,9 +112,7 @@ export function auditRootReadme(lang, content) {
 
 /** Scans the repo root's + every subsystem root's README variants. Returns a process exit code. */
 export function checkSubsystemReadmes() {
-  const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" })
-    .split("\n")
-    .filter(Boolean);
+  const tracked = listTrackedFiles().join("\n").split("\n").filter(Boolean);
   const trackedSet = new Set(tracked);
 
   const errors = [];
