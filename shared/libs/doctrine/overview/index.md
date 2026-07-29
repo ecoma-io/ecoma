@@ -19,6 +19,8 @@ lang: vi
 
 ## Bảng trạng thái
 
+> Hàng **có link** là tài liệu đã công bố trong cây này. Hàng **không link** bắt buộc mang nhãn **(không công bố)**: tài liệu đó tồn tại và Publishing policy ở cuối trang giữ lại, chứ không phải chưa viết. Vắng cả hai thì người đọc không phân biệt được "bị giữ" với "thiếu" — nên `dev-cli check-doctrine` từ chối hàng như vậy.
+
 | File                                                        | Domain                                                                                                                                                                                                                                                                                             | Vòng cập nhật gần nhất |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | [platform](../north-star/platform.md)                       | Platform                                                                                                                                                                                                                                                                                           | canonical (living)     |
