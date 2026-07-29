@@ -46,5 +46,7 @@ they drive a built artifact from the outside.
 
 ## Status
 
-Live: four checks over the shell. They grow with the site rather than ahead of
-it. Directory-scoped mechanics live in [`./CLAUDE.md`](./CLAUDE.md).
+Live: four checks over the shell, and four that prove the pages come from
+`shared/libs/doctrine` and from no copy — by changing that library and looking.
+They grow with the site rather than ahead of it. Directory-scoped mechanics live
+in [`./CLAUDE.md`](./CLAUDE.md).
