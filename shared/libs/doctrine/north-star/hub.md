@@ -1,75 +1,167 @@
 ---
 title: "Ecoma Hub — North Star"
 status: design-end-state
-lang: vi
 ---
 
 # Ecoma Hub — North Star
 
-## 1. Tuyên bố end state
+## The end state
 
-**Ecoma Hub là hạ tầng đóng gói–phân phối–chia sẻ mọi entity của hệ ecoma dưới dạng Block: một registry protocol duy nhất (content-addressed, ký danh, transparency log), một public instance immutable, N private mirror, một index/marketplace — nơi cộng đồng nối dài đuôi tri thức quy trình và publisher sống được bằng việc bảo trì nó. Hub vắng mặt, mọi runtime đã cài vẫn chạy vĩnh viễn.**
+**Ecoma Hub is the packaging, distribution and sharing infrastructure for every
+entity in the system, in the form of Blocks: one registry protocol
+(content-addressed, signed, with a transparency log), one immutable public
+instance, any number of private mirrors, and one index and marketplace — where a
+community extends the long tail of process knowledge and publishers can afford to
+maintain it. With Hub absent, every installed runtime keeps running, forever.**
 
-## 2. Bài toán
+The mechanism principles it specialises are canonical in the
+[Platform North Star](platform.md) and are not restated here.
 
-- "Template" là khái niệm chịu lực của default cascade nhưng cần một cơ chế phân phối thật; App Profile cần catalog; long-tail connector/quy trình không thể do một công ty tự viết.
-- Tri thức quy trình (criteria, ngưỡng, escalation chain, App Profile) **là loại nội dung bị lão hóa** — app đổi UI, quy định đổi. Chia sẻ mà không có kinh tế bảo trì = nghĩa địa template. Hub ghép cơ chế phân phối với động cơ kinh tế (marketplace) để nội dung sống.
+## The problem
 
-## 3. Nguyên tắc cơ chế (kế thừa canonical North Star §3, chuyên biệt hóa)
+"Template" is the concept the default cascade rests on, and it needs a real
+distribution mechanism rather than a name. Application profiles need a catalogue.
+The long tail of connectors and processes cannot be written by one company.
 
-1. **Hub không bao giờ chạm runtime**: không entitlement check lúc chạy, không phone-home, không license key trong engine. Thương mại hóa dừng ở tầng phân phối (pull/update).
-2. **Digest là sự thật, semver là giao diện người**: máy pin digest (lockfile), người nói `name@range`. Public instance immutable — đã publish không xóa, chỉ `yank` (ẩn khỏi resolve, pin cũ sống mãi).
-3. **Không tin publisher**: tenant re-run static analysis khi cài; manifest khai ≠ phân tích phát hiện → reject. Chữ ký + transparency log chống giả mạo xuyên mirror.
-4. **Trust nội dung tái dùng cơ chế sẵn có**: filler trong block khởi động ở tier `gated/shadow` (không calibration tenant); block chứa irreversible effect bị ép sàn Gate — không có hệ kiểm duyệt runtime riêng.
-5. **Hub mù dữ liệu tenant**: không thấy calibration, không nhận telemetry trừ opt-in; publisher chỉ thấy installs/revenue.
+More decisive: **process knowledge is a kind of content that ages.**
+Applications change their interfaces; regulations change. Sharing without an
+economy of maintenance produces a graveyard of templates that were correct once.
+Hub therefore couples the distribution mechanism to the economic engine, because
+only one of those keeps content alive.
 
-## 4. Kiến trúc ba tầng
+## Mechanism principles
 
-| Tầng | Nội dung | Ghi chú | |---|---|---| | **Registry** | Kho artifact chuẩn OCI: digest, chữ ký publisher (sigstore keyless), attestation, transparency log | Private = mọi OCI registry sẵn có; air-gap mirror bằng lệnh chuẩn | | **Index** | Catalog: search, namespace publisher/name, trang block, badge verified, version history | Namespace sở hữu qua publisher identity — chống squatting bằng định danh, tranh chấp là policy vận hành | | **Marketplace** | Listing, giá, **entitlement**, thanh toán, payout revenue-share | Lớp thương mại mỏng trên index — không phải hệ thống riêng |
+1. **Hub never touches runtime**: no entitlement check while running, no
+   phone-home, no licence key in the engine. Commercialisation stops at the
+   distribution layer — pull and update.
+2. **The digest is the truth; semantic versions are a human interface.** Machines
+   pin digests in a lockfile; people say a name and a range. The public instance
+   is immutable: what is published is never deleted, only withdrawn from
+   resolution, so an existing pin keeps working forever.
+3. **Publishers are not trusted.** A tenant re-runs static analysis at install
+   time, and a manifest that declares less than the analysis finds is rejected
+   rather than warned about. Signatures and a transparency log defend against
+   tampering across mirrors.
+4. **Content trust reuses the mechanisms that already exist.** A filler inside a
+   block starts at a low trust tier because it has no calibration in this tenant;
+   a block containing an irreversible effect is floored at a gate. There is no
+   separate runtime moderation system, because a second one would need its own
+   evidence and its own appeal path.
+5. **Hub is blind to tenant data.** It never sees calibration and receives no
+   telemetry without opt-in. A publisher sees installs and revenue, nothing else.
 
-Frontend của Index/Marketplace là app thuộc `hub/apps/` (domain này sở hữu); public instance được operator mount tại `ecoma.io/hub` qua edge — SEO long-tail của catalog (Website Charter §3b), **code không rời domain**; render **tĩnh-first (SSG+ISR revalidate theo registry event)** — hệ quả trực tiếp của tính bất biến nội dung: trang block-version cache vĩnh viễn, chỉ con trỏ revalidate.
+## Three layers
 
-Kênh dev song song: block phát triển trên git (fork/PR = lineage + review); `pack` → ký → push OCI là bước phát hành. Escape hatch: `add git+https://…@<sha>` gắn nhãn `unverified` cho dev/nội bộ.
+| Layer           | What it holds                                                                                                       | Notes                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Registry**    | An artifact store on the standard container conventions: digest, publisher signature, attestation, transparency log | A private one is any existing registry; air-gapped mirroring uses standard commands                                 |
+| **Index**       | The catalogue: search, publisher and name namespaces, block pages, a verified badge, version history                | A namespace is owned through publisher identity, so squatting is answered by identity rather than by policing names |
+| **Marketplace** | Listings, prices, entitlement, payment, revenue-share payout                                                        | A thin commercial layer over the index, not a separate system                                                       |
 
-## 5. Client interface — một và duy nhất
+The index and marketplace front end is an application belonging to this domain,
+mounted by the operator at the public edge. It renders **statically first**, with
+revalidation driven by registry events — a direct consequence of content
+immutability: a page for one block version can be cached forever, and only the
+pointer needs to revalidate.
 
-Platform và RPA (kể cả RPA standalone — nguyên tắc #5 của RPA) nói với Hub qua đúng ba động từ: **`resolve` / `pull` / `verify`**. Hub không biết block chạy thế nào; runtime không biết block được lưu/bán thế nào. Interface + manifest schema là **Apache 2.0** — bên thứ ba dựng registry tương thích tự do.
+A parallel development channel exists: blocks are developed in git, where forks
+and reviews give lineage and review for free, and packing, signing and pushing is
+the act of release. The escape hatch — adding a block straight from a git
+revision — is labelled `unverified` and exists for development and internal use.
 
-## 6. Marketplace — cơ chế
+## One client interface, and only one
 
-- **Entitlement kiểm duy nhất tại phân phối** (pull/update, kể cả mirror pull namespace trả phí). Hết hạn subscription → bản đã cài chạy mãi (pin digest), chỉ mất update stream.
-- Mô hình giá: free (Apache/CC0) / one-time (entitlement vĩnh viễn theo major) / subscription (quyền pull update stream) / site license (theo tổ chức, listing private).
-- **Không DRM**: definition là văn bản, copy được về kỹ thuật — giá trị bán là update stream + bảo trì (App Profile theo kịp UI đổi) + trust publisher verified. Subscription App Profile chính là câu trả lời kinh tế cho "ai bảo trì automation khi UI đổi".
-- Hai tầng license nội dung: catalog free = Apache/CC0; block trả phí = EULA của publisher — khai tường minh lúc publish.
-- Publisher thấy installs/revenue, không bao giờ thấy dữ liệu/calibration tenant.
+Platform and RPA — including standalone RPA — speak to Hub through exactly three
+verbs: **`resolve` / `pull` / `verify`**. Hub does not know how a block runs; the
+runtime does not know how a block is stored or sold. The interface and the
+manifest schema are permissively licensed, so a third party can build a
+compatible registry without asking.
 
-## 7. Trust & chuỗi cung ứng
+## The marketplace mechanism
 
-- Publish: pack (schema + **full static analysis ngay lúc pack**) → ký → push → index. Knowledge Collection trong block: **public instance chỉ nhận classification `public`** (declassify-qua-Gate đứng chắn trước mọi lần publish); private registry theo policy tenant.
-- Badge **verified**: vòng review là **một workflow ecoma** — Hub tự vận hành như một tenant Platform cho quy trình curation (dogfooding); kết quả là attestation ký đính vào artifact.
-- **Chống tự-duyệt (bắt buộc, vì đây là cửa duy nhất cho artifact `code`)**: Role reviewer khai `distinct_filler_from` publisher (Checkpoint §2) và do operator lấp — publisher **không bao giờ** lấp Role duyệt block của chính mình; mỗi kết quả là Judgment có chữ ký, calibration của reviewer chịu outcome lan ngược như mọi Role.
-- **Thu hồi (`unverify`)** là hành động có event: digest đã ký **không đổi** (bất biến), nhưng badge rụng, artifact `code` của publisher đó **quay lại mặc định reject**, và index xử như `yank` — pin cũ sống, resolve mới không thấy.
-- **Suite do publisher cung cấp — biên cứng**: block/template được phép mang **conformance suite riêng** để chứng minh nó chạy đúng (Test Harness §8). Ba giới hạn không thương lượng: (1) suite là **bằng chứng phụ, không bao giờ là điều kiện đủ** — badge do **Judgment của reviewer** cấp; (2) suite chạy trong **test run scope của operator**: `test_behavior` **`forbidden` toàn phần**, **0 credential handle**, trần thời gian/tài nguyên/chi phí model; (3) với trust class **`code`**, vòng duyệt **chặn bởi spec `runtime sandbox`** (ledger) — nếu không sẽ có **vòng tròn**: muốn verified phải chạy code, mà chạy code lại đòi verified. Án văn: cửa verified là cửa **duy nhất** cho artifact `code`, nên chính nó không được trở thành đường thực thi code chưa duyệt (persona `publisher block độc`, nhóm N).
-- Artifact **code** (driver, custom rule filler) là trust class riêng: mặc định reject nếu publisher chưa verified (giá trị template), cài phải opt-in tường minh của admin — code không static-analysis kín được như definition.
-- Install phía tenant: verify chữ ký/log → re-analyze → **scope disclosure** (irreversible? credential? domain? spawn?) hiển thị trước khi cài → materialize có provenance → quarantine bằng trust tiers → lockfile.
+- **Entitlement is checked at exactly one place: distribution.** Let a
+  subscription lapse and everything already installed runs forever, pinned by
+  digest; what is lost is the update stream. This is the same rule as principle 1,
+  seen from the buyer's side.
+- **Pricing shapes**: free, one-time (a permanent entitlement within a major),
+  subscription (the right to pull the update stream), and site licence.
+- **No digital restrictions.** A definition is text and can be copied. What is
+  sold is the update stream, the maintenance behind it — an application profile
+  that keeps up as interfaces change — and the trust of a verified publisher. A
+  subscription to an application profile is the economic answer to "who maintains
+  this automation when the interface changes", which is the question that kills
+  most automation programmes.
+- Two content licence tiers: a free catalogue under permissive terms, and paid
+  blocks under the publisher's own terms, declared explicitly at publish time.
 
-## 8. Litmus của Hub
+## Trust and the supply chain
 
-1. Rút phích Hub — mọi tenant đã cài vẫn chạy đủ, vĩnh viễn?
-2. Cùng một block cài được từ public, private mirror, và air-gap — cùng digest, cùng chữ ký verify được?
-3. Block khai thiếu năng lực trong manifest → tenant install **reject**, không phải warning?
-4. Publisher biến mất — người mua giữ nguyên mọi thứ đã cài?
-5. Hai block mang hai version Contract khác nhau cùng cài — không xung đột (nhờ pinning per-entity)?
-6. Publisher có đường nào tự duyệt block của chính mình để lấy badge verified? Badge thu hồi được, và artifact `code` mất quyền cài mặc định ngay sau đó?
+- **Publishing** is: pack (including full static analysis at pack time), sign,
+  push, index. A knowledge collection inside a block may enter the public instance
+  only at the public classification, so the declassification gate stands in front
+  of every publish.
+- **The verified badge** is awarded by a review that is itself an Ecoma workflow —
+  Hub runs as a tenant of Platform for its own curation. The result is a signed
+  attestation attached to the artifact.
+- **Self-approval is structurally impossible**, which matters because this is the
+  only door for `code` artifacts. The reviewer Role declares that its filler must
+  be distinct from the publisher, and the operator fills it: a publisher never
+  fills the Role reviewing their own block. Each outcome is a signed Judgment, and
+  the reviewer's own calibration absorbs the downstream outcome like any other
+  Role.
+- **Withdrawal is an event.** A signed digest never changes — it is immutable —
+  but the badge falls away, that publisher's `code` artifacts return to being
+  rejected by default, and the index treats it as withdrawn: existing pins live,
+  new resolutions do not see it.
+- **A publisher-supplied conformance suite has hard limits.** A block may ship its
+  own suite to demonstrate that it works. Three limits are not negotiable: the
+  suite is **supporting evidence and never sufficient** — the badge comes from a
+  reviewer's Judgment; the suite runs inside the operator's test run scope with
+  contracts fully forbidden, zero credential handles, and ceilings on time,
+  resources and model cost; and for the `code` trust class the review path depends
+  on a runtime sandbox existing. Without one there is a circle: to become verified
+  you must run code, and running code requires being verified. The verified door
+  is the only door for `code`, so it must not itself become a path for executing
+  unreviewed code.
+- **`code` artifacts** — drivers, custom rule fillers — are a distinct trust
+  class: rejected by default unless the publisher is verified, and installable
+  only on an explicit administrator opt-in, because code cannot be analysed
+  statically as completely as a definition can.
+- **Installing, on the tenant side**: verify the signature and the log, re-analyse,
+  **disclose the scope** (does it touch irreversible effects? credentials? which
+  domains? does it spawn?) before installing, materialise with provenance,
+  quarantine through the trust tiers, and record in the lockfile.
 
-## 9. Non-goals
+## Litmus
 
-- Không chạm runtime; không license key/phone-home trong engine.
-- Không nhận telemetry mặc định; không học cross-tenant; ML nội bộ của index (ranking/search) không bao giờ chạm calibration tenant.
-- Không phải CI/CD hay git host — dev ở git, Hub chỉ nhận artifact đã pack.
-- Không hứa refund/chính sách thương mại trong spec cơ chế — đó là vận hành.
+1. Unplug Hub — does every installed tenant keep working, in full, forever?
+2. Does the same block install identically from the public instance, a private
+   mirror and an air-gapped copy — same digest, same verifiable signature?
+3. Does a block whose manifest under-declares its capabilities get **rejected** at
+   install, rather than warned about?
+4. If a publisher disappears, does a buyer keep everything already installed?
+5. Can two blocks carrying two different contract versions be installed side by
+   side without conflict?
+6. Is there any path by which a publisher approves their own block for the
+   verified badge? Can the badge be withdrawn, and do that publisher's `code`
+   artifacts lose default installability immediately afterwards?
 
-## 10. Phân phối
+## Non-goals
 
-- Monorepo: area `hub/` (convention area-first). **License: theo luật phân loại canonical tại North Star §8** — "cắm vào → Apache 2.0" (protocol `resolve/pull/verify`, manifest schema, client library) / "chạy → SUL" (hub service). Spec này **không khai lại** để không sinh nguồn sự thật thứ hai (E5,).
-- Dòng doanh thu #4 của hệ: **marketplace revenue share** (tỉ lệ là quyết định kinh doanh; tiền lệ ngành 70/30–80/20).
+- **No touching runtime**; no licence key or phone-home in the engine.
+- **No telemetry by default**, no cross-tenant learning, and the index's own
+  ranking and search never touch tenant calibration.
+- **Not a CI system and not a git host.** Development happens in git; Hub receives
+  artifacts that are already packed.
+- **No commercial policy in a mechanism specification** — refunds and similar are
+  operations, and putting them here would make a mechanism document change on a
+  business decision.
+
+## Distribution
+
+- The domain lives in its own area. Licensing follows the canonical classification
+  rule in the [Platform North Star](platform.md) — the `resolve` / `pull` /
+  `verify` protocol, the manifest schema and the client library are things a third
+  party plugs into; the Hub service is a thing you run. This document does not
+  restate the rule, so no second source for it exists.
+- Hub carries the system's fourth revenue line: **marketplace revenue share.**
