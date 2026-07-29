@@ -18,7 +18,8 @@
       "@ecoma-io/ui": ["shared/libs/core-ui/src/index.ts"],
       "@ecoma-io/ui/styles/*": ["shared/libs/core-ui/src/styles/*"],
       "@ecoma-io/ui/a11y": ["shared/libs/core-ui/src/lib/a11y-scope.ts"],
-      "@ecoma-io/core-tauri": ["shared/libs/core-tauri/src/index.ts"]
+      "@ecoma-io/core-tauri": ["shared/libs/core-tauri/src/index.ts"],
+      "@ecoma-io/doctrine": ["shared/libs/doctrine/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "out"]
