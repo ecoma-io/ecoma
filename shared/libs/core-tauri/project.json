@@ -3,7 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "shared/libs/core-tauri/src",
-  "tags": ["type:lib", "scope:shared"],
+  "tags": ["type:lib", "scope:shared", "license:sul"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",

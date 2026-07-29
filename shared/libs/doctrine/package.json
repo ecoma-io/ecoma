@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "description": "The published ceiling plus the pure logic that turns its tree into navigation",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

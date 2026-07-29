@@ -88,11 +88,18 @@ describe("scaffoldLib file emission", () => {
     ).toBe(0);
 
     const project = JSON.parse(written.get("shared/libs/thing/project.json"));
-    expect(project.tags).toEqual(["type:lib", "scope:shared", "layer:domain"]);
+    expect(project.tags).toEqual(["type:lib", "scope:shared", "license:sul", "layer:domain"]);
     expect(Object.keys(project.targets)).toEqual(["typecheck", "lint", "test"]);
 
     const pkg = JSON.parse(written.get("shared/libs/thing/package.json"));
-    expect(pkg).toMatchObject({ name: "@ecoma-io/thing", private: true, main: "./src/index.ts" });
+    expect(pkg).toMatchObject({
+      name: "@ecoma-io/thing",
+      private: true,
+      main: "./src/index.ts",
+      // Born declaring the terms its path implies — a lib scaffolded without
+      // this arrives failing the very gate that scaffolded it.
+      license: "SEE LICENSE IN LICENSE",
+    });
     expect(pkg.dependencies).toBeUndefined();
 
     expect(written.get("shared/libs/thing/CLAUDE.md")).toContain("TODO");
@@ -147,6 +154,7 @@ describe("scaffoldLib file emission", () => {
     expect(JSON.parse(written.get("shared/libs/thing/project.json")).tags).toEqual([
       "type:lib",
       "scope:shared",
+      "license:sul",
     ]);
   });
 });

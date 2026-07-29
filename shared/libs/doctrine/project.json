@@ -3,7 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "shared/libs/doctrine/src",
-  "tags": ["type:lib", "scope:shared", "layer:domain"],
+  "tags": ["type:lib", "scope:shared", "license:sul", "layer:domain"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
