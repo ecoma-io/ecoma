@@ -36,12 +36,13 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 `.github/workflows/ci.yml` mới là nơi nói thật command nào chặn được gì:
 
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
-  `check-doc-links`, `check-practice-index`, `ensure-commit-identity --check`.
+  `check-doc-links`, `check-doctrine`, `check-practice-index`,
+  `ensure-commit-identity --check`.
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (chạy cho mỗi commit trong PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-claude-md`, `check-practice-index`,
+  `check-doc-links`, `check-claude-md`, `check-doctrine`, `check-practice-index`,
   `check-project-conventions`, `check-subsystem-readmes`,
   `check-subproject-readmes`.
 - **Target `lint` của từng project** (`project.json` — gần như mọi

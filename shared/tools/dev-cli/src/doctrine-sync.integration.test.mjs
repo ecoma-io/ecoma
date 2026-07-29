@@ -41,6 +41,10 @@ function fixture() {
     [`${ROOT}/README.md`]: readme("en"),
     [`${ROOT}/README.vi.md`]: readme("vi"),
     [`${ROOT}/README.zh.md`]: readme("zh"),
+    // The corpus map, routing every canonical below it: `check-doctrine` also
+    // refuses a published document nothing links to, so a fixture without one
+    // would fail this test for a reason it does not mean to assert.
+    [`${ROOT}/overview/index.md`]: `---\ntitle: Index\n---\n\n# Index\n\n[Role](../spec/role.md)\n`,
     [`${ROOT}/spec/role.md`]: CANONICAL,
     [`${ROOT}/spec/role.vi.md`]: `---\ntitle: Vai\ncanonical-sha: aaaaaaaaaaaa\n---\n\n# Vai\n`,
     [`${ROOT}/spec/role.zh.md`]: `---\ntitle: 角色\n---\n\n# 角色\n`,

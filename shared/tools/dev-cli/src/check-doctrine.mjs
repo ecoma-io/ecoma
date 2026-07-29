@@ -33,7 +33,9 @@
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
+import { linkTargets } from "./check-doc-links.mjs";
 import { LANGS } from "./readme-schema.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
@@ -120,6 +122,41 @@ export function findOrphanFamilies(files) {
   });
 }
 
+/**
+ * The corpus map: the one document that routes a reader to every other. A
+ * published page it does not name is a page nobody arrives at, and nobody
+ * reports a page they do not know exists — the same failure `buildNav`'s
+ * refusals close on the site, closed here on the content instead.
+ */
+export const CORPUS_MAP = `${DOCTRINE_ROOT}/overview/index.md`;
+
+/**
+ * Documents in `files` the corpus map does not route to. Pure; `files` is a
+ * list of `{ path, text }`.
+ *
+ * Only this direction. A map row pointing at a file that does not exist is
+ * already `check-doc-links`' answer, and a second gate for it would report the
+ * same defect twice.
+ *
+ * Translation variants are skipped rather than required: a variant is the same
+ * document as its canonical, so the canonical's row routes both, and an
+ * orphaned variant is `findStaleVariants`' finding, not this one's.
+ */
+export function findUnmappedDocuments(files) {
+  if (files.length === 0) return []; // nothing published yet, so nothing to route
+
+  const map = files.find((f) => f.path === CORPUS_MAP);
+  if (!map) return [{ path: CORPUS_MAP, why: "the corpus map itself is missing" }];
+
+  const routed = new Set(linkTargets(map.text, map.path).map((link) => link.resolved));
+  return files
+    .filter((f) => f.path !== CORPUS_MAP && !variantOf(f.path) && !routed.has(resolve(f.path)))
+    .map((f) => ({
+      path: f.path,
+      why: `no row in ${CORPUS_MAP} — a published document the corpus map does not route to`,
+    }));
+}
+
 /** Scans the published tree. Returns a process exit code. */
 export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
   const paths = list([DOCTRINE_DOCS]);
@@ -134,6 +171,10 @@ export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
   }
   for (const problem of findStaleVariants(files)) {
     console.error(`${problem.path}: ${problem.kind} translation — ${problem.why}`);
+    failed = true;
+  }
+  for (const problem of findUnmappedDocuments(files)) {
+    console.error(`${problem.path}: ${problem.why}`);
     failed = true;
   }
   for (const family of findOrphanFamilies(files)) {
