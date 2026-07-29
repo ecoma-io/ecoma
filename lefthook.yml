@@ -33,11 +33,11 @@ pre-commit:
       # a scenario/gate/ADR family whose owning document stayed behind. Runs
       # repo-wide because it judges the tree as a whole, not a diff.
       run: node shared/tools/dev-cli/src/main.mjs check-doctrine
-    doctrine-index:
-      # Every doctrine card must still find the rule text it cites. Edits to a
+    practice-index:
+      # Every practice card must still find the rule text it cites. Edits to a
       # CLAUDE.md and edits to the index land in different projects, so no
       # per-project lint sees both sides — this belongs outside `nx affected`.
-      run: node shared/tools/dev-cli/src/main.mjs check-doctrine-index
+      run: node shared/tools/dev-cli/src/main.mjs check-practice-index
 
 pre-push:
   commands:

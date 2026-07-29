@@ -1,4 +1,4 @@
-name: PR doctrine review
+name: PR practice review
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 
 # Rapid pushes supersede each other's reviews — only the newest diff matters.
 concurrency:
-  group: pr-doctrine-review-${{ github.event.pull_request.number }}
+  group: pr-practice-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

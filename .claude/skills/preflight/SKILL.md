@@ -1,11 +1,11 @@
 ---
 name: preflight
-description: Judgment-layer review of pending work against this repo's doctrine, run AFTER the deterministic gates (hooks, `pnpm nx affected -t lint test typecheck build e2e`) are green and before push/PR. Catches what no lint can — fake-done, intent-less tests, smuggled refactors, simplicity-ladder skips, seam/boundary erosion, boilerplate CLAUDE.md — and only that; it never re-runs the deterministic gates and it is not a generic bug hunt (use /code-review for that).
+description: Judgment-layer review of pending work against this repo's practice, run AFTER the deterministic gates (hooks, `pnpm nx affected -t lint test typecheck build e2e`) are green and before push/PR. Catches what no lint can — fake-done, intent-less tests, smuggled refactors, simplicity-ladder skips, seam/boundary erosion, boilerplate CLAUDE.md — and only that; it never re-runs the deterministic gates and it is not a generic bug hunt (use /code-review for that).
 ---
 
 # Preflight — the judgment pass (Ecoma)
 
-Deterministic checks live below this skill: hooks and CI own formatting, lint, types, tests, commit gates, journey markers, doc links. **Do not re-run or restate them here.** This pass reviews the one layer no gate can judge — whether the change honors the repo's doctrine. Every check below cites the rule it serves (root `CLAUDE.md`, always in context); this file adds only the _review questions_, never a copy of the rules.
+Deterministic checks live below this skill: hooks and CI own formatting, lint, types, tests, commit gates, journey markers, doc links. **Do not re-run or restate them here.** This pass reviews the one layer no gate can judge — whether the change honors the repo's practice. Every check below cites the rule it serves (root `CLAUDE.md`, always in context); this file adds only the _review questions_, never a copy of the rules.
 
 ## 1. Scope the diff
 
