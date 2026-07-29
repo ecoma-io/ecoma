@@ -24,7 +24,7 @@ free.
 ```bash
 node shared/tools/dev-cli/src/main.mjs check-doctrine
 node shared/tools/dev-cli/src/main.mjs check-doc-links
-node shared/tools/dev-cli/src/main.mjs check-doctrine-index
+node shared/tools/dev-cli/src/main.mjs check-practice-index
 node shared/tools/dev-cli/src/main.mjs check-subproject-readmes
 node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
 ```
@@ -33,7 +33,7 @@ node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `check-doctrine`           | no episode coordinates in the published tree; no reference family cited whose owning document did not travel with it; no translation variant missing or behind its `canonical-sha` | whether a translation that _matches_ its fingerprint still says the same thing    |
 | `check-doc-links`          | every relative Markdown link resolves                                                                                                                                              | whether the linked document actually says what the citing sentence claims it says |
-| `check-doctrine-index`     | every card's `quote` still appears in its `source`; every `scope` glob still matches a tracked file                                                                                | whether the card's `summary` is still semantically right                          |
+| `check-practice-index`     | every card's `quote` still appears in its `source`; every `scope` glob still matches a tracked file                                                                                | whether the card's `summary` is still semantically right                          |
 | `check-subproject-readmes` | the README triad exists and every variant names the same technical tokens                                                                                                          | whether the prose _around_ those tokens agrees across the three                   |
 | `check-journey-markers-*`  | the regex-safe subset of Rule 13                                                                                                                                                   | journey prose no regex can judge                                                  |
 

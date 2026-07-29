@@ -3,7 +3,7 @@ name: Pull request translation
 on:
   # Not `pull_request`: a fork PR's token is read-only there, so the job could
   # never comment. `pull_request_target` runs against the BASE ref with a write
-  # token, which is safe here for the same reason it is in pr-doctrine-review:
+  # token, which is safe here for the same reason it is in pr-practice-review:
   # nothing from the PR head is ever checked out or executed -- the title and
   # body are read through the API and framed as untrusted data.
   pull_request_target:

@@ -33,7 +33,7 @@ node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
 node shared/tools/dev-cli/src/main.mjs check-doc-links
 node shared/tools/dev-cli/src/main.mjs check-claude-md
 node shared/tools/dev-cli/src/main.mjs check-doctrine
-node shared/tools/dev-cli/src/main.mjs check-doctrine-index
+node shared/tools/dev-cli/src/main.mjs check-practice-index
 node shared/tools/dev-cli/src/main.mjs check-subsystem-readmes
 node shared/tools/dev-cli/src/main.mjs check-subproject-readmes
 node shared/tools/dev-cli/src/main.mjs check-project-conventions

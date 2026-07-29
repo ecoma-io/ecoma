@@ -13,7 +13,7 @@ Three neighbours own different objects, and this file owns none of theirs:
 | Instrument                                            | Object                      | Not this file because                                                       |
 | ----------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
 | `shared/libs/doctrine/method/review-rubric.md`        | the published doctrine tree | it asks whether the design is coherent; this file takes the design as given |
-| `/preflight`, the rule cards in `doctrine-index.json` | one diff                    | a diff cannot show a gate that is missing everywhere                        |
+| `/preflight`, the rule cards in `practice-index.json` | one diff                    | a diff cannot show a gate that is missing everywhere                        |
 | the deterministic gates themselves                    | one rule each               | they answer "was this rule broken", never "is this rule owned"              |
 
 A finding this rubric produces is about the workspace's standing state, and it
