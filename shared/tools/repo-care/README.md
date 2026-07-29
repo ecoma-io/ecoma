@@ -44,9 +44,10 @@ ambient `GITHUB_TOKEN` (no separate secret to provision):
 `opened`/`reopened` (plus a manual `workflow_dispatch` for backfilling an
 older issue); `.github/workflows/pr-doctrine-review.yml` runs `main.mjs
 review-pr` on non-draft PR `opened`/`reopened`/`synchronize`/
-`ready_for_review`; `.github/workflows/thread-translate.yml` runs `main.mjs
-translate-issue` or `main.mjs translate-pr` on issue and PR
-`opened`/`edited`. No workflow is wired into required/branch-protection
+`ready_for_review`; `.github/workflows/translate-issue.yml` runs `main.mjs
+translate-issue` on issue `opened`/`edited`;
+`.github/workflows/translate-pr.yml` runs `main.mjs
+translate-pr` on PR `opened`/`edited`. No workflow is wired into required/branch-protection
 checks — see `readme:boundary`.
 
 <!-- readme:ecosystem -->

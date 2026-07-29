@@ -142,8 +142,10 @@ doctrine review, thread translation) from GitHub Actions.
 - Invoked by `.github/workflows/issue-triage.yml` (issue opened/reopened +
   `workflow_dispatch` for backfill),
   `.github/workflows/pr-doctrine-review.yml` (non-draft PR
-  opened/reopened/synchronize/ready_for_review), and
-  `.github/workflows/thread-translate.yml` (issue and PR opened/edited +
+  opened/reopened/synchronize/ready_for_review),
+  `.github/workflows/translate-issue.yml` (issue opened/edited +
+  `workflow_dispatch` for backfill), and
+  `.github/workflows/translate-pr.yml` (PR opened/edited +
   `workflow_dispatch` for backfill) with the ambient
   `GITHUB_TOKEN`; runs on bare `node` — keep this tool dependency-free so
   the workflows need no `pnpm install`. The PR-side jobs use
