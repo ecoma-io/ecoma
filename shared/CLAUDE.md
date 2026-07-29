@@ -23,7 +23,8 @@ config is the source of truth; do not restate the constraints elsewhere.
   `check-journey-markers`, `check-claude-md`, `check-doc-links`,
   `check-doctrine-index`, `check-subsystem-readmes`, `check-subproject-readmes`,
   `check-primitive-artifacts`, `check-project-conventions`, `check-commit-scope`,
-  plus workflow helpers like `pr-facts`, `scaffold-lib`, `run-e2e`); mechanics
+  plus workflow helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
+  `doctrine-sync`); mechanics
   in its own `CLAUDE.md`. Three repo-root files are single sources shared across tools, so
   no one tool's guide owns them alone: `journey-markers.config.json` (the
   Rule 13 patterns, read by `check-journey-markers` and by the
