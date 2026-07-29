@@ -106,6 +106,14 @@ _Is the enforcement layer as large as it claims to be?_
   unenforced half is where it will be violated.
 - **GA6 — no gate degrades to a warning.** A warning in a log is read by nobody;
   widening a refusal reopens the hole it closed.
+- **GA7 — a gate's visibility reach is a stated policy, not a per-gate
+  accident.** Where the tree contains material some readers cannot open — a
+  private submodule, a generated directory — each gate either audits it or
+  deliberately does not, and the rule is written once rather than decided
+  independently at each call site. Both mistakes are silent: a gate that reaches
+  into what a contributor cannot open fails for everyone but the owner, and a
+  gate that stops at the boundary leaves a whole subtree ungated while reporting
+  green.
 
 ### EV — Evidence honesty
 
@@ -207,11 +215,20 @@ _Is every claim in these files still true of this code?_
 
 _Is the thing being built the thing that was declared?_
 
-The published tree in `shared/libs/doctrine/**` is the ceiling: the mechanisms
-this system promises. This group is the only place the ceiling and the code are
-held against each other, and it runs **both directions** — one direction alone
-always reports comfort, because a corpus with no implementation traces forward
-to nothing and a codebase with no ceiling traces backward to nothing.
+The ceiling is the mechanisms this system promises. This group is the only place
+the ceiling and the code are held against each other, and it runs **both
+directions** — one direction alone always reports comfort, because a corpus with
+no implementation traces forward to nothing and a codebase with no ceiling
+traces backward to nothing.
+
+**Trace against `shared/libs/doctrine/**` — the published layer — and nothing
+else.** The corpus is single but only part of it is published, per document and
+sometimes per section, by the Publishing policy that document tree owns. The
+rest lives where most contributors cannot read it. A run that treats the private
+side as missing manufactures a gap for every withheld page; a run that assumes
+it says what the public side implies is guessing. Both are avoided the same way:
+what is withheld is recorded as **withheld by policy**, a state distinct from
+both PASS and FAIL, and never counted as either.
 
 - **TR1 — forward (ceiling → code).** Every mechanism a published document
   declares traces to code that implements it, to a seam that fails loud in its
