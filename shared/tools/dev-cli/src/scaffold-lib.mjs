@@ -114,9 +114,20 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // Reserved seam: a fresh scaffold ships no tests, and the affected gate
-    // must stay green from the first commit. Remove this once real tests land.
+    // Two halves of one reserved seam: a fresh scaffold ships no tests, so the
+    // affected gate must stay green from the first commit and a coverage floor
+    // would fail against nothing. When real tests land, close BOTH — drop
+    // \`passWithNoTests\` and flip \`coverage.enabled\`. Leaving either behind is
+    // silent: the suite stays green with every test deleted, and the floor
+    // every other project in this workspace holds does not apply here.
     passWithNoTests: true,
+    coverage: {
+      provider: "v8",
+      enabled: false,
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/index.ts"],
+      thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+    },
   },
 });
 `;

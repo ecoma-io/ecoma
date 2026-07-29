@@ -262,3 +262,36 @@ describe("workspace bootstrap transforms", () => {
     );
   });
 });
+
+describe("the emitted vitest config", () => {
+  const config = () => {
+    const written = new Map();
+    const fs = {
+      existsSync: () => false,
+      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      mkdirSync: vi.fn(),
+      writeFileSync: (path, content) => written.set(path, content),
+    };
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    scaffoldLib(["widget", "--subsystem", "shared"], fs, listPaths);
+    return written.get("shared/libs/widget/vitest.config.ts");
+  };
+
+  it("carries the coverage shape every other project holds, so closing the seam is a flag flip rather than a hand-copy", () => {
+    const text = config();
+    expect(text).toContain('provider: "v8"');
+    expect(text).toContain(
+      "thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 }",
+    );
+  });
+
+  it("ships both halves of the seam off, because a floor measured against no tests fails on the first commit", () => {
+    const text = config();
+    expect(text).toContain("passWithNoTests: true");
+    expect(text).toContain("enabled: false");
+  });
+
+  it("names both halves in one reminder, so closing one and forgetting the other cannot read as done", () => {
+    expect(config()).toMatch(/close BOTH/);
+  });
+});
