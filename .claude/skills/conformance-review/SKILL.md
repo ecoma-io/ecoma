@@ -1,6 +1,6 @@
 ---
 name: conformance-review
-description: Adversarial review of whether this workspace matches what it declares — its gates against the rules they claim to enforce, its docs against its code, its configuration against its single sources, and its implementation against the published doctrine ceiling (two-way traceability) — using the conformance rubric in `references/rubric.md`. Use when asked to review, audit, attack, or assess the repo/workspace as a whole, to check that the code still serves the doctrine, or before trusting the workspace with a new subsystem. Not a diff review (`/preflight`, `/code-review` own those) and not a review of the doctrine itself (`/doctrine-review` owns the published tree).
+description: Adversarial review of whether this workspace matches what it declares — its gates against the rules they claim to enforce, its docs against its code, its configuration against its single sources, and its implementation against the published doctrine ceiling (two-way traceability) — using the conformance rubric in `references/rubric.md`. Use when asked to review, audit, attack, or assess the repo/workspace as a whole, to check that the code still serves the published ceiling, or before trusting the workspace with a new subsystem. Not a diff review (`/preflight`, `/code-review` own those) and not a review of the doctrine itself (`/doctrine-review` owns the published tree).
 ---
 
 # Conformance review (Ecoma)
