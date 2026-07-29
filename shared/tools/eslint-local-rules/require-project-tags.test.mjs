@@ -15,10 +15,10 @@ ruleTester.run("require-project-tags", rule, {
     project(["type:lib", "scope:shared", "layer:view"]),
     project(["scope:shared", "type:app"]), // order-independent
     project(["type:e2e", "scope:shared"]), // e2e project drives a built app
-    project(["type:lib", "scope:connectors", "layer:domain"]),
-    project(["type:lib", "scope:connectors", "layer:port", "surface:sdk"]), // cross-scope contract lib
-    project(["type:lib", "scope:connectors", "layer:adapter"]), // a connector
-    project(["type:lib", "scope:connectors", "layer:app"]), // application-service
+    project(["type:lib", "scope:shared", "layer:domain"]),
+    project(["type:lib", "scope:shared", "layer:port"]),
+    project(["type:lib", "scope:shared", "layer:adapter"]),
+    project(["type:lib", "scope:shared", "layer:app"]), // application-service
   ],
   invalid: [
     { code: JSON.stringify({ name: "x" }), errors: [{ messageId: "noTags" }] },
@@ -43,13 +43,21 @@ ruleTester.run("require-project-tags", rule, {
       errors: [{ messageId: "layerCount" }],
     },
     {
-      // A misspelled surface tag matches no depConstraint — same silent escape.
-      code: project(["type:lib", "scope:connectors", "surface:skd"]),
+      // The surface axis is empty, so every surface tag is unknown — including
+      // the one it used to hold. This case is what keeps an emptied axis honest:
+      // were a value re-added without a depConstraint naming it, this stops failing.
+      code: project(["type:lib", "scope:shared", "surface:sdk"]),
       errors: [{ messageId: "badSurface" }],
     },
     {
-      code: project(["type:lib", "scope:connectors", "surface:sdk", "surface:sdk"]),
+      code: project(["type:lib", "scope:shared", "surface:sdk", "surface:sdk"]),
       errors: [{ messageId: "surfaceCount" }],
+    },
+    {
+      // A scope outside the vocabulary is rejected whether or not the workspace
+      // one day grows that area — the vocabulary describes what exists now.
+      code: project(["type:lib", "scope:platform"]),
+      errors: [{ messageId: "badScope" }],
     },
   ],
 });
