@@ -1,0 +1,3 @@
+[submodule "cloud"]
+	path = cloud
+	url = https://github.com/ecoma-io/ecoma-cloud.git
