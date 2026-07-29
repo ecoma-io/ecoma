@@ -1,0 +1,21 @@
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+Copyright (c) Ecoma
+
+The documents in this directory — the North Stars, the specifications, the
+charters, the ADR ledger and the review rubric — are licensed under the
+Creative Commons Attribution-ShareAlike 4.0 International License.
+
+    https://creativecommons.org/licenses/by-sa/4.0/
+
+You are free to share and adapt this material for any purpose, including
+commercially, provided you give appropriate credit, link to the license, and
+indicate if changes were made — and provided you distribute your contributions
+under the same license as the original.
+
+ShareAlike is the point rather than a formality: the reasoning in these
+documents can be built on, and what is built on it stays readable to the people
+it was built from.
+
+This file covers the prose in this directory only. The source code of Ecoma is
+licensed separately; see the repository root.
