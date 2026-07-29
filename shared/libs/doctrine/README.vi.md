@@ -60,12 +60,15 @@ mẫu nằm trên đĩa.
 - **Không có bảng tra tiêu đề.** Tiêu đề lấy từ chính heading của mỗi tài liệu,
   nên đổi heading là đổi luôn mục điều hướng, và không tồn tại chỗ thứ hai để
   sửa.
+- **Không tạo mục riêng cho bản dịch.** `role.vi.md` chính là `role.md` ở một
+  ngôn ngữ khác, nên nó được báo kèm tài liệu mà nó dịch chứ không bao giờ thành
+  một mục điều hướng riêng — liệt cả ba là cho người đọc thấy một spec ba lần.
 - **Không render.** Theme, routing và tìm kiếm thuộc về trang web.
 
 <!-- readme:status -->
 
 ## Trạng thái
 
-Đã dựng khung: phần logic điều hướng đã chạy và có test; các tài liệu trần sẽ
-vào ở một thay đổi riêng, rồi tới trang web hiển thị chúng. Cơ chế ở phạm vi thư
-mục nằm trong [`./CLAUDE.md`](./CLAUDE.md).
+Đang chạy thật: các tài liệu đã nằm ở đây và `shared/apps/doctrine-site` dựng
+toàn bộ điều hướng bằng cách gọi module này. Cơ chế ở phạm vi thư mục nằm trong
+[`./CLAUDE.md`](./CLAUDE.md).

@@ -12,13 +12,30 @@ consumes it.
   `layer:domain` tag means here, and it is also what makes every rule below
   testable without a fixture tree. Reading the filesystem belongs to whoever
   calls this — today the site's build step.
-- **Three refusals, one failure mode.** `buildNav` throws on a section the tree
+- **Four refusals, one failure mode.** `buildNav` throws on a section the tree
   has but the order does not, on a section the order declares but the tree
-  lacks, and on a document at the tree root. All three close the same hole: a
-  docs site does not fail by crashing, it fails by publishing a page nobody can
-  reach — and no reader reports a page they do not know exists. Widening any of
-  the three to a warning reopens it, because a warning in a build log is a page
-  nobody reads either.
+  lacks, and on a document at the tree root; `groupVariants` throws on a
+  translation whose canonical did not travel with it. All four close the same
+  hole: a docs site does not fail by crashing, it fails by publishing a page
+  nobody can reach — and no reader reports a page they do not know exists.
+  Widening any of them to a warning reopens it, because a warning in a build log
+  is a page nobody reads either. They are only worth having while they are on
+  the build path: `doctrine-site` calls both, and each refusal has been seen to
+  fail that build.
+- **A translation is the same document, not a second one.** `groupVariants`
+  collapses `<name>.<lang>.md` onto `<name>.md` so one specification never
+  appears once per language in the navigation; the translation is still returned
+  because it is still a page, one the canonical's own page offers. The published
+  languages arrive as an argument for the reason the section order does —
+  `languages.config.json` settles them and this module cannot see it.
+  `check-doctrine`'s `variantOf` is the same convention written a second time,
+  and the duplication is accepted rather than overlooked: `dev-cli` is plain
+  `.mjs` with no TypeScript toolchain and cannot import this module, and a
+  cross-project source import would be an edge the Nx graph cannot see — the
+  reason `languages.config.json` sits at the repo root in the first place. Both
+  sides derive the language list from that one file, so what is duplicated is
+  the filename shape and nothing else. Change the shape on one side and you have
+  changed it on neither.
 - **Section order is an argument, never a constant here.** It arrives from the
   caller alongside the tree. A section list baked into this module would be a
   claim about content this module cannot see, and the two-way check above is
@@ -29,5 +46,7 @@ consumes it.
 - **Titles come from each document's own `# H1`**, with the file stem as
   fallback. Never introduce a title map — that is the second place to rename a
   heading, and it drifts the first time someone edits only the document.
-- Markdown content lands here in its own change. Until it does, this project is
-  the machinery and nothing else, and `doctrine-site` is what will read it.
+- The Markdown is content and the `src/` modules are machinery; they share a
+  project so that editing a document is a change `nx affected` can see. Neither
+  half reads the other: the modules never open the tree, and no document names a
+  module.
