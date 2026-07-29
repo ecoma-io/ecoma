@@ -59,12 +59,16 @@ which keeps every rule here testable without a fixture directory on disk.
   about content this project cannot see.
 - **No title map.** Titles come from each document's own heading, so renaming a
   heading renames its navigation entry and there is no second place to edit.
+- **No second entry for a translation.** `role.vi.md` is `role.md` in another
+  language, so it is reported on the document it translates and never becomes a
+  navigation entry of its own — a reader listing three of them sees one
+  specification three times.
 - **No rendering.** Themes, routing and search belong to the site.
 
 <!-- readme:status -->
 
 ## Status
 
-Scaffolded: the navigation logic is live and tested; the ceiling documents land
-in their own change, and the site that renders them follows. Directory-scoped
-mechanics live in [`./CLAUDE.md`](./CLAUDE.md).
+Live: the documents are here and `shared/apps/doctrine-site` builds its whole
+navigation by calling this module. Directory-scoped mechanics live in
+[`./CLAUDE.md`](./CLAUDE.md).
