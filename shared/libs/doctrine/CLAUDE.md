@@ -22,6 +22,14 @@ consumes it.
   is a page nobody reads either. They are only worth having while they are on
   the build path: `doctrine-site` calls both, and each refusal has been seen to
   fail that build.
+- **A document that `overview/index.md` does not route to is not published, it
+  is stranded.** Adding a page to this tree means adding its row to the corpus
+  map in the same pass; `check-doctrine` refuses the tree otherwise. It is the
+  content-side twin of `buildNav`'s refusals: a docs site does not fail by
+  crashing, it fails by carrying a page nobody can reach, and nobody reports a
+  page they do not know exists. Only that direction is gated here — a row
+  pointing at a file that does not exist is already `check-doc-links`' answer,
+  and whether the row still _describes_ the document stays on review.
 - **A translation is the same document, not a second one.** `groupVariants`
   collapses `<name>.<lang>.md` onto `<name>.md` so one specification never
   appears once per language in the navigation; the translation is still returned
