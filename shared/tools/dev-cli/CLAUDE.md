@@ -131,6 +131,20 @@ build/typecheck — invoked directly as
   sides match scopes with `node:path`'s `matchesGlob`, so this gate and that
   activation can never disagree on glob semantics. Do not restate the card
   summaries in either place.
+- `doctrine-sync` is the write side of `check-doctrine`'s staleness rule: it
+  stamps each variant's `canonical-sha` with the fingerprint of the canonical
+  beside it. Both sides scan `check-doctrine`'s exported `DOCTRINE_DOCS`
+  pathspec, which reaches the documents inside the tree's families and
+  **not** the project's own `README.md` triad at the root — those three are
+  peers under the fixed-order frontmatter block `check-subproject-readmes`
+  gates, where a `canonical-sha` key is a failure rather than a repair. Two
+  things to know before running it: it reads the git **index**, so a newly
+  written variant must be staged to be seen; and Prettier rewrites markdown in
+  `pre-commit`, which changes the canonical's bytes and therefore its
+  fingerprint, so the only order that terminates is **stage → format → sync →
+  commit**. Stamping asserts nothing about the translation — re-stamping
+  without re-reading is how a variant keeps authority it no longer earns, which
+  is the failure the gate exists to catch.
 - `ensure-commit-identity` keeps the commit identity attributed to the session
   operator (never the cloud-sandbox agent bot `noreply@anthropic.com`), and is
   the only place that identity lives — nothing hardcodes a person. Two modes:
