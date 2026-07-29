@@ -1,0 +1,7 @@
+{
+  "name": "@ecoma-io/doctrine-site",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VitePress site that publishes the doctrine tree at ecoma.io/doctrine",
+  "type": "module"
+}
