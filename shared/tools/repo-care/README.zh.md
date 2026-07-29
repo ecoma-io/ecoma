@@ -15,6 +15,8 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 给新 issue 分类 type/area，审查一个 PR 的 diff 中那些任何 lint 规则都看不见的
 "判断层" practice 违规——被削弱到能通过的测试、假装完成的桩代码、悄悄夹带的重构，
 以及把一条用某种项目语言写成的讨论串映射到另外两种语言，好让没有人被挡在讨论之外。
+大型 PR 会按组评审——每组对应拥有这些改动文件的一个 project 或目录——因此评论读
+起来像一份清单，diff 的任何部分都不会被漏读。
 `repo-care` 把这三件事都交给 LLM,但只用 opencode zen 的无密钥免费层
 (`https://opencode.ai/zen/v1`)——不需要 API key,不需要配置任何 secret。免费模型
 单独来看既弱又不稳定(限流或服务商故障会以 HTTP 200 附带 `error` body 的形式出现,

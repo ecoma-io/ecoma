@@ -91,6 +91,45 @@ practice review, thread translation) from GitHub Actions.
   API** — never the Actions checkout, which is deliberately the trusted
   base ref (the job holds a write token; head code must stay data, never
   executed). Served file content is framed as untrusted data like the diff.
+- **A pull request is partitioned before any of it is reviewed**
+  (`group-files.mjs`). The key is the one the repository already decides a
+  commit's scope by — deepest owning project, else subsystem, else top-level
+  directory, else the root — so a group is exactly the work one commit could
+  have carried, and the comment reads as a checklist per unit. Project roots
+  come from the **git index**, never a directory walk (a built Storybook ships
+  its own `project.json`, and no prune list stays ahead of what a build emits),
+  and they are resolved from this module's own location rather than the working
+  directory, because `git ls-files` answers relative to where it is run and a
+  wrong cwd silently degrades every project group to its subsystem. Group labels
+  are the Nx project names; `group-files.integration.test.mjs` pins them against
+  `dev-cli list-scopes`, because a drift there fails no build and would leave
+  reviews grouped along a boundary the commit gate does not recognise. Why it is
+  worth the extra calls, measured on a 46-file pull request: the whole diff was
+  128k characters against the budget, every `pathCard` was offered against every
+  file (one stylesheet comment put the design card in front of models reviewing
+  workflows), and the single whole-diff run reached **no quorum at all** — two
+  of three models failed and the third returned nothing — while the same models
+  on one group of that same diff each returned a finding.
+- **Three review shapes now, and a card's `shape` picks which one judges it.**
+  Un-shaped `diffCards` are the per-group investigation. `shape: "manifest"`
+  (today `desc-mismatch`) is judged **once per pull request over the file
+  manifest** — filenames, statuses and line counts, never a diff — because a
+  description of the whole change always claims more than any one group contains,
+  so offered per group it fires on every group; the grouped probe returned
+  exactly that, from both models that answered, both spurious.
+  `shape: "parity"` keeps its own README pass, unchanged. A card with a shape
+  must not reach `CHECKS`, and the rubric test pins that every card still
+  reaches some pass — a shape is a different reviewer, never a way for a check
+  to fall out of the rubric.
+- **Budgets are per group, and nothing is dropped silently.** `MAX_DIFF_CHARS`
+  bounds one group, not the pull request; probing the pool at 50k/95k/129k
+  characters produced no context error from any primary, so a group at the cap
+  is a signal to look at what landed in it rather than a diff to grow. Groups
+  past `MAX_GROUPS` are **merged into one final group, never dropped**, and that
+  group names what it absorbed. A group that reaches no quorum is reported as
+  "not reviewed" in the comment, which is why an otherwise clean run still posts
+  one: silence there would read as a passed review. Only a run where **no** group
+  reached a quorum exits 1.
 - **README language parity is a separate review shape from everything else
   in `review-pr`**: `practice-index.json`'s `readme-language-parity` card
   carries `"shape": "parity"`, which `activeChecks` skips entirely — a

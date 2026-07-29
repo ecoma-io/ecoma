@@ -16,7 +16,9 @@ Ba việc trên GitHub cần phán đoán ngôn ngữ tự nhiên mà một gate
 một PR xem có vi phạm practice ở lớp phán đoán mà không lint nào bắt được
 (test bị làm yếu đi, một stub giả vờ xong việc, một refactor lén trà trộn),
 và soi chiếu một thread viết bằng một ngôn ngữ của dự án sang hai ngôn ngữ
-còn lại để không ai bị đứng ngoài cuộc thảo luận.
+còn lại để không ai bị đứng ngoài cuộc thảo luận. Một PR lớn được review theo
+từng nhóm — mỗi nhóm là một project hoặc thư mục sở hữu các file đã đổi — nên
+comment đọc như một checklist và không phần nào của diff bị bỏ sót.
 `repo-care` giao cả ba việc này cho LLM, nhưng chỉ qua tầng free không cần
 key của opencode zen (`https://opencode.ai/zen/v1`) — không API key, không
 secret cần cấp phát. Các model free riêng lẻ yếu và chập chờn (rate-limit
