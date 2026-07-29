@@ -55,6 +55,18 @@ build/typecheck — invoked directly as
   neither, since the hook and CI both run at the repo root. The upstream-scope
   exception shells out to `pnpm nx graph`, so integration tests skip that path
   (unit tests inject the graph).
+- **`license-scope.mjs` is the one place that answers "which terms govern this
+  path?"** — the root `LICENSE`'s SCOPE section as code. It has two consumers
+  that must never disagree: `check-project-conventions` judges the `license:*`
+  tag and `license` manifest field a project already declares, and
+  `scaffold-lib` decides what a new project is born declaring. Were those two
+  derivations separate, every scaffolded project would arrive failing the gate
+  that scaffolded it. It is a module of its own rather than a section of either
+  consumer only because `check-project-conventions` already imports from
+  `scaffold-lib`; putting it in the gate would close that edge into a cycle.
+  The licence _vocabulary_ is mirrored in `require-project-tags.mjs` and in
+  `eslint.config.mjs`'s `depConstraints` — a new value belongs in all three in
+  one pass, the same contract the `scope:` axis already carries.
 - `check-primitive-artifacts` runs from `core-ui`'s `lint` target rather than
   the CI doc-gate block, because the convention it enforces belongs to that one
   project. It scans the git **index**, so a new primitive's artifacts must be

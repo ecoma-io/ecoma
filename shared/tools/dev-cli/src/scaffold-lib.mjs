@@ -40,6 +40,7 @@ import { execFileSync } from "node:child_process";
 import * as nodeFs from "node:fs";
 
 import { deriveSubsystemRoots } from "./check-subsystem-readmes.mjs";
+import { licenseForPath, MANIFEST_LICENSE } from "./license-scope.mjs";
 // `LANGS` here means programming languages; the README contract's are human
 // languages, hence the alias.
 import {
@@ -70,7 +71,12 @@ const projectJson = (name, root, subsystem, layer, targets) =>
       $schema: "../../../node_modules/nx/schemas/project-schema.json",
       projectType: "library",
       sourceRoot: `${root}/src`,
-      tags: ["type:lib", `scope:${subsystem}`, ...(layer ? [`layer:${layer}`] : [])],
+      tags: [
+        "type:lib",
+        `scope:${subsystem}`,
+        `license:${licenseForPath(root)}`,
+        ...(layer ? [`layer:${layer}`] : []),
+      ],
       targets: Object.fromEntries(
         Object.entries(targets).map(([target, command]) => [
           target,
@@ -82,13 +88,14 @@ const projectJson = (name, root, subsystem, layer, targets) =>
     2,
   );
 
-const packageJson = (name) =>
+const packageJson = (name, root) =>
   JSON.stringify(
     {
       name: `@ecoma-io/${name}`,
       version: "0.0.1",
       private: true,
       description: `TODO: one line on what @ecoma-io/${name} is`,
+      license: MANIFEST_LICENSE[licenseForPath(root)],
       type: "module",
       main: "./src/index.ts",
       types: "./src/index.ts",
@@ -236,7 +243,7 @@ Directory-scoped mechanics only — principles live in the root \`CLAUDE.md\`. N
  * (go.work, root manifests, .gitignore) is handled separately.
  */
 const EMITTERS = {
-  ts(name) {
+  ts(name, _subsystem, root) {
     return {
       identityLine: `import alias \`@ecoma-io/${name}\``,
       targets: {
@@ -245,7 +252,7 @@ const EMITTERS = {
         test: "vitest run",
       },
       files: {
-        "package.json": `${packageJson(name)}\n`,
+        "package.json": `${packageJson(name, root)}\n`,
         "tsconfig.json": `${tsconfigJson}\n`,
         "vitest.config.ts": vitestConfig,
         "src/index.ts": "export {};\n",
@@ -478,7 +485,7 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
     return 1;
   }
 
-  const { identityLine, targets, files } = EMITTERS[lang](name, subsystem);
+  const { identityLine, targets, files } = EMITTERS[lang](name, subsystem, root);
   fs.mkdirSync(`${root}/src`, { recursive: true });
   fs.writeFileSync(
     `${root}/project.json`,

@@ -1,8 +1,9 @@
 /**
- * Every Nx `project.json` must carry exactly one `type:*` and one `scope:*` tag.
- * `@nx/enforce-module-boundaries` (root eslint.config.mjs) only constrains a
- * project through its tags, so an untagged or mis-tagged project silently
- * escapes the leaf-independence dependency boundary — this rule closes that gap.
+ * Every Nx `project.json` must carry exactly one `type:*`, one `scope:*` and
+ * one `license:*` tag. `@nx/enforce-module-boundaries` (root eslint.config.mjs)
+ * only constrains a project through its tags, so an untagged or mis-tagged
+ * project silently escapes the leaf-independence dependency boundary — this
+ * rule closes that gap.
  *
  * The allowed values mirror the `depConstraints` in eslint.config.mjs; a new
  * domain/scope must be added in both places in the same change. `type:e2e` has
@@ -11,6 +12,17 @@
  */
 const TYPES = new Set(["app", "lib", "e2e"]);
 const SCOPES = new Set(["shared"]);
+// The licence axis, unlike `scope`, is enumerated in full before its values have
+// projects — and the difference is not a lapse. A scope set is open-ended (one
+// more per product domain nobody has named yet), so listing one early would be a
+// claim about content that does not exist. The licence set is closed and already
+// settled: `LICENSE` carves the tree into exactly these four, keyed by path.
+// Enumerating them here is what lets `check-project-conventions` demand the
+// right tag the moment a carve-out directory is born — a vocabulary missing
+// `ee` would reject the very tag the gate requires, and the contributor would
+// be caught between two checks. Every value is named by a depConstraint in
+// eslint.config.mjs, so none is the silent escape this rule exists to close.
+const LICENSES = new Set(["sul", "ee", "apache", "proprietary"]);
 // The hex-layer axis is optional (apps, e2e, and non-layered plumbing libs like
 // core-tauri carry none) — but when a layer tag is present it must be from the
 // vocabulary, and there can be at most one: a misspelled `layer:*` matches no
@@ -51,6 +63,9 @@ export default {
         "project.json `tags` must contain exactly one `scope:*` tag (found {{count}}); expected one of {{allowed}}.",
       badType: "Unknown tag '{{tag}}' — type must be one of {{allowed}}.",
       badScope: "Unknown tag '{{tag}}' — scope must be one of {{allowed}}.",
+      licenseCount:
+        "project.json `tags` must contain exactly one `license:*` tag (found {{count}}); expected one of {{allowed}}.",
+      badLicense: "Unknown tag '{{tag}}' — license must be one of {{allowed}}.",
       layerCount: "project.json `tags` must contain at most one `layer:*` tag (found {{count}}).",
       badLayer: "Unknown tag '{{tag}}' — layer must be one of {{allowed}}.",
       surfaceCount:
@@ -102,6 +117,21 @@ export default {
             node,
             messageId: "badScope",
             data: { tag: scopes[0], allowed: vocabulary("scope", SCOPES) },
+          });
+        }
+
+        const licenses = tags.filter((t) => t.startsWith("license:"));
+        if (licenses.length !== 1) {
+          context.report({
+            node,
+            messageId: "licenseCount",
+            data: { count: licenses.length, allowed: vocabulary("license", LICENSES) },
+          });
+        } else if (!LICENSES.has(licenses[0].slice("license:".length))) {
+          context.report({
+            node,
+            messageId: "badLicense",
+            data: { tag: licenses[0], allowed: vocabulary("license", LICENSES) },
           });
         }
 

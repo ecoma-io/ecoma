@@ -10,6 +10,19 @@
  *  - **e2e test placement** — `*.e2e.test.*` / `*_e2e_test.*` files live only
  *    in `type:e2e` projects (root CLAUDE.md test taxonomy: e2e is never
  *    co-located).
+ *  - **licence tag ↔ directory** — the root `LICENSE` decides terms by path, so
+ *    a project's `license:*` tag must equal what its own path implies. The tag
+ *    is what `@nx/enforce-module-boundaries` keys the licence constraints on;
+ *    a mistagged Enterprise module would be importable from SUL code, which
+ *    ships paid code to every self-hoster with no gate firing.
+ *  - **carve-out directory carries its own LICENSE** — a `packages` or
+ *    `enterprise` directory holding tracked files must contain the terms the
+ *    root LICENSE says ship there. The carve-out is protective (it removes
+ *    those files from the SUL grant), so the moment such a directory is born
+ *    without its own terms, its files are published under no licence at all.
+ *  - **manifest licence ↔ path** — every `package.json` declares the terms its
+ *    path implies. npm has no field that means "ask the tree", so a manifest
+ *    with no `license` reads as unlicensed to every tool that looks.
  *  - **lib alias ↔ manifest pairing** — every `@ecoma-io/<x>` base alias in
  *    `tsconfig.base.json` points at a tracked file inside a project whose
  *    `package.json` carries that exact name, `private: true`, and no
@@ -23,6 +36,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { listTrackedFiles } from "./tracked-files.mjs";
+import { CARVE_OUT_DIRS, MANIFEST_LICENSE, licenseForPath } from "./license-scope.mjs";
 
 import { PYTEST_EMPTY_SUITE_MASK } from "./scaffold-lib.mjs";
 
@@ -87,6 +101,48 @@ export function findConventionViolations(trackedFiles, readFile) {
       violations.push(
         `${p.path}: tag '${scopeTag}' does not match top-level directory '${top}' — ` +
           `module boundaries key on this tag, so the mismatch silently escapes the leaf boundary`,
+      );
+    }
+  }
+
+  for (const p of projects) {
+    const licenseTag = p.tags.find((t) => typeof t === "string" && t.startsWith("license:"));
+    if (!licenseTag) continue; // presence is require-project-tags' job
+    const expected = licenseForPath(p.root);
+    if (licenseTag.slice("license:".length) !== expected) {
+      violations.push(
+        `${p.path}: tag '${licenseTag}' does not match the terms its path implies ` +
+          `('license:${expected}' — root LICENSE, SCOPE) — module boundaries key the licence ` +
+          `constraints on this tag, so the mismatch ships the project under terms nobody chose`,
+      );
+    }
+  }
+
+  const carveOutRoots = new Set();
+  for (const path of trackedFiles) {
+    const segments = path.split("/");
+    // `length > 2` so the carve-out's own LICENSE is not what proves it inhabited.
+    if (segments.length > 2 && CARVE_OUT_DIRS[segments[1]]) {
+      carveOutRoots.add(`${segments[0]}/${segments[1]}`);
+    }
+  }
+  for (const root of [...carveOutRoots].sort()) {
+    if (tracked.has(`${root}/LICENSE`)) continue;
+    violations.push(
+      `${root}/LICENSE: missing — the root LICENSE removes this directory from the SUL grant, ` +
+        `so until its own terms ship beside it these files carry no licence at all`,
+    );
+  }
+
+  for (const path of trackedFiles) {
+    if (path !== "package.json" && !path.endsWith("/package.json")) continue;
+    const pkg = parseOrNull(readFile(path));
+    if (!pkg) continue;
+    const expected = MANIFEST_LICENSE[licenseForPath(path)];
+    if (pkg.license !== expected) {
+      violations.push(
+        `${path}: "license" is ${JSON.stringify(pkg.license ?? null)}, expected ` +
+          `${JSON.stringify(expected)} for this path (root LICENSE, SCOPE)`,
       );
     }
   }

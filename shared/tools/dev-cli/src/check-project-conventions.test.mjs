@@ -11,8 +11,14 @@ vi.mock("node:fs", () => ({ readFileSync: vi.fn() }));
 /** In-memory repo: path → content. Tracked set = the map's keys. */
 const judge = (files) => findConventionViolations(Object.keys(files), (p) => files[p]);
 
-const project = (tags) => JSON.stringify({ tags });
-const pkg = (fields) => JSON.stringify({ private: true, ...fields });
+// Both helpers default to the SUL terms every non-carve-out path implies, so a
+// case that is not about licensing stays about the one thing it names.
+const project = (tags) =>
+  JSON.stringify({
+    tags: tags.some((t) => t.startsWith("license:")) ? tags : [...tags, "license:sul"],
+  });
+const pkg = (fields) =>
+  JSON.stringify({ private: true, license: "SEE LICENSE IN LICENSE", ...fields });
 const tsconfig = (paths) => JSON.stringify({ compilerOptions: { paths } });
 
 /** A minimal healthy workspace every case below starts from. */
@@ -148,6 +154,84 @@ describe("findConventionViolations", () => {
   it("leaves malformed JSON to lint rather than crashing or judging it", () => {
     const files = { ...HEALTHY, "vider/libs/broken/project.json": "{not json" };
     expect(judge(files)).toEqual([]);
+  });
+
+  it("flags an enterprise module tagged as if it were freely licensed", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/enterprise/LICENSE": "Enterprise terms",
+      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:sul"]),
+      "vider/enterprise/sso/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("'license:sul' does not match the terms its path implies"),
+    ]);
+  });
+
+  it("flags a plug-in package tagged as if it ran the system", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/packages/LICENSE": "Apache License 2.0",
+      "vider/packages/driver-api/project.json": project(["type:lib", "scope:vider", "license:sul"]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("'license:sul' does not match the terms its path implies"),
+    ]);
+  });
+
+  it("flags a carve-out directory that ships no terms of its own", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
+      "vider/enterprise/sso/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([expect.stringContaining("vider/enterprise/LICENSE: missing")]);
+  });
+
+  it("accepts carve-out directories that declare their own terms throughout", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/enterprise/LICENSE": "Enterprise terms",
+      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
+      "vider/enterprise/sso/src/index.ts": "export {};",
+      "vider/packages/LICENSE": "Apache License 2.0",
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:apache",
+      ]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("flags a manifest that states no licence at all", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/package.json": JSON.stringify({
+        private: true,
+        name: "@ecoma-io/vider-ui",
+      }),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining('"license" is null, expected "SEE LICENSE IN LICENSE"'),
+    ]);
+  });
+
+  it("flags a manifest claiming OSI terms the tree does not grant", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/package.json": pkg({ name: "@ecoma-io/vider-ui", license: "MIT" }),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining('"license" is "MIT", expected "SEE LICENSE IN LICENSE"'),
+    ]);
+  });
+
+  it("holds the workspace-root manifest to the same derivation", () => {
+    const files = { ...HEALTHY, "package.json": JSON.stringify({ private: true }) };
+    expect(judge(files)).toEqual([expect.stringContaining('package.json: "license" is null')]);
   });
 });
 

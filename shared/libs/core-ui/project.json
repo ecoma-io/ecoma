@@ -3,7 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "shared/libs/core-ui/src",
-  "tags": ["type:lib", "scope:shared", "layer:view"],
+  "tags": ["type:lib", "scope:shared", "license:sul", "layer:view"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
