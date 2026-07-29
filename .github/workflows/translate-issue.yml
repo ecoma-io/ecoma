@@ -1,0 +1,42 @@
+name: Issue translation
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Issue number to (re-)translate
+        required: true
+
+# A rapid title/body edit supersedes the previous translation -- only the
+# newest text is worth spending free-tier calls on.
+concurrency:
+  group: translate-issue-${{ github.event.issue.number || inputs.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    # One detection quorum plus one call per target language, on a slow free
+    # tier -- well under the multi-turn budget pr-doctrine-review needs.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # repo-care is deliberately dependency-free (bare node, global fetch),
+      # so no pnpm install.
+      - name: Translate the issue
+        run: node shared/tools/repo-care/src/main.mjs translate-issue --issue "$NUMBER"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number || inputs.number }}

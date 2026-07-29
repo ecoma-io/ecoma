@@ -1,0 +1,50 @@
+name: Pull request translation
+
+on:
+  # Not `pull_request`: a fork PR's token is read-only there, so the job could
+  # never comment. `pull_request_target` runs against the BASE ref with a write
+  # token, which is safe here for the same reason it is in pr-doctrine-review:
+  # nothing from the PR head is ever checked out or executed -- the title and
+  # body are read through the API and framed as untrusted data.
+  pull_request_target:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Pull request number to (re-)translate
+        required: true
+
+# A rapid title/body edit supersedes the previous translation -- only the
+# newest text is worth spending free-tier calls on.
+concurrency:
+  group: translate-pr-${{ github.event.pull_request.number || inputs.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # `pull_request_target` already defaults to the base ref; naming it keeps
+      # the guarantee explicit -- this job holds a write token, so the only code
+      # it may run is the trusted base-branch copy of repo-care.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.ref }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # repo-care is deliberately dependency-free (bare node, global fetch),
+      # so no pnpm install.
+      - name: Translate the pull request
+        run: node shared/tools/repo-care/src/main.mjs translate-pr --pr "$NUMBER"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number || inputs.number }}
