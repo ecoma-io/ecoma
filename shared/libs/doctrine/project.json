@@ -1,0 +1,30 @@
+{
+  "name": "doctrine",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "shared/libs/doctrine/src",
+  "tags": ["type:lib", "scope:shared", "layer:domain"],
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "tsc --noEmit"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "vitest run"
+      }
+    }
+  }
+}
