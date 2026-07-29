@@ -36,6 +36,12 @@ Additional toolchains keyed off workspace marker files at the repo root:
 
 - **golangci-lint v2** (when `go.work` exists) for the Go lint targets.
 
+You will notice a `cloud/` directory (see `.gitmodules`): it is a private git
+submodule pointing at a proprietary control-plane repository. Without access
+to that repository it just stays an empty directory, which is expected —
+nothing in this public workspace depends on `cloud/` existing, so there is
+nothing to configure or troubleshoot.
+
 `pnpm nx affected -t lint test typecheck build e2e` stays the single definition
 of done regardless of language: every project's targets are hand-written
 `nx:run-commands` in its `project.json`, and cross-project Go/Rust/Python
