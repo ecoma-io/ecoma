@@ -10,11 +10,11 @@ Every group below is a different place that question can be answered "no".
 
 Three neighbours own different objects, and this file owns none of theirs:
 
-| Instrument                                     | Object                      | Not this file because                                                       |
-| ---------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
-| `shared/libs/doctrine/method/review-rubric.md` | the published doctrine tree | it asks whether the design is coherent; this file takes the design as given |
-| `/preflight`, `doctrine-index.json`            | one diff                    | a diff cannot show a gate that is missing everywhere                        |
-| the deterministic gates themselves             | one rule each               | they answer "was this rule broken", never "is this rule owned"              |
+| Instrument                                            | Object                      | Not this file because                                                       |
+| ----------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
+| `shared/libs/doctrine/method/review-rubric.md`        | the published doctrine tree | it asks whether the design is coherent; this file takes the design as given |
+| `/preflight`, the rule cards in `doctrine-index.json` | one diff                    | a diff cannot show a gate that is missing everywhere                        |
+| the deterministic gates themselves                    | one rule each               | they answer "was this rule broken", never "is this rule owned"              |
 
 A finding this rubric produces is about the workspace's standing state, and it
 survives every diff until someone changes the workspace.
@@ -193,6 +193,15 @@ _Is every claim in these files still true of this code?_
 - **DT5 — documents record the end state.** The journey — rounds, phases,
   dates, ticket ids — belongs in the commit message, the pull request, or the
   thread, never in the artifact that outlives them.
+- **DT6 — one term, one object.** A load-bearing word names exactly one thing
+  across the whole workspace — prose, command names, config filenames, workflow
+  names, comment titles, identifiers. Where one word names two objects, every
+  reader who learned one meaning misreads the other, and the misreading is
+  silent: it produces confident wrong action, never an error. Two tests catch it
+  cheaply — list every surface carrying the word and name the object each one
+  means; and check whether an `x-index` really indexes `x`. The fix is a rename
+  on one side. A disambiguating sentence is not one: it lives in a file the name
+  does not travel with.
 
 ### TR — Traceability to the doctrine ceiling
 
