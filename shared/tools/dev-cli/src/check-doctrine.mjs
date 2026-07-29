@@ -41,6 +41,21 @@ import { listTrackedFiles } from "./tracked-files.mjs";
 export const DOCTRINE_ROOT = "shared/libs/doctrine";
 
 /**
+ * The pathspec naming the documents this gate judges: markdown inside the
+ * tree's families, and deliberately not the project's own `README.md` triad or
+ * its `CLAUDE.md`, which sit at the root. Those carry a different contract —
+ * the README triad is a fixed-order frontmatter block gated by
+ * `check-subproject-readmes`, in which a `canonical-sha` key is a violation
+ * rather than a requirement, and its three languages are peers rather than a
+ * canonical with variants.
+ *
+ * Named rather than written inline because `doctrine-sync` writes the
+ * fingerprints this gate reads: the two scanning different sets is exactly how
+ * a README acquires a key no gate asked for.
+ */
+export const DOCTRINE_DOCS = `${DOCTRINE_ROOT}/**/*.md`;
+
+/**
  * Markers that must not survive redaction, each with the reason it goes — the
  * message a failing file shows, so the fix is obvious without opening this
  * file.
@@ -107,7 +122,7 @@ export function findOrphanFamilies(files) {
 
 /** Scans the published tree. Returns a process exit code. */
 export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
-  const paths = list([`${DOCTRINE_ROOT}/**/*.md`]);
+  const paths = list([DOCTRINE_DOCS]);
   const files = paths.map((path) => ({ path, text: read(path, "utf8") }));
 
   let failed = false;
