@@ -163,7 +163,8 @@ Tests verify the behavior that matters, not just line coverage. Read more in the
 
 ## Code of Conduct
 
-We are committed to providing a respectful and welcoming community.
+This project adheres to the [Contributor Covenant](./CODE_OF_CONDUCT.md).
+By participating, you are expected to uphold it.
 
 ## Security
 

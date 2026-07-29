@@ -41,6 +41,7 @@ recorded in [`CLAUDE.md`](./CLAUDE.md) and in the commit history.
 ## Contributing
 
 - [Contribution philosophy](./CONTRIBUTING.md) — how we work
+- [Code of Conduct](./CODE_OF_CONDUCT.md) — community standards
 - [Security policy](./SECURITY.md) — reporting a vulnerability
 
 ## License
