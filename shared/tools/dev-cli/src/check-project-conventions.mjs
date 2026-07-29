@@ -105,7 +105,7 @@ export function findConventionViolations(trackedFiles, readFile) {
   // The scaffold's conftest.py maps pytest's empty-suite exit 5 to 0 so a
   // fresh Python lib is not born red. Once real tests exist that mask stops
   // being a seam and starts hiding a collection regression as a pass — the
-  // exact fake-green the doctrine bans — and "remove it later" is not a plan
+  // exact fake-green the practice bans — and "remove it later" is not a plan
   // anyone executes, so the removal is enforced here instead.
   for (const p of projects) {
     const conftest = `${p.root}/conftest.py`;

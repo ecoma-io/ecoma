@@ -111,9 +111,9 @@ build/typecheck — invoked directly as
   boundaries). Whether the prose around the tokens _means_ the same thing
   stays advisory with `repo-care`'s `readme-language-parity` card — this
   gate is why that card must not re-report a differing token.
-- `check-doctrine-index` gates `doctrine-index.json` (repo root), whose cards
+- `check-practice-index` gates `practice-index.json` (repo root), whose cards
   point at the CLAUDE.md tier owning each rule. **The anchor is a verbatim
-  `quote`, deliberately not a content hash:** doctrine churn here is
+  `quote`, deliberately not a content hash:** rule churn here is
   overwhelmingly additive, so a section hash would fail on every unrelated
   addition inside the same section, and a gate that cries wolf is a gate that
   gets bypassed. The quote doubles as the locator — that is why a card carries

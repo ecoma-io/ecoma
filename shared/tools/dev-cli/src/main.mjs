@@ -9,7 +9,7 @@ import { checkClaudeMd } from "./check-claude-md.mjs";
 import { checkCommitScope } from "./check-commit-scope.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
 import { checkDoctrine } from "./check-doctrine.mjs";
-import { checkDoctrineIndex } from "./check-doctrine-index.mjs";
+import { checkPracticeIndex } from "./check-practice-index.mjs";
 import { checkE2eStoryCoverage } from "./check-e2e-story-coverage.mjs";
 import { checkGofmt } from "./check-gofmt.mjs";
 import { checkJourneyMarkers, checkWorkspaceDocs } from "./check-journey-markers.mjs";
@@ -32,7 +32,7 @@ const COMMANDS = {
   "check-commit-scope": (args) => checkCommitScope(args),
   "check-doc-links": () => checkDocLinks(),
   "check-doctrine": () => checkDoctrine(),
-  "check-doctrine-index": () => checkDoctrineIndex(),
+  "check-practice-index": () => checkPracticeIndex(),
   "check-e2e-story-coverage": (args) => checkE2eStoryCoverage(args),
   "check-gofmt": () => checkGofmt(),
   "check-primitive-artifacts": () => checkPrimitiveArtifacts(),

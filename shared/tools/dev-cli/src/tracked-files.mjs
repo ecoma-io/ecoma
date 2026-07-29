@@ -16,7 +16,7 @@
  *
  * Not every caller wants it. `check-commit-scope` reads the paths a
  * superproject commit touches, which never include submodule internals, and
- * `check-doctrine-index` deliberately keeps its cards citing public rules only —
+ * `check-practice-index` deliberately keeps its cards citing public rules only —
  * a card quoting a file inside `cloud/` would fail for everyone who cannot see
  * it. Those keep plain `git ls-files` on purpose.
  *

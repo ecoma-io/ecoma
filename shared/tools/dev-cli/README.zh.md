@@ -18,11 +18,11 @@ commit/push/merge 就直接过不去"。
 
 这个仓库里有几十条规则，只有持续被检查才真正有效：Rule 13（禁止 journey
 marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 必须
-和改动的路径匹配、每张 doctrine card 都必须仍然指向它引用的那句原文。如果
+和改动的路径匹配、每张 practice card 都必须仍然指向它引用的那句原文。如果
 这些规则只写在 `CLAUDE.md` 的散文里，它们会慢慢失效——人会忘记，agent 也
 会忘记，而且没有人违反时也不会有任何警报。`dev-cli` 就是让每条规则变成一
 个返回退出码的小函数，并挂接到 commit/push/CI 生命周期里正确的那个环节，
-从而让 doctrine 变成机器强制执行的东西，而不只是文档。原本分散的各个脚
+从而让 practice 变成机器强制执行的东西，而不只是文档。原本分散的各个脚
 本，现在统一收在一个注册表里（`src/main.mjs` 里的 `COMMANDS`），用同一种
 方式调用：`node shared/tools/dev-cli/src/main.mjs <command>`。
 
@@ -34,13 +34,13 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
 `lefthook.yml` 和 `.github/workflows/ci.yml`：
 
 - **lefthook pre-commit**：`check-journey-markers-workspace`、
-  `check-doc-links`、`check-doctrine-index`、
+  `check-doc-links`、`check-practice-index`、
   `ensure-commit-identity --check`。
 - **lefthook prepare-commit-msg / commit-msg**：`strip-claude-trailers`、
   `check-commit-scope`。
 - **CI**（`.github/workflows/ci.yml`）：`check-commit-scope --commit <sha>`
   （对 PR 里的每个 commit 各跑一次）、`check-journey-markers-workspace`、
-  `check-doc-links`、`check-claude-md`、`check-doctrine-index`、
+  `check-doc-links`、`check-claude-md`、`check-practice-index`、
   `check-project-conventions`、`check-subsystem-readmes`、
   `check-subproject-readmes`。
 - **每个 project 自己的 `lint` target**（`project.json`——几乎覆盖仓库里
@@ -66,8 +66,8 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
 `dev-cli` 强制执行的是**源代码和仓库约定**，无论是本地（lefthook）还是
 CI 里。它从不触碰 GitHub 本身的界面（issue、PR 评论）——那是
 [`repo-care`](../repo-care/README.zh.md) 的职责，同属 `shared/tools` 下的
-兄弟工具，它会消费 `check-doctrine-index` 的同一份数据源
-（`doctrine-index.json`）来生成自己的 PR review 评审标准。`dev-cli` 也是
+兄弟工具，它会消费 `check-practice-index` 的同一份数据源
+（`practice-index.json`）来生成自己的 PR review 评审标准。`dev-cli` 也是
 唯一存放 Rule 13 检测逻辑的地方（`check-journey-markers`，读取仓库根目录
 的 `journey-markers.config.json`），
 [`eslint-local-rules`](../eslint-local-rules/README.zh.md) 复用同一份

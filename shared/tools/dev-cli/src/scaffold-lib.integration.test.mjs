@@ -16,7 +16,7 @@ import { scaffoldLib } from "./scaffold-lib.mjs";
  * if all of them pass, so the oracle has to be all of them: scoping it to
  * `check-project-conventions` alone is exactly how a scaffold that emitted no
  * README variants passed this suite while failing CI. Repo-wide gates
- * (`check-doc-links`, `check-doctrine-index`, `check-subsystem-readmes`) are
+ * (`check-doc-links`, `check-practice-index`, `check-subsystem-readmes`) are
  * deliberately excluded — they judge the workspace, not the scaffold, and the
  * fixture is not a workspace.
  */

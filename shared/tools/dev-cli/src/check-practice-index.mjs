@@ -1,5 +1,5 @@
 /**
- * Keeps `doctrine-index.json` (repo root) honest about the prose it points at.
+ * Keeps `practice-index.json` (repo root) honest about the prose it points at.
  *
  * Each card cites a CLAUDE.md tier by path plus a verbatim `quote`; this gate
  * fails when that quote no longer appears in that file, so a rule that was
@@ -7,7 +7,7 @@
  * is also the locator — errors report the line it was found on, which is why
  * cards carry no fragile heading anchor.
  *
- * A quote rather than a content hash, deliberately: doctrine churn in this repo
+ * A quote rather than a content hash, deliberately: rule churn in this repo
  * is overwhelmingly additive, and a section hash would fail on every unrelated
  * addition inside the same section. A gate that cries wolf gets bypassed. What
  * this gate covers is "the cited text still exists"; whether a summary is still
@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { matchesGlob } from "node:path";
 
-const INDEX_PATH = "doctrine-index.json";
+const INDEX_PATH = "practice-index.json";
 
 // A quote short enough to match incidental prose is not an anchor — it would
 // keep passing after the rule it cites is gone.
@@ -86,7 +86,7 @@ function checkShared(card, kind, problems, seen, readSource) {
   if (!card.summary?.trim()) problems.push(`card '${id}': empty summary`);
 
   // Every card must answer the triage question — a rule a gate could hold
-  // does not belong here at all (doctrine-index.json, $admission).
+  // does not belong here at all (practice-index.json, $admission).
   if (!("gate" in card)) {
     problems.push(`card '${id}': missing 'gate' (use null when none)`);
   } else if (card.gate !== null && typeof card.gate !== "string") {
@@ -163,7 +163,7 @@ export function validateIndex(index, readSource, tracked) {
 }
 
 /** Scans the repo-root index against the working tree. Returns a process exit code. */
-export function checkDoctrineIndex() {
+export function checkPracticeIndex() {
   let index;
   try {
     index = JSON.parse(readFileSync(INDEX_PATH, "utf8"));

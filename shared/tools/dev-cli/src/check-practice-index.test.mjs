@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findQuoteLine, normalize, validateIndex } from "./check-doctrine-index.mjs";
+import { findQuoteLine, normalize, validateIndex } from "./check-practice-index.mjs";
 
 const SOURCE = [
   "# Guide",
