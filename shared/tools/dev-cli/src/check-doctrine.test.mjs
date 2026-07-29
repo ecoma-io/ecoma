@@ -9,6 +9,8 @@ import {
   findUnmappedDocuments,
   CORPUS_MAP,
   DOCTRINE_ROOT,
+  findUnmarkedEntries,
+  WITHHELD_MARKER,
   fingerprint,
 } from "./check-doctrine.mjs";
 
@@ -266,5 +268,51 @@ describe("findUnmappedDocuments", () => {
     const problems = findUnmappedDocuments([file(spec, "# Role")]);
     expect(problems).toHaveLength(1);
     expect(problems[0].path).toBe(CORPUS_MAP);
+  });
+});
+
+describe("findUnmarkedEntries", () => {
+  const inventory = (...rows) => [
+    file(
+      CORPUS_MAP,
+      [
+        "| File | Domain |",
+        "| --- | --- |",
+        `| [Role](../spec/role.md) | Platform |`,
+        ...rows,
+      ].join("\n"),
+    ),
+  ];
+
+  it("reports a row that neither links a document nor declares it withheld, because absence cannot say which it is", () => {
+    const problems = findUnmarkedEntries(inventory("| sổ thị trường | SỐNG |"));
+    expect(problems).toHaveLength(1);
+    expect(problems[0].why).toContain("sổ thị trường");
+  });
+
+  it("accepts the same row once it carries the marker", () => {
+    expect(findUnmarkedEntries(inventory(`| sổ thị trường ${WITHHELD_MARKER} | SỐNG |`))).toEqual(
+      [],
+    );
+  });
+
+  it("accepts a row that links into the tree, which needs no marker", () => {
+    expect(findUnmarkedEntries(inventory("| [Task](../spec/task.md) | Platform |"))).toEqual([]);
+  });
+
+  it("leaves a table whose first column links nothing alone — the publishing policy and the gap ledger name categories, not files", () => {
+    const map = file(
+      CORPUS_MAP,
+      ["| Tài liệu | Public? |", "| --- | --- |", "| Web charter | ❌ |"].join("\n"),
+    );
+    expect(findUnmarkedEntries([map])).toEqual([]);
+  });
+
+  it("leaves the header and the separator alone rather than reporting them as unmarked documents", () => {
+    expect(findUnmarkedEntries(inventory())).toEqual([]);
+  });
+
+  it("stays silent when the map is absent, since that is the routing rule's finding and not a second one", () => {
+    expect(findUnmarkedEntries([file("shared/libs/doctrine/spec/role.md", "# Role")])).toEqual([]);
   });
 });
