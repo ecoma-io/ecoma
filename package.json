@@ -3,9 +3,23 @@
   "homepage": "https://ecoma.io",
   "private": true,
   "description": "Shared foundation of the @ecoma-io workspace — tooling, design system, app substrates",
+  "keywords": [
+    "self-hosted",
+    "fair-code",
+    "labor-operating-system",
+    "workflow-engine",
+    "workflow-automation",
+    "human-in-the-loop",
+    "ai-agents",
+    "rpa",
+    "nx-monorepo"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/ecoma-io/ecoma.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ecoma-io/ecoma/issues"
   },
   "author": {
     "name": "John Martin",
