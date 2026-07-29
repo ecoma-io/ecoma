@@ -45,5 +45,19 @@ recorded in [`CLAUDE.md`](./CLAUDE.md) and in the commit history.
 
 ## License
 
-Proprietary and confidential — © Ecoma. All rights reserved. This is closed
-software, not open source.
+Ecoma is **fair-code**: source-available, not open source, and not closed
+either. Those three are different things and the difference is the point.
+
+The source is public and stays that way — every mechanism the product commits
+to a tenant is meant to be readable, self-hosted and modified. What fair-code
+withholds is the one freedom an OSI licence cannot withhold: selling Ecoma
+itself as a service. That restriction is why the rest can be open.
+
+**No licence is granted yet.** The Sustainable Use License is being prepared
+and has not been reviewed, so until it lands the legal position is © Ecoma,
+all rights reserved. Granting a licence is not reversible for code already
+released under it, which is why this sentence is a status rather than a
+placeholder.
+
+The documents under `shared/libs/doctrine/` are licensed today, separately:
+[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).

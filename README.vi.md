@@ -45,5 +45,20 @@ ghi lại trong [`CLAUDE.md`](./CLAUDE.md) và trong lịch sử commit.
 
 ## Giấy phép
 
-Độc quyền và bảo mật — © Ecoma. Bảo lưu mọi quyền. Đây là phần mềm đóng, không
-phải mã nguồn mở.
+Ecoma là **fair-code**: mã nguồn công khai, **không phải open source**, và cũng
+**không phải phần mềm đóng**. Ba thứ đó khác nhau, và chính chỗ khác nhau ấy
+mới là điều đáng nói.
+
+Mã nguồn là công khai và sẽ ở nguyên như vậy — mọi cơ chế mà sản phẩm cam kết
+với tenant đều được viết ra để đọc được, tự cài được và sửa được. Thứ fair-code
+giữ lại là đúng một quyền tự do mà giấy phép OSI không thể giữ: bán chính Ecoma
+thành một dịch vụ. Chính hạn chế đó là lý do mọi phần còn lại có thể mở.
+
+**Hiện chưa cấp giấy phép nào.** Sustainable Use License đang được chuẩn bị và
+chưa qua rà soát pháp lý, nên tới khi nó có hiệu lực, vị thế pháp lý vẫn là ©
+Ecoma, bảo lưu mọi quyền. Cấp một giấy phép là việc **không thu lại được** đối
+với phần mã đã phát ra — đó là lý do câu này là một **trạng thái**, không phải
+một chỗ trống chờ điền.
+
+Các tài liệu trong `shared/libs/doctrine/` thì đã có giấy phép riêng, ngay từ
+bây giờ: [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).
