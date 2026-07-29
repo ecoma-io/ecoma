@@ -21,14 +21,14 @@ Handoff là **sự chuyển giao một Artifact từ Role sản xuất sang Role
 
 ## 2. Mô hình khái niệm
 
-| Entity               | Là gì                                                                                                                                         | Danh tính                               |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **Contract**         | Schema + semantic + context requirements. Entity hạng nhất, version hóa, thư viện tenant, tái sử dụng xuyên quy trình                         | id + version; quy trình **pin** version |
-| **Artifact**         | Reference + hash (content-addressed) + metadata + provenance chain. Immutable sau khi Gate đóng. Lưu trữ vật lý: ecoma-spec-artifact-store.md | content hash                            |
-| **Handoff instance** | (artifact, contract@version, producer, consumer, trạng thái)                                                                                  | id, append event log                    |
-| **Violation**        | Vi phạm khách quan lớp Schema tại runtime                                                                                                     | gắn handoff instance                    |
-| **Effect**           | Tác động ra ngoài hệ thống do Task khai báo, mang lớp reversibility                                                                           | khai báo trong Task                     |
-| **Compensation**     | Hành động bồi hoàn khai báo trước cho Effect/Handoff                                                                                          | Task của một Role                       |
+| Entity               | Là gì                                                                                                                                                | Danh tính                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **Contract**         | Schema + semantic + context requirements. Entity hạng nhất, version hóa, thư viện tenant, tái sử dụng xuyên quy trình                                | id + version; quy trình **pin** version |
+| **Artifact**         | Reference + hash (content-addressed) + metadata + provenance chain. Immutable sau khi Gate đóng. Lưu trữ vật lý: [artifact-store](artifact-store.md) | content hash                            |
+| **Handoff instance** | (artifact, contract@version, producer, consumer, trạng thái)                                                                                         | id, append event log                    |
+| **Violation**        | Vi phạm khách quan lớp Schema tại runtime                                                                                                            | gắn handoff instance                    |
+| **Effect**           | Tác động ra ngoài hệ thống do Task khai báo, mang lớp reversibility                                                                                  | khai báo trong Task                     |
+| **Compensation**     | Hành động bồi hoàn khai báo trước cho Effect/Handoff                                                                                                 | Task của một Role                       |
 
 ## 3. Contract — ba lớp
 

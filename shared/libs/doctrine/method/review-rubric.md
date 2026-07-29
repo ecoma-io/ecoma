@@ -179,7 +179,7 @@ _Tinh thần: không hỏi "cái đang có đúng chưa" — hỏi "MỌI giai �
 
 **Kỹ thuật bổ sung (vòng ≤15 — kịch bản là tài sản, không phải phế phẩm):**
 
-- **Scenario catalog** (file riêng: ecoma-scenario-catalog.md, append-only): mọi kịch bản đã chạy có ID + verdict. Mỗi lượt = **regression** (chạy lại catalog trên docs mới — patch nào làm kịch bản cũ gãy là regression bắt được) + **exploration** (sinh mới, nạp vào catalog).
+- **Scenario catalog** (file riêng: [scenario-catalog](scenario-catalog.md), append-only): mọi kịch bản đã chạy có ID + verdict. Mỗi lượt = **regression** (chạy lại catalog trên docs mới — patch nào làm kịch bản cũ gãy là regression bắt được) + **exploration** (sinh mới, nạp vào catalog).
 - **Dimension model cho exploration** — sinh kịch bản theo 8 chiều, đo coverage gap thay vì ngẫu hứng: `trigger-type × filler-mix (người/AI/rule/external/process) × irreversible? × external-party? × knowledge/memory? × deterministic/reasoning/hybrid × quy mô (n=1/team/agency-multiclient) × chế độ (happy/failure/adversarial)`. Ô chưa từng có kịch bản = vùng mù khai báo được.
 
 **Kỹ thuật bổ sung (vòng ≤15):**
