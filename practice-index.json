@@ -103,11 +103,12 @@
     },
     {
       "id": "desc-mismatch",
-      "summary": "the PR description claims something the diff contradicts (e.g. 'tests added' with no test changes)",
+      "shape": "manifest",
+      "summary": "the PR description claims something the change as a whole contradicts (e.g. 'tests added' with no test changes)",
       "source": "CLAUDE.md",
       "quote": "Never mark work complete if anything was silently skipped",
       "gate": null,
-      "gateNote": "needs the description and the diff compared against each other"
+      "gateNote": "needs the description and the whole change compared against each other, so it is judged once per pull request over the file manifest rather than once per review group — offered against one group's diff it fires on every group, because a description of the whole change always says more than one part of it does"
     },
     {
       "id": "journey-marker",
