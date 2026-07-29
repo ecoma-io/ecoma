@@ -1,19 +1,23 @@
-# Repository rubric (Ecoma)
+# Conformance rubric (Ecoma)
 
-Criteria for judging **the repository as an engineering artifact** — its gates,
-its tests, its derivations, its boundaries, its docs, its supply chain, and the
-proportion between all of that and the code it exists to protect.
+One question, applied to the whole workspace: **does reality match what this
+repository declares?** Its gates against the rules they claim to enforce, its
+tests against the intent they claim to pin, its config against its single
+sources, its docs against its code, and its implementation against the published
+doctrine ceiling.
+
+Every group below is a different place that question can be answered "no".
 
 Three neighbours own different objects, and this file owns none of theirs:
 
-| Instrument                                     | Object                      | Not this file because                                          |
-| ---------------------------------------------- | --------------------------- | -------------------------------------------------------------- |
-| `shared/libs/doctrine/method/review-rubric.md` | the published doctrine tree | it judges product design documents, not the workspace          |
-| `/preflight`, `doctrine-index.json`            | one diff                    | a diff cannot show a gate that is missing everywhere           |
-| the deterministic gates themselves             | one rule each               | they answer "was this rule broken", never "is this rule owned" |
+| Instrument                                     | Object                      | Not this file because                                                       |
+| ---------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
+| `shared/libs/doctrine/method/review-rubric.md` | the published doctrine tree | it asks whether the design is coherent; this file takes the design as given |
+| `/preflight`, `doctrine-index.json`            | one diff                    | a diff cannot show a gate that is missing everywhere                        |
+| the deterministic gates themselves             | one rule each               | they answer "was this rule broken", never "is this rule owned"              |
 
-A finding this rubric produces is about the repository's standing state, and it
-survives every diff until someone changes the repository.
+A finding this rubric produces is about the workspace's standing state, and it
+survives every diff until someone changes the workspace.
 
 ---
 
@@ -62,11 +66,14 @@ evolving". Any claim of completeness fails law 2 on its own terms.
 
 ### 5. Scope boundary
 
-This rubric judges **internal consistency and enforcement integrity**. It cannot
-tell you whether the repository is building the right product, whether the
-architecture will survive its first real load, or whether one maintainer can
-carry it. Those need different instruments, and pretending otherwise is the
-failure mode this section exists to prevent.
+This rubric judges **conformance**: whether what exists matches what was
+declared — including whether the code matches the doctrine ceiling (group TR).
+
+It cannot tell you whether the ceiling itself is worth building. A perfectly
+traced implementation of a wrong design passes every criterion here. Nor can it
+tell you whether the architecture survives real load, or whether one maintainer
+can carry the workspace. Those need different instruments, and pretending
+otherwise is the failure mode this section exists to prevent.
 
 ---
 
@@ -187,6 +194,46 @@ _Is every claim in these files still true of this code?_
   dates, ticket ids — belongs in the commit message, the pull request, or the
   thread, never in the artifact that outlives them.
 
+### TR — Traceability to the doctrine ceiling
+
+_Is the thing being built the thing that was declared?_
+
+The published tree in `shared/libs/doctrine/**` is the ceiling: the mechanisms
+this system promises. This group is the only place the ceiling and the code are
+held against each other, and it runs **both directions** — one direction alone
+always reports comfort, because a corpus with no implementation traces forward
+to nothing and a codebase with no ceiling traces backward to nothing.
+
+- **TR1 — forward (ceiling → code).** Every mechanism a published document
+  declares traces to code that implements it, to a seam that fails loud in its
+  place, or to a written absence. A mechanism with none of the three is a
+  promise the workspace is not keeping — and the longer it stands, the more the
+  ceiling reads as a description of a system that exists.
+- **TR2 — backward (code → ceiling).** Every unit of product code names the
+  promise it serves. An orphan is either scope creep or an undeclared mechanism;
+  both need a written reason, and the second one belongs in the ceiling before
+  it belongs in the code.
+- **TR3 — one concept, one name, on both sides.** A concept named in the ceiling
+  and implemented in code carries the same name in both. A rename on one side
+  forks the concept silently, and the fork is only visible to a reader holding
+  both files open.
+- **TR4 — the ceiling leads.** When code and ceiling disagree, the ceiling is
+  settled first. A code change that quietly redefines a declared mechanism is a
+  doctrine edit performed in the wrong file, and reviewing it as a code change
+  ratifies it.
+- **TR5 — a declared invariant is held by structure, and the structure is
+  named.** An invariant the ceiling calls non-violable, held in practice only by
+  "the developer will remember", is not held. Name the boundary, the type, the
+  gate, or the test that makes the violation impossible rather than merely
+  discouraged.
+- **TR6 — the trace is derivable, not remembered.** Name where the mapping
+  between ceiling and code is read from. A mapping that lives in a hand-kept
+  table or in one person's memory is stale from its second edit.
+- **TR7 — an empty trace is a recorded state, never a pass.** Where no product
+  surface exists yet, TR1 and TR2 return "nothing to trace" and the run says so.
+  Reporting conformance over an absence is the same defect as a green test suite
+  that collects no tests.
+
 ### SC — Supply chain and repository security
 
 _What does an outsider get to influence?_
@@ -283,11 +330,13 @@ _Is the governance worth what it governs?_
 
 Declared so the next run does not mistake a clean sheet for a safe repository.
 
-| Blind spot                                                                                        | What is installed against it                                                              |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Self-judgment** — whoever wrote the gates runs the rubric on them                               | Law 2's falsifiable PASS and recorded WITHDRAWNs; a freeze-grade run wants a fresh reader |
-| **Derived from defects already seen** — blind to the next class                                   | The immunity law, plus one probe per full run the repository has never been attacked with |
-| **Green-gate illusion** — a fully green workspace reads as a healthy one                          | Every group asks what the gates _cannot_ see; a green run is where this rubric starts     |
-| **Parity illusion** — consistency gates confirm agreement, never correctness                      | DT3 states it explicitly; facts are re-derived from the code, never from a sibling file   |
-| **No load-bearing evidence** — nothing here judges runtime behavior, performance, or architecture | Part I §5; use a different instrument and do not let a clean sheet imply those            |
-| **Proportionality is judged from inside** — the group most likely to be graded generously         | PR3 demands the failure a rule prevents be _named_, not assumed                           |
+| Blind spot                                                                                                                       | What is installed against it                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Self-judgment** — whoever wrote the gates runs the rubric on them                                                              | Law 2's falsifiable PASS and recorded WITHDRAWNs; a freeze-grade run wants a fresh reader |
+| **Derived from defects already seen** — blind to the next class                                                                  | The immunity law, plus one probe per full run the repository has never been attacked with |
+| **Green-gate illusion** — a fully green workspace reads as a healthy one                                                         | Every group asks what the gates _cannot_ see; a green run is where this rubric starts     |
+| **Parity illusion** — consistency gates confirm agreement, never correctness                                                     | DT3 states it explicitly; facts are re-derived from the code, never from a sibling file   |
+| **No load-bearing evidence** — nothing here judges runtime behavior, performance, or architecture                                | Part I §5; use a different instrument and do not let a clean sheet imply those            |
+| **Proportionality is judged from inside** — the group most likely to be graded generously                                        | PR3 demands the failure a rule prevents be _named_, not assumed                           |
+| **Conformance to a wrong ceiling still passes** — TR proves the code matches the design, never that the design deserved matching | Part I §5 says it outright; `/doctrine-review` is the instrument that judges the ceiling  |
+| **An empty trace looks like a clean one** — a workspace with no product surface passes TR trivially                              | TR7 forces the absence to be recorded as a state rather than reported as conformance      |
