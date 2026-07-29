@@ -55,14 +55,10 @@ export default tseslint.config(
             { sourceTag: "type:e2e", onlyDependOnLibsWithTags: ["type:lib"] },
             // Scope axis: a product domain gets its own scope tag when it takes
             // root, constrained to its own libs plus shared ones; shared libs
-            // never reach into a product domain.
+            // never reach into a product domain. Only the scope that has a
+            // project today appears here — a scope is added in the change that
+            // lands its first project, never in anticipation of one.
             { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
-            // Connectors are a product-external scope: they build against the
-            // public SDK (surface:sdk) and shared libs only.
-            {
-              sourceTag: "scope:connectors",
-              onlyDependOnLibsWithTags: ["scope:connectors", "scope:shared", "surface:sdk"],
-            },
             // Hex layer axis (domain/port/adapter/view + util), enforced from the
             // first brick so an import flowing the wrong way fails lint at once.
             // A dep must satisfy every one of its source's tag constraints, so
