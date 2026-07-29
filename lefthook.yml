@@ -27,6 +27,12 @@ pre-commit:
       # Relative Markdown links across the repo must resolve to existing files.
       # Repo-wide (a link crosses project boundaries), so outside `nx affected`.
       run: node shared/tools/dev-cli/src/main.mjs check-doc-links
+    doctrine:
+      # The published tree must stay checkable by someone who was never here:
+      # no round numbers or finding ids, no bet identifiers, and no citation of
+      # a scenario/gate/ADR family whose owning document stayed behind. Runs
+      # repo-wide because it judges the tree as a whole, not a diff.
+      run: node shared/tools/dev-cli/src/main.mjs check-doctrine
     doctrine-index:
       # Every doctrine card must still find the rule text it cites. Edits to a
       # CLAUDE.md and edits to the index land in different projects, so no
