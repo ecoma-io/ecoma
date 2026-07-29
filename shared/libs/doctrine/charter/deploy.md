@@ -1,113 +1,228 @@
 ---
-title: "Ecoma — Deploy & Operations Charter (System Charter)"
+title: "Ecoma — Deploy & Operations Charter"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma — Deploy & Operations Charter (System Charter)
+# Ecoma — Deploy & Operations Charter
 
-## 1. Ranh giới — ba phân vùng, ba nhà, cấm trộn
+A charter, not a specification: it does not define a mechanism the product
+promises a tenant. It defines how an operator installs, runs, backs up,
+upgrades, rolls back and shuts down an installation — and where the boundary
+falls between what a self-hoster receives and what stays with whoever runs the
+hosted service.
 
-| Nhà | Nội dung | Ship cho self-host? | License | |---|---|---|---| | **`deploy/`** | Thứ một self-hoster **nhận và chạy**: compose, Helm chart, systemd unit, installer, migration runner, mẫu cấu hình edge router | ✅ | SUL | | **`cloud/`** | IaC + control plane của **nhà vận hành Cloud**: fleet, billing, quota ops, provisioning tự động | ❌ | Proprietary, không public | | **`shared/tools/`** | Tooling của **người phát triển**: dev-cli, lint rules, repo-care | ❌ (không phải artifact sản phẩm) | SUL | | **`<area>/enterprise/`** | Tính năng cấp doanh nghiệp cho **self-host**: SSO, audit export, retention sâu, RBAC nâng cao — **không** chứa đa-tenant | ✅ (cần license) | Enterprise, tag `license:ee` |
+## The boundary: three partitions, and no mixing
 
-**Single-tenant là thuộc tính của HÌNH THÁI, không phải giới hạn kỹ thuật của engine**: mọi cài đặt self-host (SUL lẫn Enterprise) chạy **đúng một tenant**, vì workflow tạo tenant thứ hai chỉ ship trong `cloud/` — **không** vì runtime kiểm quyền (North Star §7 cấm). Engine vẫn giữ nguyên tầng tenant trong cây khoá kể cả khi N=1 (Tenant §2c). Charter này vì thế **không** khai gì về provisioning đa tenant — đó là việc của `cloud/`.
+| Partition                  | What lives there                                                                                                                                 | Shipped to a self-hoster?   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| **Deployment**             | What a self-hoster **receives and runs**: compose files, charts, service units, installer, migration runner, edge-router configuration templates | Yes                         |
+| **Operator control plane** | The hosted operator's infrastructure and control plane: fleet, billing, quota operations, automated provisioning                                 | No — proprietary            |
+| **Developer tooling**      | The tooling of whoever develops the system: lint rules, workspace commands, repository automation                                                | No — not a product artifact |
+| **Enterprise modules**     | Enterprise features for **self-hosting**: single sign-on, audit export, deep retention, advanced authorisation — and **not** multi-tenancy       | Yes, with a licence         |
 
-**Luật một câu — litmus của chính ranh giới này**: _mọi file trong `deploy/` phải hữu dụng với một người tự cài; file nào chỉ **chúng ta** cần là đang đặt sai chỗ._
+**Single tenancy is a property of the deployment form, not a technical limit of
+the engine.** Every self-hosted installation runs exactly one tenant, because the
+workflow that creates a second one ships only in the operator's control plane —
+**not** because the runtime checks an entitlement, which the
+[Platform North Star](../north-star/platform.md) forbids outright. The engine
+keeps the tenant layer in its key tree even at cardinality one. This charter
+therefore says nothing about multi-tenant provisioning; that belongs to the
+control plane.
 
-**Án văn**: phân vùng sai theo hướng này (IaC nội bộ lọt vào `deploy/`) là **trao hạ tầng vận hành cho đối thủ**; sai theo hướng kia (thứ self-hoster cần nằm trong `cloud/`) là **fair-code trên giấy** — người tự cài không dựng nổi hệ. Đây là lý do ranh giới phải là _ba_, không phải hai: tooling của đội từng là chỗ trú ẩn của cả hai loại nhầm.
+**The litmus for the boundary is one sentence**: _every file in the deployment
+partition must be useful to someone installing this themselves; a file only **we**
+need is in the wrong place._
 
-## 2. Hình thái cài đặt — lời khai quy mô, không phải công tắc
+Getting it wrong in one direction — internal infrastructure leaking into what
+ships — hands the operating playbook to a competitor. Getting it wrong in the
+other — something a self-hoster needs living in the control plane — makes
+fair-code true only on paper, because someone installing it themselves cannot
+stand the system up. That is why the boundary has **three** partitions and not
+two: developer tooling was where both mistakes used to hide.
 
-Hai hình thái (ADR-0002), mỗi hình thái ship một bộ khác nhau:
+## Deployment form is a declaration of scale, not a switch
 
-| Hình thái | Storage default | Ship gì | |---|---|---| | **Small-stack** — một binary / một container | SQLite + DuckDB, vault file-based | Binary/imagem, unit file, mẫu cấu hình, migration runner | | **Production** — compose / Helm | Postgres (+pgvector, +Timescale), vault backend ngoài | Chart/compose, mẫu secret, migration runner, mẫu edge router |
+Two forms, each shipping a different set:
 
-- **Hình thái là lời khai quy mô của người cài**, không phải một cờ đổi lúc chạy. Đổi hình thái = **grow-path = replay log sang port mới**, một thao tác có chủ đích, **không bao giờ tự động**.
-- Charter **không** khai contract của storage port — đó là ADR-0002 + Working Data.
+| Form            | Storage default                                                                         | What ships                                                                        |
+| --------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Small stack** | The embedded stack, with a file-based vault                                             | Binary or image, service unit, configuration templates, migration runner          |
+| **Production**  | A single database carrying log, projections and vectors, with an external vault backend | Chart or compose files, secret templates, migration runner, edge-router templates |
 
-## 3. Artifact ship và cách chúng đi cùng nhau
+The form is **the installer's declaration of scale**, not a flag flipped at
+runtime. Changing form is a deliberate grow path — replay the log into the new
+port — and is **never** automatic. A runtime switch would turn an architectural
+decision into a configuration accident.
 
-- **Server** · **node runtime headless** · **lớp UI attended** (ADR-0005) · **mẫu cấu hình edge router** (mount `/`, `/hub`, `/app`, `/design` + 3 điều kiện an ninh khi dùng chung domain — web charter §3b).
-- **Tất cả mang cùng một `train_version`** (Release & Compat §1). Installer **từ chối** cài một bộ lệch train.
-- Trên máy attended: hai artifact, cùng train — lớp UI kiểm lúc bắt tay nội-máy và **từ chối chạy** nếu lệch (Release & Compat §8). **Giao thoa #3 đã đóng.**
-- Artifact thiếu `train_version`/`source_digest`/`provenance`/chữ ký ⇒ **từ chối cài**, không có chế độ "cài tạm".
+This charter does not define the storage port contract. That belongs to
+[ADR-0002](../method/adr-ledger.md) and [Working Data](../spec/working-data.md).
 
-## 4. Khóa & khôi phục — bốn nghĩa vụ từ blocker Đây là phần nặng nhất của charter. Luật gốc ở Vault §3 (ba vế: ngoài-backup · DR bắt buộc cho root/tenant-DEK · chỉ replica tiến-lên-trước). Charter khai **thủ tục**.
+## What ships, and how the pieces travel together
 
-### 4.1 Sinh và xác nhận root key
+The server, the headless node runtime, the attended UI layer, and the
+edge-router configuration templates that mount the public surfaces.
 
-Provisioning phát root key **một lần**, rồi **đòi thử thách checksum** trước khi cho cài đặt vào trạng thái phục vụ. Kết quả là entry. Thủ tục viết ra phải nêu **chính xác chỗ cất** theo hình thái, không nói chung chung:
+**All of them carry the same train version.** The installer **refuses** a set
+that straddles two trains. On an attended machine there are two artifacts on one
+host: the UI layer checks the train at its on-machine handshake and **refuses to
+run** on a mismatch — that skew is invisible to every other handshake in the
+system, so it needs its own check.
 
-| Hình thái | Đường DR của root key (tách khỏi backup dữ liệu) | |---|---| | Small-stack | Một **bản in/ghi ngoài máy** (password manager, phong bì niêm phong, USB cất rời) — thủ tục nêu ít nhất một lựa chọn cụ thể, không để người dùng tự nghĩ | | Production | KMS/HSM có **replica tiến-lên-trước** (destroy replicate được), **không snapshot point-in-time** — tư cách backend kiểm ở §4.4 |
+An artifact missing its train version, source digest, provenance or signature is
+**refused at install**. There is no "install it anyway" mode, because that mode
+is where an unsigned artifact enters a production system.
 
-### 4.2 Khôi phục trên máy trắng
+## Keys and recovery
 
-Thủ tục phải chạy được theo đúng thứ tự: dựng máy mới → **nạp root key từ đường DR** → restore dữ liệu → replay → kiểm chứng bằng một truy vấn đọc được dữ liệu **chưa** shred. **Không có root key ⇒ engine nói thẳng "không thể khôi phục"**, không giả vờ khởi động được.
+This is the heaviest section of the charter. The underlying rules belong to
+[Vault & Key](../spec/vault-key.md) — key material never enters a backup,
+disaster recovery is mandatory for the root and tenant keys, and only
+forward-only replicas may hold key material. What follows is the **procedure**.
 
-### 4.3 Gate: backup không được chạm khóa
+### Generating and confirming the root key
 
-Một lệnh mới của dev-cli — **`check-backup-key-isolation`** — chạy trong job `checks` và pre-commit: quét mọi script/manifest/chart trong `deploy/` và **fail** nếu có đường nào phủ lên vị trí root key theo bất kỳ hình thái nào. Lệnh này **chưa tồn tại** — nó sinh cùng lúc với thư mục `deploy/` và được ghi vào chuỗi PR của kế hoạch handoff (không để nó thành một lời dặn không ai nuôi). Đây là hiện thực hoá litmus #4 của Vault. _Lời dặn "đừng backup khóa" không phải cơ chế; một gate đỏ thì là._
+Provisioning emits the root key **once**, then **demands a checksum challenge**
+before letting the installation enter service. The result is a log entry. The
+written procedure must name **exactly where it is kept**, per form, rather than
+advising in general:
 
-### 4.4 Tư cách của backend key store
+| Form        | The root key's recovery path, separate from the data backup path                                                                                                                             |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Small stack | An off-machine copy — a password manager, a sealed envelope, a USB device stored separately. The procedure names at least one concrete option rather than leaving the operator to invent one |
+| Production  | A key-management service or hardware module with a **forward-only replica**, no point-in-time snapshot. Eligibility is checked below                                                         |
 
-Tài liệu deploy **khai tường minh** backend nào đủ tư cách chạy crypto-shredding: `destroy` **không khôi phục được** **và** không cung cấp (hoặc cho phép tắt) **snapshot/rewind point-in-time**. Backend có recovery-window bắt buộc chỉ hợp lệ nếu cửa sổ đó khai được và **lệnh shred chỉ báo hoàn tất sau khi cửa sổ đóng**. Backend không đạt ⇒ engine **từ chối vai crypto-shredding**, không hứa thứ mình không làm được.
+"Keep the key somewhere safe" is advice. A named location is a procedure.
 
-## 5. Backup & restore
+### Recovery onto a blank machine
 
-**Cái gì vào backup**: event log · artifact blob · (tùy chọn) projection — projection rebuild được nên backup nó chỉ để nhanh, không để đúng.
-**Cái gì KHÔNG BAO GIỜ vào backup**: **key material**, mọi tầng (Vault §3 vế a).
+The procedure must run in exactly this order: build a new machine → **load the
+root key from the recovery path** → restore the data → replay → verify by
+running a query that reads data which has **not** been shredded.
 
-**Retention × support window — giao thoa #1 đã đóng**: retention **không được dài hơn** support window của Release & Compat §6, **trừ khi** charter khai một **restore path** tường minh (nâng backup cũ qua chuỗi migration tuần tự, và path đó phải được diễn tập). Giữ backup 5 năm trong khi chỉ hỗ trợ 2 major = đang giữ một lời hứa không thực hiện được. **Gate**: cấu hình retention vượt support window mà thiếu khai restore path ⇒ cảnh báo lúc khởi động, không im lặng.
+**With no root key, the engine states plainly that recovery is impossible.** It
+does not start half way, because an installation that boots without the ability
+to decrypt anything is an installation that looks recovered and is not.
 
-**Diễn tập restore là bắt buộc và là entry**: một cài đặt chưa từng restore thử thì backup của nó là **giả thuyết**, không phải bảo hiểm. Thủ tục nêu chu kỳ tối thiểu và **ghi kết quả diễn tập vào log**.
+### A gate: the backup must not touch the key
 
-## 6. Upgrade & rollback — thủ tục
+A workspace command, `check-backup-key-isolation`, runs in continuous
+integration and before every commit: it scans every script, manifest and chart in
+the deployment partition and **fails** if any path covers the root key's location
+under any deployment form.
 
-Khớp 4 pha của Release & Compat §4 (cài cạnh → migrate → cutover → giữ). Charter thêm phần người bấm:
+_"Do not back up the key" is advice; a red gate is a mechanism._
 
-**Preflight bắt buộc, trước khi chạm gì**: kiểm train version đồng bộ mọi artifact · kiểm **mọi migration major trong bước này có `down` hoặc cờ `irreversible_migration`** · nếu có cờ thì **đòi Gate + bản sao** trước khi đi tiếp · kiểm backup gần nhất đã diễn tập.
+### Which key stores are eligible
 
-**Hai đường lùi khác nhau, gọi đúng tên — giao thoa #2 đã đóng**:
+The deployment documentation **states explicitly** which backends are eligible to
+perform crypto-shredding: `destroy` must be **unrecoverable** and the backend must
+not provide — or must permit disabling — point-in-time snapshot or rewind. A
+backend with a mandatory recovery window qualifies only if that window is
+declarable **and the shred command reports completion only after it closes**.
 
-| Trong cửa sổ rollback | Ngoài cửa sổ | |---|---| | **Rollback**: chạy đường nghịch, artifact cũ còn nguyên tại chỗ (pha 4) | **KHÔNG phải rollback** — đó là **restore + replay**: dựng lại từ backup, chấp nhận mất dữ liệu từ điểm backup, rủi ro và thời gian khác hẳn |
+A backend that does not qualify means the engine **refuses the crypto-shredding
+role** rather than promising an erasure it cannot perform.
 
-Thủ tục **cấm** dùng chữ "rollback" cho vế phải. Án văn: người vận hành bấm theo kỳ vọng gắn với cái tên; gọi hai thứ khác nhau bằng một tên là thiết kế ra một sự cố.
+## Backup and restore
 
-## 7. Operate — ô `operate` của P1
+**What goes into a backup**: the event log, artifact blobs, and optionally
+projections — projections are rebuildable, so backing them up buys speed, never
+correctness.
 
-- **Health / readiness**: readiness chỉ xanh khi vault mở được, storage port trả lời, và protocol registry nạp xong. Xanh sớm là nói dối phía trên.
-- **Log & metric**: ra **stdout/endpoint cục bộ** của người cài. **Không phone-home mặc định** — đây là ràng buộc từ trần (North Star §7, Hub), không phải tùy chọn cấu hình. Người cài muốn gửi đi đâu là việc của họ.
-- **Lease & heartbeat**: thủ tục xử node mất heartbeat (lease TTL hết → task về hàng đợi), và cách phân biệt _node chết_ với _node từ chối claim vì lệch skew_ (Release & Compat §2) — hai thứ trông giống nhau trên dashboard, xử lý ngược nhau.
-- **Fleet view**: node nào ở train nào — bảng này là thứ khiến §2 của Release & Compat có tác dụng.
+**What never goes into a backup**: key material, at every tier.
 
-## 8. Sunset một cài đặt — ô `sunset` của P1
+**Retention may not exceed the support window** defined by
+[Release & Compatibility](../spec/release-compat.md), unless this charter
+declares an explicit restore path — lifting an old backup through the sequence of
+migrations — and that path has been rehearsed. Keeping five years of backups
+while supporting two majors is keeping a promise that cannot be performed. A
+retention setting that exceeds the support window with no declared restore path
+**warns at startup** rather than passing silently.
 
-Khác **vòng đời tenant** (Tenant §2b): đây là tắt **cả một cài đặt**.
+**A restore rehearsal is mandatory and is a log entry.** An installation that has
+never performed a test restore holds a **hypothesis**, not insurance. The
+procedure names a minimum interval and records each rehearsal's outcome in the
+log.
 
-Thứ tự **bắt buộc, không đảo**: (1) thông báo + đóng trigger mới → (2) để task đang chạy hoàn tất hoặc escalate → (3) **export trước** (dữ liệu ra định dạng đọc được, đủ đầy) → (4) xác nhận export đọc được trên máy khác → (5) **shred sau** (khóa, theo Vault §4) → (6) hủy hạ tầng.
+## Upgrade and rollback
 
-**Án văn**: đảo (3) và (5) là mất dữ liệu vĩnh viễn với một lệnh; bước (4) tồn tại vì export chưa được đọc thử là export chưa tồn tại — cùng lý lẽ với diễn tập restore ở §5.
+The four phases — install alongside, migrate, cut over, retain — belong to
+[Release & Compatibility](../spec/release-compat.md). This charter adds the part
+a person performs.
 
-## 9. Non-goals
+**A preflight is mandatory before anything is touched**: confirm the train
+version matches across every artifact; confirm **every major migration in this
+step declares either a down-migration or an irreversible flag**; where the flag is
+present, **demand a gate and a copy** before continuing; and confirm the most
+recent backup has been rehearsed.
 
-- **Không** IaC của nhà vận hành Cloud (thuộc `cloud/`).
-- **Không** contract của storage port (ADR-0002 + Working Data).
-- **Không** build/branch/CI (playbook giao hàng (không công bố)).
-- **Không** quản trị tenant (Tenant §2b) — charter này quản **cài đặt**.
-- **Không** telemetry mặc định, dưới mọi tên gọi.
+**Two different ways back, called by their correct names**:
 
-## 10. Nhật ký quyết định
+| Inside the rollback window                                                         | Outside it                                                                                                                                             |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Rollback**: run the inverse migration; the previous artifacts are still in place | **Not a rollback** — this is **restore and replay**: rebuild from a backup, accept the data lost since that backup. Different risk, different duration |
 
-| Chủ đề | Chốt | Án văn | |---|---|---| | Ranh giới | **Ba** phân vùng: `deploy/` ship · `cloud/` vận hành · `shared/tools/` phát triển | Hai phân vùng để lọt tooling; sai một hướng là trao hạ tầng cho đối thủ, sai hướng kia là fair-code trên giấy | | Hình thái | Lời khai quy mô, không phải công tắc; grow-path = replay có chủ đích | Công tắc lúc chạy biến một quyết định kiến trúc thành một tai nạn cấu hình | | Bộ artifact | Cùng một train; installer **từ chối** bộ lệch | Skew nội-máy không kênh handshake nào của hệ nhìn thấy | | Root key DR | Thủ tục nêu **chỗ cất cụ thể theo hình thái**, không nói chung chung | "Hãy cất khóa an toàn" là lời dặn; một chỗ cất được nêu tên là thủ tục | | Gate backup×khóa | Lệnh `check-backup-key-isolation` chạy ở CI + pre-commit | Litmus #4 của Vault chỉ có giá trị khi có thứ chạy nó | | Retention | ≤ support window, hoặc khai restore path + diễn tập; vượt mà thiếu ⇒ cảnh báo lúc khởi động | Backup không đọc lại được là lời hứa suông (P3b) | | Diễn tập | Restore drill bắt buộc, là entry | Backup chưa thử là giả thuyết | | Hai đường lùi | Gọi đúng tên; **cấm** gọi restore là "rollback" | Người vận hành bấm theo kỳ vọng gắn với cái tên | | Readiness | Chỉ xanh khi vault + storage + protocol registry sẵn sàng | Xanh sớm là nói dối phía trên | | Sunset | Export → **xác nhận đọc được** → shred; không đảo | Đảo là mất vĩnh viễn bằng một lệnh; export chưa đọc thử là chưa tồn tại |
+The procedure **forbids** using the word "rollback" for the right-hand column. An
+operator presses a button according to the expectation attached to its name, so
+calling two different operations by one name is designing an incident in advance.
 
-## 11. Litmus của charter
+## Operating
 
-1. Lấy `deploy/` đưa cho một người lạ tự cài: họ dựng được hệ **mà không cần một dòng nào từ `cloud/`** không?
-2. Ngược lại: có file nào trong `deploy/` mà **chỉ chúng ta** dùng — tức IaC vận hành đang trốn ở đây?
-3. Thêm một dòng vào backup script phủ lên đường root key: **CI đỏ** — hay chỉ có một câu ghi chú trong tài liệu?
-4. Máy trắng + root key từ đường DR: chạy hết thủ tục §4.2 rồi **đọc được** một bản ghi chưa shred? Và nếu **không** có root key thì hệ **nói thẳng không khôi phục được**, không khởi động nửa vời?
-5. Cấu hình retention 5 năm với support window 2 major, không khai restore path: hệ **cảnh báo lúc khởi động** hay im lặng?
-6. Đọc thủ tục rollback: nó có bao giờ gọi _restore-từ-backup_ là "rollback" không? (bắt buộc: không)
-7. Một node mất heartbeat và một node từ chối claim vì lệch skew: người trực **phân biệt được bằng fleet view** hay phải đoán?
-8. Chạy thủ tục sunset: có đường nào tới bước shred **mà chưa qua bước xác nhận export đọc được trên máy khác** không?
-9. Cài một bộ artifact trong đó lớp UI attended lệch train với node runtime: installer **từ chối**, hay nó cài rồi hỏng sau?
+- **Health and readiness**: readiness turns green only once the vault opens, the
+  storage port answers, and the protocol registry has loaded. Turning green early
+  is lying to whatever is upstream.
+- **Logs and metrics** go to the installer's own output or local endpoint. **No
+  phone-home by default** — a constraint inherited from the ceiling, not a
+  configuration option. Where an installer forwards them is their business.
+- **Leases and heartbeats**: the procedure covers a node that loses its
+  heartbeat, and — separately — how to tell that apart from a node **refusing to
+  claim because it is outside the version skew window**. The two look alike on a
+  dashboard and call for opposite responses.
+- **Fleet view**: which node runs which train. This table is what makes the skew
+  rule operable rather than theoretical.
+
+## Shutting an installation down
+
+This is distinct from a tenant's lifecycle: here the whole installation is being
+switched off.
+
+The order is **mandatory and may not be permuted**: (1) announce, and close new
+triggers; (2) let running tasks finish or escalate; (3) **export first**, into a
+readable and complete format; (4) confirm the export is readable **on a different
+machine**; (5) **shred afterwards**; (6) destroy the infrastructure.
+
+Swapping steps 3 and 5 loses the data permanently with one command. Step 4 exists
+because an export nobody has read is an export that does not yet exist — the same
+argument as the restore rehearsal above.
+
+## Non-goals
+
+- **Not** the hosted operator's infrastructure, which is not published.
+- **Not** the storage port contract.
+- **Not** build, branching or continuous integration.
+- **Not** tenant administration — this charter governs an **installation**.
+- **No** telemetry by default, under any name.
+
+## Litmus
+
+1. Hand the deployment partition to a stranger: can they stand the system up
+   **without a single line from the operator control plane**?
+2. The converse: is there a file in the deployment partition that only **we** use
+   — operating infrastructure hiding in the shipped set?
+3. Add a line to a backup script that covers the root key path: does continuous
+   integration **turn red**, or is there only a note in a document?
+4. A blank machine plus the root key from its recovery path: does the full
+   procedure end with a **readable** unshredded record? And with **no** root key,
+   does the system state plainly that it cannot recover, rather than starting half
+   way?
+5. Configure five years of retention against a two-major support window with no
+   declared restore path: does the system **warn at startup**, or stay silent?
+6. Read the rollback procedure: does it ever call restore-from-backup a
+   "rollback"? (Required answer: no.)
+7. A node that lost its heartbeat and a node refusing to claim because of version
+   skew: can the person on duty **tell them apart from the fleet view**, or must
+   they guess?
+8. Run the shutdown procedure: is there any path to the shred step that has not
+   passed through confirming the export is readable on another machine?
+9. Install a set whose attended UI layer is on a different train from the node
+   runtime: does the installer **refuse**, or install and break later?
