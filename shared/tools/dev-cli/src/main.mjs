@@ -17,6 +17,7 @@ import { checkPrimitiveArtifacts } from "./check-primitive-artifacts.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkSubprojectReadmes } from "./check-subproject-readmes.mjs";
 import { checkSubsystemReadmes } from "./check-subsystem-readmes.mjs";
+import { doctrineSync } from "./doctrine-sync.mjs";
 import { ensureCommitIdentity } from "./ensure-commit-identity.mjs";
 import { listScopes } from "./list-scopes.mjs";
 import { prFacts } from "./pr-facts.mjs";
@@ -38,6 +39,7 @@ const COMMANDS = {
   "check-project-conventions": () => checkProjectConventions(),
   "check-subproject-readmes": () => checkSubprojectReadmes(),
   "check-subsystem-readmes": () => checkSubsystemReadmes(),
+  "doctrine-sync": (args) => doctrineSync(args),
   "ensure-commit-identity": (args) => ensureCommitIdentity(args),
   "list-scopes": (args) => listScopes(args),
   "pr-facts": (args) => prFacts(args),
