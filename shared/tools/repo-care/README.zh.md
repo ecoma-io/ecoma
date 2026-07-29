@@ -39,9 +39,9 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 `workflow_dispatch`,用于回溯分诊旧 issue);
 `.github/workflows/pr-doctrine-review.yml` 在非草稿 PR 的
 `opened`/`reopened`/`synchronize`/`ready_for_review` 时运行
-`main.mjs review-pr`;`.github/workflows/thread-translate.yml` 在 issue 与 PR
-`opened`/`edited` 时运行 `main.mjs translate-issue` 或
-`main.mjs translate-pr`。没有任何 workflow 接入 required/branch-protection
+`main.mjs review-pr`;`.github/workflows/translate-issue.yml` 在 issue `opened`/`edited` 时运行
+`main.mjs translate-issue`；`.github/workflows/translate-pr.yml` 在 PR
+`opened`/`edited` 时运行 `main.mjs translate-pr`。没有任何 workflow 接入 required/branch-protection
 检查——见 `readme:boundary`。
 
 <!-- readme:ecosystem -->

@@ -45,8 +45,9 @@ Ba workflow GitHub Actions gọi trực tiếp tool này, cả ba đều dùng
 `opened`/`reopened` (thêm `workflow_dispatch` thủ công để triage lại issue
 cũ); `.github/workflows/pr-doctrine-review.yml` chạy `main.mjs review-pr`
 trên PR non-draft `opened`/`reopened`/`synchronize`/`ready_for_review`;
-`.github/workflows/thread-translate.yml` chạy `main.mjs translate-issue` hoặc
-`main.mjs translate-pr` khi issue và PR `opened`/`edited`. Không
+`.github/workflows/translate-issue.yml` chạy `main.mjs translate-issue` khi
+issue `opened`/`edited`; `.github/workflows/translate-pr.yml` chạy `main.mjs
+translate-pr` khi PR `opened`/`edited`. Không
 workflow nào được nối vào required/branch-protection checks — xem
 `readme:boundary`.
 
