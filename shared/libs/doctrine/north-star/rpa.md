@@ -25,13 +25,13 @@ lang: vi
 
 ## 4. Kiến trúc domain & bộ spec con
 
-| Lớp                  | Nội dung                                                  | Spec                                 |
-| -------------------- | --------------------------------------------------------- | ------------------------------------ |
-| Action               | Vocabulary chuẩn hóa, reversibility, evidence, action log | ecoma-rpa-spec-action.md             |
-| Session              | Vòng đời durable, takeover, record, replay, interruption  | ecoma-rpa-spec-session.md            |
-| Driver & Perception  | Contract driver, scene hợp nhất, **semantic locator**     | ecoma-rpa-spec-driver-perception.md  |
-| Self-healing         | Script ↔ agent hai chiều, patch lineage, UI drift smell   | ecoma-rpa-spec-selfhealing.md        |
-| Sandbox & Credential | Cách ly phiên, vault, masking, permission scope           | ecoma-rpa-spec-sandbox-credential.md |
+| Lớp                  | Nội dung                                                  | Spec                                                        |
+| -------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
+| Action               | Vocabulary chuẩn hóa, reversibility, evidence, action log | [rpa-action](../spec/rpa-action.md)                         |
+| Session              | Vòng đời durable, takeover, record, replay, interruption  | [rpa-session](../spec/rpa-session.md)                       |
+| Driver & Perception  | Contract driver, scene hợp nhất, **semantic locator**     | [rpa-driver-perception](../spec/rpa-driver-perception.md)   |
+| Self-healing         | Script ↔ agent hai chiều, patch lineage, UI drift smell   | [rpa-self-healing](../spec/rpa-self-healing.md)             |
+| Sandbox & Credential | Cách ly phiên, vault, masking, permission scope           | [rpa-sandbox-credential](../spec/rpa-sandbox-credential.md) |
 
 **Topology triển khai — Node:**
 

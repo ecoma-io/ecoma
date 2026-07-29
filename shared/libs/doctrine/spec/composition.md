@@ -8,7 +8,7 @@ lang: vi
 
 ## 1. Process Definition là một Artifact
 
-- Definition = bản khai báo đồ thị: các Role tham chiếu, Task template, Handoff (contract@version), Gate, Escalation chain, spawn_policy, effects, **và Trigger** (cửa khởi động — ecoma-spec-trigger-channel.md).
+- Definition = bản khai báo đồ thị: các Role tham chiếu, Task template, Handoff (contract@version), Gate, Escalation chain, spawn_policy, effects, **và Trigger** (cửa khởi động — [trigger-channel](trigger-channel.md)).
 - Nó là **Artifact tuân theo Contract chuẩn `process-definition`** — nghĩa là tự động có: content-addressed hash, immutability, provenance, version + pinning, và có thể đi qua Gate. Không cần cơ chế mới.
 - Capability `process_author` kiểm soát ai tạo/sửa version.
 
@@ -26,7 +26,7 @@ tenant defaults → template (vertical) → process → role → task
 ```
 
 - Mức dưới override mức trên; không khai = thừa kế. **Độ phức tạp là quyền lựa chọn** nghĩa là: user đơn giản chỉ chạm mức template; power user override đến từng task. Flow deterministic 20 bước khai đúng phần khác biệt.
-- **Mức template = tập Block tenant đã cài** (Ecoma Hub), resolve theo thứ tự ưu tiên tenant khai; Template theo vertical chỉ là một Block được curate (ecoma-spec-block.md).
+- **Mức template = tập Block tenant đã cài** (Ecoma Hub), resolve theo thứ tự ưu tiên tenant khai; Template theo vertical chỉ là một Block được curate ([block](block.md)).
 - Giá trị resolve được **snapshot vào instance lúc khởi chạy** (đổi tenant default không đổi instance đang chạy).
 
 ## 4. Static analysis — "compiler" của labor OS
