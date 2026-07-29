@@ -45,13 +45,16 @@ precedent is exact — `/design` is served by `shared/apps/design-system` over
 
 - **No authoring.** Content belongs to the library; a page written only here
   would be doctrine under no gate.
-- **No derived sidebar order.** Alphabetical is not a reading order.
+- **No derived section order.** The order the sections are read in is
+  declared and checked against the tree both ways; alphabetical would put
+  `charter` ahead of `north-star`. Order _within_ a section is derived, because
+  a hand-kept list of twenty-odd specifications drifts and nothing checks it.
 - **No runtime.** Static output, served by whatever the deployment provides.
 
 <!-- readme:status -->
 
 ## Status
 
-Scaffolded: the shell builds and its e2e passes against two placeholder pages.
-The ceiling documents arrive with their own change. Directory-scoped mechanics
-live in [`./CLAUDE.md`](./CLAUDE.md).
+Live: every page comes from `shared/libs/doctrine`, and this app holds no
+document of its own. Directory-scoped mechanics live in
+[`./CLAUDE.md`](./CLAUDE.md).

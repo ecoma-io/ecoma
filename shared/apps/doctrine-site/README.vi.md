@@ -46,13 +46,16 @@ khớp chính xác — `/design` do `shared/apps/design-system` phục vụ, đ�
 
 - **Không soạn nội dung.** Nội dung thuộc về thư viện; một trang chỉ viết ở đây
   sẽ là doctrine không nằm dưới gate nào.
-- **Không tự suy thứ tự mục.** Sắp theo bảng chữ cái không phải một thứ tự đọc.
+- **Không tự suy thứ tự mục.** Thứ tự đọc các mục được khai báo và đối chiếu
+  hai chiều với cây; sắp theo bảng chữ cái sẽ đặt `charter` trước `north-star`.
+  Thứ tự _bên trong_ một mục thì được dẫn xuất, vì một danh sách hai mươi mấy
+  spec giữ bằng tay sẽ trôi mà không ai kiểm.
 - **Không runtime.** Đầu ra tĩnh, do tầng triển khai phục vụ.
 
 <!-- readme:status -->
 
 ## Trạng thái
 
-Đã dựng khung: vỏ build được và e2e xanh trên hai trang tạm. Các tài liệu trần
-đến ở một thay đổi riêng. Cơ chế ở phạm vi thư mục nằm trong
+Đang chạy thật: mọi trang đều đến từ `shared/libs/doctrine`, và app này không
+giữ tài liệu nào của riêng nó. Cơ chế ở phạm vi thư mục nằm trong
 [`./CLAUDE.md`](./CLAUDE.md).

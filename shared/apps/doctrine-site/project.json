@@ -20,6 +20,10 @@
         "command": "node ../../../node_modules/vitepress/bin/vitepress.js dev . --port 6009"
       }
     },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "{projectRoot}", "command": "vue-tsc --noEmit" }
+    },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
