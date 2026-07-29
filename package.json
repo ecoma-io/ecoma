@@ -14,6 +14,7 @@
     "rpa",
     "nx-monorepo"
   ],
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "https://github.com/ecoma-io/ecoma.git"

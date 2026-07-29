@@ -59,11 +59,22 @@ to a tenant is meant to be readable, self-hosted and modified. What fair-code
 withholds is the one freedom an OSI licence cannot withhold: selling Ecoma
 itself as a service. That restriction is why the rest can be open.
 
-**No licence is granted yet.** The Sustainable Use License is being prepared
-and has not been reviewed, so until it lands the legal position is © Ecoma,
-all rights reserved. Granting a licence is not reversible for code already
-released under it, which is why this sentence is a status rather than a
-placeholder.
+Which terms apply is decided by where a file lives, and [`LICENSE`](./LICENSE)
+is the source of truth for that mapping:
 
-The documents under `shared/libs/doctrine/` are licensed today, separately:
-[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).
+| Path                          | Terms                                          |
+| ----------------------------- | ---------------------------------------------- |
+| everything not named below    | Sustainable Use License                        |
+| `<subsystem>/packages/`       | Apache License 2.0 — what you build against    |
+| `<subsystem>/enterprise/`     | Enterprise License, sold separately            |
+| `shared/libs/doctrine/` prose | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE) |
+| `cloud/`                      | proprietary, and not published                 |
+
+Self-hosting Ecoma to run your own organisation is expressly permitted,
+commercial or not. Offering it to others as a hosted service is not.
+
+The boundary is machine-checked rather than remembered: every project declares
+a `license:*` tag that must agree with its own directory.
+
+Contributing needs a one-time sign-off on [`CLA.md`](./CLA.md). Use of the name
+Ecoma is governed by [`TRADEMARK.md`](./TRADEMARK.md), separately from the code.
