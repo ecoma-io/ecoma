@@ -34,8 +34,9 @@ describe("findForbidden", () => {
     expect(hits[0].id).toBe("blind-spot");
   });
 
-  it("reports a bet identifier, which belongs to the ledger that is not published", () => {
-    expect(findForbidden("trỏ cược B12")[0].id).toBe("bet");
+  it("reports a bet identifier while leaving the rubric's own group-B criteria alone, which a bare B-number could not distinguish", () => {
+    expect(findForbidden("B1 mọi câu chứa người/AI")).toEqual([]);
+    expect(findForbidden("trỏ cược BET-12")[0].id).toBe("bet");
   });
 
   it("reports each marker at its own line, so a long document names the lines to fix", () => {
