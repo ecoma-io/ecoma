@@ -8,6 +8,7 @@
 import { checkClaudeMd } from "./check-claude-md.mjs";
 import { checkCommitScope } from "./check-commit-scope.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
+import { checkDoctrine } from "./check-doctrine.mjs";
 import { checkDoctrineIndex } from "./check-doctrine-index.mjs";
 import { checkE2eStoryCoverage } from "./check-e2e-story-coverage.mjs";
 import { checkGofmt } from "./check-gofmt.mjs";
@@ -29,6 +30,7 @@ const COMMANDS = {
   "check-claude-md": () => checkClaudeMd(),
   "check-commit-scope": (args) => checkCommitScope(args),
   "check-doc-links": () => checkDocLinks(),
+  "check-doctrine": () => checkDoctrine(),
   "check-doctrine-index": () => checkDoctrineIndex(),
   "check-e2e-story-coverage": (args) => checkE2eStoryCoverage(args),
   "check-gofmt": () => checkGofmt(),
