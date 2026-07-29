@@ -2,7 +2,7 @@
 name: repo-care
 subsystem: shared
 lang: zh
-description: 仓库表层自动化——借助免费 LLM，做 issue 分诊、PR 教义的建议性审查，以及讨论串翻译。
+description: 仓库表层自动化——借助免费 LLM，做 issue 分诊、PR practice 的建议性审查，以及讨论串翻译。
 ---
 
 > 🌐 [English](./README.md) · [Tiếng Việt](./README.vi.md) · **中文**
@@ -13,7 +13,7 @@ description: 仓库表层自动化——借助免费 LLM，做 issue 分诊、PR
 
 GitHub 上有三件事需要自然语言判断，而不是确定性（deterministic）检查能做到的：
 给新 issue 分类 type/area，审查一个 PR 的 diff 中那些任何 lint 规则都看不见的
-"判断层"教义违规——被削弱到能通过的测试、假装完成的桩代码、悄悄夹带的重构，
+"判断层" practice 违规——被削弱到能通过的测试、假装完成的桩代码、悄悄夹带的重构，
 以及把一条用某种项目语言写成的讨论串映射到另外两种语言，好让没有人被挡在讨论之外。
 `repo-care` 把这三件事都交给 LLM,但只用 opencode zen 的无密钥免费层
 (`https://opencode.ai/zen/v1`)——不需要 API key,不需要配置任何 secret。免费模型
@@ -37,7 +37,7 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 (无需另配 secret):`.github/workflows/issue-triage.yml` 在 issue
 `opened`/`reopened` 时运行 `main.mjs triage-issue`(另有手动
 `workflow_dispatch`,用于回溯分诊旧 issue);
-`.github/workflows/pr-doctrine-review.yml` 在非草稿 PR 的
+`.github/workflows/pr-practice-review.yml` 在非草稿 PR 的
 `opened`/`reopened`/`synchronize`/`ready_for_review` 时运行
 `main.mjs review-pr`;`.github/workflows/translate-issue.yml` 在 issue `opened`/`edited` 时运行
 `main.mjs translate-issue`；`.github/workflows/translate-pr.yml` 在 PR
@@ -51,8 +51,8 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 它们自动化仓库表层(issue、PR)的事务。它自己不编写任何词表——issue 分诊用的
 `AREAS` 枚举,是在 import 时从每个 subsystem-root 的 `README.md` frontmatter 中派生
 出来的(该约定由 `dev-cli check-subsystem-readmes` 在 CI 中守护);PR 审查用的
-`CHECKS` 评审标准,则派生自 `doctrine-index.json` 的 `diffCards`/`pathCards`
-(由 `dev-cli check-doctrine-index` 守护);翻译的目标语言则来自仓库根目录的
+`CHECKS` 评审标准,则派生自 `practice-index.json` 的 `diffCards`/`pathCards`
+(由 `dev-cli check-practice-index` 守护);翻译的目标语言则来自仓库根目录的
 `languages.config.json`——正是 `dev-cli` 为多语 README 约定所读取的同一个文件,
 因此两边不可能说出两套不同的语言。三者都在运行时读取同一处真相来源,
 从不在本项目里重写或复制。
