@@ -30,6 +30,14 @@ consumes it.
   page they do not know exists. Only that direction is gated here — a row
   pointing at a file that does not exist is already `check-doc-links`' answer,
   and whether the row still _describes_ the document stays on review.
+- **A document the policy withholds is named, never omitted.** Its inventory row
+  carries no link and the marker `(không công bố)` instead — a positive
+  statement that the document exists and is not published here. Absence would
+  say the same thing as an oversight, and a reader has no way to tell those
+  apart, which is why the marker is gated rather than left to habit. The gate
+  finds that table by the one property no other table in the map has — links
+  into this tree in its first column — so renaming a heading never turns the
+  check off.
 - **A translation is the same document, not a second one.** `groupVariants`
   collapses `<name>.<lang>.md` onto `<name>.md` so one specification never
   appears once per language in the navigation; the translation is still returned
