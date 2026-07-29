@@ -63,7 +63,7 @@ jobs:
         run: node shared/tools/dev-cli/src/main.mjs check-doc-links
       - name: Per-subproject CLAUDE.md present
         run: node shared/tools/dev-cli/src/main.mjs check-claude-md
-      - name: Published doctrine carries no episode coordinates
+      - name: Published doctrine stays checkable by a stranger
         run: node shared/tools/dev-cli/src/main.mjs check-doctrine
       - name: Doctrine index cites live rules
         run: node shared/tools/dev-cli/src/main.mjs check-practice-index
