@@ -21,7 +21,7 @@ config is the source of truth; do not restate the constraints elsewhere.
 - `dev-cli` — local developer commands; the `COMMANDS` registry in
   `src/main.mjs` is the source of truth (doc/convention gates like
   `check-journey-markers`, `check-claude-md`, `check-doc-links`,
-  `check-doctrine-index`, `check-subsystem-readmes`, `check-subproject-readmes`,
+  `check-practice-index`, `check-subsystem-readmes`, `check-subproject-readmes`,
   `check-primitive-artifacts`, `check-project-conventions`, `check-commit-scope`,
   plus workflow helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
   `doctrine-sync`); mechanics
@@ -29,7 +29,7 @@ config is the source of truth; do not restate the constraints elsewhere.
   no one tool's guide owns them alone: `journey-markers.config.json` (the
   Rule 13 patterns, read by `check-journey-markers` and by the
   `local/no-journey-markers` / `local/no-journey-marker-names` ESLint rules),
-  `doctrine-index.json` (doctrine cards naming the CLAUDE.md tier that
+  `practice-index.json` (practice cards naming the CLAUDE.md tier that
   owns each rule), and `languages.config.json` (the ordered human-language
   triad with its endonyms, read by `dev-cli`'s `readme-schema` for the README
   variant filenames and nav line, and by `repo-care`'s `translate-thread` for
@@ -37,8 +37,8 @@ config is the source of truth; do not restate the constraints elsewhere.
   than inside one consumer because a cross-project source import would be an
   edge the Nx project graph cannot see. Never inline a copy of any of them.
 - `repo-care` — repository-surface automation run from GitHub Actions (issue
-  triage, advisory PR doctrine review, and issue/PR thread translation via
-  keyless free LLMs); its review rubric derives from `doctrine-index.json`'s
+  triage, advisory PR practice review, and issue/PR thread translation via
+  keyless free LLMs); its review rubric derives from `practice-index.json`'s
   `diffCards`, its triage area vocabulary derives from subsystem-root README
   frontmatter (gated by `dev-cli check-subsystem-readmes`), and its translation
   languages derive from `languages.config.json`, so none is a second copy of

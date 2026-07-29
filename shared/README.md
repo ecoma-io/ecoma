@@ -45,15 +45,15 @@ other shells and libs at build time:
 ship inside any app; they exist so that rules which would otherwise erode into
 prose stay machine-enforced instead: [`dev-cli`](./tools/dev-cli/) (local dev
 commands, some of them CI gates), [`eslint-local-rules`](./tools/eslint-local-rules/)
-(local ESLint rules machine-enforcing the parts of doctrine no off-the-shelf
+(local ESLint rules machine-enforcing the parts of the practice no off-the-shelf
 rule covers), [`repo-care`](./tools/repo-care/) (repository-surface
-automation — issue triage, advisory PR doctrine review — run from GitHub
+automation — issue triage, advisory PR practice review — run from GitHub
 Actions).
 
 ## Reading order
 
-Start from the repo root [`CLAUDE.md`](../CLAUDE.md) to get the doctrine
-(Rules 1–13) everything below must follow. Each entry above points to its
+Start from the repo root [`CLAUDE.md`](../CLAUDE.md) to get the practice
+(Rules 1–14) everything below must follow. Each entry above points to its
 subproject's README for the "why", and to its `CLAUDE.md` for the mechanics —
 the two kinds of document are kept separate on purpose, neither repeats the
 other's content.

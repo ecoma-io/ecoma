@@ -18,7 +18,7 @@ content into a running site and a deployable artifact.
 
 ## Why it exists
 
-The workspace's libraries are buildless by doctrine, but a Storybook is a
+The workspace's libraries are buildless by practice, but a Storybook is a
 build: it emits `storybook-static`, an artifact with a lifecycle of its own —
 `design-system-e2e` scans it as a blocking gate, and the planned ecoma.io
 website will publish it as its design-system section. Hosting the Storybook

@@ -2,7 +2,7 @@
  * Alloy — self-hosted type: Geist + Geist Mono (variable, wght 100–900).
  * Files vendored from the `geist` npm package (Vercel), licensed SIL OFL 1.1
  * (see ./fonts/OFL.txt — the license travels with the fonts). Self-hosting is
- * the offline-safe doctrine made real: `tokens.css` names Geist first in
+ * the offline-safe rule made real: `tokens.css` names Geist first in
  * --font-sans/--font-mono, and this file is what makes that name resolve in
  * every host (web, desktop, Storybook) with no network fetch.
  *

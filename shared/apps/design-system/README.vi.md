@@ -18,7 +18,7 @@ toàn bộ nội dung nằm trong `core-ui`; app này sở hữu phần host bi�
 
 ## Tại sao nó tồn tại
 
-Các library của workspace là buildless theo doctrine, nhưng một Storybook là
+Các library của workspace là buildless theo practice, nhưng một Storybook là
 một quá trình build: nó phát ra `storybook-static`, một artifact có vòng đời
 riêng — `design-system-e2e` quét nó như một cổng chặn, và website ecoma.io
 theo kế hoạch sẽ publish nó như mục design system của site. Đặt Storybook
