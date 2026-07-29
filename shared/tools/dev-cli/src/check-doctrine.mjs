@@ -157,6 +157,74 @@ export function findUnmappedDocuments(files) {
     }));
 }
 
+/**
+ * How the corpus map says a document exists but is not published here.
+ *
+ * Hardcoded rather than derived or configured, and this is the Rule 14 case
+ * that permits it: the phrase is the corpus map's own vocabulary, it appears in
+ * exactly one place in code, and a config file read by a single consumer would
+ * be infrastructure out of all proportion to one string. It reaches the author
+ * through the failure message, which prints it — so the document and the gate
+ * cannot disagree about the spelling without the gate saying so.
+ */
+export const WITHHELD_MARKER = "(không công bố)";
+
+/** Blocks of consecutive table lines, each row carrying its 1-based line. */
+function tablesIn(text) {
+  const tables = [];
+  let current = null;
+  text.split("\n").forEach((line, i) => {
+    if (!line.trimStart().startsWith("|")) return void (current = null);
+    if (!current) tables.push((current = []));
+    current.push({ line: i + 1, text: line });
+  });
+  return tables;
+}
+
+const firstCell = (row) => (row.split("|")[1] ?? "").trim();
+const SEPARATOR = /^[\s|:-]+$/;
+
+/**
+ * Inventory rows that neither route to a document nor declare it withheld.
+ * Pure; `files` is a list of `{ path, text }`.
+ *
+ * An unlinked name reads as a document the reader failed to find, when what it
+ * usually is, is a document they were never meant to have. Absence cannot say
+ * which; only a positive mark can, and this is the gate that keeps the mark
+ * from being forgotten on the next row someone adds.
+ *
+ * The inventory table is **found, not named**: it is the one whose first column
+ * links into the tree at all. Naming it by its heading would hardcode a phrase
+ * in a document free to rephrase it, and the map's other tables — known gaps,
+ * the licence ledger, the publishing policy — carry no such link in that
+ * column, so the derivation selects exactly one table without being told which.
+ */
+export function findUnmarkedEntries(files) {
+  const map = files.find((f) => f.path === CORPUS_MAP);
+  if (!map) return []; // an absent map is findUnmappedDocuments' finding, not a second one
+
+  const root = resolve(DOCTRINE_ROOT);
+  const routes = (cell) =>
+    linkTargets(cell, CORPUS_MAP).some((link) => link.resolved.startsWith(`${root}/`));
+
+  const problems = [];
+  for (const rows of tablesIn(map.text)) {
+    if (!rows.some((row) => routes(firstCell(row.text)))) continue;
+    rows.forEach((row, i) => {
+      const cell = firstCell(row.text);
+      if (i === 0 || SEPARATOR.test(row.text) || !cell) return;
+      if (routes(cell) || cell.includes(WITHHELD_MARKER)) return;
+      problems.push({
+        line: row.line,
+        why:
+          `'${cell}' neither links to a document nor carries '${WITHHELD_MARKER}' — ` +
+          `a reader cannot tell a withheld document from a missing one`,
+      });
+    });
+  }
+  return problems;
+}
+
 /** Scans the published tree. Returns a process exit code. */
 export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
   const paths = list([DOCTRINE_DOCS]);
@@ -175,6 +243,10 @@ export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
   }
   for (const problem of findUnmappedDocuments(files)) {
     console.error(`${problem.path}: ${problem.why}`);
+    failed = true;
+  }
+  for (const problem of findUnmarkedEntries(files)) {
+    console.error(`${CORPUS_MAP}:${problem.line}: ${problem.why}`);
     failed = true;
   }
   for (const family of findOrphanFamilies(files)) {
