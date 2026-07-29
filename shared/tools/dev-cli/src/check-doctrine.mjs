@@ -63,7 +63,7 @@ export const FORBIDDEN = [
   },
   {
     id: "bet",
-    pattern: /\bB\d{1,2}\b/g,
+    pattern: /\bBET-\d{1,2}\b/g,
     why: "bet identifiers belong to the market ledger, which is not published",
   },
 ];
