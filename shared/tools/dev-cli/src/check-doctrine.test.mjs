@@ -6,6 +6,9 @@ import {
   findForbidden,
   findOrphanFamilies,
   findStaleVariants,
+  findUnmappedDocuments,
+  CORPUS_MAP,
+  DOCTRINE_ROOT,
   fingerprint,
 } from "./check-doctrine.mjs";
 
@@ -86,6 +89,22 @@ describe("findOrphanFamilies", () => {
 });
 
 describe("checkDoctrine", () => {
+  // A fixture tree carrying a corpus map that routes every canonical document
+  // in it. Without this, every test about one rule would silently also be a
+  // test about the routing rule, and would fail for a reason it never meant to
+  // assert.
+  const withMap = (texts) => ({
+    [CORPUS_MAP]: Object.keys(texts)
+      .map((path) => `[doc](${path.replace(`${DOCTRINE_ROOT}/`, "../")})`)
+      .join("\n"),
+    ...texts,
+  });
+  const runOver = (texts) =>
+    checkDoctrine(
+      (path) => texts[path],
+      () => Object.keys(texts),
+    );
+
   it("passes an empty tree, so the gate can land before the documents it will guard", () => {
     expect(
       checkDoctrine(
@@ -101,8 +120,13 @@ describe("checkDoctrine", () => {
   });
 
   it("passes a tree whose prose carries no coordinates and cites nothing orphaned", () => {
-    const list = () => ["shared/libs/doctrine/spec/role.md"];
-    expect(checkDoctrine(() => "Role là một vai lao động; Filler lấp vào nó.", list)).toBe(0);
+    expect(
+      runOver(
+        withMap({
+          "shared/libs/doctrine/spec/role.md": "Role là một vai lao động; Filler lấp vào nó.",
+        }),
+      ),
+    ).toBe(0);
   });
 
   // The three rules are pinned directly above; these pin that the runner
@@ -125,16 +149,22 @@ describe("checkDoctrine", () => {
 
   it("passes the same pair once the variant records the canonical it was written from", () => {
     const canonical = "# Role\n\nnội dung";
-    const texts = {
-      "shared/libs/doctrine/spec/role.md": canonical,
-      "shared/libs/doctrine/spec/role.vi.md": `---\ncanonical-sha: ${fingerprint(canonical)}\n---\n# Vai`,
-    };
     expect(
-      checkDoctrine(
-        (path) => texts[path],
-        () => Object.keys(texts),
+      runOver(
+        withMap({
+          "shared/libs/doctrine/spec/role.md": canonical,
+          "shared/libs/doctrine/spec/role.vi.md": `---\ncanonical-sha: ${fingerprint(canonical)}\n---\n# Vai`,
+        }),
       ),
     ).toBe(0);
+  });
+
+  it("fails on a published document the corpus map does not route to, so the routing rule is reached too", () => {
+    const texts = {
+      [CORPUS_MAP]: "# Index",
+      "shared/libs/doctrine/spec/role.md": "Role là một vai lao động.",
+    };
+    expect(runOver(texts)).toBe(1);
   });
 
   it("fails on a citation whose owning document stayed behind, so the family rule is reached too", () => {
@@ -200,5 +230,41 @@ describe("splitLangs", () => {
 
   it("leaves no variants for a single-language workspace rather than inventing one", () => {
     expect(splitLangs(["aa"]).variants).toEqual([]);
+  });
+});
+
+describe("findUnmappedDocuments", () => {
+  const map = (body) => file(CORPUS_MAP, body);
+  const spec = "shared/libs/doctrine/spec/role.md";
+
+  it("reports a document the corpus map does not route to, because a page nobody links is a page nobody arrives at", () => {
+    expect(findUnmappedDocuments([map("# Index"), file(spec, "# Role")])[0]).toMatchObject({
+      path: spec,
+    });
+  });
+
+  it("accepts a document the map links, resolving the link against the map's own directory", () => {
+    expect(findUnmappedDocuments([map("[Role](../spec/role.md)"), file(spec, "# Role")])).toEqual(
+      [],
+    );
+  });
+
+  it("does not demand that the map route to itself", () => {
+    expect(findUnmappedDocuments([map("# Index")])).toEqual([]);
+  });
+
+  it("lets a canonical's row route its translation too, since a variant is the same document", () => {
+    const files = [
+      map("[Role](../spec/role.md)"),
+      file(spec, "# Role"),
+      file("shared/libs/doctrine/spec/role.vi.md", "# Role"),
+    ];
+    expect(findUnmappedDocuments(files)).toEqual([]);
+  });
+
+  it("reports the absent map once rather than reporting every document as unrouted", () => {
+    const problems = findUnmappedDocuments([file(spec, "# Role")]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0].path).toBe(CORPUS_MAP);
   });
 });

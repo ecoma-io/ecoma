@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { checkDocLinks, findBrokenLinks } from "./check-doc-links.mjs";
+import { checkDocLinks, findBrokenLinks, linkTargets } from "./check-doc-links.mjs";
 
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
@@ -57,5 +57,19 @@ describe("checkDocLinks", () => {
   it("skips unreadable listed files instead of crashing", () => {
     vi.mocked(execFileSync).mockReturnValue("no/such/file.md\n");
     expect(checkDocLinks()).toBe(0);
+  });
+});
+
+describe("linkTargets", () => {
+  it("resolves a link against the linking document's own directory, which is what a second reader needs", () => {
+    expect(linkTargets("[Role](../spec/role.md)", "docs/overview/index.md")[0]).toMatchObject({
+      target: "../spec/role.md",
+      resolved: resolve("docs/spec/role.md"),
+    });
+  });
+
+  it("returns every link, not only the broken ones", () => {
+    const text = "[a](./a.md) and [b](./b.md)";
+    expect(linkTargets(text, "docs/index.md").map((l) => l.target)).toEqual(["./a.md", "./b.md"]);
   });
 });

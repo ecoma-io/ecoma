@@ -22,23 +22,41 @@ const LINK_RE = /!?\[[^\]]*\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
 const NON_LOCAL_RE = /^(?:[a-z][a-z0-9+.-]*:|#|\/)/i;
 
 /**
- * Returns `[{ target, line }]` for every relative Markdown link in `text` whose
- * resolved target is absent. `exists` is injectable so the resolution logic is
- * unit-testable without a real filesystem.
+ * Returns `[{ target, resolved, line }]` for every relative Markdown link in
+ * `text`, resolved against the linking document's own directory. Pure.
+ *
+ * Split out from `findBrokenLinks` because a second reader needs the same
+ * answer for a different question: `check-doctrine` asks which documents the
+ * corpus map routes to, not which links are broken. One extractor rather than
+ * two regexes — a copied link grammar is an unsynced config, and the copy
+ * would drift the first time either question grew a case.
  */
-export function findBrokenLinks(text, filePath, exists = existsSync) {
+export function linkTargets(text, filePath) {
   const base = dirname(filePath);
-  const broken = [];
+  const targets = [];
   for (const m of text.matchAll(LINK_RE)) {
     let target = m[1].trim();
     if (target.startsWith("<") && target.endsWith(">")) target = target.slice(1, -1);
     target = target.replace(/[?#].*$/, ""); // drop query/fragment
     if (!target || NON_LOCAL_RE.test(target) || !/\.mdx?$/i.test(target)) continue;
-    if (!exists(resolve(base, target))) {
-      broken.push({ target, line: text.slice(0, m.index).split("\n").length });
-    }
+    targets.push({
+      target,
+      resolved: resolve(base, target),
+      line: text.slice(0, m.index).split("\n").length,
+    });
   }
-  return broken;
+  return targets;
+}
+
+/**
+ * Returns `[{ target, line }]` for every relative Markdown link in `text` whose
+ * resolved target is absent. `exists` is injectable so the resolution logic is
+ * unit-testable without a real filesystem.
+ */
+export function findBrokenLinks(text, filePath, exists = existsSync) {
+  return linkTargets(text, filePath)
+    .filter((link) => !exists(link.resolved))
+    .map(({ target, line }) => ({ target, line }));
 }
 
 /** Scans every git-tracked Markdown file in the repo. Returns a process exit code. */

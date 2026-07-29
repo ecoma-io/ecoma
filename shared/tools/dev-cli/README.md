@@ -37,12 +37,13 @@ Not every command is wired into a gate — `lefthook.yml` and
 `.github/workflows/ci.yml` are what actually say which command blocks what:
 
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
-  `check-doc-links`, `check-practice-index`, `ensure-commit-identity --check`.
+  `check-doc-links`, `check-doctrine`, `check-practice-index`,
+  `ensure-commit-identity --check`.
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (once per commit in the PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-claude-md`, `check-practice-index`,
+  `check-doc-links`, `check-claude-md`, `check-doctrine`, `check-practice-index`,
   `check-project-conventions`, `check-subsystem-readmes`,
   `check-subproject-readmes`.
 - **Every project's own `lint` target** (`project.json`, across almost every
