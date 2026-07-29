@@ -18,12 +18,12 @@ nhớ" thành "quên thì không commit/push/merge được".
 
 Repo này có hàng chục điều luật chỉ còn hiệu lực khi có gì đó liên tục kiểm
 tra chúng: Rule 13 (không journey marker), mỗi subproject phải có
-`CLAUDE.md` riêng, scope của commit phải khớp path đã đổi, mọi doctrine card
+`CLAUDE.md` riêng, scope của commit phải khớp path đã đổi, mọi practice card
 phải còn trỏ đúng câu chữ nó trích. Viết những điều này chỉ dưới dạng văn
 xuôi trong `CLAUDE.md` thì chúng sẽ mục dần — người quên, agent quên, và
 không có gì báo động khi ai đó vi phạm. `dev-cli` là nơi mỗi điều luật đó trở
 thành một hàm nhỏ trả về exit code, được gọi ở đúng chỗ trong vòng đời
-commit/push/CI, để doctrine được cưỡng chế bằng máy chứ không chỉ được ghi
+commit/push/CI, để practice được cưỡng chế bằng máy chứ không chỉ được ghi
 lại. Từ những script rời rạc, giờ tất cả gom về một registry (`COMMANDS`
 trong `src/main.mjs`) dùng chung một cách gọi:
 `node shared/tools/dev-cli/src/main.mjs <command>`.
@@ -36,12 +36,12 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 `.github/workflows/ci.yml` mới là nơi nói thật command nào chặn được gì:
 
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
-  `check-doc-links`, `check-doctrine-index`, `ensure-commit-identity --check`.
+  `check-doc-links`, `check-practice-index`, `ensure-commit-identity --check`.
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (chạy cho mỗi commit trong PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-claude-md`, `check-doctrine-index`,
+  `check-doc-links`, `check-claude-md`, `check-practice-index`,
   `check-project-conventions`, `check-subsystem-readmes`,
   `check-subproject-readmes`.
 - **Target `lint` của từng project** (`project.json` — gần như mọi
@@ -69,8 +69,8 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 `dev-cli` gate **mã nguồn và quy ước repo**, cả cục bộ (lefthook) lẫn trong
 CI. Nó không chạm tới bề mặt GitHub (issue, PR comment) — đó là việc của
 [`repo-care`](../repo-care/README.vi.md), tool anh em cùng cây
-`shared/tools`, tiêu thụ lại đúng nguồn dữ liệu của `check-doctrine-index`
-(`doctrine-index.json`) cho rubric review PR của riêng nó. `dev-cli` cũng là
+`shared/tools`, tiêu thụ lại đúng nguồn dữ liệu của `check-practice-index`
+(`practice-index.json`) cho rubric review PR của riêng nó. `dev-cli` cũng là
 nơi duy nhất chứa logic phát hiện Rule 13 (`check-journey-markers`, đọc
 `journey-markers.config.json` ở repo root), được
 [`eslint-local-rules`](../eslint-local-rules/README.vi.md) dùng lại cùng

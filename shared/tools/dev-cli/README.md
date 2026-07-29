@@ -2,7 +2,7 @@
 name: dev-cli
 subsystem: shared
 lang: en
-description: Local developer commands that turn this repo's doctrine into enforced, machine-checked gates instead of prose to remember.
+description: Local developer commands that turn this repo's practice into enforced, machine-checked gates instead of prose to remember.
 ---
 
 > 🌐 **English** · [Tiếng Việt](./README.vi.md) · [中文](./README.zh.md)
@@ -19,12 +19,12 @@ stops you."
 
 This repo carries dozens of rules that only hold if something keeps checking
 them: Rule 13 (no journey markers), every subproject needs its own
-`CLAUDE.md`, a commit's scope must match the paths it touches, every doctrine
+`CLAUDE.md`, a commit's scope must match the paths it touches, every practice
 card must still point at the exact prose it quotes. Written only as prose in
 `CLAUDE.md`, rules like these decay — people forget, agents forget, and
 nothing raises an alarm when one is violated. `dev-cli` is where each of
 those rules becomes a small function that returns a process exit code, wired
-into the right point of the commit/push/CI lifecycle, so the doctrine is
+into the right point of the commit/push/CI lifecycle, so the practice is
 machine-enforced instead of merely documented. What used to be scattered
 one-off scripts is now a single registry (`COMMANDS` in `src/main.mjs`)
 invoked one uniform way: `node shared/tools/dev-cli/src/main.mjs <command>`.
@@ -37,12 +37,12 @@ Not every command is wired into a gate — `lefthook.yml` and
 `.github/workflows/ci.yml` are what actually say which command blocks what:
 
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
-  `check-doc-links`, `check-doctrine-index`, `ensure-commit-identity --check`.
+  `check-doc-links`, `check-practice-index`, `ensure-commit-identity --check`.
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (once per commit in the PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-claude-md`, `check-doctrine-index`,
+  `check-doc-links`, `check-claude-md`, `check-practice-index`,
   `check-project-conventions`, `check-subsystem-readmes`,
   `check-subproject-readmes`.
 - **Every project's own `lint` target** (`project.json`, across almost every
@@ -71,8 +71,8 @@ Not every command is wired into a gate — `lefthook.yml` and
 (lefthook) and in CI. It never touches the GitHub surface itself (issues, PR
 comments) — that is
 [`repo-care`](../repo-care/README.md)'s job, a sibling tool under the same
-`shared/tools` tree, which consumes `check-doctrine-index`'s same source of
-truth (`doctrine-index.json`) for its own PR-review rubric. `dev-cli` is also
+`shared/tools` tree, which consumes `check-practice-index`'s same source of
+truth (`practice-index.json`) for its own PR-review rubric. `dev-cli` is also
 the only place Rule 13 detection logic lives (`check-journey-markers`,
 reading `journey-markers.config.json` at the repo root), reused by
 [`eslint-local-rules`](../eslint-local-rules/README.md) for the two matching
