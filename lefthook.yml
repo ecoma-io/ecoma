@@ -31,7 +31,8 @@ pre-commit:
       # The published tree must stay checkable by someone who was never here:
       # no round numbers or finding ids, no bet identifiers, and no citation of
       # a scenario/gate/ADR family whose owning document stayed behind — and no
-      # published document the corpus map does not route to. Runs
+      # published document the corpus map does not route to, and no inventory row
+      # that neither links a document nor marks it withheld. Runs
       # repo-wide because it judges the tree as a whole, not a diff.
       run: node shared/tools/dev-cli/src/main.mjs check-doctrine
     practice-index:
