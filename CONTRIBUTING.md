@@ -97,6 +97,10 @@ there is exactly one setup path to maintain.
    chore(workspace): bump nx
    ```
 
+   Commit with `-s` so each commit carries the `Signed-off-by` trailer that
+   records your agreement to [`CLA.md`](./CLA.md) — see
+   [License & contributor agreement](#license--contributor-agreement) below.
+
 4. **Run checks** — Before pushing:
 
    ```bash
@@ -160,6 +164,31 @@ pnpm nx affected -t lint test typecheck build e2e
 
 Tests verify the behavior that matters, not just line coverage. Read more in the project philosophy (Rule 8, [`CLAUDE.md`](./CLAUDE.md)).
 
+## License & contributor agreement
+
+Ecoma is **fair-code**: source-available, not open source, and not closed
+either. Which terms apply to a file is decided by where the file lives, and
+[`LICENSE`](./LICENSE) is the source of truth for that mapping — the
+Sustainable Use License for the implementations, Apache 2.0 for the
+`packages` directories third parties build against, a commercial Enterprise
+License for `enterprise` directories, proprietary for the operator control
+plane. The prose under `shared/libs/doctrine/` is licensed separately, under
+[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).
+
+The boundary is machine-checked, so you do not have to memorise it: each
+project declares a `license:*` tag that must agree with its directory, and
+`check-project-conventions` fails the build when it does not.
+
+Because the project offers its code under more than one set of terms, we need
+the right to do that for your contribution too. That is what
+[`CLA.md`](./CLA.md) grants — a licence, not ownership; you keep the copyright
+in your work. Sign off each commit with `git commit -s`, and a maintainer will
+confirm the agreement once, on your first pull request.
+
+Use of the name "Ecoma" is governed by [`TRADEMARK.md`](./TRADEMARK.md), which
+is deliberately separate from the code licence: describing a true relationship
+with the project needs no permission, naming your own product after it does.
+
 ## Review Process
 
 Ecoma currently has exactly one maintainer, so review turnaround depends on
@@ -188,6 +217,7 @@ Found a security vulnerability? **Do not** open a public issue. Please report it
 
 - **Decisions & Strategy:** [`CLAUDE.md`](./CLAUDE.md)
 - **Design System:** [`Design System/Introduction`](./shared/libs/core-ui/docs/design/Introduction.mdx)
+- **Licensing & the CLA:** [`LICENSE`](./LICENSE), [`CLA.md`](./CLA.md), [`TRADEMARK.md`](./TRADEMARK.md)
 
 ## Thank You
 

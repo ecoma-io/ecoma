@@ -102,6 +102,44 @@ export default tseslint.config(
               sourceTag: "layer:app",
               onlyDependOnLibsWithTags: ["layer:app", "layer:port", "layer:domain", "layer:util"],
             },
+            // Licence axis — the carve-outs in the root LICENSE, made executable.
+            // `LICENSE` decides terms by path; `check-project-conventions` makes
+            // each project's `license:*` tag agree with its path; these four
+            // constraints make the import graph respect the result. Without them
+            // the boundary is a sentence in a legal document that the build has
+            // no way to hold anyone to.
+            //
+            //   sul   → may use SUL and Apache code. NEVER `ee`: an SUL file that
+            //           imports an Enterprise module ships paid code to everyone
+            //           who self-hosts, and the dependency is one line.
+            //   apache→ Apache only, and this direction is the load-bearing one.
+            //           A `packages/` unit is what third parties receive under
+            //           Apache 2.0; importing SUL code would hand them SUL code
+            //           under Apache terms, which we cannot grant and cannot undo.
+            //   ee    → may use everything public. This is the one-way half of
+            //           the rule the ceiling states: `ee` imports `sul`, never back.
+            //   proprietary → the operator control plane calls public mechanisms
+            //           and patches none, so it may depend on them, and nothing
+            //           public may depend on it (it is absent from a contributor's
+            //           clone, so such an import would not even resolve).
+            {
+              sourceTag: "license:sul",
+              onlyDependOnLibsWithTags: ["license:sul", "license:apache"],
+            },
+            { sourceTag: "license:apache", onlyDependOnLibsWithTags: ["license:apache"] },
+            {
+              sourceTag: "license:ee",
+              onlyDependOnLibsWithTags: ["license:ee", "license:sul", "license:apache"],
+            },
+            {
+              sourceTag: "license:proprietary",
+              onlyDependOnLibsWithTags: [
+                "license:proprietary",
+                "license:ee",
+                "license:sul",
+                "license:apache",
+              ],
+            },
           ],
         },
       ],

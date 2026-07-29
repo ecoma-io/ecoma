@@ -60,11 +60,23 @@ với tenant đều được viết ra để đọc được, tự cài được
 giữ lại là đúng một quyền tự do mà giấy phép OSI không thể giữ: bán chính Ecoma
 thành một dịch vụ. Chính hạn chế đó là lý do mọi phần còn lại có thể mở.
 
-**Hiện chưa cấp giấy phép nào.** Sustainable Use License đang được chuẩn bị và
-chưa qua rà soát pháp lý, nên tới khi nó có hiệu lực, vị thế pháp lý vẫn là ©
-Ecoma, bảo lưu mọi quyền. Cấp một giấy phép là việc **không thu lại được** đối
-với phần mã đã phát ra — đó là lý do câu này là một **trạng thái**, không phải
-một chỗ trống chờ điền.
+Điều khoản nào áp cho tệp nào là do **vị trí của tệp** quyết định, và
+[`LICENSE`](./LICENSE) là nguồn sự thật của phép ánh xạ đó:
 
-Các tài liệu trong `shared/libs/doctrine/` thì đã có giấy phép riêng, ngay từ
-bây giờ: [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).
+| Đường dẫn                             | Điều khoản                                      |
+| ------------------------------------- | ----------------------------------------------- |
+| mọi thứ không nêu bên dưới            | Sustainable Use License                         |
+| `<subsystem>/packages/`               | Apache License 2.0 — thứ bạn lập trình đối tiếp |
+| `<subsystem>/enterprise/`             | Enterprise License, bán riêng                   |
+| văn bản trong `shared/libs/doctrine/` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE)  |
+| `cloud/`                              | độc quyền, và không công bố                     |
+
+Tự cài Ecoma để vận hành tổ chức của chính bạn là **được phép rõ ràng**, dù có
+mục đích thương mại hay không. Đem nó cung cấp cho người khác như một dịch vụ
+thì không.
+
+Ranh giới này được **máy kiểm tra** chứ không trông vào trí nhớ: mỗi project
+khai một tag `license:*` và tag đó phải khớp với chính thư mục của nó.
+
+Đóng góp cần ký nhận một lần vào [`CLA.md`](./CLA.md). Việc dùng tên Ecoma do
+[`TRADEMARK.md`](./TRADEMARK.md) điều chỉnh, tách khỏi giấy phép mã nguồn.

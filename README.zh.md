@@ -56,10 +56,22 @@ Ecoma 采用 **fair-code**:源码公开,**不是开源(open source)**,同时也*
 自行部署和修改。fair-code 保留的,只是 OSI 许可证无法保留的那一项自由:把
 Ecoma 本身作为服务出售。正因为保留了这一条,其余部分才能够开放。
 
-**目前尚未授予任何许可证。** Sustainable Use License 正在准备中、尚未完成法务
-审阅,因此在它生效之前,法律状态仍是 © Ecoma,保留所有权利。对已经发布出去的代
-码而言,授予许可证是**不可撤回**的——这也是为什么这段话是一个**状态说明**,而不
-是一处待填的占位。
+适用哪一套条款,取决于文件所在的位置;[`LICENSE`](./LICENSE) 是这一映射关系的
+唯一事实来源:
 
-`shared/libs/doctrine/` 目录下的文档则已单独授权,自即日起生效:
-[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE)。
+| 路径                             | 条款                                           |
+| -------------------------------- | ---------------------------------------------- |
+| 下表未列出的其余部分             | Sustainable Use License                        |
+| `<subsystem>/packages/`          | Apache License 2.0 —— 供第三方对接的部分       |
+| `<subsystem>/enterprise/`        | Enterprise License,单独出售                    |
+| `shared/libs/doctrine/` 中的文档 | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE) |
+| `cloud/`                         | 专有,且不公开                                  |
+
+自行部署 Ecoma 来运营你自己的组织是**明确允许**的,无论是否用于商业目的;把它
+作为托管服务提供给他人则不允许。
+
+这条边界由**机器检查**,而不是靠记忆:每个 project 都声明一个 `license:*` 标
+签,该标签必须与它自身所在的目录一致。
+
+参与贡献需要一次性签署 [`CLA.md`](./CLA.md)。“Ecoma”这一名称的使用由
+[`TRADEMARK.md`](./TRADEMARK.md) 规范,与源码许可证相互独立。
