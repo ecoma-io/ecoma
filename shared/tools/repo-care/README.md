@@ -16,7 +16,9 @@ can't provide: classifying a new issue's type/area, flagging judgment-
 layer practice violations in a PR diff (weakened tests, disguised stubs, a
 smuggled refactor) that no lint rule can see, and mirroring a thread written in
 one project language into the other two so nobody is locked out of a
-discussion. `repo-care` hands all three to LLMs,
+discussion. A large pull request is reviewed group by group — one group per
+project or directory that owns the changed files — so the comment reads as a
+checklist and no part of the diff goes unread. `repo-care` hands all three to LLMs,
 but only the keyless free tier of opencode zen (`https://opencode.ai/zen/v1`)
 — no API key, no secret to provision. Free models are individually weak and
 operationally flaky (rate limits and provider outages arrive as HTTP 200 with

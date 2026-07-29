@@ -10,7 +10,11 @@ import {
   buildReviewPrompt,
   CHECKS,
   findReadmeGroups,
+  buildManifest,
+  buildManifestPrompt,
   isSafeRepoPath,
+  MANIFEST_CHECKS,
+  withinBudget,
   parseParityVerdict,
   parseReviewVerdict,
   parseTurn,
@@ -45,10 +49,10 @@ describe("buildDiff", () => {
     expect(diff.truncated).toBe(false);
   });
 
-  it("caps the total diff so weak models keep context headroom", () => {
-    const diff = buildDiff([file({ patch: "x".repeat(60000) })]);
+  it("caps one group's diff, so a group at the cap is a signal rather than a silent loss", () => {
+    const diff = buildDiff([file({ patch: "x".repeat(80000) })]);
     expect(diff.truncated).toBe(true);
-    expect(diff.text.length).toBeLessThan(46100);
+    expect(diff.text.length).toBeLessThan(61100);
     expect(diff.text).toContain("(diff truncated)");
   });
 });
@@ -107,14 +111,26 @@ describe("buildReviewPrompt", () => {
     );
     const prompt = buildReviewPrompt({ title: "t", body: "" }, { text: "d", truncated: false });
 
-    expect(index.diffCards.length).toBeGreaterThan(0);
-    for (const card of index.diffCards) {
+    const perGroup = index.diffCards.filter((card) => !card.shape);
+    expect(perGroup.length).toBeGreaterThan(0);
+    for (const card of perGroup) {
       expect(CHECKS[card.id]).toBe(card.summary);
       expect(prompt).toContain(`- ${card.id}:`);
     }
+    // A shaped card is judged by another pass and must not reach this prompt:
+    // offered against one group's diff it fires on every group.
+    for (const card of index.diffCards.filter((card) => card.shape)) {
+      expect(CHECKS[card.id]).toBeUndefined();
+      expect(prompt).not.toContain(`- ${card.id}:`);
+    }
     // No id may survive only here — a check the index dropped must stop being
     // offered to the models rather than linger as an unpointered leftover.
-    expect(Object.keys(CHECKS)).toHaveLength(index.diffCards.length);
+    expect(Object.keys(CHECKS)).toHaveLength(perGroup.length);
+    // Every card still reaches some pass — a shape is a different reviewer,
+    // never a way for a check to fall out of the rubric unnoticed.
+    for (const card of index.diffCards.filter((card) => card.shape === "manifest")) {
+      expect(MANIFEST_CHECKS[card.id]).toBe(card.summary);
+    }
   });
 
   it("guards the over-flag traps of the checks in the rubric", () => {
@@ -517,24 +533,105 @@ describe("tallyFindings", () => {
   });
 });
 
+describe("withinBudget", () => {
+  const g = (name, n = 1) => ({
+    root: name,
+    name,
+    files: Array.from({ length: n }, (_, i) => `${name}/${i}`),
+  });
+
+  it("leaves a run that already fits untouched", () => {
+    const groups = [g("a"), g("b")];
+    expect(withinBudget(groups, 6)).toEqual(groups);
+  });
+
+  it("merges the tail instead of dropping it, because an unreviewed group reviews not at all", () => {
+    const groups = [g("a"), g("b"), g("c"), g("d")];
+    const kept = withinBudget(groups, 2);
+    expect(kept).toHaveLength(2);
+    expect(kept.flatMap((k) => k.files).sort()).toEqual(groups.flatMap((x) => x.files).sort());
+  });
+
+  it("names what it absorbed, so a reader can see those files were judged together", () => {
+    const merged = withinBudget([g("a"), g("b"), g("c")], 2).at(-1);
+    expect(merged.name).toContain("b");
+    expect(merged.name).toContain("c");
+    expect(merged.name).toContain("2 smaller groups");
+  });
+});
+
+describe("buildManifest", () => {
+  it("describes what changed without any of the content, which is all a manifest check needs", () => {
+    const manifest = buildManifest([
+      file({ filename: "a.ts", additions: 3, deletions: 1 }),
+      file({ filename: "b.test.ts", status: "added", additions: 9, deletions: 0 }),
+    ]);
+    expect(manifest).toContain("2 files changed, 13 lines added or removed");
+    expect(manifest).toContain("a.ts (modified, +3/-1)");
+    expect(manifest).toContain("b.test.ts (added, +9/-0)");
+    expect(manifest).not.toContain("@@");
+  });
+});
+
+describe("buildManifestPrompt", () => {
+  it("offers only the manifest checks and frames the description as untrusted", () => {
+    const prompt = buildManifestPrompt({ title: "t", body: "adds tests" }, "1 file changed");
+    for (const id of Object.keys(MANIFEST_CHECKS)) expect(prompt).toContain(`- ${id}:`);
+    for (const id of Object.keys(CHECKS)) expect(prompt).not.toContain(`- ${id}:`);
+    expect(prompt).toContain("UNTRUSTED DATA");
+    expect(prompt).toContain("adds tests");
+  });
+
+  it("tells the model a shorter description is not a finding, the trap this shape exists to avoid", () => {
+    const prompt = buildManifestPrompt({ title: "t", body: "" }, "m");
+    expect(prompt).toMatch(/shorter or more general[\s\S]*not a\s*\n?finding/i);
+    expect(prompt).toContain("not the diff");
+  });
+});
+
 describe("buildReviewComment", () => {
-  it("lists confirmed findings under the marker with the quorum caveat", () => {
+  const group = (over = {}) => ({
+    name: "dev-cli",
+    quorum: true,
+    truncated: false,
+    confirmed: [],
+    ...over,
+  });
+
+  it("heads each group with its own state, so a large pull request reads as a checklist", () => {
     const body = buildReviewComment(
-      [{ check: "weakened-test", file: "a.test.ts", notes: ["n1", "n2"], models: ["x", "y"] }],
+      [
+        group({
+          confirmed: [
+            { check: "weakened-test", file: "a.test.ts", notes: ["n1", "n2"], models: ["x", "y"] },
+          ],
+        }),
+        group({ name: "core-ui" }),
+      ],
       ["x", "y", "z"],
-      { truncated: true },
     );
     expect(body).toContain(REVIEW_MARKER);
+    expect(body).toContain("#### dev-cli — 1 finding");
     expect(body).toContain("**weakened-test** — `a.test.ts`");
     expect(body).toContain("- n1");
-    expect(body).toContain("truncated");
+    expect(body).toContain("#### core-ui — clean");
     expect(body).toContain("Advisory only");
   });
 
-  it("renders the all-clear variant when nothing is confirmed", () => {
-    const body = buildReviewComment([], ["x", "y"], { truncated: false });
-    expect(body).toContain("No practice findings");
-    expect(body).not.toContain("truncated");
+  it("says a group reached no quorum instead of leaving it out, because absence would read as clean", () => {
+    const body = buildReviewComment([group({ name: "repo-care", quorum: false })], ["x"]);
+    expect(body).toContain("#### repo-care — no quorum — not reviewed");
+    expect(body).toContain("not the same as clean");
+  });
+
+  it("marks truncation against the group it happened in, not the whole review", () => {
+    const body = buildReviewComment(
+      [group({ truncated: true }), group({ name: "core-ui" })],
+      ["x"],
+    );
+    const [devCli, coreUi] = body.split("#### core-ui");
+    expect(devCli).toContain("truncated");
+    expect(coreUi).not.toContain("truncated");
   });
 });
 
@@ -614,8 +711,10 @@ describe("reviewPr", () => {
     expect(code).toBe(0);
     expect(state.posted).toContain("**weakened-test** — `a.test.ts`");
     const summary = JSON.parse(log.mock.calls.at(-1)[0]);
-    expect(summary.confirmed).toHaveLength(1);
-    expect(summary.verdicts).toBe(3);
+    expect(summary.findingCount).toBe(1);
+    // One group, named for the unit owning the changed file, and it reached a
+    // quorum — the three facts a reader needs to know the review happened.
+    expect(summary.groups).toEqual([{ name: "src", quorum: true, truncated: false, findings: 1 }]);
     log.mockRestore();
   });
 
@@ -640,12 +739,55 @@ describe("reviewPr", () => {
     expect(prompt).not.toContain("fixture-git-isolation");
     expect(state.posted).toContain("**tailwind-arbitrary-property**");
     const summary = JSON.parse(log.mock.calls.at(-1)[0]);
-    expect(summary.pathChecks).toEqual([
-      "primitive-doc-pairing",
-      "design-vocabulary-sync",
-      "tailwind-arbitrary-property",
-    ]);
+    // Named by the Nx project, the same vocabulary a commit scope uses.
+    expect(summary.groups.map((g) => g.name)).toEqual(["core-ui"]);
     log.mockRestore();
+  });
+
+  it("reviews each owning unit as its own group, named the way a commit scope names it", async () => {
+    const state = freshState();
+    state.files = [
+      file({ filename: "shared/tools/dev-cli/src/a.mjs" }),
+      file({ filename: "shared/libs/core-ui/src/b.ts" }),
+      file({ filename: "CLAUDE.md" }),
+    ];
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const code = await reviewPr(["--pr", "9"], { fetchImpl: fakeFetch(state), env });
+
+    expect(code).toBe(0);
+    const summary = JSON.parse(log.mock.calls.at(-1)[0]);
+    expect(summary.groups.map((g) => g.name).sort()).toEqual([
+      "core-ui",
+      "dev-cli",
+      "repository root",
+    ]);
+    // Each group was investigated on its own diff, not once on the whole PR.
+    expect(state.posted).toContain("#### dev-cli");
+    expect(state.posted).toContain("#### core-ui");
+    log.mockRestore();
+  });
+
+  it("exits 1 when no group reached a quorum, rather than posting a comment that reads as clean", async () => {
+    const state = freshState();
+    const broken = fakeFetch(state);
+    const fetchImpl = vi.fn(async (url, init) => {
+      if (url.endsWith("/chat/completions")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "{}",
+          json: async () => ({ choices: [{ finish_reason: "stop", message: { content: "{}" } }] }),
+        };
+      }
+      return broken(url, init);
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const code = await reviewPr(["--pr", "9"], { fetchImpl, env });
+
+    expect(code).toBe(1);
+    expect(state.posted).toBeUndefined();
+    expect(err.mock.calls.flat().join(" ")).toContain("no group reached a quorum");
+    vi.restoreAllMocks();
   });
 
   it("serves investigation reads from the PR head SHA before the verdict lands", async () => {
@@ -680,7 +822,7 @@ describe("reviewPr", () => {
       await reviewPr(["--pr", "9"], { fetchImpl: fakeFetch(stale, { zenFindings: [] }), env }),
     ).toBe(0);
     expect(stale.updated.url).toContain("/issues/comments/5");
-    expect(stale.updated.body).toContain("No practice findings");
+    expect(stale.updated.body).toContain("— clean");
     vi.restoreAllMocks();
   });
 
