@@ -2,7 +2,7 @@
 name: eslint-local-rules
 subsystem: shared
 lang: vi
-description: Các rule ESLint tự viết cưỡng chế đúng doctrine riêng của workspace, không phải cú pháp chung.
+description: Các rule ESLint tự viết cưỡng chế đúng practice riêng của workspace, không phải cú pháp chung.
 ---
 
 > 🌐 [English](./README.md) · **Tiếng Việt** · [中文](./README.zh.md)
@@ -12,7 +12,7 @@ description: Các rule ESLint tự viết cưỡng chế đúng doctrine riêng 
 <!-- readme:why -->
 
 Các plugin ESLint phổ thông kiểm được cú pháp và pattern chung, nhưng không
-biết gì về doctrine riêng của repo này. Chúng không thể biết `v2`/`wip`/
+biết gì về practice riêng của repo này. Chúng không thể biết `v2`/`wip`/
 `phase-3` là journey marker bị cấm (Rule 13), rằng unit test (`*.test.ts`)
 phải `vi.mock` mọi collaborator nội bộ mà nó import, rằng `.only`/`.skip` bị
 commit là vi phạm, hay rằng mọi `project.json` phải khai đúng một tag

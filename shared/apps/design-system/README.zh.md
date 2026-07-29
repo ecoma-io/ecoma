@@ -18,7 +18,7 @@ description: 工作区的 Storybook 宿主应用——把 core-ui 的 story 与�
 
 ## 为什么存在
 
-工作区的 library 按 doctrine 是 buildless 的，但 Storybook 是一次构建：它产出
+工作区的 library 按 practice 是 buildless 的，但 Storybook 是一次构建：它产出
 `storybook-static`，一份拥有自己生命周期的构建产物——`design-system-e2e`
 把它作为阻断式检查来扫描，规划中的 ecoma.io 网站也将把它作为设计系统栏目
 发布。把 Storybook 宿主放进一个应用，让这份构建产物拥有一等公民的归属，同时

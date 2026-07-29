@@ -48,13 +48,13 @@ phẩm. Các tool này không ship trong bất kỳ app nào; chúng tồn tại
 quy tắc lẽ ra sẽ mai một thành văn xuôi (prose) được thực thi bằng máy thay vì
 chỉ nằm trên giấy: [`dev-cli`](./tools/dev-cli/) (các lệnh dev cục bộ, một số
 là CI gate), [`eslint-local-rules`](./tools/eslint-local-rules/) (rule ESLint
-cục bộ thực thi bằng máy các phần doctrine mà rule có sẵn không phủ tới),
+cục bộ thực thi bằng máy các phần practice mà rule có sẵn không phủ tới),
 [`repo-care`](./tools/repo-care/) (tự động hóa bề mặt repository — triage
-issue, review doctrine PR mang tính tư vấn — chạy từ GitHub Actions).
+issue, review practice PR mang tính tư vấn — chạy từ GitHub Actions).
 
 ## Thứ tự đọc
 
-Bắt đầu từ [`CLAUDE.md`](../CLAUDE.md) ở gốc repo để nắm doctrine (Rules 1–13)
+Bắt đầu từ [`CLAUDE.md`](../CLAUDE.md) ở gốc repo để nắm practice (Rules 1–14)
 mà mọi thứ bên dưới đều phải tuân theo. Mỗi mục ở trên trỏ tới README của
 subproject tương ứng để hiểu phần "tại sao", và tới `CLAUDE.md` của nó để nắm
 cơ chế — hai loại tài liệu này được giữ tách bạch, không lặp lại nội dung của

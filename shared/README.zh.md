@@ -45,13 +45,13 @@ description: 每个产品都会用到的共享库(设计系统、桌面壳 webvi
 (prose)的规则,继续由机器强制执行,而不是仅仅写在纸面上:
 [`dev-cli`](./tools/dev-cli/)(本地开发命令,其中一些是 CI 门禁),
 [`eslint-local-rules`](./tools/eslint-local-rules/)(本地 ESLint 规则,用机器
-方式强制执行现成规则未覆盖的那部分 doctrine),
+方式强制执行现成规则未覆盖的那部分 practice),
 [`repo-care`](./tools/repo-care/)(仓库表层自动化——issue 分诊、咨询性质的 PR
-doctrine 评审——运行自 GitHub Actions)。
+practice 评审——运行自 GitHub Actions)。
 
 ## 阅读顺序
 
 从仓库根目录的 [`CLAUDE.md`](../CLAUDE.md) 开始,掌握下面一切内容都必须遵循
-的 doctrine(Rules 1–13)。上面每一项都指向对应子项目的 README 以理解"为什
+的 practice(Rules 1–14)。上面每一项都指向对应子项目的 README 以理解"为什
 么",以及它的 `CLAUDE.md` 以理解机制——这两类文档被刻意分开维护,彼此不会
 重复对方的内容。

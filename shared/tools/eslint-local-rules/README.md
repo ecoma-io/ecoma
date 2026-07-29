@@ -2,7 +2,7 @@
 name: eslint-local-rules
 subsystem: shared
 lang: en
-description: Repo-specific ESLint rules that enforce this workspace's own doctrine, not generic syntax.
+description: Repo-specific ESLint rules that enforce this workspace's own practice, not generic syntax.
 ---
 
 > 🌐 **English** · [Tiếng Việt](./README.vi.md) · [中文](./README.zh.md)
@@ -12,7 +12,7 @@ description: Repo-specific ESLint rules that enforce this workspace's own doctri
 <!-- readme:why -->
 
 Off-the-shelf ESLint plugins check syntax and common patterns, but they have
-no notion of this repo's own doctrine. They cannot know that `v2`/`wip`/
+no notion of this repo's own practice. They cannot know that `v2`/`wip`/
 `phase-3` are banned journey markers (Rule 13), that a unit test
 (`*.test.ts`) must `vi.mock` every internal collaborator it imports, that a
 committed `.only`/`.skip` is a violation, or that every `project.json` must
