@@ -8,6 +8,16 @@ over the **built** `doctrine-site`.
   Markdown by a tool, so no unit test can say the assembly produced a page a
   browser opens at the mounted path. That is what these pin, and it is the only
   thing they should pin — a fact better checked in the library belongs there.
+- **`tree-as-source` writes into `shared/libs/doctrine` and rebuilds the site.**
+  That is the point of the file, not a shortcut in it: every other check here
+  would pass just as well against a copy of the tree kept beside the app, so the
+  only way to tell a renderer from a copy is to change the library and look. It
+  writes two untracked files and removes them, so `check-doctrine` — which reads
+  the git index — never sees them, and a killed run leaves two strays and damages
+  no document. It rebuilds with VitePress directly rather than through the Nx
+  target, which would hand back its cached output for inputs that just changed.
+- **`workers: 1`.** One suite rebuilds the `dist` every worker shares; a second
+  worker reading it mid-build sees neither the old site nor the new one.
 - **The `e2e` target builds first via `dependsOn`, never inside the command.**
   `webServer` only serves; a build step in the serve command would race test
   collection.

@@ -47,5 +47,7 @@ chạy một artifact đã build, từ bên ngoài.
 
 ## Trạng thái
 
-Đang chạy: bốn phép kiểm trên phần vỏ. Chúng lớn lên cùng trang web, không đi
-trước nó. Cơ chế ở phạm vi thư mục nằm trong [`./CLAUDE.md`](./CLAUDE.md).
+Đang chạy: bốn phép kiểm trên phần vỏ, và bốn phép kiểm chứng minh các trang đến
+từ `shared/libs/doctrine` chứ không từ một bản chép — bằng cách sửa thư viện đó
+rồi nhìn. Chúng lớn lên cùng trang web, không đi trước nó. Cơ chế ở phạm vi thư
+mục nằm trong [`./CLAUDE.md`](./CLAUDE.md).

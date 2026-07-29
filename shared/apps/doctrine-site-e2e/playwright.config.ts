@@ -26,6 +26,11 @@ const chromiumExe = chromiumExecutablePath();
 // `node_modules/.bin` beside an app in a single-package monorepo.
 export default defineConfig({
   testDir: "./src",
+  // One worker, because one suite rebuilds the site that every worker shares:
+  // `tree-as-source` proves the pages follow the library by changing it and
+  // building again, and a second worker reading `dist` mid-build sees neither
+  // the old site nor the new one.
+  workers: 1,
   use: {
     baseURL: "http://127.0.0.1:4175/doctrine/",
     browserName: "chromium",
