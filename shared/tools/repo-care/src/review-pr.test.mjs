@@ -101,9 +101,9 @@ describe("buildReviewPrompt", () => {
     expect(CHECKS["ladder-skip"]).toMatch(/built-in|dependency/i);
   });
 
-  it("draws the whole rubric from the doctrine index, so the two cannot diverge", () => {
+  it("draws the whole rubric from the practice index, so the two cannot diverge", () => {
     const index = JSON.parse(
-      readFileSync(new URL("../../../../doctrine-index.json", import.meta.url), "utf8"),
+      readFileSync(new URL("../../../../practice-index.json", import.meta.url), "utf8"),
     );
     const prompt = buildReviewPrompt({ title: "t", body: "" }, { text: "d", truncated: false });
 
@@ -136,7 +136,7 @@ describe("buildReviewPrompt", () => {
 
 describe("activeChecks", () => {
   const index = JSON.parse(
-    readFileSync(new URL("../../../../doctrine-index.json", import.meta.url), "utf8"),
+    readFileSync(new URL("../../../../practice-index.json", import.meta.url), "utf8"),
   );
 
   it("offers only the always-on diff rubric when no changed path matches a pathCard scope", () => {
@@ -533,7 +533,7 @@ describe("buildReviewComment", () => {
 
   it("renders the all-clear variant when nothing is confirmed", () => {
     const body = buildReviewComment([], ["x", "y"], { truncated: false });
-    expect(body).toContain("No doctrine findings");
+    expect(body).toContain("No practice findings");
     expect(body).not.toContain("truncated");
   });
 });
@@ -680,7 +680,7 @@ describe("reviewPr", () => {
       await reviewPr(["--pr", "9"], { fetchImpl: fakeFetch(stale, { zenFindings: [] }), env }),
     ).toBe(0);
     expect(stale.updated.url).toContain("/issues/comments/5");
-    expect(stale.updated.body).toContain("No doctrine findings");
+    expect(stale.updated.body).toContain("No practice findings");
     vi.restoreAllMocks();
   });
 

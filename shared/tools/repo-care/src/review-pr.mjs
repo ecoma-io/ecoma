@@ -1,5 +1,5 @@
 /**
- * `review-pr` — advisory doctrine review of a pull request by a quorum of
+ * `review-pr` — advisory practice review of a pull request by a quorum of
  * keyless free models, posted as one marker-carrying comment.
  *
  * This deliberately reviews ONLY the judgment layer the deterministic gates
@@ -33,11 +33,11 @@ export const REVIEW_MARKER = "<!-- repo-care:review-pr -->";
 /**
  * The rubric — check ids and the one-line definition shown to the models.
  *
- * Derived from the repo-root doctrine index, which is the single source of
+ * Derived from the repo-root practice index, which is the single source of
  * these summaries and the only place each one carries a pointer back to the
- * CLAUDE.md rule it restates; `dev-cli check-doctrine-index` fails when a
+ * CLAUDE.md rule it restates; `dev-cli check-practice-index` fails when a
  * cited rule is reworded or deleted, so the rubric cannot drift away from the
- * doctrine it is supposed to encode. Read with `node:fs` rather than imported
+ * practice it is supposed to encode. Read with `node:fs` rather than imported
  * so this tool stays dependency-free and needs no import attribute.
  *
  * Two card kinds, two activation modes (routing is code's job, Rule 5):
@@ -46,18 +46,18 @@ export const REVIEW_MARKER = "<!-- repo-care:review-pr -->";
  * touches a matching file — a path-scoped invariant offered on every diff
  * would just feed weak models something irrelevant to over-flag.
  */
-const DOCTRINE_INDEX = JSON.parse(
-  readFileSync(new URL("../../../../doctrine-index.json", import.meta.url), "utf8"),
+const PRACTICE_INDEX = JSON.parse(
+  readFileSync(new URL("../../../../practice-index.json", import.meta.url), "utf8"),
 );
 
 export const CHECKS = Object.fromEntries(
-  DOCTRINE_INDEX.diffCards.map((card) => [card.id, card.summary]),
+  PRACTICE_INDEX.diffCards.map((card) => [card.id, card.summary]),
 );
 
 /**
  * The always-on `CHECKS` plus every pathCard whose `scope` matches at least
  * one changed filename. Glob semantics are `node:path` `matchesGlob` — the
- * same builtin `dev-cli check-doctrine-index` validates the scopes with, so
+ * same builtin `dev-cli check-practice-index` validates the scopes with, so
  * activation here and dead-routing detection there cannot disagree.
  *
  * A `shape: "parity"` card (e.g. `readme-language-parity`) never joins this
@@ -68,7 +68,7 @@ export const CHECKS = Object.fromEntries(
  */
 export function activeChecks(filenames) {
   const checks = { ...CHECKS };
-  for (const card of DOCTRINE_INDEX.pathCards) {
+  for (const card of PRACTICE_INDEX.pathCards) {
     if (card.shape === "parity") continue;
     if (filenames.some((name) => card.scope.some((glob) => matchesGlob(name, glob)))) {
       checks[card.id] = card.summary;
@@ -92,7 +92,7 @@ const MAX_PATHS_PER_TURN = 4;
 const MAX_FILE_CHARS = 6000;
 const MAX_DIR_ENTRIES = 100;
 
-/** Files whose churn is mechanical noise for a doctrine review. */
+/** Files whose churn is mechanical noise for a practice review. */
 const EXCLUDED_FILES = new Set(["pnpm-lock.yaml"]);
 
 /**
@@ -130,7 +130,7 @@ export function buildDiff(files) {
  */
 export function buildReviewPrompt(pr, diff, checks = CHECKS) {
   return [
-    "You are a doctrine reviewer for the Ecoma monorepo. Deterministic gates",
+    "You are a practice reviewer for the Ecoma monorepo. Deterministic gates",
     "(lint, tests, typecheck, CI) already ran — do NOT report style, syntax,",
     "or anything a linter or test run would catch. You review ONLY these",
     "judgment checks:",
@@ -317,13 +317,13 @@ export function tallyFindings(verdicts) {
     .sort((a, b) => a.check.localeCompare(b.check) || a.file.localeCompare(b.file));
 }
 
-const README_PARITY_CARD = DOCTRINE_INDEX.pathCards.find((card) => card.shape === "parity");
+const README_PARITY_CARD = PRACTICE_INDEX.pathCards.find((card) => card.shape === "parity");
 const README_GROUP_RE = /^(.*\/)?README(?:\.(?:vi|zh))?\.md$/;
 
 /**
  * Every README group (by directory) touched by the diff, matched via the
  * parity card's own `scope` glob — so routing here and the dead-routing
- * check in `check-doctrine-index` can never disagree on what counts as a
+ * check in `check-practice-index` can never disagree on what counts as a
  * README. Each group names all 3 variant paths regardless of which ones the
  * diff itself touched: parity is judged across however many variants exist
  * right now, not just the changed one.
@@ -403,9 +403,9 @@ export function parseParityVerdict(raw, group) {
 
 /** Marker-carrying comment body; edited in place on every run. */
 export function buildReviewComment(confirmed, models, diff) {
-  const lines = [REVIEW_MARKER, "### repo-care · doctrine review (advisory)", ""];
+  const lines = [REVIEW_MARKER, "### repo-care · practice review (advisory)", ""];
   if (confirmed.length === 0) {
-    lines.push("No doctrine findings on the current diff.");
+    lines.push("No practice findings on the current diff.");
   } else {
     for (const f of confirmed) {
       lines.push(`- **${f.check}** — \`${f.file}\``);

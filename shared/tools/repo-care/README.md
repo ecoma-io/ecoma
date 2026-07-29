@@ -2,7 +2,7 @@
 name: repo-care
 subsystem: shared
 lang: en
-description: Repository-surface automation — issue triage, advisory PR doctrine review, and thread translation via free LLMs.
+description: Repository-surface automation — issue triage, advisory PR practice review, and thread translation via free LLMs.
 ---
 
 > 🌐 **English** · [Tiếng Việt](./README.vi.md) · [中文](./README.zh.md)
@@ -13,7 +13,7 @@ description: Repository-surface automation — issue triage, advisory PR doctrin
 
 Three GitHub-facing chores need natural-language judgment a deterministic gate
 can't provide: classifying a new issue's type/area, flagging judgment-
-layer doctrine violations in a PR diff (weakened tests, disguised stubs, a
+layer practice violations in a PR diff (weakened tests, disguised stubs, a
 smuggled refactor) that no lint rule can see, and mirroring a thread written in
 one project language into the other two so nobody is locked out of a
 discussion. `repo-care` hands all three to LLMs,
@@ -42,7 +42,7 @@ Three GitHub Actions workflows invoke this tool directly, all using the
 ambient `GITHUB_TOKEN` (no separate secret to provision):
 `.github/workflows/issue-triage.yml` runs `main.mjs triage-issue` on issue
 `opened`/`reopened` (plus a manual `workflow_dispatch` for backfilling an
-older issue); `.github/workflows/pr-doctrine-review.yml` runs `main.mjs
+older issue); `.github/workflows/pr-practice-review.yml` runs `main.mjs
 review-pr` on non-draft PR `opened`/`reopened`/`synchronize`/
 `ready_for_review`; `.github/workflows/translate-issue.yml` runs `main.mjs
 translate-issue` on issue `opened`/`edited`;
@@ -59,8 +59,8 @@ surface (issues, PRs) around them. It authors none of its own vocabulary — the
 issue-triage `AREAS` enum is derived at import time from every subsystem-root
 `README.md`'s frontmatter (the contract `dev-cli check-subsystem-readmes` gates
 in CI), the PR-review `CHECKS` rubric is derived from
-`doctrine-index.json`'s `diffCards`/`pathCards` (gated by `dev-cli
-check-doctrine-index`), and the translation languages come from
+`practice-index.json`'s `diffCards`/`pathCards` (gated by `dev-cli
+check-practice-index`), and the translation languages come from
 `languages.config.json` at the repo root — the same file `dev-cli` reads for
 the README variant contract, so the two can never name different languages.
 All three stay single sources of truth read at runtime,

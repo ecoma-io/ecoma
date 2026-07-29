@@ -2,7 +2,7 @@
 name: repo-care
 subsystem: shared
 lang: vi
-description: Tự động hoá bề mặt repository — phân loại issue, review PR cố vấn theo doctrine, và dịch thread, qua các LLM miễn phí.
+description: Tự động hoá bề mặt repository — phân loại issue, review PR cố vấn theo practice, và dịch thread, qua các LLM miễn phí.
 ---
 
 > 🌐 [English](./README.md) · **Tiếng Việt** · [中文](./README.zh.md)
@@ -13,7 +13,7 @@ description: Tự động hoá bề mặt repository — phân loại issue, rev
 
 Ba việc trên GitHub cần phán đoán ngôn ngữ tự nhiên mà một gate xác định
 (deterministic) không làm được: phân loại type/area cho issue mới, soi
-một PR xem có vi phạm doctrine ở lớp phán đoán mà không lint nào bắt được
+một PR xem có vi phạm practice ở lớp phán đoán mà không lint nào bắt được
 (test bị làm yếu đi, một stub giả vờ xong việc, một refactor lén trà trộn),
 và soi chiếu một thread viết bằng một ngôn ngữ của dự án sang hai ngôn ngữ
 còn lại để không ai bị đứng ngoài cuộc thảo luận.
@@ -43,7 +43,7 @@ Ba workflow GitHub Actions gọi trực tiếp tool này, cả ba đều dùng
 `GITHUB_TOKEN` sẵn có (không cần secret riêng):
 `.github/workflows/issue-triage.yml` chạy `main.mjs triage-issue` khi issue
 `opened`/`reopened` (thêm `workflow_dispatch` thủ công để triage lại issue
-cũ); `.github/workflows/pr-doctrine-review.yml` chạy `main.mjs review-pr`
+cũ); `.github/workflows/pr-practice-review.yml` chạy `main.mjs review-pr`
 trên PR non-draft `opened`/`reopened`/`synchronize`/`ready_for_review`;
 `.github/workflows/translate-issue.yml` chạy `main.mjs translate-issue` khi
 issue `opened`/`edited`; `.github/workflows/translate-pr.yml` chạy `main.mjs
@@ -60,7 +60,7 @@ chúng. Nó không tự viết ra vocabulary của mình — enum `AREAS` cho tr
 issue được dẫn xuất tại thời điểm import từ frontmatter của mọi `README.md`
 subsystem-root (hợp đồng do `dev-cli check-subsystem-readmes` giữ trong CI),
 rubric `CHECKS` cho review-pr được dẫn xuất từ `diffCards`/`pathCards` trong
-`doctrine-index.json` (do `dev-cli check-doctrine-index` giữ), còn danh sách
+`practice-index.json` (do `dev-cli check-practice-index` giữ), còn danh sách
 ngôn ngữ để dịch đến từ `languages.config.json` ở gốc repo — đúng file mà
 `dev-cli` đọc cho hợp đồng README đa ngữ, nên hai bên không thể nào gọi tên
 hai bộ ngôn ngữ khác nhau. Cả ba vẫn là

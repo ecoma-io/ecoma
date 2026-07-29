@@ -6,7 +6,7 @@ Nx project name `repo-care` (tags `type:lib`, `scope:shared`). Plain-ESM
 run as `node shared/tools/repo-care/src/main.mjs <command>`. Same anatomy as
 `dev-cli`, but a different concern: dev-cli gates the _code_ locally/in CI;
 repo-care automates care of the _repository surface_ (issue triage, PR
-doctrine review, thread translation) from GitHub Actions.
+practice review, thread translation) from GitHub Actions.
 
 - **LLM calls go through the keyless free tier of opencode zen**
   (`https://opencode.ai/zen/v1`, models suffixed `-free`) — no API key, no
@@ -52,14 +52,14 @@ doctrine review, thread translation) from GitHub Actions.
   would be an edge the Nx graph cannot see). A README present but malformed
   throws (fail loud); a README-less directory is skipped (local build output).
 - **The `CHECKS` rubric is derived, never authored here** — it comes from
-  `doctrine-index.json`'s `diffCards` (repo root), the only place those
+  `practice-index.json`'s `diffCards` (repo root), the only place those
   summaries carry a pointer back to the CLAUDE.md rule each one restates.
-  `dev-cli check-doctrine-index` fails when a cited rule is reworded or
-  deleted, which is what keeps the rubric from drifting away from the doctrine
+  `dev-cli check-practice-index` fails when a cited rule is reworded or
+  deleted, which is what keeps the rubric from drifting away from the practice
   it encodes. The index's `pathCards` extend that rubric per run:
   `activeChecks` offers a card only when a changed file falls inside its
   `scope` globs, matched with `node:path`'s `matchesGlob` — the same builtin
-  `check-doctrine-index` validates scopes with, so the two can never disagree
+  `check-practice-index` validates scopes with, so the two can never disagree
   on glob semantics. The schema gate is per-run too: a verdict naming a check
   that was not offered this run is rejected whole. Add or edit a check in the
   index, never in this module; read it with `node:fs` (not an import
@@ -92,13 +92,13 @@ doctrine review, thread translation) from GitHub Actions.
   base ref (the job holds a write token; head code must stay data, never
   executed). Served file content is framed as untrusted data like the diff.
 - **README language parity is a separate review shape from everything else
-  in `review-pr`**: `doctrine-index.json`'s `readme-language-parity` card
+  in `review-pr`**: `practice-index.json`'s `readme-language-parity` card
   carries `"shape": "parity"`, which `activeChecks` skips entirely — a
   parity finding names a relationship BETWEEN 2 files, not a judgment about
   one diff hunk, so it cannot fit the single-diff prompt/schema the rest of
   this rubric shares. `findReadmeGroups` matches changed paths against that
   card's own `scope` glob (never a hardcoded pattern, so routing here and
-  `check-doctrine-index`'s dead-routing check can't disagree), groups them by
+  `check-practice-index`'s dead-routing check can't disagree), groups them by
   directory, and fetches every variant that still exists at the PR head SHA
   (a missing sibling is skipped silently — existence is `dev-cli`'s gate, not
   this one's). Each group gets its own single-shot quorum
@@ -141,7 +141,7 @@ doctrine review, thread translation) from GitHub Actions.
     silence would read as "already translated" on the next run.
 - Invoked by `.github/workflows/issue-triage.yml` (issue opened/reopened +
   `workflow_dispatch` for backfill),
-  `.github/workflows/pr-doctrine-review.yml` (non-draft PR
+  `.github/workflows/pr-practice-review.yml` (non-draft PR
   opened/reopened/synchronize/ready_for_review),
   `.github/workflows/translate-issue.yml` (issue opened/edited +
   `workflow_dispatch` for backfill), and
