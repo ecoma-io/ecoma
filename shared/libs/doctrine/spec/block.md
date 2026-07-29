@@ -14,11 +14,24 @@ Block là **một manifest có kiểu, bó một tập entity ecoma + giá trị
 
 ## 2. Manifest
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `identity` | namespace/name + semver; digest do registry sinh (content-addressed) | ✅ | | `publisher` | Identity ký danh (sigstore) | ✅ | | `contents` | Danh sách entity **có kiểu**: process-definition, contract, criterion, role, macro, script, app-profile, driver, cascade-defaults, table-definition, metric-definition… (taxonomy mở) | ✅ | | `defaults` | Giá trị cascade block đóng góp vào mức template | ⬜ | | `dependencies` | block@range khác | ⬜ | | `scope` | **Tổng hợp năng lực bắt buộc khai**: có irreversible effect? credential handle nào? domain nào? spawn policy gì? classification cao nhất của knowledge kèm theo? — nguồn của scope disclosure lúc cài | ✅ | | `license` | Apache/CC0 (free) hoặc EULA publisher (trả phí) | ✅ | | `migrations` | Danh sách migration mà upgrade tới digest này cần chạy; **mỗi mục khai `down` (đường nghịch) hoặc `irreversible_upgrade: true`** — thiếu khai = coi như **chưa có đường về** (bảo thủ, nguyên văn luật NS §8) | ✅ nếu upgrade có migration | | `attestations` | Chữ ký + kết quả analysis lúc pack + badge verified (nếu có) | ✅ tự động |
+| Trường         | Nội dung                                                                                                                                                                                                      | Bắt buộc                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `identity`     | namespace/name + semver; digest do registry sinh (content-addressed)                                                                                                                                          | ✅                          |
+| `publisher`    | Identity ký danh (sigstore)                                                                                                                                                                                   | ✅                          |
+| `contents`     | Danh sách entity **có kiểu**: process-definition, contract, criterion, role, macro, script, app-profile, driver, cascade-defaults, table-definition, metric-definition… (taxonomy mở)                         | ✅                          |
+| `defaults`     | Giá trị cascade block đóng góp vào mức template                                                                                                                                                               | ⬜                          |
+| `dependencies` | block@range khác                                                                                                                                                                                              | ⬜                          |
+| `scope`        | **Tổng hợp năng lực bắt buộc khai**: có irreversible effect? credential handle nào? domain nào? spawn policy gì? classification cao nhất của knowledge kèm theo? — nguồn của scope disclosure lúc cài         | ✅                          |
+| `license`      | Apache/CC0 (free) hoặc EULA publisher (trả phí)                                                                                                                                                               | ✅                          |
+| `migrations`   | Danh sách migration mà upgrade tới digest này cần chạy; **mỗi mục khai `down` (đường nghịch) hoặc `irreversible_upgrade: true`** — thiếu khai = coi như **chưa có đường về** (bảo thủ, nguyên văn luật NS §8) | ✅ nếu upgrade có migration |
+| `attestations` | Chữ ký + kết quả analysis lúc pack + badge verified (nếu có)                                                                                                                                                  | ✅ tự động                  |
 
 ## 3. Hai trust class của artifact
 
-| Class | Gồm | Kiểm được bằng | Chính sách cài mặc định | |---|---|---|---| | **Definition** | Process, contract, criterion, role, macro, app-profile, defaults | Static analysis **toàn phần** | Cho cài sau disclosure | | **Code** | Driver, custom rule filler — **Connector API chính là rule filler + Contract, phân phối tại đây: câu trả lời của ecoma cho thư viện integration kiểu n8n, không cần khái niệm riêng** | Chữ ký + sandbox; không phân tích kín được | **Reject nếu publisher chưa verified**; luôn cần opt-in tường minh của admin |
+| Class          | Gồm                                                                                                                                                                                   | Kiểm được bằng                             | Chính sách cài mặc định                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
+| **Definition** | Process, contract, criterion, role, macro, app-profile, defaults                                                                                                                      | Static analysis **toàn phần**              | Cho cài sau disclosure                                                       |
+| **Code**       | Driver, custom rule filler — **Connector API chính là rule filler + Contract, phân phối tại đây: câu trả lời của ecoma cho thư viện integration kiểu n8n, không cần khái niệm riêng** | Chữ ký + sandbox; không phân tích kín được | **Reject nếu publisher chưa verified**; luôn cần opt-in tường minh của admin |
 
 ## 4. Identity, version, lineage
 
@@ -65,7 +78,14 @@ git repo (dev, fork/PR)
 
 ## 10. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Template là gì | Block curate theo vertical; mức template cascade = tập block đã cài theo ưu tiên | | Số registry | 1 protocol, 1 public immutable, N private mirror; Hub là domain thứ ba, cả Platform lẫn RPA nói trực tiếp qua resolve/pull/verify | | Substrate | Git (dev) → OCI (dist) → transparency log → index; semver người / digest máy / lockfile tenant | | Trust nội dung | Re-analyze tenant-side; scope khai ≠ analysis → reject; quarantine bằng trust tiers; code là trust class riêng | | Thương mại | Entitlement chỉ tại phân phối; không DRM; hai tầng license nội dung | | **Đường lùi của upgrade** | `migrations[].down` hoặc `irreversible_upgrade: true` (đòi Gate + bản sao) — mirror nguyên luật NS §8 xuống tầng block; lockfile giữ digest cũ nên pin-lại luôn resolve được |
+| Vấn đề                    | Chốt                                                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Template là gì            | Block curate theo vertical; mức template cascade = tập block đã cài theo ưu tiên                                                                                             |
+| Số registry               | 1 protocol, 1 public immutable, N private mirror; Hub là domain thứ ba, cả Platform lẫn RPA nói trực tiếp qua resolve/pull/verify                                            |
+| Substrate                 | Git (dev) → OCI (dist) → transparency log → index; semver người / digest máy / lockfile tenant                                                                               |
+| Trust nội dung            | Re-analyze tenant-side; scope khai ≠ analysis → reject; quarantine bằng trust tiers; code là trust class riêng                                                               |
+| Thương mại                | Entitlement chỉ tại phân phối; không DRM; hai tầng license nội dung                                                                                                          |
+| **Đường lùi của upgrade** | `migrations[].down` hoặc `irreversible_upgrade: true` (đòi Gate + bản sao) — mirror nguyên luật NS §8 xuống tầng block; lockfile giữ digest cũ nên pin-lại luôn resolve được |
 
 ## Litmus (spec-level, theo L5)
 

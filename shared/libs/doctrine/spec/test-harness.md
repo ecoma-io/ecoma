@@ -12,14 +12,26 @@ lang: vi
 - **Án văn** — vì sao KHÔNG dùng một tenant riêng: tenant là **biên cứng duy nhất** của hệ (Tenant §2). Đẻ "tenant `test`" buộc phải trả lời cardinality/chủ sở hữu/vòng đời/key-tree/metering, và buộc phải mở một **đường copy artifact xuyên tenant** cho definition + fixture — mà Artifact Store §4 cấm tường minh (dedup cross-tenant là side-channel) và invariant 4 cấm học cross-tenant. Nhu cầu thật của harness chỉ có ba, và cả ba **đã có cơ chế**: (1) không effect ra ngoài → `test_behavior` tại Contract; (2) không đầu độc flywheel → đường ghi calibration duy nhất là Judgment hợp lệ (Calibration §2); (3) không bẩn dữ liệu production → mọi write là event, lọc theo nhãn là đủ. **Thêm khái niệm để giải bài toán đã có cơ chế = nửa-cơ-chế đắt hơn** (J3 áp lên chính patch).
 - **Hệ quả của nhãn** (engine ép, không phải quy ước):
 
-| Chiều | Luật với `run_kind: test` _(nhãn có **nhà canonical** tại Event Log §1/§3 — bảng này chỉ liệt lập trường của từng consumer, không khai lại nhãn;)_ | |---|---| | Calibration | Judgment sinh trong test run **không bao giờ vào cell production** (Calibration §2 đọc theo nhãn) | | Metering / quota / billing | Projection metering **loại nhãn test** (Event Log §3) — trừ phần chi phí tính tiền thật (token, CPU sandbox) vẫn đo, vì nó có xảy ra | | DataTable / Working Data | Write của test run vào **projection tách theo nhãn**; bảng production không thấy | | Effect ra ngoài | Chặn tại Contract (§5) | | Secret | Không resolve handle production (Vault §5) | | n=1 (D5) | User không thấy khái niệm nào: chỉ có nút "chạy thử" |
+| Chiều                      | Luật với `run_kind: test` _(nhãn có **nhà canonical** tại Event Log §1/§3 — bảng này chỉ liệt lập trường của từng consumer, không khai lại nhãn;)_ |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Calibration                | Judgment sinh trong test run **không bao giờ vào cell production** (Calibration §2 đọc theo nhãn)                                                  |
+| Metering / quota / billing | Projection metering **loại nhãn test** (Event Log §3) — trừ phần chi phí tính tiền thật (token, CPU sandbox) vẫn đo, vì nó có xảy ra               |
+| DataTable / Working Data   | Write của test run vào **projection tách theo nhãn**; bảng production không thấy                                                                   |
+| Effect ra ngoài            | Chặn tại Contract (§5)                                                                                                                             |
+| Secret                     | Không resolve handle production (Vault §5)                                                                                                         |
+| n=1 (D5)                   | User không thấy khái niệm nào: chỉ có nút "chạy thử"                                                                                               |
 
 - **Test run là entry trong log**: có id, definition@version, fixture@version, kết quả, provenance → so sánh được giữa các version, dựng lại được.
 - **Cấm nhánh code riêng cho test** (A3): cùng engine, cùng primitive, cùng đường ghi — chỉ khác _nhãn run_, _filler binding_ và _contract test_behavior_.
 
 ## 2. Fixture — dữ liệu mồi có version
 
-| Thành phần | Nội dung | |---|---| | Seed entries | Bộ entry khởi tạo (task, artifact, party, working data) — replay-able | | Filler binding | Ánh xạ Role → mock filler (§3) | | Recorded responses | Phản hồi LLM/HTTP đã ghi (dùng ở chế độ `replay` — §4) | | Clock | Thời gian ảo: timer/SLA **tua nhanh được** (Escalation timers là entry → tua = phát entry sớm, không cần chờ thật) |
+| Thành phần         | Nội dung                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Seed entries       | Bộ entry khởi tạo (task, artifact, party, working data) — replay-able                                              |
+| Filler binding     | Ánh xạ Role → mock filler (§3)                                                                                     |
+| Recorded responses | Phản hồi LLM/HTTP đã ghi (dùng ở chế độ `replay` — §4)                                                             |
+| Clock              | Thời gian ảo: timer/SLA **tua nhanh được** (Escalation timers là entry → tua = phát entry sớm, không cần chờ thật) |
 
 Fixture là **artifact có id + version + lineage** (như mọi thứ trong hệ) — sửa fixture sinh version mới, so được kết quả trước/sau.
 
@@ -32,7 +44,11 @@ Fixture là **artifact có id + version + lineage** (như mọi thứ trong hệ
 
 ## 4. Non-determinism — 3 chế độ
 
-| Chế độ | Dùng khi | Hành vi | |---|---|---| | `replay` | **Mặc định trong CI** | Chỉ đọc recorded responses — deterministic tuyệt đối | | `record` | Khi tạo/làm mới fixture | Gọi thật, ghi phản hồi vào fixture (có nhãn chi phí + thời điểm) | | `live` | Nightly / trước release | Gọi thật, chấp nhận không lặp lại — kết quả mang nhãn `non_deterministic`, không được là điều kiện chặn merge |
+| Chế độ   | Dùng khi                | Hành vi                                                                                                       |
+| -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `replay` | **Mặc định trong CI**   | Chỉ đọc recorded responses — deterministic tuyệt đối                                                          |
+| `record` | Khi tạo/làm mới fixture | Gọi thật, ghi phản hồi vào fixture (có nhãn chi phí + thời điểm)                                              |
+| `live`   | Nightly / trước release | Gọi thật, chấp nhận không lặp lại — kết quả mang nhãn `non_deterministic`, không được là điều kiện chặn merge |
 
 ## 5. Effect — biên an toàn nằm ở Contract
 
@@ -44,7 +60,13 @@ Fixture là **artifact có id + version + lineage** (như mọi thứ trong hệ
 
 ## 6. Assertion — trên log, không trên UI
 
-| Loại | Ví dụ | |---|---| | Reachability | Task tới được Gate X / trạng thái Y | | Judgment | Verdict = reject với criterion Z | | Timer | SLA nổ sau khoảng T (clock ảo) | | **Negative** | **Không effect nào rời hệ**; không entry loại E nào xuất hiện | | Invariant | Mọi Gate có Judgment; không attempt nào không có lease |
+| Loại         | Ví dụ                                                         |
+| ------------ | ------------------------------------------------------------- |
+| Reachability | Task tới được Gate X / trạng thái Y                           |
+| Judgment     | Verdict = reject với criterion Z                              |
+| Timer        | SLA nổ sau khoảng T (clock ảo)                                |
+| **Negative** | **Không effect nào rời hệ**; không entry loại E nào xuất hiện |
+| Invariant    | Mọi Gate có Judgment; không attempt nào không có lease        |
 
 Assertion là **artifact khai báo** (có version), gắn với definition — không phải code viết tay rải rác.
 
@@ -59,7 +81,11 @@ Suite của một **interface** (◆G0–G4) thay vì của một definition: c�
 
 ## 8. Ai chạy — 3 consumer
 
-| Consumer | Khi nào | |---|---| | User | Trước khi publish process definition (Composition: static analysis bắt lỗi cấu trúc; harness bắt lỗi _hành vi_) | | CI | Mọi PR (3 tầng — playbook giao hàng (không công bố) §3); conformance suite tại mọi gate | | **Hub** | **Verified review**: block/template mang suite riêng → publisher chứng minh block chạy đúng. Suite là **bằng chứng phụ, không bao giờ là điều kiện đủ** để cấp badge (Judgment của reviewer mới là); chạy trong **test run scope của operator**: effect `forbidden` toàn phần, **0 secret handle**, trần thời gian/tài nguyên. Với block trust-class `code`, vòng duyệt **chặn bởi spec `runtime sandbox`** — không tồn tại đường "chạy code chưa verified để được verified" (Hub §7) |
+| Consumer | Khi nào                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User     | Trước khi publish process definition (Composition: static analysis bắt lỗi cấu trúc; harness bắt lỗi _hành vi_)                                                                                                                                                                                                                                                                                                                                                                       |
+| CI       | Mọi PR (3 tầng — playbook giao hàng (không công bố) §3); conformance suite tại mọi gate                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Hub**  | **Verified review**: block/template mang suite riêng → publisher chứng minh block chạy đúng. Suite là **bằng chứng phụ, không bao giờ là điều kiện đủ** để cấp badge (Judgment của reviewer mới là); chạy trong **test run scope của operator**: effect `forbidden` toàn phần, **0 secret handle**, trần thời gian/tài nguyên. Với block trust-class `code`, vòng duyệt **chặn bởi spec `runtime sandbox`** — không tồn tại đường "chạy code chưa verified để được verified" (Hub §7) |
 
 ## 9. Non-goals
 
@@ -70,7 +96,19 @@ Suite của một **interface** (◆G0–G4) thay vì của một definition: c�
 
 ## 10. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Bản chất | Mode của engine + **test run scope có nhãn** trong chính tenant, không phải hệ thứ hai; test run là entry | | **Vì sao không phải tenant riêng** | Tenant là biên cứng duy nhất; đẻ tenant `test` buộc mở đường copy artifact xuyên tenant (Artifact Store §4 cấm) và trả lời cardinality/key-tree/metering. Ba nhu cầu thật đã có cơ chế: `test_behavior`, đường-ghi-calibration-qua-Judgment, mọi-write-là-event | | **`test` là environment, không phải tier** | Trust tier giữ đúng 4 (Role §5) — trộn mức-tin-cậy với môi-trường = nguồn sự thật thứ hai của taxonomy tier | | **`dry_run`** | Là **năng lực của adapter** (`supports_dry_run`); không hỗ trợ → `forbidden`; static analysis kiểm cặp contract×adapter | | **Secret trong test** | Không resolve handle production — `forbidden` chỉ chặn _ghi_, không chặn _đọc_ | | Biên effect | Khai tại **Contract** (`test_behavior`), mặc định `forbidden` — harness thi hành, không đoán | | Mock filler | Filler thật, tier `test`, **cấm tuyệt đối vào calibration production** | | LLM | replay (CI mặc định) / record / live (nightly, không chặn merge) | | Assertion | Artifact khai báo, đo trên log, có loại **negative** | | Conformance suite | Cùng cơ chế, subject = implementation; đổi suite = breaking | | Quan hệ với static analysis | Bổ sung, không thay: cấu trúc vs hành vi |
+| Vấn đề                                     | Chốt                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bản chất                                   | Mode của engine + **test run scope có nhãn** trong chính tenant, không phải hệ thứ hai; test run là entry                                                                                                                                                       |
+| **Vì sao không phải tenant riêng**         | Tenant là biên cứng duy nhất; đẻ tenant `test` buộc mở đường copy artifact xuyên tenant (Artifact Store §4 cấm) và trả lời cardinality/key-tree/metering. Ba nhu cầu thật đã có cơ chế: `test_behavior`, đường-ghi-calibration-qua-Judgment, mọi-write-là-event |
+| **`test` là environment, không phải tier** | Trust tier giữ đúng 4 (Role §5) — trộn mức-tin-cậy với môi-trường = nguồn sự thật thứ hai của taxonomy tier                                                                                                                                                     |
+| **`dry_run`**                              | Là **năng lực của adapter** (`supports_dry_run`); không hỗ trợ → `forbidden`; static analysis kiểm cặp contract×adapter                                                                                                                                         |
+| **Secret trong test**                      | Không resolve handle production — `forbidden` chỉ chặn _ghi_, không chặn _đọc_                                                                                                                                                                                  |
+| Biên effect                                | Khai tại **Contract** (`test_behavior`), mặc định `forbidden` — harness thi hành, không đoán                                                                                                                                                                    |
+| Mock filler                                | Filler thật, tier `test`, **cấm tuyệt đối vào calibration production**                                                                                                                                                                                          |
+| LLM                                        | replay (CI mặc định) / record / live (nightly, không chặn merge)                                                                                                                                                                                                |
+| Assertion                                  | Artifact khai báo, đo trên log, có loại **negative**                                                                                                                                                                                                            |
+| Conformance suite                          | Cùng cơ chế, subject = implementation; đổi suite = breaking                                                                                                                                                                                                     |
+| Quan hệ với static analysis                | Bổ sung, không thay: cấu trúc vs hành vi                                                                                                                                                                                                                        |
 
 ## Litmus (spec-level, theo L5)
 

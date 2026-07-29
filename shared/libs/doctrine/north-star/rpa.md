@@ -25,7 +25,13 @@ lang: vi
 
 ## 4. Kiến trúc domain & bộ spec con
 
-| Lớp | Nội dung | Spec | |---|---|---| | Action | Vocabulary chuẩn hóa, reversibility, evidence, action log | ecoma-rpa-spec-action.md | | Session | Vòng đời durable, takeover, record, replay, interruption | ecoma-rpa-spec-session.md | | Driver & Perception | Contract driver, scene hợp nhất, **semantic locator** | ecoma-rpa-spec-driver-perception.md | | Self-healing | Script ↔ agent hai chiều, patch lineage, UI drift smell | ecoma-rpa-spec-selfhealing.md | | Sandbox & Credential | Cách ly phiên, vault, masking, permission scope | ecoma-rpa-spec-sandbox-credential.md |
+| Lớp                  | Nội dung                                                  | Spec                                 |
+| -------------------- | --------------------------------------------------------- | ------------------------------------ |
+| Action               | Vocabulary chuẩn hóa, reversibility, evidence, action log | ecoma-rpa-spec-action.md             |
+| Session              | Vòng đời durable, takeover, record, replay, interruption  | ecoma-rpa-spec-session.md            |
+| Driver & Perception  | Contract driver, scene hợp nhất, **semantic locator**     | ecoma-rpa-spec-driver-perception.md  |
+| Self-healing         | Script ↔ agent hai chiều, patch lineage, UI drift smell   | ecoma-rpa-spec-selfhealing.md        |
+| Sandbox & Credential | Cách ly phiên, vault, masking, permission scope           | ecoma-rpa-spec-sandbox-credential.md |
 
 **Topology triển khai — Node:**
 
@@ -42,13 +48,30 @@ lang: vi
 
 ## 5. Bảng ánh xạ tích hợp (ưu tiên số một của sản phẩm)
 
-| Khái niệm RPA | Khi cắm vào Platform trở thành | |---|---| | Session | Session effect của một Task | | Human takeover | `assistance_request` (Escalation) — người xử lý chính là một Filler | | Script version (healed) | Filler identity mới có lineage → đi qua trust tiers (shadow → … → autonomous) | | Healing confirmation | Gate (Checkpoint) với criteria từ reversibility | | Action log + evidence | Provenance của Artifact | | App Profile | Block type trên **Ecoma Hub**; cài vào tenant thì trở thành nguồn giá trị default cascade (mức template = tập block đã cài) | | UI drift smell | Tín hiệu Escalation/Intelligence (process smell tầng thực thi) | | Session read-only scope | Rail của spawn_policy khi agent tự đẻ task RPA | | **Automation** (script@version + healing policy, hoặc agent config) | **Chính là Filler đăng ký** — chuyển giao nội bộ script⇄agent⇄người theo từng action là hành vi _bên trong_ filler, ghi sub-actor trong log; calibration Platform bám filler, ML chi tiết dùng sub-actor | | Learning signals (healing, tầng-thắng, takeover diff, patch gate) | Dẫn xuất từ Session effect + entry `proposal` trong cùng stream — **không phải giao diện thứ ba**; về đích là Judgment / Escalation / calibration per-tenant của lõi ML duy nhất (§7) |
+| Khái niệm RPA                                                       | Khi cắm vào Platform trở thành                                                                                                                                                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session                                                             | Session effect của một Task                                                                                                                                                                              |
+| Human takeover                                                      | `assistance_request` (Escalation) — người xử lý chính là một Filler                                                                                                                                      |
+| Script version (healed)                                             | Filler identity mới có lineage → đi qua trust tiers (shadow → … → autonomous)                                                                                                                            |
+| Healing confirmation                                                | Gate (Checkpoint) với criteria từ reversibility                                                                                                                                                          |
+| Action log + evidence                                               | Provenance của Artifact                                                                                                                                                                                  |
+| App Profile                                                         | Block type trên **Ecoma Hub**; cài vào tenant thì trở thành nguồn giá trị default cascade (mức template = tập block đã cài)                                                                              |
+| UI drift smell                                                      | Tín hiệu Escalation/Intelligence (process smell tầng thực thi)                                                                                                                                           |
+| Session read-only scope                                             | Rail của spawn_policy khi agent tự đẻ task RPA                                                                                                                                                           |
+| **Automation** (script@version + healing policy, hoặc agent config) | **Chính là Filler đăng ký** — chuyển giao nội bộ script⇄agent⇄người theo từng action là hành vi _bên trong_ filler, ghi sub-actor trong log; calibration Platform bám filler, ML chi tiết dùng sub-actor |
+| Learning signals (healing, tầng-thắng, takeover diff, patch gate)   | Dẫn xuất từ Session effect + entry `proposal` trong cùng stream — **không phải giao diện thứ ba**; về đích là Judgment / Escalation / calibration per-tenant của lõi ML duy nhất (§7)                    |
 
 ## 6. Duality — deterministic và reasoning trong RPA (tường minh)
 
 Cùng một trục, dial theo **từng action**, không phải hai hệ:
 
-| Tầng | Deterministic | Reasoning | |---|---|---| | Executor | Script (locator tầng 1–2) | Agent vision (tầng 3–4) | | Nguồn script | Record demonstration của người | Distillation từ agent | | Resolve target | Structural anchor | Semantic intent | | Kiểm | Precondition assert | Reconcile + healing | | Chuyển giao | Script → agent khi fail | Agent → script khi ổn định |
+| Tầng           | Deterministic                  | Reasoning                  |
+| -------------- | ------------------------------ | -------------------------- |
+| Executor       | Script (locator tầng 1–2)      | Agent vision (tầng 3–4)    |
+| Nguồn script   | Record demonstration của người | Distillation từ agent      |
+| Resolve target | Structural anchor              | Semantic intent            |
+| Kiểm           | Precondition assert            | Reconcile + healing        |
+| Chuyển giao    | Script → agent khi fail        | Agent → script khi ổn định |
 
 ## 7. Học máy — một lõi ML duy nhất, RPA là nhà sản xuất tín hiệu
 
@@ -84,4 +107,8 @@ Cùng một trục, dial theo **từng action**, không phải hai hệ:
 
 ## FMEA (theo F8)
 
-| Hỏng | Phát hiện | Phục hồi | |---|---|---| | Node mất mạng giữa phiên | Heartbeat/lease TTL | Session durable cục bộ, resume cursor; chết hẳn → interrupted chính xác theo evidence | | Node bị chiếm | Enrollment identity + thu hồi key | Mọi claim/secret từ chối tức thì | | Buffer evidence đầy trên node | Hash đã stream, blob lười | Cảnh báo dung lượng; log integrity không đổi |
+| Hỏng                          | Phát hiện                         | Phục hồi                                                                              |
+| ----------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
+| Node mất mạng giữa phiên      | Heartbeat/lease TTL               | Session durable cục bộ, resume cursor; chết hẳn → interrupted chính xác theo evidence |
+| Node bị chiếm                 | Enrollment identity + thu hồi key | Mọi claim/secret từ chối tức thì                                                      |
+| Buffer evidence đầy trên node | Hash đã stream, blob lười         | Cảnh báo dung lượng; log integrity không đổi                                          |

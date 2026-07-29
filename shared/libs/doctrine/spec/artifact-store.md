@@ -10,7 +10,10 @@ lang: vi
 
 ## 1. Kiến trúc — tách sự thật khỏi bytes
 
-| Lớp | Chứa | Tính chất | |---|---|---| | **Event log** (đã có) | Metadata, provenance, Judgment, hash của mọi artifact | Nguồn sự thật, nhỏ, append-only, vĩnh viễn | | **Blob store** | Bytes thực của artifact/chunk/evidence/scene/definition, khóa bằng content hash | To, có vòng đời |
+| Lớp                   | Chứa                                                                            | Tính chất                                  |
+| --------------------- | ------------------------------------------------------------------------------- | ------------------------------------------ |
+| **Event log** (đã có) | Metadata, provenance, Judgment, hash của mọi artifact                           | Nguồn sự thật, nhỏ, append-only, vĩnh viễn |
+| **Blob store**        | Bytes thực của artifact/chunk/evidence/scene/definition, khóa bằng content hash | To, có vòng đời                            |
 
 Hệ quả then chốt: **mất blob ≠ mất lịch sử** — hash trong event log vẫn chứng minh được "cái gì đã tồn tại, ai tạo, dùng ở đâu" kể cả khi bytes đã bị dọn theo policy.
 
@@ -53,7 +56,15 @@ Hệ quả then chốt: **mất blob ≠ mất lịch sử** — hash trong even
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Vị trí | Subsystem Core engine tầng 1 — không phải domain/module | | Sự thật vs bytes | Event log giữ sự thật vĩnh viễn; blob có vòng đời — mất blob không mất lịch sử | | GC | Theo tham chiếu + retention theo loại; xóa có event | | Dedup | Chỉ trong tenant — cross-tenant là side-channel, cấm | | Mật | Storage policy theo classification lattice; mã hóa per-tenant; residency | | Nguồn ngoài | Reference + hash snapshot bắt buộc; lệch = Violation | | Hub | Kho phân phối ≠ kho runtime — hai vai tách bạch |
+| Vấn đề           | Chốt                                                                           |
+| ---------------- | ------------------------------------------------------------------------------ |
+| Vị trí           | Subsystem Core engine tầng 1 — không phải domain/module                        |
+| Sự thật vs bytes | Event log giữ sự thật vĩnh viễn; blob có vòng đời — mất blob không mất lịch sử |
+| GC               | Theo tham chiếu + retention theo loại; xóa có event                            |
+| Dedup            | Chỉ trong tenant — cross-tenant là side-channel, cấm                           |
+| Mật              | Storage policy theo classification lattice; mã hóa per-tenant; residency       |
+| Nguồn ngoài      | Reference + hash snapshot bắt buộc; lệch = Violation                           |
+| Hub              | Kho phân phối ≠ kho runtime — hai vai tách bạch                                |
 
 ## Litmus (spec-level, theo L5)
 
@@ -63,4 +74,9 @@ Hệ quả then chốt: **mất blob ≠ mất lịch sử** — hash trong even
 
 ## FMEA (theo F8)
 
-| Hỏng | Phát hiện | Phục hồi | |---|---|---| | Blob mất | `exists(hash)` fail | Re-materialize từ nguồn; nếu bytes-gone: hash vẫn chứng minh lịch sử + event | | Backend down | put/get lỗi | Retry → on_fail/escalate của task; không mất sự thật (ở log) | | Nguồn ngoài đổi nội dung | Hash mismatch lúc đọc | Violation theo policy handoff | | GC nhầm tham chiếu | GC 2 pha + event từng lần xóa | Khôi phục backup; sự thật không mất |
+| Hỏng                     | Phát hiện                     | Phục hồi                                                                     |
+| ------------------------ | ----------------------------- | ---------------------------------------------------------------------------- |
+| Blob mất                 | `exists(hash)` fail           | Re-materialize từ nguồn; nếu bytes-gone: hash vẫn chứng minh lịch sử + event |
+| Backend down             | put/get lỗi                   | Retry → on_fail/escalate của task; không mất sự thật (ở log)                 |
+| Nguồn ngoài đổi nội dung | Hash mismatch lúc đọc         | Violation theo policy handoff                                                |
+| GC nhầm tham chiếu       | GC 2 pha + event từng lần xóa | Khôi phục backup; sự thật không mất                                          |

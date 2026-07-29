@@ -10,19 +10,35 @@ lang: vi
 
 Role là **hợp đồng năng lực cho một vị trí lao động** — độc lập với việc ai/cái gì đang lấp nó. Tách bạch nền tảng:
 
-| | Role (vị trí) | Filler (người lấp) | |---|---|---| | Là gì | Slot: làm gì, theo tiêu chí nào, quyền gì | Occupant: người / agent / rule | | Danh tính | id + version | identity riêng (§3) | | Đổi cái này | Sửa quy trình | **Không sửa quy trình** |
+|             | Role (vị trí)                             | Filler (người lấp)             |
+| ----------- | ----------------------------------------- | ------------------------------ |
+| Là gì       | Slot: làm gì, theo tiêu chí nào, quyền gì | Occupant: người / agent / rule |
+| Danh tính   | id + version                              | identity riêng (§3)            |
+| Đổi cái này | Sửa quy trình                             | **Không sửa quy trình**        |
 
 Đây chính là cơ chế trả lời litmus #1: _đổi một bước từ người sang AI không phải sửa flow_ — vì flow chỉ biết Role, không biết Filler.
 
 ## 2. Cấu trúc Role
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `io_contracts` | Tham chiếu Contract (Handoff) cho input/output — Role "nói" contract nào | ✅ | | `held_criteria` | Tham chiếu Criterion (Checkpoint) mà output của Role bị chấm theo | ✅ | | `capabilities` | Quyền hạng nhất: `judge`, `contract_author`, `process_author`, `role_author`, `arbiter`, `spawn_task`, `override_gate`… — taxonomy mở | ✅ (có thể ∅) | | `assignment_policy` | Cách chọn Filler khi có nhiều: `static` / `queue` / `router:<role>` (định tuyến là Task của một Role) / chiến lược cắm thêm | ✅ | | `escalation_chain` | Chuỗi xử lý khi lệch chuẩn — xem Escalation spec | ✅ | | `graduation_policy` | Điều kiện thăng/giáng trust tier của Filler (§5) — ngưỡng resolve theo default cascade (Composition §3) | ✅ | | `constraints` | Trần cost, latency, giờ hoạt động | ⬜ |
+| Trường              | Nội dung                                                                                                                              | Bắt buộc      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `io_contracts`      | Tham chiếu Contract (Handoff) cho input/output — Role "nói" contract nào                                                              | ✅            |
+| `held_criteria`     | Tham chiếu Criterion (Checkpoint) mà output của Role bị chấm theo                                                                     | ✅            |
+| `capabilities`      | Quyền hạng nhất: `judge`, `contract_author`, `process_author`, `role_author`, `arbiter`, `spawn_task`, `override_gate`… — taxonomy mở | ✅ (có thể ∅) |
+| `assignment_policy` | Cách chọn Filler khi có nhiều: `static` / `queue` / `router:<role>` (định tuyến là Task của một Role) / chiến lược cắm thêm           | ✅            |
+| `escalation_chain`  | Chuỗi xử lý khi lệch chuẩn — xem Escalation spec                                                                                      | ✅            |
+| `graduation_policy` | Điều kiện thăng/giáng trust tier của Filler (§5) — ngưỡng resolve theo default cascade (Composition §3)                               | ✅            |
+| `constraints`       | Trần cost, latency, giờ hoạt động                                                                                                     | ⬜            |
 
 **Role hệ thống không tồn tại**: Arbiter, Distiller, Merger, Adapter, Coercer, Router (đã xuất hiện ở Checkpoint/Handoff) đều chỉ là Role thường với contract phù hợp. Engine không có node đặc quyền — mọi lao động, kể cả lao động vận hành hệ thống, đi qua cùng cơ chế.
 
 ## 3. Filler
 
-| Loại | Identity (khóa calibration) | Availability | Cost | |---|---|---|---| | Người | user id | Giờ làm việc, capacity, nghỉ phép — **tự khai báo** | Lương/giờ hoặc /task | | Agent | `(model, version, config_hash)` — cùng logic verifier identity | Rate limit, concurrency | Token/compute | | Rule/code | `(code, version)` | Luôn sẵn sàng (trừ dependency) | ~0 |
+| Loại      | Identity (khóa calibration)                                    | Availability                                        | Cost                 |
+| --------- | -------------------------------------------------------------- | --------------------------------------------------- | -------------------- |
+| Người     | user id                                                        | Giờ làm việc, capacity, nghỉ phép — **tự khai báo** | Lương/giờ hoặc /task |
+| Agent     | `(model, version, config_hash)` — cùng logic verifier identity | Rate limit, concurrency                             | Token/compute        |
+| Rule/code | `(code, version)`                                              | Luôn sẵn sàng (trừ dependency)                      | ~0                   |
 
 - Engine đối xứng tuyệt đối: cả ba khai cùng schema (identity, availability, capacity, cost function). Không có nhánh if-human.
 - **Identity lineage** (chống reset flywheel): agent identity mới (đổi prompt/config/model) khai báo `parent_identity`; calibration profile **kế thừa từ cha với hệ số decay** (tham số lớp C, template cấp giá trị). Vòng tiến hóa chuẩn của filler: config mới → shadow (§4) → graduation thay cha. Không có lineage, mỗi lần tầng Intelligence tối ưu prompt là một lần tự đốt calibration — mâu thuẫn chết người với per-tenant learning.
@@ -41,7 +57,12 @@ Role là **hợp đồng năng lực cho một vị trí lao động** — độ
 
 ## 5. Trust tiers & graduation — cơ chế dịch chuyển lực lượng lao động
 
-| Tier | Output đi đâu | Điều kiện lên | |---|---|---| | `shadow` | Không vào flow, chỉ học | Calibration đạt ngưỡng so với primary | | `gated` | Vào flow, 100% qua review | Tỉ lệ approve ≥ X trên ≥ N mẫu | | `sampled` | Auto-pass + sampling (Checkpoint §4) | Reject rate trong mẫu ≤ Y | | `autonomous` | Auto-pass, sampling tối thiểu | |
+| Tier         | Output đi đâu                        | Điều kiện lên                         |
+| ------------ | ------------------------------------ | ------------------------------------- |
+| `shadow`     | Không vào flow, chỉ học              | Calibration đạt ngưỡng so với primary |
+| `gated`      | Vào flow, 100% qua review            | Tỉ lệ approve ≥ X trên ≥ N mẫu        |
+| `sampled`    | Auto-pass + sampling (Checkpoint §4) | Reject rate trong mẫu ≤ Y             |
+| `autonomous` | Auto-pass, sampling tối thiểu        |                                       |
 
 - Thăng/giáng **tự động theo `graduation_policy`** — engine ép policy tồn tại, template cấp ngưỡng; user override được (nguyên tắc #3, #4).
 - Giáng lập tức khi calibration sụt (liên thông cơ chế "tự siết" của Checkpoint §4).
@@ -50,7 +71,11 @@ Role là **hợp đồng năng lực cho một vị trí lao động** — độ
 
 ## 6. Duality
 
-| Khía cạnh | Rule/code | Agent / người | |---|---|---| | Graduation | Cùng policy, cùng thang — nhưng calibration nhị phân hội tụ sau rất ít mẫu nên lên autonomous nhanh. **Hệ quả tự nhiên của dữ liệu, không phải đặc quyền engine** | Calibration dạng phân phối, cần nhiều mẫu hơn | | Availability | Hằng số | Biến thiên, tự khai | | Calibration | Nhị phân, hội tụ nhanh | Phân phối, cần mẫu |
+| Khía cạnh    | Rule/code                                                                                                                                                         | Agent / người                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Graduation   | Cùng policy, cùng thang — nhưng calibration nhị phân hội tụ sau rất ít mẫu nên lên autonomous nhanh. **Hệ quả tự nhiên của dữ liệu, không phải đặc quyền engine** | Calibration dạng phân phối, cần nhiều mẫu hơn |
+| Availability | Hằng số                                                                                                                                                           | Biến thiên, tự khai                           |
+| Calibration  | Nhị phân, hội tụ nhanh                                                                                                                                            | Phân phối, cần mẫu                            |
 
 ## 7. Non-goals
 
@@ -59,7 +84,15 @@ Role là **hợp đồng năng lực cho một vị trí lao động** — độ
 
 ## 8. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Slot vs occupant | Tách Role/Filler; flow chỉ biết Role | | Role hệ thống | Không tồn tại — Arbiter/Distiller/… là Role thường | | Capability | Gắn vào Role, Filler thừa hưởng khi lấp; taxonomy mở | | Thang tin cậy | Calibration profile theo (role, filler, task_type, criterion), nguồn duy nhất là hệ Judgment | | **Environment vs tier** | `environment` là chiều của identity, **không** phải tier thứ 5 — bảng §5 giữ đúng 4 tier; mock filler bị chặn khỏi production bằng chiều này | | Shadow | Cơ chế hạng nhất, đối xứng hai chiều (AI bóng người, người bóng AI) | | Graduation | 4 tier, tự động hai chiều theo policy khai báo |
+| Vấn đề                  | Chốt                                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slot vs occupant        | Tách Role/Filler; flow chỉ biết Role                                                                                                         |
+| Role hệ thống           | Không tồn tại — Arbiter/Distiller/… là Role thường                                                                                           |
+| Capability              | Gắn vào Role, Filler thừa hưởng khi lấp; taxonomy mở                                                                                         |
+| Thang tin cậy           | Calibration profile theo (role, filler, task_type, criterion), nguồn duy nhất là hệ Judgment                                                 |
+| **Environment vs tier** | `environment` là chiều của identity, **không** phải tier thứ 5 — bảng §5 giữ đúng 4 tier; mock filler bị chặn khỏi production bằng chiều này |
+| Shadow                  | Cơ chế hạng nhất, đối xứng hai chiều (AI bóng người, người bóng AI)                                                                          |
+| Graduation              | 4 tier, tự động hai chiều theo policy khai báo                                                                                               |
 
 ## Litmus (spec-level, theo L5)
 

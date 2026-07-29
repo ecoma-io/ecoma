@@ -8,7 +8,12 @@ lang: vi
 
 ## 1. Ranh giới — ba phân vùng, ba nhà, cấm trộn
 
-| Nhà | Nội dung | Ship cho self-host? | License | |---|---|---|---| | **`deploy/`** | Thứ một self-hoster **nhận và chạy**: compose, Helm chart, systemd unit, installer, migration runner, mẫu cấu hình edge router | ✅ | SUL | | **`cloud/`** | IaC + control plane của **nhà vận hành Cloud**: fleet, billing, quota ops, provisioning tự động | ❌ | Proprietary, không public | | **`shared/tools/`** | Tooling của **người phát triển**: dev-cli, lint rules, repo-care | ❌ (không phải artifact sản phẩm) | SUL | | **`<area>/enterprise/`** | Tính năng cấp doanh nghiệp cho **self-host**: SSO, audit export, retention sâu, RBAC nâng cao — **không** chứa đa-tenant | ✅ (cần license) | Enterprise, tag `license:ee` |
+| Nhà                      | Nội dung                                                                                                                       | Ship cho self-host?               | License                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ---------------------------- |
+| **`deploy/`**            | Thứ một self-hoster **nhận và chạy**: compose, Helm chart, systemd unit, installer, migration runner, mẫu cấu hình edge router | ✅                                | SUL                          |
+| **`cloud/`**             | IaC + control plane của **nhà vận hành Cloud**: fleet, billing, quota ops, provisioning tự động                                | ❌                                | Proprietary, không public    |
+| **`shared/tools/`**      | Tooling của **người phát triển**: dev-cli, lint rules, repo-care                                                               | ❌ (không phải artifact sản phẩm) | SUL                          |
+| **`<area>/enterprise/`** | Tính năng cấp doanh nghiệp cho **self-host**: SSO, audit export, retention sâu, RBAC nâng cao — **không** chứa đa-tenant       | ✅ (cần license)                  | Enterprise, tag `license:ee` |
 
 **Single-tenant là thuộc tính của HÌNH THÁI, không phải giới hạn kỹ thuật của engine**: mọi cài đặt self-host (SUL lẫn Enterprise) chạy **đúng một tenant**, vì workflow tạo tenant thứ hai chỉ ship trong `cloud/` — **không** vì runtime kiểm quyền (North Star §7 cấm). Engine vẫn giữ nguyên tầng tenant trong cây khoá kể cả khi N=1 (Tenant §2c). Charter này vì thế **không** khai gì về provisioning đa tenant — đó là việc của `cloud/`.
 
@@ -20,7 +25,10 @@ lang: vi
 
 Hai hình thái (ADR-0002), mỗi hình thái ship một bộ khác nhau:
 
-| Hình thái | Storage default | Ship gì | |---|---|---| | **Small-stack** — một binary / một container | SQLite + DuckDB, vault file-based | Binary/imagem, unit file, mẫu cấu hình, migration runner | | **Production** — compose / Helm | Postgres (+pgvector, +Timescale), vault backend ngoài | Chart/compose, mẫu secret, migration runner, mẫu edge router |
+| Hình thái                                    | Storage default                                       | Ship gì                                                      |
+| -------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| **Small-stack** — một binary / một container | SQLite + DuckDB, vault file-based                     | Binary/imagem, unit file, mẫu cấu hình, migration runner     |
+| **Production** — compose / Helm              | Postgres (+pgvector, +Timescale), vault backend ngoài | Chart/compose, mẫu secret, migration runner, mẫu edge router |
 
 - **Hình thái là lời khai quy mô của người cài**, không phải một cờ đổi lúc chạy. Đổi hình thái = **grow-path = replay log sang port mới**, một thao tác có chủ đích, **không bao giờ tự động**.
 - Charter **không** khai contract của storage port — đó là ADR-0002 + Working Data.
@@ -32,13 +40,18 @@ Hai hình thái (ADR-0002), mỗi hình thái ship một bộ khác nhau:
 - Trên máy attended: hai artifact, cùng train — lớp UI kiểm lúc bắt tay nội-máy và **từ chối chạy** nếu lệch (Release & Compat §8). **Giao thoa #3 đã đóng.**
 - Artifact thiếu `train_version`/`source_digest`/`provenance`/chữ ký ⇒ **từ chối cài**, không có chế độ "cài tạm".
 
-## 4. Khóa & khôi phục — bốn nghĩa vụ từ blocker Đây là phần nặng nhất của charter. Luật gốc ở Vault §3 (ba vế: ngoài-backup · DR bắt buộc cho root/tenant-DEK · chỉ replica tiến-lên-trước). Charter khai **thủ tục**.
+## 4. Khóa & khôi phục — bốn nghĩa vụ từ blocker
+
+Đây là phần nặng nhất của charter. Luật gốc ở Vault §3 (ba vế: ngoài-backup · DR bắt buộc cho root/tenant-DEK · chỉ replica tiến-lên-trước). Charter khai **thủ tục**.
 
 ### 4.1 Sinh và xác nhận root key
 
 Provisioning phát root key **một lần**, rồi **đòi thử thách checksum** trước khi cho cài đặt vào trạng thái phục vụ. Kết quả là entry. Thủ tục viết ra phải nêu **chính xác chỗ cất** theo hình thái, không nói chung chung:
 
-| Hình thái | Đường DR của root key (tách khỏi backup dữ liệu) | |---|---| | Small-stack | Một **bản in/ghi ngoài máy** (password manager, phong bì niêm phong, USB cất rời) — thủ tục nêu ít nhất một lựa chọn cụ thể, không để người dùng tự nghĩ | | Production | KMS/HSM có **replica tiến-lên-trước** (destroy replicate được), **không snapshot point-in-time** — tư cách backend kiểm ở §4.4 |
+| Hình thái   | Đường DR của root key (tách khỏi backup dữ liệu)                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Small-stack | Một **bản in/ghi ngoài máy** (password manager, phong bì niêm phong, USB cất rời) — thủ tục nêu ít nhất một lựa chọn cụ thể, không để người dùng tự nghĩ |
+| Production  | KMS/HSM có **replica tiến-lên-trước** (destroy replicate được), **không snapshot point-in-time** — tư cách backend kiểm ở §4.4                           |
 
 ### 4.2 Khôi phục trên máy trắng
 
@@ -69,7 +82,9 @@ Khớp 4 pha của Release & Compat §4 (cài cạnh → migrate → cutover →
 
 **Hai đường lùi khác nhau, gọi đúng tên — giao thoa #2 đã đóng**:
 
-| Trong cửa sổ rollback | Ngoài cửa sổ | |---|---| | **Rollback**: chạy đường nghịch, artifact cũ còn nguyên tại chỗ (pha 4) | **KHÔNG phải rollback** — đó là **restore + replay**: dựng lại từ backup, chấp nhận mất dữ liệu từ điểm backup, rủi ro và thời gian khác hẳn |
+| Trong cửa sổ rollback                                                   | Ngoài cửa sổ                                                                                                                                 |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rollback**: chạy đường nghịch, artifact cũ còn nguyên tại chỗ (pha 4) | **KHÔNG phải rollback** — đó là **restore + replay**: dựng lại từ backup, chấp nhận mất dữ liệu từ điểm backup, rủi ro và thời gian khác hẳn |
 
 Thủ tục **cấm** dùng chữ "rollback" cho vế phải. Án văn: người vận hành bấm theo kỳ vọng gắn với cái tên; gọi hai thứ khác nhau bằng một tên là thiết kế ra một sự cố.
 
@@ -98,7 +113,18 @@ Thứ tự **bắt buộc, không đảo**: (1) thông báo + đóng trigger m�
 
 ## 10. Nhật ký quyết định
 
-| Chủ đề | Chốt | Án văn | |---|---|---| | Ranh giới | **Ba** phân vùng: `deploy/` ship · `cloud/` vận hành · `shared/tools/` phát triển | Hai phân vùng để lọt tooling; sai một hướng là trao hạ tầng cho đối thủ, sai hướng kia là fair-code trên giấy | | Hình thái | Lời khai quy mô, không phải công tắc; grow-path = replay có chủ đích | Công tắc lúc chạy biến một quyết định kiến trúc thành một tai nạn cấu hình | | Bộ artifact | Cùng một train; installer **từ chối** bộ lệch | Skew nội-máy không kênh handshake nào của hệ nhìn thấy | | Root key DR | Thủ tục nêu **chỗ cất cụ thể theo hình thái**, không nói chung chung | "Hãy cất khóa an toàn" là lời dặn; một chỗ cất được nêu tên là thủ tục | | Gate backup×khóa | Lệnh `check-backup-key-isolation` chạy ở CI + pre-commit | Litmus #4 của Vault chỉ có giá trị khi có thứ chạy nó | | Retention | ≤ support window, hoặc khai restore path + diễn tập; vượt mà thiếu ⇒ cảnh báo lúc khởi động | Backup không đọc lại được là lời hứa suông (P3b) | | Diễn tập | Restore drill bắt buộc, là entry | Backup chưa thử là giả thuyết | | Hai đường lùi | Gọi đúng tên; **cấm** gọi restore là "rollback" | Người vận hành bấm theo kỳ vọng gắn với cái tên | | Readiness | Chỉ xanh khi vault + storage + protocol registry sẵn sàng | Xanh sớm là nói dối phía trên | | Sunset | Export → **xác nhận đọc được** → shred; không đảo | Đảo là mất vĩnh viễn bằng một lệnh; export chưa đọc thử là chưa tồn tại |
+| Chủ đề           | Chốt                                                                                        | Án văn                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Ranh giới        | **Ba** phân vùng: `deploy/` ship · `cloud/` vận hành · `shared/tools/` phát triển           | Hai phân vùng để lọt tooling; sai một hướng là trao hạ tầng cho đối thủ, sai hướng kia là fair-code trên giấy |
+| Hình thái        | Lời khai quy mô, không phải công tắc; grow-path = replay có chủ đích                        | Công tắc lúc chạy biến một quyết định kiến trúc thành một tai nạn cấu hình                                    |
+| Bộ artifact      | Cùng một train; installer **từ chối** bộ lệch                                               | Skew nội-máy không kênh handshake nào của hệ nhìn thấy                                                        |
+| Root key DR      | Thủ tục nêu **chỗ cất cụ thể theo hình thái**, không nói chung chung                        | "Hãy cất khóa an toàn" là lời dặn; một chỗ cất được nêu tên là thủ tục                                        |
+| Gate backup×khóa | Lệnh `check-backup-key-isolation` chạy ở CI + pre-commit                                    | Litmus #4 của Vault chỉ có giá trị khi có thứ chạy nó                                                         |
+| Retention        | ≤ support window, hoặc khai restore path + diễn tập; vượt mà thiếu ⇒ cảnh báo lúc khởi động | Backup không đọc lại được là lời hứa suông (P3b)                                                              |
+| Diễn tập         | Restore drill bắt buộc, là entry                                                            | Backup chưa thử là giả thuyết                                                                                 |
+| Hai đường lùi    | Gọi đúng tên; **cấm** gọi restore là "rollback"                                             | Người vận hành bấm theo kỳ vọng gắn với cái tên                                                               |
+| Readiness        | Chỉ xanh khi vault + storage + protocol registry sẵn sàng                                   | Xanh sớm là nói dối phía trên                                                                                 |
+| Sunset           | Export → **xác nhận đọc được** → shred; không đảo                                           | Đảo là mất vĩnh viễn bằng một lệnh; export chưa đọc thử là chưa tồn tại                                       |
 
 ## 11. Litmus của charter
 

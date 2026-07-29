@@ -12,7 +12,12 @@ lang: vi
 
 ## 1. Mô hình khái niệm
 
-| Entity | Là gì | Danh tính | |---|---|---| | **Collection** | Một kho tri thức: chủ đề, Curator Role, classification, model_policy, grants, **scope `tenant`/`workspace`** (vách mềm — Tenant & Identity §3; mặc định = workspace của người tạo). Tenant có N collection | id + version + lineage | | **Chunk** | Đơn vị nội dung trong collection — là **Artifact content-addressed** (immutable, sửa = dẫn xuất) | content hash | | **Grant** | Cấp collection → **Role** (không cấp cho user) | trong Role/Collection | | **Curator Role** | Vị trí chịu trách nhiệm nội dung — người _hoặc_ AI lấp, như mọi Role | Role thường |
+| Entity           | Là gì                                                                                                                                                                                                      | Danh tính              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| **Collection**   | Một kho tri thức: chủ đề, Curator Role, classification, model_policy, grants, **scope `tenant`/`workspace`** (vách mềm — Tenant & Identity §3; mặc định = workspace của người tạo). Tenant có N collection | id + version + lineage |
+| **Chunk**        | Đơn vị nội dung trong collection — là **Artifact content-addressed** (immutable, sửa = dẫn xuất)                                                                                                           | content hash           |
+| **Grant**        | Cấp collection → **Role** (không cấp cho user)                                                                                                                                                             | trong Role/Collection  |
+| **Curator Role** | Vị trí chịu trách nhiệm nội dung — người _hoặc_ AI lấp, như mọi Role                                                                                                                                       | Role thường            |
 
 ## 2. Truy cập theo Role — need-to-use, không phải ACL theo người
 
@@ -62,7 +67,15 @@ lang: vi
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Vị trí kiến trúc | Module opt-in của Platform — không phải domain, không phải primitive | | Kích hoạt | Tenant policy; tắt = static analysis chặn + zero overhead | | Phân quyền | Grant theo **Role** (need-to-use); duyệt-xem-tự-do đã chốt tại **Tenant & Identity §4**; collection mang scope tenant/workspace | | Phân loại | Lattice engine ép tồn tại, template 4 mức, tenant tùy biến; không khai = confidential | | Chống lộ | Sàn kế thừa provenance + egress 2 lớp (static + runtime) + model_policy + declassify-qua-Gate | | Version | Live-resolve mặc định, version tiêu thụ ghi vào provenance; pin opt-in | | Hạ tầng | Adapter — quản trị, không kho chứa |
+| Vấn đề           | Chốt                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Vị trí kiến trúc | Module opt-in của Platform — không phải domain, không phải primitive                                                            |
+| Kích hoạt        | Tenant policy; tắt = static analysis chặn + zero overhead                                                                       |
+| Phân quyền       | Grant theo **Role** (need-to-use); duyệt-xem-tự-do đã chốt tại **Tenant & Identity §4**; collection mang scope tenant/workspace |
+| Phân loại        | Lattice engine ép tồn tại, template 4 mức, tenant tùy biến; không khai = confidential                                           |
+| Chống lộ         | Sàn kế thừa provenance + egress 2 lớp (static + runtime) + model_policy + declassify-qua-Gate                                   |
+| Version          | Live-resolve mặc định, version tiêu thụ ghi vào provenance; pin opt-in                                                          |
+| Hạ tầng          | Adapter — quản trị, không kho chứa                                                                                              |
 
 ## Litmus (spec-level, theo L5)
 
@@ -72,4 +85,9 @@ lang: vi
 
 ## FMEA (theo F8)
 
-| Hỏng | Phát hiện | Phục hồi | |---|---|---| | Vector adapter down | Retrieval fail | on_fail/escalate; chunks nguyên trong CAS | | Index hỏng/lạc hậu | Rebuild = projection từ chunk + model@version | Re-index, không migration | | Adapter trả ngoài scope | Engine re-check bước 3 | Chặn cấu trúc — không tin adapter | | Curator độc đầu độc nội dung | Curation qua Gate + knowledge calibration từ outcome | Chunk xấu tự lộ, supersede có lineage |
+| Hỏng                         | Phát hiện                                            | Phục hồi                                  |
+| ---------------------------- | ---------------------------------------------------- | ----------------------------------------- |
+| Vector adapter down          | Retrieval fail                                       | on_fail/escalate; chunks nguyên trong CAS |
+| Index hỏng/lạc hậu           | Rebuild = projection từ chunk + model@version        | Re-index, không migration                 |
+| Adapter trả ngoài scope      | Engine re-check bước 3                               | Chặn cấu trúc — không tin adapter         |
+| Curator độc đầu độc nội dung | Curation qua Gate + knowledge calibration từ outcome | Chunk xấu tự lộ, supersede có lineage     |

@@ -22,7 +22,12 @@ lang: vi
 
 `(subject, nội dung, provenance → bằng chứng trong log, confidence, classification, decay_policy, lineage)`
 
-| Luật | Cơ chế | |---|---| | Chống bịa | **Provenance bắt buộc**: entry phải trỏ về event/artifact gốc — "nhớ vì đâu". Không nguồn = không vào, về cấu trúc | | Chống poisoning | Lời subject tự khai ("tôi luôn được giảm 50%") = claim basis trọng số thấp — **không tự thăng thành fact**; thăng qua Gate có verifier/người | | Bất biến | Entry là artifact CAS + event ghi nhận; sửa = **supersede có lineage**; mâu thuẫn → **Conflict event** | | Mật | Mặc định `confidential`; egress/leakage-gate áp nguyên; erasure của subject = **crypto-shredding** (Event Log §4) |
+| Luật            | Cơ chế                                                                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chống bịa       | **Provenance bắt buộc**: entry phải trỏ về event/artifact gốc — "nhớ vì đâu". Không nguồn = không vào, về cấu trúc                           |
+| Chống poisoning | Lời subject tự khai ("tôi luôn được giảm 50%") = claim basis trọng số thấp — **không tự thăng thành fact**; thăng qua Gate có verifier/người |
+| Bất biến        | Entry là artifact CAS + event ghi nhận; sửa = **supersede có lineage**; mâu thuẫn → **Conflict event**                                       |
+| Mật             | Mặc định `confidential`; egress/leakage-gate áp nguyên; erasure của subject = **crypto-shredding** (Event Log §4)                            |
 
 ## 3. Ghi nhớ là lao động
 
@@ -53,7 +58,13 @@ Mirror đúng distillation agent→script: Memory là quan sát, Knowledge là t
 
 ## 6. Ánh xạ 5 loại "memory" thị trường
 
-| Thị trường gọi | Ecoma trả lời bằng | |---|---| | Working memory | Attempt + artifact trung gian (sẵn có) | | Conversation history | Chuỗi Task luân phiên durable + projection transcript (sẵn có) | | Episodic | **Event Log chính là episodic memory** — query log/provenance | | Structured per-subject | DataTable (Working Data spec) | | Semantic long-term | **Module này** |
+| Thị trường gọi         | Ecoma trả lời bằng                                             |
+| ---------------------- | -------------------------------------------------------------- |
+| Working memory         | Attempt + artifact trung gian (sẵn có)                         |
+| Conversation history   | Chuỗi Task luân phiên durable + projection transcript (sẵn có) |
+| Episodic               | **Event Log chính là episodic memory** — query log/provenance  |
+| Structured per-subject | DataTable (Working Data spec)                                  |
+| Semantic long-term     | **Module này**                                                 |
 
 ## 7. Non-goals
 
@@ -73,4 +84,12 @@ Mirror đúng distillation agent→script: Memory là quan sát, Knowledge là t
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Mặc định | Tắt ở engine; template vertical bật — K5 | | Subject | Taxonomy mở: external_user / external_org / tenant_self; **cấm filler-as-subject** (án văn: tránh nguồn sự thật thứ hai với calibration) | | Chủ sở hữu | Tổ chức theo subject — không thuộc filler (khác Astron, hệ quả litmus #1) | | Chống bịa/poisoning | Provenance bắt buộc + claim trọng số thấp + Gate | | Già & chết | Decay + memory calibration từ outcome + supersede/Conflict | | Tốt nghiệp | Distill lên Knowledge qua Curator task; generalize đa-subject qua leakage-gate; **scope mặc định = workspace hẹp nhất** | | Hạ tầng | Zero store mới — Event Log + CAS + vector adapter + projection |
+| Vấn đề              | Chốt                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Mặc định            | Tắt ở engine; template vertical bật — K5                                                                                                 |
+| Subject             | Taxonomy mở: external_user / external_org / tenant_self; **cấm filler-as-subject** (án văn: tránh nguồn sự thật thứ hai với calibration) |
+| Chủ sở hữu          | Tổ chức theo subject — không thuộc filler (khác Astron, hệ quả litmus #1)                                                                |
+| Chống bịa/poisoning | Provenance bắt buộc + claim trọng số thấp + Gate                                                                                         |
+| Già & chết          | Decay + memory calibration từ outcome + supersede/Conflict                                                                               |
+| Tốt nghiệp          | Distill lên Knowledge qua Curator task; generalize đa-subject qua leakage-gate; **scope mặc định = workspace hẹp nhất**                  |
+| Hạ tầng             | Zero store mới — Event Log + CAS + vector adapter + projection                                                                           |

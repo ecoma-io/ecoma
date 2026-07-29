@@ -14,7 +14,18 @@ Escalation là **đường đi khai báo trước cho mọi tình huống lệch
 
 ## 2. Trigger taxonomy (mở — thêm trigger không sửa engine)
 
-| Trigger | Nguồn phát | Đã định nghĩa ở | |---|---|---| | `sla_breach` | Task/Gate quá hạn (gồm `awaiting_review`) | Checkpoint §6 | | `unavailable` | Không Filler nào trong pool sẵn sàng | Role §3 | | `low_confidence` | Calibrated confidence < T_low sau retry | Checkpoint §4 | | `repeated_failure` | Hết N attempt | Task §4 | | `budget_exceeded` | Hết fallback chain / trần chi phí | Checkpoint, Task | | `conflict` | Judgment mâu thuẫn / N-bounce | Checkpoint, Handoff §4 | | `irreversible_guard` | Gate trước irreversible effect không đạt sàn | Handoff §8 | | `assistance_request` | **Filler tự giơ tay** | §3 | | `unwind_blocked` | Compensation không thể chạy | Handoff §8 | | `session_interrupted` | Session effect (phiên RPA/browser) đứt giữa chừng — engine biết chính xác action nào đã chạy, đã qua commit point chưa | Handoff §8 |
+| Trigger               | Nguồn phát                                                                                                             | Đã định nghĩa ở        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `sla_breach`          | Task/Gate quá hạn (gồm `awaiting_review`)                                                                              | Checkpoint §6          |
+| `unavailable`         | Không Filler nào trong pool sẵn sàng                                                                                   | Role §3                |
+| `low_confidence`      | Calibrated confidence < T_low sau retry                                                                                | Checkpoint §4          |
+| `repeated_failure`    | Hết N attempt                                                                                                          | Task §4                |
+| `budget_exceeded`     | Hết fallback chain / trần chi phí                                                                                      | Checkpoint, Task       |
+| `conflict`            | Judgment mâu thuẫn / N-bounce                                                                                          | Checkpoint, Handoff §4 |
+| `irreversible_guard`  | Gate trước irreversible effect không đạt sàn                                                                           | Handoff §8             |
+| `assistance_request`  | **Filler tự giơ tay**                                                                                                  | §3                     |
+| `unwind_blocked`      | Compensation không thể chạy                                                                                            | Handoff §8             |
+| `session_interrupted` | Session effect (phiên RPA/browser) đứt giữa chừng — engine biết chính xác action nào đã chạy, đã qua commit point chưa | Handoff §8             |
 
 **`assistance_request` là trigger quan trọng nhất về triết lý**: agent vốn không tự báo kẹt — cơ chế phải làm cho "xin trợ giúp" là hành động hạng nhất, rẻ, và **được thưởng trong calibration** (agent biết giơ tay đúng lúc có profile tốt hơn agent liều). Người giơ tay cũng đi cùng đường — đối xứng. Đây là cơ chế trực tiếp trị "nghẽn xác minh" ở n=1: hệ thống chủ động nổi đúng thứ cần chú ý thay vì người phải đi soi.
 
@@ -26,7 +37,15 @@ Escalation là **đường đi khai báo trước cho mọi tình huống lệch
 
 ## 4. Hành động của handler — mọi hành động đều có dấu vết
 
-| Hành động | Cơ chế ghi nhận | |---|---| | `reassign` | Attempt mới, Filler/Role khác (Task §4) | | `retry_with_guidance` | Attempt mới + feedback của handler | | `adjust` | Sửa tham số (deadline, budget, threshold) — event log | | `override_gate` | Cho qua Gate đang chặn — **bắt buộc sinh Judgment `basis: override`** kèm lý do: người override chịu trách nhiệm bằng chữ ký dữ liệu, và calibration học được cả chất lượng của các override | | `absorb` | Chấp nhận rủi ro, đóng escalation kèm lý do — audit trail | | `halt_compensate` | Kích hoạt unwind (Handoff §8) | | `restructure` | Handler có `spawn_task`: đẻ task mới thay thế đoạn hỏng — sửa quy trình đang chạy bằng chính cơ chế spawning |
+| Hành động             | Cơ chế ghi nhận                                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reassign`            | Attempt mới, Filler/Role khác (Task §4)                                                                                                                                                      |
+| `retry_with_guidance` | Attempt mới + feedback của handler                                                                                                                                                           |
+| `adjust`              | Sửa tham số (deadline, budget, threshold) — event log                                                                                                                                        |
+| `override_gate`       | Cho qua Gate đang chặn — **bắt buộc sinh Judgment `basis: override`** kèm lý do: người override chịu trách nhiệm bằng chữ ký dữ liệu, và calibration học được cả chất lượng của các override |
+| `absorb`              | Chấp nhận rủi ro, đóng escalation kèm lý do — audit trail                                                                                                                                    |
+| `halt_compensate`     | Kích hoạt unwind (Handoff §8)                                                                                                                                                                |
+| `restructure`         | Handler có `spawn_task`: đẻ task mới thay thế đoạn hỏng — sửa quy trình đang chạy bằng chính cơ chế spawning                                                                                 |
 
 Quyền dùng từng hành động = capability của Role handler (`override_gate` là capability riêng, không mặc định).
 
@@ -43,7 +62,11 @@ Quyền dùng từng hành động = capability của Role handler (`override_ga
 
 ## 7. Duality
 
-| Khía cạnh | Deterministic | Reasoning / người | |---|---|---| | Trigger chủ đạo | budget, repeated_failure, unwind_blocked | low_confidence, assistance_request, conflict, sla_breach | | Handler tầng đầu | Retry/fallback máy móc | AI supervisor lọc trước người | | Absorb/override | Hiếm (fail là fail) | Thường — và luôn có chữ ký Judgment |
+| Khía cạnh        | Deterministic                            | Reasoning / người                                        |
+| ---------------- | ---------------------------------------- | -------------------------------------------------------- |
+| Trigger chủ đạo  | budget, repeated_failure, unwind_blocked | low_confidence, assistance_request, conflict, sla_breach |
+| Handler tầng đầu | Retry/fallback máy móc                   | AI supervisor lọc trước người                            |
+| Absorb/override  | Hiếm (fail là fail)                      | Thường — và luôn có chữ ký Judgment                      |
 
 ## 8. Non-goals
 
@@ -52,7 +75,15 @@ Quyền dùng từng hành động = capability của Role handler (`override_ga
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Bản chất | Escalation = Task gán cho handler Role → chain tự cascade, đối xứng người/AI | | Kẹt im lặng | Không tồn tại: terminal handler bắt buộc toàn hệ thống | | n=1 offline | nudge → hold; không bao giờ auto-pass vì bế tắc | | Agent kẹt | `assistance_request` hạng nhất, được thưởng trong calibration | | Override | Bắt buộc sinh Judgment `basis: override` — chịu trách nhiệm bằng dữ liệu, outcome lan ngược | | Storm | Dedup + correlation gộp theo root cause + hàng đợi ưu tiên chú ý | | ML đề xuất tối ưu quy trình | Nguồn dữ liệu chính là escalation log (process smell) |
+| Vấn đề                      | Chốt                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| Bản chất                    | Escalation = Task gán cho handler Role → chain tự cascade, đối xứng người/AI                |
+| Kẹt im lặng                 | Không tồn tại: terminal handler bắt buộc toàn hệ thống                                      |
+| n=1 offline                 | nudge → hold; không bao giờ auto-pass vì bế tắc                                             |
+| Agent kẹt                   | `assistance_request` hạng nhất, được thưởng trong calibration                               |
+| Override                    | Bắt buộc sinh Judgment `basis: override` — chịu trách nhiệm bằng dữ liệu, outcome lan ngược |
+| Storm                       | Dedup + correlation gộp theo root cause + hàng đợi ưu tiên chú ý                            |
+| ML đề xuất tối ưu quy trình | Nguồn dữ liệu chính là escalation log (process smell)                                       |
 
 ## Litmus (spec-level, theo L5)
 
