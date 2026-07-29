@@ -41,6 +41,7 @@ ghi lại trong [`CLAUDE.md`](./CLAUDE.md) và trong lịch sử commit.
 ## Đóng góp
 
 - [Triết lý đóng góp](./CONTRIBUTING.md) — cách chúng ta làm việc
+- [Quy tắc ứng xử](./CODE_OF_CONDUCT.md) — chuẩn mực cộng đồng
 - [Chính sách bảo mật](./SECURITY.md) — báo cáo lỗ hổng
 
 ## Giấy phép

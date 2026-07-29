@@ -39,6 +39,7 @@ pnpm nx affected -t lint test typecheck build e2e
 ## 参与贡献
 
 - [贡献理念](./CONTRIBUTING.md) —— 我们的协作方式
+- [行为准则](./CODE_OF_CONDUCT.md) —— 社区规范
 - [安全策略](./SECURITY.md) —— 如何报告漏洞
 
 ## 许可证
