@@ -8,7 +8,10 @@ lang: vi
 
 ## 1. Sandbox — mỗi session một chuồng
 
-| Môi trường | Cơ chế cách ly | |---|---| | Browser | Profile/container riêng mỗi session: cookie, storage, extension cô lập | | Desktop | VM / user-session chuyên dụng; taxonomy mở theo driver |
+| Môi trường | Cơ chế cách ly                                                         |
+| ---------- | ---------------------------------------------------------------------- |
+| Browser    | Profile/container riêng mỗi session: cookie, storage, extension cô lập |
+| Desktop    | VM / user-session chuyên dụng; taxonomy mở theo driver                 |
 
 - Mức cách ly là tham số cascade (engine ép tồn tại; template cấp: chặt cho production, lỏng cho dev).
 - Sandbox chết cùng session trừ khi khai `persistent_profile` (đăng nhập giữ phiên dài) — profile bền là tài nguyên có id, gắn credential scope riêng.
@@ -33,7 +36,12 @@ lang: vi
 
 Session scope (engine ép tồn tại, cascade cấp giá trị):
 
-| Chiều | Ví dụ | |---|---| | App/domain | Chỉ `*.salesforce.com` | | Lớp action tối đa | `read` (session chỉ-đọc — rail chuẩn cho spawn_policy), `reversible`, … | | Credential handles | Danh sách tường minh | | Giới hạn phiên | Trần thời gian, trần số action, trần chi phí model |
+| Chiều              | Ví dụ                                                                   |
+| ------------------ | ----------------------------------------------------------------------- |
+| App/domain         | Chỉ `*.salesforce.com`                                                  |
+| Lớp action tối đa  | `read` (session chỉ-đọc — rail chuẩn cho spawn_policy), `reversible`, … |
+| Credential handles | Danh sách tường minh                                                    |
+| Giới hạn phiên     | Trần thời gian, trần số action, trần chi phí model                      |
 
 - Vượt scope = action bị chặn tại engine **trước khi chạm driver** + phát escalation — không phải lỗi của executor mà là biên cứng.
 - Khi tích hợp: scope là phần khai báo trong Session effect — Platform nhìn thấy và static analysis kiểm được ("task này cấp quyền irreversible mà Gate trước nó chưa có sàn" — Composition §4 mở rộng tự nhiên xuống tầng RPA).
@@ -45,7 +53,13 @@ Session scope (engine ép tồn tại, cascade cấp giá trị):
 
 ## 6. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Cách ly | Mỗi session một sandbox; persistent profile là tài nguyên có id + scope riêng | | Secret | Handle-only; injection tại driver; executor mù giá trị tuyệt đối | | Masking | Tại tầng perception, một chốt duy nhất; detector có calibration; App Profile vá sót | | Quyền | Scope khai báo 4 chiều, chặn tại engine, static analysis kiểm được khi tích hợp | | Live-view | Là projection của Scene đã masking; driver không hỗ trợ → takeover attended-only, không có kênh xem từ xa |
+| Vấn đề    | Chốt                                                                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| Cách ly   | Mỗi session một sandbox; persistent profile là tài nguyên có id + scope riêng                             |
+| Secret    | Handle-only; injection tại driver; executor mù giá trị tuyệt đối                                          |
+| Masking   | Tại tầng perception, một chốt duy nhất; detector có calibration; App Profile vá sót                       |
+| Quyền     | Scope khai báo 4 chiều, chặn tại engine, static analysis kiểm được khi tích hợp                           |
+| Live-view | Là projection của Scene đã masking; driver không hỗ trợ → takeover attended-only, không có kênh xem từ xa |
 
 ## Litmus (spec-level, theo L5)
 

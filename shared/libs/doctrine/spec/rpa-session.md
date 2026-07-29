@@ -18,7 +18,12 @@ created → attached(driver, sandbox) → running ⇄ paused
  → completed | failed | interrupted
 ```
 
-| Trạng thái | Ghi chú | |---|---| | `running` | Executor (script hoặc agent — Self-healing spec) phát action | | `paused` | Durable: state = (vị trí log, evidence cuối, environment fingerprint). Sống qua restart | | `human_control` | **Takeover là trạng thái hạng nhất** (§4) | | `interrupted` | Đứt ngoài ý muốn — engine biết chính xác action nào đã chạy, đã qua commit point chưa (nhờ evidence), phát `session_interrupted` |
+| Trạng thái      | Ghi chú                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `running`       | Executor (script hoặc agent — Self-healing spec) phát action                                                                     |
+| `paused`        | Durable: state = (vị trí log, evidence cuối, environment fingerprint). Sống qua restart                                          |
+| `human_control` | **Takeover là trạng thái hạng nhất** (§4)                                                                                        |
+| `interrupted`   | Đứt ngoài ý muốn — engine biết chính xác action nào đã chạy, đã qua commit point chưa (nhờ evidence), phát `session_interrupted` |
 
 Session sống trên một **Node** (RPA North Star §4 — topology): node đứt kết nối server ≠ session interrupted — session tiếp tục/durable cục bộ, Session effect stream buffer và resume theo cursor khi nối lại (at-least-once, entry content-addressed tự dedupe). `interrupted` chỉ khi bản thân session/node chết.
 
@@ -59,7 +64,13 @@ Mỗi session khai báo scope: domain/app được phép, lớp action tối đa
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Resume | Không bao giờ mù: re-perceive + precondition; policy lệch theo commit point | | Takeover | Trạng thái hạng nhất; hành động người vào cùng log; chiếu thành assistance_request khi tích hợp | | Record | Không phải tính năng riêng — một nguồn action log; script = tổng quát hóa log | | Shadow khi tích hợp | Chạy bằng dry-run mode | | Read-only session | Cơ chế scope, dùng làm rail cho dynamic spawning |
+| Vấn đề              | Chốt                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| Resume              | Không bao giờ mù: re-perceive + precondition; policy lệch theo commit point                     |
+| Takeover            | Trạng thái hạng nhất; hành động người vào cùng log; chiếu thành assistance_request khi tích hợp |
+| Record              | Không phải tính năng riêng — một nguồn action log; script = tổng quát hóa log                   |
+| Shadow khi tích hợp | Chạy bằng dry-run mode                                                                          |
+| Read-only session   | Cơ chế scope, dùng làm rail cho dynamic spawning                                                |
 
 ## Litmus (spec-level, theo L5)
 

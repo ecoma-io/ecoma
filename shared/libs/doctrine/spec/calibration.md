@@ -16,13 +16,30 @@ lang: vi
 
 **CalKey** — khóa hợp nhất, 7 chiều:
 
-| Chiều | Giá trị | Nguồn án văn | |---|---|---| | `tenant` | Biên cứng — **không bao giờ vượt** | Invariant 4 | | `workspace_scope` | Chiều **bắt buộc tồn tại**; mặc định = **workspace hẹp nhất** (K5 + C6); pool rộng hơn là giá trị template — agency tự chọn gộp/tách learning theo client | Tenant & Identity §3 | | `subject` | **(kind, identity@version)** — kind mở: `filler` · `verifier` · `driver` · `detector` (masking) · `chunk/collection` (knowledge) · `contract` | Hợp nhất Role §3 + Checkpoint §2 + Driver §1 + Sandbox §3 + Knowledge §6 + Handoff §7 — một engine thống kê, nhiều loại chủ thể | | `role` | Role đang lấp (∅ với subject không-lao-động như chunk) | Role §3 | | `task_type` | Loại việc | Role §3 | | `criterion@version` | **Calibration bám criterion-id, không bám rubric** — sửa rubric không reset; criterion dùng chung xuyên quy trình → tích lũy chung (thuốc cold-start #1) | Checkpoint §1 | | `basis` | Taxonomy mở của Judgment | Checkpoint §3 |
+| Chiều               | Giá trị                                                                                                                                                   | Nguồn án văn                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant`            | Biên cứng — **không bao giờ vượt**                                                                                                                        | Invariant 4                                                                                                                     |
+| `workspace_scope`   | Chiều **bắt buộc tồn tại**; mặc định = **workspace hẹp nhất** (K5 + C6); pool rộng hơn là giá trị template — agency tự chọn gộp/tách learning theo client | Tenant & Identity §3                                                                                                            |
+| `subject`           | **(kind, identity@version)** — kind mở: `filler` · `verifier` · `driver` · `detector` (masking) · `chunk/collection` (knowledge) · `contract`             | Hợp nhất Role §3 + Checkpoint §2 + Driver §1 + Sandbox §3 + Knowledge §6 + Handoff §7 — một engine thống kê, nhiều loại chủ thể |
+| `role`              | Role đang lấp (∅ với subject không-lao-động như chunk)                                                                                                    | Role §3                                                                                                                         |
+| `task_type`         | Loại việc                                                                                                                                                 | Role §3                                                                                                                         |
+| `criterion@version` | **Calibration bám criterion-id, không bám rubric** — sửa rubric không reset; criterion dùng chung xuyên quy trình → tích lũy chung (thuốc cold-start #1)  | Checkpoint §1                                                                                                                   |
+| `basis`             | Taxonomy mở của Judgment                                                                                                                                  | Checkpoint §3                                                                                                                   |
 
 **Cell** = giá trị tại một CalKey: **sufficient statistics** (n, đếm theo verdict-bucket, momen, log-position cập nhật cuối, trạng thái decay) — không lưu chuỗi thô (chuỗi thô _là_ log). Cell **sparse**: chỉ tồn tại khi có dữ liệu — van chi phí J6 (không gian 7 chiều không bao giờ materialize đặc; lưu trữ ~ số Judgment thực, không ~ tích các chiều).
 
 ## 2. Đường vào — duy nhất qua hệ Judgment
 
-| Nguồn | Vào cell thế nào | |---|---| | Judgment mọi basis (contemporaneous / re_review / consumer-bounce / override / comment) | Trực tiếp; `comment` trọng số 0 (Checkpoint §3) | | Outcome lan ngược theo provenance | Về từng Role/Criterion góp phần; trọng số attribution là tham số cascade (Handoff §9) | | Conflict | Nhãn bất đồng — tín hiệu sửa rubric, hạ tin cậy tạm cell liên quan | | `assistance_request` | **Cộng điểm** — giơ tay đúng lúc có profile tốt hơn liều (Escalation §2) | | Override + outcome xấu | Sụt calibration của người override — trách nhiệm đối xứng (Escalation §6) | | Sampling reject (tự siết) | Vào cell + phát event hạ T_high đảo được (Checkpoint §4) | | Shadow (`shadow: true`) | Nuôi cell của shadow filler, không rủi ro production (Role §4) | | RPA: takeover diff = approve-with-edit; kết quả cửa duyệt patch; tầng-locator-thắng | Qua Session effect → Judgment; **calibration Platform bám filler đăng ký, sub-actor cho ML chi tiết** (RPA NS §5/§7) |
+| Nguồn                                                                                   | Vào cell thế nào                                                                                                     |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Judgment mọi basis (contemporaneous / re_review / consumer-bounce / override / comment) | Trực tiếp; `comment` trọng số 0 (Checkpoint §3)                                                                      |
+| Outcome lan ngược theo provenance                                                       | Về từng Role/Criterion góp phần; trọng số attribution là tham số cascade (Handoff §9)                                |
+| Conflict                                                                                | Nhãn bất đồng — tín hiệu sửa rubric, hạ tin cậy tạm cell liên quan                                                   |
+| `assistance_request`                                                                    | **Cộng điểm** — giơ tay đúng lúc có profile tốt hơn liều (Escalation §2)                                             |
+| Override + outcome xấu                                                                  | Sụt calibration của người override — trách nhiệm đối xứng (Escalation §6)                                            |
+| Sampling reject (tự siết)                                                               | Vào cell + phát event hạ T_high đảo được (Checkpoint §4)                                                             |
+| Shadow (`shadow: true`)                                                                 | Nuôi cell của shadow filler, không rủi ro production (Role §4)                                                       |
+| RPA: takeover diff = approve-with-edit; kết quả cửa duyệt patch; tầng-locator-thắng     | Qua Session effect → Judgment; **calibration Platform bám filler đăng ký, sub-actor cho ML chi tiết** (RPA NS §5/§7) |
 
 **Luật cứng**: không tồn tại đường ghi điểm nào ngoài việc tạo Judgment hợp lệ (capability `judge`, chịu `distinct_filler_from`). "Chấm tay" một filler = tạo Judgment có chữ ký — không sửa số.
 
@@ -57,7 +74,17 @@ Gate policy T_high/T_low (Checkpoint §4) · graduation/trust tiers, **giáng t�
 
 ## 8. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Bản chất | Projection thuần từ log — không store, rebuild được | | Hợp nhất key | Một không gian CalKey 7 chiều; profile-filler và lớp-C-verifier là hai lát cắt | | Subject | (kind, identity@version) mở — một engine cho filler/verifier/driver/detector/chunk/contract | | Workspace | Chiều bắt buộc; mặc định hẹp nhất (K5/C6); pool là template value | | Đường ghi | Duy nhất qua Judgment hợp lệ — E5, cặp với cấm memory-về-filler | | **Nhãn test** | Judgment `run_kind: test` **loại tuyệt đối**, không cấu hình được; nhãn có nhà ở Event Log §1/§3 — spec này khai _lập trường_, không khai lại nhãn (chống G6) | | Decay | Lineage-decay theo bản chất thay đổi + time-freshness half-life (mới, có án văn) | | Estimator | Identity (method, version, params_hash) — chống upgrade ngầm công thức | | Chi phí (J6) | Cell sparse + sufficient stats + rebuild-từ-log = lưu trữ ~ số Judgment, có van retention |
+| Vấn đề        | Chốt                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bản chất      | Projection thuần từ log — không store, rebuild được                                                                                                           |
+| Hợp nhất key  | Một không gian CalKey 7 chiều; profile-filler và lớp-C-verifier là hai lát cắt                                                                                |
+| Subject       | (kind, identity@version) mở — một engine cho filler/verifier/driver/detector/chunk/contract                                                                   |
+| Workspace     | Chiều bắt buộc; mặc định hẹp nhất (K5/C6); pool là template value                                                                                             |
+| Đường ghi     | Duy nhất qua Judgment hợp lệ — E5, cặp với cấm memory-về-filler                                                                                               |
+| **Nhãn test** | Judgment `run_kind: test` **loại tuyệt đối**, không cấu hình được; nhãn có nhà ở Event Log §1/§3 — spec này khai _lập trường_, không khai lại nhãn (chống G6) |
+| Decay         | Lineage-decay theo bản chất thay đổi + time-freshness half-life (mới, có án văn)                                                                              |
+| Estimator     | Identity (method, version, params_hash) — chống upgrade ngầm công thức                                                                                        |
+| Chi phí (J6)  | Cell sparse + sufficient stats + rebuild-từ-log = lưu trữ ~ số Judgment, có van retention                                                                     |
 
 ## Litmus (spec-level, theo L5)
 
@@ -69,4 +96,9 @@ Gate policy T_high/T_low (Checkpoint §4) · graduation/trust tiers, **giáng t�
 
 ## FMEA (theo F8)
 
-| Hỏng | Phát hiện | Phục hồi | |---|---|---| | Projection drift / cell sai | Checksum theo log-position (Working Data §2) | Rebuild từ log, event cảnh báo | | Estimator lỗi làm lệch hàng loạt | Estimator có identity + shadow so sánh trước graduation | Rollback về estimator version cũ — vì có danh tính | | Poisoning bằng Judgment giả | Capability `judge` + `distinct_filler_from` + Conflict khi mâu thuẫn | Judgment độc bị vô hiệu qua re_review/outcome; actor chịu trách nhiệm trong log | | Cell cardinality phình | Sparse + sufficient stats; cảnh báo ngưỡng | Retention/gộp theo policy — log vẫn giữ sự thật |
+| Hỏng                             | Phát hiện                                                            | Phục hồi                                                                        |
+| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Projection drift / cell sai      | Checksum theo log-position (Working Data §2)                         | Rebuild từ log, event cảnh báo                                                  |
+| Estimator lỗi làm lệch hàng loạt | Estimator có identity + shadow so sánh trước graduation              | Rollback về estimator version cũ — vì có danh tính                              |
+| Poisoning bằng Judgment giả      | Capability `judge` + `distinct_filler_from` + Conflict khi mâu thuẫn | Judgment độc bị vô hiệu qua re_review/outcome; actor chịu trách nhiệm trong log |
+| Cell cardinality phình           | Sparse + sufficient stats; cảnh báo ngưỡng                           | Retention/gộp theo policy — log vẫn giữ sự thật                                 |

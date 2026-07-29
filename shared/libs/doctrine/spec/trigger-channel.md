@@ -8,11 +8,21 @@ lang: vi
 
 ## 1. Định nghĩa
 
-| Entity | Là gì | Danh tính | |---|---|---| | **Trigger** | Cơ chế khai báo trong Process definition: khi sự kiện X đến thì (a) spawn instance mới, hoặc (b) bơm input vào instance đang chờ | id + version, thuộc definition | | **Channel** | Adapter biên cho hội thoại hai chiều với bên ngoài (chat widget, Messenger/Zalo, Slack, email, SMS…) — taxonomy mở, cùng pattern Driver của RPA | (type, id, version) + lineage |
+| Entity      | Là gì                                                                                                                                           | Danh tính                      |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| **Trigger** | Cơ chế khai báo trong Process definition: khi sự kiện X đến thì (a) spawn instance mới, hoặc (b) bơm input vào instance đang chờ                | id + version, thuộc definition |
+| **Channel** | Adapter biên cho hội thoại hai chiều với bên ngoài (chat widget, Messenger/Zalo, Slack, email, SMS…) — taxonomy mở, cùng pattern Driver của RPA | (type, id, version) + lineage  |
 
 ## 2. Trigger
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `type` | Taxonomy mở: `webhook` / `event` / `schedule` / `message_in(channel)` / `manual` / `form` | ✅ | | `auth` | **Engine ép tồn tại**: signature (HMAC), token, mTLS, hoặc `tenant_session` (manual/schedule nội bộ). Không auth hợp lệ = reject tại biên, không sinh instance | ✅ | | `payload_contract` | Payload vào hệ **qua Handoff với Contract** — producer là nguồn ngoài; vi phạm schema = Violation → reject/coerce như mọi handoff. Không có "JSON thô chảy thẳng vào flow" | ✅ | | `dedup` | Event-id + cửa sổ dedup (engine ép tồn tại, template cấp giá trị) — at-least-once từ thế giới ngoài không sinh instance trùng | ✅ | | `correlation` | Biểu thức khóa (vd conversation-id) quyết định: spawn mới hay định tuyến vào instance đang chờ | ✅ với type hội thoại | | `guard` | Rate/budget tại biên — storm từ ngoài không tràn vào engine (tái dùng tinh thần storm control của Escalation) | ✅ |
+| Trường             | Nội dung                                                                                                                                                                   | Bắt buộc              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `type`             | Taxonomy mở: `webhook` / `event` / `schedule` / `message_in(channel)` / `manual` / `form`                                                                                  | ✅                    |
+| `auth`             | **Engine ép tồn tại**: signature (HMAC), token, mTLS, hoặc `tenant_session` (manual/schedule nội bộ). Không auth hợp lệ = reject tại biên, không sinh instance             | ✅                    |
+| `payload_contract` | Payload vào hệ **qua Handoff với Contract** — producer là nguồn ngoài; vi phạm schema = Violation → reject/coerce như mọi handoff. Không có "JSON thô chảy thẳng vào flow" | ✅                    |
+| `dedup`            | Event-id + cửa sổ dedup (engine ép tồn tại, template cấp giá trị) — at-least-once từ thế giới ngoài không sinh instance trùng                                              | ✅                    |
+| `correlation`      | Biểu thức khóa (vd conversation-id) quyết định: spawn mới hay định tuyến vào instance đang chờ                                                                             | ✅ với type hội thoại |
+| `guard`            | Rate/budget tại biên — storm từ ngoài không tràn vào engine (tái dùng tinh thần storm control của Escalation)                                                              | ✅                    |
 
 **Response mode — sync request-response (kiểu API endpoint n8n / BaaS Dify):**
 
@@ -39,7 +49,11 @@ lang: vi
 
 ## 5. Duality
 
-| | Deterministic (kiểu n8n) | Conversational (chatbot) | |---|---|---| | Trigger | webhook/schedule/event | message_in + correlation | | Hình dạng | Pipeline khai trước | Task luân phiên Agent ⇄ Khách, đồ thị mọc theo hội thoại | | Cùng cơ chế | Handoff-contract tại biên, dedup, guard, effect outbound | Y hệt |
+|             | Deterministic (kiểu n8n)                                 | Conversational (chatbot)                                 |
+| ----------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| Trigger     | webhook/schedule/event                                   | message_in + correlation                                 |
+| Hình dạng   | Pipeline khai trước                                      | Task luân phiên Agent ⇄ Khách, đồ thị mọc theo hội thoại |
+| Cùng cơ chế | Handoff-contract tại biên, dedup, guard, effect outbound | Y hệt                                                    |
 
 ## 6. Non-goals
 
@@ -48,7 +62,15 @@ lang: vi
 
 ## 7. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Payload vào hệ | Luôn là Handoff có Contract — không có đường thô | | Auth | Engine ép tồn tại; không auth = reject tại biên | | Hội thoại nhiều lượt | Correlation + Task `awaiting` durable; end-user = Filler `external` của một Role | | Moderation input | = Gate trên output của Role Khách — tái dùng Checkpoint | | Gửi tin ra ngoài | Effect irreversible mặc định + egress theo classification | | Sync request-response | `response_mode: sync` opt-in; respond = effect; timeout chỉ fail/degrade, không bao giờ pass; ràng buộc = time budget (không phải loại filler); cached response theo event-id | | Calibration khách | Cơ chế có, mặc định tắt (privacy) |
+| Vấn đề                | Chốt                                                                                                                                                                          |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payload vào hệ        | Luôn là Handoff có Contract — không có đường thô                                                                                                                              |
+| Auth                  | Engine ép tồn tại; không auth = reject tại biên                                                                                                                               |
+| Hội thoại nhiều lượt  | Correlation + Task `awaiting` durable; end-user = Filler `external` của một Role                                                                                              |
+| Moderation input      | = Gate trên output của Role Khách — tái dùng Checkpoint                                                                                                                       |
+| Gửi tin ra ngoài      | Effect irreversible mặc định + egress theo classification                                                                                                                     |
+| Sync request-response | `response_mode: sync` opt-in; respond = effect; timeout chỉ fail/degrade, không bao giờ pass; ràng buộc = time budget (không phải loại filler); cached response theo event-id |
+| Calibration khách     | Cơ chế có, mặc định tắt (privacy)                                                                                                                                             |
 
 ## Litmus (spec-level, theo L5)
 
@@ -58,4 +80,9 @@ lang: vi
 
 ## FMEA (theo F8)
 
-| Hỏng | Phát hiện | Phục hồi | |---|---|---| | Webhook giả mạo | Auth verify fail | Reject tại biên + event, không sinh instance | | Event trùng từ nguồn ngoài | Dedup window theo event-id | Bỏ qua; sync trả cached response | | Channel adapter down | Outbound effect fail | on_fail/escalate; inbound: nguồn retry + dedup hấp thụ | | Verifier leakage quá budget (sync) | time_budget | on_timeout: fail hoặc degrade ticket — không bao giờ pass |
+| Hỏng                               | Phát hiện                  | Phục hồi                                                  |
+| ---------------------------------- | -------------------------- | --------------------------------------------------------- |
+| Webhook giả mạo                    | Auth verify fail           | Reject tại biên + event, không sinh instance              |
+| Event trùng từ nguồn ngoài         | Dedup window theo event-id | Bỏ qua; sync trả cached response                          |
+| Channel adapter down               | Outbound effect fail       | on_fail/escalate; inbound: nguồn retry + dedup hấp thụ    |
+| Verifier leakage quá budget (sync) | time_budget                | on_timeout: fail hoặc degrade ticket — không bao giờ pass |

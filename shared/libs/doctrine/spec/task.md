@@ -12,7 +12,15 @@ Task là **một instance việc gán cho một Role**: tiêu thụ artifact và
 
 ## 2. Cấu trúc
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `role` | Role đảm nhiệm | ✅ | | `inputs` / `output_contract` | Handoff vào / Contract ra (pin version) | ✅ | | `gate` | Gate của Checkpoint | ✅ (tối thiểu auto-pass, vẫn log) | | `effects` | External effects + lớp reversibility + compensation | ✅ (có thể ∅) | | `budget` / `sla` / `priority` | Engine ép tồn tại; giá trị resolve theo **default cascade** `tenant → template → process → role → task` (Composition spec §3) — flow 20 bước không phải khai 20 lần | ✅ | | `idempotency_key` | Cho retry an toàn với task có effect | ✅ nếu effects ≠ ∅ | | `spawn_policy` | Quyền và giới hạn đẻ subtask (§5) | ✅ (mặc định: cấm) |
+| Trường                        | Nội dung                                                                                                                                                            | Bắt buộc                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `role`                        | Role đảm nhiệm                                                                                                                                                      | ✅                                |
+| `inputs` / `output_contract`  | Handoff vào / Contract ra (pin version)                                                                                                                             | ✅                                |
+| `gate`                        | Gate của Checkpoint                                                                                                                                                 | ✅ (tối thiểu auto-pass, vẫn log) |
+| `effects`                     | External effects + lớp reversibility + compensation                                                                                                                 | ✅ (có thể ∅)                     |
+| `budget` / `sla` / `priority` | Engine ép tồn tại; giá trị resolve theo **default cascade** `tenant → template → process → role → task` (Composition spec §3) — flow 20 bước không phải khai 20 lần | ✅                                |
+| `idempotency_key`             | Cho retry an toàn với task có effect                                                                                                                                | ✅ nếu effects ≠ ∅                |
+| `spawn_policy`                | Quyền và giới hạn đẻ subtask (§5)                                                                                                                                   | ✅ (mặc định: cấm)                |
 
 ## 3. Vòng đời — durable ở mọi trạng thái
 
@@ -47,7 +55,12 @@ created → assigned(filler) → in_progress → produced → gated → done
 
 Task RPA không phải loại task riêng: là Task thường với filler từ Ecoma RPA (sản phẩm riêng) + **session effect** (Handoff §8) — action log là provenance, commit point tính theo action.
 
-| Khía cạnh | Deterministic | Reasoning / người | |---|---|---| | Đồ thị | Khai báo trước 100% | Mọc runtime trong rails | | Retry | Idempotency key, máy móc | Attempt + feedback | | Gate | Thường auto-pass + log | Đầy đủ theo calibration | | Surface | Vô hình (chạy nền) | Inbox (người) / runtime (agent) |
+| Khía cạnh | Deterministic            | Reasoning / người               |
+| --------- | ------------------------ | ------------------------------- |
+| Đồ thị    | Khai báo trước 100%      | Mọc runtime trong rails         |
+| Retry     | Idempotency key, máy móc | Attempt + feedback              |
+| Gate      | Thường auto-pass + log   | Đầy đủ theo calibration         |
+| Surface   | Vô hình (chạy nền)       | Inbox (người) / runtime (agent) |
 
 ## 7. Non-goals
 
@@ -56,7 +69,15 @@ Task RPA không phải loại task riêng: là Task thường với filler từ 
 
 ## 8. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Retry semantics | Attempt là entity hạng nhất, retry luôn mang feedback | | Deterministic vs reasoning | Một cơ chế: đồ thị khai báo trước vs mọc runtime qua `spawn_task` trong rails | | Subtask của agent | Task thật, kiểm được — không phải tool-call vô hình | | AI điều phối người | Hợp lệ mặc nhiên nhờ đối xứng (agent spawn task gán Role người lấp) | | Tool-call của agent | Hành vi bên trong filler (sub-actor), **không** phải Task — nhưng mọi tác động ra ngoài vẫn phải là Effect khai báo; tool protocol là adapter | | Idempotency | Bắt buộc khi có effect | | Trạng thái | Durable mọi trạng thái, suspended nhiều tuần là first-class |
+| Vấn đề                     | Chốt                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retry semantics            | Attempt là entity hạng nhất, retry luôn mang feedback                                                                                         |
+| Deterministic vs reasoning | Một cơ chế: đồ thị khai báo trước vs mọc runtime qua `spawn_task` trong rails                                                                 |
+| Subtask của agent          | Task thật, kiểm được — không phải tool-call vô hình                                                                                           |
+| AI điều phối người         | Hợp lệ mặc nhiên nhờ đối xứng (agent spawn task gán Role người lấp)                                                                           |
+| Tool-call của agent        | Hành vi bên trong filler (sub-actor), **không** phải Task — nhưng mọi tác động ra ngoài vẫn phải là Effect khai báo; tool protocol là adapter |
+| Idempotency                | Bắt buộc khi có effect                                                                                                                        |
+| Trạng thái                 | Durable mọi trạng thái, suspended nhiều tuần là first-class                                                                                   |
 
 ## Litmus (spec-level, theo L5)
 

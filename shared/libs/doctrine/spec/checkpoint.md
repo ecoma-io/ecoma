@@ -17,7 +17,12 @@ lang: vi
 
 ## 1. Mô hình khái niệm
 
-| Entity | Là gì | Vòng đời | |---|---|---| | **Gate** | Cổng quyết định output của Task chảy tiếp hay không. Kết cục: auto-pass / review / retry / escalate | Blocking, đóng khi pass/fail | | **Judgment** | Bản ghi đánh giá: verifier, criterion, verdict (theo thang khai báo), basis, provenance | Append-only, gắn vào output vĩnh viễn; thêm được sau khi task done | | **Criterion** | Tiêu chí đánh giá độc lập với Checkpoint: id ổn định + version + mô tả NL + loại (`contract`/`quality`). Tenant có **thư viện criterion** tái sử dụng xuyên quy trình | Version hóa; đổi nghĩa = version mới | | **Conflict** | Event sinh ra khi hai Judgment mâu thuẫn (người-vs-AI, AI-vs-AI, đương thời-vs-outcome) | Nguồn tín hiệu sửa rubric |
+| Entity        | Là gì                                                                                                                                                                 | Vòng đời                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **Gate**      | Cổng quyết định output của Task chảy tiếp hay không. Kết cục: auto-pass / review / retry / escalate                                                                   | Blocking, đóng khi pass/fail                                       |
+| **Judgment**  | Bản ghi đánh giá: verifier, criterion, verdict (theo thang khai báo), basis, provenance                                                                               | Append-only, gắn vào output vĩnh viễn; thêm được sau khi task done |
+| **Criterion** | Tiêu chí đánh giá độc lập với Checkpoint: id ổn định + version + mô tả NL + loại (`contract`/`quality`). Tenant có **thư viện criterion** tái sử dụng xuyên quy trình | Version hóa; đổi nghĩa = version mới                               |
+| **Conflict**  | Event sinh ra khi hai Judgment mâu thuẫn (người-vs-AI, AI-vs-AI, đương thời-vs-outcome)                                                                               | Nguồn tín hiệu sửa rubric                                          |
 
 - Gate **tiêu thụ** Judgment. Judgment hậu kiểm **không mở lại Gate** — chỉ làm nhãn; sai nghiêm trọng sau done → alert/task bồi hoàn riêng.
 - Rubric của một Gate = tập tham chiếu tới Criterion (kèm trọng số) — không sở hữu criterion.
@@ -25,7 +30,15 @@ lang: vi
 
 ## 2. Cấu trúc Gate
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `rubric` | Danh sách tham chiếu Criterion + trọng số. `contract` criteria là hard gate | ✅ | | `stages` | Chuỗi stage tuần tự; mỗi stage: verifiers song song + `aggregation` (`all_pass`/`quorum(n)`/`weighted ≥ T`). Mỗi verifier gán tập criterion riêng | ✅ | | `policy` | Ánh xạ calibrated confidence → hành động (§4) | ✅ | | `on_fail` | §5 | ✅ | | `budget` | Trần chi phí verify | ✅ | | `sla` | Thời hạn + escalation cho awaiting_review. **Engine bắt buộc khai báo**; con số từ template | ✅ | | `sampling` | Tỉ lệ kiểm xác suất dải auto-pass. Engine bắt buộc khai báo; template mặc định 10%, blind | ✅ |
+| Trường     | Nội dung                                                                                                                                          | Bắt buộc |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `rubric`   | Danh sách tham chiếu Criterion + trọng số. `contract` criteria là hard gate                                                                       | ✅       |
+| `stages`   | Chuỗi stage tuần tự; mỗi stage: verifiers song song + `aggregation` (`all_pass`/`quorum(n)`/`weighted ≥ T`). Mỗi verifier gán tập criterion riêng | ✅       |
+| `policy`   | Ánh xạ calibrated confidence → hành động (§4)                                                                                                     | ✅       |
+| `on_fail`  | §5                                                                                                                                                | ✅       |
+| `budget`   | Trần chi phí verify                                                                                                                               | ✅       |
+| `sla`      | Thời hạn + escalation cho awaiting_review. **Engine bắt buộc khai báo**; con số từ template                                                       | ✅       |
+| `sampling` | Tỉ lệ kiểm xác suất dải auto-pass. Engine bắt buộc khai báo; template mặc định 10%, blind                                                         | ✅       |
 
 **Verifier:**
 
@@ -41,13 +54,25 @@ lang: vi
 
 ## 3. Judgment schema
 
-| Trường | Nội dung | |---|---| | `verifier` | Danh tính đầy đủ (type, id, version, config_hash) | | `criterion_ref` | Criterion id + version được chấm | | `verdict` | Giá trị theo **thang do verifier khai báo** (scalar 0–1, categorical approve/edit/reject, boolean…) — lớp C quy đổi mọi thang về xác suất người-tenant-đồng-ý | | `basis` | `contemporaneous` / `re_review` / `outcome` — taxonomy mở, trọng số theo basis là tham số calibration (prior: outcome cao nhất), không hardcode. Taxonomy mở ôm luôn cộng tác: **comment/annotation = Judgment `basis: comment`, không verdict, mặc định trọng số 0** — bàn luận có dấu vết mà không nhiễm calibration | | `edit_diff` | Với verdict approve-with-edit: diff lưu đầy đủ — nhãn giá trị nhất cho tối ưu prompt. Bản sửa là **artifact dẫn xuất mới** trong provenance (artifact gốc immutable, không sửa tại chỗ) | | `feedback` | Có cấu trúc, bám criterion-id: fail ở đâu + lý do + gợi ý sửa — đưa vào retry và mine được cho Intelligence | | `provenance` | Metadata mở: batch size, thời gian xem, blind?, degraded?, thiết bị… — calibration tự quyết dùng gì |
+| Trường          | Nội dung                                                                                                                                                                                                                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verifier`      | Danh tính đầy đủ (type, id, version, config_hash)                                                                                                                                                                                                                                                                      |
+| `criterion_ref` | Criterion id + version được chấm                                                                                                                                                                                                                                                                                       |
+| `verdict`       | Giá trị theo **thang do verifier khai báo** (scalar 0–1, categorical approve/edit/reject, boolean…) — lớp C quy đổi mọi thang về xác suất người-tenant-đồng-ý                                                                                                                                                          |
+| `basis`         | `contemporaneous` / `re_review` / `outcome` — taxonomy mở, trọng số theo basis là tham số calibration (prior: outcome cao nhất), không hardcode. Taxonomy mở ôm luôn cộng tác: **comment/annotation = Judgment `basis: comment`, không verdict, mặc định trọng số 0** — bàn luận có dấu vết mà không nhiễm calibration |
+| `edit_diff`     | Với verdict approve-with-edit: diff lưu đầy đủ — nhãn giá trị nhất cho tối ưu prompt. Bản sửa là **artifact dẫn xuất mới** trong provenance (artifact gốc immutable, không sửa tại chỗ)                                                                                                                                |
+| `feedback`      | Có cấu trúc, bám criterion-id: fail ở đâu + lý do + gợi ý sửa — đưa vào retry và mine được cho Intelligence                                                                                                                                                                                                            |
+| `provenance`    | Metadata mở: batch size, thời gian xem, blind?, degraded?, thiết bị… — calibration tự quyết dùng gì                                                                                                                                                                                                                    |
 
 **Quyền tạo Judgment** = capability `judge` gắn vào Role (đối xứng: agent cũng cấp được — vd agent theo dõi outcome tự ghi nhãn). Ai đang "dạy" hệ thống luôn kiểm soát và truy vết được.
 
 ## 4. Confidence — pipeline 3 lớp
 
-| Lớp | Nội dung | Vai trò | |---|---|---| | A. Self-report | Model tự chấm/logprob | Tín hiệu phụ, không đứng một mình | | B. External verify | Contract criteria (hard gate) + verifier chấm quality theo rubric | Nguồn chính của raw | | C. Empirical calibration | Lịch sử tenant theo (criterion-id, role, task_type, verifier-identity, basis) → quy đổi raw thành xác suất người đồng ý | Flywheel per-tenant; cold-start giảm nhờ criterion dùng chung xuyên quy trình |
+| Lớp                      | Nội dung                                                                                                                | Vai trò                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| A. Self-report           | Model tự chấm/logprob                                                                                                   | Tín hiệu phụ, không đứng một mình                                             |
+| B. External verify       | Contract criteria (hard gate) + verifier chấm quality theo rubric                                                       | Nguồn chính của raw                                                           |
+| C. Empirical calibration | Lịch sử tenant theo (criterion-id, role, task_type, verifier-identity, basis) → quy đổi raw thành xác suất người đồng ý | Flywheel per-tenant; cold-start giảm nhờ criterion dùng chung xuyên quy trình |
 
 Chưa đủ dữ liệu C → prior bảo thủ từ template (mọi thứ qua review).
 
@@ -76,7 +101,19 @@ Chưa đủ dữ liệu C → prior bảo thủ từ template (mọi thứ qua r
 
 ## 8. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Verify trong/ngoài transaction | Ngoài — Judgment là stream async, Gate chờ đủ Judgment | | Criteria format | Criterion entity hạng nhất, thư viện tenant, calibration bám criterion-id | | Thang điểm khác loại | Verifier khai báo thang; lớp C quy đổi về xác suất người-đồng-ý | | Hậu kiểm | `basis` taxonomy mở; trọng số là tham số calibration, prior outcome cao nhất | | Sampling | Engine bắt buộc khai báo, template mặc định 10% blind, áp **mọi Role** (đối xứng) | | Pass-with-edit | Verdict thứ ba + edit_diff | | Budget overflow | Fallback chain → degraded flag | | Model drift | Verifier identity gồm version + config_hash | | Batch approve | Ghi từng item + provenance | | Quyền hậu kiểm | Capability `judge` của Role | | SLA | Engine ép tồn tại, template ép giá trị |
+| Vấn đề                         | Chốt                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| Verify trong/ngoài transaction | Ngoài — Judgment là stream async, Gate chờ đủ Judgment                            |
+| Criteria format                | Criterion entity hạng nhất, thư viện tenant, calibration bám criterion-id         |
+| Thang điểm khác loại           | Verifier khai báo thang; lớp C quy đổi về xác suất người-đồng-ý                   |
+| Hậu kiểm                       | `basis` taxonomy mở; trọng số là tham số calibration, prior outcome cao nhất      |
+| Sampling                       | Engine bắt buộc khai báo, template mặc định 10% blind, áp **mọi Role** (đối xứng) |
+| Pass-with-edit                 | Verdict thứ ba + edit_diff                                                        |
+| Budget overflow                | Fallback chain → degraded flag                                                    |
+| Model drift                    | Verifier identity gồm version + config_hash                                       |
+| Batch approve                  | Ghi từng item + provenance                                                        |
+| Quyền hậu kiểm                 | Capability `judge` của Role                                                       |
+| SLA                            | Engine ép tồn tại, template ép giá trị                                            |
 
 ## Litmus (spec-level, theo L5)
 

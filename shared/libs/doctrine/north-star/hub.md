@@ -25,7 +25,11 @@ lang: vi
 
 ## 4. Kiến trúc ba tầng
 
-| Tầng | Nội dung | Ghi chú | |---|---|---| | **Registry** | Kho artifact chuẩn OCI: digest, chữ ký publisher (sigstore keyless), attestation, transparency log | Private = mọi OCI registry sẵn có; air-gap mirror bằng lệnh chuẩn | | **Index** | Catalog: search, namespace publisher/name, trang block, badge verified, version history | Namespace sở hữu qua publisher identity — chống squatting bằng định danh, tranh chấp là policy vận hành | | **Marketplace** | Listing, giá, **entitlement**, thanh toán, payout revenue-share | Lớp thương mại mỏng trên index — không phải hệ thống riêng |
+| Tầng            | Nội dung                                                                                           | Ghi chú                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Registry**    | Kho artifact chuẩn OCI: digest, chữ ký publisher (sigstore keyless), attestation, transparency log | Private = mọi OCI registry sẵn có; air-gap mirror bằng lệnh chuẩn                                       |
+| **Index**       | Catalog: search, namespace publisher/name, trang block, badge verified, version history            | Namespace sở hữu qua publisher identity — chống squatting bằng định danh, tranh chấp là policy vận hành |
+| **Marketplace** | Listing, giá, **entitlement**, thanh toán, payout revenue-share                                    | Lớp thương mại mỏng trên index — không phải hệ thống riêng                                              |
 
 Frontend của Index/Marketplace là app thuộc `hub/apps/` (domain này sở hữu); public instance được operator mount tại `ecoma.io/hub` qua edge — SEO long-tail của catalog (Website Charter §3b), **code không rời domain**; render **tĩnh-first (SSG+ISR revalidate theo registry event)** — hệ quả trực tiếp của tính bất biến nội dung: trang block-version cache vĩnh viễn, chỉ con trỏ revalidate.
 

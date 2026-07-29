@@ -10,11 +10,20 @@ lang: vi
 
 Action là **một đơn vị tương tác môi trường có danh tính, có ý định, có bằng chứng**. Hai mặt của nó:
 
-| | Action Definition | Action Instance | |---|---|---| | Là gì | Loại hành động trong vocabulary (click, type…) | Một lần thực thi cụ thể trong session | | Danh tính | id + version (entity hạng nhất, thư viện) | id + vị trí trong action log |
+|           | Action Definition                              | Action Instance                       |
+| --------- | ---------------------------------------------- | ------------------------------------- |
+| Là gì     | Loại hành động trong vocabulary (click, type…) | Một lần thực thi cụ thể trong session |
+| Danh tính | id + version (entity hạng nhất, thư viện)      | id + vị trí trong action log          |
 
 ## 2. Vocabulary lõi (taxonomy mở)
 
-| Nhóm | Action | Lớp mặc định | |---|---|---| | Quan sát | `observe`, `extract`, `wait_for`, `assert` | `read` — luôn an toàn | | Điều hướng | `navigate`, `scroll`, `switch_context` (tab/window/frame) | `read`* | | Thao tác | `click`, `type`, `select`, `press_keys`, `drag`, `hover` | `reversible`* | | Dữ liệu | `upload`, `download`, `clipboard` | khai báo | | Tổng hợp | **Macro** — chuỗi action đặt tên, có id + version + lineage riêng | = max của các con |
+| Nhóm       | Action                                                            | Lớp mặc định          |
+| ---------- | ----------------------------------------------------------------- | --------------------- |
+| Quan sát   | `observe`, `extract`, `wait_for`, `assert`                        | `read` — luôn an toàn |
+| Điều hướng | `navigate`, `scroll`, `switch_context` (tab/window/frame)         | `read`*               |
+| Thao tác   | `click`, `type`, `select`, `press_keys`, `drag`, `hover`          | `reversible`*         |
+| Dữ liệu    | `upload`, `download`, `clipboard`                                 | khai báo              |
+| Tổng hợp   | **Macro** — chuỗi action đặt tên, có id + version + lineage riêng | = max của các con     |
 
 \* Mặc định của vocabulary; **App Profile override theo ngữ cảnh** (click nút "Send" là irreversible dù `click` mặc định reversible — xem §4).
 
@@ -23,7 +32,16 @@ Action là **một đơn vị tương tác môi trường có danh tính, có ý
 
 ## 3. Cấu trúc Action Instance
 
-| Trường | Nội dung | Bắt buộc | |---|---|---| | `definition` | Tham chiếu Action Definition@version | ✅ | | `intent` | Ý định ngữ nghĩa bằng NL ("bấm nút gửi form liên hệ") — nhiên liệu của self-healing và của người đọc audit | ✅ | | `target` | **Semantic locator** (Driver & Perception spec §4) | ✅ nếu có đích | | `params` | Tham số (text gõ, phím, tọa độ kéo…) — secret chỉ được là **credential handle**, không bao giờ là giá trị (Sandbox spec) | ⬜ | | `reversibility` | `read` / `reversible` / `compensable` (+ compensation ref) / `irreversible`. **Không khai = irreversible** (nguyên tắc #3) | ✅ resolve theo cascade | | `preconditions` | Assert trạng thái scene trước khi chạy — nền của resume/reconcile | ⬜ | | `evidence` | Hash snapshot scene trước/sau (structural + visual, đã masking) — engine tự ghi | ✅ tự động | | `actor` | Identity người/agent/script đã phát action — **cùng schema cho cả ba** (nguyên tắc #1) | ✅ tự động |
+| Trường          | Nội dung                                                                                                                   | Bắt buộc                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `definition`    | Tham chiếu Action Definition@version                                                                                       | ✅                      |
+| `intent`        | Ý định ngữ nghĩa bằng NL ("bấm nút gửi form liên hệ") — nhiên liệu của self-healing và của người đọc audit                 | ✅                      |
+| `target`        | **Semantic locator** (Driver & Perception spec §4)                                                                         | ✅ nếu có đích          |
+| `params`        | Tham số (text gõ, phím, tọa độ kéo…) — secret chỉ được là **credential handle**, không bao giờ là giá trị (Sandbox spec)   | ⬜                      |
+| `reversibility` | `read` / `reversible` / `compensable` (+ compensation ref) / `irreversible`. **Không khai = irreversible** (nguyên tắc #3) | ✅ resolve theo cascade |
+| `preconditions` | Assert trạng thái scene trước khi chạy — nền của resume/reconcile                                                          | ⬜                      |
+| `evidence`      | Hash snapshot scene trước/sau (structural + visual, đã masking) — engine tự ghi                                            | ✅ tự động              |
+| `actor`         | Identity người/agent/script đã phát action — **cùng schema cho cả ba** (nguyên tắc #1)                                     | ✅ tự động              |
 
 ## 4. Nguồn phân lớp reversibility (thứ tự resolve)
 
@@ -48,7 +66,13 @@ khai báo tại instance → Macro → App Profile → mặc định vocabulary 
 
 ## 7. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Đơn vị composition | Chỉ Macro (id + lineage), không có sub-script | | Không khai reversibility | Bảo thủ: coi là irreversible | | Ngữ cảnh hóa lớp | App Profile override vocabulary; suy luận AI chỉ được đề xuất vào profile | | Log ↔ Platform | Action log chiếu 1:1 thành Session effect — một định dạng, không chuyển đổi | | Bằng chứng | Evidence trước/sau bắt buộc, tự động, đã masking |
+| Vấn đề                   | Chốt                                                                        |
+| ------------------------ | --------------------------------------------------------------------------- |
+| Đơn vị composition       | Chỉ Macro (id + lineage), không có sub-script                               |
+| Không khai reversibility | Bảo thủ: coi là irreversible                                                |
+| Ngữ cảnh hóa lớp         | App Profile override vocabulary; suy luận AI chỉ được đề xuất vào profile   |
+| Log ↔ Platform           | Action log chiếu 1:1 thành Session effect — một định dạng, không chuyển đổi |
+| Bằng chứng               | Evidence trước/sau bắt buộc, tự động, đã masking                            |
 
 ## Litmus (spec-level, theo L5)
 

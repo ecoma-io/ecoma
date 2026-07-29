@@ -8,7 +8,12 @@ lang: vi
 
 ## 1. Executor — hai đầu một trục
 
-| | Script | Agent | |---|---|---| | Là gì | Chuỗi action tổng quát hóa từ action log (Session §5), locator nghiêng structural | Vision model + intent, locator nghiêng semantic | | Chi phí / tốc độ | ~0 / nhanh | Cao / chậm | | Độ bền UI đổi | Thấp | Cao | | Danh tính | id + version + **lineage** | (model, version, config_hash) + lineage — y hệt Filler bên Platform |
+|                  | Script                                                                            | Agent                                                               |
+| ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Là gì            | Chuỗi action tổng quát hóa từ action log (Session §5), locator nghiêng structural | Vision model + intent, locator nghiêng semantic                     |
+| Chi phí / tốc độ | ~0 / nhanh                                                                        | Cao / chậm                                                          |
+| Độ bền UI đổi    | Thấp                                                                              | Cao                                                                 |
+| Danh tính        | id + version + **lineage**                                                        | (model, version, config_hash) + lineage — y hệt Filler bên Platform |
 
 Executor của một automation là **một dial, không phải một lựa chọn nhị phân**: từng action có thể chạy bằng tầng locator khác nhau (Driver spec §4).
 
@@ -23,7 +28,11 @@ script fail (locator cạn tầng 1–2, hoặc precondition lệch)
 
 - **Cửa duyệt patch tỉ lệ theo reversibility** (phức tạp là lựa chọn, mặc định an toàn):
 
-| Lớp action được vá | Mặc định | |---|---| | `read` / `reversible` | Auto-apply, ghi log | | `compensable` | Auto-apply + cờ chờ hậu kiểm | | `irreversible` | **Chờ duyệt** — tích hợp: là một Gate (Checkpoint) đúng nghĩa; standalone: confirmation qua consumer nội bộ |
+| Lớp action được vá    | Mặc định                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `read` / `reversible` | Auto-apply, ghi log                                                                                         |
+| `compensable`         | Auto-apply + cờ chờ hậu kiểm                                                                                |
+| `irreversible`        | **Chờ duyệt** — tích hợp: là một Gate (Checkpoint) đúng nghĩa; standalone: confirmation qua consumer nội bộ |
 
 - Healing thất bại (tầng 4 cũng không resolve) → escalate; tích hợp thì theo chuỗi Escalation của Task.
 
@@ -53,7 +62,13 @@ Mỗi sự kiện healing ghi: (locator, tầng fail, tầng thắng, patch, app
 
 ## 7. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Script vs agent | Hai đầu một trục trên semantic locator; chuyển giao theo từng action | | Patch | Version mới có lineage; cửa duyệt tỉ lệ reversibility; irreversible luôn chờ duyệt | | Chiều ngược | Distillation agent→script khi ổn định — trục hai chiều | | Tin version vá | Đi qua trust tiers Platform, không đặc quyền | | Học từ healing | Drift smell → đề xuất App Profile qua vòng duyệt, không tự sửa runtime |
+| Vấn đề          | Chốt                                                                               |
+| --------------- | ---------------------------------------------------------------------------------- |
+| Script vs agent | Hai đầu một trục trên semantic locator; chuyển giao theo từng action               |
+| Patch           | Version mới có lineage; cửa duyệt tỉ lệ reversibility; irreversible luôn chờ duyệt |
+| Chiều ngược     | Distillation agent→script khi ổn định — trục hai chiều                             |
+| Tin version vá  | Đi qua trust tiers Platform, không đặc quyền                                       |
+| Học từ healing  | Drift smell → đề xuất App Profile qua vòng duyệt, không tự sửa runtime             |
 
 ## Litmus (spec-level, theo L5)
 

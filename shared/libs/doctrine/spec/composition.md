@@ -33,13 +33,33 @@ tenant defaults → template (vertical) → process → role → task
 
 Engine kiểm tra tĩnh definition trước khi cho khởi chạy, và cảnh báo lúc thiết kế:
 
-| Kiểm tra | Nguồn cơ chế | |---|---| | Contract producer/consumer khớp version | Handoff §7 | | Ranh giới unwind + đoạn không đảo ngược được | Handoff §8 | | Irreversible effect có sàn policy ở Gate liền trước chưa | Handoff §8 | | Escalation chain có terminal handler | Escalation §3 | | Role tham chiếu có pool Filler khả dụng | Role §3 | | Chu trình vô hạn / spawn không trần | Task §5 | | Trigger có auth + correlation (với type hội thoại) | Trigger & Channel §2 | | Collection tham chiếu nằm trong grant của Role; module knowledge có bật | Knowledge §2 | | External effect tiêu thụ tri thức vượt sàn classification | Knowledge §3 | | Đường sync-response bị chặn thời gian: không `awaiting`, budget khai đủ, spawn bị trần | Trigger & Channel §2 | | Critical section của Lease không chứa `awaiting`; chuỗi acquire nhiều lease bị cảnh báo | Working Data §3 | | Query DataTable: bảng-chạm-vào ⊆ grant của Role; aggregate từ bảng mật có leakage-gate trước egress | Working Data §1 | | Migration major khai đường nghịch **hoặc** cờ `irreversible_migration` | North Star §8 | | Contract khai `test_behavior: dry_run` mà adapter đích không khai `supports_dry_run` → **lỗi thiết kế** (resolve về `forbidden` lúc chạy, nhưng bắt được từ lúc vẽ) | Handoff §3, Test Harness §5 | | Contract có effect **rời khỏi hệ** mà không khai `test_behavior` → **cảnh báo** (không reject: mặc định đã fail-closed) | Handoff §3 |
+| Kiểm tra                                                                                                                                                            | Nguồn cơ chế                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Contract producer/consumer khớp version                                                                                                                             | Handoff §7                  |
+| Ranh giới unwind + đoạn không đảo ngược được                                                                                                                        | Handoff §8                  |
+| Irreversible effect có sàn policy ở Gate liền trước chưa                                                                                                            | Handoff §8                  |
+| Escalation chain có terminal handler                                                                                                                                | Escalation §3               |
+| Role tham chiếu có pool Filler khả dụng                                                                                                                             | Role §3                     |
+| Chu trình vô hạn / spawn không trần                                                                                                                                 | Task §5                     |
+| Trigger có auth + correlation (với type hội thoại)                                                                                                                  | Trigger & Channel §2        |
+| Collection tham chiếu nằm trong grant của Role; module knowledge có bật                                                                                             | Knowledge §2                |
+| External effect tiêu thụ tri thức vượt sàn classification                                                                                                           | Knowledge §3                |
+| Đường sync-response bị chặn thời gian: không `awaiting`, budget khai đủ, spawn bị trần                                                                              | Trigger & Channel §2        |
+| Critical section của Lease không chứa `awaiting`; chuỗi acquire nhiều lease bị cảnh báo                                                                             | Working Data §3             |
+| Query DataTable: bảng-chạm-vào ⊆ grant của Role; aggregate từ bảng mật có leakage-gate trước egress                                                                 | Working Data §1             |
+| Migration major khai đường nghịch **hoặc** cờ `irreversible_migration`                                                                                              | North Star §8               |
+| Contract khai `test_behavior: dry_run` mà adapter đích không khai `supports_dry_run` → **lỗi thiết kế** (resolve về `forbidden` lúc chạy, nhưng bắt được từ lúc vẽ) | Handoff §3, Test Harness §5 |
+| Contract có effect **rời khỏi hệ** mà không khai `test_behavior` → **cảnh báo** (không reject: mặc định đã fail-closed)                                             | Handoff §3                  |
 
 ## 5. Pair-design = một workflow ecoma (dogfooding)
 
 Thiết kế và sửa quy trình **chính là một process** chạy trên chính engine:
 
-| Role trong workflow thiết kế | Filler điển hình | Việc | |---|---|---| | Drafter | AI | Sinh/sửa definition từ mô tả tự nhiên hoặc từ đề xuất của tầng Intelligence | | Validator | Rule | Chạy static analysis (§4) — hard gate | | Reviewer | Người | Duyệt trên canvas, sửa trực tiếp (= approve-with-edit, sinh definition dẫn xuất) |
+| Role trong workflow thiết kế | Filler điển hình | Việc                                                                             |
+| ---------------------------- | ---------------- | -------------------------------------------------------------------------------- |
+| Drafter                      | AI               | Sinh/sửa definition từ mô tả tự nhiên hoặc từ đề xuất của tầng Intelligence      |
+| Validator                    | Rule             | Chạy static analysis (§4) — hard gate                                            |
+| Reviewer                     | Người            | Duyệt trên canvas, sửa trực tiếp (= approve-with-edit, sinh definition dẫn xuất) |
 
 - Vì definition là Artifact có Gate: **mọi thay đổi quy trình có Judgment, provenance, và học được** — Intelligence quan sát được cả "quy trình về quy trình": đề xuất sửa nào của AI hay bị người sửa lại, mô tả kiểu nào sinh definition đạt.
 - Người và AI hoán đổi được cả ở đây (AI review definition người vẽ) — đối xứng đến tận tầng thiết kế. Đây là chỗ đứng cơ chế của quyết định sản phẩm "pair-design", không cần hệ thống riêng.
@@ -48,7 +68,11 @@ Thiết kế và sửa quy trình **chính là một process** chạy trên chí
 
 Mọi runtime ngoài (Ecoma RPA, external agent, engine automation khác) cắm vào Platform qua đúng **2 giao diện chuẩn** — không có đường tắt riêng cho bất kỳ sản phẩm nào, kể cả sản phẩm cùng monorepo. Learning signal và đề xuất đi **bên trong** Session effect stream (entry có kiểu) — không tồn tại kênh thứ ba:
 
-| | Ecoma Platform | Ecoma RPA | |---|---|---| | Domain | Điều phối lao động: 5 primitive + composition + surfaces | Thực thi tương tác môi trường: browser/desktop automation, computer-use, driver | | Quan hệ | **Sử dụng** Ecoma RPA như một nguồn Filler | **Cắm vào** Platform, sản phẩm độc lập, dùng riêng được | | Giao diện cắm (chỉ 2, chuẩn hóa) | | (1) **Filler interface** (Role §3): identity + lineage, availability, capacity, cost; (2) **Session effect** (Handoff §8): action stream, reversibility per action, commit point |
+|                                  | Ecoma Platform                                           | Ecoma RPA                                                                                                                                                                        |
+| -------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain                           | Điều phối lao động: 5 primitive + composition + surfaces | Thực thi tương tác môi trường: browser/desktop automation, computer-use, driver                                                                                                  |
+| Quan hệ                          | **Sử dụng** Ecoma RPA như một nguồn Filler               | **Cắm vào** Platform, sản phẩm độc lập, dùng riêng được                                                                                                                          |
+| Giao diện cắm (chỉ 2, chuẩn hóa) |                                                          | (1) **Filler interface** (Role §3): identity + lineage, availability, capacity, cost; (2) **Session effect** (Handoff §8): action stream, reversibility per action, commit point |
 
 - Platform **không biết** selector, vision model, hay driver — mọi chi tiết đó là domain của RPA. RPA **không biết** Gate, calibration, escalation — nó chỉ nhận task và phát effect stream.
 - Hệ quả quan trọng: ranh giới này **chứng minh cơ chế plug-in là tổng quát** — external agent, n8n node, hay bất kỳ runtime nào cắm vào Platform bằng đúng 2 giao diện đó. Ecoma RPA chỉ là khách hàng đầu tiên và là bài test của chính giao diện.
@@ -60,7 +84,13 @@ Mọi runtime ngoài (Ecoma RPA, external agent, engine automation khác) cắm 
 
 ## 8. Nhật ký quyết định
 
-| Vấn đề | Chốt | |---|---| | Process là gì | Artifact tuân contract `process-definition` — không phải primitive thứ 6 | | Definition đổi khi instance chạy | Pin lúc khởi chạy; migration là Task tường minh có Gate | | Mặc định tối giản | Default cascade 5 mức, snapshot vào instance | | Pair-design | Là workflow ecoma: Drafter(AI)/Validator(rule)/Reviewer(người), hoán đổi được | | RPA | Sản phẩm riêng, domain riêng; cắm qua đúng 2 giao diện Filler + Session effect |
+| Vấn đề                           | Chốt                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| Process là gì                    | Artifact tuân contract `process-definition` — không phải primitive thứ 6       |
+| Definition đổi khi instance chạy | Pin lúc khởi chạy; migration là Task tường minh có Gate                        |
+| Mặc định tối giản                | Default cascade 5 mức, snapshot vào instance                                   |
+| Pair-design                      | Là workflow ecoma: Drafter(AI)/Validator(rule)/Reviewer(người), hoán đổi được  |
+| RPA                              | Sản phẩm riêng, domain riêng; cắm qua đúng 2 giao diện Filler + Session effect |
 
 ## Litmus (spec-level, theo L5)
 
