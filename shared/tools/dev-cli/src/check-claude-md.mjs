@@ -7,6 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { listTrackedFiles } from "./tracked-files.mjs";
 
 /**
  * Returns the subset of `projectFiles` (paths to `project.json` files) whose
@@ -19,9 +20,8 @@ export function findMissingClaudeMd(projectFiles, exists = existsSync) {
 
 /** Scans every git-tracked `project.json` in the repo. Returns a process exit code. */
 export function checkClaudeMd() {
-  const files = execFileSync("git", ["ls-files", "--", "*project.json"], {
-    encoding: "utf8",
-  })
+  const files = listTrackedFiles(["*project.json"])
+    .join("\n")
     .split("\n")
     .filter((f) => basename(f) === "project.json");
 
