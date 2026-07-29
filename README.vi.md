@@ -2,6 +2,10 @@
 
 # Ecoma
 
+[![CI](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml)
+
+[ecoma.io](https://ecoma.io) · [Doctrine](https://ecoma.io/doctrine)
+
 Ecoma là một hệ điều hành lao động (labor operating system) tự lưu trữ,
 "fair-code", nơi con người, AI, và luật/code cùng đóng vai trò một loại tài
 nguyên lao động (Role/Filler); các workflow — cả quy trình xác định lẫn tác vụ

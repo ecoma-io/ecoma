@@ -2,6 +2,10 @@
 
 # Ecoma
 
+[![CI](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml)
+
+[ecoma.io](https://ecoma.io) · [Doctrine](https://ecoma.io/doctrine)
+
 Ecoma 是一个可自托管的、"fair-code" 的劳动操作系统(labor operating
 system),在其中人类、AI、以及规则/代码共同扮演同一类劳动资源(Role/
 Filler);工作流——无论是确定性流程还是推理型任务——都由人类与 AI 直接在

@@ -2,6 +2,10 @@
 
 # Ecoma
 
+[![CI](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml)
+
+[ecoma.io](https://ecoma.io) · [Doctrine](https://ecoma.io/doctrine)
+
 Ecoma is a self-hostable, "fair-code" labor operating system where humans, AI,
 and rules/code function as the same type of labor resource (Role/Filler);
 workflows — both deterministic processes and reasoning tasks — are
