@@ -1,0 +1,31 @@
+{
+  "name": "doctrine-site",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["type:app", "scope:shared"],
+  "implicitDependencies": ["doctrine"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node ../../../node_modules/vitepress/bin/vitepress.js build ."
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node ../../../node_modules/vitepress/bin/vitepress.js dev . --port 6009"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
+      }
+    }
+  }
+}

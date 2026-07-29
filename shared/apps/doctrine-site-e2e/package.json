@@ -1,0 +1,7 @@
+{
+  "name": "@ecoma-io/doctrine-site-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Playwright suite driving the built doctrine site",
+  "type": "module"
+}
