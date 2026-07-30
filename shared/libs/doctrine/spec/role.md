@@ -1,101 +1,160 @@
 ---
-title: "Ecoma Primitive Spec: Role"
+title: "Primitive: Role"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Primitive Spec: Role
+# Primitive: Role
 
-## 1. Định nghĩa
+## 1. Definition
 
-Role là **hợp đồng năng lực cho một vị trí lao động** — độc lập với việc ai/cái gì đang lấp nó. Tách bạch nền tảng:
+A Role is **a capability contract for one position of labour**, independent of
+who or what currently occupies it. The separation is foundational:
 
-|             | Role (vị trí)                             | Filler (người lấp)             |
-| ----------- | ----------------------------------------- | ------------------------------ |
-| Là gì       | Slot: làm gì, theo tiêu chí nào, quyền gì | Occupant: người / agent / rule |
-| Danh tính   | id + version                              | identity riêng (§3)            |
-| Đổi cái này | Sửa quy trình                             | **Không sửa quy trình**        |
+|                   | Role (the position)                                           | Filler (the occupant)       |
+| ----------------- | ------------------------------------------------------------- | --------------------------- |
+| What it is        | A slot: what work, judged by which criteria, with what rights | Person / agent / rule       |
+| Identity          | Id and version                                                | Its own identity (§3)       |
+| Changing it means | Editing the process                                           | **Not editing the process** |
 
-Đây chính là cơ chế trả lời litmus #1: _đổi một bước từ người sang AI không phải sửa flow_ — vì flow chỉ biết Role, không biết Filler.
+This is the mechanism behind the first litmus of the whole system: _moving a step
+from a person to an AI is not a process edit_ — because the process only ever
+knew the Role.
 
-## 2. Cấu trúc Role
+## 2. What a Role declares
 
-| Trường              | Nội dung                                                                                                                              | Bắt buộc      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `io_contracts`      | Tham chiếu Contract (Handoff) cho input/output — Role "nói" contract nào                                                              | ✅            |
-| `held_criteria`     | Tham chiếu Criterion (Checkpoint) mà output của Role bị chấm theo                                                                     | ✅            |
-| `capabilities`      | Quyền hạng nhất: `judge`, `contract_author`, `process_author`, `role_author`, `arbiter`, `spawn_task`, `override_gate`… — taxonomy mở | ✅ (có thể ∅) |
-| `assignment_policy` | Cách chọn Filler khi có nhiều: `static` / `queue` / `router:<role>` (định tuyến là Task của một Role) / chiến lược cắm thêm           | ✅            |
-| `escalation_chain`  | Chuỗi xử lý khi lệch chuẩn — xem Escalation spec                                                                                      | ✅            |
-| `graduation_policy` | Điều kiện thăng/giáng trust tier của Filler (§5) — ngưỡng resolve theo default cascade (Composition §3)                               | ✅            |
-| `constraints`       | Trần cost, latency, giờ hoạt động                                                                                                     | ⬜            |
+| Field               | Content                                                                                                                                               | Required          |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `io_contracts`      | References to Contracts (Handoff) for input and output — which contracts this Role speaks                                                             | ✅                |
+| `held_criteria`     | References to the Criteria (Checkpoint) this Role's output is judged against                                                                          | ✅                |
+| `capabilities`      | First-class rights: `judge`, `contract_author`, `process_author`, `role_author`, `arbiter`, `spawn_task`, `override_gate`, … — an open taxonomy       | ✅ — may be empty |
+| `assignment_policy` | How a Filler is chosen when there are several: `static` / `queue` / `router:<role>` — routing is itself a Task of some Role — or a pluggable strategy | ✅                |
+| `escalation_chain`  | The path taken on deviation — see Escalation                                                                                                          | ✅                |
+| `graduation_policy` | The conditions for promoting or demoting a Filler's trust tier (§5); thresholds resolve through the default cascade (Composition §3)                  | ✅                |
+| `constraints`       | Cost ceiling, latency, operating hours                                                                                                                | ⬜                |
 
-**Role hệ thống không tồn tại**: Arbiter, Distiller, Merger, Adapter, Coercer, Router (đã xuất hiện ở Checkpoint/Handoff) đều chỉ là Role thường với contract phù hợp. Engine không có node đặc quyền — mọi lao động, kể cả lao động vận hành hệ thống, đi qua cùng cơ chế.
+**There are no system Roles.** Arbiter, Distiller, Merger, Adapter, Coercer and
+Router — all of which appear in Checkpoint and Handoff — are ordinary Roles with
+the appropriate contracts. The engine has no privileged node: all labour,
+including the system's own operational labour, travels the same mechanism. A
+privileged node would be a place where the audit story quietly stops.
 
 ## 3. Filler
 
-| Loại      | Identity (khóa calibration)                                    | Availability                                        | Cost                 |
-| --------- | -------------------------------------------------------------- | --------------------------------------------------- | -------------------- |
-| Người     | user id                                                        | Giờ làm việc, capacity, nghỉ phép — **tự khai báo** | Lương/giờ hoặc /task |
-| Agent     | `(model, version, config_hash)` — cùng logic verifier identity | Rate limit, concurrency                             | Token/compute        |
-| Rule/code | `(code, version)`                                              | Luôn sẵn sàng (trừ dependency)                      | ~0                   |
+| Kind      | Identity (the calibration key)                                           | Availability                                       | Cost                        |
+| --------- | ------------------------------------------------------------------------ | -------------------------------------------------- | --------------------------- |
+| Person    | User id                                                                  | Working hours, capacity, leave — **self-declared** | Salary per hour or per task |
+| Agent     | `(model, version, config_hash)` — the same shape a verifier identity has | Rate limit, concurrency                            | Tokens / compute            |
+| Rule/code | `(code, version)`                                                        | Always available, dependencies aside               | ~0                          |
 
-- Engine đối xứng tuyệt đối: cả ba khai cùng schema (identity, availability, capacity, cost function). Không có nhánh if-human.
-- **Identity lineage** (chống reset flywheel): agent identity mới (đổi prompt/config/model) khai báo `parent_identity`; calibration profile **kế thừa từ cha với hệ số decay** (tham số lớp C, template cấp giá trị). Vòng tiến hóa chuẩn của filler: config mới → shadow (§4) → graduation thay cha. Không có lineage, mỗi lần tầng Intelligence tối ưu prompt là một lần tự đốt calibration — mâu thuẫn chết người với per-tenant learning.
-- **Filler từ sản phẩm ngoài**: Ecoma RPA (sản phẩm riêng, domain tách biệt) và mọi runtime ngoài đăng ký filler qua cùng schema này; hành động ra môi trường của chúng đi qua **Session effect** (Handoff §8). Platform không biết công nghệ bên trong filler — chỉ biết identity, availability, cost, và effect stream.
-- **Filler loại thứ tư: `process`** — Role được lấp bởi một Process definition@version: task gán role đó = spawn instance con, output = artifact cuối của instance con. Sub-process invocation (sub-workflow kiểu n8n/BPMN) không cần khái niệm riêng; calibration trên process-filler = chất lượng của **cả quy trình con**, và shadow ở cấp process (A/B hai quy trình cạnh tranh, chọn bằng outcome) rơi ra miễn phí từ chính cơ chế shadow sẵn có.
-- **Calibration profile** tích lũy theo `(role, filler_identity, task_type, criterion)` — nguồn: toàn bộ hệ Judgment. Đây là câu trả lời litmus #3 (một thang tin cậy duy nhất cho người lẫn AI) và litmus #4 (cost + quality theo Role bất kể ai lấp).
-- **`environment: production | test`**: một chiều của Filler identity, **độc lập với trust tier**. Filler `environment: test` (mock filler — Test Harness §3) **không đủ tư cách được gán vào task production**, bất kể tier của nó là gì. Án văn: mức-tin-cậy và môi-trường là hai trục; trộn vào một enum tier sẽ tạo nguồn sự thật thứ hai cho taxonomy tier (E5/G6) và làm bảng §5 nói hai chuyện.
-- Một Role có **pool Filler**; một Filler lấp được nhiều Role.
+The engine is strictly symmetric: all three declare the same schema — identity,
+availability, capacity, cost function. There is no `if human` branch anywhere.
 
-## 4. Shadow mode (litmus #2)
+**Identity lineage** stops the flywheel resetting. A new agent identity — changed
+prompt, config or model — declares a `parent_identity`, and its calibration
+profile **inherits from the parent with a decay factor** (a class-C parameter,
+valued by template). The standard evolution of a filler is: new config → shadow
+(§4) → graduation replacing the parent. Without lineage, every prompt
+optimisation by the Intelligence layer would burn the calibration it depends on —
+a fatal contradiction with per-tenant learning.
 
-- Role gắn được **shadow filler**: chạy song song với primary trên cùng task, output shadow **không chảy vào flow**, chỉ sinh Artifact + được chấm bởi cùng Gate criteria.
-- Engine tự sinh **bảng đối chiếu** primary-vs-shadow theo criterion, cost, latency từ Judgment data — không cần công cụ ngoài.
-- Judgment trên shadow output mang provenance `shadow: true` — nuôi calibration của shadow filler mà không rủi ro production.
-- Đối xứng: shadow người sau AI cũng hợp lệ (đào tạo nhân sự mới bằng cách chạy bóng quy trình thật).
+**Fillers from outside products.** Ecoma RPA, a separate product in its own
+domain, and any external runtime register fillers through this same schema; their
+actions on an environment travel as a **Session effect** (Handoff §8). The
+platform knows nothing about the technology inside a filler — only identity,
+availability, cost, and the effect stream.
 
-## 5. Trust tiers & graduation — cơ chế dịch chuyển lực lượng lao động
+**A fourth kind of filler: `process`.** A Role can be filled by a Process
+definition@version. A task assigned to that Role spawns a child instance, and its
+output is that instance's final artifact. Sub-process invocation needs no concept
+of its own; calibration over a process-filler measures the quality of **an entire
+sub-process**, and shadow at process level — two competing processes chosen by
+outcome — falls out of the existing shadow mechanism for free.
 
-| Tier         | Output đi đâu                        | Điều kiện lên                         |
-| ------------ | ------------------------------------ | ------------------------------------- |
-| `shadow`     | Không vào flow, chỉ học              | Calibration đạt ngưỡng so với primary |
-| `gated`      | Vào flow, 100% qua review            | Tỉ lệ approve ≥ X trên ≥ N mẫu        |
-| `sampled`    | Auto-pass + sampling (Checkpoint §4) | Reject rate trong mẫu ≤ Y             |
-| `autonomous` | Auto-pass, sampling tối thiểu        |                                       |
+**A calibration profile** accumulates per `(role, filler_identity, task_type,
+criterion)`, sourced from the whole Judgment system. It is what answers _one
+confidence scale for humans and AI alike_, and _cost and quality per Role
+regardless of who fills it_.
 
-- Thăng/giáng **tự động theo `graduation_policy`** — engine ép policy tồn tại, template cấp ngưỡng; user override được (nguyên tắc #3, #4).
-- Giáng lập tức khi calibration sụt (liên thông cơ chế "tự siết" của Checkpoint §4).
-- Tier gắn với `(filler, role, task_type)` — một agent autonomous ở việc này vẫn gated ở việc khác.
-- Đây là **câu chuyện sản phẩm cốt lõi**: hành trình human → AI không phải quyết định một lần, mà là thang máy có đồng hồ đo, hai chiều, theo từng loại việc.
+**`environment: production | test`** is a dimension of Filler identity,
+**independent of trust tier**. A filler with `environment: test` — a mock filler,
+Test Harness §3 — **is not eligible for a production task**, whatever its tier.
+Confidence and environment are two axes; folding them into one tier enum would
+create a second source of truth for the tier taxonomy and make §5's table say two
+different things.
+
+A Role has a **pool** of Fillers; a Filler can fill several Roles.
+
+## 4. Shadow mode
+
+A Role can carry a **shadow filler**, running alongside the primary on the same
+task. The shadow's output **does not flow into the process**; it produces an
+Artifact and is judged by the same Gate criteria.
+
+The engine generates the **primary-versus-shadow comparison** by criterion, cost
+and latency from Judgment data. No external tooling is required, which is what
+makes the comparison always available rather than something someone has to build.
+
+Judgments on shadow output carry `shadow: true` in their provenance, feeding the
+shadow filler's calibration at no risk to production.
+
+It is symmetric: a person shadowing an AI is equally valid — training a new hire
+by running the real process in shadow.
+
+## 5. Trust tiers and graduation — the mechanism of a shifting workforce
+
+| Tier         | Where output goes                       | Condition to rise                                     |
+| ------------ | --------------------------------------- | ----------------------------------------------------- |
+| `shadow`     | Not into the flow; learning only        | Calibration reaches the threshold against the primary |
+| `gated`      | Into the flow, 100% reviewed            | Approval rate ≥ X over ≥ N samples                    |
+| `sampled`    | Auto-pass plus sampling (Checkpoint §4) | Reject rate within the sample ≤ Y                     |
+| `autonomous` | Auto-pass, minimal sampling             |                                                       |
+
+Promotion and demotion are **automatic under `graduation_policy`** — the engine
+forces the policy to exist, a template supplies thresholds, and a user may
+override them (principles #3 and #4).
+
+Demotion is immediate when calibration falls, which is the same self-tightening
+mechanism Checkpoint §4 describes.
+
+A tier attaches to `(filler, role, task_type)`: an agent that is autonomous at one
+kind of work is still gated at another.
+
+This is **the core product story**. The journey from human to AI is not a decision
+taken once; it is a lift with a meter on it, running in both directions, per kind
+of work.
 
 ## 6. Duality
 
-| Khía cạnh    | Rule/code                                                                                                                                                         | Agent / người                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Graduation   | Cùng policy, cùng thang — nhưng calibration nhị phân hội tụ sau rất ít mẫu nên lên autonomous nhanh. **Hệ quả tự nhiên của dữ liệu, không phải đặc quyền engine** | Calibration dạng phân phối, cần nhiều mẫu hơn |
-| Availability | Hằng số                                                                                                                                                           | Biến thiên, tự khai                           |
-| Calibration  | Nhị phân, hội tụ nhanh                                                                                                                                            | Phân phối, cần mẫu                            |
+| Aspect       | Rule/code                                                                                                                                                                                      | Agent / person                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Graduation   | The same policy and the same scale — but binary calibration converges after very few samples, so it reaches autonomous quickly. **A natural consequence of the data, not an engine privilege** | Distributional calibration, needing more samples |
+| Availability | Constant                                                                                                                                                                                       | Variable, self-declared                          |
+| Calibration  | Binary, fast-converging                                                                                                                                                                        | Distributional, sample-hungry                    |
 
 ## 7. Non-goals
 
-- Role không chứa logic thực thi (của Filler) và không chứa trạng thái việc (của Task).
-- Không có phân cấp Role kế thừa (inheritance) — composition qua capability và contract, không qua cây kế thừa.
+- A Role holds no execution logic — that belongs to the Filler — and no work
+  state — that belongs to the Task.
+- There is no Role inheritance hierarchy. Composition happens through
+  capabilities and contracts, not through an inheritance tree.
 
-## 8. Nhật ký quyết định
+## 8. Decisions
 
-| Vấn đề                  | Chốt                                                                                                                                         |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Slot vs occupant        | Tách Role/Filler; flow chỉ biết Role                                                                                                         |
-| Role hệ thống           | Không tồn tại — Arbiter/Distiller/… là Role thường                                                                                           |
-| Capability              | Gắn vào Role, Filler thừa hưởng khi lấp; taxonomy mở                                                                                         |
-| Thang tin cậy           | Calibration profile theo (role, filler, task_type, criterion), nguồn duy nhất là hệ Judgment                                                 |
-| **Environment vs tier** | `environment` là chiều của identity, **không** phải tier thứ 5 — bảng §5 giữ đúng 4 tier; mock filler bị chặn khỏi production bằng chiều này |
-| Shadow                  | Cơ chế hạng nhất, đối xứng hai chiều (AI bóng người, người bóng AI)                                                                          |
-| Graduation              | 4 tier, tự động hai chiều theo policy khai báo                                                                                               |
+| Question                | Settled                                                                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slot vs occupant        | Role and Filler are separate; the process only knows the Role                                                                                         |
+| System Roles            | None exist — Arbiter, Distiller and the rest are ordinary Roles                                                                                       |
+| Capability              | Attached to the Role and inherited by whoever fills it; an open taxonomy                                                                              |
+| One confidence scale    | A calibration profile per (role, filler, task_type, criterion), sourced only from the Judgment system                                                 |
+| **Environment vs tier** | `environment` is a dimension of identity, **not** a fifth tier — §5 keeps exactly four, and a mock filler is barred from production by this dimension |
+| Shadow                  | A first-class mechanism, symmetric in both directions: AI shadowing a person, a person shadowing AI                                                   |
+| Graduation              | Four tiers, automatic in both directions under a declared policy                                                                                      |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Một Role lần lượt lấp bởi 4 loại filler (người/agent/rule/process) — definition không đổi một ký tự?
-2. Graduation policy thăng/giáng filler tự động theo calibration, mỗi lần đổi tier là một event?
-3. `distinct_filler_from` chặn được filler tự chấm chính mình ở mọi đường (kể cả qua 2 role)?
+1. A Role filled in turn by all four kinds of filler — person, agent, rule,
+   process — does its definition change by a single character?
+2. Does the graduation policy promote and demote a filler automatically from
+   calibration, with every tier change emitted as an event?
+3. Does `distinct_filler_from` block a filler from judging its own output on
+   every path, including through two roles?
