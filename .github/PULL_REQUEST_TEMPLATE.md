@@ -43,6 +43,7 @@ Closes #(issue number)
 - [ ] My changes generate no new warnings
 - [ ] Tests pass locally: `pnpm nx affected -t lint test typecheck build e2e`
 - [ ] No unrelated code changes included
+- [ ] `CLA.md` clauses 3–5 are accurate for **this** pull request: the work is mine to give, anything I did not write myself is disclosed above, and my employer (if relevant) is on board
 
 ## Additional Notes
 

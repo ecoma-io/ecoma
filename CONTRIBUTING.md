@@ -97,8 +97,7 @@ there is exactly one setup path to maintain.
    chore(workspace): bump nx
    ```
 
-   Commit with `-s` so each commit carries the `Signed-off-by` trailer that
-   records your agreement to [`CLA.md`](./CLA.md) — see
+   Commit with `-s` so each commit carries a `Signed-off-by` trailer — see
    [License & contributor agreement](#license--contributor-agreement) below.
 
 4. **Run checks** — Before pushing:
@@ -173,21 +172,25 @@ Sustainable Use License for the implementations, Apache 2.0 for the
 `packages` directories third parties build against, a commercial Enterprise
 License for `enterprise` directories, proprietary for the operator control
 plane. The prose under `shared/libs/doctrine/` is licensed separately, under
-[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE).
+[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs).
 
-The boundary is machine-checked, so you do not have to memorise it: each
-project declares a `license:*` tag that must agree with its directory, and
-`check-project-conventions` fails the build when it does not.
+The build checks that declaration, so you do not have to memorise it: each
+project declares a `license:*` tag, and `check-project-conventions` fails when
+a tag disagrees with its directory. That is a lint over what the tree declares,
+not a legal control — `LICENSE` is what governs.
 
 Because the project offers its code under more than one set of terms, we need
 the right to do that for your contribution too. That is what
 [`CLA.md`](./CLA.md) grants — a licence, not ownership; you keep the copyright
-in your work. Sign off each commit with `git commit -s`, and a maintainer will
-confirm the agreement once, on your first pull request.
+in your work. A maintainer confirms the agreement once, on your first pull
+request. Sign off each commit with `git commit -s`: that trailer is the
+[Developer Certificate of Origin](https://developercertificate.org/), which is
+a separate thing from the CLA and deliberately kept separate.
 
-Use of the name "Ecoma" is governed by [`TRADEMARK.md`](./TRADEMARK.md), which
-is deliberately separate from the code licence: describing a true relationship
-with the project needs no permission, naming your own product after it does.
+`LICENSE` grants no rights in the name "Ecoma" — no source-available licence
+does. A published trademark policy will follow registration; until then, ask if
+you want to use the name for anything beyond describing a true relationship
+with the project.
 
 ## Review Process
 
@@ -217,7 +220,7 @@ Found a security vulnerability? **Do not** open a public issue. Please report it
 
 - **Decisions & Strategy:** [`CLAUDE.md`](./CLAUDE.md)
 - **Design System:** [`Design System/Introduction`](./shared/libs/core-ui/docs/design/Introduction.mdx)
-- **Licensing & the CLA:** [`LICENSE`](./LICENSE), [`CLA.md`](./CLA.md), [`TRADEMARK.md`](./TRADEMARK.md)
+- **Licensing & the CLA:** [`LICENSE`](./LICENSE), [`CLA.md`](./CLA.md)
 
 ## Thank You
 

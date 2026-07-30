@@ -59,19 +59,20 @@ Ecoma 本身作为服务出售。正因为保留了这一条,其余部分才能�
 适用哪一套条款,取决于文件所在的位置;[`LICENSE`](./LICENSE) 是这一映射关系的
 唯一事实来源:
 
-| 路径                             | 条款                                           |
-| -------------------------------- | ---------------------------------------------- |
-| 下表未列出的其余部分             | Sustainable Use License                        |
-| `<subsystem>/packages/`          | Apache License 2.0 —— 供第三方对接的部分       |
-| `<subsystem>/enterprise/`        | Enterprise License,单独出售                    |
-| `shared/libs/doctrine/` 中的文档 | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE) |
-| `cloud/`                         | 专有,且不公开                                  |
+| 路径                           | 条款                                                |
+| ------------------------------ | --------------------------------------------------- |
+| 下表未列出的其余部分           | Sustainable Use License                             |
+| `<subsystem>/packages/`        | Apache License 2.0 —— 供第三方对接的部分            |
+| `<subsystem>/enterprise/`      | Enterprise License,单独出售                         |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) |
+| `cloud/`                       | 专有,且不公开                                       |
 
 自行部署 Ecoma 来运营你自己的组织是**明确允许**的,无论是否用于商业目的;把它
 作为托管服务提供给他人则不允许。
 
-这条边界由**机器检查**,而不是靠记忆:每个 project 都声明一个 `license:*` 标
-签,该标签必须与它自身所在的目录一致。
+构建过程会**检查这份声明**,而不是靠记忆:每个 project 都声明一个 `license:*`
+标签,当标签与它自身所在的目录不一致时,约定检查会失败。那是针对代码树所声明内
+容的一项 lint —— 真正具有法律效力的是 `LICENSE`。
 
-参与贡献需要一次性签署 [`CLA.md`](./CLA.md)。“Ecoma”这一名称的使用由
-[`TRADEMARK.md`](./TRADEMARK.md) 规范,与源码许可证相互独立。
+参与贡献需要一次性同意 [`CLA.md`](./CLA.md)。这里的任何许可证都不授予“Ecoma”
+这一名称的任何权利。

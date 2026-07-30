@@ -63,20 +63,21 @@ thành một dịch vụ. Chính hạn chế đó là lý do mọi phần còn l
 Điều khoản nào áp cho tệp nào là do **vị trí của tệp** quyết định, và
 [`LICENSE`](./LICENSE) là nguồn sự thật của phép ánh xạ đó:
 
-| Đường dẫn                             | Điều khoản                                      |
-| ------------------------------------- | ----------------------------------------------- |
-| mọi thứ không nêu bên dưới            | Sustainable Use License                         |
-| `<subsystem>/packages/`               | Apache License 2.0 — thứ bạn lập trình đối tiếp |
-| `<subsystem>/enterprise/`             | Enterprise License, bán riêng                   |
-| văn bản trong `shared/libs/doctrine/` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE)  |
-| `cloud/`                              | độc quyền, và không công bố                     |
+| Đường dẫn                      | Điều khoản                                          |
+| ------------------------------ | --------------------------------------------------- |
+| mọi thứ không nêu bên dưới     | Sustainable Use License                             |
+| `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn lập trình đối tiếp     |
+| `<subsystem>/enterprise/`      | Enterprise License, bán riêng                       |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) |
+| `cloud/`                       | độc quyền, và không công bố                         |
 
 Tự cài Ecoma để vận hành tổ chức của chính bạn là **được phép rõ ràng**, dù có
 mục đích thương mại hay không. Đem nó cung cấp cho người khác như một dịch vụ
 thì không.
 
-Ranh giới này được **máy kiểm tra** chứ không trông vào trí nhớ: mỗi project
-khai một tag `license:*` và tag đó phải khớp với chính thư mục của nó.
+Bản build **kiểm tra lời khai đó** chứ không trông vào trí nhớ: mỗi project khai
+một tag `license:*`, và gate quy ước sẽ đỏ khi tag lệch với chính thư mục của
+nó. Đó là một lint trên thứ cây khai ra — thứ có hiệu lực pháp lý là `LICENSE`.
 
-Đóng góp cần ký nhận một lần vào [`CLA.md`](./CLA.md). Việc dùng tên Ecoma do
-[`TRADEMARK.md`](./TRADEMARK.md) điều chỉnh, tách khỏi giấy phép mã nguồn.
+Đóng góp cần đồng ý một lần với [`CLA.md`](./CLA.md). Không giấy phép nào ở đây
+cấp quyền với tên Ecoma.
