@@ -8,8 +8,13 @@ import { checkProjectConventions, findConventionViolations } from "./check-proje
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 vi.mock("node:fs", () => ({ readFileSync: vi.fn() }));
 
-/** In-memory repo: path → content. Tracked set = the map's keys. */
-const judge = (files) => findConventionViolations(Object.keys(files), (p) => files[p]);
+/**
+ * In-memory repo: path → content. Tracked set = the map's keys. A path with no
+ * entry reads back as `null`, matching the production reader's contract for an
+ * unreadable path (never `undefined`), so an omitted key exercises the same
+ * "missing from disk" state a real deleted file produces.
+ */
+const judge = (files) => findConventionViolations(Object.keys(files), (p) => files[p] ?? null);
 
 // Both helpers default to the SUL terms every non-carve-out path implies, so a
 // case that is not about licensing stays about the one thing it names.
@@ -129,12 +134,29 @@ describe("findConventionViolations", () => {
     expect(judge(files)).toEqual([]);
   });
 
-  it("flags an alias whose target file is not tracked", () => {
+  it("flags an alias whose target file does not exist at all", () => {
     const files = { ...HEALTHY };
     delete files["vider/libs/vider-ui/src/index.ts"];
     expect(judge(files)).toEqual([
       expect.stringContaining("alias '@ecoma-io/vider-ui' points at missing file"),
     ]);
+  });
+
+  it("flags an alias whose target is tracked in git but deleted from the working tree", () => {
+    // The index still lists the path, but the reader can no longer read it —
+    // the exact state deleting a tracked file leaves behind.
+    const files = { ...HEALTHY, "vider/libs/vider-ui/src/index.ts": null };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("alias '@ecoma-io/vider-ui' points at missing file"),
+    ]);
+  });
+
+  it("passes an alias whose target exists on disk but is not yet tracked (freshly scaffolded)", () => {
+    const trackedFiles = Object.keys(HEALTHY).filter(
+      (p) => p !== "vider/libs/vider-ui/src/index.ts",
+    );
+    const readFile = (p) => HEALTHY[p] ?? null;
+    expect(findConventionViolations(trackedFiles, readFile)).toEqual([]);
   });
 
   it("flags an aliased lib whose manifest name, privacy, or dep fields break the contract", () => {

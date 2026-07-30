@@ -249,7 +249,7 @@ export function findConventionViolations(trackedFiles, readFile) {
 
   for (const alias of baseAliases) {
     const target = paths[alias]?.[0];
-    if (!target || !tracked.has(target)) {
+    if (!target || readFile(target) === null) {
       violations.push(`tsconfig.base.json: alias '${alias}' points at missing file '${target}'`);
       continue;
     }
