@@ -99,11 +99,22 @@ jobs:
       # (project.json), so this step only needs the verified binary on PATH,
       # not a lint run of its own. The action downloads and checksums the
       # release itself, matching this file's other pinned-by-SHA installs.
+      #
+      # The version comes from .golangci-lint-version at the repo root
+      # (Rule 14) — setup.mjs reads the same file, so the two can never drift
+      # the way a restated literal would. A missing/empty file fails this step
+      # loud rather than silently falling back to the action's own "latest".
+      - name: Read the golangci-lint version pin
+        if: hashFiles('go.work') != ''
+        id: golangci-lint-version
+        run: |
+          test -s .golangci-lint-version || { echo "::error::.golangci-lint-version is missing or empty"; exit 1; }
+          echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
       - name: Install golangci-lint (Go lint targets run through it)
         if: hashFiles('go.work') != ''
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.5.0
+          version: ${{ steps.golangci-lint-version.outputs.version }}
           install-mode: binary
           install-only: true
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
