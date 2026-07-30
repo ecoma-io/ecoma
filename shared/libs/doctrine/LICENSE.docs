@@ -1,6 +1,6 @@
 Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 
-Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin), trading as Ecoma
+Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin)
 
 Every file whose name ends in `.md`, in this directory and in every directory
 beneath it — the North Stars, the specifications, the charters, the ADR
@@ -8,12 +8,20 @@ ledger, the review rubric, and the README and agent-guidance files beside them
 — together with every image such a file references, is licensed under the
 Creative Commons Attribution-ShareAlike 4.0 International License.
 
-    https://creativecommons.org/licenses/by-sa/4.0/
+    https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+That full text is what governs. The paragraph below is a summary and is not a
+substitute for it.
 
 You are free to share and adapt this material for any purpose, including
 commercially, provided you give appropriate credit, link to the license, and
 indicate if changes were made — and provided you distribute your contributions
 under the same license as the original.
+
+To satisfy the attribution requirement, credit: "Ecoma (Mai Ngọc Hóa),
+https://github.com/ecoma-io/ecoma", link to the licence, and state whether you
+made changes. The licence leaves that string to the licensor, so stating it
+here is what makes the requirement answerable rather than arguable.
 
 ShareAlike is the point rather than a formality: the reasoning in these
 documents can be built on, and what is built on it stays readable to the people
