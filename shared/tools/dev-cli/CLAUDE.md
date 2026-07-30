@@ -122,6 +122,22 @@ build/typecheck — invoked directly as
   pathspec and `PRIMITIVE_FILE_RE` reads a repo-relative listing as happily as a
   project-relative one; that is a property of this gate, not a reason to trust the
   ambient environment anywhere else.
+- **`run-node-tests` exists because an `nx:run-commands` string cannot read
+  JSON.** Every vitest project reads the coverage floor from
+  `coverage.config.json` inside its own config; a project on Node's built-in
+  runner takes its thresholds as CLI flags, so without this command the only
+  way to hold that floor is to restate the numbers in `project.json` — the
+  duplication the single source exists to prevent (Rule 14). It spawns
+  `process.execPath` with an argv array, never a shell string, so nothing
+  depends on POSIX word-splitting or globbing (Node expands the positional test
+  patterns itself, on Windows too). Node's runner has **no `statements`
+  threshold**: three of the shared floor's four numbers are enforced, and the
+  command refuses to run rather than let the fourth rise above the `lines`
+  floor it does measure. `check-project-conventions` requires a project with
+  tests and no vitest config to name this command in its `test` target, so the
+  gate imports `RUN_NODE_TESTS_COMMAND` and `main.mjs` keys `COMMANDS` off it —
+  one spelling, three consumers, and no gate scans that registry for a drifted
+  literal.
 - `check-journey-markers`' pattern source is `journey-markers.config.json`
   (repo root), shared with the `local/no-journey-markers` and
   `local/no-journey-marker-names` ESLint rules — see `shared/CLAUDE.md`;

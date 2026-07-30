@@ -57,7 +57,9 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
   `list-scopes` 打印出同一套推导结果，供手动查阅。
 - **没有挂在任何 gate 上**——按需手动调用，或者由 agent skill 调用，而不
   是持续强制执行：`scaffold-lib`（`scaffold-lib` skill）、`pr-facts`
-  （`create-pr` skill）、`run-e2e`（各个 `*-e2e` app 的 `e2e` target）。
+  （`create-pr` skill）、`run-e2e`（各个 `*-e2e` app 的 `e2e` target）、
+  `run-node-tests`（`eslint-local-rules` 的 `test` target，全仓唯一使用 Node
+  自带测试运行器的 project）。
 
 <!-- readme:ecosystem -->
 
