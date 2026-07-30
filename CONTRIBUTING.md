@@ -189,6 +189,9 @@ the right to do that for your contribution too. That is what
 in your work. You agree once, on your first pull request, by committing a
 contributor record at `contributors/<your-github-handle>.md`; a maintainer
 confirms it before merging, and nothing is granted until that record exists.
+`check-contributor-record` holds that rule in CI: it audits every record
+against the template `CLA.md` publishes, and fails a pull request whose author
+has none.
 The record carries your name and address because the law governing the
 agreement requires a licence contract to identify both parties.
 
