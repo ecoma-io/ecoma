@@ -63,7 +63,29 @@ export function discoverProjectRoots(dir = ".", run = defaultRun) {
     .sort();
 }
 
-const defaultRun = (dir, args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" });
+/**
+ * The ambient variables that relocate the repository git operates on. Each of
+ * them outranks both `cwd` and the `-C` below, so the anchoring this module
+ * depends on is only real once they are gone.
+ *
+ * Named here as well as in `dev-cli`'s `git-env.mjs` on purpose: a cross-project
+ * source import would be an edge the Nx project graph cannot see
+ * (`shared/CLAUDE.md`), and this tool must stay dependency-free — the same
+ * deliberate duplication the README-frontmatter regex and the journey-marker
+ * normalizer already carry across this boundary. They are git's own vocabulary,
+ * not a decision of this workspace, so neither copy can drift on its own.
+ */
+const REPO_SELECTING_GIT_VARS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"];
+
+/** A copy of `env` in which git resolves the repository from `-C`/cwd. */
+export function cwdGitEnv(env = process.env) {
+  const scrubbed = { ...env };
+  for (const name of REPO_SELECTING_GIT_VARS) delete scrubbed[name];
+  return scrubbed;
+}
+
+const defaultRun = (dir, args) =>
+  execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", env: cwdGitEnv() });
 
 /**
  * The group a path belongs to, as a repo-relative directory or the sentinel

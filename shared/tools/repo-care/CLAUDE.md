@@ -100,7 +100,16 @@ practice review, thread translation) from GitHub Actions.
   its own `project.json`, and no prune list stays ahead of what a build emits),
   and they are resolved from this module's own location rather than the working
   directory, because `git ls-files` answers relative to where it is run and a
-  wrong cwd silently degrades every project group to its subsystem. Group labels
+  wrong cwd silently degrades every project group to its subsystem. That
+  anchoring only holds once the repo-selecting git variables are out of the spawn
+  environment: `GIT_DIR` outranks both `cwd` and `-C`, and the degradation it
+  causes is the silent kind — git errors, `discoverProjectRoots` swallows it, and
+  every group falls back to a directory. `cwdGitEnv` here is a deliberate twin of
+  `dev-cli`'s `git-env.mjs`, for the reasons this file's other duplications
+  already carry (a cross-project source import would be an edge the Nx graph
+  cannot see, and this tool stays dependency-free); the names are git's own
+  vocabulary rather than a workspace decision, so neither copy can drift alone.
+  Group labels
   are the Nx project names; `group-files.integration.test.mjs` pins them against
   `dev-cli list-scopes`, because a drift there fails no build and would leave
   reviews grouped along a boundary the commit gate does not recognise. Why it is
