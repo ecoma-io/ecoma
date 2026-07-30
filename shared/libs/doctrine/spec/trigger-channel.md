@@ -1,88 +1,132 @@
 ---
-title: "Ecoma Spec: Trigger & Channel"
+title: "Trigger & Channel"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Trigger & Channel
+# Trigger & Channel
 
-## 1. Định nghĩa
+## 1. Definitions
 
-| Entity      | Là gì                                                                                                                                           | Danh tính                      |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| **Trigger** | Cơ chế khai báo trong Process definition: khi sự kiện X đến thì (a) spawn instance mới, hoặc (b) bơm input vào instance đang chờ                | id + version, thuộc definition |
-| **Channel** | Adapter biên cho hội thoại hai chiều với bên ngoài (chat widget, Messenger/Zalo, Slack, email, SMS…) — taxonomy mở, cùng pattern Driver của RPA | (type, id, version) + lineage  |
+| Entity      | What it is                                                                                                                                                      | Identity                                    |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **Trigger** | A mechanism declared in a Process definition: when event X arrives, either spawn a new instance or feed input into an instance already waiting                  | Id and version, belonging to the definition |
+| **Channel** | A boundary adapter for two-way conversation with the outside — chat widget, Messenger/Zalo, Slack, email, SMS — an open taxonomy following RPA's driver pattern | (type, id, version) plus lineage            |
 
 ## 2. Trigger
 
-| Trường             | Nội dung                                                                                                                                                                   | Bắt buộc              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `type`             | Taxonomy mở: `webhook` / `event` / `schedule` / `message_in(channel)` / `manual` / `form`                                                                                  | ✅                    |
-| `auth`             | **Engine ép tồn tại**: signature (HMAC), token, mTLS, hoặc `tenant_session` (manual/schedule nội bộ). Không auth hợp lệ = reject tại biên, không sinh instance             | ✅                    |
-| `payload_contract` | Payload vào hệ **qua Handoff với Contract** — producer là nguồn ngoài; vi phạm schema = Violation → reject/coerce như mọi handoff. Không có "JSON thô chảy thẳng vào flow" | ✅                    |
-| `dedup`            | Event-id + cửa sổ dedup (engine ép tồn tại, template cấp giá trị) — at-least-once từ thế giới ngoài không sinh instance trùng                                              | ✅                    |
-| `correlation`      | Biểu thức khóa (vd conversation-id) quyết định: spawn mới hay định tuyến vào instance đang chờ                                                                             | ✅ với type hội thoại |
-| `guard`            | Rate/budget tại biên — storm từ ngoài không tràn vào engine (tái dùng tinh thần storm control của Escalation)                                                              | ✅                    |
+| Field              | Content                                                                                                                                                                                                                                | Required                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `type`             | An open taxonomy: `webhook` / `event` / `schedule` / `message_in(channel)` / `manual` / `form`                                                                                                                                         | ✅                          |
+| `auth`             | **The engine forces it to exist**: HMAC signature, token, mTLS, or `tenant_session` for internal manual and scheduled triggers. Invalid auth is rejected at the boundary and no instance is created                                    | ✅                          |
+| `payload_contract` | The payload enters **through a Handoff with a Contract**, with the external source as producer. A schema breach is a Violation, rejected or coerced like any handoff. There is no path by which raw JSON flows straight into a process | ✅                          |
+| `dedup`            | Event id plus a dedup window — the engine forces it, a template values it. At-least-once delivery from the outside world does not create duplicate instances                                                                           | ✅                          |
+| `correlation`      | A key expression, such as a conversation id, deciding whether to spawn or route into a waiting instance                                                                                                                                | ✅ for conversational types |
+| `guard`            | Rate and budget at the boundary, so an external storm does not flood the engine — the same reasoning as Escalation's storm control                                                                                                     | ✅                          |
 
-**Response mode — sync request-response (kiểu API endpoint n8n / BaaS Dify):**
+**Response mode — synchronous request/response.**
 
-- Trigger `webhook` khai `response_mode: async (mặc định) | sync`. Sync khai thêm: `response_from` (output artifact của một task chỉ định, qua Contract — pin version), `time_budget`, `on_timeout: fail | degrade_to_async` (trả ticket-id, instance chạy tiếp async, durable).
-- **Respond là một effect `irreversible`** — thừa kế trọn luật effect: ghi log, egress theo classification, leakage-gate áp được lên response (API endpoint không rò tri thức internal _về cấu trúc_).
-- **Không tồn tại đường timeout→pass**: `on_timeout` chỉ fail hoặc degrade — nhất quán invariant "không bao giờ auto-pass vì bế tắc".
-- Ràng buộc sync path là **time budget, không phải loại filler**: filler nào vừa budget đều hợp lệ — người bị loại bởi vật lý, không bởi luật engine (đối xứng). Static analysis ép: path tới `response_from` không chứa trạng thái `awaiting`, mọi bước khai budget, spawn trên path bị trần.
-- Idempotent tự nhiên: retry cùng event-id trong dedup window → trả **cached response** (artifact content-addressed).
+A `webhook` trigger declares `response_mode: async` (default) `| sync`. A sync
+trigger additionally declares `response_from` — the output artifact of a named
+task, through a version-pinned Contract — a `time_budget`, and `on_timeout: fail
+| degrade_to_async`, the latter returning a ticket id while the instance
+continues asynchronously and durably.
 
-## 3. External participant là một Role — cơ chế hội thoại
+**Responding is an `irreversible` effect**, inheriting the whole effect law: it
+is logged, it egresses by classification, and a leakage gate can be applied to
+the response — so an API endpoint cannot leak internal knowledge about the
+system's own structure.
 
-Đẩy nguyên tắc đối xứng tới cùng: **khách bên ngoài (end-user) là Filler loại `external`** lấp một Role trong process (vd Role "Khách hàng"), identity = danh tính kênh (messenger-user-id…).
+**There is no timeout-to-pass path**: `on_timeout` may only fail or degrade,
+consistent with the invariant that nothing ever auto-passes because it is stuck.
 
-- Hội thoại = **chuỗi Task luân phiên**: Task của Role Agent (AI/người trả lời) → Handoff → Task của Role Khách (chờ reply) → reply của khách = output của task đó → Handoff về Agent. Instance chờ khách = Task `awaiting` durable — khách quay lại sau 3 ngày, trạng thái còn nguyên (cơ chế Task sẵn có, không thêm gì). Correlation đồng thời tạo **subject binding** cho instance — cửa vào của Memory module (Memory spec §1).
-- Reply của khách **đi qua Gate được** = input validation/moderation bằng chính Checkpoint — không cần hệ lọc riêng.
-- Calibration trên external filler: cơ chế tồn tại (đối xứng), **mặc định tắt** — bật là quyết định policy/privacy của tenant. Định danh chi tiết end-user: **Party** (Tenant & Identity §5) — đã chốt.
-- Human handoff của chatbot = `reroute`/`assistance_request` sẵn có — không phải tính năng riêng.
+The constraint on a sync path is **the time budget, not the kind of filler**. Any
+filler that fits the budget is valid; a person is excluded by physics, never by
+an engine rule. That is what keeps the symmetry intact here. Static analysis
+enforces the rest: the path to `response_from` contains no `awaiting` state,
+every step declares a budget, and spawning on that path is capped.
+
+Idempotence is natural: a retry with the same event id inside the dedup window
+returns the **cached response**, since the artifact is content-addressed.
+
+## 3. An external participant is a Role
+
+Symmetry taken to its conclusion: **an outside end user is a Filler of kind
+`external`** filling a Role in the process — a "Customer" Role, say — with the
+channel identity as their identity.
+
+A conversation is **a chain of alternating Tasks**: a Task of the Agent Role, AI
+or human, answering; a Handoff; a Task of the Customer Role awaiting a reply; the
+customer's reply as that task's output; a Handoff back to the Agent. An instance
+waiting on a customer is a durable `awaiting` Task, so a customer returning three
+days later finds the state intact. That is the existing Task mechanism with
+nothing added. Correlation simultaneously creates the **subject binding** for the
+instance, which is the entry point for the Memory module (Memory §1).
+
+A customer's reply **can pass through a Gate**, which makes input validation and
+moderation the Checkpoint primitive rather than a separate filtering system.
+
+Calibration over an external filler exists mechanically, out of symmetry, and is
+**off by default** — enabling it is a tenant's policy and privacy decision.
+Detailed end-user identification is **Party** (Tenant & Identity §5).
+
+A chatbot's handoff to a human is the existing `reroute` or
+`assistance_request`. It is not a feature of its own.
 
 ## 4. Channel
 
-- Channel chỉ **dịch**, không giữ logic: inbound → trigger `message_in`; outbound → **effect** (gửi tin mặc định `irreversible`), chịu mọi guard của effect: sàn confidence của Gate liền trước, và **egress theo classification** (Knowledge spec §3).
-- Khai `capabilities` (rich text, attachment, typing indicator…) — process dùng vượt capability = lỗi static analysis.
-- Channel adapter interface: Apache 2.0, bên thứ ba viết tự do — đúng logic Driver.
+A Channel only **translates**; it holds no logic. Inbound becomes a `message_in`
+trigger; outbound becomes an **effect** — sending a message is `irreversible` by
+default — and carries every guard an effect carries: the confidence floor of the
+Gate before it, and **egress by classification** (Knowledge §3).
+
+A Channel declares its `capabilities` — rich text, attachments, typing indicator
+— and a process using more than the channel declares is a static analysis error
+rather than a runtime surprise.
+
+The Channel adapter interface is Apache 2.0, so third parties write adapters
+freely. Same reasoning as the RPA driver.
 
 ## 5. Duality
 
-|             | Deterministic (kiểu n8n)                                 | Conversational (chatbot)                                 |
-| ----------- | -------------------------------------------------------- | -------------------------------------------------------- |
-| Trigger     | webhook/schedule/event                                   | message_in + correlation                                 |
-| Hình dạng   | Pipeline khai trước                                      | Task luân phiên Agent ⇄ Khách, đồ thị mọc theo hội thoại |
-| Cùng cơ chế | Handoff-contract tại biên, dedup, guard, effect outbound | Y hệt                                                    |
+|                  | Deterministic                                                   | Conversational                                                            |
+| ---------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Trigger          | webhook / schedule / event                                      | `message_in` plus correlation                                             |
+| Shape            | A pipeline declared up front                                    | Alternating Agent ⇄ Customer tasks; the graph grows with the conversation |
+| Shared mechanism | Handoff contract at the boundary, dedup, guard, outbound effect | Identical                                                                 |
 
 ## 6. Non-goals
 
-- Không xây messaging platform / không phải API gateway tổng quát — Channel chỉ là cửa của process.
-- Trigger không chứa logic định tuyến nghiệp vụ (việc của Role/Task) — chỉ auth, hợp lệ hóa, correlation.
+- No messaging platform is being built, and this is not a general API gateway. A
+  Channel is a door into a process.
+- A Trigger holds no business routing logic — that belongs to Role and Task. It
+  handles auth, validation and correlation.
 
-## 7. Nhật ký quyết định
+## 7. Decisions
 
-| Vấn đề                | Chốt                                                                                                                                                                          |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Payload vào hệ        | Luôn là Handoff có Contract — không có đường thô                                                                                                                              |
-| Auth                  | Engine ép tồn tại; không auth = reject tại biên                                                                                                                               |
-| Hội thoại nhiều lượt  | Correlation + Task `awaiting` durable; end-user = Filler `external` của một Role                                                                                              |
-| Moderation input      | = Gate trên output của Role Khách — tái dùng Checkpoint                                                                                                                       |
-| Gửi tin ra ngoài      | Effect irreversible mặc định + egress theo classification                                                                                                                     |
-| Sync request-response | `response_mode: sync` opt-in; respond = effect; timeout chỉ fail/degrade, không bao giờ pass; ràng buộc = time budget (không phải loại filler); cached response theo event-id |
-| Calibration khách     | Cơ chế có, mặc định tắt (privacy)                                                                                                                                             |
+| Question                     | Settled                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Payload entering the system  | Always a Handoff with a Contract — there is no raw path                                                                                                                                                      |
+| Auth                         | The engine forces it to exist; no auth means rejection at the boundary                                                                                                                                       |
+| Multi-turn conversation      | Correlation plus a durable `awaiting` Task; the end user is an `external` Filler of a Role                                                                                                                   |
+| Input moderation             | A Gate on the Customer Role's output — the Checkpoint primitive reused                                                                                                                                       |
+| Sending a message out        | An irreversible effect by default, egressing by classification                                                                                                                                               |
+| Synchronous request/response | `response_mode: sync` is opt-in; responding is an effect; a timeout may only fail or degrade, never pass; the constraint is the time budget rather than the kind of filler; responses are cached by event id |
+| Calibrating a customer       | The mechanism exists and is off by default, for privacy                                                                                                                                                      |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Trigger không auth hợp lệ bị reject tại biên — không sinh instance, có event?
-2. Tin nhắn thứ 2 của cùng hội thoại vào đúng instance cũ qua correlation?
-3. Sync-response: timeout chỉ fail/degrade — không tồn tại đường thành pass?
+1. Is a trigger without valid auth rejected at the boundary — no instance
+   created, and an event recorded?
+2. Does the second message of a conversation reach the same instance through
+   correlation?
+3. On a sync response, can a timeout only fail or degrade — with no path at all
+   by which it becomes a pass?
 
-## FMEA (theo F8)
+## Failure modes
 
-| Hỏng                               | Phát hiện                  | Phục hồi                                                  |
-| ---------------------------------- | -------------------------- | --------------------------------------------------------- |
-| Webhook giả mạo                    | Auth verify fail           | Reject tại biên + event, không sinh instance              |
-| Event trùng từ nguồn ngoài         | Dedup window theo event-id | Bỏ qua; sync trả cached response                          |
-| Channel adapter down               | Outbound effect fail       | on_fail/escalate; inbound: nguồn retry + dedup hấp thụ    |
-| Verifier leakage quá budget (sync) | time_budget                | on_timeout: fail hoặc degrade ticket — không bao giờ pass |
+| Failure                               | Detected by                  | Recovery                                                                  |
+| ------------------------------------- | ---------------------------- | ------------------------------------------------------------------------- |
+| A forged webhook                      | Auth verification fails      | Rejected at the boundary with an event; no instance created               |
+| A duplicate event from outside        | The dedup window by event id | Ignored; a sync trigger returns the cached response                       |
+| A channel adapter is down             | The outbound effect fails    | `on_fail` or escalation; inbound, the source retries and dedup absorbs it |
+| Verification overruns the sync budget | `time_budget`                | `on_timeout`: fail, or degrade to a ticket — never a pass                 |
