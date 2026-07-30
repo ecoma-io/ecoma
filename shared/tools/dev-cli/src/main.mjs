@@ -8,6 +8,7 @@
 import { checkClaudeMd } from "./check-claude-md.mjs";
 import { checkCommandRefs } from "./check-command-refs.mjs";
 import { checkCommitScope } from "./check-commit-scope.mjs";
+import { checkContributorRecord } from "./check-contributor-record.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
 import { checkDoctrine } from "./check-doctrine.mjs";
 import { checkPracticeIndex } from "./check-practice-index.mjs";
@@ -34,6 +35,7 @@ const COMMANDS = {
   "check-claude-md": () => checkClaudeMd(),
   "check-command-refs": () => checkCommandRefs(),
   "check-commit-scope": (args) => checkCommitScope(args),
+  "check-contributor-record": (args) => checkContributorRecord(args),
   "check-doc-links": () => checkDocLinks(),
   "check-doctrine": () => checkDoctrine(),
   "check-practice-index": () => checkPracticeIndex(),
