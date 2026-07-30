@@ -131,13 +131,21 @@ apply to every contribution you make, before or after that agreement:
    of your own is your own work; work carrying someone else's licence terms is
    not, and belongs in clause 5.
 
+   You represent and warrant that you are not located in, under the control of,
+   or a national or resident of any country subject to comprehensive sanctions
+   by the United Nations, the United States, the European Union, or Vietnam,
+   and that you are not listed on any denied-persons or sanctioned-parties list.
+   You represent and warrant that your contribution does not contain encryption
+   or other technology subject to export controls that would require a licence
+   for its contribution to this project.
+
    If you later assert, or if a third party successfully asserts, that you did
    not have the right to grant the licences in clauses 1 and 2 for a
-   contribution already merged, you agree to reimburse us for the reasonable
-   costs of removing, replacing or defending that contribution, including legal
-   fees. This does not apply to material you properly disclosed under clause 5,
-   nor to a third-party claim that you had no reason to know of when you made
-   the contribution.
+   contribution already merged, you agree to reimburse us, **so far as permitted
+   by applicable law**, for the reasonable costs of removing, replacing or
+   defending that contribution, including legal fees. This does not apply to
+   material you properly disclosed under clause 5, nor to a third-party claim
+   that you had no reason to know of when you made the contribution.
 
    Note that in some countries — Vietnam among them — an employer owns the
    economic rights in software an employee writes as part of their job,
@@ -166,6 +174,14 @@ apply to every contribution you make, before or after that agreement:
    A comment in the code is not disclosure. Ordinary use of AI assistance to
    write original code needs no separate disclosure beyond this clause. You do
    not warrant anything about material you have properly disclosed to us.
+
+   You may not use the project's source code to train, fine-tune or otherwise
+   improve an artificial intelligence or machine learning model whose output
+   competes with the project or reproduces its functionality. Nor may you
+   extract, mine or systematically collect data from the project's public
+   outputs (issues, pull requests, commits) for the purpose of building a
+   competing product. For the meaning of "competes with" and "reproduces its
+   functionality", see the definition in [`LICENSE`](./LICENSE).
 
 6. **Your employer, if relevant, is on board.** If your employer has rights to
    work you create, you have permission to contribute on their behalf, or your
@@ -232,6 +248,13 @@ removed once published**. The repository is hosted by GitHub, Inc. in the
 United States, and email to us is handled by Google LLC — so your data is
 transferred outside Vietnam. We keep it for as long as the project exists,
 because it is the record of who licensed what to us.
+
+**Right to erasure limitation:** Because your personal data is published in the
+commit history of a public Git repository, the right to erasure under Article 17
+GDPR (and analogous rights in other jurisdictions) cannot be fully exercised —
+the data is replicated in every clone and fork, and Ecoma cannot delete it from
+copies it does not control. By agreeing to these terms you acknowledge this
+limitation.
 
 By agreeing to these terms you consent to that processing, publication and
 transfer. If you would rather not, do not contribute — we would rather you
