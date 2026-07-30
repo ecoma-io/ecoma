@@ -1,0 +1,44 @@
+name: Stale issues
+
+on:
+  schedule:
+    # Once a day is plenty for a low-traffic, pre-release, single-maintainer
+    # project; offset from ci.yml's nightly cron so the two scheduled runs
+    # don't queue on the same minute.
+    - cron: "40 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Issues only: this project has no PR backlog problem today, and
+      # days-before-pr-stale: -1 below keeps the action from ever touching
+      # pull requests, so scope stays exactly what triggered this workflow.
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          # Long grace periods: one maintainer, pre-release cadence, and an
+          # issue going quiet for a few weeks is normal here, not neglect.
+          days-before-issue-stale: 90
+          days-before-issue-close: 30
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          stale-issue-label: stale
+          exempt-issue-labels: pinned,security
+          stale-issue-message: >
+            This issue has had no activity for 90 days and is being marked
+            stale. It will close in 30 days if nothing changes. Comment to
+            keep it open, or add the `pinned` or `security` label if it
+            should never auto-close.
+          close-issue-message: >
+            Closing due to 120 days of inactivity. Reopen (or file a fresh
+            issue referencing this one) if it's still relevant.
+          # Duplicate-issue detection is deliberately out of scope: it needs
+          # semantic search/embeddings and is failure-prone for a bot to act
+          # on unsupervised. Not attempted here.
+          remove-stale-when-updated: true
