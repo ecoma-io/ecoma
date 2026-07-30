@@ -1,7 +1,7 @@
 Sustainable Use License, version 1.0, Ecoma edition
 SPDX identifier: LicenseRef-Ecoma-SustainableUse-1.0
 
-Copyright (c) 2026 John Martin, trading as Ecoma
+Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin), trading as Ecoma
 
 This document licenses the source code of Ecoma. It is a fair-code licence:
 the source is public, and you may read it, self-host it and modify it. It is
@@ -58,7 +58,7 @@ anyone other than the licensor.
      the Repository. If it is present in your working tree, it is not licensed
      by this document and no rights to it are granted here.
 
-  5. Any third-party component incorporated into the software remains licensed
+  5. Any third-party component distributed in the Repository remains licensed
      under the terms its own owner provides, which are stated in or alongside
      that component. The licensor grants no rights in such components beyond
      those their owner grants, and nothing in this document limits or extends
@@ -170,16 +170,16 @@ LIMITATIONS section is a fundamental condition of the licences granted here.
 
 DEFINITIONS
 
-The "licensor" is John Martin, an individual, trading as Ecoma, and his
-successors and assigns — including any legal entity he later forms to hold
-this project's assets.
+The "licensor" is Mai Ngọc Hóa, an individual also known as John Martin,
+trading as Ecoma, and their successors and assigns — including any legal
+entity they later form to hold this project's assets.
 
 The "software" is the software the licensor makes available under these terms,
 including any portion of it, and excluding everything the SCOPE section above
 excludes.
 
 A "subsystem root" is any directory located immediately at the root of the
-software's directory tree whose name does not begin with a dot.
+Repository's directory tree whose name does not begin with a dot.
 
 "You" refers to the individual or entity agreeing to these terms.
 
