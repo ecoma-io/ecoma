@@ -21,9 +21,16 @@
  * blast radius of a prompt-injected model is still "a wrong advisory label",
  * plus read-only fetches of repository files it could have been shown
  * anyway.
+ *
+ * The run is bounded in wall-clock time as well as in prompt size
+ * (`createBudget`): a pass is started only while there is still room for it and
+ * for posting the comment, and whatever the clock left unreviewed is named in
+ * that comment. Without it, the job's own `timeout-minutes` kills the process
+ * before it posts — and a review that reviewed nothing then looks exactly like
+ * a review that found nothing.
  */
 import { readFileSync } from "node:fs";
-import { matchesGlob } from "node:path";
+import { join, matchesGlob } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { githubClient } from "./github.mjs";
@@ -116,11 +123,14 @@ export function activeChecks(filenames) {
 // on the same model), so buying a bigger prompt buys nothing measurable.
 const MAX_DIFF_CHARS = 60000;
 
-// Groups reviewed with their own investigation. Each costs up to 3 parallel
-// trajectories of up to 4 sequential completions on a slow free tier, inside a
-// 20-minute job. Everything past this cap is merged into one final group rather
-// than dropped: a mixed group reviews worse than a clean one, but an unreviewed
-// group reviews not at all, and the merge is named in the comment either way.
+// Groups reviewed with their own investigation. This is a readability bound,
+// not a time budget — the wall clock is `createBudget`'s job, measured while the
+// run happens rather than divided out in advance. It caps how many separate
+// passes and comment sections one review produces; everything past it is merged
+// into one final group rather than dropped, and because `groupFiles` orders by
+// descending file count the merged tail is always the smallest groups. A mixed
+// group reviews worse than a clean one, but an unreviewed group reviews not at
+// all, and the merge is named in the comment either way.
 const MAX_GROUPS = 6;
 const MAX_BODY_CHARS = 2000;
 const MAX_FINDINGS_PER_MODEL = 8;
@@ -135,6 +145,117 @@ const MAX_READS = 8;
 const MAX_PATHS_PER_TURN = 4;
 const MAX_FILE_CHARS = 6000;
 const MAX_DIR_ENTRIES = 100;
+
+/**
+ * The workflow that runs this command, and therefore the authority on how long
+ * it may run: its `timeout-minutes` is the wall-clock ceiling GitHub enforces by
+ * killing the process. Reading it here keeps that number written in exactly one
+ * place (Rule 14 rung 1 — derived at read time, nothing to keep in sync).
+ *
+ * Rungs below were available and rejected: passing the ceiling in as an env var
+ * would write the number twice in the same workflow, because the `env` context
+ * is not available to a job's `timeout-minutes`; a GitHub repository variable
+ * would move the source of truth out of the tree, where a contributor cannot
+ * read it and an unset value silently becomes GitHub's 6-hour default; and no
+ * run-metadata API reports a job's configured timeout.
+ */
+export const REVIEW_WORKFLOW_PATH = ".github/workflows/pr-practice-review.yml";
+
+/**
+ * The ceiling in milliseconds, parsed out of the workflow text. A regex rather
+ * than a YAML parser because this tool is dependency-free, and it insists on
+ * exactly one `timeout-minutes` key: a second one added later (a step-level
+ * timeout, say) would make "the first match" the wrong answer, so it fails loud
+ * instead of budgeting against a number nobody chose.
+ */
+export function parseJobCeilingMs(yaml, path = REVIEW_WORKFLOW_PATH) {
+  const found = [...yaml.matchAll(/^\s*timeout-minutes:\s*(\d+)\s*$/gm)];
+  if (found.length !== 1) {
+    throw new Error(
+      `${path}: expected exactly one 'timeout-minutes:' to read the review's ` +
+        `wall-clock ceiling from, found ${found.length}`,
+    );
+  }
+  return Number(found[0][1]) * 60000;
+}
+
+/** The ceiling for this run; read lazily so no other command pays for it. */
+export function readJobCeilingMs(root = REPO_ROOT) {
+  return parseJobCeilingMs(readFileSync(join(root, REVIEW_WORKFLOW_PATH), "utf8"));
+}
+
+/**
+ * Wall-clock held back from the ceiling for the work that has to happen AFTER
+ * the last review pass: the two whole-pull-request single-shot passes and the
+ * comment lookup and post. It also absorbs what this process cannot measure —
+ * the checkout and node setup that ran before it started, so its clock begins
+ * later than the job's — and the overshoot of a pass that outruns its
+ * projection. Rule 14 rung 2: authored once here and read by every admission
+ * check rather than repeated at each call site; there is nothing to derive it
+ * from, because no source of truth records how long GitHub's setup steps take.
+ */
+const BUDGET_RESERVE_MS = 120000;
+
+/**
+ * How long the next group investigation should be assumed to take, projected
+ * from the ones this run already timed. Flat "as slow as the slowest so far"
+ * would under-predict: measured per-pass durations on a live grouped run went
+ * 62s, then 103s, then 161s, because the groups share one rate-limited model
+ * pool and `zen.mjs` rotates fallbacks one at a time, so a later pass queues
+ * behind the earlier ones and inherits their retries. So the projection carries
+ * the growth forward — the last duration scaled by the growth between the last
+ * two — which is derived from this run rather than authored as a constant. The
+ * first pass has nothing to project from and is always admitted; a pass that
+ * came in faster than its predecessor clamps the ratio at 1; and a predecessor
+ * that measured no time at all yields no ratio, rather than an infinite one
+ * that would refuse every remaining group.
+ */
+export function projectPassMs(durations) {
+  if (durations.length === 0) return 0;
+  const last = durations.at(-1);
+  const previous = durations.at(-2);
+  if (!previous) return last;
+  return Math.round(last * Math.max(1, last / previous));
+}
+
+/**
+ * Admission control over the run's wall clock. All of it is code (Rule 5): a
+ * model never sees a duration and never decides what gets reviewed.
+ *
+ * `now` is injectable so tests are deterministic and never sleep.
+ */
+export function createBudget({ ceilingMs, reserveMs = BUDGET_RESERVE_MS, now = Date.now }) {
+  const startedAt = now();
+  const passes = [];
+  const remainingMs = () => ceilingMs - (now() - startedAt);
+  return {
+    remainingMs,
+    passDurationsMs: () => [...passes],
+    /**
+     * A multi-turn group investigation — admitted only while the time left
+     * covers the projection for it AND the reserve, so the run stops STARTING
+     * passes early enough to still finish and post.
+     */
+    admitsInvestigation: () => remainingMs() - reserveMs >= projectPassMs(passes),
+    /**
+     * A single-shot pass (one completion per model, primaries in parallel).
+     * The reserve is what those passes were held back for, so the bar is simply
+     * that the ceiling has not been reached yet — and because each pass spends
+     * from the same clock, the check throttles the tail on its own once the
+     * reserve is gone.
+     */
+    admitsSingleShot: () => remainingMs() > 0,
+    /** Times one investigation, so the next projection is measured not guessed. */
+    async spend(run) {
+      const passStartedAt = now();
+      try {
+        return await run();
+      } finally {
+        passes.push(now() - passStartedAt);
+      }
+    },
+  };
+}
 
 /** Files whose churn is mechanical noise for a practice review. */
 const EXCLUDED_FILES = new Set(["pnpm-lock.yaml"]);
@@ -510,13 +631,21 @@ export function parseParityVerdict(raw, group) {
   return { findings, summary: typeof raw.summary === "string" ? raw.summary : "" };
 }
 
-/** Marker-carrying comment body; edited in place on every run. */
+/**
+ * Marker-carrying comment body; edited in place on every run.
+ *
+ * Every way coverage can be lost renders here, in one voice: a group that
+ * reached no quorum, a group the wall-clock budget never started, a diff that
+ * was truncated. Silence is reserved for "clean", so anything short of a review
+ * has to say so in this comment or it reads as a passed review.
+ */
 export function buildReviewComment(reviewed, models) {
   const lines = [REVIEW_MARKER, "### repo-care · practice review (advisory)", ""];
 
   for (const group of reviewed) {
-    const state =
-      group.quorum === false
+    const state = group.skipped
+      ? "not reviewed — the run ran out of its time budget"
+      : group.quorum === false
         ? "no quorum — not reviewed"
         : group.confirmed.length === 0
           ? "clean"
@@ -529,25 +658,48 @@ export function buildReviewComment(reviewed, models) {
     if (group.truncated) {
       lines.push(`- _This group's diff was truncated — its findings may be incomplete._`);
     }
+    if (group.parityUnreviewed) {
+      lines.push(
+        `- _README language parity was not reviewed in ${group.parityUnreviewed} ` +
+          `README group${group.parityUnreviewed === 1 ? "" : "s"} — ` +
+          `the run ran out of its time budget._`,
+      );
+    }
     lines.push("");
+  }
+
+  const outOfTime = reviewed.filter((group) => group.skipped).length;
+  if (outOfTime > 0) {
+    lines.push(
+      `_${outOfTime} of the ${reviewed.length} sections above ${outOfTime === 1 ? "was" : "were"} ` +
+        "not reviewed: the run ran out of the wall-clock budget its workflow allows before " +
+        "reaching them._",
+      "",
+    );
   }
 
   lines.push(
     `_Reviewed group by group, each named for the unit that owns its files. ` +
       `Quorum of free models (${models.join(", ")}); a finding requires ≥2 in agreement. ` +
-      "A group reported as having no quorum was not reviewed — that is not the same as clean. " +
+      "A section reported as not reviewed — for want of a quorum, or of time — is not the " +
+      "same as a clean one. " +
       "Advisory only — deterministic gates remain the source of truth._",
   );
   return lines.join("\n");
 }
 
 /**
- * CLI entry. `deps.fetchImpl` (GitHub + zen) and `deps.env` are injectable
- * for tests. Exit codes: 0 done (including skip), 1 runtime failure or
- * quorum unreachable, 2 usage error.
+ * CLI entry. `deps.fetchImpl` (GitHub + zen), `deps.env`, `deps.now` and
+ * `deps.ceilingMs` are injectable for tests — the clock and the ceiling because
+ * a test of the wall-clock budget must be deterministic and must not sleep.
+ *
+ * Exit codes: 0 done (including skip, and including a run the wall-clock budget
+ * cut short — it posts a comment naming what it did not reach, and this tool is
+ * advisory by definition, so a red job would be a gate it must not become),
+ * 1 runtime failure or quorum unreachable, 2 usage error.
  */
 export async function reviewPr(args = [], deps = {}) {
-  const { fetchImpl = fetch, env = process.env } = deps;
+  const { fetchImpl = fetch, env = process.env, now = Date.now } = deps;
 
   const prFlag = args.indexOf("--pr");
   const number = prFlag === -1 ? NaN : Number.parseInt(args[prFlag + 1], 10);
@@ -564,6 +716,13 @@ export async function reviewPr(args = [], deps = {}) {
   // Runtime failures (GitHub API, network) exit 1 with the tool's structured
   // error instead of an unhandled-rejection stack (Rule 11: loud, not raw).
   try {
+    // Started before the first API call: every millisecond this process spends
+    // is spent against the same job ceiling, not just the model calls. The
+    // ceiling is resolved in here rather than in the destructure above so a
+    // renamed or malformed workflow arrives as this tool's structured error.
+    const ceilingMs = deps.ceilingMs ?? readJobCeilingMs();
+    const budget = createBudget({ ceilingMs, now });
+
     const gh = githubClient({ repo, token, fetchImpl });
     const pr = await gh.getPull(number);
     if (pr.draft || pr.state !== "open") {
@@ -601,16 +760,32 @@ export async function reviewPr(args = [], deps = {}) {
       const groupFilesInPr = files.filter((f) => group.files.includes(f.filename));
       const diff = buildDiff(groupFilesInPr);
       if (!diff.text) continue; // every file in it was excluded as mechanical noise
+
+      // Out of time: named as unreviewed rather than started and killed
+      // mid-flight. The clock only runs down and the projection only grows, so
+      // every remaining group lands here too — each by its own name.
+      if (!budget.admitsInvestigation()) {
+        reviewed.push({
+          name: group.name,
+          quorum: false,
+          skipped: true,
+          truncated: diff.truncated,
+          confirmed: [],
+        });
+        continue;
+      }
       const checks = activeChecks(group.files);
 
       const prompt = buildReviewPrompt(pr, diff, checks);
-      const { verdicts, failures } = await collectTrajectories((model) =>
-        runReviewTrajectory(model, {
-          prompt,
-          readContents: (path) => gh.getContents(path, pr.head.sha),
-          call: (m, messages) => callModel(m, messages, { fetchImpl, maxTokens: 6000 }),
-          checks,
-        }),
+      const { verdicts, failures } = await budget.spend(() =>
+        collectTrajectories((model) =>
+          runReviewTrajectory(model, {
+            prompt,
+            readContents: (path) => gh.getContents(path, pr.head.sha),
+            call: (m, messages) => callModel(m, messages, { fetchImpl, maxTokens: 6000 }),
+            checks,
+          }),
+        ),
       );
       for (const f of failures) {
         console.error(`model ${f.model} discarded (${group.name}): ${f.error}`);
@@ -619,6 +794,7 @@ export async function reviewPr(args = [], deps = {}) {
       reviewed.push({
         name: group.name,
         quorum: verdicts.length >= 2,
+        skipped: false,
         truncated: diff.truncated,
         verdicts,
         confirmed: verdicts.length >= 2 ? tallyFindings(verdicts) : [],
@@ -627,20 +803,31 @@ export async function reviewPr(args = [], deps = {}) {
 
     // A group that reached no quorum is reported, never hidden; a run where NO
     // group did reviewed nothing at all, and says so with a non-zero exit
-    // rather than posting a comment that reads as clean.
-    if (reviewed.length > 0 && !reviewed.some((g) => g.quorum)) {
-      console.error(`review-pr: no group reached a quorum across ${reviewed.length} group(s)`);
+    // rather than posting a comment that reads as clean. Scoped to the groups
+    // that were actually attempted: a group the budget never started says
+    // nothing about the pool, and it does have a comment to appear in.
+    const attempted = reviewed.filter((g) => !g.skipped);
+    if (attempted.length > 0 && !attempted.some((g) => g.quorum)) {
+      console.error(`review-pr: no group reached a quorum across ${attempted.length} group(s)`);
       return 1;
     }
 
     // The manifest shape: judged once for the whole pull request, over what
-    // changed rather than over any diff.
-    const { verdicts: manifestVerdicts, failures: manifestFailures } = await collectVerdicts(
-      buildManifestPrompt(pr, buildManifest(files)),
-      (parsed) => parseReviewVerdict(parsed, MANIFEST_CHECKS),
-      { fetchImpl, maxTokens: 3000 },
-    );
-    for (const f of manifestFailures) console.error(`manifest model ${f.model}: ${f.error}`);
+    // changed rather than over any diff. It runs first of the two whole-pull
+    // request passes because it is the one every diff has something to say to.
+    let manifestVerdicts = [];
+    const manifestSkipped = !budget.admitsSingleShot();
+    if (manifestSkipped) {
+      console.error("review-pr: out of time before the manifest pass — reported as not reviewed");
+    } else {
+      const { verdicts, failures } = await collectVerdicts(
+        buildManifestPrompt(pr, buildManifest(files)),
+        (parsed) => parseReviewVerdict(parsed, MANIFEST_CHECKS),
+        { fetchImpl, maxTokens: 3000 },
+      );
+      for (const f of failures) console.error(`manifest model ${f.model}: ${f.error}`);
+      manifestVerdicts = verdicts;
+    }
     for (const v of manifestVerdicts) models.add(v.model);
 
     // README language-parity: a separate review shape (a relationship BETWEEN
@@ -651,7 +838,13 @@ export async function reviewPr(args = [], deps = {}) {
     // this run's exit code; it just yields fewer (or zero) parity verdicts.
     const readmeGroups = findReadmeGroups(files.map((f) => f.filename));
     const parityVerdicts = [];
+    let parityUnreviewed = 0;
     for (const group of readmeGroups) {
+      // Checked per group, before its fetches: the same clock pays for those.
+      if (!budget.admitsSingleShot()) {
+        parityUnreviewed += 1;
+        continue;
+      }
       const bodies = {};
       for (const file of Object.values(group.files)) {
         const content = await gh.getContents(file, pr.head.sha);
@@ -677,10 +870,15 @@ export async function reviewPr(args = [], deps = {}) {
     // about a group and a reader looking for "did it check the description"
     // should not have to guess which group swallowed it.
     const wholePr = tallyFindings([...manifestVerdicts, ...parityVerdicts]);
-    if (wholePr.length > 0 || manifestVerdicts.length > 0) {
+    if (wholePr.length > 0 || manifestVerdicts.length > 0 || manifestSkipped || parityUnreviewed) {
       reviewed.push({
         name: "the change as a whole",
         quorum: manifestVerdicts.length >= 2,
+        // `skipped` names only the manifest pass, the one this entry is headed
+        // by; parity groups the clock cut are counted separately, so a run that
+        // judged the description but not a README never over-claims either way.
+        skipped: manifestSkipped,
+        parityUnreviewed,
         truncated: false,
         confirmed: wholePr,
       });
@@ -694,9 +892,13 @@ export async function reviewPr(args = [], deps = {}) {
     const existing = (await gh.listComments(number)).find((c) => c.body?.startsWith(REVIEW_MARKER));
     // Frugal commenting: an all-clear is only worth posting when it supersedes
     // earlier findings; a clean first run stays silent (the Actions log records
-    // it). A group that reached no quorum is not clean, so it is worth a
-    // comment on its own — silence there would read as a passed review.
-    const unreviewed = reviewed.some((g) => g.quorum === false);
+    // it). Anything the run did NOT review is not clean, so it is worth a
+    // comment on its own — silence there would read as a passed review, and a
+    // run the wall clock cut short is the case where silence is indistinguishable
+    // from a review that found nothing. A group with no quorum and one the budget
+    // never started both carry `quorum: false`; a README parity group the clock
+    // cut is counted on its own entry, so it is asked for by name here.
+    const unreviewed = reviewed.some((g) => g.quorum === false || g.parityUnreviewed);
     if (findingCount > 0 || unreviewed || existing) {
       const body = buildReviewComment(reviewed, modelList);
       if (existing) await gh.updateComment(existing.id, body);
@@ -710,11 +912,20 @@ export async function reviewPr(args = [], deps = {}) {
         groups: reviewed.map((g) => ({
           name: g.name,
           quorum: g.quorum,
+          skipped: g.skipped === true,
           truncated: g.truncated,
           findings: g.confirmed.length,
         })),
         findingCount,
-        readmeGroupsChecked: readmeGroups.length,
+        // Counted as checked, not as found: a parity group the clock cut is
+        // reported on the other key, so neither number flatters the run.
+        readmeGroupsChecked: readmeGroups.length - parityUnreviewed,
+        parityUnreviewed,
+        // The run measuring itself: per-pass durations and what was left of the
+        // ceiling are the data the next calibration of these budgets needs, and
+        // nothing outside this process can see them.
+        passDurationsMs: budget.passDurationsMs(),
+        budgetRemainingMs: budget.remainingMs(),
       }),
     );
     return 0;

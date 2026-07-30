@@ -9,16 +9,21 @@ import {
   buildReviewComment,
   buildReviewPrompt,
   CHECKS,
+  createBudget,
   findReadmeGroups,
   buildManifest,
   buildManifestPrompt,
   isSafeRepoPath,
   MANIFEST_CHECKS,
   withinBudget,
+  parseJobCeilingMs,
   parseParityVerdict,
   parseReviewVerdict,
   parseTurn,
+  projectPassMs,
+  readJobCeilingMs,
   REVIEW_MARKER,
+  REVIEW_WORKFLOW_PATH,
   reviewPr,
   runReviewTrajectory,
   tallyFindings,
@@ -560,6 +565,112 @@ describe("withinBudget", () => {
   });
 });
 
+describe("parseJobCeilingMs", () => {
+  it("reads the ceiling in minutes out of the workflow that imposes it", () => {
+    expect(parseJobCeilingMs("jobs:\n  review:\n    timeout-minutes: 20\n")).toBe(20 * 60000);
+  });
+
+  it("refuses to guess when the key is missing or ambiguous, rather than budget against nothing", () => {
+    expect(() => parseJobCeilingMs("jobs:\n  review:\n")).toThrow(/timeout-minutes/);
+    expect(() => parseJobCeilingMs("timeout-minutes: 20\ntimeout-minutes: 5\n")).toThrow(/found 2/);
+  });
+
+  it("derives the run's ceiling from the workflow file, never from a literal in this module", () => {
+    const yaml = readFileSync(
+      new URL(`../../../../${REVIEW_WORKFLOW_PATH}`, import.meta.url),
+      "utf8",
+    );
+    // Read here independently of the module under test: if the derivation is
+    // ever replaced by a hardcoded number, editing the workflow's ceiling makes
+    // these two disagree instead of silently budgeting against a stale value.
+    const minutes = [...yaml.matchAll(/^\s*timeout-minutes:\s*(\d+)\s*$/gm)];
+    expect(minutes).toHaveLength(1);
+    expect(readJobCeilingMs()).toBe(Number(minutes[0][1]) * 60000);
+  });
+});
+
+describe("projectPassMs", () => {
+  it("admits the first pass by projecting nothing, since nothing has been measured", () => {
+    expect(projectPassMs([])).toBe(0);
+  });
+
+  it("projects the one measured pass forward unchanged", () => {
+    expect(projectPassMs([62000])).toBe(62000);
+  });
+
+  it("carries measured growth forward, because passes queue behind each other's retries", () => {
+    // The measured shape of a live grouped run: each pass slower than the last.
+    expect(projectPassMs([62000, 103000])).toBeGreaterThan(103000);
+    expect(projectPassMs([62000, 103000, 161000])).toBeGreaterThan(161000);
+  });
+
+  it("never projects a shrinking run into a smaller estimate than its last pass", () => {
+    expect(projectPassMs([161000, 62000])).toBe(62000);
+  });
+
+  it("yields a finite estimate after a pass that measured no time, not an infinite one", () => {
+    // A ratio against zero would refuse every remaining group on a fast run.
+    expect(projectPassMs([0, 5])).toBe(5);
+    expect(projectPassMs([0, 0])).toBe(0);
+  });
+});
+
+describe("createBudget", () => {
+  const clocked = (ms = 0) => {
+    const clock = { ms };
+    return { clock, now: () => clock.ms };
+  };
+
+  it("admits a first pass and refuses one the remaining time cannot cover", async () => {
+    const { clock, now } = clocked();
+    const budget = createBudget({ ceilingMs: 600000, reserveMs: 120000, now });
+    expect(budget.admitsInvestigation()).toBe(true);
+
+    const pass = async () => {
+      clock.ms += 180000;
+    };
+    await budget.spend(pass);
+    expect(budget.admitsInvestigation()).toBe(true); // 420s left, 180s projected
+
+    await budget.spend(pass);
+    // 240s left against a 180s projection plus the reserve: not enough to start.
+    expect(budget.admitsInvestigation()).toBe(false);
+  });
+
+  it("holds the reserve back, so a pass never starts on time only the post needs", async () => {
+    const { clock, now } = clocked();
+    const budget = createBudget({ ceilingMs: 600000, reserveMs: 120000, now });
+    await budget.spend(async () => {
+      clock.ms += 420000;
+    });
+    // 180s left — more than nothing, but the reserve is not the passes' to spend.
+    expect(budget.remainingMs()).toBe(180000);
+    expect(budget.admitsInvestigation()).toBe(false);
+    expect(budget.admitsSingleShot()).toBe(true);
+  });
+
+  it("stops admitting single-shot passes once the ceiling itself is reached", async () => {
+    const { clock, now } = clocked();
+    const budget = createBudget({ ceilingMs: 600000, now });
+    await budget.spend(async () => {
+      clock.ms += 600000;
+    });
+    expect(budget.admitsSingleShot()).toBe(false);
+  });
+
+  it("measures each pass it spends, so the projection is data rather than a guess", async () => {
+    const { clock, now } = clocked();
+    const budget = createBudget({ ceilingMs: 600000, now });
+    await budget.spend(async () => {
+      clock.ms += 62000;
+    });
+    await budget.spend(async () => {
+      clock.ms += 103000;
+    });
+    expect(budget.passDurationsMs()).toEqual([62000, 103000]);
+  });
+});
+
 describe("buildManifest", () => {
   it("describes what changed without any of the content, which is all a manifest check needs", () => {
     const manifest = buildManifest([
@@ -621,7 +732,29 @@ describe("buildReviewComment", () => {
   it("says a group reached no quorum instead of leaving it out, because absence would read as clean", () => {
     const body = buildReviewComment([group({ name: "repo-care", quorum: false })], ["x"]);
     expect(body).toContain("#### repo-care — no quorum — not reviewed");
-    expect(body).toContain("not the same as clean");
+    expect(body).toContain("is not the same as a clean one");
+  });
+
+  it("says a group ran out of time instead of leaving it out, and counts how many did", () => {
+    const body = buildReviewComment(
+      [group(), group({ name: "core-ui", quorum: false, skipped: true })],
+      ["x", "y"],
+    );
+    expect(body).toContain("#### core-ui — not reviewed — the run ran out of its time budget");
+    expect(body).toContain("1 of the 2 sections above was not reviewed");
+    expect(body).toContain("wall-clock budget");
+    // The footer must not let either kind of unreviewed section read as clean.
+    expect(body).toContain("for want of a quorum, or of time — is not the same as a clean one");
+  });
+
+  it("names an unreviewed README parity pass without claiming the whole change went unreviewed", () => {
+    const body = buildReviewComment(
+      [group({ name: "the change as a whole", parityUnreviewed: 2 })],
+      ["x"],
+    );
+    expect(body).toContain("#### the change as a whole — clean");
+    expect(body).toContain("README language parity was not reviewed in 2 README groups");
+    expect(body).not.toContain("sections above");
   });
 
   it("marks truncation against the group it happened in, not the whole review", () => {
@@ -714,7 +847,9 @@ describe("reviewPr", () => {
     expect(summary.findingCount).toBe(1);
     // One group, named for the unit owning the changed file, and it reached a
     // quorum — the three facts a reader needs to know the review happened.
-    expect(summary.groups).toEqual([{ name: "src", quorum: true, truncated: false, findings: 1 }]);
+    expect(summary.groups).toEqual([
+      { name: "src", quorum: true, skipped: false, truncated: false, findings: 1 },
+    ]);
     log.mockRestore();
   });
 
@@ -764,7 +899,90 @@ describe("reviewPr", () => {
     // Each group was investigated on its own diff, not once on the whole PR.
     expect(state.posted).toContain("#### dev-cli");
     expect(state.posted).toContain("#### core-ui");
+    // A run with the whole ceiling in front of it skips nothing: the wall-clock
+    // budget must not cost coverage on the runs it was never needed for.
+    expect(summary.groups.every((g) => g.skipped === false)).toBe(true);
+    expect(state.posted).not.toContain("ran out of its time budget");
     log.mockRestore();
+  });
+
+  it("stops starting group reviews once the clock cannot cover another, and names what it skipped", async () => {
+    const state = freshState();
+    state.files = [
+      file({ filename: "CLAUDE.md" }),
+      file({ filename: "shared/libs/core-ui/src/b.ts" }),
+      file({ filename: "shared/tools/dev-cli/src/a.mjs" }),
+    ];
+    // Every completion costs a minute of the ceiling, so pass 1 and pass 2 fit
+    // and the third cannot: 240s left against a 180s projection plus the reserve.
+    const clock = { ms: 0 };
+    const inner = fakeFetch(state);
+    const fetchImpl = vi.fn(async (url, init) => {
+      if (url.endsWith("/chat/completions")) clock.ms += 60000;
+      return inner(url, init);
+    });
+
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const code = await reviewPr(["--pr", "9"], {
+      fetchImpl,
+      env,
+      now: () => clock.ms,
+      ceilingMs: 600000,
+    });
+
+    // Advisory by definition: a run the clock cut short reports, never gates.
+    expect(code).toBe(0);
+    const summary = JSON.parse(log.mock.calls.at(-1)[0]);
+    // Groups are ordered by descending file count then path, so `dev-cli` is
+    // last and is the one the clock reaches: it is named, not dropped.
+    expect(summary.groups).toEqual([
+      { name: "repository root", quorum: true, skipped: false, truncated: false, findings: 1 },
+      { name: "core-ui", quorum: true, skipped: false, truncated: false, findings: 1 },
+      { name: "dev-cli", quorum: false, skipped: true, truncated: false, findings: 0 },
+    ]);
+    // The enforcement itself: no investigation was ever STARTED for the group
+    // the budget refused. Without the budget this prompt would have been sent.
+    const investigations = state.dialogues.filter((m) =>
+      m[0].content.includes("You are a practice reviewer"),
+    );
+    expect(investigations).toHaveLength(6); // 3 models × the 2 admitted groups
+    for (const messages of investigations) {
+      expect(messages[0].content).not.toContain("shared/tools/dev-cli/src/a.mjs");
+    }
+    // And the comment says so, in the voice the other unreviewed state uses.
+    expect(state.posted).toContain("#### dev-cli — not reviewed — the run ran out of its time");
+    expect(state.posted).toContain("1 of the 3 sections above was not reviewed");
+    expect(summary.passDurationsMs).toEqual([180000, 180000]);
+    log.mockRestore();
+  });
+
+  it("posts a comment naming every pass it never started when no wall clock is left", async () => {
+    const state = freshState();
+    state.files = [
+      file({ filename: "CLAUDE.md" }),
+      file({ filename: "shared/tools/dev-cli/src/a.mjs" }),
+      file({ filename: "shared/README.vi.md" }),
+    ];
+    const fetchImpl = fakeFetch(state);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const code = await reviewPr(["--pr", "9"], { fetchImpl, env, ceilingMs: 0 });
+
+    expect(code).toBe(0);
+    // Not one model call: a spent clock means nothing is started, not started
+    // and killed. The comment is the whole point, so it still gets posted.
+    expect(fetchImpl.mock.calls.some(([url]) => url.endsWith("/chat/completions"))).toBe(false);
+    for (const name of ["repository root", "dev-cli", "shared", "the change as a whole"]) {
+      expect(state.posted).toContain(`#### ${name} — not reviewed — the run ran out of its time`);
+    }
+    expect(state.posted).toContain("4 of the 4 sections above were not reviewed");
+    expect(state.posted).toContain("README language parity was not reviewed in 1 README group");
+    const summary = JSON.parse(log.mock.calls.at(-1)[0]);
+    expect(summary.groups.every((g) => g.skipped)).toBe(true);
+    expect(summary.parityUnreviewed).toBe(1);
+    expect(summary.readmeGroupsChecked).toBe(0);
+    expect(err.mock.calls.flat().join(" ")).toContain("out of time before the manifest pass");
+    vi.restoreAllMocks();
   });
 
   it("exits 1 when no group reached a quorum, rather than posting a comment that reads as clean", async () => {

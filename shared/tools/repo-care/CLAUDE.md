@@ -121,15 +121,49 @@ practice review, thread translation) from GitHub Actions.
   must not reach `CHECKS`, and the rubric test pins that every card still
   reaches some pass — a shape is a different reviewer, never a way for a check
   to fall out of the rubric.
-- **Budgets are per group, and nothing is dropped silently.** `MAX_DIFF_CHARS`
+- **Budgets bound the prompt per group and the run on the wall clock, and
+  nothing is dropped silently.** `MAX_DIFF_CHARS`
   bounds one group, not the pull request; probing the pool at 50k/95k/129k
   characters produced no context error from any primary, so a group at the cap
   is a signal to look at what landed in it rather than a diff to grow. Groups
   past `MAX_GROUPS` are **merged into one final group, never dropped**, and that
-  group names what it absorbed. A group that reaches no quorum is reported as
-  "not reviewed" in the comment, which is why an otherwise clean run still posts
-  one: silence there would read as a passed review. Only a run where **no** group
-  reached a quorum exits 1.
+  group names what it absorbed. `MAX_GROUPS` is a bound on how many passes and
+  comment sections one review produces — **not** a time budget: it once stood in
+  for one (job ceiling ÷ worst-case group) and that arithmetic is now measured
+  instead of divided out in advance. A group that reaches no quorum is reported
+  as "not reviewed" in the comment, which is why an otherwise clean run still
+  posts one: silence there would read as a passed review. Only a run where
+  **no** attempted group reached a quorum exits 1.
+  - **The wall clock is the budget that had no report, and that was the whole
+    defect.** GitHub kills the job at its `timeout-minutes`, and it killed it
+    _before_ the comment was posted, so a review that reviewed nothing looked
+    exactly like a review that found nothing. `createBudget` admits a pass only
+    while the time left covers it plus `BUDGET_RESERVE_MS`, which is held back
+    for the two whole-pull-request single-shot passes and the comment post — the
+    point is that the comment gets posted, so nothing may start that would eat
+    the posting. Whatever the clock leaves unstarted is named in that comment in
+    the same voice as a quorum miss, and the run still exits **0**: this tool is
+    advisory by definition and must never gate a merge, so its loud channel is
+    the comment, not the exit code.
+  - **The ceiling is derived, never authored here**: `parseJobCeilingMs` reads
+    `timeout-minutes` out of `.github/workflows/pr-practice-review.yml`, the
+    workflow that imposes it, so the number lives in exactly one place — keep
+    exactly one such key in that file, since a second makes the read fail loud
+    rather than budget against the wrong one. Rungs below were available and
+    rejected: an env var would write the number twice in the same workflow
+    (the `env` context is not available to a job's `timeout-minutes`), a GitHub
+    repository variable would move the source of truth out of the tree where an
+    unset value silently becomes the 6-hour default, and no run-metadata API
+    reports a job's configured timeout.
+  - **The next pass is projected from this run's own measurements, not from a
+    constant.** Per-pass durations on a live grouped run went 62s → 103s → 161s:
+    superlinear, because the groups share one rate-limited pool and `zen.mjs`
+    rotates fallbacks one at a time, so a later pass queues behind the earlier
+    ones and inherits their retries. `projectPassMs` therefore carries the
+    measured growth forward instead of assuming the next pass is no worse than
+    the worst so far. The summary line logs `passDurationsMs` and
+    `budgetRemainingMs` for the same reason: nothing outside the process can see
+    them, and they are the data any recalibration of these budgets needs.
 - **README language parity is a separate review shape from everything else
   in `review-pr`**: `practice-index.json`'s `readme-language-parity` card
   carries `"shape": "parity"`, which `activeChecks` skips entirely — a
