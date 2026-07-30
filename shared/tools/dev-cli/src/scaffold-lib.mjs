@@ -58,7 +58,13 @@ function listTrackedPaths() {
   return execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
 }
 
-const GO_VERSION = "1.24";
+// Only reachable when the repo has no go.work yet — it already does, so this
+// branch is dormant in practice; kept so scaffolding a Go lib still works the
+// day someone bootstraps go.work fresh. Once go.work exists, `deriveGoVersion`
+// reads its own `go X.Y.Z` line instead, so the version stamped into a new
+// go.mod can never drift from the pin CI and CONTRIBUTING.md already point to
+// (Rule 14).
+const FALLBACK_GO_VERSION = "1.26.5";
 const DEV_CLI = "node ../../../shared/tools/dev-cli/src/main.mjs";
 // Non-TS projects never run `eslint .`, so their lint command lints
 // project.json explicitly or `local/require-project-tags` never fires.
@@ -259,7 +265,7 @@ const EMITTERS = {
       },
     };
   },
-  go(name, subsystem) {
+  go(name, subsystem, _root, goVersion) {
     const modulePath = `ecoma.io/${subsystem}/${name}`;
     const pkg = name.replace(/-/g, "");
     return {
@@ -271,7 +277,7 @@ const EMITTERS = {
         build: "go build ./...",
       },
       files: {
-        "go.mod": `module ${modulePath}\n\ngo ${GO_VERSION}\n`,
+        "go.mod": `module ${modulePath}\n\ngo ${goVersion}\n`,
         "doc.go": `// Package ${pkg} is a TODO: replace with what this package is.\npackage ${pkg}\n`,
       },
     };
@@ -341,9 +347,22 @@ export function withAlias(tsconfigText, alias, target) {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
+/**
+ * Go version to stamp into a scaffolded go.mod, derived from the repo-root
+ * go.work's own `go X.Y.Z` line so it can never drift from the pin CI and
+ * CONTRIBUTING.md already read (Rule 14) — `text` is `null` only on the day
+ * go.work does not exist yet, which falls back to `FALLBACK_GO_VERSION`.
+ */
+export function deriveGoVersion(text) {
+  if (text === null) return FALLBACK_GO_VERSION;
+  const match = text.match(/^go (\d+\.\d+(?:\.\d+)?)/m);
+  if (!match) throw new Error("go.work has no `go X.Y.Z` line to derive the Go version from");
+  return match[1];
+}
+
 /** go.work with `root` added to the use block (created when text is null). */
-export function withGoWorkUse(text, root) {
-  if (text === null) return `go ${GO_VERSION}\n\nuse (\n\t./${root}\n)\n`;
+export function withGoWorkUse(text, root, goVersion = FALLBACK_GO_VERSION) {
+  if (text === null) return `go ${goVersion}\n\nuse (\n\t./${root}\n)\n`;
   if (new RegExp(`\\./${root}\\r?\\n`).test(text) || text.includes(`./${root})`)) return text;
   const block = text.match(/use\s*\(([\s\S]*?)\)/);
   if (block) return text.replace(block[0], `use (${block[1]}\t./${root}\n)`);
@@ -406,7 +425,7 @@ export function withGitignoreLines(text, lines) {
  */
 const BOOTSTRAPS = {
   ts: () => [],
-  go: (root) => [["go.work", (text) => withGoWorkUse(text, root)]],
+  go: (root, goVersion) => [["go.work", (text) => withGoWorkUse(text, root, goVersion)]],
   rust: (root) => [
     ["Cargo.toml", (text) => withCargoMember(text, root)],
     [".gitignore", (text) => withGitignoreLines(text, ["target/"])],
@@ -466,6 +485,7 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
 
   // Compute every write before performing any (all-or-nothing on validation).
   const rootWrites = [];
+  let goVersion;
   try {
     if (lang === "ts") {
       rootWrites.push([
@@ -477,7 +497,10 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
         ),
       ]);
     }
-    for (const [path, transform] of BOOTSTRAPS[lang](root)) {
+    if (lang === "go") {
+      goVersion = deriveGoVersion(readOrNull("go.work"));
+    }
+    for (const [path, transform] of BOOTSTRAPS[lang](root, goVersion)) {
       rootWrites.push([path, transform(readOrNull(path))]);
     }
   } catch (error) {
@@ -485,7 +508,7 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
     return 1;
   }
 
-  const { identityLine, targets, files } = EMITTERS[lang](name, subsystem, root);
+  const { identityLine, targets, files } = EMITTERS[lang](name, subsystem, root, goVersion);
   fs.mkdirSync(`${root}/src`, { recursive: true });
   fs.writeFileSync(
     `${root}/project.json`,
