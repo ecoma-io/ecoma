@@ -29,8 +29,8 @@ say so in the pull request rather than letting the green run imply otherwise.
 - `dev-cli` — local developer commands; the `COMMANDS` registry in
   `src/main.mjs` is the source of truth (doc/convention gates like
   `check-journey-markers`, `check-claude-md`, `check-doc-links`,
-  `check-practice-index`, `check-subsystem-readmes`, `check-subproject-readmes`,
-  `check-primitive-artifacts`, `check-project-conventions`, `check-commit-scope`,
+  `check-command-refs`, `check-practice-index`, `check-subsystem-readmes`,
+  `check-subproject-readmes`, `check-primitive-artifacts`, `check-project-conventions`, `check-commit-scope`,
   plus workflow helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
   `doctrine-sync`); mechanics
   in its own `CLAUDE.md`. Four repo-root files are single sources shared across tools, so

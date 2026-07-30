@@ -130,6 +130,25 @@ build/typecheck — invoked directly as
   config's contract — keep the normalizer identical to the ESLint rule's);
   the workspace entry point additionally scans project directory paths, which
   no per-project scan sees.
+- **`check-command-refs` derives its valid-name list from `COMMANDS` itself,
+  never a restated copy (Rule 14 rung 1).** `main.mjs` calls `process.exit` at
+  import time, so it cannot be imported for its keys — the same reason
+  `main.integration.test.mjs` drives it as a subprocess rather than importing
+  it. This gate does the same: it spawns the real CLI with no command and
+  parses its own "unknown command '…'. Available: …" listing off stderr.
+  It flags only the unambiguous invocation form,
+  `node shared/tools/dev-cli/src/main.mjs <name>`, never a bare inline-code
+  mention — the same word can be ordinary prose, can belong to a different
+  `main.mjs` (`repo-care` has its own registry), or can be a seam the doctrine
+  corpus deliberately reserves before it exists. None of those write the full
+  invocation form, so anchoring there keeps false positives at zero without a
+  denylist. It scans every tracked `*.md`/`*.mdx` file, which is what reaches
+  `.claude/skills/**/SKILL.md` and every `CLAUDE.md`/`README*.md` without a
+  second file-walk — the same `listTrackedFiles` call `check-doc-links` makes.
+  It stays a command of its own rather than folding into `check-doc-links`:
+  that gate's name and docstring commit it to relative Markdown _links_, and a
+  command citation is a shell invocation, not a link — conflating the two
+  would make the gate's name stop describing what it checks.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language
   variants (`README.md`, `README.vi.md`, `README.zh.md`), each opening with
