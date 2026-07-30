@@ -1,7 +1,7 @@
 ---
 title: "RPA: Tự lành"
 status: design-end-state
-canonical-sha: 885e1ab7aaf6
+canonical-sha: cb60251ff2d0
 ---
 
 # RPA: Tự lành
@@ -11,7 +11,7 @@ Automation hỏng khi giao diện nó điều khiển thay đổi. Câu hỏi qu
 câu trả lời ở đây là: chính automation sửa lấy, dưới lineage và sau những cửa
 duyệt tỉ lệ với rủi ro của thứ nó chạm vào.
 
-## Executor: hai đầu của một trục
+## 1. Executor: hai đầu của một trục
 
 |                            | Script                                                               | Agent                                                                                        |
 | -------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -24,7 +24,7 @@ Executor của một automation là **một dial, không phải lựa chọn nh�
 action có thể resolve qua một tầng locator khác nhau. Coi nó là lựa chọn giữa
 hai sản phẩm là bắt cả automation trả giá agent cho vài bước hiếm hoi cần tới.
 
-## Vòng healing: script → agent → script
+## 2. Vòng healing: script → agent → script
 
 ```
 script fail (locator cạn ở các tầng structural, hoặc precondition đã lệch)
@@ -45,7 +45,7 @@ mặc định là lựa chọn an toàn.
 Khi chính việc healing thất bại — tầng semantic cũng không resolve nổi —
 automation **escalate** thay vì đoán.
 
-## Chiều ngược: distillation
+## 3. Chiều ngược: distillation
 
 Một automation chạy thuần agent nhưng chứng minh được là **lặp lại ổn định**
 (cùng chuỗi action, cùng phân phối tầng-thắng qua nhiều phiên) sẽ nhận một đề
@@ -57,7 +57,7 @@ Hai chiều khép thành một vòng: automation **tự trưởng thành về ph
 **tự lùi về phía bền** khi môi trường của nó động. Không chiều nào là một cuộc di
 cư ai đó phải xếp lịch.
 
-## Version được vá phải _giành_ lấy tin cậy, không được _cấp_
+## 4. Version được vá phải _giành_ lấy tin cậy, không được _cấp_
 
 - Script version mới là một danh tính mới có lineage, nên khi tích hợp nó đi qua
   trust tiers của platform **như mọi filler khác** — kế thừa calibration của cha
@@ -75,7 +75,7 @@ cư ai đó phải xếp lịch.
 - Bản standalone giữ nguyên nguyên lý với ít nấc hơn: bảng cửa duyệt ở trên là
   toàn bộ phần tin cậy cục bộ.
 
-## Giao diện trôi là dữ liệu, không chỉ là hư hỏng
+## 5. Giao diện trôi là dữ liệu, không chỉ là hư hỏng
 
 Mỗi sự kiện healing ghi lại locator, tầng đã fail, tầng đã thắng, patch, và một
 fingerprint của ứng dụng. Bản ghi đó đáng giá hơn chính lần sửa:
@@ -91,7 +91,7 @@ fingerprint của ứng dụng. Bản ghi đó đáng giá hơn chính lần s�
   lại lúc runtime**, vì tri thức đổi mà không ai xem là tri thức không ai chịu
   trách nhiệm được.
 
-## Cố ý không làm
+## 6. Cố ý không làm
 
 - **Không heal ngữ nghĩa nghiệp vụ.** Một biểu mẫu vừa thêm trường bắt buộc là
   một thay đổi quy trình, và nó escalate vào thiết kế chứ không được vá ở tầng
@@ -100,7 +100,7 @@ fingerprint của ứng dụng. Bản ghi đó đáng giá hơn chính lần s�
 - **Không tự áp dụng patch cho action irreversible**, dưới bất kỳ cấu hình mặc
   định nào.
 
-## Đã chốt gì, và vì sao
+## 7. Đã chốt gì, và vì sao
 
 | Câu hỏi                | Chốt                                                                                       |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
