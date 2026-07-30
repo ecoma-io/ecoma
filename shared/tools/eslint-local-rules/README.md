@@ -48,8 +48,10 @@ the workspace depends on, but that depends on no product domain itself.
 This is not a place to reconfigure standard ESLint rules — that belongs in
 the root `eslint.config.mjs`. Every rule module here is dependency-free by
 design, and so are its tests: they are plain `node` scripts (`<name>.test.mjs`),
-not Vitest, run directly by the `test` target's explicit command list. There
-is no build or typecheck step for this project.
+not Vitest. The `test` target runs them on Node's own test runner through
+`dev-cli`'s `run-node-tests`, which holds them to the workspace coverage floor
+in `coverage.config.json` — a delegation, not a dependency: nothing is
+installed for it. There is no build or typecheck step for this project.
 
 <!-- readme:status -->
 

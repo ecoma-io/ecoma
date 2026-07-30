@@ -49,8 +49,10 @@ thuộc vào, nhưng bản thân nó không phụ thuộc vào bất kỳ domain
 Đây không phải nơi cấu hình lại rule ESLint chuẩn — việc đó thuộc về
 `eslint.config.mjs` gốc. Mỗi rule module ở đây được thiết kế dependency-free,
 và test của chúng cũng vậy: đó là script `node` thuần (`<name>.test.mjs`),
-không dùng Vitest, được chạy trực tiếp bởi danh sách lệnh tường minh trong
-target `test`. Project này không build, không typecheck.
+không dùng Vitest. Target `test` chạy chúng trên test runner có sẵn của Node
+thông qua `run-node-tests` của `dev-cli`, thứ giữ chúng ở đúng sàn coverage
+chung khai trong `coverage.config.json` — là ủy quyền chứ không phải phụ
+thuộc: không cài thêm gì cả. Project này không build, không typecheck.
 
 <!-- readme:status -->
 
