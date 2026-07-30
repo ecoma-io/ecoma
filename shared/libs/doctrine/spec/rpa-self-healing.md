@@ -10,7 +10,7 @@ decides whether robotic automation is worth owning is not whether it breaks but
 **who repairs it** — and the answer here is that the automation repairs itself,
 under lineage and behind approval gates sized to the risk of what it touches.
 
-## Executor: two ends of one axis
+## 1. Executor: two ends of one axis
 
 |                              | Script                                                                          | Agent                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -24,7 +24,7 @@ action may resolve through a different locator tier. Treating it as a choice
 between two products forces the whole automation to pay the agent's cost for
 the few steps that need it.
 
-## The healing loop: script → agent → script
+## 2. The healing loop: script → agent → script
 
 ```
 script fails (locators exhausted at the structural tiers, or a precondition drifted)
@@ -45,7 +45,7 @@ makes; the default is the safe one.
 When healing itself fails — the semantic tier cannot resolve it either — the
 automation escalates rather than guessing.
 
-## The other direction: distillation
+## 3. The other direction: distillation
 
 An automation that runs purely on an agent but proves **repeatable** — the same
 action sequence, the same distribution of winning locator tiers across many
@@ -58,7 +58,7 @@ The two directions close a loop: an automation **matures toward cheap** on its
 own, and **falls back toward durable** when its environment turns volatile.
 Neither direction is a migration anyone schedules.
 
-## A patched version earns trust; it is not granted it
+## 4. A patched version earns trust; it is not granted it
 
 - A new script version is a new identity with lineage, so when integrated it
   passes through the platform's trust tiers **like any other filler** —
@@ -78,7 +78,7 @@ Neither direction is a migration anyone schedules.
 - Standalone deployments keep the same principle with fewer rungs: the approval
   table above is the whole of local trust.
 
-## Interface drift is data, not just damage
+## 5. Interface drift is data, not just damage
 
 Every healing event records the locator, the tier that failed, the tier that
 won, the patch, and a fingerprint of the application. That record is worth more
@@ -96,7 +96,7 @@ than the repair:
   runtime**, because knowledge that changes without review is knowledge nobody
   can be accountable for.
 
-## Non-goals
+## 6. Non-goals
 
 - **No healing of business meaning.** A form that gained a required field is a
   process change, and it escalates into design rather than being patched at the
@@ -105,7 +105,7 @@ than the repair:
 - **No automatic application of a patch to an irreversible action**, under any
   default configuration.
 
-## What was decided, and why
+## 7. What was decided, and why
 
 | Question                   | Settled as                                                                              |
 | -------------------------- | --------------------------------------------------------------------------------------- |
