@@ -1,7 +1,7 @@
 ---
 title: "Deploy & Operations Charter"
 status: design-end-state
-canonical-sha: 1b26ab28e25d
+canonical-sha: 7103960d04e6
 ---
 
 # Deploy & Operations Charter
@@ -59,7 +59,7 @@ Thủ tục phải chạy được theo đúng thứ tự: dựng máy mới →
 
 ### 4.3 Gate: backup không được chạm khóa
 
-Một lệnh mới của dev-cli — **`check-backup-key-isolation`** — chạy trong job `checks` và pre-commit: quét mọi script/manifest/chart trong `deploy/` và **fail** nếu có đường nào phủ lên vị trí root key theo bất kỳ hình thái nào. Lệnh này **chưa tồn tại** — nó sinh cùng lúc với thư mục `deploy/` và được ghi vào chuỗi PR của kế hoạch handoff (không để nó thành một lời dặn không ai nuôi). Đây là hiện thực hoá litmus #4 của Vault. _Lời dặn "đừng backup khóa" không phải cơ chế; một gate đỏ thì là._
+Một lệnh mới của dev-cli — **`check-backup-key-isolation`** — chạy trong job `checks` và pre-commit: quét mọi script/manifest/chart trong `deploy/` và **fail** nếu có đường nào phủ lên vị trí root key theo bất kỳ hình thái nào. Lệnh này **chưa tồn tại** — nó sinh cùng lúc với thư mục `deploy/` và được theo dõi bằng một issue mang nhãn `doctrine-debt` (không để nó thành một lời dặn không ai nuôi). Đây là hiện thực hoá litmus #4 của Vault. _Lời dặn "đừng backup khóa" không phải cơ chế; một gate đỏ thì là._
 
 ### 4.4 Tư cách của backend key store
 
