@@ -89,7 +89,7 @@ jobs:
       # Rust crate, add Swatinem/rust-cache next to the toolchain step.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version-file: go.work # derives the version from go.work's own pin (CONTRIBUTING.md), never a second copy
           cache: false # no root go.sum yet; enable with the first Go project
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 → stable
         with:
