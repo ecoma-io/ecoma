@@ -20,16 +20,35 @@ build/typecheck — invoked directly as
   `cargo check --offline`), not just against our conventions checker — which
   is why CI sets both toolchains up unconditionally (`ci.yml`), before any Go
   or Rust project exists in the tree.
-- **Never drive git from a test with a bare `execFileSync("git", …)`** — build
-  the repo with `initFixtureRepo` and drive it with `fixtureGit`
-  (`src/git-fixture.mjs`). Neither `cwd` nor `-C` contains git: `GIT_DIR` and
-  friends outrank both, `verify` runs this suite from lefthook's `pre-push`,
-  and a git hook exports `GIT_DIR` pointing at the repository being pushed — so
-  an unqualified fixture write commits into the developer's own branch and
-  deletes its tree. `git-fixture.mjs`'s header documents the three layers that
-  close it (process-level scrub in `vitest.setup.mjs`, per-spawn scrub + `-C` +
-  `cwd`, and a fail-loud guard); the guard aborts the run rather than let a
-  fixture find a real repository.
+- **Neither `cwd` nor `-C` contains git — `GIT_DIR` and friends outrank both — so
+  every git spawn here names the environment it runs in, in production as well as
+  in tests.** The ambient variable arrives from a git hook run in a **linked
+  worktree**, which exports an absolute `GIT_DIR` (measured on git 2.43.0:
+  `pre-commit` and `pre-push` both export it there, and a plain checkout exports
+  only a relative `GIT_INDEX_FILE`, which still resolves correctly from a
+  subdirectory).
+  - **Never drive git from a test with a bare `execFileSync("git", …)`** — build
+    the repo with `initFixtureRepo` and drive it with `fixtureGit`
+    (`src/git-fixture.mjs`).
+    `verify` runs this suite from lefthook's `pre-push`, so an unqualified fixture
+    write commits into the developer's own branch and deletes its tree.
+    `git-fixture.mjs`'s header documents the three layers that close it
+    (process-level scrub in `vitest.setup.mjs`, per-spawn scrub + `-C` + `cwd`, and
+    a fail-loud guard); the guard aborts the run rather than let a fixture find a
+    real repository.
+  - **Production: pass `env: cwdGitEnv()` (`src/git-env.mjs`) on every
+    `execFileSync("git", …)`.** `pre-commit` runs `pnpm nx affected -t lint` and
+    every lint target runs with `cwd: {projectRoot}`, so a command that lets the
+    environment pick the repository is told the project directory is the entire
+    work tree. Both consequences were observed here, and they are not
+    symmetrical: `check-e2e-story-coverage` died on a pathspec suddenly "outside
+    repository", while `check-journey-markers` opened no file and reported the
+    project clean — green having checked nothing, on every commit. The production
+    list deliberately keeps `GIT_INDEX_FILE`, which is the one name it does not
+    share with the fixture: `git commit -- <paths>` hands the hook a temporary
+    index naming exactly the paths being committed, and a gate that ignored it
+    would judge a change nobody is making. `src/git-env.mjs` owns the shared
+    names; `git-fixture.mjs` builds its own stricter list on top.
 - `pool: "forks"` is pinned for two reasons, both still live: the command
   modules that read the repository from the process working directory
   (`check-doc-links`, `check-claude-md`, `check-journey-markers`,
@@ -97,7 +116,12 @@ build/typecheck — invoked directly as
   the CI doc-gate block, because the convention it enforces belongs to that one
   project. It scans the git **index**, so a new primitive's artifacts must be
   staged to count; `git ls-files` is cwd-relative, which is what lets the same
-  scan work from the repo root and from inside `core-ui`.
+  scan work from the repo root and from inside `core-ui` — cwd-relative only while
+  nothing in the environment outranks cwd, hence the `cwdGitEnv` above. It is also
+  the one project gate an inherited `GIT_DIR` left working, because it passes no
+  pathspec and `PRIMITIVE_FILE_RE` reads a repo-relative listing as happily as a
+  project-relative one; that is a property of this gate, not a reason to trust the
+  ambient environment anywhere else.
 - `check-journey-markers`' pattern source is `journey-markers.config.json`
   (repo root), shared with the `local/no-journey-markers` and
   `local/no-journey-marker-names` ESLint rules — see `shared/CLAUDE.md`;

@@ -19,8 +19,9 @@ import {
   ownerOf,
   parseHeader,
 } from "./check-commit-scope.mjs";
+import { cwdGitEnv } from "./git-env.mjs";
 
-const git = (args) => execFileSync("git", args, { encoding: "utf8" });
+const git = (args) => execFileSync("git", args, { encoding: "utf8", env: cwdGitEnv() });
 
 /** `type(scope)!: …` header or a `BREAKING CHANGE:` footer. */
 const isBreaking = (header, body) =>

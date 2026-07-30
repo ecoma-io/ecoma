@@ -27,6 +27,8 @@
  */
 import { execFileSync } from "node:child_process";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 // The agent/sandbox bot identity we refuse to let author commits. Its signing
 // key is registered to this address; a commit under any other committer is the
 // thing we are enforcing, not preventing.
@@ -63,7 +65,10 @@ export function pickIdentity(apiUser, envEmail) {
 
 /** Real I/O the two modes need; overridden wholesale in unit tests. */
 export function defaultDeps() {
-  const git = (args) => execFileSync("git", args, { encoding: "utf8" });
+  // Repo-local config, resolved from cwd: the guard runs at the repo root from
+  // `pre-commit`, and a hook's `GIT_DIR` must not decide which repository's
+  // identity gets rewritten (`git-env.mjs`).
+  const git = (args) => execFileSync("git", args, { encoding: "utf8", env: cwdGitEnv() });
   return {
     env: process.env,
     committerEmail: () => identEmail(git(["var", "GIT_COMMITTER_IDENT"])),

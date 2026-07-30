@@ -24,6 +24,8 @@
  */
 import { execFileSync } from "node:child_process";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 /**
  * Tracked paths matching `pathspecs` (all files when omitted), submodules
  * included. `run` is injectable so the flag can be pinned without a fixture
@@ -35,4 +37,4 @@ export function listTrackedFiles(pathspecs = [], run = defaultRun) {
   return run(args).split("\n").filter(Boolean);
 }
 
-const defaultRun = (args) => execFileSync("git", args, { encoding: "utf8" });
+const defaultRun = (args) => execFileSync("git", args, { encoding: "utf8", env: cwdGitEnv() });

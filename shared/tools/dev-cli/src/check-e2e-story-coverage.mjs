@@ -25,6 +25,8 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 /** `…/<Name>/<file>` split into the owning directory, its name, and the file. */
 const COMPONENT_FILE_RE = /(?:^|\/)([^/]+)\/([^/]+)$/;
 
@@ -69,6 +71,11 @@ export function findComponentsWithoutStories(trackedFiles) {
  * find no components, and report success — a gate that silently checks nothing is
  * worse than no gate. Anchoring at the toplevel makes the returned paths
  * repo-relative wherever this is invoked from.
+ *
+ * That anchoring is only as good as the toplevel it asks for, which is why both
+ * reads run under `cwdGitEnv` (`git-env.mjs`): an inherited `GIT_DIR` makes the
+ * project directory the toplevel, and the absolute pathspec below is then
+ * "outside repository" and this command dies inside the pre-commit hook.
  */
 export function checkE2eStoryCoverage(args) {
   const target = args[0];
@@ -81,6 +88,7 @@ export function checkE2eStoryCoverage(args) {
 
   const toplevel = execFileSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
+    env: cwdGitEnv(),
   }).trim();
   // Absolute pathspec, listed FROM the toplevel: the pathspec still points at
   // the caller's intended directory while the paths come back repo-relative,
@@ -88,6 +96,7 @@ export function checkE2eStoryCoverage(args) {
   const tracked = execFileSync("git", ["ls-files", "--", resolve(target)], {
     cwd: toplevel,
     encoding: "utf8",
+    env: cwdGitEnv(),
   })
     .split("\n")
     .filter(Boolean);

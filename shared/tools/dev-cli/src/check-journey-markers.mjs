@@ -19,6 +19,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { cwdGitEnv } from "./git-env.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
 // Patterns live in journey-markers.config.json at the repo root — the single
@@ -163,10 +164,20 @@ export function checkWorkspaceDocs() {
   return contentHits || nameHits ? 1 : 0;
 }
 
-/** Scans git-tracked files under `targetPath`. Returns a process exit code. */
+/**
+ * Scans git-tracked files under `targetPath`. Returns a process exit code.
+ *
+ * Every git read here is cwd-anchored (`cwdGitEnv`, see `git-env.mjs`) because
+ * this runs from each project's `lint` target — a non-root cwd — and the paths it
+ * gets back are then opened relative to that cwd. Let an inherited `GIT_DIR`
+ * decide the repository instead and the listing comes back repo-relative, every
+ * `readFileSync` misses, and the gate reports a clean project having read
+ * nothing.
+ */
 export function checkJourneyMarkers(targetPath = ".") {
   const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
+    env: cwdGitEnv(),
   }).trim();
   const resolvedPath = resolve(targetPath);
 
@@ -175,7 +186,10 @@ export function checkJourneyMarkers(targetPath = ".") {
     return 0;
   }
 
-  const files = execFileSync("git", ["ls-files", "--", targetPath], { encoding: "utf8" })
+  const files = execFileSync("git", ["ls-files", "--", targetPath], {
+    encoding: "utf8",
+    env: cwdGitEnv(),
+  })
     .split("\n")
     .filter(Boolean);
 

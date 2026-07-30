@@ -23,22 +23,30 @@
  *
  * Consequence for anyone adding an integration test here: drive git through
  * `fixtureGit`/`initFixtureRepo`, never a bare `execFileSync("git", …)`.
+ *
+ * The production half of the same hazard lives in `git-env.mjs`, which owns the
+ * repo-selecting variable names this file builds on.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 
+import { REPO_SELECTING_GIT_VARS } from "./git-env.mjs";
+
 /**
- * Ambient variables that select the repository git operates on. Each of them
- * outranks both the working directory and `-C`.
+ * Ambient variables a fixture must not inherit. Each of them outranks both the
+ * working directory and `-C`. The repo-selecting ones are shared with production
+ * (`git-env.mjs`); `GIT_INDEX_FILE` is added here only, because production keeps
+ * it on purpose — a hook's index is the change being committed — while a fixture
+ * has no business reading any index but its own.
  */
-const REPO_SELECTING_GIT_VARS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"];
+const FIXTURE_ISOLATED_GIT_VARS = [...REPO_SELECTING_GIT_VARS, "GIT_INDEX_FILE"];
 
 /** A copy of `env` with every repo-selecting git variable removed. */
 export function fixtureEnv(env = process.env) {
   const scrubbed = { ...env };
-  for (const name of REPO_SELECTING_GIT_VARS) delete scrubbed[name];
+  for (const name of FIXTURE_ISOLATED_GIT_VARS) delete scrubbed[name];
   return scrubbed;
 }
 
@@ -48,12 +56,12 @@ export function fixtureEnv(env = process.env) {
  * the path they are given. Run once per test process from `vitest.setup.mjs`.
  */
 export function scrubGitEnv(env = process.env) {
-  for (const name of REPO_SELECTING_GIT_VARS) delete env[name];
+  for (const name of FIXTURE_ISOLATED_GIT_VARS) delete env[name];
 }
 
 /** Repo-selecting git variables still present in `env`, if any. */
 function inheritedGitVars(env = process.env) {
-  return REPO_SELECTING_GIT_VARS.filter((name) => env[name] !== undefined);
+  return FIXTURE_ISOLATED_GIT_VARS.filter((name) => env[name] !== undefined);
 }
 
 /** True when `child` is `parent` or lives beneath it. */
