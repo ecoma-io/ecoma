@@ -29,12 +29,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # `pull_request_target` already defaults to the base ref; naming it keeps
-      # the guarantee explicit -- this job holds a write token, so the only code
-      # it may run is the trusted base-branch copy of repo-care.
+      # No `ref:` here, deliberately. `pull_request_target` already checks out
+      # the base branch, which IS the guarantee this job needs: it holds a write
+      # token, so the only code it may run is the trusted base-branch copy of
+      # repo-care, never anything the PR author controls.
+      #
+      # Naming that default explicitly (`ref: github.event.pull_request.base.sha`)
+      # reads as the safer spelling but is strictly worse. Scorecard's
+      # dangerous-workflow check flags any `ref` mentioning `github.event.pull_request`
+      # under this trigger -- it cannot tell `.base.sha` from `.head.sha` -- so the
+      # explicit form scored this repo as an untrusted checkout on Scorecard's
+      # single heaviest check while changing nothing about what gets run. The
+      # default is also marginally tighter: it tracks the base branch tip, i.e.
+      # the newest trusted repo-care, rather than the sha recorded when the PR
+      # was opened.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha || github.ref }}
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:

@@ -19,13 +19,20 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   analyze:
     name: Analyze (javascript-typescript)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Only this job uploads SARIF, so the write stays here rather than at the
+    # top level -- any job added later starts read-only instead of inheriting
+    # it (same shape as scorecard.yml). Job-level `permissions` REPLACES the
+    # workflow-level block rather than merging with it, so `contents: read` has
+    # to be restated: omit it and checkout loses read access to the repository.
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
