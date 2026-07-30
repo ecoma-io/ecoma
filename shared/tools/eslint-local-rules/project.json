@@ -4,6 +4,7 @@
   "projectType": "library",
   "sourceRoot": "shared/tools/eslint-local-rules",
   "tags": ["type:lib", "scope:shared", "license:sul"],
+  "implicitDependencies": ["dev-cli"],
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
@@ -14,9 +15,10 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "coverageConfig", "devCli"],
       "options": {
         "cwd": "{projectRoot}",
-        "command": "node --test *.test.mjs"
+        "command": "node ../../../shared/tools/dev-cli/src/main.mjs run-node-tests --test-coverage-exclude=*.test.mjs *.test.mjs"
       }
     }
   }

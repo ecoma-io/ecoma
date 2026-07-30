@@ -44,8 +44,10 @@ lint` / `pnpm nx run-many -t lint` 会运行它,lefthook 的 pre-commit 钩子�
 
 这里不是重新配置标准 ESLint 规则的地方——那属于根目录 `eslint.config.mjs`
 的职责。这里的每个规则模块都刻意保持零依赖,测试也是如此:测试是纯 `node`
-脚本(`<name>.test.mjs`),不使用 Vitest,由 `test` target 中显式列出的命令
-直接运行。本项目没有 build,也没有 typecheck 步骤。
+脚本(`<name>.test.mjs`),不使用 Vitest。`test` target 通过 `dev-cli` 的
+`run-node-tests` 在 Node 自带的测试运行器上运行它们,由它把测试守在
+`coverage.config.json` 声明的工作区覆盖率下限上——这是委托而非依赖:不会因此
+安装任何东西。本项目没有 build,也没有 typecheck 步骤。
 
 <!-- readme:status -->
 
