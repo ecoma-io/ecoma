@@ -1,7 +1,4 @@
-// Renovate replaces Dependabot (dependabot.yml is removed in this same
-// change): dependabot.yml only enrolled the github-actions ecosystem, and its
-// own header comment claimed npm deps had a separate update discipline that
-// never actually existed anywhere in the repo. Renovate covers both
+// This repo's dependency updates run through Renovate, covering both
 // ecosystems that live here: npm/pnpm (root package.json + pnpm-lock.yaml —
 // this is a single-package monorepo per root CLAUDE.md, so there is exactly
 // one manifest) and github-actions (.github/workflows/*.yml and
