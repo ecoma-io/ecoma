@@ -34,6 +34,20 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
   install command is spawned, which is what separates "the installer was
   invoked" from "the installer worked" — two outcomes `setup.mjs` reports
   differently, and the second is the one a contributor feels.
+- **The `test` target declares its own `inputs`, and that list is the only
+  thing standing between a repo-root edit and a replayed cached green.**
+  `src/node-version-pin.integration.test.mjs` reads the real `.node-version`
+  and the real root `package.json`; neither is inside `{projectRoot}`, so
+  under the default inputs Nx hashed neither and served the cached pass over
+  a `.node-version` that no longer satisfied `engines.node` — measured, not
+  reasoned. Any further test here that reads a repo-root file must add it to
+  that list in the same pass. Two mechanics make the list easy to break:
+  a project-level `inputs` **replaces** `nx.json`'s `targetDefaults.test.inputs`
+  rather than merging with it (also measured), which is why `default` and
+  `coverageConfig` are repeated here; and a root file the suite only reads
+  through a mock belongs nowhere near it — `.golangci-lint-version` is read by
+  `setup.mjs` in production and by no test, so declaring it would only
+  invalidate this cache for nothing.
 - **`WIN32` and the ANSI colour constants are computed once at module load,
   while `process.platform` is read again at call time elsewhere** (the
   platform guard, the Linux/macOS branches, the Playwright hint). Stubbing
