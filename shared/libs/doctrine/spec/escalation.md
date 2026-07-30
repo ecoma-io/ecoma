@@ -1,92 +1,140 @@
 ---
-title: "Ecoma Primitive Spec: Escalation"
+title: "Primitive: Escalation"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Primitive Spec: Escalation
+# Primitive: Escalation
 
-> Tuân theo 4 nguyên tắc cơ chế (canonical: North Star §3). Spec trần. Escalation là **công dân hạng nhất** — thứ BPMN coi là exception path thì ecoma coi là mặc định phải khai báo, vì trong hệ human+AI, lệch chuẩn là thường thái: người nghỉ, agent kẹt, confidence sụt, SLA vỡ.
+> Bound by the four mechanism principles (canonical: North Star §3). Escalation
+> is a **first-class citizen**. What BPMN treats as an exception path is here the
+> default that must be declared, because in a system of humans and AI together,
+> deviation is the normal condition: a person is away, an agent is stuck,
+> confidence drops, an SLA breaks.
 
-## 1. Định nghĩa
+## 1. Definition
 
-Escalation là **đường đi khai báo trước cho mọi tình huống lệch chuẩn**. Nguyên tắc nền: engine ép mọi Role/Gate/Task có escalation chain với **terminal handler bắt buộc** — không tồn tại trạng thái "kẹt im lặng vô hạn" trong toàn hệ thống.
+An Escalation is **a path declared in advance for every way things can deviate**.
+The ground rule is that the engine forces every Role, Gate and Task to carry an
+escalation chain with a **mandatory terminal handler**, so that nowhere in the
+system does the state "silently stuck, indefinitely" exist.
 
-## 2. Trigger taxonomy (mở — thêm trigger không sửa engine)
+That is a statement about the shape of the system rather than about diligence. A
+chain with no bottom does not announce itself; work simply stops being finished,
+and nobody is told.
 
-| Trigger               | Nguồn phát                                                                                                             | Đã định nghĩa ở        |
+## 2. Trigger taxonomy — open, so a new trigger needs no engine change
+
+| Trigger               | Emitted by                                                                                                             | Defined in             |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `sla_breach`          | Task/Gate quá hạn (gồm `awaiting_review`)                                                                              | Checkpoint §6          |
-| `unavailable`         | Không Filler nào trong pool sẵn sàng                                                                                   | Role §3                |
-| `low_confidence`      | Calibrated confidence < T_low sau retry                                                                                | Checkpoint §4          |
-| `repeated_failure`    | Hết N attempt                                                                                                          | Task §4                |
-| `budget_exceeded`     | Hết fallback chain / trần chi phí                                                                                      | Checkpoint, Task       |
-| `conflict`            | Judgment mâu thuẫn / N-bounce                                                                                          | Checkpoint, Handoff §4 |
-| `irreversible_guard`  | Gate trước irreversible effect không đạt sàn                                                                           | Handoff §8             |
-| `assistance_request`  | **Filler tự giơ tay**                                                                                                  | §3                     |
-| `unwind_blocked`      | Compensation không thể chạy                                                                                            | Handoff §8             |
-| `session_interrupted` | Session effect (phiên RPA/browser) đứt giữa chừng — engine biết chính xác action nào đã chạy, đã qua commit point chưa | Handoff §8             |
+| `sla_breach`          | A Task or Gate past its deadline, including `awaiting_review`                                                          | Checkpoint §6          |
+| `unavailable`         | No Filler in the pool is available                                                                                     | Role §3                |
+| `low_confidence`      | Calibrated confidence below T_low after retry                                                                          | Checkpoint §4          |
+| `repeated_failure`    | N attempts exhausted                                                                                                   | Task §4                |
+| `budget_exceeded`     | The fallback chain or the cost ceiling ran out                                                                         | Checkpoint, Task       |
+| `conflict`            | Contradicting Judgments, or an N-bounce                                                                                | Checkpoint, Handoff §4 |
+| `irreversible_guard`  | A Gate ahead of an irreversible effect did not meet its floor                                                          | Handoff §8             |
+| `assistance_request`  | **A Filler raising its own hand**                                                                                      | §3                     |
+| `unwind_blocked`      | A compensation cannot run                                                                                              | Handoff §8             |
+| `session_interrupted` | A Session effect broke off mid-run — the engine knows exactly which action ran and whether the commit point was passed | Handoff §8             |
 
-**`assistance_request` là trigger quan trọng nhất về triết lý**: agent vốn không tự báo kẹt — cơ chế phải làm cho "xin trợ giúp" là hành động hạng nhất, rẻ, và **được thưởng trong calibration** (agent biết giơ tay đúng lúc có profile tốt hơn agent liều). Người giơ tay cũng đi cùng đường — đối xứng. Đây là cơ chế trực tiếp trị "nghẽn xác minh" ở n=1: hệ thống chủ động nổi đúng thứ cần chú ý thay vì người phải đi soi.
+**`assistance_request` is the philosophically load-bearing one.** An agent does
+not naturally report being stuck, so the mechanism has to make asking for help a
+first-class action, cheap, and **rewarded in calibration** — an agent that raises
+its hand at the right moment earns a better profile than one that guesses. A
+person raising their hand travels the identical path; the symmetry is the point.
+This is the direct treatment for the verification bottleneck at n=1: the system
+surfaces what needs attention instead of requiring a person to go looking.
 
-## 3. Escalation là một Task
+## 3. An escalation is a Task
 
-- Mỗi escalation sinh **một Task thật** gán cho handler — handler là **Role** (người hoặc AI supervisor: đối xứng; AI xử lý tầng escalation đầu, lọc trước khi đến người là pattern mặc định của template).
-- Vì là Task nên tự có Gate, SLA, budget, provenance — **chain tự cascade**: escalation task quá hạn thì tự escalate tiếp lên nấc sau. Không cần cơ chế riêng.
-- Chain khai báo trên Role, override được ở Task/Gate. Terminal handler: engine ép tồn tại; ở n=1 terminal là chính người đó với policy `nudge → hold` (mặc định template) (nhắc theo nhịp, giữ nguyên trạng — nhất quán Checkpoint: **không bao giờ auto-pass vì bế tắc**, đặc biệt trước irreversible effect).
+Each escalation creates **a real Task** assigned to a handler, and the handler is
+a **Role** — a person or an AI supervisor, symmetrically. An AI handling the
+first escalation tier and filtering before anything reaches a person is the
+default template pattern.
 
-## 4. Hành động của handler — mọi hành động đều có dấu vết
+Because it is a Task, it has its own Gate, SLA, budget and provenance for free,
+and **the chain cascades by itself**: an escalation task that runs past its
+deadline escalates to the next rung. No separate mechanism is needed, which is
+the whole reason for making it a Task rather than a notification.
 
-| Hành động             | Cơ chế ghi nhận                                                                                                                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reassign`            | Attempt mới, Filler/Role khác (Task §4)                                                                                                                                                      |
-| `retry_with_guidance` | Attempt mới + feedback của handler                                                                                                                                                           |
-| `adjust`              | Sửa tham số (deadline, budget, threshold) — event log                                                                                                                                        |
-| `override_gate`       | Cho qua Gate đang chặn — **bắt buộc sinh Judgment `basis: override`** kèm lý do: người override chịu trách nhiệm bằng chữ ký dữ liệu, và calibration học được cả chất lượng của các override |
-| `absorb`              | Chấp nhận rủi ro, đóng escalation kèm lý do — audit trail                                                                                                                                    |
-| `halt_compensate`     | Kích hoạt unwind (Handoff §8)                                                                                                                                                                |
-| `restructure`         | Handler có `spawn_task`: đẻ task mới thay thế đoạn hỏng — sửa quy trình đang chạy bằng chính cơ chế spawning                                                                                 |
+The chain is declared on the Role and can be overridden at Task or Gate. The
+engine forces a terminal handler to exist. At n=1 the terminal is that same
+person, with the policy `nudge → hold` as the template default: remind on a
+rhythm, change nothing. Consistent with Checkpoint — **never auto-pass because of
+a deadlock**, least of all ahead of an irreversible effect.
 
-Quyền dùng từng hành động = capability của Role handler (`override_gate` là capability riêng, không mặc định).
+## 4. What a handler can do, and how each is recorded
+
+| Action                | How it is recorded                                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reassign`            | A new Attempt, with a different Filler or Role (Task §4)                                                                                                                                                        |
+| `retry_with_guidance` | A new Attempt plus the handler's feedback                                                                                                                                                                       |
+| `adjust`              | Change a parameter — deadline, budget, threshold — into the event log                                                                                                                                           |
+| `override_gate`       | Pass a blocking Gate. **Must produce a Judgment with `basis: override`** and a reason: the person overriding takes responsibility with a signature in data, and calibration learns the quality of overrides too |
+| `absorb`              | Accept the risk and close the escalation with a reason — an audit trail                                                                                                                                         |
+| `halt_compensate`     | Trigger the unwind (Handoff §8)                                                                                                                                                                                 |
+| `restructure`         | A handler holding `spawn_task` creates new tasks to replace the broken stretch — repairing a running process with the spawning mechanism the system already has                                                 |
+
+Which of these a handler may use is a capability of their Role. `override_gate`
+is a capability of its own and is never granted by default.
 
 ## 5. Storm control
 
-- **Dedup**: cùng (trigger, nguồn) đang mở → không sinh escalation trùng, chỉ tăng đếm.
-- **Correlation**: engine gộp escalation cùng root cause (một model sập → 50 task fail = **một** escalation gộp, không phải 50). Tham số cửa sổ gộp: engine ép tồn tại, template cấp giá trị.
-- **Ưu tiên chú ý**: hàng đợi escalation đến người xếp theo (irreversibility của nhánh, priority, tuổi) — tài nguyên chú ý là thứ được tối ưu, đúng invariant.
+**Dedup**: while an escalation for the same (trigger, source) is open, no
+duplicate is created; a counter increments.
 
-## 6. Escalation là dữ liệu học
+**Correlation**: the engine merges escalations sharing a root cause. One model
+outage failing fifty tasks produces **one** escalation, not fifty. The merge
+window is a parameter the engine forces to exist and a template supplies.
 
-- Mọi escalation đóng lại đều ghi (trigger, đường đi, hành động chốt, thời gian, kết cục) — **process smell detector** của tầng Intelligence: cùng một chỗ escalate lặp lại = quy trình có lỗi thiết kế, đề xuất sửa nằm ở đây (đúng tham vọng ML ban đầu của bạn, giờ có nguồn dữ liệu cụ thể).
-- Override bị outcome xấu lan ngược (Handoff §9) → calibration của người hay override ẩu cũng sụt — trách nhiệm đối xứng trọn vẹn.
+**Attention priority**: the queue reaching a person is ordered by the
+irreversibility of the branch, priority and age. Attention is the resource being
+optimised, which is the invariant rather than a nicety.
+
+## 6. Escalation is training data
+
+Every closed escalation records its trigger, path, closing action, duration and
+outcome. That record is the **process-smell detector** of the Intelligence layer:
+escalating repeatedly at the same point means the process has a design fault, and
+this is where the proposal to fix it comes from.
+
+An override followed by a bad outcome propagates backwards (Handoff §9), so the
+calibration of someone who overrides carelessly falls too. Responsibility is
+symmetric all the way through — including for the people holding the authority.
 
 ## 7. Duality
 
-| Khía cạnh        | Deterministic                            | Reasoning / người                                        |
-| ---------------- | ---------------------------------------- | -------------------------------------------------------- |
-| Trigger chủ đạo  | budget, repeated_failure, unwind_blocked | low_confidence, assistance_request, conflict, sla_breach |
-| Handler tầng đầu | Retry/fallback máy móc                   | AI supervisor lọc trước người                            |
-| Absorb/override  | Hiếm (fail là fail)                      | Thường — và luôn có chữ ký Judgment                      |
+| Aspect             | Deterministic                                  | Reasoning / human                                                |
+| ------------------ | ---------------------------------------------- | ---------------------------------------------------------------- |
+| Dominant triggers  | `budget`, `repeated_failure`, `unwind_blocked` | `low_confidence`, `assistance_request`, `conflict`, `sla_breach` |
+| First-tier handler | Mechanical retry and fallback                  | An AI supervisor filtering ahead of a person                     |
+| Absorb / override  | Rare — a failure is a failure                  | Common, and always carrying a Judgment signature                 |
 
 ## 8. Non-goals
 
-- Escalation không đánh giá chất lượng (Checkpoint) và không định nghĩa ai đủ năng lực xử lý (Role) — chỉ định nghĩa _đường đi khi lệch chuẩn_.
-- Không có "notification" tách rời — thông báo chỉ là surface rendering của escalation task, không phải hệ thống song song.
+- Escalation does not assess quality (Checkpoint) and does not define who is
+  competent to handle something (Role). It defines only _the path taken when
+  things deviate_.
+- There is no separate notification system. A notification is a surface rendering
+  of an escalation task — a parallel system would be a second place for the state
+  of an escalation to live.
 
-## 9. Nhật ký quyết định
+## 9. Decisions
 
-| Vấn đề                      | Chốt                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------------------- |
-| Bản chất                    | Escalation = Task gán cho handler Role → chain tự cascade, đối xứng người/AI                |
-| Kẹt im lặng                 | Không tồn tại: terminal handler bắt buộc toàn hệ thống                                      |
-| n=1 offline                 | nudge → hold; không bao giờ auto-pass vì bế tắc                                             |
-| Agent kẹt                   | `assistance_request` hạng nhất, được thưởng trong calibration                               |
-| Override                    | Bắt buộc sinh Judgment `basis: override` — chịu trách nhiệm bằng dữ liệu, outcome lan ngược |
-| Storm                       | Dedup + correlation gộp theo root cause + hàng đợi ưu tiên chú ý                            |
-| ML đề xuất tối ưu quy trình | Nguồn dữ liệu chính là escalation log (process smell)                                       |
+| Question                          | Settled                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| What it is                        | A Task assigned to a handler Role, so the chain cascades and human/AI stay symmetric             |
+| Silent deadlock                   | Does not exist: a terminal handler is mandatory system-wide                                      |
+| n=1, offline                      | `nudge → hold`; never auto-pass because of a deadlock                                            |
+| A stuck agent                     | `assistance_request` is first-class and rewarded in calibration                                  |
+| Override                          | Must produce a Judgment with `basis: override` — responsibility in data, outcome propagates back |
+| Storms                            | Dedup plus correlation by root cause, plus an attention-priority queue                           |
+| ML proposing process improvements | The escalation log is the primary data source — the process smell                                |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Storm 50 task cùng nguyên nhân → đúng 1 escalation nhờ correlation window?
-2. Mọi chain đều có terminal handler — không tồn tại đáy rỗng ở bất kỳ cấu hình nào?
-3. Override luôn là Judgment có chữ ký, xuất hiện trong calibration?
+1. A storm of fifty tasks from one cause — does the correlation window yield
+   exactly one escalation?
+2. Does every chain have a terminal handler, with no empty bottom in any
+   configuration?
+3. Is an override always a signed Judgment, and does it appear in calibration?

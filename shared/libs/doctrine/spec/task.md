@@ -1,87 +1,151 @@
 ---
-title: "Ecoma Primitive Spec: Task"
+title: "Primitive: Task"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Primitive Spec: Task
+# Primitive: Task
 
-## 1. Định nghĩa
+## 1. Definition
 
-Task là **một instance việc gán cho một Role**: tiêu thụ artifact vào (qua Handoff), sản xuất artifact ra (theo Contract), đi qua Gate (Checkpoint), khai báo Effect (Handoff §8).
+A Task is **one instance of work assigned to a Role**: it consumes incoming
+artifacts through a Handoff, produces outgoing artifacts against a Contract,
+passes a Gate (Checkpoint), and declares its Effects (Handoff §8).
 
-## 2. Cấu trúc
+## 2. Structure
 
-| Trường                        | Nội dung                                                                                                                                                            | Bắt buộc                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `role`                        | Role đảm nhiệm                                                                                                                                                      | ✅                                |
-| `inputs` / `output_contract`  | Handoff vào / Contract ra (pin version)                                                                                                                             | ✅                                |
-| `gate`                        | Gate của Checkpoint                                                                                                                                                 | ✅ (tối thiểu auto-pass, vẫn log) |
-| `effects`                     | External effects + lớp reversibility + compensation                                                                                                                 | ✅ (có thể ∅)                     |
-| `budget` / `sla` / `priority` | Engine ép tồn tại; giá trị resolve theo **default cascade** `tenant → template → process → role → task` (Composition spec §3) — flow 20 bước không phải khai 20 lần | ✅                                |
-| `idempotency_key`             | Cho retry an toàn với task có effect                                                                                                                                | ✅ nếu effects ≠ ∅                |
-| `spawn_policy`                | Quyền và giới hạn đẻ subtask (§5)                                                                                                                                   | ✅ (mặc định: cấm)                |
+| Field                         | Content                                                                                                                                                                                           | Required                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `role`                        | The Role that carries it                                                                                                                                                                          | ✅                                      |
+| `inputs` / `output_contract`  | Incoming Handoff and outgoing Contract, version-pinned                                                                                                                                            | ✅                                      |
+| `gate`                        | The Checkpoint's Gate                                                                                                                                                                             | ✅ — at minimum auto-pass, still logged |
+| `effects`                     | External effects with their reversibility class and compensation                                                                                                                                  | ✅ — may be empty                       |
+| `budget` / `sla` / `priority` | The engine forces these to exist; values resolve through the **default cascade** `tenant → template → process → role → task` (Composition §3), so a twenty-step flow is not declared twenty times | ✅                                      |
+| `idempotency_key`             | For safe retry of a task with effects                                                                                                                                                             | ✅ when effects are non-empty           |
+| `spawn_policy`                | The right to create subtasks, and its limits (§5)                                                                                                                                                 | ✅ — default: forbidden                 |
 
-## 3. Vòng đời — durable ở mọi trạng thái
+## 3. Lifecycle — durable in every state
 
 ```
 created → assigned(filler) → in_progress → produced → gated → done
- ↘ suspended ⇄ (resume) ↘ failed → on_fail (Checkpoint §5)
+        ↘ suspended ⇄ (resume)          ↘ failed → on_fail (Checkpoint §5)
 ```
 
-- Mọi trạng thái sống qua restart/deploy/tuần lễ — task người treo 2 tuần là bình thường, không phải exception. Trạng thái sống trong engine, không trong đầu người (điều kiện đảo chiều n=1 đã bàn).
-- `assigned` ghi **filler identity đầy đủ** — provenance và calibration cần nó.
-- Cancel ở bất kỳ trạng thái nào → kích hoạt unwind theo Handoff §8 nếu effect đã chạy.
+Every state survives a restart, a deploy, a week. A human task sitting for a
+fortnight is normal rather than exceptional, and the state lives in the engine
+rather than in someone's head — which is the condition that makes the n=1 case
+work at all.
 
-## 4. Attempt — entity hạng nhất
+`assigned` records the **full filler identity**, because provenance and
+calibration both need it.
 
-- Mỗi lượt thực thi là một **Attempt**: (filler identity, feedback nhận vào, artifact ra, judgment, cost, thời gian).
-- Retry (Checkpoint on_fail) = Attempt mới **mang feedback có cấu trúc của Attempt trước** — retry mù bị cơ chế loại trừ.
-- Reroute = Attempt mới với Filler/Role khác, cùng task id — lịch sử "AI thử 2 lần fail, người làm được" nằm nguyên trong một Task, là nhãn so sánh quý nhất cho calibration.
-- Toàn bộ Attempt nằm trong provenance của artifact cuối.
+Cancelling from any state triggers the unwind in Handoff §8 if effects have
+already run.
 
-## 5. Dynamic spawning — cơ chế hợp nhất deterministic/reasoning
+## 4. Attempt — a first-class entity
 
-Đây là quyết định kiến trúc quan trọng nhất của spec này:
+Each execution is an **Attempt**: filler identity, feedback received, artifact
+produced, judgment, cost, duration.
 
-- **Quy trình deterministic** = đồ thị task **khai báo trước toàn bộ** (như n8n).
-- **Quy trình reasoning** = Filler (agent hoặc người) có capability `spawn_task` được **đẻ subtask lúc runtime**: tự phân rã việc, tự chọn nhánh — "rẽ nhánh phi định trước" mà BPMN không có.
-- Subtask là **Task thật**: có Role, Gate, Handoff, budget riêng — không phải tool-call vô hình trong đầu agent. Reasoning của agent trở nên **nhìn thấy được, kiểm được, escalate được** bằng đúng bộ máy đang kiểm mọi thứ khác.
-- **Rails (nguyên tắc #4 — phức tạp là lựa chọn của user):** `spawn_policy` khai báo: tập Role được phép gán, độ sâu tối đa, trần budget tích lũy, effect được phép (mặc định: subtask không được có irreversible effect trừ khi cho phép tường minh). Engine ép policy tồn tại; template cấp giá trị từ chặt đến mở.
-- **Ranh giới "hành vi bên trong filler" vs Task** (đóng lỗ tool-call): một bước nội bộ của agent filler — gọi tool, truy hồi, suy luận nhiều lượt — là **hành vi bên trong filler**, ghi **sub-actor** trong provenance (y hệt chuyển giao script⇄agent⇄người bên RPA, RPA North Star §5), **không** phải Task. Hai biên cứng không thương lượng: (1) **mọi tác động ra ngoài hệ là Effect khai báo của Task** (Handoff §8) — không side-effect nào lọt qua đường tool-call, và effect không phân lớp = irreversible; (2) **mọi lao động cần Role/Gate/calibration riêng phải là Task** (`spawn_task`) — không được giấu lao động vào trong filler để né Gate. Tool đọc-thuần chỉ chạm được tri thức/hồi ức trong **grant của Role** (Knowledge §2, Memory §4). Hệ quả: giao thức tool bên ngoài (MCP và tương đương) là **công nghệ của agent runtime — một adapter có identity + version**, không phải giao diện thứ ba của hệ.
-- Hệ quả seamless: một flow trộn tự nhiên — bước 1-3 tĩnh, bước 4 là agent tự đẻ 7 subtask (2 cái gán cho người!), bước 5 tĩnh tiếp. Cùng event log, cùng cơ chế quan sát, không có ranh giới hệ thống nào giữa hai "chế độ". Agent đẻ subtask gán cho người = **AI điều phối người** — đối xứng trọn vẹn, và là điều không hệ thống nào hiện nay có.
+A retry (Checkpoint `on_fail`) is a new Attempt **carrying the structured
+feedback of the previous one**. Blind retry is excluded by the mechanism rather
+than discouraged by convention — there is no shape for it.
+
+A reroute is a new Attempt with a different Filler or Role under the same task
+id. The history "AI tried twice and failed, a person succeeded" therefore stays
+inside one Task, which makes it the most valuable comparison label calibration
+has.
+
+Every Attempt is part of the final artifact's provenance.
+
+## 5. Dynamic spawning — where deterministic and reasoning meet
+
+This is the most consequential architectural decision in this specification.
+
+A **deterministic process** is a task graph **declared in full up front**, the way
+a conventional workflow engine works.
+
+A **reasoning process** is a Filler — agent or person — holding the `spawn_task`
+capability, **creating subtasks at runtime**: decomposing the work itself,
+choosing its own branch. That is the un-predeclared branching BPMN has no way to
+express.
+
+A subtask is **a real Task**: its own Role, Gate, Handoff and budget. It is not
+an invisible tool call inside an agent's head. The consequence is the point — an
+agent's reasoning becomes **visible, checkable and escalatable** by exactly the
+machinery already checking everything else, rather than by a second observability
+story built for agents.
+
+**Rails** (principle #4 — complexity is the user's choice): `spawn_policy`
+declares the Roles that may be assigned, the maximum depth, the cumulative budget
+ceiling, and the permitted effects — by default a subtask may hold no irreversible
+effect unless explicitly allowed. The engine forces the policy to exist; a
+template supplies values anywhere from strict to open.
+
+**The boundary between behaviour inside a filler and a Task** closes the tool-call
+hole. An internal step of an agent filler — calling a tool, retrieving, reasoning
+across several turns — is **behaviour inside the filler**, recorded as a
+**sub-actor** in provenance, exactly as a script-to-agent-to-person handover is on
+the RPA side (RPA North Star §5). It is **not** a Task. Two hard boundaries are
+not negotiable:
+
+1. **Every effect on the outside world is a declared Effect of a Task** (Handoff
+   §8). No side effect slips through as a tool call, and an unclassified effect
+   is irreversible.
+2. **Every piece of labour needing its own Role, Gate or calibration must be a
+   Task** (`spawn_task`). Labour may not be hidden inside a filler to dodge a
+   Gate.
+
+A read-only tool may reach only the knowledge and memory within the Role's grant
+(Knowledge §2, Memory §4). It follows that an external tool protocol — MCP and
+its equivalents — is **technology of the agent runtime, an adapter with an
+identity and a version**, and not a third interface of the system.
+
+The result is a flow that mixes without a seam: steps 1–3 static, step 4 an agent
+spawning seven subtasks — two of them assigned to people — step 5 static again.
+One event log, one observability mechanism, no system boundary between the two
+"modes". An agent spawning a subtask assigned to a person is **AI coordinating
+human labour**, which is what full symmetry buys and what no system on the market
+currently has.
 
 ## 6. Duality
 
-Task RPA không phải loại task riêng: là Task thường với filler từ Ecoma RPA (sản phẩm riêng) + **session effect** (Handoff §8) — action log là provenance, commit point tính theo action.
+An RPA task is not a separate kind of task: it is an ordinary Task whose filler
+comes from Ecoma RPA, carrying a **session effect** (Handoff §8) — the action log
+is its provenance, and the commit point is counted in actions.
 
-| Khía cạnh | Deterministic            | Reasoning / người               |
-| --------- | ------------------------ | ------------------------------- |
-| Đồ thị    | Khai báo trước 100%      | Mọc runtime trong rails         |
-| Retry     | Idempotency key, máy móc | Attempt + feedback              |
-| Gate      | Thường auto-pass + log   | Đầy đủ theo calibration         |
-| Surface   | Vô hình (chạy nền)       | Inbox (người) / runtime (agent) |
+| Aspect  | Deterministic                        | Reasoning / human                        |
+| ------- | ------------------------------------ | ---------------------------------------- |
+| Graph   | 100% declared up front               | Grown at runtime inside rails            |
+| Retry   | Idempotency key, mechanical          | Attempt plus feedback                    |
+| Gate    | Usually auto-pass plus a log         | Full, according to calibration           |
+| Surface | Invisible, running in the background | Inbox for a person, runtime for an agent |
 
 ## 7. Non-goals
 
-- Task không định nghĩa năng lực (Role), không định nghĩa contract (Handoff), không đánh giá (Checkpoint).
-- Không có task "ngoài luồng": mọi việc hệ thống biết đến đều là Task — kể cả việc vận hành (coercion, merge, distill, arbitrate, compensate, migrate).
+- A Task does not define competence (Role), does not define a contract (Handoff),
+  and does not assess quality (Checkpoint).
+- There is no such thing as work outside the flow. Everything the system knows
+  about is a Task, including its own operational work — coercion, merge, distill,
+  arbitrate, compensate, migrate.
 
-## 8. Nhật ký quyết định
+## 8. Decisions
 
-| Vấn đề                     | Chốt                                                                                                                                          |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Retry semantics            | Attempt là entity hạng nhất, retry luôn mang feedback                                                                                         |
-| Deterministic vs reasoning | Một cơ chế: đồ thị khai báo trước vs mọc runtime qua `spawn_task` trong rails                                                                 |
-| Subtask của agent          | Task thật, kiểm được — không phải tool-call vô hình                                                                                           |
-| AI điều phối người         | Hợp lệ mặc nhiên nhờ đối xứng (agent spawn task gán Role người lấp)                                                                           |
-| Tool-call của agent        | Hành vi bên trong filler (sub-actor), **không** phải Task — nhưng mọi tác động ra ngoài vẫn phải là Effect khai báo; tool protocol là adapter |
-| Idempotency                | Bắt buộc khi có effect                                                                                                                        |
-| Trạng thái                 | Durable mọi trạng thái, suspended nhiều tuần là first-class                                                                                   |
+| Question                   | Settled                                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retry semantics            | Attempt is a first-class entity; a retry always carries feedback                                                                               |
+| Deterministic vs reasoning | One mechanism: a graph declared up front, or grown at runtime via `spawn_task` inside rails                                                    |
+| An agent's subtask         | A real, checkable Task — not an invisible tool call                                                                                            |
+| AI coordinating people     | Valid by construction, out of symmetry: an agent spawns a task whose Role a person fills                                                       |
+| An agent's tool call       | Behaviour inside the filler (sub-actor), **not** a Task — but every outward effect is still a declared Effect; the tool protocol is an adapter |
+| Idempotency                | Mandatory wherever there are effects                                                                                                           |
+| State                      | Durable in every state; suspended for weeks is first-class                                                                                     |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Attempt N+1 luôn nhìn thấy feedback của Attempt N?
-2. Dynamic spawning chạm trần budget/depth → dừng + escalate, không im lặng?
-3. Re-run task có external effect — idempotency key chặn effect đôi?
-4. Tool-call nội bộ của agent có đường nào tạo tác động ra ngoài mà Task không khai Effect, hoặc chạm dữ liệu ngoài grant của Role?
+1. Does Attempt N+1 always see Attempt N's feedback?
+2. When dynamic spawning hits the budget or depth ceiling, does it stop and
+   escalate rather than fail silently?
+3. Re-running a task with an external effect — does the idempotency key prevent a
+   doubled effect?
+4. Is there any path by which an agent's internal tool call produces an outward
+   effect the Task did not declare, or touches data outside the Role's grant?
