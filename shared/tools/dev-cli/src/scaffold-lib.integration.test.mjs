@@ -67,6 +67,34 @@ describe("scaffold-lib against the real filesystem", () => {
     expect(existsSync("shared/libs/my-thing/src/index.ts")).toBe(true);
   });
 
+  // The emitted seam and the gate that demands it closed are two halves of one
+  // contract, and only a real scaffold judged by the real gate pins that they
+  // still fit: a template that stopped reading the shared floor, or a gate that
+  // stopped recognizing the shape the template writes, passes every unit test
+  // on both sides.
+  it("the emitted vitest seam is exactly what the gate demands closed once a test file lands", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(scaffoldLib(["my-thing", "--subsystem", "shared", "--layer", "domain"])).toBe(0);
+    expect(gateFailures(repo)).toEqual([]);
+
+    const config = join(repo, "shared/libs/my-thing/vitest.config.ts");
+    writeFileSync(join(repo, "shared/libs/my-thing/src/thing.test.ts"), "export {};\n");
+    expect(gateFailures(repo)).toEqual([
+      expect.stringContaining("keeps 'passWithNoTests: true'"),
+      expect.stringContaining("does not hold the workspace coverage floor"),
+    ]);
+
+    // Closing both halves the way the emitted comment instructs is what makes
+    // it green again — nothing else about the scaffold has to change.
+    writeFileSync(
+      config,
+      readFileSync(config, "utf8")
+        .replace(/^ *passWithNoTests: true,\n/m, "")
+        .replace("enabled: false", "enabled: true"),
+    );
+    expect(gateFailures(repo)).toEqual([]);
+  });
+
   it("second run with the same name fails loudly instead of overwriting", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});

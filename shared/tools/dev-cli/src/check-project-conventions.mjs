@@ -28,6 +28,12 @@
  *  - **manifest licence ↔ path** — every `package.json` declares the terms its
  *    path implies. npm has no field that means "ask the tree", so a manifest
  *    with no `license` reads as unlicensed to every tool that looks.
+ *  - **vitest reserved seam closes when tests arrive** — a project with test
+ *    files may no longer keep `passWithNoTests`, and its config must hold the
+ *    workspace coverage floor. Both halves are scaffold seams that exist only
+ *    while a project has no tests, and each fails silently by turning green:
+ *    the flag keeps the target passing after every test is deleted, and a
+ *    config that never reads the floor reports coverage nobody set a bar for.
  *  - **lib alias ↔ manifest pairing** — every `@ecoma-io/<x>` base alias in
  *    `tsconfig.base.json` points at a tracked file inside a project whose
  *    `package.json` carries that exact name, `private: true`, and no
@@ -58,7 +64,11 @@ import {
   licenseForPath,
 } from "./license-scope.mjs";
 
-import { PYTEST_EMPTY_SUITE_MASK } from "./scaffold-lib.mjs";
+import {
+  COVERAGE_CONFIG_FILE,
+  PYTEST_EMPTY_SUITE_MASK,
+  VITEST_EMPTY_SUITE_FLAG,
+} from "./scaffold-lib.mjs";
 
 const BASE_ALIAS_RE = /^@ecoma-io\/[^/]+$/;
 // Both suffix spellings the test taxonomy uses: `Foo.e2e.test.ts` (TS) and
@@ -69,6 +79,19 @@ const BASE_ALIAS_RE = /^@ecoma-io\/[^/]+$/;
 // so a co-located Rust e2e test is invisible here and stays on review.
 const E2E_FILE_RE = /(\.e2e\.test|(?:^|[/_])e2e_test)\.[^/.]+$/;
 const PYTHON_TEST_FILE_RE = /(?:^|\/)[^/]*_test\.py$/;
+const VITEST_CONFIG_RE = /(?:^|\/)vitest\.config\.[cm]?[jt]s$/;
+// Both TS/JS tiers: `Foo.test.ts` and `foo.integration.test.mjs` alike end in
+// the same `.test.<ext>` the vitest configs include.
+const JS_TEST_FILE_RE = /\.test\.[cm]?[jt]sx?$/;
+// Matched against the flag's ASSIGNMENT, not a mention of its name: the seam
+// comment the scaffold emits names the flag in prose, and a gate that fired on
+// the explanation of the rule would be unfixable without deleting the
+// explanation.
+const VITEST_EMPTY_SUITE_ASSIGNMENT_RE = new RegExp(`${VITEST_EMPTY_SUITE_FLAG}\\s*:\\s*true`);
+const COVERAGE_ENABLED_RE = /\benabled\s*:\s*true\b/;
+// A per-metric number in a project's own config is an override — importing the
+// shared floor and then restating one metric reads as compliant and is not.
+const COVERAGE_METRIC_LITERAL_RE = /\b(?:lines|functions|branches|statements)\s*:\s*\d/;
 
 const parseOrNull = (text) => {
   try {
@@ -237,6 +260,43 @@ export function findConventionViolations(trackedFiles, readFile) {
       violations.push(
         `${conftest}: masks pytest's ${PYTEST_EMPTY_SUITE_MASK} but ${p.root} now has tests — ` +
           `delete the mask, or a regression that collects nothing reports green`,
+      );
+    }
+  }
+
+  // The vitest twin of the conftest rule above, keyed the same way — on the
+  // project having tests, because both halves are legitimate until then. A
+  // scaffold ships `passWithNoTests` so the gate passes against no tests, and
+  // coverage off so a floor is not measured against none; once test files
+  // exist, the flag turns "every test deleted" into a pass and disabled
+  // coverage leaves the project below a floor it never measures. Neither
+  // failure is loud, which is why removal is enforced rather than remembered.
+  for (const p of projects) {
+    const configPath = trackedFiles.find(
+      (f) => f.startsWith(`${p.root}/`) && VITEST_CONFIG_RE.test(f.slice(p.root.length)),
+    );
+    if (!configPath) continue;
+    const hasTests = trackedFiles.some(
+      (f) => f.startsWith(`${p.root}/`) && JS_TEST_FILE_RE.test(f),
+    );
+    if (!hasTests) continue;
+    const config = readFile(configPath) ?? "";
+    if (VITEST_EMPTY_SUITE_ASSIGNMENT_RE.test(config)) {
+      violations.push(
+        `${configPath}: keeps '${VITEST_EMPTY_SUITE_FLAG}: true' but ${p.root} now has tests — ` +
+          `delete it, or deleting every test file still reports green`,
+      );
+    }
+    if (
+      !config.includes(COVERAGE_CONFIG_FILE) ||
+      !COVERAGE_ENABLED_RE.test(config) ||
+      COVERAGE_METRIC_LITERAL_RE.test(config)
+    ) {
+      violations.push(
+        `${configPath}: ${p.root} has tests but this config does not hold the workspace ` +
+          `coverage floor — it must read 'thresholds' from the repo-root ${COVERAGE_CONFIG_FILE}, ` +
+          `set coverage 'enabled: true', and declare no per-metric number of its own ` +
+          `(a local number overrides the shared floor while still looking compliant)`,
       );
     }
   }

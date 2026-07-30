@@ -124,15 +124,41 @@ const tsconfigJson = JSON.stringify(
   2,
 );
 
-const vitestConfig = `import { defineConfig } from "vitest/config";
+// The two halves of the vitest reserved seam, and the one place each is
+// spelled. `check-project-conventions` requires both closed the moment a
+// project has test files, so the gate and the template must agree on the flag's
+// name and on where the floor is read from (Rule 14) — the same contract
+// `PYTEST_EMPTY_SUITE_MASK` below carries for pytest.
+export const VITEST_EMPTY_SUITE_FLAG = "passWithNoTests";
+export const COVERAGE_CONFIG_FILE = "coverage.config.json";
+
+const vitestConfig = `import { createRequire } from "node:module";
+
+import { defineConfig } from "vitest/config";
+
+// The floor is a workspace value, not this project's — the repo-root
+// \`${COVERAGE_CONFIG_FILE}\` says why it lives there and who else reads it.
+// \`createRequire\` rather than a static relative import: the file sits outside
+// this Nx project, so a relative import is an edge the project graph cannot see.
+const { thresholds } = createRequire(import.meta.url)("../../../${COVERAGE_CONFIG_FILE}");
 
 export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // Reserved seam: a fresh scaffold ships no tests, and the affected gate
-    // must stay green from the first commit. Remove this once real tests land.
-    passWithNoTests: true,
+    // Reserved seam, both halves: a fresh scaffold ships no tests, so the
+    // affected gate must stay green against none, and a floor measured against
+    // none would fail on the first commit. Delete the empty-suite flag and turn
+    // coverage on once real tests land — \`check-project-conventions\` requires
+    // exactly that from the first test file, so neither half can be forgotten.
+    ${VITEST_EMPTY_SUITE_FLAG}: true,
+    coverage: {
+      provider: "v8",
+      enabled: false,
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts"],
+      thresholds,
+    },
   },
 });
 `;
