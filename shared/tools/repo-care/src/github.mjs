@@ -92,6 +92,21 @@ export function githubClient({
       }
       return null;
     },
+    // Every issue, open and closed: an id that stopped existing is just as
+    // wrong on a closed card, and the audit reads state rather than acting.
+    listIssues: async () => {
+      const all = [];
+      for (let page = 1; page <= 10; page += 1) {
+        const batch = await request(
+          "GET",
+          `/repos/${repo}/issues?state=all&per_page=100&page=${page}`,
+        );
+        all.push(...batch);
+        if (batch.length < 100) return all;
+      }
+      console.error(`listIssues: stopped after 1000 issues — the audit covers a partial tracker`);
+      return all;
+    },
     // One page of 100 covers this repo's label vocabulary many times over.
     listLabels: () => request("GET", `/repos/${repo}/labels?per_page=100`),
     createLabel: ({ name, color, description }) =>

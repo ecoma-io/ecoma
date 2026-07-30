@@ -229,6 +229,28 @@ practice review, thread translation) from GitHub Actions.
     and the fixed prose are this tool's own text and must survive verbatim;
     `REVIEW_MARKER` in particular is what the next run's `startsWith` lookup
     anchors on.
+- **`audit-roadmap-labels` holds the board half of the roadmap's §0 two-way
+  law** — every card traces to an id — which `dev-cli check-roadmap-ids` cannot
+  see, because the drift is not in the file: rename an id in the document and
+  the stale label on an issue still looks ordinary from inside the roadmap.
+  **The board it audits is the label scheme**, and that is a finding rather than
+  a shortcut — no Projects v2 board exists, while `roadmap:`/`track:`/`gate:`/
+  `milestone:` labels do, so this reads the board that is real. The vocabulary
+  comes from **spawning `dev-cli list-roadmap-ids --json`**, never a restated
+  copy: that command derives it from §6b, §1b and §4 with the same functions the
+  file-half gate judges against, and a cross-project source import would be an
+  edge the Nx graph cannot see — the same seam `group-files` already uses, and
+  covered by the same `implicitDependencies: ["dev-cli"]`. Both the dev-cli path
+  and the repo root are resolved from this module's own location, because the
+  spawned command reads the roadmap through a repo-relative path and a workflow's
+  working directory is not something to rely on. It is **read-only**: an id that
+  carries no card is reported and never failed (most ids are work nobody has
+  opened a card for, and a plan ahead of its cards is the normal state), while a
+  card naming an id the roadmap does not define exits 1. Relabelling stays human
+  — deciding which id renamed work moved to is a judgment, and a wrong guess
+  silently rewrites the project's record of what was decided. It is the one
+  repo-care command with no model in it at all, which is why nothing here
+  mentions a quorum: the whole judgment is set membership (Rule 5).
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
   `GET /issues/{n}`, same comments endpoint) and the only difference is which
@@ -253,9 +275,11 @@ practice review, thread translation) from GitHub Actions.
   `.github/workflows/pr-practice-review.yml` (non-draft PR
   opened/reopened/synchronize/ready_for_review),
   `.github/workflows/translate-issue.yml` (issue opened/edited +
-  `workflow_dispatch` for backfill), and
+  `workflow_dispatch` for backfill),
   `.github/workflows/translate-pr.yml` (PR opened/edited +
-  `workflow_dispatch` for backfill) with the ambient
+  `workflow_dispatch` for backfill), and
+  `.github/workflows/roadmap-label-audit.yml` (weekly +
+  `workflow_dispatch`) with the ambient
   `GITHUB_TOKEN`; runs on bare `node` — keep this tool dependency-free so
   the workflows need no `pnpm install`. Both PR-side jobs use
   `pull_request_target` because a fork PR's `pull_request` token is read-only
