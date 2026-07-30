@@ -1,12 +1,10 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: f53e17910fbb
+canonical-sha: f706253a90cc
 ---
 
 # Ecoma — Mục lục hồ sơ End State
-
->
 
 ## Thứ tự đọc đề xuất
 
@@ -49,7 +47,6 @@ canonical-sha: f53e17910fbb
 | sổ thị trường (không công bố)                               | **SỐNG — kinh doanh** (+§9 sổ cược B1–B8 **đã chốt**) (bet + phương pháp phỏng vấn + log; đổi theo bằng chứng, không theo vòng đóng băng; **B4 là nguồn duy nhất của ngưỡng Marketplace** — roadmap trỏ về, không ghi đôi)                                                                         |
 | playbook funnel (không công bố)                             | **System Charter** — area `website/` (mặt tiền + growth; phân loại mạnh vs Hub; URL topology + render §3b; `/design`; support chatbot)                                                                                                                                                             |
 | [deploy](../charter/deploy.md)                              | **System Charter** — deploy/operate/backup/upgrade/rollback/sunset; ranh giới 3 phân vùng; 4 nghĩa vụ khóa-DR từ                                                                                                                                                                                   |
-| kế hoạch di cư (không công bố)                              | **SỐNG — xương sống cuộc di cư tài liệu vào repo** (7 quyết định, 7 giai đoạn, 8 PR)                                                                                                                                                                                                               |
 | playbook giao hàng (không công bố)                          | **System Charter** — engineering & delivery (trunk-based + merge queue, CI 3 tầng, §5b AI-PR, §5c ADR _(tạm trú adr-ledger)_, §5d DDD/Clean, publish-qua-Hub, **mirror một chiều `cloud/` + đường contributor**)                                                                                   |
 | [rpa](../north-star/rpa.md)                                 | RPA                                                                                                                                                                                                                                                                                                |
 | [rpa-action](../spec/rpa-action.md)                         | RPA                                                                                                                                                                                                                                                                                                |
@@ -71,31 +68,29 @@ Ranh giới: Platform↔RPA = 2 giao diện runtime (Filler + Session effect)
 
 ## Known-gaps (tự khai — không phải thiếu sót)
 
-| Gap | Loại | Ghi chú |
-| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Tenant & Identity model | ✅ **ĐÃ CHỐT ** | [tenant-identity](../spec/tenant-identity.md) — trả trọn danh xưng nợ; SSO/PII-vault là extension point EE |
-| **ICP & vertical đầu tiên** | Kinh doanh | Giả thuyết mạnh nhất: Beachhead = agency dịch vụ số 5–50 người / content ops; Wedge = solo + RPA standalone; Expansion = chuỗi pin + Hub long-tail. **Chưa xác nhận** — kill-criteria, phương pháp, cây câu hỏi và log: **sổ thị trường (không công bố)** |
-| Review luật sư | Pháp lý | SUL + CLA + EULA marketplace, một lần trước contributor đầu tiên |
-| Calibration data model | ✅ **ĐÃ CHỐT ** | [calibration](../spec/calibration.md) — CalKey 7 chiều (subject-kind mở, workspace mặc định hẹp nhất), lineage+time-decay, **estimator identity** |
-| Human Surface mechanisms | ✅ **ĐÃ CHỐT ** | [human-surface](../spec/human-surface.md) — Work Surface: Work/Action Item, My-Work/Org-Work; ◆G4 = freeze projection read-API. |
-| Vault dùng chung (tầng 1) | ✅ **ĐÃ CHỐT ** | [vault-key](../spec/vault-key.md) — cây khóa 3 tầng, rotate≠shred, **và luật DR ba vế + luật _loại bản sao_ + FMEA**. RPA Sandbox là consumer đầu tiên, không phải chủ sở hữu |
-| **Nguyên tắc UI hệ-quả-cơ-chế → nạp vào Human Surface** | Nghĩa vụ dư của dòng trên | Triết lý thiết kế (nguồn: Storybook `/design`) sinh ra các nguyên tắc UI **là hệ quả của cơ chế**; Human Surface non-goal đúng phần pixel ⇒ phần _nguyên tắc_ vẫn còn nợ. Đóng một dòng nợ phải liệt phần dư — không thì nợ khai hóa **nợ ẩn** |
-| **Nhật ký sửa (L7) — luật đã rút** | Kỷ luật hồ sơ | L7 từng đòi mỗi file mang khối `> **Nhật ký sửa**`. Luật đó **đã rút**: lịch sử git là nhật ký duy nhất, và một khối chép tay là nguồn sự thật thứ hai phải đồng bộ tay. Không file nào còn nợ khối này |
-| Quota & scheduling fairness | Spec kỹ thuật, vòng sau | Cascade param + projection trên Event Log; điều kiện SaaS. **+ Nghĩa vụ mới **: quota đọc projection metering nên phải khai **lập trường với nhãn `run_kind: test`** (Event Log §3) — loại khỏi hạn mức tính tiền nhưng **vẫn tính chi phí thật đã phát sinh** (token, CPU sandbox), nếu không thì "chạy test" thành đường lách quota |
-| Runtime sandbox cho code filler | Spec kỹ thuật, vòng sau | Tầng 2; anh em RPA Sandbox. **+ Nghĩa vụ mới **: (a) **ràng buộc đầu vào từ ADR-0006** — tối thiểu JS/TS + Python + Go, Python **native** cấm Pyodide, runtime image là artifact qua Hub, code block = filler có calibration; (b) **`supports_dry_run`** — sandbox executor phải khai được năng lực dry-run hoặc khai không hỗ trợ (Handoff §3 / Test Harness §5) |
-| Process test harness | ✅ **ĐÃ CHỐT ** | [test-harness](../spec/test-harness.md) — mode của engine + **test run scope**; hai vai: hạ tầng (conformance suite mọi ◆G → M0) và sản phẩm (bề mặt chạy-thử → M3). |
-| **Runtime sandbox — chặn cả vòng verified-review** | Bổ sung phạm vi | Ngoài việc chặn _bật_ trust class `code` (M4), nó chặn cả **vòng duyệt verified** cho class `code`: suite của publisher phải chạy ở đâu đó — không sandbox thì có vòng tròn "chạy code chưa verified để được verified" |
-| Tier ingest clickstream | Spec nhỏ, vòng sau | Cạnh Event Log (J6): sampling/batch, party-key shreddable, TTL |
-| Charter `deploy/` + `cloud/` _(`cloud/` = area **proprietary, không public** — lớp license thứ 3, NS §8)_ | Charter, vòng sau | Viết cùng đợt; quyết định #1 của deploy-charter: phân vùng **ship cho self-host** vs **IaC nội bộ operator**; kèm procedure backup/restore + rollback-major. |
-| Release & Compatibility | Spec trần, vòng sau | Cơ chế đã chốt tại NS §8: unified train, protocol-version + negotiation, skew N-1, breaking-ở-major, migration-là-entry — spec chi tiết hóa; **+ EOL/support-window cho major cũ** (P-run); **+ down-migration/rollback** — luật đã chốt NS §8, spec chi tiết hóa |
-| **Nghĩa vụ mới của charter `deploy/`** | ✅ **ĐÃ TRẢ** — `[deploy](../charter/deploy.md)` §4 (4 nghĩa vụ khóa-DR) + §5 (retention × support window) | Từ blocker (1) **thủ tục DR cho root key** (tách biệt đường backup dữ liệu, khai tường minh) + thủ tục **khôi phục trên máy trắng**; (2) **kiểm tự động trong CI**: backup script **chạm vào file root key = fail** (Vault litmus #4); (3) khai **backend key store nào đủ tư cách** — `destroy` không khôi phục được **và** không có snapshot point-in-time (Vault §6.2); (4) thủ tục **rollback-major** + backup/restore vốn đã khai từ trước. *Án văn ghi nhận: bốn nghĩa vụ này sinh ra **trong** vòng vá mà sổ nợ trung tâm không được chạy lại sau đó ⇒ nợ ẩn — chiều ngược của * |
-| **SỔ LICENSE — 9 mục, 1 mâu thuẫn đang sống** | Xem bảng riêng ngay dưới | Đây là **sổ nợ duy nhất** của chủ đề license; mọi file khác chỉ _trỏ_ về đây |
-| **CI/CD cho `ecoma-cloud`** | Cơ chế ✅ **chốt ** (playbook giao hàng (không công bố) §6) — **thi hành ❌ chưa có** | CI cloud clone workspace public rồi tự mount tại `cloud/`; log ở lại private; tag cắt ở public, cloud đóng dấu theo. **Chưa có workflow nào tồn tại** — cần một PR ở repo private |
-| **Issue ecoma#3 nay là CHẶN, không còn là "để sau"** | Thứ tự cứng | Nx quét filesystem, gate `check-*` đọc `git ls-files` — mà `git ls-files` không đi vào submodule. **Phải đóng TRƯỚC `project.json` đầu tiên của cloud**, nếu không project đó hiện với Nx và vô hình với gate |
-| **Lệnh `dev-cli check-backup-key-isolation`** | Sinh cùng thư mục `deploy/` | Charter deploy §4.3 khai gate này; nó **chưa tồn tại**, được nuôi trong chuỗi PR của `kế hoạch di cư (không công bố)` — không để thành lời dặn không ai nuôi |
-| **Charter `cloud/`: phạm vi đã thu hẹp** | Charter, vòng sau | Cách thực thi repo **đã chốt (b)** tại NS §8 + playbook giao hàng (không công bố) §2 — charter `cloud/` **không mở lại** câu hỏi đó; việc còn lại là provisioning-là-workflow, billing, quota, fleet ops, và **hook nào cần thì phải là core public** |
-| Growth/Survey pack | Block bundle Hub, sau MVP | Website là người dùng đầu tiên (dogfooding) |
-| KB ingestion pack ("KB-from-git", "KB-from-website") | Block bundle Hub, sau MVP | Support chatbot của ecoma.io là khách đầu tiên (dogfooding #2); cơ chế đã chốt Knowledge §5 |
+**Nợ đang mở được theo dõi bằng issue, không liệt ở đây.** Mỗi nợ mang nhãn
+`doctrine-debt` trên `ecoma-io/ecoma`, kèm id roadmap và track định vị nó trong
+thứ tự xây. Một bảng trạng thái chép tay đặt cạnh một tracker sống là nguồn sự
+thật thứ hai, và bảng trong file này đã trôi thật — có hàng ghi "vòng sau" cho
+những spec lúc đó đã công bố ngay trong bảng inventory ở trên. Tracker trả lời
+_còn nợ gì_; mục này chỉ trả lời _nợ nào một tracker công khai không chứa được_.
+
+Ba loại khoảng trống ở lại đây, vì không loại nào thành issue công khai được:
+
+| Khoảng trống                | Loại                    | Vì sao không phải issue                                                                                                                                                                                                                                                                                                             |
+| --------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ICP & vertical đầu tiên** | Kinh doanh              | Giả thuyết mạnh nhất: Beachhead = agency dịch vụ số 5–50 người / content ops; Wedge = solo + RPA standalone; Expansion = chuỗi pin + Hub long-tail. **Chưa xác nhận.** Kill-criteria, phương pháp, cây câu hỏi và log nằm ở **sổ thị trường (không công bố)** — công bố chúng là làm nhiễm chính các cuộc phỏng vấn chúng điều phối |
+| **CI/CD cho `ecoma-cloud`** | Repo private            | Cơ chế đã chốt (playbook giao hàng (không công bố) §6): CI cloud clone workspace public, tự mount tại `cloud/`, log ở lại private, tag cắt ở public thì cloud đóng dấu theo. **Chưa có workflow nào** — và việc này nằm ở một repo tracker công khai không thấy                                                                     |
+| **Charter `cloud/`**        | Private, phạm vi đã hẹp | Cách thực thi repo đã chốt (b) tại NS §8; charter **không mở lại** câu hỏi đó. Còn lại là provisioning-là-workflow, billing, quota, fleet ops, và luật **hook nào cần thì phải là core public** — đó là nửa duy nhất của nó chạm tới cây này                                                                                        |
+
+Hai bundle Hub — Growth/Survey pack và KB ingestion pack — hay bị đọc thành
+khoảng trống, nhưng không phải. Chúng là hạng mục roadmap sau MVP, cơ chế đã
+chốt (Knowledge §5 cho cái thứ hai), mỗi cái có một khách dogfooding đầu tiên:
+website, và support chatbot của ecoma.io.
+
+**Sổ license** ở dưới cố ý không gộp vào tracker. Nó không phải danh sách việc;
+nó là án văn của từng lập trường đã chốt, và một thread issue là chỗ án văn đi
+lạc mất.
 
 ## Glossary canonical (L6 — một khái niệm một tên)
 

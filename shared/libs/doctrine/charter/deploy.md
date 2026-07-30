@@ -101,8 +101,8 @@ job and in pre-commit, scanning every script, manifest and chart in `deploy/` an
 **failing** if any path covers the root key's location under any shape.
 
 The command **does not exist yet**. It lands together with the `deploy/`
-directory, recorded in the migration plan's PR chain rather than left as an
-instruction nobody is nurturing. It is the enactment of Vault's litmus #4. _"Do
+directory, and it is tracked as an issue under the `doctrine-debt` label
+rather than left as an instruction nobody is nurturing. It is the enactment of Vault's litmus #4. _"Do
 not back up the key" is not a mechanism; a red gate is._
 
 ### 4.4 Key-store backend eligibility
