@@ -74,6 +74,8 @@ jobs:
         run: node shared/tools/dev-cli/src/main.mjs check-claude-md
       - name: Published doctrine stays checkable by a stranger
         run: node shared/tools/dev-cli/src/main.mjs check-doctrine
+      - name: Roadmap ids stay unique and resolvable
+        run: node shared/tools/dev-cli/src/main.mjs check-roadmap-ids
       - name: Doctrine index cites live rules
         run: node shared/tools/dev-cli/src/main.mjs check-practice-index
       - name: Subsystem-root READMEs declare their area
