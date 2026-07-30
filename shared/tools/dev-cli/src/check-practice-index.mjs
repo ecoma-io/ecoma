@@ -23,6 +23,8 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { matchesGlob } from "node:path";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 const INDEX_PATH = "practice-index.json";
 
 // A quote short enough to match incidental prose is not an anchor — it would
@@ -172,7 +174,7 @@ export function checkPracticeIndex() {
     return 1;
   }
 
-  const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" })
+  const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8", env: cwdGitEnv() })
     .split("\n")
     .filter(Boolean);
   const problems = validateIndex(index, (p) => readFileSync(p, "utf8"), tracked);

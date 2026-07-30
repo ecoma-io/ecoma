@@ -40,6 +40,7 @@ import { execFileSync } from "node:child_process";
 import * as nodeFs from "node:fs";
 
 import { deriveSubsystemRoots } from "./check-subsystem-readmes.mjs";
+import { cwdGitEnv } from "./git-env.mjs";
 import { licenseForPath, MANIFEST_LICENSE } from "./license-scope.mjs";
 // `LANGS` here means programming languages; the README contract's are human
 // languages, hence the alias.
@@ -55,7 +56,9 @@ const LANGS = new Set(["ts", "go", "rust", "python"]);
 
 /** Real tracked-paths source for `scaffoldLib`; overridden in tests. */
 function listTrackedPaths() {
-  return execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+  return execFileSync("git", ["ls-files"], { encoding: "utf8", env: cwdGitEnv() })
+    .split("\n")
+    .filter(Boolean);
 }
 
 // Only reachable when the repo has no go.work yet — it already does, so this

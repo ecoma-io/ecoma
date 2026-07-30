@@ -14,6 +14,8 @@
  */
 import { execFileSync } from "node:child_process";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 const PRIMITIVE_FILE_RE = /(?:^|\/)src\/primitives\/([^/]+)\/([^/]+)$/;
 
 /** The five co-located artifacts a primitive `<Name>` must carry. */
@@ -57,11 +59,16 @@ export function findIncompletePrimitives(trackedFiles) {
 
 /**
  * CLI entry — scans the git index. `git ls-files` is cwd-relative, so this
- * works both from the repo root and from inside `core-ui` (its lint target).
- * Returns a process exit code.
+ * works both from the repo root and from inside `core-ui` (its lint target) —
+ * but only in an environment where cwd is what git resolves the repository from,
+ * which is what `cwdGitEnv` guarantees (`git-env.mjs`). Returns a process exit
+ * code.
  */
 export function checkPrimitiveArtifacts() {
-  const trackedFiles = execFileSync("git", ["ls-files"], { encoding: "utf8" })
+  const trackedFiles = execFileSync("git", ["ls-files"], {
+    encoding: "utf8",
+    env: cwdGitEnv(),
+  })
     .split("\n")
     .filter(Boolean);
   const violations = findIncompletePrimitives(trackedFiles);

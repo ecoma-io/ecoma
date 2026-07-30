@@ -44,6 +44,8 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 export const WORKSPACE_SCOPE = "workspace";
 
 // Derived artifacts a commit drags along regardless of its subject — never
@@ -73,7 +75,13 @@ const SCISSORS = "# ------------------------ >8 ------------------------";
 // commit-msg hook and CI both run at the repo root. Taking it as an argument is
 // what lets a caller judge a repository other than the one it is standing in,
 // instead of `process.chdir`-ing the whole runner to get there.
-const git = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8" });
+//
+// `cwdGitEnv` is what makes that promise true: `GIT_DIR` outranks `cwd`, so
+// without it a hook could hand this check a different repository than the one it
+// was pointed at (`git-env.mjs`). `GIT_INDEX_FILE` deliberately survives the
+// scrub — under `git commit -- <paths>` it names the temporary index holding
+// exactly the paths being committed, which is the set this check must judge.
+const git = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8", env: cwdGitEnv() });
 
 /**
  * First real line of a commit message file: comment lines and everything from
