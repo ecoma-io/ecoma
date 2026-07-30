@@ -31,7 +31,7 @@ consumes it.
   pointing at a file that does not exist is already `check-doc-links`' answer,
   and whether the row still _describes_ the document stays on review.
 - **A document the policy withholds is named, never omitted.** Its inventory row
-  carries no link and the marker `(không công bố)` instead — a positive
+  carries no link and the marker `(withheld)` instead — a positive
   statement that the document exists and is not published here. Absence would
   say the same thing as an oversight, and a reader has no way to tell those
   apart, which is why the marker is gated rather than left to habit. The gate
