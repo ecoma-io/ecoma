@@ -29,6 +29,24 @@ describe("findForbidden", () => {
     expect(findForbidden("vòng 24u")[0].marker).toBe("vòng 24u");
   });
 
+  it("reports an English round reference, so the language a document is written in is not a way around the rule", () => {
+    expect(findForbidden("Round #5 caught three majors")[0]).toMatchObject({
+      marker: "Round #5",
+      id: "round",
+    });
+  });
+
+  it("reports a round code whose word was stripped, since redaction that removes only the word leaves the coordinate", () => {
+    expect(findForbidden("án văn giữ nguyên từ 24u")[0]).toMatchObject({
+      marker: "24u",
+      id: "round-code",
+    });
+  });
+
+  it("leaves the rubric's own group-F criteria alone, which a pattern matching unpadded finding ids could not distinguish", () => {
+    expect(findForbidden("F3 mở rộng live-view; F8 FMEA subsystem")).toEqual([]);
+  });
+
   it("reports a finding id, which names an episode of review rather than a property of the design", () => {
     expect(findForbidden("đóng F04 và f19").map((h) => h.marker)).toEqual(["F04", "f19"]);
   });
