@@ -14,6 +14,12 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "coverageConfig",
+        "{workspaceRoot}/.node-version",
+        "{workspaceRoot}/package.json"
+      ],
       "options": {
         "cwd": "{projectRoot}",
         "command": "vitest run"
