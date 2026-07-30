@@ -1,292 +1,574 @@
 ---
-title: "Ecoma — Rubric Hợp Nhất & Phương Pháp Luận Review"
+title: "Review Rubric & Method"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma — Rubric Hợp Nhất & Phương Pháp Luận Review
-
->
+# Review Rubric & Method
 
 ---
 
-## PHẦN I — HIẾN PHÁP PHÁN XÉT
+## PART I — THE CONSTITUTION OF JUDGEMENT
 
-### 1. Thứ tự ưu tiên khi tiêu chí va nhau (R7)
+### R7. Precedence when criteria collide
 
-`Invariant (5) > Nguyên tắc canonical (4, North Star §3) > Nguyên tắc domain (RPA/Hub §3) > Policy/Template`
-Va chạm không được âm thầm chọn — ghi thành finding loại `tension`.
+`Invariant (5) > canonical principle (4, North Star §3) > domain principle (RPA/Hub §3) > policy or template`
 
-### 2. Thang severity (R5) — test khách quan
+A collision may never be resolved silently. It is recorded as a `tension`
+finding.
 
-| Mức       | Test                                                                                      |
-| --------- | ----------------------------------------------------------------------------------------- |
-| `blocker` | Vi phạm invariant/nguyên tắc canonical, HOẶC mặc định không an toàn (đơn giản = lỏng hơn) |
-| `major`   | Hai kỹ sư đọc sẽ implement khác nhau; hoặc khái niệm chịu lực không định nghĩa            |
-| `minor`   | Câu chữ, tham chiếu, nhãn thiếu                                                           |
+### R5. Severity — an objective test
 
-### 3. Luật verdict (R1, R4, R8)
+| Level     | Test                                                                                                |
+| --------- | --------------------------------------------------------------------------------------------------- |
+| `blocker` | Violates an invariant or a canonical principle, **or** the default is unsafe — simpler means looser |
+| `major`   | Two engineers reading it would implement differently; or a load-bearing concept is undefined        |
+| `minor`   | Wording, a reference, a missing label                                                               |
 
-- **PASS phải falsifiable**: kèm trích dẫn kiểm được. Tiêu chí dạng "tìm một kịch bản…" → PASS = **sống sót ≥N đòn tấn công có hồ sơ** (mặc định N=3), không phải "chưa tìm kỹ".
-- **FAIL** kèm kịch bản tái hiện.
-- **KNOWN-GAP** chỉ hợp lệ khi (a) đã tự khai trong docs **trước** lượt chạy, hoặc (b) thuộc miền kinh doanh. Lỗ cơ chế phát hiện _trong_ lượt = FAIL; chỉ đóng bằng fix hoặc `accepted-by-owner` có lý do + xác nhận của owner.
+### R1, R4, R8. The verdict laws
 
-### 4. Schema finding (R6) — sổ append-only
+**A PASS must be falsifiable**, carrying a checkable citation. For a criterion of
+the form "find a scenario where…", PASS means **surviving at least N recorded
+attacks** — three by default — never "we did not look hard".
 
-`(criterion@rubric-version, file, trích dẫn/kịch bản, verdict, severity, án-văn-hoặc-fix-ref, vòng)`
+**A FAIL** carries a reproducing scenario.
 
-### 5. Luật miễn dịch (R9) — điều biến rubric thành hệ tự tiến hóa
+**KNOWN-GAP** is valid only when (a) it was self-declared in the documents
+**before** the run, or (b) it belongs to the commercial domain. A mechanism hole
+found _during_ a run is a FAIL, closed only by a fix or by an
+`accepted-by-owner` verdict with a reason and the owner's confirmation.
 
-**Mỗi finding mà không một tiêu chí sẵn có nào bắt được → BẮT BUỘC sinh tiêu chí/kỹ thuật mới trong cùng patch**, ghi vào nhật ký version kèm tiền lệ. Rubric không có R9 chỉ là ảnh tĩnh của các lỗi quá khứ. Hệ quả trung thực: rubric **không bao giờ "tối ưu nhất"** — chỉ "mạnh nhất đến nay + đang tiến hóa"; claim tối ưu tuyệt đối tự phạm R1 (không falsifiable).
+### R6. The finding schema
 
-### 6. Kênh owner (R10)
+`(criterion, file, citation or scenario, verdict, severity, reasoning or fix reference)`
 
-Lịch sử mọi vòng đến nay: người bắt lỗ hiệu quả nhất là **owner, bằng câu hỏi ngây thơ** ("X là gì?", "sao không có Y?"). Luật: **mọi câu hỏi của owner mà docs không trả lời được bằng đúng một trích dẫn = finding chính thức** (severity theo R5), và R9 áp dụng — nếu không tiêu chí nào lẽ ra bắt được, sinh tiêu chí mới.
+The ledger is append-only.
 
-### 7. Owner-fact sync (R11)
+### R9. The immunity law — what makes this rubric self-evolving
 
-Mọi convention/quyết định/thông tin owner nêu ra → **ghi vào memory + docs trong cùng lượt**; còn sót trong hội thoại = finding tự động (tiền lệ: monorepo convention, kill-criteria treo). Trước mỗi freeze: **owner-debrief 5 câu** bắt buộc — "có convention/quyết định nào anh từng nói chưa thấy trong docs?", "phần nào anh _cảm thấy_ mỏng?", "gần đây anh đọc/thấy gì ở đối thủ?", "có ai hỏi anh câu gì mà docs không trả lời được?", "điều gì anh đang đánh cược mà chưa ghi?".
+**Every finding that no existing criterion would have caught MUST produce a new
+criterion or technique in the same patch**, recorded with the precedent that
+forced it.
 
-### 8. Không tồn tại tài liệu "chưa review" âm thầm (R12)
+A rubric without R9 is a still photograph of past mistakes. The honest
+consequence: this rubric is **never "optimal"** — only "the strongest so far, and
+still evolving". Claiming absolute optimality would violate R1 by not being
+falsifiable.
 
-File/section mới (mọi class — trần, charter, sống) phải qua **cluster-run trong cùng lượt tạo ra nó**, hoặc mang nhãn `chưa-review` trong index cho tới khi chạy. Coverage matrix khai tường minh **doc-class × nhóm áp dụng** — charter chịu đủ J/G/K/G9 như trần (tiền lệ SSR lọt vì charter được đối xử nhẹ).
+### R10. The owner channel
 
-### 9. Điều kiện đóng băng
+Across every review so far, the most effective finder of holes has been **the
+owner, asking a naive question** — "what is X?", "why is there no Y?".
 
-0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 148: 20 NS + 103 L5 của 24 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
+The law: **any owner question the documents cannot answer with a single citation
+is a formal finding**, at a severity set by R5, and R9 applies — if no criterion
+would have caught it, a criterion is created.
+
+### R11. Owner-fact sync
+
+Every convention, decision or fact the owner states is **written into the
+documents in the same session**. Anything left only in conversation is
+automatically a finding.
+
+Before each freeze, a mandatory **five-question owner debrief**: is there a
+convention or decision you have stated that is not in the documents? Which part
+_feels_ thin to you? What have you recently read or seen from a competitor? Has
+anyone asked you something the documents cannot answer? What are you betting on
+that has not been written down?
+
+### R12. No document is silently unreviewed
+
+A new file or section — of any class: ceiling, charter, living — passes a
+**cluster run in the same session that created it**, or carries an `unreviewed`
+label in the index until it does.
+
+The coverage matrix declares **document class × applicable groups** explicitly. A
+charter takes the full J/G/K/G9 treatment exactly as the ceiling does; the
+precedent is a defect that slipped through because a charter was treated
+lightly.
+
+### R2, R3. The freeze conditions
+
+Zero open blockers and zero open majors; every KNOWN-GAP named in a North Star or
+the index; **the coverage matrix closed** (every file × every group, each cell
+marked scanned or not-applicable with evidence); and the litmus catalogue
+**fully passed** by desk simulation rather than by the mirror alone.
+
+**Every count is recomputed by script as the LAST step of a session**, after
+every patch. Patching a number mid-session makes it wrong the moment the next
+patch adds a litmus.
 
 ---
 
-## PHẦN II — BỘ TIÊU CHÍ A–P
+## PART II — THE CRITERIA, A–P
 
-> Mỗi nhóm có **câu hỏi tinh thần** đứng trên tiêu chí (chống Goodhart): nếu mọi tiêu chí pass mà câu tinh thần lung lay → finding `tension`.
+> Each group carries a **spirit question** above its criteria, as a guard against
+> Goodhart's law: if every criterion passes but the spirit question wobbles,
+> record a `tension` finding.
 
-### A — Trung thành quan điểm sáng lập
+### A — Fidelity to the founding viewpoint
 
-_Tinh thần: hồ sơ còn phục vụ đúng người sáng lập không?_
+_Spirit: does the corpus still serve the person who started it?_
 
-- **A0 (bắt buộc chạy đầu tiên)**: dựng lại **inventory quan điểm từ nguồn gốc** (hội thoại/nhật ký quyết định), diff với danh sách A hiện hành — nhóm A chỉ chấm được thứ nó nhớ, và lịch sử cho thấy nó đã thiếu ≥3 lần.
-- A1 hợp nhất 2 lực lượng bằng _cơ chế_ (Role/Filler + trust tiers + một thang Judgment) không phải khẩu hiệu · A2 luận điểm tăng trưởng n=1→N không-rewrite có cơ chế · A3 không một dòng `if-deterministic` trong engine; duality nổi từ khai báo · A4 ba tham vọng ML có nguồn dữ liệu định danh, không đi trước flywheel · A5 pair-design có chỗ đứng cơ chế · A6 các quyết định đã chốt còn nguyên (inbox tự xây, runtime tự xây, Docker/K8s, không BPMN, SUL, fair-code không nhãn "open source", một lõi ML, memory thuộc tổ chức) · A7 RPA integration-first: standalone là phép chiếu.
+- **A0, run first**: rebuild the **viewpoint inventory from source** and diff it
+  against the current group A. Group A can only judge what it remembers, and it
+  has been shown to be missing items more than once.
+- A1 the two workforces are unified by a _mechanism_ — Role/Filler, trust tiers,
+  one Judgment scale — rather than by a slogan.
+- A2 the n=1 to N growth argument has a mechanism and requires no rewrite.
+- A3 not one line of `if deterministic` in the engine; duality emerges from what
+  was declared.
+- A4 all three ML ambitions have a named data source and none precedes the
+  flywheel.
+- A5 pair-design has a mechanical footing.
+- A6 the settled decisions still hold: a self-built inbox, a self-built runtime,
+  Docker and Kubernetes, no BPMN, the SUL, fair-code never labelled "open
+  source", one ML core, memory belonging to the organisation.
+- A7 RPA is integration-first; standalone is a projection of it.
 
-### B — Bốn nguyên tắc cơ chế (dạng tấn công)
+### B — The four mechanism principles, as attacks
 
-_Tinh thần: engine có đang lén làm policy không?_
+_Spirit: is the engine quietly doing policy?_
 
-- B1 mọi câu chứa "người/human/AI" — cái nào là _luật engine_ thay vì _mặc định template_? · B2 mọi thứ được calibration — cái nào thiếu identity ổn định/lineage? · B3 mọi con số cứng — cái nào nằm ở engine thay vì template? · B4 _(deprecated → nhóm K)_.
+- B1 every sentence containing "person", "human" or "AI" — which of them is an
+  _engine law_ rather than a _template default_?
+- B2 everything that is calibrated — which lacks a stable identity or lineage?
+- B3 every hard number — which sits in the engine rather than in a template?
 
-### C — Năm invariant (dạng tấn công)
+### C — The five invariants, as attacks
 
-_Tinh thần: năm lời hứa nền còn không thể vi phạm không?_
+_Spirit: are the five founding promises still impossible to violate?_
 
-- C1 kịch bản đổi Filler buộc sửa flow? · C2 hành động không dấu vết (override không Judgment? engine tự sửa? can thiệp không là Task-của-Role?) · C3 mọi điểm tiêu thụ chú ý có triage/ưu-tiên/storm-control? · C4 vẽ đường đi một byte dữ liệu học từ sinh đến dùng — điểm nào rời tenant không opt-in? · C5 trạng thái kẹt im lặng, hoặc timeout/bế tắc → auto-pass?
+- C1 is there a scenario where changing a Filler forces a process edit?
+- C2 any action without a trace — an override with no Judgment, the engine
+  editing something itself, an intervention that is not a Task of a Role?
+- C3 does every point that consumes attention have triage, priority and storm
+  control?
+- C4 trace one byte of learned data from creation to use — where does it leave
+  the tenant without an opt-in?
+- C5 any silently stuck state, or any timeout or deadlock that becomes an
+  auto-pass?
+- **C6 — the soft workspace wall**: every mechanism that _aggregates,
+  generalises or pools_ — distillation, calibration pooling, analytics
+  aggregation, block install, collections, shared projections — must declare its
+  **workspace dimension**; undeclared defaults to **narrowest**. C4 guards only
+  the hard tenant boundary, and the soft wall is where a real customer — an
+  agency with many clients — bleeds.
 
-- **C6** — **vách mềm workspace**: mọi cơ chế _tổng hợp / khái quát hóa / gộp_ (distill, calibration pool, analytics aggregate, block install, collection, projection dùng chung) phải khai **chiều workspace**; không khai = mặc định **hẹp nhất**. C4 chỉ canh biên cứng tenant — vách mềm là nơi khách hàng thật (agency đa client) chảy máu.
+### D — Architectural boundaries
 
-### D — Ranh giới kiến trúc
+_Spirit: can the domains still not blur into one another?_
 
-_Tinh thần: các domain còn không thể lẫn vào nhau không?_
+- D1 any third channel smuggled outside (Filler + Session effect) and
+  (`resolve/pull/verify`) — including learning signals, proposals, updates,
+  telemetry?
+- D2 unplug the Hub and list what stops: is any of it runtime? Any entitlement,
+  licence key or phone-home inside the engine?
+- D3 any enterprise feature bypassing an extension point — a disguised fork?
+- D4 does the control plane _patch_ rather than _call_?
+- D5 any mechanism that only holds on SaaS — tenant cardinality must be ≥ 1?
+- D6 does the platform know about selectors or vision? Does RPA know about Gates
+  or calibration?
+- D7 any shared mutable state outside a Handoff or a DataTable event?
+- D8 any opt-in module that, when off, is **not** zero-overhead?
 
-- D1 kênh thứ ba lậu ngoài (Filler + Session effect) và (resolve/pull/verify)? — kể cả learning signal/proposal/update/telemetry · D2 rút phích Hub: liệt kê mọi thứ ngừng — có gì runtime? entitlement/license-key/phone-home trong engine? · D3 tính năng EE không qua extension point (fork trá hình)? · D4 control plane _vá_ thay vì _gọi_? · D5 cơ chế nào chỉ đúng ở SaaS (tenant phải cardinality ≥ 1)? · D6 Platform biết selector/vision? RPA biết Gate/calibration? · D7 shared mutable state ngoài Handoff/DataTable-event? · D8 (mới) module opt-in nào tắt mà **không** zero-overhead?
+### E — Identity, versioning, the flywheel
 
-### E — Danh tính, phiên bản, flywheel
+_Spirit: does the system burn its own learned data?_
 
-_Tinh thần: hệ có tự đốt dữ liệu học của chính nó không?_
+- E1 is pinning complete — is there one place a silent upgrade breaks a running
+  instance?
+- E2 does every new version carry a parent and a decay factor — verifier, filler,
+  contract, criterion, script, profile, driver, table, metric?
+- E3 does per-tenant cold start have all three remedies, and does anywhere quietly
+  depend on cross-tenant data?
+- E4 is there a second ML brain — a micro-consumer exceeding statistics, an ML
+  index touching tenant calibration?
+- **E5 — one truth, one home**: list every _kind of truth_ and ask which has two
+  or more places that write it. Precedents already blocked: memory-about-a-filler
+  against calibration; a self-writing table against the event log; **and a new
+  _label or field_ is a kind of truth too — `run_kind` had its consequences
+  declared for four consumers with no home of its own, so a projection written
+  later would forget to filter.** Operationally: any patch declaring "the
+  consequences of X in several places" must first name **where X lives**.
 
-- E1 pinning phủ kín — một chỗ upgrade ngầm phá instance đang chạy? · E2 mọi version mới có parent+decay (verifier, filler, contract, criterion, script, profile, driver, table, metric)? · E3 cold-start per-tenant đủ 3 thuốc; chỗ nào ngầm dựa cross-tenant? · E4 bộ não ML thứ hai (micro-consumer vượt thống kê? index ML chạm calibration tenant?) · **E5 (mới) "một sự thật một nhà"**: liệt kê mọi _loại sự thật_ — cái nào có ≥2 nơi ghi? (tiền lệ đã chặn: memory-về-filler vs calibration; bảng-tự-ghi vs event log; **một _nhãn/trường_ mới cũng là một loại sự thật — `run_kind` được khai _hệ quả_ ở 4 consumer nhưng không có nhà ⇒ projection viết sau sẽ quên lọc, **). Hệ quả thao tác: patch nào khai "hệ quả của X ở nhiều nơi" phải chỉ ra **X sống ở đâu** trước khi ghi.
+### F — Safety and accountability
 
-### F — An toàn & trách nhiệm
+_Spirit: is the worst outcome blocked by structure rather than by instruction?_
 
-_Tinh thần: điều tồi tệ có bị chặn bởi cấu trúc thay vì lời dặn không?_
+- F1 any effect that can run without a class? Is "undeclared means irreversible"
+  consistent across Platform and RPA actions?
+- F2 any unwind path crossing the commit point?
+- F3 trace one credential or secret — where does the value reach an executor, a
+  log, evidence or a prompt? Is masking a single chokepoint at perception,
+  **at input capture**, **and on every replay or live-view channel**?
+- F4 can an unenrolled node claim work or receive a secret? Is there a permanent
+  control channel? Any takeover input that does not become an Action with an
+  actor?
+- F5 block supply chain: manifest disagreeing with analysis → reject? A block's
+  filler → gated or shadow? Code → verified plus opt-in?
+- F6 lease and claim: any scenario of a silent re-run after an action has been
+  written?
+- F7 two-layer egress by classification, static and runtime — can a dynamically
+  spawned branch slip past? Is the leakage gate in the right place?
+- **F8 — subsystem FMEA**: does every tier-1 subsystem (Event Log, Artifact
+  Store, Lease, Node, Channel, vector adapter) carry a _failure mode × detection
+  × recovery_ table? A missing table is a finding.
 
-- F1 effect nào chạy được mà không phân lớp? "không khai = irreversible" nhất quán Platform + RPA action? · F2 đường unwind vượt commit point? · F3 vẽ đường đi một credential/secret — điểm nào giá trị lọt executor/log/evidence/prompt? masking một chốt tại perception, **input capture**, **và mọi kênh phát lại/live-view**? · F4 node chưa enroll claim/nhận secret? kênh điều khiển thường trực? input takeover nào không thành Action-có-actor? · F5 chuỗi cung ứng block: manifest≠analysis → reject? filler block → gated/shadow? code → verified+opt-in? · F6 lease/claim: kịch bản silent re-run sau khi có action ghi? · F7 (mới) egress theo classification hai lớp (static + runtime) — nhánh dynamic spawning lách được? leakage-gate đứng đúng chỗ? · **F8 (vòng ≤15) FMEA subsystem**: mỗi subsystem tầng 1 (Event Log, Artifact Store, Lease, Node, Channel, vector adapter) có bảng _failure-mode × phát-hiện × phục-hồi_? — thiếu bảng = finding (docs hiện tại sẽ dính)
+### G — The taxonomy of textual and design faults
 
-### G — Taxonomy lỗi văn bản & thiết kế (la bàn phân loại mọi finding)
+This group is the compass for classifying any finding.
 
-- G1 ngôn ngữ staging trong tài liệu trần ("v1/giai đoạn đầu/tạm") · G2 policy đội lốt cơ chế (mệnh lệnh tuyệt đối: luật engine hay mặc định template?) · G3 khái niệm chịu lực không định nghĩa (danh từ được ≥3 tài liệu dựa vào mà chưa có nhà — tiền lệ: template, tenant, trigger, storage, event log) · G4 vòng tối ưu tự phá calibration của chính nó · G5 tuyệt đối hóa quá tay (một use-case hợp lệ bị giết — tiền lệ: "không remote control" vs takeover) · G6 duplicate lệch nhau (nội dung ≥2 nơi không có canonical) · G7 đặc quyền trá hình (một loại filler/sản phẩm có đường riêng không do dữ liệu/khai báo) · G8 danh tính mơ hồ khi ủy quyền (calibration bám đâu, sub-actor?) · **G9 (mới) lỗi giao thoa**: hai cơ chế đúng riêng lẻ, ghép lại sinh lỗi — _chỉ bắt được bằng desk-sim_, không bắt được bằng đọc từng spec (tiền lệ: masking-scene vs input-capture; floor-propagation vs chatbot-cần-internal).
+- G1 staging language in a ceiling document ("v1", "early phase", "for now").
+- G2 policy disguised as mechanism — for every absolute imperative, ask whether it
+  is an engine law or a template default.
+- G3 a load-bearing concept left undefined: a noun three or more documents rely on
+  with no home. Precedents: template, tenant, trigger, storage, event log.
+- G4 an optimisation loop that destroys its own calibration.
+- G5 over-absolutism killing a legitimate use case. Precedent: "no remote control"
+  against takeover.
+- G6 divergent duplicates — content in two or more places with no canonical.
+- G7 disguised privilege — one kind of filler or product with a private path not
+  justified by data or declaration.
+- G8 ambiguous identity under delegation — what does calibration bind to, and what
+  is a sub-actor?
+- **G9 — interaction faults**: two mechanisms each correct alone that produce a
+  fault when combined. _Only desk simulation catches these_; reading each
+  specification separately never will. Precedents: scene masking against input
+  capture; floor propagation against a chatbot that needs internal knowledge.
 
-### H — Litmus (danh mục đầy đủ, PHẦN IV)
+### H — Litmus
 
-Mỗi câu trả lời bằng **desk-sim transcript** (dắt kịch bản qua từng cơ chế, trích từng bước) — trỏ section chỉ chứng minh _có viết_, không chứng minh _chạy được_.
+Each answer is a **desk-simulation transcript** — walking the scenario through
+each mechanism, citing every step. Pointing at a section proves only that
+something is _written_, never that it _runs_.
 
-### I — Versioning & Migration
+### I — Versioning and migration
 
-- I1 phủ kín: mọi entity tiến hóa được có (id+version)? · I2 semver có ngữ nghĩa khai báo, áp nhất quán Contract→Block? · I3 không upgrade ngầm ở mọi tầng (auto-migrate, node update, block, cascade snapshot) · I4 mọi migration là Task-của-Role-có-Gate · I5 hai version cùng entity chạy song song (pinning per-entity)? · I6 lineage + semantic diff theo entity-có-kiểu · I7 rollback định nghĩa = migration tường minh hai chiều.
+- I1 completeness: does every evolvable entity carry an id and a version?
+- I2 does semver carry declared semantics, applied consistently from Contract to
+  Block?
+- I3 no silent upgrade at any tier — auto-migration, node update, block, cascade
+  snapshot.
+- I4 every migration is a Task of a Role with a Gate.
+- I5 can two versions of one entity run side by side, pinned per entity?
+- I6 lineage plus a semantic diff per typed entity.
+- I7 rollback is defined as an explicit two-way migration.
 
-### J — Cơ chế trần, bất chấp phức tạp
+### J — The ceiling mechanism, regardless of complexity
 
-_Tinh thần: đích đến luôn là cơ chế TỐI ƯU NHẤT — phức tạp không bao giờ là lý do dừng, và "đủ tốt" không bao giờ là đích. Mỗi quyết định phải thắng cuộc đối kháng với mọi phương án mạnh hơn được nêu ra._
+_Spirit: the destination is always the STRONGEST mechanism. Complexity is never a
+reason to stop, and "good enough" is never the destination. Every decision must
+win an adversarial contest against every stronger alternative raised._
 
-- J1 dấu vết chiết trung ("đủ dùng/để nhẹ/khó nên thôi") · J2 mọi cắt giảm có **án văn cơ chế** trong nhật ký quyết định · J3 "phương án lý tưởng hơn là gì, sao không chọn?" — trả lời bằng effort = fail; bằng cơ-chế-kém-rõ/phạm-nguyên-tắc = pass · J4 phức tạp dồn về engine (một lần), đơn giản dành cho user (mọi lần) · J5 trần vẫn executable — mỗi cơ chế chỉ được ≥1 công nghệ/tiền lệ đã chứng minh · **J6 (vòng ≤15) kinh tế vận hành**: "bất chấp phức tạp" là về effort _thiết kế_, không phải chi phí _runtime của user_ — cơ chế có write-amplification/tăng trưởng lưu trữ/chi phí token (event-per-write, evidence, calibration, extraction) phải khai _hình dạng chi phí_ + _van điều tiết_ (sampling/retention/batch/cascade).
+- J1 traces of compromise — "good enough", "to keep it light", "too hard so we
+  did not".
+- J2 every reduction carries **mechanism reasoning** in the decision log.
+- J3 "what is the more ideal option, and why was it not chosen?" — answering with
+  effort is a fail; answering with a less-clear mechanism or a principle violation
+  is a pass.
+- J4 complexity accumulates in the engine, once; simplicity goes to the user,
+  every time.
+- J5 the ceiling remains executable — every mechanism has at least one proven
+  technology or precedent.
+- **J6 — operating economics**: "regardless of complexity" is about _design_
+  effort, never the _user's runtime_ cost. Any mechanism with write
+  amplification, storage growth or token cost — event-per-write, evidence,
+  calibration, extraction — must declare its _cost shape_ and its _regulating
+  valve_: sampling, retention, batching, cascade.
 
-### K — Phức tạp là quyền lựa chọn của user
+### K — Complexity is the user's choice
 
-- K1 zero-config test: bản tối thiểu phải khai để chạy — dài quá vài dòng là mặc-định-tối-giản giả · K2 cascade phủ kín mọi tham số engine ép · K3 nâng cao là opt-in, không phải opt-out · K4 tăng dần không vách đá cấu hình · K5 **đơn giản = bảo thủ hơn, không bao giờ = lỏng hơn** (không khai reversibility = irreversible; không khai classification = confidential; timeout ≠ pass) · K6 mọi escape hatch được phép-nhưng-dán-nhãn-và-ghi-vết.
+- K1 the zero-config test: what must a minimal installation declare to run? More
+  than a few lines means the minimal default is fake.
+- K2 the cascade covers every parameter the engine forces to exist.
+- K3 advanced capability is opt-in, never opt-out.
+- K4 growth is gradual, with no configuration cliff.
+- K5 **simpler means more conservative, never looser** — undeclared reversibility
+  is irreversible, undeclared classification is confidential, a timeout is not a
+  pass.
+- K6 every escape hatch is permitted but labelled and traced.
 
-### L (mới) — Cấu trúc spec chuẩn
+### L — Standard specification structure
 
-Mỗi spec phải có đủ: L1 định nghĩa entity + danh tính · L2 tham chiếu canonical (không chép nguyên tắc) · L3 non-goals · L4 nhật ký quyết định (án văn cho mọi lựa chọn) · L5 litmus riêng của spec · **L6 (vòng ≤15) glossary canonical**: một khái niệm một tên — bảng thuật ngữ trong index; cùng khái niệm hai tên = finding.
+Every specification carries: L1 entity definitions with identity · L2 canonical
+references rather than copied principles · L3 non-goals · L4 a decision log with
+reasoning for every choice · L5 its own litmus · **L6 a canonical glossary** —
+one concept, one name, tabulated in the index; the same concept under two names
+is a finding.
 
-- **L7 — Doc identity: VÒNG là danh tính, không có số version**: hồ sơ là **entity tiến hóa được** nên chịu đúng I1 mà nó áp lên sản phẩm — nhưng cách trả I1 **không** phải gắn thêm một con số phải đồng bộ tay ở hai nơi. Bốn luật: (a) **tài liệu KHÔNG mang số version** ở tiêu đề, ở index, hay ở bất kỳ tham chiếu chéo nào — nói "spec X ", không nói "spec X v0.4"; (b) mỗi file trần/charter mở đầu bằng khối **`> **Nhật ký sửa**`** xếp **giảm dần**, mỗi dòng định dạng **`vòng NN — nội dung`** ⇒ grep được, CI lint được sau này; (c) **mọi patch thêm một dòng vòng**, không có sửa im lặng (R12); (d) **index không giữ cột version** — nó giữ **vòng cập nhật gần nhất**, và vì vòng là một sự kiện có thật trong run report nên nó **kiểm chứng được**, khác một con số tự khai. _Án văn: version per-file là nguồn sự thật thứ hai về danh tính tài liệu và đã trôi ở 12 file; vòng thì chỉ có một nhà (catalog Phần 5). Bỏ số = giết lớp lỗi tận gốc, không phải vá nó._
+- **L7 — Document identity carries no version number.** The corpus is an
+  _evolvable entity_, so it is subject to the same I1 it imposes on the product —
+  but the answer is not a number that has to be synchronised by hand in two
+  places. A document carries **no version number** in its title, in the index, or
+  in any cross-reference: say "specification X", never "specification X v0.4".
+  Per-file versions are a second source of truth about document identity, and
+  they drifted across a dozen files.
 
-### M (vòng ≤15) — Truy vết lời hứa (completeness xuôi)
+  **Git is the history.** An earlier answer to the same problem had each file open
+  with a hand-kept changelog block; that has been withdrawn, because a hand-kept
+  history is a second source that cannot be checked, while git's cannot drift.
+  The index therefore holds no version column either.
 
-_Tinh thần: mọi lời hứa có cơ chế; mọi cơ chế có lời hứa._
+### M — Promise traceability
 
-- M1 **xuôi**: từng mệnh đề trong tuyên bố end-state (cả 3 North Star §1) + luận điểm §2 → trace tới ≥1 cơ chế cụ thể; hụt = blocker (hứa suông).
-- M2 **ngược**: từng cơ chế/spec → phục vụ lời hứa/quan điểm nào; mồ côi = nghi vấn scope creep, đòi án văn.
+_Spirit: every promise has a mechanism; every mechanism has a promise._
 
-### N (vòng ≤15) — Threat-actor battery (an ninh có kỷ luật, không nhờ may mắn kịch bản)
+- M1 **forward**: every clause of the end-state statement in all three North Stars,
+  plus the arguments beneath them, traces to at least one concrete mechanism. A
+  shortfall is a blocker — an empty promise.
+- M2 **backward**: every mechanism and specification serves some promise or
+  viewpoint. An orphan is suspected scope creep and must be justified.
 
-_Tinh thần: kẻ tấn công có tên, tài sản có chủ._
-Ma trận 7 persona × tài sản, chạy như một phase: `tenant-admin độc` (cửa hậu DB, sửa log?) · `publisher block độc` (code/manifest/knowledge cài bẫy) · `model provider bị chiếm` (verifier/agent trả kết quả độc) · `end-user độc` (poisoning memory, prompt injection, trigger spam) · `insider filler` (người/agent tự approve, tuồn tri thức) · `node bị chiếm` (giả placement, rút secret) · `curator độc` (đầu độc knowledge/App Profile). Mỗi ô: đòn cụ thể + cơ chế chặn + trích dẫn; ô trống = finding.
+### N — The threat-actor battery
 
-### O (vòng ≤15) — Competitive & standards coverage (nghĩa vụ thường trực, không phải lượt ad-hoc)
+_Spirit: the attacker has a name and the asset has an owner._
 
-_Tinh thần: đối thủ ship hàng quý; rubric không được chờ owner phát hiện hộ._
+A matrix of seven personas against assets, run as a phase: **a malicious tenant
+administrator** (a database back door, editing the log?) · **a malicious block
+publisher** (traps in code, manifest or knowledge) · **a compromised model
+provider** (a verifier or agent returning poisoned results) · **a malicious end
+user** (memory poisoning, prompt injection, trigger spam) · **an insider filler**
+(a person or agent approving their own work, exfiltrating knowledge) · **a
+compromised node** (faked placement, extracting secrets) · **a malicious curator**
+(poisoning knowledge or an App Profile).
 
-- O1 **Feature inventory có ngày** cho từng đối thủ theo dõi (n8n, Dify, Astron, + danh sách mở) — lưu trong Scenario & Competitive Catalog; inventory quá 1 quý chưa refresh (web search) = finding `stale`.
-- O2 Mỗi feature mang verdict taxonomy: `thay-ngang` / `thay-hơn` (kèm cơ chế) / `thua-tooling` (roadmap, không vá spec) / `không-thay-có-án-văn` / **`GAP`** (→ vào pipeline quyết định như DataTable/memory đã đi).
-- O3 **Trigger re-run**: đối thủ release lớn hoặc thêm đối thủ mới → chạy lại O cục bộ, không đợi full-run.
-- O4 Standards inventory (OCI, sigstore, MCP, computer-use API…): tiền lệ J5 có ngày — chuẩn bị deprecated/thay thế = finding.
+Each cell holds a concrete attack, the mechanism that blocks it, and a citation.
+An empty cell is a finding.
 
-### P — Lifecycle completeness (checklist tiên nghiệm — trị mù tự thân của rubric-derive-từ-cái-đã-viết)
+### O — Competitive and standards coverage
 
-_Tinh thần: không hỏi "cái đang có đúng chưa" — hỏi "MỌI giai đoạn vòng đời đã có nhà chưa". Ô trống không có ledger = finding._
+_Spirit: competitors ship every quarter; the rubric may not wait for the owner to
+notice on its behalf._
 
-- **P1 Product**: build → version → release → deploy → upgrade → operate → backup/restore → **deprecate/EOL** → sunset.
-- **P2 Entity**: create → version → migrate → rollback → delete/GC.
-- **P3 Data**: ingest → classify → retain → **backup/restore** → export → shred. **Luật giao thoa bắt buộc**: mọi cơ chế xóa/quên phải khai quan hệ với đường sao lưu — "xóa" mà backup hồi sinh được là lời hứa suông (tiền lệ: khóa-ngoài-backup, Event Log §4).
-- **P3b — luật giao thoa CHIỀU NGƯỢC, và theo LOẠI bản sao**: (a) mọi cơ chế **khôi phục** phải khai **điều kiện đủ để đọc lại được** (khóa, adapter, schema-version) — "restore backup" không kèm đường khóa là lời hứa suông đối xứng với P3; (b) cấm-mọi-_nơi_ chưa đủ: phải khai cả **loại** bản sao được phép — bản sao **rewind/point-in-time** hồi sinh đúng thứ vừa bị hủy, nên chỉ **replica tiến-lên-trước** (lệnh xóa replicate được) là hợp lệ. _Án văn: P3 chạy một chiều suốt 24 vòng và tuyên đã đóng lỗ S50; tìm thấy đúng lỗ đó ở cửa khác (snapshot key store) cộng một lỗ ngược (mất máy = mất tất cả dù backup nguyên)._
-- **P4 Actor/Node/Adapter**: enroll/register → update → suspend → **decommission (graceful drain)** → revoke.
-- **P5 Change/Contribution**: propose → review → integrate (queue — chống giao thoa) → land → **revert/rollback rẻ**. Áp cho MỌI dòng thay đổi: code, spec, block, knowledge, config. Ô revert không có đường lùi rẻ = finding; "revert" không kèm down-path chuẩn bị trước = lời nói, không phải cơ chế.
+- O1 a **dated feature inventory** per tracked competitor — n8n, Dify, Astron, and
+  an open list — held in the scenario and competitive catalog. An inventory not
+  refreshed within a quarter is a `stale` finding.
+- O2 every feature carries a verdict from the taxonomy: `equivalent` /
+  `stronger` with the mechanism named / `weaker tooling` (a roadmap item, not a
+  specification patch) / `deliberately not matched, with reasoning` / **`GAP`**,
+  which enters the decision pipeline.
+- O3 **a re-run trigger**: a competitor's major release, or a new competitor, runs
+  group O locally without waiting for a full run.
+- O4 a standards inventory — OCI, sigstore, MCP, computer-use APIs — where J5's
+  precedents are dated; a standard heading for deprecation or replacement is a
+  finding.
+
+### P — Lifecycle completeness
+
+_Spirit: do not ask "is what exists correct" — ask "does EVERY lifecycle stage
+have a home". An empty cell with no ledger entry is a finding._
+
+This checklist is deliberately a priori, as the cure for the rubric's own blind
+spot: a rubric derived from what has already been written can only see what has
+already been written.
+
+- **P1 Product**: build → version → release → deploy → upgrade → operate →
+  backup/restore → **deprecate and EOL** → sunset.
+- **P2 Entity**: create → version → migrate → rollback → delete and GC.
+- **P3 Data**: ingest → classify → retain → **backup/restore** → export → shred.
+  **A mandatory interaction rule**: every deletion or forgetting mechanism must
+  declare its relationship to the backup path — a "deletion" a backup can revive
+  is an empty promise. Precedent: keys outside the backup, Event Log §4.
+- **P3b — the interaction rule in REVERSE, and by KIND of copy**: (a) every
+  _recovery_ mechanism must declare **what is sufficient to read again** — key,
+  adapter, schema version. "Restore from backup" without the key path is the
+  symmetric empty promise to P3. (b) Forbidding every _place_ is not enough: the
+  permitted **kind** of copy has to be declared too. A **rewind or point-in-time**
+  copy revives exactly what was just destroyed, so only a **forward-moving
+  replica**, one a deletion command can reach, is valid. _Reasoning: P3 ran in one
+  direction for a long time and declared the backup-revives-shredded-data hole
+  closed; the same hole was then found at another door — a key-store snapshot —
+  along with its inverse: losing the machine loses everything despite an intact
+  backup._
+- **P4 Actor, Node, Adapter**: enroll or register → update → suspend →
+  **decommission with a graceful drain** → revoke.
+- **P5 Change and Contribution**: propose → review → integrate through a queue,
+  against interaction faults → land → **cheap revert or rollback**. This applies
+  to EVERY stream of change: code, specification, block, knowledge,
+  configuration. A revert cell with no cheap way back is a finding, and a
+  "revert" with no prepared down path is a sentence rather than a mechanism.
 
 ---
 
-## PHẦN III — PHƯƠNG PHÁP LUẬN (pipeline 8 phase; *không ghi số vòng ở đây: con số chép tay là một lớp lỗi, *)
+## PART III — THE METHOD
 
-> Bài học nền: **mỗi phương pháp bắt loại lỗi mà phương pháp trước mù**. Đường cong thực tế: đọc-thủ-công bắt G3 → quét-danh-từ bắt hạ tầng ngầm → desk-sim bắt G9 giao thoa → đối-kháng-cạnh-tranh bắt lỗ use-case → spec-hóa-ledger bắt câu hỏi mô phỏng bỏ qua. Một phương pháp cạn ≠ hồ sơ sạch.
+> The founding lesson: **each method catches the class of fault the previous one
+> was blind to.** The observed curve: manual reading catches G3 → noun scanning
+> catches hidden infrastructure → desk simulation catches G9 interactions →
+> competitive adversarial work catches use-case holes → specifying a ledger
+> catches the questions the simulation skipped. One method running dry does not
+> mean the corpus is clean.
 
-| Phase | Việc                                                                                                                                              | Bắt loại lỗi                              |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 0     | **A0**: dựng inventory quan điểm từ nguồn, diff nhóm A                                                                                            | Rubric thiếu quan điểm                    |
-| 1     | Quét cơ giới: grep G1 (staging), G5 (tuyệt đối — điểm danh soát chủ đích), B3 (số cứng), tham chiếu chéo, duplicate                               | G1, G6, B3                                |
-| 2     | Đọc từng file × A–P, điền **coverage matrix** (ô nào cũng cần bằng chứng — chống coverage theater)                                                | Toàn phổ tĩnh                             |
-| 3     | **Quét danh từ hạ tầng**: mọi danh từ xuất hiện ≥2 file, hỏi "có nhà chưa?"                                                                       | G3                                        |
-| 4     | **Desk-simulation battery**: cơ bản → trung bình → phức tạp → biên/đối kháng → meta (≥5 vòng, dừng khi bão hòa); mỗi kịch bản dắt qua từng cơ chế | **G9 giao thoa** — chỉ phase này bắt được |
-| 5     | **Đối kháng cạnh tranh**: liệt kê đầy đủ kịch bản khách của đối thủ → ecoma trace từng cái                                                        | Lỗ use-case, định vị                      |
-| 6     | Litmus full-pass (PHẦN IV) bằng desk-sim transcript                                                                                               | H                                         |
-| 7     | Findings → patch (mỗi patch tự chạy lại ma trận nguyên-tắc × invariant trước khi ghi) → hậu kiểm grep → cập nhật sổ + index                       | Regression                                |
+| Phase | Work                                                                                                                                                                                  | Fault class caught                                 |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 0     | **A0**: rebuild the viewpoint inventory from source, diff against group A                                                                                                             | A rubric missing a viewpoint                       |
+| 1     | Mechanical scanning: grep for G1 staging language, G5 absolutes (a roll-call of deliberate ones), B3 hard numbers, cross-references, duplicates                                       | G1, G6, B3                                         |
+| 2     | Read each file against A–P, filling the **coverage matrix** — every cell needs evidence, against coverage theatre                                                                     | The full static spectrum                           |
+| 3     | **Infrastructure noun scan**: every noun appearing in two or more files, asked "does it have a home?"                                                                                 | G3                                                 |
+| 4     | **Desk-simulation battery**: basic → moderate → complex → boundary and adversarial → meta, at least five rounds, stopping at saturation; each scenario walked through every mechanism | **G9 interactions** — only this phase catches them |
+| 5     | **Competitive adversarial pass**: enumerate a competitor's customer scenarios fully, then trace each through ecoma                                                                    | Use-case holes, positioning                        |
+| 6     | Full litmus pass (Part IV) by desk-simulation transcript                                                                                                                              | H                                                  |
+| 7     | Findings → patch, each patch re-running the principle × invariant matrix before being written → post-check grep → update the ledger and the index                                     | Regression                                         |
 
-**Kỹ thuật bổ sung (vòng ≤15 — kịch bản là tài sản, không phải phế phẩm):**
+**Supporting techniques — scenarios are an asset, not a by-product:**
 
-- **Scenario catalog** (file riêng: [scenario-catalog](scenario-catalog.md), append-only): mọi kịch bản đã chạy có ID + verdict. Mỗi lượt = **regression** (chạy lại catalog trên docs mới — patch nào làm kịch bản cũ gãy là regression bắt được) + **exploration** (sinh mới, nạp vào catalog).
-- **Dimension model cho exploration** — sinh kịch bản theo 8 chiều, đo coverage gap thay vì ngẫu hứng: `trigger-type × filler-mix (người/AI/rule/external/process) × irreversible? × external-party? × knowledge/memory? × deterministic/reasoning/hybrid × quy mô (n=1/team/agency-multiclient) × chế độ (happy/failure/adversarial)`. Ô chưa từng có kịch bản = vùng mù khai báo được.
+- **The scenario catalog** ([scenario-catalog](scenario-catalog.md), append-only):
+  every scenario ever run, with an id and a verdict. Each session is
+  **regression** — re-running the catalog against the new documents, so a patch
+  that breaks an old scenario is caught — plus **exploration**, generating new
+  ones and adding them to the catalog.
+- **A dimension model for exploration**, so scenarios are generated by measuring
+  coverage gaps rather than by inspiration: `trigger type × filler mix
+(person/AI/rule/external/process) × irreversible? × external party? ×
+knowledge or memory? × deterministic/reasoning/hybrid × scale (n=1 / team /
+multi-client agency) × mode (happy / failure / adversarial)`. A cell that has
+  never had a scenario is a declarable blind spot.
+- **Phase 4b — the persona review battery**: read the documents through five
+  viewpoints — SRE or operator, compliance officer, implementing developer,
+  agency buyer, community contributor — with five characteristic questions each.
+  A question the documents cannot answer is a finding.
+- **Phase 4c — subsystem FMEA**, which feeds F8: a systematic table per tier-1
+  subsystem.
+- **The implementation-sketch test**, an active ambiguity probe: pick a mechanism,
+  sketch two _independent_ pseudo-implementations from the same passage of
+  specification. A divergence is a major ambiguity found before a real engineer
+  finds it.
 
-**Kỹ thuật bổ sung (vòng ≤15):**
+**The coverage matrix, document class × group:**
 
-- **Phase 4b — Persona review battery**: đọc docs bằng 5 góc nhìn (SRE/operator, compliance officer, dev-implementer, người mua agency, contributor cộng đồng) — mỗi persona 5 câu hỏi đặc trưng của họ; câu không trả lời được từ docs = finding.
-- **Phase 4c — FMEA subsystem** (nuôi F8): bảng hệ thống cho từng subsystem tầng 1.
-- **Implementation-sketch test** (dò mơ hồ chủ động): chọn mẫu cơ chế, phác 2 bản pseudo-implementation _độc lập_ từ đúng đoạn spec — lệch nhau = ambiguity major tìm được trước khi kỹ sư thật tìm ra.
+| Document class                      | Examples                          | Groups required                              | Exempt, with reasoning                                                                                                       |
+| ----------------------------------- | --------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Ceiling** (North Star plus specs) | 3 North Stars, 24 specifications  | A–P in **full**                              |                                                                                                                              |
+| **System charter**                  | the funnel playbook               | B, D, F, G including G9, I, J, K, L, M, N, P | A (it carries no founding viewpoint), C (it defines no invariant), E (it owns no flywheel), H → the charter's **own** litmus |
+| **Meta**                            | this rubric, the scenario catalog | G, L, **self-conformance** below             | A–F, I–K — they describe no product mechanism                                                                                |
+| **Living**                          | the market ledger                 | J for reasoning, L4 for the decision log     | The remainder — market truth is not for a rubric to judge                                                                    |
 
-**Coverage matrix doc-class × nhóm:**
+_An "exempt" cell needs its reasoning stated here; a silent exemption is coverage
+theatre._
 
-| Doc-class                    | Ví dụ                           | Nhóm bắt buộc                           | Miễn (có án văn)                                                                                                               |
-| ---------------------------- | ------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Trần** (North Star + spec) | 3 NS + **24 spec**              | A–P **đủ**                              |                                                                                                                                |
-| **System Charter**           | playbook funnel (không công bố) | B, D, F, G (đủ G9), I, J, K, L, M, N, P | A (không mang quan điểm sáng lập), C (không định nghĩa invariant), E (không sở hữu flywheel), H → litmus **riêng của charter** |
-| **Meta**                     | rubric, scenario catalog        | G, L, **self-conformance** (dưới)       | A–F, I–K (không mô tả cơ chế sản phẩm)                                                                                         |
-| **Sống**                     | sổ thị trường (không công bố)   | J (án văn), L4 (nhật ký),               | phần còn lại — sự thật thị trường không do rubric phán                                                                         |
+**Further techniques:**
 
-_Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theater._
+- **A rubric self-conformance pass**, mandatory at the start of every full run:
+  does the rubric obey its own R3 (every artifact its laws demand actually
+  exists) and R12 (the coverage matrix is present)? The precedent is this
+  document surviving several sessions with a wrong title and no coverage matrix,
+  because nobody was assigned to check the checker.
+- **Reconciling scattered debt against the central ledger, in both directions**:
+  grep the whole corpus for "later", "ledger", "awaiting spec", "gap", and
+  reconcile both ways against the ledger.
+- **The patch adversarial pass, mandatory at phase 7, BEFORE writing**: every
+  patch takes three attacks, and failing one means rewriting the patch rather
+  than writing it and fixing it later. Does it create a boundary or a second
+  source of truth? Does it hold at n=1? Does it survive the strongest
+  alternative?
+- **Counting is the last operation**: every number — total litmus, milestone exit
+  litmus, specification counts — is **recounted by script after every patch has
+  been written**, never patched mid-session, with the calculation recorded.
+- **An FMEA table is a condition of existence for a tier-1 subsystem**: any new
+  specification declaring itself a tier-1 subsystem carries its FMEA table **in
+  the same session that created it** (R12).
 
-**Kỹ thuật bổ sung:**
+**The method-rotation law**: two consecutive sessions of the _same method_
+producing zero blockers forces a change of method, and every full run must try
+**at least one probing method never used before**.
 
-- **Rubric self-conformance pass** (bắt buộc mở đầu mọi full-run): rubric có tuân chính R2 (version tự khai khớp), R3 (mọi artifact mà luật đòi _tồn tại thật_), R12 (coverage matrix có mặt) không? — tiền lệ: vòng ≤15→sống 4 vòng với tiêu đề sai và không có coverage matrix; không ai kiểm vì không ai được giao kiểm người kiểm.
-- **Đối chiếu nợ-khai-rải-rác ↔ sổ nợ trung tâm — HAI CHIỀU, HAI LẦN** _(nâng cấp)_: grep mọi cụm "vòng sau / ledger / chờ spec / gap" trong toàn hồ sơ, đối chiếu **hai chiều** với bảng known-gaps ở index — nợ khai trong spec mà index không có = **nợ ẩn**; mục trong index không còn ai nhắc = **nợ ma**. **Và chạy HAI LẦN: một lần ở phase 1, một lần LẠI SAU khi vá xong** (phase 7). _Án văn: chỉ chạy chiều-1 nên bỏ lọt 3 nợ ma; chạy đủ hai chiều ở phase 1 nhưng **không chạy lại sau khi vá**, nên chính bộ patch của mình đẻ ra 4 nghĩa vụ mới cho `deploy/`, `cloud/`, quota, runtime-sandbox mà sổ nợ không ghi — owner bắt được qua debrief Q2. Patch tạo nợ mới cũng nhanh như nó đóng nợ cũ._
+**Three protocol levels**, so cost does not kill the discipline: `incremental`
+for each patch — the principle × invariant matrix plus a post-check grep;
+`cluster` for each new specification or cluster — phases 2 and 4 locally, plus
+the cluster's litmus; and `full`.
 
-**Kỹ thuật bổ sung:**
-
-- **Patch adversarial pass (bắt buộc ở phase 7, TRƯỚC khi ghi)**: mỗi patch chịu **ba đòn**, thất bại một đòn = viết lại patch, không phải ghi rồi sửa sau. (1) **Nó có đẻ biên / nguồn-sự-thật / khái niệm mới không?** (2) **Nó có làm rơi nghĩa vụ dư của thứ nó thay thế không?** (3) **J3 áp lên chính patch**: có phương án nào đóng cùng lỗ mà **không** thêm khái niệm? _Tiền lệ patch v1 của suýt đẻ một cây tenant cha–con (biên cứng thứ hai); patch v1 của suýt đẻ write-amplification lên nguồn sự thật; patch v1 của suýt ghi đôi một ngưỡng đã có ở ICP B4 — cả ba **chỉ lộ ra khi mô phỏng việc vá**, không cách nào bắt được bằng đọc hồ sơ._
-- **Đếm-số-là-thao-tác-cuối**: mọi con số (litmus tổng, exit-litmus milestone, số spec) **đếm lại bằng script sau khi mọi patch đã ghi**, không bao giờ vá số ở giữa lượt; phép tính ghi vào run report để lượt sau kiểm được.
-- **Bảng FMEA là điều kiện tồn tại của subsystem tầng 1**: mỗi spec mới tự khai "subsystem tầng 1" phải mang bảng FMEA **trong cùng lượt tạo ra nó** (R12) — F8 vốn có, nhưng sinh Vault mà cluster-run không đối chiếu nhãn-tầng-1 với danh sách F8.
-
-**Luật xoay phương pháp**: hai lượt liên tiếp của _cùng một phương pháp_ ra 0 blocker → bắt buộc đổi phương pháp; full-run nào cũng phải thử **≥1 phương pháp dò chưa từng dùng** — không nghĩ ra được thì bản thân điều đó là một finding về giới hạn của lượt chạy.
-
-**Ba cấp protocol** (chống chi phí giết kỷ luật): `incremental` (mỗi patch: ma trận nguyên-tắc×invariant + grep hậu kiểm) · `cluster` (mỗi spec/cụm mới: phase 2+4 cục bộ + litmus cụm) · `full` (trước mỗi lần đóng băng: đủ 8 phase).
-
-**Run report** — rubric tự đo: mỗi lượt ghi `(findings × phase × severity × NGUỒN-PHÁT-HIỆN [hệ/owner], phương pháp nào 2 lượt 0-blocker → xoay, tiêu chí chưa-từng-bắt-được-gì → xem lại)`. **Luật bảng-artifact**: phase ✅ phải kèm bảng bằng chứng liệt kê từng mệnh đề — verdict một dòng = chưa chạy (tiền lệ M1 chạy nông bỏ lọt "Deploy qua Docker/K8s" là lời hứa không cơ chế). **Ngưỡng miễn dịch**: 2 lượt liên tiếp owner bắt major mà hệ không bắt → bắt buộc immune-review (truy vì sao mù, sinh tiêu chí/kỹ thuật mới theo R9).
+**A run report**, by which the rubric measures itself: each session records
+findings by phase, by severity and by **source of discovery** — the system or the
+owner — which method has produced zero blockers twice and therefore rotates, and
+which criteria have never caught anything and should be re-examined.
 
 ---
 
-## PHẦN IV — LITMUS CATALOG (38 câu mirror — canonical nằm ở từng spec; **tổng toàn hồ sơ: 148 câu**)
+## PART IV — LITMUS MIRROR
 
-> Phạm vi: đây là mirror của litmus **hệ** — 3 North Star + 3 spec core đã được nâng lên cấp hệ (Working Data, Memory, Tenant & Identity). Trước mỗi lượt: diff mirror này với nguồn canonical — lệch = cập nhật trước khi chạy (tự tuân G6).
+> Scope: this mirrors the **system-level** litmus — three North Stars plus three
+> core specifications raised to system level (Working Data, Memory, Tenant &
+> Identity). The canonical litmus lives in each specification. Before each
+> session, diff this mirror against its canonical sources.
 
-**Platform (4)**: đổi Filler người↔AI không sửa flow · shadow mode + bảng đối chiếu tự sinh · một thang tin cậy cho người lẫn AI · cost+quality theo Role bất kể ai lấp.
-**RPA (9)**: một automation chạy bằng script _và_ agent không đổi định nghĩa · script vỡ → agent vá có lineage không cần người · replay phiên từ log+evidence · takeover cùng log · secret không bao giờ vào log/screenshot-cho-model/context · standalone = cùng binary cùng đường effect · node đứt mạng — resume cursor không mất/trùng · node chưa enroll không claim/nhận secret · không kênh điều khiển thường trực, takeover từng input là Action-có-actor.
-**Hub (6)**: rút phích — mọi tenant chạy vĩnh viễn · cùng digest xuyên public/mirror/air-gap · manifest ≠ analysis → reject · publisher biến mất — người mua nguyên vẹn · hai version Contract cùng cài không xung đột · **publisher không tự duyệt được badge verified; badge thu hồi được và artifact code mất quyền cài**.
-**Working Data (6)**: rebuild table+index+metric từ log+CAS tương đương · time-travel một câu join theo log-position · sửa tay DB bị phát hiện + rebuild có hồ sơ · mọi write (kể cả bulk) đúng một actor · lease hết TTL — không kịch bản kẹt · **holder chết sau commit point — không có đường lease cấp lại tự động sinh effect đôi**.
-**Memory (6)**: đổi filler — trí nhớ về khách còn nguyên · mọi entry truy được bằng chứng gốc · không đường nào claim của khách thành fact không qua Gate · không kịch bản khách A thấy hồi ức khách B · erasure một lệnh hủy khóa, log không đục · **distill xuyên workspace phải khai tường minh, mặc định hẹp nhất**.
-**Tenant & Identity (7)**: n=1 — mọi khái niệm vô hình · nghỉ việc + đòi quên: audit pseudonym nguyên, PII chết · không đường merge party không qua Gate · client agency duyệt không cần account · falsifiable: một quyền không biểu diễn được bằng Role+capability+grant? · đổi SSO — actor-id bất biến · **tenant suspend giữa 50 task: không auto-pass, không mất dữ liệu, export vẫn chạy**.
+**Platform**: swap a human Filler for an AI without editing the flow · shadow mode
+with a self-generated comparison table · one confidence scale for people and AI
+alike · cost and quality per Role regardless of who fills it.
+
+**RPA**: one automation running as script _and_ as agent without changing its
+definition · a broken script healed by an agent, with lineage and without a
+person · replaying a session from log plus evidence · takeover in the same log ·
+a secret never reaching a log, a screenshot or a context.
+
+**Hub**: unplug it and every tenant runs forever · the same digest across public,
+mirror and air gap · a manifest disagreeing with the analysis is rejected · a
+publisher disappears and the buyer is unaffected · two Contract versions running
+side by side.
+
+**Working Data**: rebuild tables, indexes and metrics from log plus
+content-addressed storage equivalently · time-travel a join by log position · a
+manual database edit detected and rebuilt with a record · every write, including
+bulk, carrying exactly one actor identity.
+
+**Memory**: swap the filler and the memory about the customer survives · every
+entry traceable to its original evidence · no path by which a customer's claim
+becomes a fact without a Gate · no scenario where customer A sees customer B.
+
+**Tenant & Identity**: at n=1 every concept is invisible · an employee leaves and
+asks to be forgotten, and the pseudonymous audit survives while the PII dies · no
+path merges a party without a Gate · an agency's client approves without an
+account.
 
 ---
 
-## PHẦN V — ĐỐI KHÁNG CHÍNH BỘ RUBRIC (điểm mù tự khai, để người chạy sau không ảo tưởng)
+## PART V — ATTACKING THE RUBRIC ITSELF
 
-| #   | Điểm mù                                                                                                                                                                                                                       | Giảm thiểu đã cài                                                                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|     | **Tự chấm**: tác giả docs chạy rubric trên chính mình                                                                                                                                                                         | R1 falsifiable + coverage-có-bằng-chứng; **vòng đóng băng cuối phải chạy bởi context mới** (người khác/phiên khác) chỉ với docs + file này — đó là lý do file phải tự chứa |
-|     | **Rubric nhìn về quá khứ**: viết cho các lớp lỗi _đã_ tìm thấy — mù với lớp kế tiếp                                                                                                                                           | Luật xoay phương pháp + bắt buộc ≥1 phương pháp mới mỗi full-run                                                                                                           |
-|     | **Goodhart**: pass câu chữ, trượt tinh thần                                                                                                                                                                                   | Câu-hỏi-tinh-thần mỗi nhóm; finding `tension`                                                                                                                              |
-|     | **Coverage theater**: tick ô không đọc                                                                                                                                                                                        | Mỗi ô PASS đòi trích dẫn/đòn tấn công ghi lại                                                                                                                              |
-|     | **Ảo tưởng bão hòa**: "không tìm thấy" ≠ "không có"                                                                                                                                                                           | PASS = sống-sót-N-đòn-có-hồ-sơ; bão hòa định nghĩa đo được (2 lượt 0-blocker _xuyên_ nhiều phương pháp + litmus full-pass) — và vẫn chỉ là "chưa tìm thấy"                 |
-|     | **Drift tham chiếu**: docs đổi số mục, rubric trỏ hụt                                                                                                                                                                         | Rubric trỏ _khái niệm_ trước, số mục sau; patch nào đổi cấu trúc mục phải grep ngược về file này                                                                           |
-|     | **Chi phí giết kỷ luật**                                                                                                                                                                                                      | Ba cấp protocol                                                                                                                                                            |
-|     | **Giới hạn bản thể**: rubric chỉ đo _nhất quán nội tại_ — một hồ sơ hoàn hảo nội tại vẫn có thể là sản phẩm sai thị trường                                                                                                    | Ghi thẳng: rubric không thay được phỏng vấn khách/ICP/kill-criteria; hai loại sự thật, hai công cụ                                                                         |
-|     | **Buồng vọng một trí tuệ**: người tấn công và người phòng thủ là một                                                                                                                                                          | Phase 5 (góc nhìn đối thủ) là proxy; khuyến nghị đứng: red-team người thật trước launch — rubric là lưới, không phải bảo hiểm                                              |
-|     | **Điểm mù của chính hành động vá**: rubric đo _hồ sơ_, không đo _bản patch_ — mà patch là nơi khái niệm mới bị đẻ ra dễ nhất (áp lực "đóng finding cho xong"). 4 major + 1 mở-rộng-blocker chỉ xuất hiện khi mô phỏng việc vá | **Patch adversarial pass** (3 đòn, phase 7) + luật đếm-số-cuối-cùng. Vẫn là giảm thiểu, không phải miễn dịch: người vá và người soi patch vẫn là một                       |
+Self-declared blind spots, so whoever runs this next holds no illusions.
+
+| Blind spot                                                                                                                                                                           | Mitigation in place                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| **Self-marking**: the corpus's author runs the rubric on their own work                                                                                                              | R1's falsifiability plus evidence-backed coverage; the final freeze pass should be run by someone else             |
+| **The rubric looks backwards**: it is written for fault classes already found, and is blind to the next one                                                                          | The method-rotation law, plus at least one new method per full run                                                 |
+| **Goodhart**: passing the letter while failing the spirit                                                                                                                            | A spirit question per group, and the `tension` finding                                                             |
+| **Coverage theatre**: ticking a cell without reading                                                                                                                                 | Every PASS cell demands a citation or a recorded attack                                                            |
+| **The saturation illusion**: "not found" is not "not there"                                                                                                                          | PASS means surviving N recorded attacks; saturation is defined measurably                                          |
+| **Reference drift**: the documents renumber a section and the rubric points at nothing                                                                                               | The rubric cites the _concept_ first and the section number second; any patch changing section structure re-checks |
+| **Cost kills discipline**                                                                                                                                                            | The three protocol levels                                                                                          |
+| **An ontological limit**: this rubric measures only _internal consistency_ — a corpus perfect internally can still be the wrong product for the market                               | Stated outright: the rubric replaces neither customer interviews, nor ICP work, nor kill criteria                  |
+| **A single mind's echo chamber**: the attacker and the defender are the same person                                                                                                  | Phase 5's competitor viewpoint is a proxy; the standing recommendation is a human red team                         |
+| **The blind spot of patching itself**: the rubric measures the _corpus_, not the _patch_ — and a patch is where a new concept is most easily born, under pressure to close a finding | The patch adversarial pass at phase 7, plus the counting-last law                                                  |
 
 ---
 
-## PHẦN VI — INVENTORY QUAN ĐIỂM SÁNG LẬP (nguồn chạy A0 — tự chứa, không phụ thuộc hội thoại)
+## PART VI — THE FOUNDING VIEWPOINT INVENTORY
 
-| #   | Quan điểm                                                                                                                                                                                                                                                              | Đã mã hóa tại                                           |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| V1  | Bài toán cốt lõi: hợp nhất 2 lực lượng lao động human+AI                                                                                                                                                                                                               | NS §1–2, Role                                           |
-| V2  | Deterministic + reasoning seamless, engine không if-deterministic                                                                                                                                                                                                      | Task §5, duality tables                                 |
-| V3  | OPC là bong bóng; n=1 đau điều phối (AI ×3, nghẽn xác minh); tăng nhân lực kéo theo; **không rewrite khi lớn**                                                                                                                                                         | NS §2                                                   |
-| V4  | ML là tính năng thêm — 3 tham vọng (quy trình/checkpoint/prompting) không đi trước dữ liệu                                                                                                                                                                             | NS §7–8, tầng 5                                         |
-| V5  | 20% BPMN giải 90%; không theo BPMN 2.0; đối thủ "đi lên từ nghề"                                                                                                                                                                                                       | NS §2, §7                                               |
-| V6  | Inbox tự xây                                                                                                                                                                                                                                                           | NS §8 tầng 3                                            |
-| V7  | Agent runtime tự xây                                                                                                                                                                                                                                                   | NS §8 tầng 2                                            |
-| V8  | Pair-design: người + AI cùng tạo quy trình                                                                                                                                                                                                                             | Composition §5                                          |
-| V9  | Docker/K8s                                                                                                                                                                                                                                                             | NS §8                                                   |
-| V10 | Fair-code SUL, open-core, 4 dòng doanh thu, chặn phân phối thương mại, không nhãn "open source"                                                                                                                                                                        | NS §8                                                   |
-| V11 | Dữ liệu học thuộc tenant, per-tenant learning                                                                                                                                                                                                                          | Invariant 4                                             |
-| V12 | **Không quan tâm phức tạp/effort — đích đến luôn là cơ chế TỐI ƯU NHẤT**: mọi quyết định phải là phương án mạnh nhất sống sót qua đối kháng (falsifiable: đưa được phương án tốt hơn = quyết định hiện tại thua); cơ chế rõ + executable là điều kiện, không phải trần | Nhóm J (J3 là nghi thức thử), NS preamble "đây là trần" |
-| V13 | Phức tạp là quyền lựa chọn của user                                                                                                                                                                                                                                    | Nguyên tắc #4, nhóm K                                   |
-| V14 | Verifier do người thiết kế cài; multi-verifier song song/tuần tự; chấm lại sau done                                                                                                                                                                                    | Checkpoint                                              |
-| V15 | RPA sản phẩm riêng domain riêng, integration-first, monorepo                                                                                                                                                                                                           | RPA NS                                                  |
-| V16 | Hub/Block/Template — cộng đồng nối dài đuôi                                                                                                                                                                                                                            | Hub NS, Block                                           |
-| V17 | EE & Cloud là 2 lớp ngang; tenant core cardinality ≥ 1                                                                                                                                                                                                                 | NS §8, Tenant spec                                      |
-| V18 | Knowledge: nhiều kho, phân quyền, phân mật, bật/tắt theo tenant                                                                                                                                                                                                        | Knowledge                                               |
-| V19 | Chatbot trên ecoma là use case hạng nhất                                                                                                                                                                                                                               | Trigger & Channel                                       |
-| V20 | DataTable có join nâng cao (khác n8n); default Postgres stack; không phát minh bánh xe                                                                                                                                                                                 | Working Data                                            |
-| V21 | Locking phải tồn tại → Lease                                                                                                                                                                                                                                           | Working Data §3                                         |
-| V22 | Memory thuộc tổ chức theo subject (chốt qua ủy quyền)                                                                                                                                                                                                                  | Memory                                                  |
-| V23 | Văn hóa: review đối kháng đa vòng; rubric tự tiến hóa                                                                                                                                                                                                                  | File này                                                |
+The source for running A0 — self-contained, depending on no conversation.
 
-A0 = diff nhóm A với bảng này; thêm quan điểm mới của owner → thêm dòng V-mới (append-only).
+| #   | Viewpoint                                                                                                                                                                                                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1  | The core problem: unifying two workforces, human and AI                                                                                                                                                                                       |
+| V2  | Deterministic and reasoning, seamless; the engine has no `if deterministic`                                                                                                                                                                   |
+| V3  | The one-person-company is a bubble; at n=1 the pain is coordination — AI multiplies output and verification becomes the bottleneck; hiring carries that pain along; **and growing must not require a rewrite**                                |
+| V4  | ML is an added feature — the three ambitions (process, checkpoint, prompting) never precede the data                                                                                                                                          |
+| V5  | 20% of BPMN solves 90%; not following BPMN 2.0; competitors "come up from a trade"                                                                                                                                                            |
+| V6  | A self-built inbox                                                                                                                                                                                                                            |
+| V7  | A self-built agent runtime                                                                                                                                                                                                                    |
+| V8  | Pair-design: people and AI designing processes together                                                                                                                                                                                       |
+| V9  | Docker and Kubernetes                                                                                                                                                                                                                         |
+| V10 | Fair-code under the SUL, open-core, four revenue streams, blocking commercial redistribution, never labelled "open source"                                                                                                                    |
+| V11 | Learned data belongs to the tenant; learning is per tenant                                                                                                                                                                                    |
+| V12 | **Complexity and effort are not the constraint — the destination is always the STRONGEST mechanism**: every decision must be the strongest option surviving adversarial contest. Falsifiable: name a stronger alternative that was not chosen |
+| V13 | Complexity is the user's choice                                                                                                                                                                                                               |
+| V14 | Verifiers are installed by whoever designs the process; multiple verifiers run in parallel or in sequence; re-marking after completion is allowed                                                                                             |
+| V15 | RPA is a separate product in its own domain, integration-first, in the monorepo                                                                                                                                                               |
+| V16 | Hub, Block and Template — the community extends the long tail                                                                                                                                                                                 |
+| V17 | Enterprise and Cloud are two parallel layers; the tenant core has cardinality ≥ 1                                                                                                                                                             |
+| V18 | Knowledge: many stores, permissioned, classified, switched on or off per tenant                                                                                                                                                               |
+| V19 | A chatbot on ecoma is a first-class use case                                                                                                                                                                                                  |
+| V20 | DataTable has advanced joins, unlike a workflow tool; the default is a Postgres stack; no reinventing wheels                                                                                                                                  |
+| V21 | Locking must exist, and it is the Lease                                                                                                                                                                                                       |
+| V22 | Memory belongs to the organisation, keyed by subject                                                                                                                                                                                          |
+| V23 | Culture: multi-round adversarial review; a self-evolving rubric                                                                                                                                                                               |
 
-## PHẦN VII — NHẬT KÝ TIẾN HÓA (theo VÒNG — xếp giảm dần)
-
-| Vòng     | Nội dung                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|          | **Full-run — con dấu, context sạch thứ hai.** 1 blocker (mở rộng phạm vi) + 15 major + 13 minor; **9 finding sinh ra từ chính vòng vá** ⇒ điểm mù mới. Sinh theo R9: **L7** doc identity & version integrity (từ — 12 file lệch version giữa header và index); **P3b** luật giao thoa chiều ngược + theo _loại_ bản sao (từ blocker và — snapshot key store hồi sinh khóa đã shred); **Patch adversarial pass** 3 đòn ở phase 7 + **đếm-số-là-thao-tác-cuối** + **FMEA là điều kiện tồn tại của subsystem tầng 1** (từ). Tự sửa: luật tự-tuân trỏ "dòng cuối" trong khi nhật ký xếp lộn → xếp giảm dần; "34 câu ↔ 38 câu" trong cùng đoạn; "19 spec" ở coverage matrix; bỏ con số vòng chép tay ở R10/Phần III. Litmus full-pass **124 → 130**. **Quyết định owner cuối vòng: BỎ ĐÁNH VERSION TÀI LIỆU** — L7 viết lại quanh **VÒNG là danh tính** (bỏ số ở tiêu đề/index/tham chiếu chéo; khối `Nhật ký sửa` dạng `vòng NN — nội dung`; index giữ cột _Vòng cập nhật gần nhất_); luật tự-tuân của rubric đổi từ "khớp số version ở 4 chỗ" sang "**khớp VÒNG ở 3 chỗ**". Đây là **giết lớp lỗi tận gốc** thay vì vá nó. **bắt ở phase 6** (litmus pass, không phải phase 2): nhãn `run_kind` được khai _hệ quả_ ở 4 consumer mà không có nhà ⇒ E5 mở rộng sang _trường/nhãn_, không chỉ _bảng_ — R9 **không** sinh tiêu chí mới vì E5/G3 lẽ ra bắt được, chỉ thêm tiền lệ + hệ quả thao tác |
-|          | **IMMUNE-REVIEW KÍCH HOẠT** (đúng ngưỡng: 2 lượt liên tiếp owner bắt major mà hệ mù — ô-`build`, rồi merge-queue/revert/AI-drift, dù charter vừa cluster-run trong cùng lượt). Truy gốc mù: nhóm P có vòng đời Product/Entity/Data/Actor nhưng **không có vòng đời của một THAY ĐỔI** → cluster-run charter chạy D2/G6/J/K mà không nhóm nào hỏi "đường lùi của một PR ở đâu". Sinh **P5 Change/Contribution lifecycle** theo R9. Ghi nhận kèm: lớp lỗi "AI-velocity drift" là lớp mới của thời đại AI-dev — P5 ôm bằng ô revert-rẻ + charter §5b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|          | **Full-run đầu tiên do context sạch chạy** (đúng điều kiện). Rubric tự dính 3 finding: (a) version tự khai lệch — tiêu đề/R2/Phần II/pipeline vẫn nói vòng ≤15, A–K, R1–R8 trong khi nhật ký đã → một context sạch sẽ chạy thiếu M/N/O/P và R9–R12; (b) **coverage matrix doc-class × nhóm** mà R12 đòi chưa từng tồn tại; (c) "litmus full-pass" đo trên 34 câu mirror, bỏ ngoài L5 của 19 spec + 7 câu charter. Vá: luật tự-tuân version, matrix doc-class, định nghĩa lại phạm vi litmus. **R9 sinh mới**: C6 (vách mềm workspace), F3 mở rộng live-view, P3 thêm backup/restore + luật giao thoa xóa×sao-lưu. **Kỹ thuật mới**: rubric self-conformance pass; đối chiếu nợ-khai-rải-rác ↔ sổ nợ trung tâm; implementation-sketch test lần đầu thực chạy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|          | Trả lời "làm sao không mắc lỗi tương tự": truy 4 gốc rễ (rubric-derive-từ-cái-đã-viết; nợ-nội-dung-mới; owner-đầu-không-sync; phase-chạy-nông) → **nhóm P** lifecycle checklist tiên nghiệm; **R11** owner-fact sync + debrief 5 câu; **R12** cấm tài liệu chưa-review âm thầm; run-report (nguồn-phát-hiện, luật bảng-artifact, ngưỡng miễn dịch owner-catch). P-run đầu tiên bắt ngay 2 finding: EOL window, node decommission                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-|          | Finding qua R10 (owner không nhận ra quan điểm của mình trong V12): encoding nén mất vế "đích đến tối ưu nhất" — reword V12 đủ hai vế (không-bị-chặn-bởi-effort + bắt-buộc-tìm-phương-án-mạnh-nhất); thêm câu tinh thần nhóm J. Ghi nhận: "cơ chế tối ưu nhất" là claim falsifiable (J3), khác "rubric tối ưu nhất" (không falsifiable)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| vòng ≤15 | 4 vòng đối kháng theo yêu cầu owner: nhóm **O** competitive/standards watch thường trực (bắt bài học Data-Tables/memory do owner phát hiện); **scenario catalog** = tài sản regression + **dimension model** 8 chiều; **R10** kênh owner (câu hỏi không trả lời được bằng 1 trích dẫn = finding); **run report** tự đo; phụ lục **Inventory 23 quan điểm** (vá lỗ tự-chứa của A0); litmus đánh dấu mirror (tự tuân G6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| vòng ≤15 | Đối kháng chính vòng ≤15 theo yêu cầu "có chắc tối ưu nhất?": **R9 luật miễn dịch** (finding không ai bắt → sinh tiêu chí mới, cùng patch); nhóm **M** truy vết lời hứa 2 chiều; nhóm **N** threat-actor battery 7 persona; **F8** FMEA subsystem; **J6** kinh tế vận hành; **L6** glossary; phase 4b/4c + implementation-sketch test. Bác 3 ứng viên có án văn (benchmark định lượng, quét pháp lý, đo thời gian đọc). Sửa claim: không "tối ưu nhất" — "mạnh nhất đến nay + tự tiến hóa"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| vòng ≤15 | Hợp nhất toàn bộ rubric hội thoại (A–K + R1–R8); thêm A0, D8, E5, F7, G9, nhóm L; pipeline 8 phase + luật xoay phương pháp + 3 cấp protocol; litmus catalog 34; tự-đối-kháng –. **Deprecated: B4** (superseded-by K1–K6). Thay thế mọi phiên bản trong hội thoại                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+A0 diffs group A against this table. A new owner viewpoint adds a new V row,
+append-only.
