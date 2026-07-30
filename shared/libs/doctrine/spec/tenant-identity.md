@@ -1,126 +1,233 @@
 ---
-title: "Ecoma Spec: Tenant & Identity"
+title: "Tenant & Identity"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Tenant & Identity
+# Tenant & Identity
 
-## 1. Principal — một schema danh tính cho mọi tác nhân
+## 1. Principal — one identity schema for every actor
 
-Mọi entry trong Event Log mang **principal identity**; taxonomy mở, các loại chuẩn:
+Every entry in the Event Log carries a **principal identity**. The taxonomy is
+open; the standard kinds:
 
-| Loại                               | Danh tính                                                                                                                           | Đã định nghĩa ở |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `user` — người trong tenant        | **Pseudonymous stable id** (bất biến vĩnh viễn) + PII mapping tách riêng (§6); xác thực qua auth adapter (SSO = EE extension point) | Spec này        |
-| `agent`                            | (model, version, config_hash) + lineage                                                                                             | Role §3         |
-| `rule`                             | (code, version)                                                                                                                     | Role §3         |
-| `node`                             | Device keypair + enrollment                                                                                                         | RPA NS topology |
-| `external` — bên ngoài qua Channel | Channel identity → hợp nhất thành **Party** (§5)                                                                                    | Trigger §3      |
+| Kind                                    | Identity                                                                                                                                                                          | Defined in     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `user` — a person inside the tenant     | A **pseudonymous stable id**, permanently immutable, with the PII mapping held separately (§6); authentication through an auth adapter, with SSO as an enterprise extension point | Here           |
+| `agent`                                 | (model, version, config_hash) plus lineage                                                                                                                                        | Role §3        |
+| `rule`                                  | (code, version)                                                                                                                                                                   | Role §3        |
+| `node`                                  | A device keypair plus enrollment                                                                                                                                                  | RPA North Star |
+| `external` — outside, through a Channel | A channel identity, unified into a **Party** (§5)                                                                                                                                 | Trigger §3     |
 
-Đổi nhà cung cấp SSO = đổi auth adapter — **actor-id trong log không bao giờ đổi**.
+Changing SSO provider means changing an auth adapter — **the actor id in the log
+never changes**. That separation is what lets an audit trail outlive an identity
+vendor.
 
-## 2. Tenant — ranh giới cứng duy nhất
+## 2. Tenant — the only hard boundary
 
-- **Cardinality ≥ 1**: mọi khái niệm namespace theo tenant (thư viện entity, calibration, cascade, lockfile, blob namespace, event log). Self-host = tenant đơn; Cloud = N tenant — **không nhánh code nào khác nhau** (đã chốt §8 North Star).
-- Tenant là ranh giới của: sở hữu dữ liệu, học (invariant 4), mã hóa, dedup, egress mặc định.
+**Cardinality ≥ 1**: every concept is namespaced by tenant — entity libraries,
+calibration, cascade, lockfile, blob namespace, event log. Self-hosting is a
+single tenant; Cloud is N tenants, with **no code branch differing between
+them**.
 
-## 2b. Vòng đời tenant — provision → active → suspended → export → purge
+A tenant is the boundary of data ownership, learning (invariant 4), encryption,
+deduplication, and default egress.
 
-Tenant là entity, nên có vòng đời như mọi entity (không phải khái niệm vận hành của riêng SaaS — D5):
+## 2b. Tenant lifecycle — provision → active → suspended → export → purge
 
-| Giai đoạn   | Cơ chế                                                                                                                                                                                       | Ghi chú                                                                                                                                                                                                                 |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provision` | Là **một process ecoma** (North Star §8): tạo namespace log/blob, khóa gốc, workspace mặc định, user đầu tiên lấp Role quản trị                                                              | Self-host chạy đúng process đó với cardinality 1                                                                                                                                                                        |
-| `active`    | Trạng thái thường                                                                                                                                                                            |                                                                                                                                                                                                                         |
-| `suspended` | Engine ép **trạng thái tồn tại**; lý do (quá hạn, lạm dụng, yêu cầu của tenant) là **policy**                                                                                                | Suspended = **đóng băng ghi**, không xóa: trigger từ chối tại biên, node từ chối claim, task đang chạy đi đường `escalate/halt` — **không bao giờ auto-pass hay tự hủy** (invariant 5). Đọc/export vẫn được theo policy |
-| `export`    | **Task của Role có Gate**: audit export + BYO-export projection + blob theo classification (Working Data §4, Artifact Store §6) — egress chịu classification như mọi effect                  | Quyền mang dữ liệu đi là cơ chế, không phải thiện chí của nhà vận hành                                                                                                                                                  |
-| `purge`     | Hủy **khóa gốc tenant** (crypto-shredding, Event Log §4 — gồm mọi bản escrow) → GC blob namespace theo tham chiếu → entry cuối cùng ghi vào log của **nhà vận hành**, không phải log đã chết | Không đảo ngược được; engine ép `export` hoàn tất hoặc khai từ bỏ tường minh trước khi cho purge                                                                                                                        |
+A tenant is an entity, so it has a lifecycle like every other entity rather than
+being an operational concept belonging only to SaaS:
 
-- Mọi chuyển trạng thái là **event có actor** — không có đường đổi trạng thái tenant ngoài log.
-- Nợ đã trả: đây là ô `sunset` (P1) và `delete` của entity-tenant (P2) trong checklist vòng đời.
+| Stage       | Mechanism                                                                                                                                                                                                               | Notes                                                                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `provision` | **An ecoma process** (North Star §8): create the log and blob namespaces, the root key, a default workspace, and a first user filling an administrative Role                                                            | Self-hosting runs exactly that process at cardinality 1                                                                                                                                                                                                |
+| `active`    | The ordinary state                                                                                                                                                                                                      |                                                                                                                                                                                                                                                        |
+| `suspended` | The engine forces **the state to exist**; the reasons — overdue, abuse, the tenant's own request — are **policy**                                                                                                       | Suspended means **writes frozen, nothing deleted**: triggers refuse at the boundary, nodes refuse to claim, running tasks take `escalate` or `halt` — **never auto-pass and never self-destruct** (invariant 5). Reading and export continue by policy |
+| `export`    | **A Task of a Role with a Gate**: audit export, BYO-export projections, and blobs by classification (Working Data §4, Artifact Store §6), egressing by classification like any effect                                   | The right to take your data with you is a mechanism, not the operator's goodwill                                                                                                                                                                       |
+| `purge`     | Destroy the **tenant root key** (crypto-shredding, Event Log §4, including every escrow copy) → GC the blob namespace by reference → write the final entry into the **operator's** log, not into the log that just died | Irreversible; the engine requires `export` to have completed, or an explicit waiver, before purge is permitted                                                                                                                                         |
 
-## 2c. Cardinality theo hình thái — engine đa-tenant, cài đặt self-host đơn-tenant
+Every transition is **an event with an actor**. There is no path to changing a
+tenant's state outside the log.
 
-| Vế                                   | Luật                                                                                                                                                        | Án văn                                                                                                                                                                                                                                               |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Engine luôn tenant-aware**         | Cây khoá root→tenant-DEK→subject · log per-tenant · RBAC scope · dedup chỉ trong tenant · metering per-tenant. **Tầng tenant tồn tại VẬT LÝ kể cả khi N=1** | Bỏ tầng tenant "cho gọn khi chỉ có một" biến mọi lần chuyển sang đa-tenant thành **migrate toàn bộ khoá** — và đó là loại migrate không có đường lùi                                                                                                 |
-| **Self-host = đúng 1 tenant**        | Không có workflow tạo tenant thứ hai, vì **workflow provisioning chỉ ship trong `cloud/`**                                                                  | **Cap là BIÊN SẢN PHẨM, không phải license check.** North Star §7 cấm thẳng: _runtime không bao giờ kiểm entitlement, không license key, không phone-home_. Engine về kỹ thuật giữ được N tenant; đơn giản là không có gì ship ra để tạo cái thứ hai |
-| **Đa-tenant không cấp năng lực**     | Hai tenant trên một cài đặt ≡ hai cài đặt riêng **về mọi mặt sản phẩm**                                                                                     | **Invariant 4** cấm học chéo tenant ⇒ không chung calibration/memory/knowledge. Khác biệt duy nhất là **một cụm hạ tầng thay vì hai** — tức tiết kiệm _vận hành_, đúng thứ một nhà cung cấp SaaS bán                                                 |
-| **Invariant 4 áp cả operator Cloud** | Operator **được** gộp metering xuyên tenant. Operator **KHÔNG BAO GIỜ** được định tuyến knowledge / memory / calibration xuyên tenant                       | Code thi hành nằm trong repo private mà người ngoài **không audit được** ⇒ ranh giới phải khai công khai và có litmus, nếu không nó chỉ là lời hứa                                                                                                   |
+## 2c. Cardinality by shape — a multi-tenant engine, a single-tenant self-host
 
-**Hệ quả tốt, đáng ghi**: vì đa-tenant không thêm năng lực, **conformance suite chạy trên self-host là đủ để chứng minh engine đúng**; `cloud/` chỉ bọc thêm provisioning + billing + fleet. Phần private vì thế **nhỏ và tẻ nhạt** — đúng thứ ta muốn: cái đáng ngờ thì công khai, cái riêng thì nhàm. Nếu đa-tenant nằm ở Enterprise thì ngược lại: phần rủi ro nhất lại là phần bán đắt nhất và ít mắt nhìn nhất.
+| Limb                                     | The rule                                                                                                                                                                    | Reasoning                                                                                                                                                                                                                                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The engine is always tenant-aware**    | The key tree root → tenant DEK → subject, a per-tenant log, RBAC scopes, dedup only within a tenant, per-tenant metering. **The tenant tier exists PHYSICALLY even at N=1** | Removing the tenant tier "to keep it tidy while there is only one" turns any later move to multi-tenancy into **migrating every key** — the kind of migration with no way back                                                                                                      |
+| **Self-host is exactly one tenant**      | There is no workflow for creating a second tenant, because **the provisioning workflow ships only in `cloud/`**                                                             | **The cap is a PRODUCT boundary, not a licence check.** North Star §7 forbids it outright: the runtime never checks entitlement, holds no licence key, and phones home to nobody. Technically the engine holds N tenants; there is simply nothing shipped that creates a second one |
+| **Multi-tenancy grants no capability**   | Two tenants on one installation are equivalent to two installations **in every product respect**                                                                            | **Invariant 4** forbids cross-tenant learning, so there is no shared calibration, memory or knowledge. The only difference is **one infrastructure cluster instead of two** — an operational economy, which is exactly what a SaaS vendor sells                                     |
+| **Invariant 4 binds the Cloud operator** | The operator **may** aggregate metering across tenants. The operator **NEVER** routes knowledge, memory or calibration across them                                          | The code enforcing this lives in a private repository that outsiders **cannot audit**, so the boundary has to be declared publicly and carry a litmus — otherwise it is only a promise                                                                                              |
 
-## 3. Workspace — phân vùng mềm trong tenant
+**A consequence worth recording**: because multi-tenancy adds no capability, **a
+conformance suite run on a self-host is sufficient to prove the engine correct**;
+`cloud/` only wraps provisioning, billing and fleet management around it. The
+private part is therefore **small and boring** — which is what we want: the
+questionable parts are public and the private parts are dull. Had multi-tenancy
+been an enterprise feature, the opposite would hold, and the riskiest code would
+be the most expensive and least observed.
 
-- Workspace = **vách ngăn tổ chức** (agency: mỗi client một workspace): scope cho visibility/grant, và **một chiều trong calibration key** (trả nợ ledger: agency tách chất lượng theo client).
-- **KHÔNG PHẢI BIÊN AN NINH — nói thẳng, ở đây và ở mọi trang bán hàng**. Workspace là biên **quản trị và hiển thị**. Trong cùng một tenant: artifact **dedup được phép** (chỉ cross-tenant mới cấm — Artifact Store §4), cùng **một** tenant DEK, cùng namespace log. Một agency phục vụ hai brand đối thủ mà nói _"dữ liệu hai bên cách ly"_ là **nói sai**. Câu đúng: _"dữ liệu của bạn không rời khỏi cài đặt của agency"_ — agency là bên kiểm soát dữ liệu, đúng như mọi quan hệ agency–client bình thường. Đường nâng cấp tự nhiên và có thật: **cần biên an ninh ⇒ cần tenant ⇒ cần cài đặt thứ hai hoặc Cloud.**
-- **Không phải ranh giới cứng**: tenant vẫn là biên mã hóa/học; chia sẻ xuyên workspace = grant tường minh. Gộp hay tách learning xuyên workspace là **giá trị template** (engine ép chiều tồn tại — agency tự chọn pool chung hay riêng).
-- n=1: một workspace mặc định, vô hình (K1).
+## 3. Workspace — a soft partition inside a tenant
 
-## 4. Một hệ phân quyền duy nhất — quản trị cũng là lao động
+A workspace is an **organisational divider** — an agency gives each client one.
+It scopes visibility and grants, and it is **a dimension of the calibration key**,
+which is what lets an agency separate quality per client.
 
-- **Không có "loại user admin"**: admin = người (hoặc về cơ chế, cả agent — đối xứng; template mặc định đòi human) **lấp một Role có capability quản trị**: `enroll_node`, `approve_code`, `manage_membership`, `grant_capability`, `manage_workspace`… — taxonomy capability mở sẵn có (Role §2) nay ôm luôn quản trị.
-- **Process owner** = một Role khai trong Process definition (mặc định của Arbiter/terminal handler — trả nợ Handoff §4, Escalation §3); template cấp mặc định = người tạo definition.
-- Hành động quản trị = **Task có Gate như mọi lao động** (duyệt enrollment, cấp quyền — có dấu vết, có duyệt, dogfooding trọn).
-- **Duyệt-xem ngoài task** (trả nợ Knowledge §2, Artifact Store §6): quyền xem của một user = **hợp của các grant thuộc những Role mà user nằm trong pool** — không danh sách ACL thứ hai. Đọc nội dung theo mức mật sinh **read-event** (engine ép tham số ghi-đọc tồn tại theo mức; template cấp giá trị — `secret` mặc định ghi mọi lần đọc).
-- Membership (user vào tenant/workspace/pool của Role) là event — thay đổi quyền có lịch sử đầy đủ.
-- **Console vận hành của Cloud là BỀ MẶT trên chính hệ này, không phải hệ user thứ hai**. `cloud/` ôm quản trị nội bộ (tạo tenant, quản user, cấu hình SaaS) — nhưng nhân viên vận hành **lấp một Role có capability quản trị** y hệt mọi người khác, và mọi hành động của họ là **Task có Gate, có dấu vết**. Dựng một bảng user riêng cho operator là dựng **nguồn sự thật thứ hai về danh tính** (E5) và phá thẳng luật "không có loại user admin" ở ngay trên. Đây là ràng buộc trần đặt lên `cloud/`, không phải lựa chọn của `cloud/`.
+**It is NOT a security boundary — stated plainly, here and on every sales page.**
+A workspace is an **administrative and visibility** boundary. Within one tenant,
+artifacts **may be deduplicated** (only cross-tenant dedup is forbidden — Artifact
+Store §4), there is **one** tenant DEK, and one log namespace. An agency serving
+two competing brands that says _"the two are isolated"_ **is saying something
+false**. The true sentence is: _"your data does not leave the agency's
+installation"_ — the agency is the data controller, exactly as in any ordinary
+agency-client relationship. The upgrade path is real and natural: **wanting a
+security boundary means wanting a tenant, which means a second installation or
+Cloud.**
 
-## 5. Party — hợp nhất danh tính bên ngoài
+The tenant remains the encryption and learning boundary; sharing across
+workspaces is an explicit grant. Whether learning pools or splits across
+workspaces is **a template value** — the engine forces the dimension to exist and
+the agency chooses.
 
-- **Party** = một con người/tổ chức bên ngoài, hợp nhất nhiều channel identity (messenger id, email, số điện thoại). Party là **subject của Memory** và **data-subject** của erasure.
-- **Merge là Task có Gate, không bao giờ tự động** — án văn: merge sai hai channel identity = rò memory của người này cho người kia (phạm cross-subject isolation, Memory §4). Hệ thống chỉ được _đề xuất_ merge; quyết là lao động có dấu vết. Merge/split có **lineage** — gỡ được khi phát hiện sai. **Ngoại lệ có án văn — self-assertion**: chủ thể tự chứng minh sở hữu identity kia bằng _xác thực_ (verify email/OTP khi signup từ kênh đã tương tác) → hợp nhất không cần Gate — bằng chứng là xác thực, không phải suy đoán; vẫn là event có provenance, vẫn gỡ được qua lineage (consumer đầu tiên: Website Charter §4).
-- Calibration trên external party: cơ chế tồn tại, mặc định tắt (đã chốt Trigger §3) — nhắc lại vì đây là nhà của quyết định đó.
+At n=1 there is one default workspace, invisible.
 
-## 6. Data-subject & quyền được quên — audit sống, người được quên
+## 4. One permission system — administration is labour too
 
-- **Actor-id trong log là pseudonymous và vĩnh viễn** — không bao giờ shred (audit là sản phẩm). **PII mapping** (tên, email, avatar ↔ id) nằm bảng riêng, mã hóa theo khóa data-subject.
-- Erasure (nhân viên nghỉ + GDPR, khách chat đòi quên) = **crypto-shredding khóa của party/user đó** (Event Log §4): mapping chết, payload cá nhân chết; cấu trúc lao động (ai-duyệt-gì dưới dạng pseudonym) sống nguyên. Hành động hủy khóa là một event.
-- Ranh giới tường minh: **work product thuộc tenant** (artifact, judgment); _danh tính cá nhân_ thuộc data-subject. Hai thứ tách được nhờ pseudonym — không phải nhờ lời hứa.
-- **Backup không phải vùng trắng của erasure**: khóa sống ngoài đường sao lưu dữ liệu, escrow chịu cùng lệnh shred — luật canonical tại **Event Log §4**.
+**There is no "admin user type."** An administrator is a person — or,
+mechanically, an agent, though the template default requires a human — **filling a
+Role with administrative capabilities**: `enroll_node`, `approve_code`,
+`manage_membership`, `grant_capability`, `manage_workspace`. The existing open
+capability taxonomy (Role §2) now covers administration too.
 
-## 7. Cộng tác bên ngoài — không có "guest user" hạng hai
+**Process owner** is a Role declared in a Process definition, and the default
+Arbiter and terminal handler; the template default is whoever created the
+definition.
 
-Client của agency duyệt deliverable, ứng viên xác nhận lịch, đối tác ký nháy — **tất cả là external filler lấp một Role qua Channel** (portal/magic-link cũng chỉ là một channel): reply = task output, đi qua Gate, có provenance. Không tài khoản tenant, không hệ guest riêng — văn phạm external-participant (Trigger §3) đã phủ trọn, spec này chỉ đóng đinh: **mời người ngoài tham gia = gán họ vào Role, không phải cấp account.**
+Administrative actions are **Tasks with Gates, like all labour** — approving an
+enrollment, granting a capability. Traced, approved, dogfooded completely.
 
-## 8. EE extension points (engine khai báo, EE cấp implementation)
+**Browsing outside a task**: a user's read access is **the union of the grants
+belonging to the Roles whose pool they are in** — never a second ACL list. Reading
+content at a secrecy level emits a **read event**; the engine forces the
+per-level parameter to exist and a template supplies it, with `secret` recording
+every read by default.
 
-`authn_provider` (SSO/SAML/OIDC), `scim_provisioning` (đồng bộ membership — mỗi thay đổi vẫn là event), `audit_packaging`, `pii_vault_backend` (khóa data-subject do tenant tự quản), `calibration_visibility_policy` (ai xem được calibration về người — dữ liệu đánh giá lao động nhạy cảm, mặc định template: chỉ Role có capability `view_calibration` trong scope).
+Membership — a user joining a tenant, a workspace, a Role pool — is an event, so
+permission changes have a complete history.
 
-## 9. Zero-config (K1)
+**The Cloud operations console is a SURFACE over this same system, not a second
+user system.** `cloud/` holds internal administration — creating tenants,
+managing users, configuring SaaS — but operations staff **fill a Role with
+administrative capabilities** exactly like anyone else, and every action they take
+is **a Task with a Gate and a trace**. Building a separate user table for
+operators would build **a second source of truth about identity** and break the
+"no admin user type" rule directly above. This is a ceiling constraint placed on
+`cloud/`, not a choice `cloud/` gets to make.
 
-n=1 không thấy gì trong spec này: tenant=1, workspace=1 vô hình, user đầu tiên lấp mọi Role quản trị theo template, party sinh tự nhiên từ channel. Mọi khái niệm chỉ _hiện ra_ khi tổ chức lớn lên — không rewrite (đúng luận điểm tăng trưởng North Star §2).
+## 5. Party — unifying external identities
+
+A **Party** is one external person or organisation, unifying several channel
+identities — a messenger id, an email, a phone number. A Party is the **subject of
+Memory** and the **data subject** of erasure.
+
+**Merging is a Task with a Gate and never automatic.** Merging two channel
+identities wrongly leaks one person's memory to another, violating cross-subject
+isolation (Memory §4). The system may only _propose_ a merge; deciding is traced
+labour. Merges and splits carry **lineage**, so a mistake can be undone.
+
+**One reasoned exception — self-assertion**: when the subject proves they own the
+other identity through _authentication_ — verifying an email or an OTP when
+signing up from a channel they already used — unification happens without a Gate.
+The evidence is authentication rather than inference. It is still an event with
+provenance, and still reversible through lineage.
+
+Calibration over an external party exists mechanically and is off by default
+(Trigger §3), repeated here because this is that decision's home.
+
+## 6. Data subjects and the right to be forgotten
+
+**The actor id in the log is pseudonymous and permanent** and is never shredded —
+the audit trail is part of the product. The **PII mapping** — name, email, avatar
+against id — lives in a separate table encrypted under the data-subject key.
+
+Erasure, whether an employee leaving under GDPR or a chat customer asking to be
+forgotten, is **crypto-shredding that party or user's key** (Event Log §4): the
+mapping dies, the personal payload dies, and the labour structure — who approved
+what, under a pseudonym — survives intact. Destroying the key is an event.
+
+The boundary, stated explicitly: **work product belongs to the tenant** —
+artifacts, judgments — while _personal identity_ belongs to the data subject. The
+two separate because of the pseudonym, not because of a promise.
+
+**A backup is not an erasure blind spot**: the key lives outside the data backup
+path and escrow obeys the same shred, canonically at **Event Log §4**.
+
+## 7. External collaboration — no second-class guest user
+
+An agency's client approving a deliverable, a candidate confirming a schedule, a
+partner initialling a document — **all of them are external fillers filling a Role
+through a Channel**, where a portal or magic link is just another channel. The
+reply is task output, passes a Gate, and carries provenance.
+
+No tenant account, no separate guest system. The external-participant grammar
+(Trigger §3) already covers it; this document only nails it down: **inviting an
+outsider means assigning them to a Role, not issuing them an account.**
+
+## 8. Enterprise extension points
+
+The engine declares them and enterprise supplies implementations:
+`authn_provider` (SSO, SAML, OIDC), `scim_provisioning` (membership sync, where
+each change is still an event), `audit_packaging`, `pii_vault_backend` (the tenant
+holding its own data-subject keys), and `calibration_visibility_policy` — who can
+see calibration about a person, which is sensitive assessment data, defaulting to
+Roles holding `view_calibration` within the scope.
+
+## 9. Zero configuration
+
+At n=1 nothing in this document is visible: one tenant, one invisible workspace,
+the first user filling every administrative Role by template, and parties arising
+naturally from channels. The concepts only _appear_ as the organisation grows —
+with no rewrite.
 
 ## 10. Non-goals
 
-- Không hệ ACL/RBAC thứ hai ngoài Role+capability+grant; không "guest account".
-- Không auto-merge party trong mọi cấu hình mặc định.
-- Không shred actor-id/cấu trúc lao động — chỉ shred PII payload + mapping.
-- Không tự xây IdP — authn là adapter.
+- No second ACL or RBAC system beside Role + capability + grant, and no guest
+  accounts.
+- No automatic party merging in any default configuration.
+- Actor ids and the labour structure are never shredded — only the PII payload
+  and mapping.
+- No home-grown identity provider; authentication is an adapter.
 
 ## 11. Litmus
 
-1. n=1 zero-config: mọi khái niệm spec này vô hình?
-2. Nhân viên nghỉ + đòi quên: audit trail nguyên vẹn dạng pseudonym, PII chết bằng một lệnh hủy khóa?
-3. Có đường nào merge hai channel identity mà không qua Gate?
-4. Client agency duyệt deliverable không cần tài khoản tenant?
-5. **Falsifiable**: chỉ ra một quyền không biểu diễn được bằng Role + capability + grant?
-6. Đổi SSO provider — actor-id trong log bất biến?
-7. Tenant bị suspend giữa 50 task đang chạy: không task nào auto-pass, không dữ liệu nào bị xóa, export vẫn chạy được?
-8. Cài đặt self-host: có **đường nào** tạo tenant thứ hai không — và nếu không, engine từ chối vì **thiếu workflow** hay vì **kiểm entitlement**? (bắt buộc: thiếu workflow; kiểm entitlement là vi phạm §7 của trần)
-9. Trên Cloud: operator có đường nào khiến knowledge/memory/calibration của tenant A ảnh hưởng tenant B — kể cả gián tiếp qua một model "tối ưu chung"? Và console vận hành có **bảng user riêng** không, hay nhân viên vận hành cũng chỉ là người lấp một Role?
-10. Cài đặt N=1: **tầng tenant còn tồn tại vật lý trong cây khoá** không, hay nó đã bị gộp đi "cho gọn"?
+1. At n=1 with zero configuration: is every concept in this document invisible?
+2. An employee leaves and asks to be forgotten: does the audit trail stay intact
+   under a pseudonym while the PII dies from one key destruction?
+3. Is there any path that merges two channel identities without a Gate?
+4. Can an agency's client approve a deliverable without a tenant account?
+5. **Falsifiable**: name one permission that cannot be expressed as Role +
+   capability + grant.
+6. Change SSO provider — is the actor id in the log unchanged?
+7. A tenant is suspended with fifty tasks running: does no task auto-pass, is no
+   data deleted, and does export still work?
+8. On a self-host installation: is there **any path** to creating a second
+   tenant — and if not, does the engine refuse because **the workflow is absent**
+   or because it **checked an entitlement**? It must be the former; an
+   entitlement check violates the ceiling's §7.
+9. On Cloud: does the operator have any path by which tenant A's knowledge,
+   memory or calibration influences tenant B — including indirectly through a
+   commonly tuned model? And does the operations console have **its own user
+   table**, or are operations staff also just people filling a Role?
+10. On an N=1 installation: **does the tenant tier still physically exist in the
+    key tree**, or has it been collapsed away "for tidiness"?
 
-## 12. Nhật ký quyết định
+## 12. Decisions
 
-| Vấn đề               | Chốt                                                                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Hệ phân quyền        | Một và duy nhất: Role + capability + grant; admin/process-owner = Role được lấp; quản trị = lao động có Gate          |
-| Workspace            | Vách mềm: scope grant + chiều calibration; tenant mới là biên cứng; pool learning xuyên workspace là template value   |
-| Party                | Merge qua Gate có lineage — án văn: merge sai = rò memory chéo người                                                  |
-| Quyền được quên      | Pseudonymous actor-id vĩnh viễn + PII mapping shreddable — audit sống, người được quên                                |
-| Người ngoài          | External filler lấp Role qua Channel — không guest account                                                            |
-| Duyệt-xem ngoài task | Hợp grant của các Role trong pool + read-event theo mức mật                                                           |
-| SSO/SCIM             | Adapter/extension point EE; membership change vẫn là event; actor-id độc lập IdP                                      |
-| Vòng đời tenant      | provision(process) → suspended(đóng băng ghi, không auto-hủy) → export(Task có Gate) → purge(hủy khóa gốc + GC) — §2b |
+| Question                  | Settled                                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| The permission system     | One and only one: Role + capability + grant; admin and process-owner are filled Roles; administration is gated labour                        |
+| Workspace                 | A soft wall: grant scope plus a calibration dimension; the tenant is the hard boundary; cross-workspace learning pools are a template value  |
+| Party                     | Merged through a Gate with lineage — a wrong merge leaks memory between people                                                               |
+| The right to be forgotten | A permanent pseudonymous actor id plus a shreddable PII mapping — the audit lives, the person is forgotten                                   |
+| Outsiders                 | External fillers filling a Role through a Channel — no guest accounts                                                                        |
+| Browsing outside a task   | The union of grants across the Roles in whose pool the user sits, plus a read event by secrecy level                                         |
+| SSO / SCIM                | An adapter and an enterprise extension point; membership changes are still events; the actor id is independent of the IdP                    |
+| Tenant lifecycle          | provision (a process) → suspended (writes frozen, nothing auto-destroyed) → export (a gated Task) → purge (root key destroyed plus GC) — §2b |

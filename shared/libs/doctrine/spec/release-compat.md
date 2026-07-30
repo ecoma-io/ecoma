@@ -1,159 +1,256 @@
 ---
-title: "Ecoma Spec: Release & Compatibility"
+title: "Release & Compatibility"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Release & Compatibility
+# Release & Compatibility
 
-## 0. Vị trí — nhà duy nhất của bốn thứ
+## 0. Position — the sole home of four things
 
-Spec này là nhà canonical của: **(1)** danh tính version của mọi artifact · **(2)** thương lượng tương thích giữa hai thành phần rời nhau · **(3)** luật upgrade/rollback · **(4)** deprecation & EOL. Nơi khác chỉ được **trỏ** về đây, không khai lại (E5).
+This document is the canonical home of **(1)** the version identity of every
+artifact, **(2)** compatibility negotiation between two separated components,
+**(3)** the upgrade and rollback law, and **(4)** deprecation and EOL. Everywhere
+else may **point** here and may not restate.
 
-Nó **không** khai _thủ tục bấm_ — đó là charter `deploy/`. Ranh giới một câu: **spec khai điều kiện tồn tại của một đường; charter khai cách đi đường đó.**
+It does **not** describe the procedure for doing any of it — that is the `deploy`
+charter. The boundary in one sentence: **a specification declares the conditions
+under which a path exists; a charter declares how to walk it.**
 
-## 1. Ba trục version — tách bạch, cấm trộn
+## 1. Three version axes, never mixed
 
-| Trục                                               | Ai đọc                                                        | Hình dạng                                   | Đổi khi                       |
-| -------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------- | ----------------------------- |
-| **Release train `X.Y.Z`**                          | con người, vận hành, hỗ trợ                                   | semver, **của WORKSPACE**                   | mỗi lần cắt tag               |
-| **Protocol version**                               | hai thành phần rời nhau lúc bắt tay (node↔server, client↔Hub) | **số nguyên đơn điệu, riêng từng protocol** | chỉ khi khung dây đổi         |
-| **Schema version** của entry · contract · manifest | engine khi đọc dữ liệu cũ                                     | số nguyên, riêng từng entity                | chỉ khi hình dạng dữ liệu đổi |
+| Axis                                                 | Read by                                                         | Shape                                     | Changes when                      |
+| ---------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------- | --------------------------------- |
+| **Release train `X.Y.Z`**                            | People, operations, support                                     | Semver, belonging to the **WORKSPACE**    | Every time a tag is cut           |
+| **Protocol version**                                 | Two separated components at handshake — node↔server, client↔Hub | A monotonic integer, **one per protocol** | Only when the wire format changes |
+| **Schema version** of an entry, contract or manifest | The engine, when reading old data                               | An integer, one per entity                | Only when the data shape changes  |
 
-**Án văn**: trộn ba trục là lỗi kinh điển — một bản vá website sẽ ép mọi node phải nâng, hoặc ngược lại một đổi khung dây sẽ trốn trong một bản vá. Ba trục đổi vì ba lý do khác nhau nên phải đếm riêng.
+Mixing the three is the classic error: a website CSS fix would force every node
+to upgrade, or a wire-format change would hide inside a patch release. Three axes
+change for three different reasons, so they are counted separately.
 
-**Q3 — `X.Y.Z` là của workspace, không của app.** Một tag cắt ra **mọi** artifact; `package` target của một app chỉ **đóng dấu** tag đó lên artifact của nó, **không tự sinh version**. Án văn: skew node **N-1 minor** và thương lượng protocol đều tựa lên **một trục chung**; per-app version giết cả hai cơ chế và biến "node này có tương thích không" thành câu hỏi không trả lời được.
+**`X.Y.Z` belongs to the workspace, not to an app.** One tag cuts **every**
+artifact; an app's `package` target only **stamps** that tag onto its artifact and
+**never generates a version**. Node skew of **N-1 minor** and protocol
+negotiation both rest on **one shared axis**; per-app versions kill both
+mechanisms and turn "is this node compatible" into an unanswerable question.
 
-## 1c. Một trục version, hai repo
+## 1c. One version axis, two repositories
 
-`cloud/` sống trong một repo riêng (private), mount vào cây public qua submodule. Điều đó **không** được phép đẻ ra một trục version thứ hai:
+`cloud/` lives in its own private repository, mounted into the public tree as a
+submodule. That must **not** produce a second version axis:
 
-| Việc                                   | Ở đâu                                                                              |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Cắt tag `vX.Y.Z`**                   | **Chỉ ở repo public.** Một trục, một nơi cắt                                       |
-| Đóng dấu tag lên artifact của `cloud/` | CI của repo private **đọc** tag đó và đóng dấu — **không bao giờ tự sinh version** |
-| Ký artifact                            | Mỗi CI ký artifact của chính mình; credential không đi xuyên biên repo             |
+| Task                                      | Where                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Cutting the tag `vX.Y.Z`**              | **Only in the public repository.** One axis, one place it is cut                               |
+| Stamping the tag onto a `cloud/` artifact | The private repository's CI **reads** the tag and stamps it — it **never generates a version** |
+| Signing artifacts                         | Each CI signs its own artifacts; credentials never cross the repository boundary               |
 
-**Án văn**: cloud là **downstream** của workspace public, không phải một nửa ngang hàng của nó. Cho nó tự sinh version là dựng đúng cái per-project version mà §1 vừa bác, chỉ ở quy mô repo — và làm câu hỏi _"node này có tương thích với control plane này không"_ trở lại không trả lời được.
+Cloud is **downstream** of the public workspace rather than an equal half of it.
+Letting it generate its own version would rebuild exactly the per-project
+versioning §1 just rejected, at repository scale, and would once again make _"is
+this node compatible with this control plane"_ unanswerable.
 
-**Hệ quả có thật, khai luôn**: CI của cloud build trên `ecoma@main`, tức trên một mục tiêu đang di chuyển. Đó **không** phải khuyết điểm — nó chính là cách bên thứ ba trải nghiệm interface công khai, chỉ sớm hơn. Nếu cloud vỡ vì một thay đổi public, đó là **breaking change đã lọt qua §3**, không phải sự cố xếp lịch.
+**A real consequence, stated rather than hidden**: cloud's CI builds against
+`ecoma@main`, which is a moving target. That is **not** a defect — it is how a
+third party experiences the public interface, only earlier. If cloud breaks from a
+public change, that is **a breaking change that slipped past §3**, not a
+scheduling accident.
 
-## 1b. Danh tính của một artifact
+## 1b. An artifact's identity
 
-Mọi artifact phân phối mang: `train_version` · `source_digest` · `protocol_versions_supported[]` · `build_provenance` (ai build, ở đâu, từ commit nào). **Chữ ký chỉ sinh ở CI của repo gốc private** — mirror công khai không giữ credential ký (playbook giao hàng (không công bố) §2). Artifact không mang đủ 4 trường = không phải artifact phân phối, chỉ là một file.
+Every distributed artifact carries `train_version`, `source_digest`,
+`protocol_versions_supported[]`, and `build_provenance` — who built it, where, and
+from which commit. **Signatures are produced only in the origin repository's CI**;
+a public mirror holds no signing credential. An artifact missing any of the four
+fields is not a distributed artifact; it is a file.
 
-## 2. Thương lượng — ai từ chối ai
+## 2. Negotiation — who refuses whom
 
-Lúc bắt tay, bên khởi tạo gửi `protocol_versions_supported[]`; bên nhận chọn **max của giao nhau**.
+At handshake the initiator sends `protocol_versions_supported[]` and the receiver
+picks **the maximum of the intersection**.
 
-| Tình huống                            | Luật                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Có giao nhau                          | Dùng max chung; số đã chọn ghi vào entry của phiên                                                                                                                                                                                                                                                                       |
-| **Không có giao nhau**                | Bên nhận **từ chối**, phát entry `protocol_incompatible` kèm cả hai danh sách. Không có chế độ "cố chạy"                                                                                                                                                                                                                 |
-| Node lệch quá **N-1 minor** của train | Node **từ chối claim task mới** — nhưng **vẫn heartbeat, vẫn nhận lệnh update, vẫn hoàn tất task đang dở**. Án văn: node im lặng biến mất khỏi tầm quản lý là hỏng nặng hơn node không nhận việc                                                                                                                         |
-| Server cũ hơn node                    | Cùng luật, đối xứng — **server không bao giờ tự hạ xuống protocol đã bỏ**                                                                                                                                                                                                                                                |
-| **Fleet server hỗn hợp**              | Một node có thể chạm hai server khác train trong lúc nâng cấp cuốn chiếu. Luật: **bỏ một protocol version là hành động của TOÀN fleet, không của một server** — chỉ được bỏ sau khi **mọi** server đã ở train hỗ trợ tập mới. Trong cửa sổ cuốn chiếu, tập protocol của fleet là **giao** của các server, không phải hợp |
+| Situation                                        | Rule                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| There is an intersection                         | Use the shared maximum; the chosen number is recorded in the session's entry                                                                                                                                                                                                                                                                               |
+| **No intersection**                              | The receiver **refuses** and emits a `protocol_incompatible` entry carrying both lists. There is no "try anyway" mode                                                                                                                                                                                                                                      |
+| A node further than **N-1 minor** from the train | The node **refuses to claim new tasks** — but **keeps heartbeating, keeps accepting update commands, and finishes the task in hand**. A node that silently vanishes from management is a worse failure than one that stops taking work                                                                                                                     |
+| A server older than the node                     | The same rule, symmetrically — **a server never downgrades to a protocol it has dropped**                                                                                                                                                                                                                                                                  |
+| **A mixed server fleet**                         | During a rolling upgrade a node may reach two servers on different trains. The rule: **dropping a protocol version is an act of the WHOLE fleet, not of one server**, permitted only once **every** server runs a train supporting the new set. Inside the rolling window the fleet's protocol set is the **intersection** across servers, never the union |
 
-**Cấm auto-update** ở mọi hướng (RPA NS §4): hệ chỉ **báo** không tương thích, người quyết nâng.
+**Auto-update is forbidden in every direction** (RPA North Star §4): the system
+only **reports** incompatibility; a person decides to upgrade.
 
-## 3. Breaking & deprecation
+## 3. Breaking changes and deprecation
 
-- **Trước 1.0 thì minor đóng vai major** _(cluster-run.0)_. **Điều kiện cắt `1.0.0`: khi ◆G4 đóng** — tức mọi interface tầng 1–3 đã freeze (North Star §8, roadmap §1b). Án văn: `1.0` là lời hứa "khung dây công khai đã ổn định"; neo nó vào **cổng freeze cuối cùng** là neo vào một sự kiện có thật, thay vì vào cảm giác sẵn sàng. Tới đó, breaking được phép ở minor và mọi luật dưới đây đọc "minor" thay cho "major".
-- **Breaking chỉ ở major.** Minor thêm, patch sửa.
-- **Deprecation ≥1 minor trước khi xóa**, và đánh dấu **trong chính artifact khai** — `deprecated_since` + `removed_in` trên protocol descriptor, contract, manifest field. **Không đánh dấu trong changelog**: changelog không kiểm được bằng máy, và cái không kiểm được bằng máy sẽ trôi.
-- Mỗi lần một đường deprecated được dùng, engine phát entry **`deprecated_used`** (ai, ở đâu, đường nào). Projection "ai còn dùng gì" là **điều kiện để dám xóa** — không có nó thì việc xóa là đoán.
+**Before 1.0, minor plays the role of major.** The condition for cutting
+`1.0.0` is **when ◆G4 closes** — that is, when every tier 1–3 interface has been
+frozen (North Star §8, roadmap §1b). `1.0` is the promise that the public wire
+format has stabilised, and anchoring it to **the final freeze gate** anchors it to
+a real event rather than to a feeling of readiness. From then on, breaking is
+permitted at minor and every rule below reads "minor" for "major".
+
+**Breaking changes happen only at major.** Minor adds; patch fixes.
+
+**Deprecation runs at least one minor before removal**, marked **in the declaring
+artifact itself** — `deprecated_since` and `removed_in` on a protocol descriptor,
+a contract, a manifest field. **Not in a changelog**: a changelog is not
+machine-checkable, and what cannot be checked by machine drifts.
+
+Every use of a deprecated path emits a **`deprecated_used`** entry — who, where,
+which path. The projection "who still uses what" is **the precondition for daring
+to remove it**; without it, removal is a guess.
 
 ## 4. Upgrade
 
-Luật bất di (từ North Star §8, không mở lại): **log không bao giờ rewrite** · projection **rebuild** thay vì vá · **migration là entry** · **major tuần tự, không skip** (X → X+2 phải qua X+1).
+The immovable rules, from North Star §8: **the log is never rewritten**;
+projections are **rebuilt** rather than patched; **a migration is an entry**; and
+**majors are sequential, never skipped** — X to X+2 passes through X+1.
 
-Trình tự chuẩn — 4 pha, mỗi pha có điểm dừng an toàn:
+The standard sequence is four phases, each with a safe stopping point:
 
-| Pha          | Việc                                                                                       | Nếu hỏng ở đây                                                                                                                               |
-| ------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 · cài cạnh | Artifact mới đặt cạnh cũ; cũ vẫn đang chạy                                                 | Xóa artifact mới; không có gì đổi                                                                                                            |
-| 2 · migrate  | Mỗi migration là **một Task có Attempt**: đọc-cũ / ghi-mới, idempotent theo `migration_id` | **Không có trạng thái nửa vời**: fail ⇒ engine **ở lại version cũ**, projection giữ nguyên, phát escalation. Chạy lại an toàn nhờ idempotent |
-| 3 · cutover  | Chuyển lưu lượng sang artifact mới                                                         | Quay lại pha 2 (cũ chưa gỡ)                                                                                                                  |
-| 4 · giữ      | Artifact cũ **giữ lại tới hết cửa sổ rollback** (§5)                                       |                                                                                                                                              |
+| Phase              | Work                                                                                            | If it fails here                                                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · install beside | The new artifact is placed beside the old; the old is still running                             | Delete the new artifact; nothing has changed                                                                                                                                       |
+| 2 · migrate        | Each migration is **a Task with an Attempt**: read old, write new, idempotent on `migration_id` | **No half state exists**: on failure the engine **stays on the old version**, projections are untouched, and an escalation is emitted. Re-running is safe because it is idempotent |
+| 3 · cutover        | Traffic moves to the new artifact                                                               | Return to phase 2 — the old is not yet removed                                                                                                                                     |
+| 4 · retain         | The old artifact is **kept until the rollback window closes** (§5)                              |                                                                                                                                                                                    |
 
-## 5. Rollback — điều kiện tồn tại của đường lùi
+## 5. Rollback — the conditions under which a way back exists
 
-- Luật gốc (North Star §8): **mọi migration major khai đường nghịch, hoặc khai cờ `irreversible_migration`** — cờ đó buộc Gate + bản sao trước khi chạy. Kiểm tĩnh ở Composition §4; ở tầng block là `migrations[].down` (Block §7).
-- Spec này thêm **cửa sổ rollback**: khoảng thời gian đường nghịch còn được **bảo đảm** chạy được. Neo đầu tiên: **tới hết minor kế tiếp**.
-- **Ranh giới với charter (giao thoa #2)**: trong cửa sổ, rollback = chạy đường nghịch (thủ tục ở charter `deploy/` §6). **Ngoài cửa sổ, rollback không còn tồn tại như một thao tác** — nó trở thành _restore từ backup + replay_, một đường khác hẳn với rủi ro khác hẳn. Charter **phải** nói ra sự khác nhau đó, không được gọi cả hai là "rollback".
+The base rule (North Star §8): **every major migration declares a reverse path, or
+declares the flag `irreversible_migration`**, which forces a Gate and a copy taken
+beforehand. Checked statically in Composition §4; at the block layer it is
+`migrations[].down` (Block §7).
 
-## 6. EOL & support window — và giao thoa với backup
+This document adds the **rollback window**: the period during which the reverse
+path is still **guaranteed** to run. The first anchor is **until the end of the
+next minor**.
 
-- **Support window: major hiện tại + một major trước** (neo đầu tiên; đổi phải ghi lý do).
-- **Thông báo EOL là cơ chế, không phải email**. Một sự thật (registry của train), ba kênh phát: entry `version_eol_announced` · cảnh báo trong `resolve` của Hub · cảnh báo trong handshake của node. Ai không nghe kênh này thì nghe kênh kia.
-- **Giao thoa #1 với charter `deploy/`**: một backup chỉ hữu ích nếu **còn tồn tại một phiên bản đọc được nó**. Luật: **cửa sổ retention của backup không được dài hơn support window** — trừ khi charter khai tường minh một **restore path** (nâng backup cũ qua chuỗi migration tuần tự). Giữ backup 5 năm mà chỉ hỗ trợ 2 major là **đang giữ một lời hứa không thực hiện được**, đúng lớp lỗi P3b.
+**The boundary with the charter**: inside the window, rollback means running the
+reverse path, with the procedure in the `deploy` charter. **Outside the window,
+rollback no longer exists as an operation** — it becomes _restore from backup plus
+replay_, a completely different path with completely different risk. The charter
+**must** name that difference and may not call both of them "rollback".
 
-## 7. Conformance suite là một giao diện — nên nó có version
+## 6. EOL, the support window, and its interaction with backup
 
-- Suite mang `suite_id` + **major.minor riêng**, độc lập train.
-- **Đổi suite = đổi giao diện = breaking**, đi đường major của chính suite (Test Harness §7 tuyên câu này; luật breaking sống ở đây).
-- Thêm case **trong cùng major** chỉ hợp lệ nếu nó **không làm một implementation đang pass trở thành fail**. Nếu có ⇒ đó là major, dù người thêm nghĩ là "làm rõ".
-- Một gate **◆G freeze đúng một major của suite**. Nâng major suite = mở lại gate = quyết định có án văn, không phải thao tác bảo trì.
+**The support window is the current major plus one previous major**; changing it
+requires a stated reason.
 
-## 8. Hai artifact trên một máy — không được lệch train
+**An EOL announcement is a mechanism, not an email.** One truth — the train
+registry — with three channels: a `version_eol_announced` entry, a warning in the
+Hub's `resolve`, and a warning in the node handshake. Whoever misses one channel
+meets another.
 
-Máy attended chạy **hai artifact**: node runtime headless + lớp UI attended (ADR-0005). Chúng **cùng một train version**, không ngoại lệ.
+**The interaction with the `deploy` charter**: a backup is only useful while **a
+version still exists that can read it**. The rule: **a backup's retention window
+may not exceed the support window**, unless the charter explicitly declares a
+**restore path** that lifts an old backup through the sequential migration chain.
+Keeping five years of backups while supporting two majors is **holding a promise
+that cannot be kept**.
 
-**Giao thoa #3**: lúc bắt tay nội-máy, lớp UI đọc `train_version` của runtime; **lệch ⇒ UI từ chối chạy** và báo người dùng cập nhật — **không tự update** (RPA NS §4). Hạ về digest N-1 là hành động tường minh có event, và **phải hạ cả hai artifact cùng lượt**. Án văn: hai artifact trên cùng một máy lệch nhau là skew _nội-máy_ — không kênh handshake nào của hệ nhìn thấy nó, nên phải chặn tại chỗ.
+## 7. A conformance suite is an interface, so it has a version
 
-## 9. Seam publish cho đơn vị "cắm-vào" (Q4)
+A suite carries a `suite_id` and **its own major.minor**, independent of the
+train.
 
-Đơn vị nào thuộc lớp **Apache 2.0** theo luật phân loại (North Star §8 — interface, schema, protocol, client, SDK, vocabulary) **phải publish được**: có entry point thật, có build, **không** `private: true`.
+**Changing a suite is changing an interface, which is breaking**, and it takes the
+suite's own major route (Test Harness §7 states this; the breaking law lives
+here).
 
-**Version của package publish = train version**, không tự do. Án văn: bên thứ ba phải suy được _"client này nói protocol nào"_ từ đúng một con số họ nhìn thấy; hai trục version cho cùng một artifact là bắt họ tra bảng.
+Adding a case **within the same major** is valid only if it **does not turn a
+passing implementation into a failing one**. If it does, it is a major — however
+much the author considered it a clarification.
+
+A **◆G gate freezes exactly one major of a suite**. Raising the suite's major
+reopens the gate, which is a decision requiring reasoning rather than a
+maintenance action.
+
+## 8. Two artifacts on one machine — never on different trains
+
+An attended machine runs **two artifacts**: the headless node runtime and the
+attended UI layer (ADR-0005). They are on **the same train version**, with no
+exception.
+
+At the in-machine handshake the UI layer reads the runtime's `train_version`, and
+**a mismatch makes the UI refuse to run** and tell the user to update — it never
+self-updates (RPA North Star §4). Dropping back to digest N-1 is an explicit
+action with an event, and **both artifacts must move together**. Two artifacts on
+one machine drifting apart is _in-machine_ skew, which none of the system's
+handshake channels can see, so it has to be blocked where it happens.
+
+## 9. The publish seam for pluggable units
+
+Any unit falling under the **Apache 2.0** layer by the classification rule (North
+Star §8 — interface, schema, protocol, client, SDK, vocabulary) **must be
+publishable**: a real entry point, a build, and **no** `private: true`.
+
+**A published package's version is the train version**, not a free choice. A third
+party has to be able to infer _"which protocol does this client speak"_ from the
+single number they can see; two version axes for one artifact makes them consult
+a table.
 
 ## 10. Non-goals
 
-- **Không** quản version của block/template — đó là Hub + Block §7 (digest + lockfile), một hệ khác.
-- **Không** auto-update ở bất kỳ hướng nào.
-- **Không** semver riêng cho lib nội bộ (Q3).
-- **Không** hứa tương thích ngược vô hạn — support window là hữu hạn và nói ra.
-- **Không** khai thủ tục vận hành (charter `deploy/`).
+- **No** version management for blocks or templates — that is the Hub and Block §7
+  (digest plus lockfile), a different system.
+- **No** auto-update in any direction.
+- **No** independent semver for internal libraries.
+- **No** promise of infinite backward compatibility — the support window is finite
+  and is stated.
+- **No** operational procedures (the `deploy` charter).
 
-## 11. Nhật ký quyết định
+## 11. Decisions
 
-| Chủ đề                                  | Chốt                                                                       | Án văn                                                                                                      |
-| --------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Ba trục version                         | Train / protocol / schema, đếm riêng                                       | Ba lý do đổi khác nhau; trộn là ép nâng vô cớ hoặc giấu breaking trong patch                                |
-| Train của workspace, không của app (Q3) | Một tag = mọi artifact; `package` chỉ đóng dấu                             | Skew N-1 và negotiation tựa lên một trục chung; per-app version giết cả hai                                 |
-| Node lệch quá skew                      | **Từ chối claim, vẫn heartbeat + vẫn nhận update**                         | Node im lặng biến mất nguy hiểm hơn node không nhận việc                                                    |
-| Deprecation đánh dấu ở artifact         | `deprecated_since`/`removed_in` trong descriptor, không ở changelog        | Changelog không kiểm được bằng máy ⇒ sẽ trôi                                                                |
-| Dám xóa cần bằng chứng                  | Entry `deprecated_used` + projection "ai còn dùng gì"                      | Xóa mà không đo được người dùng là đoán                                                                     |
-| Migration fail                          | Ở lại version cũ, không trạng thái nửa vời; idempotent theo `migration_id` | Nửa vời là trạng thái không ai viết được luật cho nó                                                        |
-| Cửa sổ rollback                         | Tới hết minor kế tiếp; ngoài cửa sổ **không còn là rollback**              | Gọi restore-từ-backup là "rollback" khiến người vận hành bấm nhầm với kỳ vọng sai                           |
-| Retention ≤ support window              | Trừ khi khai restore path tường minh                                       | Backup không đọc lại được là lời hứa suông (P3b)                                                            |
-| Suite có version riêng                  | Đổi suite = breaking; ◆G freeze một major suite                            | Suite là giao diện; giao diện đổi ngầm phá mọi implementation song song                                     |
-| Hai artifact cùng train                 | UI attended từ chối chạy khi lệch                                          | Skew nội-máy không kênh handshake nào của hệ nhìn thấy                                                      |
-| Package publish = train version         | Không semver riêng                                                         | Bên thứ ba phải suy được protocol từ một con số                                                             |
-| **Điều kiện cắt 1.0**                   | **Khi ◆G4 đóng**; trước đó minor đóng vai major                            | `1.0` là lời hứa khung-dây-ổn-định; neo vào cổng freeze cuối là neo vào sự kiện có thật, không vào cảm giác |
-| **Bỏ protocol là việc của toàn fleet**  | Tập protocol trong cửa sổ cuốn chiếu = **giao** các server                 | Bản nháp giả định một server; fleet hỗn hợp là trạng thái bình thường lúc nâng cấp, không phải ngoại lệ     |
+| Topic                                  | Settled                                                                | Reasoning                                                                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Three version axes                     | Train, protocol, schema — counted separately                           | Three different reasons to change; mixing forces needless upgrades or hides breaking changes inside patches                                   |
+| The train belongs to the workspace     | One tag equals every artifact; `package` only stamps                   | N-1 skew and negotiation both rest on one shared axis; per-app versions kill both                                                             |
+| A node beyond the skew                 | **Refuses to claim, still heartbeats, still accepts updates**          | A node that silently vanishes is more dangerous than one that stops taking work                                                               |
+| Deprecation marked on the artifact     | `deprecated_since` / `removed_in` in the descriptor, not the changelog | A changelog is not machine-checkable, so it drifts                                                                                            |
+| Daring to remove needs evidence        | The `deprecated_used` entry plus a "who still uses what" projection    | Removing without measuring usage is guessing                                                                                                  |
+| A failed migration                     | Stay on the old version, no half state; idempotent on `migration_id`   | A half state is a state nobody can write a rule for                                                                                           |
+| The rollback window                    | Until the end of the next minor; outside it, **it is not rollback**    | Calling restore-from-backup "rollback" makes an operator press the button with the wrong expectation                                          |
+| Retention ≤ the support window         | Unless an explicit restore path is declared                            | A backup nothing can read is an empty promise                                                                                                 |
+| A suite has its own version            | Changing a suite is breaking; a ◆G gate freezes one suite major        | A suite is an interface, and an interface changing quietly breaks every parallel implementation                                               |
+| Two artifacts on one train             | The attended UI refuses to run on a mismatch                           | In-machine skew is invisible to every handshake channel the system has                                                                        |
+| A published package's version          | The train version; no independent semver                               | A third party must infer the protocol from one number                                                                                         |
+| **The condition for cutting 1.0**      | **When ◆G4 closes**; before that, minor plays major                    | `1.0` is the promise that the wire format is stable; anchoring it to the last freeze gate anchors it to a real event rather than to a feeling |
+| **Dropping a protocol is a fleet act** | Inside the rolling window, the protocol set is the **intersection**    | A mixed fleet is the normal state during an upgrade, not an exception                                                                         |
 
-## 12. FMEA
+## 12. Failure modes
 
-| Hỏng                                                           | Phát hiện                                                     | Phục hồi                                                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Migration fail giữa chừng                                      | Attempt fail + entry                                          | Ở lại version cũ; chạy lại (idempotent); escalation nếu lặp                                                      |
-| Node lệch skew hàng loạt sau nâng server                       | Đếm entry `protocol_incompatible`/`claim_refused` theo node   | Hạ server về train trước (trong cửa sổ) hoặc nâng fleet node; **không** hạ protocol                              |
-| Đường nghịch khai có nhưng chạy hỏng                           | Chạy `down` trong pha 2 của môi trường trước khi cutover thật | Restore + replay (đường khác, §5); và **đánh dấu migration đó `irreversible_migration` cho các cài đặt còn lại** |
-| Backup ngoài support window, không restore path                | Đối chiếu retention × support window (gate ở charter)         | Không có đường — đó là lý do luật §6 tồn tại; ngăn chặn, không cứu chữa                                          |
-| Suite đổi ngầm trong cùng major                                | Implementation đang pass bỗng fail ở CI                       | Gọi tên đúng: đó là major; rollback suite, cắt major mới                                                         |
-| Hai artifact attended lệch train                               | UI kiểm lúc bắt tay nội-máy                                   | UI từ chối chạy; người dùng nâng/hạ **cả hai** cùng lượt                                                         |
-| Node bắt tay được server A, hỏng với server B trong cùng fleet | Entry `protocol_incompatible` chỉ từ một phần fleet           | Hoàn tất cuốn chiếu (đưa cả fleet về một tập), **không** vá bằng cách cho node pin vào một server                |
-| Artifact thiếu provenance/chữ ký                               | Kiểm lúc cài                                                  | Từ chối cài — không có chế độ "cài tạm"                                                                          |
+| Failure                                                  | Detected by                                                            | Recovery                                                                                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| A migration fails part-way                               | A failed Attempt plus an entry                                         | Stay on the old version; re-run, which is idempotent; escalate if it repeats                                                 |
+| Many nodes fall outside the skew after a server upgrade  | Counting `protocol_incompatible` and `claim_refused` entries per node  | Move servers back to the previous train, inside the window, or upgrade the node fleet. **Never** downgrade the protocol      |
+| A declared reverse path that fails when run              | Run `down` in phase 2 of a prior environment before the real cutover   | Restore plus replay (a different path, §5), **and mark that migration `irreversible_migration` for remaining installations** |
+| A backup outside the support window with no restore path | Reconciling retention against the support window, gated in the charter | There is no path — which is why §6 exists. Prevention, not cure                                                              |
+| A suite changed quietly within one major                 | A passing implementation suddenly fails in CI                          | Name it correctly: that is a major. Roll the suite back and cut a new major                                                  |
+| Two attended artifacts on different trains               | The UI checks at the in-machine handshake                              | The UI refuses to run; the user moves **both** together                                                                      |
+| A node handshakes with server A and fails with server B  | `protocol_incompatible` entries from only part of the fleet            | Finish the rollout so the whole fleet shares one set. **Do not** patch it by pinning the node to one server                  |
+| An artifact missing provenance or a signature            | Checked at install                                                     | Refuse to install — there is no "install anyway" mode                                                                        |
 
 ## 13. Litmus
 
-1. Vá một lỗi CSS của website: có artifact nào **ép node phải nâng** không? (bắt buộc: không — ba trục §1)
-2. Node ở train lệch **2 minor**: nó **từ chối claim** nhưng **vẫn heartbeat và vẫn nhận được lệnh update** — hay nó biến mất khỏi fleet view?
-3. Xóa một trường đã `deprecated`: trả lời được **ai còn đang dùng nó** bằng một projection, hay chỉ bằng niềm tin?
-4. Migration major fail ở bản ghi thứ 10.000: hệ ở lại version cũ **nguyên vẹn**, và chạy lại **không nhân đôi** thứ gì?
-5. Rollback **sau** cửa sổ: hệ có gọi nó là "rollback" không? (bắt buộc: không — nó là restore + replay, rủi ro khác, thủ tục khác)
-6. Giữ backup 5 năm trong khi support window là 2 major: có gate nào chặn cấu hình đó, hay nó im lặng trở thành lời hứa suông?
-7. Thêm một case vào conformance suite trong cùng major làm một implementation đang pass thành fail: CI gọi đó là **breaking** hay để lọt?
-8. Trên máy attended, ép lớp UI ở train cũ chạy với runtime train mới: UI **từ chối** — hay nó chạy và hỏng ở một chỗ không ai đoán được?
-9. Đang nâng cuốn chiếu, một node chạm hai server khác train: nó **thấy tập protocol là giao** của fleet — hay nó bắt tay được với server này và vỡ với server kia?
+1. Fix a CSS bug on the website: does any artifact **force a node to upgrade**? It
+   must not — three axes, §1.
+2. A node **two minors** behind: does it **refuse to claim** while **still
+   heartbeating and still receiving update commands** — or does it vanish from the
+   fleet view?
+3. Removing a `deprecated` field: can "who still uses it" be answered by a
+   projection, or only by faith?
+4. A major migration fails at record 10,000: does the system stay on the old
+   version **intact**, and does re-running **duplicate nothing**?
+5. A rollback **after** the window: does the system call it "rollback"? It must
+   not — it is restore plus replay, different risk, different procedure.
+6. Keeping five years of backups while the support window is two majors: does a
+   gate block that configuration, or does it quietly become an empty promise?
+7. Adding a case to a conformance suite within one major that turns a passing
+   implementation into a failing one: does CI call that **breaking**, or let it
+   through?
+8. On an attended machine, force an old-train UI layer against a new-train
+   runtime: does the UI **refuse** — or run and fail somewhere nobody predicted?
+9. Mid-rollout, a node reaching two servers on different trains: does it see the
+   protocol set as the **intersection** of the fleet — or handshake with one
+   server and break against the other?
