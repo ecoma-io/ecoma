@@ -165,6 +165,21 @@ build/typecheck — invoked directly as
   that gate's name and docstring commit it to relative Markdown _links_, and a
   command citation is a shell invocation, not a link — conflating the two
   would make the gate's name stop describing what it checks.
+- **`check-contributor-record` is the enforcement half of `CLA.md`'s acceptance
+  rule**, which until now was a sentence in two documents and nothing else: a
+  contributor agrees by committing `contributors/<handle>.md`, and nothing is
+  granted until that record exists. Every vocabulary is read out of `CLA.md` —
+  the required field labels and the assent sentence from the fenced block under
+  "How you agree", the version from the effective-version line — so amending the
+  agreement moves the gate rather than leaving a second contract behind
+  (Rule 14 rung 1). The licensor exemption is derived the same way: the CLA runs
+  _to_ whoever can make the grant, and `CODEOWNERS`' owners of `/CLA.md` are
+  already that set, protected there for exactly this reason. Bare mode audits
+  the shape of every record that exists and runs offline; `--author <login>`
+  additionally requires that login to have one, and only CI can know who opened
+  a pull request — which is why that mode lives in `ci.yml` rather than in a
+  hook. It judges the record, never the person: whether an address is real
+  stays with the maintainer who confirms it.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language
   variants (`README.md`, `README.vi.md`, `README.zh.md`), each opening with
