@@ -38,7 +38,7 @@ lang: vi
 
 **Quyết định — biên-theo-vai**: **Go = tầng điều phối** (engine core, agent runtime, hub service) · **Rust = tầng cách ly** (node runtime, driver native, Tauri shell, sandbox host) · **Vue/TS = tầng giao diện**. Điều kiện: (1) **schema-first codegen** cho protocol engine↔node từ ngày 0 — cấm viết tay types hai bên; (2) ngôn ngữ không lan trái vai.
 
-**Án văn chốt**: biên engine↔node là biên protocol lỏng version-hóa (skew N-1 là cơ chế trần → codegen bắt buộc dù cùng ngôn ngữ — chi phí 2 ngôn ngữ thấp hơn vẻ ngoài); biên node↔driver↔Tauri là biên chặt cùng máy → cùng Rust; node = thành phần an ninh nhạy nhất (credential injection, masking) → memory-safety là giá trị thật. **Trục scale/compute-cost (K8s/SaaS — đối kháng 24r)**: Go 1-binary distroless ~20MB, density cao = SaaS cost thấp; **engine stateless-by-design** (state trong log+lease — litmus kill-9 chính là bài test HPA), shard tự nhiên theo (tenant, stream); CPU-burst replay/rebuild là chỗ TS-engine rớt — loại B/C lần cuối.
+**Án văn chốt**: biên engine↔node là biên protocol lỏng version-hóa (skew N-1 là cơ chế trần → codegen bắt buộc dù cùng ngôn ngữ — chi phí 2 ngôn ngữ thấp hơn vẻ ngoài); biên node↔driver↔Tauri là biên chặt cùng máy → cùng Rust; node = thành phần an ninh nhạy nhất (credential injection, masking) → memory-safety là giá trị thật. **Trục scale/compute-cost (K8s/SaaS)**: Go 1-binary distroless ~20MB, density cao = SaaS cost thấp; **engine stateless-by-design** (state trong log+lease — litmus kill-9 chính là bài test HPA), shard tự nhiên theo (tenant, stream); CPU-burst replay/rebuild là chỗ TS-engine rớt — loại B/C lần cuối.
 
 _Hồ sơ cân nhắc (giữ để truy vết):_
 
@@ -66,7 +66,7 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 - **Hóa giải xung đột "cùng binary attended/unattended" (RPA NS)**: **node runtime = MỘT binary headless duy nhất chạy cả hai chế độ** — trần giữ nguyên; Tauri là **lớp UI attended đính kèm**, nói chuyện với runtime qua **localhost IPC có auth theo node identity**. Unattended không cài webview. Cả hai artifact update qua Hub.
 - **Sửa cụm từ**: bản trước viết _"khung takeover/approve = component diff-Judgment"_, **gộp nhầm hai thứ khác loại**. Tách: (1) **xác nhận trong phiên attended** — người đang ngồi trước máy, cho phép một Action sắp làm; đây là **điều khiển phiên cục bộ**, đi kênh nội-máy, thuộc **◆G1**, có ở M1; (2) **duyệt một Action Item trong hàng đợi** — người không ngồi trước máy đó; đây là **bề mặt lao động**, đi thẳng engine API + projection read-API, thuộc **◆G4**, thuộc Track E. Tauri ở M1 **chỉ làm (1)**.
 - **Ba biên cứng do trần khai** — RPA NS §4 "Lớp UI attended cục bộ": (1) IPC **chỉ mang điều khiển phiên cục bộ**, không mang effect stream, không mang ngữ nghĩa lao động ⇒ hai giao diện của hệ vẫn là hai (D1); (2) **mọi hành động lao động của UI (approve / Judgment / claim / release) đi THẲNG engine API** — component diff-Judgment của Tauri là **client của projection read-API (◆G4)**, không phải đường ghi qua IPC (Human Surface §0); (3) UI **không lưu frame** — thứ vào log luôn là Scene đã masking. Kiểm bằng RPA NS litmus **#10** (tắt IPC → runtime chạy đủ). _Hệ quả xếp lịch_: Track B nhận thêm cổng ◆G4 cho phần bề mặt duyệt (roadmap §1b luật #8).
-- **Rust scope**: desktop-shell + driver-native _(24r: mở rộng theo Gói D — thêm node runtime + sandbox host, biên-theo-vai)_ (rơi đúng van **driver polyglot** trần đã mở — contract Apache 2.0); **không lan vào tầng điều phối** — nếu lan, đội n=1+AI gánh 3 ngôn ngữ ở lõi.
+- **Rust scope**: desktop-shell + driver-native _(mở rộng theo Gói D — thêm node runtime + sandbox host, biên-theo-vai)_ (rơi đúng van **driver polyglot** trần đã mở — contract Apache 2.0); **không lan vào tầng điều phối** — nếu lan, đội n=1+AI gánh 3 ngôn ngữ ở lõi.
 - **Rủi ro có van**: webview parity 3 OS (WebView2/WKWebView/WebKitGTK) → QA attended theo OS trong CI nightly; IPC chỉ bind localhost + token node identity, không mở cổng.
 - Không ràng buộc ADR-0003 (engine) — desktop-native ngả Rust ở lớp shell không quyết ngôn ngữ engine/node-runtime.
 
@@ -108,13 +108,13 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 
 ## Nhật ký
 
-| ADR                                                                                                                 | Trạng thái      | Vòng |
-| ------------------------------------------------------------------------------------------------------------------- | --------------- | ---- |
-| 0001 durable execution                                                                                              | ✅ chốt         | 24k  |
-| 0002 storage ports + default-theo-hình-thái                                                                         | ✅ chốt         | 24k  |
-| 0003 ngôn ngữ hạ tầng — Gói D biên-theo-vai                                                                         | ✅ chốt         | 24r  |
-| 0004 frontend Vue                                                                                                   | ✅ chốt (owner) | 24l  |
-| 0005 desktop Tauri+Rust (tách runtime/UI)                                                                           | ✅ chốt (owner) | 24m  |
-| 0006 user-code đa runtime (JS/TS·Python·Go, Python-native)                                                          | ✅ chốt         | 24r  |
-| **0007 VitePress cho bề mặt doctrine**                                                                              | ✅ chốt         | 28   |
-| 0005 bổ sung 3 biên cứng của lớp UI attended · 0002 điều kiện key-store backend · 0006 điều kiện `supports_dry_run` | ✅ ghi nhận     | 25   |
+| ADR                                                                                                                 | Trạng thái      |
+| ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 0001 durable execution                                                                                              | ✅ chốt         |
+| 0002 storage ports + default-theo-hình-thái                                                                         | ✅ chốt         |
+| 0003 ngôn ngữ hạ tầng — Gói D biên-theo-vai                                                                         | ✅ chốt         |
+| 0004 frontend Vue                                                                                                   | ✅ chốt (owner) |
+| 0005 desktop Tauri+Rust (tách runtime/UI)                                                                           | ✅ chốt (owner) |
+| 0006 user-code đa runtime (JS/TS·Python·Go, Python-native)                                                          | ✅ chốt         |
+| **0007 VitePress cho bề mặt doctrine**                                                                              | ✅ chốt         |
+| 0005 bổ sung 3 biên cứng của lớp UI attended · 0002 điều kiện key-store backend · 0006 điều kiện `supports_dry_run` | ✅ ghi nhận     |
