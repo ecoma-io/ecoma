@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deriveGoVersion,
   scaffoldLib,
   withAlias,
   withCargoMember,
@@ -192,6 +193,25 @@ describe("scaffoldLib polyglot emission", () => {
     expect(written.has("tsconfig.base.json")).toBe(false);
   });
 
+  it("go: stamps go.mod with the version pinned by the repo's existing go.work (Rule 14)", () => {
+    const written = new Map();
+    const fs = {
+      existsSync: (path) => path === "go.work",
+      readFileSync: (path) => {
+        if (path === "go.work") return "go 1.26.5\n\nuse (\n\t./shared/libs/other\n)\n";
+        throw new Error(`unexpected read: ${path}`);
+      },
+      mkdirSync: vi.fn(),
+      writeFileSync: (path, content) => written.set(path, content),
+    };
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(scaffoldLib(["runner", "--subsystem", "shared", "--lang", "go"], fs, listPaths)).toBe(0);
+    expect(written.get("shared/libs/runner/go.mod")).toContain("go 1.26.5\n");
+    // Existing use-block member survives the append, not just the new one.
+    expect(written.get("go.work")).toContain("./shared/libs/other");
+    expect(written.get("go.work")).toContain("./shared/libs/runner");
+  });
+
   it("rust: crate manifest plus root workspace bootstrap and target/ ignore", () => {
     const written = scaffold(["engine", "--subsystem", "shared", "--lang", "rust"]);
     expect(written.get("shared/libs/engine/Cargo.toml")).toContain('name = "engine"');
@@ -224,6 +244,20 @@ describe("scaffoldLib polyglot emission", () => {
     expect(written.get("shared/libs/tool-kit/pyproject.toml")).toContain(
       '[tool.uv.build-backend]\nsource-exclude = ["**/*_test.py"]\nwheel-exclude = ["**/*_test.py"]',
     );
+  });
+});
+
+describe("deriveGoVersion", () => {
+  it("reads the go.work pin verbatim", () => {
+    expect(deriveGoVersion("go 1.26.5\n\nuse (\n\t./shared/libs/a\n)\n")).toBe("1.26.5");
+  });
+
+  it("falls back to the bootstrap constant when go.work does not exist yet", () => {
+    expect(deriveGoVersion(null)).toBe("1.26.5");
+  });
+
+  it("fails loud on a go.work with no `go X.Y.Z` line", () => {
+    expect(() => deriveGoVersion("use (\n\t./shared/libs/a\n)\n")).toThrow(/go X\.Y\.Z/);
   });
 });
 
