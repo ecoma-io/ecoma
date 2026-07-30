@@ -112,7 +112,14 @@ practice review, thread translation) from GitHub Actions.
   Group labels
   are the Nx project names; `group-files.integration.test.mjs` pins them against
   `dev-cli list-scopes`, because a drift there fails no build and would leave
-  reviews grouped along a boundary the commit gate does not recognise. Why it is
+  reviews grouped along a boundary the commit gate does not recognise. **That
+  spawn is why this project declares `implicitDependencies: ["dev-cli"]`** — it
+  is the only thing that makes a `dev-cli` change re-run the guard. The workspace
+  covers every project's _lint_ against `dev-cli` through `nx.json`'s
+  `targetDefaults.lint.inputs`; nothing there reaches a _test_ target, so
+  without the edge this guard would be re-run only by coincidence and would go
+  quiet the day that unrelated line changed — the exact silent drift it exists
+  to catch. Why it is
   worth the extra calls, measured on a 46-file pull request: the whole diff was
   128k characters against the budget, every `pathCard` was offered against every
   file (one stylesheet comment put the design card in front of models reviewing
