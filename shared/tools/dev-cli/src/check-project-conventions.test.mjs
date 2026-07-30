@@ -18,9 +18,10 @@ const judge = (files) => findConventionViolations(Object.keys(files), (p) => fil
 
 // Both helpers default to the SUL terms every non-carve-out path implies, so a
 // case that is not about licensing stays about the one thing it names.
-const project = (tags) =>
+const project = (tags, targets) =>
   JSON.stringify({
     tags: tags.some((t) => t.startsWith("license:")) ? tags : [...tags, "license:sul"],
+    ...(targets ? { targets } : {}),
   });
 const pkg = (fields) =>
   JSON.stringify({ private: true, license: "LicenseRef-Ecoma-SustainableUse-1.0", ...fields });
@@ -51,6 +52,15 @@ const vitestConfig = ({
     "  },",
     "});",
   ].join("\n");
+
+/**
+ * A `test` target in the shape a project on Node's built-in runner carries.
+ * The command is spelled out per case, because what the gate judges IS the
+ * command — the delegation to dev-cli's floor-reading runner, or its absence.
+ */
+const nodeTestTarget = (command) => ({
+  test: { executor: "nx:run-commands", options: { command } },
+});
 
 /** A minimal healthy workspace every case below starts from. */
 const HEALTHY = {
@@ -219,6 +229,97 @@ describe("findConventionViolations", () => {
     expect(judge(files)).toEqual([
       expect.stringContaining("vider/libs/vider-ui/vitest.config.mjs: keeps 'passWithNoTests"),
     ]);
+  });
+
+  it("flags a project whose Node test runner is not held to the workspace coverage floor", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/tools/rules/project.json": project(
+        ["type:lib", "scope:vider"],
+        nodeTestTarget("node --test *.test.mjs"),
+      ),
+      "vider/tools/rules/thing.test.mjs": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "vider/tools/rules/project.json: vider/tools/rules has tests but nothing holds them " +
+          "to the workspace coverage floor",
+      ),
+    ]);
+  });
+
+  it("flags coverage thresholds restated in a target instead of read from the shared floor", () => {
+    // The failure this rule is really about: the numbers are enforced, so the
+    // suite is red at the right bar today — and the floor now lives in two
+    // places, so the next edit to the shared one silently misses this project.
+    const files = {
+      ...HEALTHY,
+      "vider/tools/rules/project.json": project(
+        ["type:lib", "scope:vider"],
+        nodeTestTarget(
+          "node --test --experimental-test-coverage --test-coverage-lines=80 " +
+            "--test-coverage-branches=80 --test-coverage-functions=80 *.test.mjs",
+        ),
+      ),
+      "vider/tools/rules/thing.test.mjs": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("nothing holds them to the workspace coverage floor"),
+    ]);
+  });
+
+  it("flags a project whose tests no target runs at all", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/tools/rules/project.json": project(["type:lib", "scope:vider"]),
+      "vider/tools/rules/thing.test.mjs": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("nothing holds them to the workspace coverage floor"),
+    ]);
+  });
+
+  it("passes a target that delegates its Node test run to the shared floor runner", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/tools/rules/project.json": project(
+        ["type:lib", "scope:vider"],
+        nodeTestTarget(
+          "node ../../../shared/tools/dev-cli/src/main.mjs run-node-tests " +
+            "--test-coverage-exclude=*.test.mjs *.test.mjs",
+        ),
+      ),
+      "vider/tools/rules/thing.test.mjs": "test",
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("reads the delegation from either run-commands shape", () => {
+    // `options.commands` — as bare strings and as `{ command }` records — is as
+    // valid a spelling as `options.command`, so a rule keyed on one of them
+    // would fail a compliant project for its author's formatting choice.
+    const delegation = "node ../../../shared/tools/dev-cli/src/main.mjs run-node-tests *.test.mjs";
+    for (const commands of [[delegation], [{ command: delegation }]]) {
+      const files = {
+        ...HEALTHY,
+        "vider/tools/rules/project.json": project(["type:lib", "scope:vider"], {
+          test: { executor: "nx:run-commands", options: { commands } },
+        }),
+        "vider/tools/rules/thing.test.mjs": "test",
+      };
+      expect(judge(files)).toEqual([]);
+    }
+  });
+
+  it("leaves an e2e project out of the coverage floor it has no module graph to measure", () => {
+    // Playwright specs match the same `.test.ts` suffix, but an e2e suite drives
+    // a built app in a browser — demanding a coverage runner here would be a
+    // floor over nothing.
+    const files = {
+      ...HEALTHY,
+      "vider/apps/vider-e2e/src/second.e2e.test.ts": "test",
+    };
+    expect(judge(files)).toEqual([]);
   });
 
   it("passes a unit or integration test whose name merely contains the e2e tier's neighbours", () => {
