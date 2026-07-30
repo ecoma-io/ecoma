@@ -34,13 +34,13 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
 `lefthook.yml` 和 `.github/workflows/ci.yml`：
 
 - **lefthook pre-commit**：`check-journey-markers-workspace`、
-  `check-doc-links`、`check-doctrine`、`check-practice-index`、
+  `check-doc-links`、`check-command-refs`、`check-doctrine`、`check-practice-index`、
   `ensure-commit-identity --check`。
 - **lefthook prepare-commit-msg / commit-msg**：`strip-claude-trailers`、
   `check-commit-scope`。
 - **CI**（`.github/workflows/ci.yml`）：`check-commit-scope --commit <sha>`
   （对 PR 里的每个 commit 各跑一次）、`check-journey-markers-workspace`、
-  `check-doc-links`、`check-claude-md`、`check-doctrine`、`check-practice-index`、
+  `check-doc-links`、`check-command-refs`、`check-claude-md`、`check-doctrine`、`check-practice-index`、
   `check-project-conventions`、`check-subsystem-readmes`、
   `check-subproject-readmes`。
 - **每个 project 自己的 `lint` target**（`project.json`——几乎覆盖仓库里

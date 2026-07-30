@@ -6,6 +6,7 @@
  * for a CLI framework only once several commands genuinely need one.
  */
 import { checkClaudeMd } from "./check-claude-md.mjs";
+import { checkCommandRefs } from "./check-command-refs.mjs";
 import { checkCommitScope } from "./check-commit-scope.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
 import { checkDoctrine } from "./check-doctrine.mjs";
@@ -29,6 +30,7 @@ const COMMANDS = {
   "check-journey-markers": (args) => checkJourneyMarkers(args[0] ?? "."),
   "check-journey-markers-workspace": () => checkWorkspaceDocs(),
   "check-claude-md": () => checkClaudeMd(),
+  "check-command-refs": () => checkCommandRefs(),
   "check-commit-scope": (args) => checkCommitScope(args),
   "check-doc-links": () => checkDocLinks(),
   "check-doctrine": () => checkDoctrine(),
