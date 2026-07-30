@@ -173,6 +173,24 @@ describe("runSetup", () => {
     expect(error).toHaveBeenCalledWith(expect.stringContaining("unknown option '--bogus'"));
   });
 
+  it("reports git as missing and exits cleanly instead of crashing when spawnSync can't resolve it", () => {
+    // Regression: spawnSync (shell: true) doesn't always set `result.error`
+    // when git is unresolvable — it can return an empty stdout with no error
+    // field. repoRoot() must treat that as failure too, or runSetup would
+    // chdir into "" and throw an uncaught ENOENT.
+    fixture();
+    vi.mocked(spawnSync).mockImplementation((cmd, args = []) => {
+      const key = `${cmd} ${args.join(" ")}`.trim();
+      if (key === "git rev-parse --show-toplevel") return { stdout: "" };
+      return { stdout: "", status: 1, error: null };
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => runSetup(["--check"])).not.toThrow();
+    expect(runSetup(["--check"])).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("git — install it"));
+    expect(process.chdir).not.toHaveBeenCalled();
+  });
+
   it("refuses an unsupported platform with exit code 1", () => {
     fixture();
     const realPlatform = process.platform;

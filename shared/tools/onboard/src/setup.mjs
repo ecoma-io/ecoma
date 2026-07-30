@@ -169,17 +169,41 @@ function runOk(cmd, args) {
  * regardless of where this file lives, matching how the rest of the
  * workspace's tooling finds the repo root (e.g. dev-cli's
  * `check-journey-markers.mjs`).
+ *
+ * Returns "" when git is missing/unresolvable or the output isn't a usable
+ * path — `spawnSync` (with `shell: true`) doesn't always set `result.error`
+ * on that failure, so `result.error` alone can't be trusted; the caller must
+ * treat an empty return as "git is required" rather than chdir into it.
  */
 function repoRoot() {
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
     shell: true,
   });
-  return (result.stdout ?? "").trim();
+  const root = (result.stdout ?? "").trim();
+  return result.error || !root ? "" : root;
+}
+
+/**
+ * Package-manager install hint for git — the one tool hint needed before
+ * REPO_ROOT can resolve (repoRoot() itself needs git), so it can't sit in
+ * the node/go hint block below, which only runs once REPO_ROOT is known.
+ */
+function gitInstallHint() {
+  if (WIN32) return "winget install Git.Git (or https://git-scm.com/downloads)";
+  if (commandExists("brew")) return "brew install git";
+  if (commandExists("apt-get")) return "sudo apt-get install git";
+  if (commandExists("dnf")) return "sudo dnf install git";
+  if (commandExists("pacman")) return "sudo pacman -S git";
+  return "https://git-scm.com/downloads";
 }
 
 export function runSetup(argv) {
   const REPO_ROOT = repoRoot();
+  if (!REPO_ROOT) {
+    console.error(`setup.mjs: git — install it: ${gitInstallHint()}`);
+    return 1;
+  }
   process.chdir(REPO_ROOT);
   const { ok, warn, fail, section, failedCount } = makeReporter();
 
@@ -233,35 +257,29 @@ export function runSetup(argv) {
     ok("Windows");
   }
 
-  // Package-manager hint for the tools this script refuses to install itself.
+  // Package-manager hint for the tools this script refuses to install itself
+  // (git's hint is computed separately by gitInstallHint(), needed earlier).
   let pkgHintNode;
   let pkgHintGo;
-  let pkgHintGit;
   if (WIN32) {
     pkgHintNode = "winget install OpenJS.NodeJS.LTS (>= 22) or https://nodejs.org";
     pkgHintGo = "winget install GoLang.Go (or https://go.dev/dl/)";
-    pkgHintGit = "winget install Git.Git (or https://git-scm.com/downloads)";
   } else if (commandExists("brew")) {
     pkgHintNode = "brew install node@22";
     pkgHintGo = "brew install go";
-    pkgHintGit = "brew install git";
   } else if (commandExists("apt-get")) {
     pkgHintNode =
       "install Node.js 22 via https://github.com/nodesource/distributions or your version manager (fnm/nvm/mise)";
     pkgHintGo = "sudo apt-get install golang-go (or https://go.dev/dl/)";
-    pkgHintGit = "sudo apt-get install git";
   } else if (commandExists("dnf")) {
     pkgHintNode = "sudo dnf install nodejs22 (or your version manager)";
     pkgHintGo = "sudo dnf install golang";
-    pkgHintGit = "sudo dnf install git";
   } else if (commandExists("pacman")) {
     pkgHintNode = "sudo pacman -S nodejs npm";
     pkgHintGo = "sudo pacman -S go";
-    pkgHintGit = "sudo pacman -S git";
   } else {
     pkgHintNode = "https://nodejs.org (>= 22) or a version manager (fnm/nvm/mise)";
     pkgHintGo = "https://go.dev/dl/";
-    pkgHintGit = "https://git-scm.com/downloads";
   }
 
   // -------------------------------------------------------------------------
@@ -288,7 +306,7 @@ export function runSetup(argv) {
   if (commandExists("git")) {
     ok(`git ${firstVersion("git", ["--version"])}`);
   } else {
-    fail(`git — install it: ${pkgHintGit}`);
+    fail(`git — install it: ${gitInstallHint()}`);
   }
 
   let nodeOk = false;
