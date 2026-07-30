@@ -1,7 +1,14 @@
 name: PR practice review
 
 on:
-  pull_request:
+  # Not `pull_request`: a fork PR's token is read-only there, so this job could
+  # never post its comment — it would spend the whole model budget and then go
+  # red on the very last step. `pull_request_target` runs against the BASE ref
+  # with a write token, which is safe here for the same reason it is in
+  # translate-pr: nothing from the PR head is ever checked out or executed. The
+  # diff, and every file a model asks to read at the head SHA, arrive through
+  # the API and are framed as untrusted data.
+  pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
@@ -28,15 +35,22 @@ jobs:
     # makes that read fail loud rather than budget against the wrong number.
     timeout-minutes: 20
     steps:
-      # Check out the base ref, not the default PR merge commit: repo-care
-      # reads the PR diff via the GitHub API, so the checkout exists only to
-      # provide repo-care's own source — which must be the trusted base-branch
-      # version, never code the PR author can modify, because this job holds a
-      # pull-requests: write token (same-repo branches don't get GitHub's
-      # automatic fork-PR token downgrade).
+      # No `ref:` here, deliberately. `pull_request_target` already checks out
+      # the base branch, which IS the guarantee this job needs: the checkout
+      # exists only to supply repo-care's own source and the project layout it
+      # groups by, and both must be the trusted base-branch version, never code
+      # the PR author can modify — this job holds a pull-requests: write token.
+      #
+      # Naming that default explicitly (`ref: github.event.pull_request.base.sha`)
+      # reads as the safer spelling but is strictly worse. Scorecard's
+      # dangerous-workflow check flags any `ref` mentioning `github.event.pull_request`
+      # under this trigger — it cannot tell `.base.sha` from `.head.sha` — so the
+      # explicit form scored this repo as an untrusted checkout on Scorecard's
+      # single heaviest check while changing nothing about what gets run. The
+      # default is also marginally tighter: it tracks the base branch tip, i.e.
+      # the newest trusted repo-care and practice index, rather than the sha
+      # recorded when the pull request was opened.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
