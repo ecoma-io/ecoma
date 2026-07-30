@@ -1,5 +1,13 @@
+import { createRequire } from "node:module";
+
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vitest/config";
+
+// The floor is a workspace value, not this project's — the repo-root
+// `coverage.config.json` says why it lives there and who else reads it.
+// `createRequire` rather than a static relative import: the file sits outside
+// this Nx project, so a relative import is an edge the project graph cannot see.
+const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.json");
 
 // Both co-located tiers, one jsdom runtime: `*.test.ts` (unit — every
 // project-internal collaborator mocked, enforced by
@@ -43,7 +51,7 @@ export default defineConfig({
       enabled: true,
       include: ["src/**/*.{ts,vue}"],
       exclude: ["src/**/*.test.ts", "src/**/*.stories.ts", "src/**/*Demo.vue", "src/**/*.d.ts"],
-      thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+      thresholds,
     },
   },
 });
