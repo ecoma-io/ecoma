@@ -3,17 +3,22 @@
  * one a cross-file invariant whose breakage is silent until something
  * downstream misbehaves:
  *
+ *  - **required tag presence** — every project's tags must include one
+ *    `type:*`, one `scope:*`, and one `license:*` (the same three axes
+ *    `local/require-project-tags` names). `@nx/enforce-module-boundaries` keys
+ *    every one of its constraints — the type axis (apps never import apps),
+ *    the scope axis (leaf independence), the licence axis (`sul` never imports
+ *    `ee`) — on a project matching a tag; a project with none of a given axis'
+ *    tags matches no constraint on that axis and escapes it entirely, silently.
  *  - **scope tag ↔ directory** — a project's `scope:X` tag must equal its
- *    top-level directory. `@nx/enforce-module-boundaries` constrains a project
- *    only through its tags, so a product-domain lib mistagged `scope:shared`
+ *    top-level directory, or a product-domain lib mistagged `scope:shared`
  *    would be importable from every leaf without any lint firing.
  *  - **e2e test placement** — `*.e2e.test.*` / `*_e2e_test.*` files live only
  *    in `type:e2e` projects (root CLAUDE.md test taxonomy: e2e is never
  *    co-located).
  *  - **licence tag ↔ directory** — the root `LICENSE` decides terms by path, so
- *    a project's `license:*` tag must equal what its own path implies. The tag
- *    is what `@nx/enforce-module-boundaries` keys the licence constraints on;
- *    a mistagged Enterprise module would be importable from SUL code, which
+ *    a project's `license:*` tag must equal what its own path implies; a
+ *    mistagged Enterprise module would be importable from SUL code, which
  *    ships paid code to every self-hoster with no gate firing.
  *  - **carve-out directory carries its own LICENSE** — a `packages` or
  *    `enterprise` directory holding tracked files must contain the terms the
@@ -30,13 +35,17 @@
  *    `package.json`); conversely every `type:lib` `package.json` named
  *    `@ecoma-io/*` has a base alias, or it is silently unimportable.
  *
- * Tag vocabulary (and, for `scope:*`, presence too) is `local/require-project-tags`'
- * job (lint-time, per file, opt-in via that project's own `lint` target).
- * `license:*` presence is judged here as well, alongside its value: the lint
- * path only fires when a project actually wires `eslint project.json` into its
- * `lint` target, while this gate runs unconditionally over every tracked
- * project, so it is the one place a missing licence tag cannot go unnoticed.
- * Malformed JSON is lint's problem and skipped here.
+ * Tag *vocabulary* (is this value one of the allowed slugs for its axis) stays
+ * `local/require-project-tags`' job — lint-time, per file, opt-in via that
+ * project's own `lint` target. This gate additionally judges tag *presence*
+ * for all three required axes, and — where a value is derivable from the path
+ * — the value too (`scope:*`, `license:*`; `type:*` has no path-derived
+ * expected value, so only its presence is judged here). The lint path only
+ * fires when a project actually wires `eslint project.json` into its `lint`
+ * target, while this gate walks every tracked `project.json` unconditionally,
+ * so it is the one place a missing required tag cannot go unnoticed — a
+ * hand-written project can simply not wire up the opt-in lint path. Malformed
+ * JSON is lint's problem and skipped here.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -105,13 +114,25 @@ export function findConventionViolations(trackedFiles, readFile) {
 
   for (const p of projects) {
     const scopeTag = p.tags.find((t) => typeof t === "string" && t.startsWith("scope:"));
-    if (!scopeTag) continue; // presence is require-project-tags' job
-    const scope = scopeTag.slice("scope:".length);
     const top = p.root.split("/")[0];
-    if (scope !== top) {
+    if (!scopeTag) {
+      violations.push(
+        `${p.path}: no 'scope:*' tag — expected 'scope:${top}' for this path — ` +
+          `module boundaries key on this tag, so a project with none silently escapes the leaf boundary`,
+      );
+    } else if (scopeTag.slice("scope:".length) !== top) {
       violations.push(
         `${p.path}: tag '${scopeTag}' does not match top-level directory '${top}' — ` +
           `module boundaries key on this tag, so the mismatch silently escapes the leaf boundary`,
+      );
+    }
+  }
+
+  for (const p of projects) {
+    if (!p.tags.some((t) => typeof t === "string" && t.startsWith("type:"))) {
+      violations.push(
+        `${p.path}: no 'type:*' tag — module boundaries key the type-axis constraints ` +
+          `(app/lib/e2e) on this tag, so a project with none escapes them entirely`,
       );
     }
   }

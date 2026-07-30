@@ -48,6 +48,28 @@ describe("findConventionViolations", () => {
     ]);
   });
 
+  it("flags a project.json with no scope tag at all", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/unscoped/project.json": project(["type:lib"]),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "vider/libs/unscoped/project.json: no 'scope:*' tag — expected 'scope:vider'",
+      ),
+    ]);
+  });
+
+  it("flags a project.json with no type tag at all", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/untyped/project.json": project(["scope:vider"]),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("vider/libs/untyped/project.json: no 'type:*' tag"),
+    ]);
+  });
+
   it("flags an e2e test co-located outside a type:e2e project", () => {
     const files = {
       ...HEALTHY,
