@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: f706253a90cc
+canonical-sha: 38bebb5ca808
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -166,12 +166,9 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 
 **Luật gate** ([roadmap](../method/roadmap.md) §1b, luật #6): **Gate = freeze văn bản + conformance test suite chạy độc lập**; văn bản không đủ, chỉ suite mới là trọng tài máy kiểm được. Litmus của chính roadmap (§8) hỏi thẳng: mỗi gate ◆G có suite chạy được **trước khi** track phía sau viết dòng code đầu tiên không — **"Gate không suite = gate giấy."**
 
-| #            | Mục                                                                         | Trạng thái                                                                                                                                                                                                                  | Chặn cái gì                                                                                   |
-| ------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **G-freeze** | Một tài liệu bộ trần từng được **freeze** (khác `status: design-end-state`) | 🟡 chưa có — mọi tài liệu trong bộ trần đứng nguyên ở `status: design-end-state`; chưa tài liệu nào từng chuyển sang frozen                                                                                                 | Không track nào có một interface đã đóng băng để implement chống lại                          |
-| **G-suite**  | Tooling conformance-suite chạy độc lập, một cho mỗi gate ◆G0–◆G4            | 🟡 chưa có — không subsystem nào trong `shared/tools` hay `*-e2e` chạy một suite theo đúng nghĩa này (test hiện có, ví dụ `palette-conformance.e2e.test.ts`, kiểm token màu của design system, không phải một interface ◆G) | Không gate nào có trọng tài máy kiểm được; "pass suite" hiện không thể xảy ra ở bất kỳ ◆G nào |
+**Sổ trạng thái từng nằm ở đây nay được dẫn xuất.** `dev-cli conformance` đọc trạng thái từng gate thẳng từ cây — freeze là một tài liệu khai `status: frozen` kèm gate nó đóng; suite là một project khai target `conformance` kèm gate nó phân xử — rồi in một dòng cho mỗi gate roadmap định nghĩa. Một bảng chép tay cùng nội dung là nguồn sự thật thứ hai về một sự kiện lệnh đọc được, đúng loại trôi mà file này vừa gỡ khỏi mục known-gaps.
 
-**Hệ quả trung thực**: theo đúng định nghĩa luật #6, **mọi gate ◆G0–◆G4 hiện là gate giấy** — chưa gate nào từng được freeze + suite độc lập. Đây không phải lỗi cần vá ngay trong PR ghi sổ này: dựng suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay một suite rỗng để tô xanh mục này mới là vi phạm ("Scaffold openly; never fake done", root CLAUDE.md). Mục đích của sổ này chỉ là để khoảng trống được thấy, không bị coi là đã xong.
+**Hệ quả trung thực, tại thời điểm viết**: chưa tài liệu nào từng freeze và chưa có suite nào, nên **mọi gate ◆G0–◆G4 là gate giấy** theo đúng chữ của luật #6. Đó không phải lỗi vá bằng cách freeze đại một thứ gì: một suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay ship một suite rỗng để tô xanh một dòng mới là vi phạm, không phải cách sửa ("Scaffold openly; never fake done", `CLAUDE.md` gốc). Cái đã đổi là khoảng trống nay **máy thấy được chứ không phải lời khai** — và ngay khi ai đó freeze một văn bản, lệnh sẽ đỏ cho tới khi suite của nó tồn tại. Luật cuối cùng đã có thứ thi hành nó thay vì một câu mô tả nó.
 
 ## Publishing policy
 
