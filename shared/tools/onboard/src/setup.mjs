@@ -6,8 +6,9 @@
  *
  * What it does:
  *   1. Verifies every required tool. Version pins come from the repo itself
- *      (package.json `engines` / `packageManager`, go.work when it exists) so
- *      the script never carries a second copy of a pin the repo already owns.
+ *      (package.json `engines` / `packageManager`, `.golangci-lint-version`,
+ *      go.work when it exists) so the script never carries a second copy of a
+ *      pin the repo already owns.
  *   2. Installs missing tools that have an official user-space installer
  *      (pnpm, rustup, uv, golangci-lint), asking first unless --yes. System
  *      runtimes (Git, Node.js, Go) are never installed by this script — it
@@ -45,8 +46,9 @@ Supported platforms: Linux, macOS, and native Windows.
 
 What it does:
   1. Verifies every required tool. Version pins come from the repo itself
-     (package.json engines/packageManager, go.work when it exists) so the
-     script never carries a second copy of a pin the repo already owns.
+     (package.json engines/packageManager, .golangci-lint-version, go.work
+     when it exists) so the script never carries a second copy of a pin the
+     repo already owns.
   2. Installs missing tools that have an official user-space installer
      (pnpm, rustup, uv, golangci-lint), asking first unless --yes. System
      runtimes (Git, Node.js, Go) are never installed by this script — it
@@ -315,15 +317,21 @@ export function runSetup(argv) {
   // -------------------------------------------------------------------------
   const pkgJson = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
   const { nodeMin, pnpmPin } = readVersionPins(pkgJson);
-  if (!nodeMin || !pnpmPin) {
+  // .golangci-lint-version at the repo root is this pin's single source
+  // (Rule 14) — .github/workflows/ci.yml's "Read the golangci-lint version
+  // pin" step reads the same file, so the two can never drift apart the way
+  // a restated literal would.
+  const golangciLintPinPath = join(REPO_ROOT, ".golangci-lint-version");
+  const GOLANGCI_LINT_VERSION = existsSync(golangciLintPinPath)
+    ? readFileSync(golangciLintPinPath, "utf8").trim()
+    : "";
+  if (!nodeMin || !pnpmPin || !GOLANGCI_LINT_VERSION) {
     console.error(
-      "setup.mjs: could not read the Node/pnpm pins from package.json — was its engines/packageManager shape changed?",
+      "setup.mjs: could not read a required version pin — package.json's engines/packageManager " +
+        "fields, or the repo-root .golangci-lint-version file. Was one of them changed or removed?",
     );
     return 1;
   }
-  // Keep in sync with .github/workflows/ci.yml (the only other place this pin
-  // exists; the repo has no golangci-lint config file to read it from).
-  const GOLANGCI_LINT_VERSION = "v2.5.0";
 
   // -------------------------------------------------------------------------
   // Core tools: git, Node.js, pnpm

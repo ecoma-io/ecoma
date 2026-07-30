@@ -21,8 +21,9 @@ description: 唯一的 onboarding 入口——验证开发者工具链并搭建�
 正确的 Node/pnpm 版本、Go、带 `clippy`/`rustfmt` 的 Rust、`uv`、一旦有 Go
 项目就需要的 `golangci-lint`、强制提交规范的 git hooks,以及 e2e 套件所需的
 Playwright Chromium。`src/setup.mjs` 是唯一一个脚本,依据仓库自身已经拥有的
-版本 pin(`package.json` 的 `engines`/`packageManager`、`go.work`)校验以上
-全部内容,对有官方 user-space 安装器的工具提供安装,并且从不悄悄跳过任何一
+版本 pin(`package.json` 的 `engines`/`packageManager`、
+`.golangci-lint-version`、`go.work`)校验以上全部内容,对有官方 user-space
+安装器的工具提供安装,并且从不悄悄跳过任何一
 步。`runSetup(argv)` 被特意导出,既能在进程内运行,也能从 CLI 运行——只有
 一条 onboarding 路径,以两种方式被调用。
 

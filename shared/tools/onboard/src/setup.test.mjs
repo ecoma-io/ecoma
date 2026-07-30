@@ -43,6 +43,9 @@ function fixture({
   nodeVersion = "22.10.0",
   pnpmVersion = "10.32.1",
   golangciVersion = "2.5.0",
+  // The repo-root pin file setup.mjs now reads instead of hardcoding
+  // GOLANGCI_LINT_VERSION; null simulates it being missing from the repo.
+  golangciLintVersionFile = "v2.5.0",
 } = {}) {
   vi.stubEnv("PATH", BIN_DIR);
   vi.stubEnv("PLAYWRIGHT_CHROMIUM_EXECUTABLE", chromiumExecutable);
@@ -56,6 +59,7 @@ function fixture({
     if (path.endsWith("/go.work")) return goWork;
     if (path.endsWith("/node_modules")) return nodeModules;
     if (path.endsWith(".git/hooks/pre-commit")) return gitHooks;
+    if (path.endsWith(".golangci-lint-version")) return golangciLintVersionFile !== null;
     return false;
   });
 
@@ -63,6 +67,8 @@ function fixture({
     const path = String(p);
     if (path.endsWith("package.json")) return PACKAGE_JSON;
     if (path.endsWith("go.work")) return "go 1.23\n";
+    if (path.endsWith(".golangci-lint-version") && golangciLintVersionFile !== null)
+      return `${golangciLintVersionFile}\n`;
     throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
   });
 
@@ -138,6 +144,13 @@ describe("runSetup", () => {
       present: new Set(["git", "node", "pnpm", "go", "cargo", "uv", "golangci-lint"]),
     });
     expect(runSetup(["--check"])).toBe(0);
+  });
+
+  it("fails loudly instead of silently falling back when .golangci-lint-version is missing from the repo root", () => {
+    fixture({ golangciLintVersionFile: null });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(runSetup(["--check"])).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(".golangci-lint-version"));
   });
 
   it("--check fails when node is older than the version pinned in package.json", () => {
