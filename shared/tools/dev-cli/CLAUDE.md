@@ -67,6 +67,21 @@ build/typecheck — invoked directly as
   The licence _vocabulary_ is mirrored in `require-project-tags.mjs` and in
   `eslint.config.mjs`'s `depConstraints` — a new value belongs in all three in
   one pass, the same contract the `scope:` axis already carries.
+- **`MANIFEST_LICENSE` deliberately avoids npm's `SEE LICENSE IN <file>`.** npm
+  resolves that string against the file at the _package_ root, and this tree has
+  a package whose root licence covers its documents rather than its code
+  (`shared/libs/doctrine/LICENSE.docs` is CC BY-SA; the modules beside it are
+  not). The string therefore declared TypeScript source to be under a ShareAlike
+  copyleft, and four other packages carried it with no such file at all. Every
+  value is now a valid SPDX expression, so it names terms directly instead of
+  pointing at a file that may be the wrong one or missing. Do not "simplify" it
+  back to a file pointer.
+- **The carve-out gate reads content, not just a filename.** Requiring only that
+  `<carve-out>/LICENSE` exists let a zero-byte file pass — and let the SUL text
+  itself sit in a `packages` directory whose whole purpose is to not be under
+  those terms. `CARVE_OUT_LICENSE_MARKER` is the phrase each must contain. It is
+  evidence, not proof: no string match verifies a licence, and the residue stays
+  on review.
 - `check-primitive-artifacts` runs from `core-ui`'s `lint` target rather than
   the CI doc-gate block, because the convention it enforces belongs to that one
   project. It scans the git **index**, so a new primitive's artifacts must be

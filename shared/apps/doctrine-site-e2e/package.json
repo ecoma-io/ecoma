@@ -3,6 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "description": "Playwright suite driving the built doctrine site",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "LicenseRef-Ecoma-SustainableUse-1.0",
   "type": "module"
 }

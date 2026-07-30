@@ -1,0 +1,30 @@
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+Copyright (c) 2026 John Martin, trading as Ecoma
+
+Every file whose name ends in `.md`, in this directory and in every directory
+beneath it — the North Stars, the specifications, the charters, the ADR
+ledger, the review rubric, and the README and agent-guidance files beside them
+— together with every image such a file references, is licensed under the
+Creative Commons Attribution-ShareAlike 4.0 International License.
+
+    https://creativecommons.org/licenses/by-sa/4.0/
+
+You are free to share and adapt this material for any purpose, including
+commercially, provided you give appropriate credit, link to the license, and
+indicate if changes were made — and provided you distribute your contributions
+under the same license as the original.
+
+ShareAlike is the point rather than a formality: the reasoning in these
+documents can be built on, and what is built on it stays readable to the people
+it was built from.
+
+The boundary above is drawn by file extension rather than by category, and that
+is deliberate. "Prose" is not a property a reader or a compliance tool can
+evaluate, and this directory holds source code beside the documents — so a
+category would leave every reader to guess, and different readers would guess
+differently.
+
+This file covers only the files described above. Every other file in this
+directory, including everything under `src/`, is licensed under the terms in
+the LICENSE file at the root of the repository.

@@ -98,7 +98,7 @@ describe("scaffoldLib file emission", () => {
       main: "./src/index.ts",
       // Born declaring the terms its path implies — a lib scaffolded without
       // this arrives failing the very gate that scaffolded it.
-      license: "SEE LICENSE IN LICENSE",
+      license: "LicenseRef-Ecoma-SustainableUse-1.0",
     });
     expect(pkg.dependencies).toBeUndefined();
 
