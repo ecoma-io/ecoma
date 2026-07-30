@@ -1,0 +1,38 @@
+name: Roadmap label audit
+
+# The board half of the roadmap's §0 two-way law: every card traces to a
+# roadmap id. `dev-cli check-roadmap-ids` holds the file half on every commit
+# and cannot see this one — an id renamed in the document leaves the label on
+# an issue looking perfectly ordinary. It runs on a schedule rather than per
+# push because the drift is introduced by editing the roadmap and only becomes
+# visible against the tracker, which no single commit can show.
+#
+# Read-only by design: relabelling after a rename is a judgment about where the
+# work moved, and a bot getting that wrong rewrites the project's own record of
+# what was decided. This reports; a human relabels.
+
+on:
+  schedule:
+    # Weekly, offset from every other scheduled job so the runs don't queue.
+    - cron: "20 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Bare `node`, no install: repo-care is dependency-free on purpose, and
+      # it spawns dev-cli to read the roadmap's own vocabulary rather than
+      # restating it.
+      - name: Audit roadmap labels against the roadmap
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node shared/tools/repo-care/src/main.mjs audit-roadmap-labels
