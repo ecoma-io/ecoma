@@ -1,104 +1,173 @@
 ---
-title: "Ecoma Spec: Calibration Data Model"
+title: "Calibration Data Model"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Calibration Data Model
+# Calibration Data Model
 
-## 0. Vị trí & ranh giới E5 (một sự thật một nhà)
+## 0. Position, and the one-truth-one-home boundary
 
-- **Calibration là nhà DUY NHẤT của đánh giá lao động** — cặp với án văn cấm memory-về-filler (Memory §0). Không sổ nào khác được ghi "model X hay hỏng / anh A chậm".
-- **Không store mới**: mọi cell là **projection từ Event Log** (Judgment/outcome/Conflict/escalation), rebuild được (Event Log §3 — "Calibration input" nay có spec).
-- Hai khái niệm cũ là hai lát cắt của cùng một không gian: _calibration profile của Filler_ (Role §3) và _lớp C của verifier_ (Checkpoint §4) — hợp nhất tại §1.
+**Calibration is the ONLY home of labour assessment.** It pairs with the rule
+forbidding memory about a filler (Memory §0): no other ledger may record "model X
+gets it wrong a lot" or "A misses deadlines".
 
-## 1. CalKey & Cell
+**No new store.** Every cell is **a projection of the Event Log** — Judgments,
+outcomes, Conflicts, escalations — and can be rebuilt (Event Log §3).
 
-**CalKey** — khóa hợp nhất, 7 chiều:
+Two concepts that used to be separate are two slices of one space: a _Filler's
+calibration profile_ (Role §3) and a _verifier's layer C_ (Checkpoint §4). §1
+unifies them.
 
-| Chiều               | Giá trị                                                                                                                                                   | Nguồn án văn                                                                                                                    |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `tenant`            | Biên cứng — **không bao giờ vượt**                                                                                                                        | Invariant 4                                                                                                                     |
-| `workspace_scope`   | Chiều **bắt buộc tồn tại**; mặc định = **workspace hẹp nhất** (K5 + C6); pool rộng hơn là giá trị template — agency tự chọn gộp/tách learning theo client | Tenant & Identity §3                                                                                                            |
-| `subject`           | **(kind, identity@version)** — kind mở: `filler` · `verifier` · `driver` · `detector` (masking) · `chunk/collection` (knowledge) · `contract`             | Hợp nhất Role §3 + Checkpoint §2 + Driver §1 + Sandbox §3 + Knowledge §6 + Handoff §7 — một engine thống kê, nhiều loại chủ thể |
-| `role`              | Role đang lấp (∅ với subject không-lao-động như chunk)                                                                                                    | Role §3                                                                                                                         |
-| `task_type`         | Loại việc                                                                                                                                                 | Role §3                                                                                                                         |
-| `criterion@version` | **Calibration bám criterion-id, không bám rubric** — sửa rubric không reset; criterion dùng chung xuyên quy trình → tích lũy chung (thuốc cold-start #1)  | Checkpoint §1                                                                                                                   |
-| `basis`             | Taxonomy mở của Judgment                                                                                                                                  | Checkpoint §3                                                                                                                   |
+## 1. CalKey and Cell
 
-**Cell** = giá trị tại một CalKey: **sufficient statistics** (n, đếm theo verdict-bucket, momen, log-position cập nhật cuối, trạng thái decay) — không lưu chuỗi thô (chuỗi thô _là_ log). Cell **sparse**: chỉ tồn tại khi có dữ liệu — van chi phí J6 (không gian 7 chiều không bao giờ materialize đặc; lưu trữ ~ số Judgment thực, không ~ tích các chiều).
+**CalKey** — the unified key, seven dimensions:
 
-## 2. Đường vào — duy nhất qua hệ Judgment
+| Dimension           | Value                                                                                                                                                                                                  | Source                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant`            | A hard boundary — **never crossed**                                                                                                                                                                    | Invariant 4                                                                                                                         |
+| `workspace_scope`   | A dimension that **must exist**; the default is the **narrowest workspace**, and a wider pool is a template value — an agency chooses for itself whether learning merges or splits per client          | Tenant & Identity §3                                                                                                                |
+| `subject`           | **(kind, identity@version)**, with an open kind: `filler` · `verifier` · `driver` · `detector` (masking) · `chunk/collection` (knowledge) · `contract`                                                 | Unifying Role §3, Checkpoint §2, Driver §1, Sandbox §3, Knowledge §6 and Handoff §7 — one statistical engine, many kinds of subject |
+| `role`              | The Role being filled; empty for a non-labour subject such as a chunk                                                                                                                                  | Role §3                                                                                                                             |
+| `task_type`         | The kind of work                                                                                                                                                                                       | Role §3                                                                                                                             |
+| `criterion@version` | **Calibration binds to the criterion id, not the rubric** — editing a rubric resets nothing, and a criterion shared across processes accumulates shared data, which is the first remedy for cold start | Checkpoint §1                                                                                                                       |
+| `basis`             | Judgment's open taxonomy                                                                                                                                                                               | Checkpoint §3                                                                                                                       |
 
-| Nguồn                                                                                   | Vào cell thế nào                                                                                                     |
-| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Judgment mọi basis (contemporaneous / re_review / consumer-bounce / override / comment) | Trực tiếp; `comment` trọng số 0 (Checkpoint §3)                                                                      |
-| Outcome lan ngược theo provenance                                                       | Về từng Role/Criterion góp phần; trọng số attribution là tham số cascade (Handoff §9)                                |
-| Conflict                                                                                | Nhãn bất đồng — tín hiệu sửa rubric, hạ tin cậy tạm cell liên quan                                                   |
-| `assistance_request`                                                                    | **Cộng điểm** — giơ tay đúng lúc có profile tốt hơn liều (Escalation §2)                                             |
-| Override + outcome xấu                                                                  | Sụt calibration của người override — trách nhiệm đối xứng (Escalation §6)                                            |
-| Sampling reject (tự siết)                                                               | Vào cell + phát event hạ T_high đảo được (Checkpoint §4)                                                             |
-| Shadow (`shadow: true`)                                                                 | Nuôi cell của shadow filler, không rủi ro production (Role §4)                                                       |
-| RPA: takeover diff = approve-with-edit; kết quả cửa duyệt patch; tầng-locator-thắng     | Qua Session effect → Judgment; **calibration Platform bám filler đăng ký, sub-actor cho ML chi tiết** (RPA NS §5/§7) |
+A **Cell** is the value at one CalKey: **sufficient statistics** — n, counts per
+verdict bucket, moments, the log position last applied, decay state. It does not
+hold the raw sequence, because the raw sequence _is_ the log.
 
-**Luật cứng**: không tồn tại đường ghi điểm nào ngoài việc tạo Judgment hợp lệ (capability `judge`, chịu `distinct_filler_from`). "Chấm tay" một filler = tạo Judgment có chữ ký — không sửa số.
+Cells are **sparse**, existing only where there is data. That is the cost valve:
+a seven-dimensional space is never materialised densely, so storage grows with
+the number of real Judgments rather than with the product of the dimensions.
 
-**Biên cứng thứ hai: Judgment mang `run_kind: test` KHÔNG BAO GIỜ vào cell.** Nhãn là thuộc tính của entry, nhà canonical ở Event Log §1/§3; spec này chỉ _khai lập trường_ — và lập trường là **loại tuyệt đối**, không cấu hình được. Án văn: cell là tài sản của tổ chức (§0), đầu độc bằng dữ liệu giả (mock filler, Test Harness §3) là phá flywheel **không đảo được** — nên đây là luật engine, không phải giá trị template.
+## 2. The only way in is the Judgment system
 
-## 3. Trọng số theo basis — tham số, không hardcode
+| Source                                                                                       | How it reaches a cell                                                                                                                                     |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Judgments of any basis — contemporaneous, re_review, consumer bounce, override, comment      | Directly; `comment` carries weight 0 (Checkpoint §3)                                                                                                      |
+| Outcome propagating back through provenance                                                  | To each contributing Role and Criterion; attribution weights are cascade parameters (Handoff §9)                                                          |
+| Conflict                                                                                     | A disagreement label — the signal to fix a rubric, temporarily lowering confidence in the cells involved                                                  |
+| `assistance_request`                                                                         | **Adds** to the score — raising a hand at the right moment beats guessing (Escalation §2)                                                                 |
+| An override followed by a bad outcome                                                        | Lowers the overrider's calibration — symmetric responsibility (Escalation §6)                                                                             |
+| A sampling rejection (self-tightening)                                                       | Into the cell, plus a reversible event lowering T_high (Checkpoint §4)                                                                                    |
+| Shadow work (`shadow: true`)                                                                 | Feeds the shadow filler's cell at no risk to production (Role §4)                                                                                         |
+| RPA: a takeover diff as approve-with-edit; patch approval outcomes; the winning locator tier | Through the Session effect into a Judgment. **Platform calibration binds to the registered filler**, with sub-actors for finer ML (RPA North Star §5, §7) |
 
-Engine ép bảng trọng số tồn tại; **template cấp giá trị** (prior mặc định: `outcome` cao nhất > `re_review` > `contemporaneous` > `consumer` > self-report; `comment` = 0; `degraded` nhân hệ số hạ). Data model cam kết **lưu đủ provenance** (blind?, batch, degraded, thiết bị…) — dùng thế nào là việc của estimator (§5).
+**The hard rule**: there is no path to scoring that is not the creation of a
+valid Judgment — under the `judge` capability, subject to `distinct_filler_from`.
+Scoring a filler by hand means creating a signed Judgment, never editing a
+number.
 
-## 4. Lineage, decay & tươi mới
+**The second hard boundary: a Judgment carrying `run_kind: test` NEVER enters a
+cell.** The label is a property of the entry and its canonical home is Event Log
+§1/§3; this document only declares its position — and that position is **absolute
+exclusion, not configurable**. Cells are an organisational asset (§0), and
+poisoning them with synthetic data from a mock filler (Test Harness §3) destroys
+the flywheel **irreversibly**. That is why it is an engine law rather than a
+template value.
 
-- **Fork kế thừa**: subject identity mới khai `parent_identity` → cell khởi tạo = cell cha × `decay(d)`; **d theo bản chất thay đổi** (template cấp giá trị): đổi config nhỏ / patch chỉ-đổi-locator ≈ 0 (Self-healing §4) · contract minor ≈ 0, major theo template (Handoff §7) · đổi model/hành vi = decay lớn. Sự kiện fork là entry — lineage graph truy được. **Không lineage = mỗi lần tối ưu là một lần đốt flywheel** (nguyên tắc #2).
-- **Time-freshness** (khai báo mới, có án văn): môi trường trôi (UI đổi, model provider drift) → engine ép tham số half-life theo thời-gian/khối-lượng tồn tại; template cấp giá trị, mặc định suy giảm chậm (bảo thủ: dữ liệu cũ mất dần sức nặng chứ không bất tử). Không có nó, điểm 2 năm trước quyết auto-pass hôm nay.
+## 3. Weight by basis — a parameter, never hardcoded
 
-## 5. Prior, cold-start & Estimator identity
+The engine forces the weight table to exist; **a template supplies the values**.
+The default prior orders `outcome` highest, then `re_review`, `contemporaneous`,
+`consumer`, then self-report; `comment` is 0; `degraded` multiplies by a
+reducing factor.
 
-- Cell thưa/rỗng → **prior bảo thủ từ template** ("mọi thứ qua review" — Checkpoint §4). Ba thuốc cold-start đúng invariant 4: criterion dùng chung + lineage + template prior. **Không bao giờ đọc cross-tenant**; block/template chỉ ship _prior definition_, không bao giờ ship dữ liệu (Block §9).
-- **Backoff/pooling giữa các cell là THUẬT TOÁN** — thuộc estimator, không thuộc data model. Ràng buộc duy nhất data model đặt: mọi con số confidence dùng để quyết Gate/graduation phải ghi vào event **`(cell keys đã đọc, estimator identity)`**.
-- **Estimator identity = (method, version, params_hash)** — khai báo mới, án văn I-group: đổi công thức ước lượng là đổi hành vi hệ → phải có danh tính, lineage, shadow-so-sánh như mọi thứ tiến hóa khác; không có nó, "sửa công thức" là upgrade ngầm phá auditability.
+The data model commits to **storing enough provenance** — blind, batch, degraded,
+device — and what an estimator does with it is the estimator's business (§5).
 
-## 6. Consumer — ai đọc, đọc gì
+## 4. Lineage, decay and freshness
 
-Gate policy T_high/T_low (Checkpoint §4) · graduation/trust tiers, **giáng tức thì khi sụt** (Role §5) · bảng đối chiếu shadow (Role §4) · cost + quality theo Role — litmus #4 (metering × calibration cùng log-position) · routing (fallback chain, model theo độ chính xác masking — RPA NS §7) · độ tin chunk/collection (Knowledge §6) · độ tin driver/detector.
-**Visibility**: dữ liệu đánh giá người là nhạy cảm — mặc định chỉ Role có capability `view_calibration` trong scope; `calibration_visibility_policy` là extension point EE (Tenant & Identity §8).
+**A fork inherits.** A new subject identity declaring `parent_identity` starts
+from the parent's cell multiplied by `decay(d)`, where **d follows the nature of
+the change** and a template supplies values: a small config change or a
+locator-only patch is about zero (Self-healing §4); a minor contract change is
+about zero and a major one is template-valued (Handoff §7); changing the model or
+the behaviour decays heavily. The fork event is an entry, so the lineage graph is
+traceable. **Without lineage, every optimisation burns the flywheel** (principle
+#2).
+
+**Time freshness.** Environments drift — the UI changes, a model provider drifts —
+so the engine forces a half-life parameter over time or volume to exist, with a
+template value defaulting to slow decay: old data loses weight rather than being
+immortal. Without it, a score from two years ago decides an auto-pass today.
+
+## 5. Prior, cold start, and estimator identity
+
+A sparse or empty cell falls back to **the template's conservative prior** —
+everything goes to review (Checkpoint §4). The three cold-start remedies all obey
+invariant 4: shared criteria, lineage, and a template prior. **Nothing is ever
+read across tenants**; a block or template ships a _prior definition_ and never
+data (Block §9).
+
+**Backoff and pooling between cells is ALGORITHM** — it belongs to the estimator,
+not the data model. The data model imposes exactly one constraint: every
+confidence number used to decide a Gate or a graduation is written into an event
+as **`(the cell keys read, the estimator identity)`**.
+
+**An estimator identity is `(method, version, params_hash)`.** Changing the
+estimation formula changes the system's behaviour, so it needs an identity,
+lineage, and shadow comparison like everything else that evolves. Without it,
+"fixing the formula" is a silent upgrade that destroys auditability.
+
+## 6. Consumers
+
+Gate policy T_high and T_low (Checkpoint §4); graduation and trust tiers, with
+**immediate demotion on a fall** (Role §5); the shadow comparison table (Role §4);
+cost and quality per Role, read against metering at the same log position;
+routing — the fallback chain, and model choice by masking accuracy (RPA North
+Star §7); confidence per chunk and collection (Knowledge §6); confidence per
+driver and detector.
+
+**Visibility**: assessment data about people is sensitive. By default only a Role
+holding `view_calibration` within the scope may read it, and
+`calibration_visibility_policy` is an enterprise extension point (Tenant &
+Identity §8).
 
 ## 7. Non-goals
 
-- Không công thức thống kê/ML cụ thể (estimator = tầng tiến hóa, có identity §5).
-- Không store mới; không calibration cross-tenant; không nhận input ngoài hệ Judgment.
-- Không phải công cụ đánh giá nhân sự HR — phục vụ định tuyến/chất lượng, visibility chặt.
-- Không chấm bên-được-phục-vụ (đó là Memory — ranh giới Memory §0 chiều ngược lại).
+- No specific statistical or ML formula. The estimator is the evolving layer and
+  carries an identity (§5).
+- No new store, no cross-tenant calibration, and no input from outside the
+  Judgment system.
+- Not an HR performance tool. It serves routing and quality, and its visibility
+  is tight.
+- It does not score the party being served — that is Memory, and Memory §0 draws
+  the same line from the other side.
 
-## 8. Nhật ký quyết định
+## 8. Decisions
 
-| Vấn đề        | Chốt                                                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bản chất      | Projection thuần từ log — không store, rebuild được                                                                                                           |
-| Hợp nhất key  | Một không gian CalKey 7 chiều; profile-filler và lớp-C-verifier là hai lát cắt                                                                                |
-| Subject       | (kind, identity@version) mở — một engine cho filler/verifier/driver/detector/chunk/contract                                                                   |
-| Workspace     | Chiều bắt buộc; mặc định hẹp nhất (K5/C6); pool là template value                                                                                             |
-| Đường ghi     | Duy nhất qua Judgment hợp lệ — E5, cặp với cấm memory-về-filler                                                                                               |
-| **Nhãn test** | Judgment `run_kind: test` **loại tuyệt đối**, không cấu hình được; nhãn có nhà ở Event Log §1/§3 — spec này khai _lập trường_, không khai lại nhãn (chống G6) |
-| Decay         | Lineage-decay theo bản chất thay đổi + time-freshness half-life (mới, có án văn)                                                                              |
-| Estimator     | Identity (method, version, params_hash) — chống upgrade ngầm công thức                                                                                        |
-| Chi phí (J6)  | Cell sparse + sufficient stats + rebuild-từ-log = lưu trữ ~ số Judgment, có van retention                                                                     |
+| Question           | Settled                                                                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What it is         | A pure projection of the log — no store, rebuildable                                                                                                                                      |
+| Unified key        | One seven-dimensional CalKey space; the filler profile and the verifier's layer C are two slices of it                                                                                    |
+| Subject            | An open `(kind, identity@version)` — one engine for filler, verifier, driver, detector, chunk and contract                                                                                |
+| Workspace          | A mandatory dimension, defaulting to the narrowest; pooling is a template value                                                                                                           |
+| The write path     | Only through a valid Judgment — paired with the ban on memory about a filler                                                                                                              |
+| **The test label** | A Judgment with `run_kind: test` is **absolutely excluded** and not configurable. The label's home is Event Log §1/§3; this document declares a position rather than redefining the label |
+| Decay              | Lineage decay by the nature of the change, plus a time-freshness half-life                                                                                                                |
+| Estimator          | An identity of (method, version, params_hash), against silent formula upgrades                                                                                                            |
+| Cost               | Sparse cells, sufficient statistics and rebuild-from-log mean storage tracks the number of Judgments, with a retention valve                                                              |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Xóa toàn bộ cell → rebuild từ log ra kết quả tương đương (projection thuần)?
-2. Chỉ vào một con số confidence bất kỳ tại một Gate: truy được (cell keys, estimator@version, các Judgment gốc)?
-3. Đổi prompt/model của một filler: cell mới kế thừa cha với decay — không reset về 0, không giữ nguyên 100%?
-4. Có đường nào thay đổi điểm một filler mà không tạo Judgment hợp lệ (kể cả admin sửa DB — drift-detect Working Data §2)?
-5. Template chọn tách learning theo workspace: ước lượng cho client A không đọc một Judgment nào của client B?
+1. Delete every cell — does a rebuild from the log produce an equivalent result,
+   proving it is a pure projection?
+2. Point at any confidence number at a Gate: can the cell keys,
+   `estimator@version` and the originating Judgments all be traced?
+3. Change a filler's prompt or model: does the new cell inherit from its parent
+   with decay — neither resetting to zero nor carrying over untouched?
+4. Is there any path that changes a filler's score without a valid Judgment,
+   including an administrator editing the database (drift detection, Working Data
+   §2)?
+5. With a template that splits learning per workspace: does the estimate for
+   client A read not one Judgment belonging to client B?
 
-## FMEA (theo F8)
+## Failure modes
 
-| Hỏng                             | Phát hiện                                                            | Phục hồi                                                                        |
-| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Projection drift / cell sai      | Checksum theo log-position (Working Data §2)                         | Rebuild từ log, event cảnh báo                                                  |
-| Estimator lỗi làm lệch hàng loạt | Estimator có identity + shadow so sánh trước graduation              | Rollback về estimator version cũ — vì có danh tính                              |
-| Poisoning bằng Judgment giả      | Capability `judge` + `distinct_filler_from` + Conflict khi mâu thuẫn | Judgment độc bị vô hiệu qua re_review/outcome; actor chịu trách nhiệm trong log |
-| Cell cardinality phình           | Sparse + sufficient stats; cảnh báo ngưỡng                           | Retention/gộp theo policy — log vẫn giữ sự thật                                 |
+| Failure                               | Detected by                                                                    | Recovery                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Projection drift, or a wrong cell     | A checksum by log position (Working Data §2)                                   | Rebuild from the log, with a warning event                                                             |
+| An estimator bug skewing many results | The estimator has an identity and is shadow-compared before graduation         | Roll back to the previous estimator version, which is possible because it is named                     |
+| Poisoning through forged Judgments    | The `judge` capability, `distinct_filler_from`, and a Conflict on disagreement | Malicious Judgments are neutralised through re_review and outcome; the actor is accountable in the log |
+| Cell cardinality growing              | Sparseness, sufficient statistics, and a threshold warning                     | Retention or merging by policy — the log still holds the truth                                         |

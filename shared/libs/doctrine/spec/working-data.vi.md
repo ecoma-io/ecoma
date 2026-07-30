@@ -1,0 +1,95 @@
+---
+title: "Working Data — DataTable, Lease & Labor Analytics"
+status: design-end-state
+canonical-sha: 565b91cc8521
+---
+
+# Working Data — DataTable, Lease & Labor Analytics
+
+## 1. DataTable — bảng ghi được, sổ sách đầy đủ
+
+**Luật nền: SQL để hỏi, event để ghi.** Cấm shared mutable state là luật về _đường ghi_, không phải độ giàu của _đường đọc_.
+
+| Khía cạnh     | Cơ chế                                                                                                                                                                                                                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bản chất      | Table = **writable projection của Event Log**: mỗi mutation (insert/update/delete/upsert) là một event có actor identity; bảng hiện tại = materialized view, **rebuild được từ log**                                                                                                         |
+| Ghi           | Chỉ qua engine API. Write = **effect nội bộ lớp `reversible`** by construction (compensating event luôn tồn tại) — dùng DataTable _an toàn hơn_ ghi DB ngoài                                                                                                                                 |
+| Đọc           | **SQL đầy đủ trên snapshot**: join, aggregate, window, view — as-of một log-position. Provenance của query = `(log-position, query text, result hash)` → **time-travel join**                                                                                                                |
+| Đồng thời     | **Optimistic mặc định** (row-version): conflict = Violation → on_fail retry kèm feedback. Cần serialize thì dùng Lease (§3)                                                                                                                                                                  |
+| Quyền & mật   | Grant theo **Role**; bảng mang **classification**; kết quả join/aggregate kế thừa sàn = max các bảng chạm vào (floor propagation) — công bố số liệu từ bảng mật đi qua **leakage-gate**. Static analysis: bảng-chạm-vào ⊆ grant của Role; agent sinh SQL động = Query task read-only tầng DB |
+| Schema        | **Table definition = entity (id + version + lineage)**: thêm cột optional = minor (resolve live, **version ghi vào provenance** — đúng án văn Knowledge §4); đổi kiểu/xóa cột = major → **migration là Task của Role có Gate** — nguyên văn phạm Contract                                    |
+| Bulk import   | **Batch-event**: một event trỏ artifact (blob trong CAS) chứa lô rows — replay được, nhanh, một dấu vết. Không tồn tại kênh raw COPY                                                                                                                                                         |
+| PII           | Rows = events → **crypto-shredding thừa kế nguyên** từ Event Log §4                                                                                                                                                                                                                          |
+| **Nhãn test** | Write của một **test run scope** mang `run_kind: test` (Event Log §1) → vào **projection tách theo nhãn**; bảng production **không thấy**, và time-travel as-of log-position trên bảng production cũng không thấy. Nhà canonical của nhãn: Event Log §3                                      |
+| Phạm vi       | Working data tầm vận hành (nghìn → triệu dòng trên default stack). OLAP nặng đi đường export (§4)                                                                                                                                                                                            |
+
+## 2. Chống cửa hậu — không tin cả admin
+
+- Luật deployment: database là **tài sản riêng của engine**; client ngoài chỉ được role read-only.
+- Cơ chế không tin luật: projection mang **checksum đối chiếu log-position** — sửa tay ngoài engine → **phát hiện drift → rebuild từ log → event cảnh báo**. Sửa lén = bị ghi đè có hồ sơ.
+
+## 3. Lease — primitive khóa duy nhất của toàn hệ
+
+**Không tồn tại "lock" — chỉ có Lease**: (key, holder = filler/task identity, **TTL bắt buộc**, heartbeat). Engine ép TTL tồn tại → _không có khóa vô hạn về mặt cấu trúc_; hết TTL → tự nhả + event + escalation theo policy. Provenance luôn biết _ai đang giữ khóa_.
+
+| Luật                                     | Nội dung                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lease ≠ vòng đời task                    | Chỉ bao _critical section_ quanh effect; **cấm chứa trạng thái `awaiting`** — static analysis kiểm y hệt luật sync-path. Người ôm khóa đi nghỉ phép là bất khả                                                                                                                                                                       |
+| Khai báo, không code                     | `singleton: true` trên definition (đóng sổ tháng 1 instance) = lease theo definition-key trước spawn; mutex nghiệp vụ = lease theo correlation-key                                                                                                                                                                                   |
+| serialization_key (Handoff §8)           | Được cơ chế hóa lại = **micro-lease do engine tự quản qua hàng đợi** — một primitive, nhiều mặt                                                                                                                                                                                                                                      |
+| Deadlock                                 | Tự tan theo TTL; static analysis cảnh báo chuỗi acquire nhiều lease                                                                                                                                                                                                                                                                  |
+| Hết TTL **sau khi holder đã ghi effect** | Lease chuyển `orphaned`: **không cấp tự động cho waiter kế tiếp**; escalation terminal quyết (reassign / compensate / absorb). Nhất quán luật node-chết (RPA North Star §4): **không silent re-run sau commit point** — mất khóa không bao giờ được phép biến thành effect đôi. Hết TTL khi **chưa** có effect ghi → nhả bình thường |
+| Pessimistic vô hạn                       | ❌ Cấm tồn tại — phạm invariant 5                                                                                                                                                                                                                                                                                                    |
+
+## 4. Labor Analytics — sở hữu mẫu vật, không chế kính hiển vi
+
+- **Dataset độc quyền cấu trúc**: Event Log là fact table của _lao động lai người-AI_ (cost/quality theo Role, ai duyệt gì, human↔AI shift, nghẽn chú ý, process smell) — thứ không hệ nào khác model nên không hệ nào có.
+- **Metric/projection definition = entity** (id + version + lineage) → nghiễm nhiên là **block type trên Hub**: gói dashboard theo vertical bán được qua marketplace.
+- DataTable join được với labor data trên cùng log-position: _"cost AI trên mỗi đơn hàng"_ = bảng đơn × cost theo task — câu hỏi n8n lẫn BI truyền thống không trả lời nổi.
+- **BYO-export adapter**: xuất projection ra open table format cho warehouse/BI của khách (Power BI, Snowflake…) — **egress theo classification áp nguyên lên export**. Positioning: _"Đừng chuyển warehouse sang ecoma — hãy cho warehouse của bạn thứ dữ liệu nó chưa từng có."_
+- Dashboard nhẹ trong sản phẩm = bề mặt tầng 3 đọc projection — không phải engine.
+
+## 5. Default stack (bản OSS self-host)
+
+**Postgres + pgvector + TimescaleDB — một database nhàm chán gánh cả cụm**: Event Log store, DataTable, vector index của Knowledge, metrics time-series. Docker-compose một db. **Default ≠ coupling**: engine chỉ nói qua interface subsystem/adapter — Postgres là adapter đầu tiên, không phải giả định. **SQL-read contract là SUITE-DEFINED**: hành vi chuẩn định nghĩa bằng **conformance test suite executable** (reference backend sinh chuẩn = Postgres), không bằng tên sản phẩm — backend thay thế (kể cả Postgres-tương-thích) pass suite = đáp ứng, máy kiểm được. **Default theo hình thái cài đặt** (ADR-0002): đơn-binary/1-container → SQLite (đường ghi/log) + DuckDB (đường hỏi/OLAP) + sqlite-vec; compose-production/helm/cloud → Postgres+pgvector+Timescale. Nâng cấp small→lớn = **replay log sang port mới** — cảnh báo ngưỡng + migrate-là-Task tường minh, không bao giờ tự động.
+
+## 6. Litmus
+
+1. Rebuild toàn bộ table + vector index + metric từ log + CAS — kết quả tương đương?
+2. Time-travel một câu **join** theo log-position?
+3. Sửa tay DB ngoài engine → bị phát hiện và rebuild có hồ sơ?
+4. Mọi write — kể cả bulk — có đúng một actor identity?
+5. Lease hết TTL: không tồn tại kịch bản kẹt?
+6. Holder chết **sau** commit point — không tồn tại đường lease được cấp lại tự động sinh effect đôi?
+
+## 7. Non-goals
+
+- Không general-purpose warehouse/OLAP engine; không tự chế vector/ANN engine (adapter — Knowledge §5).
+- Không kênh raw write/DDL vào bảng ngoài engine API.
+- Không pessimistic lock không TTL.
+- Không thay thế database nghiệp vụ của ứng dụng khách — DataTable là working data của _quy trình_.
+
+## 8. Nhật ký quyết định
+
+| Vấn đề               | Chốt                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Hợp pháp hóa mutable | Table = writable projection; write = event = effect reversible — luật "không mutation ngoài sổ" giữ nguyên                         |
+| Joins (khác n8n)     | SQL-read đầy đủ trên snapshot; provenance = (log-position, query, hash); floor propagation + leakage-gate cho aggregate            |
+| Schema evolution     | Table definition là entity version hóa; major = migration-as-task có Gate                                                          |
+| Bulk                 | Batch-event trỏ CAS blob                                                                                                           |
+| Cửa hậu admin        | Checksum drift-detect → rebuild có hồ sơ                                                                                           |
+| Khóa                 | Lease-only, TTL bắt buộc, cấm awaiting trong critical section; singleton/mutex là khai báo                                         |
+| Mất khóa giữa effect | `orphaned` thay vì tự cấp lại — hết TTL sau commit point không bao giờ thành re-run                                                |
+| Warehouse            | Từ chối chế engine; Labor Analytics projection + BYO-export; metric là block type                                                  |
+| Default              | Theo hình thái cài đặt (ADR-0002): small-stack ↔ Postgres; reference = Postgres; contract = suite-defined; default ≠ coupling      |
+| **Nhãn test**        | Projection tách theo `run_kind`; bảng production không thấy write của test — khai _lập trường_, nhãn có nhà ở Event Log (chống G6) |
+
+## FMEA (theo F8)
+
+| Hỏng                                   | Phát hiện                               | Phục hồi                                                      |
+| -------------------------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| Sửa tay DB ngoài engine                | Checksum drift-detect theo log-position | Rebuild + event cảnh báo có hồ sơ                             |
+| Write conflict (optimistic)            | Row-version                             | Violation → retry kèm feedback                                |
+| Lease holder chết (chưa ghi effect)    | TTL heartbeat hết                       | Tự nhả + event + escalation theo policy                       |
+| Lease holder chết **sau commit point** | TTL hết + log cho thấy effect đã ghi    | `orphaned` — không cấp lại tự động; escalation terminal quyết |
+| Batch blob mất                         | CAS exists fail                         | Batch event không apply, escalate — không apply nửa vời       |
