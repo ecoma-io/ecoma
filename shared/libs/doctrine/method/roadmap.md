@@ -1,379 +1,597 @@
 ---
-title: "Ecoma — Roadmap (TÀI LIỆU SỐNG, ngoài bộ trần)"
+title: "Roadmap"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma — Roadmap (TÀI LIỆU SỐNG, ngoài bộ trần)
+# Roadmap
 
-> **Class SỐNG** như sổ thị trường (không công bố): đổi theo bằng chứng, không theo vòng đóng băng. **G1 (cấm ngôn-ngữ-giai-đoạn) chỉ áp cho bộ trần** — file này _được phép_ nói phase/milestone/v1.
+> **A living document**, like the market ledger: it changes with evidence rather
+> than at a freeze. The ban on staging language applies to the ceiling — **this
+> file is allowed** to speak of phases, milestones and versions.
 >
-> Luật tối cao kế thừa từ North Star: **mọi lát cắt chỉ được thu hẹp giá trị/policy — không bao giờ thu hẹp cơ chế.** Một milestone bật một cụm cơ chế **trọn vẹn** hoặc không bật; cấm tuyệt đối "nửa cơ chế tạm thời" (auto-pass khi timeout, lock không TTL, bảng tự ghi ngoài log, codepath riêng cho standalone…).
+> The supreme rule, inherited from the North Star: **a slice may only narrow
+> value or policy, never a mechanism.** A milestone enables a cluster of
+> mechanism **completely** or not at all. Temporary half-mechanisms are
+> absolutely forbidden — auto-pass on timeout, a lock without a TTL, a
+> self-writing table beside the log, a separate code path for standalone.
 >
-> **Giả định phải nói thẳng**: chưa có dữ liệu velocity nào (0 dòng code) ⇒ **không có ngày tháng trong file này**. Milestone xếp theo _thứ tự khả thi_ × _thứ tự đáng làm_, exit bằng **litmus đo được**, không bằng lịch. Thêm ngày vào đây khi và chỉ khi có ≥2 milestone thực chạy để suy velocity.
+> **An assumption stated outright**: there is no velocity data at all, so **there
+> are no dates in this file**. Milestones are ordered by _what is feasible_ ×
+> _what is worth doing_, and exit by **measurable litmus** rather than by a
+> calendar. Dates arrive here if and only if two milestones have actually run and
+> velocity can be inferred.
 >
-> **Publishing: cắt theo phần** — §3b và §5 **tuyệt đối kín** (ngưỡng ICP-gated = sổ thị trường (không công bố) trá hình; ledger kỹ thuật = bản đồ điểm yếu có thời hạn). Bảng đầy đủ ở index → Publishing policy.
+> **Publishing is cut per section** — §3b and §5 are withheld entirely: the
+> ICP-gated thresholds are the market ledger in disguise, and the technical
+> ledger is a dated map of the system's weak points. The full table is the
+> publishing policy in the index.
 
 ---
 
-## 0. Roadmap là NGUỒN SỰ THẬT; GitHub Projects là PHÉP CHIẾU
+## 0. This roadmap is the SOURCE OF TRUTH; a Projects board is a PROJECTION
 
-Owner sẽ dùng **GitHub Projects**. Nếu không khai ranh giới ngay, board sẽ thành **nguồn sự thật thứ hai về thứ tự** — đúng E5, ở tầng quy trình. Ranh giới, một câu, cùng khuôn với _"SQL để đọc, event để ghi"_ của DataTable:
+A GitHub Projects board will be used. Without declaring the boundary immediately,
+the board becomes **a second source of truth about ordering** — an E5 violation
+at the process layer. The boundary, in one sentence, in the same shape as
+DataTable's "SQL to ask, events to write":
 
-> **File này sở hữu _phạm vi · thứ tự phụ thuộc · exit-litmus_. Board sở hữu _trạng thái thi hành_.**
+> **This file owns _scope · dependency order · exit litmus_. The board owns
+> _execution state_.**
 
-| Đổi thứ này                                                                                        | Đổi ở đâu          | Vì sao                                                                                |
-| -------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
-| Một hạng mục **có tồn tại không**, thuộc track/milestone nào, chặn bởi gate nào, exit-litmus là gì | **Chỉ ở file này** | Đây là _lời hứa cơ chế_; đổi nó là đổi thiết kế, phải có án văn (§7)                  |
-| Đang ở cột nào, ai nhận, ước lượng, ngày                                                           | **Chỉ ở board**    | Đây là _trạng thái_, đổi hàng ngày; ghi vào file là biến file thành nhật ký công việc |
+| To change this                                                                                                           | Change it here        | Why                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------------------------------- |
+| Whether an item **exists at all**, which track or milestone it belongs to, which gate blocks it, what its exit litmus is | **Only in this file** | This is a _promise of mechanism_; changing it changes the design and needs reasoning (§7) |
+| Which column it is in, who has it, an estimate, a date                                                                   | **Only on the board** | This is _state_, changing daily; writing it here turns this file into a work diary        |
 
-**Luật hai chiều (nhóm M áp lên board — cùng luật §6b):**
+**The two-way law** (group M applied to the board — the same law as §6b):
 
-1. **Mọi card phải trace về đúng một ID của file này.** Card không trace được = phạm vi chưa được quyết ⇒ mở PR sửa roadmap trước, không kéo card.
-2. **Mọi ID của file này phải có ít nhất một card** khi track của nó khởi động. ID mồ côi = lời hứa không ai nuôi.
+1. **Every card traces to exactly one id in this file.** A card that traces to
+   nothing means the scope was never decided: open a pull request against the
+   roadmap first, do not drag the card.
+2. **Every id in this file has at least one card** once its track has started. An
+   orphan id is a promise nobody is nurturing.
 
-**Sơ đồ ID — ổn định, append-only, không tái sử dụng** (cùng kỷ luật với ID tiêu chí của rubric):
-
-```
-<Track>.<seq> ví dụ A.3 · B.1 · R.5 · E.2
-```
-
-Mỗi ID mang: **track · milestone · gate chặn · trỏ tới exit-litmus**. Số thứ tự **không bao giờ dùng lại** kể cả khi hạng mục bị hủy (hủy thì đánh dấu, không xóa) — nếu không, một card cũ sẽ trỏ vào một hạng mục khác.
-
-**Sổ ID là bảng §6b, không phải một bảng riêng.** §6b đã là chỗ duy nhất mà tính phủ hai chiều đúng sẵn (litmus #10: mỗi cụm cơ chế đúng một ô), nên gắn ID ở đó thì "mọi ID có nhà" và "mọi cụm có ID" là **cùng một** tính chất, không phải hai bảng phải đồng bộ. Hàng nào chỉ _trỏ_ sang hàng khác thay vì mang việc thì mang `—` ở cột ID và nói nó trỏ đi đâu — cấp ID cho một hàng phủ là tự tạo một lời hứa không ai nuôi (luật hai chiều #2).
-
-**Trường của board phải DẪN XUẤT, không chép** (thang _derive → configure → hardcode_):
-
-| Trường board                     | Dẫn xuất từ                                         | Đã có gate                        |
-| -------------------------------- | --------------------------------------------------- | --------------------------------- |
-| **Area**                         | frontmatter của README gốc mỗi subsystem trong repo | `dev-cli check-subsystem-readmes` |
-| **Milestone** (GitHub Milestone) | M0–M7 của §4, **1:1**                               |                                   |
-| **Gate**                         | ◆G0–◆G4 của §1b                                     |                                   |
-| **Track**                        | A · B · C · D · E · S · **R** của §1b               |                                   |
-| **Roadmap ID**                   | cột ID của §6b                                      | `dev-cli check-roadmap-ids`       |
-
-**Cấm**: tạo trường "Priority" tự do trên board. Thứ tự đáng làm đã có ở §2 và điều kiện mở khóa đã có ở §3b; một cột priority gõ tay là **nguồn sự thật thứ ba** và sẽ thắng cả hai vì nó gần tay nhất.
-
-## 1. Trục 1 — Dependency graph (topo-sort từ 24 spec)
+**The id scheme — stable, append-only, never reused** (the same discipline as the
+rubric's criterion ids):
 
 ```
-TẦNG 0 (không ai đứng dưới — nguồn sự thật & danh tính)
+<Track>.<seq> for example A.3 · B.1 · R.5 · E.2
+```
+
+Each id carries: **track · milestone · blocking gate · a pointer to its exit
+litmus**. A sequence number is **never reused**, even for a cancelled item —
+cancellation marks it rather than deleting it. Otherwise an old card silently
+points at a different item.
+
+**The id registry is §6b's table, not a separate one.** §6b is already the one
+place where two-way completeness holds (litmus #10: every mechanism cluster has
+exactly one cell), so putting the ids there makes "every id has a home" and
+"every cluster has an id" **the same** property rather than two tables to keep in
+step. A row that only _points_ at another rather than carrying work takes `—` in
+the ID column and says where it points — issuing an id to a covering row creates
+a promise nobody is nurturing (two-way law #2).
+
+**Board fields must be DERIVED, never copied** (the _derive → configure →
+hardcode_ ladder):
+
+| Board field                      | Derived from                                    | Existing gate                     |
+| -------------------------------- | ----------------------------------------------- | --------------------------------- |
+| **Area**                         | The frontmatter of each subsystem's root README | `dev-cli check-subsystem-readmes` |
+| **Milestone** (GitHub Milestone) | M0–M7 of §4, **1:1**                            |                                   |
+| **Gate**                         | ◆G0–◆G4 of §1b                                  |                                   |
+| **Track**                        | A · B · C · D · E · S · **R** of §1b            |                                   |
+| **Roadmap ID**                   | The ID column of §6b                            | `dev-cli check-roadmap-ids`       |
+
+**Forbidden**: a free-text "Priority" field on the board. What is worth doing
+first is already §2, and the unlock conditions are already §3b; a hand-typed
+priority column is **a third source** and it will beat both, because it is the
+nearest to hand.
+
+## 1. Axis one — the dependency graph, topologically sorted from 24 specifications
+
+```
+TIER 0 (nothing beneath it — sources of truth and identity)
  Event Log ── Artifact Store ── Tenant & Identity (core) ── Lease
  │ │ │
-TẦNG 1 (5 primitive + lắp ráp) │
+TIER 1 (five primitives, plus assembly) │
  Role ── Task ── Checkpoint ── Handoff ── Escalation
  └──────── Composition (static analysis) ────────┘
  │
- Trigger & Channel (cửa vào/ra)
+ Trigger & Channel (the doors in and out)
  │
-TẦNG 2 (runtime & module)
- Agent runtime ── RPA(Action→Session→Driver→Self-healing→Sandbox)
+TIER 2 (runtime and modules)
+ Agent runtime ── RPA (Action → Session → Driver → Self-healing → Sandbox)
  Working Data (DataTable) ── Knowledge ── Memory
- Hub (Block: pack→ký→OCI→resolve/pull/verify)
+ Hub (Block: pack → sign → OCI → resolve/pull/verify)
  │
-TẦNG 3 Human Surface (inbox) ── Pair-design ── Labor Analytics
+TIER 3 Human Surface (inbox) ── Pair-design ── Labor Analytics
  │
-TẦNG 4 Intelligence (chỉ chạy khi flywheel có dữ liệu)
+TIER 4 Intelligence (runs only once the flywheel has data)
 ```
 
-**Ba ràng buộc topo không hiển nhiên** (rơi ra từ đọc spec, không từ trực giác):
+**Three non-obvious topological constraints**, which fall out of reading the
+specifications rather than out of intuition:
 
-| Ràng buộc                                                               | Vì sao                                                                                                                                                    | Hệ quả xếp lịch                                                                                                                               |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hub KHÔNG chặn Platform**                                             | Mức `template` của cascade = tập block đã cài; cascade vẫn resolve đủ với `tenant → process → role → task` khi tenant chưa cài block nào (Composition §3) | Hub lùi được về sau mà không phạm cơ chế                                                                                                      |
-| **RPA cần đúng 2 giao diện, không cần cả Platform**                     | Nguyên tắc RPA #5: standalone = _phép chiếu_ của tích hợp, một consumer nội bộ tối giản thay Platform                                                     | RPA chạy song song sau khi **Filler interface + Session effect đóng băng** — nhưng không được bắt đầu trước, nếu không sẽ đẻ codepath thứ hai |
-| **Calibration là điều kiện của litmus #3, không phải tính năng tầng 5** | "Một thang tin cậy cho người lẫn AI" = Checkpoint lớp C + Role graduation; thiếu spec calibration thì M0 **không exit được**                              | Spec Calibration data model phải viết **trong** M0, không phải "vòng sau"                                                                     |
+| Constraint                                                        | Why                                                                                                                                                                                      | Scheduling consequence                                                                                                                      |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The Hub does NOT block the Platform**                           | The cascade's `template` level is the set of installed blocks, and the cascade still resolves through `tenant → process → role → task` when a tenant has installed none (Composition §3) | The Hub can be deferred without narrowing a mechanism                                                                                       |
+| **RPA needs exactly two interfaces, not the whole Platform**      | RPA principle #5: standalone is a _projection_ of integration, with a minimal internal consumer standing in for the Platform                                                             | RPA runs in parallel once the **Filler interface and Session effect are frozen** — but may not start before, or it grows a second code path |
+| **Calibration is a condition of litmus #3, not a tier-5 feature** | "One confidence scale for people and AI" is Checkpoint's layer C plus Role graduation; without the calibration specification, M0 **cannot exit**                                         | The calibration data model must be written **inside** M0, not "in a later round"                                                            |
 
-## 1b. Track model — song song hóa cho team nhiều người
+## 1b. The track model — parallelism for a team of more than one
 
-**Nguyên lý**: chuỗi M0→M7 (§4) là _topo-sort cho một dòng thực thi_ — đúng với 1 người, che giấu song song với N người. Điểm đồng bộ thật giữa các track **không phải "milestone trước xong"** mà là **INTERFACE FREEZE** — đúng logic protocol-version + handshake của chính hệ (NS §8): hai bên chỉ cần thống nhất _giao diện_, không cần chờ nhau _hoàn thành_. Chart phụ thuộc (không ngày — chưa có velocity) ở hình kèm file này.
+**The principle**: the chain M0 → M7 in §4 is _a topological sort for one line of
+execution_. It is correct for one person and hides the parallelism available to
+N. The real synchronisation point between tracks is **not "the previous milestone
+finished"** but **an INTERFACE FREEZE** — the same logic as the system's own
+protocol-version handshake (North Star §8): two sides need only agree on the
+_interface_, never wait for each other to _finish_.
 
-**Bảng gate:**
+**The gates:**
 
-| ◆ Gate | Freeze cái gì                                                                                              | Mở track/nhánh nào                                                                                       | Chi phí đổi-sau-freeze                                     |
-| ------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **G0** | Entry-schema Event Log + interface subsystem (CAS `put/get/exists/delete`, Lease, Principal identity)      | 5 primitive song song lẫn nhau + nền module (DataTable/Knowledge/Memory là projection/artifact trên log) | **Cao nhất** — mọi nhánh tiêu dùng; đổi = breaking toàn hệ |
-| **G1** | Filler interface + Session effect                                                                          | Track B (RPA), external agent runtime                                                                    | Cao — 2 domain                                             |
-| **G2** | `resolve/pull/verify` + manifest schema (là **văn bản** — freeze được từ spec-phase, không chờ code)       | Track D (Hub registry/index); vòng verified-review chờ M0                                                | Trung — Hub + 2 client                                     |
-| **G3** | Trigger/Channel + Party/external-filler **chạy được** (gate chạy-được duy nhất, không phải freeze văn bản) | Track C (dogfood funnel)                                                                                 | Thấp — 1 track                                             |
-| **G4** | Projection read-API (inbox/canvas/dashboard chỉ **đọc projection + gọi engine API**)                       | Track E: Human Surface inbox, pair-design canvas                                                         | Trung — mọi surface                                        |
+| ◆ Gate | Freezes what                                                                                                                 | Opens which track or branch                                                                                                                             | Cost of changing it after the freeze                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **G0** | The Event Log entry schema plus the subsystem interfaces (CAS `put/get/exists/delete`, Lease, Principal identity)            | The five primitives in parallel with each other, plus the module foundation — DataTable, Knowledge and Memory are projections or artifacts over the log | **Highest** — every branch consumes it; a change is breaking system-wide |
+| **G1** | The Filler interface plus the Session effect                                                                                 | Track B (RPA), and any external agent runtime                                                                                                           | High — two domains                                                       |
+| **G2** | `resolve/pull/verify` plus the manifest schema — **a text**, freezable from the specification phase without waiting for code | Track D (the Hub registry and index); the verified-review loop still waits for M0                                                                       | Medium — the Hub plus two clients                                        |
+| **G3** | Trigger, Channel, Party and external filler **actually running** — the only runnable gate rather than a text freeze          | Track C (the dogfood funnel)                                                                                                                            | Low — one track                                                          |
+| **G4** | The projection read-API — inbox, canvas and dashboard **read a projection and call the engine API**, nothing more            | Track E: the Human Surface inbox and the pair-design canvas                                                                                             | Medium — every surface                                                   |
 
-**6 track:**
+**The tracks:**
 
-| Track                  | Nội dung                                                                                                                                                                                                | Cổng vào                                                                                    | Hợp lưu                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **S — viết spec**      | Calibration · **Test harness (#2 — nuôi conformance suite của MỌI gate)** · Human Surface · Vault+key · Release&Compat · deploy charter (+ sau: tier ingest, runtime sandbox, quota, cloud)             | Ngày 0, song song hoàn toàn; mỗi spec chịu cluster-run (R12)                                | §5                                                     |
-| **A — Platform core**  | Tầng 0 → **◆G0** → 5 primitive (song song nội bộ) → Composition/static analysis → Trigger → agent runtime                                                                                               | Ngày 0                                                                                      | **M0**                                                 |
-| **B — RPA**            | Action+Session+Healing ∥ Driver (interface Apache — bên thứ ba viết song song được) ∥ Sandbox+Vault-consumer; rồi Node topology; **lớp UI attended** — _chỉ xác nhận trong phiên_, không hàng đợi duyệt | **◆G1** — **một cổng**                                                                      | **M1**                                                 |
-| **R — Repo & harness** | Móng repo, toolchain, gate, Claude skill, khung `website/`, di cư `doctrine/` — 8 PR ở `kế hoạch di cư (không công bố)` §5                                                                              | Ngày 0, song song hoàn toàn; PR 5 (**release train lock**) phải land **trước app đầu tiên** | **M0** (harness) → handoff hoàn tất khi litmus S7 pass |
-| **C — Funnel**         | Website tĩnh + Charter: bất kỳ lúc; dogfood: sau **◆G3**                                                                                                                                                | ◆G3                                                                                         | **M2**→M3                                              |
-| **D — Hub**            | Registry+Index+pack/ký/install-6-bước từ **◆G2 (spec-phase!)**; verified-review chờ M0                                                                                                                  | ◆G2                                                                                         | **M4**                                                 |
-| **E — Surfaces**       | Design system `shared/` + Storybook `/design`: **ngày 0** (Charter cho public trước MVP, không phụ thuộc engine); inbox/canvas: sau **◆G4**                                                             | ngày 0 / ◆G4                                                                                | M0 (inbox tối thiểu là điều kiện exit)                 |
+| Track                          | Contents                                                                                                                                                                                                                                                       | Entry gate                                                                          | Convergence                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **S — writing specifications** | Calibration · **the test harness, which feeds the conformance suite of EVERY gate** · Human Surface · Vault and keys · Release & Compatibility · the deploy charter, and later tier ingest, the runtime sandbox, quota and cloud                               | Day zero, fully parallel; each specification takes a cluster run (R12)              | §5                                             |
+| **A — Platform core**          | Tier 0 → **◆G0** → the five primitives, parallel among themselves → Composition and static analysis → Trigger → the agent runtime                                                                                                                              | Day zero                                                                            | **M0**                                         |
+| **B — RPA**                    | Action, Session and Healing ∥ Driver (an Apache-licensed interface, so a third party can write one in parallel) ∥ Sandbox and the Vault consumer; then Node topology; **the attended UI layer**, doing _in-session confirmation only_, never an approval queue | **◆G1** — **a single gate**                                                         | **M1**                                         |
+| **R — Repo & harness**         | The repository foundation, toolchain, gates, skills, the site shell, and migrating the doctrine tree                                                                                                                                                           | Day zero, fully parallel; the release-train lock must land **before the first app** | **M0** for the harness                         |
+| **C — Funnel**                 | The static website and charter at any time; dogfooding after **◆G3**                                                                                                                                                                                           | ◆G3                                                                                 | **M2** → M3                                    |
+| **D — Hub**                    | Registry, index, pack, signing and the six-step install, from **◆G2 at specification phase**; verified review waits for M0                                                                                                                                     | ◆G2                                                                                 | **M4**                                         |
+| **E — Surfaces**               | The `shared/` design system and the `/design` Storybook from **day zero** — the charter allows publishing before MVP and it depends on no engine; inbox and canvas after **◆G4**                                                                               | Day zero, then ◆G4                                                                  | M0, where a minimal inbox is an exit condition |
 
-**Luật của track model** (tự đối kháng, giữ nguyên mọi cấm của §4):
+**The laws of the track model**, which keep every prohibition in §4 intact:
 
-1. **Freeze là event có provenance** — giao diện đóng băng rồi đổi = breaking, đi đường major + deprecation như mọi protocol (NS §8). Đổi giao diện sau freeze là chi phí _nhân theo số track_ — đó là giá của song song, khai tường minh.
-2. **Exit-litmus vẫn đo tại milestone** (điểm hợp lưu) — track chạy song song không được "pass dần từng phần".
-3. **Song song không phải giấy phép đẻ codepath riêng** — Track B vẫn phát effect qua đúng giao diện đã freeze từ ngày đầu (nguyên tắc RPA #5); Track C chỉ _gọi_ API công khai (Charter §4.2); Track D không chạm runtime.
-4. **1 người = degenerate case hợp lệ**: chạy các track tuần tự theo đúng chuỗi §4 — track model không ép song song, chỉ khai _chỗ nào được phép_.
-5. **Track B giữ MỘT cổng: ◆G1.** khai đây là phụ thuộc ngầm và để ngỏ hai đường; đối kháng lại cho một câu trả lời sắc hơn cả hai: **ADR-0005 gộp nhầm hai thứ khác loại vào một cụm từ** _"khung takeover/approve"_.
+1. **A freeze is an event with provenance.** Changing a frozen interface is
+   breaking and takes the major-plus-deprecation route like any protocol (North
+   Star §8). The cost of changing an interface after freezing is _multiplied by
+   the number of tracks_ — that is the price of parallelism, declared openly.
+2. **Exit litmus is still measured at the milestone**, the convergence point.
+   Parallel tracks may not "pass gradually, in parts".
+3. **Parallelism is not a licence to grow a separate code path.** Track B emits
+   effects through exactly the frozen interface from the first day (RPA principle
+   #5); Track C only _calls_ the public API; Track D never touches the runtime.
+4. **One person is a valid degenerate case**: run the tracks sequentially along
+   §4's chain. The track model does not force parallelism; it declares _where
+   parallelism is permitted_.
+5. **Track B keeps ONE gate: ◆G1.** The temptation is to give it two, because
+   ADR-0005 conflated two different things under the phrase "the takeover/approve
+   frame":
 
-| Hai thứ bị gộp                                                                                                           | Bản chất                                               | Đường đi                                  | Cổng    |
-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------- | ------- |
-| **Xác nhận trong phiên attended** — người **đang ngồi trước máy đó**, đang xem takeover, bấm cho-phép một Action sắp làm | **Điều khiển phiên cục bộ** (Checkpoint của phiên RPA) | Kênh nội-máy → runtime                    | **◆G1** |
-| **Duyệt một Action Item trong hàng đợi** — người **không ngồi trước máy đó**, mở Work Surface, thấy việc chờ mình        | **Bề mặt lao động** (Work Item / Action Item)          | Thẳng engine API, đọc projection read-API | **◆G4** |
+| The two things conflated                                                                                                               | What each is                                             | Its path                                                    | Gate    |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- | ------- |
+| **In-session confirmation, attended** — a person **sitting at that machine**, watching the takeover, permitting an Action about to run | **Local session control** — the RPA session's Checkpoint | The in-machine channel to the runtime                       | **◆G1** |
+| **Approving an Action Item in a queue** — a person **not at that machine**, opening the Work Surface and seeing work waiting           | **A labour surface** — a Work Item or Action Item        | Straight to the engine API, reading the projection read-API | **◆G4** |
 
-**Chốt**: M1 làm vế trên, **không** làm vế dưới. Đây **không phải "thu hẹp giá trị"** như tưởng — wedge là RPA standalone cho người dùng đơn, mà người dùng đơn **đang ngồi ngay đó**; hàng đợi duyệt là khái niệm của tổ chức nhiều người, thuộc Track E. Nói cách khác: cắt đúng khớp thì M1 **không mất gì**. Hệ quả: **ADR-0005 phải sửa cụm từ**, và RPA NS §4 biên cứng #2 vẫn nguyên (mọi hành động **lao động** đi thẳng engine API) — xác nhận-trong-phiên không phải hành động lao động, nó là điều khiển phiên. 5. Milestone ICP-gated (M5/M6) **không có track riêng** — cổng của chúng là bằng chứng thị trường (§3b), không phải giao diện kỹ thuật. 6. **Gate = freeze văn bản + conformance test suite chạy độc lập.** Án văn: hai team đọc cùng một interface đóng băng vẫn implement khác nhau — đúng _định nghĩa_ major của R5 ("hai kỹ sư đọc sẽ implement khác nhau"); văn bản không đủ, chỉ test suite mới là trọng tài máy kiểm được. Hệ quả: track qua gate = pass suite, không phải "đọc kỹ rồi"; suite chính là chỗ **Process test harness** trả giá trị đầu tiên (§5: nhảy lên #2). Suite của gate cũng version hóa — đổi suite = đổi giao diện = breaking. 7. **Giới hạn của song song là số interface chịu được freeze sớm**, không phải số người. Freeze non → chi phí đổi nhân theo số track tiêu dùng (cột cuối bảng gate). Nghi ngờ giao diện chưa chín → **không mở track**, chấp nhận tuần tự — tuần tự rẻ hơn breaking lan.
+**Settled**: M1 does the first and **not** the second. This is **not a narrowing
+of value**, as it first appears: the wedge is standalone RPA for a single user,
+and that single user **is sitting right there**. An approval queue is a concept
+belonging to an organisation of several people, and it belongs to Track E. Cut at
+the right joint, M1 **loses nothing**. Two consequences: **ADR-0005 must correct
+the phrase**, and RPA North Star §4's second hard boundary stands unchanged —
+every **labour** action goes straight to the engine API, and in-session
+confirmation is not a labour action but session control.
 
-### 1c. Gantt (mermaid)
+6. Milestones that are ICP-gated (M5 and M6) **have no track of their own** —
+   their gate is market evidence (§3b), not a technical interface.
+7. **A gate is a text freeze plus a conformance test suite that runs
+   independently.** Two teams reading one frozen interface still implement
+   differently — which is exactly R5's _definition_ of major, "two engineers
+   reading it would implement differently". A text is not enough; only a test
+   suite is an arbiter a machine can check. So passing a gate means passing the
+   suite, not having read carefully — and the suite is where the **process test
+   harness** first pays for itself. A gate's suite is versioned too: changing the
+   suite changes the interface and is breaking.
+8. **The limit on parallelism is the number of interfaces that can bear an early
+   freeze**, never the number of people. Freezing something unripe multiplies the
+   cost of change by the number of consuming tracks — the last column of the gate
+   table. Where an interface is doubted, **do not open the track**; accept the
+   sequence. Sequential is cheaper than breaking changes spreading.
 
-**Cảnh báo đọc**: trục ngang = **đơn vị phụ thuộc trừu tượng** (mỗi "ngày" mermaid = 1 khối phụ thuộc), **không phải lịch** — chưa có dữ liệu velocity (preamble). Độ dài thanh = số khối phụ thuộc nội bộ, không phải ước lượng effort. Khi có ≥2 milestone thực chạy, thay đơn vị bằng ngày thật.
+### 1c. The dependency chart
+
+**A warning about reading it**: the horizontal axis is **abstract dependency
+units** — each mermaid "day" is one dependency block — and **is not a calendar**,
+because there is no velocity data. A bar's length is its count of internal
+dependency blocks, not an effort estimate. Once two milestones have actually run,
+the unit is replaced by real days.
 
 ```mermaid
 gantt
- title Track model ecoma — truc ngang = don vi phu thuoc, KHONG phai lich
+ title Track model — horizontal axis is dependency units, NOT a calendar
  dateFormat YYYY-MM-DD
  axisFormat %e
  todayMarker off
 
- section S — spec (ngay 0)
- Calibration + Test harness (#1, #2) :s1, 2000-01-01, 3d
+ section S — specifications, day zero
+ Calibration + test harness :s1, 2000-01-01, 3d
  Vault+key / HumanSurface / R&C / deploy :s2, 2000-01-01, 4d
  Tier ingest / runtime sandbox / quota :s3, after s2, 3d
 
  section A — Platform core
- Tang 0 - Log CAS Tenant Lease :a1, 2000-01-01, 3d
+ Tier 0 - Log CAS Tenant Lease :a1, 2000-01-01, 3d
  G0 freeze log-schema + subsystem :milestone, g0, after a1, 0d
- 5 primitive (song song noi bo) :a2, after g0, 3d
+ 5 primitives, parallel internally :a2, after g0, 3d
  G1 freeze Filler + Session effect :milestone, g1, after a2, 0d
  Composition + Trigger + agent runtime :a3, after a2, 3d
- G3 Trigger/Channel chay duoc :milestone, g3, after a3, 0d
+ G3 Trigger/Channel running :milestone, g3, after a3, 0d
  M0 exit - 59 litmus :milestone, m0, after a3, 0d
 
- section B — RPA (mo sau G1)
- Action+Session+Healing (song song Driver):b1, after g1, 3d
- Driver interface (ben thu 3 // duoc) :b2, after g1, 3d
+ section B — RPA, opens after G1
+ Action+Session+Healing, parallel with Driver :b1, after g1, 3d
+ Driver interface, third party in parallel :b2, after g1, 3d
  Sandbox + Node topology :b3, after b1, 2d
- M1 exit - wedge ship :milestone, m1, after b3, 0d
+ M1 exit - the wedge ships :milestone, m1, after b3, 0d
 
- section C — Funnel (dogfood sau G3)
- Website tinh + design system dung chung :c1, 2000-01-01, 4d
+ section C — Funnel, dogfood after G3
+ Static website + shared design system :c1, 2000-01-01, 4d
  Dogfood funnel + tier ingest :c2, after g3, 3d
- M2 exit - voi du lieu ICP :milestone, m2, after c2, 0d
+ M2 exit - with ICP data :milestone, m2, after c2, 0d
  Knowledge + chatbot (M3) :c3, after m2, 2d
 
- section D — Hub (G2 tu spec-phase)
+ section D — Hub, G2 from specification phase
  G2 freeze protocol + manifest :milestone, g2, 2000-01-04, 0d
- Registry + Index + install 6 buoc :d1, after g2, 4d
- Verified-review (cho M0) :d2, after m0, 2d
+ Registry + Index + six-step install :d1, after g2, 4d
+ Verified review, waits for M0 :d2, after m0, 2d
  M4 exit :milestone, m4, after d2, 0d
 
  section E — Surfaces
- Storybook /design (public truoc MVP) :e1, 2000-01-01, 3d
+ Storybook /design, public before MVP :e1, 2000-01-01, 3d
  G4 freeze projection read-API :milestone, g4, after a2, 0d
- Inbox + canvas (dieu kien exit M0) :e2, after g4, 2d
+ Inbox + canvas, an M0 exit condition :e2, after g4, 2d
 
- section Hop luu ICP/du lieu-gated
- M5 beachhead (cho bang chung ICP) :m5, after m2, 2d
+ section Convergence, ICP and data gated
+ M5 beachhead, awaits ICP evidence :m5, after m2, 2d
  M6 marketplace + cloud :m6, after m5, 2d
- M7 intelligence (du lieu-gated) :m7, after m6, 2d
+ M7 intelligence, data gated :m7, after m6, 2d
 ```
 
-## 2. Trục 2 — Thứ tự đáng làm (phễu từ sổ thị trường (không công bố))
+## 2. Axis two — the order worth doing, from the market funnel
 
 ```
-RPA standalone free (wedge: "đến vì automation")
- ↓ đến vì automation
-Platform lõi + funnel chạy trên chính nó (dogfooding #1 — case study #1, và là VÒI DỮ LIỆU ICP)
- ↓ ở lại vì Platform
-Support chatbot ecoma-docs (dogfooding #2 — demo sống KB+chat, khách đầu tiên của block KB-from-git)
- ↓ có nội dung đáng phân phối
-Hub (phân phối) → Beachhead pack (agency) → Marketplace + Cloud
+Standalone RPA, free (the wedge: "they come for automation")
+ ↓ they came for automation
+The platform core plus a funnel running on itself (dogfood #1 — case study #1, and the ICP DATA TAP)
+ ↓ they stay for the platform
+A support chatbot over the docs (dogfood #2 — a live demo of KB plus chat, and the first customer of the KB-from-git block)
+ ↓ there is now content worth distributing
+Hub (distribution) → a beachhead pack → Marketplace and Cloud
 ```
 
-**Điểm cần nói thẳng**: funnel (dogfood #1) không phải "trang marketing làm sau" — nó là **dụng cụ đo ICP** (sổ thị trường (không công bố) §8). Đẩy nó xuống cuối = tự bịt mắt đúng lúc cần nhìn nhất.
+**The point worth stating plainly**: the funnel, dogfood #1, is not "a marketing
+page to build later" — it is **the instrument that measures the ICP**. Pushing it
+to the end means blindfolding yourself exactly when you most need to see.
 
-## 3. Hai vùng — cắt ngay vs chờ bằng chứng
+## 3. Two zones — cut now, or wait for evidence
 
-### 3a. ICP-independent — đúng dù giả thuyết ICP sai hoàn toàn
+### 3a. ICP-independent — correct even if the ICP hypothesis is entirely wrong
 
-| Hạng mục                                                  | Vì sao không phụ thuộc ICP                                         |
-| --------------------------------------------------------- | ------------------------------------------------------------------ |
-| Event Log · Artifact Store · Tenant&Identity core · Lease | Nguồn sự thật + biên sở hữu: mọi ICP đều cần                       |
-| 5 primitive + Composition + static analysis               | Là _định nghĩa_ của sản phẩm, không phải lựa chọn thị trường       |
-| Trigger & Channel (webhook/schedule/form/manual + sync)   | Cửa vào tối thiểu của mọi kịch bản                                 |
-| Vault + key lifecycle                                     | Điều kiện của mọi lời hứa xóa/bảo mật (Event Log §4)               |
-| Agent runtime + Filler interface + Session effect         | Điều kiện của đối xứng — trái tim sản phẩm                         |
-| RPA đủ 5 spec + Node topology                             | Wedge; và là bài test của chính 2 giao diện                        |
-| Human Surface tối thiểu (triage, diff, batch review)      | Không có inbox thì không ai _dùng_ được, bất kể là ai              |
-| Release & Compat + `deploy/`                              | Không ship được thì không có ICP nào để hỏi                        |
-| Website funnel (dogfood #1)                               | Là dụng cụ đo ICP — phải có **trước** khi biết ICP                 |
-| Knowledge module                                          | Điều kiện của dogfood #2 và của mọi kịch bản có tri thức nghiệp vụ |
+| Item                                                        | Why it does not depend on the ICP                                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Event Log · Artifact Store · Tenant & Identity core · Lease | The source of truth and the ownership boundary: every ICP needs them                     |
+| The five primitives, Composition and static analysis        | This is the _definition_ of the product, not a market choice                             |
+| Trigger & Channel — webhook, schedule, form, manual, sync   | The minimum door into any scenario                                                       |
+| Vault and key lifecycle                                     | The precondition of every deletion and security promise                                  |
+| Agent runtime, the Filler interface, the Session effect     | The precondition of symmetry — the heart of the product                                  |
+| RPA's five specifications plus Node topology                | The wedge, and the test of those two interfaces                                          |
+| A minimal Human Surface — triage, diff, batch review        | Without an inbox nobody can _use_ it, whoever they are                                   |
+| Release & Compatibility plus the deploy charter             | Unable to ship means there is no ICP to ask                                              |
+| The website funnel (dogfood #1)                             | It is the instrument that measures the ICP, so it must exist **before** the ICP is known |
+| The Knowledge module                                        | The precondition of dogfood #2 and of any scenario with domain knowledge                 |
 
-### 3b. ICP-gated — điều kiện mở khoá
+### 3b. ICP-gated — the unlock conditions
 
-Mỗi hạng mục phụ thuộc giả thuyết thị trường có một điều kiện mở khoá trỏ về một tiêu chí giết đo được. **Các ngưỡng không được công bố**: người sắp được phỏng vấn mà đọc được chúng sẽ biết câu trả lời nào "được tính", và dữ liệu thu về nhiễm ngay từ câu hỏi đầu tiên. Cơ chế thì công khai — điều kiện phải đo được và phải trỏ về một dòng có thể sai; con số thì không.
+Every item that depends on a market hypothesis has an unlock condition pointing
+at a measurable kill criterion. **The thresholds are not published**: anyone about
+to be interviewed who reads them knows which answer "counts", and the data is
+contaminated from the first question. The mechanism is public — a condition must
+be measurable and must point at a line that can turn out false — the numbers are
+not.
 
-## 4. Milestone — mỗi lát cắt là một rubric-milestone
+## 4. Milestones — each slice is a rubric milestone
 
-Mỗi milestone khai đúng 3 điều: **(a)** cơ chế nào bật TRỌN VẸN · **(b)** giá trị/policy nào thu hẹp · **(c)** cấm cơ-chế-tạm nào.
+Each milestone declares exactly three things: **(a)** which mechanism it enables
+COMPLETELY · **(b)** which value or policy it narrows · **(c)** which temporary
+half-mechanism it forbids.
 
-### M0 — Xương sống có sổ _(ICP-independent)_
+### M0 — A backbone with a ledger _(ICP-independent)_
 
-- **(a) Trọn vẹn**: Event Log (+projection rebuild, timer-là-entry, crypto-shredding), Artifact Store, Tenant&Identity core (cardinality 1), Lease, Role/Task/Checkpoint/Handoff/Escalation, Composition + static analysis, Trigger — **đủ cơ chế của type đã bật**: webhook/schedule/manual/form **+ `response_mode: sync`** (BaaS API endpoint — wedge phụ kéo dev-solo, sổ thị trường (không công bố) §1; static analysis ép sync-path như Trigger §2), agent runtime tối thiểu; type `message_in(channel)` dời M2 (thu hẹp _type taxonomy_ = giá trị, không phải cắt cơ chế của type đã bật). **Đóng băng 2 giao diện**: Filler interface + Session effect.
-- **(b) Thu hẹp**: 1 tenant / 1 workspace vô hình · cascade dừng ở `tenant → process → role → task` (chưa có mức template vì chưa có Hub) · chưa module Knowledge/Memory/DataTable · chưa EE.
-- **(c) Cấm tạm**: không trạng thái sống trong RAM · không auto-pass khi timeout · không lock ngoài Lease · không bảng tự ghi ngoài log · không "if deterministic" trong engine.
-- **Exit-litmus (đo được)**: North Star §6 (4 câu) pass trên một process thật · L5 của Role/Task/Checkpoint/Handoff/Escalation/Composition/Trigger/Event Log/Artifact Store/Tenant/Calibration/Human Surface/**Vault** (**55 câu** — *đếm lại bằng script ở bước cuối *: 47 + 7 Vault + 1 Event Log (negative test `run_kind`, van cược B11); con số 51 của chưa cộng Handoff +1 và chưa có 3 litmus mới. Cộng NS §6 (4 câu) ⇒ **59 câu tại M0 exit** — khớp Gantt §1c. **Test-harness litmus đo tại gate ◆G, không tại M0 exit** — án văn giữ nguyên) · kill -9 giữa chừng → replay dựng lại đúng trạng thái + mọi timer phát lại · static analysis bắt đủ **mọi dòng** bảng Composition §4 trên một definition cố tình sai · **suite conformance các storage-port pass trên CẢ reference (Postgres) lẫn small-stack (SQLite+DuckDB — ADR-0002)** · **metering/cost projection rebuild từ log** (NS §8 "metering là cơ chế" — điều kiện của litmus #4, pricing chỉ là policy đặt lên sau ở M6).
-- **Spec treo CHẶN M0**: ✅ **ĐÃ ĐỦ CẢ 3** — Calibration · Human Surface · Vault/key; kèm Test harness mở mọi gate. **M0 không còn chặn bởi giấy tờ.**
-- _Track model (§1b): Track A; Track S cấp spec song song._
+- **(a) Complete**: Event Log with projection rebuild, timers-as-entries and
+  crypto-shredding; Artifact Store; Tenant & Identity core at cardinality 1;
+  Lease; Role, Task, Checkpoint, Handoff, Escalation; Composition with static
+  analysis; Trigger with **every mechanism of the types enabled** — webhook,
+  schedule, manual, form **plus `response_mode: sync`**, the BaaS API endpoint
+  that is a secondary wedge for the solo developer, with static analysis
+  enforcing the sync path as Trigger §2 requires; and a minimal agent runtime.
+  The type `message_in(channel)` moves to M2, which narrows the _type taxonomy_ —
+  a value — rather than cutting a mechanism of an enabled type. **Two interfaces
+  freeze**: the Filler interface and the Session effect.
+- **(b) Narrowed**: one tenant and one invisible workspace · the cascade stops at
+  `tenant → process → role → task`, since there is no template level without the
+  Hub · no Knowledge, Memory or DataTable module · no enterprise features.
+- **(c) Forbidden**: no live state in RAM · no auto-pass on timeout · no lock
+  outside the Lease · no self-writing table beside the log · no
+  `if deterministic` in the engine.
+- **Exit litmus, measurable**: North Star §6's four questions pass on a real
+  process · the L5 litmus of Role, Task, Checkpoint, Handoff, Escalation,
+  Composition, Trigger, Event Log, Artifact Store, Tenant, Calibration, Human
+  Surface and **Vault** — **55 questions, recounted by script as the final step**
+  — plus North Star §6's four, giving **59 at M0 exit**. **The test-harness litmus
+  is measured at the ◆G gates, not at M0 exit.** Also: `kill -9` mid-flight, then
+  replay reconstructs the exact state and refires every timer · static analysis
+  catches **every row** of Composition §4's table on a deliberately broken
+  definition · **the storage-port conformance suites pass on BOTH the reference
+  (Postgres) and the small stack (SQLite plus DuckDB — ADR-0002)** · **the
+  metering and cost projection rebuilds from the log** (North Star §8, "metering
+  is a mechanism" — the precondition of litmus #4; pricing is policy laid on top
+  at M6).
+- **Blocking specifications**: all three are written — Calibration, Human Surface,
+  Vault and keys — plus the test harness, which opens every gate. **M0 is no
+  longer blocked by paperwork.**
+- _Track model (§1b): Track A, with Track S supplying specifications in parallel._
 
-### M1 — Wedge: RPA standalone chạy thật _(ICP-independent)_
+### M1 — The wedge: standalone RPA actually running _(ICP-independent)_
 
-- **(a) Trọn vẹn**: Action (vocabulary + reversibility cascade + evidence), Session (durable, takeover, record, replay, dry-run), Driver&Perception (scene 3 lớp, semantic locator 4 tầng), Self-healing 2 chiều + lineage, Sandbox&Credential (vault, masking tại nguồn + input + live-view), Node topology (enroll → claim-lease → graceful decommission → revoke).
-- **(b) Thu hẹp**: driver **browser trước**, desktop sau (thu hẹp _giá trị_, contract driver không đổi) · App Profile lấy từ thư viện tenant, chưa qua Hub · consumer standalone nội bộ tối giản.
-- **(c) Cấm tạm**: không codepath riêng cho standalone · không kênh điều khiển thường trực · không redact hậu kỳ · không auto-apply patch cho action irreversible.
-- **Exit-litmus**: RPA NS §8 (9 câu) + L5 5 spec RPA (15 câu) — đặc biệt #6 _cùng binary cùng đường effect_, #5 _secret không bao giờ vào log/screenshot/context_, #9 _không kênh điều khiển thường trực_.
-- **Spec treo CHẶN M1** → ✅ **HẾT CHẶN **: Vault tầng 1 · **Release & Compatibility** · **charter `deploy/`**. M1 exit-litmus nay **+8 câu** (L5 của Release & Compat) và **+9 câu** charter deploy — _charter litmus đo tại M1, cùng lớp với Website Charter §6 ở M2_.
-- _Song song hợp lệ với M0b_ — nhưng **không được khởi động trước khi M0 đóng băng 2 giao diện** (nếu không: hai đường chạy, phạm nguyên tắc RPA #5).
+- **(a) Complete**: Action (vocabulary, the reversibility cascade, evidence);
+  Session (durable, takeover, record, replay, dry-run); Driver & Perception (the
+  three-layer scene, the four-tier semantic locator); two-way self-healing with
+  lineage; Sandbox & Credential (vault, masking at the source and at input and on
+  live view); Node topology (enroll → claim-lease → graceful decommission →
+  revoke).
+- **(b) Narrowed**: the browser driver first and desktop later, which narrows
+  _value_ while the driver contract is unchanged · App Profiles come from the
+  tenant library rather than through the Hub · a minimal internal standalone
+  consumer.
+- **(c) Forbidden**: no separate code path for standalone · no permanent control
+  channel · no post-hoc redaction · no auto-applied patch for an irreversible
+  action.
+- **Exit litmus**: RPA North Star §8's nine questions plus the L5 litmus of the
+  five RPA specifications (15), especially #6 _the same binary and the same effect
+  path_, #5 _a secret never reaches a log, a screenshot or a context_, and #9 _no
+  permanent control channel_. Plus **8** from Release & Compatibility's L5 and
+  **9** from the deploy charter — a charter's litmus is measured at M1, the same
+  class as the website charter's at M2.
+- **Blocking specifications: none remain** — the tier-1 Vault, Release &
+  Compatibility and the `deploy` charter are all written.
+- _Legitimately parallel with M0_ — but **may not start before M0 has frozen the
+  two interfaces**, or two paths run and RPA principle #5 is violated.
 
-### M2 — Dogfood #1: funnel chạy trên chính ecoma _(ICP-independent — và là vòi dữ liệu ICP)_
+### M2 — Dogfood #1: the funnel running on ecoma itself _(ICP-independent, and the ICP data tap)_
 
-- **(a) Trọn vẹn**: Channel (chat-widget + form) · external filler + Party + self-assertion · classification lattice + egress 2 lớp · tier ingest clickstream · DataTable + projection · website mount qua edge router.
-- **(b) Thu hẹp**: một tenant `growth` · survey = đúng cây Track S của sổ thị trường (không công bố) · analytics = projection cơ bản, chưa dashboard đóng gói.
-- **(c) Cấm tạm**: website không bao giờ _vá_ product (chỉ gọi API công khai) · không bản sao nội dung block · không third-party script trên `/app`.
-- **Exit-litmus**: Website Charter §6 (7 câu) · một signup thật chảy vào bảng chấm sổ thị trường (không công bố) §5 có provenance đầy đủ · ads ×100 traffic mà Event Log lao động không phình (litmus #5).
-- **Spec treo CHẶN M2**: **Tier ingest clickstream** (spec nhỏ).
-- **Mở khóa**: từ đây dữ liệu ICP bắt đầu chảy → §3b bắt đầu đếm được.
+- **(a) Complete**: Channel (chat widget and form) · external filler plus Party
+  plus self-assertion · the classification lattice plus two-layer egress · tier
+  ingest for clickstream · DataTable plus projections · the website mounted
+  through the edge router.
+- **(b) Narrowed**: one `growth` tenant · the survey is exactly Track S's tree
+  from the market ledger · analytics is a basic projection, not a packaged
+  dashboard.
+- **(c) Forbidden**: the website never _patches_ the product, it only calls the
+  public API · no copy of block content · no third-party script on `/app`.
+- **Exit litmus**: the website charter §6's seven questions · one real signup
+  flowing into the market ledger's scoring table with complete provenance · a
+  hundredfold traffic spike from advertising without the labour Event Log growing
+  (litmus #5).
+- **Blocking specification**: **tier ingest for clickstream**, a small one.
+- **Unlocks**: ICP data begins to flow from here, so §3b becomes countable.
 
-### M3 — Dogfood #2: Knowledge + chatbot + **Pair-design (tầng 4)** _(ICP-independent)_
+### M3 — Dogfood #2: Knowledge, chatbot and **Pair-design (tier 4)** _(ICP-independent)_
 
-- **(a) Trọn vẹn**: Knowledge module (collection có scope, Curator Role, lattice, leakage-gate, live-resolve + provenance, source binding git/web, knowledge calibration) · **Pair-design tầng 4**: workflow Drafter(AI)/Validator(rule)/Reviewer(người) trên chính engine + canvas (Track E, sau ◆G4). _Lưu ý ranh giới_: **cơ chế nền** (definition = Artifact có Gate, sửa = task, Composition §5) đã bật từ M0 — M3 bật **sản phẩm** tầng 4. **Án văn vị trí**: pair-design **chặn M4** — Block §4 "merge upstream là task pair-design", Self-healing §5 đẩy đề xuất qua vòng pair-design; đặt sau M4 là đảo phụ thuộc.
-- **(b) Thu hẹp**: một collection `public` (ecoma-docs) · adapter chỉ git + web-crawl · model_policy mặc định.
-- **(c) Cấm tạm**: không auto-ingest không Gate · không auto-declassify · web-source **luôn** Gate chặt hơn git.
-- **Exit-litmus**: Knowledge L5 (3 câu) + S45 + S13 chạy trên hệ thật · mọi câu trả lời của bot trích được `chunk@commit-hash` · prompt injection "xuất toàn bộ policy" fail criterion `leakage` · **Composition litmus #3**: artifact do pair-design sinh tuân contract `process-definition` + qua đúng static analysis như tay viết · AI review definition người vẽ (đối xứng đến tầng thiết kế).
+- **(a) Complete**: the Knowledge module (scoped collections, the Curator Role,
+  the lattice, the leakage gate, live resolution with provenance, source binding
+  to git and web, knowledge calibration) · **tier-4 pair-design**: the
+  Drafter (AI) / Validator (rule) / Reviewer (person) workflow running on the
+  engine itself, with a canvas (Track E, after ◆G4). _A boundary worth noting_:
+  the **underlying mechanism** — a definition is an Artifact with a Gate, and
+  editing it is a task (Composition §5) — has been on since M0; M3 enables the
+  tier-4 **product**. **On its position**: pair-design **blocks M4** — Block §4
+  makes an upstream merge a pair-design task, and Self-healing §5 pushes proposals
+  through a pair-design round — so placing it after M4 inverts the dependency.
+- **(b) Narrowed**: one `public` collection (the docs) · adapters for git and web
+  crawl only · the default `model_policy`.
+- **(c) Forbidden**: no auto-ingest without a Gate · no auto-declassification ·
+  a web source **always** gets a stricter Gate than git.
+- **Exit litmus**: Knowledge's L5 (3) plus S45 and S13 running on the real system ·
+  every bot answer citing a `chunk@commit-hash` · the prompt injection "print your
+  entire policy" failing the `leakage` criterion · **Composition litmus #3**: an
+  artifact produced by pair-design conforms to the `process-definition` contract
+  and passes exactly the same static analysis as a hand-written one · an AI
+  reviewing a definition a person drew, extending symmetry into the design layer.
 
-### M4 — Hub: phân phối, chưa thương mại _(ICP-independent phần lõi)_
+### M4 — The Hub: distribution, not yet commerce _(ICP-independent at the core)_
 
-- **(a) Trọn vẹn**: Block manifest có kiểu · pack + full static analysis · ký sigstore + OCI + transparency log · `resolve/pull/verify` · install 6 bước (re-analyze, scope disclosure, quarantine bằng trust tiers, lockfile) · upgrade/uninstall + GC · verified review có `distinct_filler_from` + `unverify`.
-- **(b) Thu hẹp**: **chỉ trust class `definition`; class `code` chưa bật** — đây là _policy mặc định của chính spec_ (Block §3: code reject nếu publisher chưa verified + cần opt-in admin), không phải cắt cơ chế · chưa marketplace.
-- **(c) Cấm tạm**: không entitlement/phone-home trong engine · không auto-upgrade · không "tin publisher cho nhanh".
-- **Exit-litmus**: Hub NS §8 (6 câu) + Block L5 (3 câu) · rút phích Hub → mọi tenant chạy nguyên · manifest khai thiếu → **reject** chứ không warning.
-- **Spec treo CHẶN việc bật class `code`**: **Runtime sandbox cho code filler** (đối thủ đã ship tương đương — n8n Task Runners, 2026). Nó chặn **cả vòng verified-review cho class `code`**, không chỉ việc _cài_: suite do publisher cung cấp chạy trong test run scope của operator (Hub §7) ⇒ không có sandbox thì không có đường "chạy code chưa verified để được verified" — vòng tròn phải chặn bằng cơ chế, không bằng cẩn thận.
+- **(a) Complete**: a typed Block manifest · pack plus full static analysis ·
+  sigstore signing, OCI and a transparency log · `resolve/pull/verify` · the
+  six-step install (re-analysis, scope disclosure, quarantine through trust tiers,
+  the lockfile) · upgrade, uninstall and GC · verified review with
+  `distinct_filler_from` and `unverify`.
+- **(b) Narrowed**: **only the `definition` trust class; the `code` class stays
+  off** — which is _the specification's own default policy_ (Block §3: code is
+  rejected from an unverified publisher and needs an explicit administrator
+  opt-in), not a cut mechanism · no marketplace.
+- **(c) Forbidden**: no entitlement or phone-home in the engine · no auto-upgrade ·
+  no "trust the publisher, it is faster".
+- **Exit litmus**: Hub North Star §8's six questions plus Block's L5 (3) · unplug
+  the Hub and every tenant runs intact · an under-declaring manifest is
+  **rejected**, never warned about.
+- **The specification blocking the `code` class**: **the runtime sandbox for code
+  fillers**. It blocks **the verified-review loop for the `code` class** as well
+  as installation: a publisher-supplied suite runs in the operator's test run
+  scope (Hub §7), so without a sandbox there is no path by which unverified code
+  runs in order to become verified. That circle must be broken by a mechanism, not
+  by care.
 
-### M5 — Beachhead pack _(ICP-GATED — §3b)_
+### M5 — The beachhead pack _(ICP-GATED — §3b)_
 
-- **(a) Trọn vẹn**: workspace nhiều + calibration có chiều workspace · Memory module (nếu trigger pin-2 nổ) · **Labor Analytics trọn vẹn**: metric/projection definition là entity + **BYO-export adapter** (egress theo classification áp nguyên, Working Data §4) + dashboard margin-theo-client · block bundle vertical #1.
-- **(b) Thu hẹp**: đúng một vertical đã xác nhận.
-- **(c) Cấm tạm**: không "cột client" gắn tạm vào bảng — workspace là cơ chế đã có; không distill xuyên workspace ngầm (Memory §5).
-- **Exit-litmus**: S31 + S43 + Memory L5 (6 câu) · agency 40 client tách được chất lượng theo client bằng **projection**, không bằng report tay.
+- **(a) Complete**: multiple workspaces plus a workspace dimension in calibration ·
+  the Memory module, if its trigger fires · **Labor Analytics in full**: metric and
+  projection definitions as entities, plus a **BYO-export adapter** with egress by
+  classification applied unchanged (Working Data §4), plus a margin-per-client
+  dashboard · the first vertical block bundle.
+- **(b) Narrowed**: exactly one confirmed vertical.
+- **(c) Forbidden**: no "client column" bolted onto a table — the workspace is
+  already the mechanism; no silent cross-workspace distillation (Memory §5).
+- **Exit litmus**: S31 and S43 plus Memory's L5 (6) · an agency with forty clients
+  separating quality per client by **projection** rather than by a hand-written
+  report.
 
-### M6 — Thương mại: Marketplace + Cloud _(ICP-GATED)_
+### M6 — Commerce: Marketplace and Cloud _(ICP-GATED)_
 
-- **(a) Trọn vẹn**: entitlement tại phân phối + giá + payout + revenue share · control plane (provisioning-là-workflow, billing, quota, fleet) · EE extension points (SSO/SCIM, audit packaging, pii_vault_backend, calibration_visibility).
-- **(b) Thu hẹp**: một mô hình giá trước (subscription update-stream — câu trả lời kinh tế cho "ai bảo trì App Profile").
-- **(c) Cấm tạm**: control plane **gọi, không vá** · không license key trong engine · không DRM.
-- **Exit-litmus**: hết hạn subscription → bản đã cài chạy mãi · tenant isolation/metering/quota đều là **hook core**, control plane không sửa engine dòng nào.
-- **Spec treo CHẶN M6**: **Quota & scheduling fairness** · **charter `cloud/`**.
+- **(a) Complete**: entitlement at distribution, pricing, payout and revenue share ·
+  the control plane (provisioning-as-workflow, billing, quota, fleet) · enterprise
+  extension points (SSO/SCIM, audit packaging, `pii_vault_backend`,
+  `calibration_visibility`).
+- **(b) Narrowed**: one pricing model first — the subscription update stream,
+  which is the economic answer to "who maintains an App Profile".
+- **(c) Forbidden**: the control plane **calls, never patches** · no licence key in
+  the engine · no DRM.
+- **Exit litmus**: a subscription expires and the installed copy runs forever ·
+  tenant isolation, metering and quota are all **core hooks**, with the control
+  plane editing no line of the engine.
+- **Blocking specifications**: **quota and scheduling fairness** · the **`cloud`
+  charter**.
 
-### M7 — Intelligence _(dữ liệu-gated, KHÔNG ICP-gated)_
+### M7 — Intelligence _(data-gated, NOT ICP-gated)_
 
-- **Điều kiện**: flywheel đủ dữ liệu trên tenant thật (Judgment / Escalation / Conflict / outcome) — không bao giờ đi trước dữ liệu (A4).
-- **(a) Trọn vẹn**: đề xuất tối ưu checkpoint/prompt/quy trình, đi qua pair-design + shadow + graduation.
-- **(c) Cấm tạm**: **không tự sửa runtime** ở bất kỳ cấu hình nào · không học cross-tenant · không bộ não ML thứ hai.
-- **Exit-litmus**: mọi đề xuất đều là Task có Gate và có Judgment; tắt Intelligence → hệ chạy y nguyên.
-- Quan hệ với EE: Intelligence là **module EE** (NS §8 — ranh giới core/paid cắt theo tầng); **M7 = thời điểm bật theo dữ liệu, license = policy** — hai trục độc lập, không mâu thuẫn với M6.
+- **The condition**: the flywheel has enough data on a real tenant — Judgment,
+  Escalation, Conflict, outcome. It never precedes the data.
+- **(a) Complete**: proposals optimising checkpoints, prompts and processes,
+  travelling through pair-design, shadow and graduation.
+- **(c) Forbidden**: **never edits the runtime itself**, in any configuration · no
+  cross-tenant learning · no second ML brain.
+- **Exit litmus**: every proposal is a Task with a Gate and a Judgment; switch
+  Intelligence off and the system runs unchanged.
+- **Its relationship to enterprise**: Intelligence is an **enterprise module**
+  (North Star §8 — the core/paid boundary cuts by tier). **M7 is when it is
+  enabled by data; the licence is policy** — two independent axes, so this does
+  not contradict M6.
 
-## 5. Ledger kỹ thuật
+## 5. The technical ledger
 
-Danh sách spec và charter còn treo, mỗi mục kèm milestone nó chặn và thứ tự viết. **Không công bố**: nó là bản đồ điểm yếu có thời hạn của hệ, chỉ đúng cho tới khi mục đó đóng. Thứ công khai là các milestone và cổng freeze mà nó phục vụ.
+The list of specifications and charters still outstanding, each with the
+milestone it blocks and the order it should be written in. **Withheld**: it is a
+dated map of the system's weak points, true only until each entry closes. What is
+public are the milestones and freeze gates it serves.
 
-## 6. Vòng đối kháng của chính roadmap (J/G — chạy trước khi chốt)
+## 6. The roadmap's own adversarial pass
 
-| Đòn                                                     | Phán quyết                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **J3 — phương án lý tưởng hơn?** "Xây tất cả cùng lúc." | Bác **không phải bằng effort** mà bằng cơ chế: mọi milestone ở đây bật cơ chế **trọn vẹn**; cái bị hoãn là _cả cụm_, không phải _nửa cơ chế_. Roadmap này không chứa một dòng nào thu hẹp cơ chế trần — nếu tìm được một dòng như vậy, roadmap thua và phải sửa                                        |
-| **J1 — dấu vết chiết trung?**                           | Quét: "browser trước desktop sau" = thu hẹp giá trị (driver contract không đổi) ✅ · "chỉ definition, chưa code" = **policy mặc định của chính Block §3** ✅ · "một tenant growth" = cardinality, không phải cơ chế ✅. Không tìm thấy "đủ dùng/để nhẹ"                                                |
-| **G2 — policy đội lốt cơ chế?**                         | Mọi điều kiện mở khóa §3b là _policy kinh doanh trỏ kill-criteria_, không có mục nào biến thành luật engine                                                                                                                                                                                            |
-| **G5 — tuyệt đối quá tay?**                             | "Cấm cơ-chế-tạm" có thể giết use-case hợp lệ không? Thử: bản demo nội bộ cần auto-pass cho nhanh → vẫn **cấm**, vì đã có `sampling`/`autonomous` tier hợp pháp làm đúng việc đó. Không sót use-case                                                                                                    |
-| **Đòn thật bắt được #1**                                | M0 exit đòi litmus #3 "một thang tin cậy" nhưng **Calibration data model đang nằm ở ledger 'vòng sau'** ⇒ M0 không exit được. **Sửa**: kéo spec Calibration vào **trong** M0, xếp thứ tự viết **#1**                                                                                                   |
-| **Đòn thật bắt được #2**                                | M1 (RPA) vốn hấp dẫn để làm trước (wedge, tự bán được) — nhưng khởi động trước khi M0 **đóng băng Filler interface + Session effect** sẽ đẻ codepath thứ hai, phạm nguyên tắc RPA #5 và giết litmus #6. **Sửa**: M1 song song được, nhưng cổng vào là "2 giao diện đã đóng băng", không phải "M0 xong" |
-| **Đòn thật bắt được #3**                                | Cám dỗ đẩy funnel (M2) xuống sau M5 để "làm sản phẩm trước" — nhưng M5 **ICP-gated bởi dữ liệu mà chỉ M2 sinh ra**. Thứ tự M2 trước M5 là **ràng buộc logic**, không phải sở thích                                                                                                                     |
+| Attack                                                             | Verdict                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **J3 — is there a more ideal option?** "Build everything at once." | Rejected **not by effort** but by mechanism: every milestone here enables mechanism **completely**, and what is deferred is _a whole cluster_, never _half a mechanism_. This roadmap contains no line narrowing a ceiling mechanism — find one and the roadmap loses and must be fixed                                                                |
+| **J1 — traces of compromise?**                                     | Scanned: "browser before desktop" narrows value, since the driver contract is unchanged ✅ · "definition only, not code" is **Block §3's own default policy** ✅ · "one growth tenant" is cardinality, not mechanism ✅. No "good enough" or "to keep it light" found                                                                                  |
+| **G2 — policy disguised as mechanism?**                            | Every unlock condition in §3b is _commercial policy pointing at a kill criterion_; none becomes an engine law                                                                                                                                                                                                                                          |
+| **G5 — over-absolutism?**                                          | Could "no temporary half-mechanisms" kill a legitimate use case? Tested: an internal demo wanting a quick auto-pass → still **forbidden**, because the legitimate `sampling` and `autonomous` tiers already do exactly that. No use case is lost                                                                                                       |
+| **A real hit — calibration**                                       | M0's exit demands litmus #3, "one confidence scale", while the **calibration data model sat in the ledger as a later item** — so M0 could not exit. **Fixed**: the calibration specification is pulled **inside** M0 and written first                                                                                                                 |
+| **A real hit — RPA's entry gate**                                  | M1, the RPA wedge, is attractive to build first because it sells itself — but starting before M0 has **frozen the Filler interface and the Session effect** grows a second code path, violating RPA principle #5 and killing litmus #6. **Fixed**: M1 may run in parallel, but its entry gate is "the two interfaces are frozen", not "M0 is finished" |
+| **A real hit — the funnel's position**                             | The temptation to push the funnel (M2) behind M5 to "build product first" — but M5 is **ICP-gated on data only M2 produces**. M2 before M5 is a **logical constraint**, not a preference                                                                                                                                                               |
 
-## 6b. End-state coverage — nhóm M áp lên roadmap
+## 6b. End-state coverage — group M applied to the roadmap
 
-**M1-xuôi**: mọi cụm cơ chế của bộ trần → có nhà. **M2-ngược**: 0 mục roadmap mồ côi (mọi mục trace về NS/spec/charter). Lượt sau chỉ diff bảng này thay vì dò tay.
+**Forward**: every mechanism cluster of the ceiling has a home. **Backward**: no
+roadmap item is an orphan — each traces to a North Star, a specification or a
+charter. A later session diffs this table rather than searching by hand.
 
-| ID   | Cụm end-state (nguồn canonical)                                                         | Track | Gate chặn | Nhà trong roadmap                                                                                                                                                                                                                                                           |
-| ---- | --------------------------------------------------------------------------------------- | ----- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A.1  | Tầng 1 — Core engine (NS §8)                                                            | A     | ◆G0       | M0                                                                                                                                                                                                                                                                          |
-| A.2  | Tầng 2 — Agent runtime (nửa RPA của tầng này là B.1)                                    | A     | ◆G0       | M0                                                                                                                                                                                                                                                                          |
-| E.1  | Tầng 3 — Human surface = **Work Surface** (My-Work/Org-Work, diff, mobile — spec ✅)    | E     | ◆G4       | M0 tối thiểu là điều kiện exit; đầy đủ dần tới M5                                                                                                                                                                                                                           |
-| E.2  | **Tầng 4 — Pair-design**                                                                | E     | ◆G4       | M3 _(chặn M4)_                                                                                                                                                                                                                                                              |
-| A.3  | Tầng 5 — Intelligence                                                                   | A     | —         | M7 (module EE — license là policy, M7 là thời điểm bật theo dữ liệu)                                                                                                                                                                                                        |
-| A.4  | 5 primitive + Composition + static analysis + shadow/trust-tiers/graduation             | A     | ◆G0       | M0 (spec trọn vẹn = gồm shadow/graduation — Role §4–5)                                                                                                                                                                                                                      |
-| A.5  | Trigger đủ type đã bật **+ sync-response BaaS**                                         | A     | ◆G0       | M0                                                                                                                                                                                                                                                                          |
-| C.1  | `message_in` + Channel + external-filler                                                | C     | ◆G3       | M2                                                                                                                                                                                                                                                                          |
-| A.6  | Subsystem tầng 1: Event Log · Artifact Store · Lease · **Vault/key-store** (spec ✅)    | A     | ◆G0       | M0 — chính là cái ◆G0 đóng băng                                                                                                                                                                                                                                             |
-| A.7  | Tenant & Identity core + vòng đời §2b                                                   | A     | ◆G0       | M0 (purge đầy đủ tựa lên key-store M0)                                                                                                                                                                                                                                      |
-| C.2  | Working Data: DataTable + projection                                                    | C     | ◆G3       | M2                                                                                                                                                                                                                                                                          |
-| A.8  | Labor Analytics + BYO-export (metric/projection definition là entity)                   | A     | ◆G4       | M5                                                                                                                                                                                                                                                                          |
-| A.9  | Knowledge (+ source binding, KB-from-git/web)                                           | A     | —         | M3                                                                                                                                                                                                                                                                          |
-| A.10 | Memory                                                                                  | A     | —         | M5 — gated bởi trigger pin-2 (đúng spec §0: tắt mặc định)                                                                                                                                                                                                                   |
-| B.1  | RPA 5 spec + Node topology (attended/unattended)                                        | B     | ◆G1       | M1 — browser trước desktop sau (thu hẹp _giá trị_ có khai; driver contract không đổi)                                                                                                                                                                                       |
-| D.1  | Hub: registry + index + install 6 bước + verified/unverify + air-gap                    | D     | ◆G2       | M4 (◆G2 từ spec-phase; verified-review chờ M0; air-gap = cơ chế OCI chuẩn sẵn)                                                                                                                                                                                              |
-| D.2  | Hub: marketplace + entitlement + payout                                                 | D     | ◆G2       | M6                                                                                                                                                                                                                                                                          |
-| A.11 | EE extension points (SSO/SCIM, audit, pii-vault, calibration-visibility)                | A     | —         | M6 (Intelligence-EE: M7)                                                                                                                                                                                                                                                    |
-| A.12 | Cloud control plane + Quota + provisioning-là-workflow                                  | A     | —         | M6                                                                                                                                                                                                                                                                          |
-| A.13 | Metering (cơ chế)                                                                       | A     | ◆G0       | M0 exit tường minh                                                                                                                                                                                                                                                          |
-| A.14 | Pricing (policy)                                                                        | A     | —         | M6                                                                                                                                                                                                                                                                          |
-| A.15 | Storage 5 port + default-theo-hình-thái + grow-path replay                              | A     | ◆G0       | **ADR-0002** — reference Postgres tại M0; small-stack cùng CI từ M0                                                                                                                                                                                                         |
-| C.3  | Website/growth + tier ingest clickstream                                                | C     | ◆G3       | M2                                                                                                                                                                                                                                                                          |
-| E.3  | `/design` Storybook                                                                     | E     | —         | Track E ngày 0; hợp lưu M0                                                                                                                                                                                                                                                  |
-| A.16 | **Calibration data model** (CalKey/Cell/estimator identity — spec ✅)                   | A     | ◆G0       | **M0** — điều kiện exit (litmus #3 "một thang tin cậy"); M0 exit +5 câu L5                                                                                                                                                                                                  |
-| A.17 | **Test harness — vai hạ tầng** (test mode + conformance suite)                          | A     | ◆G0       | **M0** — điều kiện của mọi gate ◆G. Litmus harness **đo tại gate, không cộng vào M0 exit**                                                                                                                                                                                  |
-| E.4  | **Test harness — vai sản phẩm** (bề mặt "chạy thử" của user)                            | E     | ◆G4       | M3                                                                                                                                                                                                                                                                          |
-| A.18 | **Release & Compatibility** (train, negotiation, upgrade/rollback, EOL, suite version)  | A     | —         | **M1** — exit-litmus +8 câu L5; Q3 vào `nx.json` trước app đầu tiên                                                                                                                                                                                                         |
-| A.19 | **Runtime sandbox cho code filler**                                                     | A     | ◆G1       | M4 — điều kiện bật trust class `code`, và của **cả vòng verified-review** cho class đó                                                                                                                                                                                      |
-| R.1  | **Deploy & Operations** (ô `deploy`/`operate`/`sunset` của P1; backup/restore; khóa-DR) | R     | —         | **[deploy](../charter/deploy.md)** — gắn **M1**; lệnh `check-backup-key-isolation` gắn PR tạo `deploy/`                                                                                                                                                                     |
-| R.2  | Publishing policy + luật sư (SUL/CLA/EULA/trademark)                                    | R     | —         | §5 — song song, chặn contributor đầu tiên & mọi publish                                                                                                                                                                                                                     |
-| R.3  | **Di cư tài liệu vào repo** (`doctrine/` + bề mặt đọc)                                  | R     | —         | **kế hoạch di cư (không công bố)**                                                                                                                                                                                                                                          |
-| R.4  | **Board ↔ roadmap** (luật hai chiều §0)                                                 | R     | —         | Nửa file: **`dev-cli check-roadmap-ids`** — ID không trùng, track/gate/milestone đều resolve về §1b và §4. **Tái sử dụng số thì gate không thấy** (một ảnh chụp không phân biệt được) và ở lại với người review. Nửa board — card mồ côi — cần GraphQL của Projects, còn nợ |
-| R.5  | Build/branch/CI (ô `build` P1) + executor conformance suite                             | R     | —         | **playbook giao hàng (không công bố)**                                                                                                                                                                                                                                      |
-| —    | 4 dòng doanh thu                                                                        | —     | —         | Không có ID riêng: SaaS+enterprise-EE → A.11 · marketplace → D.2 · cloud → A.12 · **OEM/embedding = policy license thuần, không cần cơ chế mới**. Hàng phủ, không phải hạng mục                                                                                             |
+| ID   | End-state cluster (canonical source)                                                                             | Track | Blocking gate | Home in the roadmap                                                                                                                                                                                                                                                                                                                    |
+| ---- | ---------------------------------------------------------------------------------------------------------------- | ----- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A.1  | Tier 1 — Core engine (North Star §8)                                                                             | A     | ◆G0           | M0                                                                                                                                                                                                                                                                                                                                     |
+| A.2  | Tier 2 — Agent runtime (the RPA half of this tier is B.1)                                                        | A     | ◆G0           | M0                                                                                                                                                                                                                                                                                                                                     |
+| E.1  | Tier 3 — Human surface = **Work Surface** (My-Work/Org-Work, diff, mobile — specification written)               | E     | ◆G4           | A minimal one is an M0 exit condition; complete by M5                                                                                                                                                                                                                                                                                  |
+| E.2  | **Tier 4 — Pair-design**                                                                                         | E     | ◆G4           | M3 — and it blocks M4                                                                                                                                                                                                                                                                                                                  |
+| A.3  | Tier 5 — Intelligence                                                                                            | A     | —             | M7 — an enterprise module; the licence is policy, M7 is when data enables it                                                                                                                                                                                                                                                           |
+| A.4  | The five primitives, Composition, static analysis, shadow, trust tiers and graduation                            | A     | ◆G0           | M0 — a complete specification includes shadow and graduation (Role §4–5)                                                                                                                                                                                                                                                               |
+| A.5  | Trigger, every enabled type **plus sync-response BaaS**                                                          | A     | ◆G0           | M0                                                                                                                                                                                                                                                                                                                                     |
+| C.1  | `message_in`, Channel and external fillers                                                                       | C     | ◆G3           | M2                                                                                                                                                                                                                                                                                                                                     |
+| A.6  | Tier-1 subsystems: Event Log · Artifact Store · Lease · **Vault and key store**                                  | A     | ◆G0           | M0 — this is precisely what ◆G0 freezes                                                                                                                                                                                                                                                                                                |
+| A.7  | Tenant & Identity core plus the lifecycle of §2b                                                                 | A     | ◆G0           | M0 — full purge rests on the M0 key store                                                                                                                                                                                                                                                                                              |
+| C.2  | Working Data: DataTable plus projections                                                                         | C     | ◆G3           | M2                                                                                                                                                                                                                                                                                                                                     |
+| A.8  | Labor Analytics plus BYO-export, with metric and projection definitions as entities                              | A     | ◆G4           | M5                                                                                                                                                                                                                                                                                                                                     |
+| A.9  | Knowledge, with source binding and KB-from-git or web                                                            | A     | —             | M3                                                                                                                                                                                                                                                                                                                                     |
+| A.10 | Memory                                                                                                           | A     | —             | M5 — gated by its trigger, and off by default per the specification                                                                                                                                                                                                                                                                    |
+| B.1  | RPA's five specifications plus Node topology, attended and unattended                                            | B     | ◆G1           | M1 — browser before desktop, a declared narrowing of _value_; the driver contract is unchanged                                                                                                                                                                                                                                         |
+| D.1  | Hub: registry, index, the six-step install, verified and unverify, air gap                                       | D     | ◆G2           | M4 — ◆G2 from the specification phase; verified review waits for M0; air gap is standard OCI                                                                                                                                                                                                                                           |
+| D.2  | Hub: marketplace, entitlement, payout                                                                            | D     | ◆G2           | M6                                                                                                                                                                                                                                                                                                                                     |
+| A.11 | Enterprise extension points (SSO/SCIM, audit, PII vault, calibration visibility)                                 | A     | —             | M6 — the Intelligence enterprise module is M7                                                                                                                                                                                                                                                                                          |
+| A.12 | Cloud control plane, quota, provisioning-as-workflow                                                             | A     | —             | M6                                                                                                                                                                                                                                                                                                                                     |
+| A.13 | Metering, the mechanism                                                                                          | A     | ◆G0           | M0 exit, explicitly                                                                                                                                                                                                                                                                                                                    |
+| A.14 | Pricing, the policy                                                                                              | A     | —             | M6                                                                                                                                                                                                                                                                                                                                     |
+| A.15 | Five storage ports, defaults by shape, the grow-path replay                                                      | A     | ◆G0           | **ADR-0002** — Postgres as reference at M0; the small stack in the same CI from M0                                                                                                                                                                                                                                                     |
+| C.3  | Website and growth, plus tier ingest for clickstream                                                             | C     | ◆G3           | M2                                                                                                                                                                                                                                                                                                                                     |
+| E.3  | The `/design` Storybook                                                                                          | E     | —             | Track E from day zero; converging at M0                                                                                                                                                                                                                                                                                                |
+| A.16 | **The calibration data model** (CalKey, Cell, estimator identity — specification written)                        | A     | ◆G0           | **M0** — an exit condition, litmus #3 "one confidence scale"; M0 exit gains 5 L5 questions                                                                                                                                                                                                                                             |
+| A.17 | **Test harness — the infrastructure role** (test mode plus the conformance suite)                                | A     | ◆G0           | **M0** — the precondition of every ◆G gate. Its litmus is **measured at the gate, not added to M0 exit**                                                                                                                                                                                                                               |
+| E.4  | **Test harness — the product role** (a "try it" surface for the user)                                            | E     | ◆G4           | M3                                                                                                                                                                                                                                                                                                                                     |
+| A.18 | **Release & Compatibility** (the train, negotiation, upgrade and rollback, EOL, suite versioning)                | A     | —             | **M1** — exit litmus gains 8 L5 questions; the workspace-wide tag lands in `nx.json` before the first app                                                                                                                                                                                                                              |
+| A.19 | **A runtime sandbox for code fillers**                                                                           | A     | ◆G1           | M4 — the condition for enabling the `code` trust class, and for **the whole verified-review loop** for that class                                                                                                                                                                                                                      |
+| R.1  | **Deploy & Operations** (the `deploy`, `operate` and `sunset` cells; backup and restore; the DR key obligations) | R     | —             | **[deploy](../charter/deploy.md)** — attached to **M1**; the `check-backup-key-isolation` command lands with the `deploy/` directory                                                                                                                                                                                                   |
+| R.2  | Publishing policy plus legal review (SUL, CLA, EULA, trademark)                                                  | R     | —             | §5 — in parallel; it blocks the first contributor and every publication                                                                                                                                                                                                                                                                |
+| R.3  | **Migrating the documents into the repository** (the doctrine tree plus its reading surface)                     | R     | —             | The migration plan (withheld)                                                                                                                                                                                                                                                                                                          |
+| R.4  | **Board ↔ roadmap** (the two-way law of §0)                                                                      | R     | —             | The file half: **`dev-cli check-roadmap-ids`** — ids unique, with track, gate and milestone all resolving against §1b and §4. **Reuse of a number is invisible to the gate** — one snapshot cannot distinguish it — and stays with the reviewer. The board half, orphan cards, needs the Projects GraphQL API and is still outstanding |
+| R.5  | Build, branch and CI (the `build` cell) plus the conformance-suite executor                                      | R     | —             | The delivery playbook (withheld)                                                                                                                                                                                                                                                                                                       |
+| —    | The four revenue streams                                                                                         | —     | —             | No id of its own: SaaS and enterprise → A.11 · marketplace → D.2 · cloud → A.12 · **OEM and embedding are pure licence policy needing no new mechanism**. A covering row, not an item                                                                                                                                                  |
 
-## 7. Nhật ký quyết định
+## 7. Decision log
 
-| Chủ đề                        | Chốt                                                                                           | Án văn                                                                                                                                                                                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **— cổng của Track B**        | **Một cổng: ◆G1.** M1 làm _xác nhận trong phiên attended_; _duyệt hàng đợi_ để Track E sau ◆G4 | ADR-0005 gộp hai thứ khác loại vào cụm _"khung takeover/approve"_. Người dùng đơn của wedge **đang ngồi ngay đó** — hàng đợi duyệt là khái niệm của tổ chức nhiều người. Cắt đúng khớp ⇒ M1 không mất gì, và không đẻ phụ thuộc xuyên track |
-| **Roadmap ↔ GitHub Projects** | File sở hữu **phạm vi · thứ tự · exit-litmus**; board sở hữu **trạng thái thi hành**           | Cùng khuôn "SQL để đọc, event để ghi". Không khai ranh giới thì board thành nguồn sự thật thứ hai về thứ tự (E5 ở tầng quy trình)                                                                                                           |
-| **ID `<Track>.<seq>`**        | Append-only, **không tái sử dụng** kể cả khi hủy                                               | Không có ID thì luật hai chiều card↔roadmap không kiểm được; tái sử dụng số làm card cũ trỏ vào hạng mục khác                                                                                                                               |
-| **Trường board dẫn xuất**     | Area ← README frontmatter · Milestone ← §4 · Gate ← §2 · Track ← §1b                           | Thang _derive → configure → hardcode_; trường chép tay sẽ trôi                                                                                                                                                                              |
-| **Cấm cột Priority tự do**    | Không tạo                                                                                      | §2 (thứ tự đáng làm) và §3b (điều kiện mở khóa) đã là hai nguồn; cột thứ ba **gần tay nhất nên sẽ thắng cả hai**                                                                                                                            |
-| **Track R sinh mới**          | Repo & harness, ngày 0, song song                                                              | 8 PR của kế hoạch handoff trước đó **không track nào nhận nuôi** — đúng lỗi M1-xuôi mà §6b tồn tại để bắt                                                                                                                                   |
+| Topic                         | Settled                                                                                              | Reasoning                                                                                                                                                                                                                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Track B's gate**            | **One gate: ◆G1.** M1 does _in-session attended confirmation_; _queue approval_ is Track E after ◆G4 | ADR-0005 conflated two different things under "the takeover/approve frame". The wedge's single user **is sitting right there**; an approval queue is a concept of an organisation. Cut at the right joint and M1 loses nothing, and no cross-track dependency is created |
+| **Roadmap ↔ GitHub Projects** | The file owns **scope · order · exit litmus**; the board owns **execution state**                    | The same shape as "SQL to ask, events to write". Without declaring the boundary the board becomes a second source of truth about ordering                                                                                                                                |
+| **The id `<Track>.<seq>`**    | Append-only, **never reused**, even after cancellation                                               | Without ids the two-way card↔roadmap law cannot be checked; reusing a number makes an old card point at a different item                                                                                                                                                 |
+| **Board fields are derived**  | Area from README frontmatter · Milestone from §4 · Gate from §1b · Track from §1b                    | The _derive → configure → hardcode_ ladder; a hand-copied field drifts                                                                                                                                                                                                   |
+| **No free Priority column**   | Do not create one                                                                                    | §2 (what is worth doing first) and §3b (unlock conditions) are already two sources; a third is **the nearest to hand, so it wins over both**                                                                                                                             |
+| **Track R exists**            | Repository and harness, from day zero, in parallel                                                   | The migration's pull requests had no track adopting them — exactly the forward-completeness fault §6b exists to catch                                                                                                                                                    |
 
-| Vấn đề              | Chốt                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------ |
-| Đơn vị lịch         | **Không có ngày** — chưa có velocity; exit bằng litmus đo được. Ghi ngày khi có ≥2 milestone thực chạy |
-| Lát cắt hợp lệ      | Chỉ thu hẹp giá trị/policy; cấm nửa-cơ-chế. Mỗi milestone khai đủ (a)(b)(c)                            |
-| Hub vs Platform     | Hub không chặn Platform (cascade sống thiếu mức template) → lùi được                                   |
-| RPA trước hay sau   | Song song, cổng vào = 2 giao diện đã đóng băng                                                         |
-| Calibration         | Kéo từ "ledger vòng sau" vào **M0** — nó là điều kiện exit, không phải tính năng                       |
-| Funnel              | Là **dụng cụ đo ICP**, không phải trang bán hàng làm sau → M2, trước mọi thứ ICP-gated                 |
-| Class code trên Hub | Hoãn bằng **chính policy mặc định của spec**, không phải bằng cắt cơ chế                               |
-| Khi ICP FAIL        | Bỏ pack ICP-gated, giữ nguyên toàn bộ nền — đó là _lý do_ nền phải ICP-independent                     |
+| Question                    | Settled                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| The unit of scheduling      | **No dates** — there is no velocity yet, and exit is by measurable litmus. Dates arrive once two milestones have actually run |
+| A valid slice               | It may only narrow value or policy; half-mechanisms are forbidden. Each milestone declares (a), (b) and (c)                   |
+| Hub against Platform        | The Hub does not block the Platform, since the cascade survives without a template level, so it can be deferred               |
+| RPA before or after         | In parallel, with the entry gate being "the two interfaces are frozen"                                                        |
+| Calibration                 | Pulled from "a later round" into **M0** — it is an exit condition, not a feature                                              |
+| The funnel                  | It is **the instrument that measures the ICP**, not a sales page for later → M2, before anything ICP-gated                    |
+| The `code` class on the Hub | Deferred by **the specification's own default policy**, never by cutting a mechanism                                          |
+| If the ICP fails            | Drop the ICP-gated packs and keep the entire foundation — which is _why_ the foundation must be ICP-independent               |
 
-## 8. Litmus của roadmap
+## 8. The roadmap's own litmus
 
-1. Chỉ ra **một dòng** trong file này thu hẹp một **cơ chế** của bộ trần (không phải giá trị/policy)? — nếu có, roadmap sai.
-2. Giả thuyết ICP chết hoàn toàn ở kill-criteria §2: bao nhiêu phần trăm công việc đã làm phải vứt? — nếu >0 ở vùng §3a, phân vùng sai.
-3. Mỗi mục ICP-gated có trỏ được về **một dòng kill-criteria đo được** trong sổ thị trường (không công bố) không?
-4. Mỗi milestone có exit-litmus **đo được bằng desk-sim hoặc test**, không phải "cảm thấy xong"?
-5. Mỗi spec treo có đúng một milestone mà nó chặn — hay đang trôi nổi không ai đợi?
-6. Mỗi track có đúng một sync gate là **interface freeze có event** — không track nào chờ "milestone khác xong" khi thứ nó thật sự cần chỉ là một giao diện đóng băng?
-7. Hai track song song có kịch bản nào ép đẻ codepath riêng / nửa-cơ-chế? — nếu có, gate đặt sai chỗ.
-8. Mỗi gate ◆G có conformance test suite chạy được **trước khi** track phía sau viết dòng code đầu tiên? Gate không suite = gate giấy.
-9. Có track nào bị chặn bởi "milestone khác xong" trong khi thứ nó thật sự cần chỉ là một freeze đã khả thi? — nếu có, thêm gate, đừng chờ.
-10. Mỗi cụm cơ chế của bộ trần có đúng một ô trong §6b — và mỗi mục roadmap trace được về một lời hứa? Ô trống hai chiều = finding, không phải "để sau".
-11. Mở board GitHub Projects: có card nào **không trace được về một ID** của file này không, và có ID nào **đã khởi động track mà 0 card** không? Có tồn tại một trường nào trên board **gõ tay** thay vì dẫn xuất (đặc biệt: một cột priority) không?
-12. Mỗi **spec đã viết** có đúng một milestone nhận nuôi **từng vai** của nó (một spec hai vai = hai ô), và mọi con số litmus trong file này **đếm lại được bằng script** từ chính bộ trần — không ô nào là số chép tay? _(Án văn: 3 vòng liên tiếp phát hiện số đếm sai; số chép tay là một lớp lỗi, không phải một sự cố.)_
+1. Point at **one line** in this file that narrows a **mechanism** of the ceiling
+   rather than a value or a policy. If one exists, the roadmap is wrong.
+2. Suppose the ICP hypothesis dies completely at the kill criteria: what
+   percentage of the work already done must be thrown away? Anything above zero
+   inside §3a means the partition is wrong.
+3. Does every ICP-gated item point at **one measurable kill-criterion line** in
+   the market ledger?
+4. Does every milestone have an exit litmus **measurable by desk simulation or by
+   test**, rather than "it feels done"?
+5. Does every outstanding specification block exactly one milestone — or is it
+   floating with nobody waiting for it?
+6. Does every track have exactly one synchronisation gate that is **an interface
+   freeze with an event** — with no track waiting on "another milestone finishing"
+   when all it actually needs is one frozen interface?
+7. Is there any scenario in which two parallel tracks force a separate code path
+   or a half-mechanism? If so, a gate is in the wrong place.
+8. Does every ◆G gate have a runnable conformance suite **before** the track
+   behind it writes its first line of code? A gate without a suite is a paper
+   gate.
+9. Is any track blocked by "another milestone finishing" when what it needs is a
+   freeze that is already feasible? If so, add a gate rather than wait.
+10. Does every mechanism cluster of the ceiling have exactly one cell in §6b — and
+    does every roadmap item trace back to a promise? An empty cell in either
+    direction is a finding, not something to defer.
+11. Open the Projects board: is there a card that **traces to no id** in this
+    file, and is there an id whose track has started with **zero cards**? Does any
+    board field exist that is **typed by hand** rather than derived — a priority
+    column above all?
+12. Does every **written specification** have exactly one milestone adopting
+    **each of its roles** — a specification with two roles needs two cells — and is
+    every litmus count in this file **recountable by script** from the ceiling
+    itself, with no cell holding a hand-copied number? _Counting by hand is a class
+    of error rather than an incident: three consecutive reviews found a wrong
+    count._
