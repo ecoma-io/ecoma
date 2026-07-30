@@ -21,6 +21,16 @@
  *    document, carrying authority it no longer earns, in the language of the
  *    reader least able to notice.
  *
+ * Two of the marker patterns are narrower than their names suggest, and both
+ * narrowings are load-bearing rather than oversights. A finding id is matched
+ * only zero-padded (`F04`), because the rubric's own group-F criteria are
+ * written unpadded (`F3`) and a pattern covering both would delete the
+ * corpus's internal referencing to catch a handful of episode labels — the
+ * same reason a bare B-number is left alone and only `BET-12` is refused. A
+ * round code is matched only as two digits and a letter, which is every form
+ * the corpus actually uses; a bare `#4` is indistinguishable from an ordinal
+ * and stays on review.
+ *
  * The third rule is deliberately family-level rather than per-identifier.
  * Deciding whether `S31` is *defined* somewhere needs a notion of "definition"
  * that no regex holds honestly; deciding whether the catalog is present does
@@ -65,8 +75,13 @@ export const DOCTRINE_DOCS = `${DOCTRINE_ROOT}/**/*.md`;
 export const FORBIDDEN = [
   {
     id: "round",
-    pattern: /vòng \d+[a-z]?/g,
+    pattern: /\b(?:vòng|round)\s*#?\s*\d+[a-z]?\b/gi,
     why: "a round number is true only to whoever was in that round; git history is the log",
+  },
+  {
+    id: "round-code",
+    pattern: /\b\d{2}[a-z]\b/g,
+    why: "a round code is a round number with the word dropped, and dates the document the same way",
   },
   {
     id: "finding",
