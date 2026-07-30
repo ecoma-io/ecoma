@@ -95,12 +95,17 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
+      # install-only: true — the Go lint target itself invokes golangci-lint
+      # (project.json), so this step only needs the verified binary on PATH,
+      # not a lint run of its own. The action downloads and checksums the
+      # release itself, matching this file's other pinned-by-SHA installs.
       - name: Install golangci-lint (Go lint targets run through it)
         if: hashFiles('go.work') != ''
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v2.5.0/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.5.0
+          install-mode: binary
+          install-only: true
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         if: hashFiles('pyproject.toml') != ''
 
