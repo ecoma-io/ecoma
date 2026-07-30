@@ -15,6 +15,11 @@ on:
     - cron: "17 18 * * *"
   workflow_dispatch:
 
+# Every job here only reads the repository and runs local checks — none call
+# the GitHub API or write anything back — so contents: read is the ceiling.
+permissions:
+  contents: read
+
 # A new push to a PR supersedes the in-flight run for it. A push to main gets a
 # group of its own per commit — grouping main by ref instead would let a newer
 # commit cancel an older one that is still queued (cancel-in-progress only
