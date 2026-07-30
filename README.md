@@ -31,7 +31,9 @@ Workspace-wide principles and conventions live in the root
 ## Getting started
 
 ```bash
-pnpm install
+# Verify the toolchain and set up the repo — dependencies, git hooks, and
+# the Playwright Chromium the e2e suite drives. See CONTRIBUTING.md.
+pnpm run setup
 
 # The design system's Storybook
 pnpm nx run design-system:serve

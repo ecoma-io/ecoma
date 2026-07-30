@@ -2,13 +2,14 @@
 // SessionStart hook — remote (cloud) sessions only: provision the sandbox so
 // the definition-of-done targets (`pnpm nx affected -t lint test typecheck
 // build`) can run across the polyglot toolchains. All logic lives in
-// ../../setup.mjs — the same script contributors run locally — so there is
-// exactly one setup path to maintain; this wrapper only supplies the
-// non-interactive flag and skips local sessions, where the contributor runs
-// setup.mjs themselves. Synchronous on purpose: the session must not start
-// racing a half-installed node_modules. This hook only ever runs inside the
-// Linux cloud sandbox (gated by CLAUDE_CODE_REMOTE), so shelling out to
-// Linux-only tools (sh, id, sudo) below is safe.
+// ../../shared/tools/onboard/src/setup.mjs — the same script contributors run
+// locally via `pnpm run setup` — so there is exactly one setup path to
+// maintain; this wrapper only supplies the non-interactive flag and skips
+// local sessions, where the contributor runs it themselves. Synchronous on
+// purpose: the session must not start racing a half-installed node_modules.
+// This hook only ever runs inside the Linux cloud sandbox (gated by
+// CLAUDE_CODE_REMOTE), so shelling out to Linux-only tools (sh, id, sudo)
+// below is safe.
 import { spawn, spawnSync } from "node:child_process";
 import { openSync } from "node:fs";
 import { join } from "node:path";
@@ -56,5 +57,7 @@ if (commandExists("dockerd") && !dockerReady()) {
 
 const projectDir = process.env.CLAUDE_PROJECT_DIR;
 if (!projectDir) throw new Error("CLAUDE_PROJECT_DIR is not set");
-const { runSetup } = await import(pathToFileURL(join(projectDir, "setup.mjs")).href);
+const { runSetup } = await import(
+  pathToFileURL(join(projectDir, "shared", "tools", "onboard", "src", "setup.mjs")).href
+);
 process.exit(runSetup(["--yes"]));
