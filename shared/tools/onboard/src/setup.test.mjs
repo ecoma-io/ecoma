@@ -104,6 +104,10 @@ function fixture({
   stdinReplies = [],
   spawn = {},
   onSpawn = () => {},
+  // Overridable so a test can prove the Node install hints are DERIVED from
+  // engines.node rather than merely matching it by coincidence — see "names
+  // the Node install hint's major version from engines.node, not a fixed 22".
+  packageJson = PACKAGE_JSON,
 } = {}) {
   const state = {
     present: new Set(present),
@@ -142,7 +146,7 @@ function fixture({
       if (procVersion === null) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
       return procVersion;
     }
-    if (path.endsWith("package.json")) return PACKAGE_JSON;
+    if (path.endsWith("package.json")) return packageJson;
     if (path.endsWith("go.work")) return goWorkText;
     if (path.endsWith(".golangci-lint-version") && golangciLintVersionFile !== null)
       return `${golangciLintVersionFile}\n`;
@@ -451,6 +455,24 @@ describe("platform detection", () => {
     },
   );
 
+  it.each([
+    ["brew", "brew install node@24"],
+    ["apt-get", "install Node.js 24 via"],
+    ["dnf", "sudo dnf install nodejs24 (or your version manager)"],
+  ])(
+    "derives the Node install hint's major version from engines.node rather than a fixed 22 (%s)",
+    (manager, nodeHint) => {
+      fixture({
+        present: [manager, "pnpm", "cargo", "uv"],
+        packageJson: JSON.stringify({ engines: { node: ">=24" }, packageManager: "pnpm@10.32.1" }),
+      });
+      const log = captureLog();
+      expect(runSetup(["--check"])).toBe(1);
+      expect(log()).toContain(nodeHint);
+      expect(log()).not.toContain("22");
+    },
+  );
+
   it("emits ANSI colour codes only when stdout is a terminal", async () => {
     const onTerminal = await loadSetup({ stdoutIsTTY: true });
     fixture();
@@ -482,6 +504,17 @@ describe("Windows", () => {
     expect(log()).toContain("winget install Git.Git");
     expect(log()).toContain("winget install OpenJS.NodeJS.LTS");
     expect(log()).toContain("winget install GoLang.Go");
+  });
+
+  it("derives the winget Node hint's major version from engines.node rather than a fixed 22", async () => {
+    const setup = await loadSetup({ platform: "win32" });
+    fixture({
+      present: ["pnpm", "cargo", "uv"],
+      packageJson: JSON.stringify({ engines: { node: ">=24" }, packageManager: "pnpm@10.32.1" }),
+    });
+    const log = captureLog();
+    expect(setup(["--check"])).toBe(1);
+    expect(log()).toContain("winget install OpenJS.NodeJS.LTS (>= 24)");
   });
 
   it("appends every PATHEXT extension when resolving a command on PATH", async () => {
