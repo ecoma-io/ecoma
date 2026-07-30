@@ -17,7 +17,8 @@
       "!{projectRoot}/playwright.config.ts"
     ],
     "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"],
-    "coverageConfig": ["{workspaceRoot}/coverage.config.json"]
+    "coverageConfig": ["{workspaceRoot}/coverage.config.json"],
+    "devCli": ["{workspaceRoot}/shared/tools/dev-cli/**/*"]
   },
   "targetDefaults": {
     "build": {
@@ -35,7 +36,7 @@
         "{workspaceRoot}/eslint.config.mjs",
         "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
         "{workspaceRoot}/journey-markers.config.json",
-        "{workspaceRoot}/shared/tools/dev-cli/**/*"
+        "devCli"
       ]
     },
     "test": {
