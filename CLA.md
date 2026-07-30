@@ -4,10 +4,16 @@
 to these terms. They are short, and this page says plainly why each part
 exists.
 
-In this document, **"Ecoma"** means John Martin, an individual, trading as
-Ecoma, together with any legal entity he later forms to hold this project's
-assets, and their respective successors and assigns. **"You"** means the person
-agreeing to these terms.
+In this document, **"Ecoma"** means Mai Ngọc Hóa, an individual also known as
+John Martin, trading as Ecoma, together with any legal entity they later form
+to hold this project's assets, and their respective successors and assigns.
+**"You"** means the person agreeing to these terms.
+
+The two names are the same person: Mai Ngọc Hóa is the name on the identity
+documents, John Martin is the name used in this project's commit history,
+`package.json` and GitHub account. The grant runs to the legal person — a name
+that is not one cannot hold a licence, transfer it to a company later, or prove
+standing to enforce it.
 
 A **contribution** is anything you deliberately send us for inclusion in the
 project — code, tests, documentation, prose, designs, translations,
@@ -55,7 +61,7 @@ By submitting a contribution to this project, you agree that:
    licence terms, including the five named above and any commercial terms.
 
 2. **You grant us a patent licence.** You grant Ecoma and every recipient of
-   the software a perpetual, worldwide, non-exclusive, royalty-free,
+   the project a perpetual, worldwide, non-exclusive, royalty-free,
    irrevocable patent licence to make, have made, use, offer to sell, sell,
    import and otherwise transfer your contribution, covering only those patent
    claims you own, control, or otherwise have the right to license that are
@@ -84,7 +90,7 @@ By submitting a contribution to this project, you agree that:
    before review**, naming the source and its licence. We decide whether we can
    accept it. A comment in the code is not disclosure. Ordinary use of AI
    assistance to write original code needs no disclosure, but you remain
-   responsible for clauses 1 to 5 in respect of the result.
+   responsible for everything else in this agreement in respect of the result.
 
 5. **Your employer, if relevant, is on board.** If your employer has rights to
    work you create, you have permission to contribute on their behalf, or your
