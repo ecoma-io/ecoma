@@ -23,6 +23,7 @@ import { checkSubsystemReadmes } from "./check-subsystem-readmes.mjs";
 import { conformance } from "./conformance.mjs";
 import { doctrineSync } from "./doctrine-sync.mjs";
 import { ensureCommitIdentity } from "./ensure-commit-identity.mjs";
+import { listRoadmapIds } from "./list-roadmap-ids.mjs";
 import { listScopes } from "./list-scopes.mjs";
 import { prFacts } from "./pr-facts.mjs";
 import { runE2e } from "./run-e2e.mjs";
@@ -50,6 +51,7 @@ const COMMANDS = {
   conformance: (args) => conformance(args),
   "doctrine-sync": (args) => doctrineSync(args),
   "ensure-commit-identity": (args) => ensureCommitIdentity(args),
+  "list-roadmap-ids": (args) => listRoadmapIds(args),
   "list-scopes": (args) => listScopes(args),
   "pr-facts": (args) => prFacts(args),
   "run-e2e": (args) => runE2e(args),
