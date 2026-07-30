@@ -1,81 +1,122 @@
 ---
-title: "Ecoma Spec: Human Surface — Work Surface"
+title: "Human Surface — Work Surface"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Human Surface — Work Surface
+# Human Surface — Work Surface
 
-## 0. Vị trí & luật E5
+## 0. Position
 
-- Toàn bộ bề mặt là **projection từ Event Log** — 0 store mới, 0 cơ chế mới; spec này chỉ đặt tên các phép chiếu và hành động.
-- Mọi hành động trên bề mặt đi qua **đúng engine API** như mọi client khác — không tồn tại đường ghi riêng của UI.
-- Đọc qua **projection read-API — chính là ◆G4** (roadmap §1b): freeze API này là gate mở Track E.
+The entire surface is **a projection of the Event Log** — no new store, no new
+mechanism. This specification only names the projections and the actions.
 
-## 1. Object model — hai khái niệm, một nguồn
+Every action on the surface goes through **the same engine API** as any other
+client. There is no private write path for the UI, which is what keeps the
+surface from becoming a second way for state to change.
 
-| Khái niệm       | Định nghĩa                                                                                                                                                                                                                                                                                                                                                                                 | Nguồn projection                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| **Work Item**   | Một _công việc_ trong tổ chức = projection của **Task** (process instance kích hoạt = việc gốc; cây con theo Composition). Mang: title, process@version, party/client liên quan, trạng thái (từ Task states), **ai đang giữ** (filler giữ attempt/gate hiện hành), tiến độ (task con xong/tổng), SLA & deadline (Escalation timers), blocked-by (gate chờ / lease / escalation / conflict) | Task + Attempt + Composition + Escalation |
-| **Action Item** | Một _việc-cần-TÔI_: gate chờ duyệt của tôi, task tôi claim được, escalation tới tôi, assistance request, conflict cần arbiter, takeover đang mời (RPA attended)                                                                                                                                                                                                                            | Checkpoint + Escalation + Lease + Session |
+Reading happens through the **projection read-API, which is ◆G4** (roadmap §1b):
+freezing that API is the gate that opens Track E.
 
-Luật quan hệ: **mọi Action Item trỏ về đúng một Work Item ngữ cảnh** — không bao giờ là mẩu việc rời rạc; duyệt là duyệt-trong-bối-cảnh.
+## 1. Object model — two concepts, one source
 
-## 2. Hai view chuẩn — cùng dữ liệu, khác phép chiếu
+| Concept         | Definition                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Projected from                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| **Work Item**   | A _piece of work_ in the organisation: a projection of a **Task** — a launched process instance is the root work item, with a subtree per Composition. It carries title, `process@version`, the party or client involved, state from the Task states, **who is holding it** (the filler holding the current attempt or gate), progress (subtasks done against total), SLA and deadline from the Escalation timers, and blocked-by (a waiting gate, a lease, an escalation, a conflict) | Task, Attempt, Composition, Escalation |
+| **Action Item** | A _thing that needs ME_: a gate awaiting my approval, a task I can claim, an escalation addressed to me, an assistance request, a conflict needing an arbiter, a takeover being offered (attended RPA)                                                                                                                                                                                                                                                                                 | Checkpoint, Escalation, Lease, Session |
 
-| View         | Cho ai           | Nội dung                                                                                                                                                    | Ghi chú                                                  |
-| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **My Work**  | Mọi filler người | Action Items của tôi (sắp theo SLA/priority — _thuật toán sắp là policy template, engine ép trường tồn tại_), việc tôi đang giữ, việc tôi theo dõi (watch)  | Tên cũ: "inbox"                                          |
-| **Org Work** | Theo scope RBAC  | **Cây Work Items** của workspace/tenant: nhóm theo process / client / trạng thái; bản đồ nhiệt SLA; ai-đang-giữ-gì; drill-down tới attempt, diff, live view | "Việc nào cần TÔI quyết" của sếp = Org Work ∩ My Actions |
+The relational rule: **every Action Item points at exactly one Work Item for
+context**. It is never a loose fragment of work — approving is always approving
+in context, because approval without context is the failure mode the whole
+Checkpoint primitive is trying to avoid.
 
-- **Visibility = RBAC capability theo scope** (Tenant & Identity): không capability trong scope → không thấy Work Item của scope, **kể cả số đếm tổng**. Số liệu calibration của người là lớp riêng (`view_calibration`, EE — Tenant §8).
-- **n=1 (D5)**: solo operator thấy My Work ≡ Org Work thu gọn — hai view hội tụ, không ai phải học khái niệm thừa.
+## 2. Two standard views — the same data, different projections
 
-## 3. Hành động trên bề mặt — mỗi hành động = một entry
+| View         | For whom           | Content                                                                                                                                                                      | Note                                                          |
+| ------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **My Work**  | Every human filler | My Action Items, ordered by SLA and priority — _the ordering algorithm is template policy, the engine only forces the field to exist_ — what I am holding, and what I watch  | Formerly "the inbox"                                          |
+| **Org Work** | Scoped by RBAC     | The **tree of Work Items** for a workspace or tenant: grouped by process, client or state; an SLA heat map; who is holding what; drill-down to attempts, diffs and live view | A manager's "what needs my decision" is Org Work ∩ My Actions |
 
-| Hành động                                | Cơ chế nguồn                                                                                                                                                                                                                   |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Claim / release                          | Lease (TTL — Working Data §3)                                                                                                                                                                                                  |
-| **Approve / Reject / Approve-with-edit** | Judgment (Checkpoint §3); edit diff là dữ liệu vàng nuôi calibration                                                                                                                                                           |
-| Request assistance ("tôi không chắc")    | Escalation §2 — **cộng điểm** calibration, bề mặt phải làm nút này _dễ hơn_ liều                                                                                                                                               |
-| Escalate / reassign                      | Escalation / capability                                                                                                                                                                                                        |
-| Takeover (attended)                      | Session effect — diff sau takeover = approve-with-edit (RPA)                                                                                                                                                                   |
-| Comment                                  | Judgment basis `comment`, trọng số 0                                                                                                                                                                                           |
-| Watch / unwatch                          | **Entry `watch_changed`**: nó quyết định **ai được notification nào** ⇒ có hệ quả lao động và phải trả lời được "vì sao X được báo việc này". Taxonomy entry vốn mở (Event Log §1); danh sách watch hiện tại là **projection** |
+**Visibility is an RBAC capability within a scope** (Tenant & Identity): without
+the capability in a scope, a person does not see that scope's Work Items — **not
+even the total count**, because a count is information too. A person's
+calibration figures are a separate layer (`view_calibration`, enterprise —
+Tenant §8).
 
-**Diff view**: mọi artifact có trước/sau + provenance chain trích được; live view của session RPA = **Scene projection sạch** (đã chốt — không phải video thô).
+**At n=1**, a solo operator sees My Work and a collapsed Org Work converge, so
+nobody has to learn a concept they do not need.
 
-## 4. Mobile & notification
+## 3. Actions — each one an entry
 
-- Mobile = **cùng cơ chế, rút gọn view** (đủ: My Actions + diff + approve/reject/assist) — không cơ chế riêng, không app-logic riêng.
-- Notification qua **Channel adapter** (Trigger & Channel): noti là **con trỏ** tới Action Item — không mang nội dung theo classification (secret không bao giờ nằm trong push text).
+| Action                                   | Source mechanism                                                                                                                                                                                                                               |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claim / release                          | Lease with a TTL (Working Data §3)                                                                                                                                                                                                             |
+| **Approve / Reject / Approve-with-edit** | Judgment (Checkpoint §3); the edit diff is the gold-standard data feeding calibration                                                                                                                                                          |
+| Request assistance ("I am not sure")     | Escalation §2 — it **adds** to calibration, so the surface must make this button _easier_ than guessing                                                                                                                                        |
+| Escalate / reassign                      | Escalation and capability                                                                                                                                                                                                                      |
+| Takeover (attended)                      | Session effect — the diff after a takeover is an approve-with-edit                                                                                                                                                                             |
+| Comment                                  | A Judgment with basis `comment`, weight 0                                                                                                                                                                                                      |
+| Watch / unwatch                          | **A `watch_changed` entry**: it decides **who receives which notification**, so it has a labour consequence and must answer "why was X told about this". The entry taxonomy is open (Event Log §1); the current watch list is a **projection** |
 
-## 5. Realtime & độ trễ
+**Diff view**: every artifact has a before and after with an extractable
+provenance chain. The live view of an RPA session is a **clean Scene
+projection**, never raw video.
 
-Bề mặt subscribe cập nhật theo **log position** (đọc projection, eventual); hiển thị có thể trễ, **hành động thì không bao giờ ghi tắt** — luôn qua engine API, engine là trọng tài cuối (stale view + hành động hợp lệ = engine từ chối bằng precondition, bề mặt hiển thị lý do).
+## 4. Mobile and notification
+
+Mobile is **the same mechanism with a reduced view** — enough for My Actions,
+diffs, and approve/reject/assist. No separate mechanism and no separate
+application logic, because a second implementation is a second set of rules to
+keep true.
+
+Notifications go through a **Channel adapter** (Trigger & Channel). A
+notification is **a pointer** to an Action Item and does not carry content
+subject to classification: nothing secret ever appears in push text.
+
+## 5. Realtime and staleness
+
+The surface subscribes to updates by **log position**, reading an eventually
+consistent projection. Display may lag; **an action never takes a shortcut**. It
+always goes through the engine API, and the engine is the final arbiter — a stale
+view plus a plausible action means the engine refuses on a precondition and the
+surface shows why.
 
 ## 6. Non-goals
 
-- Không thiết kế màn hình/pixel (việc của design system + Track E).
-- **Không store UI phía server, không ngoại lệ nào**: không cache nào là nguồn sự thật; thứ có hệ quả lao động (watch) là **entry**, thứ không có (thứ tự cột, độ rộng, theme, bộ lọc đã lưu của riêng mắt người dùng) sống **client-side**. Án văn hai chiều: đẩy _mọi_ preference thành entry là write-amplification lên chính nguồn sự thật cho thứ 0 giá trị lao động (J6); giữ _một_ store server ngoài log là nguồn sự thật thứ hai (E5, Event Log §7). Cắt theo _hệ quả lao động_ là đường duy nhất không phạm vế nào.
-- Không "chat với AI" như bề mặt chính — đó là Channel (bề mặt của _bên được phục vụ_, không phải của _người lao động_).
-- Không project-management kéo-thả tự do: Work Item **sinh từ process** — "tạo việc tay" = trigger `manual` đã có, không có đường tạo việc ngoài cơ chế.
+- No screen or pixel design here — that belongs to the design system and Track E.
+- **No server-side UI store, with no exception.** No cache is a source of truth.
+  What has a labour consequence — watching — is **an entry**; what does not —
+  column order, widths, theme, a saved filter only its owner sees — lives
+  **client-side**. The reasoning cuts both ways: pushing _every_ preference into
+  an entry is write amplification against the source of truth for something with
+  no labour value, while keeping _one_ server store outside the log is a second
+  source of truth. Cutting on _labour consequence_ is the only line that breaks
+  neither rule.
+- No "chat with the AI" as the primary surface — that is a Channel, the surface
+  of _the party being served_ rather than of _the worker_.
+- No free-form drag-and-drop project management. A Work Item **is born from a
+  process**; "create a task by hand" is the existing `manual` trigger, and there
+  is no path that creates work outside the mechanism.
 
-## 7. Nhật ký quyết định
+## 7. Decisions
 
-| Vấn đề                       | Chốt                                                                                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Mô hình bề mặt               | **Work-management-first** (owner insight): 1 object model (Work Item + Action Item), 2 view chuẩn (My Work / Org Work) — inbox = một view, không phải khái niệm nền            |
-| Vì sao không phải cơ chế mới | Mọi trường của Work Item đã nằm trong Task/Attempt/Escalation/Lease — spec chỉ đặt tên phép chiếu                                                                              |
-| Buyer surface                | Org Work là bề mặt của **người mua** (chủ agency — ICP); My Work là bề mặt của người làm                                                                                       |
-| Khác biệt cạnh tranh         | n8n/Dify: executions-list kỹ thuật; Asana/Monday: không AI workforce + Gate — khoảng trống định vị của ecoma                                                                   |
-| ◆G4                          | = freeze projection read-API của spec này                                                                                                                                      |
-| **Preference**               | Cắt theo **hệ quả lao động**: watch = entry (định tuyến noti); hiển thị thuần = client-side. Không tồn tại store UI phía server — E5 kín mà không tốn write-amplification (J6) |
+| Question                        | Settled                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The surface model               | **Work-management first**: one object model (Work Item plus Action Item) and two standard views (My Work, Org Work). The inbox is one view, not the foundational concept |
+| Why this is not a new mechanism | Every field of a Work Item already exists in Task, Attempt, Escalation and Lease. This document names projections                                                        |
+| The buyer's surface             | Org Work is the **buyer's** surface — an agency owner; My Work is the worker's                                                                                           |
+| Competitive difference          | Workflow tools show a technical executions list; project tools have no AI workforce and no Gate. That gap is the position                                                |
+| ◆G4                             | The freeze of this document's projection read-API                                                                                                                        |
+| **Preferences**                 | Cut by **labour consequence**: watching is an entry because it routes notifications; pure display is client-side. No server-side UI store exists                         |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Xóa mọi cache/DB của bề mặt → dựng lại toàn bộ Work/Action Items từ log tương đương?
-2. Một hành động bất kỳ trên bề mặt tạo **đúng entry** như làm qua API trần — không đường ghi riêng nào tồn tại?
-3. Sếp trả lời "việc của khách X đang ở đâu, tắc chỗ nào, ai đang giữ" chỉ bằng Org Work — không mở log thô?
-4. Nhân viên mở My Work: item sắp theo SLA, mỗi item một hành động chính rõ ràng; approve-with-edit sinh Judgment kèm diff?
-5. Người không có capability trong scope: không thấy Work Item của scope đó, kể cả số đếm?
+1. Delete every cache and database behind the surface — can all Work and Action
+   Items be rebuilt equivalently from the log?
+2. Does any action on the surface create **exactly the entry** the bare API would
+   — with no private write path anywhere?
+3. Can a manager answer "where is client X's work, what is it stuck on, who is
+   holding it" from Org Work alone, without opening the raw log?
+4. Opening My Work: are items ordered by SLA, does each have one clear primary
+   action, and does approve-with-edit produce a Judgment carrying the diff?
+5. Someone without the capability in a scope: do they see none of that scope's
+   Work Items, not even a count?

@@ -1,93 +1,179 @@
 ---
-title: "Ecoma Spec: Knowledge"
+title: "Module: Knowledge"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Knowledge
+# Module: Knowledge
 
-## 0. Kích hoạt theo tenant
+## 0. Activation, per tenant
 
-- Tenant policy `knowledge: enabled | disabled` (cascade). `disabled` → static analysis từ chối mọi process có knowledge requirements; **không dùng = zero overhead** (đúng nguyên tắc #4).
+The tenant policy `knowledge: enabled | disabled` resolves through the cascade.
+When disabled, static analysis refuses any process declaring knowledge
+requirements, and **not using it costs nothing** (principle #4).
 
-## 1. Mô hình khái niệm
+## 1. The conceptual model
 
-| Entity           | Là gì                                                                                                                                                                                                      | Danh tính              |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| **Collection**   | Một kho tri thức: chủ đề, Curator Role, classification, model_policy, grants, **scope `tenant`/`workspace`** (vách mềm — Tenant & Identity §3; mặc định = workspace của người tạo). Tenant có N collection | id + version + lineage |
-| **Chunk**        | Đơn vị nội dung trong collection — là **Artifact content-addressed** (immutable, sửa = dẫn xuất)                                                                                                           | content hash           |
-| **Grant**        | Cấp collection → **Role** (không cấp cho user)                                                                                                                                                             | trong Role/Collection  |
-| **Curator Role** | Vị trí chịu trách nhiệm nội dung — người _hoặc_ AI lấp, như mọi Role                                                                                                                                       | Role thường            |
+| Entity           | What it is                                                                                                                                                                                                                               | Identity                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **Collection**   | A body of knowledge: topic, Curator Role, classification, `model_policy`, grants, and a **scope of `tenant` or `workspace`** (the soft wall of Tenant & Identity §3; the default is its creator's workspace). A tenant has N collections | Id, version, lineage      |
+| **Chunk**        | A unit of content inside a collection — a **content-addressed Artifact**, immutable, where editing produces a derivative                                                                                                                 | Content hash              |
+| **Grant**        | Grants a collection to a **Role**, never to a user                                                                                                                                                                                       | On the Role or Collection |
+| **Curator Role** | The position responsible for the content — filled by a person _or_ an AI, like any Role                                                                                                                                                  | An ordinary Role          |
 
-## 2. Truy cập theo Role — need-to-use, không phải ACL theo người
+## 2. Access by Role — need-to-use rather than a per-person ACL
 
-- Contract của task khai `knowledge_requirements` (cùng cửa với context envelope, Handoff §3/§5): task chỉ nhận collection mà **Role của nó có grant**. Marketing filler không lấp Role nào có grant "db-architecture" → không bao giờ nhận được — không cấu hình gì thêm.
-- Đối xứng tuyệt đối: AI nhận retrieval, người nhận bản render — **cùng một nguồn, cùng một scope**; lỗ rò lớn nhất thời AI là context window của model, và nó bị khóa y hệt người.
-- Static analysis: process tham chiếu collection ngoài grant của Role → **lỗi lúc thiết kế**.
-- Quyền _duyệt xem tự do ngoài task_: hợp của grant thuộc các Role user nằm trong pool + read-event theo mức mật — **đã chốt tại Tenant & Identity §4**.
+A task's Contract declares `knowledge_requirements`, through the same door as the
+context envelope (Handoff §3, §5). A task receives only the collections **its
+Role has a grant for**. A marketing filler fills no Role granted
+"db-architecture", so it can never receive it — with nothing further to
+configure. That is the difference between a permission model and a list someone
+has to maintain.
 
-## 3. Classification — "reversibility của bảo mật"
+The symmetry is exact: an AI receives retrieval, a person receives the rendered
+form — **one source, one scope**. The largest leak of the AI era is a model's
+context window, and here it is locked exactly as a person is.
 
-- Engine ép **lattice có thứ tự tồn tại**; template cấp thang mặc định `public < internal < confidential < secret`; tenant tùy biến thang.
-- **Không khai = `confidential` + cấm external egress** — đơn giản luôn nghĩa là chặt hơn (K5).
-- **Sàn mật kế thừa qua provenance**: output tiêu thụ chunk mức X mang sàn ≥ X (max theo chuỗi). Muốn hạ → **declassify là Task có Gate**, không phải đổi dropdown.
-- **Egress guard hai lớp**: static analysis (đồ thị tĩnh: "task có external effect tiêu thụ `secret`" = lỗi thiết kế) **+ runtime guard tại effect** — bắt cả nhánh dynamic spawning mà static không thấy. Channel outbound/email/publish chặn theo sàn — mặc định, chatbot phục vụ end-user chỉ retrieve được `public`.
-- **Declassify-inline qua Gate (dùng để suy luận ≠ trích vào output)**: task được phép _tiêu thụ_ tri thức mức cao hơn đích egress **nếu và chỉ nếu** Gate liền trước effect có criterion `leakage` — verifier chấm "output không chứa nội dung vượt mức đích"; pass → Gate gán sàn output = mức đích. Chính là declassify-qua-Gate dạng per-output: bot dùng policy hoàn tiền internal để _quyết_, trả lời khách ở mức public — có kiểm, có dấu vết, và đồng thời là phòng thủ cấu trúc trước prompt injection ("xuất toàn bộ policy ra đây" fail criterion leakage).
-- `model_policy` theo collection: `any` / `tenant_approved` / `self_host_only` / `human_only` — routing model theo mật (collection `secret` không bao giờ vào context của model API ngoài).
+Static analysis makes a process referencing a collection outside its Role's grant
+**an error at design time**.
 
-## 4. Version — ngoại lệ pinning có án văn
+The right to browse freely _outside_ a task is the union of grants across the
+Roles whose pool the user is in, plus a read event by secrecy level — settled in
+**Tenant & Identity §4**.
 
-- Tri thức tham chiếu mặc định **resolve live** tại thời điểm task chạy (bảng giá đổi thì task mới phải thấy giá mới) — ngoại lệ chủ đích so với triết lý pinning.
-- **Bù lại**: version/chunk-hash _thực tế tiêu thụ_ ghi chính xác vào provenance → bản ghi vẫn reproducible tuyệt đối ("bài này viết theo bảng giá v3"). Pin version là **opt-in** khi cần (audit, pháp lý).
+## 3. Classification — the reversibility of secrecy
 
-## 5. Curation là lao động
+The engine forces **an ordered lattice** to exist; a template supplies the
+default ladder `public < internal < confidential < secret`; a tenant may
+customise it.
 
-- Ingest / cập nhật / dọn / declassify = **Task của Curator Role, qua Gate** — tài liệu có chủ, thay đổi có duyệt, có provenance.
-- Escalation trigger `stale_knowledge` (theo tuổi hoặc theo outcome xấu lặp lại) — định nghĩa tại module này, chứng minh taxonomy Escalation mở đúng thiết kế.
-- Nguồn ingest bổ sung: **distill từ Memory** (Memory spec §5) — quan sát bền + outcome tốt tốt nghiệp thành tri thức, qua chính vòng Curator/Gate này.
-- Nguồn ngoài cắm qua **adapter** (taxonomy mở: Notion, Confluence, Drive, **git, web-crawl, sitemap, RSS**…): ecoma là lớp quản trị phủ lên kho sẵn có, không phải kho thay thế — nguồn sự thật ở lại nguồn; ecoma giữ _snapshot có quản trị_ (hash + provenance trỏ commit/URL@version, Artifact Store §5). Hạ tầng retrieval (embedding, vector, search) cũng là adapter trong agent runtime — như model vision.
-- **Source binding**: Collection khai `sources` (adapter, địa chỉ, sync policy, diff-triage policy). **Ingestion là một process ecoma**, không phải hệ riêng: Trigger (webhook/schedule) → Task extract+chunk (filler versioned) → **Gate** (diff nhỏ auto-pass theo calibration của extractor, diff lớn review — nguyên triage Checkpoint) → materialize chunk có provenance → collection version. Phân phối dưới dạng block ("KB-from-git", "KB-from-website") trên Hub.
-- **Độ tin theo nguồn (K5)**: git = nguồn hạng nhất (commit hash = pin tự nhiên, diff native, signed commit); **web mutable không ký → Gate mặc định chặt hơn** (chống poisoning supply-chain: trang nguồn bị sửa không tự chảy thành câu trả lời). Quyền nội dung nguồn crawl: trách nhiệm của tenant (policy, không phải cơ chế).
+**Undeclared means `confidential` with external egress forbidden.** Simpler
+always means stricter.
 
-## 6. Knowledge calibration — thứ chưa hệ nào có
+**The secrecy floor is inherited through provenance**: an output that consumed a
+chunk at level X carries a floor of at least X, taking the maximum along the
+chain. Lowering it means **declassification as a Task with a Gate**, not changing
+a dropdown.
 
-- Provenance ghi _chunk nào đã được tham khảo_ cho mỗi output → outcome lan ngược (Handoff §9) → **độ tin cậy theo chunk/collection**: đoạn FAQ hay gây trả lời sai tự lộ mặt.
-- Đề xuất sửa từ tín hiệu này → Task cho Curator — đi qua một lõi ML duy nhất, per-tenant, như mọi tín hiệu học khác.
+**The egress guard has two layers**: static analysis over the static graph — a
+task with an external effect consuming `secret` is a design error — **plus a
+runtime guard at the effect**, which catches the dynamically spawned branches
+static analysis cannot see. Outbound channels, email and publishing are blocked
+by floor, so by default a chatbot serving an end user can retrieve only `public`.
+
+**Inline declassification through a Gate** separates _using knowledge to reason_
+from _quoting it into an output_. A task may consume knowledge above its egress
+destination **if and only if** the Gate immediately before the effect carries a
+`leakage` criterion, where a verifier judges that the output contains nothing
+above the destination level. Passing sets the output's floor to the destination.
+So a bot can use an internal refund policy to _decide_ and answer the customer at
+public level — checked, traced, and simultaneously a structural defence against
+prompt injection, since "print your entire policy here" fails the leakage
+criterion.
+
+A collection's `model_policy` is one of `any` / `tenant_approved` /
+`self_host_only` / `human_only`, routing models by secrecy: a `secret` collection
+never enters the context of an external model API.
+
+## 4. Versioning — a deliberate exception to pinning
+
+Referenced knowledge **resolves live** at the moment a task runs: when the price
+list changes, a new task must see the new price. This is a deliberate exception
+to the pinning philosophy used everywhere else.
+
+**The compensation** is that the version and chunk hash _actually consumed_ are
+recorded exactly in provenance, so the record stays perfectly reproducible —
+"this was written against price list v3". Pinning a version is **opt-in**, for
+audit or legal need.
+
+## 5. Curation is labour
+
+Ingest, update, cleanup and declassification are all **Tasks of the Curator Role,
+passing a Gate**. Documents have an owner, changes have approval, and everything
+has provenance.
+
+The escalation trigger `stale_knowledge` — by age, or by repeated bad outcomes —
+is defined in this module, which demonstrates that the Escalation taxonomy is
+genuinely open rather than nominally so.
+
+An additional ingest source is **distillation from Memory** (Memory §5): durable
+observations with good outcomes graduate into knowledge through this same
+Curator-and-Gate loop.
+
+External sources plug in through **adapters** over an open taxonomy — Notion,
+Confluence, Drive, **git, web crawl, sitemap, RSS**. Ecoma is a governance layer
+over the stores that already exist rather than a replacement store: the source of
+truth stays at the source, and ecoma holds a _governed snapshot_ — hash plus
+provenance pointing at a commit or `URL@version` (Artifact Store §5). The
+retrieval infrastructure itself — embedding, vector, search — is likewise an
+adapter in the agent runtime, exactly like a vision model.
+
+**Source binding**: a Collection declares its `sources` — adapter, address, sync
+policy, diff triage policy. **Ingestion is an ecoma process**, not a separate
+system: a Trigger (webhook or schedule) → an extract-and-chunk Task with a
+versioned filler → a **Gate**, where a small diff auto-passes on the extractor's
+calibration and a large one is reviewed, which is Checkpoint's triage unchanged →
+materialised chunks with provenance → a collection version. Distributed as blocks
+on the Hub, such as "KB-from-git" and "KB-from-website".
+
+**Trust varies by source.** Git is first class: a commit hash is a natural pin,
+diffs are native, commits can be signed. **The mutable, unsigned web gets a
+stricter Gate by default**, as a supply-chain poisoning defence — an edited source
+page must not flow unchallenged into an answer. Rights over crawled content are
+the tenant's responsibility, which is policy rather than mechanism.
+
+## 6. Knowledge calibration
+
+Provenance records _which chunks were consulted_ for each output, so outcomes
+propagate backwards (Handoff §9) into **a confidence figure per chunk and per
+collection**. An FAQ passage that keeps producing wrong answers exposes itself.
+
+Proposals to fix it become Tasks for the Curator, travelling through the single
+per-tenant learning core like every other learning signal.
 
 ## 7. Hub
 
-- Collection là một **block type**: block vertical ship kèm tri thức ("SEO best practices"); subscription = update stream tri thức — kinh tế bảo trì như App Profile.
-- **Public instance của Hub chỉ nhận collection `public`**; private registry theo policy tenant. Declassify-qua-Gate đứng chắn trước mọi lần publish.
+A Collection is a **block type**: a vertical block can ship with knowledge, such
+as SEO best practices, and a subscription becomes a knowledge update stream — the
+same maintenance economics as an App Profile.
+
+**The public Hub instance accepts only `public` collections**; private registries
+follow tenant policy. Declassification-through-a-Gate stands in front of every
+publish.
 
 ## 8. Non-goals
 
-- Không phải DMS/wiki standalone; không xây vector DB / embedding model.
-- Không có đường đọc tri thức ngoài grant-theo-Role trong phạm vi spec này.
-- Không auto-declassify, không auto-ingest không Gate.
+- Not a standalone DMS or wiki, and no vector database or embedding model is
+  built here.
+- Within this specification there is no path to read knowledge outside a
+  Role grant.
+- No auto-declassification, and no auto-ingest without a Gate.
 
-## 9. Nhật ký quyết định
+## 9. Decisions
 
-| Vấn đề           | Chốt                                                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Vị trí kiến trúc | Module opt-in của Platform — không phải domain, không phải primitive                                                            |
-| Kích hoạt        | Tenant policy; tắt = static analysis chặn + zero overhead                                                                       |
-| Phân quyền       | Grant theo **Role** (need-to-use); duyệt-xem-tự-do đã chốt tại **Tenant & Identity §4**; collection mang scope tenant/workspace |
-| Phân loại        | Lattice engine ép tồn tại, template 4 mức, tenant tùy biến; không khai = confidential                                           |
-| Chống lộ         | Sàn kế thừa provenance + egress 2 lớp (static + runtime) + model_policy + declassify-qua-Gate                                   |
-| Version          | Live-resolve mặc định, version tiêu thụ ghi vào provenance; pin opt-in                                                          |
-| Hạ tầng          | Adapter — quản trị, không kho chứa                                                                                              |
+| Question               | Settled                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Architectural position | An opt-in module of the Platform — not a domain, not a primitive                                                                          |
+| Activation             | A tenant policy; disabled means static analysis blocks it and it costs nothing                                                            |
+| Permissions            | Granted by **Role** (need-to-use); free browsing is settled in **Tenant & Identity §4**; a collection carries a tenant or workspace scope |
+| Classification         | The engine forces the lattice to exist, the template gives four levels, the tenant customises; undeclared is confidential                 |
+| Against leakage        | An inherited floor through provenance, two egress layers (static and runtime), `model_policy`, and declassification through a Gate        |
+| Versioning             | Live resolution by default with the consumed version recorded in provenance; pinning is opt-in                                            |
+| Infrastructure         | Adapters — governance, not a store                                                                                                        |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Process tham chiếu collection ngoài grant của Role → lỗi ngay ở static analysis?
-2. Leakage-gate cho phép suy-luận-trên-internal + trả-lời-ở-public, và chặn được yêu cầu trích nguyên văn?
-3. Collection `model_policy: self_host_only` không bao giờ vào context model API ngoài?
+1. Does a process referencing a collection outside its Role's grant fail
+   immediately at static analysis?
+2. Does the leakage gate permit reasoning over internal knowledge while answering
+   at public level, and does it block a request to quote it verbatim?
+3. Does a collection with `model_policy: self_host_only` genuinely never enter an
+   external model API's context?
 
-## FMEA (theo F8)
+## Failure modes
 
-| Hỏng                         | Phát hiện                                            | Phục hồi                                  |
-| ---------------------------- | ---------------------------------------------------- | ----------------------------------------- |
-| Vector adapter down          | Retrieval fail                                       | on_fail/escalate; chunks nguyên trong CAS |
-| Index hỏng/lạc hậu           | Rebuild = projection từ chunk + model@version        | Re-index, không migration                 |
-| Adapter trả ngoài scope      | Engine re-check bước 3                               | Chặn cấu trúc — không tin adapter         |
-| Curator độc đầu độc nội dung | Curation qua Gate + knowledge calibration từ outcome | Chunk xấu tự lộ, supersede có lineage     |
+| Failure                             | Detected by                                                      | Recovery                                                                    |
+| ----------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| The vector adapter is down          | Retrieval fails                                                  | `on_fail` or escalation; the chunks are intact in content-addressed storage |
+| A corrupt or stale index            | A rebuild is a projection from chunks plus `model@version`       | Re-index; no migration                                                      |
+| An adapter returns out of scope     | The engine re-checks at install step 3                           | Blocked structurally — the adapter is not trusted                           |
+| A malicious Curator poisons content | Curation passes a Gate, plus knowledge calibration from outcomes | Bad chunks expose themselves; supersede with lineage                        |
