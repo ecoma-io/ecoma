@@ -1,4 +1,12 @@
+import { createRequire } from "node:module";
+
 import { defineConfig } from "vitest/config";
+
+// The floor is a workspace value, not this project's — the repo-root
+// `coverage.config.json` says why it lives there and who else reads it.
+// `createRequire` rather than a static relative import: the file sits outside
+// this Nx project, so a relative import is an edge the project graph cannot see.
+const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.json");
 
 // Node environment — this is a CLI tool, nothing renders. `.mjs` config (not
 // `.ts` like the other projects') because this project, like dev-cli, has no
@@ -12,7 +20,7 @@ export default defineConfig({
       enabled: true,
       include: ["src/**/*.mjs"],
       exclude: ["src/**/*.test.mjs"],
-      thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+      thresholds,
     },
   },
 });
