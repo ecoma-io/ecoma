@@ -75,7 +75,9 @@ apply to every contribution you make, before or after that agreement:
    conduct proceedings against a person infringing your contribution as part of
    the project, so that we can act without you. It is non-exclusive as to
    everything else — you keep the copyright and may use your contribution
-   however you like.
+   however you like. This is a licence, not a joint authorship agreement:
+   nothing in this clause makes Ecoma or any recipient a joint author of your
+   contribution under any law.
 
 2. **You grant us a patent licence.** You grant Ecoma and every recipient of
    the project a perpetual, worldwide, non-exclusive, royalty-free,
@@ -129,6 +131,14 @@ apply to every contribution you make, before or after that agreement:
    of your own is your own work; work carrying someone else's licence terms is
    not, and belongs in clause 5.
 
+   If you later assert, or if a third party successfully asserts, that you did
+   not have the right to grant the licences in clauses 1 and 2 for a
+   contribution already merged, you agree to reimburse us for the reasonable
+   costs of removing, replacing or defending that contribution, including legal
+   fees. This does not apply to material you properly disclosed under clause 5,
+   nor to a third-party claim that you had no reason to know of when you made
+   the contribution.
+
    Note that in some countries — Vietnam among them — an employer owns the
    economic rights in software an employee writes as part of their job,
    **automatically and without any separate agreement**. If you are employed as
@@ -139,12 +149,23 @@ apply to every contribution you make, before or after that agreement:
 5. **Code you did not write yourself is disclosed before review.** If, to the
    best of your knowledge, any part of a contribution is not your own work —
    including code copied from another project, and including material an AI
-   tool produced that reproduces identifiable third-party code — say so **in
-   the pull request description, before review**, naming the source and its
-   licence. We decide whether we can accept it. A comment in the code is not
-   disclosure. Ordinary use of AI assistance to write original code needs no
-   disclosure, and you do not warrant anything about material you have properly
-   disclosed to us.
+   tool produced (whether or not it reproduces identifiable third-party code) —
+   say so **in the pull request description, before review**, naming the source
+   and its licence. Disclose which AI tool you used and the extent of its
+   contribution. We may reject contributions whose provenance we cannot verify
+   or whose copyright status is unclear; code generated entirely from an AI
+   prompt without substantial human authorship may fall into that category.
+
+   If your contribution includes or depends on third-party code under a
+   copyleft licence (including the GNU General Public License, GNU Affero
+   General Public License, GNU Lesser General Public License, Mozilla Public
+   License or Server Side Public License), you must disclose that fact and the
+   applicable licence terms before review. We may reject contributions that
+   would change the licensing of the project as a whole.
+
+   A comment in the code is not disclosure. Ordinary use of AI assistance to
+   write original code needs no separate disclosure beyond this clause. You do
+   not warrant anything about material you have properly disclosed to us.
 
 6. **Your employer, if relevant, is on board.** If your employer has rights to
    work you create, you have permission to contribute on their behalf, or your
@@ -176,6 +197,11 @@ apply to every contribution you make, before or after that agreement:
    not warrant — your contribution is provided as is, without warranty of any
    kind, to the extent the law allows. Nothing here obliges us to use or merge
    it, or to support it, and you are not expected to support it either.
+
+10. **You represent that you are at least 18 years of age.** If you are under
+    18, your parent or legal guardian must read and agree to this agreement on
+    your behalf before you make a contribution, and you confirm that they have
+    done so.
 
 ## The small print
 
@@ -229,7 +255,9 @@ for this and every future contribution I make to this project.
 ```
 
 Sign that commit off (`git commit -s`). A maintainer confirms the record before
-merging. **Nothing in this agreement takes effect, and no licence is granted
+merging. "Confirms" means a maintainer explicitly approves the record by
+merging it, or by commenting on the pull request stating that the record is
+complete and accepted. A silent merge without review is not confirmation. **Nothing in this agreement takes effect, and no licence is granted
 under it, until that record exists.** If you send us material without agreeing,
 we will ask you to agree before we use it, and will discard it if you decline.
 
@@ -264,11 +292,17 @@ Commits made by automated tooling we run — dependency-update bots and the like
 
 ## Not yet settled
 
-One thing a lawyer still has to finish, and we would rather say so than let the
-silence read as a choice: there is **no separate corporate agreement** for
-employer-owned contributions yet, so clause 6 currently routes you to a
-conversation rather than a document. If that matters to you, ask before you
-contribute.
+These items are known gaps or decisions that need counsel before they are final:
+
+- The **corporate agreement** ([`CORPORATE-CLA.md`](./CORPORATE-CLA.md)) exists
+  as a **draft, not in force**. Clause 6 currently routes you to a conversation
+  rather than a document for employer-owned contributions. The draft awaits
+  external counsel review before it is offered to anyone.
+- The **Enterprise License** terms for the `enterprise/` directories have not
+  been published.
+- Several questions about the interaction of these documents with Vietnamese
+  law are listed in `CORPORATE-CLA.md` under "What is not settled" and are
+  awaiting legal confirmation.
 
 ## Questions
 
