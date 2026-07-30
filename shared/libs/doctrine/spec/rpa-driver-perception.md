@@ -1,79 +1,105 @@
 ---
-title: "Ecoma RPA Spec: Driver & Perception"
+title: "RPA: Driver & Perception"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma RPA Spec: Driver & Perception
+# RPA: Driver & Perception
 
-## 1. Driver contract
+## 1. The driver contract
 
-Driver = adapter tới một loại môi trường. Interface Apache 2.0 — bên thứ ba viết driver tự do.
+A driver is an adapter to one kind of environment. The interface is Apache 2.0,
+so a third party can write a driver without asking for permission — the licence
+is the mechanism, not a stated intention to be open.
 
-| Khai báo           | Nội dung                                                                                                                |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `identity`         | (type, id, version) + **lineage** như mọi identity — driver cũng có calibration (độ tin cậy resolve, tỉ lệ action fail) |
-| `environment`      | browser / desktop / taxonomy mở (mobile, terminal, VM…)                                                                 |
-| `actions`          | Tập Action Definition hỗ trợ (có thể đăng ký action mới vào vocabulary)                                                 |
-| `perception_modes` | structural / visual / cả hai                                                                                            |
-| `capture`          | Có bắt được hành động người không (điều kiện của takeover & record)                                                     |
+| Declares           | Content                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identity`         | (type, id, version) plus **lineage**, like every identity here — a driver carries calibration too: resolution confidence, action failure rate |
+| `environment`      | browser / desktop / an open taxonomy (mobile, terminal, VM, …)                                                                                |
+| `actions`          | The Action Definitions it supports; it may register new ones into the vocabulary                                                              |
+| `perception_modes` | structural / visual / both                                                                                                                    |
+| `capture`          | Whether it can capture human actions — the precondition for takeover and record                                                               |
 
-Driver **không** biết script/agent/session policy — chỉ nhận action, trả kết quả + perception.
+A driver knows **nothing** about scripts, agents or session policy. It receives
+an action and returns a result plus perception. That narrowness is what lets a
+third-party driver be trusted with an interface rather than with the system.
 
-## 2. Scene — biểu diễn hợp nhất của môi trường
+## 2. Scene — one representation of the environment
 
-Perception trả về **Scene**: một snapshot có cấu trúc, content-addressed (hash = evidence trong action log):
+Perception returns a **Scene**: a structured, content-addressed snapshot whose
+hash is the evidence recorded in the action log.
 
-| Lớp        | Nguồn                                                                       | Dùng cho                                         |
-| ---------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
-| Structural | DOM / accessibility tree / UI automation tree                               | Script resolve nhanh-rẻ; masking theo field type |
-| Visual     | Screenshot (đã masking vùng nhạy cảm **trước khi** rời tầng perception)     | Agent vision; evidence cho người xem audit       |
-| Semantic   | Chú thích của vision model trên hai lớp trên (nhãn phần tử, vùng chức năng) | Resolve tầng cuối; sinh intent                   |
+| Layer      | Source                                                                                      | Used for                                             |
+| ---------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Structural | DOM / accessibility tree / UI automation tree                                               | Fast, cheap script resolution; masking by field type |
+| Visual     | Screenshot, with sensitive regions masked **before** it leaves perception                   | Agent vision; evidence for whoever reads the audit   |
+| Semantic   | A vision model's annotations over the two layers above — element labels, functional regions | Last-tier resolution; generating intent              |
 
-- Masking xảy ra **tại tầng perception** (Sandbox spec §3) — mọi consumer phía sau (agent, log, evidence, người xem replay) đều chỉ thấy scene sạch. Một chốt chặn duy nhất.
-- Scene diff (trước/sau action) là đơn vị bằng chứng và là tín hiệu drift.
+Masking happens **at the perception layer** (Sandbox & Credential §3), so every
+consumer behind it — agent, log, evidence, a person watching a replay — sees
+only a clean scene. One chokepoint, because a secret that reaches two consumers
+has to be caught twice.
+
+A scene diff, before against after an action, is both the unit of evidence and
+the drift signal.
 
 ## 3. Environment fingerprint
 
-Hash cấu trúc của scene (bố cục, phiên bản app nhận diện được) — dùng cho: resume/reconcile (Session §3), phát hiện app đổi version (UI drift smell, Self-healing §5), và khóa App Profile version tương thích.
+A structural hash of the scene — layout, and the application version where it
+can be identified. It serves resume and reconcile (Session §2), detection that
+an application changed version (the UI drift smell, Self-healing §5), and
+pinning an App Profile to a compatible version.
 
-## 4. Semantic locator — cơ chế trung tâm
+## 4. The semantic locator — the central mechanism
 
-Target của action không phải một selector — là **một khối 4 tầng, tự xuống thang**:
+An action's target is not a selector. It is **a four-tier block that walks itself
+down**:
 
-| Tầng                 | Nội dung                                                          | Chi phí | Độ bền trước UI đổi |
-| -------------------- | ----------------------------------------------------------------- | ------- | ------------------- |
-| 1. Structural anchor | Selector/a11y path (nhiều anchor dự phòng)                        | ~0      | Thấp                |
-| 2. Relational        | Vị trí tương đối phần tử neo ("nút bên phải trường Email")        | Thấp    | Trung               |
-| 3. Visual anchor     | Mẫu hình ảnh / vùng                                               | Trung   | Trung-cao           |
-| 4. Semantic intent   | NL: "nút gửi form liên hệ" — resolve bằng vision model trên scene | Cao     | **Cao nhất**        |
+| Tier                 | Content                                                                                       | Cost   | Survives a UI change |
+| -------------------- | --------------------------------------------------------------------------------------------- | ------ | -------------------- |
+| 1. Structural anchor | Selector or a11y path, with fallback anchors                                                  | ~0     | Poorly               |
+| 2. Relational        | Position relative to an anchoring element ("the button right of Email")                       | Low    | Moderately           |
+| 3. Visual anchor     | An image pattern or region                                                                    | Medium | Moderately to well   |
+| 4. Semantic intent   | Natural language: "the contact form's send button", resolved by a vision model over the scene | High   | **Best**             |
 
-**Resolution cascade**: thử 1 → 2 → 3 → 4. Mỗi lần resolve ghi lại **tầng nào thắng**:
+**The resolution cascade** tries 1 → 2 → 3 → 4, and every resolution records
+**which tier won**:
 
-- Tầng 1 thắng đều đặn = script khỏe.
-- Phải rơi xuống tầng 3–4 = **tín hiệu drift** → kích self-healing đề xuất anchor mới (vá tầng 1 từ kết quả tầng 4) — script tự trẻ hóa.
-- Tầng 4 cũng fail = không tìm được đích → escalate.
+- Tier 1 winning consistently means a healthy script.
+- Falling to tier 3 or 4 is a **drift signal**, and triggers self-healing to
+  propose a new anchor — patching tier 1 from what tier 4 found. The script
+  rejuvenates itself.
+- Tier 4 failing too means the target cannot be found, and the session
+  escalates.
 
-Đây là lý do script và agent là **hai đầu một trục chứ không phải hai hệ**: script = locator nghiêng tầng 1, agent = locator nghiêng tầng 4; self-healing chỉ là dòng chảy tri thức từ tầng 4 xuống tầng 1.
+This is why a script and an agent are **two ends of one axis rather than two
+systems**: a script is a locator leaning on tier 1, an agent is a locator
+leaning on tier 4, and self-healing is nothing more than knowledge flowing from
+tier 4 down to tier 1. Build them as two systems and that flow has nowhere to
+happen.
 
 ## 5. Non-goals
 
-- Không xây vision model — adapter, taxonomy mở, model identity có version (calibration như verifier bên Platform).
-- Perception không quyết định hành động — chỉ mô tả; quyết định thuộc executor.
-- Driver không giữ state phiên — state thuộc Session.
+- No vision model is built here. This is an adapter over an open taxonomy, with
+  a versioned model identity carrying calibration, exactly as a verifier does on
+  the platform side.
+- Perception never decides an action. It describes; the executor decides.
+- A driver holds no session state. State belongs to the Session.
 
-## 6. Nhật ký quyết định
+## 6. Decisions
 
-| Vấn đề               | Chốt                                                            |
-| -------------------- | --------------------------------------------------------------- |
-| Biểu diễn môi trường | Scene 3 lớp hợp nhất, content-addressed, masking tại nguồn      |
-| Target               | Semantic locator 4 tầng, cascade tự xuống thang, ghi tầng thắng |
-| Script vs agent      | Một trục trên cùng locator — không phải hai hệ                  |
-| Drift                | Đo bằng phân phối tầng-thắng + environment fingerprint          |
-| Driver ngoài         | Interface Apache 2.0; driver có identity + calibration          |
+| Question                     | Settled                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| Representing the environment | One unified three-layer Scene, content-addressed, masked at the source         |
+| Target                       | A four-tier semantic locator, cascading down, recording the winning tier       |
+| Script vs agent              | One axis over the same locator — not two systems                               |
+| Drift                        | Measured by the distribution of winning tiers plus the environment fingerprint |
+| Third-party drivers          | Apache 2.0 interface; a driver has an identity and calibration                 |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Có consumer nào (agent, log, evidence, người xem replay, live-view) nhận Scene **trước** bước masking?
-2. Locator rơi xuống tầng 3–4 lặp lại — hệ có tự sinh tín hiệu drift, hay chỉ chạy chậm hơn trong im lặng?
-3. Tầng 4 cũng không resolve được — kết cục là escalate, không bao giờ là đoán bừa một phần tử?
+1. Is there any consumer — agent, log, evidence, replay viewer, live view — that
+   receives a Scene **before** the masking step?
+2. When a locator falls repeatedly to tier 3 or 4, does the system raise a drift
+   signal, or does it merely run slower in silence?
+3. When tier 4 cannot resolve either, is the outcome an escalation — never a
+   guess at some element?

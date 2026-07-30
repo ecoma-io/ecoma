@@ -1,81 +1,113 @@
 ---
-title: "Ecoma RPA Spec: Action"
+title: "RPA: Action"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma RPA Spec: Action
+# RPA: Action
 
-## 1. Định nghĩa
+An Action is **one unit of interaction with an environment, carrying an
+identity, an intent and its evidence**. Those three are what let a recorded run
+be audited by someone who was not watching it, and they are why an Action is an
+entity rather than a line in a script.
 
-Action là **một đơn vị tương tác môi trường có danh tính, có ý định, có bằng chứng**. Hai mặt của nó:
+## 1. Two faces
 
-|           | Action Definition                              | Action Instance                       |
-| --------- | ---------------------------------------------- | ------------------------------------- |
-| Là gì     | Loại hành động trong vocabulary (click, type…) | Một lần thực thi cụ thể trong session |
-| Danh tính | id + version (entity hạng nhất, thư viện)      | id + vị trí trong action log          |
+|          | Action Definition                                        | Action Instance                         |
+| -------- | -------------------------------------------------------- | --------------------------------------- |
+| What     | A kind of action in the vocabulary (click, type, …)      | One concrete execution inside a session |
+| Identity | Id and version — a first-class entity, held in a library | Id and position in the action log       |
 
-## 2. Vocabulary lõi (taxonomy mở)
+## 2. The core vocabulary, open by construction
 
-| Nhóm       | Action                                                            | Lớp mặc định          |
-| ---------- | ----------------------------------------------------------------- | --------------------- |
-| Quan sát   | `observe`, `extract`, `wait_for`, `assert`                        | `read` — luôn an toàn |
-| Điều hướng | `navigate`, `scroll`, `switch_context` (tab/window/frame)         | `read`*               |
-| Thao tác   | `click`, `type`, `select`, `press_keys`, `drag`, `hover`          | `reversible`*         |
-| Dữ liệu    | `upload`, `download`, `clipboard`                                 | khai báo              |
-| Tổng hợp   | **Macro** — chuỗi action đặt tên, có id + version + lineage riêng | = max của các con     |
+| Group      | Actions                                                           | Default class            |
+| ---------- | ----------------------------------------------------------------- | ------------------------ |
+| Observe    | `observe`, `extract`, `wait_for`, `assert`                        | `read` — always safe     |
+| Navigate   | `navigate`, `scroll`, `switch_context` (tab/window/frame)         | `read`\*                 |
+| Manipulate | `click`, `type`, `select`, `press_keys`, `drag`, `hover`          | `reversible`\*           |
+| Data       | `upload`, `download`, `clipboard`                                 | declared                 |
+| Composite  | **Macro** — a named sequence with its own id, version and lineage | the maximum of its parts |
 
-\* Mặc định của vocabulary; **App Profile override theo ngữ cảnh** (click nút "Send" là irreversible dù `click` mặc định reversible — xem §4).
+\* The vocabulary's default only; an **App Profile overrides it per context**.
+Clicking a "Send" button is irreversible however reversible `click` is in
+general — see §4.
 
-- Driver mới có thể đăng ký action mới vào taxonomy (vocabulary versioned, Apache 2.0).
-- Macro là cơ chế composition duy nhất — không có "sub-script" riêng.
+A new driver may register new actions into the taxonomy, which is versioned and
+licensed Apache 2.0 so a third party can extend it without asking. **Macro is
+the only composition mechanism**: there is no separate notion of a sub-script,
+because a second way to group actions would be a second thing lineage has to
+track.
 
-## 3. Cấu trúc Action Instance
+## 3. What an Action Instance carries
 
-| Trường          | Nội dung                                                                                                                   | Bắt buộc                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `definition`    | Tham chiếu Action Definition@version                                                                                       | ✅                      |
-| `intent`        | Ý định ngữ nghĩa bằng NL ("bấm nút gửi form liên hệ") — nhiên liệu của self-healing và của người đọc audit                 | ✅                      |
-| `target`        | **Semantic locator** (Driver & Perception spec §4)                                                                         | ✅ nếu có đích          |
-| `params`        | Tham số (text gõ, phím, tọa độ kéo…) — secret chỉ được là **credential handle**, không bao giờ là giá trị (Sandbox spec)   | ⬜                      |
-| `reversibility` | `read` / `reversible` / `compensable` (+ compensation ref) / `irreversible`. **Không khai = irreversible** (nguyên tắc #3) | ✅ resolve theo cascade |
-| `preconditions` | Assert trạng thái scene trước khi chạy — nền của resume/reconcile                                                          | ⬜                      |
-| `evidence`      | Hash snapshot scene trước/sau (structural + visual, đã masking) — engine tự ghi                                            | ✅ tự động              |
-| `actor`         | Identity người/agent/script đã phát action — **cùng schema cho cả ba** (nguyên tắc #1)                                     | ✅ tự động              |
+| Field           | Content                                                                                                                                   | Required                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `definition`    | Reference to an Action Definition@version                                                                                                 | ✅                         |
+| `intent`        | The semantic intent in natural language ("click the contact form's send button") — fuel for self-healing, and for whoever reads the audit | ✅                         |
+| `target`        | A **semantic locator** (Driver & Perception §4)                                                                                           | ✅ where there is a target |
+| `params`        | Parameters — text typed, keys, drag coordinates. A secret may only ever be a **credential handle**, never a value (Sandbox & Credential)  | ⬜                         |
+| `reversibility` | `read` / `reversible` / `compensable` (+ a compensation reference) / `irreversible`. **Undeclared means irreversible** (RPA principle #3) | ✅ resolved by the cascade |
+| `preconditions` | Assertions about the scene before the action runs — the ground resume and reconcile stand on                                              | ⬜                         |
+| `evidence`      | Hashes of the scene snapshot before and after, structural and visual, already masked — written by the engine                              | ✅ automatic               |
+| `actor`         | The identity of the person, agent or script that emitted it — **one schema for all three** (RPA principle #1)                             | ✅ automatic               |
 
-## 4. Nguồn phân lớp reversibility (thứ tự resolve)
+## 4. Where a reversibility class comes from
 
 ```
-khai báo tại instance → Macro → App Profile → mặc định vocabulary → irreversible
+declared at the instance → Macro → App Profile → vocabulary default → irreversible
 ```
 
-- **App Profile** (entity hạng nhất, id + version, thư viện tenant + phân phối qua Ecoma Hub, block type `app-profile`, catalog cộng đồng Apache/CC0): tri thức theo ứng dụng — map phần tử → lớp reversibility, locator ổn định, luồng đã biết. Tương đương "template" của Platform; per-tenant learning bồi vào profile của tenant, catalog cộng đồng lo cold-start cho app phổ biến (Salesforce, SAP GUI…).
-- Suy luận tự động (vision model đoán nút "Delete" là irreversible) chỉ được **đề xuất** vào profile qua vòng duyệt — không tự quyết ở runtime.
+An **App Profile** is a first-class entity with an id and a version, held in a
+tenant's library and distributed through the Hub as a block of type
+`app-profile`, with a community catalog under Apache/CC0. It carries knowledge
+about one application: which element maps to which reversibility class, which
+locators are stable, which flows are known. It is the counterpart of a template
+on the platform side. Per-tenant learning feeds that tenant's own profile; the
+community catalog exists so a common application — Salesforce, SAP GUI — does
+not start cold for everyone independently.
 
-## 5. Action log
+Automatic inference may only **propose** into a profile, through a review round.
+A vision model guessing that a "Delete" button is irreversible is a good guess
+and still a guess, and the cost of it being wrong is paid once, irreversibly, by
+whoever it was wrong about. Nothing decides a reversibility class at runtime.
 
-- **Append-only, content-addressed**: mỗi entry = instance + evidence hash + timestamp + kết quả. Log chính là provenance; khi tích hợp, log chiếu thẳng thành **Session effect stream** (Handoff §8) — không có bước chuyển đổi.
-- **Commit point** = entry irreversible đầu tiên có kết quả thành công.
-- Evidence đủ để replay-as-audit (Session spec §6): xem lại từng bước như video có cấu trúc.
-- Secret đã bị masking từ tầng perception — log sạch từ gốc, không phải redact hậu kỳ (Sandbox spec §3).
+## 5. The action log
+
+The log is **append-only and content-addressed**: each entry is an instance plus
+its evidence hash, timestamp and outcome. The log _is_ the provenance. Under
+integration it projects directly into the **Session effect stream** (Handoff
+§8), with no conversion step — one format, so there is no second place for the
+two to disagree.
+
+The **commit point** is the first irreversible entry that completed
+successfully. Evidence is sufficient to replay the run as an audit (Session §6):
+every step reviewable, like a video with structure. Secrets were masked at the
+perception layer, so the log is clean at the source rather than redacted
+afterwards (Sandbox & Credential §3) — a redaction pass is a second chance to
+miss one.
 
 ## 6. Non-goals
 
-- Action không biết script hay agent phát ra nó — chỉ biết actor identity.
-- Action không tự quyết reversibility bằng suy luận runtime — chỉ resolve theo chuỗi khai báo §4.
+- An Action does not know whether a script or an agent emitted it. It knows the
+  actor's identity, which is the part an audit needs.
+- An Action does not decide its own reversibility by runtime inference. It
+  resolves the declaration chain in §4 and nothing else.
 
-## 7. Nhật ký quyết định
+## 7. Decisions
 
-| Vấn đề                   | Chốt                                                                        |
-| ------------------------ | --------------------------------------------------------------------------- |
-| Đơn vị composition       | Chỉ Macro (id + lineage), không có sub-script                               |
-| Không khai reversibility | Bảo thủ: coi là irreversible                                                |
-| Ngữ cảnh hóa lớp         | App Profile override vocabulary; suy luận AI chỉ được đề xuất vào profile   |
-| Log ↔ Platform           | Action log chiếu 1:1 thành Session effect — một định dạng, không chuyển đổi |
-| Bằng chứng               | Evidence trước/sau bắt buộc, tự động, đã masking                            |
+| Question                  | Settled                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| Unit of composition       | Macro only, with id and lineage; no sub-script                                        |
+| Reversibility undeclared  | Read conservatively: treat it as irreversible                                         |
+| Contextualising the class | An App Profile overrides the vocabulary; AI inference may only propose into a profile |
+| Log ↔ platform            | The action log projects 1:1 into a Session effect — one format, no conversion         |
+| Evidence                  | Before and after, mandatory, automatic, already masked                                |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Action không khai reversibility ở mọi mắt xích của chuỗi §4 — có bị đối xử là `irreversible` không, ở cả standalone lẫn tích hợp?
-2. Vision model đoán một nút là irreversible — có đường nào giá trị đó vào runtime mà không qua vòng duyệt App Profile?
-3. Chỉ vào một entry bất kỳ trong action log: đọc được _ai/cái gì, ý định gì, màn hình trước-sau ra sao_, và không đọc được secret nào?
+1. An action that declares no reversibility at any link of §4's chain — is it
+   treated as `irreversible`, both standalone and integrated?
+2. A vision model guesses a button is irreversible. Is there any path by which
+   that value reaches runtime without passing an App Profile review round?
+3. Point at any entry in the action log: can a reader see _who or what acted,
+   with what intent, and what the screen looked like before and after_ — and
+   read no secret at all?
