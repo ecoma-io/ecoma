@@ -20,6 +20,12 @@ jobs:
     # Each model runs a multi-turn investigation (up to 4 completions on a
     # slow free tier), so the ceiling budgets for several sequential calls;
     # cancel-in-progress still supersedes stale runs on rapid pushes.
+    #
+    # This is also the single source of review-pr's own wall-clock budget: the
+    # command reads this key out of this file and stops starting new review
+    # passes in time to still post its comment, naming whatever it did not
+    # reach. Keep exactly one `timeout-minutes` in this workflow — a second one
+    # makes that read fail loud rather than budget against the wrong number.
     timeout-minutes: 20
     steps:
       # Check out the base ref, not the default PR merge commit: repo-care
@@ -39,7 +45,7 @@ jobs:
       # Advisory only — this job's outcome must never gate a merge, so it is
       # not part of the required CI workflow. repo-care runs on bare node
       # (dependency-free by design): no pnpm install.
-      - name: Doctrine-review the pull request
+      - name: Practice-review the pull request
         run: node shared/tools/repo-care/src/main.mjs review-pr --pr "$PR"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
