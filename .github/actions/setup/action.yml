@@ -1,9 +1,10 @@
 name: Setup workspace
 description: >-
-  pnpm, Node 22, and a frozen-lockfile install — the prelude every CI job needs
-  after checkout. Factored out so the jobs cannot drift apart on it (Rule 14).
-  Checkout itself stays in the caller: a local action cannot be resolved until
-  the repository is on disk, so a job's first step must be actions/checkout.
+  pnpm, Node (pinned via .node-version), and a frozen-lockfile install — the
+  prelude every CI job needs after checkout. Factored out so the jobs cannot
+  drift apart on it (Rule 14). Checkout itself stays in the caller: a local
+  action cannot be resolved until the repository is on disk, so a job's first
+  step must be actions/checkout.
 
 runs:
   using: composite
@@ -12,7 +13,11 @@ runs:
 
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
-        node-version: 22
+        # .node-version at the repo root is the single source of this pin
+        # (Rule 14) — setup.mjs's `engines.node` floor is a deliberately
+        # different, looser fact (a dev machine on a newer Node must still
+        # pass `pnpm run setup -- --check`), not a second copy of this one.
+        node-version-file: .node-version
         cache: pnpm
 
     - run: pnpm install --frozen-lockfile
