@@ -33,7 +33,8 @@ say so in the pull request rather than letting the green run imply otherwise.
   `check-subsystem-readmes`,
   `check-subproject-readmes`, `check-primitive-artifacts`,
   `check-project-conventions`, `check-roadmap-ids`, `check-commit-scope`,
-  plus workflow helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
+  plus the `conformance` executor for roadmap rule #6, and workflow
+  helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
   `run-node-tests`, `doctrine-sync`); mechanics
   in its own `CLAUDE.md`. Four repo-root files are single sources shared across tools, so
   no one tool's guide owns them alone: `journey-markers.config.json` (the
