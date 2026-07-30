@@ -11,8 +11,11 @@
  * build and that nobody reads a diff carefully enough to notice.
  */
 import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { discoverProjectRoots, groupFiles, readProjectNames } from "./group-files.mjs";
 
@@ -43,5 +46,28 @@ describe("group labels against the workspace's own scope vocabulary", () => {
 
     expect(groups).toHaveLength(roots.length);
     for (const group of groups) expect(scopes).toContain(group.name);
+  });
+});
+
+describe("project discovery against a hostile ambient git environment", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * `GIT_DIR` outranks the `-C` this module pins, so an ambient one decides which
+   * repository is read no matter which directory is named. The failure is silent
+   * by construction: `discoverProjectRoots` swallows a git error and returns no
+   * projects, and every group then degrades from an Nx project to its subsystem —
+   * a review comment grouped along a boundary the commit gate does not recognise,
+   * which fails no build and which nobody reads a diff carefully enough to notice.
+   *
+   * Pointed at a directory that is no repository at all, so the assertion can only
+   * pass by the variable having been ignored. Nothing is written anywhere.
+   */
+  it("still finds the workspace's projects when the environment names another repository", () => {
+    vi.stubEnv("GIT_DIR", join(mkdtempSync(join(tmpdir(), "repo-care-absent-")), ".git"));
+
+    expect(discoverProjectRoots(REPO_ROOT)).toContain("shared/tools/repo-care");
   });
 });
