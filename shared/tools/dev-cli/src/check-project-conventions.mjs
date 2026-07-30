@@ -36,7 +36,13 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { listTrackedFiles } from "./tracked-files.mjs";
-import { CARVE_OUT_DIRS, MANIFEST_LICENSE, licenseForPath } from "./license-scope.mjs";
+import {
+  CARVE_OUT_DIRS,
+  CARVE_OUT_LICENSE_MARKER,
+  MANIFEST_LICENSE,
+  ROOT_LICENSE_FILE,
+  licenseForPath,
+} from "./license-scope.mjs";
 
 import { PYTEST_EMPTY_SUITE_MASK } from "./scaffold-lib.mjs";
 
@@ -118,20 +124,46 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
-  const carveOutRoots = new Set();
-  for (const path of trackedFiles) {
-    const segments = path.split("/");
-    // `length > 2` so the carve-out's own LICENSE is not what proves it inhabited.
-    if (segments.length > 2 && CARVE_OUT_DIRS[segments[1]]) {
-      carveOutRoots.add(`${segments[0]}/${segments[1]}`);
+  // Workspace-scope, so it asks first whether it is looking at the workspace —
+  // the same shape the alias rules below use with `tsconfig.base.json`. The
+  // root manifest is the marker: fixtures and subtrees that exercise the
+  // subproject rules carry no root `package.json` and are not workspaces, and
+  // a gate that fired on them would be judging a tree it was never given.
+  if (tracked.has("package.json")) {
+    if (!tracked.has(ROOT_LICENSE_FILE) || !(readFile(ROOT_LICENSE_FILE) ?? "").trim()) {
+      violations.push(
+        `${ROOT_LICENSE_FILE}: missing or empty — every manifest in this workspace declares terms ` +
+          `this file states, and every carve-out below is written as an exception to it`,
+      );
     }
   }
-  for (const root of [...carveOutRoots].sort()) {
-    if (tracked.has(`${root}/LICENSE`)) continue;
-    violations.push(
-      `${root}/LICENSE: missing — the root LICENSE removes this directory from the SUL grant, ` +
-        `so until its own terms ship beside it these files carry no licence at all`,
-    );
+
+  const carveOutRoots = new Map();
+  for (const path of trackedFiles) {
+    const segments = path.split("/");
+    // `length > 2` keeps a two-segment path — a subsystem's own top-level file,
+    // or a submodule gitlink — from registering a carve-out that has no files.
+    if (segments.length > 2 && CARVE_OUT_DIRS[segments[1]]) {
+      carveOutRoots.set(`${segments[0]}/${segments[1]}`, segments[1]);
+    }
+  }
+  for (const [root, dirName] of [...carveOutRoots].sort()) {
+    const licensePath = `${root}/${ROOT_LICENSE_FILE}`;
+    if (!tracked.has(licensePath)) {
+      violations.push(
+        `${licensePath}: missing — the root LICENSE removes this directory from the SUL grant, ` +
+          `so until its own terms ship beside it these files carry no licence at all`,
+      );
+      continue;
+    }
+    const marker = CARVE_OUT_LICENSE_MARKER[dirName];
+    if (!(readFile(licensePath) ?? "").includes(marker)) {
+      violations.push(
+        `${licensePath}: does not name the '${marker}' the root LICENSE says ships here — ` +
+          `an empty file, or the SUL text copied into a carve-out, satisfies mere existence ` +
+          `while leaving these files under terms nobody granted`,
+      );
+    }
   }
 
   for (const path of trackedFiles) {
@@ -234,10 +266,24 @@ export function findConventionViolations(trackedFiles, readFile) {
   return violations;
 }
 
-/** CLI entry — scans the git index. Returns a process exit code. */
+/**
+ * CLI entry — scans the git index. Returns a process exit code.
+ *
+ * The reader returns null for a file the index lists but the working tree no
+ * longer has, rather than throwing: deleting a tracked file is exactly the
+ * state several rules here exist to catch, and a stack trace reports it as a
+ * tool crash instead of as the violation it is.
+ */
 export function checkProjectConventions() {
   const trackedFiles = listTrackedFiles().join("\n").split("\n").filter(Boolean);
-  const violations = findConventionViolations(trackedFiles, (p) => readFileSync(p, "utf8"));
+  const readFile = (path) => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const violations = findConventionViolations(trackedFiles, readFile);
   for (const v of violations) console.error(v);
   return violations.length > 0 ? 1 : 0;
 }

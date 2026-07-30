@@ -23,13 +23,40 @@
 export const CARVE_OUT_DIRS = { packages: "apache", enterprise: "ee" };
 
 /**
- * What a `package.json` must declare for each licence slug. Only Apache has an
- * SPDX identifier; the Sustainable Use License has none, so npm's documented
- * escape hatch (`SEE LICENSE IN <file>`) is the honest value rather than an
- * invented identifier that tooling would silently mis-resolve.
+ * A phrase each carve-out's own LICENSE must contain, so the gate judges terms
+ * rather than a filename. Checking only that the path exists let a zero-byte
+ * file satisfy it — and, worse, let a copy of the SUL text sit in a `packages`
+ * directory whose whole purpose is to NOT be under those terms. The phrase is
+ * the cheapest evidence that the file is the licence the root LICENSE promised
+ * would be there; it does not verify the full text, and no string match could.
+ */
+export const CARVE_OUT_LICENSE_MARKER = {
+  packages: "Apache License",
+  enterprise: "Enterprise License",
+};
+
+/** The root licence, named once so the gate and its message cannot disagree. */
+export const ROOT_LICENSE_FILE = "LICENSE";
+
+/**
+ * What a `package.json` must declare for each licence slug.
+ *
+ * Every value is a valid SPDX expression. Only Apache has a registered
+ * identifier; SPDX's `LicenseRef-<idstring>` form exists for the rest, and its
+ * grammar (`1*(ALPHA / DIGIT / "-" / "." )`) admits both names below.
+ *
+ * npm's other documented escape hatch, `SEE LICENSE IN <file>`, is deliberately
+ * NOT used, and the reason is a defect it caused here. npm resolves that string
+ * against the file at the *package* root — so in `shared/libs/doctrine`, whose
+ * package root holds the CC BY-SA licence covering its documents, the manifest
+ * declared the TypeScript modules beside them to be under a ShareAlike copyleft.
+ * Four other packages carried the same string with no such file at all, leaving
+ * a dangling pointer. A `LicenseRef-` names the terms directly, so it cannot
+ * resolve to the wrong file or to no file, and SBOM tooling parses it instead of
+ * escalating it to a human as "unknown".
  */
 export const MANIFEST_LICENSE = {
-  sul: "SEE LICENSE IN LICENSE",
+  sul: "LicenseRef-Ecoma-SustainableUse-1.0",
   apache: "Apache-2.0",
   ee: "LicenseRef-Ecoma-Enterprise",
   proprietary: "UNLICENSED",

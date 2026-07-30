@@ -18,11 +18,13 @@ const project = (tags) =>
     tags: tags.some((t) => t.startsWith("license:")) ? tags : [...tags, "license:sul"],
   });
 const pkg = (fields) =>
-  JSON.stringify({ private: true, license: "SEE LICENSE IN LICENSE", ...fields });
+  JSON.stringify({ private: true, license: "LicenseRef-Ecoma-SustainableUse-1.0", ...fields });
 const tsconfig = (paths) => JSON.stringify({ compilerOptions: { paths } });
 
 /** A minimal healthy workspace every case below starts from. */
 const HEALTHY = {
+  "package.json": pkg({ name: "@ecoma-io/ecoma" }),
+  LICENSE: "Sustainable Use License, version 1.0, Ecoma edition",
   "vider/libs/vider-ui/project.json": project(["type:lib", "scope:vider", "layer:view"]),
   "vider/libs/vider-ui/package.json": pkg({ name: "@ecoma-io/vider-ui" }),
   "vider/libs/vider-ui/src/index.ts": "export {};",
@@ -159,7 +161,7 @@ describe("findConventionViolations", () => {
   it("flags an enterprise module tagged as if it were freely licensed", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/LICENSE": "Enterprise terms",
+      "vider/enterprise/LICENSE": "Ecoma Enterprise License",
       "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:sul"]),
       "vider/enterprise/sso/src/index.ts": "export {};",
     };
@@ -192,7 +194,7 @@ describe("findConventionViolations", () => {
   it("accepts carve-out directories that declare their own terms throughout", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/LICENSE": "Enterprise terms",
+      "vider/enterprise/LICENSE": "Ecoma Enterprise License",
       "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
       "vider/enterprise/sso/src/index.ts": "export {};",
       "vider/packages/LICENSE": "Apache License 2.0",
@@ -215,7 +217,7 @@ describe("findConventionViolations", () => {
       }),
     };
     expect(judge(files)).toEqual([
-      expect.stringContaining('"license" is null, expected "SEE LICENSE IN LICENSE"'),
+      expect.stringContaining('"license" is null, expected "LicenseRef-Ecoma-SustainableUse-1.0"'),
     ]);
   });
 
@@ -225,7 +227,51 @@ describe("findConventionViolations", () => {
       "vider/libs/vider-ui/package.json": pkg({ name: "@ecoma-io/vider-ui", license: "MIT" }),
     };
     expect(judge(files)).toEqual([
-      expect.stringContaining('"license" is "MIT", expected "SEE LICENSE IN LICENSE"'),
+      expect.stringContaining('"license" is "MIT", expected "LicenseRef-Ecoma-SustainableUse-1.0"'),
+    ]);
+  });
+
+  it("flags a workspace whose root licence is gone", () => {
+    const files = { ...HEALTHY };
+    delete files.LICENSE;
+    expect(judge(files)).toEqual([expect.stringContaining("LICENSE: missing or empty")]);
+  });
+
+  it("flags a root licence that exists but says nothing", () => {
+    expect(judge({ ...HEALTHY, LICENSE: "   \n" })).toEqual([
+      expect.stringContaining("LICENSE: missing or empty"),
+    ]);
+  });
+
+  it("flags a carve-out whose licence file does not name the terms promised there", () => {
+    // Existence alone let a zero-byte file pass — and, worse, let the SUL text
+    // itself sit in a directory whose entire purpose is to not be under it.
+    const files = {
+      ...HEALTHY,
+      "vider/packages/LICENSE": "Sustainable Use License, version 1.0, Ecoma edition",
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:apache",
+      ]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "does not name the 'Apache License' the root LICENSE says ships here",
+      ),
+    ]);
+  });
+
+  it("flags an empty carve-out licence file", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/enterprise/LICENSE": "",
+      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
+      "vider/enterprise/sso/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("does not name the 'Enterprise License'"),
     ]);
   });
 
