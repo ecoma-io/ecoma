@@ -140,6 +140,11 @@ agreement.
    3. The person signing for the Company is its legal representative, or holds a
       written authorisation from one, and is authorised to enter into this
       agreement on the Company's behalf.
+   4. The Company represents that it is not subject to comprehensive sanctions
+      administered by the United Nations, the European Union, the United States
+      (OFAC), or Vietnam, and that no covered contribution is subject to export
+      controls or sanctions restrictions that would prohibit its inclusion in
+      the project.
 
    Where the Company does not in fact hold the rights in a contribution, this
    document grants nothing in it. That is not a gap: it is why the individual
@@ -220,7 +225,9 @@ agreement.
     whose output competes with the project or reproduces its functionality.
     Nor may the Company or any covered person extract, mine or systematically
     collect data from the project's public outputs (issues, pull requests,
-    commits) for the purpose of building a competing product.
+    commits) for the purpose of building a competing product. For the purposes
+    of this clause, "competes with" and "reproduces its functionality" have the
+    meanings given in [`LICENSE`](./LICENSE).
 
 11. **EU data transfers: Standard Contractual Clauses.** If the Company is
     established in the European Union, the parties agree that any personal data
@@ -367,6 +374,13 @@ it. It carries the Company's registered name, its country and registration
 number, the date we counter-signed, and the GitHub account names on the covered
 list. Those account names are already public. We keep this record for as long as
 the project exists, because it is the record of who licensed what to us.
+
+**Right to erasure limitation:** Because the coverage record and the GitHub
+account names on it are published in a public Git repository, the right to
+erasure under Article 17 GDPR (and analogous rights in other jurisdictions)
+cannot be fully exercised — the data is replicated in every clone and fork, and
+Ecoma cannot delete it from copies it does not control. By agreeing to these
+terms the Company acknowledges this limitation.
 
 The repository is hosted by GitHub, Inc. in the United States and email to us is
 handled by Google LLC, so both records are transferred outside Vietnam.
