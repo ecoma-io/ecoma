@@ -54,8 +54,8 @@ say so in the pull request rather than letting the green run imply otherwise.
   than inside one consumer because a cross-project source import would be an
   edge the Nx project graph cannot see. Never inline a copy of any of them.
 - `repo-care` — repository-surface automation run from GitHub Actions (issue
-  triage, advisory PR practice review, and issue/PR thread translation via
-  keyless free LLMs); its review rubric derives from `practice-index.json`'s
+  triage, advisory PR practice review, issue/PR thread translation via
+  keyless free LLMs, and the roadmap label audit); its review rubric derives from `practice-index.json`'s
   `diffCards`, its triage area vocabulary derives from subsystem-root README
   frontmatter (gated by `dev-cli check-subsystem-readmes`), and its translation
   languages derive from `languages.config.json`, so none is a second copy of
