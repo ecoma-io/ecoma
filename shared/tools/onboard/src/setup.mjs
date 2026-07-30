@@ -63,6 +63,61 @@ Usage: pnpm run setup -- [--check] [--yes]
   --yes    install without prompting (also required to install when stdin
            is not a terminal)`;
 
+/**
+ * The exact `spawnSync` invocation for each toolchain this script installs
+ * itself, as `{ cmd, args }`.
+ *
+ * They sit here as one named source rather than inline at each call site
+ * because `setup.test.mjs` matches installers against these very strings
+ * (Rule 14). A test that restated an installer's command would be a second
+ * copy free to drift from what this script actually spawns, and a negative
+ * assertion built on a drifted copy stops matching anything — it would pass
+ * whether or not the installer ran. Substring-matching a host instead is
+ * equally unsound: `rustup.rs` is a substring of both `sh.rustup.rs` and
+ * `win.rustup.rs`, so such a check cannot tell the two installers apart.
+ */
+export const INSTALL_COMMANDS = {
+  pnpmWindows: (pnpmPin) => ({
+    cmd: "powershell",
+    args: [
+      "-NoProfile",
+      "-Command",
+      `$env:PNPM_VERSION='${pnpmPin}'; irm https://get.pnpm.io/install.ps1 | iex`,
+    ],
+  }),
+  pnpmPosix: () => ({
+    cmd: "sh",
+    args: [
+      "-c",
+      'curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION="$PNPM_VERSION" sh -',
+    ],
+  }),
+  rustupWindows: () => ({
+    cmd: "powershell",
+    args: [
+      "-NoProfile",
+      "-Command",
+      "Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile $env:TEMP\\rustup-init.exe; " +
+        "& $env:TEMP\\rustup-init.exe -y --default-host x86_64-pc-windows-msvc",
+    ],
+  }),
+  rustupPosix: () => ({
+    cmd: "sh",
+    args: [
+      "-c",
+      "curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path",
+    ],
+  }),
+  uvWindows: () => ({
+    cmd: "powershell",
+    args: ["-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"],
+  }),
+  uvPosix: () => ({
+    cmd: "sh",
+    args: ["-c", "curl -fsSL https://astral.sh/uv/install.sh | sh"],
+  }),
+};
+
 // ---------------------------------------------------------------------------
 // Output helpers
 // ---------------------------------------------------------------------------
@@ -374,24 +429,14 @@ export function runSetup(argv) {
         pathAdd(dir);
       }
     } else if (WIN32) {
-      spawnSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          `$env:PNPM_VERSION='${pnpmPin}'; irm https://get.pnpm.io/install.ps1 | iex`,
-        ],
-        { stdio: "inherit", shell: true },
-      );
+      const { cmd, args } = INSTALL_COMMANDS.pnpmWindows(pnpmPin);
+      spawnSync(cmd, args, { stdio: "inherit", shell: true });
     } else {
-      spawnSync(
-        "sh",
-        ["-c", 'curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION="$PNPM_VERSION" sh -'],
-        {
-          stdio: "inherit",
-          env: { ...process.env, PNPM_VERSION: pnpmPin },
-        },
-      );
+      const { cmd, args } = INSTALL_COMMANDS.pnpmPosix();
+      spawnSync(cmd, args, {
+        stdio: "inherit",
+        env: { ...process.env, PNPM_VERSION: pnpmPin },
+      });
       pathAdd(join(process.env.HOME ?? "", ".local", "share", "pnpm"));
     }
   }
@@ -479,25 +524,11 @@ export function runSetup(argv) {
     }
   } else if (!commandExists("rustup") && confirm("rustup (stable toolchain)", assumeYes)) {
     if (WIN32) {
-      spawnSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          "Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile $env:TEMP\\rustup-init.exe; " +
-            "& $env:TEMP\\rustup-init.exe -y --default-host x86_64-pc-windows-msvc",
-        ],
-        { stdio: "inherit", shell: true },
-      );
+      const { cmd, args } = INSTALL_COMMANDS.rustupWindows();
+      spawnSync(cmd, args, { stdio: "inherit", shell: true });
     } else {
-      spawnSync(
-        "sh",
-        [
-          "-c",
-          "curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path",
-        ],
-        { stdio: "inherit" },
-      );
+      const { cmd, args } = INSTALL_COMMANDS.rustupPosix();
+      spawnSync(cmd, args, { stdio: "inherit" });
       pathAdd(join(process.env.HOME ?? "", ".cargo", "bin"));
     }
     if (checkRust()) {
@@ -554,18 +585,11 @@ export function runSetup(argv) {
     fail("uv (Python toolchain manager)");
   } else if (confirm("uv", assumeYes)) {
     if (WIN32) {
-      spawnSync(
-        "powershell",
-        ["-NoProfile", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"],
-        {
-          stdio: "inherit",
-          shell: true,
-        },
-      );
+      const { cmd, args } = INSTALL_COMMANDS.uvWindows();
+      spawnSync(cmd, args, { stdio: "inherit", shell: true });
     } else {
-      spawnSync("sh", ["-c", "curl -fsSL https://astral.sh/uv/install.sh | sh"], {
-        stdio: "inherit",
-      });
+      const { cmd, args } = INSTALL_COMMANDS.uvPosix();
+      spawnSync(cmd, args, { stdio: "inherit" });
       pathAdd(join(process.env.HOME ?? "", ".local", "bin"));
     }
     if (commandExists("uv")) {

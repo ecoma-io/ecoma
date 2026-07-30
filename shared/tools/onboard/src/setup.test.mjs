@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runSetup, verGe } from "./setup.mjs";
+import { INSTALL_COMMANDS, runSetup, verGe } from "./setup.mjs";
 
 // Real side effects (installing toolchains, writing to the filesystem,
 // spawning `pnpm install`/Playwright) are exactly what this suite must never
@@ -208,6 +208,19 @@ function captureLog() {
 /** Every command `runSetup` spawned, as `"cmd arg arg"` strings. */
 function spawnedCommands() {
   return vi.mocked(spawnSync).mock.calls.map(([cmd, args]) => `${cmd} ${(args ?? []).join(" ")}`);
+}
+
+/**
+ * One of `setup.mjs`'s install commands in the `"cmd arg arg"` form that both
+ * `spawnedCommands()` and the fixture's `onSpawn` key use, so a test matches an
+ * installer by whole-command equality. Substring-matching a host would not
+ * distinguish the installers `setup.mjs` picks between — `rustup.rs` sits
+ * inside `sh.rustup.rs`, `win.rustup.rs` and the `https://rustup.rs` hint
+ * alike — and would keep matching if the command around it changed, which is
+ * how a negative assertion quietly stops proving anything.
+ */
+function commandLine({ cmd, args }) {
+  return `${cmd} ${args.join(" ")}`;
 }
 
 function resetBetweenTests() {
@@ -558,7 +571,7 @@ describe("Windows", () => {
       expect.arrayContaining([expect.stringContaining("https://win.rustup.rs/x86_64")]),
       expect.anything(),
     );
-    expect(spawnedCommands().some((c) => c.includes("sh.rustup.rs"))).toBe(false);
+    expect(spawnedCommands()).not.toContain(commandLine(INSTALL_COMMANDS.rustupPosix()));
   });
 
   it("installs uv from its PowerShell install script rather than its shell one", async () => {
@@ -571,7 +584,7 @@ describe("Windows", () => {
       expect.arrayContaining([expect.stringContaining("astral.sh/uv/install.ps1")]),
       expect.anything(),
     );
-    expect(spawnedCommands().some((c) => c.includes("uv/install.sh"))).toBe(false);
+    expect(spawnedCommands()).not.toContain(commandLine(INSTALL_COMMANDS.uvPosix()));
   });
 });
 
@@ -677,7 +690,7 @@ describe("pnpm provisioning", () => {
     const log = captureLog();
     expect(runSetup(["--yes"])).toBe(0);
     expect(log()).toContain("pnpm 10.32.1 (installed)");
-    expect(spawnedCommands().some((c) => c.includes("get.pnpm.io"))).toBe(false);
+    expect(spawnedCommands()).not.toContain(commandLine(INSTALL_COMMANDS.pnpmPosix()));
   });
 
   it("retries corepack into a user-writable directory and puts that directory on PATH", () => {
@@ -726,9 +739,7 @@ describe("pnpm provisioning", () => {
   it("falls back to the get.pnpm.io script pinned to packageManager when corepack is absent", () => {
     fixture({
       present: withoutPnpm,
-      onSpawn: (key, state) => {
-        if (key.includes("get.pnpm.io")) state.present.add("pnpm");
-      },
+      onSpawn: appearsAfter(commandLine(INSTALL_COMMANDS.pnpmPosix())),
     });
     captureLog();
     expect(runSetup(["--yes"])).toBe(0);
@@ -782,7 +793,7 @@ describe("Rust provisioning", () => {
     expect(runSetup(["--yes"])).toBe(0);
     expect(spawnedCommands()).toContain("rustup component add clippy rustfmt");
     expect(log()).toContain("(components installed)");
-    expect(spawnedCommands().some((c) => c.includes("rustup.rs"))).toBe(false);
+    expect(spawnedCommands()).not.toContain(commandLine(INSTALL_COMMANDS.rustupPosix()));
   });
 
   it("reports a component add that did not produce working components", () => {
@@ -800,7 +811,7 @@ describe("Rust provisioning", () => {
     fixture({
       present: ["git", "node", "pnpm", "go", "uv"],
       onSpawn: (key, state) => {
-        if (key.includes("sh.rustup.rs")) state.present.add("cargo");
+        if (key === commandLine(INSTALL_COMMANDS.rustupPosix())) state.present.add("cargo");
       },
     });
     captureLog();
@@ -904,7 +915,7 @@ describe("uv provisioning", () => {
     const log = captureLog();
     expect(runSetup(["--check"])).toBe(1);
     expect(log()).toContain("uv (Python toolchain manager)");
-    expect(spawnedCommands().some((c) => c.includes("astral.sh"))).toBe(false);
+    expect(spawnedCommands()).not.toContain(commandLine(INSTALL_COMMANDS.uvPosix()));
   });
 
   it("installs uv from astral.sh and persists its bin directory for the rest of the session", () => {
@@ -913,7 +924,7 @@ describe("uv provisioning", () => {
       present: withoutUv,
       claudeEnvFile: "/session/env.sh",
       onSpawn: (key, state) => {
-        if (key.includes("astral.sh/uv/install.sh")) state.present.add("uv");
+        if (key === commandLine(INSTALL_COMMANDS.uvPosix())) state.present.add("uv");
       },
     });
     const log = captureLog();

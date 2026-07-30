@@ -34,6 +34,16 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
   install command is spawned, which is what separates "the installer was
   invoked" from "the installer worked" — two outcomes `setup.mjs` reports
   differently, and the second is the one a contributor feels.
+- **Name an installer through `INSTALL_COMMANDS`, never by a substring of
+  its URL.** `setup.mjs` exports that table so a test matches whole commands
+  — the `onSpawn` key and `spawnedCommands()` share one string shape — rather
+  than restating a command that is then free to drift from the one actually
+  spawned. Substring-matching a host is both what CodeQL's
+  `js/incomplete-url-substring-sanitization` rule rejects and genuinely
+  imprecise here: `rustup.rs` sits inside `sh.rustup.rs`, `win.rustup.rs` and
+  the `https://rustup.rs` hint alike, so it cannot tell the POSIX installer
+  from the Windows one — and a negative assertion that matches the wrong
+  thing, or nothing, passes without proving anything.
 - **The `test` target declares its own `inputs`, and that list is the only
   thing standing between a repo-root edit and a replayed cached green.**
   `src/node-version-pin.integration.test.mjs` reads the real `.node-version`
