@@ -111,20 +111,20 @@ accepted → bounced
 
 ## 12. Nhật ký quyết định
 
-| Vấn đề                         | Chốt                                                                                                                                                                                                                                     |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Envelope                       | Tích lũy tự động không mất mát; giao theo projection; Distiller là Role-task opt-in                                                                                                                                                      |
-| Bounce                         | Vô hạn về cơ chế; N-bounce → Conflict → Arbiter Role; tách Violation vs Judgment theo bản chất consumer                                                                                                                                  |
-| Artifact lớn                   | Luôn reference + content-addressed hash; verification depth là lựa chọn user                                                                                                                                                             |
-| Reversibility                  | Gắn vào **effect** không gắn vào bước; 3 lớp; commit point chặn unwind; sàn policy cho Gate trước irreversible                                                                                                                           |
-| Contract dùng chung            | Pinning + Adapter Role thay bộ máy duyệt; duyệt là workflow ecoma opt-in; capability `contract_author`                                                                                                                                   |
-| **Hành vi trong test** _(24u)_ | Khai tại **contract**, không tại handoff instance — án văn: an-toàn-khi-test là thuộc tính của _loại_ trao đổi, không của một lần trao đổi; mặc định `forbidden` (fail-safe) — test harness không bao giờ phải _đoán_ effect nào an toàn |
-| **Bắt buộc hay tùy chọn**      | **Tùy chọn ở văn bản + engine resolve thiếu = `forbidden`**; static analysis cảnh báo. Án văn: schema-bắt-buộc phá mọi contract đã pin (breaking) mà không giảm rủi ro nào, vì mặc định vốn đã fail-closed                               |
-| **`dry_run` là của ai**        | Của **adapter** (`supports_dry_run`), không của contract; contract khai `dry_run` mà adapter không hỗ trợ → `forbidden` (K5). Không có luật này thì harness phải _đoán_ — đúng chỗ nó thề không đoán                                     |
+| Vấn đề                    | Chốt                                                                                                                                                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Envelope                  | Tích lũy tự động không mất mát; giao theo projection; Distiller là Role-task opt-in                                                                                                                                                      |
+| Bounce                    | Vô hạn về cơ chế; N-bounce → Conflict → Arbiter Role; tách Violation vs Judgment theo bản chất consumer                                                                                                                                  |
+| Artifact lớn              | Luôn reference + content-addressed hash; verification depth là lựa chọn user                                                                                                                                                             |
+| Reversibility             | Gắn vào **effect** không gắn vào bước; 3 lớp; commit point chặn unwind; sàn policy cho Gate trước irreversible                                                                                                                           |
+| Contract dùng chung       | Pinning + Adapter Role thay bộ máy duyệt; duyệt là workflow ecoma opt-in; capability `contract_author`                                                                                                                                   |
+| **Hành vi trong test**    | Khai tại **contract**, không tại handoff instance — án văn: an-toàn-khi-test là thuộc tính của _loại_ trao đổi, không của một lần trao đổi; mặc định `forbidden` (fail-safe) — test harness không bao giờ phải _đoán_ effect nào an toàn |
+| **Bắt buộc hay tùy chọn** | **Tùy chọn ở văn bản + engine resolve thiếu = `forbidden`**; static analysis cảnh báo. Án văn: schema-bắt-buộc phá mọi contract đã pin (breaking) mà không giảm rủi ro nào, vì mặc định vốn đã fail-closed                               |
+| **`dry_run` là của ai**   | Của **adapter** (`supports_dry_run`), không của contract; contract khai `dry_run` mà adapter không hỗ trợ → `forbidden` (K5). Không có luật này thì harness phải _đoán_ — đúng chỗ nó thề không đoán                                     |
 
 ## Litmus (spec-level, theo L5)
 
 1. Envelope projection cấp đúng và chỉ đúng những gì contract khai (không rò thừa)?
 2. Effect không phân lớp bị đối xử là `irreversible` ở mọi đường (Platform lẫn RPA)?
 3. Bounce quá N trên cùng lineage → Conflict + Arbiter, không lật Gate cũ?
-4. _(24u, đánh lại số ở)_ Chạy một process trong test run scope với contract gửi email: **không email nào rời hệ**, và log ghi rõ effect bị chặn vì `test_behavior: forbidden` — kể cả khi contract **không khai gì**?
+4. Chạy một process trong test run scope với contract gửi email: **không email nào rời hệ**, và log ghi rõ effect bị chặn vì `test_behavior: forbidden` — kể cả khi contract **không khai gì**?
