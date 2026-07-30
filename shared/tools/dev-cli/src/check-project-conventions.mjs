@@ -30,8 +30,13 @@
  *    `package.json`); conversely every `type:lib` `package.json` named
  *    `@ecoma-io/*` has a base alias, or it is silently unimportable.
  *
- * Tag presence/vocabulary is `local/require-project-tags`' job (lint-time,
- * per file); malformed JSON is likewise lint's problem and skipped here.
+ * Tag vocabulary (and, for `scope:*`, presence too) is `local/require-project-tags`'
+ * job (lint-time, per file, opt-in via that project's own `lint` target).
+ * `license:*` presence is judged here as well, alongside its value: the lint
+ * path only fires when a project actually wires `eslint project.json` into its
+ * `lint` target, while this gate runs unconditionally over every tracked
+ * project, so it is the one place a missing licence tag cannot go unnoticed.
+ * Malformed JSON is lint's problem and skipped here.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -113,9 +118,14 @@ export function findConventionViolations(trackedFiles, readFile) {
 
   for (const p of projects) {
     const licenseTag = p.tags.find((t) => typeof t === "string" && t.startsWith("license:"));
-    if (!licenseTag) continue; // presence is require-project-tags' job
     const expected = licenseForPath(p.root);
-    if (licenseTag.slice("license:".length) !== expected) {
+    if (!licenseTag) {
+      violations.push(
+        `${p.path}: no 'license:*' tag — expected 'license:${expected}' for this path ` +
+          `(root LICENSE, SCOPE) — module boundaries key the licence constraints on this tag, ` +
+          `so a project with none ships under terms nobody chose`,
+      );
+    } else if (licenseTag.slice("license:".length) !== expected) {
       violations.push(
         `${p.path}: tag '${licenseTag}' does not match the terms its path implies ` +
           `('license:${expected}' — root LICENSE, SCOPE) — module boundaries key the licence ` +

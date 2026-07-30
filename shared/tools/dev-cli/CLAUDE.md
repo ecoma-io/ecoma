@@ -67,6 +67,13 @@ build/typecheck — invoked directly as
   The licence _vocabulary_ is mirrored in `require-project-tags.mjs` and in
   `eslint.config.mjs`'s `depConstraints` — a new value belongs in all three in
   one pass, the same contract the `scope:` axis already carries.
+  `check-project-conventions` also judges the `license:*` tag's **presence**,
+  not only its value: `require-project-tags` only fires from a project's own
+  opted-in `lint` target, while this gate walks every tracked `project.json`
+  unconditionally, so it is the one path that cannot be silently skipped by a
+  hand-written project with no `lint` target wired to it. The two rules still
+  do not duplicate each other — `require-project-tags` is the fast in-editor
+  signal, this gate is the unconditional backstop.
 - **`MANIFEST_LICENSE` deliberately avoids npm's `SEE LICENSE IN <file>`.** npm
   resolves that string against the file at the _package_ root, and this tree has
   a package whose root licence covers its documents rather than its code

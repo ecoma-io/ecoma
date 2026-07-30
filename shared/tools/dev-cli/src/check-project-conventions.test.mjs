@@ -158,6 +158,20 @@ describe("findConventionViolations", () => {
     expect(judge(files)).toEqual([]);
   });
 
+  it("flags a project.json with no license tag at all", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/unlicensed/project.json": JSON.stringify({
+        tags: ["type:lib", "scope:vider"],
+      }),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "vider/libs/unlicensed/project.json: no 'license:*' tag — expected 'license:sul'",
+      ),
+    ]);
+  });
+
   it("flags an enterprise module tagged as if it were freely licensed", () => {
     const files = {
       ...HEALTHY,
