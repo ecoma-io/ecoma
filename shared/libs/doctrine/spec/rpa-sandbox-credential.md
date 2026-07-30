@@ -1,68 +1,121 @@
 ---
-title: "Ecoma RPA Spec: Sandbox & Credential"
+title: "RPA: Sandbox & Credential"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma RPA Spec: Sandbox & Credential
+# RPA: Sandbox & Credential
 
-## 1. Sandbox — mỗi session một chuồng
+## 1. Sandbox — one enclosure per session
 
-| Môi trường | Cơ chế cách ly                                                         |
-| ---------- | ---------------------------------------------------------------------- |
-| Browser    | Profile/container riêng mỗi session: cookie, storage, extension cô lập |
-| Desktop    | VM / user-session chuyên dụng; taxonomy mở theo driver                 |
+| Environment | Isolation mechanism                                                                    |
+| ----------- | -------------------------------------------------------------------------------------- |
+| Browser     | A dedicated profile or container per session: cookies, storage and extensions isolated |
+| Desktop     | A VM or dedicated user session; an open taxonomy, per driver                           |
 
-- Mức cách ly là tham số cascade (engine ép tồn tại; template cấp: chặt cho production, lỏng cho dev).
-- Sandbox chết cùng session trừ khi khai `persistent_profile` (đăng nhập giữ phiên dài) — profile bền là tài nguyên có id, gắn credential scope riêng.
-- **Network egress policy** thuộc sandbox: allowlist domain — session không đi lang thang được ra ngoài scope.
+The isolation level is a cascade parameter: the engine forces it to exist, a
+template supplies the value — strict for production, loose for development.
 
-## 2. Credential vault
+A sandbox dies with its session unless `persistent_profile` is declared, for a
+login that has to survive across sessions. A persistent profile is then a
+resource with an id and a credential scope of its own, because a shared login
+that belongs to nothing is a credential nobody can revoke.
 
-- Secret sống duy nhất trong vault (standalone: vault nội bộ; tích hợp/enterprise: adapter sang vault ngoài — taxonomy mở). Action chỉ tham chiếu **credential handle** (Action spec §3).
-- **Injection tại tầng driver**: runtime tự gõ/điền giá trị vào field đích ở tầng thấp nhất — executor (script _và_ agent) chỉ ra lệnh "điền credential X vào field Y", **không bao giờ chạm giá trị**.
-- Mỗi lần dùng handle ghi audit entry (handle, action, session, actor) — không bao giờ ghi giá trị.
-- Handle cấp theo session scope (Session §7): session không được cấp thì không thể yêu cầu.
+**Network egress policy belongs to the sandbox**: a domain allowlist, so a
+session cannot wander outside its scope.
 
-## 3. Masking tại nguồn — một chốt chặn duy nhất
+## 2. The credential vault
 
-- Tầng perception đánh dấu vùng nhạy cảm **trước khi Scene rời perception** (Driver spec §2): field type từ structural tree (password, card…), vùng do App Profile tag, pattern detector (số thẻ, token) — ba nguồn, taxonomy mở.
-- Hệ quả: agent context, action log, evidence, replay, screenshot cho người xem — **tất cả chỉ từng thấy scene sạch**. Không tồn tại bước "redact hậu kỳ" (hậu kỳ = đã rò).
-- **Input masking đối xứng với perception masking**: không chỉ scene — mọi input được _capture_ (human takeover, record mode) gõ vào field được tag nhạy cảm đều bị redact thành `[masked:field-type]` **ngay tại tầng capture**, trước khi trở thành Action params trong log. Người gõ mật khẩu của chính họ khi takeover: hành động được ghi, giá trị không bao giờ được ghi — cùng ba nguồn tag (field type / App Profile / pattern detector).
-- **Kênh live-view khi takeover cũng chỉ thấy Scene sạch**: luồng xem/điều khiển mở theo từng phiên (RPA North Star §4) là **projection của Scene đã masking**, **không bao giờ** là framebuffer/screencast thô — nếu không, người trợ giúp từ xa trở thành consumer thứ tư đứng ngoài chốt chặn duy nhất. Driver không cấp được live-view đã masking → takeover chỉ hợp lệ ở dạng **attended** (người ngồi tại chính máy đó, vốn đã thấy màn hình thật của mình), **không mở kênh xem từ xa**: thiếu năng lực thì chặt hơn, không lỏng hơn (K5).
-- Đánh đổi công khai: masking sót là rủi ro thật → pattern detector có version + calibration (đo bằng hậu kiểm mẫu), và App Profile là nơi vá vĩnh viễn vùng sót.
+A secret lives only in the vault — an internal one when standalone, an adapter
+to an external vault under integration or enterprise, over an open taxonomy. An
+action references only a **credential handle** (Action §3).
 
-## 4. Permission scope — quyền là khai báo
+**Injection happens at the driver layer.** The runtime types or fills the value
+into the target field at the lowest level available, so the executor — script
+_and_ agent alike — only ever says "put credential X into field Y" and **never
+touches the value**. An executor that could hold the value would also be able to
+log it, and no rule about logging can be as strong as not having it.
 
-Session scope (engine ép tồn tại, cascade cấp giá trị):
+Every use of a handle writes an audit entry: handle, action, session, actor.
+Never the value.
 
-| Chiều              | Ví dụ                                                                   |
-| ------------------ | ----------------------------------------------------------------------- |
-| App/domain         | Chỉ `*.salesforce.com`                                                  |
-| Lớp action tối đa  | `read` (session chỉ-đọc — rail chuẩn cho spawn_policy), `reversible`, … |
-| Credential handles | Danh sách tường minh                                                    |
-| Giới hạn phiên     | Trần thời gian, trần số action, trần chi phí model                      |
+Handles are issued per session scope (Session §6): a session that was not
+granted one cannot ask for it.
 
-- Vượt scope = action bị chặn tại engine **trước khi chạm driver** + phát escalation — không phải lỗi của executor mà là biên cứng.
-- Khi tích hợp: scope là phần khai báo trong Session effect — Platform nhìn thấy và static analysis kiểm được ("task này cấp quyền irreversible mà Gate trước nó chưa có sàn" — Composition §4 mở rộng tự nhiên xuống tầng RPA).
+## 3. Masking at the source — a single chokepoint
+
+The perception layer marks sensitive regions **before a Scene leaves perception**
+(Driver & Perception §2), from three sources over an open taxonomy: the field
+type in the structural tree (password, card, …), regions tagged by an App
+Profile, and a pattern detector for card numbers and tokens.
+
+The consequence is the whole point: agent context, action log, evidence, replay,
+and any screenshot a person sees have **only ever seen a clean scene**. There is
+no "redact afterwards" step, because afterwards means it already leaked.
+
+**Input masking is the symmetric half.** It is not only the scene: any input that
+is _captured_ — human takeover, record mode — typed into a field tagged
+sensitive is redacted to `[masked:field-type]` **at the capture layer**, before
+it can become an Action parameter in the log. A person typing their own password
+during takeover has the action recorded and the value never recorded, from the
+same three tag sources.
+
+**The live-view channel during takeover also sees only a clean Scene.** The
+per-session view-and-control stream (RPA North Star §4) is a **projection of the
+masked Scene** and is **never** a raw framebuffer or screencast. Otherwise a
+remote helper becomes a fourth consumer standing outside the single chokepoint.
+Where a driver cannot provide a masked live view, takeover is valid only in its
+**attended** form — the person sitting at that machine, who already sees their
+own screen — and **no remote viewing channel opens at all**. Missing a
+capability makes the rule stricter, never looser.
+
+The trade-off is stated rather than hidden: a missed mask is a real risk, so the
+pattern detector carries a version and calibration measured by sampled review,
+and an App Profile is where a missed region gets patched permanently.
+
+## 4. Permission scope — a right is something declared
+
+The session scope, with the engine forcing it to exist and the cascade supplying
+values:
+
+| Axis                 | Example                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| App / domain         | `*.salesforce.com` only                                                                |
+| Maximum action class | `read` (a read-only session — the standard rail for a `spawn_policy`), `reversible`, … |
+| Credential handles   | An explicit list                                                                       |
+| Session ceilings     | Wall-clock limit, action count limit, model cost limit                                 |
+
+Exceeding the scope means the action is blocked at the engine **before it
+reaches the driver**, and an escalation is emitted. It is a hard boundary rather
+than an executor's error, which is what makes it hold for an executor nobody
+wrote carefully.
+
+Under integration the scope is a declared part of the Session effect, so the
+platform can see it and static analysis can judge it — "this task grants
+irreversible rights while the Gate before it has no floor" is Composition §4
+extending naturally down into the RPA layer.
 
 ## 5. Non-goals
 
-- Không lưu secret ngoài vault; không có chế độ "trần không sandbox" (mức lỏng nhất vẫn là profile cô lập).
-- Executor không bao giờ nhận giá trị secret — kể cả khi user cố truyền trực tiếp (engine từ chối, đề nghị tạo handle).
+- No secret is stored outside the vault, and there is no "bare, no sandbox"
+  mode: the loosest level is still an isolated profile.
+- An executor never receives a secret value, even when a user tries to pass one
+  directly. The engine refuses and offers to create a handle instead.
 
-## 6. Nhật ký quyết định
+## 6. Decisions
 
-| Vấn đề    | Chốt                                                                                                      |
-| --------- | --------------------------------------------------------------------------------------------------------- |
-| Cách ly   | Mỗi session một sandbox; persistent profile là tài nguyên có id + scope riêng                             |
-| Secret    | Handle-only; injection tại driver; executor mù giá trị tuyệt đối                                          |
-| Masking   | Tại tầng perception, một chốt duy nhất; detector có calibration; App Profile vá sót                       |
-| Quyền     | Scope khai báo 4 chiều, chặn tại engine, static analysis kiểm được khi tích hợp                           |
-| Live-view | Là projection của Scene đã masking; driver không hỗ trợ → takeover attended-only, không có kênh xem từ xa |
+| Question  | Settled                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------- |
+| Isolation | One sandbox per session; a persistent profile is a resource with its own id and scope                      |
+| Secrets   | Handle-only; injection at the driver; the executor is absolutely blind to the value                        |
+| Masking   | At the perception layer, a single chokepoint; the detector carries calibration; App Profile patches misses |
+| Rights    | A four-axis declared scope, blocked at the engine, judgeable by static analysis under integration          |
+| Live view | A projection of the masked Scene; where a driver cannot, takeover is attended-only with no remote channel  |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Executor (script _và_ agent) có bất kỳ đường nào nhận **giá trị** secret thay vì handle?
-2. Người takeover gõ mật khẩu: hành động vào log, giá trị không bao giờ vào log/evidence/context?
-3. Người xem từ xa trong lúc takeover có đường nào thấy vùng đã masking (framebuffer thô, ảnh trước masking)?
+1. Does the executor — script _and_ agent — have any path that receives a secret
+   **value** rather than a handle?
+2. A person types a password during takeover: does the action reach the log
+   while the value never reaches log, evidence or context?
+3. Does a remote viewer during takeover have any path to what was masked — a raw
+   framebuffer, an image from before masking?
