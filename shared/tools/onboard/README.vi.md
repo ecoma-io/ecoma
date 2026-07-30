@@ -22,8 +22,9 @@ cần chuẩn bị đúng trước khi `pnpm nx affected -t lint test typecheck 
 `golangci-lint` một khi có project Go, git hooks cưỡng chế quy ước commit, và
 Playwright Chromium mà suite e2e cần. `src/setup.mjs` là script duy nhất
 kiểm tra tất cả những thứ đó dựa trên chính các pin mà repo đã sở hữu
-(`package.json` `engines`/`packageManager`, `go.work`), đề nghị cài những gì
-có installer chính thức cho user-space, và không bao giờ âm thầm bỏ qua một
+(`package.json` `engines`/`packageManager`, `.golangci-lint-version`,
+`go.work`), đề nghị cài những gì có installer chính thức cho user-space, và
+không bao giờ âm thầm bỏ qua một
 bước. `runSetup(argv)` được export chủ đích để có thể chạy in-process lẫn từ
 CLI — chỉ có đúng một đường onboarding, chạy theo hai cách khác nhau.
 

@@ -23,10 +23,10 @@ locally: the right Node/pnpm versions, Go, Rust with `clippy`/`rustfmt`,
 commit conventions, and the Playwright Chromium the e2e suite drives.
 `src/setup.mjs` is the single script that checks all of it against the
 version pins the repo itself already owns (`package.json` `engines`/
-`packageManager`, `go.work`), offers to install what has an official
-user-space installer, and never silently skips a step. `runSetup(argv)` is
-exported specifically so it can run in-process as well as from the CLI —
-there is exactly one onboarding path, run two different ways.
+`packageManager`, `.golangci-lint-version`, `go.work`), offers to install what
+has an official user-space installer, and never silently skips a step.
+`runSetup(argv)` is exported specifically so it can run in-process as well as
+from the CLI — there is exactly one onboarding path, run two different ways.
 
 <!-- readme:consumers -->
 
