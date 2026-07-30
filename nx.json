@@ -16,7 +16,8 @@
       "!{projectRoot}/conftest.py",
       "!{projectRoot}/playwright.config.ts"
     ],
-    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"]
+    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"],
+    "coverageConfig": ["{workspaceRoot}/coverage.config.json"]
   },
   "targetDefaults": {
     "build": {
@@ -38,7 +39,8 @@
       ]
     },
     "test": {
-      "cache": true
+      "cache": true,
+      "inputs": ["default", "coverageConfig"]
     }
   },
   "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"]
