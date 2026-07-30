@@ -1,7 +1,7 @@
 Sustainable Use License, version 1.0, Ecoma edition
 SPDX identifier: LicenseRef-Ecoma-SustainableUse-1.0
 
-Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin)
+Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin) and each contributor who retains copyright in their contributions under CLA.md
 
 This document licenses the source code of Ecoma. It is a fair-code licence:
 the source is public, and you may read it, self-host it and modify it. It is
@@ -31,7 +31,10 @@ the version of the Repository in which you received it. If the licensor later
 publishes a version in which that file sits elsewhere, the terms of that later
 version apply only to copies you obtain from it; no license you already hold is
 narrowed or withdrawn. Moving, copying or renaming a file yourself changes
-nothing.
+nothing. A file that is a copy of or a derivative work based on a file from the
+Repository carries the same terms as its source file, regardless of its name,
+location or the name of the directory it sits in within your own tree. This
+paragraph governs over any other in this SCOPE section.
 
 Where more than one exception could apply to a file, the later-numbered
 exception prevails over the earlier.
@@ -128,7 +131,14 @@ software.
 
 You may not alter, remove, or obscure any licensing, copyright, or other
 notices of the licensor in the software. This license grants you no rights in
-the licensor's trademarks.
+the licensor's trademarks or trade dress.
+
+You may not use the software to train, fine-tune, or otherwise improve an
+artificial intelligence or machine learning model whose output competes with
+the software or reproduces its functionality, whether or not that output is
+itself software. Nor may you extract, mine or systematically collect the
+software's structure, logic or behaviour for the purpose of building a
+competing product.
 
 
 PATENTS
@@ -164,6 +174,11 @@ each file's path within the Repository, or else the notice that identifies
 which terms govern it. Rights under this document are addressed by path, so a
 file separated from its path cannot be read for its terms.
 
+The software may contain cryptographic functions. You are responsible for
+compliance with applicable export control and sanctions laws, including the
+United States Export Administration Regulations and the European Union
+Dual-Use Regulation, before downloading, using or distributing the software.
+
 
 NO OTHER RIGHTS
 
@@ -190,7 +205,10 @@ or withdraw your licenses. Publishing a later version of these terms does not
 affect any license you already hold: a copy you received under these terms
 stays governed by these terms. The death, dissolution, insolvency or
 reorganisation of the licensor, or any transfer of the project, does not affect
-licenses already granted.
+licenses already granted. Where the licensor is a natural person, their death,
+incapacity or disappearance does not prevent their legal representative,
+successor or estate from granting new licenses under these same terms to new
+recipients.
 
 
 LIABILITY
@@ -255,8 +273,9 @@ legal entity, that person or entity becomes the licensor for the purposes of
 these terms from the date of the transfer, and these terms continue unchanged.
 
 The "software" is the software the licensor makes available under these terms,
-including any portion of it, and excluding everything the SCOPE section above
-excludes.
+including any portion of it, in source code, compiled or interpreted object
+code, container image form or any other form, and excluding everything the
+SCOPE section above excludes.
 
 A "subsystem root" is any directory located immediately at the root of the
 Repository's directory tree whose name does not begin with a dot, other than

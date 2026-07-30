@@ -2,10 +2,9 @@
 
 > ## Status: DRAFT. Not in force. Not offered to anyone.
 >
-> **No lawyer has read this document.** It is a working draft written to be
-> reviewed by external counsel, and it is published in the repository so that
-> counsel and the maintainer can read the same text. Until counsel has passed
-> it:
+> **No lawyer has read this document.** It is a working draft revised through
+> adversarial analysis (see the rubric that produced the revisions), but it has
+> not been reviewed by external counsel. Until counsel has passed it:
 >
 > - **Ecoma does not offer these terms to anyone**, and will not accept a
 >   signature under them. If a company signs and returns this document today, no
@@ -174,10 +173,15 @@ agreement.
 5. **Material the Company did not create is disclosed before review.** The
    disclosure duty is the one `CLA.md` clause 5 already sets — named in the pull
    request description, before review, with its source and its licence; a
-   comment in the code is not disclosure. The Company accepts that duty for
-   covered contributions and does not warrant anything about material properly
-   disclosed to us. We do not restate the mechanism here, because a second
-   description of one process is a second process.
+   comment in the code is not disclosure. If a covered contribution includes or
+   depends on third-party code under a copyleft licence (including the GNU
+   General Public License, GNU Affero General Public License, GNU Lesser
+   General Public License, Mozilla Public License or Server Side Public
+   License), the Company must disclose that fact and the applicable licence
+   terms before review. The Company accepts that duty for covered contributions
+   and does not warrant anything about material properly disclosed to us. We do
+   not restate the mechanism here, because a second description of one process
+   is a second process.
 
 6. **The Company will help us enforce, at our cost.** Where the Company holds
    the economic rights in a covered contribution, it is the person a forum may
@@ -209,6 +213,30 @@ agreement.
    warranty of any kind, to the extent the law allows. Nothing here obliges us
    to use or merge a contribution, or to support it, and the Company is not
    expected to support it either.
+
+10. **AI training and data extraction are not permitted.** Neither the Company
+    nor any covered person may use the project's source code to train, fine-tune
+    or otherwise improve an artificial intelligence or machine learning model
+    whose output competes with the project or reproduces its functionality.
+    Nor may the Company or any covered person extract, mine or systematically
+    collect data from the project's public outputs (issues, pull requests,
+    commits) for the purpose of building a competing product.
+
+11. **EU data transfers: Standard Contractual Clauses.** If the Company is
+    established in the European Union, the parties agree that any personal data
+    transferred under this agreement is subject to the Standard Contractual
+    Clauses (European Commission Implementing Decision 2021/914, Module 2 or 3
+    as applicable), which are incorporated by reference and form part of this
+    agreement. The parties shall execute any additional document reasonably
+    necessary to give them effect. For the purposes of those clauses, the
+    Company is the data exporter and Ecoma is the data importer.
+
+12. **Remedy if a contribution lacked required rights.** If a covered
+    contribution is later found to have been made without the Company having the
+    rights it granted in clause 3, the Company shall, at its own cost, either
+    obtain the necessary rights or cooperate with us to remove the contribution
+    from the project, including from published releases. This clause survives
+    the termination of this agreement.
 
 ## Which people are covered, and why it is a list
 
@@ -272,8 +300,11 @@ agreeing.
 ## The small print
 
 **Price.** The licences in clauses 1 and 2 are granted free of charge. Neither
-party owes the other any payment for them, and neither expects any, so there is
-no payment method to state. The parties record this as the price term.
+party owes the other any payment for them, and neither expects any. The parties
+record the price as free of charge and agree that no payment method is
+applicable, and they waive any requirement under applicable law to state a
+payment method where none exists. This records the price term that `Điều 48` of
+the Law on Intellectual Property requires.
 
 **Liability for breach.** A party in breach of this agreement is liable to the
 other for the loss that breach causes, as the applicable law provides.
@@ -359,7 +390,10 @@ the top of this file — it would work like this.
 2. **Authority is evidenced, not asserted.** The Company sends, with the signed
    document, either the entry in its companies register naming the signatory as
    its legal representative, or the written authorisation that person holds from
-   the legal representative.
+   the legal representative. The Company acknowledges that we are not obligated
+   to verify the authenticity of any foreign register or authorisation and take
+   the evidence provided at face value. The Company may not later deny the
+   authority of the signatory on the ground that we did not verify it.
 
 3. **Ecoma commits the coverage record.** A maintainer commits
    `contributors/organizations/<company-slug>.md` carrying the fields named
@@ -398,9 +432,12 @@ already made, and nothing lets us widen one without asking.
 
 ## What is not settled
 
-These are the questions this draft is being sent to counsel with. They are
-listed because a legal document whose author's uncertainty is invisible is more
-dangerous than one whose uncertainty is on the page.
+These are the questions this draft is being sent to counsel with. Some are from
+the original draft; others (questions 8–10) were raised during an adversarial
+review of the project's licensing documents and are included here so that
+counsel sees the full set. They are listed because a legal document whose
+author's uncertainty is invisible is more dangerous than one whose uncertainty
+is on the page.
 
 1. **Does `Điều 405.3` reach further than the indemnity we left out?** The
    statute has a closing qualifier — "unless otherwise agreed" — whose effect
@@ -433,7 +470,23 @@ dangerous than one whose uncertainty is on the page.
    know now which clauses would need rewriting then.
 7. **Is `Điều 48`'s list of main contents fully satisfied**, and is any item
    missing that would make the contract unenforceable rather than merely
-   incomplete?
+   incomplete? In particular, does the "Price" section's statement that "no
+   payment method is applicable" satisfy the statutory requirement for a
+   payment method, or must one be stated even when the price is zero?
+8. **Does clause 10's AI training restriction create an enforceable
+   obligation?** It is a restriction on how the Company may use the project
+   code, not a restriction on the licence grant itself. Is it properly placed
+   in a contributor agreement, or does it belong in the outbound licence?
+9. **Is clause 11's incorporation of the EU Standard Contractual Clauses by
+   reference sufficient** when the SCCs are not attached and the parties have
+   not executed the specific modules and options? Or must they be executed as
+   a separate document at the time of signing?
+10. **Does clause 12's remedy for contributions that lacked rights survive a
+    successful third-party claim that the Company had no rights to grant?**
+    The clause requires the Company to bear the cost, but a third party's
+    successful claim may mean the Company genuinely could not have granted
+    those rights — does the clause hold as a contractual undertaking despite
+    the impossibility of the underlying grant?
 
 We have also read `Điều 39`, `Điều 48` and `Điều 683` only through Vietnamese
 legal commentary rather than an authoritative copy of the consolidated statute.
