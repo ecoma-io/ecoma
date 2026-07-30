@@ -33,7 +33,7 @@
   },
   "scripts": {
     "prepare": "lefthook install",
-    "setup": "node setup.mjs"
+    "setup": "nx run onboard:setup"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

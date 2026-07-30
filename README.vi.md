@@ -31,7 +31,9 @@ Nguyên tắc và quy ước toàn workspace nằm ở
 ## Bắt đầu
 
 ```bash
-pnpm install
+# Kiểm tra toolchain và setup repo — dependencies, git hooks, và Playwright
+# Chromium mà suite e2e cần. Xem CONTRIBUTING.md.
+pnpm run setup
 
 # Storybook của design system
 pnpm nx run design-system:serve

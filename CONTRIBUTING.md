@@ -68,10 +68,12 @@ pnpm run setup -- --check
 pnpm nx run design-system:serve
 ```
 
-Claude Code cloud sessions provision themselves with the same script: a
-SessionStart hook (`.claude/hooks/session-start-remote.mjs`, registered in
-`.claude/settings.json`) runs `setup.mjs --yes` in remote sandboxes only, so
-there is exactly one setup path to maintain.
+Claude Code cloud sessions provision themselves with the same script
+(`shared/tools/onboard/src/setup.mjs`): a SessionStart hook
+(`.claude/hooks/session-start-remote.mjs`, registered in
+`.claude/settings.json`) imports its `runSetup` export and calls it with
+`--yes` in remote sandboxes only, so there is exactly one setup path to
+maintain.
 
 ## Development Workflow
 

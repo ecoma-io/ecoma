@@ -29,7 +29,9 @@ Filler);工作流——无论是确定性流程还是推理型任务——都由
 ## 快速开始
 
 ```bash
-pnpm install
+# 验证工具链并搭建仓库——依赖、git hooks,以及 e2e 套件所需的 Playwright
+# Chromium。详见 CONTRIBUTING.md。
+pnpm run setup
 
 # 设计系统的 Storybook
 pnpm nx run design-system:serve
