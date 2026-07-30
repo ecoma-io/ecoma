@@ -3,6 +3,7 @@
 # Ecoma
 
 [![CI](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/ecoma-io/ecoma/badge)](https://scorecard.dev/viewer/?uri=github.com/ecoma-io/ecoma)
 
 [ecoma.io](https://ecoma.io) · [Doctrine](https://ecoma.io/doctrine)
 
