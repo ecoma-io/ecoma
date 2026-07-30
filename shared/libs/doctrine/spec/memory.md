@@ -1,95 +1,147 @@
 ---
-title: "Ecoma Spec: Memory"
+title: "Module: Memory"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Memory
+# Module: Memory
 
-## 0. Kích hoạt & ranh giới khái niệm
+## 0. Activation, and where the concept ends
 
-- Tenant policy `memory: enabled | disabled` — **tắt mặc định ở engine**; template vertical bật đúng chỗ (CSKH bật memory-per-customer). Tắt = zero overhead, không thu thập ngầm (K5: đơn giản = không âm thầm tích PII).
-- **Memory ≠ Knowledge ≠ Calibration**: Memory = quan sát tích lũy về _bên-được-phục-vụ_, chưa curate, có decay. Knowledge = tri thức đã tốt nghiệp, có Curator. Calibration = số liệu về _người-lao-động_.
-- **Án văn cấm**: subject **không bao giờ** là Filler-trong-vai-lao-động ("model X hay hỏng", "anh A chậm deadline") — đánh giá lao động đã có nhà là calibration (nguồn Judgment/outcome); cho memory ghi chồng = nguồn sự thật thứ hai + sổ đen cảm tính né hệ có kiểm.
+The tenant policy `memory: enabled | disabled` is **disabled by default in the
+engine**; a vertical template enables it where it belongs, such as
+memory-per-customer in support. Disabled means zero overhead and nothing
+collected quietly — simpler must also mean not silently accumulating PII.
+
+**Memory is not Knowledge and not Calibration.** Memory is accumulated
+observation about _the party being served_, uncurated, with decay. Knowledge is
+what has graduated, with a Curator. Calibration is data about _the worker_.
+
+**The forbidden case, stated plainly**: a subject is **never** a Filler in their
+capacity as a worker — "model X gets it wrong a lot", "A misses deadlines".
+Assessment of labour already has a home in calibration, sourced from Judgments
+and outcomes. Letting memory write it too would create a second source of truth
+and, worse, an impressionistic black book routing around the system that has
+checks.
 
 ## 1. Subject
 
-- Taxonomy mở, 3 loại chuẩn: `external_user` (khách qua Channel), `external_org` (account B2B), `tenant_self` (buffer quan sát nội bộ — nguồn distill tự nhiên lên Knowledge).
-- Định danh: subject = **Party** (Tenant & Identity §5) — hợp nhất channel identity qua merge-có-Gate; cross-subject isolation dựa trên party id.
-- Instance biết subject qua **subject binding** từ correlation (Trigger & Channel §3).
+An open taxonomy with three standard kinds: `external_user` (a customer arriving
+through a Channel), `external_org` (a B2B account), and `tenant_self` (an
+internal observation buffer, the natural source for distillation up into
+Knowledge).
 
-## 2. Memory entry
+A subject is identified as a **Party** (Tenant & Identity §5), unifying channel
+identities through a gated merge. Cross-subject isolation rests on the party id.
 
-`(subject, nội dung, provenance → bằng chứng trong log, confidence, classification, decay_policy, lineage)`
+An instance learns its subject through the **subject binding** created by
+correlation (Trigger & Channel §3).
 
-| Luật            | Cơ chế                                                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chống bịa       | **Provenance bắt buộc**: entry phải trỏ về event/artifact gốc — "nhớ vì đâu". Không nguồn = không vào, về cấu trúc                           |
-| Chống poisoning | Lời subject tự khai ("tôi luôn được giảm 50%") = claim basis trọng số thấp — **không tự thăng thành fact**; thăng qua Gate có verifier/người |
-| Bất biến        | Entry là artifact CAS + event ghi nhận; sửa = **supersede có lineage**; mâu thuẫn → **Conflict event**                                       |
-| Mật             | Mặc định `confidential`; egress/leakage-gate áp nguyên; erasure của subject = **crypto-shredding** (Event Log §4)                            |
+## 2. A memory entry
 
-## 3. Ghi nhớ là lao động
+`(subject, content, provenance → the evidence in the log, confidence,
+classification, decay_policy, lineage)`
 
-- Candidate do agent **hoặc người** đề xuất (người ghi chú "khách này ghét gọi sáng thứ 2" — cùng đường, đối xứng) → **Gate**: chuyện vặt auto-pass theo calibration của extractor, chuyện nặng review — triage policy cascade.
-- Extraction (LLM lọc "có gì đáng nhớ" sau tương tác) là **policy/sampling theo cascade** — không bắt buộc; extraction rubric là nội dung shareable qua template/block, **memory data thì không bao giờ** (per-tenant, invariant 4).
+| Rule                | Mechanism                                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Against fabrication | **Provenance is mandatory**: an entry must point back to the originating event or artifact — why it is remembered. No source means it structurally cannot enter                          |
+| Against poisoning   | A subject's own assertion ("I always get 50% off") is a claim with low basis weight. It **never promotes itself into a fact**; promotion goes through a Gate with a verifier or a person |
+| Immutability        | An entry is a content-addressed artifact with an event recording it. Editing means **superseding with lineage**; a contradiction raises a **Conflict** event                             |
+| Secrecy             | `confidential` by default; egress and leakage gates apply unchanged; erasing a subject is **crypto-shredding** (Event Log §4)                                                            |
 
-## 4. Truy hồi
+## 3. Remembering is labour
 
-- Contract khai `memory_requirements` — đứng cạnh `knowledge_requirements` và context envelope (Handoff §3): **một cửa, ba nguồn ngữ cảnh**. Người nhận bản render, AI nhận structured — cùng scope.
-- **Cross-subject isolation**: scope retrieval = subject của instance (+ `tenant_self`) — khách A không bao giờ thấy chuyện khách B, về cấu trúc, không nhờ prompt.
-- Tìm ngữ nghĩa qua **vector adapter của Knowledge** (án văn không tự chế giữ nguyên); "memory bank per subject" = projection rebuild được.
+A candidate is proposed by an agent **or a person** — someone noting "this
+customer hates Monday-morning calls" travels the identical path, symmetrically —
+and then passes a **Gate**: trivia auto-passes according to the extractor's
+calibration, anything weighty is reviewed, under a cascading triage policy.
 
-## 5. Vòng đời — sinh, già, chết, tốt nghiệp
+Extraction, where an LLM filters "was anything here worth remembering" after an
+interaction, is **policy and sampling through the cascade** rather than
+mandatory. An extraction rubric is shareable content, through a template or a
+block; **memory data never is** — it is per-tenant, by invariant 4.
+
+## 4. Retrieval
+
+A Contract declares `memory_requirements` alongside `knowledge_requirements` and
+the context envelope (Handoff §3): **one door, three sources of context**. A
+person receives the rendered form and an AI the structured form, at the same
+scope.
+
+**Cross-subject isolation**: the retrieval scope is the instance's subject plus
+`tenant_self`. Customer A never sees anything about customer B — structurally,
+not because a prompt asked nicely.
+
+Semantic search reuses **Knowledge's vector adapter**; nothing is invented here.
+A "memory bank per subject" is a projection that can be rebuilt.
+
+## 5. Lifecycle — born, aging, dying, graduating
 
 ```
-Tương tác → candidate (Gate) → Memory entry (decay, confidence)
- ├─ dùng + outcome tốt → confidence tăng
- ├─ outcome xấu lan ngược → memory calibration sụt → đề xuất đào thải (Curator task)
- ├─ hết decay → rời projection active (log không đục)
- ├─ mâu thuẫn → Conflict → supersede lineage
- └─ dùng nhiều + bền → DISTILL lên Knowledge: Curator task có Gate;
- generalize từ NHIỀU subject bắt buộc qua leakage-gate (k-anonymity bằng floor propagation)
+interaction → candidate (Gate) → memory entry (decay, confidence)
+    ├─ used, good outcome → confidence rises
+    ├─ bad outcome propagates back → memory calibration falls → proposed for retirement (a Curator task)
+    ├─ decay exhausted → leaves the active projection (the log is not punctured)
+    ├─ contradiction → Conflict → supersede with lineage
+    └─ used often and durable → DISTILLED into Knowledge: a Curator task with a Gate;
+       generalising across SEVERAL subjects must pass the leakage gate (k-anonymity by floor propagation)
 ```
 
-- **Chiều workspace của distill** (vách mềm — Tenant & Identity §3): task distill khai `scope`; **mặc định = workspace hẹp nhất chứa mọi subject nguồn** (K5 — không khai thì hẹp nhất, không phải rộng nhất). Generalize xuyên workspace là **khai tường minh** + leakage-gate + Curator có capability tương ứng. Hệ quả cho beachhead agency: quan sát về client A không bao giờ _vô tình_ tốt nghiệp thành tri thức phục vụ client B — cross-subject isolation (§4) chặn theo chiều ngang, luật này chặn theo chiều dọc (lúc khái quát hóa). Collection đích thừa hưởng scope (Knowledge §1).
+**Distillation has a workspace dimension** (the soft wall of Tenant & Identity
+§3). A distillation task declares its `scope`, and the **default is the narrowest
+workspace containing every source subject** — undeclared means narrowest, never
+widest.
 
-Mirror đúng distillation agent→script: Memory là quan sát, Knowledge là tri thức đã tốt nghiệp.
+Generalising across workspaces is an **explicit declaration**, plus the leakage
+gate, plus a Curator holding the matching capability. The consequence for an
+agency serving many clients: an observation about client A never _accidentally_
+graduates into knowledge that serves client B. Cross-subject isolation (§4)
+blocks that horizontally; this rule blocks it vertically, at the moment of
+generalisation. The destination collection inherits the scope (Knowledge §1).
 
-## 6. Ánh xạ 5 loại "memory" thị trường
+It mirrors the agent-to-script distillation exactly: Memory is observation,
+Knowledge is what has graduated.
 
-| Thị trường gọi         | Ecoma trả lời bằng                                             |
-| ---------------------- | -------------------------------------------------------------- |
-| Working memory         | Attempt + artifact trung gian (sẵn có)                         |
-| Conversation history   | Chuỗi Task luân phiên durable + projection transcript (sẵn có) |
-| Episodic               | **Event Log chính là episodic memory** — query log/provenance  |
-| Structured per-subject | DataTable (Working Data spec)                                  |
-| Semantic long-term     | **Module này**                                                 |
+## 6. Mapping the five things the market calls "memory"
+
+| What the market calls it | What ecoma answers with                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| Working memory           | Attempt plus intermediate artifacts — already present                                 |
+| Conversation history     | The durable chain of alternating Tasks plus a transcript projection — already present |
+| Episodic                 | **The Event Log is episodic memory** — query the log and provenance                   |
+| Structured per-subject   | DataTable (Working Data)                                                              |
+| Semantic long-term       | **This module**                                                                       |
 
 ## 7. Non-goals
 
-- Không store riêng, không schema-per-user kiểu Astron; App Profile ("memory về app") ở lại domain RPA.
-- Không memory về Filler-trong-vai-lao-động (án văn §0).
-- Memory data không phải block type; không học/không share cross-tenant.
-- Không auto-memorize ở bất kỳ cấu hình mặc định engine nào.
+- No store of its own and no schema-per-user. An App Profile — memory about an
+  application — stays in the RPA domain.
+- No memory about a Filler in their capacity as a worker (§0).
+- Memory data is not a block type, and it is never learned or shared across
+  tenants.
+- No auto-memorisation in any default engine configuration.
 
 ## 8. Litmus
 
-1. Đổi filler (người↔AI, model cũ↔mới) trên cùng Role — trí nhớ về khách còn nguyên?
-2. Chỉ vào một entry bất kỳ: truy được _bằng chứng gốc_ trong log?
-3. Khách cố cài fact giả qua chat — có đường nào thành fact mà không qua Gate?
-4. Kịch bản nào để khách A thấy hồi ức về khách B?
-   4b. Distill từ nhiều subject của client A có đường nào thành tri thức dùng cho client B (workspace khác) mà không khai tường minh?
-5. Khách đòi quên — một lệnh hủy khóa xóa sạch khả năng đọc, log không đục?
+1. Swap the filler on a Role — person to AI, old model to new — does the memory
+   about the customer survive intact?
+2. Point at any entry: can the _original evidence_ be found in the log?
+3. A customer tries to plant a false fact through chat — is there any path by
+   which it becomes a fact without a Gate?
+4. What scenario lets customer A see a memory about customer B?
+   4b. Is there any path by which distillation across client A's subjects becomes
+   knowledge used for client B, in a different workspace, without an explicit
+   declaration?
+5. A customer demands to be forgotten — does destroying one key remove all
+   ability to read it, without puncturing the log?
 
-## 9. Nhật ký quyết định
+## 9. Decisions
 
-| Vấn đề              | Chốt                                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Mặc định            | Tắt ở engine; template vertical bật — K5                                                                                                 |
-| Subject             | Taxonomy mở: external_user / external_org / tenant_self; **cấm filler-as-subject** (án văn: tránh nguồn sự thật thứ hai với calibration) |
-| Chủ sở hữu          | Tổ chức theo subject — không thuộc filler (khác Astron, hệ quả litmus #1)                                                                |
-| Chống bịa/poisoning | Provenance bắt buộc + claim trọng số thấp + Gate                                                                                         |
-| Già & chết          | Decay + memory calibration từ outcome + supersede/Conflict                                                                               |
-| Tốt nghiệp          | Distill lên Knowledge qua Curator task; generalize đa-subject qua leakage-gate; **scope mặc định = workspace hẹp nhất**                  |
-| Hạ tầng             | Zero store mới — Event Log + CAS + vector adapter + projection                                                                           |
+| Question                  | Settled                                                                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default                   | Off in the engine; a vertical template turns it on                                                                                                       |
+| Subject                   | An open taxonomy: external_user / external_org / tenant_self. **A filler as subject is forbidden**, to avoid a second source of truth beside calibration |
+| Ownership                 | The organisation's, keyed by subject — never the filler's, which is what litmus #1 tests                                                                 |
+| Fabrication and poisoning | Mandatory provenance, low-weight claims, and a Gate                                                                                                      |
+| Aging and death           | Decay, memory calibration from outcomes, supersede and Conflict                                                                                          |
+| Graduation                | Distilled into Knowledge through a Curator task; multi-subject generalisation through the leakage gate; **scope defaults to the narrowest workspace**    |
+| Infrastructure            | No new store — Event Log, content-addressed storage, the vector adapter, and projections                                                                 |
