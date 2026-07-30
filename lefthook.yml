@@ -42,6 +42,12 @@ pre-commit:
       # that neither links a document nor marks it withheld. Runs
       # repo-wide because it judges the tree as a whole, not a diff.
       run: node shared/tools/dev-cli/src/main.mjs check-doctrine
+    roadmap-ids:
+      # The roadmap's ids are what let a board card name exactly one item (§0).
+      # Two rows drifting onto one id, or a row citing a track or gate that no
+      # longer exists, breaks that silently — nothing renders wrong. Repo-wide
+      # for the same reason as the gate above: it judges one document whole.
+      run: node shared/tools/dev-cli/src/main.mjs check-roadmap-ids
     practice-index:
       # Every practice card must still find the rule text it cites. Edits to a
       # CLAUDE.md and edits to the index land in different projects, so no
