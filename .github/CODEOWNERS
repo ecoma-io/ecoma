@@ -1,0 +1,8 @@
+# Files whose change is a legal act rather than a code change, plus the one
+# module that decides which terms a path carries. A licence grant is
+# irreversible for code already released under it, so these must never land on
+# an approval from someone who could not make that grant.
+/LICENSE                                          @johnitvn
+/CLA.md                                           @johnitvn
+/shared/libs/doctrine/LICENSE.docs                @johnitvn
+/shared/tools/dev-cli/src/license-scope.mjs       @johnitvn

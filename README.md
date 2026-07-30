@@ -62,19 +62,21 @@ itself as a service. That restriction is why the rest can be open.
 Which terms apply is decided by where a file lives, and [`LICENSE`](./LICENSE)
 is the source of truth for that mapping:
 
-| Path                          | Terms                                          |
-| ----------------------------- | ---------------------------------------------- |
-| everything not named below    | Sustainable Use License                        |
-| `<subsystem>/packages/`       | Apache License 2.0 — what you build against    |
-| `<subsystem>/enterprise/`     | Enterprise License, sold separately            |
-| `shared/libs/doctrine/` prose | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE) |
-| `cloud/`                      | proprietary, and not published                 |
+| Path                           | Terms                                               |
+| ------------------------------ | --------------------------------------------------- |
+| everything not named below     | Sustainable Use License                             |
+| `<subsystem>/packages/`        | Apache License 2.0 — what you build against         |
+| `<subsystem>/enterprise/`      | Enterprise License, sold separately                 |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) |
+| `cloud/`                       | proprietary, and not published                      |
 
 Self-hosting Ecoma to run your own organisation is expressly permitted,
 commercial or not. Offering it to others as a hosted service is not.
 
-The boundary is machine-checked rather than remembered: every project declares
-a `license:*` tag that must agree with its own directory.
+The build checks that declaration rather than trusting memory: every project
+declares a `license:*` tag, and the conventions gate fails when a tag disagrees
+with its own directory. That is a lint over what the tree declares — `LICENSE`
+is what governs.
 
-Contributing needs a one-time sign-off on [`CLA.md`](./CLA.md). Use of the name
-Ecoma is governed by [`TRADEMARK.md`](./TRADEMARK.md), separately from the code.
+Contributing needs a one-time agreement to [`CLA.md`](./CLA.md). No licence
+here grants rights in the name Ecoma.

@@ -1,42 +1,68 @@
-Sustainable Use License, version 1.0
+Sustainable Use License, version 1.0, Ecoma edition
+SPDX identifier: LicenseRef-Ecoma-SustainableUse-1.0
 
-Copyright (c) Ecoma
+Copyright (c) 2026 John Martin, trading as Ecoma
 
 This document licenses the source code of Ecoma. It is a fair-code licence:
 the source is public, and you may read it, self-host it and modify it. It is
 not an OSI open-source licence, and Ecoma is never described as "open source".
-The one freedom it withholds is the one an OSI licence cannot withhold —
-selling Ecoma itself as a service. That restriction is why the rest can be
-open.
+What it withholds is commercial redistribution — above all, selling Ecoma
+itself as a service. That restriction is why the rest can be open.
+
+That paragraph describes the licence in outline. The sections below are its
+terms, and where the two differ, the terms below govern.
+
+These terms are BASED ON the Sustainable Use License 1.0 but are not that
+licence. The SCOPE section, the clarifications in LIMITATIONS, the patent
+retaliation trigger and the definition of "the software" are additions or
+changes. A review of the base licence is not a review of this one.
 
 
 SCOPE
 
-These terms cover the files in this repository, with four exceptions. Each
-exception is a path, deliberately not a filename marker, so the boundary a
-reader checks is the same one the build enforces: every project declares a
-`license:*` tag that must agree with its own directory, and
-`dev-cli check-project-conventions` fails the build when it does not.
+These terms cover every file in the repository the licensor publishes at
+https://github.com/ecoma-io/ecoma (the "Repository"), with five exceptions.
 
-  1. Any directory named `packages` directly beneath a subsystem root — the
-     interfaces, schemas, protocols, clients and vocabularies a third party
-     needs in order to PLUG INTO Ecoma — is licensed under the Apache License
-     2.0, whose text ships in that directory. Nothing in this document limits
-     those files.
+Each exception identifies files by their path within the Repository as the
+licensor publishes it. The terms that govern a file are fixed by its path in
+the Repository, and do not change if the file is moved, copied or renamed by
+anyone other than the licensor.
+
+  1. Any directory named `packages` directly beneath a subsystem root — which
+     the licensor uses only for the interfaces, schemas, protocols, clients
+     and vocabularies a third party needs in order to plug into Ecoma — is
+     licensed by the licensor under the Apache License 2.0, published at
+     https://www.apache.org/licenses/LICENSE-2.0 and also placed in that
+     directory. Nothing in this document limits those files. If such a
+     directory reaches you without a copy of the Apache License 2.0 in it, the
+     Apache License 2.0 governs those files nonetheless.
 
   2. Any directory named `enterprise` directly beneath a subsystem root is NOT
-     licensed by this document. Those files are published so they can be read
-     and audited, but using them requires a separate written Enterprise
-     License from Ecoma. Their own terms ship in that directory.
+     licensed by this document. Those files are published so that they can be
+     read and audited, and no right to use, copy, distribute, make available
+     or prepare derivative works of them is granted here. Using them requires
+     a separate written Enterprise License from the licensor, whose terms are
+     placed in that directory. If those terms are not present, no rights in
+     those files are granted at all.
 
-  3. The prose under `shared/libs/doctrine/` is licensed under Creative
-     Commons Attribution-ShareAlike 4.0 International; see the LICENSE file in
-     that directory. This document covers the source code beside it, not the
-     documents.
+  3. Every file whose name ends in `.md`, in `shared/libs/doctrine/` and in
+     every directory beneath it, together with every image such a file
+     references, is licensed by the licensor under the Creative Commons
+     Attribution-ShareAlike 4.0 International License, whose terms are stated
+     in `shared/libs/doctrine/LICENSE.docs` and at
+     https://creativecommons.org/licenses/by-sa/4.0/legalcode. Every other
+     file in that directory, including everything under
+     `shared/libs/doctrine/src/`, is covered by this document.
 
-  4. The `cloud/` directory is proprietary and is not published. If it is
-     present in your working tree, it is not licensed by this document and no
-     rights to it are granted here.
+  4. The `cloud/` directory is proprietary. Its contents are not published in
+     the Repository. If it is present in your working tree, it is not licensed
+     by this document and no rights to it are granted here.
+
+  5. Any third-party component incorporated into the software remains licensed
+     under the terms its own owner provides, which are stated in or alongside
+     that component. The licensor grants no rights in such components beyond
+     those their owner grants, and nothing in this document limits or extends
+     them.
 
 
 ACCEPTANCE
@@ -60,9 +86,19 @@ purposes or for non-commercial or personal use.
 For the avoidance of doubt, running the software on your own infrastructure to
 operate your own organisation is an internal business purpose, whether or not
 your organisation is commercial, and whether you run it unmodified or with
-changes of your own. Providing the software's functionality to your own
-customers as part of a product that is not substantially the software itself
-is also an internal business purpose.
+changes of your own. This includes using the software to produce or to deliver
+goods and services to your own customers.
+
+Providing the software's functionality to your own customers as part of a
+larger product is also an internal business purpose, but only where all of the
+following are true: (a) the product provides substantial functionality of its
+own, independent of the software; (b) your customers cannot reach
+substantially the functionality of the software through the product; and (c)
+the product is not marketed, priced or sold on the basis of functionality that
+the software provides. Nothing in this paragraph permits what the next
+paragraph forbids. A product whose principal value to the customer is
+functionality the software provides is substantially the software itself,
+however it is branded, packaged or extended.
 
 You may distribute the software or provide it to others only if you do so free
 of charge for non-commercial purposes. In particular, you may not provide the
@@ -70,8 +106,8 @@ software to third parties as a hosted or managed service where the service
 gives them substantially the functionality of the software.
 
 You may not alter, remove, or obscure any licensing, copyright, or other
-notices of the licensor in the software. Any use of the licensor's trademarks
-is subject to applicable law and to the trademark policy in TRADEMARK.md.
+notices of the licensor in the software. This license grants you no rights in
+the licensor's trademarks.
 
 
 PATENTS
@@ -81,7 +117,9 @@ license, or becomes able to license, to make, have made, use, sell, offer for
 sale, import and have imported the software, in each case subject to the
 limitations and conditions in this license. This license does not cover any
 patent claims that you cause to be infringed by modifications or additions to
-the software. If you or your company make any written claim that the software
+the software. If you or your company make any written claim that the software,
+or any other software the licensor makes available — including the contents of
+any `enterprise` directory and of `cloud/`, whether or not licensed to you —
 infringes or contributes to infringement of any patent, your patent license
 for the software granted under these terms ends immediately. If your company
 makes such a claim, your patent license ends immediately for work on behalf of
@@ -100,7 +138,7 @@ software a prominent notice stating that you have modified the software.
 NO OTHER RIGHTS
 
 These terms do not imply any licenses other than those expressly granted in
-these terms.
+these terms. This does not limit the licences the SCOPE section states.
 
 
 TERMINATION
@@ -122,16 +160,26 @@ out of these terms or the use or nature of the software, under any kind of
 legal claim.
 
 
+SEVERABILITY
+
+If any provision of these terms is held unenforceable, it is to be enforced to
+the greatest extent permitted, and if that is not possible, severed. The
+remaining provisions stay in full effect. The parties agree that the
+LIMITATIONS section is a fundamental condition of the licences granted here.
+
+
 DEFINITIONS
 
-The "licensor" is the entity offering these terms.
+The "licensor" is John Martin, an individual, trading as Ecoma, and his
+successors and assigns — including any legal entity he later forms to hold
+this project's assets.
 
 The "software" is the software the licensor makes available under these terms,
 including any portion of it, and excluding everything the SCOPE section above
 excludes.
 
-A "subsystem root" is a top-level directory of this repository that holds
-tracked files.
+A "subsystem root" is any directory located immediately at the root of the
+software's directory tree whose name does not begin with a dot.
 
 "You" refers to the individual or entity agreeing to these terms.
 
@@ -147,4 +195,5 @@ these terms.
 
 "Use" means anything you do with the software requiring one of your licenses.
 
-"Trademark" means trademarks, service marks, and similar rights.
+"Provide" includes making functionality available over a network, whether or
+not a copy of the software is conveyed.
