@@ -61,7 +61,8 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 - **Không nối vào gate nào** — gọi tay hoặc từ agent skill khi cần việc, chứ
   không phải cưỡng chế liên tục: `scaffold-lib` (skill `scaffold-lib`),
   `pr-facts` (skill `create-pr`), `run-e2e` (target `e2e` của các app
-  `*-e2e`).
+  `*-e2e`), `run-node-tests` (target `test` của `eslint-local-rules`, project
+  duy nhất chạy trên test runner có sẵn của Node).
 
 <!-- readme:ecosystem -->
 

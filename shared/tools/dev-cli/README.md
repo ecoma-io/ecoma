@@ -62,7 +62,8 @@ Not every command is wired into a gate — `lefthook.yml` and
 - **Wired into no gate at all** — invoked by hand or from an agent skill when
   the work is needed, not enforced continuously: `scaffold-lib` (the
   `scaffold-lib` skill), `pr-facts` (the `create-pr` skill), `run-e2e` (the
-  `e2e` target of the `*-e2e` apps).
+  `e2e` target of the `*-e2e` apps), `run-node-tests` (the `test` target of
+  `eslint-local-rules`, the one project on Node's built-in test runner).
 
 <!-- readme:ecosystem -->
 
