@@ -5,6 +5,28 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
 `.mjs`, no build/typecheck — the same pattern as `dev-cli` and
 `eslint-local-rules`.
 
+- **Two halves under one project.** `src/setup.mjs` handles developer
+  toolchain setup (the existing role). The new `src/doctrine-reader.mjs`,
+  `src/nx-reader.mjs`, `src/git-reader.mjs`, and `src/report-builder.mjs`
+  are deterministic data-gathering scripts used by the `.claude/skills/onboard`
+  skill — they output JSON to stdout, never mutate the filesystem.
+- **`src/doctrine-reader.mjs` reads `shared/libs/doctrine/`** — the published
+  doctrine tree. It extracts end-state architecture (north stars, system shape,
+  principles, invariants, primitives, layers), roadmap milestones, and known
+  gaps. Pure function of files on disk.
+- **`src/nx-reader.mjs` reads the live Nx graph** via `pnpm nx graph --file`,
+  falling back to parsing `project.json` files directly if `nx` is unavailable.
+  Outputs nodes grouped by scope/type/layer tags, plus dependency edges.
+- **`src/git-reader.mjs` reads git log** with temporal LOD. Accepts
+  `--window=<day|week|month|since=<expr>>`. Outputs three bands: all-time
+  (compressed), context (medium), focus (detailed).
+- **`src/report-builder.mjs` orchestrates the three readers** above and
+  assembles a unified onboarding report JSON. The skill calls this to get
+  all data in one pass.
+- **The scripts are all deterministic — Rule 5 pure extraction.** The model's
+  only creative work happens in the skill itself: reading doctrine prose for
+  narrative, reading CLAUDE.md for reserved seams, and rendering the final
+  output (prose summary or HTML artifact).
 - **This is the sole onboarding entrypoint.** `src/setup.mjs` verifies the
   developer toolchain and sets up the repo (dependencies, git hooks via
   lefthook, Playwright Chromium). Contributors run it via `pnpm run setup`
