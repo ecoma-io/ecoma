@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse(Bash) hook: refuse to publish agent attribution — or, more
-// importantly, a claude.ai session link — to GitHub.
+// PreToolUse hook: refuse to publish agent attribution — or, more importantly,
+// a claude.ai session link — to GitHub, through EITHER route that reaches it.
 //
 // The source fix lives in `.claude/settings.json` (`attribution.commit` and
 // `attribution.pr` empty, `attribution.sessionUrl` false), which stops the
@@ -13,6 +13,23 @@
 // transcript, published on a public thread. Failing loud beats stripping
 // silently — the body is the agent's to fix, and a silent rewrite would teach
 // nothing (CLAUDE.md > Rule 11).
+//
+// **Two tool shapes, because guarding only one left the route actually used
+// wide open.** This started as a `Bash`-only hook, matching `gh pr create` and
+// friends. But there is no `gh` CLI in the cloud sandbox — pull requests there
+// are opened through the GitHub MCP server, whose calls a `Bash` matcher never
+// sees. Three merged pull requests carry a session link in their public body
+// for exactly that reason: the setting did not suppress it on that path and the
+// guard could not see it. So the payload is now read from both shapes.
+//
+// The MCP side keys on the FIELD NAME, never on a list of tool names
+// (CLAUDE.md > Rule 14: derive rather than enumerate). A roster of writing
+// tools would go stale the next time the server grows one, and the failure
+// would be silent — the shape this hook exists to prevent. Field names are the
+// stable part of that surface: whatever publishes free text calls it `body`,
+// `title`, or a `message`. Keying on the tool instead would also mean scanning
+// every argument of every call, and a read-only `search_pull_requests` whose
+// query is literally this pattern would be denied for publishing nothing.
 import { readFileSync } from "node:fs";
 
 // gh subcommands that publish free text someone else will read.
@@ -37,6 +54,34 @@ const FORBIDDEN = [
 ];
 
 /**
+ * Tool names whose arguments reach GitHub through the MCP server. Matched as a
+ * prefix so a newly added tool is guarded the day it appears, rather than the
+ * day someone remembers to list it.
+ */
+const GITHUB_MCP_TOOL = /^mcp__github__/;
+
+/**
+ * Argument names that carry free text a reader will see. `body` covers pull
+ * request and issue bodies, review comments and replies; `title` covers both;
+ * `message`/`commit_message`/`commit_title` cover the commit a file-write or a
+ * merge composes. Anything else a GitHub MCP call takes — a query, a path, a
+ * ref, a number — publishes nothing and is deliberately not read.
+ */
+const PUBLISHING_FIELDS = new Set(["body", "title", "message", "commit_message", "commit_title"]);
+
+/**
+ * The publishing text of an MCP call: every `PUBLISHING_FIELDS` string in its
+ * arguments, joined. Non-string values are skipped rather than stringified, so
+ * a number or an array of paths cannot manufacture a match.
+ */
+function mcpPublishedText(toolInput) {
+  return Object.entries(toolInput ?? {})
+    .filter(([key, value]) => PUBLISHING_FIELDS.has(key) && typeof value === "string")
+    .map(([, value]) => value)
+    .join("\n");
+}
+
+/**
  * The text the command would publish: the command line itself (a heredoc or
  * an inline `--body` string is already in there) plus any `--body-file`/`-F`
  * payload, which would otherwise smuggle the line past a command-line scan.
@@ -57,10 +102,18 @@ function publishedText(command) {
 }
 
 const input = JSON.parse(readFileSync(0, "utf8"));
+const toolName = input.tool_name ?? "";
 const command = input.tool_input?.command ?? "";
 
-if (PUBLISHING_GH.test(command)) {
-  const text = publishedText(command);
+/** What this call would publish, or `null` when it publishes nothing. */
+function candidateText() {
+  if (GITHUB_MCP_TOOL.test(toolName)) return mcpPublishedText(input.tool_input);
+  if (PUBLISHING_GH.test(command)) return publishedText(command);
+  return null;
+}
+
+const text = candidateText();
+if (text) {
   const hits = FORBIDDEN.filter((f) => f.re.test(text)).map((f) => f.what);
   if (hits.length > 0) {
     console.log(
