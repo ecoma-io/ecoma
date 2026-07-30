@@ -1,76 +1,157 @@
 ---
 name: onboard
-description: Generate a beautiful, on-demand onboarding map of THIS workspace as an Artifact — subproject architecture (grouped C4-style by subsystem/project from the live Nx graph), where the reserved seams are, and the recent development rhythm (git history at a temporal level-of-detail over a window you choose: day, week, or month; old history stays compressed, the chosen window is detailed). Use whenever the user asks to onboard, understand the repo, "what is this codebase", "what changed recently", wants an architecture map, or wants a daily/weekly development digest. Args: `day` | `week` (default) | `month` | `since=<git date>`. Answers the two real onboarding questions at once: what is the shape, and where has it been moving.
+description: >
+  Generate an onboarding map of THIS workspace that answers two questions on a
+  temporal axis: what does the end-state look like (from doctrine), what exists
+  today (from Nx graph), where are we on the roadmap (from doctrine + git log).
+  Produces either a prose summary or a full HTML artifact. Use whenever the user
+  asks to onboard, understand the repo, "what is the end-state architecture",
+  "what is the current state", "how is the roadmap going". Args: `day` | `week`
+  (default) | `month` | `since=<git date>` | `--mode prose|artifact` (default
+  artifact). Answers the two real onboarding questions at once: what is the end
+  state, where are we now, and how are we getting there.
 ---
 
 # Onboard map (Ecoma)
 
-Produces a **single Artifact** that pays down "knowledge debt" — the gap that opens when the repo grows faster than a human can keep up (especially when AI is doing the building). It is **generated fresh on every run**, never committed, so it can never rot: the structure comes from the live Nx graph, the rhythm from live git, and only the _why_ is read from prose.
+Pays down "knowledge debt" — the gap that opens when the repo grows faster than
+a human can keep up. **Generated fresh on every run**, never committed, so it
+can never rot.
 
-The whole point is the **separation of concerns by data nature** — get this wrong and the map becomes a confident lie, which is worse than nothing for a reader who lacks the knowledge to catch it:
+## Separation of concerns by data nature
 
-| Panel                 | Source of truth                   | Nature                                     | Your job                                              |
-| --------------------- | --------------------------------- | ------------------------------------------ | ----------------------------------------------------- |
-| **1. Architecture**   | Nx graph JSON (`nx graph --file`) | **Deterministic**                          | Read edges/tags, lay out — **never invent structure** |
-| **2. Reserved seams** | `*/CLAUDE.md` prose               | **Judgment**                               | Read & summarize what is deliberately _not_ built     |
-| **3. Rhythm**         | `git log`                         | **Deterministic facts → judgment summary** | Feed real git output, then compress into narrative    |
+| Panel                       | Source of truth                                                       | Nature                                         |
+| --------------------------- | --------------------------------------------------------------------- | ---------------------------------------------- |
+| **1. Target Architecture**  | Doctrine (`shared/libs/doctrine/`) — north stars, specs, system shape | **Judgment** — read prose, summarise end state |
+| **2. Current Architecture** | Nx graph (`nx graph --file`) or `project.json` fallback               | **Deterministic** — edges/tags, no invention   |
+| **3. Roadmap Progress**     | Doctrine roadmap + git log                                            | **Deterministic facts + judgment**             |
+| **4. Reserved Seams**       | `*/CLAUDE.md` prose                                                   | **Judgment** — what is deliberately not built  |
 
-Rule 5 governs this skill: structure and history are **derived by code**, never guessed from memory; the model's only creative work is the reserved-seam read, the git narrative, and the visual layout.
+Rule 5 governs: structure and history are **derived by code** via `.mjs`
+scripts; the model's only creative work is reading doctrine prose, reserved
+seams, and rendering the narrative.
 
-## 1. Gather structure (deterministic — do not skip to memory)
+The `.mjs` scripts live in `shared/tools/onboard/src/`:
 
-Emit the Nx graph to JSON and parse it. This is the **only** trustworthy source of the dependency edges:
+- `doctrine-reader.mjs` — reads end-state architecture, system shape, milestones
+- `nx-reader.mjs` — reads Nx graph, groups by scope/type/layer
+- `git-reader.mjs` — reads git log with temporal LOD (accepts `--window=<arg>`)
+- `report-builder.mjs` — orchestrates all three, outputs unified JSON
+
+## How to run
 
 ```bash
-pnpm nx graph --file=/tmp/onboard-graph.json
+# Full report as JSON (for consumption by this skill):
+node shared/tools/onboard/src/report-builder.mjs --window=week
+
+# Or run individual readers:
+node shared/tools/onboard/src/doctrine-reader.mjs
+node shared/tools/onboard/src/nx-reader.mjs
+node shared/tools/onboard/src/git-reader.mjs --window=week
 ```
 
-Then extract nodes, tags, and edges (the schema is stable: `graph.nodes[name].data.{root,tags}`, `graph.dependencies[name] = [{source,target,type}]`):
+## Mode selection
+
+The skill supports **two output modes**, chosen by the user or defaulting to
+artifact:
+
+- **Prose** (`--mode prose`): a plain-text summary suitable for terminal output
+- **Artifact** (`--mode artifact`, default): a full HTML artifact with visual
+  diagrams
+
+## Report structure (prose output)
+
+When rendering as prose, describe the following in natural language:
+
+### 1. Target Architecture (end state)
+
+Read the output of `doctrine-reader.mjs` and summarise:
+
+- **Vision**: one-sentence end state from the North Star
+- **System shape**: the 3 vertical domains (Platform, RPA, Hub) + 2 horizontal
+  layers (EE, Cloud), and how they connect
+- **Principles**: the 4 mechanism principles
+- **Invariants**: the 5 invariants
+- **Primitives**: Role, Task, Checkpoint, Handoff, Escalation + Composition
+- **Layers**: the 5 product layers (Core → Agent → Human → Design → Intelligence)
+- **Milestones**: M0–M7, what each delivers, any freezes passed
+
+Keep it tight — 3–5 paragraphs max. State what the system will be when done.
+
+### 2. Current Architecture (today)
+
+Read the output of `nx-reader.mjs` and summarise:
+
+- **Scope groups**: which subsystems exist, how many projects each
+- **Types**: apps vs libs vs e2e
+- **Layers**: what layers are present (domain, port, adapter, view, util)
+- **Source**: whether data came from live `nx graph` or `project.json` fallback
+
+Contrast with the target: what's been built vs what's still prose.
+
+### 3. Roadmap Progress
+
+Read the output of `report-builder.mjs` (which combines doctrine + git):
+
+- **Where we are**: which milestone the churn clusters around, which freeze
+  gates are passed
+- **Churn hotspots**: the top subsystems by commit count in the focus window,
+  and whether they map to current roadmap priorities
+- **Known gaps**: from `overview/index.md`'s declared gaps
+- **Rhythm** (git bands): total commits, first commit, top authors, recent
+  activity grouped by subsystem/mechanism
+
+### 4. Reserved Seams
+
+Read `*/CLAUDE.md` files and capture what's deliberately not built yet:
+
+- **Reserved leaves**: subsystem dirs with no `project.json`
+- **Named seams**: what each subsystem's CLAUDE.md says is deferred
+- Link each to its owning `CLAUDE.md`
+
+## Report structure (artifact output)
+
+When rendering as an HTML artifact, produce a single self-contained page with
+four clearly separated panels in order: **Target Architecture → Current
+Architecture → Roadmap Progress → Reserved Seams**. Design notes:
+
+- **One source of truth per panel** — do not blur deterministic panels with
+  narrative ones
+- **Target Architecture**: show the 3-domain system shape as a visual diagram,
+  list principles, invariants, primitives, layers. Use the doctrine prose;
+  never invent structure
+- **Current Architecture**: leaf-grouped boxes, core-outward layer order,
+  cross-leaf edges only at the `shared` seam; reserved leaves as dashed ghosts.
+  A Mermaid `flowchart`/`graph` is fine for the Context view; keep it grouped
+  with `subgraph` per leaf
+- **Roadmap Progress**: a visual timeline showing M0–M7 with the current
+  position highlighted, freeze gates marked, churn hotspots overlaid
+- **Reserved Seams**: dashed/ghost boxes for what's deliberately not built,
+  with reason labels
+- Theme-aware (light/dark), responsive, wide diagrams scroll inside their own
+  container
+- Title: "Ecoma — onboarding map (last <window>)"
+- Stable favicon
+- State the generation basis at the foot: "Target architecture from doctrine;
+  current structure from live `nx graph`; rhythm from `git log` as of <SHA>;
+  reserved seams from CLAUDE.md"
+- Do **not** commit the artifact or any temp JSON into the repo
+
+### Loading the scripts in the artifact mode
 
 ```bash
-node -e '
-const g = require("/tmp/onboard-graph.json").graph;
-const nodes = Object.entries(g.nodes).map(([name, n]) => ({
-  name,
-  root: n.data.root,
-  tags: n.data.tags || [],
-  scope: (n.data.tags || []).find(t => t.startsWith("scope:"))?.slice(6) || "?",
-  type:  (n.data.tags || []).find(t => t.startsWith("type:"))?.slice(5)  || "?",
-  layer: (n.data.tags || []).find(t => t.startsWith("layer:"))?.slice(6) || null,
-}));
-const edges = Object.entries(g.dependencies).flatMap(([src, ds]) =>
-  ds.filter(d => !d.target.startsWith("npm:")).map(d => ({ from: src, to: d.target, type: d.type })));
-console.log(JSON.stringify({ nodes, edges }, null, 2));
-' > /tmp/onboard-structure.json
+# Step 1: Gather all data
+node shared/tools/onboard/src/report-builder.mjs --window=week > /tmp/onboard-report.json
+
+# Step 2: Read it
+const report = JSON.parse(fs.readFileSync("/tmp/onboard-report.json", "utf8"));
 ```
 
-**Fallback if `nx` is not installed** (fresh container, deps not restored): parse every `project.json` directly for `name` + `tags` — that still gives you all nodes and their leaf/layer grouping. You will **not** have real dependency edges this way; say so plainly in the artifact (Rule 11 — never draw guessed edges as if they were real). Prefer running `pnpm install` first if the task warrants live edges.
+Then build the artifact from `report`.
 
-### Group by the repo's own taxonomy — this is what tames the mess at scale
+## Temporal level-of-detail (git window)
 
-Do not render N projects flat (that is exactly the messy `nx graph` the user is escaping). Use the tags to build a **C4 hierarchy**:
-
-- **`scope:`** = the subsystem → the top-level grouping box (today only `shared` has a real directory; `eslint.config.mjs` already reserves a `scope:connectors` depConstraint for a product domain that hasn't landed yet — a product domain gets its own `scope:` tag, and directory, the day it takes root).
-- **`type:`** = `app` (the standalone shell) · `lib` · `e2e`.
-- **`layer:`** = hexagonal position: `domain` (headless core) → `port` (seam contract) → `adapter` → `view`, with `util` at the bottom. Lay layers out core-outward so the "headless core + shells" shape reads visually.
-- **Cross-subsystem edges** only ever go **into `shared`** — that is the enforced leaf-independence boundary (`@nx/enforce-module-boundaries` in `eslint.config.mjs`: `scope:shared` may depend only on itself; a product domain's own scope constraint is added the day it takes root, constrained to its own libs plus `scope:shared`). Draw a subsystem→subsystem edge that isn't via shared as a **violation flag**, not a normal line — it would mean the boundary broke.
-
-Default view is **Context** (leaves + cross-leaf edges at the seam only). Offer Container zoom (libs within one leaf, layer-ordered) as a second view, not crammed into the first.
-
-## 2. Reserved seams (judgment — read the prose, the graph can't show these)
-
-The most important thing a newcomer misses: **what is deliberately _not_ built yet.** Reserved seams have no node or edge in the Nx graph _by design_ — they live only in `CLAUDE.md` prose. You must read them, not derive them:
-
-- **Reserved leaves** — a subsystem dir with only a `CLAUDE.md` and no `project.json` (none exist in the current tree, but the pattern recurs whenever a leaf is sketched ahead of being built). Show it as a ghost/dashed box: named, reserved, not built.
-- **Reserved seams inside built subsystems** — read the root `CLAUDE.md` and each subsystem's own `CLAUDE.md` for what's deliberately not built. Capture the named-but-unhardened seams (a capability-graph seam hardened only at a 2nd consumer, an organizational-tier contract hardened field-by-field under its real consumer, reserved release seams: Windows/macOS signing, auto-update feed, agent-in-ecosystem shell). Summarize _why reserved_ in one line each — the process-first / reserved-seam discipline is the single hardest thing to infer from code.
-
-This panel is what turns a structure diagram into an **understanding** of the architecture's intent. Keep it tight; link each item to the `CLAUDE.md` that owns it.
-
-## 3. Development rhythm (deterministic facts, temporal level-of-detail)
-
-Answer "where has it been moving" — the churn hotspots _are_ the knowledge-debt hotspots. Use a **temporal LOD**: three bands, coarse→fine, **centered on the window the user asked for**. The arg picks the _focus_ band (Band C); the other two scale relative to it, so the same skill serves a daily digest and a monthly onboarding without changing shape.
-
-**Resolve the window ladder** (default `week`; also accept a raw `since=<git date expr>` for a custom range):
+Same ladder as before — applies only to the git rhythm portion:
 
 | arg                  | Band C — focus (detailed) | Band B — context                         | Band A             |
 | -------------------- | ------------------------- | ---------------------------------------- | ------------------ |
@@ -79,35 +160,4 @@ Answer "where has it been moving" — the churn hotspots _are_ the knowledge-deb
 | `month`              | last 30 days              | last 90 days                             | all-time, one line |
 | `since=<expr>`       | since `<expr>`            | next coarser span (or all-time if young) | all-time, one line |
 
-Then feed real git output — never summarize commits from memory. Set the two spans once from the row and reuse them:
-
-```bash
-FOCUS='1 week ago'; CONTEXT='1 month ago'   # <- set from the ladder (day: '1 day ago' / '1 week ago'; month: '1 month ago' / '3 months ago')
-
-# Band A — all-time, maximally compressed (always one line, whatever the window)
-git log --oneline | wc -l                              # total commits
-git log --reverse --format='%ad %s' --date=short | head -1   # first commit / origin
-git shortlog -sn --all | head -10                       # who built it
-
-# Band B — context span, medium detail (subjects only)
-git log --since="$CONTEXT" --date=short --pretty='%ad %s'
-
-# Band C — focus span, full detail: what moved, per leaf
-git log --since="$FOCUS" --stat --pretty='%h %ad %s' --date=short
-git log --since="$FOCUS" --name-only --pretty=format: | grep -v '^$' \
-  | sed -E 's#^([^/]+)/.*#\1#' | sort | uniq -c | sort -rn   # churn per top-level subsystem
-```
-
-Then the **judgment** step (Rule 5): compress this into narrative — _what changed and why it matters_, grouped by subsystem/mechanism, **not** a commit dump. "This week `core-ui` gained a new primitive; new lib `dev-cli`-adjacent tooling landed" beats "Tuesday had 3 commits". Neutralize the bands to the window: Band A → one line always; Band B → a few bullets; Band C → the detailed section. **At `day` granularity commit volume is small — Band C may list the actual commits grouped by subsystem (a standup digest); at `month`, always collapse to themes.** Anchor by subsystem/lib, not by date. If the focus span has **zero** commits (e.g. `day` over a quiet weekend), say so plainly — never pad an empty window (Rule 11).
-
-## 4. Render the Artifact
-
-**Load the `artifact-design` skill first** to calibrate design investment, then build **one** self-contained HTML artifact (the `Artifact` tool) with three clearly separated panels in order: **Architecture → Reserved seams → Rhythm**. Design notes:
-
-- One source of truth per panel (§ table) — do not blur the deterministic panels with the narrative one.
-- Architecture: leaf-grouped boxes, core-outward layer order, cross-leaf edges only at the `shared` seam; reserved leaves as dashed ghosts. A Mermaid `flowchart`/`graph` is fine for the Context view; keep it grouped with `subgraph` per leaf.
-- Theme-aware (light/dark), responsive, wide diagrams scroll inside their own container.
-- Title it for the repo + window (e.g. "Ecoma — onboarding map (last week)"). Stable favicon (e.g. 🗺️).
-- State the generation basis at the foot: "Structure from live `nx graph`; rhythm from `git log` as of <the commit SHA you read>; reserved seams from CLAUDE.md" — so the reader knows it's derived, not hand-drawn, and how fresh.
-
-Deliver the artifact URL. Do **not** commit the artifact or any temp JSON into the repo — this map is ephemeral by design; its whole value is being regenerated fresh, never a stale file to drift.
+The git window drives `git-reader.mjs --window=<arg>`.
