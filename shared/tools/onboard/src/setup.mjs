@@ -280,31 +280,6 @@ export function runSetup(argv) {
     ok("Windows");
   }
 
-  // Package-manager hint for the tools this script refuses to install itself
-  // (git's hint is computed separately by gitInstallHint(), needed earlier).
-  let pkgHintNode;
-  let pkgHintGo;
-  if (WIN32) {
-    pkgHintNode = "winget install OpenJS.NodeJS.LTS (>= 22) or https://nodejs.org";
-    pkgHintGo = "winget install GoLang.Go (or https://go.dev/dl/)";
-  } else if (commandExists("brew")) {
-    pkgHintNode = "brew install node@22";
-    pkgHintGo = "brew install go";
-  } else if (commandExists("apt-get")) {
-    pkgHintNode =
-      "install Node.js 22 via https://github.com/nodesource/distributions or your version manager (fnm/nvm/mise)";
-    pkgHintGo = "sudo apt-get install golang-go (or https://go.dev/dl/)";
-  } else if (commandExists("dnf")) {
-    pkgHintNode = "sudo dnf install nodejs22 (or your version manager)";
-    pkgHintGo = "sudo dnf install golang";
-  } else if (commandExists("pacman")) {
-    pkgHintNode = "sudo pacman -S nodejs npm";
-    pkgHintGo = "sudo pacman -S go";
-  } else {
-    pkgHintNode = "https://nodejs.org (>= 22) or a version manager (fnm/nvm/mise)";
-    pkgHintGo = "https://go.dev/dl/";
-  }
-
   // -------------------------------------------------------------------------
   // Version pins owned by the repo
   //
@@ -331,6 +306,39 @@ export function runSetup(argv) {
         "fields, or the repo-root .golangci-lint-version file. Was one of them changed or removed?",
     );
     return 1;
+  }
+
+  // Package-manager hint for the tools this script refuses to install itself
+  // (git's hint is computed separately by gitInstallHint(), needed earlier).
+  // The Node hints name a MAJOR version, derived from nodeMin (engines.node's
+  // floor) rather than .node-version's exact pin: nodeMin is the same number
+  // the "is older than the required X" failure message already cites just
+  // below, so the install target these hints name always agrees with the
+  // requirement the script just stated in the same breath. `.node-version`
+  // can move independently of the floor (a newer exact CI pin the floor does
+  // not yet demand), and citing it here would risk a hint that asks for a
+  // version stricter than what "required" actually means.
+  const nodeMajor = nodeMin.split(".")[0];
+  let pkgHintNode;
+  let pkgHintGo;
+  if (WIN32) {
+    pkgHintNode = `winget install OpenJS.NodeJS.LTS (>= ${nodeMajor}) or https://nodejs.org`;
+    pkgHintGo = "winget install GoLang.Go (or https://go.dev/dl/)";
+  } else if (commandExists("brew")) {
+    pkgHintNode = `brew install node@${nodeMajor}`;
+    pkgHintGo = "brew install go";
+  } else if (commandExists("apt-get")) {
+    pkgHintNode = `install Node.js ${nodeMajor} via https://github.com/nodesource/distributions or your version manager (fnm/nvm/mise)`;
+    pkgHintGo = "sudo apt-get install golang-go (or https://go.dev/dl/)";
+  } else if (commandExists("dnf")) {
+    pkgHintNode = `sudo dnf install nodejs${nodeMajor} (or your version manager)`;
+    pkgHintGo = "sudo dnf install golang";
+  } else if (commandExists("pacman")) {
+    pkgHintNode = "sudo pacman -S nodejs npm";
+    pkgHintGo = "sudo pacman -S go";
+  } else {
+    pkgHintNode = `https://nodejs.org (>= ${nodeMajor}) or a version manager (fnm/nvm/mise)`;
+    pkgHintGo = "https://go.dev/dl/";
   }
 
   // -------------------------------------------------------------------------
