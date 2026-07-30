@@ -162,6 +162,14 @@ Tests verify the behavior that matters, not just line coverage. Read more in the
 
 ## Review Process
 
+Ecoma currently has exactly one maintainer, so review turnaround depends on
+their availability — expect it to take longer than a project with a larger
+review team, especially for non-trivial changes. This is a deliberate model,
+not a gap: [`shared/libs/doctrine/method/review-rubric.md`](./shared/libs/doctrine/method/review-rubric.md)
+names the maintainer's own review as the single most effective error-catching
+channel by design (its "Kênh owner" section). If your PR sits without a
+response for a while, a friendly ping is welcome.
+
 - Your PR will be reviewed by maintainers
 - Changes may be requested
 - Once approved, a maintainer will merge your PR
