@@ -27,6 +27,13 @@ pre-commit:
       # Relative Markdown links across the repo must resolve to existing files.
       # Repo-wide (a link crosses project boundaries), so outside `nx affected`.
       run: node shared/tools/dev-cli/src/main.mjs check-doc-links
+    command-refs:
+      # Every `node .../main.mjs <command>` citation in a tracked Markdown file
+      # must name a command main.mjs's COMMANDS registry still has — a rename
+      # fails loud where a command is EXECUTED (lefthook, CI, a lint target),
+      # but nothing else catches the prose that still tells someone to run the
+      # old name. Repo-wide, like doc-links, so outside `nx affected`.
+      run: node shared/tools/dev-cli/src/main.mjs check-command-refs
     doctrine:
       # The published tree must stay checkable by someone who was never here:
       # no round numbers or finding ids, no bet identifiers, and no citation of
