@@ -1,120 +1,199 @@
 ---
-title: "Ecoma Spec: Process Test Harness"
+title: "Process Test Harness"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Process Test Harness
+# Process Test Harness
 
-## 1. Test mode = một mode của engine, không phải engine thứ hai
+## 1. Test mode is a mode of the engine, not a second engine
 
-- **Test run scope**: test run là **một lần chạy có nhãn**, **trong chính tenant sở hữu definition**. Mọi entry nó sinh mang `run_kind: test` + `test_run_id`. **Cách ly = bộ lọc của projection**, không phải một biên cứng mới.
-- **Án văn** — vì sao KHÔNG dùng một tenant riêng: tenant là **biên cứng duy nhất** của hệ (Tenant §2). Đẻ "tenant `test`" buộc phải trả lời cardinality/chủ sở hữu/vòng đời/key-tree/metering, và buộc phải mở một **đường copy artifact xuyên tenant** cho definition + fixture — mà Artifact Store §4 cấm tường minh (dedup cross-tenant là side-channel) và invariant 4 cấm học cross-tenant. Nhu cầu thật của harness chỉ có ba, và cả ba **đã có cơ chế**: (1) không effect ra ngoài → `test_behavior` tại Contract; (2) không đầu độc flywheel → đường ghi calibration duy nhất là Judgment hợp lệ (Calibration §2); (3) không bẩn dữ liệu production → mọi write là event, lọc theo nhãn là đủ. **Thêm khái niệm để giải bài toán đã có cơ chế = nửa-cơ-chế đắt hơn** (J3 áp lên chính patch).
-- **Hệ quả của nhãn** (engine ép, không phải quy ước):
+**A test run scope** is **one labelled run, inside the very tenant that owns the
+definition**. Every entry it produces carries `run_kind: test` and a
+`test_run_id`. **Isolation is a projection filter**, not a new hard boundary.
 
-| Chiều                      | Luật với `run_kind: test` _(nhãn có **nhà canonical** tại Event Log §1/§3 — bảng này chỉ liệt lập trường của từng consumer, không khai lại nhãn;)_ |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Calibration                | Judgment sinh trong test run **không bao giờ vào cell production** (Calibration §2 đọc theo nhãn)                                                  |
-| Metering / quota / billing | Projection metering **loại nhãn test** (Event Log §3) — trừ phần chi phí tính tiền thật (token, CPU sandbox) vẫn đo, vì nó có xảy ra               |
-| DataTable / Working Data   | Write của test run vào **projection tách theo nhãn**; bảng production không thấy                                                                   |
-| Effect ra ngoài            | Chặn tại Contract (§5)                                                                                                                             |
-| Secret                     | Không resolve handle production (Vault §5)                                                                                                         |
-| n=1 (D5)                   | User không thấy khái niệm nào: chỉ có nút "chạy thử"                                                                                               |
+**Why not a separate tenant.** A tenant is the system's **only hard boundary**
+(Tenant §2). Inventing a `test` tenant would force answers about cardinality,
+ownership, lifecycle, key tree and metering, and would force open a
+**cross-tenant artifact copy path** for definitions and fixtures — which Artifact
+Store §4 forbids explicitly, because cross-tenant content addressing is a side
+channel, and which invariant 4 forbids for learning.
 
-- **Test run là entry trong log**: có id, definition@version, fixture@version, kết quả, provenance → so sánh được giữa các version, dựng lại được.
-- **Cấm nhánh code riêng cho test** (A3): cùng engine, cùng primitive, cùng đường ghi — chỉ khác _nhãn run_, _filler binding_ và _contract test_behavior_.
+The harness has exactly three real needs, and all three **already have
+mechanisms**: no outward effects → `test_behavior` on the Contract; no poisoning
+the flywheel → the only write path into calibration is a valid Judgment
+(Calibration §2); no dirtying production data → every write is an event, so
+filtering by label suffices. **Adding a concept to solve a problem that already
+has a mechanism is a more expensive half-mechanism.**
 
-## 2. Fixture — dữ liệu mồi có version
+**What the label forces** — engine behaviour, not convention. The label's
+canonical home is Event Log §1/§3; this table lists each consumer's position
+rather than redefining the label:
 
-| Thành phần         | Nội dung                                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Seed entries       | Bộ entry khởi tạo (task, artifact, party, working data) — replay-able                                              |
-| Filler binding     | Ánh xạ Role → mock filler (§3)                                                                                     |
-| Recorded responses | Phản hồi LLM/HTTP đã ghi (dùng ở chế độ `replay` — §4)                                                             |
-| Clock              | Thời gian ảo: timer/SLA **tua nhanh được** (Escalation timers là entry → tua = phát entry sớm, không cần chờ thật) |
+| Dimension                  | The rule under `run_kind: test`                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Calibration                | A Judgment produced in a test run **never enters a production cell** (Calibration §2 reads the label)                                                               |
+| Metering / quota / billing | The metering projection **excludes the test label** (Event Log §3) — except that real incurred cost, tokens and sandbox CPU, is still measured, because it happened |
+| DataTable / Working Data   | A test run's writes land in **a projection split by label**; production tables do not see them                                                                      |
+| Outward effects            | Blocked at the Contract (§5)                                                                                                                                        |
+| Secrets                    | Production handles do not resolve (Vault §5)                                                                                                                        |
+| n=1                        | The user sees no concept at all: there is a "try it" button                                                                                                         |
 
-Fixture là **artifact có id + version + lineage** (như mọi thứ trong hệ) — sửa fixture sinh version mới, so được kết quả trước/sau.
+**A test run is an entry in the log**, with an id, `definition@version`,
+`fixture@version`, result and provenance — comparable across versions, and
+reconstructable.
 
-## 3. Mock filler — vẫn là Filler thật
+**No separate code branch for test.** Same engine, same primitives, same write
+path. What differs is the run label, the filler binding, and the contract's
+`test_behavior`.
 
-- Mock filler có **identity thật** (`mock:<name>@version`), đăng ký qua **đúng Filler interface** — nó chỉ là một filler trả kết quả định sẵn. Không cơ chế mới, và đây là bằng chứng đối xứng người/AI/mock đứng vững.
-- **`environment: test` là một chiều của filler identity, KHÔNG phải trust tier thứ 5**: bảng trust tier của Role §5 giữ đúng **4 tier** (`shadow/gated/sampled/autonomous`) — taxonomy tier chỉ có một nhà. Filler mang `environment: test` thì **không đủ tư cách được gán vào task production**, độc lập với tier của nó. Án văn: trộn hai trục (mức-tin-cậy × môi-trường) vào một enum tạo nguồn sự thật thứ hai cho taxonomy tier (E5/G6).
-- **Biên cứng: Judgment của mock filler KHÔNG BAO GIỜ vào cell calibration production.** Án văn: cell calibration là tài sản của tổ chức (Calibration §0); đầu độc bằng dữ liệu giả là phá flywheel không đảo được. Thi hành bằng nhãn `run_kind: test` trên entry (§1), không bằng một biên tenant mới.
-- Mock được phép: trả kết quả cố định, trả theo thứ tự, fail có chủ đích, chậm có chủ đích (test SLA/escalation).
+## 2. Fixture — versioned seed data
 
-## 4. Non-determinism — 3 chế độ
+| Component          | Content                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seed entries       | The initialising entries — tasks, artifacts, parties, working data — replayable                                                                           |
+| Filler binding     | The mapping from Role to mock filler (§3)                                                                                                                 |
+| Recorded responses | Recorded LLM and HTTP responses, used in `replay` mode (§4)                                                                                               |
+| Clock              | Virtual time, so timers and SLAs can be **fast-forwarded** — Escalation timers are entries, so fast-forward means emitting them early rather than waiting |
 
-| Chế độ   | Dùng khi                | Hành vi                                                                                                       |
-| -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `replay` | **Mặc định trong CI**   | Chỉ đọc recorded responses — deterministic tuyệt đối                                                          |
-| `record` | Khi tạo/làm mới fixture | Gọi thật, ghi phản hồi vào fixture (có nhãn chi phí + thời điểm)                                              |
-| `live`   | Nightly / trước release | Gọi thật, chấp nhận không lặp lại — kết quả mang nhãn `non_deterministic`, không được là điều kiện chặn merge |
+A fixture is **an artifact with an id, version and lineage**, like everything
+else here: editing one creates a new version, so results before and after are
+comparable.
 
-## 5. Effect — biên an toàn nằm ở Contract
+## 3. A mock filler is still a real Filler
 
-- Mỗi contract khai `test_behavior`: `mock` · `dry_run` · `forbidden` (Handoff §3). **Thiếu khai resolve về `forbidden`** — engine chặn và ghi entry lý do.
-- Harness **không bao giờ tự đoán** effect nào an toàn — nó chỉ thi hành khai báo. Án văn: đoán sai một lần = gửi email thật cho khách hàng thật.
-- **`dry_run` đòi adapter khai năng lực**: `dry_run` là **năng lực của adapter** (channel/driver/HTTP/mail), không phải của contract. Adapter khai `supports_dry_run`; **contract khai `dry_run` mà adapter không hỗ trợ → resolve về `forbidden`** (K5: thiếu năng lực thì chặt hơn, không lỏng hơn), và **static analysis kiểm cặp `contract × adapter`** trước khi chạy (Composition §4). Án văn: không có luật này thì đúng chỗ harness thề "không bao giờ đoán" lại là chỗ nó phải đoán — hoặc gửi mail thật, hoặc im lặng bỏ qua.
-- **Secret**: test run scope **không resolve được secret handle production** (Vault §5). Án văn: `forbidden` chỉ chặn effect _ghi_ ra ngoài; một test _đọc_ dữ liệu khách hàng thật bằng khóa thật vẫn là rò rỉ và không bị cửa contract chặn.
-- Chạy thật trong test đòi khai tường minh + capability — có, nhưng phải cố ý.
+A mock filler has a **real identity** (`mock:<name>@version`) registered through
+**the ordinary Filler interface**. It is simply a filler that returns predetermined
+results. No new mechanism, and it is evidence that the human/AI/mock symmetry
+holds.
 
-## 6. Assertion — trên log, không trên UI
+**`environment: test` is a dimension of filler identity, NOT a fifth trust
+tier.** Role §5's table keeps exactly **four tiers** (`shadow`, `gated`,
+`sampled`, `autonomous`), because the tier taxonomy has one home. A filler
+carrying `environment: test` **is not eligible for a production task**,
+independently of its tier. Mixing the two axes — confidence and environment —
+into one enum would create a second source of truth for the tier taxonomy.
 
-| Loại         | Ví dụ                                                         |
-| ------------ | ------------------------------------------------------------- |
-| Reachability | Task tới được Gate X / trạng thái Y                           |
-| Judgment     | Verdict = reject với criterion Z                              |
-| Timer        | SLA nổ sau khoảng T (clock ảo)                                |
-| **Negative** | **Không effect nào rời hệ**; không entry loại E nào xuất hiện |
-| Invariant    | Mọi Gate có Judgment; không attempt nào không có lease        |
+**Hard boundary: a mock filler's Judgment NEVER enters a production calibration
+cell.** A calibration cell is an organisational asset (Calibration §0), and
+poisoning it with synthetic data breaks the flywheel irreversibly. It is enforced
+by the `run_kind: test` label on the entry (§1), not by a new tenant boundary.
 
-Assertion là **artifact khai báo** (có version), gắn với definition — không phải code viết tay rải rác.
+A mock may return a fixed result, a sequence of results, fail deliberately, or be
+slow deliberately, which is how SLA and escalation get tested.
 
-## 7. Conformance suite — cùng cơ chế, khác subject
+## 4. Non-determinism — three modes
 
-Suite của một **interface** (◆G0–G4) thay vì của một definition: cùng fixture + assertion, nhưng chạy trên **implementation** để kiểm nó có tuân interface không. Một harness, hai dụng.
+| Mode     | Used when                        | Behaviour                                                                                                           |
+| -------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `replay` | **The default in CI**            | Reads recorded responses only — perfectly deterministic                                                             |
+| `record` | Creating or refreshing a fixture | Calls for real and writes the responses into the fixture, labelled with cost and timestamp                          |
+| `live`   | Nightly, or before a release     | Calls for real and accepts non-repeatability; results carry a `non_deterministic` label and may never block a merge |
 
-- Suite là **artifact có version**; **đổi suite = đổi giao diện = breaking** (đi đường major — playbook giao hàng (không công bố) §3).
-- Nơi sống: CI (playbook giao hàng (không công bố)) — track qua gate = **pass suite**, không phải "đã đọc kỹ".
-- Chạy được **độc lập** trên bất kỳ implementation nào (điều kiện để mở track song song).
-- **Suite ◆G0 bắt buộc chứa negative test `run_kind` cho mọi projection** (Event Log §3 — van cơ chế của cược B11): projection mới không kèm test này thì fail suite, chặn merge. Đây là chỗ harness trả giá trị cho _chính luật cách ly test_ mà nó dựa vào.
+## 5. Effects — the safety boundary lives on the Contract
 
-## 8. Ai chạy — 3 consumer
+Each contract declares `test_behavior`: `mock`, `dry_run`, or `forbidden`
+(Handoff §3). **An absent declaration resolves to `forbidden`**, and the engine
+blocks it with an entry saying why.
 
-| Consumer | Khi nào                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| User     | Trước khi publish process definition (Composition: static analysis bắt lỗi cấu trúc; harness bắt lỗi _hành vi_)                                                                                                                                                                                                                                                                                                                                                                       |
-| CI       | Mọi PR (3 tầng — playbook giao hàng (không công bố) §3); conformance suite tại mọi gate                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Hub**  | **Verified review**: block/template mang suite riêng → publisher chứng minh block chạy đúng. Suite là **bằng chứng phụ, không bao giờ là điều kiện đủ** để cấp badge (Judgment của reviewer mới là); chạy trong **test run scope của operator**: effect `forbidden` toàn phần, **0 secret handle**, trần thời gian/tài nguyên. Với block trust-class `code`, vòng duyệt **chặn bởi spec `runtime sandbox`** — không tồn tại đường "chạy code chưa verified để được verified" (Hub §7) |
+**The harness never guesses** which effect is safe; it only executes what was
+declared. Guessing wrong once means a real email to a real customer.
+
+**`dry_run` requires the adapter to declare the capability.** Dry-run is **a
+capability of the adapter** — channel, driver, HTTP, mail — not of the contract.
+An adapter declares `supports_dry_run`; **a contract declaring `dry_run` against
+an adapter that does not support it resolves to `forbidden`** — missing capability
+means stricter, never looser — and **static analysis checks the
+`contract × adapter` pair** before anything runs (Composition §4). Without that
+rule, the exact place the harness swears never to guess is the place it would have
+to: either send the real mail, or silently skip.
+
+**Secrets**: a test run scope **cannot resolve a production secret handle** (Vault
+§5). `forbidden` blocks only _writing_ effects; a test _reading_ real customer
+data with a real key is still a leak, and the contract door does not stop it.
+
+Running for real inside a test is possible, and requires an explicit declaration
+and a capability — deliberate rather than accidental.
+
+## 6. Assertions — over the log, not the UI
+
+| Kind         | Example                                                      |
+| ------------ | ------------------------------------------------------------ |
+| Reachability | A task reaches Gate X, or state Y                            |
+| Judgment     | The verdict is reject on criterion Z                         |
+| Timer        | The SLA fires after interval T, on the virtual clock         |
+| **Negative** | **No effect left the system**; no entry of kind E appeared   |
+| Invariant    | Every Gate has a Judgment; no attempt exists without a lease |
+
+An assertion is **a declared artifact** with a version, attached to a definition —
+not hand-written code scattered around.
+
+## 7. The conformance suite — same mechanism, different subject
+
+A suite for an **interface** (◆G0–G4) rather than for a definition: the same
+fixtures and assertions, run against an **implementation** to check that it obeys
+the interface. One harness, two uses.
+
+A suite is **a versioned artifact**, and **changing a suite is changing the
+interface, which is breaking** and goes the major-version route.
+
+It lives in CI, and passing a gate means **passing the suite** rather than having
+read it carefully.
+
+It runs **independently** against any implementation, which is the precondition
+for opening parallel tracks at all.
+
+**The ◆G0 suite must contain a `run_kind` negative test for every projection**
+(Event Log §3): a new projection arriving without one fails the suite and is
+blocked from merging. That is where the harness pays back the very isolation law
+it depends on.
+
+## 8. Who runs it
+
+| Consumer | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User     | Before publishing a process definition — static analysis catches structural errors, the harness catches _behavioural_ ones                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| CI       | Every pull request, across the three speed tiers; the conformance suite at every gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Hub**  | **Verified review**: a block or template ships its own suite, so a publisher can demonstrate the block works. The suite is **supporting evidence and never sufficient** for the badge — a reviewer's Judgment is what grants it. It runs in **the operator's test run scope**: effects fully `forbidden`, **zero secret handles**, and time and resource ceilings. For a `code` trust-class block the review loop is **blocked by the runtime sandbox specification** — there is no path by which unverified code runs in order to become verified (Hub §7) |
 
 ## 9. Non-goals
 
-- Không phải load/perf testing (khác mục đích, khác cơ chế).
-- Không nhánh engine riêng, không store/database riêng cho test — **và không tenant riêng cho test** (§1 án văn).
-- Không tự sinh assertion bằng AI hiện tại (cửa mở: Drafter đề xuất, người duyệt qua Gate — đúng pair-design).
-- Không thay static analysis (Composition §4) — hai lớp khác nhau: cấu trúc vs hành vi.
+- Not load or performance testing — a different purpose and a different
+  mechanism.
+- No separate engine branch, no separate store or database for tests — **and no
+  separate tenant** (§1).
+- No AI-generated assertions today; the door is open through pair-design, where a
+  Drafter proposes and a person approves through a Gate.
+- Not a replacement for static analysis (Composition §4). Two different layers:
+  structure against behaviour.
 
-## 10. Nhật ký quyết định
+## 10. Decisions
 
-| Vấn đề                                     | Chốt                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bản chất                                   | Mode của engine + **test run scope có nhãn** trong chính tenant, không phải hệ thứ hai; test run là entry                                                                                                                                                       |
-| **Vì sao không phải tenant riêng**         | Tenant là biên cứng duy nhất; đẻ tenant `test` buộc mở đường copy artifact xuyên tenant (Artifact Store §4 cấm) và trả lời cardinality/key-tree/metering. Ba nhu cầu thật đã có cơ chế: `test_behavior`, đường-ghi-calibration-qua-Judgment, mọi-write-là-event |
-| **`test` là environment, không phải tier** | Trust tier giữ đúng 4 (Role §5) — trộn mức-tin-cậy với môi-trường = nguồn sự thật thứ hai của taxonomy tier                                                                                                                                                     |
-| **`dry_run`**                              | Là **năng lực của adapter** (`supports_dry_run`); không hỗ trợ → `forbidden`; static analysis kiểm cặp contract×adapter                                                                                                                                         |
-| **Secret trong test**                      | Không resolve handle production — `forbidden` chỉ chặn _ghi_, không chặn _đọc_                                                                                                                                                                                  |
-| Biên effect                                | Khai tại **Contract** (`test_behavior`), mặc định `forbidden` — harness thi hành, không đoán                                                                                                                                                                    |
-| Mock filler                                | Filler thật, tier `test`, **cấm tuyệt đối vào calibration production**                                                                                                                                                                                          |
-| LLM                                        | replay (CI mặc định) / record / live (nightly, không chặn merge)                                                                                                                                                                                                |
-| Assertion                                  | Artifact khai báo, đo trên log, có loại **negative**                                                                                                                                                                                                            |
-| Conformance suite                          | Cùng cơ chế, subject = implementation; đổi suite = breaking                                                                                                                                                                                                     |
-| Quan hệ với static analysis                | Bổ sung, không thay: cấu trúc vs hành vi                                                                                                                                                                                                                        |
+| Question                                 | Settled                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What it is                               | A mode of the engine plus a **labelled test run scope** inside the tenant itself, not a second system; a test run is an entry                                                                                                                                                                                                      |
+| **Why not a separate tenant**            | A tenant is the only hard boundary; a `test` tenant would force open cross-tenant artifact copying (which Artifact Store §4 forbids) and force answers on cardinality, key tree and metering. The three real needs already have mechanisms: `test_behavior`, the Judgment-only calibration write path, and every-write-is-an-event |
+| **`test` is an environment, not a tier** | Trust tiers stay at four (Role §5) — mixing confidence with environment creates a second source of truth for the tier taxonomy                                                                                                                                                                                                     |
+| **`dry_run`**                            | **A capability of the adapter** (`supports_dry_run`); unsupported resolves to `forbidden`; static analysis checks the contract × adapter pair                                                                                                                                                                                      |
+| **Secrets in test**                      | Production handles do not resolve — `forbidden` blocks _writes_, not _reads_                                                                                                                                                                                                                                                       |
+| The effect boundary                      | Declared on the **Contract** (`test_behavior`), defaulting to `forbidden` — the harness executes rather than guesses                                                                                                                                                                                                               |
+| Mock filler                              | A real filler in the `test` environment, **absolutely barred from production calibration**                                                                                                                                                                                                                                         |
+| LLM calls                                | `replay` by default in CI, `record`, and `live` nightly without blocking merges                                                                                                                                                                                                                                                    |
+| Assertions                               | Declared artifacts, measured over the log, including a **negative** kind                                                                                                                                                                                                                                                           |
+| Conformance suite                        | The same mechanism with an implementation as its subject; changing a suite is breaking                                                                                                                                                                                                                                             |
+| Relation to static analysis              | Complementary, not a replacement: structure against behaviour                                                                                                                                                                                                                                                                      |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Chạy một process có contract gửi email trong test mode: **không email nào rời hệ**, log ghi rõ bị chặn vì `forbidden`?
-2. Cùng fixture + `replay` chạy 100 lần → **kết quả giống hệt** (deterministic)?
-3. Judgment sinh bởi mock filler có đường nào lọt vào cell calibration production?
-   3b. Contract khai `dry_run` trên một adapter **không** khai `supports_dry_run`: engine resolve về `forbidden` và static analysis báo lỗi trước khi chạy — không tồn tại đường chạy thật hoặc bỏ qua im lặng?
-4. Test SLA 7 ngày xong trong **vài giây** bằng clock ảo — không sửa một dòng definition nào?
-5. Một implementation mới của interface ◆G bất kỳ: chạy được conformance suite **độc lập**, không cần phần còn lại của hệ?
+1. Run a process whose contract sends email, in test mode: does **no email leave
+   the system**, and does the log record that it was blocked as `forbidden`?
+2. The same fixture under `replay`, run a hundred times — **identical results**?
+3. Is there any path by which a mock filler's Judgment reaches a production
+   calibration cell?
+   3b. A contract declaring `dry_run` against an adapter that does **not** declare
+   `supports_dry_run`: does the engine resolve to `forbidden` and static analysis
+   report the error before anything runs — with no path that either runs for real
+   or silently skips?
+4. Does a seven-day SLA test complete in **seconds** on the virtual clock, without
+   editing a single line of the definition?
+5. Can a new implementation of any ◆G interface run the conformance suite
+   **independently**, without the rest of the system?
