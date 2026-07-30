@@ -10,10 +10,12 @@ at the project root.
 - **Adding a rule touches three places in one pass:** the rule module
   (`<name>.mjs`), its test (`<name>.test.mjs`), and the root
   `eslint.config.mjs` (import + `local` plugin `rules` map + a config block
-  enabling it) — **plus** the `test` target command in `project.json`, which
-  enumerates test files explicitly (an unappended test silently never runs —
-  Fail Loud).
-- Tests are plain `node` scripts, not Vitest — keep them dependency-free.
+  enabling it). The `test` target's `node --test *.test.mjs` auto-discovers
+  every `*.test.mjs` in this directory, so a new test file needs no target
+  edit — only `*.test.mjs` counts, which is why the shared `test-call-chain.mjs`
+  helper is named without that suffix.
+- Tests are plain `node` scripts (each a single implicit test case under
+  Node's built-in test runner), not Vitest — keep them dependency-free.
 - `no-journey-markers` (prose: comments/test titles) and
   `no-journey-marker-names` (exported declaration names) read their patterns
   from `journey-markers.config.json` (repo root), the single source shared
