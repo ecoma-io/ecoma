@@ -809,6 +809,20 @@ describe("buildReviewComment", () => {
     expect(line.match(/`/g)).toHaveLength(2);
   });
 
+  it("collapses every whitespace run in a note, not only the ones holding a newline", () => {
+    // The fold has to stay a single unambiguous quantifier over the whitespace
+    // class. Narrowing it to "optional whitespace around a literal newline"
+    // still hides the newline, so no other test here would notice — but that
+    // shape backtracks quadratically on the whitespace-only input a diff can
+    // carry into this value. Leaving a long run intact is the visible symptom
+    // of that narrowing, so this is what pins the linear form.
+    const body = buildReviewComment(
+      [group({ confirmed: [finding({ notes: [`before${" ".repeat(64)}after`] })] })],
+      ["x"],
+    );
+    expect(body).toContain("- before after");
+  });
+
   it("code-spans a scoped path exactly once, so it still reads as the path it is", () => {
     const body = buildReviewComment(
       [group({ confirmed: [finding({ file: "@ecoma-io/core-ui/src/x.ts" })] })],
