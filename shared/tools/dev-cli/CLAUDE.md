@@ -253,6 +253,20 @@ build/typecheck — invoked directly as
   only the subject changed), and the other half of §0's law, a board _card_
   tracing to no id, needs the Projects GraphQL API and stays a separate command
   so this one keeps running offline on every commit.
+- **`conformance` is the executor roadmap rule #6 demands**, and it is a read of
+  the tree rather than a registry: a freeze is a doctrine document declaring
+  `status: frozen` plus `gate: G<n>`, a suite is an Nx project declaring a
+  `conformance` target plus a `gate:G<n>` tag. Nx's own vocabulary rather than a
+  new file format, because a suite has to run in CI and CI already runs targets.
+  The gate vocabulary is imported from `check-roadmap-ids`, off the roadmap's own
+  gate table — one edit renames a gate everywhere. **What it fails on is
+  deliberately narrow**: a gate nobody has started is not an error (nothing has
+  been promised), an ungated freeze or ungated suite is, and a **frozen gate with
+  no suite** is — that last one is the paper gate the rule names, and it can only
+  arise after someone freezes, which is when the rule is meant to bite. It never
+  performs a freeze: after one, a change to that interface is breaking and travels
+  a major, so it stays a human act. `--run` executes the suites through Nx;
+  without it the command is pure and runs on every commit.
 - `doctrine-sync` is the write side of `check-doctrine`'s staleness rule: it
   stamps each variant's `canonical-sha` with the fingerprint of the canonical
   beside it. Both sides scan `check-doctrine`'s exported `DOCTRINE_DOCS`
