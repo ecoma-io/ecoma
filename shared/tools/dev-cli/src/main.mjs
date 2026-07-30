@@ -20,6 +20,7 @@ import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
 import { checkSubprojectReadmes } from "./check-subproject-readmes.mjs";
 import { checkSubsystemReadmes } from "./check-subsystem-readmes.mjs";
+import { conformance } from "./conformance.mjs";
 import { doctrineSync } from "./doctrine-sync.mjs";
 import { ensureCommitIdentity } from "./ensure-commit-identity.mjs";
 import { listScopes } from "./list-scopes.mjs";
@@ -46,6 +47,7 @@ const COMMANDS = {
   "check-roadmap-ids": () => checkRoadmapIds(),
   "check-subproject-readmes": () => checkSubprojectReadmes(),
   "check-subsystem-readmes": () => checkSubsystemReadmes(),
+  conformance: (args) => conformance(args),
   "doctrine-sync": (args) => doctrineSync(args),
   "ensure-commit-identity": (args) => ensureCommitIdentity(args),
   "list-scopes": (args) => listScopes(args),
