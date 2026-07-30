@@ -68,6 +68,8 @@ jobs:
         run: node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
       - name: Broken Markdown links
         run: node shared/tools/dev-cli/src/main.mjs check-doc-links
+      - name: dev-cli command citations still name a real command
+        run: node shared/tools/dev-cli/src/main.mjs check-command-refs
       - name: Per-subproject CLAUDE.md present
         run: node shared/tools/dev-cli/src/main.mjs check-claude-md
       - name: Published doctrine stays checkable by a stranger
