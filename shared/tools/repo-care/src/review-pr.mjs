@@ -35,6 +35,7 @@ import { fileURLToPath } from "node:url";
 
 import { githubClient } from "./github.mjs";
 import { discoverProjectRoots, groupFiles, readProjectNames } from "./group-files.mjs";
+import { sanitizeTranslation } from "./translate-thread.mjs";
 import { callModel, collectTrajectories, collectVerdicts, validateContent } from "./zen.mjs";
 
 export const REVIEW_MARKER = "<!-- repo-care:review-pr -->";
@@ -632,12 +633,55 @@ export function parseParityVerdict(raw, group) {
 }
 
 /**
+ * One value this tool did not author, on its way into the comment.
+ *
+ * `sanitizeTranslation` is the workspace's containment for text that reaches a
+ * GitHub comment from outside — its own definition names the threat each rule
+ * answers — and it is imported rather than re-implemented so both rendering
+ * surfaces stay governed by one set of rules.
+ *
+ * Newlines are folded on top of those rules because this surface differs from
+ * the one they were written for: a translation is a whole Markdown body, while
+ * every value here renders inside ONE heading or list item. A newline would put
+ * the remainder at column 0, free to forge a heading, a finding line, or this
+ * comment's own advisory footer.
+ */
+function renderText(value) {
+  return sanitizeTranslation(value)
+    .replace(/\s*\n\s*/g, " ")
+    .trim();
+}
+
+/**
+ * A path rendered as inline code. The backticks are what make it code, so they
+ * are the one character the value may not carry: a backtick inside it closes
+ * the span and the rest continues as Markdown. Stripping them after
+ * `renderText` also unwraps the code spans it puts around @mentions — inside a
+ * code span a mention cannot ping anyone, so the outer wrapper is both the safe
+ * one and the only one that renders.
+ */
+function renderPath(value) {
+  return `\`${renderText(value).replaceAll("`", "")}\``;
+}
+
+/**
  * Marker-carrying comment body; edited in place on every run.
  *
  * Every way coverage can be lost renders here, in one voice: a group that
  * reached no quorum, a group the wall-clock budget never started, a diff that
  * was truncated. Silence is reserved for "clean", so anything short of a review
  * has to say so in this comment or it reads as a passed review.
+ *
+ * Everything rendered here that this tool did not author goes through
+ * `renderText`/`renderPath`: a model's `note` and its `file` (free strings the
+ * verdict schema only type-checks), and a group's `name`, which is a project
+ * name from the trusted checkout only when a project owns the files and
+ * otherwise a directory the pull request itself introduced. A finding's `check`
+ * is deliberately not among them — `parseReviewVerdict` gates it against the
+ * run's own rubric enum before it can reach here, which is the stronger
+ * containment, not a missing one. `REVIEW_MARKER` and the fixed prose are this
+ * module's own text and must survive verbatim: the marker is what the next run
+ * anchors its `startsWith` lookup on.
  */
 export function buildReviewComment(reviewed, models) {
   const lines = [REVIEW_MARKER, "### repo-care · practice review (advisory)", ""];
@@ -650,10 +694,10 @@ export function buildReviewComment(reviewed, models) {
         : group.confirmed.length === 0
           ? "clean"
           : `${group.confirmed.length} finding${group.confirmed.length === 1 ? "" : "s"}`;
-    lines.push(`#### ${group.name} — ${state}`);
+    lines.push(`#### ${renderText(group.name)} — ${state}`);
     for (const f of group.confirmed) {
-      lines.push(`- **${f.check}** — \`${f.file}\``);
-      for (const note of f.notes) lines.push(`  - ${note}`);
+      lines.push(`- **${f.check}** — ${renderPath(f.file)}`);
+      for (const note of f.notes) lines.push(`  - ${renderText(note)}`);
     }
     if (group.truncated) {
       lines.push(`- _This group's diff was truncated — its findings may be incomplete._`);

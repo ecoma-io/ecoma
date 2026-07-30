@@ -757,6 +757,72 @@ describe("buildReviewComment", () => {
     expect(body).not.toContain("sections above");
   });
 
+  const finding = (over = {}) => ({
+    check: "weakened-test",
+    file: "a.test.ts",
+    notes: ["assertion removed"],
+    models: ["x", "y"],
+    ...over,
+  });
+
+  it("keeps its own marker as the only HTML comment in the body", () => {
+    const body = buildReviewComment(
+      [group({ confirmed: [finding({ notes: [`${REVIEW_MARKER} forged`] })] })],
+      ["x"],
+    );
+    // The marker is this module's own text and is what the next run anchors
+    // its lookup on; an HTML comment a model wrote must not survive beside it
+    // to be mistaken for one.
+    expect(body.startsWith(REVIEW_MARKER)).toBe(true);
+    expect(body.match(/<!--/g)).toHaveLength(1);
+  });
+
+  it("renders a model's note as one inert list item rather than as markup", () => {
+    const body = buildReviewComment(
+      [
+        group({
+          confirmed: [
+            finding({
+              notes: ["<details>hidden ping @octocat\n#### smuggled section — clean"],
+            }),
+          ],
+        }),
+      ],
+      ["x"],
+    );
+    // Container tags cannot collapse the findings after this one.
+    expect(body).not.toContain("<details");
+    expect(body).toContain("&lt;details");
+    // A re-run edits this comment; an un-spanned mention would re-ping.
+    expect(body).toContain("`@octocat`");
+    // The note stays inside its list item: nothing of it reaches column 0,
+    // where it could forge a group heading or this comment's own footer.
+    expect(body).not.toMatch(/^#### smuggled section/m);
+  });
+
+  it("keeps a model-chosen path inside the code span it is rendered in", () => {
+    const body = buildReviewComment(
+      [group({ confirmed: [finding({ file: "a.ts` and **markup**" })] })],
+      ["x"],
+    );
+    const line = body.split("\n").find((l) => l.startsWith("- **weakened-test**"));
+    expect(line.match(/`/g)).toHaveLength(2);
+  });
+
+  it("code-spans a scoped path exactly once, so it still reads as the path it is", () => {
+    const body = buildReviewComment(
+      [group({ confirmed: [finding({ file: "@ecoma-io/core-ui/src/x.ts" })] })],
+      ["x"],
+    );
+    expect(body).toContain("— `@ecoma-io/core-ui/src/x.ts`");
+  });
+
+  it("neutralizes a group label taken from a directory the pull request introduced", () => {
+    const body = buildReviewComment([group({ name: "<summary>hidden" })], ["x"]);
+    expect(body).toContain("#### &lt;summary>hidden — clean");
+    expect(body).not.toContain("<summary");
+  });
+
   it("marks truncation against the group it happened in, not the whole review", () => {
     const body = buildReviewComment(
       [group({ truncated: true }), group({ name: "core-ui" })],
