@@ -4,6 +4,7 @@
   "projectType": "library",
   "sourceRoot": "shared/tools/repo-care/src",
   "tags": ["type:lib", "scope:shared", "license:sul"],
+  "implicitDependencies": ["dev-cli"],
   "targets": {
     "lint": {
       "executor": "nx:run-commands",
