@@ -1,0 +1,46 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Weekly, independent of push/PR activity: catches new findings a query-pack
+  # update surfaces against code that itself never changed.
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+# Same split as ci.yml: a push to main gets a run of its own per commit, a new
+# push to a PR supersedes the in-flight run for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Only language analyzed: this workspace's Go (go.work) and Rust
+      # (Cargo.toml) workspaces both declare zero members today, and no
+      # Python project exists yet -- CodeQL support for Go/Rust is real, but
+      # there is no source in either language for it to scan. Add a matrix
+      # leg for each once a real project lands in that language.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          category: "/language:javascript-typescript"
