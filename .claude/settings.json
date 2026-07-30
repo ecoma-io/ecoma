@@ -38,6 +38,16 @@
         ]
       },
       {
+        "matcher": "mcp__github__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-agent-attribution.mjs",
+            "statusMessage": "Checking the published body for agent attribution"
+          }
+        ]
+      },
+      {
         "matcher": "Artifact|SendUserFile",
         "hooks": [
           {
