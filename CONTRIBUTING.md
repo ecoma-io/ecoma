@@ -171,8 +171,10 @@ either. Which terms apply to a file is decided by where the file lives, and
 Sustainable Use License for the implementations, Apache 2.0 for the
 `packages` directories third parties build against, a commercial Enterprise
 License for `enterprise` directories, proprietary for the operator control
-plane. The prose under `shared/libs/doctrine/` is licensed separately, under
-[CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs).
+plane. Every `.md` file under `shared/libs/doctrine/` is licensed separately,
+under [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) — the boundary is the
+file extension, not the word "prose", because a category is not something a
+reader or a compliance tool can evaluate.
 
 The build checks that declaration, so you do not have to memorise it: each
 project declares a `license:*` tag, and `check-project-conventions` fails when
@@ -182,10 +184,17 @@ not a legal control — `LICENSE` is what governs.
 Because the project offers its code under more than one set of terms, we need
 the right to do that for your contribution too. That is what
 [`CLA.md`](./CLA.md) grants — a licence, not ownership; you keep the copyright
-in your work. A maintainer confirms the agreement once, on your first pull
-request. Sign off each commit with `git commit -s`: that trailer is the
+in your work. You agree once, on your first pull request, by committing a
+contributor record at `contributors/<your-github-handle>.md`; a maintainer
+confirms it before merging, and nothing is granted until that record exists.
+The record carries your name and address because the law governing the
+agreement requires a licence contract to identify both parties.
+
+Sign off each commit with `git commit -s`: that trailer is the
 [Developer Certificate of Origin](https://developercertificate.org/), which is
-a separate thing from the CLA and deliberately kept separate.
+a separate thing from the CLA and deliberately kept separate — it is what you
+type reflexively everywhere else, so it must not double as assent to a
+commercial sublicensing grant.
 
 `LICENSE` grants no rights in the name "Ecoma" — no source-available licence
 does. A published trademark policy will follow registration; until then, ask if
