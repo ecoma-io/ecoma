@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "{projectRoot}",
-        "command": "node no-journey-markers.test.mjs && node no-journey-marker-names.test.mjs && node require-project-tags.test.mjs && node no-focused-or-skipped-tests.test.mjs && node no-unmocked-internal-imports.test.mjs"
+        "command": "node --test *.test.mjs"
       }
     }
   }
