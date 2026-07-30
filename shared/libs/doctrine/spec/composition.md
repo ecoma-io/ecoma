@@ -1,99 +1,145 @@
 ---
-title: "Ecoma Composition Spec: Process"
+title: "Composition: Process"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Composition Spec: Process
+# Composition: Process
 
-## 1. Process Definition là một Artifact
+## 1. A Process Definition is an Artifact
 
-- Definition = bản khai báo đồ thị: các Role tham chiếu, Task template, Handoff (contract@version), Gate, Escalation chain, spawn_policy, effects, **và Trigger** (cửa khởi động — [trigger-channel](trigger-channel.md)).
-- Nó là **Artifact tuân theo Contract chuẩn `process-definition`** — nghĩa là tự động có: content-addressed hash, immutability, provenance, version + pinning, và có thể đi qua Gate. Không cần cơ chế mới.
-- Capability `process_author` kiểm soát ai tạo/sửa version.
+A definition declares the graph: the Roles it references, Task templates,
+Handoffs with `contract@version`, Gates, escalation chains, `spawn_policy`,
+effects, **and Triggers** — the door it starts from
+([trigger-channel](trigger-channel.md)).
+
+It is **an Artifact conforming to the standard `process-definition` contract**,
+which means it automatically has a content-addressed hash, immutability,
+provenance, versioning with pinning, and the ability to pass through a Gate. No
+new mechanism is required, and that is the point: a process definition is not a
+sixth primitive.
+
+The `process_author` capability controls who may create or edit a version.
 
 ## 2. Instance semantics
 
-- Instance **pin definition version lúc khởi chạy** — definition đổi không ảnh hưởng instance đang chạy 3 tuần (cùng logic Contract pinning, Handoff §7).
-- Migration instance sang version mới là **hành động tường minh**: một Task gán cho Role có `process_author` (người hoặc AI), với Gate riêng. Không có auto-migrate ngầm.
+An instance **pins the definition version at launch**, so editing the definition
+does not disturb an instance that has been running for three weeks. It is the
+same logic as Contract pinning (Handoff §7).
 
-## 3. Default cascade — cơ chế của nguyên tắc #4
+Migrating an instance to a newer version is **an explicit action**: a Task
+assigned to a Role holding `process_author` — person or AI — with its own Gate.
+There is no silent auto-migration, because a running process changing shape
+underneath the people in it is a change nobody consented to.
 
-- Mọi tham số engine ép tồn tại (SLA, budget, threshold, sampling, spawn_policy, N-bounce…) resolve theo chuỗi thừa kế:
+## 3. The default cascade — the mechanism behind principle #4
+
+Every parameter the engine forces to exist — SLA, budget, threshold, sampling,
+`spawn_policy`, N-bounce — resolves along an inheritance chain:
 
 ```
 tenant defaults → template (vertical) → process → role → task
 ```
 
-- Mức dưới override mức trên; không khai = thừa kế. **Độ phức tạp là quyền lựa chọn** nghĩa là: user đơn giản chỉ chạm mức template; power user override đến từng task. Flow deterministic 20 bước khai đúng phần khác biệt.
-- **Mức template = tập Block tenant đã cài** (Ecoma Hub), resolve theo thứ tự ưu tiên tenant khai; Template theo vertical chỉ là một Block được curate ([block](block.md)).
-- Giá trị resolve được **snapshot vào instance lúc khởi chạy** (đổi tenant default không đổi instance đang chạy).
+A lower level overrides a higher one; declaring nothing inherits. _Complexity is
+the user's choice_ means precisely this: a simple user only ever touches the
+template level, while a power user overrides down to an individual task. A
+twenty-step deterministic flow declares only what differs.
 
-## 4. Static analysis — "compiler" của labor OS
+**The template level is the set of Blocks the tenant has installed** (Ecoma Hub),
+resolved in a priority order the tenant declares. A vertical template is just a
+curated Block ([block](block.md)) — not a separate concept.
 
-Engine kiểm tra tĩnh definition trước khi cho khởi chạy, và cảnh báo lúc thiết kế:
+Resolved values are **snapshotted into the instance at launch**, so changing a
+tenant default does not change a running instance.
 
-| Kiểm tra                                                                                                                                                            | Nguồn cơ chế                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Contract producer/consumer khớp version                                                                                                                             | Handoff §7                  |
-| Ranh giới unwind + đoạn không đảo ngược được                                                                                                                        | Handoff §8                  |
-| Irreversible effect có sàn policy ở Gate liền trước chưa                                                                                                            | Handoff §8                  |
-| Escalation chain có terminal handler                                                                                                                                | Escalation §3               |
-| Role tham chiếu có pool Filler khả dụng                                                                                                                             | Role §3                     |
-| Chu trình vô hạn / spawn không trần                                                                                                                                 | Task §5                     |
-| Trigger có auth + correlation (với type hội thoại)                                                                                                                  | Trigger & Channel §2        |
-| Collection tham chiếu nằm trong grant của Role; module knowledge có bật                                                                                             | Knowledge §2                |
-| External effect tiêu thụ tri thức vượt sàn classification                                                                                                           | Knowledge §3                |
-| Đường sync-response bị chặn thời gian: không `awaiting`, budget khai đủ, spawn bị trần                                                                              | Trigger & Channel §2        |
-| Critical section của Lease không chứa `awaiting`; chuỗi acquire nhiều lease bị cảnh báo                                                                             | Working Data §3             |
-| Query DataTable: bảng-chạm-vào ⊆ grant của Role; aggregate từ bảng mật có leakage-gate trước egress                                                                 | Working Data §1             |
-| Migration major khai đường nghịch **hoặc** cờ `irreversible_migration`                                                                                              | North Star §8               |
-| Contract khai `test_behavior: dry_run` mà adapter đích không khai `supports_dry_run` → **lỗi thiết kế** (resolve về `forbidden` lúc chạy, nhưng bắt được từ lúc vẽ) | Handoff §3, Test Harness §5 |
-| Contract có effect **rời khỏi hệ** mà không khai `test_behavior` → **cảnh báo** (không reject: mặc định đã fail-closed)                                             | Handoff §3                  |
+## 4. Static analysis — the labour OS's compiler
 
-## 5. Pair-design = một workflow ecoma (dogfooding)
+The engine checks a definition statically before allowing it to launch, and warns
+at design time:
 
-Thiết kế và sửa quy trình **chính là một process** chạy trên chính engine:
+| Check                                                                                                                                                                                                                      | Mechanism source            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Producer and consumer contract versions agree                                                                                                                                                                              | Handoff §7                  |
+| The unwind boundary and the stretch that cannot be reversed                                                                                                                                                                | Handoff §8                  |
+| An irreversible effect has a policy floor at the Gate immediately before it                                                                                                                                                | Handoff §8                  |
+| Every escalation chain has a terminal handler                                                                                                                                                                              | Escalation §3               |
+| Every referenced Role has an available Filler pool                                                                                                                                                                         | Role §3                     |
+| No infinite cycle, no unbounded spawn                                                                                                                                                                                      | Task §5                     |
+| A Trigger has auth and correlation, for conversational types                                                                                                                                                               | Trigger & Channel §2        |
+| Referenced collections lie within the Role's grant, and the knowledge module is enabled                                                                                                                                    | Knowledge §2                |
+| No external effect consumes knowledge above the classification floor                                                                                                                                                       | Knowledge §3                |
+| The sync-response path is time-bounded: no `awaiting`, budget fully declared, spawn capped                                                                                                                                 | Trigger & Channel §2        |
+| A Lease's critical section contains no `awaiting`; a chain acquiring several leases is warned about                                                                                                                        | Working Data §3             |
+| A DataTable query touches only tables within the Role's grant; an aggregate over a secret table has a leakage gate before egress                                                                                           | Working Data §1             |
+| A major migration declares a downward path **or** the flag `irreversible_migration`                                                                                                                                        | North Star §8               |
+| A contract declaring `test_behavior: dry_run` against an adapter that does not declare `supports_dry_run` → **a design error**, caught while drawing rather than at run time, where it would merely resolve to `forbidden` | Handoff §3, Test Harness §5 |
+| A contract with an effect **leaving the system** that declares no `test_behavior` → **a warning**, not a rejection, because the default is already fail-closed                                                             | Handoff §3                  |
 
-| Role trong workflow thiết kế | Filler điển hình | Việc                                                                             |
-| ---------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| Drafter                      | AI               | Sinh/sửa definition từ mô tả tự nhiên hoặc từ đề xuất của tầng Intelligence      |
-| Validator                    | Rule             | Chạy static analysis (§4) — hard gate                                            |
-| Reviewer                     | Người            | Duyệt trên canvas, sửa trực tiếp (= approve-with-edit, sinh definition dẫn xuất) |
+## 5. Pair-design is an ecoma workflow
 
-- Vì definition là Artifact có Gate: **mọi thay đổi quy trình có Judgment, provenance, và học được** — Intelligence quan sát được cả "quy trình về quy trình": đề xuất sửa nào của AI hay bị người sửa lại, mô tả kiểu nào sinh definition đạt.
-- Người và AI hoán đổi được cả ở đây (AI review definition người vẽ) — đối xứng đến tận tầng thiết kế. Đây là chỗ đứng cơ chế của quyết định sản phẩm "pair-design", không cần hệ thống riêng.
+Designing and editing a process **is itself a process** running on the engine:
 
-## 6. Ranh giới runtime ngoài — Ecoma RPA là instance đầu tiên
+| Role in the design workflow | Typical filler | Work                                                                                                      |
+| --------------------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
+| Drafter                     | AI             | Generate or edit a definition from a natural-language description, or from an Intelligence-layer proposal |
+| Validator                   | Rule           | Run the static analysis of §4 — a hard gate                                                               |
+| Reviewer                    | Person         | Review on the canvas and edit directly, which is approve-with-edit and produces a derived definition      |
 
-Mọi runtime ngoài (Ecoma RPA, external agent, engine automation khác) cắm vào Platform qua đúng **2 giao diện chuẩn** — không có đường tắt riêng cho bất kỳ sản phẩm nào, kể cả sản phẩm cùng monorepo. Learning signal và đề xuất đi **bên trong** Session effect stream (entry có kiểu) — không tồn tại kênh thứ ba:
+Because a definition is an Artifact with a Gate, **every process change carries a
+Judgment, provenance, and is learnable**. The Intelligence layer can observe the
+process about processes: which AI-proposed edits people keep rewriting, which
+kinds of description produce definitions that pass.
 
-|                                  | Ecoma Platform                                           | Ecoma RPA                                                                                                                                                                        |
-| -------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain                           | Điều phối lao động: 5 primitive + composition + surfaces | Thực thi tương tác môi trường: browser/desktop automation, computer-use, driver                                                                                                  |
-| Quan hệ                          | **Sử dụng** Ecoma RPA như một nguồn Filler               | **Cắm vào** Platform, sản phẩm độc lập, dùng riêng được                                                                                                                          |
-| Giao diện cắm (chỉ 2, chuẩn hóa) |                                                          | (1) **Filler interface** (Role §3): identity + lineage, availability, capacity, cost; (2) **Session effect** (Handoff §8): action stream, reversibility per action, commit point |
+People and AI swap here too — an AI reviewing a definition a person drew —
+symmetry extending all the way into the design layer. This is where the
+pair-design product decision has its mechanism, and it needs no system of its
+own.
 
-- Platform **không biết** selector, vision model, hay driver — mọi chi tiết đó là domain của RPA. RPA **không biết** Gate, calibration, escalation — nó chỉ nhận task và phát effect stream.
-- Hệ quả quan trọng: ranh giới này **chứng minh cơ chế plug-in là tổng quát** — external agent, n8n node, hay bất kỳ runtime nào cắm vào Platform bằng đúng 2 giao diện đó. Ecoma RPA chỉ là khách hàng đầu tiên và là bài test của chính giao diện.
+## 6. The external-runtime boundary — Ecoma RPA is the first instance
+
+Every external runtime — Ecoma RPA, an external agent, another automation engine
+— plugs into the platform through exactly **two standard interfaces**. There is
+no private shortcut for any product, including one in the same monorepo. Learning
+signals and proposals travel **inside** the Session effect stream as typed
+entries; no third channel exists.
+
+|                           | Ecoma Platform                                              | Ecoma RPA                                                                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain                    | Coordinating labour: five primitives, composition, surfaces | Executing interaction with an environment: browser and desktop automation, computer use, drivers                                                                                        |
+| Relationship              | **Uses** Ecoma RPA as a source of Fillers                   | **Plugs into** the platform; an independent product, usable on its own                                                                                                                  |
+| Plug interface — only two |                                                             | (1) **Filler interface** (Role §3): identity with lineage, availability, capacity, cost. (2) **Session effect** (Handoff §8): the action stream, reversibility per action, commit point |
+
+The platform **knows nothing** about selectors, vision models or drivers — all of
+that is RPA's domain. RPA **knows nothing** about Gates, calibration or
+escalation — it receives a task and emits an effect stream.
+
+The consequence that matters: this boundary **proves the plug-in mechanism is
+general**. An external agent, an n8n node, any runtime at all plugs in through
+those same two interfaces. Ecoma RPA is merely the first customer, and the test
+of the interface it is built against.
 
 ## 7. Non-goals
 
-- Composition không thêm khái niệm runtime mới — mọi thứ ở đây là cách dùng 5 primitive.
-- Không có "process engine" tách biệt "task engine" — một engine, definition chỉ là artifact được diễn dịch.
+- Composition adds no new runtime concept. Everything here is a way of using the
+  five primitives.
+- There is no "process engine" separate from a "task engine". One engine; a
+  definition is an artifact being interpreted.
 
-## 8. Nhật ký quyết định
+## 8. Decisions
 
-| Vấn đề                           | Chốt                                                                           |
-| -------------------------------- | ------------------------------------------------------------------------------ |
-| Process là gì                    | Artifact tuân contract `process-definition` — không phải primitive thứ 6       |
-| Definition đổi khi instance chạy | Pin lúc khởi chạy; migration là Task tường minh có Gate                        |
-| Mặc định tối giản                | Default cascade 5 mức, snapshot vào instance                                   |
-| Pair-design                      | Là workflow ecoma: Drafter(AI)/Validator(rule)/Reviewer(người), hoán đổi được  |
-| RPA                              | Sản phẩm riêng, domain riêng; cắm qua đúng 2 giao diện Filler + Session effect |
+| Question                            | Settled                                                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| What a process is                   | An Artifact under the `process-definition` contract — not a sixth primitive                               |
+| The definition changes mid-instance | Pinned at launch; migration is an explicit Task with a Gate                                               |
+| Minimal defaults                    | A five-level default cascade, snapshotted into the instance                                               |
+| Pair-design                         | An ecoma workflow: Drafter (AI), Validator (rule), Reviewer (person) — interchangeable                    |
+| RPA                                 | A separate product in its own domain, plugged in through exactly the Filler and Session effect interfaces |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Static analysis bắt đủ mọi dòng trong bảng §4 trên một definition mẫu cố tình sai?
-2. Đổi definition khi 3 instance đang chạy — cả 3 đứng yên trên pin cũ, migration là task tường minh?
-3. Artifact do pair-design sinh ra có tuân contract `process-definition` và qua đúng static analysis như tay viết?
+1. Does static analysis catch every row of §4's table on a deliberately broken
+   sample definition?
+2. Change a definition while three instances are running — do all three stay on
+   their pinned version, with migration as an explicit task?
+3. Does an artifact produced by pair-design conform to the `process-definition`
+   contract and pass exactly the same static analysis as a hand-written one?
