@@ -141,6 +141,25 @@ describe("scaffoldLib file emission", () => {
     expect(new Set(Object.values(variants)).size).toBe(3);
   });
 
+  it("tells the caller to stage the scaffold before verifying, since check-project-conventions discovers projects from tracked project.json files", () => {
+    const fs = {
+      existsSync: () => false,
+      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      mkdirSync: vi.fn(),
+      writeFileSync: () => {},
+    };
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    expect(scaffoldLib(["thing", "--subsystem", "shared"], fs, listPaths)).toBe(0);
+
+    const printed = log.mock.calls.flat().join("\n");
+    expect(printed).toContain("git add shared/libs/thing");
+    // The staging step must come before the verification commands it unblocks.
+    expect(printed.indexOf("git add shared/libs/thing")).toBeLessThan(
+      printed.indexOf("check-project-conventions"),
+    );
+  });
+
   it("omits the layer tag when no layer is given", () => {
     const written = new Map();
     const fs = {

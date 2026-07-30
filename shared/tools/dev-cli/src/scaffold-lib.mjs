@@ -557,7 +557,12 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
   }
 
   console.log(`scaffolded ${root} (${lang}${lang === "ts" ? `, alias @ecoma-io/${name}` : ""})`);
-  console.log("next: replace the CLAUDE.md TODOs, then verify with");
+  console.log("next: replace the CLAUDE.md TODOs, then stage the scaffold and verify with");
+  // check-project-conventions discovers projects from TRACKED project.json
+  // files (git ls-files), so an unstaged scaffold reports its own alias as
+  // pointing outside every project — staging first is what makes this
+  // sequence actually pass when followed verbatim, not a nice-to-have.
+  console.log(`  git add ${root}`);
   console.log("  node shared/tools/dev-cli/src/main.mjs check-project-conventions");
   console.log(`  pnpm nx run ${name}:lint`);
   return 0;
