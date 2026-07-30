@@ -202,6 +202,33 @@ practice review, thread translation) from GitHub Actions.
   is silently additive — it can never trip the main diff-review's own
   `verdicts.length < 2` fail-loud exit, which stays scoped to that
   investigation alone.
+- **`sanitizeTranslation` is load-bearing, not hygiene, and it is shared.** It
+  lives in `translate-thread.mjs` but governs every surface where text this
+  tool did not author becomes a comment: HTML comments are stripped (else
+  injected text forges a sibling's marker), `<details>`/`<summary>` are escaped
+  (else the text closes its own container early), @mentions are code-spanned
+  (else every re-run re-pings people), and the result is length-capped. **Every
+  rendering surface goes through it** — `review-pr` imports it rather than
+  growing a second set of rules free to drift.
+  - **Going through it is not the same as calling it, because the surfaces
+    render differently.** A translation is a whole Markdown body, so newlines
+    are its structure; a review renders each value inside ONE heading, list
+    item, or code span, where a newline puts the remainder at column 0 and a
+    backtick closes the span it was meant to stay inside. So
+    `buildReviewComment` wraps the shared rules: `renderText` folds newlines,
+    and `renderPath` additionally strips backticks (which also unwraps the
+    code spans the @mention rule adds — inside a code span a mention cannot
+    ping, so one wrapper is both the safe and the only rendering one).
+  - **What is contained there, and what is contained better.** Through
+    `renderText`/`renderPath`: a finding's `note` and its `file` (free strings
+    the verdict schema only type-checks), and a group's `name`, which is a
+    trusted Nx project name only when a project owns the files and otherwise a
+    directory the pull request itself introduced. NOT a finding's `check` — it
+    is gated against the run's own rubric enum in `parseReviewVerdict` before
+    it can reach the comment, which is the stronger containment. The markers
+    and the fixed prose are this tool's own text and must survive verbatim;
+    `REVIEW_MARKER` in particular is what the next run's `startsWith` lookup
+    anchors on.
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
   `GET /issues/{n}`, same comments endpoint) and the only difference is which
@@ -218,13 +245,6 @@ practice review, thread translation) from GitHub Actions.
     failure only. Worst case is a clumsy translation beside an untouched
     original. Do not "fix" this by voting on prose — the containment is the
     guarantee, not the model count.
-  - **`sanitizeTranslation` is load-bearing, not hygiene.** It is the only
-    place model-chosen prose derived from untrusted thread text becomes a
-    comment. HTML comments are stripped (else injected text forges a sibling's
-    marker), `<details>`/`<summary>` are escaped (else the translation closes
-    its own container early), @mentions are code-spanned (else every re-run
-    re-pings people), and the result is length-capped. Every new rendering
-    surface goes through it.
   - A target language that no model could translate is skipped loudly on
     stderr while the rest still post; all targets failing is exit 1, because
     silence would read as "already translated" on the next run.
@@ -237,11 +257,17 @@ practice review, thread translation) from GitHub Actions.
   `.github/workflows/translate-pr.yml` (PR opened/edited +
   `workflow_dispatch` for backfill) with the ambient
   `GITHUB_TOKEN`; runs on bare `node` — keep this tool dependency-free so
-  the workflows need no `pnpm install`. The PR-side jobs use
+  the workflows need no `pnpm install`. Both PR-side jobs use
   `pull_request_target` because a fork PR's `pull_request` token is read-only
-  and could never comment; that is safe only while nothing from the PR head is
-  checked out or executed — head content reaches these commands as data, never
-  as code.
+  and could never comment — under `pull_request` a fork PR spends the whole
+  model budget and then goes red on the post, its last step; that is safe only
+  while nothing from the PR head is checked out or executed — head content
+  reaches these commands as data, never as code. Neither names a `ref:` on its
+  checkout: `pull_request_target` already defaults to the base branch, and
+  spelling that default out makes Scorecard's dangerous-workflow check read it
+  as an untrusted checkout. That reasoning is written in each workflow's own
+  header, because this file does not load for someone editing
+  `.github/workflows`.
 - Tests follow the workspace taxonomy: `*.test.mjs` unit-test pure cores with
   injected `fetchImpl` (no real network anywhere in tests);
   `main.integration.test.mjs` drives the CLI in a subprocess because
