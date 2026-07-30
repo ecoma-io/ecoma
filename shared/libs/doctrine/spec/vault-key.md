@@ -1,118 +1,181 @@
 ---
-title: "Ecoma Spec: Vault & Key Lifecycle"
+title: "Subsystem: Vault & Key Lifecycle"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Spec: Vault & Key Lifecycle
+# Subsystem: Vault & Key Lifecycle
 
-## 1. Hai trách nhiệm, một subsystem
+## 1. Two responsibilities, one subsystem
 
-| Trách nhiệm                                          | Phục vụ ai                                                                                      |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Key lifecycle** — sinh/xoay/hủy khóa mã hóa        | Crypto-shredding (Event Log §4), erasure của Tenant §2b, PII-shredding mapping                  |
-| **Secret store** — credential dùng để _gọi ra ngoài_ | Rule filler gọi API, agent tool-call, RPA credential injection (Sandbox §2), model provider key |
+| Responsibility                                                       | Serving                                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Key lifecycle** — generating, rotating, destroying encryption keys | Crypto-shredding (Event Log §4), tenant erasure (Tenant §2b), PII-shredding mappings                    |
+| **Secret store** — credentials used to _call outward_                | Rule fillers calling APIs, agent tool calls, RPA credential injection (Sandbox §2), model provider keys |
 
-Chung một subsystem vì cùng một luật: **giá trị không bao giờ rời khỏi vault**; mọi thứ khác chỉ cầm **handle**.
+They share a subsystem because they share one law: **a value never leaves the
+vault**; everything else holds only a **handle**.
 
-## 2. Cây khóa — 3 tầng cố định
+## 2. The key tree — exactly three tiers
 
 ```
-root key (KMS hoặc file — theo hình thái, §3)
- └── tenant DEK (mỗi tenant một khóa dữ liệu)
- └── subject key ((tenant, subject_ref) — Party/actor/PII-mapping)
+root key (KMS or a file — by deployment shape, §3)
+  └── tenant DEK (one data key per tenant)
+        └── subject key ((tenant, subject_ref) — Party, actor, PII mapping)
 ```
 
-- **Vì sao đúng 3 tầng**: 1 tầng thì không shred nổi _một cá nhân_ (GDPR đòi xóa một Party, không phải cả tenant); tầng tùy tiện thì không rebuild nổi ánh xạ. 3 tầng đủ và cố định.
-- **Envelope encryption**: tầng trên bọc tầng dưới — hủy tầng trên là hủy toàn bộ nhánh.
-- **Ánh xạ `subject_ref → key_id` là projection từ log** (rebuild được); **key material thì không bao giờ** — nó chỉ sống trong vault backend.
-- Entry/artifact mang **`key_id` đã dùng** (không mang khóa). Đây là điều kiện để §4 chạy.
+**Why exactly three.** With one tier you cannot shred _an individual_ — the law
+demands erasing one Party, not a whole tenant. With an arbitrary number you
+cannot rebuild the mapping. Three is sufficient and is fixed.
 
-## 3. Root key theo hình thái cài đặt (nhất quán ADR-0002)
+**Envelope encryption**: each tier wraps the one below, so destroying a tier
+destroys the whole branch beneath it.
 
-| Hình thái                        | Root key                                                                   | Biên cứng                                        |
-| -------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------ |
-| Small-stack (binary/1-container) | File ngoài **data directory**, quyền hẹp (0600), đường dẫn khai tường minh | **Backup script CẤM chạm** — kiểm bằng litmus #4 |
-| Compose-production / K8s / Cloud | **KMS adapter** (envelope: KMS giữ root, hệ chỉ cầm DEK đã bọc)            | Root không bao giờ nằm trên đĩa ứng dụng         |
+**The `subject_ref → key_id` mapping is a projection of the log** and can be
+rebuilt; **key material never is** — it lives only in the vault backend. That
+split is the reason §2 keeps them as separate things.
 
-**Luật xuyên hình thái — ba vế, không tách rời** (vế (a) chốt; vế (b)(c), đóng blocker +):
+Entries and artifacts carry **the `key_id` used**, never the key. That is the
+precondition for §4 to work at all.
 
-| Vế                                    | Luật                                                                                                                                                                                                            | Vì sao không bỏ được vế nào                                                                                                                                                                                                                                                              |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **(a) Ngoài backup dữ liệu**          | **Root key và mọi khóa nằm NGOÀI đường backup dữ liệu**; escrow (nếu có) chịu cùng lệnh shred                                                                                                                   | Thiếu (a): khôi phục backup = khôi phục cả dữ liệu lẫn khóa ⇒ crypto-shredding là giả                                                                                                                                                                                                    |
-| **(b) Có đường DR riêng — theo TẦNG** | **root key + tenant DEK: BẮT BUỘC có đường sao lưu/khôi phục tách biệt** (khai tường minh trong tài liệu deploy). **Subject key: KHÔNG có bản sao point-in-time nào** — nó là thứ bị hủy khi một Party đòi quên | Thiếu (b): đĩa chết ⇒ backup dữ liệu còn nguyên nhưng không giải mã được gì ⇒ "restore backup" là lời hứa suông. Không tách theo tầng thì (b) giết (a): sao lưu tất-cả-khóa = hồi sinh được khóa đã shred                                                                                |
-| **(c) Chỉ replica _tiến-lên-trước_**  | Mọi bản sao key material phải là **replica mà lệnh `destroy` replicate được tới**; **CẤM snapshot point-in-time của key store** (snapshot vault, standby có thể rewind, backup file vault theo lịch)            | Thiếu (c): (b) mở lại đúng lỗ (a) ở cửa khác — khôi phục snapshot vault về trước thời điểm shred hồi sinh subject key. Đây là **luật giao thoa chiều ngược (P3b)**: cơ chế _khôi phục_ phải khai điều kiện đủ để đọc, và cơ chế _xóa_ phải phủ mọi **loại** bản sao, không chỉ mọi _nơi_ |
+## 3. The root key, by deployment shape (consistent with ADR-0002)
 
-**Bootstrap root key là cơ chế, không phải lời dặn**: provisioning (Tenant §2b) phát root key **đúng một lần**, và **engine đòi một thử thách xác nhận** (nhập lại checksum của khóa đã lưu) trước khi cho tenant vào `active`; thử thách đạt/không đạt là **entry trong log**. Án văn: một checkbox "tôi đã lưu khóa" là nửa-cơ-chế — không chứng minh được điều gì; checksum thì chứng minh được, và kiểm được sau này khi điều tra sự cố.
+| Shape                                   | Root key                                                                                                  | Hard boundary                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Small stack (binary or one container)   | A file **outside the data directory**, mode 0600, with an explicitly declared path                        | **The backup script may not touch it** — checked by litmus #4 |
+| Compose production / Kubernetes / cloud | A **KMS adapter** — envelope encryption, where KMS holds the root and the system holds only a wrapped DEK | The root never sits on the application disk                   |
 
-## 4. Rotate ≠ Shred — hai thao tác khác bản chất
+**The cross-shape law has three limbs, and none can be dropped:**
 
-|                        | Rotate                                                                 | Shred                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Ý nghĩa                | Hạn chế phạm vi rủi ro theo thời gian                                  | **Xóa dữ liệu vĩnh viễn**                                                             |
-| Cơ chế                 | Khóa mới cho **ghi mới**; khóa cũ **giữ lại để đọc**                   | **Hủy khóa** ở tầng tương ứng                                                         |
-| Re-encrypt dữ liệu cũ? | **KHÔNG** — re-encrypt entry cũ = sửa entry cũ = phạm append-only (E5) | Không cần                                                                             |
-| Kết quả                | Dữ liệu cũ vẫn đọc được                                                | Entry cũ **vĩnh viễn không giải mã được** — đúng ý đồ, log vẫn nguyên vẹn về cấu trúc |
+| Limb                                  | The rule                                                                                                                                                                                                                                             | Why it cannot be dropped                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(a) Outside the data backup**       | **The root key and every key sit OUTSIDE the data backup path**; escrow, where it exists, obeys the same shred command                                                                                                                               | Without (a): restoring a backup restores the data _and_ the key, so crypto-shredding is fiction                                                                                                                                                                                                                                                 |
+| **(b) A separate DR path — PER TIER** | **The root key and tenant DEKs MUST have a separate backup and restore path**, declared explicitly in the deployment documentation. **A subject key has NO point-in-time copy at all** — it is the thing destroyed when a Party asks to be forgotten | Without (b): the disk dies, the data backup is intact, and nothing decrypts — "restore from backup" is an empty promise. Without the per-tier split, (b) kills (a): backing up _every_ key means a shredded key can be revived                                                                                                                  |
+| **(c) Forward-moving replicas only**  | Every copy of key material must be **a replica a `destroy` command can replicate to**. **Point-in-time snapshots of the key store are forbidden** — vault snapshots, rewindable standbys, scheduled file backups of the vault                        | Without (c): (b) reopens (a)'s hole at a different door, because restoring a vault snapshot from before a shred revives the subject key. This is the reverse-direction interaction rule: a _recovery_ mechanism must declare what is sufficient to read, and a _deletion_ mechanism must cover every **kind** of copy, not merely every _place_ |
 
-- Shred là **entry** trong log: ai ra lệnh, phạm vi (subject/tenant), key_id bị hủy, thời điểm — bản thân sự kiện xóa vẫn có bằng chứng (nghịch lý audit-vs-erasure giải bằng: _metadata sự kiện ở lại, nội dung biến mất_).
-- Shred **không thể hoàn tác** — engine đòi Gate (capability `key_admin` + `distinct_filler_from` khi cấu hình chặt).
-- **Shred × replica**: lệnh shred áp **cùng lượt** lên mọi replica tiến-lên-trước (§3 vế (c)); replica nào không xác nhận `destroy` trong cửa sổ khai báo → **escalation, không bao giờ báo shred hoàn tất**. Vì đã cấm snapshot point-in-time, không tồn tại bản sao nào ngoài tầm lệnh này — đó là điều kiện để litmus #7 pass.
+**Bootstrapping the root key is a mechanism, not an instruction.** Provisioning
+(Tenant §2b) emits the root key **exactly once**, and **the engine demands a
+confirmation challenge** — re-entering the checksum of the stored key — before the
+tenant may become `active`. Passing or failing the challenge is **an entry in the
+log**. A checkbox saying "I saved the key" is half a mechanism: it proves nothing.
+A checksum proves something, and remains checkable later when an incident is being
+investigated.
 
-## 5. Secret store — handle, không phải giá trị
+## 4. Rotate is not shred
 
-- Secret có **id + scope + version + lineage**; consumer nhận **handle**, không bao giờ nhận giá trị (Sandbox §2: injection tại tầng driver — executor "không chạm giá trị").
-- **Ai giải mã được gì = capability theo scope**; mọi lần lấy secret là entry (`secret_accessed` — actor, secret_id, mục đích) → truy vết được, phát hiện được lạm dụng.
-- Rotate secret = version mới; consumer pin theo id (không pin version) → xoay không vỡ quy trình đang chạy.
-- **Biên test**: một **test run scope** (Test Harness §1) **không resolve được secret handle của production** — engine từ chối tại vault, phát entry lý do. Án văn: `test_behavior: forbidden` chỉ chặn effect **ghi** ra ngoài; một test đọc dữ liệu khách hàng thật bằng khóa thật vẫn là rò rỉ, và nó là effect _đọc_ nên không bị chặn ở cửa contract. Chạy test với secret thật đòi khai tường minh + capability riêng (K5: thiếu khai = chặt hơn).
-- **Masking**: giá trị secret không bao giờ vào log/artifact/noti — masking từ tầng perception (RPA) và tầng adapter (Platform), không redact hậu kỳ.
+|                          | Rotate                                                                                     | Shred                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Meaning                  | Limiting the blast radius over time                                                        | **Permanent data deletion**                                                                                 |
+| Mechanism                | A new key for **new writes**; the old key is **kept for reading**                          | **Destroying the key** at the corresponding tier                                                            |
+| Re-encrypt the old data? | **No** — re-encrypting an old entry means editing an old entry, which violates append-only | Not needed                                                                                                  |
+| Result                   | Old data remains readable                                                                  | Old entries are **permanently undecryptable** — which is the intent, while the log stays structurally whole |
 
-## 6. Adapter (port này cũng "default ≠ coupling")
+A shred is **an entry** in the log: who ordered it, the scope (subject or
+tenant), the `key_id` destroyed, and when. The deletion itself still has
+evidence, which is how the audit-versus-erasure paradox resolves: _the event
+metadata stays, the content disappears_.
 
-Backend khả dĩ: file-based (small-stack) · KMS đám mây (AWS/GCP/Azure) · HashiCorp Vault · HSM. Contract của port: `generate` / `wrap` / `unwrap` / `rotate` / `destroy` / `get_secret`. **Hai điều kiện chung** (backend thiếu một trong hai thì không đủ tư cách chạy crypto-shredding — khai tường minh trong tài liệu deploy):
+A shred **cannot be undone**, so the engine requires a Gate — the `key_admin`
+capability, plus `distinct_filler_from` in a strict configuration.
 
-1. `destroy` **không thể khôi phục**.
-2. **Không cung cấp — hoặc cho phép tắt — mọi cơ chế snapshot/rewind point-in-time trên key material** (§3 vế (c)). Backend có soft-delete/recovery-window bắt buộc: chỉ hợp lệ nếu cửa sổ đó khai được và **lệnh shred chỉ báo hoàn tất sau khi cửa sổ đóng**.
+**Shred against replicas**: the command applies **in the same pass** to every
+forward-moving replica (§3, limb (c)). Any replica that does not acknowledge
+`destroy` inside the declared window raises **an escalation, and the shred is
+never reported complete**. Because point-in-time snapshots are already forbidden,
+no copy exists beyond this command's reach — which is what makes litmus #7
+passable.
+
+## 5. The secret store — handles, never values
+
+A secret has an **id, scope, version and lineage**. A consumer receives a
+**handle** and never a value (Sandbox §2: injection at the driver layer, where
+the executor never touches the value).
+
+**What anyone can decrypt is a capability within a scope**, and every retrieval
+is an entry (`secret_accessed` — actor, secret id, purpose), so abuse is
+traceable and detectable.
+
+Rotating a secret creates a new version; consumers pin the id rather than the
+version, so rotation does not break a running process.
+
+**The test boundary**: a **test run scope** (Test Harness §1) **cannot resolve a
+production secret handle**. The engine refuses at the vault and emits an entry
+saying why. The reasoning matters, because it is easy to assume this is already
+covered: `test_behavior: forbidden` only blocks effects that **write** outward. A
+test that reads real customer data with a real key is still a leak, and it is a
+_read_ effect, so the contract door does not stop it. Running a test with real
+secrets requires an explicit declaration and its own capability.
+
+**Masking**: a secret value never reaches a log, an artifact or a notification.
+Masking happens at the perception layer for RPA and at the adapter layer for the
+platform, never as a redaction afterwards.
+
+## 6. The adapter port
+
+Possible backends: file-based for the small stack, a cloud KMS, HashiCorp Vault,
+an HSM. The port's contract is `generate` / `wrap` / `unwrap` / `rotate` /
+`destroy` / `get_secret`.
+
+**Two conditions apply to all of them**, and a backend missing either is not
+eligible to carry crypto-shredding, which must be declared explicitly in the
+deployment documentation:
+
+1. `destroy` **cannot be undone**.
+2. It **does not provide — or allows disabling — every point-in-time snapshot or
+   rewind mechanism over key material** (§3, limb (c)). A backend with a mandatory
+   soft-delete recovery window is acceptable only if that window is declarable and
+   **the shred reports completion only after the window closes**.
 
 ## 7. Non-goals
 
-- Không tự viết thuật toán mã hóa — dùng primitive chuẩn qua thư viện đã kiểm.
-- Không lưu secret ngoài vault; không "chế độ trần không mã hóa".
-- Không tự động shred theo lịch — shred luôn là hành động có chủ đích qua Gate.
-- Không quản lý khóa của _tenant tự mang_ (BYOK) hiện tại — cửa mở qua adapter, ghi khi cần.
+- No encryption algorithms are written here — standard primitives through audited
+  libraries.
+- No secret is stored outside the vault, and there is no unencrypted mode.
+- No scheduled automatic shredding — a shred is always deliberate and passes a
+  Gate.
+- Bring-your-own-key is not managed today; the door is open through the adapter.
 
-## 8. Nhật ký quyết định
+## 8. Decisions
 
-| Vấn đề                  | Chốt                                                                                                                                                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cây khóa                | 3 tầng cố định: root → tenant DEK → subject key; ánh xạ là projection, key material thì không                                                                                                                                           |
-| Root key                | Theo hình thái (file ngoài data-dir ↔ KMS); **luôn ngoài đường backup**; escrow chịu cùng lệnh shred                                                                                                                                    |
-| **Khôi phục khóa (DR)** | Ba vế §3: ngoài-backup + **DR bắt buộc cho root/tenant-DEK** + **subject key không có bản sao point-in-time**. Án văn: hai vế đầu không tách rời — thiếu vế 2 thì "restore backup" là lời hứa suông, thiếu phân tầng thì vế 2 giết vế 1 |
-| **Loại bản sao**        | Chỉ **replica tiến-lên-trước** (destroy replicate được); **cấm snapshot point-in-time key store**. Án văn: cấm-mọi-_nơi_ không đủ, phải cấm cả một _loại_ bản sao — nếu không, lỗ backup×shred tái sinh ở cửa vault                     |
-| **Bootstrap**           | Phát root key một lần + **thử thách checksum** trước khi tenant vào `active`; kết quả là entry. Checkbox "tôi đã lưu" = nửa cơ chế                                                                                                      |
-| **Biên test**           | Test run scope không resolve secret production — `forbidden` chỉ chặn effect ghi, không chặn đọc                                                                                                                                        |
-| Rotate                  | Không re-encrypt (append-only bất khả xâm phạm); entry mang key_id                                                                                                                                                                      |
-| Shred                   | Hủy khóa; sự kiện shred là entry; không hoàn tác; qua Gate                                                                                                                                                                              |
-| Secret                  | Handle-only, scope + capability, mọi truy cập là entry, masking từ gốc                                                                                                                                                                  |
-| Adapter                 | Điều kiện tối thiểu: `destroy` không khôi phục được                                                                                                                                                                                     |
+| Question              | Settled                                                                                                                                                                                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The key tree          | Three fixed tiers: root → tenant DEK → subject key; the mapping is a projection, the key material is not                                                                                                                                                               |
+| Root key              | By deployment shape — a file outside the data directory, or KMS; **always outside the backup path**; escrow obeys the same shred                                                                                                                                       |
+| **Key recovery (DR)** | §3's three limbs: outside-backup, **mandatory DR for root and tenant DEK**, and **no point-in-time copy of a subject key**. The first two are inseparable — without the second, "restore from backup" is empty; without the per-tier split, the second kills the first |
+| **Kinds of copy**     | **Forward-moving replicas only**; **point-in-time key-store snapshots forbidden**. Forbidding every _place_ is not enough — a _kind_ of copy has to go too, or the backup-versus-shred hole reappears at the vault door                                                |
+| **Bootstrap**         | The root key is emitted once, with a **checksum challenge** before the tenant becomes `active`; the result is an entry. A "saved it" checkbox is half a mechanism                                                                                                      |
+| **The test boundary** | A test run scope cannot resolve production secrets — `forbidden` blocks write effects, not reads                                                                                                                                                                       |
+| Rotate                | No re-encryption, because append-only is inviolable; entries carry the `key_id`                                                                                                                                                                                        |
+| Shred                 | Destroy the key; the shred is an entry; irreversible; through a Gate                                                                                                                                                                                                   |
+| Secrets               | Handle-only, scope plus capability, every access an entry, masked at the source                                                                                                                                                                                        |
+| Adapter               | Minimum condition: `destroy` is unrecoverable                                                                                                                                                                                                                          |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Shred một Party: mọi entry/artifact chứa PII của người đó **không giải mã được nữa**, trong khi log vẫn replay được và mọi entry khác nguyên vẹn?
-2. Rotate khóa: dữ liệu cũ vẫn đọc được, **không entry cũ nào bị viết lại**?
-3. Khôi phục backup mới nhất trên máy trắng: dữ liệu đã shred trước đó **vẫn không đọc được** (vì khóa không nằm trong backup)?
-4. Small-stack: backup script chạm vào file root key → **litmus fail** (kiểm tự động trong CI)?
-5. Một consumer bất kỳ (rule filler, agent, RPA driver) có đường nào lấy được **giá trị** secret thay vì handle?
-6. **Máy trắng + root key từ đường DR**: khôi phục backup dữ liệu → mọi dữ liệu **chưa** shred đọc được bình thường, hệ vào `active` được — và nếu **không** có đường DR thì engine nói thẳng "không thể khôi phục", không giả vờ chạy được?
-7. Shred một Party, sau đó khôi phục **mọi** bản sao khóa còn tồn tại (replica, escrow, standby): dữ liệu của Party đó **vẫn không đọc được** — và không tồn tại một snapshot point-in-time nào của key store để thử?
+1. Shred a Party: is every entry and artifact holding their PII **no longer
+   decryptable**, while the log still replays and every other entry is intact?
+2. Rotate a key: does old data remain readable, with **no old entry rewritten**?
+3. Restore the latest backup onto a blank machine: is previously shredded data
+   **still unreadable**, because the key was never in the backup?
+4. On the small stack: does the backup script touching the root key file make
+   **the litmus fail**, checked automatically in CI?
+5. Does any consumer — rule filler, agent, RPA driver — have a path to a secret's
+   **value** rather than its handle?
+6. **A blank machine plus the root key from the DR path**: does restoring the data
+   backup make all **un-shredded** data readable and let the system reach
+   `active`? And **without** a DR path, does the engine say plainly "this cannot
+   be recovered" rather than pretending to work?
+7. Shred a Party, then restore **every** surviving copy of a key — replica,
+   escrow, standby: is that Party's data **still unreadable**, with no
+   point-in-time key-store snapshot anywhere to try?
 
-## FMEA (theo F8)
+## Failure modes
 
-| Hỏng                                           | Phát hiện                                            | Phục hồi                                                                                                                                               |
-| ---------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Mất toàn bộ máy / đĩa chết**                 | Không unwrap được DEK nào                            | **Khôi phục root key từ đường DR §3(b)** → restore dữ liệu → replay. **Không có DR = mất vĩnh viễn, và đó là thiết kế đã khai**, không phải sự cố ngầm |
-| **Snapshot key store tồn tại trái luật §3(c)** | Kiểm cấu hình backend lúc khởi động (điều kiện §6.2) | Engine **từ chối vai crypto-shredding** trên backend đó — không bao giờ hứa xóa thứ mình không xóa được                                                |
-| Vault backend down                             | `unwrap`/`get_secret` lỗi                            | Task đi `on_fail/escalate`; **không có chế độ chạy-không-mã-hóa** (§7) — dừng an toàn hơn chạy hở                                                      |
-| Replica không xác nhận `destroy` trong cửa sổ  | Đối chiếu ack của từng replica                       | **Escalation, KHÔNG báo shred hoàn tất** — lời hứa xóa chỉ được phát khi mọi bản sao đã chết                                                           |
-| Root key rò (nghi bị chiếm)                    | Audit `secret_accessed` bất thường / báo cáo ngoài   | **Rotate toàn cây** (khóa mới cho ghi mới, khóa cũ giữ để đọc — §4); rotate **không** là shred, dữ liệu cũ vẫn đọc được; đánh giá riêng phần đã lộ     |
-| Ánh xạ `subject_ref → key_id` drift            | Checksum theo log-position (Working Data §2)         | Rebuild projection từ log — **key material không rebuild được**, đó là lý do §2 tách hai thứ này                                                       |
-| Thử thách checksum bootstrap không đạt         | Entry `key_bootstrap_failed`                         | Tenant **ở lại `provision`**, không vào `active` (Tenant §2b) — không có tenant nào sống mà chủ không giữ nổi khóa                                     |
+| Failure                                            | Detected by                                                  | Recovery                                                                                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total machine or disk loss**                     | No DEK can be unwrapped                                      | **Restore the root key from the §3(b) DR path** → restore the data → replay. **No DR means permanent loss, and that is declared design** rather than a hidden accident           |
+| **A key-store snapshot exists against §3(c)**      | Backend configuration is checked at startup (condition §6.2) | The engine **refuses the crypto-shredding role** on that backend — it never promises to delete what it cannot delete                                                             |
+| The vault backend is down                          | `unwrap` or `get_secret` fails                               | The task takes `on_fail` or escalates; **there is no run-unencrypted mode** (§7) — stopping is safer than running open                                                           |
+| A replica does not acknowledge `destroy` in window | Per-replica acknowledgement reconciliation                   | **Escalation, and the shred is NOT reported complete** — the deletion promise is only made once every copy is dead                                                               |
+| The root key is suspected compromised              | Anomalous `secret_accessed` audits, or an external report    | **Rotate the whole tree** — new key for new writes, old key kept for reading (§4). Rotation is **not** a shred; old data stays readable, and the exposure is assessed separately |
+| The `subject_ref → key_id` mapping drifts          | A checksum by log position (Working Data §2)                 | Rebuild the projection from the log — **key material cannot be rebuilt**, which is why §2 keeps the two apart                                                                    |
+| The bootstrap checksum challenge fails             | A `key_bootstrap_failed` entry                               | The tenant **stays in `provision`** and never reaches `active` (Tenant §2b) — no tenant runs whose owner cannot hold its key                                                     |
