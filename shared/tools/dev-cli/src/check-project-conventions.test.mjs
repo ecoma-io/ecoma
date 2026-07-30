@@ -26,6 +26,32 @@ const pkg = (fields) =>
   JSON.stringify({ private: true, license: "LicenseRef-Ecoma-SustainableUse-1.0", ...fields });
 const tsconfig = (paths) => JSON.stringify({ compilerOptions: { paths } });
 
+/**
+ * A vitest config in the shape every project's carries: the floor read from the
+ * repo-root config, coverage on, no per-metric number of its own. Each option
+ * reopens exactly one of the seams the gate closes, so a case names the single
+ * state it is about.
+ */
+const vitestConfig = ({
+  passWithNoTests = false,
+  coverageEnabled = true,
+  overrideBranchesTo,
+} = {}) =>
+  [
+    'const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.json");',
+    "export default defineConfig({",
+    "  test: {",
+    ...(passWithNoTests ? ["    passWithNoTests: true,"] : []),
+    "    coverage: {",
+    `      enabled: ${coverageEnabled},`,
+    overrideBranchesTo === undefined
+      ? "      thresholds,"
+      : `      thresholds: { ...thresholds, branches: ${overrideBranchesTo} },`,
+    "    },",
+    "  },",
+    "});",
+  ].join("\n");
+
 /** A minimal healthy workspace every case below starts from. */
 const HEALTHY = {
   "package.json": pkg({ name: "@ecoma-io/ecoma" }),
@@ -122,6 +148,77 @@ describe("findConventionViolations", () => {
       "vider/libs/vider-ui/conftest.py": "if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:",
     };
     expect(judge(files)).toEqual([]);
+  });
+
+  it("flags a vitest empty-suite flag left in place after the project grew real tests", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.ts": vitestConfig({ passWithNoTests: true }),
+      "vider/libs/vider-ui/src/thing.test.ts": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "vider/libs/vider-ui/vitest.config.ts: keeps 'passWithNoTests: true'",
+      ),
+    ]);
+  });
+
+  it("flags a vitest config that never reads the workspace coverage floor", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.ts": 'export default { test: { environment: "node" } };',
+      "vider/libs/vider-ui/src/thing.test.ts": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "vider/libs/vider-ui/vitest.config.ts: vider/libs/vider-ui has tests but this config " +
+          "does not hold the workspace coverage floor",
+      ),
+    ]);
+  });
+
+  it("flags a vitest config that reads the shared floor and then overrides a metric downward", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.ts": vitestConfig({ overrideBranchesTo: 10 }),
+      "vider/libs/vider-ui/src/thing.test.ts": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("does not hold the workspace coverage floor"),
+    ]);
+  });
+
+  it("flags a vitest config that reads the shared floor with coverage still switched off", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.ts": vitestConfig({ coverageEnabled: false }),
+      "vider/libs/vider-ui/src/thing.test.ts": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("does not hold the workspace coverage floor"),
+    ]);
+  });
+
+  it("leaves both vitest seam halves alone while the project still has no tests", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.ts": vitestConfig({
+        passWithNoTests: true,
+        coverageEnabled: false,
+      }),
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("reads the vitest seam from a config in either module spelling", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/vitest.config.mjs": vitestConfig({ passWithNoTests: true }),
+      "vider/libs/vider-ui/src/thing.integration.test.mjs": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("vider/libs/vider-ui/vitest.config.mjs: keeps 'passWithNoTests"),
+    ]);
   });
 
   it("passes a unit or integration test whose name merely contains the e2e tier's neighbours", () => {
