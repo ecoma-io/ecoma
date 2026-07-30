@@ -53,9 +53,11 @@ jobs:
       # commitlint's own defaults).
       - name: Commit messages (Conventional + scope ↔ path)
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          pnpm commitlint --from "origin/${{ github.base_ref }}" --to HEAD
-          for sha in $(git rev-list --no-merges "origin/${{ github.base_ref }}..HEAD"); do
+          pnpm commitlint --from "origin/$BASE_REF" --to HEAD
+          for sha in $(git rev-list --no-merges "origin/$BASE_REF..HEAD"); do
             node shared/tools/dev-cli/src/main.mjs check-commit-scope --commit "$sha"
           done
 
