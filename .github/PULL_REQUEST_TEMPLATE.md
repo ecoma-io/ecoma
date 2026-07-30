@@ -28,6 +28,12 @@ Closes #(issue number)
 
 <!-- Add screenshots for UI changes -->
 
+## AI-Assisted Development
+
+- [ ] This PR is AI-assisted (drafted or substantially written by an AI coding agent)
+
+<!-- If checked, name the tool and model tier, e.g. "Claude Code, sonnet" — see CLAUDE.md > Agent & Model Routing -->
+
 ## Checklist
 
 - [ ] Code follows the project's style guidelines
