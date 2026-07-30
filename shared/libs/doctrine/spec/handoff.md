@@ -1,130 +1,239 @@
 ---
-title: "Ecoma Primitive Spec: Handoff"
+title: "Primitive: Handoff"
 status: design-end-state
-lang: vi
 ---
 
-# Ecoma Primitive Spec: Handoff
+# Primitive: Handoff
 
-## 0. Bốn nguyên tắc cơ chế (canonical: North Star §3)
+## 0. The four mechanism principles (canonical: North Star §3)
 
-1. **Engine đối xứng tuyệt đối** giữa người, AI, và rule/code. Bất đối xứng chỉ sống ở tầng policy/template.
-2. **Cái cần tích lũy học là entity hạng nhất có danh tính ổn định — và danh tính có lineage.**
-3. **Engine ép tham số tồn tại, template ép giá trị.**
-4. **Độ phức tạp là quyền lựa chọn của user**: cơ chế đầy đủ, mặc định tối giản qua default cascade, nâng cao là opt-in.
+1. **The engine is strictly symmetric** between people, AI, and rule/code. Any
+   asymmetry lives at the policy or template layer.
+2. **Anything that has to accumulate learning is a first-class entity with a
+   stable identity, and that identity has lineage.**
+3. **The engine forces a parameter to exist; a template forces its value.**
+4. **Complexity is the user's choice**: the full mechanism, a minimal default
+   through the cascade, and advanced capability opt-in.
 
-Bước deterministic = Role được lấp bởi `rule`/code. Engine không có nhánh `if deterministic` — khác biệt hành vi nổi lên từ khai báo (§11).
+A deterministic step is a Role filled by `rule`/code. The engine has no
+`if deterministic` branch anywhere — behavioural differences emerge from what
+was declared (§11).
 
-## 1. Định nghĩa
+## 1. Definition
 
-Handoff là **sự chuyển giao một Artifact từ Role sản xuất sang Role tiêu thụ, dưới một Contract tường minh**. Người cần _ngữ cảnh kể được_, AI cần _cấu trúc kiểm được_ — Contract chứa cả hai. Đây là điểm hợp nhất hai lực lượng lao động ở mức dữ liệu.
+A Handoff is **the transfer of an Artifact from a producing Role to a consuming
+Role, under an explicit Contract**. A person needs _context they can be told_; an
+AI needs _structure that can be checked_. The Contract carries both, which is
+what makes it the point where the two kinds of labour meet at the level of data.
 
-## 2. Mô hình khái niệm
+## 2. The conceptual model
 
-| Entity               | Là gì                                                                                                                                                | Danh tính                               |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| **Contract**         | Schema + semantic + context requirements. Entity hạng nhất, version hóa, thư viện tenant, tái sử dụng xuyên quy trình                                | id + version; quy trình **pin** version |
-| **Artifact**         | Reference + hash (content-addressed) + metadata + provenance chain. Immutable sau khi Gate đóng. Lưu trữ vật lý: [artifact-store](artifact-store.md) | content hash                            |
-| **Handoff instance** | (artifact, contract@version, producer, consumer, trạng thái)                                                                                         | id, append event log                    |
-| **Violation**        | Vi phạm khách quan lớp Schema tại runtime                                                                                                            | gắn handoff instance                    |
-| **Effect**           | Tác động ra ngoài hệ thống do Task khai báo, mang lớp reversibility                                                                                  | khai báo trong Task                     |
-| **Compensation**     | Hành động bồi hoàn khai báo trước cho Effect/Handoff                                                                                                 | Task của một Role                       |
+| Entity               | What it is                                                                                                                                                | Identity                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Contract**         | Schema, semantics and context requirements. A first-class, versioned entity in a tenant library, reused across processes                                  | Id and version; a process **pins** a version |
+| **Artifact**         | Reference, content-addressed hash, metadata and a provenance chain. Immutable once its Gate closes. Physical storage: [artifact-store](artifact-store.md) | Content hash                                 |
+| **Handoff instance** | (artifact, contract@version, producer, consumer, state)                                                                                                   | Id, appended to the event log                |
+| **Violation**        | An objective breach of the Schema layer at runtime                                                                                                        | Attached to a handoff instance               |
+| **Effect**           | An impact outside the system, declared by a Task, carrying a reversibility class                                                                          | Declared in the Task                         |
+| **Compensation**     | A remedial action declared in advance for an Effect or Handoff                                                                                            | A Task of some Role                          |
 
-## 3. Contract — ba lớp
+## 3. Contract — three layers
 
-| Lớp                      | Nội dung                                                                                                                                                                                                                                                                                                                                                                         | Ai kiểm                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Schema**               | Kiểu, ràng buộc máy kiểm được. Nguồn duy nhất của contract criteria mà Gate (Checkpoint) tiêu thụ làm hard gate                                                                                                                                                                                                                                                                  | Engine, deterministic                                                                                                                                                                                                                                                                                                                                                                                          |
-| **`test_behavior`**      | Hành vi của contract khi chạy trong **test run scope** (Test Harness §1): `mock` (engine trả fixture) · `dry_run` (adapter chạy nhưng không phát effect ra ngoài — **đòi adapter khai `supports_dry_run`**, không hỗ trợ thì resolve về `forbidden`) · `forbidden` (gửi mail, HTTP bên thứ ba, chuyển tiền, ghi hệ ngoài). Chạy thật trong test đòi khai tường minh + capability | **Tùy chọn ở văn bản; engine resolve thiếu khai = `forbidden`** (fail-safe). Static analysis **cảnh báo** contract có effect rời hệ mà không khai tường minh. *Án văn *: bắt-buộc-ở-schema sẽ làm **mọi contract đã pin** fail validation = breaking vô cớ, trong khi mặc định đã fail-closed nên thiếu khai **không tạo rủi ro** — reject dành cho chỗ thiếu-khai _là_ rủi ro (manifest `scope` của Block §2) |
-| **Semantic**             | Mô tả NL từng trường: nghĩa, mục đích, ví dụ đúng/sai                                                                                                                                                                                                                                                                                                                            | Verifier (quality criteria) + người                                                                                                                                                                                                                                                                                                                                                                            |
-| **Context requirements** | Trường context consumer cần nhận (projection từ envelope §5). Deterministic consumer khai ∅                                                                                                                                                                                                                                                                                      | Consumer                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Layer                    | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Checked by                                                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Schema**               | Types and machine-checkable constraints. The single source of the contract criteria a Gate consumes as a hard gate                                                                                                                                                                                                                                                                                                                                             | The engine, deterministically                                                                                                                                                           |
+| **`test_behavior`**      | How the contract behaves inside a **test run scope** (Test Harness §1): `mock` (the engine returns a fixture) · `dry_run` (the adapter runs but emits no outward effect — **requires the adapter to declare `supports_dry_run`**, and resolves to `forbidden` where it does not) · `forbidden` (sending mail, third-party HTTP, moving money, writing to an external system). Running for real inside a test requires an explicit declaration and a capability | **Optional in the text; the engine resolves an absent declaration to `forbidden`** (fail-safe). Static analysis **warns** about a contract with an outward effect that declares nothing |
+| **Semantic**             | A natural-language description of each field: meaning, purpose, right and wrong examples                                                                                                                                                                                                                                                                                                                                                                       | Verifiers (quality criteria) and people                                                                                                                                                 |
+| **Context requirements** | The context fields a consumer needs, projected from the envelope (§5). A deterministic consumer declares none                                                                                                                                                                                                                                                                                                                                                  | The consumer                                                                                                                                                                            |
 
-Contract khai báo thêm **verification depth** từng criterion: `metadata` / `sampled` / `full` — độ sâu kiểm là lựa chọn chi phí của user.
+Making `test_behavior` mandatory in the schema was considered and rejected: it
+would fail validation on **every already-pinned contract** — a breaking change
+for no gain, because the default is already fail-closed, so an absent declaration
+creates no risk. Rejection is reserved for the places where an absent declaration
+_is_ the risk, such as a Block manifest's `scope`.
 
-## 4. Vòng đời
+A Contract also declares a **verification depth** per criterion — `metadata` /
+`sampled` / `full`. How deeply to check is the user's cost decision.
+
+## 4. Lifecycle
 
 ```
 offered → validating → accepted → in_use
- ↘ violated → (coerce | reject | escalate)
+        ↘ violated → (coerce | reject | escalate)
 accepted → bounced
 ```
 
-- **Coercion là Task của một Role** (AI hoặc người). Engine không tự sửa artifact — mọi sửa đổi truy vết về một Role.
-- **Bounce — tách đôi theo bản chất consumer:**
-- Consumer deterministic: bounce = **Violation** (schema fail) — khách quan, luôn hợp lệ.
-- Consumer reasoning/người: bounce = **Judgment `basis: consumer`** — chủ quan, nuôi calibration của Gate thượng nguồn (Gate pass mà bounce nhiều = Gate lỏng).
-- **Trọng tài**: N bounce (engine ép khai báo N, template cấp giá trị) trên cùng lineage giữa cùng cặp → engine sinh **Conflict**, escalate lên **Arbiter Role** khai báo trong quy trình (mặc định: process owner). Bounce không lật Gate cũ — tạo vòng làm lại mới có dấu vết.
-- **Phân định thời điểm**: consumer deterministic fail _trong lúc validating_ = Violation (lỗi hàng); fail _sau khi đã accepted_ = runtime failure của chính task consumer, đi theo on_fail của task đó — không phải bounce.
-- Tại `accepted`, ownership chuyển sang consumer — ranh giới trách nhiệm tường minh.
-- Artifact immutable sau khi Gate đóng: mọi chỉnh sửa (kể cả approve-with-edit ở Checkpoint) sinh **artifact dẫn xuất mới** nối vào provenance, không sửa tại chỗ.
+**Coercion is a Task of a Role**, AI or human. The engine never edits an artifact
+itself; every modification traces back to a Role.
 
-## 5. Context envelope — tích lũy tự động, giao theo projection
+**A bounce splits by the nature of the consumer:**
 
-- Engine **tự tích lũy** envelope dọc chuỗi (mục tiêu gốc, ràng buộc, quyết định mỗi bước) vào provenance — không mất mát, không cần soạn tay; producer chỉ bổ sung.
-- Consumer nhận **projection**: engine chiếu envelope xuống đúng context requirements trong contract. Deterministic step: requirement ∅ → zero overhead.
-- Chống phình: **Distiller = Task của Role** (chưng cất envelope), kích hoạt theo policy độ dài/số bước — opt-in. Bản đầy đủ vẫn nằm trong provenance.
+- A deterministic consumer bounces with a **Violation** — a schema failure,
+  objective, always valid.
+- A reasoning or human consumer bounces with a **Judgment carrying `basis:
+consumer`** — subjective, and it feeds the calibration of the upstream Gate. A
+  Gate that passes work which is then bounced repeatedly is a loose Gate, and
+  this is how that becomes visible.
+
+**Arbitration**: after N bounces on the same lineage between the same pair — the
+engine forces N to be declared, a template supplies it — the engine raises a
+**Conflict** and escalates to the **Arbiter Role** declared in the process, the
+process owner by default. A bounce never overturns a closed Gate; it opens a new
+round of rework with its own trace.
+
+**When the failure happens matters.** A deterministic consumer failing _during
+validating_ is a Violation — a defective item. Failing _after accepting_ is a
+runtime failure of the consumer's own task and follows that task's `on_fail`. It
+is not a bounce.
+
+At `accepted`, ownership passes to the consumer. The boundary of responsibility
+is explicit rather than inferred.
+
+An artifact is immutable once its Gate closes. Every edit — including
+approve-with-edit at a Checkpoint — creates **a new derived artifact** linked
+into the provenance. Nothing is edited in place.
+
+## 5. The context envelope — accumulated automatically, delivered as a projection
+
+The engine **accumulates** the envelope along the chain — the original goal, the
+constraints, the decision made at each step — into provenance. Nothing is lost
+and nobody composes it by hand; a producer only adds.
+
+A consumer receives a **projection**: the engine projects the envelope down to
+exactly the context requirements in the contract. A deterministic step declares
+none, so its overhead is zero.
+
+Against unbounded growth, a **Distiller is a Task of a Role** that condenses the
+envelope, triggered by a length or step-count policy, opt-in. The full version
+stays in provenance — distillation is a delivery convenience, never a deletion.
 
 ## 6. Topology
 
-- Handoff là **point-to-point**. Fan-out = nhiều instance từ một artifact.
-- **Fan-in là Task của Role** (merger, AI hoặc người) với contract đầu ra riêng. Không có merge node ma thuật.
-- Định tuyến là việc của Role/Task.
+A Handoff is **point-to-point**. Fan-out is several instances from one artifact.
 
-## 7. Version & governance
+**Fan-in is a Task of a Role** — a merger, AI or human — with its own output
+contract. There is no magic merge node, for the same reason there are no system
+Roles: a node that merges without a Role is a decision nobody made.
 
-- Semver ngữ nghĩa: thêm optional = minor; đổi nghĩa/kiểu/bỏ = major.
-- Quy trình pin version → sửa contract dùng chung **không thể vỡ** quy trình đang chạy; major bump = version mới, quy trình cũ đứng yên.
-- Migration tường minh qua **Adapter Role**. Capability `contract_author` kiểm soát tạo version.
-- **Version lineage**: calibration bám (contract-id, version) kế thừa từ version cha với hệ số decay (minor: decay ~0; major: decay theo template) — cùng cơ chế lineage của Verifier/Criterion, chống reset flywheel khi contract tiến hóa.
-- Quy trình duyệt thay đổi (nếu tenant muốn) là **một workflow ecoma** — governance dogfooding, opt-in. Pinning bảo đảm an toàn; nghi thức duyệt là lựa chọn.
+Routing is the business of Role and Task.
 
-## 8. Effects, reversibility & compensation
+## 7. Version and governance
 
-- Task khai báo **external effects**; mỗi effect mang lớp `reversible / compensable / irreversible` + compensation tương ứng. Engine ép trường tồn tại, template ép giá trị. **Effect khai mà không phân lớp = coi là `irreversible`** — mặc định bảo thủ, đồng bộ với RPA Action spec (đơn giản hơn luôn nghĩa là an toàn hơn, không bao giờ là lỏng hơn).
-- Effect khai được **`serialization_key`** (tùy chọn): engine serialize các effect cùng key xuyên process — hệ ngoài (record CRM, file share) là shared mutable state duy nhất được thừa nhận, và đây là van chống đua tối thiểu; không khai = optimistic, xung đột phát hiện qua Violation/outcome. Cơ chế hóa: serialization_key = **micro-lease** do engine tự quản (Working Data §3 — Lease là primitive khóa duy nhất toàn hệ).
-- **Session effect** (effect loại stream): cho task tương tác môi trường qua chuỗi micro-action (phiên RPA, phiên browser, phiên terminal). Action log là provenance; **mỗi action mang lớp reversibility riêng**; commit point của phiên = action irreversible đầu tiên đã chạy. Stream gồm **entry có kiểu**: action / quy công actor–task / đề xuất (proposal — Platform materialize thành Task); learning signal dẫn xuất từ chính log — **không tồn tại kênh thứ ba** ngoài hai giao diện. Đây là giao diện chuẩn để **Ecoma RPA — sản phẩm riêng, domain tách biệt — cắm vào Platform**: Platform không biết selector/vision/driver, chỉ biết một filler đang phát một session effect. Mọi runtime ngoài khác cắm cùng cách.
-- Task thuần sản xuất artifact (đa số bước reasoning) không có effect → tự do đảo ngược. Irreversible tập trung ở bước deterministic có side-effect.
-- **Design-time**: engine tính tĩnh ranh giới unwind; cảnh báo "effect irreversible đứng sau Gate calibration còn non".
-- **Runtime**: effect irreversible được phép đòi **sàn policy ở Gate liền trước** (vd không auto-pass trừ khi calibrated confidence ≥ X) — sàn là opt-in.
-- **Unwind**: đi ngược provenance chain, kích hoạt compensation (Task của Role — nhiều bồi hoàn chỉ người làm được). Không vượt qua **commit point** (irreversible effect đã chạy) — từ đó chỉ có bù đắp, không có undo.
+Semantics are semver: adding an optional field is minor; changing a meaning or a
+type, or removing a field, is major.
 
-## 9. Provenance & lan truyền outcome
+A process pins a version, so editing a shared contract **cannot break** a running
+process. A major bump is a new version and old processes stand still.
 
-- Artifact mang chuỗi xuất xứ đầy đủ: Task, Role, Judgment, contract version.
-- Judgment `basis: outcome` gắn vào artifact cuối lan ngược theo provenance về các bước thượng nguồn → tín hiệu calibration cho từng Role/Criterion góp phần. Trọng số attribution là tham số calibration, không hardcode.
-- Cho phép "chấm lại sau done" chấm một lần ở cuối mà cả chuỗi được học.
+Migration is explicit, through an **Adapter Role**. The `contract_author`
+capability controls who may create a version.
+
+**Version lineage**: calibration binds to (contract id, version) and inherits
+from the parent version with a decay factor — approximately zero for a minor,
+template-valued for a major. It is the same lineage mechanism Verifier and
+Criterion use, and for the same reason: so an evolving contract does not reset
+the flywheel.
+
+A change-approval process, where a tenant wants one, is **a workflow running on
+ecoma itself** — governance dogfooding, opt-in. Pinning is what provides safety;
+the approval ritual is a choice on top of it.
+
+## 8. Effects, reversibility and compensation
+
+A Task declares its **external effects**, each carrying a class of `reversible /
+compensable / irreversible` and its compensation. The engine forces the field to
+exist and a template forces the value. **An effect declared without a class is
+treated as `irreversible`** — conservative by default, matching RPA Action.
+Simpler always means safer here, never looser.
+
+An effect may declare a **`serialization_key`**. The engine serialises effects
+sharing a key across processes. An external system — a CRM record, a file share —
+is the one piece of shared mutable state this design acknowledges, and this is
+the minimum valve against races. Without a key the behaviour is optimistic, and
+conflicts surface as a Violation or an outcome. Mechanically, a
+`serialization_key` is a **micro-lease** the engine manages (Working Data §3 —
+Lease is the only locking primitive in the whole system).
+
+**A Session effect** is the streaming kind, for a task that interacts with an
+environment through a chain of micro-actions: an RPA session, a browser session,
+a terminal session. Its action log is the provenance; **each action carries its
+own reversibility class**; the session's commit point is the first irreversible
+action that ran. The stream is made of **typed entries**: actions, actor-to-task
+attribution, and proposals which the platform materialises into Tasks. Learning
+signals derive from the log itself — **there is no third channel** beyond the two
+interfaces. This is the standard interface by which **Ecoma RPA, a separate
+product in its own domain, plugs into the platform**: the platform knows nothing
+of selectors, vision or drivers, only that a filler is emitting a session effect.
+Every other external runtime plugs in the same way.
+
+A task that only produces artifacts — most reasoning steps — has no effects and
+is therefore freely reversible. Irreversibility concentrates in the
+deterministic, side-effecting steps.
+
+**At design time** the engine computes the unwind boundary statically, and warns
+about an irreversible effect standing behind a Gate whose calibration is still
+immature.
+
+**At runtime** an irreversible effect may demand a **policy floor at the Gate
+immediately before it** — for instance, no auto-pass unless calibrated confidence
+is at least X. The floor is opt-in.
+
+**Unwinding** walks back up the provenance chain triggering compensations, each a
+Task of a Role, because many forms of remediation only a person can perform. It
+never crosses the **commit point** where an irreversible effect has run. Past
+that, there is redress but no undo.
+
+## 9. Provenance and outcome propagation
+
+An artifact carries its full chain of origin: Task, Role, Judgment, contract
+version.
+
+A Judgment with `basis: outcome` attached to the final artifact propagates
+backwards along the provenance to the upstream steps, becoming a calibration
+signal for every contributing Role and Criterion. The attribution weights are
+calibration parameters rather than hardcoded values.
+
+This is what lets a single judgment at the end teach the entire chain.
 
 ## 10. Non-goals
 
-- Không định tuyến (Role/Task), không đánh giá chất lượng (Checkpoint).
-- **Không có shared mutable state giữa các bước** — mọi trao đổi qua Handoff.
-- Engine không tự sửa artifact — coercion/merge/adapt/compensate luôn là Task của Role.
+- No routing (Role, Task) and no quality assessment (Checkpoint).
+- **No shared mutable state between steps** — every exchange goes through a
+  Handoff.
+- The engine never edits an artifact: coercion, merge, adapt and compensate are
+  always Tasks of a Role.
 
-## 11. Bảng duality (deterministic vs reasoning — cùng cơ chế, hành vi tự phân hóa)
+## 11. Duality — one mechanism, behaviour that differentiates itself
 
-| Khía cạnh          | Deterministic (Role = rule/code) | Reasoning / người                 |
-| ------------------ | -------------------------------- | --------------------------------- |
-| Context envelope   | Requirement ∅, zero overhead     | Projection theo contract          |
-| Bounce             | = Violation, khách quan          | = Judgment consumer, có trọng tài |
-| Verification depth | Schema/metadata đủ               | Sampled/full theo chọn            |
-| Effects            | Nơi tập trung irreversible       | Thường effect-free                |
+| Aspect             | Deterministic (Role = rule/code)   | Reasoning / human                     |
+| ------------------ | ---------------------------------- | ------------------------------------- |
+| Context envelope   | No requirements, zero overhead     | A projection defined by the contract  |
+| Bounce             | A Violation, objective             | A consumer Judgment, with arbitration |
+| Verification depth | Schema and metadata suffice        | Sampled or full, by choice            |
+| Effects            | Where irreversibility concentrates | Usually effect-free                   |
 
-## 12. Nhật ký quyết định
+## 12. Decisions
 
-| Vấn đề                    | Chốt                                                                                                                                                                                                                                     |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Envelope                  | Tích lũy tự động không mất mát; giao theo projection; Distiller là Role-task opt-in                                                                                                                                                      |
-| Bounce                    | Vô hạn về cơ chế; N-bounce → Conflict → Arbiter Role; tách Violation vs Judgment theo bản chất consumer                                                                                                                                  |
-| Artifact lớn              | Luôn reference + content-addressed hash; verification depth là lựa chọn user                                                                                                                                                             |
-| Reversibility             | Gắn vào **effect** không gắn vào bước; 3 lớp; commit point chặn unwind; sàn policy cho Gate trước irreversible                                                                                                                           |
-| Contract dùng chung       | Pinning + Adapter Role thay bộ máy duyệt; duyệt là workflow ecoma opt-in; capability `contract_author`                                                                                                                                   |
-| **Hành vi trong test**    | Khai tại **contract**, không tại handoff instance — án văn: an-toàn-khi-test là thuộc tính của _loại_ trao đổi, không của một lần trao đổi; mặc định `forbidden` (fail-safe) — test harness không bao giờ phải _đoán_ effect nào an toàn |
-| **Bắt buộc hay tùy chọn** | **Tùy chọn ở văn bản + engine resolve thiếu = `forbidden`**; static analysis cảnh báo. Án văn: schema-bắt-buộc phá mọi contract đã pin (breaking) mà không giảm rủi ro nào, vì mặc định vốn đã fail-closed                               |
-| **`dry_run` là của ai**   | Của **adapter** (`supports_dry_run`), không của contract; contract khai `dry_run` mà adapter không hỗ trợ → `forbidden` (K5). Không có luật này thì harness phải _đoán_ — đúng chỗ nó thề không đoán                                     |
+| Question                  | Settled                                                                                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Envelope                  | Accumulated automatically and losslessly; delivered as a projection; the Distiller is an opt-in Role task                                                                                                                                              |
+| Bounce                    | Mechanically unbounded; N bounces raise a Conflict for the Arbiter Role; Violation and Judgment split by the nature of the consumer                                                                                                                    |
+| Large artifacts           | Always a reference plus a content-addressed hash; verification depth is the user's choice                                                                                                                                                              |
+| Reversibility             | Attached to the **effect**, not the step; three classes; the commit point stops the unwind; a policy floor guards the Gate before an irreversible effect                                                                                               |
+| Shared contracts          | Pinning plus an Adapter Role instead of an approval bureaucracy; approval is an opt-in ecoma workflow; the `contract_author` capability                                                                                                                |
+| **Behaviour under test**  | Declared on the **contract**, not the handoff instance — safety under test is a property of the _kind_ of exchange, not of one exchange. Default `forbidden`, fail-safe, so the test harness never has to _guess_ which effect is safe                 |
+| **Mandatory or optional** | **Optional in the text, with the engine resolving an absence to `forbidden`**; static analysis warns. Making it mandatory in the schema would break every pinned contract while reducing no risk, because the default is already fail-closed           |
+| **Who owns `dry_run`**    | The **adapter** (`supports_dry_run`), not the contract. A contract declaring `dry_run` against an adapter that does not support it resolves to `forbidden`. Without that rule the harness would have to guess, in exactly the place it promises not to |
 
-## Litmus (spec-level, theo L5)
+## Litmus
 
-1. Envelope projection cấp đúng và chỉ đúng những gì contract khai (không rò thừa)?
-2. Effect không phân lớp bị đối xử là `irreversible` ở mọi đường (Platform lẫn RPA)?
-3. Bounce quá N trên cùng lineage → Conflict + Arbiter, không lật Gate cũ?
-4. Chạy một process trong test run scope với contract gửi email: **không email nào rời hệ**, và log ghi rõ effect bị chặn vì `test_behavior: forbidden` — kể cả khi contract **không khai gì**?
+1. Does the envelope projection deliver exactly what the contract declares, and
+   nothing more?
+2. Is an unclassified effect treated as `irreversible` on every path, platform
+   and RPA alike?
+3. Do more than N bounces on one lineage raise a Conflict and an Arbiter, without
+   overturning the closed Gate?
+4. Run a process in a test run scope with a contract that sends email: does **no
+   email leave the system**, and does the log say the effect was blocked by
+   `test_behavior: forbidden` — even when the contract **declared nothing at
+   all**?
