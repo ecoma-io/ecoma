@@ -28,6 +28,19 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
   side effects (see e.g. `check-project-conventions.test.mjs`,
   `run-e2e.test.mjs`) — and stub `process.chdir` so no test touches the
   real filesystem, installs a real toolchain, or leaves the test process
-  in a different working directory. Real Playwright/git-hook installation
-  is a deliberately untested boundary; only the `--check` verification path
-  and the toolchain-presence branches are covered.
+  in a different working directory. Every installer branch is exercised
+  against those mocks, so an assertion that an installer _ran_ is not
+  enough: the fixture's `onSpawn` hook makes a tool appear only when its
+  install command is spawned, which is what separates "the installer was
+  invoked" from "the installer worked" — two outcomes `setup.mjs` reports
+  differently, and the second is the one a contributor feels.
+- **`WIN32` and the ANSI colour constants are computed once at module load,
+  while `process.platform` is read again at call time elsewhere** (the
+  platform guard, the Linux/macOS branches, the Playwright hint). Stubbing
+  `process.platform` without reloading the module therefore produces an
+  impossible hybrid — the call-time reads report Windows while the six
+  `WIN32`-gated branches still hold the host platform, so the run says
+  `ok Windows` and still prints Linux install hints. `loadSetup()` in
+  `setup.test.mjs` exists for exactly this: stub the property, then
+  `vi.resetModules()` and re-import, so those constants are recomputed. Any
+  new platform- or TTY-dependent test must go through it, or it pins nothing.
