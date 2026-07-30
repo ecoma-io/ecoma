@@ -123,8 +123,13 @@ function pathAdd(dir) {
   if (envFile) appendFileSync(envFile, `export PATH="${dir}:$PATH"\n`);
 }
 
-/** True when dotted version `a` >= `b` (missing parts count as 0). */
-function verGe(a, b) {
+/**
+ * True when dotted version `a` >= `b` (missing parts count as 0).
+ * Exported so tests pinning the repo's own version-pin invariants (e.g.
+ * node-version-pin.integration.test.mjs) reuse this comparison instead of
+ * re-deriving it.
+ */
+export function verGe(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -140,6 +145,18 @@ function firstVersion(cmd, args) {
   const result = spawnSync(cmd, args, { encoding: "utf8", shell: true });
   const match = (result.stdout ?? "").match(/\d+\.\d+(\.\d+)?/);
   return match ? match[0] : "";
+}
+
+/**
+ * Node/pnpm version pins the repo already declares in package.json
+ * (`engines.node`'s floor, `packageManager`'s exact pnpm pin) — read once
+ * here rather than re-parsed anywhere else that needs them (Rule 14).
+ */
+export function readVersionPins(pkgJson) {
+  return {
+    nodeMin: pkgJson.engines?.node?.match(/>=\s*([\d.]+)/)?.[1],
+    pnpmPin: pkgJson.packageManager?.match(/^pnpm@([\d.]+)/)?.[1],
+  };
 }
 
 /** PATH lookup only — mirrors `command -v`, never executes the binary. */
@@ -174,8 +191,12 @@ function runOk(cmd, args) {
  * path — `spawnSync` (with `shell: true`) doesn't always set `result.error`
  * on that failure, so `result.error` alone can't be trusted; the caller must
  * treat an empty return as "git is required" rather than chdir into it.
+ *
+ * Exported so tests pinning repo-root version-pin invariants (e.g.
+ * node-version-pin.integration.test.mjs) resolve the same root this script
+ * uses, rather than guessing one from Vitest's own cwd.
  */
-function repoRoot() {
+export function repoRoot() {
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     encoding: "utf8",
     shell: true,
@@ -284,10 +305,16 @@ export function runSetup(argv) {
 
   // -------------------------------------------------------------------------
   // Version pins owned by the repo
+  //
+  // nodeMin stays the engines.node FLOOR, not an exact pin: a developer on a
+  // newer Node than CI's exact version must still pass `--check`. The exact
+  // CI/dev pin lives in .node-version at the repo root, read directly by
+  // .github/actions/setup/action.yml (and the repo-care workflows) via
+  // actions/setup-node's `node-version-file` — this script deliberately does
+  // not duplicate that read, since its own check is the looser floor.
   // -------------------------------------------------------------------------
   const pkgJson = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
-  const nodeMin = pkgJson.engines?.node?.match(/>=\s*([\d.]+)/)?.[1];
-  const pnpmPin = pkgJson.packageManager?.match(/^pnpm@([\d.]+)/)?.[1];
+  const { nodeMin, pnpmPin } = readVersionPins(pkgJson);
   if (!nodeMin || !pnpmPin) {
     console.error(
       "setup.mjs: could not read the Node/pnpm pins from package.json — was its engines/packageManager shape changed?",
