@@ -6,11 +6,13 @@
  * invoked as `node shared/tools/repo-care/src/main.mjs <command>`. Argument
  * parsing stays minimal until several commands genuinely need a framework.
  */
+import { auditRoadmapLabels } from "./audit-roadmap-labels.mjs";
 import { reviewPr } from "./review-pr.mjs";
 import { translateIssue, translatePr } from "./translate-thread.mjs";
 import { triageIssue } from "./triage-issue.mjs";
 
 const COMMANDS = {
+  "audit-roadmap-labels": (args) => auditRoadmapLabels(args),
   "review-pr": (args) => reviewPr(args),
   "translate-issue": (args) => translateIssue(args),
   "translate-pr": (args) => translatePr(args),
