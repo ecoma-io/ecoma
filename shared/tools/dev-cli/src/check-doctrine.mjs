@@ -181,8 +181,14 @@ export function findUnmappedDocuments(files) {
  * be infrastructure out of all proportion to one string. It reaches the author
  * through the failure message, which prints it — so the document and the gate
  * cannot disagree about the spelling without the gate saying so.
+ *
+ * It is English because the only document it is checked against is English:
+ * `CORPUS_MAP` names one file, the canonical. A translation of the map carries
+ * whatever marker its own language wants, and no rule here reads it — so this
+ * needs no per-language configuration, and adding one would be infrastructure
+ * for a case that does not exist.
  */
-export const WITHHELD_MARKER = "(không công bố)";
+export const WITHHELD_MARKER = "(withheld)";
 
 /** Blocks of consecutive table lines, each row carrying its 1-based line. */
 function tablesIn(text) {
