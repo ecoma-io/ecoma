@@ -1,19 +1,26 @@
 # Ecoma Contributor License Agreement
 
-**Version 1.0.** Before your first contribution is merged, we ask you to agree
-to these terms. They are short, and this page says plainly why each part
-exists.
+**Version 1.0, effective 2026-07-30.**
 
-In this document, **"Ecoma"** means Mai Ngọc Hóa, an individual also known as
-John Martin, trading as Ecoma, together with any legal entity they later form
-to hold this project's assets, and their respective successors and assigns.
+Before your first contribution is merged, we ask you to agree to these terms.
+This page says plainly why each part exists.
+
+## Who and what this is about
+
+**"Ecoma"** means Mai Ngọc Hóa, an individual also known as John Martin, of
+Vietnam, together with any legal entity they later form to hold this project's
+assets, and their respective successors and assigns. The two names are the same
+person: Mai Ngọc Hóa is the name on the identity documents, John Martin is the
+name used in this project's commit history, `package.json` and GitHub account.
+The grant runs to the legal person, because a name that is not one cannot hold
+a licence, transfer it to a company later, or prove standing to enforce it.
+
 **"You"** means the person agreeing to these terms.
 
-The two names are the same person: Mai Ngọc Hóa is the name on the identity
-documents, John Martin is the name used in this project's commit history,
-`package.json` and GitHub account. The grant runs to the legal person — a name
-that is not one cannot hold a licence, transfer it to a company later, or prove
-standing to enforce it.
+**"The project"** means the Ecoma repository published at
+`https://github.com/ecoma-io/ecoma`, in any version, and any work Ecoma
+distributes or makes available that incorporates a contribution. It does not
+include software Ecoma has never published or made available.
 
 A **contribution** is anything you deliberately send us for inclusion in the
 project — code, tests, documentation, prose, designs, translations,
@@ -38,97 +45,206 @@ who wrote it:
   `shared/libs/doctrine/` — a copyleft licence, so a derivative of what you
   write there stays open, and attribution travels with it.
 
-[`LICENSE`](./LICENSE) is the source of truth for which path gets which terms.
+[`LICENSE`](./LICENSE) is the source of truth for which path gets which track.
+Two of the five are **not yet published**: the Enterprise License terms and the
+proprietary terms for the operator control plane. Clause 1 is what would let us
+place your contribution under them, and we say so plainly rather than implying
+`LICENSE` already states them. Ask before you contribute if that matters.
+
 A project that offers its code under more than one set of terms needs the
 right to do so for every line in the tree — including yours. Without that
 right, a single contribution can make a file impossible to license, and the
 only remedies left are removing it or tracking down its author years later.
 
 We ask for a licence, **not** for ownership. You keep the copyright in your
-contribution and may use it however you like, including in other projects. The
-one thing a licence alone does not give us is standing to sue an infringer on
-our own, which is what clause 6 is for.
+contribution and may use it however you like, including in other projects.
 
 ## The agreement
 
-By submitting a contribution to this project, you agree that:
+Once you have agreed as described under "How you agree" below, the following
+apply to every contribution you make, before or after that agreement:
 
 1. **You grant us a broad copyright licence.** You grant Ecoma a perpetual,
-   worldwide, non-exclusive, royalty-free, irrevocable, **transferable**
-   licence, **sublicensable through multiple tiers**, to reproduce, modify,
-   prepare derivative works of, publicly display, publicly perform, sublicense
-   and distribute your contribution and such derivative works, under any
-   licence terms, including the five named above and any commercial terms.
+   worldwide, royalty-free, irrevocable, **transferable** licence,
+   **sublicensable through multiple tiers**, to reproduce, modify, prepare
+   derivative works of, publicly display, publicly perform, sublicense and
+   distribute your contribution and such derivative works, under any licence
+   terms, including the five named above and any commercial terms.
+
+   This licence is **exclusive** as to one thing only: the right to bring and
+   conduct proceedings against a person infringing your contribution as part of
+   the project, so that we can act without you. It is non-exclusive as to
+   everything else — you keep the copyright and may use your contribution
+   however you like.
 
 2. **You grant us a patent licence.** You grant Ecoma and every recipient of
    the project a perpetual, worldwide, non-exclusive, royalty-free,
-   irrevocable patent licence to make, have made, use, offer to sell, sell,
-   import and otherwise transfer your contribution, covering only those patent
-   claims you own, control, or otherwise have the right to license that are
-   necessarily infringed by your contribution alone or by its combination with
-   the project.
+   irrevocable, transferable patent licence to make, have made, use, offer to
+   sell, sell, import and otherwise transfer your contribution, covering only
+   those patent claims you own, control, or otherwise have the right to license
+   that are necessarily infringed by your contribution alone or by its
+   combination with the project.
 
-   This patent licence terminates automatically, for any person or entity and
-   all its affiliates, on the date that person or entity institutes patent
-   litigation — including a cross-claim or counterclaim — against Ecoma or any
-   recipient, alleging that the project or your contribution infringes a
-   patent. Termination reaches only the licences this clause granted to that
-   party; everyone else's are unaffected, and the copyright licence in clause 1
-   stays in force. Without this paragraph, an aggressor who loses their patent
-   licence under `LICENSE` would still hold an identical one from every
-   contributor, and the project's patent defence would be worth nothing.
+   This patent licence terminates automatically, for a person or entity and all
+   its affiliates, on the date that person or entity institutes patent
+   litigation — including a cross-claim or counterclaim — **or sends a written
+   notice asserting**, in either case against Ecoma or any recipient, that the
+   project or your contribution infringes a patent. Termination reaches only
+   the licences this clause granted to that person or entity and its
+   affiliates; everyone else's are unaffected, and the copyright licence in
+   clause 1 stays in force. This trigger is deliberately the same as the one in
+   `LICENSE`: if the two differed, an aggressor who lost their patent licence
+   under `LICENSE` would still hold an identical one from every contributor,
+   and the project's patent defence would be worth nothing.
 
-3. **The work is yours to give.** Each contribution is your own work, created
-   by you for this project. You have not copied it from another project,
-   another employer's codebase, or any source that carries its own licence
-   terms.
+3. **Moral rights, and how we handle them.** The law of some countries,
+   including Vietnam, gives an author personal rights (`quyền nhân thân`) that
+   cannot be transferred or given up — in particular the right to be named when
+   the work is used, and the right to object to modifications that harm the
+   author's honour or reputation. This agreement does not take those rights
+   from you, and could not. What you do agree is this:
 
-4. **Code you did not write yourself is disclosed before review.** If any part
-   of a contribution is not your own work — including code copied from another
-   project, and including material an AI tool produced that reproduces
-   identifiable third-party code — say so **in the pull request description,
-   before review**, naming the source and its licence. We decide whether we can
-   accept it. A comment in the code is not disclosure. Ordinary use of AI
-   assistance to write original code needs no disclosure, but you remain
-   responsible for everything else in this agreement in respect of the result.
+   1. You consent in advance to our modifying, rewriting, translating,
+      refactoring, combining and building on your contribution, repeatedly and
+      over time, and you agree that modification of that ordinary kind does not
+      of itself harm your honour or reputation.
+   2. You agree that naming you in [`CONTRIBUTORS.md`](./CONTRIBUTORS.md), and
+      preserving your authorship in the project's commit history, is a
+      sufficient way of naming you as an author for every use we make of your
+      contribution — including in a compiled or hosted product where naming
+      each contributor in the product itself is not practical.
+   3. So far as the applicable law allows you to agree not to exercise a
+      personal right, you agree not to assert one against us, or against anyone
+      we license, on any ground this clause covers.
+   4. Nothing in this clause applies where we present your contribution as the
+      work of someone else, or where a modification is made specifically to
+      damage your reputation.
 
-5. **Your employer, if relevant, is on board.** If your employer has rights to
+4. **The work is yours to give.** Except to the extent you disclose otherwise
+   under clause 5, and to the best of your knowledge: you wrote each
+   contribution yourself, for this project, and **you own the rights you are
+   granting us, or you have permission from whoever does**. You have not copied
+   it from another project, another employer's codebase, or any source that
+   carries its own licence terms. Work you created yourself for another project
+   of your own is your own work; work carrying someone else's licence terms is
+   not, and belongs in clause 5.
+
+   Note that in some countries — Vietnam among them — an employer owns the
+   economic rights in software an employee writes as part of their job,
+   **automatically and without any separate agreement**. If you are employed as
+   a developer and your contribution relates to the work you are employed to
+   do, assume your employer owns it and read clause 6 before you open the pull
+   request.
+
+5. **Code you did not write yourself is disclosed before review.** If, to the
+   best of your knowledge, any part of a contribution is not your own work —
+   including code copied from another project, and including material an AI
+   tool produced that reproduces identifiable third-party code — say so **in
+   the pull request description, before review**, naming the source and its
+   licence. We decide whether we can accept it. A comment in the code is not
+   disclosure. Ordinary use of AI assistance to write original code needs no
+   disclosure, and you do not warrant anything about material you have properly
+   disclosed to us.
+
+6. **Your employer, if relevant, is on board.** If your employer has rights to
    work you create, you have permission to contribute on their behalf, or your
    employer has waived those rights for this project. If you are contributing
    as part of your job, or the contribution relates to your employer's
-   business, ask us for a corporate agreement before we merge it.
+   business, tell us before we merge. We will either take a short written
+   confirmation from someone authorised at your employer, or ask you to wait
+   for our corporate agreement. Do not assume silence is permission.
 
-6. **You will help us enforce, at our cost.** If we act against someone
-   infringing the project, you agree — at our request and at our expense — to
-   be joined as a party or to give reasonable assistance, so far as it concerns
-   your contribution. You need not fund or run any action, and we will not
-   settle in a way that admits fault on your part without asking you first.
+7. **You will help us enforce, at our cost.** A non-exclusive licence alone
+   would not let us act against an infringer without you, because the copyright
+   stays yours; clause 1's exclusive enforcement right addresses that, and this
+   clause covers what a right of action cannot — your help with evidence. If we
+   act against someone infringing the project, you agree, at our request and at
+   our expense, to give reasonable assistance so far as it concerns your
+   contribution, including confirming authorship and providing records. If the
+   law of the forum requires you to be joined as a party for the action to
+   proceed, you agree not to withhold consent unreasonably, and we will pay
+   your reasonable legal costs, including any costs order made against you. You
+   need not fund or run any action, and we will not settle in a way that admits
+   fault on your part without your prior written agreement.
 
-7. **Tell us if something changes.** If you later learn that anything you said
-   in clauses 3 to 5 was or has become inaccurate for a contribution you have
+8. **Tell us if something changes.** If you later learn that anything you said
+   in clauses 4 to 6 was or has become inaccurate for a contribution you have
    already made, write to <john.itvn@gmail.com> as soon as you can.
 
-8. **No warranty is implied.** Except for what you tell us in clauses 3 to 5,
-   your contribution is provided as is, without warranty of any kind, to the
-   extent the law allows. Nothing here obliges us to use or merge it, or to
-   support it, and you are not expected to support it either.
+9. **No warranty is implied.** Except for what you tell us in clauses 4 to 6 —
+   and disregarding anything you disclosed to us under clause 5, which you do
+   not warrant — your contribution is provided as is, without warranty of any
+   kind, to the extent the law allows. Nothing here obliges us to use or merge
+   it, or to support it, and you are not expected to support it either.
+
+## The small print
+
+**Price.** The licences in clauses 1 and 2 are granted free of charge. Neither
+party owes the other any payment for them, and neither expects any. The parties
+record this as the price term.
+
+**Liability for breach.** A party in breach of this agreement is liable to the
+other for the loss that breach causes, as the applicable law provides.
+
+**Governing law.** This agreement is governed by the laws of the Socialist
+Republic of Vietnam. Any dispute arising out of it is subject to the exclusive
+jurisdiction of the competent courts of Vietnam. Where the mandatory law of
+your own country of residence gives you rights this clause cannot displace, it
+does not displace them.
+
+## Your personal data
+
+To run this project we process a small amount of your personal data: the name
+and email address in your commits, your GitHub account name, and the details in
+your contributor record. We do this to establish who granted us the licences in
+this agreement, to satisfy the writing and identification requirements that
+copyright law imposes on a licence contract, and to credit you as an author.
+
+This data is **published**: it is part of the public commit history of a public
+repository, it is copied by everyone who clones the project, and **it cannot be
+removed once published**. The repository is hosted by GitHub, Inc. in the
+United States, and email to us is handled by Google LLC — so your data is
+transferred outside Vietnam. We keep it for as long as the project exists,
+because it is the record of who licensed what to us.
+
+By agreeing to these terms you consent to that processing, publication and
+transfer. If you would rather not, do not contribute — we would rather you
+asked us first than found out afterwards. Questions, or a request about your
+data: <john.itvn@gmail.com>.
 
 ## How you agree
 
-Agreement is recorded once, per person, on your first pull request: a
-maintainer confirms it there before merging, and that confirmation covers every
-contribution you make afterwards. Clauses 3 to 5 are things you re-confirm each
-time you open a pull request — the pull request template asks — because
-employment and the origin of your work can change and the one-time record
-cannot notice.
+You agree to these terms **once**, on your first pull request, by committing a
+contributor record at `contributors/<your-github-handle>.md` containing:
 
-Separately, sign off each commit:
+```
+Full legal name:
+Address:
+Email:
+GitHub:
+Country of residence:
 
-```bash
-git commit -s
+I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
+for this and every future contribution I make to this project.
 ```
 
-The `Signed-off-by` trailer carries its ordinary industry meaning — the
+Sign that commit off (`git commit -s`). A maintainer confirms the record before
+merging. **Nothing in this agreement takes effect, and no licence is granted
+under it, until that record exists.** If you send us material without agreeing,
+we will ask you to agree before we use it, and will discard it if you decline.
+
+The record carries your name and address because copyright law in Vietnam — the
+law that governs this agreement — requires a licence contract to identify both
+parties. It is not bureaucracy for its own sake, and it is the difference
+between having a grant and being able to prove one.
+
+That agreement covers every contribution you make afterwards. Clauses 4 to 6
+are things you re-confirm each time you open a pull request — the pull request
+template asks — because employment and the origin of your work can change, and
+a one-time record cannot notice.
+
+Separately, sign off each commit. The `Signed-off-by` trailer carries its
+ordinary industry meaning — the
 [Developer Certificate of Origin](https://developercertificate.org/) — and is
 **not** how you agree to this document. We keep the two apart deliberately:
 that trailer is what contributors type reflexively in every other repository,
@@ -148,10 +264,11 @@ Commits made by automated tooling we run — dependency-update bots and the like
 
 ## Not yet settled
 
-Two things a lawyer still has to decide, and we would rather say so than let
-the silence read as a choice: this agreement names **no governing law**, and
-there is **no separate corporate agreement** for employer-owned contributions
-yet. If either matters to you, ask before you contribute.
+One thing a lawyer still has to finish, and we would rather say so than let the
+silence read as a choice: there is **no separate corporate agreement** for
+employer-owned contributions yet, so clause 6 currently routes you to a
+conversation rather than a document. If that matters to you, ask before you
+contribute.
 
 ## Questions
 

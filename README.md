@@ -56,22 +56,30 @@ either. Those three are different things and the difference is the point.
 
 The source is public and stays that way — every mechanism the product commits
 to a tenant is meant to be readable, self-hosted and modified. What fair-code
-withholds is the one freedom an OSI licence cannot withhold: selling Ecoma
-itself as a service. That restriction is why the rest can be open.
+withholds is commercial redistribution, and above all selling Ecoma itself as a
+service. That restriction is why the rest can be open.
 
-Which terms apply is decided by where a file lives, and [`LICENSE`](./LICENSE)
-is the source of truth for that mapping:
+**This section is a summary for reading quickly, not the terms.**
+[`LICENSE`](./LICENSE) is what has legal effect, and where the two differ,
+`LICENSE` governs.
 
-| Path                           | Terms                                               |
-| ------------------------------ | --------------------------------------------------- |
-| everything not named below     | Sustainable Use License                             |
-| `<subsystem>/packages/`        | Apache License 2.0 — what you build against         |
-| `<subsystem>/enterprise/`      | Enterprise License, sold separately                 |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) |
-| `cloud/`                       | proprietary, and not published                      |
+| Path                           | Terms                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| everything not named below     | Sustainable Use License                                                                    |
+| `<subsystem>/packages/`        | Apache License 2.0 — what you build against                                                |
+| `<subsystem>/enterprise/`      | **no rights granted** — needs a separate written Enterprise License                        |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), with the images those files reference |
+| `cloud/`                       | proprietary, and not published                                                             |
+| third-party components         | their own owner's terms                                                                    |
 
 Self-hosting Ecoma to run your own organisation is expressly permitted,
-commercial or not. Offering it to others as a hosted service is not.
+commercial or not, including to deliver goods and services to your customers.
+What is not permitted is providing Ecoma to others **commercially or for a
+charge** — in any form: selling copies, bundling it inside another paid
+product, or the clearest case, running it for them as a hosted service.
+Distribution to others is allowed only when it is both free of charge and
+non-commercial. Embedding it in a larger product of your own has its own
+three-part test — read `LICENSE`.
 
 The build checks that declaration rather than trusting memory: every project
 declares a `license:*` tag, and the conventions gate fails when a tag disagrees

@@ -57,23 +57,30 @@ mới là điều đáng nói.
 
 Mã nguồn là công khai và sẽ ở nguyên như vậy — mọi cơ chế mà sản phẩm cam kết
 với tenant đều được viết ra để đọc được, tự cài được và sửa được. Thứ fair-code
-giữ lại là đúng một quyền tự do mà giấy phép OSI không thể giữ: bán chính Ecoma
-thành một dịch vụ. Chính hạn chế đó là lý do mọi phần còn lại có thể mở.
+giữ lại là **việc phân phối lại vì mục đích thương mại**, rõ nhất là bán chính
+Ecoma thành một dịch vụ. Chính hạn chế đó là lý do mọi phần còn lại có thể mở.
 
-Điều khoản nào áp cho tệp nào là do **vị trí của tệp** quyết định, và
-[`LICENSE`](./LICENSE) là nguồn sự thật của phép ánh xạ đó:
+**Phần này là bản tóm tắt để đọc nhanh, không phải điều khoản.** Thứ có hiệu
+lực pháp lý là [`LICENSE`](./LICENSE); nếu bản tóm tắt này khác với điều khoản,
+**điều khoản là thứ có hiệu lực**.
 
-| Đường dẫn                      | Điều khoản                                          |
-| ------------------------------ | --------------------------------------------------- |
-| mọi thứ không nêu bên dưới     | Sustainable Use License                             |
-| `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn lập trình đối tiếp     |
-| `<subsystem>/enterprise/`      | Enterprise License, bán riêng                       |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) |
-| `cloud/`                       | độc quyền, và không công bố                         |
+| Đường dẫn                      | Điều khoản                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------- |
+| mọi thứ không nêu bên dưới     | Sustainable Use License                                                                     |
+| `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn lập trình đối tiếp                                             |
+| `<subsystem>/enterprise/`      | **không cấp quyền nào** — cần một Enterprise License riêng, bằng văn bản                    |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), kèm các ảnh mà những tệp đó tham chiếu |
+| `cloud/`                       | độc quyền, và không công bố                                                                 |
+| thành phần của bên thứ ba      | theo điều khoản của chính chủ sở hữu                                                        |
 
 Tự cài Ecoma để vận hành tổ chức của chính bạn là **được phép rõ ràng**, dù có
-mục đích thương mại hay không. Đem nó cung cấp cho người khác như một dịch vụ
-thì không.
+mục đích thương mại hay không, kể cả để tạo ra và cung cấp hàng hoá, dịch vụ
+cho khách hàng của bạn. Thứ **không** được phép là đem Ecoma cung cấp cho người
+khác **vì mục đích thương mại hoặc có thu tiền** — dưới bất kỳ hình thức nào:
+bán bản sao, bán kèm trong một sản phẩm có phí khác, hay trường hợp rõ nhất là
+vận hành hộ họ như một dịch vụ. Phân phối cho người khác chỉ được phép khi
+**vừa miễn phí vừa phi thương mại**. Việc nhúng Ecoma vào một sản phẩm lớn hơn
+của chính bạn có phép thử ba điều kiện riêng — đọc `LICENSE`.
 
 Bản build **kiểm tra lời khai đó** chứ không trông vào trí nhớ: mỗi project khai
 một tag `license:*`, và gate quy ước sẽ đỏ khi tag lệch với chính thư mục của
