@@ -228,6 +228,16 @@ build/typecheck — invoked directly as
   sides match scopes with `node:path`'s `matchesGlob`, so this gate and that
   activation can never disagree on glob semantics. Do not restate the card
   summaries in either place.
+- **`check-roadmap-ids` derives every vocabulary it checks from the roadmap
+  itself** — tracks from §1b's track table, gates from its gate table,
+  milestones from §4's headings — so renaming any of them needs no edit here
+  (Rule 14). It reads one document rather than the tree, which is why it sits
+  outside `nx affected` beside `check-doctrine`. Two limits are deliberate and
+  stated in its header rather than left to be discovered: it cannot see an id
+  **reused** after a cancellation (one snapshot shows the same id either way —
+  only the subject changed), and the other half of §0's law, a board _card_
+  tracing to no id, needs the Projects GraphQL API and stays a separate command
+  so this one keeps running offline on every commit.
 - `doctrine-sync` is the write side of `check-doctrine`'s staleness rule: it
   stamps each variant's `canonical-sha` with the fingerprint of the canonical
   beside it. Both sides scan `check-doctrine`'s exported `DOCTRINE_DOCS`

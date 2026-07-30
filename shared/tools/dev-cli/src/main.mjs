@@ -16,6 +16,7 @@ import { checkGofmt } from "./check-gofmt.mjs";
 import { checkJourneyMarkers, checkWorkspaceDocs } from "./check-journey-markers.mjs";
 import { checkPrimitiveArtifacts } from "./check-primitive-artifacts.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
+import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
 import { checkSubprojectReadmes } from "./check-subproject-readmes.mjs";
 import { checkSubsystemReadmes } from "./check-subsystem-readmes.mjs";
 import { doctrineSync } from "./doctrine-sync.mjs";
@@ -40,6 +41,7 @@ const COMMANDS = {
   "check-gofmt": () => checkGofmt(),
   "check-primitive-artifacts": () => checkPrimitiveArtifacts(),
   "check-project-conventions": () => checkProjectConventions(),
+  "check-roadmap-ids": () => checkRoadmapIds(),
   "check-subproject-readmes": () => checkSubprojectReadmes(),
   "check-subsystem-readmes": () => checkSubsystemReadmes(),
   "doctrine-sync": (args) => doctrineSync(args),
