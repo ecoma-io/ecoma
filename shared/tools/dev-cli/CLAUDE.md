@@ -251,8 +251,9 @@ build/typecheck — invoked directly as
   stated in its header rather than left to be discovered: it cannot see an id
   **reused** after a cancellation (one snapshot shows the same id either way —
   only the subject changed), and the other half of §0's law, a board _card_
-  tracing to no id, needs the Projects GraphQL API and stays a separate command
-  so this one keeps running offline on every commit.
+  tracing to no id, is `repo-care audit-roadmap-labels` — a separate command in a
+  separate tool, so this one keeps running offline on every commit while that one
+  reaches the tracker.
 - **`conformance` is the executor roadmap rule #6 demands**, and it is a read of
   the tree rather than a registry: a freeze is a doctrine document declaring
   `status: frozen` plus `gate: G<n>`, a suite is an Nx project declaring a
