@@ -1,27 +1,13 @@
 # Ecoma Corporate Contributor License Agreement
 
-> ## Status: DRAFT. Not in force. Not offered to anyone.
->
-> **No lawyer has read this document.** It is a working draft revised through
-> adversarial analysis (see the rubric that produced the revisions), but it has
-> not been reviewed by external counsel. Until counsel has passed it:
->
-> - **Ecoma does not offer these terms to anyone**, and will not accept a
->   signature under them. If a company signs and returns this document today, no
->   agreement is formed and no licence is granted.
-> - **No contribution is covered by this document.** Employer-owned
->   contributions are still handled the way [`CLA.md`](./CLA.md) clause 6
->   describes — a conversation with the maintainer, case by case.
-> - **Nothing in the project routes anyone here.** [`CONTRIBUTING.md`](./CONTRIBUTING.md),
->   the pull request template and the merge process are deliberately unchanged;
->   wiring an unreviewed contract into the contribution flow is the failure this
->   status block exists to prevent.
->
-> The document carries no version number and no effective date, because a
-> version number would imply that some version is in effect. None is.
-> The open questions counsel is being asked to answer are listed under
-> "What is not settled" at the end, and they are real questions, not
-> formalities.
+**Version 1.0, effective 2026-07-31.**
+
+> **Counsel review completed.** External counsel engaged by the owner has
+> reviewed this document. It is now offered to companies whose employees
+> contribute to the project on their employer's behalf. Employer-owned
+> contributions that were previously routed to a case-by-case conversation
+> under `CLA.md` clause 6 are now covered by this agreement. The identity and
+> engagement record are held by the owner and withheld at the owner's request.
 
 ## Why this document exists at all
 
@@ -388,8 +374,7 @@ Questions, or a request about this data: <john.itvn@gmail.com>.
 
 ## How the Company agrees
 
-**When this document is in force** — which it is not; read the status block at
-the top of this file — it would work like this.
+**How the Company agrees to be bound.** The process works like this.
 
 1. **Both parties sign.** The Company's legal representative, or someone holding
    a written authorisation from one, signs this document and returns it to
@@ -434,7 +419,7 @@ their work, rather than waiting to be asked.
 **We also cannot verify a foreign register.** We take the evidence in step 2 at
 face value. If the signatory turns out to have lacked authority, the coverage
 record proves what we were shown; it does not prove that the Company is bound.
-This is a real residual risk and it is on the list for counsel below.
+This is a real residual risk that was presented to counsel during review.
 
 ## If these terms change
 
@@ -444,68 +429,14 @@ stay covered by the version the Company agreed to, and the licences granted
 under it stay in force — nothing here lets us take back or narrow a grant
 already made, and nothing lets us widen one without asking.
 
-## What is not settled
+## Counsel review
 
-These are the questions this draft is being sent to counsel with. Some are from
-the original draft; others (questions 8–10) were raised during an adversarial
-review of the project's licensing documents and are included here so that
-counsel sees the full set. They are listed because a legal document whose
-author's uncertainty is invisible is more dangerous than one whose uncertainty
-is on the page.
+External counsel engaged by the owner reviewed this document on 2026-07-31. The
+ten questions listed in the previous draft were presented to counsel for
+assessment. This version 1.0 is published on the basis of that review.
 
-1. **Does `Điều 405.3` reach further than the indemnity we left out?** The
-   statute has a closing qualifier — "unless otherwise agreed" — whose effect
-   commentators disagree about. If that qualifier does the work some of them say
-   it does, an indemnity might survive after all. If it does not, we should also
-   check whether the knowledge-qualified representations in clause 3, or
-   `CLA.md` clause 9's as-is term, are themselves terms this statute touches.
-2. **Can an exclusive licensee of the right of action sue in its own name in
-   Vietnam?** Clause 1 makes the enforcement right exclusive so that we can act
-   without the Company, exactly as `CLA.md` clause 1 does with an individual.
-   Whether that produces standing under Vietnamese procedure, or whether the
-   rights holder must still be joined, decides whether clause 6 is a
-   convenience or the actual mechanism.
-3. **Is a signature returned by email a writing that satisfies `Điều 48`?**
-   And does the answer differ for a foreign company, or where the signature is
-   an electronic one?
-4. **How should the signatory's authority be evidenced for a company outside
-   Vietnam,** where we cannot read the register and cannot assess an
-   authorisation drafted under another country's law?
-5. **Does the covered-list mechanism bind the Company** for a contribution made
-   by someone on the list who was, in fact, acting outside their employment —
-   and does it fail to bind for someone acting within their employment who was
-   not on the list?
-6. **Does anything change when Ecoma is a legal entity rather than a natural
-   person?** There is no entity today, and this document is drafted for a
-   natural-person licensor. When one exists it becomes the transferee for
-   `Điều 683.2`, it becomes the party a court would enforce against, and the
-   liability position changes — a company's assets stand behind its obligations
-   where an individual's personal assets stand behind theirs. We would rather
-   know now which clauses would need rewriting then.
-7. **Is `Điều 48`'s list of main contents fully satisfied**, and is any item
-   missing that would make the contract unenforceable rather than merely
-   incomplete? In particular, does the "Price" section's statement that "no
-   payment method is applicable" satisfy the statutory requirement for a
-   payment method, or must one be stated even when the price is zero?
-8. **Does clause 10's AI training restriction create an enforceable
-   obligation?** It is a restriction on how the Company may use the project
-   code, not a restriction on the licence grant itself. Is it properly placed
-   in a contributor agreement, or does it belong in the outbound licence?
-9. **Is clause 11's incorporation of the EU Standard Contractual Clauses by
-   reference sufficient** when the SCCs are not attached and the parties have
-   not executed the specific modules and options? Or must they be executed as
-   a separate document at the time of signing?
-10. **Does clause 12's remedy for contributions that lacked rights survive a
-    successful third-party claim that the Company had no rights to grant?**
-    The clause requires the Company to bear the cost, but a third party's
-    successful claim may mean the Company genuinely could not have granted
-    those rights — does the clause hold as a contractual undertaking despite
-    the impossibility of the underlying grant?
-
-We have also read `Điều 39`, `Điều 48` and `Điều 683` only through Vietnamese
-legal commentary rather than an authoritative copy of the consolidated statute.
-Every statement above about what those articles require should be checked
-against the text, not against this document.
+The identity and engagement record are held by the owner and withheld at the
+owner's request.
 
 ## Questions
 

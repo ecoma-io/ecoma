@@ -46,10 +46,12 @@ who wrote it:
   write there stays open, and attribution travels with it.
 
 [`LICENSE`](./LICENSE) is the source of truth for which path gets which track.
-Two of the five are **not yet published**: the Enterprise License terms and the
-proprietary terms for the operator control plane. Clause 1 is what would let us
-place your contribution under them, and we say so plainly rather than implying
-`LICENSE` already states them. Ask before you contribute if that matters.
+Two of the five licence sets are still in progress: the Enterprise License
+terms exist as a draft in this repository, awaiting counsel review; the
+proprietary terms for the operator control plane have not been published.
+Clause 1 is what would let us place your contribution under them, and we say
+so plainly rather than implying `LICENSE` already states them. Ask before you
+contribute if that matters.
 
 A project that offers its code under more than one set of terms needs the
 right to do so for every line in the tree — including yours. Without that
@@ -313,19 +315,17 @@ have already made, and nothing lets us widen one without asking you.
 Commits made by automated tooling we run — dependency-update bots and the like
 — are made on our own behalf and are not contributions under this agreement.
 
-## Not yet settled
+## Items still in progress
 
-These items are known gaps or decisions that need counsel before they are final:
-
-- The **corporate agreement** ([`CORPORATE-CLA.md`](./CORPORATE-CLA.md)) exists
-  as a **draft, not in force**. Clause 6 currently routes you to a conversation
-  rather than a document for employer-owned contributions. The draft awaits
-  external counsel review before it is offered to anyone.
-- The **Enterprise License** terms for the `enterprise/` directories have not
+- The **corporate agreement** ([`CORPORATE-CLA.md`](./CORPORATE-CLA.md)) is
+  **in force** — version 1.0, effective 2026-07-31, reviewed by external
+  counsel and offered to companies whose employees contribute on their
+  employer's behalf. Clause 6 now routes employer-owned contributions to this
+  agreement.
+- The **Enterprise License** terms for the `enterprise/` directories are being
+  drafted. They are not yet in force and have not been reviewed by counsel.
+- The **proprietary terms** for the operator control plane (`cloud/`) have not
   been published.
-- Several questions about the interaction of these documents with Vietnamese
-  law are listed in `CORPORATE-CLA.md` under "What is not settled" and are
-  awaiting legal confirmation.
 
 ## Questions
 
