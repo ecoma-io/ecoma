@@ -8,12 +8,13 @@
  * Usage: node shared/tools/onboard/src/git-reader.mjs [--window week]
  */
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-function git(args) {
+export function git(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: "pipe" }).trim();
 }
 
-function resolveWindow(raw) {
+export function resolveWindow(raw) {
   const arg = (raw || "week").trim();
   const VALID = new Set(["day", "week", "month"]);
   const sinceMatch = arg.match(/^since=(.+)$/);
@@ -35,7 +36,7 @@ function resolveWindow(raw) {
   }
 }
 
-function bandA() {
+export function bandA() {
   const totalCommits = git(["log", "--oneline"]).split("\n").length;
   const firstCommit =
     git(["log", "--reverse", "--format=%ad %s", "--date=short"]).split("\n")[0] || "none";
@@ -43,7 +44,7 @@ function bandA() {
   return { totalCommits, firstCommit, topAuthors: topAuthors.split("\n").filter(Boolean) };
 }
 
-function bandB(since) {
+export function bandB(since) {
   const log = git(["log", "--since=" + since, "--date=short", "--pretty=%ad %s"]);
   const files = git(["log", "--since=" + since, "--name-only", "--pretty=format:"])
     .split("\n")
@@ -64,7 +65,7 @@ function bandB(since) {
   };
 }
 
-function bandC(since) {
+export function bandC(since) {
   const log = git(["log", "--since=" + since, "--stat", "--pretty=%h %ad %s", "--date=short"]);
   const lines = log.split("\n");
   const commits = [];
@@ -99,4 +100,7 @@ function main() {
   process.stdout.write(JSON.stringify(result, null, 2));
 }
 
-main();
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] === __filename) {
+  main();
+}

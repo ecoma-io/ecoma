@@ -25,7 +25,7 @@ import { dirname, resolve } from "node:path";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
-function run(script, ...args) {
+export function run(script, ...args) {
   try {
     const out = execFileSync("node", [resolve(SCRIPT_DIR, script), ...args], {
       encoding: "utf8",
@@ -42,7 +42,7 @@ function run(script, ...args) {
   }
 }
 
-function main() {
+export function main() {
   const args = process.argv.slice(2);
   const windowFlag = args.find((a) => a.startsWith("--window="));
   const windowArg = windowFlag ? windowFlag.slice("--window=".length) : "week";
@@ -91,4 +91,7 @@ function main() {
   process.stdout.write(JSON.stringify(report, null, 2));
 }
 
-main();
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] === __filename) {
+  main();
+}
