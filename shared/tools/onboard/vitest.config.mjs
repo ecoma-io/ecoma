@@ -19,12 +19,7 @@ export default defineConfig({
       provider: "v8",
       enabled: true,
       include: ["src/**/*.mjs"],
-      exclude: [
-        "src/**/*.test.mjs",
-        "src/nx-reader.mjs",
-        "src/git-reader.mjs",
-        "src/report-builder.mjs",
-      ],
+      exclude: ["src/**/*.test.mjs"],
       thresholds,
     },
   },

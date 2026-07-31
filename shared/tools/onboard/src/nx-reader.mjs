@@ -8,14 +8,14 @@
  *
  * Usage: node shared/tools/onboard/src/nx-reader.mjs
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, globSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { globSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const GRAPH_FILE = "/tmp/onboard-graph.json";
 
 /** Try to read the Nx graph via `nx graph --file`. */
-function readNxGraph() {
+export function readNxGraph() {
   try {
     execFileSync("pnpm", ["nx", "graph", "--file", GRAPH_FILE], {
       stdio: "pipe",
@@ -48,7 +48,7 @@ function readNxGraph() {
 }
 
 /** Fallback: read project.json files directly (no dependency edges). */
-function readProjectJsonFallback() {
+export function readProjectJsonFallback() {
   const pattern = "**/project.json";
   const files = globSync(pattern, { ignore: "node_modules/**" });
   const nodes = [];
@@ -90,4 +90,7 @@ function main() {
   process.stdout.write(JSON.stringify(result, null, 2));
 }
 
-main();
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] === __filename) {
+  main();
+}
