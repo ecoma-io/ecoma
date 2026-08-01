@@ -30,6 +30,8 @@ export default tseslint.config(
       // Third-party reference clones and Storybook build output — never ours to lint.
       "docs/references/**",
       "**/storybook-static/**",
+      "**/.nuxt/**",
+      "**/.output/**",
     ],
   },
 
@@ -59,6 +61,10 @@ export default tseslint.config(
             // project today appears here — a scope is added in the change that
             // lands its first project, never in anticipation of one.
             { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
+            {
+              sourceTag: "scope:website",
+              onlyDependOnLibsWithTags: ["scope:website", "scope:shared"],
+            },
             // Hex layer axis (domain/port/adapter/view + util), enforced from the
             // first brick so an import flowing the wrong way fails lint at once.
             // A dep must satisfy every one of its source's tag constraints, so
