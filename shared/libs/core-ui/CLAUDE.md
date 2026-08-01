@@ -34,6 +34,10 @@ what, because a primitive can plausibly be tested in all three:
   enforces it); Reka UI and other third-party libs are NOT mocked. jsdom has no
   `ResizeObserver` and Reka's poppers measure with one even while closed — stub
   it (several tests already do), don't work around it by mocking Reka.
+  Property tests for pure logic (`fast-check` via `@fast-check/vitest`,
+  co-located like any unit test) are also what the OpenSSF Scorecard Fuzzing
+  check detects for TypeScript — they are not redundant with hand-written
+  cases and must not be pruned as such.
 - **Integration** — `<Name>.integration.test.ts`, same jsdom runtime, same
   `test` target (the include glob covers both). Reach for it only where the
   **composition is the behaviour**: a block wiring a real primitive, where
