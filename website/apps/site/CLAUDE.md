@@ -29,23 +29,35 @@ the i18n module. Never hand-write a `<link rel="alternate">` or a
 `site-e2e` pins against the built artifact, and a hand-rolled tag can drift
 from the module's output without any lint noticing.
 
-## Preview builds must be noindex — the plugin, and the missing half
+## Preview builds must be noindex — both halves are gated
 
 `app/plugins/preview-noindex.ts` injects `noindex, nofollow` when
 `runtimeConfig.public.preview` is true. The key is declared in
 `nuxt.config.ts` (`runtimeConfig.public.preview: false`) — that declaration
 is what lets `NUXT_PUBLIC_PREVIEW=true` map onto it at build time; an
 undeclared key is silently ignored (observed, not assumed). The e2e suite
-pins the false half (a default build carries no robots meta). The true half
-was verified by hand on 2026-08-01: `NUXT_PUBLIC_PREVIEW=true` then
-`nuxt generate` emits the meta in every prerendered page — re-run the same
-two lines whenever the plugin changes, and grep `dist/` for
-`noindex, nofollow`.
+pins the false half (a default build carries no robots meta); the true half
+is the `verify-preview-noindex` target — three `nuxt generate` passes
+(default → assert no meta, preview → assert the meta in every prerendered
+page, default again so `dist/` is restored) driven by
+`scripts/verify-preview-noindex.mjs`. Re-run it whenever the plugin or the
+`runtimeConfig` declaration changes.
+
+## The 404 is a client-side surface; the host owns the fallback
+
+`error.vue` renders the not-found (and generic-error) copy, but in this SSG
+build the static `404.html` ships as a client-rendered shell — the server
+markup is empty and `html lang` appears only after hydration (the e2e gate
+reads `/404.html` directly, so it pins exactly that). Serving `404.html` for
+unknown routes is the deploy target's job: the e2e server (`vite preview`)
+falls back to `index.html` instead, so a real host (nginx, GitHub Pages,
+Cloudflare Pages…) must map unknown routes to `404.html`.
 
 ## Run mechanics
 
-- `build` runs `nuxt generate` (full prerender: `/`, `/vi/`, `/zh/` land in
-  `dist/`); the CLI is invoked as `node ../../../node_modules/nuxt/bin/nuxt.mjs`
+- `build` runs `nuxt generate` (full prerender: `/`, `/vi`, `/zh` land in
+  `dist/`; the canonical/hreflang shape carries no trailing slash — pinned by
+  `site-e2e`); the CLI is invoked as `node ../../../node_modules/nuxt/bin/nuxt.mjs`
   — single-package monorepo, there is no `.bin` beside this app.
 - `typecheck` runs `nuxi typecheck` (`vue-tsc` against the generated
   `.nuxt/tsconfig.json`, which this app's `tsconfig.json` extends — keep that

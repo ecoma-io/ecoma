@@ -23,6 +23,7 @@
     "e2e": {
       "executor": "nx:run-commands",
       "dependsOn": [{ "projects": ["site"], "target": "build" }],
+      "inputs": ["default", "devCli"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "node ../../../shared/tools/dev-cli/src/main.mjs run-e2e"

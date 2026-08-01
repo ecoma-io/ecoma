@@ -24,9 +24,12 @@ Language-first subpaths, one rule for the whole site:
 
 ```
 ecoma.io/       en (canonical, unprefixed — the first entry of languages.config.json)
-ecoma.io/vi/    vi
-ecoma.io/zh/    zh
+ecoma.io/vi     vi
+ecoma.io/zh     zh
 ```
+
+URLs carry no trailing slash: the i18n module emits canonical/hreflang in
+that shape, and `site-e2e` pins it — keep the shape when content lands.
 
 - Locales derive from the repo-root `languages.config.json` at build time
   (Rule 14) — both this app and `doctrine-site` read the same file; a language
@@ -53,7 +56,19 @@ ecoma.io/zh/    zh
   "add a user-facing surface only once it has real function" (root
   `CLAUDE.md`).
 - **Sitemap**: `@nuxtjs/sitemap` is not installed; `robots.txt` deliberately
-  names no sitemap while none exists. The sitemap lands with real content.
+  names no sitemap while none exists. `llms.txt` ships now as a shell list of
+  the locale homes (n8n's site serves the same surface). When the sitemap
+  lands with real content it must carry per-locale hreflang alternates, and
+  `llms.txt` should grow with the content.
+- **The real navigation**: the shell's only nav is the language switcher
+  (scoped `data-testid="locale-switcher"`, e2e-pinned). The Website Charter
+  owns the real nav; when it lands it must keep the switcher and should
+  carry the GitHub link and an install/self-host path — dify, n8n and astron
+  all anchor self-host from the top bar — plus `/pricing` as a first-class
+  destination for a fair-code license.
+- **Social preview images**: `og:title`/`og:description`/`twitter:card`
+  come from shell copy today; an `og:image` and `summary_large_image` wait
+  for a real brand asset from the design system.
 - **ISR**: ADR-0004 calls for SSG with ISR; today the shell is fully
   prerendered (`nuxt generate`). ISR route rules and a server runtime arrive
   with the deploy target.

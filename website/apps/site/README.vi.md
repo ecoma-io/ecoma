@@ -11,7 +11,7 @@ description: Vỏ trang ecoma.io — ứng dụng Nuxt tại `/` (ADR-0004) xu�
 
 Vỏ trang ecoma.io: ứng dụng Nuxt tại `/` sẽ xuất bản storefront khi Website
 Charter hạ cánh. Hôm nay nó chứng minh hệ thống đường ống charter sẽ xây
-trên đó — topology URL (`/`, `/vi/`, `/zh/`), hình dạng i18n, và bề mặt SEO
+trên đó — topology URL (`/`, `/vi`, `/zh`), hình dạng i18n, và bề mặt SEO
 (hreflang, canonical, `robots.txt`) — với một trang trạng thái trung thực
 và không một dòng copy tiếp thị.
 
