@@ -40,6 +40,13 @@
         "cwd": "{projectRoot}",
         "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
       }
+    },
+    "verify-preview-noindex": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "node scripts/verify-preview-noindex.mjs"
+      }
     }
   }
 }

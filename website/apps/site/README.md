@@ -11,7 +11,7 @@ description: The ecoma.io website shell — the Nuxt app at `/` (ADR-0004) publi
 
 The ecoma.io website shell: the Nuxt app at `/` that will publish the
 storefront once the Website Charter lands. Today it proves the plumbing the
-charter will build on — the URL topology (`/`, `/vi/`, `/zh/`), the i18n
+charter will build on — the URL topology (`/`, `/vi`, `/zh`), the i18n
 shape, and the SEO surface (hreflang, canonical, `robots.txt`) — with an
 honest status page and no marketing copy.
 

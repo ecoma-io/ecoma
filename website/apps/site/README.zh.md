@@ -10,7 +10,7 @@ description: ecoma.io 网站外壳 — 位于 `/` 的 Nuxt 应用（ADR-0004）�
 # site
 
 ecoma.io 网站外壳：位于 `/` 的 Nuxt 应用，将在 Website Charter 落地后发布
-商店区。今天它证明的是宪章将依托的管道 — URL 拓扑（`/`、`/vi/`、`/zh/`）、
+商店区。今天它证明的是宪章将依托的管道 — URL 拓扑（`/`、`/vi`、`/zh`）、
 i18n 形态和 SEO 表面（hreflang、canonical、`robots.txt`）— 以一个诚实的
 状态页呈现，不含任何营销文案。
 
