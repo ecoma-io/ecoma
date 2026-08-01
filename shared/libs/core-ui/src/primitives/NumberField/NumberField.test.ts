@@ -1,4 +1,6 @@
 import { mount } from "@vue/test-utils";
+import { test } from "@fast-check/vitest";
+import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 import NumberField from "./NumberField.vue";
 
@@ -206,4 +208,40 @@ describe("NumberField unmount cleanliness", () => {
       expect(glyph.attributes("stroke-width")).toBe("2.5");
     }
   });
+});
+
+describe("NumberField clamping under arbitrary props (fuzzed)", () => {
+  // Finite-only domain: a NaN modelValue is not a valid host input, and the
+  // component's garbage-in/garbage-out on it is a separate concern.
+  const num = fc.float({ min: -1_000_000, max: 1_000_000, noNaN: true });
+  const minMax = fc.tuple(num, num).filter(([min, max]) => min <= max);
+  const step = fc.float({ min: Math.fround(0.001), max: Math.fround(10_000), noNaN: true });
+
+  // Dispatched synchronously on the root (not test-utils' async trigger) so
+  // the fast-check loop stays runnable inside a sync predicate.
+  function tickShiftArrow(root: Element, key: "ArrowUp" | "ArrowDown") {
+    root.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, shiftKey: true }),
+    );
+  }
+
+  test.prop(
+    [num, minMax, step, fc.constantFrom("ArrowUp", "ArrowDown")],
+    // 100 mounts of a small component is ~1s; more runs would only re-sample
+    // the same clamp math.
+    { numRuns: 100 },
+  )(
+    "a Shift-arrow tick never emits a value outside [min, max]",
+    (modelValue, [min, max], step, key) => {
+      const wrapper = mountField({ modelValue, min, max, step });
+      const root = wrapper.get(ROOT).element;
+      tickShiftArrow(root, key);
+      const value = (wrapper.emitted("update:modelValue") as number[][]).at(-1)?.[0];
+      expect(typeof value).toBe("number");
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(min);
+      expect(value).toBeLessThanOrEqual(max);
+      wrapper.unmount();
+    },
+  );
 });
