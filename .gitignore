@@ -4,13 +4,20 @@
 # .../node_modules`. Keep this bare so both the real directory and a symlink
 # are ignored.
 node_modules
-dist/
+# Bare, not "dist/": Nitro's `nuxt generate` emits `dist` as a SYMLINK to
+# `.output/public`, and a directory-only pattern misses a symlink — which
+# then gets staged with a machine-specific absolute target. Same trap as
+# node_modules above; a bare pattern covers both the directory and the link.
+dist
 out/
 build/
 .nx/cache
 .nx/workspace-data
 .vite/
 .astro/
+# Nuxt (website/apps/site): build-time cache and Nitro output
+.nuxt/
+.output/
 *.log
 .DS_Store
 coverage/
