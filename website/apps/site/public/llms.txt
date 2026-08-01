@@ -1,0 +1,9 @@
+# ecoma.io
+
+Ecoma — the self-hostable labor operating system where humans, AI, and rules/code are the same kind of labor resource.
+
+This workspace publishes in English, Vietnamese, and Chinese:
+
+- [English](https://ecoma.io)
+- [Tiếng Việt](https://ecoma.io/vi)
+- [中文](https://ecoma.io/zh)
