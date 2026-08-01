@@ -1,0 +1,8 @@
+{
+  "name": "@ecoma-io/site",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The ecoma.io website shell — the Nuxt app at / that will publish the marketing surface once the Website Charter lands.",
+  "license": "LicenseRef-Ecoma-SustainableUse-1.0",
+  "type": "module"
+}
