@@ -6,7 +6,16 @@ const switchLocalePath = useSwitchLocalePath();
 
 useHead({
   title: () => t("shell.title"),
-  meta: [{ name: "description", content: () => t("shell.description") }],
+  meta: [
+    { name: "description", content: () => t("shell.description") },
+    { property: "og:title", content: () => t("shell.title") },
+    { property: "og:description", content: () => t("shell.description") },
+    { property: "og:type", content: "website" },
+    { property: "og:site_name", content: "Ecoma" },
+    { name: "twitter:card", content: "summary" },
+    { name: "twitter:title", content: () => t("shell.title") },
+    { name: "twitter:description", content: () => t("shell.description") },
+  ],
 });
 </script>
 
@@ -14,7 +23,7 @@ useHead({
   <main>
     <h1>ecoma.io</h1>
     <p>{{ t("shell.status") }}</p>
-    <nav :aria-label="t('shell.languages')">
+    <nav :aria-label="t('shell.languages')" data-testid="locale-switcher">
       <a
         v-for="l in locales"
         :key="l.code"

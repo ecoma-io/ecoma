@@ -43,9 +43,48 @@ test("canonical links name the production origin", async ({ page }) => {
   await expect(canonical).toHaveAttribute("href", "https://ecoma.io/vi");
 });
 
+test("every locale carries its own meta description", async ({ page }) => {
+  await page.goto("/");
+  const description = page.locator('head meta[name="description"]');
+  await expect(description).toHaveAttribute("content", /labor operating system/);
+
+  await page.goto("/vi/");
+  await expect(description).toHaveAttribute("content", /hệ điều hành lao động/);
+
+  await page.goto("/zh/");
+  await expect(description).toHaveAttribute("content", /劳动操作系统/);
+});
+
+test("the social surface names title, description and site", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "ecoma.io");
+  await expect(page.locator('meta[property="og:description"]')).not.toHaveAttribute("content", "");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "website");
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute("content", "Ecoma");
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary");
+});
+
+test("the shell ships a favicon", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/favicon.svg");
+  const response = await page.request.get("/favicon.svg");
+  expect(response.ok()).toBe(true);
+});
+
+test("llms.txt names the locale homes", async ({ page }) => {
+  const response = await page.request.get("/llms.txt");
+  expect(response.ok()).toBe(true);
+  const text = await response.text();
+  for (const url of ["https://ecoma.io", "https://ecoma.io/vi", "https://ecoma.io/zh"]) {
+    expect(text).toContain(url);
+  }
+});
+
 test("the language switcher links to each locale home", async ({ page }) => {
   await page.goto("/vi/");
-  const switcher = page.getByRole("navigation");
+  // Scoped by data-testid, not by role: the charter's real navigation will
+  // add more nav elements, and the switcher must keep its own pin.
+  const switcher = page.getByTestId("locale-switcher");
   const links = switcher.locator("a");
   await expect(links).toHaveCount(3);
   const hrefs = await links.evaluateAll((anchors) =>
@@ -55,6 +94,16 @@ test("the language switcher links to each locale home", async ({ page }) => {
   await expect(switcher.locator('a[aria-current="page"]')).toHaveAttribute("href", "/vi");
 });
 
+test("the not-found page renders its copy and a working switcher", async ({ page }) => {
+  // In this SSG build 404.html is a client-rendered shell (site/CLAUDE.md);
+  // the host serves it for unknown routes, which the e2e server does not —
+  // so the gate reads the file directly.
+  await page.goto("/404.html");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Nothing is served here yet.");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByTestId("locale-switcher").locator("a")).toHaveCount(3);
+});
+
 test("robots.txt allows crawling", async ({ page }) => {
   const response = await page.request.get("/robots.txt");
   expect(response.ok()).toBe(true);
@@ -62,9 +111,10 @@ test("robots.txt allows crawling", async ({ page }) => {
 });
 
 test("a default build carries no robots meta", async ({ page }) => {
-  // Pins the false half of the preview-noindex plugin: a production build
+  // Pins the false half of the preview-noindex contract: a production build
   // must not be noindexed. The true half (NUXT_PUBLIC_PREVIEW=true adds the
-  // meta) is checked by hand on a preview build — see site/CLAUDE.md.
+  // meta in every prerendered page) is gated by the site app's
+  // verify-preview-noindex target — see site/CLAUDE.md.
   await page.goto("/");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
 });
