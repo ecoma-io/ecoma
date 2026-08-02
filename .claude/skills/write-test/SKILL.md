@@ -1,6 +1,6 @@
 ---
 name: write-test
-description: Write a test that fits this repo's enforced taxonomy and actually pins intent - choosing the right tier (unit vs integration vs e2e), satisfying the mock-isolation lint, and titling by behavior. Use when adding or reworking tests here, or when the `no-unmocked-internal-imports` / `no-focused-or-skipped-tests` lint rules rejected a test.
+description: Write a test that fits this repo's enforced taxonomy and actually pins intent - choosing the right tier (unit vs integration vs e2e), the property/fuzz technique per language, satisfying the mock-isolation lint, and titling by behavior. Use when adding or reworking tests here, or when the `no-unmocked-internal-imports` / `no-focused-or-skipped-tests` lint rules rejected a test.
 ---
 
 # Write a test (Ecoma)
@@ -31,17 +31,33 @@ Two consequences worth naming out loud:
 - In **Go and Python** nothing stops a `foo_test.go` / `foo_test.py` from quietly touching a real collaborator. Isolating it is on you; letting it slide is a Rule 11 miss, not a shortcut.
 - In **Rust** the split is not a convention you can bend: a `tests/*.rs` file physically cannot call a private item (`error[E0603]`). If an integration test needs internals, the behavior belongs in the unit tier, not in a `pub` you widened to make the test compile.
 
-## 3. Make it pin intent (Rule 8)
+## 3. Property and fuzz tests — a unit-tier technique, not a fourth tier
+
+Property-based and fuzz tests pin an invariant over a generated input space — totality ("never throws"), idempotence, round-trips, clamping. They are a **technique inside the unit tier**, not a new tier: same co-location, same filename suffix, same `test` target, same isolation rules (mock project-internal collaborators; never third-party libs). `shared/libs/core-ui/src/lib/cn.test.ts` is the TS pattern to copy.
+
+|            | Mechanism                                                                                 | Runs under the plain `test` target | Counterexample → committed pin                                                                                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TS**     | `fast-check` via `@fast-check/vitest` — `test.prop([...arbitraries], { numRuns, seed })`  | yes (plain `*.test.ts`)            | pin the shrunk counterexample as a plain `test()`, or fix `{ seed }` — fast-check seeds from `Date.now()` by default, never assume a sample repeats                                                             |
+| **Go**     | native `testing/fuzz` — `FuzzXxx(f *testing.F)` in `*_test.go`, seeds via `f.Add(...)`    | seeds only, always                 | commit the crash file `testdata/fuzz/<FuzzXxx>/<hash>` — it becomes a seed every `go test` replays; the engine itself runs only with `-fuzz` (bounded by `-fuzztime`) and never belongs in the CI `test` target |
+| **Rust**   | `proptest` (`proptest!` / `#[proptest]`), inside `#[cfg(test)] mod tests` — the unit tier | yes (`cargo test`)                 | commit the `proptest-regressions/<file>.txt` file the failure generated — it replays automatically                                                                                                              |
+| **Python** | `hypothesis` — `@given(...)` strategies in `foo_test.py`                                  | yes (`uv run pytest`)              | pin the minimized failing input with `@example(...)`; the `.hypothesis/` DB is local replay only, never a committed pin — gitignore it                                                                          |
+
+- The `test` target stays deterministic: it runs the pinned corpus, not the engine. Anything that must _search_ (Go's fuzzing engine, an extended hypothesis run) runs interactively or on a schedule, and its discoveries return to the suite as pins.
+- A property test states its invariant as the title (Rule 13) — "is idempotent: re-merging the merged result leaves it unchanged", never "fuzzes cn".
+- They fit pure logic: parsers, transforms, merge/split, clamps. If the behavior under test cannot state an invariant, what you wrote is a slowly-random example test — write the example test instead.
+- A counterexample a property test finds is a bug report: pin it before fixing, so the fix ships with its regression (CONTRIBUTING.md).
+
+## 4. Make it pin intent (Rule 8)
 
 Before writing assertions, answer: _which important behavior, if someone broke it, must this test catch?_ Then check the test you wrote against it — if the important logic could change and the test stays green, the test is inadequate regardless of coverage. Prefer asserting observable behavior and contracts over internal call sequences; a test that pins "was called with" usually survives refactors worse than one that pins "produces".
 
-## 4. Title and hygiene
+## 5. Title and hygiene
 
 - Title = the behavior pinned, present tense, no journey (Rule 13): "flags a scope tag that contradicts the directory", never "works", "fixes bug", or a phase/ticket reference.
 - Planned-but-unbuilt behavior is declared, not hidden: TS `it.todo("…")` — never a committed `.skip`/`.only`, which `local/no-focused-or-skipped-tests` blocks. The other languages have no such lint, so the same honesty is on review: Go `t.Skip("…")` and Python `@pytest.mark.skip(reason="…")` must carry a reason naming what is unbuilt, and Rust `#[ignore = "…"]` likewise. A skip whose reason is missing or says "flaky" is a disabled test pretending to be a plan.
 - A bug fix ships with the test that fails without it (CONTRIBUTING.md).
 - Determinism: inject clocks/randomness/fs boundaries rather than reading them ambiently — the repo's cores never read the clock themselves.
 
-## 5. Verify
+## 6. Verify
 
 Run the project's `test` target and confirm the new test fails when you sabotage the behavior it pins (comment the logic, flip a branch) — a test never seen red proves nothing (Rule 11).
