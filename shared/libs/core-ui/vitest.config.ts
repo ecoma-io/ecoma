@@ -23,6 +23,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],
+    // Pins the fast-check seed when CI is set, so the test target stays
+    // deterministic on CI while dev runs keep exploring — the why lives in
+    // the setup file and the write-test skill.
+    setupFiles: ["./vitest.setup.ts"],
     // One worker, deliberately. Creating a jsdom per isolated file dominates
     // the run, so several at once oversubscribe the machine and turn
     // timing-sensitive tests (RadioGroup/Tabs, see #89) flaky rather than
