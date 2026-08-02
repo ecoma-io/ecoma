@@ -1,7 +1,7 @@
 ---
 title: "ADR Ledger"
 status: design-end-state
-canonical-sha: d7df9751217a
+canonical-sha: 4d9211332a04
 ---
 
 # ADR Ledger
@@ -75,7 +75,7 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 - **Cam kết**: mọi cửa user-code chạy TRONG hệ (execution sandbox — rule filler code, tool exec, custom code block) hỗ trợ **taxonomy runtime MỞ, tối thiểu 3**: **JS/TS** (phổ biến + LLM tốt), **Python** (LLM tốt + token gọn — quan trọng vì người viết code block nhiều nhất về lâu dài là AI Drafter → token = chi phí vận hành trực tiếp), **Go** (hiệu năng/concurrency). **Rust: không cam kết** — cửa driver/extension polyglot đã phục vụ nhu cầu đó; thêm runtime sau = thêm adapter (K4), không đổi cơ chế.
 - **Điều kiện cứng**: **Python native-runtime trong sandbox, CẤM đường Pyodide/WASM** — án văn: C-extensions (numpy/pandas/requests) vỡ trên WASM; tiền lệ 2 chiều: n8n Python-Pyodide bị chê, Dify Python-native thắng.
 - **Cơ chế**: sandbox executor theo hình thái (nhất quán ADR-0002): nhỏ = process-isolation; K8s/SaaS = container/microVM pool (gVisor/Firecracker — K8s runtime class). **Runtime image = artifact có version phân phối qua Hub** (trust class); **mỗi code block = filler có identity → calibration bám như mọi filler** — đối xứng giữ trọn, 0 cơ chế mới.
-- **Thứ tự ship**: JS/TS → Python → Go (theo phễu: wedge dev-solo → AI crowd → power user). Milestone do spec `runtime sandbox` (Track S) quyết khi viết — ADR này là ràng buộc đầu vào của spec đó.
+- **Thứ tự ship**: JS/TS → Python → Go (theo phễu: wedge dev-solo → AI crowd → power user). Milestone do spec `runtime sandbox` (Track S) quyết, và spec đó đã mang nó — ADR này là ràng buộc đầu vào của spec đó.
 
 ## ADR-0007 — VitePress cho bề mặt doctrine
 

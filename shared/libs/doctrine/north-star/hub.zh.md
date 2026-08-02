@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Hub — North Star"
 status: design-end-state
-canonical-sha: 410bda3a85e8
+canonical-sha: 8b10e81c759b
 ---
 
 # Ecoma Hub — North Star

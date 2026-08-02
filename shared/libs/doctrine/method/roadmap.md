@@ -87,7 +87,7 @@ first is already §2, and the unlock conditions are already §3b; a hand-typed
 priority column is **a third source** and it will beat both, because it is the
 nearest to hand.
 
-## 1. Axis one — the dependency graph, topologically sorted from 24 specifications
+## 1. Axis one — the dependency graph, topologically sorted from 27 specifications
 
 ```
 TIER 0 (nothing beneath it — sources of truth and identity)
@@ -139,15 +139,15 @@ _interface_, never wait for each other to _finish_.
 
 **The tracks:**
 
-| Track                          | Contents                                                                                                                                                                                                                                                       | Entry gate                                                                          | Convergence                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------- |
-| **S — writing specifications** | Calibration · **the test harness, which feeds the conformance suite of EVERY gate** · Human Surface · Vault and keys · Release & Compatibility · the deploy charter, and later tier ingest, the runtime sandbox, quota and cloud                               | Day zero, fully parallel; each specification takes a cluster run (R12)              | §5                                             |
-| **A — Platform core**          | Tier 0 → **◆G0** → the five primitives, parallel among themselves → Composition and static analysis → Trigger → the agent runtime                                                                                                                              | Day zero                                                                            | **M0**                                         |
-| **B — RPA**                    | Action, Session and Healing ∥ Driver (an Apache-licensed interface, so a third party can write one in parallel) ∥ Sandbox and the Vault consumer; then Node topology; **the attended UI layer**, doing _in-session confirmation only_, never an approval queue | **◆G1** — **a single gate**                                                         | **M1**                                         |
-| **R — Repo & harness**         | The repository foundation, toolchain, gates, skills, the site shell, and migrating the doctrine tree                                                                                                                                                           | Day zero, fully parallel; the release-train lock must land **before the first app** | **M0** for the harness                         |
-| **C — Funnel**                 | The static website and charter at any time; dogfooding after **◆G3**                                                                                                                                                                                           | ◆G3                                                                                 | **M2** → M3                                    |
-| **D — Hub**                    | Registry, index, pack, signing and the six-step install, from **◆G2 at specification phase**; verified review waits for M0                                                                                                                                     | ◆G2                                                                                 | **M4**                                         |
-| **E — Surfaces**               | The `shared/` design system and the `/design` Storybook from **day zero** — the charter allows publishing before MVP and it depends on no engine; inbox and canvas after **◆G4**                                                                               | Day zero, then ◆G4                                                                  | M0, where a minimal inbox is an exit condition |
+| Track                          | Contents                                                                                                                                                                                                                                                        | Entry gate                                                                          | Convergence                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **S — writing specifications** | Calibration · **the test harness, which feeds the conformance suite of EVERY gate** · Human Surface · Vault and keys · Release & Compatibility · the deploy charter · the clickstream ingest tier · the runtime sandbox · quota and scheduling, and later cloud | Day zero, fully parallel; each specification takes a cluster run (R12)              | §5                                             |
+| **A — Platform core**          | Tier 0 → **◆G0** → the five primitives, parallel among themselves → Composition and static analysis → Trigger → the agent runtime                                                                                                                               | Day zero                                                                            | **M0**                                         |
+| **B — RPA**                    | Action, Session and Healing ∥ Driver (an Apache-licensed interface, so a third party can write one in parallel) ∥ Sandbox and the Vault consumer; then Node topology; **the attended UI layer**, doing _in-session confirmation only_, never an approval queue  | **◆G1** — **a single gate**                                                         | **M1**                                         |
+| **R — Repo & harness**         | The repository foundation, toolchain, gates, skills, the site shell, and migrating the doctrine tree                                                                                                                                                            | Day zero, fully parallel; the release-train lock must land **before the first app** | **M0** for the harness                         |
+| **C — Funnel**                 | The static website and charter at any time; dogfooding after **◆G3**                                                                                                                                                                                            | ◆G3                                                                                 | **M2** → M3                                    |
+| **D — Hub**                    | Registry, index, pack, signing and the six-step install, from **◆G2 at specification phase**; verified review waits for M0                                                                                                                                      | ◆G2                                                                                 | **M4**                                         |
+| **E — Surfaces**               | The `shared/` design system and the `/design` Storybook from **day zero** — the charter allows publishing before MVP and it depends on no engine; inbox and canvas after **◆G4**                                                                                | Day zero, then ◆G4                                                                  | M0, where a minimal inbox is an exit condition |
 
 **The laws of the track model**, which keep every prohibition in §4 intact:
 
@@ -378,9 +378,12 @@ half-mechanism it forbids.
   public API · no copy of block content · no third-party script on `/app`.
 - **Exit litmus**: the website charter §6's seven questions · one real signup
   flowing into the market ledger's scoring table with complete provenance · a
-  hundredfold traffic spike from advertising without the labour Event Log growing
-  (litmus #5).
-- **Blocking specification**: **tier ingest for clickstream**, a small one.
+  hundredfold traffic spike from advertising, with the conversion set held
+  constant, leaving the labour Event Log's entry count, byte size, replay time and
+  retention window unchanged (litmus #5; the measurable two-fixture form is
+  Clickstream Ingest §9).
+- **Blocking specification**: **[clickstream-ingest](../spec/clickstream-ingest.md)**
+  — written; M2 may not write its first clickstream event before it is in force.
 - **Unlocks**: ICP data begins to flow from here, so §3b becomes countable.
 
 ### M3 — Dogfood #2: Knowledge, chatbot and **Pair-design (tier 4)** _(ICP-independent)_
@@ -422,12 +425,14 @@ half-mechanism it forbids.
 - **Exit litmus**: Hub North Star §8's six questions plus Block's L5 (3) · unplug
   the Hub and every tenant runs intact · an under-declaring manifest is
   **rejected**, never warned about.
-- **The specification blocking the `code` class**: **the runtime sandbox for code
-  fillers**. It blocks **the verified-review loop for the `code` class** as well
-  as installation: a publisher-supplied suite runs in the operator's test run
-  scope (Hub §7), so without a sandbox there is no path by which unverified code
-  runs in order to become verified. That circle must be broken by a mechanism, not
-  by care.
+- **The mechanism gating the `code` class**: **the
+  [runtime sandbox](../spec/runtime-sandbox.md) for code fillers**. It gates **the
+  verified-review loop for the `code` class** as well as installation: a
+  publisher-supplied suite runs in the operator's test run scope (Hub §7), so
+  without a sandbox there is no path by which unverified code runs in order to
+  become verified. The specification cuts that circle with a mechanism — an OS/VM
+  boundary whose safety is a function of the host rather than of the code — and
+  this milestone is where the mechanism is built.
 
 ### M5 — The beachhead pack _(ICP-GATED — §3b)_
 

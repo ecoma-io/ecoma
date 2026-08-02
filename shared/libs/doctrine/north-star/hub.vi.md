@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Hub — North Star"
 status: design-end-state
-canonical-sha: 410bda3a85e8
+canonical-sha: 8b10e81c759b
 ---
 
 # Ecoma Hub — North Star
@@ -113,11 +113,12 @@ phải xin ai.
   lượng: suite là **bằng chứng phụ và không bao giờ là điều kiện đủ** — badge đến
   từ Judgment của một reviewer; suite chạy trong test run scope của operator với
   contract bị cấm toàn phần, không một credential handle nào, và trần thời gian,
-  tài nguyên cùng chi phí model; và với trust class `code`, đường review phụ thuộc
-  vào việc có một runtime sandbox. Không có nó thì có một vòng tròn: muốn được
-  verified thì phải chạy code, mà chạy code lại đòi đã verified. Cửa verified là
-  cửa duy nhất cho `code`, nên chính nó không được trở thành một đường thực thi
-  code chưa duyệt.
+  tài nguyên cùng chi phí model; và với trust class `code`, đường review chạy bên
+  trong runtime sandbox (Runtime Sandbox §6). Không có nó thì có một vòng tròn:
+  muốn được verified thì phải chạy code, mà chạy code lại đòi đã verified. Sandbox
+  cắt vòng đó bằng cách biến an toàn thành thuộc tính của cái chuồng, chứ không
+  phải của đoạn code đang được duyệt. Cửa verified là cửa duy nhất cho `code`, nên
+  chính nó không được trở thành một đường thực thi code chưa duyệt.
 - **Artifact `code`** — driver, rule filler tùy biến — là một trust class riêng:
   mặc định bị reject trừ khi publisher đã verified, và chỉ cài được khi admin
   opt-in tường minh, bởi code không phân tích tĩnh kín được như một definition.

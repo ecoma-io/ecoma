@@ -118,11 +118,12 @@ compatible registry without asking.
   suite is **supporting evidence and never sufficient** — the badge comes from a
   reviewer's Judgment; the suite runs inside the operator's test run scope with
   contracts fully forbidden, zero credential handles, and ceilings on time,
-  resources and model cost; and for the `code` trust class the review path depends
-  on a runtime sandbox existing. Without one there is a circle: to become verified
-  you must run code, and running code requires being verified. The verified door
-  is the only door for `code`, so it must not itself become a path for executing
-  unreviewed code.
+  resources and model cost; and for the `code` trust class the review path runs
+  inside the runtime sandbox (Runtime Sandbox §6). Without one there is a circle:
+  to become verified you must run code, and running code requires being verified.
+  The sandbox cuts it by making safety a property of the enclosure rather than of
+  the code under review. The verified door is the only door for `code`, so it must
+  not itself become a path for executing unreviewed code.
 - **`code` artifacts** — drivers, custom rule fillers — are a distinct trust
   class: rejected by default unless the publisher is verified, and installable
   only on an explicit administrator opt-in, because code cannot be analysed

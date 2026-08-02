@@ -194,7 +194,7 @@ like any filler** — symmetry preserved, no new mechanism.
 
 **Ship order**: JS/TS → Python → Go, following the funnel from the solo-developer
 wedge, through the AI crowd, to the power user. The milestone is decided by the
-`runtime sandbox` specification when it is written; this ADR is an input
+`runtime sandbox` specification, which carries it; this ADR was an input
 constraint on that specification.
 
 **The `supports_dry_run` condition**: every adapter and sandbox executor either

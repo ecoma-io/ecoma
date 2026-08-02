@@ -44,13 +44,16 @@ consumers — calibration, metering, DataTable, effects — but if the label has
 home, two engineers filter it in two different places and a projection written
 later **forgets to filter at all**. The known projections' positions:
 
-| Projection                  | Position on `run_kind: test`                                                                                                             |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Metering / cost             | **Excluded** from billable figures; the real cost incurred — tokens, sandbox CPU — is still measured separately, because it _did_ happen |
-| Calibration input           | **Absolutely excluded** (Calibration §2 — the flywheel's hard boundary)                                                                  |
-| DataTable & Labor Analytics | Split by label; production tables **do not see** a test run's writes                                                                     |
-| Audit export · Search       | **Included, labelled** — a test run is historical truth, not something to hide                                                           |
-| Notification feed           | **Excluded** by default, so it does not crowd the attention queue (invariant 3)                                                          |
+| Projection                   | Position on `run_kind: test`                                                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metering / cost              | **Excluded** from billable figures; the real cost incurred — tokens, sandbox CPU — is still measured separately, because it _did_ happen                                                                                                                    |
+| Quota / consumption          | **Two positions, not one**: the plan counter is **excluded**, the resource counter **counts it in full** — "does not count against the plan" and "costs nothing" are different statements, and only the first is true of a test run (Quota & Scheduling §4) |
+| Calibration input            | **Absolutely excluded** (Calibration §2 — the flywheel's hard boundary)                                                                                                                                                                                     |
+| DataTable & Labor Analytics  | Split by label; production tables **do not see** a test run's writes                                                                                                                                                                                        |
+| Audit export · Search        | **Included, labelled** — a test run is historical truth, not something to hide                                                                                                                                                                              |
+| Notification feed            | **Excluded** by default, so it does not crowd the attention queue (invariant 3)                                                                                                                                                                             |
+| Runtime-image inventory      | **Included, labelled** — the question is "who breaks if this image stops resolving", and a test run pinning it does (Runtime Sandbox §7)                                                                                                                    |
+| Clickstream funnel & traffic | **Split by label** — production funnel figures do not see a test run's events; a synthetic visit is not a visitor, and these figures are sampled estimates besides (Clickstream Ingest §8)                                                                  |
 
 **Checked by machine, not by care**: the **◆G0** conformance suite carries **a
 negative test for EVERY projection** — run a fixture containing a `run_kind: test`
@@ -130,12 +133,19 @@ by classification.
   analytics warehouse — analytics is a projection.
 - No second source of truth. A state table that writes itself outside the log is
   a design violation.
+- **Not the only write path, and not the one clickstream takes.** Web traffic is
+  written to the clickstream ingest tier — a separate stream, with a TTL and no
+  promise of completeness or permanence (Clickstream Ingest §1). That is not a
+  second source of truth: its subject is traffic rather than labour, no labour
+  decision may read it, and the single crossing is a conversion, which arrives
+  here as an ordinary unsampled trigger entry (Clickstream Ingest §2).
 
 ## 8. Decisions
 
 | Question                              | Settled                                                                                                                                                                                                                                                                                                                                            |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Role                                  | The single source of truth; every view is a rebuildable projection                                                                                                                                                                                                                                                                                 |
+| **The second write path**             | Clickstream is a separate stream rather than a `run_kind`-style label here: it diverges in lifetime, in kind of truth, and in who sizes it. Canonical home: Clickstream Ingest §1                                                                                                                                                                  |
 | Ordering                              | Total order per single-writer stream, with causality through references; no global clock                                                                                                                                                                                                                                                           |
 | Metering, audit, search, notification | All projections — four floating concepts given a home in one decision                                                                                                                                                                                                                                                                              |
 | Backup × the right to be forgotten    | The key lives outside the data backup path; escrow is opt-in but obeys the same shred, so restore is not a blind spot                                                                                                                                                                                                                              |
