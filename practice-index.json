@@ -66,6 +66,20 @@
       "shape": "parity",
       "gate": "dev-cli check-subsystem-readmes + dev-cli check-subproject-readmes",
       "gateNote": "the gates hold existence/structure plus technical-token parity (every variant names the same inline code spans as the English canonical); the residue this card covers is whether the prose AROUND those tokens says the same thing — never re-report a differing token, the gate already failed on it"
+    },
+    {
+      "id": "surface-rules-are-mechanism",
+      "scope": [
+        "shared/libs/core-ui/src/primitives/**",
+        "shared/libs/core-ui/src/blocks/**",
+        "**/*.vue"
+      ],
+      "summary": "Interface rules that follow from a mechanism — a Judgment is not editable, an escalation cannot scroll away unhandled, a confidence level is never a bare number — are owned by doctrine's Human Surface spec §6, each stated beside the mechanism it derives from. Read that table before building a work surface; do not re-derive or restate it.",
+      "source": "shared/libs/core-ui/CLAUDE.md",
+      "quote": "if you can cite the mechanism it follows from, it is doctrine's; if the backing is that it looks better, it is this tier's",
+      "admission": "foreign-scope",
+      "gate": null,
+      "gateNote": "No gate is possible: whether a rendered surface contradicts a mechanism is not decidable from the source tree, which is the reason the rule needs routing rather than a check"
     }
   ],
   "diffCards": [
