@@ -41,7 +41,7 @@
     },
     "test": {
       "cache": true,
-      "inputs": ["default", "coverageConfig"]
+      "inputs": ["default", "coverageConfig", { "env": "CI" }]
     }
   },
   "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"]
