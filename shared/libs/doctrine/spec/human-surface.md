@@ -80,9 +80,43 @@ always goes through the engine API, and the engine is the final arbiter — a st
 view plus a plausible action means the engine refuses on a precondition and the
 surface shows why.
 
-## 6. Non-goals
+## 6. Interface consequences of mechanism
+
+Pixels belong to the design system. **These do not** — each one is forced by a
+mechanism declared elsewhere in this corpus, and a surface that breaks one
+contradicts a promise the product makes rather than a preference someone holds.
+The distinction matters because the two fail differently: a visual mistake is
+visible to anyone who looks, while a surface that quietly contradicts a
+mechanism still renders, still passes review, and looks correct to everyone who
+has not read the specification it violates.
+
+**Every row names the mechanism it derives from, and that is the point.** A
+principle whose source is named can be re-derived, checked and argued with. One
+stated on its own authority is taste in a rule's tone of voice, and it drifts
+the first time someone has a good-looking reason to override it.
+
+| A surface must not…                                  | Because the mechanism says                                                                                                                                                     | Derived from       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| present a Judgment as editable                       | a Judgment is append-only and attached to the output permanently; a correction is **a new Judgment** with basis `re_review`, and a later one **does not reopen a closed Gate** | Checkpoint §1, §3  |
+| let an escalation leave the view unhandled           | a terminal handler is mandatory precisely so no path ends in silence; dismissal is an action that **produces an entry**, never scrolling past, collapsing or ageing out        | Escalation §1, §4  |
+| render a confidence level as a bare number           | the figure that decides a Gate is written as **(the cells read, the estimator identity)**, and the tenant is a hard boundary — so it is not comparable across tenants          | Calibration §1, §5 |
+| decide for itself whether a review is blind          | `blind` is **a template value per stage, not engine law** — sampling defaults blind to stop anchoring, quick review defaults sighted. The surface reads the flag               | Checkpoint §2      |
+| offer an action the mechanism will refuse            | `distinct_filler_from` means the filler that produced an output cannot approve it. Rendering the button and failing the write teaches that the action exists                   | Checkpoint §2      |
+| change anything not in §3's table without an entry   | there is **no private write path for the UI**; what has a labour consequence is an entry, and what does not is client-side preference                                          | §0, §3, §7         |
+| blend test-run data into a production view           | production tables **do not see** a test run's writes — the projection is split by label, so a surface that merges them shows a number nobody can act on                        | Event Log §3       |
+| show an item as stuck without showing what blocks it | a Work Item carries **blocked-by** — a waiting gate, a lease, an escalation, a conflict. "Stuck for no stated reason" is Escalation's silence, reappearing at the surface      | §1, Escalation §1  |
+
+This list is open in the same way the escalation taxonomy is: a new mechanism
+with a surface consequence adds a row here rather than growing a second home.
+What it is **not** is a place for a rule whose only backing is that it looks
+better — such a rule has no derivation to write in the third column, and that
+empty column is the test.
+
+## 7. Non-goals
 
 - No screen or pixel design here — that belongs to the design system and Track E.
+  **The principles in §6 are not the same thing** and do not travel with pixels
+  out of scope: they are consequences of mechanism, and this is their home.
 - **No server-side UI store, with no exception.** No cache is a source of truth.
   What has a labour consequence — watching — is **an entry**; what does not —
   column order, widths, theme, a saved filter only its owner sees — lives
@@ -97,16 +131,17 @@ surface shows why.
   process**; "create a task by hand" is the existing `manual` trigger, and there
   is no path that creates work outside the mechanism.
 
-## 7. Decisions
+## 8. Decisions
 
-| Question                        | Settled                                                                                                                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The surface model               | **Work-management first**: one object model (Work Item plus Action Item) and two standard views (My Work, Org Work). The inbox is one view, not the foundational concept |
-| Why this is not a new mechanism | Every field of a Work Item already exists in Task, Attempt, Escalation and Lease. This document names projections                                                        |
-| The buyer's surface             | Org Work is the **buyer's** surface — an agency owner; My Work is the worker's                                                                                           |
-| Competitive difference          | Workflow tools show a technical executions list; project tools have no AI workforce and no Gate. That gap is the position                                                |
-| ◆G4                             | The freeze of this document's projection read-API                                                                                                                        |
-| **Preferences**                 | Cut by **labour consequence**: watching is an entry because it routes notifications; pure display is client-side. No server-side UI store exists                         |
+| Question                                      | Settled                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The surface model                             | **Work-management first**: one object model (Work Item plus Action Item) and two standard views (My Work, Org Work). The inbox is one view, not the foundational concept                                                                                                                                                                                                                                                                                                                                        |
+| Why this is not a new mechanism               | Every field of a Work Item already exists in Task, Attempt, Escalation and Lease. This document names projections                                                                                                                                                                                                                                                                                                                                                                                               |
+| The buyer's surface                           | Org Work is the **buyer's** surface — an agency owner; My Work is the worker's                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Competitive difference                        | Workflow tools show a technical executions list; project tools have no AI workforce and no Gate. That gap is the position                                                                                                                                                                                                                                                                                                                                                                                       |
+| ◆G4                                           | The freeze of this document's projection read-API                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Preferences**                               | Cut by **labour consequence**: watching is an entry because it routes notifications; pure display is client-side. No server-side UI store exists                                                                                                                                                                                                                                                                                                                                                                |
+| **Who owns the derived interface principles** | **This document (§6), not the design system.** They are consequences of mechanism and belong beside the mechanism, each carrying the citation that lets it be re-derived. Putting them among visual conventions would make them read as preferences, and preferences get overridden for good-looking reasons. The design system keeps pixels and cites §6; a card in `practice-index.json` routes the rule to whoever is building a surface, since a reader in the view layer never opens this tree by accident |
 
 ## Litmus
 
@@ -120,3 +155,10 @@ surface shows why.
    action, and does approve-with-edit produce a Judgment carrying the diff?
 5. Someone without the capability in a scope: do they see none of that scope's
    Work Items, not even a count?
+6. Take any row of §6 and build the surface that breaks it — does anything fail?
+   If the only thing standing between the product and that surface is a reviewer
+   who happens to have read the mechanism specification, the principle is written
+   but not held.
+7. Pick a rule someone proposes for the surface: can the third column of §6 be
+   filled in for it with a real citation? If not, it is a visual preference and
+   belongs to the design system, whatever tone it is stated in.
