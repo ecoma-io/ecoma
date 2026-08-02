@@ -53,7 +53,7 @@ File/section mới (mọi class — trần, charter, sống) phải qua **cluste
 
 ### 9. Điều kiện đóng băng
 
-0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 170: 20 NS + 125 L5 của 27 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
+0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 172: 20 NS + 127 L5 của 27 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
 
 ---
 
@@ -219,7 +219,7 @@ _Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theate
 
 ---
 
-## PHẦN IV — LITMUS CATALOG (38 câu mirror — canonical nằm ở từng spec; **tổng toàn hồ sơ: 170 câu**)
+## PHẦN IV — LITMUS CATALOG (38 câu mirror — canonical nằm ở từng spec; **tổng toàn hồ sơ: 172 câu**)
 
 > Phạm vi: đây là mirror của litmus **hệ** — 3 North Star + 3 spec core đã được nâng lên cấp hệ (Working Data, Memory, Tenant & Identity). Trước mỗi lượt: diff mirror này với nguồn canonical — lệch = cập nhật trước khi chạy (tự tuân G6).
 
