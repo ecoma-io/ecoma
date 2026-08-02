@@ -1,7 +1,7 @@
 ---
 title: "Subsystem: Event Log"
 status: design-end-state
-canonical-sha: 3c3d027f05dc
+canonical-sha: 1017391e5797
 ---
 
 # Subsystem: Event Log
@@ -22,13 +22,16 @@ Mọi view đều là projection, **rebuild được từ log**, không được
 
 **Luật `run_kind`**: entry mang `run_kind` (§1); **mọi projection phải khai tường minh lập trường của mình với nhãn này** — engine ép trường khai tồn tại, không có mặc định im lặng. Án văn: Test Harness §1 khai hệ quả cho 4 consumer (calibration / metering / DataTable / effect) nhưng nhãn không có nhà ⇒ hai kỹ sư sẽ lọc ở hai chỗ khác nhau, và một projection mới viết sau sẽ **quên lọc**. Lập trường mặc định của các projection đã biết:
 
-| Projection                  | Lập trường với `run_kind: test`                                                                                |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Metering / cost             | **Loại** khỏi số tính tiền; nhưng chi phí thật đã phát sinh (token, CPU sandbox) vẫn đo riêng — nó _có_ xảy ra |
-| Calibration input           | **Loại tuyệt đối** (Calibration §2 — biên cứng của flywheel)                                                   |
-| DataTable & Labor Analytics | Tách theo nhãn; bảng production **không thấy** write của test run                                              |
-| Audit export · Search       | **Gồm**, có nhãn — test run là sự thật lịch sử, không phải thứ cần che                                         |
-| Notification feed           | **Loại** mặc định (khỏi làm ồn hàng đợi chú ý — invariant 3)                                                   |
+| Projection                   | Lập trường với `run_kind: test`                                                                                                                                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metering / cost              | **Loại** khỏi số tính tiền; nhưng chi phí thật đã phát sinh (token, CPU sandbox) vẫn đo riêng — nó _có_ xảy ra                                                                                                   |
+| Quota / mức tiêu thụ         | **Hai lập trường, không phải một**: bộ đếm kế hoạch **loại**, bộ đếm tài nguyên **tính đủ** — "không tính vào gói" và "không tốn gì" là hai câu khác nhau, chỉ câu đầu đúng với test run (Quota & Scheduling §4) |
+| Calibration input            | **Loại tuyệt đối** (Calibration §2 — biên cứng của flywheel)                                                                                                                                                     |
+| DataTable & Labor Analytics  | Tách theo nhãn; bảng production **không thấy** write của test run                                                                                                                                                |
+| Audit export · Search        | **Gồm**, có nhãn — test run là sự thật lịch sử, không phải thứ cần che                                                                                                                                           |
+| Notification feed            | **Loại** mặc định (khỏi làm ồn hàng đợi chú ý — invariant 3)                                                                                                                                                     |
+| Kiểm kê runtime image        | **Gồm**, có nhãn — "ai hỏng nếu image này thôi resolve được"; test run đang pin nó cũng hỏng (Runtime Sandbox §7)                                                                                                |
+| Phễu & lưu lượng clickstream | **Tách theo nhãn** — số phễu production không thấy sự kiện của test run; một lượt truy cập tổng hợp không phải một visitor, và số liệu ở đây vốn là ước lượng có lấy mẫu (Clickstream Ingest §8)                 |
 
 **Kiểm bằng máy, không bằng cẩn thận**: conformance suite của **◆G0** mang **negative test cho MỌI projection** — chạy fixture có entry `run_kind: test`, khẳng định **số production không đổi**. Projection mới không kèm negative test = **fail suite = chặn merge về cấu trúc** (playbook giao hàng (không công bố) §3). Án văn: lập trường "khai tường minh" là một _lời dặn_ nếu không ai kiểm — và đây đúng là lớp lỗi **im lặng** (quên lọc thì không ai thấy), nên nó phải bị bắt ở CI, không ở production.
 
@@ -59,12 +62,14 @@ Mọi view đều là projection, **rebuild được từ log**, không được
 
 - Không phải message bus tổng quát cho ứng dụng ngoài; không phải kho analytics thay thế (analytics = projection).
 - Không có nguồn sự thật thứ hai — bảng trạng thái nào "tự ghi" ngoài log là vi phạm thiết kế.
+- **Không phải đường ghi duy nhất, và không phải đường mà clickstream đi.** Lưu lượng web ghi vào tier clickstream ingest — một dòng riêng, có TTL, không hứa đầy đủ cũng không hứa vĩnh viễn (Clickstream Ingest §1). Đó không phải nguồn sự thật thứ hai: chủ thể của nó là lưu lượng chứ không phải lao động, không quyết định lao động nào được đọc nó, và cửa băng qua duy nhất là conversion — vào đây như một entry trigger thông thường, không lấy mẫu (Clickstream Ingest §2).
 
 ## 8. Nhật ký quyết định
 
 | Vấn đề                             | Chốt                                                                                                                                                                                                                                                                                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Vai trò                            | Nguồn sự thật duy nhất; mọi view là projection rebuild được                                                                                                                                                                                                                            |
+| **Đường ghi thứ hai**              | Clickstream là một dòng riêng chứ không phải một nhãn kiểu `run_kind` ở đây: nó lệch ở vòng đời, ở loại sự thật, và ở việc ai định khối lượng. Nhà canonical: Clickstream Ingest §1                                                                                                    |
 | Ordering                           | Total order theo stream single-writer + nhân quả qua tham chiếu; không global clock                                                                                                                                                                                                    |
 | Metering/audit/search/notification | Đều là projection — bốn khái niệm lơ lửng có nhà trong một quyết định                                                                                                                                                                                                                  |
 | Backup × quyền được quên           | Khóa sống ngoài đường backup dữ liệu; escrow opt-in nhưng chịu cùng lệnh shred — restore không phải vùng trắng                                                                                                                                                                         |

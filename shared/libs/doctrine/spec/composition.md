@@ -74,6 +74,7 @@ at design time:
 | A major migration declares a downward path **or** the flag `irreversible_migration`                                                                                                                                        | North Star §8               |
 | A contract declaring `test_behavior: dry_run` against an adapter that does not declare `supports_dry_run` → **a design error**, caught while drawing rather than at run time, where it would merely resolve to `forbidden` | Handoff §3, Test Harness §5 |
 | A contract with an effect **leaving the system** that declares no `test_behavior` → **a warning**, not a rejection, because the default is already fail-closed                                                             | Handoff §3                  |
+| No Task, Checkpoint, Judgment, calibration input or routing decision reads the clickstream ingest tier                                                                                                                     | Clickstream Ingest §2       |
 
 ## 5. Pair-design is an ecoma workflow
 

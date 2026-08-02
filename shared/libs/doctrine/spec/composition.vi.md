@@ -1,7 +1,7 @@
 ---
 title: "Composition: Process"
 status: design-end-state
-canonical-sha: ce7f09387c45
+canonical-sha: 88680c54415e
 ---
 
 # Composition: Process
@@ -50,6 +50,7 @@ Engine kiểm tra tĩnh definition trước khi cho khởi chạy, và cảnh b�
 | Migration major khai đường nghịch **hoặc** cờ `irreversible_migration`                                                                                              | North Star §8               |
 | Contract khai `test_behavior: dry_run` mà adapter đích không khai `supports_dry_run` → **lỗi thiết kế** (resolve về `forbidden` lúc chạy, nhưng bắt được từ lúc vẽ) | Handoff §3, Test Harness §5 |
 | Contract có effect **rời khỏi hệ** mà không khai `test_behavior` → **cảnh báo** (không reject: mặc định đã fail-closed)                                             | Handoff §3                  |
+| Không Task, Checkpoint, Judgment, calibration input hay quyết định routing nào đọc tier clickstream ingest                                                          | Clickstream Ingest §2       |
 
 ## 5. Pair-design = một workflow ecoma (dogfooding)
 

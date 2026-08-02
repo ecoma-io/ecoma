@@ -318,6 +318,18 @@ _Spirit: every promise has a mechanism; every mechanism has a promise._
   shortfall is a blocker — an empty promise.
 - M2 **backward**: every mechanism and specification serves some promise or
   viewpoint. An orphan is suspected scope creep and must be justified.
+- **M3 — a deferral comes due**: where a document defers a mechanism to a
+  **named future document** ("blocked by X", "when X is written", "X is an input
+  constraint on Y"), the arrival of that document closes every such sentence in
+  the same change. Grep the corpus for the new document's name before the change
+  is finished; a deferral left standing beside the document that discharges it
+  is a `major`, because the two now answer the same question differently and a
+  reader has no way to tell which is current. _Precedent: the runtime sandbox,
+  clickstream ingest and quota specifications were each named as unwritten in
+  three to five places — a North Star, a specification, the ADR ledger, the
+  roadmap and the scenario catalog — and no criterion re-read those sentences
+  when the documents landed. M1 and M2 both pass in that state: the promise has
+  a mechanism and the mechanism serves a promise. Only the deferral is stale._
 
 ### N — The threat-actor battery
 
@@ -438,7 +450,7 @@ multi-client agency) × mode (happy / failure / adversarial)`. A cell that has
 
 | Document class                      | Examples                          | Groups required                              | Exempt, with reasoning                                                                                                       |
 | ----------------------------------- | --------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Ceiling** (North Star plus specs) | 3 North Stars, 24 specifications  | A–P in **full**                              |                                                                                                                              |
+| **Ceiling** (North Star plus specs) | 3 North Stars, 27 specifications  | A–P in **full**                              |                                                                                                                              |
 | **System charter**                  | the funnel playbook               | B, D, F, G including G9, I, J, K, L, M, N, P | A (it carries no founding viewpoint), C (it defines no invariant), E (it owns no flywheel), H → the charter's **own** litmus |
 | **Meta**                            | this rubric, the scenario catalog | G, L, **self-conformance** below             | A–F, I–K — they describe no product mechanism                                                                                |
 | **Living**                          | the market ledger                 | J for reasoning, L4 for the decision log     | The remainder — market truth is not for a rubric to judge                                                                    |

@@ -1,7 +1,7 @@
 ---
 title: "Roadmap"
 status: design-end-state
-canonical-sha: 4c190377ea41
+canonical-sha: 42f55c7d362c
 ---
 
 # Roadmap
@@ -54,7 +54,7 @@ Mỗi ID mang: **track · milestone · gate chặn · trỏ tới exit-litmus**.
 
 **Cấm**: tạo trường "Priority" tự do trên board. Thứ tự đáng làm đã có ở §2 và điều kiện mở khóa đã có ở §3b; một cột priority gõ tay là **nguồn sự thật thứ ba** và sẽ thắng cả hai vì nó gần tay nhất.
 
-## 1. Trục 1 — Dependency graph (topo-sort từ 24 spec)
+## 1. Trục 1 — Dependency graph (topo-sort từ 27 spec)
 
 ```
 TẦNG 0 (không ai đứng dưới — nguồn sự thật & danh tính)
@@ -100,15 +100,15 @@ TẦNG 4 Intelligence (chỉ chạy khi flywheel có dữ liệu)
 
 **6 track:**
 
-| Track                  | Nội dung                                                                                                                                                                                                | Cổng vào                                                                                    | Hợp lưu                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **S — viết spec**      | Calibration · **Test harness (#2 — nuôi conformance suite của MỌI gate)** · Human Surface · Vault+key · Release&Compat · deploy charter (+ sau: tier ingest, runtime sandbox, quota, cloud)             | Ngày 0, song song hoàn toàn; mỗi spec chịu cluster-run (R12)                                | §5                                                     |
-| **A — Platform core**  | Tầng 0 → **◆G0** → 5 primitive (song song nội bộ) → Composition/static analysis → Trigger → agent runtime                                                                                               | Ngày 0                                                                                      | **M0**                                                 |
-| **B — RPA**            | Action+Session+Healing ∥ Driver (interface Apache — bên thứ ba viết song song được) ∥ Sandbox+Vault-consumer; rồi Node topology; **lớp UI attended** — _chỉ xác nhận trong phiên_, không hàng đợi duyệt | **◆G1** — **một cổng**                                                                      | **M1**                                                 |
-| **R — Repo & harness** | Móng repo, toolchain, gate, Claude skill, khung `website/`, di cư `doctrine/`                                                                                                                           | Ngày 0, song song hoàn toàn; PR 5 (**release train lock**) phải land **trước app đầu tiên** | **M0** (harness) → handoff hoàn tất khi litmus S7 pass |
-| **C — Funnel**         | Website tĩnh + Charter: bất kỳ lúc; dogfood: sau **◆G3**                                                                                                                                                | ◆G3                                                                                         | **M2**→M3                                              |
-| **D — Hub**            | Registry+Index+pack/ký/install-6-bước từ **◆G2 (spec-phase!)**; verified-review chờ M0                                                                                                                  | ◆G2                                                                                         | **M4**                                                 |
-| **E — Surfaces**       | Design system `shared/` + Storybook `/design`: **ngày 0** (Charter cho public trước MVP, không phụ thuộc engine); inbox/canvas: sau **◆G4**                                                             | ngày 0 / ◆G4                                                                                | M0 (inbox tối thiểu là điều kiện exit)                 |
+| Track                  | Nội dung                                                                                                                                                                                                                | Cổng vào                                                                                    | Hợp lưu                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **S — viết spec**      | Calibration · **Test harness (#2 — nuôi conformance suite của MỌI gate)** · Human Surface · Vault+key · Release&Compat · deploy charter · tier ingest clickstream · runtime sandbox · quota & scheduling (+ sau: cloud) | Ngày 0, song song hoàn toàn; mỗi spec chịu cluster-run (R12)                                | §5                                                     |
+| **A — Platform core**  | Tầng 0 → **◆G0** → 5 primitive (song song nội bộ) → Composition/static analysis → Trigger → agent runtime                                                                                                               | Ngày 0                                                                                      | **M0**                                                 |
+| **B — RPA**            | Action+Session+Healing ∥ Driver (interface Apache — bên thứ ba viết song song được) ∥ Sandbox+Vault-consumer; rồi Node topology; **lớp UI attended** — _chỉ xác nhận trong phiên_, không hàng đợi duyệt                 | **◆G1** — **một cổng**                                                                      | **M1**                                                 |
+| **R — Repo & harness** | Móng repo, toolchain, gate, Claude skill, khung `website/`, di cư `doctrine/`                                                                                                                                           | Ngày 0, song song hoàn toàn; PR 5 (**release train lock**) phải land **trước app đầu tiên** | **M0** (harness) → handoff hoàn tất khi litmus S7 pass |
+| **C — Funnel**         | Website tĩnh + Charter: bất kỳ lúc; dogfood: sau **◆G3**                                                                                                                                                                | ◆G3                                                                                         | **M2**→M3                                              |
+| **D — Hub**            | Registry+Index+pack/ký/install-6-bước từ **◆G2 (spec-phase!)**; verified-review chờ M0                                                                                                                                  | ◆G2                                                                                         | **M4**                                                 |
+| **E — Surfaces**       | Design system `shared/` + Storybook `/design`: **ngày 0** (Charter cho public trước MVP, không phụ thuộc engine); inbox/canvas: sau **◆G4**                                                                             | ngày 0 / ◆G4                                                                                | M0 (inbox tối thiểu là điều kiện exit)                 |
 
 **Luật của track model** (tự đối kháng, giữ nguyên mọi cấm của §4):
 
@@ -241,8 +241,8 @@ Mỗi milestone khai đúng 3 điều: **(a)** cơ chế nào bật TRỌN VẸN
 - **(a) Trọn vẹn**: Channel (chat-widget + form) · external filler + Party + self-assertion · classification lattice + egress 2 lớp · tier ingest clickstream · DataTable + projection · website mount qua edge router.
 - **(b) Thu hẹp**: một tenant `growth` · survey = đúng cây Track S của sổ thị trường (không công bố) · analytics = projection cơ bản, chưa dashboard đóng gói.
 - **(c) Cấm tạm**: website không bao giờ _vá_ product (chỉ gọi API công khai) · không bản sao nội dung block · không third-party script trên `/app`.
-- **Exit-litmus**: Website Charter §6 (7 câu) · một signup thật chảy vào bảng chấm sổ thị trường (không công bố) §5 có provenance đầy đủ · ads ×100 traffic mà Event Log lao động không phình (litmus #5).
-- **Spec treo CHẶN M2**: **Tier ingest clickstream** (spec nhỏ).
+- **Exit-litmus**: Website Charter §6 (7 câu) · một signup thật chảy vào bảng chấm sổ thị trường (không công bố) §5 có provenance đầy đủ · ads ×100 traffic với tập conversion giữ nguyên mà số entry, kích thước, thời gian replay và cửa sổ retention của Event Log lao động không đổi (litmus #5; dạng hai fixture đo được ở Clickstream Ingest §9).
+- **Spec CHẶN M2**: **[clickstream-ingest](../spec/clickstream-ingest.md)** — đã viết; M2 không được ghi sự kiện clickstream đầu tiên trước khi spec này có hiệu lực.
 - **Mở khóa**: từ đây dữ liệu ICP bắt đầu chảy → §3b bắt đầu đếm được.
 
 ### M3 — Dogfood #2: Knowledge + chatbot + **Pair-design (tầng 4)** _(ICP-independent)_
@@ -258,7 +258,7 @@ Mỗi milestone khai đúng 3 điều: **(a)** cơ chế nào bật TRỌN VẸN
 - **(b) Thu hẹp**: **chỉ trust class `definition`; class `code` chưa bật** — đây là _policy mặc định của chính spec_ (Block §3: code reject nếu publisher chưa verified + cần opt-in admin), không phải cắt cơ chế · chưa marketplace.
 - **(c) Cấm tạm**: không entitlement/phone-home trong engine · không auto-upgrade · không "tin publisher cho nhanh".
 - **Exit-litmus**: Hub NS §8 (6 câu) + Block L5 (3 câu) · rút phích Hub → mọi tenant chạy nguyên · manifest khai thiếu → **reject** chứ không warning.
-- **Spec treo CHẶN việc bật class `code`**: **Runtime sandbox cho code filler** (đối thủ đã ship tương đương — n8n Task Runners, 2026). Nó chặn **cả vòng verified-review cho class `code`**, không chỉ việc _cài_: suite do publisher cung cấp chạy trong test run scope của operator (Hub §7) ⇒ không có sandbox thì không có đường "chạy code chưa verified để được verified" — vòng tròn phải chặn bằng cơ chế, không bằng cẩn thận.
+- **Cơ chế GÁC việc bật class `code`**: **[runtime-sandbox](../spec/runtime-sandbox.md) cho code filler** (đối thủ đã ship tương đương — n8n Task Runners, 2026). Nó gác **cả vòng verified-review cho class `code`**, không chỉ việc _cài_: suite do publisher cung cấp chạy trong test run scope của operator (Hub §7) ⇒ không có sandbox thì không có đường "chạy code chưa verified để được verified". Spec cắt vòng đó bằng một cơ chế — biên OS/VM mà độ an toàn là hàm của host chứ không phải của đoạn code — và milestone này là nơi cơ chế được dựng.
 
 ### M5 — Beachhead pack _(ICP-GATED — §3b)_
 

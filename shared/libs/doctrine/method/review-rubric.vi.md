@@ -1,7 +1,7 @@
 ---
 title: "Review Rubric & Method"
 status: design-end-state
-canonical-sha: 47e7885dea2b
+canonical-sha: 31b9264c5c73
 ---
 
 # Review Rubric & Method
@@ -53,7 +53,7 @@ File/section mới (mọi class — trần, charter, sống) phải qua **cluste
 
 ### 9. Điều kiện đóng băng
 
-0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 148: 20 NS + 103 L5 của 24 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
+0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 170: 20 NS + 125 L5 của 27 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
 
 ---
 
@@ -134,6 +134,7 @@ _Tinh thần: mọi lời hứa có cơ chế; mọi cơ chế có lời hứa._
 
 - M1 **xuôi**: từng mệnh đề trong tuyên bố end-state (cả 3 North Star §1) + luận điểm §2 → trace tới ≥1 cơ chế cụ thể; hụt = blocker (hứa suông).
 - M2 **ngược**: từng cơ chế/spec → phục vụ lời hứa/quan điểm nào; mồ côi = nghi vấn scope creep, đòi án văn.
+- **M3 — món nợ hoãn đến hạn**: nơi một tài liệu hoãn một cơ chế sang **một tài liệu tương lai có tên** ("chặn bởi X", "khi X được viết", "X là ràng buộc đầu vào của Y"), việc tài liệu đó ra đời **đóng mọi câu như vậy trong cùng một lượt thay đổi**. Grep tên tài liệu mới trên toàn corpus trước khi kết thúc; một lời hoãn còn đứng cạnh chính tài liệu trả nợ cho nó là `major`, vì hai bên giờ trả lời cùng một câu hỏi theo hai cách và người đọc không có cách nào biết bên nào là hiện hành. _Tiền lệ: ba spec runtime sandbox, clickstream ingest và quota mỗi cái được nêu là chưa viết ở ba đến năm chỗ — một North Star, một spec, sổ ADR, roadmap và scenario catalog — và không tiêu chí nào đọc lại những câu đó khi tài liệu hạ cánh. M1 và M2 đều PASS ở trạng thái ấy: lời hứa có cơ chế, cơ chế phục vụ lời hứa. Chỉ có lời hoãn là cũ._
 
 ### N (vòng ≤15) — Threat-actor battery (an ninh có kỷ luật, không nhờ may mắn kịch bản)
 
@@ -192,7 +193,7 @@ _Tinh thần: không hỏi "cái đang có đúng chưa" — hỏi "MỌI giai �
 
 | Doc-class                    | Ví dụ                           | Nhóm bắt buộc                           | Miễn (có án văn)                                                                                                               |
 | ---------------------------- | ------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Trần** (North Star + spec) | 3 NS + **24 spec**              | A–P **đủ**                              |                                                                                                                                |
+| **Trần** (North Star + spec) | 3 NS + **27 spec**              | A–P **đủ**                              |                                                                                                                                |
 | **System Charter**           | playbook funnel (không công bố) | B, D, F, G (đủ G9), I, J, K, L, M, N, P | A (không mang quan điểm sáng lập), C (không định nghĩa invariant), E (không sở hữu flywheel), H → litmus **riêng của charter** |
 | **Meta**                     | rubric, scenario catalog        | G, L, **self-conformance** (dưới)       | A–F, I–K (không mô tả cơ chế sản phẩm)                                                                                         |
 | **Sống**                     | sổ thị trường (không công bố)   | J (án văn), L4 (nhật ký),               | phần còn lại — sự thật thị trường không do rubric phán                                                                         |
@@ -218,7 +219,7 @@ _Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theate
 
 ---
 
-## PHẦN IV — LITMUS CATALOG (38 câu mirror — canonical nằm ở từng spec; **tổng toàn hồ sơ: 148 câu**)
+## PHẦN IV — LITMUS CATALOG (38 câu mirror — canonical nằm ở từng spec; **tổng toàn hồ sơ: 170 câu**)
 
 > Phạm vi: đây là mirror của litmus **hệ** — 3 North Star + 3 spec core đã được nâng lên cấp hệ (Working Data, Memory, Tenant & Identity). Trước mỗi lượt: diff mirror này với nguồn canonical — lệch = cập nhật trước khi chạy (tự tuân G6).
 
