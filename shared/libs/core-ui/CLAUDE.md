@@ -67,6 +67,20 @@ the panel reports exactly what the gate will fail on. Never restate that list.
 
 A primitive's own `.mdx` (artifact #5) documents _that_ primitive; it does **not** discharge the spec pages. Introducing or changing shared vocabulary — a new keyframe or `animate-*` utility, a reusable motion/overlay pattern, a token, a Presence idiom — obligates updating the owning design page **and its `_demo` gallery** in the same pass (upstream-first, one source of truth). A new keyframe that never reaches `Motion.mdx` + `MotionGallery.vue` is an incomplete change, not a done one.
 
+## Some interface rules are mechanism, not taste — they are spec'd in doctrine, not here
+
+A surface that renders a Judgment as editable, lets an escalation scroll away
+unhandled, or shows a confidence level as a bare percentage is not making a
+visual mistake — it is contradicting a mechanism the product promises. Those
+rules are derived and owned by **`shared/libs/doctrine/spec/human-surface.md` §6**,
+where each one is stated beside the specification it derives from. Read that
+table before building a work surface, and never restate a row of it here: a
+second copy is a second rule, and nothing tells a reader which one binds.
+
+The tell for whether a proposed rule belongs there or here: if you can cite the
+mechanism it follows from, it is doctrine's; if the backing is that it looks
+better, it is this tier's.
+
 ## Tokens
 
 - Source of truth: `shared/libs/core-ui/src/styles/tokens.css`, mapped to Tailwind via `shared/libs/core-ui/tailwind.preset.js`. Storybook and the desktop app share it — never hardcode colors, durations, or easings; use Alloy tokens (see the Design System docs in the `design-system` Storybook). The dual-force law (Human `--primary` thép · Agent `--agent` đồng · `--seam` gradient only at handoff points) is spec'd in Design System › Signature — a surface must not mix the forces' roles.
