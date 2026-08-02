@@ -1,0 +1,102 @@
+name: PR mergeability
+
+on:
+  # `pull_request_target`, and that trigger choice IS the whole mechanism.
+  #
+  # A pull request that conflicts with its base has no `refs/pull/<n>/merge` --
+  # GitHub cannot build the merge commit -- and without it the `pull_request`
+  # event is never delivered. So no `pull_request` workflow can report on the
+  # one state this job exists to name: ci.yml simply never starts, and the
+  # required `ci-gate` check sits at "Expected -- Waiting for status to be
+  # reported" for as long as the conflict lasts. The pull request reads as a
+  # hung CI rather than as a conflict.
+  #
+  # `pull_request_target` runs against the BASE ref and needs no merge commit,
+  # so it fires either way. That makes it the only trigger that can turn the
+  # silence into a result.
+  #
+  # BOUNDARY, stated rather than left to be discovered: these types fire on
+  # pull-request activity, not on pushes to the base branch. A pull request
+  # that becomes conflicted because `main` moved under it keeps this job's last
+  # green result until its next push. GitHub's own merge box covers that case
+  # live; re-evaluating every open pull request on each push to main would need
+  # a job that enumerates them, which is more machinery than the gap is worth.
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+# Read-only, and nothing from the pull request head is ever checked out or
+# executed. The head arrives as `refs/pull/<n>/head` fetched into the object
+# database, and `git merge-tree` reads trees there without writing a working
+# copy -- the same reason translate-pr and pr-practice-review are safe under
+# this trigger, reached a different way.
+permissions:
+  contents: read
+
+# A rapid push supersedes the in-flight evaluation: only the newest head's
+# mergeability is worth reporting.
+concurrency:
+  group: pr-mergeable-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # NOT a required status check, deliberately. GitHub already refuses to merge a
+  # conflicting pull request, so gating on this would add nothing to merge
+  # safety and would put a second name into branch protection for no gain. Its
+  # entire job is diagnostic: replace an unexplained pending `ci-gate` with a
+  # red check that says why CI never ran.
+  mergeable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No `ref:`, matching translate-pr: the default under this trigger is the
+      # base branch, which is the trusted copy and the only thing this job runs.
+      # Full history because a three-way merge needs the merge base, which a
+      # shallow clone does not have.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # `refs/pull/<n>/head` rather than the head SHA: it resolves in THIS
+      # repository for a fork pull request too, where the head commit lives in
+      # the fork and `git fetch origin <sha>` would not find it.
+      #
+      # The base is re-fetched at its current tip rather than read from the
+      # event payload, because that is what GitHub itself merges against -- a
+      # payload `base.sha` is the tip as of the event, which is already stale
+      # once main moves.
+      - name: The pull request still merges into its base
+        env:
+          NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin \
+            "+refs/pull/$NUMBER/head:refs/prq/head" \
+            "+refs/heads/$BASE_REF:refs/prq/base"
+
+          # `--write-tree` is the plumbing form: it performs the same three-way
+          # merge GitHub does, without needing a working copy to merge into.
+          set +e
+          git merge-tree --write-tree refs/prq/base refs/prq/head > merge-tree.out
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "Merges cleanly into $BASE_REF."
+            exit 0
+          fi
+
+          # The exit status alone cannot say WHY. `merge-tree` returns 1 both
+          # for a real conflict and for "not something we can merge" (an
+          # unresolvable ref), which is measured behaviour, not the reading the
+          # documented "0 clean / 1 conflicted / negative on error" invites.
+          # What does separate them is stdout: a conflict still writes the
+          # merged tree's object id as its first line, a failure writes nothing
+          # there and explains itself on stderr. Telling an author to resolve a
+          # conflict that does not exist is the failure this branch avoids.
+          if head -n 1 merge-tree.out | grep -Eq '^[0-9a-f]{40,64}$'; then
+            grep '^CONFLICT' merge-tree.out || true
+            echo "::error::This pull request conflicts with $BASE_REF, so GitHub cannot build its merge commit. No merge commit means the \`pull_request\` event never fires, so CI never starts and the required \`ci-gate\` check stays pending instead of going red -- it is not a hung CI. Merge $BASE_REF into the branch, resolve the conflicts above, and push."
+          else
+            echo "::error::Could not evaluate mergeability against $BASE_REF: git merge-tree exited $status without producing a merged tree. This is a failure of the check, not a conflict."
+          fi
+          exit 1

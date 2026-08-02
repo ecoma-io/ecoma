@@ -116,6 +116,19 @@ maintain.
    passes only when every other job succeeded. Name a job directly and it has to
    be re-pointed the moment that job grows a runner matrix.
 
+   One state `ci-gate` cannot report on is a conflict. A pull request that no
+   longer merges into its base has no merge commit for GitHub to build, and
+   without one the `pull_request` event never fires — so `ci.yml` never starts
+   and `ci-gate` sits at _"Expected — Waiting for status to be reported"_ for as
+   long as the conflict lasts. It reads as a hung CI and is not one. The
+   `mergeable` check (`.github/workflows/pr-mergeable.yml`) exists to say so out
+   loud: it runs on `pull_request_target`, which needs no merge commit, and goes
+   red naming the conflicting files. It is deliberately **not** a required
+   check — GitHub already refuses to merge a conflicting pull request, so
+   gating on it would add nothing, and explaining the silence is its whole job.
+   Merge `main` into the branch, resolve, push; CI starts on its own once the
+   merge commit can be built again.
+
    The same workflow also runs nightly on `main` (and on demand via
    `workflow_dispatch`), where it drops the diff selection and runs every
    target on every project. A PR only ever sees what `nx affected` can reach,
