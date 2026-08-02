@@ -37,7 +37,10 @@ what, because a primitive can plausibly be tested in all three:
   Property tests for pure logic (`fast-check` via `@fast-check/vitest`,
   co-located like any unit test) are also what the OpenSSF Scorecard Fuzzing
   check detects for TypeScript — they are not redundant with hand-written
-  cases and must not be pruned as such.
+  cases and must not be pruned as such. `vitest.setup.ts` pins their seed
+  when `CI` is set (deterministic on CI, exploring on dev runs — the
+  write-test skill owns the rule); do not remove the pin or the
+  `setupFiles` entry that loads it.
 - **Integration** — `<Name>.integration.test.ts`, same jsdom runtime, same
   `test` target (the include glob covers both). Reach for it only where the
   **composition is the behaviour**: a block wiring a real primitive, where
