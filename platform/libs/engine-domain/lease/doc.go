@@ -6,8 +6,5 @@
 // outside it, which is what keeps a crashed holder from stopping the system
 // indefinitely.
 //
-// The values and their rules are real here — Request.Validate refuses a lease
-// with no TTL, and Lease.ExpiredAt takes the instant as an argument. The store
-// behind them (acquire, renew, release) is a port, and lives in engine-ports.
-// Source: shared/libs/doctrine/spec/working-data.md §3.
+// TODO: no types yet. Fills with shared/libs/doctrine/spec/working-data.md §3.
 package lease
