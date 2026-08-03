@@ -29,7 +29,8 @@ say so in the pull request rather than letting the green run imply otherwise.
 - `dev-cli` — local developer commands; the `COMMANDS` registry in
   `src/main.mjs` is the source of truth (doc/convention gates like
   `check-journey-markers`, `check-claude-md`, `check-doc-links`,
-  `check-command-refs`, `check-contributor-record`, `check-practice-index`,
+  `check-command-refs`, `check-contributor-record`, `check-dependency-cooldown`,
+  `check-practice-index`,
   `check-subsystem-readmes`,
   `check-subproject-readmes`, `check-primitive-artifacts`,
   `check-project-conventions`, `check-roadmap-ids`, `check-commit-scope`,

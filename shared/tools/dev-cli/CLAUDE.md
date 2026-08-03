@@ -165,6 +165,21 @@ build/typecheck — invoked directly as
   that gate's name and docstring commit it to relative Markdown _links_, and a
   command citation is a shell invocation, not a link — conflating the two
   would make the gate's name stop describing what it checks.
+- **`check-dependency-cooldown` guards a number that has to be written twice.**
+  Renovate refuses to propose a release younger than `minimumReleaseAge`
+  (`.github/renovate.json5`) and pnpm refuses to resolve one
+  (`pnpm-workspace.yaml`) — two halves because Renovate "does not currently
+  manage any transitive dependencies", so only pnpm's half reaches what a lock
+  file pulls in underneath a named package, which is the path an npm
+  supply-chain attack travels. Rungs 1 and 2 of Rule 14 are both unavailable:
+  neither tool can read the other's file and neither would load a shared one.
+  So the number is declared twice and a gate refuses the drift — the same shape
+  as repo-care reading `timeout-minutes` out of the workflow that imposes it.
+  It accepts only Renovate's `"<n> days"` spelling against pnpm's bare minutes:
+  Renovate parses many duration formats, and every extra one is a conversion
+  this gate could get wrong for no gain. A **missing** half fails the same as a
+  mismatched one, because half a cooldown reads from the outside exactly like a
+  cooldown.
 - **`check-contributor-record` is the enforcement half of `CLA.md`'s acceptance
   rule**, which until now was a sentence in two documents and nothing else: a
   contributor agrees by committing `contributors/<handle>.md`, and nothing is
