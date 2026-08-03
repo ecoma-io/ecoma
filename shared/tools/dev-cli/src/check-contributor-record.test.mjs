@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   auditRecord,
+  authorVerdict,
+  automationClause,
   claVersion,
   licensorHandles,
+  projectAutomation,
   recordTemplate,
 } from "./check-contributor-record.mjs";
 
 const CLA_TEXT = `# Ecoma Contributor License Agreement
 
 **Version 1.0, effective 2026-07-30.**
+
+Commits made by automated tooling we run — dependency-update bots and the like
+— are made on our own behalf and are not contributions under this agreement.
 
 ## How you agree
 
@@ -74,6 +80,77 @@ describe("the licensor exemption", () => {
 
   it("refuses when CODEOWNERS protects no CLA, rather than exempting nobody silently", () => {
     expect(() => licensorHandles("/LICENSE @owner\n")).toThrow(/CLA/);
+  });
+});
+
+describe("the automation exemption", () => {
+  const CLAUSE = automationClause(CLA_TEXT);
+
+  it("reads the exemption out of the agreement, joined across the wrap", () => {
+    expect(CLAUSE).toBe(
+      "Commits made by automated tooling we run — dependency-update bots and the like — are made on our own behalf and are not contributions under this agreement.",
+    );
+  });
+
+  it("reports no exemption once the agreement stops declaring one", () => {
+    expect(automationClause(CLA_TEXT.replace(/Commits made by[\s\S]*?agreement\./, ""))).toBeNull();
+  });
+
+  it("exempts an account only while the configuration that runs it is committed", () => {
+    expect(projectAutomation((path) => path === ".github/renovate.json5")).toEqual({
+      "renovate[bot]": ".github/renovate.json5",
+    });
+    expect(projectAutomation(() => false)).toEqual({});
+  });
+});
+
+describe("what a pull request author owes", () => {
+  const CLAUSE = automationClause(CLA_TEXT);
+  const base = {
+    licensors: ["owner"],
+    clause: CLAUSE,
+    automation: { "renovate[bot]": ".github/renovate.json5" },
+    hasRecord: false,
+  };
+
+  it("asks nothing of a licensor, who cannot grant a licence to themselves", () => {
+    expect(authorVerdict("Owner", base)).toEqual({ ok: true });
+  });
+
+  it("asks nothing further of a contributor whose record exists", () => {
+    expect(authorVerdict("someone", { ...base, hasRecord: true })).toEqual({ ok: true });
+  });
+
+  it("names the record a contributor still owes", () => {
+    const verdict = authorVerdict("someone", base);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.fault).toContain("contributors/someone.md");
+  });
+
+  it("lets through automation the project runs, saying which config makes it ours", () => {
+    const verdict = authorVerdict("renovate[bot]", { ...base, type: "Bot" });
+    expect(verdict.ok).toBe(true);
+    expect(verdict.note).toContain(".github/renovate.json5");
+    expect(verdict.note).toContain(CLAUSE);
+  });
+
+  it("refuses a machine account the project does not run, since a coding agent works for a person", () => {
+    const verdict = authorVerdict("some-agent[bot]", { ...base, type: "Bot" });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.fault).toContain("does not run");
+    expect(verdict.fault).toContain("needs their own record");
+  });
+
+  it("stops exempting automation once the agreement stops exempting it", () => {
+    const verdict = authorVerdict("renovate[bot]", { ...base, type: "Bot", clause: null });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.fault).toContain("no longer places commits");
+  });
+
+  it("treats an author of unknown kind as a person, so an unasked question fails closed", () => {
+    const verdict = authorVerdict("renovate[bot]", base);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.fault).toContain("contributors/renovate[bot].md");
   });
 });
 
