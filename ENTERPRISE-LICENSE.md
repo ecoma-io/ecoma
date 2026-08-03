@@ -9,6 +9,10 @@
 > - **`LICENSE` clause 2 withholds all rights in `enterprise/` directories.**
 >   These terms are what a Licensee signs to receive them; nothing is granted
 >   by reading this file.
+> - **This file is that text.** Clause 2 says the terms are placed in the
+>   `enterprise/` directory they govern, so the copy that lands there is this
+>   document, unchanged. This root copy is the one that is maintained; a
+>   directory copy that has drifted from it is a defect in the copy.
 
 **Version 1.0, effective 2026-08-03.**
 

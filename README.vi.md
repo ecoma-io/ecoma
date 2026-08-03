@@ -66,14 +66,14 @@ Ecoma thành một dịch vụ. Chính hạn chế đó là lý do mọi phần 
 lực pháp lý là [`LICENSE`](./LICENSE); nếu bản tóm tắt này khác với điều khoản,
 **điều khoản là thứ có hiệu lực**.
 
-| Đường dẫn                      | Điều khoản                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| mọi thứ không nêu bên dưới     | Sustainable Use License                                                                     |
-| `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn lập trình đối tiếp                                             |
-| `<subsystem>/enterprise/`      | **không cấp quyền nào** — cần một Enterprise License riêng, bằng văn bản                    |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), kèm các ảnh mà những tệp đó tham chiếu |
-| `cloud/`                       | độc quyền, và không công bố                                                                 |
-| thành phần của bên thứ ba      | theo điều khoản của chính chủ sở hữu                                                        |
+| Đường dẫn                      | Điều khoản                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| mọi thứ không nêu bên dưới     | Sustainable Use License                                                                             |
+| `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn lập trình đối tiếp                                                     |
+| `<subsystem>/enterprise/`      | **không cấp quyền nào** — cần một [Enterprise License](./ENTERPRISE-LICENSE.md) riêng, bằng văn bản |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), kèm các ảnh mà những tệp đó tham chiếu         |
+| `cloud/`                       | độc quyền, và không công bố                                                                         |
+| thành phần của bên thứ ba      | theo điều khoản của chính chủ sở hữu                                                                |
 
 Tự cài Ecoma để vận hành tổ chức của chính bạn là **được phép rõ ràng**, dù có
 mục đích thương mại hay không, kể cả để tạo ra và cung cấp hàng hoá, dịch vụ
