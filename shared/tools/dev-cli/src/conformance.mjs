@@ -1,5 +1,5 @@
 /**
- * The executor rule #6 of the roadmap (§1b) demands: **a gate is a frozen text
+ * The executor rule #7 of the roadmap (§1b) demands: **a gate is a frozen text
  * plus a conformance suite that runs independently** — "a gate with no suite is
  * a paper gate". Until this command existed, both halves were prose. Nothing
  * could freeze a document, nothing could run a suite, and the ledger saying so
@@ -26,7 +26,7 @@
  * freeze nor a suite is not an error: nothing has been promised yet, and
  * reporting an unstarted gate as broken would make the command noise. What is
  * an error is a **frozen gate with no suite** — that is precisely the paper
- * gate rule #6 names, and it can only arise after someone freezes a text, which
+ * gate rule #7 names, and it can only arise after someone freezes a text, which
  * is when the rule is supposed to bite. A suite or a freeze citing a gate the
  * roadmap does not define is an error too, for the same reason
  * `check-roadmap-ids` rejects an undefined track.
@@ -105,7 +105,7 @@ export function findSuites(files, read = readFileSync) {
 }
 
 /**
- * The ledger rule #6 describes, one row per gate the roadmap defines, plus the
+ * The ledger rule #7 describes, one row per gate the roadmap defines, plus the
  * faults. Pure, so the whole judgment is testable without a tree.
  */
 export function buildLedger(gates, frozen, suites) {
@@ -129,7 +129,7 @@ export function buildLedger(gates, frozen, suites) {
   for (const { gate, frozen: docs, suites: runners } of rows) {
     if (docs.length && !runners.length) {
       faults.push(
-        `${gate}: frozen (${docs.join(", ")}) with no conformance suite — rule #6: a gate with no suite is a paper gate`,
+        `${gate}: frozen (${docs.join(", ")}) with no conformance suite — rule #7: a gate with no suite is a paper gate`,
       );
     }
   }
