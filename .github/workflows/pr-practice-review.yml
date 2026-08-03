@@ -22,7 +22,15 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    # Draft pull requests are not up for review yet, and a bot's are not up for
+    # THIS review: the practice index judges authored code against this repo's
+    # conventions, and a dependency bump carries none — a version range and a
+    # regenerated lockfile. Reviewing them anyway spends the heaviest model
+    # budget in the repo on every push to every open Renovate branch. What a
+    # bump actually needs is the definition-of-done in ci.yml, which still runs.
+    # `user.type` is GitHub's own answer, the same authority ci.yml asks who
+    # needs a contributor record, rather than a `[bot]` suffix.
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     # Each model runs a multi-turn investigation (up to 4 completions on a
     # slow free tier), so the ceiling budgets for several sequential calls;

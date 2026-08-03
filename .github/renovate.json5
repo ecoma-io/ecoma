@@ -55,6 +55,46 @@
   semanticCommits: "enabled",
   semanticCommitType: "chore",
   semanticCommitScope: "workspace",
+  // THE DEPENDENCY DASHBOARD IS MACHINE STATE, NOT HUMAN BACKLOG.
+  // `config:recommended` turns the dashboard issue on, and everything else in
+  // this repo that touches issues curates the human backlog — so each of those
+  // consumers has to exclude the dashboard, one way per consumer:
+  //   - `stale-issues.yml` — by the label declared here.
+  //   - `issue-triage.yml`, `translate-issue.yml` (and their pull request
+  //     siblings) — by an author-type guard in the workflow, since a bot thread
+  //     is not prose to translate or work to classify.
+  //   - a GitHub Projects board — see the last paragraph.
+  //
+  // The stale exemption must be a LABEL: `actions/stale` filters only by label
+  // and assignee. It cannot see that GitHub has the issue pinned, and it cannot
+  // see that a bot opened it. Nor does the mistake settle on its own —
+  // Renovate's `ensureIssue` defaults to `shouldReOpen: true`, so a closed
+  // dashboard is patched back to `state: open` on the next run, and that reopen
+  // re-triggers triage. Without the label the two bots just churn against each
+  // other, forever.
+  //
+  // Renovate owning the label is what makes the exemption self-healing: the
+  // labels named here are re-applied on every dashboard update, "even when they
+  // have been removed manually", so a `stale` label survives at most one
+  // Renovate cycle with no human in the loop. The same patch replaces the whole
+  // label set, so labels applied to the dashboard by anything else clear
+  // themselves too.
+  //
+  // `dependencies` rather than the `pinned` that stale-issues.yml also exempts:
+  // `pinned` is not a label this repository has ever created, and repo-care
+  // creates a label before applying it rather than trusting the API to invent
+  // one — an exemption naming a label that may never be applied is no exemption.
+  //
+  // The board is the consumer this file cannot configure. The roadmap owns
+  // scope and a Projects board is a projection of it, under a law that every
+  // card traces to exactly one roadmap id
+  // (`shared/libs/doctrine/method/roadmap.md` §0); the dashboard traces to
+  // nothing, because it is not work anyone scheduled. A board's auto-add rule
+  // lives in the board's own settings, outside this repository, so excluding it
+  // is a one-time human step alongside installing the App: filter the auto-add
+  // on `-label:dependencies`, which keeps Renovate's pull requests off the
+  // board by the same clause.
+  dependencyDashboardLabels: ["dependencies"],
   packageRules: [
     {
       // See the scope comment above: platform/libs/*/go.mod are

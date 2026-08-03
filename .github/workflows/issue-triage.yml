@@ -15,6 +15,14 @@ permissions:
 
 jobs:
   triage:
+    # A bot's issue is machine state, not backlog to classify: Renovate's
+    # Dependency Dashboard reopens itself whenever anything closes it, and each
+    # reopen would spend a three-model quorum deciding the "area" of a checkbox
+    # list. `user.type` is GitHub's own answer and the same authority ci.yml
+    # asks who needs a contributor record — a `[bot]` suffix is a guess. A
+    # `workflow_dispatch` run carries no issue payload, so re-triaging any issue
+    # by hand still works.
+    if: github.event.issue.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -26,6 +26,14 @@ permissions:
 
 jobs:
   translate:
+    # Same boundary as translate-issue: a bot's pull request body is generated
+    # text -- a dependency table and an upstream changelog -- and translating it
+    # spends a detection quorum plus one call per language on output nobody
+    # reads. `user.type` is GitHub's own answer, the same authority ci.yml asks
+    # who needs a contributor record, rather than a `[bot]` suffix. A
+    # `workflow_dispatch` run carries no pull request payload, so translating
+    # one by hand still works.
+    if: github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

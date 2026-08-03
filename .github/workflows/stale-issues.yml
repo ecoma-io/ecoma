@@ -29,7 +29,13 @@ jobs:
           days-before-pr-stale: -1
           days-before-pr-close: -1
           stale-issue-label: stale
-          exempt-issue-labels: pinned,security
+          # `dependencies` exempts Renovate's Dependency Dashboard, which is
+          # bot state rather than backlog. A label is the only handle this
+          # action offers — it filters by label and assignee, never by whether
+          # an issue is pinned or who opened it — and Renovate re-applies that
+          # label on every dashboard update, so the exemption cannot rot.
+          # Reasoning in full: .github/renovate.json5.
+          exempt-issue-labels: pinned,security,dependencies
           stale-issue-message: >
             This issue has had no activity for 90 days and is being marked
             stale. It will close in 30 days if nothing changes. Comment to
