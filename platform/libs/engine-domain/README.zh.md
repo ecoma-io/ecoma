@@ -10,7 +10,7 @@ description: 引擎的 domain 词汇 —— 其他每一层都据以书写的原
 # engine-domain
 
 引擎中纯粹的那一半：只有概念，没有任何与外界交谈的东西。每个概念一个 Go
-package —— `eventlog`、`role`、`task`、`checkpoint`、`handoff`、
+package —— `eventlog`、`artifact`、`role`、`task`、`checkpoint`、`handoff`、
 `escalation`、`calibration`、`composition`、`tenant`、`lease`、`keytree`。
 
 <!-- readme:why -->
@@ -52,6 +52,6 @@ service。它同样不在根 package 里放逻辑：一个不落在任何接缝�
 
 ## 状态
 
-已脚手架。十一个 package 均已存在，每个都记录了它将持有什么，目前没有任何
+已脚手架。十二个 package 均已存在，每个都记录了它将持有什么，目前没有任何
 type。内容将与各自实现的规范一同落地。目录级机制见
 [`./CLAUDE.md`](./CLAUDE.md)。

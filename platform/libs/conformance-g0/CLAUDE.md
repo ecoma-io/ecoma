@@ -24,9 +24,11 @@ area's in `platform/CLAUDE.md`. Nx project name `conformance-g0`; Go module
   this project exists to do (ADR-0008 §2). It is also **self-hosting** — it
   drives ports and adapters directly and depends on no application service,
   because it must run before one exists.
-- **Exactly one `gate:` tag, held by review alone.** `require-project-tags`
-  never inspects that axis, and the executor takes the first tag it finds — so a
-  second or misspelled one is silent (ADR-0008 §6).
+- **The `gate:` tag axis is split between machine and review** (ADR-0008 §6):
+  a suite carrying more than one `gate:` tag is faulted by the
+  `dev-cli conformance` executor, but a _misspelled_ tag passes silently —
+  `require-project-tags` never inspects the axis, so the vocabulary itself is
+  held by review alone.
 - **The suite asserts nothing yet, and says so.** Each contract area has a file
   naming it and enumerating its cases as TODOs; there are no test functions,
   because an empty test function that passes reports a contract as checked when

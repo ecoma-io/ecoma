@@ -10,9 +10,9 @@ description: The engine's domain vocabulary — the primitives every other layer
 # engine-domain
 
 The pure half of the engine: the concepts, and nothing that talks to anything.
-One Go package per concept — `eventlog`, `role`, `task`, `checkpoint`,
-`handoff`, `escalation`, `calibration`, `composition`, `tenant`, `lease`,
-`keytree`.
+One Go package per concept — `eventlog`, `artifact`, `role`, `task`,
+`checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`,
+`lease`, `keytree`.
 
 <!-- readme:why -->
 
@@ -57,6 +57,6 @@ the seams exist for.
 
 ## Status
 
-Scaffolded. The eleven packages exist, each documented with what it will hold
+Scaffolded. The twelve packages exist, each documented with what it will hold
 and empty of types. Content lands with the specification each one implements.
 Directory-scoped mechanics live in [`./CLAUDE.md`](./CLAUDE.md).

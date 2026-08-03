@@ -6,6 +6,7 @@
 // its import path, once it earns an independent consumer).
 //
 //	eventlog    the append-only per-tenant entry and its ordering
+//	artifact    the content address of a payload whose bytes live in the Artifact Store
 //	role        the capability contract for a position of labour
 //	task        one instance of work assigned to a Role
 //	checkpoint  Gate, Judgment, Criterion, Conflict
