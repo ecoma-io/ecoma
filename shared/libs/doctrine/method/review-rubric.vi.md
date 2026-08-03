@@ -1,7 +1,7 @@
 ---
 title: "Review Rubric & Method"
 status: design-end-state
-canonical-sha: 31b9264c5c73
+canonical-sha: 2da4c4111028
 ---
 
 # Review Rubric & Method
@@ -10,7 +10,20 @@ canonical-sha: 31b9264c5c73
 
 ---
 
-## PHẦN I — HIẾN PHÁP PHÁN XÉT
+## PHẦN I — PHÁN XÉT, THEO CÁCH HỒ SƠ NÀY INSTANTIATE
+
+Bản thân các luật phán xét — biên object, luật một-bản-sao, các luật verdict,
+hình dạng finding, miễn dịch, tension, câu hỏi của chủ object, không gì được
+review âm thầm — nằm ở [review-constitution](review-constitution.md) và không
+được chép lại ở đây. Phần dưới chỉ là thứ hồ sơ này lấp vào các luật đó: lỗi nào
+là nặng đối với một cây tài liệu, canon nào đứng trên canon nào, một lỗ trong
+_hồ sơ này_ được miễn với lý do gì, và một tài liệu mới nợ những gì.
+
+**Các số đã nghỉ.** R1, R4, R6, R8 và R9 từng đặt tên cho những luật nay thuộc
+hiến pháp; số của chúng nghỉ vĩnh viễn: không tái sử dụng, không alias. Câu nào
+trước đây trích một trong các số ấy thì nay trích luật hiến pháp **bằng tên**, vì
+tên mới là thứ sống sót với người đọc chỉ cầm file này. R2, R3, R5, R7 và R10–R12
+vẫn là của riêng rubric này.
 
 ### 1. Thứ tự ưu tiên khi tiêu chí va nhau (R7)
 
@@ -19,47 +32,59 @@ Va chạm không được âm thầm chọn — ghi thành finding loại `tensi
 
 ### 2. Thang severity (R5) — test khách quan
 
+Bảng này instantiate luật severity của hiến pháp cho một cây tài liệu: ba mức và
+yêu cầu mỗi mức phải là một test khách quan đến từ đó; phần dưới chỉ nói lỗi nào
+của _object này_ rơi vào mức nào.
+
 | Mức       | Test                                                                                      |
 | --------- | ----------------------------------------------------------------------------------------- |
 | `blocker` | Vi phạm invariant/nguyên tắc canonical, HOẶC mặc định không an toàn (đơn giản = lỏng hơn) |
 | `major`   | Hai kỹ sư đọc sẽ implement khác nhau; hoặc khái niệm chịu lực không định nghĩa            |
 | `minor`   | Câu chữ, tham chiếu, nhãn thiếu                                                           |
 
-### 3. Luật verdict (R1, R4, R8)
+### 3. KNOWN-GAP trong hồ sơ này
 
-- **PASS phải falsifiable**: kèm trích dẫn kiểm được. Tiêu chí dạng "tìm một kịch bản…" → PASS = **sống sót ≥N đòn tấn công có hồ sơ** (mặc định N=3), không phải "chưa tìm kỹ".
-- **FAIL** kèm kịch bản tái hiện.
-- **KNOWN-GAP** chỉ hợp lệ khi (a) đã tự khai trong docs **trước** lượt chạy, hoặc (b) thuộc miền kinh doanh. Lỗ cơ chế phát hiện _trong_ lượt = FAIL; chỉ đóng bằng fix hoặc `accepted-by-owner` có lý do + xác nhận của owner.
+Luật PASS-phải-falsifiable, luật FAIL-kèm-tái-hiện và luật known-gap là của hiến
+pháp. Thứ hồ sơ này thêm vào luật cuối là một căn cứ miễn thứ hai và một verdict
+đóng:
 
-### 4. Schema finding (R6) — sổ append-only
+**KNOWN-GAP** hợp lệ ở đây khi điều kiện của hiến pháp thoả — đã tự khai trong
+docs **trước** lượt chạy — **hoặc** khi lỗ thuộc **miền kinh doanh**, thứ cây
+published này cố ý không mang. Lỗ không đạt căn cứ nào = FAIL; chỉ đóng bằng fix
+hoặc bằng verdict `accepted-by-owner` có lý do + xác nhận của owner.
 
-`(criterion@rubric-version, file, trích dẫn/kịch bản, verdict, severity, án-văn-hoặc-fix-ref, vòng)`
+### 4. Hình dạng finding trong hồ sơ này — sổ append-only
 
-### 5. Luật miễn dịch (R9) — điều biến rubric thành hệ tự tiến hóa
+Hình dạng finding là của hiến pháp. Hồ sơ này lấp trường cuối bằng
+`án-văn-hoặc-fix-ref` và gọi trường thứ hai là `file`:
 
-**Mỗi finding mà không một tiêu chí sẵn có nào bắt được → BẮT BUỘC sinh tiêu chí/kỹ thuật mới trong cùng patch**, ghi vào nhật ký version kèm tiền lệ. Rubric không có R9 chỉ là ảnh tĩnh của các lỗi quá khứ. Hệ quả trung thực: rubric **không bao giờ "tối ưu nhất"** — chỉ "mạnh nhất đến nay + đang tiến hóa"; claim tối ưu tuyệt đối tự phạm R1 (không falsifiable).
+`(criterion, file, trích dẫn/kịch bản, verdict, severity, án-văn-hoặc-fix-ref)`
 
-### 6. Kênh owner (R10)
+### 5. Kênh owner (R10)
 
-Lịch sử mọi vòng đến nay: người bắt lỗ hiệu quả nhất là **owner, bằng câu hỏi ngây thơ** ("X là gì?", "sao không có Y?"). Luật: **mọi câu hỏi của owner mà docs không trả lời được bằng đúng một trích dẫn = finding chính thức** (severity theo R5), và R9 áp dụng — nếu không tiêu chí nào lẽ ra bắt được, sinh tiêu chí mới.
+Qua mọi lượt review hồ sơ này đến nay, người bắt lỗ hiệu quả nhất là **owner,
+bằng câu hỏi ngây thơ** ("X là gì?", "sao không có Y?"). Chính quan sát đó làm
+cho luật "câu hỏi của chủ object" trong hiến pháp chịu lực ở đây chứ không phải
+nghi thức: một câu hỏi của owner mà docs không trả lời được bằng đúng một trích
+dẫn là finding chính thức, severity theo R5.
 
-### 7. Owner-fact sync (R11)
+### 6. Owner-fact sync (R11)
 
 Mọi convention/quyết định/thông tin owner nêu ra → **ghi vào memory + docs trong cùng lượt**; còn sót trong hội thoại = finding tự động (tiền lệ: monorepo convention, kill-criteria treo). Trước mỗi freeze: **owner-debrief 5 câu** bắt buộc — "có convention/quyết định nào anh từng nói chưa thấy trong docs?", "phần nào anh _cảm thấy_ mỏng?", "gần đây anh đọc/thấy gì ở đối thủ?", "có ai hỏi anh câu gì mà docs không trả lời được?", "điều gì anh đang đánh cược mà chưa ghi?".
 
-### 8. Không tồn tại tài liệu "chưa review" âm thầm (R12)
+### 7. Không tồn tại tài liệu "chưa review" âm thầm (R12)
 
-File/section mới (mọi class — trần, charter, sống) phải qua **cluster-run trong cùng lượt tạo ra nó**, hoặc mang nhãn `chưa-review` trong index cho tới khi chạy. Coverage matrix khai tường minh **doc-class × nhóm áp dụng** — charter chịu đủ J/G/K/G9 như trần (tiền lệ SSR lọt vì charter được đối xử nhẹ).
+Mục này instantiate luật "không gì được review âm thầm" của hiến pháp — đặt tên cho unit, cho mức, và cho cái nhãn nó để lại. File/section mới (mọi class — trần, charter, sống) phải qua **cluster-run trong cùng lượt tạo ra nó**, hoặc mang nhãn `chưa-review` trong index cho tới khi chạy. `cluster` chứ không phải `incremental`: mức per-patch là thứ một thay đổi trên tài liệu sẵn có phải trả, và một tài liệu mới không phải một patch. Coverage matrix khai tường minh **doc-class × nhóm áp dụng** — charter chịu đủ J/G/K/G9 như trần (tiền lệ SSR lọt vì charter được đối xử nhẹ).
 
-### 9. Điều kiện đóng băng
+### 8. Điều kiện đóng băng
 
-0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 172: 20 NS + 127 L5 của 27 spec + 25 charter**; **đếm lại bằng script ở BƯỚC CUỐI của mỗi lượt**, sau mọi patch: cho thấy vá-số-trước-patch thì số sai ngay khi patch thêm litmus) bằng desk-sim, không phải chỉ 38 câu mirror.
+0 blocker + 0 major mở; mọi KNOWN-GAP có tên trong North Star/index; **coverage matrix kín** (R3: mọi file × mọi nhóm, ô = scanned/N-A kèm bằng chứng); litmus **full-pass toàn bộ** (**hiện 172: 20 NS + 127 L5 của 27 spec + 25 charter**, đếm lại theo bước đếm-số-cuối-cùng của hiến pháp) bằng desk-sim, không phải chỉ 38 câu mirror.
 
 ---
 
 ## PHẦN II — BỘ TIÊU CHÍ A–P
 
-> Mỗi nhóm có **câu hỏi tinh thần** đứng trên tiêu chí (chống Goodhart): nếu mọi tiêu chí pass mà câu tinh thần lung lay → finding `tension`.
+> Mỗi nhóm có **câu hỏi tinh thần** đứng trên tiêu chí — chốt chống Goodhart của hiến pháp, instantiate cho hồ sơ này.
 
 ### A — Trung thành quan điểm sáng lập
 
@@ -208,14 +233,14 @@ _Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theate
 **Kỹ thuật bổ sung:**
 
 - **Patch adversarial pass (bắt buộc ở phase 7, TRƯỚC khi ghi)**: mỗi patch chịu **ba đòn**, thất bại một đòn = viết lại patch, không phải ghi rồi sửa sau. (1) **Nó có đẻ biên / nguồn-sự-thật / khái niệm mới không?** (2) **Nó có làm rơi nghĩa vụ dư của thứ nó thay thế không?** (3) **J3 áp lên chính patch**: có phương án nào đóng cùng lỗ mà **không** thêm khái niệm? _Tiền lệ patch v1 của suýt đẻ một cây tenant cha–con (biên cứng thứ hai); patch v1 của suýt đẻ write-amplification lên nguồn sự thật; patch v1 của suýt ghi đôi một ngưỡng đã có ở ICP B4 — cả ba **chỉ lộ ra khi mô phỏng việc vá**, không cách nào bắt được bằng đọc hồ sơ._
-- **Đếm-số-là-thao-tác-cuối**: mọi con số (litmus tổng, exit-litmus milestone, số spec) **đếm lại bằng script sau khi mọi patch đã ghi**, không bao giờ vá số ở giữa lượt; phép tính ghi vào run report để lượt sau kiểm được.
+- **Bước đếm-số-cuối-cùng của thủ tục phủ những con số nào ở đây**: litmus tổng, exit-litmus milestone, và số spec.
 - **Bảng FMEA là điều kiện tồn tại của subsystem tầng 1**: mỗi spec mới tự khai "subsystem tầng 1" phải mang bảng FMEA **trong cùng lượt tạo ra nó** (R12) — F8 vốn có, nhưng sinh Vault mà cluster-run không đối chiếu nhãn-tầng-1 với danh sách F8.
 
-**Luật xoay phương pháp**: hai lượt liên tiếp của _cùng một phương pháp_ ra 0 blocker → bắt buộc đổi phương pháp; full-run nào cũng phải thử **≥1 phương pháp dò chưa từng dùng** — không nghĩ ra được thì bản thân điều đó là một finding về giới hạn của lượt chạy.
+**Luật xoay phương pháp**, của riêng hồ sơ này và không elevate đi đâu: hai lượt liên tiếp của _cùng một phương pháp_ ra 0 blocker → bắt buộc đổi phương pháp. Đó là lý do bước run report của thủ tục đòi phải ghi lại một phase rỗng — cò không bóp được trên bằng chứng không ai viết xuống.
 
-**Ba cấp protocol** (chống chi phí giết kỷ luật): `incremental` (mỗi patch: ma trận nguyên-tắc×invariant + grep hậu kiểm) · `cluster` (mỗi spec/cụm mới: phase 2+4 cục bộ + litmus cụm) · `full` (trước mỗi lần đóng băng: đủ 8 phase).
+**Ba cấp protocol của hồ sơ này** — tên và nội dung mà bước khai-mức của thủ tục trỏ tới ở đây: `incremental` (mỗi patch: ma trận nguyên-tắc×invariant + grep hậu kiểm) · `cluster` (mỗi spec/cụm mới: phase 2+4 cục bộ + litmus cụm) · `full` (trước mỗi lần đóng băng: đủ 8 phase).
 
-**Run report** — rubric tự đo: mỗi lượt ghi `(findings × phase × severity × NGUỒN-PHÁT-HIỆN [hệ/owner], phương pháp nào 2 lượt 0-blocker → xoay, tiêu chí chưa-từng-bắt-được-gì → xem lại)`. **Luật bảng-artifact**: phase ✅ phải kèm bảng bằng chứng liệt kê từng mệnh đề — verdict một dòng = chưa chạy (tiền lệ M1 chạy nông bỏ lọt "Deploy qua Docker/K8s" là lời hứa không cơ chế). **Ngưỡng miễn dịch**: 2 lượt liên tiếp owner bắt major mà hệ không bắt → bắt buộc immune-review (truy vì sao mù, sinh tiêu chí/kỹ thuật mới theo R9).
+**Run report trên hồ sơ này** đặt tên đúng hai nguồn phát hiện và chỉ hai — hệ hoặc owner — chính là thứ làm cho kênh owner (R10) đo được chứ không chỉ được khẳng định. Tiền lệ của luật bảng-artifact ở đây: M1 chạy nông bỏ lọt "Deploy qua Docker/K8s" là lời hứa không cơ chế. **Ngưỡng miễn dịch**: 2 lượt liên tiếp owner bắt major mà hệ không bắt → bắt buộc immune-review (truy vì sao mù, sinh tiêu chí/kỹ thuật mới theo luật miễn dịch của hiến pháp).
 
 ---
 
@@ -234,18 +259,18 @@ _Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theate
 
 ## PHẦN V — ĐỐI KHÁNG CHÍNH BỘ RUBRIC (điểm mù tự khai, để người chạy sau không ảo tưởng)
 
-| #   | Điểm mù                                                                                                                                                                                                                       | Giảm thiểu đã cài                                                                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|     | **Tự chấm**: tác giả docs chạy rubric trên chính mình                                                                                                                                                                         | R1 falsifiable + coverage-có-bằng-chứng; **vòng đóng băng cuối phải chạy bởi context mới** (người khác/phiên khác) chỉ với docs + file này — đó là lý do file phải tự chứa |
-|     | **Rubric nhìn về quá khứ**: viết cho các lớp lỗi _đã_ tìm thấy — mù với lớp kế tiếp                                                                                                                                           | Luật xoay phương pháp + bắt buộc ≥1 phương pháp mới mỗi full-run                                                                                                           |
-|     | **Goodhart**: pass câu chữ, trượt tinh thần                                                                                                                                                                                   | Câu-hỏi-tinh-thần mỗi nhóm; finding `tension`                                                                                                                              |
-|     | **Coverage theater**: tick ô không đọc                                                                                                                                                                                        | Mỗi ô PASS đòi trích dẫn/đòn tấn công ghi lại                                                                                                                              |
-|     | **Ảo tưởng bão hòa**: "không tìm thấy" ≠ "không có"                                                                                                                                                                           | PASS = sống-sót-N-đòn-có-hồ-sơ; bão hòa định nghĩa đo được (2 lượt 0-blocker _xuyên_ nhiều phương pháp + litmus full-pass) — và vẫn chỉ là "chưa tìm thấy"                 |
-|     | **Drift tham chiếu**: docs đổi số mục, rubric trỏ hụt                                                                                                                                                                         | Rubric trỏ _khái niệm_ trước, số mục sau; patch nào đổi cấu trúc mục phải grep ngược về file này                                                                           |
-|     | **Chi phí giết kỷ luật**                                                                                                                                                                                                      | Ba cấp protocol                                                                                                                                                            |
-|     | **Giới hạn bản thể**: rubric chỉ đo _nhất quán nội tại_ — một hồ sơ hoàn hảo nội tại vẫn có thể là sản phẩm sai thị trường                                                                                                    | Ghi thẳng: rubric không thay được phỏng vấn khách/ICP/kill-criteria; hai loại sự thật, hai công cụ                                                                         |
-|     | **Buồng vọng một trí tuệ**: người tấn công và người phòng thủ là một                                                                                                                                                          | Phase 5 (góc nhìn đối thủ) là proxy; khuyến nghị đứng: red-team người thật trước launch — rubric là lưới, không phải bảo hiểm                                              |
-|     | **Điểm mù của chính hành động vá**: rubric đo _hồ sơ_, không đo _bản patch_ — mà patch là nơi khái niệm mới bị đẻ ra dễ nhất (áp lực "đóng finding cho xong"). 4 major + 1 mở-rộng-blocker chỉ xuất hiện khi mô phỏng việc vá | **Patch adversarial pass** (3 đòn, phase 7) + luật đếm-số-cuối-cùng. Vẫn là giảm thiểu, không phải miễn dịch: người vá và người soi patch vẫn là một                       |
+| #   | Điểm mù                                                                                                                                                                                                                       | Giảm thiểu đã cài                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|     | **Tự chấm**: tác giả docs chạy rubric trên chính mình                                                                                                                                                                         | Luật PASS-phải-falsifiable của hiến pháp + coverage-có-bằng-chứng; bước fresh-reader của nó quyết định lượt đóng băng cuối — chạy bởi context mới (người khác/phiên khác) chỉ với docs + file này, đó là lý do file phải tự chứa |
+|     | **Rubric nhìn về quá khứ**: viết cho các lớp lỗi _đã_ tìm thấy — mù với lớp kế tiếp                                                                                                                                           | Luật xoay phương pháp + bắt buộc ≥1 phương pháp mới mỗi full-run                                                                                                                                                                 |
+|     | **Goodhart**: pass câu chữ, trượt tinh thần                                                                                                                                                                                   | Câu-hỏi-tinh-thần mỗi nhóm; finding `tension`                                                                                                                                                                                    |
+|     | **Coverage theater**: tick ô không đọc                                                                                                                                                                                        | Mỗi ô PASS đòi trích dẫn/đòn tấn công ghi lại                                                                                                                                                                                    |
+|     | **Ảo tưởng bão hòa**: "không tìm thấy" ≠ "không có"                                                                                                                                                                           | PASS = sống-sót-N-đòn-có-hồ-sơ; bão hòa định nghĩa đo được (2 lượt 0-blocker _xuyên_ nhiều phương pháp + litmus full-pass) — và vẫn chỉ là "chưa tìm thấy"                                                                       |
+|     | **Drift tham chiếu**: docs đổi số mục, rubric trỏ hụt                                                                                                                                                                         | Rubric trỏ _khái niệm_ trước, số mục sau; patch nào đổi cấu trúc mục phải grep ngược về file này                                                                                                                                 |
+|     | **Chi phí giết kỷ luật**                                                                                                                                                                                                      | Ba cấp protocol                                                                                                                                                                                                                  |
+|     | **Giới hạn bản thể**: rubric chỉ đo _nhất quán nội tại_ — một hồ sơ hoàn hảo nội tại vẫn có thể là sản phẩm sai thị trường                                                                                                    | Ghi thẳng: rubric không thay được phỏng vấn khách/ICP/kill-criteria; hai loại sự thật, hai công cụ                                                                                                                               |
+|     | **Buồng vọng một trí tuệ**: người tấn công và người phòng thủ là một                                                                                                                                                          | Phase 5 (góc nhìn đối thủ) là proxy; khuyến nghị đứng: red-team người thật trước launch — rubric là lưới, không phải bảo hiểm                                                                                                    |
+|     | **Điểm mù của chính hành động vá**: rubric đo _hồ sơ_, không đo _bản patch_ — mà patch là nơi khái niệm mới bị đẻ ra dễ nhất (áp lực "đóng finding cho xong"). 4 major + 1 mở-rộng-blocker chỉ xuất hiện khi mô phỏng việc vá | **Patch adversarial pass** (3 đòn, phase 7) + luật đếm-số-cuối-cùng. Vẫn là giảm thiểu, không phải miễn dịch: người vá và người soi patch vẫn là một                                                                             |
 
 ---
 
@@ -280,6 +305,11 @@ _Ô "miễn" phải có án văn tại đây; miễn im lặng = coverage theate
 A0 = diff nhóm A với bảng này; thêm quan điểm mới của owner → thêm dòng V-mới (append-only).
 
 ## PHẦN VII — NHẬT KÝ TIẾN HÓA (theo VÒNG — xếp giảm dần)
+
+Các mã trong nhật ký dưới đây là **tên tại thời điểm ghi**, giữ nguyên văn: một
+sổ append-only không được viết lại, vì viết lại là xóa đúng thứ nó tồn tại để
+chứng minh. Các số đã nghỉ (R1, R4, R6, R8, R9) nay là luật của hiến pháp — xem
+Phần I ở trên và [review-constitution](review-constitution.md).
 
 | Vòng     | Nội dung                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
