@@ -17,19 +17,17 @@ The tier is a judgment call about **what is under test**, and it is the same cal
 
 ## 2. Express the tier in the language's own mechanism
 
-|            | Unit                                                | Integration                               | Isolation is enforced by                                                 |
-| ---------- | --------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| **TS**     | `Foo.test.ts`, co-located                           | `Foo.integration.test.ts`, co-located     | `local/no-unmocked-internal-imports` (lint)                              |
-| **Go**     | `foo_test.go`, in the package                       | `foo_integration_test.go`, in the package | nothing — **review only**                                                |
-| **Rust**   | `#[cfg(test)] mod tests` **inside** the source file | `tests/*.rs` at crate root                | the compiler — `tests/` is a separate crate and sees only the public API |
-| **Python** | `foo_test.py`, next to `foo.py` in `src/<module>/`  | `foo_integration_test.py`, same place     | nothing — **review only**                                                |
+The per-language mechanics — filename suffixes, co-location, which tier's
+isolation is machine-enforced and which stays on review, and the fact that one
+`test` target runs both co-located tiers with no second mechanism to add — are
+owned by the root `CLAUDE.md` test-taxonomy bullets. Read them there; a copy
+here would be a second rule with no way to tell which binds.
 
-Each language's `test` target already runs **both** tiers (`vitest run` · `go test ./...` · `cargo test` · `uv run pytest`) — there is no separate integration target and no build tag or pytest marker to add. Do not invent a second tier mechanism alongside the filename; it can only drift from the name it duplicates.
-
-Two consequences worth naming out loud:
-
-- In **Go and Python** nothing stops a `foo_test.go` / `foo_test.py` from quietly touching a real collaborator. Isolating it is on you; letting it slide is a Rule 11 miss, not a shortcut.
-- In **Rust** the split is not a convention you can bend: a `tests/*.rs` file physically cannot call a private item (`error[E0603]`). If an integration test needs internals, the behavior belongs in the unit tier, not in a `pub` you widened to make the test compile.
+One consequence the owning tier states only as "compiler-guaranteed", spelled
+out because it changes what you write: in **Rust** the split is not a
+convention you can bend — a `tests/*.rs` file physically cannot call a private
+item (`error[E0603]`). If an integration test needs internals, the behavior
+belongs in the unit tier, not in a `pub` you widened to make the test compile.
 
 ## 3. Property and fuzz tests — a unit-tier technique, not a fourth tier
 
