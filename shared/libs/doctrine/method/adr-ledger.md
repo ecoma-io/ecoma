@@ -167,8 +167,9 @@ IPC (Human Surface §0); (3) the UI **stores no frames** — what reaches the lo
 always the masked Scene. Checked by RPA North Star litmus #10: switch off the IPC
 and the runtime still runs completely.
 
-_Scheduling consequence_: Track B acquires a second gate, ◆G4, for the approval
-surface.
+_Scheduling consequence_: none for Track B's own gate — it keeps ◆G1 (roadmap
+§1b rule #5). The diff-Judgment component waits on the read-API contract ◆G4
+freezes, as its client; the approval surface itself belongs to Track E.
 
 **Rust's scope**: the desktop shell and native drivers, extended by the
 boundaries-by-role decision to the node runtime and sandbox host. This lands

@@ -1,7 +1,7 @@
 ---
 title: "ADR Ledger"
 status: design-end-state
-canonical-sha: 94aad8b1016b
+canonical-sha: 17ca88a8a8e4
 ---
 
 # ADR Ledger
@@ -68,7 +68,7 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 - **Quyết định**: app desktop attended = **Tauri** (shell Rust + frontend **Vue** — tái dùng design system `/design` và component Work Surface, gồm khung takeover/approve = component diff-Judgment); native **Rust** cho modules desktop cần hệ thống (screen capture, input injection, UIA/AX bindings).
 - **Hóa giải xung đột "cùng binary attended/unattended" (RPA NS)**: **node runtime = MỘT binary headless duy nhất chạy cả hai chế độ** — trần giữ nguyên; Tauri là **lớp UI attended đính kèm**, nói chuyện với runtime qua **localhost IPC có auth theo node identity**. Unattended không cài webview. Cả hai artifact update qua Hub.
 - **Sửa cụm từ**: bản trước viết _"khung takeover/approve = component diff-Judgment"_, **gộp nhầm hai thứ khác loại**. Tách: (1) **xác nhận trong phiên attended** — người đang ngồi trước máy, cho phép một Action sắp làm; đây là **điều khiển phiên cục bộ**, đi kênh nội-máy, thuộc **◆G1**, có ở M1; (2) **duyệt một Action Item trong hàng đợi** — người không ngồi trước máy đó; đây là **bề mặt lao động**, đi thẳng engine API + projection read-API, thuộc **◆G4**, thuộc Track E. Tauri ở M1 **chỉ làm (1)**.
-- **Ba biên cứng do trần khai** — RPA NS §4 "Lớp UI attended cục bộ": (1) IPC **chỉ mang điều khiển phiên cục bộ**, không mang effect stream, không mang ngữ nghĩa lao động ⇒ hai giao diện của hệ vẫn là hai (D1); (2) **mọi hành động lao động của UI (approve / Judgment / claim / release) đi THẲNG engine API** — component diff-Judgment của Tauri là **client của projection read-API (◆G4)**, không phải đường ghi qua IPC (Human Surface §0); (3) UI **không lưu frame** — thứ vào log luôn là Scene đã masking. Kiểm bằng RPA NS litmus **#10** (tắt IPC → runtime chạy đủ). _Hệ quả xếp lịch_: Track B nhận thêm cổng ◆G4 cho phần bề mặt duyệt.
+- **Ba biên cứng do trần khai** — RPA NS §4 "Lớp UI attended cục bộ": (1) IPC **chỉ mang điều khiển phiên cục bộ**, không mang effect stream, không mang ngữ nghĩa lao động ⇒ hai giao diện của hệ vẫn là hai (D1); (2) **mọi hành động lao động của UI (approve / Judgment / claim / release) đi THẲNG engine API** — component diff-Judgment của Tauri là **client của projection read-API (◆G4)**, không phải đường ghi qua IPC (Human Surface §0); (3) UI **không lưu frame** — thứ vào log luôn là Scene đã masking. Kiểm bằng RPA NS litmus **#10** (tắt IPC → runtime chạy đủ). _Hệ quả xếp lịch_: cổng riêng của Track B không đổi — nó giữ ◆G1 (roadmap §1b rule #5). Component diff-Judgment chờ hợp đồng read-API mà ◆G4 đóng băng, với tư cách client; bản thân bề mặt duyệt thuộc Track E.
 - **Rust scope**: desktop-shell + driver-native _(mở rộng theo Gói D — thêm node runtime + sandbox host, biên-theo-vai)_ (rơi đúng van **driver polyglot** trần đã mở — contract Apache 2.0); **không lan vào tầng điều phối** — nếu lan, đội n=1+AI gánh 3 ngôn ngữ ở lõi.
 - **Rủi ro có van**: webview parity 3 OS (WebView2/WKWebView/WebKitGTK) → QA attended theo OS trong CI nightly; IPC chỉ bind localhost + token node identity, không mở cổng.
 - Không ràng buộc ADR-0003 (engine) — desktop-native ngả Rust ở lớp shell không quyết ngôn ngữ engine/node-runtime.
