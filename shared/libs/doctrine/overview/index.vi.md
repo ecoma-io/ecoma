@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 41e39407fe31
+canonical-sha: 03ea571b9791
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -175,7 +175,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 
 **Sổ trạng thái từng nằm ở đây nay được dẫn xuất.** `dev-cli conformance` đọc trạng thái từng gate thẳng từ cây — freeze là một tài liệu khai `status: frozen` kèm gate nó đóng; suite là một project khai target `conformance` kèm gate nó phân xử — rồi in một dòng cho mỗi gate roadmap định nghĩa. Một bảng chép tay cùng nội dung là nguồn sự thật thứ hai về một sự kiện lệnh đọc được, đúng loại trôi mà file này vừa gỡ khỏi mục known-gaps.
 
-**Hệ quả trung thực, tại thời điểm viết**: chưa tài liệu nào từng freeze và chưa có suite nào, nên **mọi gate ◆G0–◆G4 là gate giấy** theo đúng chữ của luật #7. Đó không phải lỗi vá bằng cách freeze đại một thứ gì: một suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay ship một suite rỗng để tô xanh một dòng mới là vi phạm, không phải cách sửa ("Scaffold openly; never fake done", `CLAUDE.md` gốc). Cái đã đổi là khoảng trống nay **máy thấy được chứ không phải lời khai** — và ngay khi ai đó freeze một văn bản, lệnh sẽ đỏ cho tới khi suite của nó tồn tại. Luật cuối cùng đã có thứ thi hành nó thay vì một câu mô tả nó.
+**Hệ quả trung thực, tại thời điểm viết**: chưa tài liệu nào từng freeze, nên **mọi gate ◆G0–◆G4 vẫn là gate giấy** theo đúng chữ của luật #7 — còn bao nhiêu suite đã tồn tại bên cạnh là đúng sự kiện mà sổ dẫn xuất báo cáo, và file này cố ý không chép lại con số đó. Đó không phải lỗi vá bằng cách freeze đại một thứ gì: một suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay ship một suite rỗng để tô xanh một dòng mới là vi phạm, không phải cách sửa ("Scaffold openly; never fake done", `CLAUDE.md` gốc). Cái đã đổi là khoảng trống nay **máy thấy được chứ không phải lời khai** — và ngay khi ai đó freeze một văn bản, lệnh sẽ đỏ cho tới khi suite của nó tồn tại. Luật cuối cùng đã có thứ thi hành nó thay vì một câu mô tả nó.
 
 ## Publishing policy
 
@@ -189,6 +189,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | sổ thị trường (không công bố) | ❌ Tuyệt đối |
 | Web charter | ❌ | Playbook vận hành (SEO, an ninh, tone) |
 | Eng & Delivery charter | ❌ (⚠️ phần CONTRIBUTING public khi mở contributor, sau CLA/luật sư) | Playbook nội bộ đội phát triển |
+| **Deploy charter** (`charter/deploy.md`) | ✅ | System Charter duy nhất được publish: nghĩa vụ operator mà người đánh giá phải đọc trước khi tin một bản cài — không lộ cược, và dòng R.1 của roadmap link nó công khai; litmus của nó đo tại M1 |
 | ADR ledger | ✅ | Đã nằm trong cây published từ lúc di cư, và ADR-0008 phải cite được từ roadmap; chi tiết stack triển khai không lộ cược nào |
 | Index | ✅ bản public lược dòng kín | |
 | **Storybook `/design`** (design system + triết lý UI/UX/motion + brand guideline/press kit) | ✅ | Theo nhịp release design system, **không chờ MVP**; trademark đăng ký trước (điều kiện luật sư) |
