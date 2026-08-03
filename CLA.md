@@ -1,6 +1,6 @@
 # Ecoma Contributor License Agreement
 
-**Version 1.0, effective 2026-07-30.**
+**Version 1.1, effective 2026-08-03.**
 
 Before your first contribution is merged, we ask you to agree to these terms.
 This page says plainly why each part exists.
@@ -28,6 +28,14 @@ configuration — however you send it: a pull request, a patch, an issue, or a
 message to a maintainer. It does not include feedback, bug reports or
 suggestions that you do not intend us to include, and it does not include
 anything you clearly mark "not a contribution".
+
+Commits made by automated tooling we run — dependency-update bots and the like
+— are made on our own behalf and are not contributions under this agreement.
+**A tool _you_ run is a different thing.** Where you direct an AI or a coding
+agent, the work it produces for you is your contribution and this agreement
+applies to it in full, whichever account opens the pull request. An account that
+is not a person cannot agree to anything, so it never carries a grant for the
+person behind it; clause 5 is how that work is disclosed.
 
 ## Why a CLA at all
 
@@ -161,10 +169,23 @@ apply to every contribution you make, before or after that agreement:
    including code copied from another project, and including material an AI
    tool produced (whether or not it reproduces identifiable third-party code) —
    say so **in the pull request description, before review**, naming the source
-   and its licence. Disclose which AI tool you used and the extent of its
-   contribution. We may reject contributions whose provenance we cannot verify
-   or whose copyright status is unclear; code generated entirely from an AI
-   prompt without substantial human authorship may fall into that category.
+   and its licence.
+
+   **Disclose AI use in the commit itself**, with a trailer naming the tool:
+   `Assisted-by: <tool>` where you wrote the work with its help, or
+   `Generated-by: <tool>` where the tool produced substantially the whole of a
+   commit. Explain the extent in the pull request description as well, where it
+   is worth explaining. The trailer is the disclosure that has to be there,
+   because a pull request description can be edited afterwards and is not part
+   of what a clone of this project carries, while the law governing this
+   agreement expects whoever claims authorship to be able to show that their
+   own contribution to the work was substantial and decisive.
+
+   We may reject contributions whose provenance we cannot verify or whose
+   copyright status is unclear. Where no person's contribution was substantial
+   and decisive, no copyright arises in the material at all, so there is no
+   right for you to grant us and nothing for us to license on: code generated
+   from a prompt and taken as it came is the clearest case.
 
    If your contribution includes or depends on third-party code under a
    copyleft licence (including the GNU General Public License, GNU Affero
@@ -173,9 +194,9 @@ apply to every contribution you make, before or after that agreement:
    applicable licence terms before review. We may reject contributions that
    would change the licensing of the project as a whole.
 
-   A comment in the code is not disclosure. Ordinary use of AI assistance to
-   write original code needs no separate disclosure beyond this clause. You do
-   not warrant anything about material you have properly disclosed to us.
+   A comment in the code is not disclosure — a trailer is where a reader of the
+   history will look, and it is what travels with the commit. You do not warrant
+   anything about material you have properly disclosed to us.
 
    You may not use the project's source code to train, fine-tune or otherwise
    improve an artificial intelligence or machine learning model whose output
@@ -275,7 +296,7 @@ Email:
 GitHub:
 Country of residence:
 
-I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
+I agree to the Ecoma Contributor License Agreement, version 1.1, at CLA.md,
 for this and every future contribution I make to this project.
 ```
 
@@ -311,9 +332,6 @@ make after we ask you to agree to it and you do. Contributions you have already
 made stay covered by the version you agreed to, and the licences you granted
 under it stay in force — nothing here lets us take back or narrow a grant you
 have already made, and nothing lets us widen one without asking you.
-
-Commits made by automated tooling we run — dependency-update bots and the like
-— are made on our own behalf and are not contributions under this agreement.
 
 ## Items still in progress
 
