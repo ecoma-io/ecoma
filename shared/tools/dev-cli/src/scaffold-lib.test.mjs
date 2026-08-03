@@ -204,7 +204,9 @@ describe("scaffoldLib polyglot emission", () => {
       expect(target.executor).toBe("nx:run-commands");
     }
     expect(project.targets.lint.options.command).toContain("check-gofmt");
-    expect(project.targets.lint.options.command).toContain("golangci-lint run");
+    expect(project.targets.lint.options.command).toContain(
+      "golangci-lint run --allow-serial-runners",
+    );
     expect(project.targets.lint.options.command).toContain("eslint project.json");
     expect(project.targets.lint.options.command).toContain("check-journey-markers");
     expect(written.get("shared/libs/runner/go.mod")).toContain("module ecoma.io/shared/runner");
