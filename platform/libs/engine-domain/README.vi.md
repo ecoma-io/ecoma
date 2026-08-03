@@ -10,7 +10,7 @@ description: Từ vựng domain của engine — các primitive mà mọi layer 
 # engine-domain
 
 Nửa thuần khiết của engine: các khái niệm, và không có gì nói chuyện với bất
-kỳ ai. Mỗi khái niệm một package Go — `eventlog`, `role`, `task`,
+kỳ ai. Mỗi khái niệm một package Go — `eventlog`, `artifact`, `role`, `task`,
 `checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`,
 `lease`, `keytree`.
 
@@ -57,6 +57,6 @@ type đã lặng lẽ rút khỏi chính lần tách mà các seam tồn tại v
 
 ## Trạng thái
 
-Đã scaffold. Mười một package đều tồn tại, mỗi package có tài liệu nói nó sẽ
+Đã scaffold. Mười hai package đều tồn tại, mỗi package có tài liệu nói nó sẽ
 giữ gì và hiện chưa có type nào. Nội dung sẽ hạ cánh cùng đặc tả mà từng
 package hiện thực. Cơ chế theo thư mục nằm ở [`./CLAUDE.md`](./CLAUDE.md).
