@@ -54,11 +54,27 @@ describe("reading a suite off the project graph", () => {
     expect(findSuites(Object.keys(files), reader(files))).toContainEqual({
       project: "r",
       gate: null,
+      gateTags: [],
     });
   });
 
   it("skips an unparsable project.json rather than failing the run", () => {
     expect(findSuites(["s/project.json"], reader(files))).toEqual([]);
+  });
+
+  it("carries every matching tag through as ungated, rather than serving only the first", () => {
+    const multiGateFiles = {
+      "t/project.json": JSON.stringify({
+        name: "t",
+        tags: ["gate:G0", "gate:G1"],
+        targets: { conformance: {} },
+      }),
+    };
+    expect(findSuites(Object.keys(multiGateFiles), reader(multiGateFiles))).toContainEqual({
+      project: "t",
+      gate: null,
+      gateTags: ["gate:G0", "gate:G1"],
+    });
   });
 });
 
@@ -106,6 +122,17 @@ describe("the judgment rule #7 actually makes", () => {
     const { faults } = buildLedger(GATES, [], [{ project: "stray", gate: null }]);
     expect(faults).toEqual([
       "stray: has a 'conformance' target without a gate:G<n> tag — a suite arbitrates a named gate or nothing",
+    ]);
+  });
+
+  it("faults a suite carrying more than one gate tag, instead of silently serving the first", () => {
+    const { faults } = buildLedger(
+      GATES,
+      [],
+      [{ project: "double-gated", gate: null, gateTags: ["gate:G0", "gate:G1"] }],
+    );
+    expect(faults).toEqual([
+      "double-gated: carries 2 gate tags (gate:G0, gate:G1) — a suite arbitrates exactly one gate",
     ]);
   });
 

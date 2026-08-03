@@ -80,10 +80,14 @@ export function findFrozenDocuments(files, read = readFileSync) {
 }
 
 /**
- * Suites, as `[{ project, gate }]` — an Nx project declaring a `conformance`
- * target. A project with the target and no `gate:` tag returns `gate: null`,
- * the same way an ungated freeze does: a suite that names no gate arbitrates
- * nothing.
+ * Suites, as `[{ project, gate, gateTags }]` — an Nx project declaring a
+ * `conformance` target. A project with the target and no `gate:` tag returns
+ * `gate: null`, the same way an ungated freeze does: a suite that names no
+ * gate arbitrates nothing. `gateTags` carries every matching tag (not just
+ * the first) so a suite mis-tagged with more than one is reportable rather
+ * than silently served by whichever tag sorts first — a suite with more than
+ * one tag also gets `gate: null`, since arbitrating two gates at once is the
+ * same non-answer as arbitrating none.
  */
 export function findSuites(files, read = readFileSync) {
   const suites = [];
@@ -95,10 +99,11 @@ export function findSuites(files, read = readFileSync) {
       continue; // an unparsable project.json is lint's problem, not this command's
     }
     if (!json.targets?.[CONFORMANCE_TARGET]) continue;
-    const tag = (Array.isArray(json.tags) ? json.tags : []).find((t) => GATE_TAG_RE.test(t));
+    const gateTags = (Array.isArray(json.tags) ? json.tags : []).filter((t) => GATE_TAG_RE.test(t));
     suites.push({
       project: json.name ?? dirname(file),
-      gate: tag ? `◆${tag.match(GATE_TAG_RE)[1]}` : null,
+      gate: gateTags.length === 1 ? `◆${gateTags[0].match(GATE_TAG_RE)[1]}` : null,
+      gateTags,
     });
   }
   return suites;
@@ -121,7 +126,12 @@ export function buildLedger(gates, frozen, suites) {
       `${file}: declares status: ${FROZEN_STATUS} without a gate: — a freeze closes a gate or closes nothing`,
     );
   }
-  for (const { project } of suites.filter((s) => !s.gate)) {
+  for (const { project, gateTags } of suites.filter((s) => (s.gateTags ?? []).length > 1)) {
+    faults.push(
+      `${project}: carries ${gateTags.length} gate tags (${gateTags.join(", ")}) — a suite arbitrates exactly one gate`,
+    );
+  }
+  for (const { project } of suites.filter((s) => !s.gate && (s.gateTags ?? []).length <= 1)) {
     faults.push(
       `${project}: has a '${CONFORMANCE_TARGET}' target without a gate:G<n> tag — a suite arbitrates a named gate or nothing`,
     );
