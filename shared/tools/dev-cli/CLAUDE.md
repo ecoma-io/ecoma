@@ -254,7 +254,7 @@ build/typecheck — invoked directly as
   tracing to no id, is `repo-care audit-roadmap-labels` — a separate command in a
   separate tool, so this one keeps running offline on every commit while that one
   reaches the tracker.
-- **`conformance` is the executor roadmap rule #6 demands**, and it is a read of
+- **`conformance` is the executor roadmap rule #7 demands**, and it is a read of
   the tree rather than a registry: a freeze is a doctrine document declaring
   `status: frozen` plus `gate: G<n>`, a suite is an Nx project declaring a
   `conformance` target plus a `gate:G<n>` tag. Nx's own vocabulary rather than a

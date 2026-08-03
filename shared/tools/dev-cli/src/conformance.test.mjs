@@ -62,7 +62,7 @@ describe("reading a suite off the project graph", () => {
   });
 });
 
-describe("the judgment rule #6 actually makes", () => {
+describe("the judgment rule #7 actually makes", () => {
   it("does not fault a gate nobody has started, since nothing has been promised", () => {
     const { rows, faults } = buildLedger(GATES, [], []);
     expect(faults).toEqual([]);
@@ -72,7 +72,7 @@ describe("the judgment rule #6 actually makes", () => {
   it("faults a frozen gate with no suite, which is the paper gate the rule names", () => {
     const { faults } = buildLedger(GATES, [{ file: "spec/event-log.md", gate: "◆G0" }], []);
     expect(faults).toEqual([
-      "◆G0: frozen (spec/event-log.md) with no conformance suite — rule #6: a gate with no suite is a paper gate",
+      "◆G0: frozen (spec/event-log.md) with no conformance suite — rule #7: a gate with no suite is a paper gate",
     ]);
   });
 
