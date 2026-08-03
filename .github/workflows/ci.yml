@@ -79,9 +79,9 @@ jobs:
             node shared/tools/dev-cli/src/main.mjs check-contributor-record
           fi
 
-      # Roadmap rule #6: a gate is a frozen text plus an independent suite.
+      # Roadmap rule #7: a gate is a frozen text plus an independent suite.
       # Reports the ledger every run and fails a freeze that has no suite.
-      - name: Conformance gate ledger (roadmap rule #6)
+      - name: Conformance gate ledger (roadmap rule #7)
         run: node shared/tools/dev-cli/src/main.mjs conformance
 
       # Repo-wide doc gates that `nx affected` can't cover: journey markers
