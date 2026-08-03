@@ -23,7 +23,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "{projectRoot}",
-        "command": "go test ./..."
+        "command": "node ../../../shared/tools/dev-cli/src/main.mjs run-go-tests"
       }
     },
     "build": {
