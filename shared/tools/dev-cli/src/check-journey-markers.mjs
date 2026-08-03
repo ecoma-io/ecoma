@@ -32,7 +32,10 @@ export const MARKER_RE = new RegExp(CONFIG.pattern, "i");
 const NAME_RE = new RegExp(CONFIG.namePattern);
 
 // Contents already covered by the ESLint rule; re-scanning here would just
-// double-report. Their file NAMES are still ours to scan.
+// double-report. Their file NAMES are still ours to scan. This exclusion is
+// only valid for project-owned files: ESLint runs from per-project `lint`
+// targets, so a JS/TS file no project owns is never linted, and the
+// workspace entry point below must scan its contents itself.
 const ESLINT_COVERED_RE = /\.(ts|tsx|vue|js|mjs|cjs)$/;
 
 /** Returns `[{ line, match }]` for every journey marker in `text`. */
@@ -159,7 +162,10 @@ export function checkWorkspaceDocs() {
   const manifests = listTrackedFiles(["*/project.json", "project.json"]);
   const files = workspaceLevelFiles(listTrackedFiles(), manifests);
 
-  const contentHits = scanAndReportContents(files.filter((f) => !ESLINT_COVERED_RE.test(f)));
+  // No ESLINT_COVERED_RE filter here: these files belong to no project, so no
+  // per-project lint target ever parses them — their contents are this gate's
+  // to scan whatever the extension.
+  const contentHits = scanAndReportContents(files);
   const nameHits = scanAndReportNames([...files, ...manifests.map((m) => dirname(m))]);
   return contentHits || nameHits ? 1 : 0;
 }

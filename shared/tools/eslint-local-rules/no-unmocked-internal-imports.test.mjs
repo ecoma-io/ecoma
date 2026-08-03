@@ -28,6 +28,11 @@ ruleTester.run("no-unmocked-internal-imports", rule, {
     unit('import "./styles.css";'),
     unit('import data from "./fixtures/sample.json";'),
     unit('import { render } from "./__mocks__/render";'),
+    // Dynamic import of a mocked collaborator, and of the SUT itself.
+    unit('vi.mock("./helper");\nconst { helper } = await import("./helper");'),
+    unit('const Widget = await import("./Widget");'),
+    // Non-literal dynamic import cannot be judged statically.
+    unit('const mod = await import(modulePath);\nimport Widget from "./Widget";'),
   ],
   invalid: [
     {
@@ -41,6 +46,16 @@ ruleTester.run("no-unmocked-internal-imports", rule, {
     {
       // A sibling module that happens to share no name with the SUT.
       ...unit('import { other } from "../other/Thing";'),
+      errors: [{ messageId: "unmockedImport" }],
+    },
+    {
+      // A dynamic import is the same runtime edge as a static one.
+      ...unit('const { helper } = await import("./helper");'),
+      errors: [{ messageId: "unmockedImport" }],
+    },
+    {
+      // Same basename as the SUT but a different directory — not the SUT.
+      ...unit('import { Widget } from "../legacy/Widget";'),
       errors: [{ messageId: "unmockedImport" }],
     },
   ],

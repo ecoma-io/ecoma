@@ -35,7 +35,7 @@ say so in the pull request rather than letting the green run imply otherwise.
   `check-project-conventions`, `check-roadmap-ids`, `check-commit-scope`,
   plus the `conformance` executor for roadmap rule #7, and workflow
   helpers like `pr-facts`, `scaffold-lib`, `run-e2e`,
-  `run-node-tests`, `doctrine-sync`); mechanics
+  `run-node-tests`, `run-go-tests`, `doctrine-sync`); mechanics
   in its own `CLAUDE.md`. Four repo-root files are single sources shared across tools, so
   no one tool's guide owns them alone: `journey-markers.config.json` (the
   Rule 13 patterns, read by `check-journey-markers` and by the
@@ -48,9 +48,11 @@ say so in the pull request rather than letting the green run imply otherwise.
   test-coverage floor, read by every project's `vitest.config.*`, by
   `dev-cli`'s `run-node-tests` for the one project on Node's built-in runner —
   an `nx:run-commands` string cannot read JSON, so the thresholds become CLI
-  flags there — and by `dev-cli`'s `check-project-conventions`, which requires
-  a project that has tests to take its thresholds from there rather than
-  declare its own, whichever runner it uses). Each sits at the root rather
+  flags there — by `dev-cli`'s `run-go-tests`, which holds every Go project's
+  `go test` run to the `statements` floor, the one metric Go measures — and by
+  `dev-cli`'s `check-project-conventions`, which requires a project that has
+  tests to take its thresholds from there rather than declare its own,
+  whichever runner it uses). Each sits at the root rather
   than inside one consumer because a cross-project source import would be an
   edge the Nx project graph cannot see. Never inline a copy of any of them.
 - `repo-care` — repository-surface automation run from GitHub Actions (issue

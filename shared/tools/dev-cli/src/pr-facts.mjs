@@ -85,7 +85,13 @@ export function collectPrFacts(base) {
   const viewLayerTouched = [...touchedProjects].some((name) =>
     byName.get(name)?.tags.includes("layer:view"),
   );
-  const testsChanged = changedPaths.some((p) => /\.(test|spec)\.[^/]+$/.test(p));
+  // One alternative per language convention the workspace test taxonomy names
+  // (root CLAUDE.md): TS `.test.ts`/`.integration.test.ts`, Go/Python
+  // `_test.go`/`_test.py` (the integration tier ends the same way), Rust
+  // `tests/*.rs` (Cargo's integration-test layout).
+  const testsChanged = changedPaths.some((p) =>
+    /(\.(test|spec)\.[^/]+|_test\.(go|py)|(^|\/)tests\/[^/]+\.rs)$/.test(p),
+  );
 
   return {
     base,
