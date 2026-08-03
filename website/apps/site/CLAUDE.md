@@ -40,8 +40,10 @@ pins the false half (a default build carries no robots meta); the true half
 is the `verify-preview-noindex` target — three `nuxt generate` passes
 (default → assert no meta, preview → assert the meta in every prerendered
 page, default again so `dist/` is restored) driven by
-`scripts/verify-preview-noindex.mjs`. Re-run it whenever the plugin or the
-`runtimeConfig` declaration changes.
+`scripts/verify-preview-noindex.mjs`. CI runs the target in the e2e job
+whenever this app is affected — it was previously invoked by nothing, which
+made "gated" an overstatement; locally, re-run it whenever the plugin or the
+`runtimeConfig` declaration changes (it is too build-heavy for a hook).
 
 ## The 404 is a client-side surface; the host owns the fallback
 
