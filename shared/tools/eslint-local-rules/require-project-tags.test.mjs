@@ -15,6 +15,11 @@ ruleTester.run("require-project-tags", rule, {
     project(["type:lib", "scope:shared", "license:sul", "layer:view"]),
     project(["scope:shared", "license:sul", "type:app"]), // order-independent
     project(["type:e2e", "scope:shared", "license:sul"]), // e2e project drives a built app
+    project(["type:lib", "scope:platform", "license:sul", "layer:domain"]),
+    // A suite carries a `gate:` tag, which this rule does not inspect — only the
+    // conformance executor reads that axis. What matters here is that the extra
+    // tag does not make an otherwise well-tagged project fail.
+    project(["type:lib", "scope:platform", "license:sul", "gate:G0"]),
     project(["type:lib", "scope:shared", "license:sul", "layer:domain"]),
     project(["type:lib", "scope:shared", "license:sul", "layer:port"]),
     project(["type:lib", "scope:shared", "license:sul", "layer:adapter"]),
@@ -75,8 +80,9 @@ ruleTester.run("require-project-tags", rule, {
     },
     {
       // A scope outside the vocabulary is rejected whether or not the workspace
-      // one day grows that area — the vocabulary describes what exists now.
-      code: project(["type:lib", "scope:platform", "license:sul"]),
+      // one day grows that area — the vocabulary describes what exists now, and
+      // `rpa` is named by the doctrine as a future area with no project yet.
+      code: project(["type:lib", "scope:rpa", "license:sul"]),
       errors: [{ messageId: "badScope" }],
     },
     {

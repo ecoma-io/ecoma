@@ -11,7 +11,7 @@
  * their source, so it needs no import-boundary of its own.
  */
 const TYPES = new Set(["app", "lib", "e2e"]);
-const SCOPES = new Set(["shared", "website"]);
+const SCOPES = new Set(["shared", "website", "platform"]);
 // The licence axis, unlike `scope`, is enumerated in full before its values have
 // projects — and the difference is not a lapse. A scope set is open-ended (one
 // more per product domain nobody has named yet), so listing one early would be a
