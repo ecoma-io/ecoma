@@ -18,12 +18,20 @@
     ],
     "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"],
     "coverageConfig": ["{workspaceRoot}/coverage.config.json"],
-    "devCli": ["{workspaceRoot}/shared/tools/dev-cli/**/*"]
+    "devCli": ["{workspaceRoot}/shared/tools/dev-cli/**/*"],
+    "goGlobals": ["{workspaceRoot}/go.work", "{workspaceRoot}/.golangci-lint-version"],
+    "lintTooling": [
+      "{workspaceRoot}/eslint.config.mjs",
+      "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
+      "{workspaceRoot}/journey-markers.config.json",
+      "devCli"
+    ]
   },
   "targetDefaults": {
     "build": {
       "dependsOn": ["^build"],
-      "cache": true
+      "cache": true,
+      "inputs": ["production", "^production"]
     },
     "typecheck": {
       "dependsOn": ["^build"],
@@ -31,18 +39,13 @@
     },
     "lint": {
       "cache": true,
-      "inputs": [
-        "default",
-        "{workspaceRoot}/eslint.config.mjs",
-        "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
-        "{workspaceRoot}/journey-markers.config.json",
-        "devCli"
-      ]
+      "inputs": ["default", "lintTooling"]
     },
     "test": {
       "cache": true,
       "inputs": [
         "default",
+        "^default",
         "coverageConfig",
         "{workspaceRoot}/vitest.property-seed.mjs",
         { "env": "CI" }
