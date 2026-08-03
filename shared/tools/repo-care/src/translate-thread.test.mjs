@@ -4,9 +4,11 @@ import {
   buildDetectPrompt,
   buildTranslationComment,
   buildTranslatePrompt,
+  fingerprintSource,
   LANGS,
   parseDetectVerdict,
   parseTranslation,
+  readSourceStamp,
   readThread,
   sanitizeTranslation,
   tallyLang,
@@ -192,6 +194,49 @@ describe("buildTranslationComment", () => {
       "source body was truncated",
     );
   });
+
+  it("records the digest of the source it rendered, so the next run can recognise it", () => {
+    const thread = readThread({ title: "Crash", body: "It crashes" });
+    const body = buildTranslationComment("en", [section()], {
+      sourceSha: fingerprintSource(thread),
+      complete: true,
+    });
+    expect(readSourceStamp(body)).toEqual({ sha: fingerprintSource(thread), complete: true });
+  });
+
+  it("records a run that missed a language as partial, so it is retried rather than settled on", () => {
+    const body = buildTranslationComment("en", [section()], {
+      sourceSha: fingerprintSource(readThread({ title: "Crash", body: "It crashes" })),
+      complete: false,
+    });
+    expect(readSourceStamp(body).complete).toBe(false);
+  });
+});
+
+describe("fingerprintSource", () => {
+  it("changes when the text a translation is rendered from changes", () => {
+    const base = readThread({ title: "Crash", body: "It crashes" });
+    expect(fingerprintSource(base)).toBe(fingerprintSource(readThread({ ...base })));
+    expect(fingerprintSource(readThread({ title: "Crash", body: "It hangs" }))).not.toBe(
+      fingerprintSource(base),
+    );
+    expect(fingerprintSource(readThread({ title: "Hang", body: "It crashes" }))).not.toBe(
+      fingerprintSource(base),
+    );
+  });
+
+  it("ignores a change past the point the prompt is capped at", () => {
+    const head = "x".repeat(6000);
+    expect(fingerprintSource(readThread({ title: "t", body: `${head}tail` }))).toBe(
+      fingerprintSource(readThread({ title: "t", body: `${head}other tail` })),
+    );
+  });
+});
+
+describe("readSourceStamp", () => {
+  it("reports no stamp on a comment written before the digest existed", () => {
+    expect(readSourceStamp(`${TRANSLATE_MARKER}\n### repo-care · translation`)).toBe(null);
+  });
 });
 
 describe("translateIssue / translatePr", () => {
@@ -212,6 +257,43 @@ describe("translateIssue / translatePr", () => {
     expect(calls.comments[0].body).toContain("Sập");
     expect(calls.comments[0].body).toContain("崩溃");
     expect(calls.comments[0].body).not.toContain("Crash</summary>");
+  });
+
+  it("spends no model call when the source has not changed since a complete run", async () => {
+    const issue = { number: 7, title: "Crash", body: "It crashes" };
+    const stamped = buildTranslationComment("en", [section()], {
+      sourceSha: fingerprintSource(readThread(issue)),
+      complete: true,
+    });
+    // An empty `zen` list is the assertion: the stub throws on any model call.
+    const { impl, calls } = stubFetch({
+      github: { issue, comments: [{ id: 22, body: stamped }] },
+      zen: [],
+    });
+    expect(await translateIssue(["--issue", "7"], { fetchImpl: impl, env })).toBe(0);
+    expect(calls.comments).toEqual([]);
+  });
+
+  it("retranslates when the recorded run missed a language, even on an unchanged source", async () => {
+    const issue = { number: 7, title: "Crash", body: "It crashes" };
+    const partial = buildTranslationComment("en", [section()], {
+      sourceSha: fingerprintSource(readThread(issue)),
+      complete: false,
+    });
+    const { impl, calls } = stubFetch({
+      github: { issue, comments: [{ id: 22, body: partial }] },
+      zen: [
+        zenReply({ lang: "en" }),
+        zenReply({ lang: "en" }),
+        zenReply({ lang: "en" }),
+        zenReply({ title: "Sập", body: "b" }),
+        zenReply({ title: "崩溃", body: "b" }),
+      ],
+    });
+    expect(await translateIssue(["--issue", "7"], { fetchImpl: impl, env })).toBe(0);
+    expect(calls.comments).toEqual([
+      expect.objectContaining({ action: "update", body: expect.stringContaining("Sập") }),
+    ]);
   });
 
   it("edits its own comment in place and never a sibling job's", async () => {

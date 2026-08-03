@@ -270,6 +270,22 @@ practice review, thread translation) from GitHub Actions.
   - A target language that no model could translate is skipped loudly on
     stderr while the rest still post; all targets failing is exit 1, because
     silence would read as "already translated" on the next run.
+  - **A re-fired event is not a retranslation.** The comment carries a stamp
+    line holding a digest of exactly what was rendered from — capped title,
+    capped body, the language triad — and whether that run covered every
+    target. A run whose digest matches a `complete` stamp returns before the
+    first model call, for the price of a `listComments` the job already makes.
+    **This is what makes an author guard unnecessary here**, and why
+    `translate-issue.yml` carries none while `issue-triage.yml` does: a machine
+    writes a thread far more often than a human edits one (Renovate rewrites
+    its Dependency Dashboard whenever one of its own pull requests changes
+    state, and every rewrite is an `edited` event), so the bill came from the
+    repetition, not from the author — and a reader who works in Vietnamese
+    reads that dashboard like anything else. A `partial` stamp is never
+    trusted: a run that missed a language retries rather than settling on a
+    comment that is short one. The stamp is read only from a comment already
+    accepted as this job's own by its marker, so a forged one can suppress a
+    translation of the thread it was forged on, never put words in one.
 - Invoked by `.github/workflows/issue-triage.yml` (issue opened/reopened +
   `workflow_dispatch` for backfill),
   `.github/workflows/pr-practice-review.yml` (non-draft PR
