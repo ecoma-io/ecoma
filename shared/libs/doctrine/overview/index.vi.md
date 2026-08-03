@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: f554e0a04db3
+canonical-sha: 9454d12c5cbe
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -47,6 +47,7 @@ canonical-sha: f554e0a04db3
 | [scenario-catalog](../method/scenario-catalog.md)           | Meta — tài sản regression (kịch bản + competitor + standards watch)                                                                                                                                                                                                                                |
 | [roadmap](../method/roadmap.md)                             | **SỐNG — thứ tự xây** (6 track + gate ◆G0–G4, gate = freeze + conformance suite; Gantt mermaid; ICP-independent vs ICP-gated; **§6b coverage matrix end-state→milestone, kín cả 5 tầng NS**)                                                                                                       |
 | [adr-ledger](../method/adr-ledger.md)                       | **SỐNG — quyết định triển khai** (0001 durable✅ · 0002 storage✅ · **0003 Gói-D biên-theo-vai✅** · 0004 Vue✅ · 0005 Tauri✅ · **0006 user-code JS/Py/Go✅** — đủ bộ, 0 treo; tạm trú tới khi có repo; **0005 +3 biên cứng UI attended · 0002 +điều kiện key-store · 0006 +`supports_dry_run`**) |
+| [subsystem-structure](../method/subsystem-structure.md)     | **ADR-0008 — hình dạng workspace** (area `platform`; engine cắt theo trục tầng hexagonal; mỗi gate đã khởi động một conformance suite; contract runtime liên-domain trong `shared/packages/`; **nó mang freeze ◆G0 cho phạm vi các suite**)                                                        |
 | sổ thị trường (không công bố)                               | **SỐNG — kinh doanh** (+§9 sổ cược B1–B8 **đã chốt**) (bet + phương pháp phỏng vấn + log; đổi theo bằng chứng, không theo vòng đóng băng; **B4 là nguồn duy nhất của ngưỡng Marketplace** — roadmap trỏ về, không ghi đôi)                                                                         |
 | playbook funnel (không công bố)                             | **System Charter** — area `website/` (mặt tiền + growth; phân loại mạnh vs Hub; URL topology + render §3b; `/design`; support chatbot)                                                                                                                                                             |
 | [deploy](../charter/deploy.md)                              | **System Charter** — deploy/operate/backup/upgrade/rollback/sunset; ranh giới 3 phân vùng; 4 nghĩa vụ khóa-DR từ                                                                                                                                                                                   |
@@ -186,7 +187,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | sổ thị trường (không công bố) | ❌ Tuyệt đối |
 | Web charter | ❌ | Playbook vận hành (SEO, an ninh, tone) |
 | Eng & Delivery charter | ❌ (⚠️ phần CONTRIBUTING public khi mở contributor, sau CLA/luật sư) | Playbook nội bộ đội phát triển |
-| ADR ledger | ❌ tới sau MVP wedge | Chi tiết stack triển khai — ít nhạy hơn roadmap nhưng không đăng sớm |
+| ADR ledger | ✅ | Đã nằm trong cây published từ lúc di cư, và ADR-0008 phải cite được từ roadmap; chi tiết stack triển khai không lộ cược nào |
 | Index | ✅ bản public lược dòng kín | |
 | **Storybook `/design`** (design system + triết lý UI/UX/motion + brand guideline/press kit) | ✅ | Theo nhịp release design system, **không chờ MVP**; trademark đăng ký trước (điều kiện luật sư) |
 

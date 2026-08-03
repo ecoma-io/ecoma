@@ -1,7 +1,7 @@
 ---
 title: "ADR Ledger"
 status: design-end-state
-canonical-sha: 4d9211332a04
+canonical-sha: beca4bc97e99
 ---
 
 # ADR Ledger
@@ -54,7 +54,8 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 
 ## ADR-0004 — Frontend: hệ sinh thái Vue ✅ CHỐT
 
-- **Quyết định**: Vue ecosystem cho mọi frontend — Nuxt (site `/`, hub-index `/hub` — nơi cần SSG+ISR), Vue 3 + Vite (console `/app`, canvas pair-design), Storybook Vue (`/design`), Vue Flow (editor node-graph). TypeScript giữ nguyên.
+- **Quyết định**: Vue ecosystem cho mọi frontend — Nuxt (site `/`, hub-index `/hub` — nơi cần SSG+ISR), Vue 3 + Vite (**Work Surface** `/app`, canvas pair-design), Storybook Vue (`/design`), Vue Flow (editor node-graph). TypeScript giữ nguyên.
+- **Sửa cụm từ**: bản trước gọi bề mặt ở `/app` là "console", một cái tên trần không bao giờ dùng: Human Surface §0 và roadmap §6b E.1 đều gọi nó là **Work Surface**, và một bề mặt mang hai tên là một thứ nữa bắt người đọc phải đối chiếu. Quyết định không đổi — Vue 3 + Vite, ở `/app` — chỉ danh từ được sửa, ở đây và ở "component console" của ADR-0005.
 - **Đối chiếu trần**: web charter **framework-agnostic có chủ đích** (§3b: mô hình render là "hệ quả cơ chế, không phải lựa chọn framework") → không đụng trần dòng nào.
 - **Tiền lệ mạnh**: n8n xây toàn bộ visual automation editor bằng Vue — đúng bài toán frontend khó nhất của ecoma.
 - **2 rủi ro có van**: (1) ISR on-demand của Nuxt/Nitro non hơn Next — yêu cầu charter ở tầng _hành vi cache_, webhook-rebuild-trang-đơn đạt cùng hành vi nếu cần; (2) LLM training data nghiêng React nhẹ — van: design system Storybook + spec-anchor làm nguồn sự thật.
@@ -62,7 +63,7 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 
 ## ADR-0005 — Desktop attended: Tauri + Rust native, kiến trúc tách runtime/UI ✅ CHỐT
 
-- **Quyết định**: app desktop attended = **Tauri** (shell Rust + frontend **Vue** — tái dùng design system `/design` và component console, gồm khung takeover/approve = component diff-Judgment); native **Rust** cho modules desktop cần hệ thống (screen capture, input injection, UIA/AX bindings).
+- **Quyết định**: app desktop attended = **Tauri** (shell Rust + frontend **Vue** — tái dùng design system `/design` và component Work Surface, gồm khung takeover/approve = component diff-Judgment); native **Rust** cho modules desktop cần hệ thống (screen capture, input injection, UIA/AX bindings).
 - **Hóa giải xung đột "cùng binary attended/unattended" (RPA NS)**: **node runtime = MỘT binary headless duy nhất chạy cả hai chế độ** — trần giữ nguyên; Tauri là **lớp UI attended đính kèm**, nói chuyện với runtime qua **localhost IPC có auth theo node identity**. Unattended không cài webview. Cả hai artifact update qua Hub.
 - **Sửa cụm từ**: bản trước viết _"khung takeover/approve = component diff-Judgment"_, **gộp nhầm hai thứ khác loại**. Tách: (1) **xác nhận trong phiên attended** — người đang ngồi trước máy, cho phép một Action sắp làm; đây là **điều khiển phiên cục bộ**, đi kênh nội-máy, thuộc **◆G1**, có ở M1; (2) **duyệt một Action Item trong hàng đợi** — người không ngồi trước máy đó; đây là **bề mặt lao động**, đi thẳng engine API + projection read-API, thuộc **◆G4**, thuộc Track E. Tauri ở M1 **chỉ làm (1)**.
 - **Ba biên cứng do trần khai** — RPA NS §4 "Lớp UI attended cục bộ": (1) IPC **chỉ mang điều khiển phiên cục bộ**, không mang effect stream, không mang ngữ nghĩa lao động ⇒ hai giao diện của hệ vẫn là hai (D1); (2) **mọi hành động lao động của UI (approve / Judgment / claim / release) đi THẲNG engine API** — component diff-Judgment của Tauri là **client của projection read-API (◆G4)**, không phải đường ghi qua IPC (Human Surface §0); (3) UI **không lưu frame** — thứ vào log luôn là Scene đã masking. Kiểm bằng RPA NS litmus **#10** (tắt IPC → runtime chạy đủ). _Hệ quả xếp lịch_: Track B nhận thêm cổng ◆G4 cho phần bề mặt duyệt (roadmap §1b luật #8).
@@ -103,6 +104,12 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 
 **Điều kiện đảo ngược**: nội dung là markdown thuần và nav là hàm thuần trong `shared/libs/doctrine`; đổi SSG = viết lại một app, **không** đụng một dòng nội dung nào. Đây là lý do lib tách khỏi app ngay từ đầu.
 
+## ADR-0008 — Cấu trúc subsystem ✅ CHỐT
+
+- **Quyết định**: area `platform`, engine cắt theo trục tầng hexagonal thay vì theo feature, mỗi gate đã khởi động có đúng một conformance suite, và contract runtime liên-domain nằm ngoài mọi domain trong `shared/packages/`.
+- **Nó sống trong tài liệu riêng của nó**, [subsystem-structure](./subsystem-structure.md), không nằm trong sổ này, và lý do là cơ chế chứ không phải biên tập: đây là ADR đầu tiên **mang một freeze**. Freeze là frontmatter — `status`, `gate` và `frozen-scope` — được `dev-cli conformance` đọc theo từng file, nên một ADR đóng băng bất cứ thứ gì đều phải là một file riêng. Viết ở đây thì freeze của nó sẽ là freeze của sổ này, đóng băng luôn cả ADR-0001 đến ADR-0007.
+- **Cái nó đóng băng** là nửa của luật #7 roadmap §1b mà một văn bản không tự trả lời được: suite nào trọng tài ◆G0 và phạm vi trọn vẹn của suite đó là gì. Nó **không** mở rộng cái ◆G0 đóng băng. Việc lật `status: frozen` là một hành vi sau, land cùng pull request làm `conformance-g0` xanh.
+
 - **Điều kiện `supports_dry_run`**: mọi adapter/sandbox executor **khai được năng lực `dry_run`** (chạy nhưng không phát effect ra ngoài) hoặc khai **không hỗ trợ** — thiếu khai/không hỗ trợ thì contract `dry_run` resolve về `forbidden` (Handoff §3, Test Harness §5). Ràng buộc đầu vào của spec `runtime sandbox`.
 - Chi phí SaaS: code-exec = CPU đo được → metering (M0) + quota (spec treo) ôm trọn.
 
@@ -117,4 +124,5 @@ Tiền lệ trung thực: n8n = TS toàn phần thành công (nhưng n8n không 
 | 0005 desktop Tauri+Rust (tách runtime/UI)                                                                           | ✅ chốt (owner) |
 | 0006 user-code đa runtime (JS/TS·Python·Go, Python-native)                                                          | ✅ chốt         |
 | **0007 VitePress cho bề mặt doctrine**                                                                              | ✅ chốt         |
+| **0008 cấu trúc subsystem — area `platform`, các lib engine, suite theo gate**                                      | ✅ chốt         |
 | 0005 bổ sung 3 biên cứng của lớp UI attended · 0002 điều kiện key-store backend · 0006 điều kiện `supports_dry_run` | ✅ ghi nhận     |

@@ -98,9 +98,16 @@ and DuckDB well.
 ## ADR-0004 — Frontend: the Vue ecosystem ✅ settled
 
 **Decision**: Vue across every frontend — Nuxt for the site at `/` and the hub
-index at `/hub`, where SSG with ISR is needed; Vue 3 with Vite for the console at
-`/app` and the pair-design canvas; Storybook Vue at `/design`; Vue Flow for the
-node-graph editor. TypeScript throughout.
+index at `/hub`, where SSG with ISR is needed; Vue 3 with Vite for the **Work
+Surface** at `/app` and the pair-design canvas; Storybook Vue at `/design`; Vue
+Flow for the node-graph editor. TypeScript throughout.
+
+**A phrase corrected.** An earlier version called the surface at `/app` "the
+console", a name the ceiling never uses: Human Surface §0 and roadmap §6b E.1
+both call it the **Work Surface**, and a second name for one surface is a second
+thing for a reader to reconcile. The decision is unchanged — Vue 3 with Vite,
+at `/app` — only the noun is corrected, here and in ADR-0005's "console
+components".
 
 **Against the ceiling**: the web charter is **deliberately framework-agnostic**
 (§3b — the render model is "a consequence of mechanism, not a framework choice"),
@@ -120,7 +127,7 @@ It does not constrain ADR-0003; the two are fully independent.
 ## ADR-0005 — Attended desktop: Tauri and native Rust, runtime split from UI ✅ settled
 
 **Decision**: the attended desktop app is **Tauri** — a Rust shell with a **Vue**
-frontend, reusing the `/design` design system and console components — with native
+frontend, reusing the `/design` design system and Work Surface components — with native
 **Rust** for the desktop modules that need the system: screen capture, input
 injection, UIA and AX bindings.
 
@@ -242,14 +249,33 @@ navigation is a pure function inside `shared/libs/doctrine`. Changing SSG means
 rewriting one app and touching **no** line of content. That is why the library was
 separated from the app from the beginning.
 
+## ADR-0008 — Subsystem structure ✅ settled
+
+**Decision**: the `platform` area, the engine split by hexagonal layer rather
+than by feature, one conformance suite per started gate, and the cross-domain
+runtime contract outside every domain in `shared/packages/`.
+
+**It lives in its own document**, [subsystem-structure](./subsystem-structure.md),
+not in this ledger, and the reason is mechanical rather than editorial: it is
+the first ADR that carries a **freeze**. A freeze is frontmatter — `status`,
+`gate` and `frozen-scope` — read by `dev-cli conformance` per file, so an ADR
+that freezes anything has to be a file of its own. Written here, its freeze
+would be this ledger's, closing ADR-0001 through ADR-0007 along with it.
+
+**What it freezes** is the half of roadmap §1b rule #7 that a text alone cannot
+answer: which suite arbitrates ◆G0 and what that suite's complete scope is. It
+does **not** widen what ◆G0 freezes. The `status: frozen` flip is a later act,
+landing with the pull request that makes `conformance-g0` green.
+
 ## Ledger
 
-| ADR                                                               | Status              |
-| ----------------------------------------------------------------- | ------------------- |
-| 0001 durable execution                                            | ✅ settled          |
-| 0002 storage ports, defaults by shape                             | ✅ settled          |
-| 0003 infrastructure languages — boundaries by role                | ✅ settled          |
-| 0004 frontend Vue                                                 | ✅ settled by owner |
-| 0005 attended desktop Tauri and Rust, runtime split from UI       | ✅ settled by owner |
-| 0006 user code across runtimes (JS/TS, Python, Go; Python native) | ✅ settled          |
-| **0007 VitePress for the doctrine surface**                       | ✅ settled          |
+| ADR                                                                           | Status              |
+| ----------------------------------------------------------------------------- | ------------------- |
+| 0001 durable execution                                                        | ✅ settled          |
+| 0002 storage ports, defaults by shape                                         | ✅ settled          |
+| 0003 infrastructure languages — boundaries by role                            | ✅ settled          |
+| 0004 frontend Vue                                                             | ✅ settled by owner |
+| 0005 attended desktop Tauri and Rust, runtime split from UI                   | ✅ settled by owner |
+| 0006 user code across runtimes (JS/TS, Python, Go; Python native)             | ✅ settled          |
+| **0007 VitePress for the doctrine surface**                                   | ✅ settled          |
+| **0008 subsystem structure — `platform` area, engine libraries, gate suites** | ✅ settled          |
