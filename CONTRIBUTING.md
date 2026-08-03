@@ -40,7 +40,9 @@ You will notice a `cloud/` directory (see `.gitmodules`): it is a private git
 submodule pointing at a proprietary control-plane repository. Without access
 to that repository it just stays an empty directory, which is expected —
 nothing in this public workspace depends on `cloud/` existing, so there is
-nothing to configure or troubleshoot.
+nothing to configure or troubleshoot. That holds however you cloned: the
+submodule is marked `update = none`, so `git clone --recursive` skips it and
+succeeds rather than failing on a repository it cannot read.
 
 `pnpm nx affected -t lint test typecheck build e2e` stays the single definition
 of done regardless of language: every project's targets are hand-written
