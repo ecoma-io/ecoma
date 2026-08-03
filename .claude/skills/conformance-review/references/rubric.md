@@ -8,22 +8,33 @@ doctrine ceiling.
 
 Every group below is a different place that question can be answered "no".
 
-Three neighbours own different objects, and this file owns none of theirs:
+Four neighbours own different objects, and this file owns none of theirs:
 
-| Instrument                                            | Object                      | Not this file because                                                       |
-| ----------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
-| `shared/libs/doctrine/method/review-rubric.md`        | the published doctrine tree | it asks whether the design is coherent; this file takes the design as given |
-| `/preflight`, the rule cards in `practice-index.json` | one diff                    | a diff cannot show a gate that is missing everywhere                        |
-| the deterministic gates themselves                    | one rule each               | they answer "was this rule broken", never "is this rule owned"              |
+| Instrument                                                                                 | Object                                          | Not this file because                                                                              |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [`review-constitution.md`](../../../../shared/libs/doctrine/method/review-constitution.md) | the form of judgment shared by every instrument | this file **instantiates** that form; the laws, the procedure and the generation method live there |
+| `shared/libs/doctrine/method/review-rubric.md`                                             | the published doctrine tree                     | it asks whether the design is coherent; this file takes the design as given                        |
+| `/preflight`, the rule cards in `practice-index.json`                                      | one diff                                        | a diff cannot show a gate that is missing everywhere                                               |
+| the deterministic gates themselves                                                         | one rule each                                   | they answer "was this rule broken", never "is this rule owned"                                     |
 
 A finding this rubric produces is about the workspace's standing state, and it
 survives every diff until someone changes the workspace.
 
 ---
 
-## Part I — Judgment laws
+## Part I — What this rubric fills in
+
+The judgment laws themselves are the constitution's, and this file may not
+restate them. What follows is only what this instrument instantiates for **its**
+object — the workspace.
 
 ### 1. Severity
+
+Instantiating the constitution's severity law (law 3) for a workspace: three
+levels, each an objective test, and these are the tests. Law 3 also settles what
+a mixed report may do with them — a count of these levels is comparable only to
+another count from this rubric, so a report spanning instruments names the
+instrument beside every number.
 
 | Level     | Objective test                                                                                                         |
 | --------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -31,38 +42,34 @@ survives every diff until someone changes the workspace.
 | `major`   | An invariant is half-covered: enforced at some sites, silently absent at others — or a stated claim is currently false |
 | `minor`   | Cost, wording, or an inconsistency with no reachable failure                                                           |
 
-### 2. Verdict laws
+### 2. Verdicts, and the one this object needs
 
-- **PASS must be falsifiable.** A criterion is passed by naming the mechanism
-  that enforces it and citing where, or by recording the attacks it survived —
-  never by "nothing found". A criterion of the form "find a case where…" passes
-  only after **≥3 recorded attacks** failed to produce one.
-- **FAIL carries a reproduction**: the command, the file:line, or the walk that
-  exposes it.
-- **DECLARED** replaces the doctrine rubric's known-gap: the repository already
-  says this in prose, in a file that travels with it, **before** the run
-  started. A gap you discover and the repository does not admit is a FAIL. A
-  gap the repository admits is not a finding, and claiming it as one inflates
-  the run.
-- **WITHDRAWN is a required outcome, not an embarrassment.** A suspicion that
-  verification killed gets recorded with what killed it — the next run does not
-  re-spend the same hour, and a rubric whose runs never withdraw anything is
-  reporting suspicion as fact.
+The falsifiable-PASS law, the FAIL-carries-a-reproduction law and the WITHDRAWN
+law are the constitution's. This rubric adds one verdict its object needs:
 
-### 3. Finding shape
+- **DECLARED** is how the constitution's known-gap law lands on a repository:
+  the repository already says this in prose, in a file that travels with it,
+  **before** the run started. A gap you discover and the repository does not
+  admit is a FAIL. A gap the repository admits is not a finding, and claiming it
+  as one inflates the run.
+
+### 3. Finding shape, as this rubric fills it
+
+The shape is the constitution's (law 9). This rubric names its second field
+`file:line` and keeps `consequence` under that name:
 
 `(criterion, file:line, reproduction, verdict, severity, consequence)`
 
-The consequence names what breaks in the real world, not which rule is cited.
-"Violates SR1" is not a consequence; "a Go bump changes one file and CI keeps
-installing the old toolchain" is.
+Law 9 already says the `consequence` field names what breaks in the real world
+rather than the rule cited. What that forbids here, concretely: "Violates SR1"
+fills the field with a rule name and is therefore not a consequence; "a Go bump
+changes one file and CI keeps installing the old toolchain" is.
 
 ### 4. Immunity law
 
-**A finding no criterion here caught obliges a new criterion in the same
-change.** Without it this rubric is a photograph of past defects. The honest
-consequence: it is never "complete" — only "the strongest so far, still
-evolving". Any claim of completeness fails law 2 on its own terms.
+The constitution's (law 8), and it binds this file: a finding no criterion here
+caught obliges a new criterion in the same change, which is why editing this
+rubric is inside a run rather than after it.
 
 ### 5. Scope boundary
 
@@ -75,13 +82,26 @@ tell you whether the architecture survives real load, or whether one maintainer
 can carry the workspace. Those need different instruments, and pretending
 otherwise is the failure mode this section exists to prevent.
 
+This section is this rubric's answer to the constitution's object-boundary law
+(law 1): it states what this instrument takes as given, so a finding about the
+ceiling itself is referred to `/doctrine-review` rather than claimed here.
+
+### 6. What a new unit of this object owes
+
+The constitution's law 12 says a new unit of the object passes, in the session
+that created it, the level its instrument designates for a new unit. Here the
+unit is an **Nx project, a gate, or a workflow**, and the designated level is
+**`area`** — not `spot`, which is what a suspicion about an existing unit owes.
+A new unit that has not had its `area` run carries that fact in its own
+`CLAUDE.md` until it does.
+
 ---
 
 ## Part II — Criteria
 
-> Each group opens with the **question it really asks**. If every criterion in a
-> group passes and that question still feels shaky, record a `tension` finding
-> rather than a clean sheet.
+> Each group opens with the **question it really asks** — the constitution's
+> Goodhart guard, instantiated for this object, with `tension` as its outcome
+> (law 10).
 
 ### GA — Gate integrity
 
@@ -356,13 +376,13 @@ _Is the governance worth what it governs?_
 
 Declared so the next run does not mistake a clean sheet for a safe repository.
 
-| Blind spot                                                                                                                       | What is installed against it                                                              |
-| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Self-judgment** — whoever wrote the gates runs the rubric on them                                                              | Law 2's falsifiable PASS and recorded WITHDRAWNs; a freeze-grade run wants a fresh reader |
-| **Derived from defects already seen** — blind to the next class                                                                  | The immunity law, plus one probe per full run the repository has never been attacked with |
-| **Green-gate illusion** — a fully green workspace reads as a healthy one                                                         | Every group asks what the gates _cannot_ see; a green run is where this rubric starts     |
-| **Parity illusion** — consistency gates confirm agreement, never correctness                                                     | DT3 states it explicitly; facts are re-derived from the code, never from a sibling file   |
-| **No load-bearing evidence** — nothing here judges runtime behavior, performance, or architecture                                | Part I §5; use a different instrument and do not let a clean sheet imply those            |
-| **Proportionality is judged from inside** — the group most likely to be graded generously                                        | PR3 demands the failure a rule prevents be _named_, not assumed                           |
-| **Conformance to a wrong ceiling still passes** — TR proves the code matches the design, never that the design deserved matching | Part I §5 says it outright; `/doctrine-review` is the instrument that judges the ceiling  |
-| **An empty trace looks like a clean one** — a workspace with no product surface passes TR trivially                              | TR7 forces the absence to be recorded as a state rather than reported as conformance      |
+| Blind spot                                                                                                                       | What is installed against it                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Self-judgment** — whoever wrote the gates runs the rubric on them                                                              | The constitution's falsifiable-PASS and WITHDRAWN laws; its fresh-reader step puts a freeze-grade run in someone else's hands |
+| **Derived from defects already seen** — blind to the next class                                                                  | The constitution's immunity law, plus its per-full-run probe, aimed at what the repository has never been attacked with       |
+| **Green-gate illusion** — a fully green workspace reads as a healthy one                                                         | Every group asks what the gates _cannot_ see; a green run is where this rubric starts                                         |
+| **Parity illusion** — consistency gates confirm agreement, never correctness                                                     | DT3 states it explicitly; facts are re-derived from the code, never from a sibling file                                       |
+| **No load-bearing evidence** — nothing here judges runtime behavior, performance, or architecture                                | Part I §5; use a different instrument and do not let a clean sheet imply those                                                |
+| **Proportionality is judged from inside** — the group most likely to be graded generously                                        | PR3 demands the failure a rule prevents be _named_, not assumed                                                               |
+| **Conformance to a wrong ceiling still passes** — TR proves the code matches the design, never that the design deserved matching | Part I §5 says it outright; `/doctrine-review` is the instrument that judges the ceiling                                      |
+| **An empty trace looks like a clean one** — a workspace with no product surface passes TR trivially                              | TR7 forces the absence to be recorded as a state rather than reported as conformance                                          |

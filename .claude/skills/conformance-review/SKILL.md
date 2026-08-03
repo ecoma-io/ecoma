@@ -10,15 +10,19 @@ repository declares?** Gates against the rules they claim to enforce, docs
 against the code, config against its single sources, and the implementation
 against the published doctrine ceiling.
 
-The rubric owns the criteria, the severity scale, and the verdict laws:
-[`references/rubric.md`](./references/rubric.md). **This file owns only the
-procedure.** Never restate a criterion here — a second copy is a second rubric
-and no reader can tell which one binds. If the rubric turns out to be hard to
-run from, fix the rubric.
+Three documents, three owners. [`review-constitution.md`](../../../shared/libs/doctrine/method/review-constitution.md)
+owns the judgment laws and the shape of a run. The rubric
+([`references/rubric.md`](./references/rubric.md)) owns this object's criteria,
+its severity tests, and the `DECLARED` verdict a repository needs. **This file
+owns only the procedure** — which level, in which order, and what counts as proof
+a run happened. Never restate a criterion or a law here: a second copy is a
+second rule and no reader can tell which one binds. If the rubric is hard to run
+from, fix the rubric.
 
-Read Part I before judging anything. A finding written before you know the
-severity test, the DECLARED rule, and the WITHDRAWN obligation has to be
-rewritten.
+Read the constitution's laws and the rubric's Part I before judging anything. A
+finding written before you know the severity test and the `DECLARED` rule has to
+be rewritten, and so does one written before you know that a killed suspicion is
+recorded rather than dropped (the constitution's WITHDRAWN law).
 
 Its sibling reviews the other side of the same relationship: `/doctrine-review`
 judges the ceiling against itself — whether the design is coherent. This one
@@ -39,8 +43,8 @@ node shared/tools/dev-cli/src/main.mjs check-subproject-readmes
 node shared/tools/dev-cli/src/main.mjs check-project-conventions
 ```
 
-A red gate is CI's finding, not yours. **A fully green run is where this review
-starts, not where it ends** — every criterion in the rubric exists because the
+This is the constitution's gates-first step, with this workspace's gate list
+filled in. What it means here: every criterion in the rubric exists because these
 gates cannot see it.
 
 ## 2. Name the protocol level, in the report
@@ -51,10 +55,11 @@ gates cannot see it.
 - **full** — the whole workspace. Owes every phase including the two-way trace,
   plus one probe never run before.
 
-A run that does not name its level cannot be audited for a skipped phase, which
-makes every "no findings" in it unfalsifiable.
+These are the levels the constitution's declare-your-level step refers to for
+this object. Naming one in the report is that step's requirement, not this
+file's.
 
-## 3. Phases, in order — each is blind to what the next one catches
+## 3. The phases this object owes, in the order the constitution fixes
 
 1. **Inventory, derived not remembered.** Enumerate projects, targets, tags,
    gates and their invocation sites, workflow triggers and permissions, doc
@@ -82,29 +87,35 @@ makes every "no findings" in it unfalsifiable.
    finds interactions** between mechanisms that are each individually correct,
    and it is the phase that gets skipped when a run is rushed.
 6. **Attack.** Try to land a specific defect that every gate lets through, and
-   write down the ones that failed to land. Recorded surviving attacks are what
-   a falsifiable PASS is made of.
+   write down the ones that failed to land. This is where the recorded attacks a
+   falsifiable PASS is made of come from.
 7. **Verify every survivor before it is written.** Run the command, read the
-   file, probe the tool. A suspicion that dies here is recorded as WITHDRAWN
-   with what killed it — never quietly dropped, and never reported as a finding
-   because it was expensive to investigate.
+   file, probe the tool. This phase is where the constitution's verify-survivors
+   step is discharged, and a suspicion that dies here leaves a WITHDRAWN behind
+   it.
 
 ## 4. What a phase owes
 
-- **An evidence table, never a verdict line.** A tick with no citation and no
+The constitution's evidence-table step and immunity law own these; what is here
+is what they cost in this workspace.
+
+- **An evidence table, never a verdict line** — a tick with no citation and no
   recorded attack is an unrun phase claiming to have run.
-- **A phase that finds nothing is a result**, and it must be written down: the
-  rotation of probes depends on knowing which ones came back empty.
-- **A finding no criterion caught obliges a new criterion in the same change.**
-  Editing the rubric is inside the run, never a follow-up for someone else.
+- **A phase that finds nothing is written down anyway.** Here that record is what
+  the rotation of probes reads: an unwritten empty phase is a probe that looks
+  untried forever.
+- **A finding no criterion caught obliges a new criterion in the same change**,
+  which means editing `references/rubric.md` is inside the run — never a
+  follow-up for someone else.
 - **One probe per full run the workspace has never faced.** If none comes to
   mind, that inability is the run's finding about its own ceiling.
 
 ## 5. Findings, and what to do with them
 
-- Report before you fix. A conformance review that arrives as a patch removes
-  the owner's choice about scope and priority — and these findings are usually
-  several unrelated changes, not one.
+- Report before you fix — one of the two divergences the constitution names as
+  deliberate. A conformance review that arrives as a patch removes the owner's
+  choice about scope and priority, and these findings are usually several
+  unrelated changes, not one.
 - Separate FAIL from DECLARED ruthlessly. A gap the repository already admits in
   prose is not yours to claim; counting it inflates the run and teaches the next
   reader to discount the whole report.
@@ -114,17 +125,20 @@ makes every "no findings" in it unfalsifiable.
   and the fix for it starts in `shared/libs/doctrine/**`, not in the code.
 - Rank by the failure each one causes, not by which rule it cites.
 - The run's own history — what each round added, which suspicions died — belongs
-  in the report, the pull request, or the thread. Never in the rubric: the
-  rubric records the end state, the thread records the run.
+  in the report, the pull request, or the thread (the constitution's
+  episode-coordinates step). Never in the rubric: the rubric records the end
+  state, the thread records the run.
 
 ## 6. A run is finished when
 
-- the protocol level is named, and every phase that level owes carries evidence;
-- every finding carries a verdict, a severity, and a reproduction;
-- every withdrawn suspicion is recorded with what killed it;
-- a full run's trace table has both directions filled, with every blank named;
-- any criterion the run had to invent now exists in the rubric, in this change;
-- the phase-1 gates are still green after any patch the run did land.
+The constitution's finished-run step lists the general conditions and is not
+repeated here. Two are specific to this object and are easy to miss:
 
-Anything missing means the run is unfinished — report it as unfinished rather
-than reporting a verdict.
+- a full run's trace table has **both directions** filled, with every blank
+  named — including the cells recorded as withheld by policy;
+- the phase-1 gates are green **again** after any patch the run landed, since a
+  conformance patch usually touches a gate.
+
+Anything the constitution's step or these two ask for and the run cannot show
+means the run is unfinished — report it as unfinished rather than reporting a
+verdict.
