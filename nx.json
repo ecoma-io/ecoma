@@ -41,7 +41,12 @@
     },
     "test": {
       "cache": true,
-      "inputs": ["default", "coverageConfig", { "env": "CI" }]
+      "inputs": [
+        "default",
+        "coverageConfig",
+        "{workspaceRoot}/vitest.property-seed.mjs",
+        { "env": "CI" }
+      ]
     }
   },
   "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"]
