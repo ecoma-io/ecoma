@@ -1,3 +1,24 @@
+# The gitlink at `cloud/` names a repository most people who clone this one
+# cannot read, and both lines under it exist so that fact costs nobody an
+# error.
+#
+# The URL is relative, so it is resolved against whatever origin this clone
+# actually came from instead of being written down a second time. An absolute
+# `https://` literal is wrong for anyone who cloned over ssh — their submodule
+# would be fetched over a protocol they did not choose — and it is a second
+# place to edit the day the host or the owner changes.
+#
+# `update = none` is what keeps `git clone --recursive` from failing on a
+# private repository. Measured: without it that clone ends `fatal: clone of
+# ... into submodule path 'cloud' failed` and exits 1; with it git prints
+# `Skipping submodule 'cloud'` and exits 0. It costs the maintainer path
+# nothing, because that path never fetches this submodule either — the private
+# checkout is mounted at `cloud/` by hand and only `git submodule init` runs
+# over it, which copies these lines into `.git/config` without contacting any
+# remote. That registration is not optional: `git ls-files
+# --recurse-submodules`, which every workspace gate enumerates through, stops
+# at an unregistered gitlink and reports nothing under `cloud/` at all.
 [submodule "cloud"]
 	path = cloud
-	url = https://github.com/ecoma-io/ecoma-cloud.git
+	url = ../ecoma-cloud.git
+	update = none
