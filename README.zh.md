@@ -61,14 +61,14 @@ Ecoma 本身作为服务出售。正因为保留了这一条,其余部分才能�
 **本节是便于快速阅读的摘要,不是条款。** 具有法律效力的是
 [`LICENSE`](./LICENSE);当摘要与条款不一致时,**以条款为准**。
 
-| 路径                           | 条款                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| 下表未列出的其余部分           | Sustainable Use License                                                    |
-| `<subsystem>/packages/`        | Apache License 2.0 —— 供第三方对接的部分                                   |
-| `<subsystem>/enterprise/`      | **不授予任何权利** —— 需另行签署书面 Enterprise License                    |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs),含这些文件所引用的图片 |
-| `cloud/`                       | 专有,且不公开                                                              |
-| 第三方组件                     | 依其各自权利人的条款                                                       |
+| 路径                           | 条款                                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| 下表未列出的其余部分           | Sustainable Use License                                                            |
+| `<subsystem>/packages/`        | Apache License 2.0 —— 供第三方对接的部分                                           |
+| `<subsystem>/enterprise/`      | **不授予任何权利** —— 需另行签署书面 [Enterprise License](./ENTERPRISE-LICENSE.md) |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs),含这些文件所引用的图片         |
+| `cloud/`                       | 专有,且不公开                                                                      |
+| 第三方组件                     | 依其各自权利人的条款                                                               |
 
 自行部署 Ecoma 来运营你自己的组织是**明确允许**的,无论是否用于商业目的,也包
 括用它来生产并向你自己的客户交付商品和服务。**不被允许**的是以**商业目的或收取
