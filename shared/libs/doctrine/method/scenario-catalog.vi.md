@@ -1,7 +1,7 @@
 ---
 title: "Scenario catalog"
 status: design-end-state
-canonical-sha: 91c380036e1f
+canonical-sha: f402c836574d
 ---
 
 # Scenario catalog
@@ -94,6 +94,15 @@ canonical-sha: 91c380036e1f
 | S67 | Đang nâng cuốn chiếu fleet server, một node chạm hai server khác train                                     | cluster-run                                     | ⚠️→✅ Tập protocol của fleet = **giao**; bỏ một protocol là hành động **toàn fleet**; cấm vá bằng cách pin node vào một server                                                                                                                               |
 | S63 | Sau khi bỏ tenant `test`: một test run ghi DataTable rồi bảng production time-travel as-of log-position đó | phase 6 litmus pass                             | ⚠️→✅ **major nhãn `run_kind` không có nhà** — khai hệ quả ở 4 consumer nhưng không ở Event Log ⇒ projection viết sau quên lọc; vá Event Log §1/§3 (nhà canonical + luật "mọi projection khai lập trường") + Calibration §2 + Working Data §1                |
 | S62 | Publisher đẩy block class `code` kèm suite riêng để lấy badge verified                                     | vùng mù `unverify × mirror` (khai ở #2), nhóm N | ⚠️→✅ **major vòng tròn "chạy code chưa verified để được verified"** — vá Hub §7 (bằng chứng phụ, test run scope, 0 secret) và đóng bởi Runtime Sandbox §6 — cắt vòng bằng cách biến an toàn thành thuộc tính của cái chuồng, không phải của code đang duyệt |
+
+## Phần 1e — Vòng đối kháng cạnh tranh O3c (S70–S73, sinh từ battery đối thủ 2026-08-03)
+
+| ID  | Kịch bản                                                                                         | Nguồn                          | Verdict                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S70 | Tenant admin có cửa hậu DB **viết lại** một entry đã ghi — kể cả entry ghi override của chính họ | battery đối thủ (nhóm N)       | ⚠️ **found, major, CÒN MỞ**: checksum + gap-in-positions bắt _mất_, không bắt _viết lại_ có chủ đích — ô "sửa log" của threat battery chưa có cơ chế chặn. Vá đề xuất ở Event Log: hash-chain per stream + head ký + anchor ngoài **opt-in**; chain buộc trên ciphertext nên không đụng crypto-shredding |
+| S71 | Người duyệt phải **chọn 1 trong 3 phương án**, bước sau rẽ theo lựa chọn đó                      | battery đối thủ (suspend-step) | ✅ quyết định là **Task của Role người**, phê duyệt là Gate — lựa chọn là output artifact của decision-task đi tiếp qua Handoff; Gate không mang input tự do                                                                                                                                             |
+| S72 | Ứng dụng **redesign toàn bộ** giữa hai phiên; automation phải sống sót **và** tự rẻ trở lại      | battery đối thủ (RPA)          | ✅ tier 4 gánh phiên đầu, healing vá tier 1 có lineage + trust decay, distillation là chiều về — một trục, không phải lựa chọn per-product                                                                                                                                                               |
+| S73 | Agent ngoài gọi vào qua A2A/ACP/MCP, và một task gọi ra một agent ngoài                          | battery đối thủ (chuẩn O4)     | ✅ chiều vào = Trigger + auth tại biên + external filler; chiều ra = adapter của agent runtime (Task §5) — không interface thứ ba mọc ra ở chiều nào                                                                                                                                                     |
 
 ## Phần 4 — Coverage gaps theo dimension model (vùng mù mới sau full-run #2)
 
