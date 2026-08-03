@@ -218,6 +218,20 @@ through review.
   taxonomy.
 - **No secrets stored outside the vault, and no private integration path** with
   Platform despite sharing a repository.
+- **No undetectability engineering.** Solving an access challenge presented to an
+  authorised session — a CAPTCHA in front of a login the tenant holds a
+  credential for — is an ordinary Action, logged with its actor like any other,
+  and it is squarely what "for where there is no API" means. What the engine does
+  **not** author is the opposite capability, whose only function is to make a
+  destination misattribute a machine as a human: fingerprint spoofing, residential-proxy
+  rotation, timing mimicry tuned to defeat a detector. The reason is the domain's
+  own position — every action is accountable, and that accountability is
+  **end-to-end**: driving an authorised human path leaves the destination's own
+  log truthful, whereas evasion exists precisely to make that log lie. The two are
+  different acts, and the line is drawn at the session's permission scope (Sandbox
+  & Credential §4). A tenant that needs an undetectability capability installs it
+  as an opt-in `code`-class driver and owns the terms-of-service and legal
+  exposure; the engine neither ships nor markets it.
 
 ## Distribution
 

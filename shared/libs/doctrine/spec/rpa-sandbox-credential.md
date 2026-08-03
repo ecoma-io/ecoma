@@ -94,6 +94,22 @@ platform can see it and static analysis can judge it — "this task grants
 irreversible rights while the Gate before it has no floor" is Composition §4
 extending naturally down into the RPA layer.
 
+**The scope is also the line between two capabilities that look alike and are
+not.** Solving an access challenge — a CAPTCHA presented to a session inside a
+domain the tenant holds a declared credential for — is an action within scope:
+the actor is still the machine, the action is still an entry in the log, and
+where the tenant is an authorised user the destination's own record stays
+truthful. **Engineering undetectability** — spoofing a fingerprint, rotating
+residential proxies, mimicking human timing to defeat a detector — is not the
+same act and is not authored here, because its only function is to make the
+destination misattribute the machine as a human, which is the one thing the
+action log exists to prevent (RPA North Star non-goals). If a tenant needs it, it
+arrives as a `code`-class driver, opt-in, at the tenant's own terms-of-service
+and legal exposure. A destination that blocks silently, presenting no challenge
+to solve, therefore falls on the far side of the line: the authorised case is
+declined at the engine rather than served by crossing into evasion — the
+conservative reading, consistent with reversibility-not-declared-is-irreversible.
+
 ## 5. Non-goals
 
 - No secret is stored outside the vault, and there is no "bare, no sandbox"
@@ -103,13 +119,14 @@ extending naturally down into the RPA layer.
 
 ## 6. Decisions
 
-| Question  | Settled                                                                                                    |
-| --------- | ---------------------------------------------------------------------------------------------------------- |
-| Isolation | One sandbox per session; a persistent profile is a resource with its own id and scope                      |
-| Secrets   | Handle-only; injection at the driver; the executor is absolutely blind to the value                        |
-| Masking   | At the perception layer, a single chokepoint; the detector carries calibration; App Profile patches misses |
-| Rights    | A four-axis declared scope, blocked at the engine, judgeable by static analysis under integration          |
-| Live view | A projection of the masked Scene; where a driver cannot, takeover is attended-only with no remote channel  |
+| Question                     | Settled                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Isolation                    | One sandbox per session; a persistent profile is a resource with its own id and scope                                                                                                                                                                                          |
+| Secrets                      | Handle-only; injection at the driver; the executor is absolutely blind to the value                                                                                                                                                                                            |
+| Masking                      | At the perception layer, a single chokepoint; the detector carries calibration; App Profile patches misses                                                                                                                                                                     |
+| Rights                       | A four-axis declared scope, blocked at the engine, judgeable by static analysis under integration                                                                                                                                                                              |
+| Live view                    | A projection of the masked Scene; where a driver cannot, takeover is attended-only with no remote channel                                                                                                                                                                      |
+| Access challenges vs evasion | Solving a presented challenge on an authorised, declared-credential domain is an in-scope Action; undetectability engineering is not authored — an opt-in `code`-class driver at the tenant's own exposure, and a silently-blocking destination is declined rather than evaded |
 
 ## Litmus
 
@@ -119,3 +136,7 @@ extending naturally down into the RPA layer.
    while the value never reaches log, evidence or context?
 3. Does a remote viewer during takeover have any path to what was masked — a raw
    framebuffer, an image from before masking?
+4. A session solves a CAPTCHA on a domain it holds a declared credential for — is
+   the action an ordinary logged Action with its actor? And is there any
+   first-party capability whose function is to make a destination misattribute the
+   machine as a human?

@@ -1,7 +1,7 @@
 ---
 title: "Ecoma RPA — North Star"
 status: design-end-state
-canonical-sha: 784076d1ca4c
+canonical-sha: 404f3517c22f
 ---
 
 # Ecoma RPA — North Star
@@ -209,6 +209,19 @@ opt-in, qua review.
   mở.
 - **Không lưu secret ngoài vault, và không có đường tích hợp riêng** với Platform
   dù chung một repo.
+- **Không kỹ nghệ hóa sự không-bị-phát-hiện.** Giải một access challenge trình ra
+  cho một session được ủy quyền — một CAPTCHA trước một login mà tenant giữ
+  credential — là một Action bình thường, ghi kèm actor như mọi Action khác, và
+  đó đúng là ý nghĩa của "cho nơi không có API". Cái engine **không** tự viết là
+  năng lực ngược lại, mà chức năng duy nhất là làm đích đến misattribute máy thành
+  người: spoof fingerprint, xoay residential proxy, giả nhịp gõ để đánh bại
+  detector. Lý do là chính lập trường của domain — mọi hành động có trách nhiệm
+  giải trình, và trách nhiệm đó là **đầu-cuối**: lái một đường con-người được ủy
+  quyền để log của chính đích đến trung thực, trong khi né tránh tồn tại _để_ làm
+  log đó nói dối. Hai act khác nhau, và lằn được kẻ tại session permission scope
+  (Sandbox & Credential §4). Tenant cần năng lực không-bị-phát-hiện thì cài nó
+  dưới dạng driver class `code` opt-in và tự gánh ToS + phơi nhiễm pháp lý; engine
+  không ship và không marketing nó.
 
 ## Phân phối
 
