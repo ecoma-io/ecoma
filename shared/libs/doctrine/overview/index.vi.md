@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 6b2262e244a8
+canonical-sha: f554e0a04db3
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -168,11 +168,11 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 
 ## Sổ gate — trạng thái thật, một chỗ
 
-**Luật gate** ([roadmap](../method/roadmap.md) §1b, luật #6): **Gate = freeze văn bản + conformance test suite chạy độc lập**; văn bản không đủ, chỉ suite mới là trọng tài máy kiểm được. Litmus của chính roadmap (§8) hỏi thẳng: mỗi gate ◆G có suite chạy được **trước khi** track phía sau viết dòng code đầu tiên không — **"Gate không suite = gate giấy."**
+**Luật gate** ([roadmap](../method/roadmap.md) §1b, luật #7): **Gate = freeze văn bản + conformance test suite chạy độc lập**; văn bản không đủ, chỉ suite mới là trọng tài máy kiểm được. Litmus của chính roadmap (§8) hỏi thẳng: mỗi gate ◆G có suite chạy được **trước khi** track phía sau viết dòng code đầu tiên không — **"Gate không suite = gate giấy."**
 
 **Sổ trạng thái từng nằm ở đây nay được dẫn xuất.** `dev-cli conformance` đọc trạng thái từng gate thẳng từ cây — freeze là một tài liệu khai `status: frozen` kèm gate nó đóng; suite là một project khai target `conformance` kèm gate nó phân xử — rồi in một dòng cho mỗi gate roadmap định nghĩa. Một bảng chép tay cùng nội dung là nguồn sự thật thứ hai về một sự kiện lệnh đọc được, đúng loại trôi mà file này vừa gỡ khỏi mục known-gaps.
 
-**Hệ quả trung thực, tại thời điểm viết**: chưa tài liệu nào từng freeze và chưa có suite nào, nên **mọi gate ◆G0–◆G4 là gate giấy** theo đúng chữ của luật #6. Đó không phải lỗi vá bằng cách freeze đại một thứ gì: một suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay ship một suite rỗng để tô xanh một dòng mới là vi phạm, không phải cách sửa ("Scaffold openly; never fake done", `CLAUDE.md` gốc). Cái đã đổi là khoảng trống nay **máy thấy được chứ không phải lời khai** — và ngay khi ai đó freeze một văn bản, lệnh sẽ đỏ cho tới khi suite của nó tồn tại. Luật cuối cùng đã có thứ thi hành nó thay vì một câu mô tả nó.
+**Hệ quả trung thực, tại thời điểm viết**: chưa tài liệu nào từng freeze và chưa có suite nào, nên **mọi gate ◆G0–◆G4 là gate giấy** theo đúng chữ của luật #7. Đó không phải lỗi vá bằng cách freeze đại một thứ gì: một suite thật đòi hạ tầng tương xứng với gate nó đo, và giả một freeze hay ship một suite rỗng để tô xanh một dòng mới là vi phạm, không phải cách sửa ("Scaffold openly; never fake done", `CLAUDE.md` gốc). Cái đã đổi là khoảng trống nay **máy thấy được chứ không phải lời khai** — và ngay khi ai đó freeze một văn bản, lệnh sẽ đỏ cho tới khi suite của nó tồn tại. Luật cuối cùng đã có thứ thi hành nó thay vì một câu mô tả nó.
 
 ## Publishing policy
 
