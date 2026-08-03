@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: b53df4d35a14
+canonical-sha: 41e39407fe31
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -13,7 +13,7 @@ canonical-sha: b53df4d35a14
 3. 5 primitive: `role` → `task` → `checkpoint` → `handoff` → `escalation` → rồi `trigger-channel` (cửa vào/ra) và `knowledge` (module opt-in), `artifact-store` + `event-log` (subsystem tầng 1), `clickstream-ingest` (đường ghi thứ hai — đọc ngay sau `event-log`), `working-data` (DataTable/Lease/Analytics), `memory`, `tenant-identity` (core), `calibration` (data model tầng 1), `human-surface` (tầng 3 Work Surface), `vault-key` (subsystem tầng 1), `test-harness` (mode engine), `quota-scheduling` (trần + lập lịch, đứng trên Event Log và Lease), `runtime-sandbox` (biên thực thi của code filler)
 4. `[rpa](../north-star/rpa.md)` → 5 spec RPA: `action` → `session` → `driver-perception` → `selfhealing` → `sandbox-credential`
 5. `[hub](../north-star/hub.md)` → `[block](../spec/block.md)`
-6. Ngoài bộ trần: `[roadmap](../method/roadmap.md)` (thứ tự xây — class SỐNG, được phép nói phase/v1) · `sổ thị trường (không công bố)` (cược kinh doanh) · `playbook funnel (không công bố)` · `[review-constitution](../method/review-constitution.md)` trước `[review-rubric](../method/review-rubric.md)` (luật đọc trước hồ sơ instantiate chúng) + `[scenario-catalog](../method/scenario-catalog.md)`
+6. Ngoài bộ trần: `[roadmap](../method/roadmap.md)` (thứ tự xây — class SỐNG, được phép nói phase/v1) · `sổ thị trường (không công bố)` (cược kinh doanh) · `playbook funnel (không công bố)` · `[review-constitution](../method/review-constitution.md)` trước `[review-rubric](../method/review-rubric.md)` (luật đọc trước hồ sơ instantiate chúng) + `[code-vocabulary](../method/code-vocabulary.md)` (tài liệu nào sở hữu mã hiệu nào, và phải trích dẫn ra sao) + `[scenario-catalog](../method/scenario-catalog.md)`
 
 ## Bảng trạng thái
 
@@ -45,6 +45,7 @@ canonical-sha: b53df4d35a14
 | [runtime-sandbox](../spec/runtime-sandbox.md)               | Platform (**tầng 2 — biên thực thi của lớp filler `code`**: chuồng OS/VM theo Attempt, gắn secret ở chặng cuối, đường cắt vòng duyệt verified, version và thu hồi image)                                                                                                                           |
 | [review-constitution](../method/review-constitution.md)     | **Meta — luật phán xét, thủ tục một lượt chạy và phương pháp sinh rubric dùng chung cho mọi công cụ review** (phần dạng; phần nội dung thuộc từng công cụ)                                                                                                                                         |
 | [review-rubric](../method/review-rubric.md)                 | **Meta — công cụ review toàn hồ sơ**                                                                                                                                                                                                                                                               |
+| [code-vocabulary](../method/code-vocabulary.md)             | **Meta — chính sách sở hữu namespace và cách trích dẫn cho mọi mã hiệu** (chỉ chính sách; nó không giữ nghĩa của bất kỳ mã nào)                                                                                                                                                                    |
 | [scenario-catalog](../method/scenario-catalog.md)           | Meta — tài sản regression (kịch bản + competitor + standards watch)                                                                                                                                                                                                                                |
 | [roadmap](../method/roadmap.md)                             | **SỐNG — thứ tự xây** (6 track + gate ◆G0–G4, gate = freeze + conformance suite; Gantt mermaid; ICP-independent vs ICP-gated; **§6b coverage matrix end-state→milestone, kín cả 5 tầng NS**)                                                                                                       |
 | [adr-ledger](../method/adr-ledger.md)                       | **SỐNG — quyết định triển khai** (0001 durable✅ · 0002 storage✅ · **0003 Gói-D biên-theo-vai✅** · 0004 Vue✅ · 0005 Tauri✅ · **0006 user-code JS/Py/Go✅** — đủ bộ, 0 treo; tạm trú tới khi có repo; **0005 +3 biên cứng UI attended · 0002 +điều kiện key-store · 0006 +`supports_dry_run`**) |
@@ -182,7 +183,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Bộ trần (3 North Star + **27 spec**) | ✅ | License docs riêng (đề xuất CC BY-SA), **cùng/sau MVP wedge**; tone-pass trước khi đăng |
 | _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **mirror MỘT CHIỀU** private→public đã lược `cloud/`; public read-only, **CI ký chỉ ở private root**; đường contributor = replay-lên-trunk-private (playbook giao hàng (không công bố) §2/§6) |
-| Rubric, hiến pháp & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
+| Rubric, hiến pháp, từ vựng mã hiệu & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
 | **Roadmap** | ⚠️ **cắt theo phần** (tiền lệ scenario catalog) | ✅ _đi trước_: §1 dependency graph, §4 khung (a)(b)(c), §6 vòng đối kháng, §8 litmus — bằng chứng kỷ luật, không lộ cược · ⚠️ _cùng/sau MVP wedge_: §2 phễu, §3a · ❌ _tuyệt đối kín_: **§3b ICP-gated + mọi ngưỡng** (là sổ thị trường (không công bố) trá hình — người sắp phỏng vấn biết trước câu trả lời nào "được tính"), **§5 ledger kỹ thuật** (bản đồ điểm yếu có thời hạn — kín tới khi mục đó đóng), dòng §7 nhắc ngưỡng · Cơ chế: **một bản public lược dòng kín**, không maintain hai file (chống G6). Chốt theo luật sẵn có, owner ủy quyền |
 | Scenario catalog | ⚠️ Phần 1 public; **Phần 2–3 (verdict đối thủ + feature inventory) kín** | Public verdict = trang "vs" trá hình — mâu thuẫn quyết định tone |
 | sổ thị trường (không công bố) | ❌ Tuyệt đối |
