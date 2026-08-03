@@ -179,7 +179,7 @@ of value**, as it first appears: the wedge is standalone RPA for a single user,
 and that single user **is sitting right there**. An approval queue is a concept
 belonging to an organisation of several people, and it belongs to Track E. Cut at
 the right joint, M1 **loses nothing**. Two consequences: **ADR-0005 must correct
-the phrase**, and RPA North Star §4's second hard boundary stands unchanged —
+the phrase**, and RPA North Star §5's second hard boundary stands unchanged —
 every **labour** action goes straight to the engine API, and in-session
 confirmation is not a labour action but session control.
 
@@ -238,7 +238,7 @@ gantt
  G1 freeze Filler + Session effect :milestone, g1, after a2, 0d
  Composition + Trigger + agent runtime :a3, after a2, 3d
  G3 Trigger/Channel running :milestone, g3, after a3, 0d
- M0 exit - 59 litmus :milestone, m0, after a3, 0d
+ M0 exit - 64 litmus :milestone, m0, after a3, 0d
 
  section B — RPA, opens after G1
  Action+Session+Healing, parallel with Driver :b1, after g1, 3d
@@ -338,8 +338,8 @@ half-mechanism it forbids.
 - **Exit litmus, measurable**: North Star §6's four questions pass on a real
   process · the L5 litmus of Role, Task, Checkpoint, Handoff, Escalation,
   Composition, Trigger, Event Log, Artifact Store, Tenant, Calibration, Human
-  Surface and **Vault** — **55 questions, recounted by script as the final step**
-  — plus North Star §6's four, giving **59 at M0 exit**. **The test-harness litmus
+  Surface and **Vault** — **60 questions, recounted by script as the final step**
+  — plus North Star §6's four, giving **64 at M0 exit**. **The test-harness litmus
   is measured at the ◆G gates, not at M0 exit.** Also: `kill -9` mid-flight, then
   replay reconstructs the exact state and refires every timer · static analysis
   catches **every row** of Composition §4's table on a deliberately broken
@@ -368,10 +368,10 @@ half-mechanism it forbids.
 - **(c) Forbidden**: no separate code path for standalone · no permanent control
   channel · no post-hoc redaction · no auto-applied patch for an irreversible
   action.
-- **Exit litmus**: RPA North Star §8's nine questions plus the L5 litmus of the
+- **Exit litmus**: RPA North Star §9's ten questions plus the L5 litmus of the
   five RPA specifications (15), especially #6 _the same binary and the same effect
   path_, #5 _a secret never reaches a log, a screenshot or a context_, and #9 _no
-  permanent control channel_. Plus **8** from Release & Compatibility's L5 and
+  permanent control channel_. Plus **9** from Release & Compatibility's L5 and
   **9** from the deploy charter — a charter's litmus is measured at M1, the same
   class as the website charter's at M2.
 - **Blocking specifications: none remain** — the tier-1 Vault, Release &
@@ -554,10 +554,10 @@ running is what ◆G3 closes on.
 | A.16 | **The calibration data model** (CalKey, Cell, estimator identity — specification written)                        | A     | ◆G0  | **M0** — an exit condition, litmus #3 "one confidence scale"; M0 exit gains 5 L5 questions                                                                                                                                                                                                                                                                                                                                                                                                 |
 | A.17 | **Test harness — the infrastructure role** (test mode plus the conformance suite)                                | A     | ◆G0  | **M0** — the precondition of every ◆G gate. Its litmus is **measured at the gate, not added to M0 exit**                                                                                                                                                                                                                                                                                                                                                                                   |
 | E.4  | **Test harness — the product role** (a "try it" surface for the user)                                            | E     | ◆G4  | M3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| A.18 | **Release & Compatibility** (the train, negotiation, upgrade and rollback, EOL, suite versioning)                | A     | —    | **M1** — exit litmus gains 8 L5 questions; the workspace-wide tag lands in `nx.json` before the first app                                                                                                                                                                                                                                                                                                                                                                                  |
+| A.18 | **Release & Compatibility** (the train, negotiation, upgrade and rollback, EOL, suite versioning)                | A     | —    | **M1** — exit litmus gains 9 L5 questions; the workspace-wide tag lands in `nx.json` before the first app                                                                                                                                                                                                                                                                                                                                                                                  |
 | A.19 | **A runtime sandbox for code fillers**                                                                           | A     | ◆G1  | M4 — the condition for enabling the `code` trust class, and for **the whole verified-review loop** for that class                                                                                                                                                                                                                                                                                                                                                                          |
 | R.1  | **Deploy & Operations** (the `deploy`, `operate` and `sunset` cells; backup and restore; the DR key obligations) | R     | —    | **[deploy](../charter/deploy.md)** — attached to **M1**; the `check-backup-key-isolation` command lands with the `deploy/` directory                                                                                                                                                                                                                                                                                                                                                       |
-| R.2  | Publishing policy plus legal review (SUL, CLA, EULA, trademark)                                                  | R     | —    | §5 — in parallel; it blocks the first contributor and every publication. The texts exist and **`dev-cli check-contributor-record`** enforces the acceptance rule; a corporate CLA is what remains                                                                                                                                                                                                                                                                                          |
+| R.2  | Publishing policy plus legal review (SUL, CLA, EULA, trademark)                                                  | R     | —    | §5 — in parallel; it blocks the first contributor and every publication. The texts exist and **`dev-cli check-contributor-record`** enforces the acceptance rule; the Corporate CLA is in force (the index's licence ledger is the record) — the residue is the Enterprise License counsel review, the proprietary `cloud/` terms, and the EULA and trademark texts                                                                                                                        |
 | R.3  | **Migrating the documents into the repository** (the doctrine tree plus its reading surface)                     | R     | —    | Done — the tree is in the repository; git history is the record                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | R.4  | **Board ↔ roadmap** (the two-way law of §0)                                                                      | R     | —    | The file half: **`dev-cli check-roadmap-ids`** — ids unique, with track, gate and milestone all resolving against §1b and §4. **Reuse of a number is invisible to the gate** — one snapshot cannot distinguish it — and stays with the reviewer. The board half: **`repo-care audit-roadmap-labels`** — every card's `roadmap:`/`track:`/`gate:`/`milestone:` label resolves against this document, read-only, because relabelling after a rename is a judgment about where the work moved |
 | R.5  | Build, branch and CI (the `build` cell) plus the conformance-suite executor                                      | R     | —    | The delivery playbook (withheld); the executor is **`dev-cli conformance`** — it reads each gate's freeze and suite off the tree and fails a freeze that has no suite (rule #7)                                                                                                                                                                                                                                                                                                            |
