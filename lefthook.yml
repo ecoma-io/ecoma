@@ -60,8 +60,23 @@ pre-push:
       # Heavy deterministic gates, once per push: the definition-of-done minus
       # e2e (which needs Chromium/xvfb + built apps — CI stays its
       # authoritative home). typecheck is first-class here because the
-      # Vite/esbuild build targets strip types without checking them.
-      run: pnpm nx affected -t typecheck test build
+      # Vite/esbuild build targets strip types without checking them. lint is
+      # included even though pre-commit lints per commit: a commit made with
+      # hooks bypassed (rebase, --no-verify) would otherwise reach CI unlinted.
+      run: pnpm nx affected -t lint typecheck test build
+    repo-gates:
+      # The repo-wide dev-cli gates CI blocks on that no per-project target
+      # carries — without them here, a red lands only on the PR (root
+      # CLAUDE.md: "a shorter local run just moves the red to the PR").
+      # check-contributor-record runs bare (no --author): the PR-author half
+      # needs GitHub's account-type authority and stays CI-only by design.
+      run: >-
+        node shared/tools/dev-cli/src/main.mjs conformance &&
+        node shared/tools/dev-cli/src/main.mjs check-claude-md &&
+        node shared/tools/dev-cli/src/main.mjs check-subsystem-readmes &&
+        node shared/tools/dev-cli/src/main.mjs check-subproject-readmes &&
+        node shared/tools/dev-cli/src/main.mjs check-project-conventions &&
+        node shared/tools/dev-cli/src/main.mjs check-contributor-record
 
 prepare-commit-msg:
   commands:
