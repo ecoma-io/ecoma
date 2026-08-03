@@ -7,6 +7,7 @@
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "^default", "goGlobals"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "go vet ./..."
@@ -14,6 +15,7 @@
     },
     "lint": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "lintTooling", "goGlobals"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "node ../../../shared/tools/dev-cli/src/main.mjs check-gofmt && golangci-lint run --allow-serial-runners && eslint project.json --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
@@ -21,6 +23,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "^default", "coverageConfig", "goGlobals"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "go test ./..."
@@ -28,6 +31,7 @@
     },
     "build": {
       "executor": "nx:run-commands",
+      "inputs": ["production", "^production", "goGlobals"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "go build ./..."
