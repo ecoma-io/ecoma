@@ -311,7 +311,7 @@ const EMITTERS = {
       identityLine: `Go module \`${modulePath}\``,
       targets: {
         typecheck: "go vet ./...",
-        lint: `${DEV_CLI} check-gofmt && golangci-lint run && ${PROJECT_JSON_LINT} && ${DEV_CLI} check-journey-markers .`,
+        lint: `${DEV_CLI} check-gofmt && golangci-lint run --allow-serial-runners && ${PROJECT_JSON_LINT} && ${DEV_CLI} check-journey-markers .`,
         test: "go test ./...",
         build: "go build ./...",
       },

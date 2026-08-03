@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "{projectRoot}",
-        "command": "node ../../../shared/tools/dev-cli/src/main.mjs check-gofmt && golangci-lint run && eslint project.json --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
+        "command": "node ../../../shared/tools/dev-cli/src/main.mjs check-gofmt && golangci-lint run --allow-serial-runners && eslint project.json --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers ."
       }
     },
     "test": {
