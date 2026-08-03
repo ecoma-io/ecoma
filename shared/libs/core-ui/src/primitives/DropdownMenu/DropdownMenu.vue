@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
 } from "reka-ui";
 import { cn } from "../../lib/cn";
+import { listStaggerDelay } from "../../lib/motion";
 
 /**
  * DropdownMenu — a single button that opens a list of *commands* (roving focus,
@@ -95,7 +96,7 @@ function choose(item: DropdownMenuEntry): void {
                   'text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive',
               )
             "
-            :style="{ animationDelay: `${Math.min(i, 5) * 24}ms` }"
+            :style="{ animationDelay: listStaggerDelay(i) }"
             @select="choose(item)"
           >
             <span>{{ item.label }}</span>

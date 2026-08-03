@@ -43,16 +43,16 @@ Mỗi primitive có trang riêng với variants, sizes, props và hướng dẫn
 - **Primitives › Menubar** — dải menu kiểu desktop (File · View · Help), data-driven, có bàn phím
   a11y; nền tảng cho block **TitleBar**.
 - **Primitives › WindowControls** — cụm minimize · maximize · close cho cửa sổ frameless.
-- **Primitives › Switch** — toggle thiết lập boolean có hiệu lực tức thì; critical path 0.1
+- **Primitives › Switch** — toggle thiết lập boolean có hiệu lực tức thì
   (`Settings › Chung › Telemetry`), dựng trên Reka UI.
-- **Primitives › Select** — chọn một trong danh sách đóng (ngôn ngữ en/vi…); critical path 0.1,
+- **Primitives › Select** — chọn một trong danh sách đóng (ngôn ngữ en/vi…),
   dựng trên Reka UI.
 - **Primitives › SegmentedControl** — 2–5 lựa chọn loại trừ thấy-hết-được (Sáng/Tối/Auto; mức mật độ
-  Simple/Studio); critical path 0.1.
-- **Primitives › NumberField** — nhập số có đơn vị, **kéo-chỉnh** được (toạ độ/kích thước/góc/frame); critical
-  path **0.2** (Inspector), dựng trên Reka UI.
-- **Primitives › Slider** — giá trị liên tục bị chặn (volume 0–1); critical path **0.2** (Inspector · Settings
-  media), dựng trên Reka UI.
+  Simple/Studio).
+- **Primitives › NumberField** — nhập số có đơn vị, **kéo-chỉnh** được (toạ độ/kích thước/góc/frame) — bề mặt
+  Inspector, dựng trên Reka UI.
+- **Primitives › Slider** — giá trị liên tục bị chặn (volume 0–1) — Inspector · Settings
+  media, dựng trên Reka UI.
 - **Primitives › InlineError** — hợp đồng lỗi thống nhất (A5): `text-destructive` +
   `role="alert"`, persist-until-resolved (không tự ẩn theo timeout). Dùng cho mọi lỗi
   field/section-level — vd trạng thái `missing` của `ProjectCard`, banner mở project thất bại

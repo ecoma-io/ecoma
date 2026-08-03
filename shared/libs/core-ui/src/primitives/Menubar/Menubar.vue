@@ -31,6 +31,7 @@ export interface MenubarMenu {
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, nextTick } from "vue";
+import { listStaggerDelay } from "../../lib/motion";
 
 const props = defineProps<{ menus: MenubarMenu[] }>();
 const emit = defineEmits<{ (e: "select", command: string): void }>();
@@ -186,7 +187,7 @@ onBeforeUnmount(() => window.removeEventListener("click", close));
             role="menuitem"
             :disabled="item.disabled"
             :data-highlighted="activeIndex === i || undefined"
-            :style="{ animationDelay: `${Math.min(i, 5) * 24}ms` }"
+            :style="{ animationDelay: listStaggerDelay(i) }"
             class="flex w-full items-center justify-between gap-6 rounded-sm px-2 py-1.5 text-left text-xs text-foreground transition-colors duration-fast ease-out hover:bg-subtle disabled:pointer-events-none disabled:opacity-40 data-[highlighted]:bg-subtle animate-fade-rise"
             @click="choose(item)"
             @mouseenter="activeIndex = i"
