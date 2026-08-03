@@ -15,6 +15,7 @@
     },
     "lint": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "lintTooling", "{workspaceRoot}/shared/libs/core-ui/src/**/*"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers . && node ../../../shared/tools/dev-cli/src/main.mjs check-e2e-story-coverage ../../libs/core-ui/src"
