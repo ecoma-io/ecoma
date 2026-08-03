@@ -4,7 +4,7 @@
   "projectType": "application",
   "sourceRoot": "website/apps/site-e2e/src",
   "tags": ["type:e2e", "scope:website", "license:sul"],
-  "implicitDependencies": ["site"],
+  "implicitDependencies": ["site", "dev-cli"],
   "targets": {
     "typecheck": {
       "executor": "nx:run-commands",
@@ -23,7 +23,6 @@
     "e2e": {
       "executor": "nx:run-commands",
       "dependsOn": [{ "projects": ["site"], "target": "build" }],
-      "inputs": ["default", "devCli"],
       "options": {
         "cwd": "{projectRoot}",
         "command": "node ../../../shared/tools/dev-cli/src/main.mjs run-e2e"
