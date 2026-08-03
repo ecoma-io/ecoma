@@ -54,11 +54,19 @@ export const ROOT_LICENSE_FILE = "LICENSE";
  * a dangling pointer. A `LicenseRef-` names the terms directly, so it cannot
  * resolve to the wrong file or to no file, and SBOM tooling parses it instead of
  * escalating it to a human as "unknown".
+ *
+ * **Both `LicenseRef-` names carry their document's version**, for the reason
+ * the form exists: an unversioned reference names a moving target, and a reader
+ * holding the tree cannot tell which text governed it. Each licence document
+ * lets the licensor publish a later version without touching a licence already
+ * granted, so the version is exactly what distinguishes them. A version bump is
+ * one edit here rather than one per manifest, which is the whole point of this
+ * constant.
  */
 export const MANIFEST_LICENSE = {
   sul: "LicenseRef-Ecoma-SustainableUse-1.0",
   apache: "Apache-2.0",
-  ee: "LicenseRef-Ecoma-Enterprise",
+  ee: "LicenseRef-Ecoma-Enterprise-1.0",
   proprietary: "UNLICENSED",
 };
 
