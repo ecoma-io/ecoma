@@ -1,6 +1,28 @@
+import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 
 import { parseGoImports, parseGoModulePath, resolveGoDependencies } from "./go.mjs";
+
+const modulePath = fc
+  .array(fc.constantFrom(..."abcdefgh"), { minLength: 1, maxLength: 6 })
+  .map((chars) => `example.com/${chars.join("")}`);
+// The lines a .go file is made of, as this parser sees them: declarations it
+// must read, quoted strings it must not, and the block punctuation that
+// decides which is which.
+const goLine = fc.oneof(
+  fc.constantFrom(
+    "package main",
+    "import (",
+    ")",
+    "",
+    "\tfmt.Println()",
+    'var s = "example.com/not-an-import"',
+    '// import "example.com/commented"',
+  ),
+  modulePath.map((path) => `import "${path}"`),
+  modulePath.map((path) => `\t_ "${path}"`),
+  modulePath.map((path) => `\talias "${path}"`),
+);
 
 describe("parseGoModulePath", () => {
   it("reads the module path and ignores directives around it", () => {
@@ -39,6 +61,29 @@ describe("parseGoImports", () => {
   it("does not read a quoted string outside an import declaration", () => {
     expect(parseGoImports('package x\nvar s = "example.com/not-an-import"')).toEqual([]);
   });
+
+  // Two regexes stand in for a Go parser, over sources this plugin never gets
+  // to choose. The invariant that keeps that honest is that every path it
+  // reports is quoted somewhere in the file it read: an import the file does
+  // not contain is an edge to a project it does not depend on, which makes
+  // `nx affected` rebuild and re-review work that cannot have changed.
+  test.prop([fc.array(goLine, { maxLength: 24 })])(
+    "never reports an import path the source does not quote",
+    (lines) => {
+      const source = lines.join("\n");
+      for (const imported of parseGoImports(source)) {
+        expect(source).toContain(`"${imported}"`);
+      }
+    },
+  );
+
+  test.prop([fc.array(goLine, { maxLength: 12 }), modulePath, fc.array(goLine, { maxLength: 12 })])(
+    "reads a single-form import wherever in the file it appears",
+    (before, imported, after) => {
+      const source = [...before, `import "${imported}"`, ...after].join("\n");
+      expect(parseGoImports(source)).toContain(imported);
+    },
+  );
 });
 
 describe("resolveGoDependencies", () => {

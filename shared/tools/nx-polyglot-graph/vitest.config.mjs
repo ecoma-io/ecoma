@@ -15,6 +15,10 @@ const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.
 export default defineConfig({
   test: {
     environment: "node",
+    // Pins fast-check's seed on CI — the repo-root setup every
+    // property-testing project loads, never a per-project copy of the
+    // constant (Rule 14); the why lives in that file and the write-test skill.
+    setupFiles: ["../../../vitest.property-seed.mjs"],
     include: ["src/**/*.test.mjs"],
     coverage: {
       provider: "v8",
