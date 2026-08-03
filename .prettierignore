@@ -10,3 +10,4 @@ pnpm-lock.yaml
 # re-indents JSX blocks nested in list items until the closing tag escapes the
 # listItem and the file no longer compiles). Content MDX is also the immutable
 # ledger — a formatter must not rewrite committed entries at commit time.
+**/*.mdx
