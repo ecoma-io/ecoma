@@ -1,7 +1,7 @@
 ---
 title: "ADR Ledger"
 status: design-end-state
-canonical-sha: beca4bc97e99
+canonical-sha: 94aad8b1016b
 ---
 
 # ADR Ledger
@@ -17,6 +17,8 @@ canonical-sha: beca4bc97e99
 ## ADR-0002 — Storage: 5 port, reference Postgres, default THEO HÌNH THÁI ✅ CHỐT
 
 **5 port** (đều đã có trong trần, ADR chỉ gọi tên): `log-store` · `SQL-read` · `vector` · `blob-CAS` · `metrics-projection`.
+
+**Một cụm từ được đính chính.** "5 port" đếm các storage port mà ADR này chọn backend cho, và nó bị đọc thành toàn bộ bề mặt port — điều nó chưa bao giờ là. **Lease store là một port riêng bên cạnh chúng**: lease ở Working Data §3 là nguyên thủy tuần tự hóa duy nhất trong hệ thống, contract của nó đóng băng ở ◆G0 và do `conformance-g0` phân xử (ADR-0008 §4.2 vùng 4), nên nó không thể là chi tiết riêng tư của bất kỳ adapter nào tình cờ lưu nó. Cái không đổi là mọi quyết định bên dưới: Lease store dùng chung đúng hai SQL backend mà ADR này đã chốt — Postgres ở stack reference, SQLite ở stack nhỏ — nên nó thêm một port, không thêm một backend.
 
 | Khái niệm                                                                                           | Chốt                                                                                                                                                                                                                                                                                                                            |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

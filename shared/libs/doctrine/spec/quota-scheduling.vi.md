@@ -1,7 +1,7 @@
 ---
 title: "Quota & Scheduling Fairness"
 status: design-end-state
-canonical-sha: f9ca617dca2e
+canonical-sha: a42f456af3ea
 ---
 
 # Quota & Scheduling Fairness
@@ -82,8 +82,9 @@ không có độ vượt.
 - Nhà canonical của nhãn `run_kind` là Event Log §1/§3. Tài liệu này **khai lập
   trường**, không khai lại nhãn.
 - **Chịu negative test bắt buộc như mọi projection** (Event Log §3, trong suite
-  ◆G0): fixture có entry `run_kind: test` thì bộ đếm kế hoạch **không đổi**. Với
-  projection này, negative test còn phải kiểm **chiều ngược lại** — bộ đếm tài
+  phân xử chính projection này): fixture có entry `run_kind: test` thì bộ đếm kế
+  hoạch **không đổi**. Với projection này, negative test còn phải kiểm **chiều
+  ngược lại** — bộ đếm tài
   nguyên **có đổi**. Thiếu khẳng định thứ hai đó, một cách thi hành chỉ việc lọc
   sạch nhãn ở mọi nơi vẫn qua suite trong khi nó mở toang đúng chỗ mà §4 tồn tại
   để bịt.

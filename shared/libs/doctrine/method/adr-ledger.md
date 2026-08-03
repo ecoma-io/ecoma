@@ -30,6 +30,16 @@ already inside M0, and the ◆G0 conformance suite is the net that checks it.
 **Five ports**, all already present in the ceiling — this ADR only names them:
 `log-store`, `SQL-read`, `vector`, `blob-CAS`, `metrics-projection`.
 
+**A phrase corrected.** "Five ports" counted the storage ports this ADR chose
+backends for; it was read as the whole port surface, which it never was. **The
+Lease store is a port of its own beside them** — Working Data §3's lease is the
+only serialisation primitive in the system, its contract is frozen at ◆G0 and
+arbitrated by `conformance-g0` (ADR-0008 §4.2 area 4), and it therefore cannot
+be a private detail of whichever adapter happens to persist it. What is
+unchanged is every decision below: the Lease store shares the two SQL backends
+this ADR already settles — Postgres in the reference stack, SQLite in the small
+one — so it adds a port, not a backend.
+
 | Concept                                                                                                          | Settled                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reference backend**                                                                                            | **Postgres** — where the contract suite defines standard behaviour. _Reference is not the installation default_                                                                                                                                                                                                                                                                        |

@@ -142,10 +142,10 @@ read it carefully.
 It runs **independently** against any implementation, which is the precondition
 for opening parallel tracks at all.
 
-**The ◆G0 suite must contain a `run_kind` negative test for every projection**
-(Event Log §3): a new projection arriving without one fails the suite and is
-blocked from merging. That is where the harness pays back the very isolation law
-it depends on.
+**Every projection must carry a `run_kind` negative test in the suite that
+arbitrates it** (Event Log §3): a new projection arriving without one fails that
+suite and is blocked from merging. That is where the harness pays back the very
+isolation law it depends on.
 
 ## 8. Who runs it
 

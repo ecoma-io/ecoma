@@ -314,7 +314,7 @@ draws. Being a new projection, it **declares its position on the `run_kind` labe
 at the label's canonical home** (Event Log §3) — **included and labelled**, since
 the question it answers is "who breaks if this image stops resolving", and a test
 run pinning that image breaks too — and it carries the mandatory negative test in
-the ◆G0 conformance suite like every other projection.
+the conformance suite that arbitrates it, like every other projection.
 
 ## 8. Non-goals
 
