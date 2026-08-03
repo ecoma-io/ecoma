@@ -27,10 +27,24 @@ area's in `platform/CLAUDE.md`. Nx project name `conformance-g0`; Go module
 - **Exactly one `gate:` tag, held by review alone.** `require-project-tags`
   never inspects that axis, and the executor takes the first tag it finds — so a
   second or misspelled one is silent (ADR-0008 §6).
-- **The suite asserts nothing yet, and says so.** Each contract area has a file
-  naming it and enumerating its cases as TODOs; there are no test functions,
-  because an empty test function that passes reports a contract as checked when
-  nothing checked it. `go test` is green over zero tests, which is the honest
-  reading of this state. The ◆G0 `status: frozen` flip is therefore a separate
-  act, after the assertions land and this suite is green against them —
-  freezing first is the paper gate rule #7 names, and the executor fails it.
+- **Two of the five areas are arbitrated; three assert nothing, and say so.**
+  Areas (1) the entry schema and (5) Principal identity have real cases, at the
+  unit tier — both are properties of a domain value, so a store would add
+  nothing to the arbitration. Areas (2) log-store, (3) blob-CAS and (4) Lease
+  are port contracts: each needs a real adapter on **both** stacks, so their
+  files still name their cases as TODOs and hold no test function. That is the
+  honest state, not a gap to paper over — an empty test function that passes
+  reports a contract as checked when nothing checked it.
+- **A green run of this suite does not mean ◆G0 is met**, and nothing here may
+  imply it does. The `status: frozen` flip is a separate act, landing only once
+  all five areas are green — freezing first is the paper gate rule #7 names,
+  and the executor fails it. When you add an area, update `doc.go`'s table and
+  this entry **in the same commit**: the moment either says more than the files
+  do, the project's own documentation is the fake-done.
+- **One pin is deliberately weaker than the text it serves.** tenant-identity.md
+  §1 promises the actor id survives a change of SSO provider; exercising that
+  needs two auth adapters and a log to compare across, none of which exist at
+  ◆G0. `principal_test.go` therefore pins the **structure** the promise rests on
+  — no identity-provider field on `Principal`, the per-kind identity opaque —
+  and its header says so in those words. Do not quietly upgrade the claim; the
+  behavioural half is arbitrated by the first auth adapter.
