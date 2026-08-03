@@ -1,6 +1,6 @@
 # Ecoma Contributor License Agreement
 
-**Version 1.1, effective 2026-08-03.**
+**Version 1.0, effective 2026-08-03.**
 
 Before your first contribution is merged, we ask you to agree to these terms.
 This page says plainly why each part exists.
@@ -54,12 +54,11 @@ who wrote it:
   write there stays open, and attribution travels with it.
 
 [`LICENSE`](./LICENSE) is the source of truth for which path gets which track.
-Two of the five licence sets are still in progress: the Enterprise License
-terms exist as a draft in this repository, awaiting counsel review; the
-proprietary terms for the operator control plane have not been published.
-Clause 1 is what would let us place your contribution under them, and we say
-so plainly rather than implying `LICENSE` already states them. Ask before you
-contribute if that matters.
+One of the five licence sets is still in progress: the proprietary terms for
+the operator control plane have not been published. Clause 1 is what would let
+us place your contribution under them, and we say so plainly rather than
+implying `LICENSE` already states them. Ask before you contribute if that
+matters.
 
 A project that offers its code under more than one set of terms needs the
 right to do so for every line in the tree — including yours. Without that
@@ -296,7 +295,7 @@ Email:
 GitHub:
 Country of residence:
 
-I agree to the Ecoma Contributor License Agreement, version 1.1, at CLA.md,
+I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
 for this and every future contribution I make to this project.
 ```
 
@@ -333,15 +332,15 @@ made stay covered by the version you agreed to, and the licences you granted
 under it stay in force — nothing here lets us take back or narrow a grant you
 have already made, and nothing lets us widen one without asking you.
 
-## Items still in progress
+## The other agreements, and where they stand
 
 - The **corporate agreement** ([`CORPORATE-CLA.md`](./CORPORATE-CLA.md)) is
-  **in force** — version 1.0, effective 2026-07-31, reviewed by external
-  counsel and offered to companies whose employees contribute on their
-  employer's behalf. Clause 6 now routes employer-owned contributions to this
-  agreement.
-- The **Enterprise License** terms for the `enterprise/` directories are being
-  drafted. They are not yet in force and have not been reviewed by counsel.
+  **in force** — version 1.0, effective 2026-07-31, offered to companies whose
+  employees contribute on their employer's behalf. Clause 6 now routes
+  employer-owned contributions to this agreement.
+- The **Enterprise License** ([`ENTERPRISE-LICENSE.md`](./ENTERPRISE-LICENSE.md))
+  is **in force** — version 1.0, effective 2026-08-03, for the modules under an
+  `enterprise/` directory.
 - The **proprietary terms** for the operator control plane (`cloud/`) have not
   been published.
 
