@@ -19,12 +19,15 @@ const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.
 // each test file its own `process.env`, which `setupFiles` relies on.
 //
 // `setupFiles` — strips the git variables that select a repository out of every
-// test process; see `vitest.setup.mjs` and `src/git-fixture.mjs`.
+// test process (`vitest.setup.mjs`, `src/git-fixture.mjs`), and pins fast-check's
+// seed on CI through the repo-root setup every property-testing project loads
+// (the seed is a workspace value; a per-project constant would be an unsynced
+// config, Rule 14).
 export default defineConfig({
   test: {
     environment: "node",
     pool: "forks",
-    setupFiles: ["./vitest.setup.mjs"],
+    setupFiles: ["./vitest.setup.mjs", "../../../vitest.property-seed.mjs"],
     include: ["src/**/*.test.mjs"],
     coverage: {
       provider: "v8",

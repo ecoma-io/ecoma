@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { fc, test } from "@fast-check/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,6 +22,51 @@ import {
 } from "./check-commit-scope.mjs";
 
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
+
+// A workspace shape rather than this workspace's: project names and file
+// names are built from an alphabet that can spell none of the subsystem names
+// below, so a generated name never collides with one and the layout stays the
+// one the scope rule is written against (`<subsystem>/<layer>/<project>`, plus
+// the top-level project the subsystem derivation must not mistake for one).
+const SUBSYSTEM_NAMES = ["shared", "website", "vider", "hub"];
+const segment = fc
+  .array(fc.constantFrom(..."abcdefgh"), { minLength: 2, maxLength: 6 })
+  .map((chars) => chars.join(""));
+const workspaceProjects = fc
+  .uniqueArray(
+    fc.record({
+      subsystem: fc.constantFrom(...SUBSYSTEM_NAMES),
+      layer: fc.constantFrom("apps", "libs", "tools"),
+      name: segment,
+      topLevel: fc.boolean(),
+    }),
+    { selector: (spec) => spec.name, minLength: 1, maxLength: 6 },
+  )
+  .map((specs) =>
+    specs.map((spec) => ({
+      name: spec.name,
+      root: spec.topLevel ? spec.name : `${spec.subsystem}/${spec.layer}/${spec.name}`,
+    })),
+  );
+
+/** A workspace paired with a commit's changed paths: project, subsystem and root files. */
+const commit = workspaceProjects.chain((projects) =>
+  fc.record({
+    projects: fc.constant(projects),
+    paths: fc.array(
+      fc.oneof(
+        fc
+          .tuple(fc.constantFrom(...projects), segment)
+          .map(([project, file]) => `${project.root}/src/${file}.ts`),
+        fc
+          .tuple(fc.constantFrom(...SUBSYSTEM_NAMES), segment)
+          .map(([subsystem, file]) => `${subsystem}/${file}.md`),
+        segment.map((file) => `${file}.json`),
+      ),
+      { minLength: 1, maxLength: 8 },
+    ),
+  }),
+);
 
 const PROJECTS = [
   { name: "vider", root: "vider/apps/vider" },
@@ -211,6 +257,60 @@ describe("evaluateScopes", () => {
     );
     expect(withDoc.upstreamEligible).toBe(false);
   });
+
+  // The contract this check shares with commitlint, which no example can cover
+  // because the two live in different tiers: `scope-enum` rejects anything
+  // outside `allScopes`, so a covering scope computed here that the vocabulary
+  // does not contain is a commit nobody can write — the gate would demand a
+  // scope tier 1 refuses.
+  test.prop([commit])(
+    "only ever requires a scope the commit-scope vocabulary already contains",
+    ({ projects, paths }) => {
+      const vocabulary = allScopes(projects);
+      const { allowed } = evaluateScopes(paths, projects, deriveSubsystems(projects));
+      for (const scope of allowed) expect(vocabulary).toContain(scope);
+    },
+  );
+
+  test.prop([commit])(
+    "names exactly one covering scope unless the commit has to be split",
+    ({ projects, paths }) => {
+      const { allowed, mustSplit } = evaluateScopes(paths, projects, deriveSubsystems(projects));
+      expect(allowed.size).toBe(mustSplit ? 0 : 1);
+    },
+  );
+
+  // git hands the changed paths over in whatever order it lists them, and a
+  // rename or a partial index can repeat one. The verdict is a property of the
+  // set of owners, so neither may change it.
+  test.prop([commit])(
+    "judges the set of paths, not their order or repetition",
+    ({ projects, paths }) => {
+      const subsystems = deriveSubsystems(projects);
+      const asListed = evaluateScopes(paths, projects, subsystems);
+      const reshuffled = evaluateScopes([...paths].reverse().concat(paths), projects, subsystems);
+      expect([...reshuffled.allowed].sort()).toEqual([...asListed.allowed].sort());
+      expect(reshuffled.mustSplit).toBe(asListed.mustSplit);
+    },
+  );
+
+  test.prop([
+    workspaceProjects.chain((projects) =>
+      fc.record({
+        projects: fc.constant(projects),
+        project: fc.constantFrom(...projects),
+        files: fc.array(segment, { minLength: 1, maxLength: 5 }),
+      }),
+    ),
+  ])(
+    "lets a commit confined to one project carry that project's own scope",
+    ({ projects, project, files }) => {
+      const paths = files.map((file) => `${project.root}/src/${file}.ts`);
+      const { allowed, mustSplit } = evaluateScopes(paths, projects, deriveSubsystems(projects));
+      expect(mustSplit).toBe(false);
+      expect([...allowed]).toEqual([project.name]);
+    },
+  );
 });
 
 describe("transitiveDependsOn", () => {
@@ -233,6 +333,27 @@ describe("transitiveDependsOn", () => {
     ]);
     expect(transitiveDependsOn("a", "c", cyclic)).toBe(false);
   });
+
+  // The real Nx graph is neither a straight line nor a two-node loop: the walk
+  // has to reach the end of a chain of any length while extra edges fold it
+  // back on itself, and it must still answer rather than spin — a hang here
+  // stalls the commit-msg hook with no output at all.
+  test.prop([
+    fc.uniqueArray(segment, { minLength: 2, maxLength: 6 }),
+    fc.array(fc.tuple(segment, segment), { maxLength: 8 }),
+  ])(
+    "walks a chain of any length to its end, over a graph that loops back",
+    (chain, extraEdges) => {
+      const deps = new Map();
+      const edge = (from, to) => deps.set(from, [...(deps.get(from) ?? []), to]);
+      for (let i = 0; i + 1 < chain.length; i++) edge(chain[i], chain[i + 1]);
+      for (const [from, to] of extraEdges) edge(from, to);
+      edge(chain.at(-1), chain[0]); // closes the chain into a cycle
+
+      expect(transitiveDependsOn(chain[0], chain.at(-1), deps)).toBe(true);
+      expect(transitiveDependsOn(chain[0], "absent-from-the-graph", deps)).toBe(false);
+    },
+  );
 });
 
 describe("discoverProjects", () => {

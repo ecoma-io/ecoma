@@ -1,6 +1,30 @@
+import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 
 import { scanName, scanText, workspaceLevelFiles } from "./check-journey-markers.mjs";
+
+// The vocabulary side of the name space: words built from letters alone, so
+// neither pattern can fire on them by accident — every journey token needs a
+// digit or one of the four fixed words, and those four are excluded here.
+const QUALIFIERS = ["new", "old", "temp"];
+const word = fc
+  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyz"), { minLength: 2, maxLength: 8 })
+  .map((chars) => chars.join(""))
+  .filter((candidate) => candidate !== "wip" && !QUALIFIERS.includes(candidate));
+const plainName = fc.array(word, { minLength: 1, maxLength: 4 }).map((words) => words.join("-"));
+
+// Lines that carry no digit at all: every alternative of the prose pattern
+// needs one, so these can never be a hit however they are shuffled together.
+const proseLine = fc
+  .array(fc.constantFrom(..."abcdefghij "), { maxLength: 24 })
+  .map((chars) => chars.join(""));
+const markerLine = fc.constantFrom(
+  "/* ships at 0.2 */",
+  "<!-- roadmap 0.1 backlog -->",
+  "see PLAN-0.2.md",
+  "REVIEW-UX-0.2 A3",
+  "(0.2 surface)",
+);
 
 describe("scanText", () => {
   it("leaves behavior-describing prose alone, including bare version numbers", () => {
@@ -21,6 +45,27 @@ describe("scanText", () => {
     expect(hits).toHaveLength(1);
     expect(hits[0].line).toBe(2);
   });
+
+  // One example proves the arithmetic on one file shape; the report has to hold
+  // for whatever interleaving of clean and offending lines a real file has,
+  // because a line number that drifts sends the author to the wrong line and a
+  // hit swallowed between two clean lines fails nothing.
+  test.prop([fc.array(fc.tuple(fc.boolean(), proseLine, markerLine), { maxLength: 20 })])(
+    "reports every marker line at its own 1-based number, and reports no clean line",
+    (lines) => {
+      const text = lines
+        .map(([carriesMarker, prose, marker]) => (carriesMarker ? `${prose} ${marker}` : prose))
+        .join("\n");
+      const hits = scanText(text);
+
+      expect(hits.map((hit) => hit.line)).toEqual(
+        lines.flatMap(([carriesMarker], index) => (carriesMarker ? [index + 1] : [])),
+      );
+      for (const hit of hits) {
+        expect(text.split("\n")[hit.line - 1]).toContain(hit.match);
+      }
+    },
+  );
 });
 
 describe("scanName", () => {
@@ -57,6 +102,63 @@ describe("scanName", () => {
     expect(scanName("snapshot-2025-01-31.md")).toBe("2025-01-31");
     expect(scanName("PLAN-0.2.md")).toBe("PLAN-0.2.md");
   });
+
+  // The examples above are the tokens someone thought of; the gate has to hold
+  // over the whole token space, because the cost of a miss is a durable name
+  // nobody can rename later and the cost of a false hit is a blocked commit.
+  test.prop([plainName])("leaves a name built from ordinary words alone", (name) => {
+    expect(scanName(name)).toBeNull();
+  });
+
+  test.prop([plainName, fc.nat({ max: 99 }), fc.constantFrom("", ".ts", ".mjs", ".vue", ".md")])(
+    "flags a version segment whatever the name around it and whatever extension follows",
+    (base, ordinal, extension) => {
+      expect(scanName(`${base}-v${ordinal}${extension}`)).toBe(`v${ordinal}`);
+    },
+  );
+
+  test.prop([
+    plainName,
+    fc.constantFrom("phase", "sprint", "milestone", "step", "issue", "ticket"),
+    fc.constantFrom("", "-"),
+    fc.nat({ max: 99 }),
+  ])(
+    "flags an ordinal segment whether or not a hyphen separates its number",
+    (base, kind, separator, ordinal) => {
+      expect(scanName(`${base}-${kind}${separator}${ordinal}`)).toBe(
+        `${kind}${separator}${ordinal}`,
+      );
+    },
+  );
+
+  test.prop([
+    plainName,
+    fc.record({
+      year: fc.integer({ min: 1900, max: 2099 }),
+      month: fc.integer({ min: 1, max: 12 }),
+      day: fc.integer({ min: 1, max: 31 }),
+    }),
+    fc.constantFrom("-", ""),
+  ])(
+    "flags a date stamp anywhere in the calendar, hyphenated or compact",
+    (base, date, separator) => {
+      const pad = (value) => String(value).padStart(2, "0");
+      const stamp = `${date.year}${separator}${pad(date.month)}${separator}${pad(date.day)}`;
+      expect(scanName(`${base}-${stamp}`)).toBe(stamp);
+    },
+  );
+
+  // The word-boundary claim `journey-markers.config.json` makes, over every
+  // word rather than the three it names: a qualifier is a journey marker only
+  // as the trailing segment, so `renewal` and `NewWorkflowModal` stay legal.
+  test.prop([word, fc.constantFrom(...QUALIFIERS)])(
+    "flags a trailing new/old/temp segment, and only when it is a segment of its own",
+    (base, qualifier) => {
+      expect(scanName(`${base}-${qualifier}`)).toBe(qualifier);
+      expect(scanName(`${qualifier}-${base}`)).toBeNull();
+      expect(scanName(`${base}${qualifier}`)).toBeNull();
+    },
+  );
 });
 
 describe("workspaceLevelFiles", () => {
