@@ -14,7 +14,6 @@ build/
 .nx/cache
 .nx/workspace-data
 .vite/
-.astro/
 # Nuxt (website/apps/site): build-time cache and Nitro output
 .nuxt/
 .output/
@@ -43,9 +42,9 @@ storybook-static/
 .claude/worktrees
 .claude/**/.eval-labs
 .claude/**/.state
-# Plan files are local-only resume aids (see CLAUDE.md > Development Workflow) — never committed
+# Plan files are local-only resume aids — never committed
 .claude/plans/
-# Single-use gate tokens (pipeline spec §7) — the durable record is frontmatter status + date
+# Single-use gate tokens (private-side pipeline spec) — the durable record is frontmatter status + date
 .claude/gate-tokens/
 
 .nx/polygraph
