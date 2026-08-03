@@ -38,6 +38,10 @@ consumes it.
   finds that table by the one property no other table in the map has — links
   into this tree in its first column — so renaming a heading never turns the
   check off.
+- **A code cited from this tree, and a code of this tree cited from outside,
+  follows `method/code-vocabulary.md`.** That page owns the ownership map and
+  the citation form and nothing else; a family's meaning stays with the document
+  that defines it, so never restate a code's content here or in a consumer.
 - **A translation is the same document, not a second one.** `groupVariants`
   collapses `<name>.<lang>.md` onto `<name>.md` so one specification never
   appears once per language in the navigation; the translation is still returned
