@@ -1,7 +1,7 @@
 ---
 title: "Release & Compatibility"
 status: design-end-state
-canonical-sha: c033edf9698d
+canonical-sha: b0f79bd8e452
 ---
 
 # Release & Compatibility
@@ -40,7 +40,7 @@ Nó **không** khai _thủ tục bấm_ — đó là charter `deploy/`. Ranh gi�
 
 ## 1b. Danh tính của một artifact
 
-Mọi artifact phân phối mang: `train_version` · `source_digest` · `protocol_versions_supported[]` · `build_provenance` (ai build, ở đâu, từ commit nào). **Chữ ký chỉ sinh ở CI của repo gốc private** — mirror công khai không giữ credential ký (playbook giao hàng (không công bố) §2). Artifact không mang đủ 4 trường = không phải artifact phân phối, chỉ là một file.
+Mọi artifact phân phối mang: `train_version` · `source_digest` · `protocol_versions_supported[]` · `build_provenance` (ai build, ở đâu, từ commit nào). **Chữ ký chỉ sinh ở CI**; không máy dev nào giữ credential ký, còn CI nào ký artifact nào là câu trả lời của §1c. Artifact không mang đủ 4 trường = không phải artifact phân phối, chỉ là một file.
 
 ## 2. Thương lượng — ai từ chối ai
 

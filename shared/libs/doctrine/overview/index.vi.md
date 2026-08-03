@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 25cccbfe7b1b
+canonical-sha: 459706dfdc20
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -53,7 +53,7 @@ canonical-sha: 25cccbfe7b1b
 | sổ thị trường (không công bố)                               | **SỐNG — kinh doanh** (+§9 sổ cược B1–B8 **đã chốt**) (bet + phương pháp phỏng vấn + log; đổi theo bằng chứng, không theo vòng đóng băng; **B4 là nguồn duy nhất của ngưỡng Marketplace** — roadmap trỏ về, không ghi đôi)                                                                         |
 | playbook funnel (không công bố)                             | **System Charter** — area `website/` (mặt tiền + growth; phân loại mạnh vs Hub; URL topology + render §3b; `/design`; support chatbot)                                                                                                                                                             |
 | [deploy](../charter/deploy.md)                              | **System Charter** — deploy/operate/backup/upgrade/rollback/sunset; ranh giới 3 phân vùng; 4 nghĩa vụ khóa-DR từ                                                                                                                                                                                   |
-| playbook giao hàng (không công bố)                          | **System Charter** — engineering & delivery (trunk-based + merge queue, CI 3 tầng, §5b AI-PR, §5c ADR _(tạm trú adr-ledger)_, §5d DDD/Clean, publish-qua-Hub, **mirror một chiều `cloud/` + đường contributor**)                                                                                   |
+| playbook giao hàng (không công bố)                          | **System Charter** — engineering & delivery (trunk-based + merge queue, CI 3 tầng, §5b AI-PR, §5c ADR _(tạm trú adr-ledger)_, §5d DDD/Clean, publish-qua-Hub, **topology hai repo — `cloud/` là submodule private mà CI của chính nó mount workspace public**)                                     |
 | [rpa](../north-star/rpa.md)                                 | RPA                                                                                                                                                                                                                                                                                                |
 | [rpa-action](../spec/rpa-action.md)                         | RPA                                                                                                                                                                                                                                                                                                |
 | [rpa-session](../spec/rpa-session.md)                       | RPA                                                                                                                                                                                                                                                                                                |
@@ -182,13 +182,13 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | Tài liệu | Public? | Điều kiện/ghi chú |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Bộ trần (3 North Star + **27 spec**) | ✅ | License docs riêng (đề xuất CC BY-SA), **cùng/sau MVP wedge**; tone-pass trước khi đăng |
-| _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **mirror MỘT CHIỀU** private→public đã lược `cloud/`; public read-only, **CI ký chỉ ở private root**; đường contributor = replay-lên-trunk-private (playbook giao hàng (không công bố) §2/§6) |
+| _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **git submodule private** mount tại `cloud/`: repo public là **repo gốc** — trunk của nó là trunk duy nhất, tag release cắt ở đó và CI của nó là nơi ký. Contributor clone không `--recursive` thì thư mục đơn giản là vắng mặt; biên kín là **quyền repo**, không phải một bước lược bỏ. Đóng góp từ ngoài là một pull request thường vào repo public, chặn bởi bản ghi CLA (`CONTRIBUTING.md`, `CLA.md`) — không có trunk thứ hai để replay lên |
 | Rubric, hiến pháp, từ vựng mã hiệu & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
 | **Roadmap** | ⚠️ **cắt theo phần** (tiền lệ scenario catalog) | ✅ _đi trước_: §1 dependency graph, §4 khung (a)(b)(c), §6 vòng đối kháng, §8 litmus — bằng chứng kỷ luật, không lộ cược · ⚠️ _cùng/sau MVP wedge_: §2 phễu, §3a · ❌ _tuyệt đối kín_: **§3b ICP-gated + mọi ngưỡng** (là sổ thị trường (không công bố) trá hình — người sắp phỏng vấn biết trước câu trả lời nào "được tính"), **§5 ledger kỹ thuật** (bản đồ điểm yếu có thời hạn — kín tới khi mục đó đóng), dòng §7 nhắc ngưỡng · Cơ chế: **một bản public lược dòng kín**, không maintain hai file (chống G6). Chốt theo luật sẵn có, owner ủy quyền |
 | Scenario catalog | ⚠️ Phần 1 public; **Phần 2–3 (verdict đối thủ + feature inventory) kín** | Public verdict = trang "vs" trá hình — mâu thuẫn quyết định tone |
 | sổ thị trường (không công bố) | ❌ Tuyệt đối |
 | Web charter | ❌ | Playbook vận hành (SEO, an ninh, tone) |
-| Eng & Delivery charter | ❌ (⚠️ phần CONTRIBUTING public khi mở contributor, sau CLA/luật sư) | Playbook nội bộ đội phát triển |
+| Eng & Delivery charter | ⚠️ **đã tách xong**; phần còn lại là ❌ | Điều kiện dòng này từng mang — _phần CONTRIBUTING public khi mở contributor_ — **đã kích**: repo đã public, `CONTRIBUTING.md` đã viết, CLA đã hiệu lực. Phần đó không trở thành một charter thứ hai; nó đi vào những file vốn đã tự đến tay contributor (`CONTRIBUTING.md`, root `CLAUDE.md`, và các gate thi hành chúng), vì một charter published nói về _chính workspace này_ là doctrine về công việc chứ không về sản phẩm, và một nhà thứ ba cho một luật là một bản sao thứ ba để trôi. Thứ ở lại là phần dư chưa có nhà công khai và cũng chưa hiện thực — mô hình branch/CI/release như đã thiết kế, chính sách AI-PR, kiến trúc tham chiếu — publish nó là ghi lại bộ máy mà người đọc không tìm thấy |
 | **Deploy charter** (`charter/deploy.md`) | ✅ | System Charter duy nhất được publish: nghĩa vụ operator mà người đánh giá phải đọc trước khi tin một bản cài — không lộ cược, và dòng R.1 của roadmap link nó công khai; litmus của nó đo tại M1 |
 | ADR ledger | ✅ | Đã nằm trong cây published từ lúc di cư, và ADR-0008 phải cite được từ roadmap; chi tiết stack triển khai không lộ cược nào |
 | Index | ✅ bản public lược dòng kín | |
