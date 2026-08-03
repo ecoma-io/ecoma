@@ -2,12 +2,10 @@
 
 **Version 1.0, effective 2026-07-31.**
 
-> **Counsel review completed.** External counsel engaged by the owner has
-> reviewed this document. It is now offered to companies whose employees
+> **In force.** This agreement is offered to companies whose employees
 > contribute to the project on their employer's behalf. Employer-owned
 > contributions that were previously routed to a case-by-case conversation
-> under `CLA.md` clause 6 are now covered by this agreement. The identity and
-> engagement record are held by the owner and withheld at the owner's request.
+> under `CLA.md` clause 6 are now covered by this agreement.
 
 ## Why this document exists at all
 
@@ -419,7 +417,7 @@ their work, rather than waiting to be asked.
 **We also cannot verify a foreign register.** We take the evidence in step 2 at
 face value. If the signatory turns out to have lacked authority, the coverage
 record proves what we were shown; it does not prove that the Company is bound.
-This is a real residual risk that was presented to counsel during review.
+This is a real residual risk, and it is stated rather than hidden.
 
 ## If these terms change
 
@@ -428,15 +426,6 @@ after we ask the Company to agree to it and it does. Contributions already made
 stay covered by the version the Company agreed to, and the licences granted
 under it stay in force — nothing here lets us take back or narrow a grant
 already made, and nothing lets us widen one without asking.
-
-## Counsel review
-
-External counsel engaged by the owner reviewed this document on 2026-07-31. The
-ten questions listed in the previous draft were presented to counsel for
-assessment. This version 1.0 is published on the basis of that review.
-
-The identity and engagement record are held by the owner and withheld at the
-owner's request.
 
 ## Questions
 

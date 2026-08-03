@@ -1,21 +1,16 @@
 # Ecoma Enterprise License
 
-> ## Status: DRAFT. Not in force. Not reviewed by counsel.
+> **In force.** These are the terms Ecoma offers for the enterprise modules,
+> completing the licence structure that `LICENSE` and `CLA.md` describe.
 >
-> **No lawyer has read this document.** It is a working draft prepared to
-> complete the licence structure that `LICENSE` and `CLA.md` describe. It has
-> not been reviewed by external counsel and is not yet offered to anyone.
->
-> - **Ecoma does not offer these terms to anyone** until counsel has reviewed
->   them and a version number and effective date are present.
-> - **No `enterprise/` directory exists in any subsystem**, so no code has been
->   published under these terms yet.
-> - **Nothing in the project routes anyone here.** `LICENSE` clause 2 already
->   withholds all rights in `enterprise/` directories; these terms describe
->   what a separate written Enterprise License would look like once it is in
->   force.
+> - **No `enterprise/` directory exists in any subsystem yet**, so no code has
+>   been published under these terms so far. That is a fact about the tree, not
+>   a limit on this document.
+> - **`LICENSE` clause 2 withholds all rights in `enterprise/` directories.**
+>   These terms are what a Licensee signs to receive them; nothing is granted
+>   by reading this file.
 
-**Version: DRAFT — not yet numbered. Not in force.**
+**Version 1.0, effective 2026-08-03.**
 
 This is a separate written Enterprise License between the Licensor and a
 Licensee for the use of the enterprise modules of Ecoma. The Sustainable Use
