@@ -64,8 +64,21 @@ Usage: pnpm run setup -- [--check] [--yes]
            is not a terminal)`;
 
 /**
+ * Go's semantic-import-versioning suffix for a module at `version`: "" for
+ * v0/v1, "/vN" from v2 up. Derived from the pin (Rule 14) so the module path
+ * a `go install` targets can never lag behind a major bump of the pin file —
+ * a hardcoded path silently means v1 forever, and every v2+ pin then fails to
+ * resolve at all.
+ */
+function goMajorSuffix(version) {
+  const major = Number(String(version).replace(/^v/, "").split(".")[0]);
+  return Number.isInteger(major) && major >= 2 ? `/v${major}` : "";
+}
+
+/**
  * The exact `spawnSync` invocation for each toolchain this script installs
- * itself, as `{ cmd, args }`.
+ * itself, as `{ cmd, args }` — plus `{ env }` for the one installer that needs
+ * extra environment.
  *
  * They sit here as one named source rather than inline at each call site
  * because `setup.test.mjs` matches installers against these very strings
@@ -115,6 +128,31 @@ export const INSTALL_COMMANDS = {
   uvPosix: () => ({
     cmd: "sh",
     args: ["-c", "curl -fsSL https://astral.sh/uv/install.sh | sh"],
+  }),
+  /**
+   * golangci-lint is the one installer that builds from source, so BOTH
+   * halves of the command are derived rather than written down (Rule 14):
+   *
+   * - The module path carries the pin's own major via `goMajorSuffix`.
+   * - GOTOOLCHAIN carries go.work's `go` directive as a FLOOR. `go install
+   *   pkg@version` deliberately ignores the surrounding module/workspace, so
+   *   without this it builds with whatever minimum golangci-lint's own go.mod
+   *   names — and a golangci-lint built by a Go older than the version the
+   *   checked code targets refuses to load the config at runtime ("the Go
+   *   language version used to build golangci-lint is lower than the targeted
+   *   Go version"). `+auto` keeps it a floor rather than an exact pin, so a
+   *   golangci-lint needing a newer Go than go.work still builds.
+   *
+   * `goDirective` is "" when go.work declares none; GOTOOLCHAIN is then left
+   * alone rather than forced to a version nobody named.
+   */
+  golangciLint: (version, goDirective) => ({
+    cmd: "go",
+    args: [
+      "install",
+      `github.com/golangci/golangci-lint${goMajorSuffix(version)}/cmd/golangci-lint@${version}`,
+    ],
+    env: goDirective ? { GOTOOLCHAIN: `go${goDirective}+auto` } : {},
   }),
 };
 
@@ -481,14 +519,22 @@ export function runSetup(argv) {
   section("Polyglot toolchains");
 
   let goOk = false;
+  const goWorkExists = existsSync(join(REPO_ROOT, "go.work"));
+  // go.work's own `go` directive — the version every Go project here is
+  // checked against, and therefore the floor golangci-lint's BUILD toolchain
+  // has to meet too (see INSTALL_COMMANDS.golangciLint). "" when go.work
+  // declares none, which the display below still renders as "?".
+  const goWorkDirective = goWorkExists
+    ? (readFileSync(join(REPO_ROOT, "go.work"), "utf8").match(/^go ([\d.]+)$/m)?.[1] ?? "")
+    : "";
   if (commandExists("go")) {
     const goVersion = firstVersion("go", ["version"]);
-    if (existsSync(join(REPO_ROOT, "go.work"))) {
-      const goWork = readFileSync(join(REPO_ROOT, "go.work"), "utf8");
-      const goDirective = goWork.match(/^go ([\d.]+)$/m)?.[1] ?? "?";
+    if (goWorkExists) {
       // Go auto-fetches the exact pinned toolchain, so >= the directive is
       // informational; presence is what matters.
-      ok(`go ${goVersion} (go.work pins ${goDirective}; Go fetches pinned toolchains itself)`);
+      ok(
+        `go ${goVersion} (go.work pins ${goWorkDirective || "?"}; Go fetches pinned toolchains itself)`,
+      );
     } else {
       ok(`go ${goVersion}`);
     }
@@ -546,31 +592,73 @@ export function runSetup(argv) {
   // real Go project (and its lint target) exists. Installed via `go install`
   // on every platform — one method that already works identically on Linux,
   // macOS, and Windows, since Go is a required prerequisite already.
-  if (existsSync(join(REPO_ROOT, "go.work"))) {
-    function checkGolangci() {
-      return (
-        commandExists("golangci-lint") && verGe(firstVersion("golangci-lint", ["version"]), "2")
-      );
+  if (goWorkExists) {
+    const golangciPin = GOLANGCI_LINT_VERSION.replace(/^v/, "");
+    /**
+     * What is wrong with the golangci-lint on PATH, as a phrase to report —
+     * "" when nothing is. Two conditions have to hold, because either one
+     * failing leaves the Go lint targets unable to run:
+     *
+     *  - its version meets the repo-root pin (a floor, like `nodeMin` above);
+     *  - the Go it was BUILT with meets go.work's directive, since
+     *    golangci-lint refuses to load the config otherwise.
+     *
+     * Checking only the version reports a green setup on a machine whose lint
+     * targets fail — measured on a sandbox carrying an older prebuilt binary
+     * (Rule 11). The build toolchain is only reported by some builds; when the
+     * output names none it is left unverified rather than assumed to pass.
+     */
+    function golangciProblem() {
+      if (!commandExists("golangci-lint"))
+        return `golangci-lint ${GOLANGCI_LINT_VERSION} not found`;
+      const out =
+        spawnSync("golangci-lint", ["version"], { encoding: "utf8", shell: true }).stdout ?? "";
+      const version = out.match(/\d+\.\d+(\.\d+)?/)?.[0] ?? "";
+      const builtWith = out.match(/built with go([\d.]+)/)?.[1] ?? "";
+      if (!verGe(version, golangciPin))
+        return `golangci-lint ${version} is older than the ${GOLANGCI_LINT_VERSION} pin`;
+      if (goWorkDirective && builtWith && !verGe(builtWith, goWorkDirective))
+        return (
+          `golangci-lint ${version} was built with go${builtWith}, older than go.work's ` +
+          `${goWorkDirective} — it refuses to load the config`
+        );
+      return "";
     }
-    if (checkGolangci()) {
-      ok(`golangci-lint ${firstVersion("golangci-lint", ["version"])}`);
+    function golangciVersion() {
+      return firstVersion("golangci-lint", ["version"]);
+    }
+    const problem = golangciProblem();
+    if (!problem) {
+      ok(`golangci-lint ${golangciVersion()}`);
     } else if (checkOnly) {
-      fail("golangci-lint v2 (go.work exists, so the Go lint targets need it)");
+      fail(`${problem} (go.work exists, so the Go lint targets need it)`);
     } else if (goOk && confirm(`golangci-lint ${GOLANGCI_LINT_VERSION} (go install)`, assumeYes)) {
-      spawnSync(
-        "go",
-        ["install", `github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}`],
-        { stdio: "inherit", shell: true },
+      const { cmd, args, env } = INSTALL_COMMANDS.golangciLint(
+        GOLANGCI_LINT_VERSION,
+        goWorkDirective,
       );
+      const install = spawnSync(cmd, args, {
+        stdio: "inherit",
+        shell: true,
+        env: { ...process.env, ...env },
+      });
       const gopathResult = spawnSync("go", ["env", "GOPATH"], { encoding: "utf8", shell: true });
       pathAdd(join(gopathResult.stdout.trim(), "bin"));
-      if (checkGolangci()) {
-        ok(`golangci-lint ${firstVersion("golangci-lint", ["version"])} (installed)`);
+      const afterInstall = golangciProblem();
+      if (!afterInstall) {
+        ok(`golangci-lint ${golangciVersion()} (installed)`);
+      } else if (install.status !== 0) {
+        // Name the command and its exit code: `go install` failing to resolve
+        // or build is a different fix from one that built a wrong binary, and
+        // the generic "nothing on PATH" wording sent readers to the wrong one.
+        fail(`golangci-lint — '${cmd} ${args.join(" ")}' exited ${install.status ?? "abnormally"}`);
       } else {
-        fail("golangci-lint — the install did not leave a working v2 binary on PATH");
+        fail(`golangci-lint — the install left ${afterInstall}`);
       }
     } else {
-      fail("golangci-lint v2 — https://golangci-lint.run/docs/welcome/install/");
+      fail(
+        `golangci-lint ${GOLANGCI_LINT_VERSION} — https://golangci-lint.run/docs/welcome/install/`,
+      );
     }
   } else {
     ok("golangci-lint not needed (no go.work at the repo root yet)");

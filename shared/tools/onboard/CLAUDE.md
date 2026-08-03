@@ -66,6 +66,22 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
   the `https://rustup.rs` hint alike, so it cannot tell the POSIX installer
   from the Windows one — and a negative assertion that matches the wrong
   thing, or nothing, passes without proving anything.
+- **golangci-lint is the one installer that builds from source, and both
+  halves of its command are derived from pins rather than written down.** The
+  module path takes its `/vN` suffix from the major of `.golangci-lint-version`
+  (Go's semantic import versioning), so a hardcoded path means v1 forever and
+  every v2+ pin fails to resolve at all. `GOTOOLCHAIN` takes go.work's own `go`
+  directive as a floor (`go<pin>+auto`), because `go install pkg@version`
+  deliberately ignores the surrounding workspace and would otherwise build with
+  whatever minimum golangci-lint's own go.mod names — and a golangci-lint built
+  by a Go older than the checked code targets refuses to load the config at
+  runtime. That runtime refusal is also why the readiness check compares the
+  binary's reported build Go against go.work, not just its version against the
+  pin: a version-only check calls a machine ready whose every Go lint target
+  fails, which is how a sandbox carrying an older prebuilt binary reported
+  green. **CI never exercises this path** — `ci.yml` installs the official
+  release binary through `golangci-lint-action`, so the `go install` branch is
+  covered by `setup.test.mjs` alone; changing it means proving it by hand.
 - **The `test` target declares its own `inputs`, and that list is the only
   thing standing between a repo-root edit and a replayed cached green.**
   `src/node-version-pin.integration.test.mjs` reads the real `.node-version`

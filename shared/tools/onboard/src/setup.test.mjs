@@ -97,7 +97,13 @@ function fixture({
   nodeVersion = "22.10.0",
   pnpmVersion = "10.32.1",
   golangciVersion = "2.5.0",
-  // The repo-root pin file setup.mjs now reads instead of hardcoding
+  // The Go a golangci-lint binary reports itself as built with — `setup.mjs`
+  // compares it against go.work's directive, since golangci-lint refuses the
+  // config when its own build Go is older. Defaults to matching `goWorkText`
+  // so the happy paths exercise that comparison rather than skipping it; ""
+  // simulates a build whose output names no toolchain at all.
+  golangciBuiltWithGo = "1.23",
+  // The repo-root pin file setup.mjs reads instead of hardcoding
   // GOLANGCI_LINT_VERSION; null simulates it being missing from the repo.
   golangciLintVersionFile = "v2.5.0",
   claudeEnvFile = "",
@@ -173,7 +179,11 @@ function fixture({
       "cargo clippy --version": { status: 0, error: null },
       "cargo fmt --version": { status: 0, error: null },
       "rustc --version": { stdout: "rustc 1.82.0 (abcdef 2024-01-01)\n" },
-      "golangci-lint version": { stdout: `golangci-lint has version ${golangciVersion}\n` },
+      "golangci-lint version": {
+        stdout: `golangci-lint has version ${golangciVersion}${
+          golangciBuiltWithGo ? ` built with go${golangciBuiltWithGo}` : ""
+        } from abcdef\n`,
+      },
       "uv --version": { stdout: "uv 0.5.0\n" },
       "corepack enable": { status: 0, error: null },
       "pnpm install": { status: 0, error: null },
@@ -271,7 +281,7 @@ describe("runSetup", () => {
     fixture({ goWork: true });
     const log = captureLog();
     expect(runSetup(["--check"])).toBe(1);
-    expect(log()).toContain("golangci-lint v2");
+    expect(log()).toContain("golangci-lint v2.5.0 not found");
   });
 
   it("--check passes once golangci-lint is present alongside go.work", () => {
@@ -840,38 +850,90 @@ describe("Rust provisioning", () => {
   });
 });
 
+/**
+ * The `fixture` spawn-table key for the golangci-lint install, built from
+ * `INSTALL_COMMANDS` rather than restated — a copy of the command here would
+ * be free to drift from the one `setup.mjs` actually spawns, and a spawn-table
+ * entry keyed on a drifted copy silently stops matching anything.
+ */
+function golangciInstallKey(pin, goDirective) {
+  const { cmd, args } = INSTALL_COMMANDS.golangciLint(pin, goDirective);
+  return `${cmd} ${args.join(" ")}`;
+}
+
 describe("golangci-lint provisioning", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
   afterEach(resetBetweenTests);
 
+  // Go's semantic import versioning puts the major in the module path from v2
+  // up, so a path written down once is a second copy of the pin's major that
+  // silently means v1 forever (Rule 14). These pin the derivation itself, not
+  // the string it currently produces for the pin the repo happens to carry.
+  it("derives the go install module path from the pin's own major", () => {
+    const pathFor = (pin) =>
+      INSTALL_COMMANDS.golangciLint(pin, "1.23").args.at(-1).replace(/@.*$/, "");
+    expect(pathFor("v1.64.0")).toBe("github.com/golangci/golangci-lint/cmd/golangci-lint");
+    expect(pathFor("v2.6.1")).toBe("github.com/golangci/golangci-lint/v2/cmd/golangci-lint");
+    expect(pathFor("v3.0.0")).toBe("github.com/golangci/golangci-lint/v3/cmd/golangci-lint");
+  });
+
+  // `go install pkg@version` ignores the surrounding workspace, so nothing but
+  // this makes the build honour go.work's Go pin — and a golangci-lint built
+  // by an older Go refuses the config of code targeting a newer one.
+  it("builds golangci-lint with go.work's own Go pin as the floor", () => {
+    expect(INSTALL_COMMANDS.golangciLint("v2.6.1", "1.26.5").env).toEqual({
+      GOTOOLCHAIN: "go1.26.5+auto",
+    });
+  });
+
+  it("leaves the build toolchain unforced when go.work names no Go version", () => {
+    expect(INSTALL_COMMANDS.golangciLint("v2.6.1", "").env).toEqual({});
+  });
+
   it("installs the exact version the repo-root pin file names, and adds GOPATH/bin to PATH", () => {
     fixture({
       goWork: true,
       golangciLintVersionFile: "v2.6.1",
+      golangciVersion: "2.6.1",
       onSpawn: (key, state) => {
         if (key.startsWith("go install")) state.present.add("golangci-lint");
       },
     });
     captureLog();
     expect(runSetup(["--yes"])).toBe(0);
+    const { cmd, args, env } = INSTALL_COMMANDS.golangciLint("v2.6.1", "1.23");
     expect(vi.mocked(spawnSync)).toHaveBeenCalledWith(
-      "go",
-      ["install", "github.com/golangci/golangci-lint/cmd/golangci-lint@v2.6.1"],
-      expect.anything(),
+      cmd,
+      args,
+      expect.objectContaining({ env: expect.objectContaining(env) }),
     );
     expect(process.env.PATH.startsWith(`${join(HOME_DIR, "go", "bin")}:`)).toBe(true);
   });
 
-  it("reports a go install that left no working v2 binary on PATH", () => {
+  it("names the failing go install and its exit code when the install itself fails", () => {
     fixture({ goWork: true });
     const log = captureLog();
     expect(runSetup(["--yes"])).toBe(1);
-    expect(log()).toContain("did not leave a working v2 binary");
+    expect(log()).toContain(`${golangciInstallKey("v2.5.0", "1.23")}' exited 1`);
   });
 
-  it("rejects a golangci-lint older than v2 even when the binary is on PATH", () => {
+  it("reports what is still wrong when the install succeeds but leaves an unusable binary", () => {
+    fixture({
+      goWork: true,
+      golangciBuiltWithGo: "1.21",
+      spawn: { [golangciInstallKey("v2.5.0", "1.23")]: { status: 0, error: null } },
+      onSpawn: (key, state) => {
+        if (key.startsWith("go install")) state.present.add("golangci-lint");
+      },
+    });
+    const log = captureLog();
+    expect(runSetup(["--yes"])).toBe(1);
+    expect(log()).toContain("the install left golangci-lint 2.5.0 was built with go1.21");
+  });
+
+  it("rejects a golangci-lint older than the repo-root pin", () => {
     fixture({
       goWork: true,
       present: [...DEFAULT_PRESENT, "golangci-lint"],
@@ -879,7 +941,41 @@ describe("golangci-lint provisioning", () => {
     });
     const log = captureLog();
     expect(runSetup(["--check"])).toBe(1);
-    expect(log()).toContain("golangci-lint v2 (go.work exists");
+    expect(log()).toContain("golangci-lint 1.64.0 is older than the v2.5.0 pin");
+  });
+
+  // The half a version comparison cannot see: golangci-lint refuses to load
+  // the config when its own build Go is older than the code's target, so a
+  // version-only check calls a machine ready whose lint targets all fail.
+  it("rejects a golangci-lint built with a Go older than go.work's directive", () => {
+    fixture({
+      goWork: true,
+      goWorkText: "go 1.26.5\n",
+      present: [...DEFAULT_PRESENT, "golangci-lint"],
+      golangciBuiltWithGo: "1.25.12",
+    });
+    const log = captureLog();
+    expect(runSetup(["--check"])).toBe(1);
+    expect(log()).toContain("built with go1.25.12, older than go.work's 1.26.5");
+  });
+
+  it("accepts a golangci-lint built with a Go newer than go.work's directive", () => {
+    fixture({
+      goWork: true,
+      goWorkText: "go 1.26.5\n",
+      present: [...DEFAULT_PRESENT, "golangci-lint"],
+      golangciBuiltWithGo: "1.27.0",
+    });
+    expect(runSetup(["--check"])).toBe(0);
+  });
+
+  it("accepts a golangci-lint whose version output names no build toolchain", () => {
+    fixture({
+      goWork: true,
+      present: [...DEFAULT_PRESENT, "golangci-lint"],
+      golangciBuiltWithGo: "",
+    });
+    expect(runSetup(["--check"])).toBe(0);
   });
 
   it("does not offer the go install when Go itself is missing", () => {
@@ -887,7 +983,7 @@ describe("golangci-lint provisioning", () => {
     const log = captureLog();
     expect(runSetup(["--yes"])).toBe(1);
     expect(spawnedCommands().some((c) => c.startsWith("go install"))).toBe(false);
-    expect(log()).toContain("golangci-lint v2 — https://golangci-lint.run");
+    expect(log()).toContain("golangci-lint v2.5.0 — https://golangci-lint.run");
   });
 
   it("reports the go.work directive as unknown instead of failing when the file declares none", () => {
