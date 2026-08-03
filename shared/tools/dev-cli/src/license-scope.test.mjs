@@ -1,6 +1,15 @@
+import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 
 import { CARVE_OUT_DIRS, licenseForPath, MANIFEST_LICENSE } from "./license-scope.mjs";
+
+// Path segments from an alphabet that can spell neither `cloud` nor either
+// carve-out directory, so a generated segment never accidentally becomes the
+// one the path rule is keyed on.
+const segment = fc
+  .array(fc.constantFrom(..."abdefgh"), { minLength: 1, maxLength: 6 })
+  .map((chars) => chars.join(""));
+const carveOut = fc.constantFrom(...Object.keys(CARVE_OUT_DIRS));
 
 describe("licenseForPath", () => {
   it("reads the terms off the path the way the root LICENSE's SCOPE section does", () => {
@@ -34,4 +43,37 @@ describe("licenseForPath", () => {
       expect(MANIFEST_LICENSE[slug]).toBeTypeOf("string");
     }
   });
+
+  // Every path in the tree passes through here, and the answer decides which
+  // terms ship with a file — so the examples above are a sample of a space the
+  // properties below have to hold across: an unrecognised answer would compare
+  // against an undefined manifest value, and a carve-out read at the wrong
+  // depth silently moves files out of (or into) the grant.
+  test.prop([fc.array(segment, { minLength: 1, maxLength: 5 })])(
+    "answers with a licence slug the manifest map declares, for any path in the tree",
+    (segments) => {
+      expect(Object.keys(MANIFEST_LICENSE)).toContain(licenseForPath(segments.join("/")));
+    },
+  );
+
+  test.prop([segment, carveOut, fc.array(segment, { maxLength: 4 })])(
+    "carves out a subsystem's own packages/enterprise directory, however deep the file sits",
+    (subsystem, dir, rest) => {
+      expect(licenseForPath([subsystem, dir, ...rest].join("/"))).toBe(CARVE_OUT_DIRS[dir]);
+    },
+  );
+
+  test.prop([segment, segment, carveOut, fc.array(segment, { maxLength: 3 })])(
+    "reads a carve-out directory only directly beneath a subsystem root, never nested deeper",
+    (subsystem, inner, dir, rest) => {
+      expect(licenseForPath([subsystem, inner, dir, ...rest].join("/"))).toBe("sul");
+    },
+  );
+
+  test.prop([carveOut, fc.array(segment, { maxLength: 3 })])(
+    "keeps the private cloud tree proprietary even where a carve-out directory name sits inside it",
+    (dir, rest) => {
+      expect(licenseForPath(["cloud", dir, ...rest].join("/"))).toBe("proprietary");
+    },
+  );
 });
