@@ -117,7 +117,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.work # derives the version from go.work's own pin (CONTRIBUTING.md), never a second copy
-          cache: false # no root go.sum yet; enable with the first Go project
+          cache: false # the Go modules have no external deps (no go.sum anywhere); enable with the first Go dependency
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 → stable
         with:
           toolchain: stable
