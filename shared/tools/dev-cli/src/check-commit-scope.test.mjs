@@ -469,6 +469,17 @@ describe("checkCommitScope", () => {
     expect(checkCommitScope([messageFile("chore(workspace): empty\n")])).toBe(0);
   });
 
+  it("keeps a project scope when go.work.sum travels with that project's own go.sum", () => {
+    // `go mod tidy` inside one module writes the module's `go.sum` and the
+    // root `go.work.sum` in the same act. Judging the root file would make
+    // that commit a mustSplit whose split cannot be performed.
+    fakeGit({
+      tracked: TRACKED_PROJECTS,
+      staged: ["vider/libs/vider-ui/go.sum", "go.work.sum"],
+    });
+    expect(checkCommitScope([messageFile("feat(vider-ui): add a dependency\n")])).toBe(0);
+  });
+
   it("rejects a commit mixing a root-owned path with a project-owned path, regardless of claimed scope", () => {
     fakeGit({
       tracked: TRACKED_PROJECTS,

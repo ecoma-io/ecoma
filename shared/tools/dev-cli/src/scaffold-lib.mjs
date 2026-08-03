@@ -73,13 +73,23 @@ const DEV_CLI = "node ../../../shared/tools/dev-cli/src/main.mjs";
 // project.json explicitly or `local/require-project-tags` never fires.
 const PROJECT_JSON_LINT = "eslint project.json --max-warnings 0";
 
-const projectJson = (name, root, subsystem, layer, targets) =>
+/**
+ * `sourceRoot` derived from the emitter's own file list rather than declared
+ * per language (Rule 14 rung 1): a project's sources live under `src/` only
+ * when that emitter actually puts them there. TypeScript, Rust and Python do;
+ * Go does not — a Go module's packages sit at the module root, so pointing
+ * `sourceRoot` at `<root>/src` named a directory that never holds a file.
+ */
+export const deriveSourceRoot = (root, files) =>
+  Object.keys(files).some((rel) => rel.startsWith("src/")) ? `${root}/src` : root;
+
+const projectJson = (name, root, subsystem, layer, targets, sourceRoot) =>
   JSON.stringify(
     {
       name,
       $schema: "../../../node_modules/nx/schemas/project-schema.json",
       projectType: "library",
-      sourceRoot: `${root}/src`,
+      sourceRoot,
       tags: [
         "type:lib",
         `scope:${subsystem}`,
@@ -538,10 +548,10 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
   }
 
   const { identityLine, targets, files } = EMITTERS[lang](name, subsystem, root, goVersion);
-  fs.mkdirSync(`${root}/src`, { recursive: true });
+  fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(
     `${root}/project.json`,
-    `${projectJson(name, root, subsystem, layer, targets)}\n`,
+    `${projectJson(name, root, subsystem, layer, targets, deriveSourceRoot(root, files))}\n`,
   );
   fs.writeFileSync(`${root}/CLAUDE.md`, claudeMdStub(name, root, subsystem, layer, identityLine));
   for (const lang of README_LANGS) {

@@ -2,7 +2,7 @@
   "name": "engine-ports",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
-  "sourceRoot": "platform/libs/engine-ports/src",
+  "sourceRoot": "platform/libs/engine-ports",
   "tags": ["type:lib", "scope:platform", "license:sul", "layer:port"],
   "targets": {
     "typecheck": {

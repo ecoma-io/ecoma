@@ -91,6 +91,7 @@ describe("scaffoldLib file emission", () => {
     const project = JSON.parse(written.get("shared/libs/thing/project.json"));
     expect(project.tags).toEqual(["type:lib", "scope:shared", "license:sul", "layer:domain"]);
     expect(Object.keys(project.targets)).toEqual(["typecheck", "lint", "test"]);
+    expect(project.sourceRoot).toBe("shared/libs/thing/src");
 
     const pkg = JSON.parse(written.get("shared/libs/thing/package.json"));
     expect(pkg).toMatchObject({
@@ -210,6 +211,27 @@ describe("scaffoldLib polyglot emission", () => {
     expect(written.get("go.work")).toContain("use (\n\t./shared/libs/runner\n)");
     expect(written.has("shared/libs/runner/package.json")).toBe(false);
     expect(written.has("tsconfig.base.json")).toBe(false);
+  });
+
+  it("points sourceRoot at the project root for a language whose sources are not under src/", () => {
+    // A Go module's packages sit at the module root; `<root>/src` named a
+    // directory the emitter never writes into.
+    const go = JSON.parse(
+      scaffold(["runner", "--subsystem", "shared", "--lang", "go"]).get(
+        "shared/libs/runner/project.json",
+      ),
+    );
+    expect(go.sourceRoot).toBe("shared/libs/runner");
+
+    for (const [lang, project] of [
+      ["rust", "engine"],
+      ["python", "tool-kit"],
+    ]) {
+      const written = scaffold([project, "--subsystem", "shared", "--lang", lang]);
+      expect(JSON.parse(written.get(`shared/libs/${project}/project.json`)).sourceRoot).toBe(
+        `shared/libs/${project}/src`,
+      );
+    }
   });
 
   it("go: stamps go.mod with the version pinned by the repo's existing go.work (Rule 14)", () => {
