@@ -176,10 +176,24 @@ build/typecheck — invoked directly as
   _to_ whoever can make the grant, and `CODEOWNERS`' owners of `/CLA.md` are
   already that set, protected there for exactly this reason. Bare mode audits
   the shape of every record that exists and runs offline; `--author <login>`
-  additionally requires that login to have one, and only CI can know who opened
-  a pull request — which is why that mode lives in `ci.yml` rather than in a
+  additionally judges that login, and only CI can know who opened a pull
+  request — which is why that mode lives in `ci.yml` rather than in a
   hook. It judges the record, never the person: whether an address is real
   stays with the maintainer who confirms it.
+  - **The automation exemption is deliberately not a "is it a bot" test**, and
+    the difference is the whole design. `--author-type` carries GitHub's
+    `user.type` from the pull request payload — the only authority on which
+    accounts are machines, never a `[bot]` suffix — but that answers only
+    whether the account is a person. What earns the exemption is being
+    automation _this project runs_: `PROJECT_AUTOMATION` pairs each login with
+    the configuration that runs it (`renovate[bot]` ↔ `.github/renovate.json5`),
+    and only a pair whose file is still committed is exempt, so retiring a tool
+    retires its exemption with no edit here. A coding agent's machine account
+    therefore fails, and that is the point — the person who directed it authored
+    the work and owes the record, so exempting every bot would leave anyone who
+    has not agreed one move from merging. Both halves are also conditional on
+    `CLA.md` still carrying the sentence that puts automated commits outside the
+    agreement, read at run time like every other vocabulary here.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language
   variants (`README.md`, `README.vi.md`, `README.zh.md`), each opening with

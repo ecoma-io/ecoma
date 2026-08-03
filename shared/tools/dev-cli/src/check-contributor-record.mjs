@@ -22,9 +22,10 @@
  * - Bare (pre-commit, CI): audits the **shape** of every record that exists.
  *   Runs offline, judges the tree, and is the mode that catches a record
  *   committed with a field missing.
- * - `--author <login>`: additionally requires that login to have a record. Only
- *   CI can know who opened a pull request, so this mode is where the "no record,
- *   no grant" rule actually bites.
+ * - `--author <login> [--author-type <user.type>]`: additionally judges who
+ *   opened the pull request — normally by requiring a record of them. Only CI can
+ *   know that, so this mode is where the "no record, no grant" rule actually
+ *   bites.
  *
  * **A licensor is exempt, and the exemption is derived rather than named.** The
  * CLA runs *to* whoever can make a licence grant, so it would be circular for
@@ -33,6 +34,38 @@
  * who could not make that grant" — and the owners of `/CLA.md` are that set.
  * Hardcoding a handle here would be a second answer to the same question, and
  * the one nobody would remember to update.
+ *
+ * **The project's own automation is exempt, and that exemption is the
+ * agreement's rather than this file's.** `CLA.md` says commits made by automated
+ * tooling the project runs are not contributions under it, so the gate reads
+ * that sentence — delete it from the agreement and the exemption stops here in
+ * the same edit. The law under which the agreement is governed says the same
+ * thing from the other side: copyright arises only from a human's substantial
+ * and decisive contribution, so a dependency bump nobody authored carries no
+ * right for anyone to grant, and a record for it would be a licence contract
+ * with a party that has no legal personality.
+ *
+ * **Being a machine account is necessary for that exemption and nowhere near
+ * sufficient**, which is the whole reason this is not a `user.type === "Bot"`
+ * test. Two machine accounts open pull requests for opposite reasons:
+ *
+ * - Tooling *the project runs* (`PROJECT_AUTOMATION`) produces version strings
+ *   and lockfile hashes — no authored expression, no author, nothing to license.
+ * - A **coding agent** produces code, and someone directed it. Either that person
+ *   steered it enough to be its author, in which case *they* are the contributor
+ *   and owe a record, or nobody did, in which case no copyright arose and the
+ *   agreement's own clause on undisclosed provenance decides whether it can be
+ *   taken at all. Neither branch is satisfied by the opener being a bot.
+ *
+ * So an unlisted machine account fails, and says which of the two it must be.
+ * Waving it through on account type alone would leave a contributor who has not
+ * agreed one move away from merging: have an agent open the pull request.
+ *
+ * Whether an account is a person is GitHub's answer (`user.type`, passed as
+ * `--author-type`), never a guess from a `[bot]` suffix; whether the project runs
+ * it is answered by the tree, since automation this project runs is configured in
+ * this repository. A caller that cannot say leaves `--author-type` out and the
+ * author is treated as a person, which fails closed.
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -76,6 +109,54 @@ export function recordTemplate(claText) {
   if (!fields.length) throw new Error(`${CLA}: the record template declares no fields`);
   if (!sentence) throw new Error(`${CLA}: the record template declares no agreement sentence`);
   return { fields, sentence };
+}
+
+/**
+ * GitHub's own vocabulary for an account that is not a person: the value
+ * `user.type` carries for an App or bot account, as opposed to `"User"`.
+ */
+export const MACHINE_ACCOUNT = "Bot";
+
+/**
+ * The machine accounts through which this project runs automation of its own,
+ * each paired with the configuration that runs it. The pairing is what makes
+ * this a list the tree can expire: an account is exempt only while the file
+ * that puts that tool to work here is still committed, so retiring a tool
+ * retires its exemption without anyone remembering to come back here.
+ *
+ * A login is the fixed name its vendor publishes for that App, which is why it
+ * can be written down at all; that the project *runs* it is the part read off
+ * the tree. Adding a tool means adding its pair, and nothing else — a coding
+ * agent never belongs here, because it does not produce work without a person
+ * behind it.
+ */
+export const PROJECT_AUTOMATION = { "renovate[bot]": ".github/renovate.json5" };
+
+/**
+ * The subset of `PROJECT_AUTOMATION` this repository still runs, as
+ * `{ <lower-cased login>: <the config that runs it> }`. `exists` is injected so
+ * the reading can be tested without a tree.
+ */
+export function projectAutomation(exists = existsSync) {
+  return Object.fromEntries(
+    Object.entries(PROJECT_AUTOMATION)
+      .filter(([, config]) => exists(config))
+      .map(([login, config]) => [login.toLowerCase(), config]),
+  );
+}
+
+/**
+ * The sentence `CLA.md` uses to put the project's own automation outside the
+ * agreement, or `null` when the document no longer says it. Anchored on the two
+ * phrases that carry the meaning — what the commits are, and that they are not
+ * contributions — so re-wrapping or an edit to the aside between them keeps the
+ * clause found, while removing the rule removes the exemption.
+ */
+export function automationClause(claText) {
+  const m = claText
+    .replace(/\s+/g, " ")
+    .match(/Commits made by automated tooling[^.]*?are not contributions under this agreement\./);
+  return m ? m[0] : null;
 }
 
 /**
@@ -124,8 +205,63 @@ function recordPath(handle) {
 }
 
 /**
- * Audits every existing record, and — given `--author <login>` — that the
- * author has one. Returns a process exit code.
+ * What the author of a pull request owes, given who they are. Returns
+ * `{ ok, fault?, note? }`: `fault` is why the pull request cannot be merged,
+ * `note` is what the gate assumed in letting one through — an exemption nobody
+ * sees is an exemption nobody reviews, so it is printed rather than kept.
+ *
+ * Pure: `licensors`, `clause`, `automation` and `hasRecord` are what the tree
+ * and `CLA.md` said, passed in. An absent `type` means the caller could not ask
+ * GitHub what kind of account this is, and the author is treated as a person.
+ */
+export function authorVerdict(author, { type, licensors, clause, automation, hasRecord }) {
+  const handle = author.toLowerCase();
+  if (licensors.includes(handle)) return { ok: true };
+
+  if (type === MACHINE_ACCOUNT) {
+    if (!clause) {
+      return {
+        ok: false,
+        fault:
+          `'${author}' is a machine account, and ${CLA} no longer places commits made by ` +
+          `automated tooling outside the agreement — nothing exempts this pull request`,
+      };
+    }
+    const config = automation[handle];
+    if (!config) {
+      return {
+        ok: false,
+        fault:
+          `'${author}' is a machine account this project does not run — ${CLA} exempts its own ` +
+          `automation, and nothing committed here configures this account. Either it is ours, and ` +
+          `its login belongs in PROJECT_AUTOMATION beside the file that runs it; or it is acting ` +
+          `for a person, and that person authored the work and needs their own record`,
+      };
+    }
+    return {
+      ok: true,
+      note:
+        `'${author}' is a machine account this project runs (${config}), and ${CLA} says: ` +
+        `"${clause}" No record is required of it. It cannot agree for anyone else, though: work a ` +
+        `person authored — anything a coding agent wrote at someone's direction — still needs that ` +
+        `person's record, and only review can see that this pull request carries none.`,
+    };
+  }
+
+  if (!hasRecord) {
+    return {
+      ok: false,
+      fault:
+        `${recordPath(handle)}: missing — ${CLA} grants nothing until this record exists, ` +
+        `so a contribution from '${author}' cannot be merged yet`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Audits every existing record, and — given `--author <login>` — what that
+ * author owes. Returns a process exit code.
  */
 export function checkContributorRecord(args = []) {
   const claText = readFileSync(CLA, "utf8");
@@ -153,13 +289,24 @@ export function checkContributorRecord(args = []) {
       console.error("check-contributor-record: --author needs a GitHub login");
       return 2;
     }
-    const handle = author.toLowerCase();
-    if (!licensors.includes(handle) && !existsSync(recordPath(handle))) {
-      failed = true;
+    const typeAt = args.indexOf("--author-type");
+    if (typeAt !== -1 && !args[typeAt + 1]) {
       console.error(
-        `${recordPath(handle)}: missing — ${CLA} grants nothing until this record exists, ` +
-          `so a contribution from '${author}' cannot be merged yet`,
+        "check-contributor-record: --author-type needs GitHub's user.type for --author",
       );
+      return 2;
+    }
+    const verdict = authorVerdict(author, {
+      type: typeAt === -1 ? undefined : args[typeAt + 1],
+      licensors,
+      clause: automationClause(claText),
+      automation: projectAutomation(),
+      hasRecord: existsSync(recordPath(author.toLowerCase())),
+    });
+    if (verdict.note) console.log(verdict.note);
+    if (!verdict.ok) {
+      failed = true;
+      console.error(verdict.fault);
     }
   }
 
