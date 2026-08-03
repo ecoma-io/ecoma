@@ -31,7 +31,10 @@ what, because a primitive can plausibly be tested in all three:
 - **Unit** — `<Name>.test.ts`, jsdom. The component's own logic: what it
   renders from props, what it emits, which ARIA attributes it computes. Every
   project-internal collaborator is mocked (`local/no-unmocked-internal-imports`
-  enforces it); Reka UI and other third-party libs are NOT mocked. jsdom has no
+  enforces it — but only for the test file's own imports: a child the mounted
+  component's template renders escapes the lint, so stub the children the way
+  `TitleBar.test.ts` does, or move cases that assert on real children to the
+  integration tier); Reka UI and other third-party libs are NOT mocked. jsdom has no
   `ResizeObserver` and Reka's poppers measure with one even while closed — stub
   it (several tests already do), don't work around it by mocking Reka.
   Property tests for pure logic (`fast-check` via `@fast-check/vitest`,
