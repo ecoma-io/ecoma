@@ -469,8 +469,11 @@ theatre._
 **Further techniques:**
 
 - **A rubric self-conformance pass**, mandatory at the start of every full run:
-  does the rubric obey its own R3 (every artifact its laws demand actually
-  exists) and R12 (the coverage matrix is present)? The precedent is this
+  does the rubric obey its own **L7** — no version number anywhere in its
+  identity — and its own **R12**, the coverage matrix declared and this document
+  not the one silently exempted from review? And does it obey the constitution's
+  **immunity law (law 8)**, under which every criterion an earlier run had to
+  invent exists here rather than only in that run's report? The precedent is this
   document surviving several sessions with a wrong title and no coverage matrix,
   because nobody was assigned to check the checker.
 - **Reconciling scattered debt against the central ledger, in both directions**:
