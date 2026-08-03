@@ -137,7 +137,7 @@ contract runs against real backends rather than one backend wearing two names.
 The M0 exit litmus names storage-port behaviour ◆G0 does not freeze: SQL-read,
 metrics-projection and the key-store. They get a named home and deliberately
 **not** a `conformance` target — the executor's rule is that a suite arbitrates
-a named gate or nothing, and these arbitrate a milestone litmus (§1b law #2
+a named gate or nothing, and these arbitrate a milestone litmus (§1b rule #2
 measures exit at the convergence point, not at a gate). Per ADR-0002, each
 port contract below runs against **both** the reference and the small stack.
 

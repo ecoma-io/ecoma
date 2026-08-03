@@ -3,7 +3,7 @@ title: "ADR-0008 — Cấu trúc subsystem"
 status: design-end-state
 gate: G0
 frozen-scope: "§4 phạm vi các suite; các boundary rule của §3 và bản kiểm kê project của §2 là phần hiện thực hóa, không phải phần đóng băng"
-canonical-sha: da4f71de5af6
+canonical-sha: 71dface379fa
 ---
 
 # ADR-0008 — Cấu trúc subsystem
