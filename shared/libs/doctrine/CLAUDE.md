@@ -4,8 +4,13 @@ Directory-scoped mechanics only — principles live in the root `CLAUDE.md`. Nx
 project name `doctrine`; import alias `@ecoma-io/doctrine` (tags `type:lib`,
 `scope:shared`, `layer:domain`). It holds the published ceiling — North Stars,
 specs, the deploy charter, the review rubric — and the pure logic that turns
-that tree into navigation. `shared/apps/doctrine-site` renders it; nothing else
-consumes it.
+that tree into navigation. `shared/apps/doctrine-site` renders it, and the
+onboard tool's `shared/tools/onboard/src/doctrine-reader.mjs` parses its
+structure directly (frontmatter fields, the roadmap's §4 milestone headings,
+the system-shape tables): a restructure must keep both consumers reading true,
+and the onboard reader returns empty sections rather than throwing when a
+shape moves, so nothing turns red on its own — the `doctrine-structure-consumers`
+practice card routes this to whoever edits here.
 
 - **The module is pure and stays that way.** It takes a document list and
   returns sections; it never reads a directory itself. That is what the

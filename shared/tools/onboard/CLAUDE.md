@@ -5,11 +5,11 @@ Nx project name `onboard` (tags `type:lib`, `scope:shared`). Plain-ESM
 `.mjs`, no build/typecheck — the same pattern as `dev-cli` and
 `eslint-local-rules`.
 
-- **Two halves under one project.** `src/setup.mjs` handles developer
-  toolchain setup (the existing role). The new `src/doctrine-reader.mjs`,
-  `src/nx-reader.mjs`, `src/git-reader.mjs`, and `src/report-builder.mjs`
-  are deterministic data-gathering scripts used by the `.claude/skills/onboard`
-  skill — they output JSON to stdout, never mutate the filesystem.
+- **Two halves under one project.** `src/setup.mjs` owns developer toolchain
+  setup. `src/doctrine-reader.mjs`, `src/nx-reader.mjs`, `src/git-reader.mjs`,
+  and `src/report-builder.mjs` are deterministic data-gathering scripts used
+  by the `.claude/skills/onboard` skill — they output JSON to stdout, never
+  mutate the filesystem.
 - **`src/doctrine-reader.mjs` reads `shared/libs/doctrine/`** — the published
   doctrine tree. It extracts end-state architecture (north stars, system shape,
   principles, invariants, primitives, layers), roadmap milestones, and known
