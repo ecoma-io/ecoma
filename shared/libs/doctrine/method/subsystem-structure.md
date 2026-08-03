@@ -206,13 +206,23 @@ it says so rather than letting a green run imply otherwise.
 
 ## 7. Named seams
 
-| Deferred                                                                                         | Seam, named now                                                                                                                                                                                                           | Arrives                                      |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| the vector port — M0 explicitly ships "no Knowledge, Memory or DataTable module" (roadmap §4 M0) | `engine-ports/vector` plus its adapter and its case in the storage-port contract tests                                                                                                                                    | M3, with Knowledge — its first consumer      |
-| splitting `engine-domain`                                                                        | the Go package boundary: `eventlog`, `role`, `task`, `checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`, `lease`, `keytree`. A split promotes one package to a library keeping its import path | when a package earns an independent consumer |
-| a second read-API client (the attended UI's diff-Judgment surface, ADR-0005)                     | `platform/libs/read-api-client`, `layer:adapter`, generated from the same schema                                                                                                                                          | when that second consumer exists             |
-| publishing the read-API contract to third parties                                                | it moves to `platform/packages/`, licensed Apache 2.0, under the release train                                                                                                                                            | when an external consumer is promised        |
-| `conformance-g2`                                                                                 | the project is created when Track D starts                                                                                                                                                                                | M4                                           |
+| Deferred                                                                                         | Seam, named now                                                                                                                                                                                                                       | Arrives                                      |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| the vector port — M0 explicitly ships "no Knowledge, Memory or DataTable module" (roadmap §4 M0) | `engine-ports/vector` plus its adapter and its case in the storage-port contract tests                                                                                                                                                | M3, with Knowledge — its first consumer      |
+| splitting `engine-domain`                                                                        | the Go package boundary: `eventlog`, `role`, `task`, `checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`, `lease`, `keytree`, `artifact`. A split promotes one package to a library keeping its import path | when a package earns an independent consumer |
+| a second read-API client (the attended UI's diff-Judgment surface, ADR-0005)                     | `platform/libs/read-api-client`, `layer:adapter`, generated from the same schema                                                                                                                                                      | when that second consumer exists             |
+| publishing the read-API contract to third parties                                                | it moves to `platform/packages/`, licensed Apache 2.0, under the release train                                                                                                                                                        | when an external consumer is promised        |
+| `conformance-g2`                                                                                 | the project is created when Track D starts                                                                                                                                                                                            | M4                                           |
+
+**A list corrected — twelve packages, not eleven.** The original enumeration
+omitted `artifact`, the package holding the content address `sha256:<digest>`
+that an Event Log entry's payload carries when the bytes live in the Artifact
+Store (Event Log §1, Artifact Store §1). The omission was not a decision: the
+Artifact Store is a tier-0 subsystem this document already gates at ◆G0, and its
+address is domain vocabulary the entry schema cannot be written without. Nothing
+about the seam changes — a package is still promoted to a library keeping its
+import path — only the list is now complete. This is §7, outside the `§4`
+`frozen-scope` above, so completing it widens no freeze.
 
 ## 8. The questions this decision settles
 

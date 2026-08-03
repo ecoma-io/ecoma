@@ -252,7 +252,7 @@ result hash)` — DataTable and Labor Analytics (Working Data §1, §4). No seco
   projection **reads both streams** — the sampled visits here, and the complete
   conversion entries in the labour log (§2) — so it is a projection of the Event
   Log too, and it must declare its position explicitly with no silent default,
-  **carrying its mandatory negative test in the ◆G0 suite**. Its position has its
+  **carrying its mandatory negative test in the suite that arbitrates it**. Its position has its
   own row in Event Log §3's table.
 - An in-product dashboard is a tier-3 surface reading a projection, never engine
   (Working Data §4).

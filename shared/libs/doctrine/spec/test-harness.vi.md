@@ -1,7 +1,7 @@
 ---
 title: "Process Test Harness"
 status: design-end-state
-canonical-sha: f0bc8b049f82
+canonical-sha: dc0efa3e425c
 ---
 
 # Process Test Harness
@@ -77,7 +77,7 @@ Suite của một **interface** (◆G0–G4) thay vì của một definition: c�
 - Suite là **artifact có version**; **đổi suite = đổi giao diện = breaking** (đi đường major — playbook giao hàng (không công bố) §3).
 - Nơi sống: CI (playbook giao hàng (không công bố)) — track qua gate = **pass suite**, không phải "đã đọc kỹ".
 - Chạy được **độc lập** trên bất kỳ implementation nào (điều kiện để mở track song song).
-- **Suite ◆G0 bắt buộc chứa negative test `run_kind` cho mọi projection** (Event Log §3 — van cơ chế của cược B11): projection mới không kèm test này thì fail suite, chặn merge. Đây là chỗ harness trả giá trị cho _chính luật cách ly test_ mà nó dựa vào.
+- **Mọi projection bắt buộc mang negative test `run_kind` trong suite phân xử nó** (Event Log §3 — van cơ chế của cược B11): projection mới không kèm test này thì fail chính suite đó, chặn merge. Đây là chỗ harness trả giá trị cho _chính luật cách ly test_ mà nó dựa vào.
 
 ## 8. Ai chạy — 3 consumer
 

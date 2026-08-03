@@ -1,7 +1,7 @@
 ---
 title: "Clickstream Ingest — the Second Write Path"
 status: design-end-state
-canonical-sha: ef2f5b60428b
+canonical-sha: 2a5b99663e03
 ---
 
 # Clickstream Ingest — the Second Write Path
@@ -233,7 +233,7 @@ text, result hash)` — DataTable và Labor Analytics (Working Data §1, §4). K
   dòng** — lượt truy cập có lấy mẫu ở đây, và entry conversion đầy đủ trong log
   lao động (§2) — nên nó cũng là một projection của Event Log, và nó phải khai lập
   trường tường minh, không có mặc định im lặng, **kèm negative test bắt buộc trong
-  suite ◆G0**. Lập trường của nó có hàng riêng trong bảng của Event Log §3.
+  suite phân xử nó**. Lập trường của nó có hàng riêng trong bảng của Event Log §3.
 - Dashboard trong sản phẩm là bề mặt tầng 3 đọc một projection, không phải engine
   (Working Data §4).
 

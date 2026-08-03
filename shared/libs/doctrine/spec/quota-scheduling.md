@@ -84,8 +84,9 @@ none.
 - The `run_kind` label's canonical home is Event Log §1/§3. This document
   **declares a position**; it does not restate the label.
 - **Subject to the mandatory negative test like every projection** (Event Log §3,
-  in the ◆G0 suite): a fixture containing a `run_kind: test` entry leaves the plan
-  counter **unchanged**. For this projection the negative test must also check
+  in the suite that arbitrates this projection): a fixture containing a
+  `run_kind: test` entry leaves the plan counter **unchanged**. For this
+  projection the negative test must also check
   **the opposite direction** — that the resource counter **did** change. Without
   that second assertion, an implementation that simply filters the label
   everywhere passes the suite while standing wide open in exactly the place §4

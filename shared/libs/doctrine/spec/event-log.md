@@ -7,11 +7,18 @@ status: design-end-state
 
 ## 1. What it is
 
-**Append-only, immutable, per tenant.** An entry is (id, timestamp, kind, **the
-entry's schema version**, full actor identity, `entity@version` references,
-**`run_kind: production | test` plus `test_run_id` when it is a test**, payload).
-An engine upgrade never rewrites old entries: readers are tolerant by schema
-version and projections rebuild across versions.
+**Append-only, immutable, per tenant.** An entry is (id, **the stream it belongs
+to and its position in that stream**, timestamp, kind, **the entry's schema
+version**, full actor identity, `entity@version` references, **`run_kind:
+production | test` plus `test_run_id` when it is a test**, payload). An engine
+upgrade never rewrites old entries: readers are tolerant by schema version and
+projections rebuild across versions.
+
+Stream and position are fields of the entry rather than a property of how it is
+stored, because everything else here already reads them: §2's total order _is_
+the position within a stream, and the failure-modes table detects a lost segment
+by "a gap in positions". A key two other sections depend on has to be in the
+schema they depend on it through.
 
 A small payload sits inline; a large one is a hash into the Artifact Store — the
 log holds the _truth_, the store holds the _bytes_ (Artifact Store §1).
@@ -55,11 +62,19 @@ later **forgets to filter at all**. The known projections' positions:
 | Runtime-image inventory      | **Included, labelled** — the question is "who breaks if this image stops resolving", and a test run pinning it does (Runtime Sandbox §7)                                                                                                                    |
 | Clickstream funnel & traffic | **Split by label** — production funnel figures do not see a test run's events; a synthetic visit is not a visitor, and these figures are sampled estimates besides (Clickstream Ingest §8)                                                                  |
 
-**Checked by machine, not by care**: the **◆G0** conformance suite carries **a
-negative test for EVERY projection** — run a fixture containing a `run_kind: test`
-entry and assert the production numbers are unchanged. A new projection arriving
-without its negative test **fails the suite and is structurally blocked from
-merging**.
+**Checked by machine, not by care**: **every projection carries a negative test**
+— run a fixture containing a `run_kind: test` entry and assert the production
+numbers are unchanged. A new projection arriving without its negative test
+**fails the suite that arbitrates it and is structurally blocked from merging**.
+
+**The obligation travels with the projection, not with ◆G0.** That gate freezes
+the entry schema and the storage-port contracts, and its suite's scope is closed
+against everything else (ADR-0008 §4.2) — a projection is in neither, so a check
+placed there is one nobody could ever add. It lands instead on whatever already
+arbitrates the projection itself: the **◆G4** read-API suite for a projection
+that gate exposes, and otherwise the projection's own arbiter, the pattern
+ADR-0008 §4.3 names for behaviour no gate freezes. The obligation is unchanged —
+only its carrier is, and it is now a carrier that can hold it.
 
 An explicit position is only _advice_ if nobody checks it, and this is precisely
 a **silent** class of error — forgetting to filter is invisible — so it has to be
@@ -142,17 +157,17 @@ by classification.
 
 ## 8. Decisions
 
-| Question                              | Settled                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Role                                  | The single source of truth; every view is a rebuildable projection                                                                                                                                                                                                                                                                                 |
-| **The second write path**             | Clickstream is a separate stream rather than a `run_kind`-style label here: it diverges in lifetime, in kind of truth, and in who sizes it. Canonical home: Clickstream Ingest §1                                                                                                                                                                  |
-| Ordering                              | Total order per single-writer stream, with causality through references; no global clock                                                                                                                                                                                                                                                           |
-| Metering, audit, search, notification | All projections — four floating concepts given a home in one decision                                                                                                                                                                                                                                                                              |
-| Backup × the right to be forgotten    | The key lives outside the data backup path; escrow is opt-in but obeys the same shred, so restore is not a blind spot                                                                                                                                                                                                                              |
-| **Kinds of key copy**                 | Forward-moving replicas only; **point-in-time snapshots of the key store are forbidden**; root and tenant DEKs must have DR. Forbidding every place is not enough if one _kind_ of copy can rewind                                                                                                                                                 |
-| Append-only vs erasure                | Crypto-shredding: destroy the key rather than puncture the log; the destruction is itself an entry                                                                                                                                                                                                                                                 |
-| Timers                                | Entries, replayable — no timer outside the log                                                                                                                                                                                                                                                                                                     |
-| **The `run_kind` label**              | Its canonical home is here (the entry in §1, the projection law in §3). Every projection **declares its position**, with no silent default, **and is subject to a mandatory negative test in the ◆G0 suite**. A label with no home means a later projection forgets to filter; a declaration with no check means it still forgets, only in writing |
+| Question                              | Settled                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role                                  | The single source of truth; every view is a rebuildable projection                                                                                                                                                                                                                                                                                                                                                                          |
+| **The second write path**             | Clickstream is a separate stream rather than a `run_kind`-style label here: it diverges in lifetime, in kind of truth, and in who sizes it. Canonical home: Clickstream Ingest §1                                                                                                                                                                                                                                                           |
+| Ordering                              | Total order per single-writer stream, with causality through references; no global clock                                                                                                                                                                                                                                                                                                                                                    |
+| Metering, audit, search, notification | All projections — four floating concepts given a home in one decision                                                                                                                                                                                                                                                                                                                                                                       |
+| Backup × the right to be forgotten    | The key lives outside the data backup path; escrow is opt-in but obeys the same shred, so restore is not a blind spot                                                                                                                                                                                                                                                                                                                       |
+| **Kinds of key copy**                 | Forward-moving replicas only; **point-in-time snapshots of the key store are forbidden**; root and tenant DEKs must have DR. Forbidding every place is not enough if one _kind_ of copy can rewind                                                                                                                                                                                                                                          |
+| Append-only vs erasure                | Crypto-shredding: destroy the key rather than puncture the log; the destruction is itself an entry                                                                                                                                                                                                                                                                                                                                          |
+| Timers                                | Entries, replayable — no timer outside the log                                                                                                                                                                                                                                                                                                                                                                                              |
+| **The `run_kind` label**              | Its canonical home is here (the entry in §1, the projection law in §3). Every projection **declares its position**, with no silent default, **and is subject to a mandatory negative test in the suite that arbitrates that projection** — ◆G4's read-API suite, or the projection's own arbiter (§3). A label with no home means a later projection forgets to filter; a declaration with no check means it still forgets, only in writing |
 
 ## Litmus
 
@@ -165,8 +180,8 @@ by classification.
 4. Restore a backup **older** than the shred command — is that data subject's
    data still unreadable, including from an escrow copy?
 5. Write a **new** projection and deliberately omit its `run_kind` position: does
-   the ◆G0 conformance suite **block the merge** — or does it only surface once
-   the production numbers are already wrong on a real tenant?
+   the conformance suite arbitrating that projection **block the merge** — or does
+   it only surface once the production numbers are already wrong on a real tenant?
 
 ## Failure modes
 

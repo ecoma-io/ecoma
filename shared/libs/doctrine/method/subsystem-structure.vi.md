@@ -3,7 +3,7 @@ title: "ADR-0008 — Cấu trúc subsystem"
 status: design-end-state
 gate: G0
 frozen-scope: "§4 phạm vi các suite; các boundary rule của §3 và bản kiểm kê project của §2 là phần hiện thực hóa, không phải phần đóng băng"
-canonical-sha: b79368387437
+canonical-sha: 3dbc9efd2fae
 ---
 
 # ADR-0008 — Cấu trúc subsystem
@@ -205,13 +205,23 @@ thẳng ra thay vì để một lần chạy xanh ngụ ý điều ngược lạ
 
 ## 7. Các seam đã đặt tên
 
-| Bị hoãn                                                                                       | Seam, đặt tên ngay bây giờ                                                                                                                                                                                                  | Tới khi                                             |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| port vector — M0 khai thẳng "không có module Knowledge, Memory hay DataTable" (roadmap §4 M0) | `engine-ports/vector` cộng adapter của nó và case của nó trong test contract của storage port                                                                                                                               | M3, cùng Knowledge — người tiêu thụ đầu tiên của nó |
-| tách `engine-domain`                                                                          | ranh giới package Go: `eventlog`, `role`, `task`, `checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`, `lease`, `keytree`. Một lần tách nâng một package thành một library giữ nguyên import path | khi một package có người tiêu thụ độc lập           |
-| một client read-API thứ hai (bề mặt diff-Judgment của UI attended, ADR-0005)                  | `platform/libs/read-api-client`, `layer:adapter`, sinh từ cùng schema                                                                                                                                                       | khi người tiêu thụ thứ hai đó tồn tại               |
-| công bố contract read-API cho bên thứ ba                                                      | nó chuyển sang `platform/packages/`, license Apache 2.0, dưới release train                                                                                                                                                 | khi có lời hứa cho một người tiêu thụ bên ngoài     |
-| `conformance-g2`                                                                              | project được tạo khi Track D khởi động                                                                                                                                                                                      | M4                                                  |
+| Bị hoãn                                                                                       | Seam, đặt tên ngay bây giờ                                                                                                                                                                                                              | Tới khi                                             |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| port vector — M0 khai thẳng "không có module Knowledge, Memory hay DataTable" (roadmap §4 M0) | `engine-ports/vector` cộng adapter của nó và case của nó trong test contract của storage port                                                                                                                                           | M3, cùng Knowledge — người tiêu thụ đầu tiên của nó |
+| tách `engine-domain`                                                                          | ranh giới package Go: `eventlog`, `role`, `task`, `checkpoint`, `handoff`, `escalation`, `calibration`, `composition`, `tenant`, `lease`, `keytree`, `artifact`. Một lần tách nâng một package thành một library giữ nguyên import path | khi một package có người tiêu thụ độc lập           |
+| một client read-API thứ hai (bề mặt diff-Judgment của UI attended, ADR-0005)                  | `platform/libs/read-api-client`, `layer:adapter`, sinh từ cùng schema                                                                                                                                                                   | khi người tiêu thụ thứ hai đó tồn tại               |
+| công bố contract read-API cho bên thứ ba                                                      | nó chuyển sang `platform/packages/`, license Apache 2.0, dưới release train                                                                                                                                                             | khi có lời hứa cho một người tiêu thụ bên ngoài     |
+| `conformance-g2`                                                                              | project được tạo khi Track D khởi động                                                                                                                                                                                                  | M4                                                  |
+
+**Một danh sách được đính chính — mười hai package, không phải mười một.** Bản
+liệt kê ban đầu bỏ sót `artifact`, package giữ content address `sha256:<digest>`
+mà payload của một entry Event Log mang khi bytes nằm trong Artifact Store (Event
+Log §1, Artifact Store §1). Bỏ sót đó không phải một quyết định: Artifact Store là
+subsystem tầng 0 mà chính tài liệu này đã gate ở ◆G0, và address của nó là từ vựng
+domain mà schema entry không thể viết ra nếu thiếu. Không có gì về seam thay đổi —
+một package vẫn được nâng thành library giữ nguyên import path — chỉ là danh sách
+nay đã đủ. Đây là §7, nằm ngoài `frozen-scope` `§4` ở trên, nên hoàn thiện nó không
+nới rộng đóng băng nào.
 
 ## 8. Những câu hỏi quyết định này chốt
 

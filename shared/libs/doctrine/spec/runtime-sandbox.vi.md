@@ -1,7 +1,7 @@
 ---
 title: "Runtime Sandbox"
 status: design-end-state
-canonical-sha: 8d9fe2398f2e
+canonical-sha: cc766a69e5ff
 ---
 
 # Runtime Sandbox
@@ -296,7 +296,7 @@ deprecation sẽ vượt đúng cái lằn ranh mà Release & Compatibility vạ
 projection mới, nó **khai lập trường của mình về nhãn `run_kind` tại nhà canonical
 của nhãn** (Event Log §3) — **tính vào, có gắn nhãn**, vì câu hỏi nó trả lời là
 "ai hỏng nếu image này thôi resolve được", và một test run đang pin image ấy cũng
-hỏng — và nó chịu nghĩa vụ negative test bắt buộc trong suite ◆G0 như mọi
+hỏng — và nó chịu nghĩa vụ negative test bắt buộc trong suite phân xử nó, như mọi
 projection khác.
 
 ## 8. Non-goals
