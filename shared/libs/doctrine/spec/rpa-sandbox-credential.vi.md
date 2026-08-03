@@ -1,7 +1,7 @@
 ---
 title: "RPA: Sandbox & Credential"
 status: design-end-state
-canonical-sha: 4b4196646316
+canonical-sha: ff107b934b0b
 ---
 
 # RPA: Sandbox & Credential
@@ -46,6 +46,8 @@ Session scope (engine ép tồn tại, cascade cấp giá trị):
 - Vượt scope = action bị chặn tại engine **trước khi chạm driver** + phát escalation — không phải lỗi của executor mà là biên cứng.
 - Khi tích hợp: scope là phần khai báo trong Session effect — Platform nhìn thấy và static analysis kiểm được ("task này cấp quyền irreversible mà Gate trước nó chưa có sàn" — Composition §4 mở rộng tự nhiên xuống tầng RPA).
 
+**Scope cũng là lằn giữa hai năng lực trông giống nhau nhưng không phải một.** Giải một access challenge — một CAPTCHA trình ra cho một session trong domain mà tenant giữ credential đã khai — là một action **trong scope**: actor vẫn là máy, action vẫn là một entry trong log, và nếu tenant là người dùng được ủy quyền thì log của chính đích đến cũng trung thực. **Kỹ nghệ hóa không-bị-phát-hiện** — spoof fingerprint, xoay residential proxy, giả nhịp gõ để đánh bại detector — **không** phải cùng một act và **không** được engine tự viết, vì chức năng duy nhất của nó là làm đích đến misattribute máy thành người, đúng thứ mà action log tồn tại để ngăn (RPA North Star non-goals). Tenant cần nó thì nó tới dưới dạng driver class `code`, opt-in, tenant tự gánh ToS + phơi nhiễm pháp lý. Một đích đến **chặn im lặng, không trình thử thách nào** vì thế nằm ở phía bên kia của lằn: ca được-ủy-quyền bị **từ chối tại engine** thay vì phục vụ bằng cách vượt sang né tránh — cách đọc bảo thủ, nhất quán với reversibility-không-khai-là-irreversible.
+
 ## 5. Non-goals
 
 - Không lưu secret ngoài vault; không có chế độ "trần không sandbox" (mức lỏng nhất vẫn là profile cô lập).
@@ -53,16 +55,18 @@ Session scope (engine ép tồn tại, cascade cấp giá trị):
 
 ## 6. Nhật ký quyết định
 
-| Vấn đề    | Chốt                                                                                                      |
-| --------- | --------------------------------------------------------------------------------------------------------- |
-| Cách ly   | Mỗi session một sandbox; persistent profile là tài nguyên có id + scope riêng                             |
-| Secret    | Handle-only; injection tại driver; executor mù giá trị tuyệt đối                                          |
-| Masking   | Tại tầng perception, một chốt duy nhất; detector có calibration; App Profile vá sót                       |
-| Quyền     | Scope khai báo 4 chiều, chặn tại engine, static analysis kiểm được khi tích hợp                           |
-| Live-view | Là projection của Scene đã masking; driver không hỗ trợ → takeover attended-only, không có kênh xem từ xa |
+| Vấn đề                       | Chốt                                                                                                                                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cách ly                      | Mỗi session một sandbox; persistent profile là tài nguyên có id + scope riêng                                                                                                                                          |
+| Secret                       | Handle-only; injection tại driver; executor mù giá trị tuyệt đối                                                                                                                                                       |
+| Masking                      | Tại tầng perception, một chốt duy nhất; detector có calibration; App Profile vá sót                                                                                                                                    |
+| Quyền                        | Scope khai báo 4 chiều, chặn tại engine, static analysis kiểm được khi tích hợp                                                                                                                                        |
+| Live-view                    | Là projection của Scene đã masking; driver không hỗ trợ → takeover attended-only, không có kênh xem từ xa                                                                                                              |
+| Access challenge vs né tránh | Giải thử thách trình ra trên domain được-ủy-quyền có credential đã khai = Action in-scope; kỹ-nghệ-không-bị-phát-hiện không tự viết — driver `code` opt-in, tenant tự gánh; đích chặn im lặng thì từ chối chứ không né |
 
 ## Litmus (spec-level, theo L5)
 
 1. Executor (script _và_ agent) có bất kỳ đường nào nhận **giá trị** secret thay vì handle?
 2. Người takeover gõ mật khẩu: hành động vào log, giá trị không bao giờ vào log/evidence/context?
 3. Người xem từ xa trong lúc takeover có đường nào thấy vùng đã masking (framebuffer thô, ảnh trước masking)?
+4. Session giải một CAPTCHA trên domain nó giữ credential đã khai — action đó có phải một Action bình thường được ghi kèm actor không? Và có bất kỳ năng lực first-party nào mà chức năng là làm đích đến misattribute máy thành người không?
