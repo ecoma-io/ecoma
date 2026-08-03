@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Platform — North Star"
 status: design-end-state
-canonical-sha: ae07f5d19a86
+canonical-sha: 1f8f527c5bb7
 ---
 
 # Ecoma Platform — North Star
@@ -34,9 +34,10 @@ Filler 和一个 Session effect。Platform 与 RPA 都通过同一个客户端�
 换进同一个位置。
 
 每一个现有系统都**从某一门手艺出发**，再把另一半当作附件焊上去：集成平台出自 iPaaS，
-机器人自动化出自屏幕抓取，BPMN 引擎出自一份禁止未预先声明的分支、没有像样的补偿机制、
-并把 escalation 当作异常的规范。BPMN 在它自己的立身承诺上失败了——业务画得出、机器跑
-得动——尽管它大约五分之一的元素就已经覆盖了绝大多数真实流程。
+机器人自动化出自屏幕抓取，BPMN 引擎出自一份禁止未预先声明的分支、且其中补偿与
+escalation 只存在于建模者亲手画出它们之处——没有一个是引擎强制存在的，也没有一个带
+着经过校准的 confidence——的规范。BPMN 在它自己的立身承诺上失败了——业务画得出、机器
+跑得动——尽管它大约五分之一的元素就已经覆盖了绝大多数真实流程。
 
 Ecoma 改从原始假设重新出发：**一类劳动资源，一小组 primitive，绝对对称。**
 

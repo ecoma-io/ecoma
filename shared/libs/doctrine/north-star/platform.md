@@ -41,10 +41,11 @@ position.
 Every existing system **arrives from a trade** and bolts the other half on:
 integration platforms from iPaaS, robotic automation from screen-scraping, BPMN
 engines from a specification that forbids branches nobody declared in advance,
-has no serious compensation, and treats escalation as an exception. BPMN failed
-at its own founding promise — that the business could draw it and the machine
-could run it — even though roughly a fifth of its elements already covers the
-overwhelming majority of real processes.
+and where compensation and escalation exist only where a modeller drew them by
+hand — neither forced to exist by the engine, neither carrying a calibrated
+confidence. BPMN failed at its own founding promise — that the business could
+draw it and the machine could run it — even though roughly a fifth of its
+elements already covers the overwhelming majority of real processes.
 
 Ecoma restarts from the original assumption instead: **one kind of labour
 resource, a small set of primitives, absolute symmetry.**

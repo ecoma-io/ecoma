@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Platform — North Star"
 status: design-end-state
-canonical-sha: ae07f5d19a86
+canonical-sha: 1f8f527c5bb7
 ---
 
 # Ecoma Platform — North Star
@@ -42,10 +42,12 @@ cùng một vị trí.
 
 Mọi hệ hiện có đều **đi lên từ một nghề** rồi gắn nửa còn lại vào như phần phụ:
 nền tảng tích hợp đi lên từ iPaaS, tự động hóa robot đi lên từ screen-scraping,
-engine BPMN đi lên từ một đặc tả cấm rẽ nhánh không khai trước, không có
-compensation tử tế, và coi escalation là một ngoại lệ. BPMN thất bại ở chính lời
-hứa nền tảng của nó — rằng business vẽ được và máy chạy được — dù chỉ khoảng một
-phần năm số phần tử của nó đã phủ phần áp đảo các quy trình thực.
+engine BPMN đi lên từ một đặc tả cấm rẽ nhánh không khai trước, và nơi
+compensation cùng escalation chỉ tồn tại ở chỗ người mô hình hóa tự tay vẽ chúng
+— không cái nào bị engine ép tồn tại, không cái nào mang một confidence đã hiệu
+chỉnh. BPMN thất bại ở chính lời hứa nền tảng của nó — rằng business vẽ được và
+máy chạy được — dù chỉ khoảng một phần năm số phần tử của nó đã phủ phần áp đảo
+các quy trình thực.
 
 Ecoma khởi động lại từ giả định gốc: **một loại tài nguyên lao động, một bộ
 primitive nhỏ, đối xứng tuyệt đối.**
