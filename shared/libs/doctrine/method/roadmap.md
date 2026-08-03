@@ -151,6 +151,8 @@ _interface_, never wait for each other to _finish_.
 
 **The laws of the track model**, which keep every prohibition in §4 intact:
 
+_(Cited from elsewhere as **roadmap §1b rule #N** — the shorthand is fixed here so that a citation can be checked back against this list.)_
+
 1. **A freeze is an event with provenance.** Changing a frozen interface is
    breaking and takes the major-plus-deprecation route like any protocol (North
    Star §8). The cost of changing an interface after freezing is _multiplied by

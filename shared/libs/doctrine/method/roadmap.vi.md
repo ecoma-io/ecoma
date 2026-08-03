@@ -1,7 +1,7 @@
 ---
 title: "Roadmap"
 status: design-end-state
-canonical-sha: d5a143ae1538
+canonical-sha: 0a4811673746
 ---
 
 # Roadmap
@@ -111,6 +111,8 @@ TẦNG 4 Intelligence (chỉ chạy khi flywheel có dữ liệu)
 | **E — Surfaces**       | Design system `shared/` + Storybook `/design`: **ngày 0** (Charter cho public trước MVP, không phụ thuộc engine); inbox/canvas: sau **◆G4**                                                                             | ngày 0 / ◆G4                                                                                | M0 (inbox tối thiểu là điều kiện exit)                 |
 
 **Luật của track model** (tự đối kháng, giữ nguyên mọi cấm của §4):
+
+_(Nơi khác trích danh sách này dưới dạng **roadmap §1b rule #N** — cách viết tắt được chốt tại đây để mọi trích dẫn kiểm ngược được về đúng danh sách.)_
 
 1. **Freeze là event có provenance** — giao diện đóng băng rồi đổi = breaking, đi đường major + deprecation như mọi protocol (NS §8). Đổi giao diện sau freeze là chi phí _nhân theo số track_ — đó là giá của song song, khai tường minh.
 2. **Exit-litmus vẫn đo tại milestone** (điểm hợp lưu) — track chạy song song không được "pass dần từng phần".
