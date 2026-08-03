@@ -141,8 +141,9 @@ theo state — opacity 0 không ẩn nội dung khỏi assistive tech, thiếu n
 lớp cùng lúc. Xem `Button.vue`.
 
 **Staggered reveal cho nội dung theo nhóm** — khi một list mount cùng lúc (option list của Select,
-item của một menu), cho mỗi hàng một `:style="{ animationDelay: ... }"` theo index trong `v-for`
-(`Math.min(i, 5) * 24ms` — chặn trần để list dài không kéo dài thêm mãi) cùng `animate-fade-rise`.
+item của một menu), cho mỗi hàng `:style="{ animationDelay: listStaggerDelay(i) }"` theo index trong `v-for`
+(bước và trần sống ở `src/lib/motion.ts` — một nguồn, ba primitive dùng chung; chặn trần để list dài
+không kéo dài thêm mãi) cùng `animate-fade-rise`.
 Đây là nội dung **xuất hiện**, không phải feedback của một hành động rời rạc, nên không bị trần
 200ms ràng buộc — tính ngân sách như panel/sheet (`--dur-slow`, 320ms). Xem `Select.vue`.
 

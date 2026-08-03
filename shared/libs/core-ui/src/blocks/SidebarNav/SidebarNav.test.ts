@@ -15,6 +15,18 @@ vi.mock("../../primitives/Tooltip/Tooltip.vue", () => ({
   },
 }));
 
+// Badge and Separator render in SidebarNav's own template, which the isolation
+// lint cannot see (it reads only this file's imports) — stubbed like TitleBar's
+// children so this stays a unit test. The Badge stub keeps its default slot,
+// which is the seam the badge-text assertions below are defined against;
+// Badge's own styling and variants belong to Badge's test.
+vi.mock("../../primitives/Badge/Badge.vue", () => ({
+  default: { name: "Badge", props: ["variant"], template: "<span><slot /></span>" },
+}));
+vi.mock("../../primitives/Separator/Separator.vue", () => ({
+  default: { name: "Separator", template: "<hr />" },
+}));
+
 // jsdom has no ResizeObserver — Reka's Tooltip/Popper measure with one even
 // while closed (same jsdom gap the Tooltip/Tabs/Slider tests stub around).
 vi.stubGlobal(

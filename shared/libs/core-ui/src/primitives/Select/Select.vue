@@ -21,6 +21,7 @@ import {
 } from "reka-ui";
 import { Check, ChevronDown } from "@lucide/vue";
 import { cn } from "../../lib/cn";
+import { listStaggerDelay } from "../../lib/motion";
 import { useSplitAttrs } from "../../lib/attrs";
 
 // SelectRoot renders no DOM node, so route fallthrough attrs (data-testid,
@@ -119,7 +120,7 @@ defineEmits<{ "update:modelValue": [value: string] }>();
             :key="opt.value"
             :value="opt.value"
             :disabled="opt.disabled"
-            :style="{ animationDelay: `${Math.min(i, 5) * 24}ms` }"
+            :style="{ animationDelay: listStaggerDelay(i) }"
             :class="
               cn(
                 'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-3 py-1.5 pr-8 text-sm text-foreground outline-none',
