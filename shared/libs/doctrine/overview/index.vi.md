@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 459706dfdc20
+canonical-sha: 28e42c973abc
 ---
 
 # Ecoma — Mục lục hồ sơ End State
