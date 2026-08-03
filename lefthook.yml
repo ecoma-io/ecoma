@@ -53,6 +53,13 @@ pre-commit:
       # CLAUDE.md and edits to the index land in different projects, so no
       # per-project lint sees both sides — this belongs outside `nx affected`.
       run: node shared/tools/dev-cli/src/main.mjs check-practice-index
+    dependency-cooldown:
+      # Renovate holds back a direct dependency update until its release is old
+      # enough; pnpm holds back everything the lock file resolves under it. The
+      # two tools cannot read each other's file, so nothing but this gate
+      # notices when one duration is edited and the other is not — and the
+      # weaker half is the one that decides what actually gets installed.
+      run: node shared/tools/dev-cli/src/main.mjs check-dependency-cooldown
 
 pre-push:
   commands:

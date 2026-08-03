@@ -1,0 +1,11 @@
+# pnpm's half of the dependency cooldown. Renovate holds a DIRECT dependency
+# update back until its release is old enough (.github/renovate.json5); pnpm
+# holds back everything the lockfile resolves, transitive dependencies
+# included, which is the half Renovate cannot reach — it "does not currently
+# manage any transitive dependencies", so a lock file maintenance run would
+# otherwise pull a package published minutes ago.
+#
+# Minutes, because that is pnpm's unit; the two halves must state the same
+# duration, and `dev-cli check-dependency-cooldown` fails the build when they
+# drift apart.
+minimumReleaseAge: 20160

@@ -34,7 +34,26 @@
 // bump is done by hand as its own workspace-scoped commit.
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: ["config:recommended"],
+  // `:automergeMinor` is the preset spelling of "minor, patch, pin and lock
+  // file maintenance merge themselves; a major waits for a human" — reused
+  // rather than hand-written as four packageRules that would drift from it.
+  // For a dependency that is dev tooling either way, a green definition-of-done
+  // run IS the review, and holding the merge adds a click, not a judgment. What
+  // a human still owns is every major, because a major is a decision.
+  extends: ["config:recommended", ":automergeMinor"],
+  // Renovate merges, not GitHub. `platformAutomerge` defaults to true, which
+  // hands the merge to GitHub's native auto-merge — and Renovate's own docs
+  // warn that the platform "might merge Renovate PRs even if the repository's
+  // tests haven't started, are still in progress, or possibly even when they
+  // have failed" unless branch protection requires the status checks. Whether
+  // `main` requires them is a repository setting this file cannot see or state,
+  // so the safe half is the one that is written down here: with
+  // `platformAutomerge` off, Renovate merges and Renovate's rule is that every
+  // status check must have succeeded (`ignoreTests` stays at its default). Flip
+  // this to true once "Require status checks before merging" on `main` names
+  // the CI checks — the merge then lands the moment CI goes green rather than
+  // on the next Renovate run.
+  platformAutomerge: false,
   timezone: "UTC",
   // Weekly, not continuous — this is a small, single-maintainer, pre-release
   // project; a steady drip of PRs several times a day would just be noise.
@@ -103,6 +122,36 @@
   dependencyDashboardLabels: ["dependencies"],
   packageRules: [
     {
+      // THE COOLDOWN. A package published minutes ago has been read by nobody:
+      // the npm supply-chain attacks of recent years were all caught by
+      // researchers and scanners within days of publication, and every install
+      // inside that window is the whole exposure. Fourteen days is the figure
+      // Renovate's own supply-chain guidance uses — long enough for that
+      // machinery to run, and cheap here because nothing in this workspace is
+      // a runtime dependency waiting on a feature.
+      //
+      // Security updates are exempt without saying so: Renovate raises a
+      // vulnerability alert "as soon as Renovate detects them", bypassing this
+      // check — a known CVE is the one case where newest beats oldest.
+      //
+      // Scoped to the three update types the docs mark as supporting an age
+      // check. The others (`pin`, `lockFileMaintenance`, `replacement`,
+      // `rollback`) have no release timestamp to age against, and since
+      // Renovate 42 an update with no timestamp is treated as not yet past the
+      // cooldown — naming them here would hold them back forever instead of
+      // never.
+      //
+      // This is HALF the cover, and the smaller half. Renovate "does not
+      // currently manage any transitive dependencies", so nothing here reaches
+      // the packages a lock file resolves underneath the ones we name — which
+      // is exactly where an attack like the axios one lands. pnpm holds that
+      // half in `pnpm-workspace.yaml`, in minutes rather than days, and
+      // `dev-cli check-dependency-cooldown` fails the build when the two
+      // durations disagree.
+      matchUpdateTypes: ["major", "minor", "patch"],
+      minimumReleaseAge: "14 days",
+    },
+    {
       // See the scope comment above: platform/libs/*/go.mod are
       // project-owned paths inside one subsystem, so "platform" is their
       // narrowest cover per check-commit-scope.
@@ -129,6 +178,15 @@
     // groups each monorepo's packages, and restating that here would be a
     // second copy of a rule the preset owns.
     {
+      // A `digest` update — the commit a floating tag like `v1` points at,
+      // which is what `dtolnay/rust-toolchain@<sha> # v1` takes — is the one
+      // update type `:automergeMinor` leaves alone, and it should stay that
+      // way. Renovate ages a github-tags digest against the matched version's
+      // original release date, so a tag force-pushed onto new commits "may pass
+      // Minimum Release Age immediately"; that is the exact shape of the
+      // action-tag hijacks of recent years, and the cooldown above cannot see
+      // it. A version bump of a pinned action ages against a real new tag and
+      // automerges like anything else.
       matchManagers: ["github-actions"],
       groupName: "github actions",
     },
