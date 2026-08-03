@@ -5,6 +5,13 @@
   "tags": ["type:app", "scope:shared", "license:sul"],
   "implicitDependencies": ["core-ui"],
   "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "vue-tsc --noEmit"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/storybook-static"],
