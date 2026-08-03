@@ -52,15 +52,17 @@ Omitting the tag anywhere else is dodging the boundary, not modelling it.
 
 A suite declares `gate:G<n>` plus a `conformance` target; the
 `dev-cli conformance` executor reads exactly that pair and reports the
-ledger. Three things
+ledger. Two things
 about that axis are **review-only**, and each fails silently:
 
 - `require-project-tags` inspects `type:`/`scope:`/`license:`/`layer:`/
   `surface:` and nothing else, so a misspelled `gate:` tag passes lint;
-- the executor takes the **first** gate tag it finds, so a second one is
-  never reported;
 - a suite never lives inside the project it arbitrates (ADR-0008 §3 rule 6) —
   a directory layout no gate reads.
+
+A suite carrying more than one `gate:` tag is no longer one of them: `dev-cli
+conformance` now faults it instead of silently serving whichever tag sorts
+first.
 
 A freeze is the other half of the pair and is a human act: flipping a
 doctrine document to `status: frozen` before its suite is green is the paper
