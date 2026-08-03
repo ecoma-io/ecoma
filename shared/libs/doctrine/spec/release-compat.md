@@ -60,9 +60,10 @@ scheduling accident.
 
 Every distributed artifact carries `train_version`, `source_digest`,
 `protocol_versions_supported[]`, and `build_provenance` — who built it, where, and
-from which commit. **Signatures are produced only in the origin repository's CI**;
-a public mirror holds no signing credential. An artifact missing any of the four
-fields is not a distributed artifact; it is a file.
+from which commit. **Signatures are produced only in CI**; no developer machine
+holds a signing credential, and which CI signs which artifact is §1c's answer.
+An artifact missing any of the four fields is not a distributed artifact; it is
+a file.
 
 ## 2. Negotiation — who refuses whom
 
