@@ -65,6 +65,10 @@ export default tseslint.config(
               sourceTag: "scope:website",
               onlyDependOnLibsWithTags: ["scope:website", "scope:shared"],
             },
+            {
+              sourceTag: "scope:platform",
+              onlyDependOnLibsWithTags: ["scope:platform", "scope:shared"],
+            },
             // Hex layer axis (domain/port/adapter/view + util), enforced from the
             // first brick so an import flowing the wrong way fails lint at once.
             // A dep must satisfy every one of its source's tag constraints, so
