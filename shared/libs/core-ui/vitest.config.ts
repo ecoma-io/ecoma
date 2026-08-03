@@ -20,13 +20,20 @@ const { thresholds } = createRequire(import.meta.url)("../../../coverage.config.
 // never co-located).
 export default defineConfig({
   plugins: [vue()],
+  // Lets the jsdom environment load the repo-root property-seed setup below.
+  // A jsdom run serves modules the way a browser fetches them (`/@fs/…`), and
+  // Vite refuses to serve a path above the project root unless it is allowed
+  // here — the node-environment projects that load the same file need nothing.
+  server: { fs: { allow: ["../../.."] } },
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],
     // Pins the fast-check seed when CI is set, so the test target stays
     // deterministic on CI while dev runs keep exploring — the why lives in
-    // the setup file and the write-test skill.
-    setupFiles: ["./vitest.setup.ts"],
+    // the setup file and the write-test skill. It is the repo-root one every
+    // property-testing project loads, not a copy: the seed is a workspace
+    // value, and a per-project constant would be an unsynced config (Rule 14).
+    setupFiles: ["../../../vitest.property-seed.mjs"],
     // One worker, deliberately. Creating a jsdom per isolated file dominates
     // the run, so several at once oversubscribe the machine and turn
     // timing-sensitive tests (RadioGroup/Tabs, see #89) flaky rather than
