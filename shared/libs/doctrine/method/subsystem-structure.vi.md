@@ -3,7 +3,7 @@ title: "ADR-0008 — Cấu trúc subsystem"
 status: design-end-state
 gate: G0
 frozen-scope: "§4 phạm vi các suite; các boundary rule của §3 và bản kiểm kê project của §2 là phần hiện thực hóa, không phải phần đóng băng"
-canonical-sha: 3dbc9efd2fae
+canonical-sha: da4f71de5af6
 ---
 
 # ADR-0008 — Cấu trúc subsystem
@@ -186,18 +186,18 @@ tiên của `human-surface` hay `work-surface`.
 
 Một lần chạy xanh không được ngụ ý nhiều hơn cái nó đã kiểm.
 
-| Luật                                                                                                                                                                                                             | Ai giữ                                                | Nấc                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
-| mọi project khai một tag `type:`, `scope:`, `license:`                                                                                                                                                           | `require-project-tags` và `check-project-conventions` | máy                                          |
-| tag `license:` khớp đường dẫn; một carve-out mang LICENSE riêng                                                                                                                                                  | `license-scope` qua `check-project-conventions`       | máy                                          |
-| chiều import qua trục tầng và license, **chỉ TypeScript và Vue**                                                                                                                                                 | `@nx/enforce-module-boundaries`                       | máy                                          |
-| chiều import qua trục tầng và license, **Go**                                                                                                                                                                    | không gì parse Go                                     | **chỉ review**                               |
-| seam giữa các primitive bên trong `engine-domain`                                                                                                                                                                | không gì                                              | **chỉ review**                               |
-| một suite gọi tên một gate; một freeze gọi tên một gate; một gate đã đóng băng có suite                                                                                                                          | `dev-cli conformance`                                 | máy                                          |
-| từ vựng của trục `gate:` — `require-project-tags` chỉ soi năm prefix nó biết, nên một tag gate viết sai chính tả lọt im lặng; chỉ executor conformance đọc trục này, và đọc bằng một phép find lấy khớp đầu tiên | không gì                                              | **chỉ review**                               |
-| **đúng một** tag `gate:G#` trên một suite                                                                                                                                                                        | executor đọc tag đầu tiên nó gặp                      | **chỉ review**                               |
-| `frozen-scope` còn mô tả đúng văn bản đã đóng băng                                                                                                                                                               | không dòng code nào đọc trường này, kể cả để in ra    | **chỉ review**                               |
-| cạnh liên-project Go, Rust và Python cho `nx affected`                                                                                                                                                           | `nx-polyglot-graph`                                   | máy cho affectedness, không gì cho ranh giới |
+| Luật                                                                                                                                                                | Ai giữ                                                | Nấc                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| mọi project khai một tag `type:`, `scope:`, `license:`                                                                                                              | `require-project-tags` và `check-project-conventions` | máy                                          |
+| tag `license:` khớp đường dẫn; một carve-out mang LICENSE riêng                                                                                                     | `license-scope` qua `check-project-conventions`       | máy                                          |
+| chiều import qua trục tầng và license, **chỉ TypeScript và Vue**                                                                                                    | `@nx/enforce-module-boundaries`                       | máy                                          |
+| chiều import qua trục tầng và license, **Go**                                                                                                                       | không gì parse Go                                     | **chỉ review**                               |
+| seam giữa các primitive bên trong `engine-domain`                                                                                                                   | không gì                                              | **chỉ review**                               |
+| một suite gọi tên một gate; một freeze gọi tên một gate; một gate đã đóng băng có suite                                                                             | `dev-cli conformance`                                 | máy                                          |
+| từ vựng của trục `gate:` — `require-project-tags` chỉ soi năm prefix nó biết, nên một tag gate viết sai chính tả lọt im lặng; chỉ executor conformance đọc trục này | không gì                                              | **chỉ review**                               |
+| **đúng một** tag `gate:G#` trên một suite                                                                                                                           | `dev-cli conformance`                                 | máy                                          |
+| `frozen-scope` còn mô tả đúng văn bản đã đóng băng                                                                                                                  | không dòng code nào đọc trường này, kể cả để in ra    | **chỉ review**                               |
+| cạnh liên-project Go, Rust và Python cho `nx affected`                                                                                                              | `nx-polyglot-graph`                                   | máy cho affectedness, không gì cho ranh giới |
 
 Mọi library quyết định này tạo ở Tầng 0 đều là Go. **Trục tầng vì thế là
 review-enforced cho toàn bộ engine**, và một pull request đụng vào nó phải nói
