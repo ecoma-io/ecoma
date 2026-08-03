@@ -124,6 +124,26 @@ Notices under this agreement are in writing and sent to the addresses in the
 signature block, by email with confirmation of delivery, or by courier with
 tracking. A notice is treated as received on the day it is sent.
 
+## If these terms change
+
+The Licensor may publish a new version of this document. A new version does
+**not** change an agreement already running. It reaches the Licensee only at the
+start of a renewal term, and only if the Licensor gave written notice of it at
+least 60 days before that renewal date — the same notice a fee change already
+requires, and for the same reason: a Licensee who does not accept the new terms
+declines the renewal rather than being bound by terms it never agreed to.
+
+Nothing here lets the Licensor take back or narrow a licence already granted.
+The licence in **Grant of licence** is perpetual, and it survives on the terms
+it was granted under, for the copies the Licensee received during the term —
+the same rule as **Effect of termination** above, applied to a change of terms
+rather than to an ending.
+
+Anything other than a renewal-term version change is an **amendment**, and an
+amendment binds only when it is in writing and signed by both parties. Silence,
+a course of dealing, and the printed terms of a purchase order or invoice — the
+fee an order form sets under **Fee** aside — do not amend this agreement.
+
 ## Entire agreement
 
 This agreement (together with any invoice or order form it references) is the
