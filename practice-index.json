@@ -80,6 +80,23 @@
       "admission": "foreign-scope",
       "gate": null,
       "gateNote": "No gate is possible: whether a rendered surface contradicts a mechanism is not decidable from the source tree, which is the reason the rule needs routing rather than a check"
+    },
+    {
+      "id": "code-citation-owner",
+      "scope": [
+        ".claude/skills/**",
+        ".github/**",
+        "platform/**",
+        "shared/tools/**",
+        "shared/apps/**",
+        "website/**"
+      ],
+      "summary": "Citing a doctrine designation code from outside that tree — `Rule <n>`, `R<n>`, `rule #<n>`, `◆G<n>`, `M<n>`, `ADR-<nnnn>` — must select exactly one owning document, by carrying the owner's name or the section anchor that selects one; `shared/libs/doctrine/method/code-vocabulary.md` owns the ownership map and the citation form, and a code's meaning is never restated at the citing site.",
+      "source": "shared/libs/doctrine/CLAUDE.md",
+      "quote": "a code of this tree cited from outside, follows `method/code-vocabulary.md`",
+      "admission": "foreign-scope",
+      "gate": null,
+      "gateNote": "no gate is possible without a citation registry, which would be a second copy of every owner's numbering (TR6, SR4)"
     }
   ],
   "diffCards": [
