@@ -51,7 +51,15 @@ export const WORKSPACE_SCOPE = "workspace";
 // Derived artifacts a commit drags along regardless of its subject — never
 // counted when computing the covering scope (a project-scoped dependency bump
 // must not be forced to `workspace` by the root lockfile).
-const EXEMPT_PATHS = new Set(["pnpm-lock.yaml"]);
+//
+// `go.work.sum` earns its place for a stronger reason than the lockfile's: it
+// is root-owned, so without the exemption `go mod tidy` inside one module
+// writes that module's own `go.sum` *and* this root file in the same breath,
+// which `mustSplit` rejects outright — and the split it demands is impossible,
+// because the two halves are one atomic act. Only this file: `Cargo.lock` and
+// `uv.lock` are root-owned too but no per-project counterpart forces them to
+// travel with a project change, so they stay judged.
+const EXEMPT_PATHS = new Set(["pnpm-lock.yaml", "go.work.sum"]);
 
 // Mirror of @commitlint/is-ignored's default wildcards (not importable here —
 // pnpm exposes it only to commitlint's own packages). Messages commitlint

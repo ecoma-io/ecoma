@@ -2,7 +2,7 @@
   "name": "engine-adapters",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
-  "sourceRoot": "platform/libs/engine-adapters/src",
+  "sourceRoot": "platform/libs/engine-adapters",
   "tags": ["type:lib", "scope:platform", "license:sul", "layer:adapter"],
   "targets": {
     "typecheck": {
