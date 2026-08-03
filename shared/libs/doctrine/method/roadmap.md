@@ -51,6 +51,17 @@ DataTable's "SQL to ask, events to write":
 2. **Every id in this file has at least one card** once its track has started. An
    orphan id is a promise nobody is nurturing.
 
+**A bot's thread is not a card.** Automation opens issues to hold its own state —
+Renovate's Dependency Dashboard is one — and that state traces to no id, because
+nobody scheduled it. Law #1 would read that as a scope decision never taken; it
+is neither, it is a machine's scratch space. Keeping it off the board is the
+auto-add rule's job, filtering on the label the bot maintains on its own thread
+(`.github/renovate.json5` names that label and says why the bot rather than a
+human has to own it) — and that rule lives in the board's own settings, where no
+gate in the repository can reach it. The issue automation obeys the same
+boundary one level down: the jobs that triage, translate and expire the human
+backlog all skip bot-authored threads.
+
 **The id scheme — stable, append-only, never reused** (the same discipline as the
 rubric's criterion ids):
 
