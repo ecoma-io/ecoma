@@ -44,6 +44,22 @@ export default {
           const messageId = FLAGGED[modifier.name];
           if (messageId) context.report({ node: modifier, messageId });
         }
+        // node:test's options-object form disables a declaration the same way
+        // the modifier does: `it("title", { skip: true }, fn)`. A literal
+        // true/string is a committed disable and is flagged; a computed value
+        // is a conditional skip and is left alone, like Playwright's runtime
+        // form above.
+        const options = node.arguments[1];
+        if (options?.type !== "ObjectExpression") return;
+        for (const prop of options.properties) {
+          if (prop.type !== "Property" || prop.computed) continue;
+          const key = prop.key.type === "Identifier" ? prop.key.name : prop.key.value;
+          const messageId = FLAGGED[key];
+          if (!messageId) continue;
+          if (prop.value.type === "Literal" && prop.value.value !== false) {
+            context.report({ node: prop, messageId });
+          }
+        }
       },
     };
   },

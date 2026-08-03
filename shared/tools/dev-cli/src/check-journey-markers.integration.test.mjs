@@ -104,7 +104,7 @@ describe("checkWorkspaceDocs against a real git repo", () => {
         "TOPDOC.md": "roadmap 0.1 backlog\n", // workspace-level → reported
         "sub/project.json": "{}\n",
         "sub/notes.css": "/* ships at 0.2 */\n", // owned by sub → its own lint's job
-        "main.ts": "// ships at 0.2\n", // ESLint-covered → skipped
+        "sub/covered.ts": "// ships at 0.2\n", // owned by sub → its lint's ESLint pass owns this
       }),
     );
 
@@ -112,7 +112,24 @@ describe("checkWorkspaceDocs against a real git repo", () => {
     const reported = error.mock.calls.flat().join("\n");
     expect(reported).toContain("TOPDOC.md:1");
     expect(reported).not.toContain("sub/notes.css");
-    expect(reported).not.toContain("main.ts");
+    expect(reported).not.toContain("sub/covered.ts");
+  });
+
+  it("scans the contents of workspace-level JS files — no project lint target ever parses them", () => {
+    process.chdir(
+      initGitRepo({
+        ".claude/hooks/session-probe.mjs": "// ships at 0.2\n", // no project owns it → reported
+        "workspace.config.js": "// roadmap 0.1 backlog\n", // ditto
+        "sub/project.json": "{}\n",
+        "sub/owned.mjs": "// ships at 0.2\n", // project-owned → its own lint's ESLint pass
+      }),
+    );
+
+    expect(checkWorkspaceDocs()).toBe(1);
+    const reported = error.mock.calls.flat().join("\n");
+    expect(reported).toContain(".claude/hooks/session-probe.mjs:1");
+    expect(reported).toContain("workspace.config.js:1");
+    expect(reported).not.toContain("sub/owned.mjs");
   });
 
   it("reports a project directory whose own name is a journey marker — the per-project scan never sees it", () => {

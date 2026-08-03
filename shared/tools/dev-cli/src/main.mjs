@@ -27,6 +27,7 @@ import { listRoadmapIds } from "./list-roadmap-ids.mjs";
 import { listScopes } from "./list-scopes.mjs";
 import { prFacts } from "./pr-facts.mjs";
 import { runE2e } from "./run-e2e.mjs";
+import { RUN_GO_TESTS_COMMAND, runGoTests } from "./run-go-tests.mjs";
 import { RUN_NODE_TESTS_COMMAND, runNodeTests } from "./run-node-tests.mjs";
 import { scaffoldLib } from "./scaffold-lib.mjs";
 import { stripClaudeTrailers } from "./strip-claude-trailers.mjs";
@@ -60,6 +61,9 @@ const COMMANDS = {
   // one spelling (Rule 14) — a drifted literal would demand a command that does
   // not exist, and no gate scans this registry for that.
   [RUN_NODE_TESTS_COMMAND]: (args) => runNodeTests(args),
+  // Same contract for the Go runner: the gate requires a Go project's test
+  // target to name this command, off this same exported spelling.
+  [RUN_GO_TESTS_COMMAND]: (args) => runGoTests(args),
   "scaffold-lib": (args) => scaffoldLib(args),
   "strip-claude-trailers": (args) => stripClaudeTrailers(args[0]),
 };

@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildLedger, findFrozenDocuments, findSuites } from "./conformance.mjs";
+import { buildLedger, conformance, findFrozenDocuments, findSuites } from "./conformance.mjs";
+
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
+import { execFileSync } from "node:child_process";
 
 const GATES = new Set(["◆G0", "◆G1", "◆G2"]);
 
@@ -139,5 +142,56 @@ describe("the judgment rule #7 actually makes", () => {
   it("orders the ledger by gate, so the report reads in build order", () => {
     const { rows } = buildLedger(new Set(["◆G2", "◆G0", "◆G1"]), [], []);
     expect(rows.map((r) => r.gate)).toEqual(["◆G0", "◆G1", "◆G2"]);
+  });
+});
+
+describe("the --run branch — the executor half Track R.5 names", () => {
+  // conformance() reads the roadmap and the tree through its injected
+  // read/list; only the suite execution reaches the real world, so that spawn
+  // is the one thing mocked. The reader dispatches on path shape: any .md read
+  // is the roadmap's gate table, any project.json read is the suite below.
+  const read = (path) =>
+    path.endsWith(".md")
+      ? "| **G0** | freeze | opens | cost |\n"
+      : JSON.stringify({ name: "s", tags: ["gate:G0"], targets: { conformance: {} } });
+  const list = (patterns) => (patterns?.[0]?.includes("project.json") ? ["s/project.json"] : []);
+
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    execFileSync.mockReset();
+  });
+
+  it("executes every suite in the ledger through Nx's own runner", () => {
+    expect(conformance(["--run"], read, list)).toBe(0);
+    expect(execFileSync).toHaveBeenCalledWith(
+      "pnpm",
+      ["nx", "run-many", "-t", "conformance", "-p", "s"],
+      { stdio: "inherit" },
+    );
+  });
+
+  it("returns the failure when a suite run goes red, rather than swallowing it", () => {
+    execFileSync.mockImplementation(() => {
+      throw new Error("suite failed");
+    });
+    expect(conformance(["--run"], read, list)).toBe(1);
+  });
+
+  it("stays a pure read without --run — no suite is executed", () => {
+    expect(conformance([], read, list)).toBe(0);
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it("does not reach the runner when the ledger itself is faulted", () => {
+    const ungatedRead = (path) =>
+      path.endsWith(".md")
+        ? "| **G0** | freeze | opens | cost |\n"
+        : JSON.stringify({ name: "s", targets: { conformance: {} } });
+    expect(conformance(["--run"], ungatedRead, list)).toBe(1);
+    expect(execFileSync).not.toHaveBeenCalled();
   });
 });

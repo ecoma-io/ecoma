@@ -37,6 +37,19 @@ export default {
     const mocked = new Set();
     const internalImports = [];
 
+    // The SUT exemption takes only `./<sutBase>` (same directory, optionally
+    // with an extension) — a same-basename file elsewhere (`../other/Foo`) is
+    // a different module that happens to share the name, not the SUT.
+    const isSut = (spec) =>
+      spec.startsWith("./") && !spec.slice(2).includes("/") && baseNoExt(spec) === sutBase;
+
+    const collectImport = (spec, node) => {
+      if (typeof spec !== "string" || !isInternal(spec)) return;
+      if (TEST_INFRA.test(spec) || ASSET_EXT.test(spec) || SUPPORT_DIR.test(spec)) return;
+      if (isSut(spec)) return; // the SUT itself
+      internalImports.push({ spec, node });
+    };
+
     return {
       // Collect vi.mock("x") / vi.doMock("x") / vitest.mock("x").
       CallExpression(node) {
@@ -54,11 +67,14 @@ export default {
       },
       ImportDeclaration(node) {
         if (node.importKind === "type") return; // type-only: no runtime behaviour
-        const spec = node.source.value;
-        if (typeof spec !== "string" || !isInternal(spec)) return;
-        if (TEST_INFRA.test(spec) || ASSET_EXT.test(spec) || SUPPORT_DIR.test(spec)) return;
-        if (spec.startsWith("./") && baseNoExt(spec) === sutBase) return; // the SUT itself
-        internalImports.push({ spec, node });
+        collectImport(node.source.value, node);
+      },
+      // Dynamic `import("...")` with a literal specifier is the same runtime
+      // edge as a static import — without this, `await import("./collab")`
+      // exercises a real collaborator lint-green. A non-literal argument can't
+      // be judged statically and is left alone.
+      ImportExpression(node) {
+        if (node.source.type === "Literal") collectImport(node.source.value, node);
       },
       "Program:exit"() {
         for (const { spec, node } of internalImports) {

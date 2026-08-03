@@ -19,6 +19,9 @@ ruleTester.run("no-focused-or-skipped-tests", rule, {
     "obj.skip(10)", // not a test global — pagination-style API
     'pager.skip.each([1])("case", () => {})', // not a test global — chained non-test API
     "list.only", // member access, not a call
+    'it("case", { skip: false }, () => {})', // node:test options form, explicitly not skipped
+    'it("case", { skip: isWindows }, () => {})', // computed value — a conditional skip
+    'it("case", { concurrency: 2 }, () => {})', // options without skip/only
   ],
   invalid: [
     { code: 'it.only("renders", () => {})', errors: [{ messageId: "focusedTest" }] },
@@ -34,6 +37,19 @@ ruleTester.run("no-focused-or-skipped-tests", rule, {
       errors: [{ messageId: "focusedTest" }],
     },
     { code: 'it.skip.each`a`("case", () => {})', errors: [{ messageId: "skippedTest" }] },
+    // node:test's options-object form disables a declaration the same way.
+    {
+      code: 'it("case", { skip: true }, () => {})',
+      errors: [{ messageId: "skippedTest" }],
+    },
+    {
+      code: 'test("case", { skip: "broken on CI" }, () => {})',
+      errors: [{ messageId: "skippedTest" }],
+    },
+    {
+      code: 'it("case", { only: true }, () => {})',
+      errors: [{ messageId: "focusedTest" }],
+    },
   ],
 });
 

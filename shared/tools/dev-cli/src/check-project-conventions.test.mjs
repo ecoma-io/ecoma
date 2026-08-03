@@ -325,9 +325,37 @@ describe("findConventionViolations", () => {
   it("passes a unit or integration test whose name merely contains the e2e tier's neighbours", () => {
     const files = {
       ...HEALTHY,
+      "vider/libs/vider-ui/project.json": project(
+        ["type:lib", "scope:vider", "layer:view"],
+        nodeTestTarget("node ../../../shared/tools/dev-cli/src/main.mjs run-go-tests"),
+      ),
       "vider/libs/vider-ui/src/thing_test.go": "test",
       "vider/libs/vider-ui/src/thing_integration_test.go": "test",
       "vider/libs/vider-ui/src/thing_test.py": "test",
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("flags a project with Go tests whose test target never reads the coverage floor", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/project.json": project(
+        ["type:lib", "scope:vider", "layer:view"],
+        nodeTestTarget("go test ./..."),
+      ),
+      "vider/libs/vider-ui/src/thing_test.go": "test",
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        "has Go tests but nothing holds them to the workspace coverage floor",
+      ),
+    ]);
+  });
+
+  it("leaves the e2e Go tier out of the coverage floor, like the JS tier", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/apps/vider-e2e/src/flow_e2e_test.go": "test",
     };
     expect(judge(files)).toEqual([]);
   });

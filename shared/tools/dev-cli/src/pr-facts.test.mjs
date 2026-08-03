@@ -89,6 +89,24 @@ describe("collectPrFacts", () => {
     expect(facts.viewLayerTouched).toBe(true);
   });
 
+  it("counts every language's test-file convention as testsChanged", () => {
+    for (const path of [
+      "platform/libs/conformance-g0/lease_test.go",
+      "platform/libs/conformance-g0/lease_integration_test.go",
+      "shared/tools/repo-care/src/triage_test.py",
+      "platform/libs/engine-domain/tests/contract.rs",
+    ]) {
+      fakeGit({ commits: { abc1: "test(dev-cli): pin behavior\n" }, changed: [path] });
+      expect(collectPrFacts("origin/main").testsChanged, path).toBe(true);
+    }
+    // A non-test Go file does not count.
+    fakeGit({
+      commits: { abc1: "feat(dev-cli): x\n" },
+      changed: ["platform/libs/engine-domain/doc.go"],
+    });
+    expect(collectPrFacts("origin/main").testsChanged).toBe(false);
+  });
+
   it("detects a breaking change from the ! header marker", () => {
     fakeGit({
       commits: { abc1: "feat(vider-ui)!: rename prop\n" },

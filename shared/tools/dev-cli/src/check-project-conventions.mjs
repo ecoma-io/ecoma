@@ -32,13 +32,17 @@
  *    must run them under the workspace floor, whichever runner it uses: a
  *    vitest project's config reads the shared thresholds and turns coverage on
  *    (and may no longer keep `passWithNoTests`), a `node --test` project's
- *    target delegates to dev-cli's runner, which reads the same file. Both
- *    seams are scaffold state that is legitimate only while a project has no
- *    tests, and each fails silently by turning green: the flag keeps the target
- *    passing after every test is deleted, and a runner that never reads the
- *    floor reports coverage nobody set a bar for. The e2e tier is out of scope
- *    — it drives built apps in a browser, where a module-graph coverage floor
- *    measures nothing.
+ *    target delegates to dev-cli's Node runner, and a Go project's target
+ *    delegates to dev-cli's Go runner — both runners read the same file.
+ *    These seams are scaffold state that is legitimate only while a project
+ *    has no tests, and each fails silently by turning green: the flag keeps
+ *    the target passing after every test is deleted, and a runner that never
+ *    reads the floor reports coverage nobody set a bar for. Two exclusions,
+ *    both stated rather than silent: the e2e tier — it drives built apps in a
+ *    browser, where a module-graph coverage floor measures nothing — and
+ *    Python's floor, which is not wired yet (its only rule today is the
+ *    empty-suite-mask removal above; the floor arrives with the first Python
+ *    project that has real tests).
  *  - **lib alias ↔ manifest pairing** — every `@ecoma-io/<x>` base alias in
  *    `tsconfig.base.json` points at a tracked file inside a project whose
  *    `package.json` carries that exact name, `private: true`, and no
@@ -74,6 +78,7 @@ import {
   PYTEST_EMPTY_SUITE_MASK,
   VITEST_EMPTY_SUITE_FLAG,
 } from "./scaffold-lib.mjs";
+import { RUN_GO_TESTS_COMMAND } from "./run-go-tests.mjs";
 import { RUN_NODE_TESTS_COMMAND } from "./run-node-tests.mjs";
 
 const BASE_ALIAS_RE = /^@ecoma-io\/[^/]+$/;
@@ -85,6 +90,7 @@ const BASE_ALIAS_RE = /^@ecoma-io\/[^/]+$/;
 // so a co-located Rust e2e test is invisible here and stays on review.
 const E2E_FILE_RE = /(\.e2e\.test|(?:^|[/_])e2e_test)\.[^/.]+$/;
 const PYTHON_TEST_FILE_RE = /(?:^|\/)[^/]*_test\.py$/;
+const GO_TEST_FILE_RE = /(?:^|\/)[^/]*_test\.go$/;
 const VITEST_CONFIG_RE = /(?:^|\/)vitest\.config\.[cm]?[jt]s$/;
 // Both TS/JS tiers: `Foo.test.ts` and `foo.integration.test.mjs` alike end in
 // the same `.test.<ext>` the vitest configs include.
@@ -299,10 +305,10 @@ export function findConventionViolations(trackedFiles, readFile) {
   // which is why removal is enforced rather than remembered.
   //
   // A project on Node's own test runner reaches the same floor by a different
-  // road — flags, not a config file — so the branch is on which runner the
-  // project has, never on which project it is. There are no exemptions: the one
-  // project that escaped this rule did so only because the rule could see a
-  // single runner.
+  // road — flags, not a config file — and a Go project by a third (dev-cli's
+  // Go runner, below): the branch is on which runner the project has, never on
+  // which project it is. The exclusions are the two the header states — e2e,
+  // and Python's not-yet-wired floor — nothing else.
   for (const p of projects) {
     // The floor covers the two co-located tiers and not e2e: an e2e suite drives
     // a built app in a browser, where there is no instrumented module graph to
@@ -353,6 +359,30 @@ export function findConventionViolations(trackedFiles, readFile) {
           `reads 'thresholds' from the repo-root ${COVERAGE_CONFIG_FILE}, or the project must ` +
           `carry a vitest config that reads the same file (restating the numbers in project.json ` +
           `is the duplication that single source exists to prevent)`,
+      );
+    }
+  }
+
+  // The Go leg of the same rule, keyed the same way — on the project having
+  // `_test.go` files (both co-located tiers end that way; e2e's `_e2e_test.go`
+  // is excluded like the JS tier's). `go test ./...` run bare measures no
+  // coverage at all, so the target must delegate to dev-cli's Go runner, which
+  // reads the shared floor and applies the one metric Go measures. The runner
+  // itself passes an empty profile — a type-free skeleton's honest state — so
+  // requiring the delegation early costs nothing and arms the floor before the
+  // first real statement lands.
+  for (const p of projects) {
+    const hasGoTests = trackedFiles.some(
+      (f) => f.startsWith(`${p.root}/`) && GO_TEST_FILE_RE.test(f) && !E2E_FILE_RE.test(f),
+    );
+    if (!hasGoTests) continue;
+    if (!targetCommands(p.targets, "test").some((c) => c.includes(RUN_GO_TESTS_COMMAND))) {
+      violations.push(
+        `${p.path}: ${p.root} has Go tests but nothing holds them to the workspace coverage ` +
+          `floor — its 'test' target must run them through dev-cli's '${RUN_GO_TESTS_COMMAND}', ` +
+          `which reads 'thresholds' from the repo-root ${COVERAGE_CONFIG_FILE} (bare 'go test' ` +
+          `measures no coverage, and restating the numbers in project.json is the duplication ` +
+          `that single source exists to prevent)`,
       );
     }
   }
