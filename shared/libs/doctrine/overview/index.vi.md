@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 28e42c973abc
+canonical-sha: c4b0124cf626
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -182,7 +182,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | Tài liệu | Public? | Điều kiện/ghi chú |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Bộ trần (3 North Star + **27 spec**) | ✅ | License docs riêng (đề xuất CC BY-SA), **cùng/sau MVP wedge**; tone-pass trước khi đăng |
-| _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **git submodule private** mount tại `cloud/`: repo public là **repo gốc** — trunk của nó là trunk duy nhất, tag release cắt ở đó và CI của nó là nơi ký. Contributor clone không `--recursive` thì thư mục đơn giản là vắng mặt; biên kín là **quyền repo**, không phải một bước lược bỏ. Đóng góp từ ngoài là một pull request thường vào repo public, chặn bởi bản ghi CLA (`CONTRIBUTING.md`, `CLA.md`) — không có trunk thứ hai để replay lên |
+| _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **git submodule private** mount tại `cloud/`: repo public là **repo gốc** — trunk của nó là trunk duy nhất, tag release cắt ở đó và CI của nó là nơi ký. Contributor clone — có `--recursive` hay không, submodule đánh dấu `update = none` nên không đường nào đỏ — thì thư mục đơn giản là vắng mặt; biên kín là **quyền repo**, không phải một bước lược bỏ. Đóng góp từ ngoài là một pull request thường vào repo public, chặn bởi bản ghi CLA (`CONTRIBUTING.md`, `CLA.md`) — không có trunk thứ hai để replay lên |
 | Rubric, hiến pháp, từ vựng mã hiệu & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
 | **Roadmap** | ⚠️ **cắt theo phần** (tiền lệ scenario catalog) | ✅ _đi trước_: §1 dependency graph, §4 khung (a)(b)(c), §6 vòng đối kháng, §8 litmus — bằng chứng kỷ luật, không lộ cược · ⚠️ _cùng/sau MVP wedge_: §2 phễu, §3a · ❌ _tuyệt đối kín_: **§3b ICP-gated + mọi ngưỡng** (là sổ thị trường (không công bố) trá hình — người sắp phỏng vấn biết trước câu trả lời nào "được tính"), **§5 ledger kỹ thuật** (bản đồ điểm yếu có thời hạn — kín tới khi mục đó đóng), dòng §7 nhắc ngưỡng · Cơ chế: **một bản public lược dòng kín**, không maintain hai file (chống G6). Chốt theo luật sẵn có, owner ủy quyền |
 | Scenario catalog | ⚠️ Phần 1 public; **Phần 2–3 (verdict đối thủ + feature inventory) kín** | Public verdict = trang "vs" trá hình — mâu thuẫn quyết định tone |
