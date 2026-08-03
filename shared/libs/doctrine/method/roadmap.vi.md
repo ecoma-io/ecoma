@@ -1,7 +1,7 @@
 ---
 title: "Roadmap"
 status: design-end-state
-canonical-sha: f92639761eaa
+canonical-sha: 8b1962aa0f5a
 ---
 
 # Roadmap
@@ -32,7 +32,7 @@ Owner sẽ dùng **GitHub Projects**. Nếu không khai ranh giới ngay, board 
 1. **Mọi card phải trace về đúng một ID của file này.** Card không trace được = phạm vi chưa được quyết ⇒ mở PR sửa roadmap trước, không kéo card.
 2. **Mọi ID của file này phải có ít nhất một card** khi track của nó khởi động. ID mồ côi = lời hứa không ai nuôi.
 
-**Thread của bot không phải là card.** Automation mở issue để giữ trạng thái của chính nó — Dependency Dashboard của Renovate là một — và trạng thái đó không trace về ID nào, vì không ai xếp lịch cho nó. Luật #1 sẽ đọc thành "phạm vi chưa được quyết"; nó không phải vậy, nó là chỗ nháp của máy. Giữ nó ngoài board là việc của luật auto-add, lọc theo nhãn mà chính bot duy trì trên thread của nó (`.github/renovate.json5` gọi tên nhãn đó và nói vì sao bot chứ không phải người phải sở hữu nó) — và luật ấy nằm trong settings của board, nơi không gate nào trong repo với tới được. Automation trên issue tuân cùng ranh giới đó ở một tầng dưới: các job triage, dịch và hết hạn backlog của người đều bỏ qua thread do bot mở.
+**Thread của bot không phải là card.** Automation mở issue để giữ trạng thái của chính nó — Dependency Dashboard của Renovate là một — và trạng thái đó không trace về ID nào, vì không ai xếp lịch cho nó. Luật #1 sẽ đọc thành "phạm vi chưa được quyết"; nó không phải vậy, nó là chỗ nháp của máy. Giữ nó ngoài board là việc của luật auto-add, lọc theo nhãn mà chính bot duy trì trên thread của nó (`.github/renovate.json5` gọi tên nhãn đó và nói vì sao bot chứ không phải người phải sở hữu nó) — và luật ấy nằm trong settings của board, nơi không gate nào trong repo với tới được. Automation trên issue tuân cùng ranh giới đó ở một tầng dưới: các job triage và hết hạn backlog của người bỏ qua thread do bot mở. Job dịch thì không — và chính chỗ khác biệt đó là phép thử cho job tiếp theo cùng loại: thread của bot nằm ngoài board vì không ai xếp lịch cho nó, chứ không phải vì bot viết ra nó, và vẫn có người phải đọc nó bằng tiếng của mình.
 
 **Sơ đồ ID — ổn định, append-only, không tái sử dụng** (cùng kỷ luật với ID tiêu chí của rubric):
 

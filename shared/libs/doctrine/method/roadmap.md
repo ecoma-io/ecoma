@@ -59,8 +59,11 @@ auto-add rule's job, filtering on the label the bot maintains on its own thread
 (`.github/renovate.json5` names that label and says why the bot rather than a
 human has to own it) — and that rule lives in the board's own settings, where no
 gate in the repository can reach it. The issue automation obeys the same
-boundary one level down: the jobs that triage, translate and expire the human
-backlog all skip bot-authored threads.
+boundary one level down: the jobs that triage and expire the human backlog skip
+bot-authored threads. Translation does not, and the difference is the test to
+apply to the next such job — a bot's thread is off the board because nobody
+scheduled it, not because a bot wrote it, and someone still has to read it in
+their own language.
 
 **The id scheme — stable, append-only, never reused** (the same discipline as the
 rubric's criterion ids):
