@@ -109,5 +109,92 @@
       matchManagers: ["gomod"],
       semanticCommitScope: "platform",
     },
+    // ONE PULL REQUEST PER TOOLCHAIN, because a toolchain is what fails
+    // together. A group here is a set whose members are proven by the same
+    // target of the definition of done, so a red group names its own suspect —
+    // grouping everything into one weekly pull request would halve the reading
+    // and double the bisecting. Majors are exempt from every group by
+    // `separateMajorMinor`, which "has priority over package groups configured
+    // by packageRule": an eslint 10→11 arrives on its own branch even though
+    // eslint is grouped, which is the whole point — a major is a decision, a
+    // minor is a checkmark on green CI.
+    //
+    // No group spans two managers, and that is a repo constraint rather than
+    // taste: `dev-cli check-commit-scope` rejects one commit covering both
+    // root-owned and project-owned paths, and the managers here own different
+    // trees (npm the root manifest, github-actions `.github/`, gomod the
+    // platform modules — see the scope comment at the top of this file).
+    //
+    // `nx` and `storybook` are absent on purpose: `config:recommended` already
+    // groups each monorepo's packages, and restating that here would be a
+    // second copy of a rule the preset owns.
+    {
+      matchManagers: ["github-actions"],
+      groupName: "github actions",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: [
+        "eslint",
+        "@eslint/js",
+        "typescript-eslint",
+        "eslint-plugin-*",
+        "vue-eslint-parser",
+        "jsonc-eslint-parser",
+        "globals",
+        "prettier",
+      ],
+      groupName: "lint and format toolchain",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: [
+        "vite",
+        "@vitejs/**",
+        "vitest",
+        "@vitest/**",
+        "jsdom",
+        "@vue/test-utils",
+        "fast-check",
+        "@fast-check/**",
+      ],
+      groupName: "test and bundling toolchain",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: ["playwright", "@axe-core/**"],
+      groupName: "browser test toolchain",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: ["vue", "vue-tsc", "nuxt", "@nuxtjs/**", "reka-ui", "@lucide/**"],
+      groupName: "vue stack",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: [
+        "tailwindcss",
+        "@tailwindcss/**",
+        "postcss",
+        "tailwind-merge",
+        "class-variance-authority",
+        "clsx",
+      ],
+      groupName: "styling toolchain",
+    },
+    {
+      matchManagers: ["npm"],
+      matchPackageNames: ["@commitlint/**", "lefthook"],
+      groupName: "commit tooling",
+    },
+    {
+      // Both are read by the same `typecheck` target and by nothing else, and
+      // the pair is small enough to bisect by eye. The compiler's own majors
+      // still arrive alone, which is where a compiler bump stops being a
+      // checkmark and becomes a decision.
+      matchManagers: ["npm"],
+      matchPackageNames: ["typescript", "@types/node"],
+      groupName: "typescript and node types",
+    },
   ],
 }
