@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 9454d12c5cbe
+canonical-sha: b53df4d35a14
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -13,7 +13,7 @@ canonical-sha: 9454d12c5cbe
 3. 5 primitive: `role` → `task` → `checkpoint` → `handoff` → `escalation` → rồi `trigger-channel` (cửa vào/ra) và `knowledge` (module opt-in), `artifact-store` + `event-log` (subsystem tầng 1), `clickstream-ingest` (đường ghi thứ hai — đọc ngay sau `event-log`), `working-data` (DataTable/Lease/Analytics), `memory`, `tenant-identity` (core), `calibration` (data model tầng 1), `human-surface` (tầng 3 Work Surface), `vault-key` (subsystem tầng 1), `test-harness` (mode engine), `quota-scheduling` (trần + lập lịch, đứng trên Event Log và Lease), `runtime-sandbox` (biên thực thi của code filler)
 4. `[rpa](../north-star/rpa.md)` → 5 spec RPA: `action` → `session` → `driver-perception` → `selfhealing` → `sandbox-credential`
 5. `[hub](../north-star/hub.md)` → `[block](../spec/block.md)`
-6. Ngoài bộ trần: `[roadmap](../method/roadmap.md)` (thứ tự xây — class SỐNG, được phép nói phase/v1) · `sổ thị trường (không công bố)` (cược kinh doanh) · `playbook funnel (không công bố)` · `[review-rubric](../method/review-rubric.md)` + `[scenario-catalog](../method/scenario-catalog.md)`
+6. Ngoài bộ trần: `[roadmap](../method/roadmap.md)` (thứ tự xây — class SỐNG, được phép nói phase/v1) · `sổ thị trường (không công bố)` (cược kinh doanh) · `playbook funnel (không công bố)` · `[review-constitution](../method/review-constitution.md)` trước `[review-rubric](../method/review-rubric.md)` (luật đọc trước hồ sơ instantiate chúng) + `[scenario-catalog](../method/scenario-catalog.md)`
 
 ## Bảng trạng thái
 
@@ -43,6 +43,7 @@ canonical-sha: 9454d12c5cbe
 | [test-harness](../spec/test-harness.md)                     | Platform (**mode của engine** — **test run scope**, fixture/mock/assertion; conformance suite mọi ◆G)                                                                                                                                                                                              |
 | [quota-scheduling](../spec/quota-scheduling.md)             | Platform (**cơ chế xuyên tầng** — trần per-tenant trên bốn tài nguyên, ba kết cục admission, fair queueing theo deficit; lập trường với `run_kind` là **hai** lập trường)                                                                                                                          |
 | [runtime-sandbox](../spec/runtime-sandbox.md)               | Platform (**tầng 2 — biên thực thi của lớp filler `code`**: chuồng OS/VM theo Attempt, gắn secret ở chặng cuối, đường cắt vòng duyệt verified, version và thu hồi image)                                                                                                                           |
+| [review-constitution](../method/review-constitution.md)     | **Meta — luật phán xét, thủ tục một lượt chạy và phương pháp sinh rubric dùng chung cho mọi công cụ review** (phần dạng; phần nội dung thuộc từng công cụ)                                                                                                                                         |
 | [review-rubric](../method/review-rubric.md)                 | **Meta — công cụ review toàn hồ sơ**                                                                                                                                                                                                                                                               |
 | [scenario-catalog](../method/scenario-catalog.md)           | Meta — tài sản regression (kịch bản + competitor + standards watch)                                                                                                                                                                                                                                |
 | [roadmap](../method/roadmap.md)                             | **SỐNG — thứ tự xây** (6 track + gate ◆G0–G4, gate = freeze + conformance suite; Gantt mermaid; ICP-independent vs ICP-gated; **§6b coverage matrix end-state→milestone, kín cả 5 tầng NS**)                                                                                                       |
@@ -181,7 +182,7 @@ Ngoài ra, hai việc **không có commit nào làm thay được**, và cả ha
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Bộ trần (3 North Star + **27 spec**) | ✅ | License docs riêng (đề xuất CC BY-SA), **cùng/sau MVP wedge**; tone-pass trước khi đăng |
 | _Publishing khi mở repo_: `cloud/` **không bao giờ** vào repo public (NS §8, 3 lớp license) | ⚠️ ràng buộc cứng | Thi hành bằng **mirror MỘT CHIỀU** private→public đã lược `cloud/`; public read-only, **CI ký chỉ ở private root**; đường contributor = replay-lên-trunk-private (playbook giao hàng (không công bố) §2/§6) |
-| Rubric & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
+| Rubric, hiến pháp & methodology | ✅ — được phép **đi trước** | Không lộ cơ chế; phương pháp tự đối kháng là content không đối thủ nào kể được |
 | **Roadmap** | ⚠️ **cắt theo phần** (tiền lệ scenario catalog) | ✅ _đi trước_: §1 dependency graph, §4 khung (a)(b)(c), §6 vòng đối kháng, §8 litmus — bằng chứng kỷ luật, không lộ cược · ⚠️ _cùng/sau MVP wedge_: §2 phễu, §3a · ❌ _tuyệt đối kín_: **§3b ICP-gated + mọi ngưỡng** (là sổ thị trường (không công bố) trá hình — người sắp phỏng vấn biết trước câu trả lời nào "được tính"), **§5 ledger kỹ thuật** (bản đồ điểm yếu có thời hạn — kín tới khi mục đó đóng), dòng §7 nhắc ngưỡng · Cơ chế: **một bản public lược dòng kín**, không maintain hai file (chống G6). Chốt theo luật sẵn có, owner ủy quyền |
 | Scenario catalog | ⚠️ Phần 1 public; **Phần 2–3 (verdict đối thủ + feature inventory) kín** | Public verdict = trang "vs" trá hình — mâu thuẫn quyết định tone |
 | sổ thị trường (không công bố) | ❌ Tuyệt đối |
@@ -214,7 +215,7 @@ Ba lý lẽ nữa, xếp theo sức nặng:
 
 ## Công cụ review
 
-Mọi lượt review (incremental / cluster / full) chạy theo **[review-rubric](../method/review-rubric.md) ** — nhóm **A–P** (P có **P5 Change lifecycle**, **P3b** luật giao thoa chiều ngược) + luật **R1–R12** + **L7** (doc identity & version integrity) + pipeline 8 phase + **patch adversarial pass** ở phase 7. **Litmus full-pass = 172 câu** _(đếm bằng script, ở BƯỚC CUỐI sau mọi patch)_: **20** (3 North Star) + **127** (L5 của **27 spec** — Tenant 10, Release & Compat 9, Clickstream Ingest 7, Human Surface 7, Quota & Scheduling 7, Runtime Sandbox 7, Vault 7, Working Data 6, Calibration 5, Event Log 5, Memory 5, Test harness 5, Handoff 4, Task 4, còn lại 3) + **25** (Website 7 + Eng 9 + **Deploy 9**). **Không chép số bằng tay** — mọi con số litmus phải đếm lại được bằng script từ chính bộ trần. Vòng đóng băng cuối phải chạy được bởi context mới chỉ với bộ docs + file đó.
+Mọi lượt review (incremental / cluster / full) tuân hai tài liệu cùng lúc. **[review-constitution](../method/review-constitution.md)** sở hữu phần dạng — luật phán xét, thủ tục một lượt chạy, và phương pháp sinh rubric cho một object chưa có. **[review-rubric](../method/review-rubric.md)** sở hữu phần nội dung của hồ sơ này — nhóm **A–P** (P có **P5 Change lifecycle**, **P3b** luật giao thoa chiều ngược), các luật nó còn tự giữ (**R2, R3, R5, R7, R10–R12**), **L7** (doc identity & version integrity), pipeline 8 phase, và **patch adversarial pass** ở phase 7. **Litmus full-pass = 172 câu**, đếm lại theo bước đếm-số-cuối-cùng của hiến pháp: **20** (3 North Star) + **127** (L5 của **27 spec** — Tenant 10, Release & Compat 9, Clickstream Ingest 7, Human Surface 7, Quota & Scheduling 7, Runtime Sandbox 7, Vault 7, Working Data 6, Calibration 5, Event Log 5, Memory 5, Test harness 5, Handoff 4, Task 4, còn lại 3) + **25** (Website 7 + Eng 9 + **Deploy 9**). **Không chép số bằng tay** — mọi con số litmus phải đếm lại được bằng script từ chính bộ trần. Vòng đóng băng cuối phải chạy được bởi context mới chỉ với bộ docs + file đó.
 
 ## Kỷ luật sau đóng băng
 

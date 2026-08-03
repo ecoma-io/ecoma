@@ -7,7 +7,21 @@ status: design-end-state
 
 ---
 
-## PART I — THE CONSTITUTION OF JUDGEMENT
+## PART I — JUDGEMENT, AS THIS CORPUS INSTANTIATES IT
+
+The laws of judgement themselves — object boundary, the one-copy law, the verdict
+laws, the finding shape, immunity, tension, the owner's question, nothing
+silently unreviewed — live in
+[review-constitution](review-constitution.md) and are not repeated here. What
+follows is only what this corpus fills them with: which defects are severe for a
+document tree, which canon outranks which, what a gap in _this_ corpus may be
+excused as, and what a new document owes.
+
+**Retired numbers.** R1, R4, R6, R8 and R9 named laws that now belong to the
+constitution, and their numbers are retired: never reused, never aliased. A
+sentence that used to cite one of them cites the constitutional law **by name**
+instead, because the name is what survives a reader holding only this file. R2,
+R3, R5, R7 and R10–R12 remain this rubric's own.
 
 ### R7. Precedence when criteria collide
 
@@ -18,50 +32,46 @@ finding.
 
 ### R5. Severity — an objective test
 
+This table instantiates the constitution's severity law for a document corpus:
+the three levels and the requirement that each be an objective test come from
+there, and what follows is only which defects of _this_ object land in which
+level.
+
 | Level     | Test                                                                                                |
 | --------- | --------------------------------------------------------------------------------------------------- |
 | `blocker` | Violates an invariant or a canonical principle, **or** the default is unsafe — simpler means looser |
 | `major`   | Two engineers reading it would implement differently; or a load-bearing concept is undefined        |
 | `minor`   | Wording, a reference, a missing label                                                               |
 
-### R1, R4, R8. The verdict laws
+### KNOWN-GAP in this corpus
 
-**A PASS must be falsifiable**, carrying a checkable citation. For a criterion of
-the form "find a scenario where…", PASS means **surviving at least N recorded
-attacks** — three by default — never "we did not look hard".
+The falsifiable-PASS law, the FAIL-carries-a-reproduction law and the
+known-gap law are the constitution's. What this corpus adds to the last of them is
+a second admissible ground and one closing verdict:
 
-**A FAIL** carries a reproducing scenario.
+**KNOWN-GAP** is valid here when the constitution's condition holds — it was
+self-declared in the documents **before** the run — **or** when the gap belongs to
+the **commercial domain**, which this published tree deliberately does not carry.
+A gap that qualifies on neither ground is a FAIL, closed by a fix or by an
+`accepted-by-owner` verdict carrying a reason and the owner's confirmation.
 
-**KNOWN-GAP** is valid only when (a) it was self-declared in the documents
-**before** the run, or (b) it belongs to the commercial domain. A mechanism hole
-found _during_ a run is a FAIL, closed only by a fix or by an
-`accepted-by-owner` verdict with a reason and the owner's confirmation.
+### The finding shape in this corpus
 
-### R6. The finding schema
+The finding shape is the constitution's. This corpus fills its last field with
+`reasoning or fix reference`, and names the second field `file`, so a finding
+reads:
 
 `(criterion, file, citation or scenario, verdict, severity, reasoning or fix reference)`
 
 The ledger is append-only.
 
-### R9. The immunity law — what makes this rubric self-evolving
-
-**Every finding that no existing criterion would have caught MUST produce a new
-criterion or technique in the same patch**, recorded with the precedent that
-forced it.
-
-A rubric without R9 is a still photograph of past mistakes. The honest
-consequence: this rubric is **never "optimal"** — only "the strongest so far, and
-still evolving". Claiming absolute optimality would violate R1 by not being
-falsifiable.
-
 ### R10. The owner channel
 
-Across every review so far, the most effective finder of holes has been **the
-owner, asking a naive question** — "what is X?", "why is there no Y?".
-
-The law: **any owner question the documents cannot answer with a single citation
-is a formal finding**, at a severity set by R5, and R9 applies — if no criterion
-would have caught it, a criterion is created.
+Across every review of this corpus so far, the most effective finder of holes has
+been **the owner, asking a naive question** — "what is X?", "why is there no Y?".
+That observation is what makes the constitution's law of the object's owner's
+question load-bearing here rather than ceremonial: an owner question the documents
+cannot answer with a single citation is a formal finding, at a severity set by R5.
 
 ### R11. Owner-fact sync
 
@@ -77,9 +87,12 @@ that has not been written down?
 
 ### R12. No document is silently unreviewed
 
-A new file or section — of any class: ceiling, charter, living — passes a
-**cluster run in the same session that created it**, or carries an `unreviewed`
-label in the index until it does.
+This instantiates the constitution's law that nothing is silently unreviewed —
+naming the unit, the level and the label it leaves behind. A new file or section
+— of any class: ceiling, charter, living — passes a **cluster run in the same
+session that created it**, or carries an `unreviewed` label in the index until it
+does. `cluster`, not `incremental`: the per-patch level is what a change to an
+existing document owes, and a new document is not a patch.
 
 The coverage matrix declares **document class × applicable groups** explicitly. A
 charter takes the full J/G/K/G9 treatment exactly as the ceiling does; the
@@ -93,17 +106,12 @@ the index; **the coverage matrix closed** (every file × every group, each cell
 marked scanned or not-applicable with evidence); and the litmus catalogue
 **fully passed** by desk simulation rather than by the mirror alone.
 
-**Every count is recomputed by script as the LAST step of a session**, after
-every patch. Patching a number mid-session makes it wrong the moment the next
-patch adds a litmus.
-
 ---
 
 ## PART II — THE CRITERIA, A–P
 
-> Each group carries a **spirit question** above its criteria, as a guard against
-> Goodhart's law: if every criterion passes but the spirit question wobbles,
-> record a `tension` finding.
+> Each group carries a **spirit question** above its criteria — the constitution's
+> Goodhart guard, instantiated for this corpus.
 
 ### A — Fidelity to the founding viewpoint
 
@@ -473,26 +481,26 @@ theatre._
   than writing it and fixing it later. Does it create a boundary or a second
   source of truth? Does it hold at n=1? Does it survive the strongest
   alternative?
-- **Counting is the last operation**: every number — total litmus, milestone exit
-  litmus, specification counts — is **recounted by script after every patch has
-  been written**, never patched mid-session, with the calculation recorded.
+- **Which numbers the counting-last step of the procedure covers here**: the total
+  litmus, the milestone exit litmus, and the specification counts.
 - **An FMEA table is a condition of existence for a tier-1 subsystem**: any new
   specification declaring itself a tier-1 subsystem carries its FMEA table **in
   the same session that created it** (R12).
 
-**The method-rotation law**: two consecutive sessions of the _same method_
-producing zero blockers forces a change of method, and every full run must try
-**at least one probing method never used before**.
+**The method-rotation law**, this corpus's own and elevated nowhere: two
+consecutive sessions of the _same method_ producing zero blockers force a change
+of method. It is the reason the procedure's report step demands that an empty
+phase be written down — the trigger cannot fire on evidence nobody recorded.
 
-**Three protocol levels**, so cost does not kill the discipline: `incremental`
-for each patch — the principle × invariant matrix plus a post-check grep;
-`cluster` for each new specification or cluster — phases 2 and 4 locally, plus
-the cluster's litmus; and `full`.
+**This corpus's three protocol levels**, the names and contents the procedure's
+declare-your-level step refers to here: `incremental` for each patch — the
+principle × invariant matrix plus a post-check grep; `cluster` for each new
+specification or cluster — phases 2 and 4 locally, plus the cluster's litmus; and
+`full`, which owes every phase.
 
-**A run report**, by which the rubric measures itself: each session records
-findings by phase, by severity and by **source of discovery** — the system or the
-owner — which method has produced zero blockers twice and therefore rotates, and
-which criteria have never caught anything and should be re-examined.
+**A run report over this corpus** names two sources of discovery and only two —
+the system or the owner — which is what makes the owner channel (R10) something
+the rubric can measure rather than merely assert.
 
 ---
 
@@ -537,18 +545,18 @@ account.
 
 Self-declared blind spots, so whoever runs this next holds no illusions.
 
-| Blind spot                                                                                                                                                                           | Mitigation in place                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| **Self-marking**: the corpus's author runs the rubric on their own work                                                                                                              | R1's falsifiability plus evidence-backed coverage; the final freeze pass should be run by someone else             |
-| **The rubric looks backwards**: it is written for fault classes already found, and is blind to the next one                                                                          | The method-rotation law, plus at least one new method per full run                                                 |
-| **Goodhart**: passing the letter while failing the spirit                                                                                                                            | A spirit question per group, and the `tension` finding                                                             |
-| **Coverage theatre**: ticking a cell without reading                                                                                                                                 | Every PASS cell demands a citation or a recorded attack                                                            |
-| **The saturation illusion**: "not found" is not "not there"                                                                                                                          | PASS means surviving N recorded attacks; saturation is defined measurably                                          |
-| **Reference drift**: the documents renumber a section and the rubric points at nothing                                                                                               | The rubric cites the _concept_ first and the section number second; any patch changing section structure re-checks |
-| **Cost kills discipline**                                                                                                                                                            | The three protocol levels                                                                                          |
-| **An ontological limit**: this rubric measures only _internal consistency_ — a corpus perfect internally can still be the wrong product for the market                               | Stated outright: the rubric replaces neither customer interviews, nor ICP work, nor kill criteria                  |
-| **A single mind's echo chamber**: the attacker and the defender are the same person                                                                                                  | Phase 5's competitor viewpoint is a proxy; the standing recommendation is a human red team                         |
-| **The blind spot of patching itself**: the rubric measures the _corpus_, not the _patch_ — and a patch is where a new concept is most easily born, under pressure to close a finding | The patch adversarial pass at phase 7, plus the counting-last law                                                  |
+| Blind spot                                                                                                                                                                           | Mitigation in place                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **Self-marking**: the corpus's author runs the rubric on their own work                                                                                                              | The constitution's falsifiable-PASS law plus evidence-backed coverage; its fresh-reader step decides the final freeze pass |
+| **The rubric looks backwards**: it is written for fault classes already found, and is blind to the next one                                                                          | The method-rotation law, plus at least one new method per full run                                                         |
+| **Goodhart**: passing the letter while failing the spirit                                                                                                                            | A spirit question per group, and the `tension` finding                                                                     |
+| **Coverage theatre**: ticking a cell without reading                                                                                                                                 | Every PASS cell demands a citation or a recorded attack                                                                    |
+| **The saturation illusion**: "not found" is not "not there"                                                                                                                          | PASS means surviving N recorded attacks; saturation is defined measurably                                                  |
+| **Reference drift**: the documents renumber a section and the rubric points at nothing                                                                                               | The rubric cites the _concept_ first and the section number second; any patch changing section structure re-checks         |
+| **Cost kills discipline**                                                                                                                                                            | The three protocol levels                                                                                                  |
+| **An ontological limit**: this rubric measures only _internal consistency_ — a corpus perfect internally can still be the wrong product for the market                               | Stated outright: the rubric replaces neither customer interviews, nor ICP work, nor kill criteria                          |
+| **A single mind's echo chamber**: the attacker and the defender are the same person                                                                                                  | Phase 5's competitor viewpoint is a proxy; the standing recommendation is a human red team                                 |
+| **The blind spot of patching itself**: the rubric measures the _corpus_, not the _patch_ — and a patch is where a new concept is most easily born, under pressure to close a finding | The patch adversarial pass at phase 7, plus the counting-last law                                                          |
 
 ---
 
