@@ -80,6 +80,9 @@ describe("scanName", () => {
       "temp-dir-helper.mjs", // leading temp = handles genuinely temporary files
       "es2022", // a year alone is not a date
       "templates",
+      "conformance-g0", // gate codes are end-state vocabulary (conformance.mjs reads gate:G# tags)
+      "playlist.m3u8", // m-digit-letter runs are domain names, not milestone codes
+      "m2m-gateway.ts",
     ]) {
       expect(scanName(name), name).toBeNull();
     }
@@ -90,6 +93,12 @@ describe("scanName", () => {
     expect(scanName("wip-notes.md")).toBe("wip");
     expect(scanName("phase-2")).toBe("phase-2");
     expect(scanName("build-v3")).toBe("v3"); // an Nx target name
+  });
+
+  it("flags bare milestone codes but never gate codes", () => {
+    expect(scanName("m0-engine")).toBe("m0");
+    expect(scanName("m0-notes.md")).toBe("m0");
+    expect(scanName("M1Wedge.ts")).toBe("m1");
   });
 
   it("flags trailing new/old/temp qualifiers without the extension masking them", () => {

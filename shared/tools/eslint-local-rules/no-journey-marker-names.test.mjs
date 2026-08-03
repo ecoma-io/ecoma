@@ -31,6 +31,11 @@ ruleTester.run("no-journey-marker-names", rule, {
     "export function run() { const tmpV2 = 1; return tmpV2; }",
     // A year alone is not a date marker (es2022-style names stay legal).
     "export const es2022 = true;",
+    // Gate codes are end-state vocabulary (conformance.mjs reads gate:G# tags),
+    // and m-digit-letter runs are domain names, not milestone codes.
+    "export const conformanceG0 = {};",
+    "export const m2mGateway = 1;",
+    "export const m3u8Playlist = [];",
     // Anonymous default exports coin no durable name.
     "export default function () {}",
     'export * from "./mod";',
@@ -52,6 +57,10 @@ ruleTester.run("no-journey-marker-names", rule, {
     { code: "export const phase2Rollout = 1;", errors: [{ messageId: "journeyName" }] },
     { code: "export function step1() {}", errors: [{ messageId: "journeyName" }] },
     { code: "export const SPRINT_3_BACKLOG = [];", errors: [{ messageId: "journeyName" }] },
+    // Bare milestone codes say when a thing was built, not what it is.
+    { code: "export const m0Inbox = 1;", errors: [{ messageId: "journeyName" }] },
+    { code: "export class M1Wedge {}", errors: [{ messageId: "journeyName" }] },
+    { code: "export const M0_EXIT_CRITERIA = [];", errors: [{ messageId: "journeyName" }] },
     // Ticket IDs and dates.
     { code: "export const fixIssue52 = () => {};", errors: [{ messageId: "journeyName" }] },
     { code: "export const snapshot_2025_01_31 = [];", errors: [{ messageId: "journeyName" }] },
