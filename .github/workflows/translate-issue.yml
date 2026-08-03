@@ -21,14 +21,15 @@ permissions:
 
 jobs:
   translate:
-    # A bot's issue is generated text, not prose anyone reads in one language:
-    # Renovate rewrites its Dependency Dashboard body on every run, and each
-    # rewrite is an `edited` event that would re-spend a detection quorum plus
-    # one call per language to re-render a checkbox list. `user.type` is
-    # GitHub's own answer, the same authority ci.yml asks, rather than a `[bot]`
-    # suffix. A `workflow_dispatch` run carries no issue payload, so translating
-    # any issue by hand still works.
-    if: github.event.issue.user.type != 'Bot'
+    # No author guard here, deliberately, and unlike issue-triage: a reader who
+    # works in Vietnamese reads a bot's issue too, and Renovate's Dependency
+    # Dashboard is the one issue in the repository that is always open. What
+    # made a bot thread look unaffordable was the repetition -- it is rewritten
+    # whenever any Renovate pull request changes state, and every rewrite is an
+    # `edited` event -- so repo-care stamps the source digest on its own comment
+    # and returns before the first model call when nothing it renders from has
+    # changed. Excluding the author would have cured the symptom by dropping the
+    # translation.
     runs-on: ubuntu-latest
     # One detection quorum plus one call per target language, on a slow free
     # tier -- well under the multi-turn budget pr-practice-review needs.

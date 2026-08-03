@@ -60,10 +60,16 @@
   // this repo that touches issues curates the human backlog — so each of those
   // consumers has to exclude the dashboard, one way per consumer:
   //   - `stale-issues.yml` — by the label declared here.
-  //   - `issue-triage.yml`, `translate-issue.yml` (and their pull request
-  //     siblings) — by an author-type guard in the workflow, since a bot thread
-  //     is not prose to translate or work to classify.
+  //   - `issue-triage.yml` — by an author-type guard in the workflow: a bot
+  //     thread has no product area to classify and no missing repro to ask for.
   //   - a GitHub Projects board — see the last paragraph.
+  //
+  // `translate-issue.yml` deliberately does NOT exclude it. Who wrote a thread
+  // does not decide who has to read it, and a reader who works in Vietnamese
+  // reads the dashboard like anything else. What made that look unaffordable
+  // was the rewrite rate, not the author — repo-care answers it by stamping the
+  // source digest on its own comment and returning before the first model call
+  // when nothing it renders from has changed.
   //
   // The stale exemption must be a LABEL: `actions/stale` filters only by label
   // and assignee. It cannot see that GitHub has the issue pinned, and it cannot
