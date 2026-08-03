@@ -208,11 +208,22 @@ has none.
 The record carries your name and address because the law governing the
 agreement requires a licence contract to identify both parties.
 
+An account that is not a person is judged differently, because it can hold no
+copyright and so can agree to nothing. Automation this project runs — Renovate
+today — needs no record: `CLA.md` puts those commits outside the agreement, and
+the gate exempts exactly the accounts a committed configuration here puts to
+work. Any other machine account fails, including one a coding agent opens pull
+requests through: the person who directed it is the contributor, and it is
+their record the CLA asks for.
+
 Sign off each commit with `git commit -s`: that trailer is the
 [Developer Certificate of Origin](https://developercertificate.org/), which is
 a separate thing from the CLA and deliberately kept separate — it is what you
 type reflexively everywhere else, so it must not double as assent to a
-commercial sublicensing grant.
+commercial sublicensing grant. Where an AI tool wrote part of a commit, add
+`Assisted-by: <tool>` — or `Generated-by: <tool>` where it produced
+substantially the whole of one — which is the disclosure `CLA.md` clause 5
+asks for, in the one place that stays with the commit.
 
 `LICENSE` grants no rights in the name "Ecoma" — no source-available licence
 does. A published trademark policy will follow registration; until then, ask if

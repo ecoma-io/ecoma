@@ -62,14 +62,19 @@ jobs:
           done
 
       # The CLA grants nothing until the contributor's record exists, and only
-      # CI knows who opened the pull request. Bare mode also runs on every push,
-      # so a malformed record is caught wherever it lands.
+      # CI knows who opened the pull request. `user.type` travels with it because
+      # a machine account cannot hold a copyright to license, and GitHub is the
+      # only authority on which accounts are machines — the gate must not infer
+      # that from a `[bot]` suffix. Bare mode also runs on every push, so a
+      # malformed record is caught wherever it lands.
       - name: Contributor record (CLA acceptance)
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
         run: |
           if [ -n "$PR_AUTHOR" ]; then
-            node shared/tools/dev-cli/src/main.mjs check-contributor-record --author "$PR_AUTHOR"
+            node shared/tools/dev-cli/src/main.mjs check-contributor-record \
+              --author "$PR_AUTHOR" --author-type "$PR_AUTHOR_TYPE"
           else
             node shared/tools/dev-cli/src/main.mjs check-contributor-record
           fi

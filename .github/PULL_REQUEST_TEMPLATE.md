@@ -31,8 +31,9 @@ Closes #(issue number)
 ## AI-Assisted Development
 
 - [ ] This PR is AI-assisted (drafted or substantially written by an AI coding agent)
+- [ ] Each such commit carries its disclosure trailer: `Assisted-by: <tool>`, or `Generated-by: <tool>` where the tool produced substantially the whole commit
 
-<!-- If checked, name the tool and model tier, e.g. "Claude Code, sonnet" — see CLAUDE.md > Agent & Model Routing -->
+<!-- Name the tool and model tier, e.g. "Claude Code, sonnet" — see CLAUDE.md > Agent & Model Routing. The trailer is the disclosure `CLA.md` clause 5 requires: this description can be edited later and no clone carries it, the commit does. -->
 
 ## Checklist
 
