@@ -6,21 +6,24 @@ Ecoma is **pre-release**. No version has been released yet — the repository ca
 
 **What is supported: the current `main` branch.** Security fixes land there. If you are running Ecoma at all, you are running it from source, and updating means pulling `main`.
 
-This covers every product surface in the repository. Today that is exactly one
-tree: `shared/` — cross-product libraries (the design system, the desktop-shell
-webview plumbing), workspace tooling (`dev-cli`, local ESLint rules,
-`repo-care`), and two workspace-owned app shells (a Storybook host and its e2e
-harness) that serve shared infrastructure rather than any product. No product
-domain has taken root yet, and no product app exists, so the repository
-currently exposes no network surface, no data store, and no credential
-handling of its own.
+This covers every product surface in the repository. Today that is three
+trees. `shared/` — cross-product libraries (the design system, the
+desktop-shell webview plumbing), workspace tooling (`dev-cli`, local ESLint
+rules, `repo-care`), and workspace-owned app shells (a Storybook host, the
+doctrine reading surface, and their e2e harnesses). `platform/` — the engine's
+Go libraries (domain vocabulary, ports, adapters, and the ◆G0 conformance
+suite): package skeletons that are deliberately type-free today, with no
+running service behind them. `website/` — the ecoma.io shell, a fully
+prerendered Nuxt app whose build output is static HTML: no server runtime, no
+data store, no credential handling of its own.
 
-The security-relevant surfaces a product domain will bring — credential vault,
-authentication and directory sync, a tool proxy, an external process engine,
-artifact serving, and any exposed API — do not exist in this tree in any form,
-not even as stubs. Each will be covered here as it actually lands, along with
-any operator-trust posture worth calling out explicitly. Until then, treat a
-claim in this file about a product surface as a bug in this file.
+The security-relevant surfaces the engine will bring — credential vault,
+authentication and directory sync, a tool proxy, a running process engine,
+artifact serving, and any exposed API — exist only as those type-free package
+seams, not as anything that executes or listens. Each will be covered here as
+it actually runs, along with any operator-trust posture worth calling out
+explicitly. Until then, treat a claim in this file about a product surface as
+a bug in this file.
 
 Release tags and a per-product support policy are planned once releases
 exist; this section will be replaced then, not amended.

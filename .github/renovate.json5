@@ -1,9 +1,10 @@
-// This repo's dependency updates run through Renovate, covering both
+// This repo's dependency updates run through Renovate, covering the three
 // ecosystems that live here: npm/pnpm (root package.json + pnpm-lock.yaml —
-// this is a single-package monorepo per root CLAUDE.md, so there is exactly
-// one manifest) and github-actions (.github/workflows/*.yml and
-// .github/actions/*/action.yml), both auto-detected by Renovate's default
-// managers with no extra config below.
+// a single-package monorepo per root CLAUDE.md, so exactly one npm
+// manifest), github-actions (.github/workflows/*.yml and
+// .github/actions/*/action.yml), and gomod (go.work at the root plus the
+// platform/libs/*/go.mod modules it declares) — all auto-detected by
+// Renovate's default managers.
 //
 // Activation: this file alone does nothing. Renovate only runs once the
 // official Renovate GitHub App (Mend) is installed on this repo by someone
@@ -19,13 +20,18 @@
 // default GITHUB_TOKEN only).
 //
 // semanticCommitScope is hardcoded to "workspace" rather than derived: every
-// path Renovate touches (root package.json/pnpm-lock.yaml, .github/workflows,
-// .github/actions) is workspace-root or spans multiple owners, so per
-// CONTRIBUTING.md's scope-narrowing rule "workspace" is the only correct
-// scope for every commit this bot makes — there is no per-project
-// package.json in this workspace to warrant per-project scoping (root
-// CLAUDE.md: "third-party deps live in the root package.json, no per-lib dep
-// declaration").
+// path the npm and github-actions managers touch (root
+// package.json/pnpm-lock.yaml, .github/workflows, .github/actions) is
+// workspace-root or spans multiple owners, so per CONTRIBUTING.md's
+// scope-narrowing rule "workspace" is the only correct scope for those
+// commits — there is no per-project package.json in this workspace to
+// warrant per-project scoping (root CLAUDE.md: "third-party deps live in the
+// root package.json, no per-lib dep declaration"). The gomod manager is the
+// exception, overridden in packageRules: the go.mod files are
+// platform-owned, so their narrowest cover is "platform". A gomod PR that
+// also rewrites root go.work (a `go` directive bump) would mix root- and
+// project-owned paths, which check-commit-scope rejects outright — such a
+// bump is done by hand as its own workspace-scoped commit.
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["config:recommended"],
@@ -49,4 +55,13 @@
   semanticCommits: "enabled",
   semanticCommitType: "chore",
   semanticCommitScope: "workspace",
+  packageRules: [
+    {
+      // See the scope comment above: platform/libs/*/go.mod are
+      // project-owned paths inside one subsystem, so "platform" is their
+      // narrowest cover per check-commit-scope.
+      matchManagers: ["gomod"],
+      semanticCommitScope: "platform",
+    },
+  ],
 }

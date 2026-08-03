@@ -4,5 +4,8 @@
 # an approval from someone who could not make that grant.
 /LICENSE                                          @johnitvn
 /CLA.md                                           @johnitvn
+/CORPORATE-CLA.md                                 @johnitvn
+/ENTERPRISE-LICENSE.md                            @johnitvn
+/CONTRIBUTORS.md                                  @johnitvn
 /shared/libs/doctrine/LICENSE.docs                @johnitvn
 /shared/tools/dev-cli/src/license-scope.mjs       @johnitvn

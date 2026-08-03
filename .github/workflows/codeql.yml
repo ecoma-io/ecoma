@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze (javascript-typescript)
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Only this job uploads SARIF, so the write stays here rather than at the
@@ -33,21 +33,36 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    strategy:
+      fail-fast: false
+      # Languages analyzed: javascript-typescript, and go (go.work declares
+      # the platform/ engine modules). Rust's Cargo workspace still declares
+      # zero members and no Python project exists yet -- add a matrix leg for
+      # each once a real project lands in that language.
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: go
+            build-mode: autobuild
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Only language analyzed: this workspace's Go (go.work) and Rust
-      # (Cargo.toml) workspaces both declare zero members today, and no
-      # Python project exists yet -- CodeQL support for Go/Rust is real, but
-      # there is no source in either language for it to scan. Add a matrix
-      # leg for each once a real project lands in that language.
+      # Same derivation as ci.yml: the Go version comes from go.work's own
+      # pin, never a second copy. Only the Go leg needs the toolchain.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.work
+          cache: false # no root go.sum yet; enable with the first Go dependency
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
-          languages: javascript-typescript
-          build-mode: none
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
-          category: "/language:javascript-typescript"
+          category: "/language:${{ matrix.language }}"
