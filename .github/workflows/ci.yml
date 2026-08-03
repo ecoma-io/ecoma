@@ -186,6 +186,14 @@ jobs:
         with:
           targets: e2e
 
+      # The true half of the preview-noindex contract (site/CLAUDE.md): three
+      # nuxt generate passes, so it lives here beside e2e — the only other
+      # job that pays for full app builds — and only when `site` is affected.
+      - name: Preview builds carry noindex
+        uses: ./.github/actions/nx-run
+        with:
+          targets: verify-preview-noindex
+
   # The single fixed-name check for branch protection. A job named directly in
   # branch protection pins its own name: the moment `e2e` becomes a runner
   # matrix its checks are reported as `e2e (ubuntu-latest)` etc., so the
