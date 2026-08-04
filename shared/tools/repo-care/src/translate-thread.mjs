@@ -57,6 +57,7 @@ const LANGUAGE_DEFS = JSON.parse(
 export const LANGS = LANGUAGE_DEFS.map((l) => l.code);
 
 const LANG_LABELS = Object.fromEntries(LANGUAGE_DEFS.map((l) => [l.code, l.label]));
+const LANG_SCRIPTS = Object.fromEntries(LANGUAGE_DEFS.map((l) => [l.code, l.script]));
 
 const MAX_BODY_CHARS = 6000;
 // Room for a translation that legitimately runs longer than its source (vi and
@@ -155,6 +156,43 @@ export function sanitizeTranslation(text) {
     .trim();
 }
 
+/**
+ * Markdown with its technical tokens removed — fenced blocks first, then
+ * inline code spans. The translation prompt tells a model to leave those
+ * verbatim, so an identifier or a log line written in any script is expected
+ * there and is not evidence of anything. Only the prose is judged.
+ */
+function proseOnly(text) {
+  return text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`\n]*`/g, " ");
+}
+
+/**
+ * The letters in `text` that belong to no script this target writes prose in,
+ * deduplicated and capped — or `null` when there are none.
+ *
+ * **This exists because it was observed, not imagined.** Free models
+ * translating this repository's own pull request bodies emitted Vietnamese
+ * carrying Chinese words (`逐字逐句`, `视为`) and even a Thai fragment
+ * (`ได้`), mid-sentence, in prose. A model cannot be trusted to notice that
+ * about its own output, but the character's script is a fact about the string,
+ * so this is code rather than a second opinion (Rule 5).
+ *
+ * Latin is allowed for every target on top of its own script: identifiers,
+ * product names and URLs travel untranslated through prose in all three
+ * languages. The cost of the rule is a translation quoting a foreign-script
+ * proper noun outside a code span, which is refused and retried — loud, and
+ * far cheaper than the silent alternative of publishing scrambled prose under
+ * this project's name.
+ */
+export function foreignScriptLetters(text, lang) {
+  const script = LANG_SCRIPTS[lang];
+  if (!script) return null;
+  const allowed = script === "Latin" ? ["Latin"] : ["Latin", script];
+  const cls = allowed.map((s) => `\\p{Script=${s}}`).join("");
+  const found = [...new Set(proseOnly(text).match(new RegExp(`[\\p{L}--[${cls}]]`, "gv")) ?? [])];
+  return found.length ? found.slice(0, 12).join("") : null;
+}
+
 /** Schema gate for one translation answer: sanitized pair, or null to reject. */
 export function parseTranslation(raw) {
   if (typeof raw !== "object" || raw === null) return null;
@@ -185,6 +223,18 @@ export async function translateInto(thread, lang, opts = {}) {
     const parsed = validateContent(res.content, parseTranslation);
     if (!parsed.ok) {
       errors.push(`${model}: ${parsed.error}`);
+      continue;
+    }
+    // A schema-valid answer can still be the wrong language in places. Rejected
+    // here rather than inside the schema gate so the reason reaches stderr
+    // naming the characters, which is what tells a maintainer this was a model
+    // straying rather than a malformed response.
+    const { title, body } = parsed.verdict;
+    const strayed = foreignScriptLetters(`${title}\n${body}`, lang);
+    if (strayed) {
+      errors.push(
+        `${model}: answered for '${lang}' but its prose carries letters of another script (${strayed})`,
+      );
       continue;
     }
     return { ok: true, model, translation: parsed.verdict };

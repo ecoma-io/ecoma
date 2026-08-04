@@ -314,6 +314,20 @@ practice review, thread translation) from GitHub Actions.
     failure only. Worst case is a clumsy translation beside an untouched
     original. Do not "fix" this by voting on prose — the containment is the
     guarantee, not the model count.
+  - **A free model translating into one language leaks words of another, and
+    that half IS decidable in code** (Rule 5), so it is not left to the
+    containment argument above. Live runs on this repository's own pull
+    requests produced Vietnamese carrying `逐字逐句`, `视为` and a Thai
+    `ได้` mid-sentence. `foreignScriptLetters` rejects a translation whose
+    **prose** holds letters outside its target's script — read from
+    `languages.config.json`'s `script` field, plus Latin, which every language
+    here uses for identifiers and names — and code spans and fenced blocks are
+    stripped first, because the prompt tells the model to leave those verbatim.
+    The rejection lives in `translateInto` rather than in `parseTranslation`
+    so the reason reaches stderr naming the characters: a model straying and a
+    malformed response are different failures and read differently. A rejected
+    answer rotates the pool like any other, so the usual path is a clean
+    translation from the next model.
   - A target language that no model could translate is skipped loudly on
     stderr while the rest still post; all targets failing is exit 1, because
     silence would read as "already translated" on the next run.
