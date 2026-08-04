@@ -77,9 +77,13 @@ calls it.
 ## Status
 
 Scaffold, and honestly labelled as one: the window opens, renders a heading,
-and carries a single Rust unit test. `bundle.active` is `false` in
-`tauri.conf.json` — no installer is produced until an icon set and a signing
-identity exist.
+and carries a single Rust unit test.
+
+`release-desktop.yml` bundles real `.deb`/`.dmg`/`.msi` installers on all three
+platforms and uploads them as run artifacts. They are **unsigned** and go
+nowhere: signing identities and a distribution channel do not exist yet, and
+neither is needed to prove the packaging pipeline resolves. The icons are
+placeholders generated from `product-ecoma-rba.svg`.
 
 Building it requires the GTK/WebKit development headers Tauri links against;
 a machine without them cannot even `cargo check` this crate. Agent-facing
