@@ -79,6 +79,15 @@ practice review, thread translation) from GitHub Actions.
   nothing; a run supersedes earlier findings by editing the `REVIEW_MARKER`
   comment. Review calls need `maxTokens` ≥ 6000 — live runs showed long
   diff prompts exhausting reasoning models into empty content at 3000.
+  - **A third reviewer sits beside it, and the boundary is what keeps both
+    worth reading.** cubic (a GitHub App, free on this public repository) hunts
+    correctness defects — the layer neither the deterministic gates nor this
+    rubric reaches, and one this command deliberately does not enter.
+    `cubic.yaml` at the repo root holds it off everything `practice-index.json`
+    covers by pointing it AT that file rather than restating the checks, so
+    adding or rewording a card here can never hand the same finding to both
+    reviewers. Its reasoning lives in that file's own header, because nothing
+    in this tree loads for someone editing a root config.
 - **review-pr reviews as a bounded investigation, not a single shot**
   (`runReviewTrajectory`): each model may spend a few turns requesting
   repository reads before its verdict — `{"action":"read","paths":[...]}`
