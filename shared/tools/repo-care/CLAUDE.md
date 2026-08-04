@@ -79,15 +79,20 @@ practice review, thread translation) from GitHub Actions.
   nothing; a run supersedes earlier findings by editing the `REVIEW_MARKER`
   comment. Review calls need `maxTokens` ≥ 6000 — live runs showed long
   diff prompts exhausting reasoning models into empty content at 3000.
-  - **A third reviewer sits beside it, and the boundary is what keeps both
-    worth reading.** cubic (a GitHub App, free on this public repository) hunts
+  - **A third reviewer sits beside it, and holding the boundary is active
+    work.** cubic (a GitHub App, free on this public repository) hunts
     correctness defects — the layer neither the deterministic gates nor this
-    rubric reaches, and one this command deliberately does not enter.
-    `cubic.yaml` at the repo root holds it off everything `practice-index.json`
-    covers by pointing it AT that file rather than restating the checks, so
-    adding or rewording a card here can never hand the same finding to both
-    reviewers. Its reasoning lives in that file's own header, because nothing
-    in this tree loads for someone editing a root config.
+    rubric reaches, and one this command deliberately does not enter. It
+    auto-discovers every `CLAUDE.md` and `.claude/skills/` with no opt-out, and
+    `preflight`/`conformance-review` restate this rubric in full, so left alone
+    it would report exactly these checks; `cubic.yaml` reclassifies that
+    material from rubric to background. Its exclusions name CATEGORIES rather
+    than cards on purpose — cubic's only file-linking mechanism concatenates a
+    file in as an ENFORCEABLE instruction, so citing `practice-index.json`
+    would command the duplication it is meant to prevent. Adding a card here
+    therefore needs no edit there, but a card outside those categories does.
+    The reasoning lives in that file's own header, because nothing in this tree
+    loads for someone editing a root config.
 - **review-pr reviews as a bounded investigation, not a single shot**
   (`runReviewTrajectory`): each model may spend a few turns requesting
   repository reads before its verdict — `{"action":"read","paths":[...]}`
