@@ -113,9 +113,10 @@ agreement.
    that person or entity and its affiliates; everyone else's are unaffected, and
    the copyright licence in clause 1 stays in force.
 
-   This trigger is identical to the one in `CLA.md` clause 2 (the patent
-   licence) and to the one in `LICENSE` — the same acts, against the same
-   object, in the same words. All three must fire at the same moment, and
+   This trigger reaches exactly as far as the one in `CLA.md` clause 2 (the
+   patent licence) and the one in `LICENSE` — the same acts, against the same
+   software, with the same effect, differing only where each document must name
+   its own parties. All three must fire at the same moment, and
    checking that is a matter of reading the three paragraphs side by side rather
    than trusting three assertions that they agree. They have twice not agreed:
    once by a single limb, where one fired on litigation and the other also on a
