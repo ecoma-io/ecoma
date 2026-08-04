@@ -1,0 +1,96 @@
+# CD for the desktop application: builds real, unsigned installers on all three
+# desktop platforms and uploads them as run artifacts.
+#
+# **Why this lane builds for real while the harness lane is a dry run.** The two
+# lanes are blocked on different things. `release-harness.yml` cannot publish
+# because the registry side does not exist — an npm org and a trusted-publisher
+# binding are operator acts no workflow can perform, so a real run there would
+# have nowhere to put its output. Bundling has no such gap: `tauri build`
+# produces a genuine `.deb`/`.dmg`/`.msi` with nothing external required, and
+# that artifact IS the proof the packaging pipeline resolves on each platform.
+# What is missing here is signing and a distribution channel, and neither is
+# needed to prove the build.
+#
+# So the honest posture is: build, keep, do not sign, do not distribute. The
+# installers land as workflow artifacts an operator can download and open.
+#
+# Converting this to a distributing lane is a deliberate edit with three parts,
+# listed so it cannot be half-done: (1) add the platform signing identities as
+# secrets (Apple Developer ID + notarisation, Windows Authenticode) and the
+# Tauri updater keypair; (2) raise `permissions` to `contents: write` and attach
+# the artifacts to a release; (3) settle where desktop artifacts belong relative
+# to the published charter §4 unified `vX.Y.Z` train — a desktop app IS a
+# product artifact, so it rides that train rather than a cadence of its own, and
+# that train does not exist yet.
+#
+# Until then this is a rehearsal that produces something you can actually run,
+# which is a stronger check than a dry run and costs the same decision.
+name: Release desktop
+
+on:
+  workflow_dispatch:
+  # The rehearsal trigger, for one file only: this one. A workflow edit that
+  # breaks the bundle lane would otherwise be discovered at release time, the
+  # worst moment. It is also the only way a NEW workflow proves itself on a
+  # runner at all — dispatch only resolves workflows already on the default
+  # branch. Deliberately NOT triggered on every change to the app: a
+  # three-platform Tauri build is minutes of compute, and `ci.yml` already
+  # gates the crate with `clippy` and `cargo test` on every change.
+  pull_request:
+    paths:
+      - ".github/workflows/release-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+          - platform: macos-latest
+          - platform: windows-latest
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 → stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: ". -> target"
+          # The cache is per-platform or the three legs would evict each
+          # other's `target/` on every run.
+          key: ${{ matrix.platform }}
+
+      # Linux only: Tauri links GTK and WebKitGTK there and needs their headers
+      # to compile at all. macOS and Windows use the system webview, which needs
+      # no extra packages.
+      - name: Install the Tauri system libraries
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev
+
+      - name: Bundle
+        run: pnpm nx run rba-desktop:bundle
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rba-desktop-${{ matrix.platform }}
+          # `tauri build` writes under the workspace `target/`, not the
+          # project's — the crate is a member of the root Cargo workspace.
+          path: |
+            target/release/bundle/**/*
+          if-no-files-found: error
+          retention-days: 14
