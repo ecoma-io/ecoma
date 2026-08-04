@@ -161,11 +161,11 @@ incrementally, never imposed repository-wide.
 
 ## 6. Review & ownership
 
-- Pull-request review is mandatory, with **owners assigned by area**.
-  Enterprise directories carry their own owners, because a separate licence
-  layer without an owner is a boundary nobody is accountable for; the
-  `license:*` tag is what _enforces_ that boundary, while ownership only
-  decides who reviews.
+- Pull-request review is mandatory, with **owners assigned by area**. A
+  `packages/` directory carries its own owners, because a separate licence layer
+  without an owner is a boundary nobody is accountable for — and this one grants
+  a third party rights that cannot be withdrawn. The `license:*` tag is what
+  _enforces_ that boundary, while ownership only decides who reviews.
 - Changing a **frozen (◆G) interface** additionally requires the owner of
   _every consuming area_ — the roadmap's cost-of-change-after-freeze
   expressed as a review mechanism rather than as a reminder.

@@ -1,7 +1,7 @@
 ---
 title: "Engineering & Delivery Charter"
 status: design-end-state
-canonical-sha: 3ca4745b13ef
+canonical-sha: 0aef578e29be
 ---
 
 # Engineering & Delivery Charter
@@ -156,10 +156,11 @@ tăng dần, không bao giờ áp đặt toàn repository.
 
 ## 6. Review & ownership
 
-- Review pull request là bắt buộc, với **owner gán theo area**. Thư mục
-  enterprise mang owner riêng của nó, vì một lớp licence tách biệt không
-  owner là một ranh giới không ai chịu trách nhiệm; tag `license:*` mới là
-  thứ _thực thi_ ranh giới đó, còn ownership chỉ quyết định ai review.
+- Review pull request là bắt buộc, với **owner gán theo area**. Một thư mục
+  `packages/` mang owner riêng của nó, vì một lớp licence tách biệt không
+  owner là một ranh giới không ai chịu trách nhiệm — mà lớp này lại cấp cho bên
+  thứ ba những quyền không rút lại được. Tag `license:*` mới là thứ _thực thi_
+  ranh giới đó, còn ownership chỉ quyết định ai review.
 - Đổi một interface **đã đóng băng (◆G)** thì cần thêm owner của _mọi area
   đang tiêu thụ nó_ — cost-of-change-after-freeze của roadmap được diễn đạt
   thành một cơ chế review thay vì một lời nhắc.
