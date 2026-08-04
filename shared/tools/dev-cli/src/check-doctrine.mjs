@@ -72,14 +72,23 @@ export const DOCTRINE_DOCS = doctrineDocs(DOCTRINE_ROOT);
  * a canonical with variants; `CLAUDE.md` is directory guidance, not doctrine.
  *
  * Excluded by WHAT THE FILE IS rather than by where it sits. A depth-based
- * pathspec (`root/ ** /*.md`) excludes the same four files in the published
- * tree only because its documents live one directory down — and in the
- * withheld tier, where every document sits directly at the root, that same
- * pathspec matches NOTHING and the gate reports a clean tree having read no
- * file at all. Measured, not reasoned: the gate ran green over a withheld tier
+ * pathspec (`root/ ** /*.md`) excludes the same files in the published tree
+ * only because its documents live one directory down — and in the withheld
+ * tier, where every document sits directly at the root, that same pathspec
+ * matches NOTHING and the gate reports a clean tree having read no file at
+ * all. Measured, not reasoned: the gate ran green over a withheld tier
  * carrying a deliberately planted round marker until this was fixed.
+ *
+ * The language segment is matched as ANY single segment rather than as the
+ * configured codes: what makes a file the README gate's is its NAME, and that
+ * gate owns `README.<code>.md` for whatever codes a tree declares — a pattern
+ * enumerating this workspace's codes would hand a downstream tree's variants
+ * to the wrong gate, which is the mistake this whole change exists to stop.
+ * It is also why the segment is not constrained to two letters: `readmeFilename`
+ * interpolates the configured code verbatim, so a region-qualified code is a
+ * legitimate variant name.
  */
-export const PROJECT_OWNED_DOC = /^(?:README(?:\.[a-z]{2})?|CLAUDE)\.md$/;
+export const PROJECT_OWNED_DOC = /^(?:README(?:\.[^.]+)?|CLAUDE)\.md$/;
 
 /** Every doctrine document under `root`, project-owned files excluded. */
 export function doctrineDocPaths(root, list = listTrackedFiles) {
@@ -87,6 +96,16 @@ export function doctrineDocPaths(root, list = listTrackedFiles) {
     (path) => !PROJECT_OWNED_DOC.test(path.slice(path.lastIndexOf("/") + 1)),
   );
 }
+
+/**
+ * A root as the licence map expects it: repo-relative, no `./` prefix, no
+ * trailing slash. The value arrives from a command line, where `./cloud/...`
+ * and `cloud/...` name one directory — but `licenseForPath` reads the first
+ * path segment, so the two spellings would classify differently and the tier
+ * would flip on a keystroke. Normalizing at the boundary keeps that function
+ * free of input-shape knowledge it has no other reason to carry.
+ */
+export const normalizeRoot = (root) => root.replace(/^\.\//, "").replace(/\/+$/, "");
 
 /**
  * Whether the tree at `root` is the withheld tier, DERIVED from the licence
@@ -106,7 +125,7 @@ export function doctrineDocPaths(root, list = listTrackedFiles) {
  * boundary. The remaining rules — no episode coordinates, no stale variant —
  * are properties of doctrine prose in either tier and always run.
  */
-export const withheldTier = (root) => licenseForPath(root) === "proprietary";
+export const withheldTier = (root) => licenseForPath(normalizeRoot(root)) === "proprietary";
 
 /**
  * Markers that must not survive redaction, each with the reason it goes — the
@@ -325,7 +344,7 @@ export function findUnmarkedEntries(files, mapPath = CORPUS_MAP) {
  */
 export function checkDoctrine(args = [], deps = {}) {
   const { read = readFileSync, list = listTrackedFiles, error = console.error } = deps;
-  const root = args[0] ?? DOCTRINE_ROOT;
+  const root = normalizeRoot(args[0] ?? DOCTRINE_ROOT);
   const withheld = withheldTier(root);
   const mapPath = corpusMapFor(root);
 

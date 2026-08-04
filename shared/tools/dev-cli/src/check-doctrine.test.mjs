@@ -244,8 +244,26 @@ describe("checkDoctrine over the withheld tier", () => {
   it("reaches documents sitting directly at the root, where the withheld tier keeps all of them", () => {
     const list = vi.fn(() => [`${WITHHELD}/eng-charter.md`]);
     const read = vi.fn(() => "chốt ở vòng 31");
+
     expect(checkDoctrine([WITHHELD], { read, list, error: () => {} })).toBe(1);
-    expect(read).toHaveBeenCalled();
+
+    // The pathspec is the half a stubbed `list` cannot prove on its own: this
+    // stub answers whatever it is asked, so the old depth-based selector would
+    // still have produced a document here. Asserting what was REQUESTED is what
+    // makes the regression visible.
+    expect(list).toHaveBeenCalledWith([`${WITHHELD}/*.md`]);
+    expect(read).toHaveBeenCalledWith(`${WITHHELD}/eng-charter.md`, "utf8");
+  });
+
+  it("classifies a root spelled with a leading ./ as the same tier", () => {
+    const texts = { [`${WITHHELD}/icp-ledger.md`]: "The wedge converts — BET-3." };
+    expect(
+      checkDoctrine([`./${WITHHELD}/`], {
+        read: (path) => texts[path.replace(/^\.\//, "")],
+        list: () => Object.keys(texts),
+        error: () => {},
+      }),
+    ).toBe(0);
   });
 
   it("still leaves the project's own README and CLAUDE.md to their own gate", () => {
