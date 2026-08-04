@@ -36,8 +36,9 @@ mechanisms and turn "is this node compatible" into an unanswerable question.
 
 ## 1c. One version axis, two repositories
 
-`cloud/` lives in its own private repository, mounted into the public tree as a
-submodule. That must **not** produce a second version axis:
+The cloud control plane lives in its own private repository — a standalone
+downstream consuming this workspace's harness and interfaces as pinned
+dependencies. That must **not** produce a second version axis:
 
 | Task                                      | Where                                                                                          |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -50,11 +51,12 @@ Letting it generate its own version would rebuild exactly the per-project
 versioning §1 just rejected, at repository scale, and would once again make _"is
 this node compatible with this control plane"_ unanswerable.
 
-**A real consequence, stated rather than hidden**: cloud's CI builds against
-`ecoma@main`, which is a moving target. That is **not** a defect — it is how a
-third party experiences the public interface, only earlier. If cloud breaks from a
-public change, that is **a breaking change that slipped past §3**, not a
-scheduling accident.
+**A real consequence, stated rather than hidden**: cloud consumes this
+workspace at a pinned version, and its scheduled canary judges the tip of
+`main` — so a break surfaces in a nightly log or a version-bump pull request,
+which is how a third party experiences the public interface, only earlier. If
+cloud breaks from a public change, that is **a breaking change that slipped
+past §3**, not a scheduling accident.
 
 ## 1b. An artifact's identity
 

@@ -1,7 +1,7 @@
 ---
 title: "Release & Compatibility"
 status: design-end-state
-canonical-sha: cbc2fc523558
+canonical-sha: 8f7f1b2bce7f
 ---
 
 # Release & Compatibility
@@ -26,7 +26,7 @@ Nó **không** khai _thủ tục bấm_ — đó là charter `deploy/`. Ranh gi�
 
 ## 1c. Một trục version, hai repo
 
-`cloud/` sống trong một repo riêng (private), mount vào cây public qua submodule. Điều đó **không** được phép đẻ ra một trục version thứ hai:
+Control plane cloud sống trong một repo riêng (private) — một downstream tự đứng, tiêu dùng harness và interface của workspace này như những dependency đã ghim. Điều đó **không** được phép đẻ ra một trục version thứ hai:
 
 | Việc                                   | Ở đâu                                                                              |
 | -------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -36,7 +36,7 @@ Nó **không** khai _thủ tục bấm_ — đó là charter `deploy/`. Ranh gi�
 
 **Án văn**: cloud là **downstream** của workspace public, không phải một nửa ngang hàng của nó. Cho nó tự sinh version là dựng đúng cái per-project version mà §1 vừa bác, chỉ ở quy mô repo — và làm câu hỏi _"node này có tương thích với control plane này không"_ trở lại không trả lời được.
 
-**Hệ quả có thật, khai luôn**: CI của cloud build trên `ecoma@main`, tức trên một mục tiêu đang di chuyển. Đó **không** phải khuyết điểm — nó chính là cách bên thứ ba trải nghiệm interface công khai, chỉ sớm hơn. Nếu cloud vỡ vì một thay đổi public, đó là **breaking change đã lọt qua §3**, không phải sự cố xếp lịch.
+**Hệ quả có thật, khai luôn**: cloud tiêu dùng workspace này ở một version đã ghim, và canary theo lịch của nó judge đỉnh `main` — nên một cú vỡ hiện ra trong log nightly hoặc trong một PR bump version, chính là cách bên thứ ba trải nghiệm interface công khai, chỉ sớm hơn. Nếu cloud vỡ vì một thay đổi public, đó là **breaking change đã lọt qua §3**, không phải sự cố xếp lịch.
 
 ## 1b. Danh tính của một artifact
 
