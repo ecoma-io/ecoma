@@ -163,7 +163,11 @@ export function sanitizeTranslation(text) {
  * there and is not evidence of anything. Only the prose is judged.
  */
 function proseOnly(text) {
-  return text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`\n]*`/g, " ");
+  // The inline pass matches a RUN of backticks and closes on a run of the same
+  // length, which is CommonMark's own rule. A single-backtick pattern reads
+  // ``视为`` as two empty spans with prose between them and hands that prose to
+  // the check — a false rejection of a translation that did nothing wrong.
+  return text.replace(/```[\s\S]*?```/g, " ").replace(/(`+)[^\n]*?\1/g, " ");
 }
 
 /**
