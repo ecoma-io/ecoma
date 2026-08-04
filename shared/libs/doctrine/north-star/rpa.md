@@ -100,7 +100,10 @@ short-lived secrets, to an enrolled node identity, scoped per session, at the
 driver layer. Planned removal is a **graceful drain**: the node stops claiming,
 running sessions finish or are reassigned by lease, then keys are revoked — every
 step an event. That is a different procedure from emergency revocation of a
-compromised node, which cuts immediately.
+compromised node, which cuts immediately. Either procedure revokes only what the
+vault holds; a **persistent profile** on the node carries the target system's own
+logins, outside that reach, so decommissioning one pairs with a compensation Task
+that rotates the target-system credential (Sandbox & Credential §1).
 
 **Takeover has a channel but never a standing privilege.** No ambient
 remote-control capability exists. A view-or-control channel opens **per session,

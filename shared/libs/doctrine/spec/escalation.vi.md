@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Escalation"
 status: design-end-state
-canonical-sha: 938c6eeb7806
+canonical-sha: bf2cf79cd45e
 ---
 
 # Primitive: Escalation
@@ -48,6 +48,8 @@ Escalation là **đường đi khai báo trước cho mọi tình huống lệch
 | `restructure`         | Handler có `spawn_task`: đẻ task mới thay thế đoạn hỏng — sửa quy trình đang chạy bằng chính cơ chế spawning                                                                                 |
 
 Quyền dùng từng hành động = capability của Role handler (`override_gate` là capability riêng, không mặc định).
+
+**Reassign thay _ai_ hành động; không bao giờ thay _một hành động nghĩa là gì_.** Khi filler bị chặn là một người duyệt **bên ngoài** — một client ký duyệt công việc của agency qua một Channel — `reassign` chuyển Task duyệt sang một Role của agency, và cái pass là một Judgment trung thực mang danh tính của _chính_ filler đó. Điều đó hợp lệ, nhưng không phải là client duyệt: chỗ nào ngữ nghĩa quy trình đòi sự đồng thuận **của chính** bên ngoài, đường của handler là `override_gate` (một chấp nhận trách nhiệm có chữ ký) hoặc `halt` — không bao giờ là một reassign để "client ký duyệt" lặng lẽ biến thành "agency ký duyệt" bên trong một Judgment trông bình thường. Cả hai đường đều trung thực trong log; chỉ đường thứ hai làm "client chưa hề thực sự duyệt" đọc được mà không phải đi diff danh tính verifier.
 
 ## 5. Storm control
 

@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Hub — North Star"
 status: design-end-state
-canonical-sha: 8b10e81c759b
+canonical-sha: 10c9ed4db890
 ---
 
 # Ecoma Hub — North Star
@@ -37,7 +37,12 @@ một nghĩa địa template từng đúng một lần. Vì thế Hub ghép cơ 
 2. **Digest là sự thật; semver là giao diện cho người.** Máy pin digest trong một
    lockfile; người nói tên cộng một khoảng version. Public instance là bất biến:
    thứ đã publish không bao giờ bị xóa, chỉ bị rút khỏi resolve, nên một pin sẵn
-   có vẫn chạy được vĩnh viễn.
+   có vẫn chạy được vĩnh viễn — **vĩnh viễn nghĩa là trên engine train đã cài
+   nó**. Vượt một engine major là một hành động riêng, có gate: upgrade đọc lại
+   mọi pin trong lockfile đối chiếu train mới và nổi lên bất kỳ pin nào mà một
+   đường đã bị xóa sẽ làm vỡ _trước_ cutover (Release & Compatibility §3), nên
+   "chạy vĩnh viễn" và "các đường deprecated bị xóa ở một major" không đâm nhau
+   im lặng.
 3. **Không tin publisher.** Tenant chạy lại static analysis lúc cài, và một
    manifest khai ít hơn thứ phân tích phát hiện thì bị reject chứ không phải bị
    cảnh báo. Chữ ký và transparency log chống giả mạo xuyên mirror.

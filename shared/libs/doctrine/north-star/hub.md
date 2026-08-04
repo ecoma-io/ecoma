@@ -37,7 +37,12 @@ only one of those keeps content alive.
 2. **The digest is the truth; semantic versions are a human interface.** Machines
    pin digests in a lockfile; people say a name and a range. The public instance
    is immutable: what is published is never deleted, only withdrawn from
-   resolution, so an existing pin keeps working forever.
+   resolution, so an existing pin keeps working forever — **forever meaning on the
+   engine train that installed it**. Crossing an engine major is a separate, gated
+   act: the upgrade re-reads every lockfile pin against the new train and surfaces
+   any that a removed path would break _before_ cutover (Release & Compatibility
+   §3), so "runs forever" and "deprecated paths are removed at a major" do not
+   collide silently.
 3. **Publishers are not trusted.** A tenant re-runs static analysis at install
    time, and a manifest that declares less than the analysis finds is rejected
    rather than warned about. Signatures and a transparency log defend against

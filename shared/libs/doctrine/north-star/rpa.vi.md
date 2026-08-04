@@ -1,7 +1,7 @@
 ---
 title: "Ecoma RPA — North Star"
 status: design-end-state
-canonical-sha: 404f3517c22f
+canonical-sha: 1c0ec166adad
 ---
 
 # Ecoma RPA — North Star
@@ -94,7 +94,11 @@ node được cấp scope đó tường minh, và vault chỉ phát secret ngắ
 identity đã enroll, giới hạn theo từng phiên, tại tầng driver. Việc gỡ bỏ có kế
 hoạch là một **graceful drain**: node ngừng claim, các phiên đang chạy kết thúc
 hoặc được gán lại theo lease, rồi khóa bị thu hồi — mọi bước đều là một event. Đó
-là một thủ tục khác với thu hồi khẩn cấp một node bị chiếm, vốn cắt tức thì.
+là một thủ tục khác với thu hồi khẩn cấp một node bị chiếm, vốn cắt tức thì. Cả
+hai thủ tục chỉ thu hồi những gì vault giữ; một `persistent_profile` trên node
+mang chính các login của hệ đích, nằm ngoài tầm đó, nên decommission một node như
+vậy đi kèm một compensation Task xoay credential hệ-đích (Sandbox & Credential
+§1).
 
 **Takeover có kênh nhưng không bao giờ có đặc quyền thường trực.** Không tồn tại
 năng lực điều khiển từ xa ambient nào. Một kênh xem-hoặc-điều-khiển mở **theo từng

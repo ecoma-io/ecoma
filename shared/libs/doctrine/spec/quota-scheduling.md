@@ -196,6 +196,21 @@ than a thousand rows in the attention queue (invariant 3). The trigger is a
 member of Escalation §2's **open** taxonomy, which is why admitting it needs no
 new mechanism.
 
+**The engine's own accounting is never subject to admission, and this closes a
+self-reference.** A storage ceiling is enforced at admission (§1) — but the
+boundary decision that records a rejected write, the Violation, the escalation and
+any lifecycle entry are **the engine's bookkeeping, not the tenant's units**, and
+if they too were gated the entry explaining "why was I blocked" could not be
+written at the exact moment the visibility law and invariant 5 both require it.
+They are therefore exempt: admission gates the tenant's _units_ (a Lease, a
+DataTable write, an artifact), never the engine's record of having gated one. What
+bounds the bookkeeping instead is storm control and the mechanisms that emit it,
+not the ceiling. This also settles the reading of "the ceiling is absolute — no
+overshoot exists" (§1) against "every unit has exactly one admission" (§3):
+storage admission is **per unit**, so a unit already running writes to its own
+`budget` above the moment the ceiling was reached — "absolute" describes the
+refusal of the _next_ unit, not a freeze on the log itself.
+
 ## 6. Fairness between tenants — and Lease is the only path that touches running work
 
 **The measurable promise**: no tenant is starved by another tenant's _behaviour_.

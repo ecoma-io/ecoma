@@ -78,6 +78,17 @@ a deadlock**, least of all ahead of an irreversible effect.
 Which of these a handler may use is a capability of their Role. `override_gate`
 is a capability of its own and is never granted by default.
 
+**Reassign replaces _who_ acts; it never replaces _what an act means_.** When the
+blocked filler was an **external** approver — a client signing off on the agency's
+work through a Channel — `reassign` moves the approval Task to an agency Role, and
+the pass is an honest Judgment carrying _that_ filler's identity. That is
+legitimate, but it is not the client approving: where the process semantics
+require the external party's **own** assent, the handler path is `override_gate`
+(a signed acceptance of responsibility) or `halt` — never a reassign that lets
+"client sign-off" quietly become "agency sign-off" inside a normal-looking
+Judgment. Both paths are honest in the log; only the second makes "the client
+never actually approved" legible without diffing verifier identities.
+
 ## 5. Storm control
 
 **Dedup**: while an escalation for the same (trigger, source) is open, no
