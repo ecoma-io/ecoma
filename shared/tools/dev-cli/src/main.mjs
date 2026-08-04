@@ -15,6 +15,7 @@ import { checkPracticeIndex } from "./check-practice-index.mjs";
 import { checkE2eStoryCoverage } from "./check-e2e-story-coverage.mjs";
 import { checkGofmt } from "./check-gofmt.mjs";
 import { checkJourneyMarkers, checkWorkspaceDocs } from "./check-journey-markers.mjs";
+import { checkLegalVersions } from "./check-legal-versions.mjs";
 import { checkPrimitiveArtifacts } from "./check-primitive-artifacts.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
@@ -45,6 +46,7 @@ const COMMANDS = {
   "check-practice-index": () => checkPracticeIndex(),
   "check-e2e-story-coverage": (args) => checkE2eStoryCoverage(args),
   "check-gofmt": () => checkGofmt(),
+  "check-legal-versions": () => checkLegalVersions(),
   "check-primitive-artifacts": () => checkPrimitiveArtifacts(),
   "check-project-conventions": () => checkProjectConventions(),
   "check-roadmap-ids": () => checkRoadmapIds(),
