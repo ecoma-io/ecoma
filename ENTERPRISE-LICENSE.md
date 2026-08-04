@@ -1,7 +1,8 @@
 # Ecoma Enterprise License
 
-> **In force.** These are the terms Ecoma offers for the enterprise modules,
-> completing the licence structure that `LICENSE` and `CLA.md` describe.
+> **In force.** These are the terms the Licensor offers for the enterprise
+> modules, completing the licence structure that `LICENSE` and `CLA.md`
+> describe.
 >
 > - **No `enterprise/` directory exists in any subsystem yet**, so no code has
 >   been published under these terms so far. That is a fact about the tree, not
@@ -14,7 +15,7 @@
 >   document, unchanged. This root copy is the one that is maintained; a
 >   directory copy that has drifted from it is a defect in the copy.
 
-**Version 1.0, effective 2026-08-03.**
+**Version 1.1, effective 2026-08-04.**
 
 This is a separate written Enterprise License between the Licensor and a
 Licensee for the use of the enterprise modules of Ecoma. The Sustainable Use
@@ -30,6 +31,28 @@ project's assets, and their respective successors and assigns.
 
 **"Licensee"** means the individual or legal entity agreeing to these terms,
 as identified in the signature block.
+
+**"The enterprise modules"** are the files [`LICENSE`](./LICENSE) withholds from
+its own grant: those in any directory named `enterprise` directly beneath a
+subsystem root, as that document's SCOPE section identifies them, and with the
+meaning it gives "subsystem root". `LICENSE` is the single place this project
+answers which terms govern which path, so this agreement reads the boundary
+there rather than restating it — a second description of one boundary is a
+second boundary.
+
+**"The software"** means what `LICENSE` calls the software — the code the
+Licensor makes available under those terms — together with the enterprise
+modules. `LICENSE` excludes the enterprise modules from its own definition
+because it grants no rights in them; this agreement is where those rights are
+granted, so here the two travel together.
+
+The name **"Ecoma"** is used in this document only as the name of the project.
+It is not a party and it is not the subject of any grant here: the party is the
+Licensor, and what is granted is rights in the enterprise modules, exercised as
+part of the software — all three as defined above. `CLA.md` gives that name a
+different and narrower job, where it is the legal person receiving
+contributions, and one word carrying two jobs across two documents is how the
+two come apart.
 
 ## Effective date and term
 
@@ -57,18 +80,18 @@ this agreement.
 ## Grant of licence
 
 The Licensor grants the Licensee a perpetual, worldwide, non-exclusive,
-royalty-free, non-transferable (except as this section provides) licence,
-sublicensable only to the Licensee's contractors and subcontractors who work
-on the Licensee's behalf, to:
+non-transferable (except as this section provides) licence, sublicensable only
+to the Licensee's contractors and subcontractors who work on the Licensee's
+behalf, and subject to the fee below, to:
 
-1. **Use** the enterprise modules as part of the Licensee's own instance of
-   Ecoma, whether for internal business purposes or to deliver goods and
+1. **Use** the enterprise modules as part of the Licensee's own instance of the
+   software, whether for internal business purposes or to deliver goods and
    services to the Licensee's own customers;
 2. **Reproduce, modify and prepare derivative works** of the enterprise
    modules, for the Licensee's own purposes;
 3. **Distribute** the enterprise modules only as incorporated into the
-   Licensee's own instance of Ecoma or a derivative work of it, and only to
-   the Licensee's own customers or end users as part of a larger product or
+   Licensee's own instance of the software or a derivative work of it, and only
+   to the Licensee's own customers or end users as part of a larger product or
    service; and
 4. **Provide** the functionality of the enterprise modules over a network to
    the Licensee's own customers and end users.
@@ -84,18 +107,43 @@ Licensor, provided the successor agrees in writing to these terms.
 - Sublicense the enterprise modules to any third party except as expressly
   permitted above;
 - Use the enterprise modules to train, fine-tune or improve an AI or machine
-  learning model whose output competes with Ecoma or reproduces its
+  learning model whose output competes with the software or reproduces its
   functionality;
 - Remove or obscure any copyright or licence notices.
+
+For the purposes of the AI restriction above, "competes with" and "reproduces
+its functionality" have the meanings given in [`LICENSE`](./LICENSE) — the same
+anchor `CLA.md` clause 5 (code you did not write yourself) and
+`CORPORATE-CLA.md` clause 10 (AI training and data extraction) use, so this
+project has one definition of that restriction rather than four.
 
 ## Fee
 
 The Licensee pays the Licensor the annual fee set out in the invoice or order
 form that references this agreement. The fee is due within 30 days of the
-invoice date and is non-refundable except as this agreement expressly provides.
+invoice date.
+
+The fee is non-refundable, with one exception: where the Licensee terminates
+this agreement because the Licensor is in material breach and has not cured it
+within the period **Termination for breach** allows, the Licensor refunds the
+part of the fee covering the remainder of the then-current term, pro rata by
+whole months.
 
 The Licensor may adjust the annual fee for a renewal term on at least 60 days
 written notice before the renewal date.
+
+**What the fee buys, and what survives it.** The licence above is perpetual and
+the fee is annual, and the two are not in tension — they divide the subject
+between them. The fee buys the **term**: while it is paid, the Licensee receives
+the enterprise modules as the Licensor releases them, new versions included. The
+perpetual licence covers the **copies the Licensee received during a paid term**,
+and it survives the end of this agreement however that end comes. What does not
+survive is anything the Licensor has not released by then: after termination the
+Licensee gets no new versions, no updates and no support, while running and
+distributing what it already holds, on these terms, remains licensed and is not
+a breach. A Licensee who pays for one term and stops therefore keeps that term's
+software for good and nothing later, which is the bargain both parties are
+making rather than a gap in it.
 
 ## No warranty
 
@@ -125,8 +173,12 @@ competent courts of Vietnam.
 ## Notices
 
 Notices under this agreement are in writing and sent to the addresses in the
-signature block, by email with confirmation of delivery, or by courier with
-tracking. A notice is treated as received on the day it is sent.
+signature block, by email or by courier. A notice is treated as received on the
+day it is sent, and the sender keeps something capable of showing that it was
+sent — a delivery or tracking receipt, or the sent message itself. Receipt is
+deemed rather than proved because a party that has stopped reading its own
+notice address should not gain time by it; what a sender must be able to show is
+that it sent the notice, never that anyone opened it.
 
 ## If these terms change
 
@@ -157,7 +209,7 @@ supersedes any earlier agreements, understandings or representations.
 ## Signature block
 
 ```
-Licensor (Ecoma)
+Licensor
   Name:     Mai Ngọc Hóa (also known as John Martin)
   Title:    Project owner
   Date:
