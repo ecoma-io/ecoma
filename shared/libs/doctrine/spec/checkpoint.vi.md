@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Checkpoint"
 status: design-end-state
-canonical-sha: 4e77a477a277
+canonical-sha: f0f8d5bd93be
 ---
 
 # Primitive: Checkpoint
@@ -52,6 +52,7 @@ canonical-sha: 4e77a477a277
 - **Tầm với của nó là gate, và nó trung thực về chỗ nó không với tới.** `distinct_filler_from` ràng một stage/assignment. Nó **không** nói gì về `override_gate` hay `arbiter`, và — nói thẳng thay vì để người đọc tự suy — **không gì trong spec này chặn principal đã nạp một filler sau đó override gate trên output của chính filler ấy**. Đường đó chỉ được quản bởi việc Role nào giữ `override_gate` và ai lấp Role đó (Role §2), cộng với việc override là một Judgment có ký `basis: override` làm **sụt calibration của chính người override** khi outcome xấu (Escalation §4, §6). Tenant muốn chặn nó về mặt cấu trúc là đang đòi một ràng buộc trần hiện **chưa** mang; coi vệ sinh grant như thể nó là ràng buộc đó chính là cách đọc sai mà đoạn này sinh ra để chặn.
 - Do người thiết kế quy trình cài; template vertical cấp mặc định.
 - Cảnh báo lỗi tương quan: nhiều model cùng họ chấm cùng criterion ≈ một model. Giá trị multi-verifier nằm ở **criterion khác nhau mỗi verifier** (factual/tone/compliance).
+- **Cùng tương quan đó đến được ở tầng runtime**, nơi một verifier resolve qua bên thứ ba trỏ lại thứ mà cái tên phục vụ. Không cần gì mới để thấy nó, và các mảnh đã nằm sẵn chỗ khác: verifier là một Filler của một Role phán xử, nên lượt chạy của nó là một Attempt và danh tính **thực sự được phục vụ** được ghi bên cạnh cái được yêu cầu — kể cả ca không phân biệt nổi (Task §4); một cú resolve làm đổi hành vi vốn đã là `config_hash` mới (§8, Role §3); và verifier tự nó là một subject calibration (Calibration §1), nên một verifier đã trôi có Judgment `contemporaneous` lệch khỏi `outcome` và lệch khỏi các verifier khác — đó chính là thứ raise một Conflict (§6) và giáng nó (Role §5). Thứ trần **cố ý không thêm** là một detector cho **các cell dịch chuyển cùng nhau**: đó là việc của estimator, và pooling giữa các cell là thuật toán chứ không phải data model (Calibration §5, §7).
 
 **Review assignment:** thuộc tính `blind: true/false` cấu hình theo stage — reviewer có thấy Judgment trước đó không. Sampling mặc định blind (chống anchoring, giữ calibration sạch); quick review mặc định thấy (AI highlight chỗ nghi ngờ) — cả hai mặc định là **giá trị template**, không phải luật engine.
 

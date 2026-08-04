@@ -122,6 +122,20 @@ criterion is approximately one model. The value of multiple verifiers lies in
 **each judging a different criterion** — factual, tone, compliance — not in
 counting agreements.
 
+The same correlation can arrive at **runtime** rather than at configuration,
+where a verifier resolves through a third party that re-points what the name
+serves. Nothing new is needed to see it, and the pieces are already elsewhere: a
+verifier is a Filler of a judging Role, so its execution is an Attempt and the
+identity **actually served** is recorded beside the one requested — including the
+case where the two cannot be told apart (Task §4); a resolution that changes
+behaviour is already a new `config_hash` (§8, Role §3); and a verifier is itself
+a calibration subject (Calibration §1), so a drifted one's contemporaneous
+Judgments diverge from `outcome` and from the other verifiers, which is what
+raises a Conflict (§6) and demotes it (Role §5). What the ceiling deliberately
+does not add is a detector for **cells moving together** — that is estimator
+work, and pooling between cells is algorithm rather than data model
+(Calibration §5, §7).
+
 **Review assignment** carries `blind: true/false` per stage: whether a reviewer
 sees earlier Judgments. Sampling defaults to blind, to stop anchoring and keep
 calibration clean; quick review defaults to sighted, with AI highlighting the

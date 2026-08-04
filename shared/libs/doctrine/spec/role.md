@@ -146,6 +146,11 @@ This is **the core product story**. The journey from human to AI is not a decisi
 taken once; it is a lift with a meter on it, running in both directions, per kind
 of work.
 
+**What the meter measures, and what reads it, are both closed** — output against a
+named criterion, and the consumer list of Calibration §6. That document's §7
+states it as a limit rather than a posture, and this section adds no consumer of
+its own: a tier is what the numbers move, and it is the only thing they move here.
+
 ## 6. Duality
 
 | Aspect       | Rule/code                                                                                                                                                                                      | Agent / person                                   |
