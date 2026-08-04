@@ -35,7 +35,7 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 
 <!-- readme:consumers -->
 
-三个 GitHub Actions workflow 直接调用本工具,都使用环境自带的 `GITHUB_TOKEN`
+六个 GitHub Actions workflow 直接调用本工具,都使用环境自带的 `GITHUB_TOKEN`
 (无需另配 secret):`.github/workflows/issue-triage.yml` 在 issue
 `opened`/`reopened` 时运行 `main.mjs triage-issue`(另有手动
 `workflow_dispatch`,用于回溯分诊旧 issue);
@@ -43,7 +43,12 @@ GitHub 上有三件事需要自然语言判断，而不是确定性（determinis
 `opened`/`reopened`/`synchronize`/`ready_for_review` 时运行
 `main.mjs review-pr`;`.github/workflows/translate-issue.yml` 在 issue `opened`/`edited` 时运行
 `main.mjs translate-issue`；`.github/workflows/translate-pr.yml` 在 PR
-`opened`/`edited` 时运行 `main.mjs translate-pr`。没有任何 workflow 接入 required/branch-protection
+`opened`/`edited` 时运行 `main.mjs translate-pr`;
+`.github/workflows/cla-notice.yml` 在 PR `opened`/`reopened`/`synchronize`
+时运行 `main.mjs cla-notice`,用一条原地编辑的 marker 评论告诉被
+`dev-cli check-contributor-record` gate 拒绝的作者到底该提交什么;
+`.github/workflows/roadmap-label-audit.yml` 每周运行 `main.mjs
+audit-roadmap-labels`。没有任何 workflow 接入 required/branch-protection
 检查——见 `readme:boundary`。
 
 <!-- readme:ecosystem -->
@@ -74,7 +79,7 @@ GitHub Actions job 都无需 `pnpm install`。
 
 <!-- readme:status -->
 
-正在实际运行:三个 workflow 都会在每次匹配的 GitHub 事件上运行本工具,而不是
+正在实际运行:上述每个 workflow 都会在与之匹配的 GitHub 事件上运行本工具,而不是
 草稿或未接线的占位实现。机制细节——quorum/判定计票规则、各枚举词表、review-pr
 的多轮调查流程、翻译的 quorum 例外,以及已知的坑——见
 [`./CLAUDE.md`](./CLAUDE.md)。

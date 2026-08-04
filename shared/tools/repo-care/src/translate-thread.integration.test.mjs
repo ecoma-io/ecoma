@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { buildClaNoticeComment, CLA_NOTICE_MARKER } from "./cla-notice.mjs";
 import { buildReviewComment, REVIEW_MARKER } from "./review-pr.mjs";
 import { buildTranslationComment, TRANSLATE_MARKER } from "./translate-thread.mjs";
 import { buildNeedsInfoComment, TRIAGE_MARKER } from "./triage-issue.mjs";
 
 /**
- * Three repo-care commands now comment on the same thread, each editing its
- * own comment in place across re-runs. That only holds while the three real
+ * Four repo-care commands now comment on the same thread, each editing its
+ * own comment in place across re-runs. That only holds while the real
  * markers stay mutually unmistakable — a property of the modules TOGETHER, so
  * it is pinned here with the real collaborators rather than in any one
  * module's unit test. A collision does not fail a build: it silently
@@ -16,6 +17,7 @@ const MARKERS = {
   triage: TRIAGE_MARKER,
   review: REVIEW_MARKER,
   translate: TRANSLATE_MARKER,
+  claNotice: CLA_NOTICE_MARKER,
 };
 
 describe("repo-care thread comment markers", () => {
@@ -42,6 +44,11 @@ describe("repo-care thread comment markers", () => {
       translate: buildTranslationComment("en", [
         { lang: "vi", title: "Tiêu đề", body: "Nội dung" },
       ]),
+      claNotice: buildClaNoticeComment({
+        author: "someone",
+        repo: "owner/repo",
+        gateOutput: "contributors/someone.md: missing",
+      }),
     };
     for (const [name, body] of Object.entries(bodies)) {
       expect(body.startsWith(MARKERS[name])).toBe(true);

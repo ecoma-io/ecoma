@@ -248,9 +248,27 @@ practice review, thread translation) from GitHub Actions.
   opened a card for, and a plan ahead of its cards is the normal state), while a
   card naming an id the roadmap does not define exits 1. Relabelling stays human
   — deciding which id renamed work moved to is a judgment, and a wrong guess
-  silently rewrites the project's record of what was decided. It is the one
-  repo-care command with no model in it at all, which is why nothing here
+  silently rewrites the project's record of what was decided. Like
+  `cla-notice`, it carries no model at all, which is why nothing here
   mentions a quorum: the whole judgment is set membership (Rule 5).
+- **`cla-notice` is the messenger for the CLA gate, never a second gate.**
+  `ci.yml`'s `Contributor record` step stays the required check; this command
+  re-runs the same `dev-cli check-contributor-record --author …` (spawned from
+  this module's own repo root — the same seam as `audit-roadmap-labels`,
+  covered by the same `implicitDependencies: ["dev-cli"]`) and turns a red
+  log line into one `CLA_NOTICE_MARKER` comment telling the author exactly
+  what to commit, `startsWith`-anchored and edited in place like every other
+  thread comment here. Created only on a failure; flipped to a short
+  "resolved" note once the gate passes (never deleted — the thread's history
+  stays truthful); a pull request that was never red gets no comment. It
+  exits 0 whether the gate passed or failed — non-zero only when it could not
+  do its own job — so its workflow must never be wired into required checks.
+  Its workflow (`cla-notice.yml`) runs on `pull_request_target` for the same
+  fork-token reason as the other PR-side jobs, restores ONLY `contributors/`
+  and `CONTRIBUTORS.md` from the head as data, and checks out the base with
+  `fetch-depth: 0` because the gate reads `CLA.md`'s git history to honour
+  records agreed under superseded versions. No model anywhere: the whole
+  judgment is the gate's exit code (Rule 5).
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
   `GET /issues/{n}`, same comments endpoint) and the only difference is which
@@ -277,16 +295,18 @@ practice review, thread translation) from GitHub Actions.
   `.github/workflows/translate-issue.yml` (issue opened/edited +
   `workflow_dispatch` for backfill),
   `.github/workflows/translate-pr.yml` (PR opened/edited +
-  `workflow_dispatch` for backfill), and
+  `workflow_dispatch` for backfill),
+  `.github/workflows/cla-notice.yml` (PR opened/reopened/synchronize), and
   `.github/workflows/roadmap-label-audit.yml` (weekly +
   `workflow_dispatch`) with the ambient
   `GITHUB_TOKEN`; runs on bare `node` — keep this tool dependency-free so
-  the workflows need no `pnpm install`. Both PR-side jobs use
+  the workflows need no `pnpm install`. Every PR-side job uses
   `pull_request_target` because a fork PR's `pull_request` token is read-only
   and could never comment — under `pull_request` a fork PR spends the whole
   model budget and then goes red on the post, its last step; that is safe only
   while nothing from the PR head is checked out or executed — head content
-  reaches these commands as data, never as code. Neither names a `ref:` on its
+  reaches these commands as data, never as code (`cla-notice.yml` restores two
+  markdown paths from the head, which is data too). None names a `ref:` on its
   checkout: `pull_request_target` already defaults to the base branch, and
   spelling that default out makes Scorecard's dangerous-workflow check read it
   as an untrusted checkout. That reasoning is written in each workflow's own

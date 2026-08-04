@@ -40,7 +40,7 @@ rather than read.
 
 <!-- readme:consumers -->
 
-Three GitHub Actions workflows invoke this tool directly, all using the
+Six GitHub Actions workflows invoke this tool directly, all using the
 ambient `GITHUB_TOKEN` (no separate secret to provision):
 `.github/workflows/issue-triage.yml` runs `main.mjs triage-issue` on issue
 `opened`/`reopened` (plus a manual `workflow_dispatch` for backfilling an
@@ -49,7 +49,13 @@ review-pr` on non-draft PR `opened`/`reopened`/`synchronize`/
 `ready_for_review`; `.github/workflows/translate-issue.yml` runs `main.mjs
 translate-issue` on issue `opened`/`edited`;
 `.github/workflows/translate-pr.yml` runs `main.mjs
-translate-pr` on PR `opened`/`edited`. No workflow is wired into required/branch-protection
+translate-pr` on PR `opened`/`edited`;
+`.github/workflows/cla-notice.yml` runs `main.mjs cla-notice` on PR
+`opened`/`reopened`/`synchronize`, telling an author whose CLA record the
+`dev-cli check-contributor-record` gate refused exactly what to commit, in one
+marker comment edited in place; and
+`.github/workflows/roadmap-label-audit.yml` runs `main.mjs
+audit-roadmap-labels` weekly. No workflow is wired into required/branch-protection
 checks — see `readme:boundary`.
 
 <!-- readme:ecosystem -->
@@ -86,7 +92,7 @@ GitHub Actions jobs need no `pnpm install`.
 
 <!-- readme:status -->
 
-Active: all three workflows run this tool on every matching GitHub event, not a
+Active: every workflow above runs this tool on its matching GitHub event, not a
 draft or an unwired stub. Mechanics — the quorum/verdict-tallying rules, the
 enum vocabularies, the multi-turn PR investigation, the translation quorum
 exception, and known footguns — are
