@@ -17,7 +17,7 @@
  * effective-version line. Editing the agreement therefore moves the gate with
  * it; a copy here would be a second contract nobody knows they are signing.
  *
- * Two modes, because the two questions have different availability:
+ * Three modes, because the questions have different availability:
  *
  * - Bare (pre-commit, CI): audits the **shape** of every record that exists.
  *   Runs offline, judges the tree, and is the mode that catches a record
@@ -26,6 +26,14 @@
  *   opened the pull request — normally by requiring a record of them. Only CI can
  *   know that, so this mode is where the "no record, no grant" rule actually
  *   bites.
+ * - `--commits <range>`: additionally judges that every non-merge commit in the
+ *   range carries the `Signed-off-by` trailer `CLA.md` asks for — the Developer
+ *   Certificate of Origin, which the agreement deliberately keeps separate from
+ *   assent to itself. It rides here rather than in a gate of its own because the
+ *   one exemption it needs already lives here: automation this project runs
+ *   certifies nothing, its commits are not contributions, and re-deriving that
+ *   set somewhere else would be a second answer to a question this file has
+ *   already answered.
  *
  * **A record outlives the version it agreed to.** `CLA.md`'s own change rule
  * says a new version binds a contributor only once they agree to it, so a
@@ -278,6 +286,60 @@ export function automationClause(claText) {
 }
 
 /**
+ * The sentence in `CLA.md` that asks for a `Signed-off-by` trailer on every
+ * commit, or `null` once the document stops asking. Clause-anchored like
+ * `automationClause` and `attributionClause`: drop the requirement from the
+ * agreement and this check stops in the same edit, rather than outliving the
+ * rule it enforces.
+ */
+export function signOffClause(claText) {
+  const m = claText.replace(/\s+/g, " ").match(/Separately, sign off each commit\./);
+  return m ? m[0] : null;
+}
+
+/** The trailer `git commit -s` writes — the Developer Certificate of Origin. */
+export const SIGN_OFF_TRAILER = "Signed-off-by:";
+
+/**
+ * The non-merge commits in `range` that carry no `Signed-off-by` trailer, as
+ * `[{ sha, subject }]`. Merges are skipped because git writes them and nobody
+ * authors them, matching what commitlint already ignores.
+ *
+ * **What this cannot see, stated rather than left to be discovered:** the
+ * exemption its caller applies is keyed to the pull request's author, which is
+ * the only account CI can ask GitHub about. A range whose commits were authored
+ * by several people is judged as one, so a commit by someone other than the
+ * opener is held to the trailer either way — which is the safe direction, since
+ * the trailer is exactly what that person owes.
+ */
+export function unsignedCommits(range, exec = execFileSync) {
+  // The separators come from git's own %x escapes, so no control character
+  // has to survive being written into this source file.
+  const RECORD = "\u0000";
+  const FIELD = "\u001f";
+  let log;
+  try {
+    log = exec("git", ["log", "--no-merges", "--format=%H%x1f%s%x1f%b%x00", range], {
+      env: cwdGitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new Error(`could not read the commits in '${range}': ${error.message}`, {
+      cause: error,
+    });
+  }
+  const trailer = new RegExp(`^\\s*${escapeRegExp(SIGN_OFF_TRAILER)}\\s*\\S`, "im");
+  const unsigned = [];
+  for (const entry of log.split(RECORD)) {
+    if (!entry.trim()) continue;
+    const [sha, subject, body = ""] = entry.replace(/^\s+/, "").split(FIELD);
+    if (!trailer.test(body)) unsigned.push({ sha, subject });
+  }
+  return unsigned;
+}
+
+/**
  * The GitHub handles that own `/CLA.md` in CODEOWNERS, lower-cased — the people
  * who can make the grant, and so the people the agreement does not apply to.
  * Of several matching entries the LAST wins, because that is CODEOWNERS' own
@@ -373,6 +435,7 @@ export function authorVerdict(author, { type, licensors, clause, automation, has
     }
     return {
       ok: true,
+      automation: true,
       note:
         `'${author}' is a machine account this project runs (${config}), and ${CLA} says: ` +
         `"${clause}" No record is required of it. It cannot agree for anyone else, though: work a ` +
@@ -450,6 +513,7 @@ export function checkContributorRecord(args = []) {
     }
   }
 
+  let automationExempt = false;
   const authorAt = args.indexOf("--author");
   if (authorAt !== -1) {
     const author = args[authorAt + 1];
@@ -475,6 +539,44 @@ export function checkContributorRecord(args = []) {
     if (!verdict.ok) {
       failed = true;
       console.error(verdict.fault);
+    }
+    automationExempt = verdict.automation === true;
+  }
+
+  const commitsAt = args.indexOf("--commits");
+  if (commitsAt !== -1) {
+    const range = args[commitsAt + 1];
+    if (!range) {
+      console.error("check-contributor-record: --commits needs a git range");
+      return 2;
+    }
+    const signOff = signOffClause(claText);
+    if (!signOff) {
+      console.log(
+        `${CLA} no longer asks for a ${SIGN_OFF_TRAILER} trailer, so the commits in ` +
+          `'${range}' are not judged for one.`,
+      );
+    } else if (automationExempt) {
+      console.log(
+        `The commits in '${range}' were opened by automation this project runs, which certifies ` +
+          `nothing and needs no ${SIGN_OFF_TRAILER} trailer — its commits are not contributions.`,
+      );
+    } else {
+      let unsigned;
+      try {
+        unsigned = unsignedCommits(range);
+      } catch (error) {
+        console.error(`check-contributor-record: ${error.message}`);
+        return 2;
+      }
+      for (const { sha, subject } of unsigned) {
+        failed = true;
+        console.error(
+          `${sha.slice(0, 8)} ("${subject}"): no ${SIGN_OFF_TRAILER} trailer — ${CLA} says: ` +
+            `"${signOff}" Commit with 'git commit -s', or add the trailer to a branch already ` +
+            `written with 'git rebase --signoff <base>'.`,
+        );
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   attributionClause,
@@ -13,7 +13,9 @@ import {
   projectAutomation,
   recordFileFor,
   recordTemplate,
+  signOffClause,
   templateVersionFault,
+  unsignedCommits,
 } from "./check-contributor-record.mjs";
 
 const CLA_TEXT = `# Ecoma Contributor License Agreement
@@ -26,6 +28,9 @@ Commits made by automated tooling we run — dependency-update bots and the like
 You agree that naming you in [\`CONTRIBUTORS.md\`](./CONTRIBUTORS.md), and
 preserving your authorship in the commit history, is a sufficient way of
 naming you as an author.
+
+Separately, sign off each commit. The \`Signed-off-by\` trailer carries its
+ordinary industry meaning.
 
 ## How you agree
 
@@ -205,6 +210,50 @@ describe("the attribution promise", () => {
   it("never accepts a prefix of a longer handle as a listing", () => {
     expect(listedInContributors("some", roster)).toBe(false);
     expect(listedInContributors("someone-else", roster)).toBe(false);
+  });
+});
+
+describe("the sign-off requirement", () => {
+  it("reads the requirement out of the agreement", () => {
+    expect(signOffClause(CLA_TEXT)).toBe("Separately, sign off each commit.");
+  });
+
+  it("reports no requirement once the agreement stops making one", () => {
+    expect(signOffClause(CLA_TEXT.replace("Separately, sign off each commit.", ""))).toBeNull();
+  });
+
+  /** One `git log --format=%H%x1f%s%x1f%b%x00` record. */
+  const entry = (sha, subject, body) => `${sha}\u001f${subject}\u001f${body}\u0000`;
+
+  it("names the commits carrying no trailer and passes over the ones that do", () => {
+    const log =
+      entry("aaaa1111", "fix: one", "body\n\nSigned-off-by: A Person <a@example.com>\n") +
+      entry("bbbb2222", "fix: two", "no trailer here\n") +
+      entry("cccc3333", "fix: three", "signed-off-by: lower <l@example.com>\n");
+    expect(unsignedCommits("base..HEAD", () => log)).toEqual([
+      { sha: "bbbb2222", subject: "fix: two" },
+    ]);
+  });
+
+  it("rejects a trailer with nothing after it, which certifies nobody", () => {
+    const log = entry("dddd4444", "fix: four", "Signed-off-by:\n");
+    expect(unsignedCommits("base..HEAD", () => log)).toEqual([
+      { sha: "dddd4444", subject: "fix: four" },
+    ]);
+  });
+
+  it("asks git for non-merge commits only, since nobody authors a merge", () => {
+    const exec = vi.fn(() => "");
+    unsignedCommits("base..HEAD", exec);
+    expect(exec.mock.calls[0][1]).toEqual(expect.arrayContaining(["--no-merges", "base..HEAD"]));
+  });
+
+  it("reports an unreadable range loudly, keeping the git error as the cause", () => {
+    expect(() =>
+      unsignedCommits("nope..HEAD", () => {
+        throw new Error("unknown revision");
+      }),
+    ).toThrow(/could not read the commits in 'nope\.\.HEAD'/);
   });
 });
 

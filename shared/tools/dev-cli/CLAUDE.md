@@ -210,6 +210,17 @@ build/typecheck — invoked directly as
     has not agreed one move from merging. Both halves are also conditional on
     `CLA.md` still carrying the sentence that puts automated commits outside the
     agreement, read at run time like every other vocabulary here.
+  - **`--commits <range>` holds the DCO half**, which two documents asked for
+    and nothing checked: every non-merge commit in the range must carry the
+    `Signed-off-by` trailer. It lives in this command rather than in a gate of
+    its own because the exemption it needs is already here — automation this
+    project runs certifies nothing, so a second gate would have to re-derive
+    `PROJECT_AUTOMATION` and could disagree with it. Clause-anchored like the
+    rest (`signOffClause`): delete the sentence from `CLA.md` and the check
+    stops in the same edit. It judges the whole range against the pull
+    request's author, the only account CI can ask GitHub about, so a commit by
+    someone else is still held to the trailer — the safe direction. CI passes
+    `origin/$BASE_REF..HEAD`, which is why that job needs `fetch-depth: 0`.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language
   variants (`README.md`, `README.vi.md`, `README.zh.md`), each opening with
