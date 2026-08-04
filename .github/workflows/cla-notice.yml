@@ -1,0 +1,76 @@
+name: CLA notice
+
+on:
+  # `pull_request_target`, for the same reason as pr-practice-review and
+  # translate-pr: a fork pull request's `pull_request` token is read-only, so a
+  # job under that trigger could never post the comment this one exists for —
+  # and first-time contributors, the entire audience of a CLA notice, arrive
+  # from forks. The trigger is safe here under the same boundary those jobs
+  # hold: nothing from the pull request head is ever executed. The two paths
+  # restored below are markdown records read as data; every script, `CLA.md`
+  # and `CODEOWNERS` stay the trusted base versions — which also means a pull
+  # request editing `CODEOWNERS` cannot exempt its own author in this job's
+  # verdict.
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# A rapid push supersedes the in-flight run: only the newest head's records
+# decide what the notice should say.
+concurrency:
+  group: cla-notice-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # NOT a required check, deliberately: ci.yml's `Contributor record` step is
+  # the gate. This job is its messenger — it re-runs the same dev-cli command
+  # and turns a red log line into a comment that tells the author exactly what
+  # to commit. It exits non-zero only when it could not do its own job.
+  notice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No `ref:` here, deliberately — the default under this trigger is the
+      # base branch, the trusted copy, and naming any `github.event.pull_request`
+      # ref would trip Scorecard's dangerous-workflow check (see
+      # pr-practice-review.yml). Full history because the gate accepts records
+      # agreed under superseded CLA versions by reading `CLA.md`'s git history;
+      # a shallow clone would wrongly fail those records.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      # The records the gate judges live in the pull request head — a first
+      # contribution carries its own record and roster row. `refs/pull/<n>/head`
+      # resolves in this repository for fork pull requests too. Only these two
+      # markdown paths are materialized, as data; a path the head does not
+      # touch keeps its base content, and neither is ever executed.
+      - name: Bring the head's contributor records in as data
+        env:
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --no-tags origin "+refs/pull/$NUMBER/head:refs/prq/head"
+          git checkout refs/prq/head -- contributors/ 2>/dev/null \
+            || echo "the head carries no contributors/ directory"
+          git checkout refs/prq/head -- CONTRIBUTORS.md 2>/dev/null \
+            || echo "the head does not touch CONTRIBUTORS.md"
+
+      # repo-care and dev-cli both run on bare node (dependency-free by
+      # design): no pnpm install.
+      - name: Tell the author what the CLA gate wants, on the thread
+        run: >
+          node shared/tools/repo-care/src/main.mjs cla-notice
+          --pr "$PR" --author "$PR_AUTHOR" --author-type "$PR_AUTHOR_TYPE"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}

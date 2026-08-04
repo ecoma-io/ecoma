@@ -202,11 +202,17 @@ Because the project offers its code under more than one set of terms, we need
 the right to do that for your contribution too. That is what
 [`CLA.md`](./CLA.md) grants — a licence, not ownership; you keep the copyright
 in your work. You agree once, on your first pull request, by committing a
-contributor record at `contributors/<your-github-handle>.md`; a maintainer
-confirms it before merging, and nothing is granted until that record exists.
-`check-contributor-record` holds that rule in CI: it audits every record
-against the template `CLA.md` publishes, and fails a pull request whose author
-has none.
+contributor record at `contributors/<your-github-handle>.md` (any casing of
+your handle works); add your row to [`CONTRIBUTORS.md`](./CONTRIBUTORS.md) in
+the same pull request, because `CLA.md` clause 3 makes that file part of how
+the project credits authorship. A maintainer
+confirms the record before merging, and nothing is granted until it exists.
+`check-contributor-record` holds those rules in CI: it audits every record
+against the template `CLA.md` publishes — the version you agreed to keeps
+counting after the CLA moves on, read out of git history — and fails a pull
+request whose author has none. When it does fail, the `CLA notice` workflow
+comments on the pull request with exactly what to commit, so the answer is on
+the thread rather than in a CI log.
 The record carries your name and address because the law governing the
 agreement requires a licence contract to identify both parties.
 
