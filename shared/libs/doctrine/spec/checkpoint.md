@@ -82,27 +82,40 @@ exist; whether it is on is a template value. Symmetric: it applies to agents as
 much as to people.
 
 **What counts as the same actor is declared, because comparing filler identities
-alone is not symmetric in practice.** The guard takes a `basis`: `filler`, which
-compares filler identities and is the default and today's behaviour, or
-`principal`, which compares the **accountable principal** — for a person,
-themselves; for a rule, whoever authored it; for an agent, the principal whose
-gated administrative Task registered or authorised that filler, which Tenant &
-Identity §4 already records with full identity because `grant_capability` is
-itself labour with a Gate. Nothing new is written down; the edge already exists
-and the comparison simply could not read it. Without the choice, a person who
-puts an agent between themselves and the work gets a guarantee a person acting
-directly does not, which is an `if human` branch arriving as a hole rather than
-as a rule, and Role litmus #3 asks for "every path, including through two roles".
-Which basis applies stays a template value, because how much separation a tenant
-needs is policy.
+alone is not symmetric in practice.** The guard carries
+`comparison_basis` — named in full rather than `basis`, which already means the
+kind of a Judgment (§3) and a dimension of a calibration cell, and a third
+meaning on one word is a reader's trap. It takes `filler`, which compares filler
+identities and is the default and today's behaviour, or `principal`, which
+compares the **accountable principal**. Without the choice, a person who puts an
+agent between themselves and the work gets a guarantee a person acting directly
+does not — an `if human` branch arriving as a hole rather than as a rule, while
+Role litmus #3 asks for "every path, including through two roles". Which basis
+applies stays a template value, because how much separation a tenant needs is
+policy.
 
-**Its reach is the gate, not the escalation.** `distinct_filler_from` binds a
-stage or assignment; it says nothing about `override_gate` or `arbiter`, and it
-is not silently extended here. A tenant that needs the same person barred from
-authorising a filler and then overriding the gate over its output expresses that
-where those capabilities are granted (Role §2, Escalation §4) — the guard is
-about who may **judge**, and an override is by construction the path for when
-judging has failed.
+**Where the accountable principal is recorded, because a comparison cannot read
+an edge nobody wrote.** Admitting a Filler to a Role's pool is a membership
+change, and membership changes are events carrying full principal identity
+(Tenant & Identity §4) — so the accountable principal of a filler is **the
+principal of the admitting event**, resolved at admission and re-resolved when
+the pool changes. A person's is themselves. An agent's or a rule's is whoever
+admitted it; where a `code` filler names an author, that is a claim in a manifest
+and the admitting principal is still the accountable one, because the tenant's
+own act is the thing the tenant can be held to. This is the one edge the rule
+adds, and it is stated here rather than assumed.
+
+**Its reach is the gate, and it is honest about what it does not reach.**
+`distinct_filler_from` binds a stage or assignment. It says nothing about
+`override_gate` or `arbiter`, and — stated plainly rather than left to be
+inferred — **nothing in this specification stops the principal who admitted a
+filler from later overriding the gate over that filler's output**. That path is
+governed only by which Roles hold `override_gate` and who fills them (Role §2),
+and by the fact that an override is a signed Judgment with `basis: override` that
+lowers the overrider's own calibration when the outcome is bad (Escalation §4,
+§6). A tenant wanting it structurally barred is asking for a constraint the
+ceiling does not currently carry; treating grant hygiene as if it were that
+constraint is the misreading this paragraph exists to prevent.
 
 Correlated-error warning: several models of the same family judging the same
 criterion is approximately one model. The value of multiple verifiers lies in
