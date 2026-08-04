@@ -255,8 +255,8 @@ export function findConventionViolations(trackedFiles, readFile) {
 
   // The root manifest's terms come from the LICENSE the tree ships, not from
   // the path map: `licenseForPath` knows this workspace's geometry, but the
-  // gate also judges the private cloud workspace (delivery playbook §6,
-  // round 31), whose root is all-rights-reserved. Nested manifests keep the
+  // gate also judges the private cloud workspace (delivery playbook §6),
+  // whose root is all-rights-reserved. Nested manifests keep the
   // path map — their homes are the geometry the map describes. A missing or
   // empty LICENSE yields no expectation at all: that state already carries
   // its own violation above, and a second finding derived from an absence
@@ -448,8 +448,8 @@ export function findConventionViolations(trackedFiles, readFile) {
     const pkg = parseOrNull(readFile(pkgPath));
     // A publishable manifest (`private: false`) is consumed through the
     // registry, not the graph: it exists so `nx release` can version and
-    // publish the unit for downstream workspaces (delivery playbook §6,
-    // round 31), and a tsconfig alias for it would be wiring nobody imports
+    // publish the unit for downstream workspaces (delivery
+    // playbook §6), and a tsconfig alias for it would be wiring nobody imports
     // through. The pairing rule keeps guarding what it was written for —
     // internal lib manifests, which stay `private: true` and alias-paired.
     if (pkg?.private === false) continue;
