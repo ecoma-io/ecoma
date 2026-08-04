@@ -338,6 +338,23 @@ _Spirit: every promise has a mechanism; every mechanism has a promise._
   roadmap and the scenario catalog — and no criterion re-read those sentences
   when the documents landed. M1 and M2 both pass in that state: the promise has
   a mechanism and the mechanism serves a promise. Only the deferral is stale._
+- **M4 — the Publishing policy resolves in both directions**: every row of the
+  corpus map's Publishing policy that withholds a document or a section must
+  resolve to something that actually exists in the withheld tier, and every
+  document in that tier must be named by a row. A clause withholding a section
+  that exists in **neither** half is a `minor` where it is merely stale and a
+  `major` where content was lost — and only the corpus's history tells those
+  apart, so the check is a `git log` rather than a reading of the current tree.
+  **This criterion is runnable only from the workspace that holds both halves.**
+  The published tree cannot see the withheld tier by construction — the boundary
+  is repository permission — so no gate here can ever enforce it, and review is
+  the sole arbiter. That is the reason it is written as a criterion and not
+  filed as a missing gate. _Precedent: the policy's roadmap row withheld "the §7
+  line citing a threshold" when §7 had never carried one, and its
+  scenario-catalog neighbour named "Parts 2–3" for a document whose withheld half
+  runs to Part 3c — while the inventory recorded a bet ledger of B1–B8 that had
+  since grown to B12. Three stale claims about the far side of a boundary the
+  reader cannot cross, none of which M1 or M2 would ever have caught._
 
 ### N — The threat-actor battery
 
