@@ -1,7 +1,7 @@
 ---
 title: "Calibration Data Model"
 status: design-end-state
-canonical-sha: ff0e4105e830
+canonical-sha: 1b05241affd5
 ---
 
 # Calibration Data Model
@@ -65,6 +65,10 @@ Engine ép bảng trọng số tồn tại; **template cấp giá trị** (prior
 Gate policy T_high/T_low (Checkpoint §4) · graduation/trust tiers, **giáng tức thì khi sụt** (Role §5) · bảng đối chiếu shadow (Role §4) · cost + quality theo Role — litmus #4 (metering × calibration cùng log-position) · routing (fallback chain, model theo độ chính xác masking — RPA NS §7) · độ tin chunk/collection (Knowledge §6) · độ tin driver/detector.
 **Visibility**: dữ liệu đánh giá người là nhạy cảm — mặc định chỉ Role có capability `view_calibration` trong scope; `calibration_visibility_policy` là extension point EE (Tenant & Identity §8).
 
+**Cell là một nguồn có phân loại, trên đúng một lattice.** Cell mang **classification** như mọi nguồn có phân loại khác; không khai thì nằm ở `confidential` — lattice canonical ở Knowledge §3, mục này chỉ _gia nhập_. Không luật mới nào sinh ra từ câu đó, và đấy chính là điểm: một con số dẫn xuất từ cell **kế thừa floor qua provenance**, nên công bố nó ra ngoài tenant phải qua **leakage gate** vốn đã gác aggregate (Working Data §1); khái quát qua nhiều subject gặp đúng **group floor** mà distillation đa-subject đã mang (Memory §5), không phải một floor thứ hai viết ở đây; đọc ở một mức secrecy phát **read event** (Tenant & Identity §4) — thứ trả lời _ai đã đọc gì về ai_; và `model_policy` định tuyến một cell y như nó định tuyến chunk hay memory entry.
+
+Lý do phải nói ra: đây là **nguồn duy nhất có phân loại về bản chất mà vắng mặt khỏi lattice**, và lỗ đó không nhìn thấy được từ cả hai phía. `view_calibration` gác **cell**; một con số _dẫn xuất_ từ cell không phải cell — nên nó không kế thừa floor nào và không để lại read event nào: confidence render cạnh một con số hướng client băng sang người xem không giữ Role nào trong tenant, **im lặng, do bỏ sót chứ không do ai quyết định**. Gia nhập lattice **không** quyết định con số đó có được hiện hay không: mặc định vẫn từ chối, và nới nó vẫn đúng là quyết định `calibration_visibility_policy` như cũ.
+
 ## 7. Non-goals
 
 - Không công thức thống kê/ML cụ thể (estimator = tầng tiến hóa, có identity §5).
@@ -93,12 +97,14 @@ Gate policy T_high/T_low (Checkpoint §4) · graduation/trust tiers, **giáng t�
 3. Đổi prompt/model của một filler: cell mới kế thừa cha với decay — không reset về 0, không giữ nguyên 100%?
 4. Có đường nào thay đổi điểm một filler mà không tạo Judgment hợp lệ (kể cả admin sửa DB — drift-detect Working Data §2)?
 5. Template chọn tách learning theo workspace: ước lượng cho client A không đọc một Judgment nào của client B?
+6. Render một confidence dẫn xuất từ cell cho người xem không giữ `view_calibration` trong scope — có bị floor propagation + leakage gate từ chối, và cú thử đó có để lại read event nêu ai đã hỏi?
 
 ## FMEA (theo F8)
 
-| Hỏng                             | Phát hiện                                                            | Phục hồi                                                                        |
-| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Projection drift / cell sai      | Checksum theo log-position (Working Data §2)                         | Rebuild từ log, event cảnh báo                                                  |
-| Estimator lỗi làm lệch hàng loạt | Estimator có identity + shadow so sánh trước graduation              | Rollback về estimator version cũ — vì có danh tính                              |
-| Poisoning bằng Judgment giả      | Capability `judge` + `distinct_filler_from` + Conflict khi mâu thuẫn | Judgment độc bị vô hiệu qua re_review/outcome; actor chịu trách nhiệm trong log |
-| Cell cardinality phình           | Sparse + sufficient stats; cảnh báo ngưỡng                           | Retention/gộp theo policy — log vẫn giữ sự thật                                 |
+| Hỏng                                             | Phát hiện                                                                | Phục hồi                                                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projection drift / cell sai                      | Checksum theo log-position (Working Data §2)                             | Rebuild từ log, event cảnh báo                                                                                                                    |
+| Estimator lỗi làm lệch hàng loạt                 | Estimator có identity + shadow so sánh trước graduation                  | Rollback về estimator version cũ — vì có danh tính                                                                                                |
+| Poisoning bằng Judgment giả                      | Capability `judge` + `distinct_filler_from` + Conflict khi mâu thuẫn     | Judgment độc bị vô hiệu qua re_review/outcome; actor chịu trách nhiệm trong log                                                                   |
+| Cell cardinality phình                           | Sparse + sufficient stats; cảnh báo ngưỡng                               | Retention/gộp theo policy — log vẫn giữ sự thật                                                                                                   |
+| Con số dẫn xuất tới tay người xem không có grant | Floor propagation vào leakage gate tại egress + read event theo mức (§6) | Egress bị từ chối và được ghi; muốn con số đó ra ngoài thì đường là `calibration_visibility_policy`, không bao giờ là một bản sao không phân loại |

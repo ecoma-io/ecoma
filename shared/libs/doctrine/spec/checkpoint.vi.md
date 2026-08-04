@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Checkpoint"
 status: design-end-state
-canonical-sha: bd8478f53b84
+canonical-sha: 2363e55241b8
 ---
 
 # Primitive: Checkpoint
@@ -47,6 +47,8 @@ canonical-sha: bd8478f53b84
 - Khai báo **fallback chain** (verifier rẻ hơn): vượt budget → đi xuống chain; hết chain → quyết bằng Judgment đã có + cờ `degraded` (hạ trọng số calibration).
 - Thứ tự stage **tự do về cơ chế** — stage người đứng trước, giữa, hay cuối đều hợp lệ (người gác nhanh rồi AI kiểm compliance sâu là ca có thật). "Người đứng cuối để AI lọc rác trước" là **mặc định của template**, không phải luật engine.
 - **Separation of duties**: stage/assignment khai được `distinct_filler_from: <role/stage>` — filler đã sản xuất không được tự chấm chính mình khi tenant yêu cầu (chống một người lấp hai role tự approve). Engine ép khả năng tồn tại; bật/tắt là giá trị template — đối xứng: áp cho cả người lẫn agent.
+- **"Cùng một actor" là thứ được khai, vì so filler identity không thôi trên thực tế là bất đối xứng.** Guard mang một `basis`: `filler` — so danh tính filler, mặc định và đúng hành vi hiện nay — hoặc `principal` — so **principal chịu trách nhiệm**: với người là chính họ, với rule là người viết ra nó, với agent là principal mà **Task hành chính có Gate** đã đăng ký hoặc ủy quyền filler đó, thứ Tenant & Identity §4 vốn đã ghi đầy đủ danh tính vì `grant_capability` tự nó là lao động có Gate. Không có sự thật mới nào được viết ra: **cạnh ủy quyền đã tồn tại**, chỉ là phép so không đọc được nó. Thiếu lựa chọn này, người đặt một agent vào giữa mình và công việc nhận được một bảo đảm mà người làm trực tiếp không có — tức một nhánh `if human` xuất hiện dưới dạng lỗ chứ không dưới dạng luật, trong khi litmus #3 của Role đòi "mọi đường, kể cả qua hai role". Chọn basis nào vẫn là giá trị template, vì cần tách bao nhiêu là policy.
+- **Tầm với của nó là gate, không phải escalation.** `distinct_filler_from` ràng một stage/assignment; nó **không** nói gì về `override_gate` hay `arbiter`, và ở đây không lặng lẽ nới ra. Tenant cần chặn cùng một người vừa ủy quyền filler vừa override gate trên output của nó thì diễn đạt ở chỗ cấp hai capability đó (Role §2, Escalation §4) — guard này nói về ai được **phán xử**, còn override theo định nghĩa là đường dùng khi phán xử đã hỏng.
 - Do người thiết kế quy trình cài; template vertical cấp mặc định.
 - Cảnh báo lỗi tương quan: nhiều model cùng họ chấm cùng criterion ≈ một model. Giá trị multi-verifier nằm ở **criterion khác nhau mỗi verifier** (factual/tone/compliance).
 
