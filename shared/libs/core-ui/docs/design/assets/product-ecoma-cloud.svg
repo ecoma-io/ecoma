@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Ecoma Cloud">
+  <!-- Ecoma Cloud — PLACEHOLDER mark. One rounded square split by a seam: steel is
+       the human half, ember the agent half (the dual-force law). The product
+       glyph is knocked out through a mask, so the mark sits on any background
+       without a white plate behind it. Geometry is deliberately plain; this is
+       scaffold brand, not the final identity. -->
+  <defs>
+    <linearGradient id="scl" x1="8" y1="88" x2="48" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3A63D9"/><stop offset="1" stop-color="#79ADFF"/>
+    </linearGradient>
+    <linearGradient id="ecl" x1="88" y1="88" x2="48" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#EF5F26"/><stop offset="1" stop-color="#FFA659"/>
+    </linearGradient>
+    <mask id="mcl">
+      <rect width="96" height="96" fill="#fff"/>
+      <rect x="46.6" y="0" width="2.8" height="96" fill="#000"/>
+      <path d="M33 62 A11 11 0 0 1 35 40.4 A15 15 0 0 1 63 39 A10 10 0 0 1 64 62 Z" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#mcl)">
+    <path d="M21 0 H48 V96 H21 A21 21 0 0 1 0 75 V21 A21 21 0 0 1 21 0 Z" fill="url(#scl)"/>
+    <path d="M48 0 H75 A21 21 0 0 1 96 21 V75 A21 21 0 0 1 75 96 H48 Z" fill="url(#ecl)"/>
+  </g>
+</svg>
