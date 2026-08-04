@@ -1,7 +1,7 @@
 ---
 title: "Ecoma — Mục lục hồ sơ End State"
 status: design-end-state
-canonical-sha: 5625bcaaf2d7
+canonical-sha: a4495b0444fa
 ---
 
 # Ecoma — Mục lục hồ sơ End State
@@ -51,7 +51,8 @@ canonical-sha: 5625bcaaf2d7
 | [adr-ledger](../method/adr-ledger.md)                       | **SỐNG — quyết định triển khai** (0001 durable✅ · 0002 storage✅ · **0003 Gói-D biên-theo-vai✅** · 0004 Vue✅ · 0005 Tauri✅ · **0006 user-code JS/Py/Go✅** — đủ bộ, 0 treo; tạm trú tới khi có repo; **0005 +3 biên cứng UI attended · 0002 +điều kiện key-store · 0006 +`supports_dry_run`**) |
 | [subsystem-structure](../method/subsystem-structure.md)     | **ADR-0008 — hình dạng workspace** (area `platform`; engine cắt theo trục tầng hexagonal; mỗi gate đã khởi động một conformance suite; contract runtime liên-domain trong `shared/packages/`; **nó mang freeze ◆G0 cho phạm vi các suite**)                                                        |
 | sổ thị trường (không công bố)                               | **SỐNG — kinh doanh** (+§9 sổ cược B1–B8 **đã chốt**) (bet + phương pháp phỏng vấn + log; đổi theo bằng chứng, không theo vòng đóng băng; **B4 là nguồn duy nhất của ngưỡng Marketplace** — roadmap trỏ về, không ghi đôi)                                                                         |
-| playbook funnel (không công bố)                             | **System Charter** — area `website/` (mặt tiền + growth; phân loại mạnh vs Hub; URL topology + render §3b; `/design`; support chatbot)                                                                                                                                                             |
+| [website](../charter/website.md)                            | **System Charter** — area `website/`, nửa kiến trúc (luật phân loại Website/Hub/Platform; một domain phân vùng theo path; `/hub` render tĩnh-first; `/design`; ba điều kiện an ninh khi share domain; support chatbot)                                                                             |
+| playbook funnel (không công bố)                             | **System Charter — nửa growth** (chiến lược chiến dịch, dây survey nối vào sổ thị trường, tone trước đối thủ — công bố sẽ làm nhiễm chính dữ liệu funnel nó tồn tại để thu thập)                                                                                                                   |
 | [deploy](../charter/deploy.md)                              | **System Charter** — deploy/operate/backup/upgrade/rollback/sunset; ranh giới 3 phân vùng; 4 nghĩa vụ khóa-DR từ                                                                                                                                                                                   |
 | playbook giao hàng (không công bố)                          | **System Charter** — engineering & delivery (trunk-based + merge queue, CI 3 tầng, §5b AI-PR, §5c ADR _(tạm trú adr-ledger)_, §5d DDD/Clean, publish-qua-Hub, **topology hai repo — `cloud/` là submodule private mà CI của chính nó mount workspace public**)                                     |
 | [rpa](../north-star/rpa.md)                                 | RPA                                                                                                                                                                                                                                                                                                |
