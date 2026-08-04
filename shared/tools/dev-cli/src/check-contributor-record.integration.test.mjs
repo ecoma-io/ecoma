@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,7 @@ import {
   licensorHandles,
   projectAutomation,
 } from "./check-contributor-record.mjs";
+import { fixtureEnv, fixtureGit, initFixtureRepo } from "./git-fixture.mjs";
 
 /**
  * The unit tests judge the rules against a fixture agreement. These judge them
@@ -77,5 +78,102 @@ describe("the gate against this repository's own documents", () => {
     const cli = runGate("--author", "renovate[bot]", "--author-type", "");
     expect(cli.status).toBe(2);
     expect(cli.stderr).toMatch(/user\.type/);
+  });
+});
+
+/**
+ * The version-history half needs a repository whose CLA.md has actually moved,
+ * which the live tree cannot stage — so these run the real CLI inside a
+ * fixture repo, across a published version bump.
+ */
+describe("the gate across a CLA version bump, in a fixture repository", () => {
+  const claAt = (version) => `# CLA
+
+**Version ${version}, effective 2026-08-01.**
+
+You agree that naming you in [\`CONTRIBUTORS.md\`](./CONTRIBUTORS.md) is
+sufficient.
+
+## How you agree
+
+\`\`\`
+Full legal name:
+GitHub:
+
+I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.md,
+for this and every future contribution I make to this project.
+\`\`\`
+`;
+
+  const record = (version) => `Full legal name: A Person
+GitHub: CasedUser
+
+I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.md, for this and every future contribution I make to this project.
+`;
+
+  const roster = `# Contributors
+
+| Name | GitHub | Since |
+| ---- | ------ | ----- |
+| A Person | [@CasedUser](https://github.com/CasedUser) | 2026-08 |
+`;
+
+  const buildFixture = () => {
+    const dir = initFixtureRepo("cla-gate", {
+      "CLA.md": claAt("1.0"),
+      ".github/CODEOWNERS": "/CLA.md @owner\n",
+      "CONTRIBUTORS.md": roster,
+      "contributors/CasedUser.md": record("1.0"),
+    });
+    fixtureGit(dir, ["commit", "-q", "-m", "publish CLA 1.0"]);
+    writeFileSync(join(dir, "CLA.md"), claAt("1.1"));
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-m", "publish CLA 1.1"]);
+    return dir;
+  };
+
+  const runGateIn = (dir, ...args) =>
+    spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL("./main.mjs", import.meta.url)), "check-contributor-record", ...args],
+      { cwd: dir, encoding: "utf8", env: fixtureEnv() },
+    );
+
+  it("keeps a record valid under the version it agreed to after a newer one is published", () => {
+    const dir = buildFixture();
+    const cli = runGateIn(dir);
+    expect(cli.stderr).toBe("");
+    expect(cli.stdout).toMatch(/version 1\.0/);
+    expect(cli.status).toBe(0);
+  });
+
+  it("matches an author to their record whatever the casing, as GitHub logins do", () => {
+    const cli = runGateIn(buildFixture(), "--author", "caseduser", "--author-type", "User");
+    expect(cli.stderr).toBe("");
+    expect(cli.status).toBe(0);
+  });
+
+  it("still refuses a record assenting to a version never published", () => {
+    const dir = buildFixture();
+    writeFileSync(join(dir, "contributors/CasedUser.md"), record("0.9"));
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/agreement sentence/);
+  });
+
+  it("holds the attribution promise: a record whose handle CONTRIBUTORS.md omits fails", () => {
+    const dir = buildFixture();
+    writeFileSync(join(dir, "CONTRIBUTORS.md"), "# Contributors\n\nnobody yet\n");
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/CONTRIBUTORS\.md/);
+  });
+
+  it("faults CLA.md itself when its version line and assent sentence drift apart", () => {
+    const dir = buildFixture();
+    writeFileSync(join(dir, "CLA.md"), claAt("1.1").replace("**Version 1.1,", "**Version 1.2,"));
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/drifted apart/);
   });
 });

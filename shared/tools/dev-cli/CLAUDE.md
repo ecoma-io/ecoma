@@ -180,6 +180,22 @@ build/typecheck — invoked directly as
   request — which is why that mode lives in `ci.yml` rather than in a
   hook. It judges the record, never the person: whether an address is real
   stays with the maintainer who confirms it.
+  - **A record outlives the version it agreed to.** `CLA.md`'s change rule says
+    a new version binds a contributor only once they agree to it, so on a
+    version bump the gate must not turn every existing record red. When a
+    record fails the current template, `auditRecordAcrossVersions` retries it
+    against every text `CLA.md` was ever committed as (`claTextHistory`, git
+    history via `cwdGitEnv` — which is why CI checkouts that run this gate
+    need `fetch-depth: 0`); a match on a superseded published version passes
+    with a printed note. The gate also cross-checks the `**Version …**` line
+    against the version inside the fenced assent sentence
+    (`templateVersionFault`) — the two spots must move in one edit. Record
+    lookup for `--author` is case-insensitive (`recordFileFor`), because
+    GitHub logins are; and while `CLA.md` still promises naming in
+    `CONTRIBUTORS.md` (`attributionClause`, clause 3), every record's handle
+    must be listed there — the moral-rights naming consent is the one legally
+    load-bearing promise no other gate watches. `licensorHandles` takes the
+    **last** matching CODEOWNERS entry, GitHub's own precedence.
   - **The automation exemption is deliberately not a "is it a bot" test**, and
     the difference is the whole design. `--author-type` carries GitHub's
     `user.type` from the pull request payload — the only authority on which
