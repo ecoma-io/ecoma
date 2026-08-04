@@ -17,7 +17,7 @@
  *   and a CI step.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cwdGitEnv } from "./git-env.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
@@ -37,15 +37,25 @@ function workspaceJourneyConfig() {
   // under defaults its owner never chose. The read sits inside the guard,
   // the parse outside it, which is what draws that line. `env: cwdGitEnv()`
   // for the reason git-env.mjs owns, same as every git spawn in this file.
-  let text;
-  let source = "journey-markers.config.json at the judged tree's root";
+  let rootConfig = null;
   try {
     const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
       encoding: "utf8",
       env: cwdGitEnv(),
     }).trim();
-    text = readFileSync(resolve(root, "journey-markers.config.json"), "utf8");
+    rootConfig = resolve(root, "journey-markers.config.json");
   } catch {
+    // No git root to ask — the harness copy answers below.
+  }
+  // Existence decides which file answers; READING it is loud. A config that
+  // exists but cannot be read (permissions, a directory wearing the name)
+  // throws here instead of sliding into the default — same line, drawn
+  // structurally, as readme-schema's resolve-inside/require-outside.
+  let text;
+  let source = "journey-markers.config.json at the judged tree's root";
+  if (rootConfig && existsSync(rootConfig)) {
+    text = readFileSync(rootConfig, "utf8");
+  } else {
     text = readFileSync(CONFIG_URL, "utf8");
     source = CONFIG_URL.pathname;
   }
