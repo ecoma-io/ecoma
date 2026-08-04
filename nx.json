@@ -20,6 +20,7 @@
     "coverageConfig": ["{workspaceRoot}/coverage.config.json"],
     "devCli": ["{workspaceRoot}/shared/tools/dev-cli/**/*"],
     "goGlobals": ["{workspaceRoot}/go.work", "{workspaceRoot}/.golangci-lint-version"],
+    "rustGlobals": ["{workspaceRoot}/Cargo.toml", "{workspaceRoot}/Cargo.lock"],
     "lintTooling": [
       "{workspaceRoot}/eslint.config.mjs",
       "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
