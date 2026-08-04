@@ -94,6 +94,11 @@ describe("the gate across a CLA version bump, in a fixture repository", () => {
 You agree that naming you in [\`CONTRIBUTORS.md\`](./CONTRIBUTORS.md) is
 sufficient.
 
+Commits made by automated tooling we run are not contributions under this
+agreement.
+
+Separately, sign off each commit.
+
 ## How you agree
 
 \`\`\`
@@ -173,6 +178,73 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
     const cli = runGateIn(dir);
     expect(cli.status).toBe(1);
     expect(cli.stderr).toMatch(/CONTRIBUTORS\.md/);
+  });
+
+  /** Adds two commits to a fixture: one signed off, one not. */
+  const addSignedAndUnsigned = (dir) => {
+    writeFileSync(join(dir, "signed.txt"), "one");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-s", "-m", "feat: signed work"]);
+    writeFileSync(join(dir, "unsigned.txt"), "two");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-m", "feat: unsigned work"]);
+    return "HEAD~2..HEAD";
+  };
+
+  it("names the commit missing the trailer the agreement asks for", () => {
+    const dir = buildFixture();
+    const range = addSignedAndUnsigned(dir);
+    const cli = runGateIn(dir, "--commits", range);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/unsigned work/);
+    expect(cli.stderr).not.toMatch(/feat: signed work/);
+  });
+
+  it("passes a range whose commits are all signed off", () => {
+    const dir = buildFixture();
+    writeFileSync(join(dir, "signed.txt"), "one");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-s", "-m", "feat: signed work"]);
+    const cli = runGateIn(dir, "--commits", "HEAD~1..HEAD");
+    expect(cli.stderr).toBe("");
+    expect(cli.status).toBe(0);
+  });
+
+  it("asks no trailer of automation this project runs, whose commits are not contributions", () => {
+    const dir = buildFixture();
+    const range = addSignedAndUnsigned(dir);
+    writeFileSync(join(dir, ".github/renovate.json5"), "{}\n");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-s", "-m", "chore: configure renovate"]);
+    const cli = runGateIn(
+      dir,
+      "--author",
+      "renovate[bot]",
+      "--author-type",
+      "Bot",
+      "--commits",
+      range,
+    );
+    expect(cli.stderr).toBe("");
+    expect(cli.status).toBe(0);
+  });
+
+  it("stops asking for a trailer once the agreement stops asking", () => {
+    const dir = buildFixture();
+    const range = addSignedAndUnsigned(dir);
+    writeFileSync(
+      join(dir, "CLA.md"),
+      claAt("1.1").replace("Separately, sign off each commit.", ""),
+    );
+    const cli = runGateIn(dir, "--commits", range);
+    expect(cli.stderr).toBe("");
+    expect(cli.status).toBe(0);
+  });
+
+  it("refuses a range it cannot read rather than reporting every commit signed", () => {
+    const cli = runGateIn(buildFixture(), "--commits", "no-such-ref..HEAD");
+    expect(cli.status).toBe(2);
+    expect(cli.stderr).toMatch(/could not read the commits/);
   });
 
   it("faults CLA.md itself when its version line and assent sentence drift apart", () => {
