@@ -50,17 +50,20 @@ jobs:
       # The records the gate judges live in the pull request head — a first
       # contribution carries its own record and roster row. `refs/pull/<n>/head`
       # resolves in this repository for fork pull requests too. Only these two
-      # markdown paths are materialized, as data; a path the head does not
-      # touch keeps its base content, and neither is ever executed.
-      - name: Bring the head's contributor records in as data
+      # markdown paths are materialized, as data, and they MIRROR the head
+      # rather than overlay it: the base copy is removed first, so a pull
+      # request that deletes a record or the roster is judged on that deletion
+      # instead of on stale base files. Neither path is ever executed.
+      - name: Mirror the head's contributor records in as data
         env:
           NUMBER: ${{ github.event.pull_request.number }}
         run: |
           git fetch --no-tags origin "+refs/pull/$NUMBER/head:refs/prq/head"
+          rm -rf contributors CONTRIBUTORS.md
           git checkout refs/prq/head -- contributors/ 2>/dev/null \
             || echo "the head carries no contributors/ directory"
           git checkout refs/prq/head -- CONTRIBUTORS.md 2>/dev/null \
-            || echo "the head does not touch CONTRIBUTORS.md"
+            || echo "the head carries no CONTRIBUTORS.md"
 
       # repo-care and dev-cli both run on bare node (dependency-free by
       # design): no pnpm install.
