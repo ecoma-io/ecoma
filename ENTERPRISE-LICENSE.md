@@ -181,9 +181,10 @@ competent courts of Vietnam.
 ## Notices
 
 Notices under this agreement are in writing and sent to the notice address or
-notice email each party gives in the signature block, by email or by courier.
-Both parties give one there, so a notice always has a destination; a party may
-change its own on written notice to the other. A notice is treated as received on the
+notice email a party gives in the signature block, by email or by courier —
+and where the Licensee leaves both of those blank, to its registered address,
+which the signature block always carries. A notice therefore always has a
+destination. A party may change its own on written notice to the other. A notice is treated as received on the
 day it is sent, and the sender keeps something capable of showing that it was
 sent — a delivery or tracking receipt, or the sent message itself. Receipt is
 deemed rather than proved because a party that has stopped reading its own
