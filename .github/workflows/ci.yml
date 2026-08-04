@@ -2,6 +2,17 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue's own event, and the one trigger a queue cannot work
+  # without: the queue builds a temporary ref (trunk plus the entries ahead of
+  # this one) and waits for the required checks to report **on that ref**. A
+  # workflow that does not run there reports nothing, so the entry waits out
+  # `check_response_timeout_minutes` and is dropped as failed — a queue that
+  # silently never merges, which is exactly what happened before this line
+  # existed. `nx-run` sends this event down the `run-many` path rather than
+  # `affected`, which is the honest selection here: the queue's whole job is to
+  # prove the would-be trunk green, and there is no "base" to diff a batch of
+  # several entries against that means anything.
+  merge_group:
   push:
     branches: [main]
   # Nightly full-workspace run, and the same on demand. Every other trigger
