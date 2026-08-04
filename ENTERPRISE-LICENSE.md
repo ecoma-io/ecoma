@@ -117,6 +117,14 @@ anchor `CLA.md` clause 5 (code you did not write yourself) and
 `CORPORATE-CLA.md` clause 10 (AI training and data extraction) use, so this
 project has one definition of that restriction rather than four.
 
+Those meanings are themselves written against a subject, and here that subject
+is **the software as this agreement defines it** — the enterprise modules
+included. `LICENSE` writes them against its own narrower subject because it
+grants nothing in the enterprise modules and has none to protect; this
+agreement does. Reading them against the narrower subject would leave a model
+trained to replace precisely the modules this clause exists to protect outside
+the restriction, which is the opposite of what it says.
+
 ## Fee
 
 The Licensee pays the Licensor the annual fee set out in the invoice or order
@@ -172,8 +180,10 @@ competent courts of Vietnam.
 
 ## Notices
 
-Notices under this agreement are in writing and sent to the addresses in the
-signature block, by email or by courier. A notice is treated as received on the
+Notices under this agreement are in writing and sent to the notice address or
+notice email each party gives in the signature block, by email or by courier.
+Both parties give one there, so a notice always has a destination; a party may
+change its own on written notice to the other. A notice is treated as received on the
 day it is sent, and the sender keeps something capable of showing that it was
 sent — a delivery or tracking receipt, or the sent message itself. Receipt is
 deemed rather than proved because a party that has stopped reading its own
@@ -210,8 +220,10 @@ supersedes any earlier agreements, understandings or representations.
 
 ```
 Licensor
-  Name:     Mai Ngọc Hóa (also known as John Martin)
-  Title:    Project owner
+  Name:            Mai Ngọc Hóa (also known as John Martin)
+  Title:           Project owner
+  Notice address:
+  Notice email:    john.itvn@gmail.com
   Date:
   Signature:
 
@@ -220,6 +232,8 @@ Licensee
   Registered address:
   Country:
   Contact (name, role, email):
+  Notice address:  (if not the registered address)
+  Notice email:
   Date:
   Signature:
 ```
