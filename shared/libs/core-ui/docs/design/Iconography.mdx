@@ -27,7 +27,7 @@ export const rules = [
   {
     rule: "Đặt mặc định một lần",
     detail:
-      "applyAlloyIconDefaults() (từ @ecoma-io/ui — gói setLucideProps({ size: 16, strokeWidth: 1.5 }), con số sống một chỗ) gọi tại entry của mỗi host trước khi mount — icon lẻ không tự khai size/stroke trừ khi lệch chuẩn có chủ đích.",
+      "applyLoomIconDefaults() (từ @ecoma-io/ui — gói setLucideProps({ size: 16, strokeWidth: 1.5 }), con số sống một chỗ) gọi tại entry của mỗi host trước khi mount — icon lẻ không tự khai size/stroke trừ khi lệch chuẩn có chủ đích.",
   },
   {
     rule: "Luôn currentColor",
@@ -49,7 +49,7 @@ export const rules = [
 
 # Iconography
 
-Bộ icon của Alloy là **Lucide** (`@lucide/vue`) — stroke-based, điều khiển được độ dày
+Bộ icon của Loom là **Lucide** (`@lucide/vue`) — stroke-based, điều khiển được độ dày
 nét, ~1600 icon phủ đủ domain media (Film, Clapperboard, AudioLines, Scissors…), cùng hệ
 sinh thái shadcn-vue mà primitives đang theo. Icon là **nét**, không phải mảng — cùng ngôn
 ngữ hairline với border 1px của [Elevation](?path=/docs/design-system-elevation--docs).

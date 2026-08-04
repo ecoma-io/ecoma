@@ -7,7 +7,7 @@ import Badge from "../../../src/primitives/Badge/Badge.vue";
 /**
  * "Điểm nhấn ấn tượng" — khoảnh khắc agent bàn giao kết quả cho người. Đây là
  * loại motion mà token CSS mặc định (≤200ms) cố tình KHÔNG làm: dàn cảnh nhiều
- * bước, overshoot, quầng đồng bung ra tại điểm chạm. Khi cần một accent như
+ * bước, overshoot, quầng weft bung ra tại điểm chạm. Khi cần một accent như
  * vậy, ta dùng GSAP timeline.
  */
 const root = ref<HTMLElement | null>(null);
@@ -34,7 +34,7 @@ const play = () => {
 
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-    // 1 — quầng đồng bung ra từ thẻ agent (accent, không phải feedback).
+    // 1 — quầng weft bung ra từ thẻ agent (accent, không phải feedback).
     tl.fromTo(
       "[data-burst]",
       { scale: 0.6, opacity: 0.85 },
@@ -71,7 +71,7 @@ onBeforeUnmount(() => ctx?.revert());
       ↻ Diễn lại accent
     </button>
 
-    <!-- Thẻ bàn giao + quầng đồng tại điểm chạm -->
+    <!-- Thẻ bàn giao + quầng weft tại điểm chạm -->
     <div class="relative w-fit">
       <div
         data-burst

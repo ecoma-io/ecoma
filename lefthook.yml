@@ -78,18 +78,6 @@ pre-push:
         node shared/tools/dev-cli/src/main.mjs check-project-conventions &&
         node shared/tools/dev-cli/src/main.mjs check-contributor-record
 
-prepare-commit-msg:
-  commands:
-    strip-agent-trailers:
-      # Remove auto-appended "Co-Authored-By: Claude" / "Claude-Session:" lines
-      # so commits stay under the human author with a clean message.
-      #
-      # `.claude/settings.json` > attribution now stops Claude Code from adding
-      # them at all; this stays as the net that does not depend on one agent's
-      # settings — a contributor on another tool, or a message typed by hand,
-      # reaches the same clean commit.
-      run: node shared/tools/dev-cli/src/main.mjs strip-claude-trailers {1}
-
 commit-msg:
   commands:
     commitlint:

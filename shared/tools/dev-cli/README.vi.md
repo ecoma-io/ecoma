@@ -38,8 +38,7 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
   `check-doc-links`, `check-command-refs`, `check-doctrine`, `check-practice-index`,
   `ensure-commit-identity --check`.
-- **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
-  `check-commit-scope`.
+- **lefthook commit-msg**: `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (chạy cho mỗi commit trong PR), `check-contributor-record` (kèm tác giả PR
   trên pull request, dạng trần ở các trường hợp còn lại), và

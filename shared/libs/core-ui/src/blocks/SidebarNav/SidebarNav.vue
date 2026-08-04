@@ -34,7 +34,7 @@ import { cn } from "../../lib/cn";
  * the work area it serves").
  *
  * The active item carries a flat `--primary` fill and an inset accent bar —
- * a human decides which surface they are on, so this is the human/thép force
+ * a human decides which surface they are on, so this is the human/warp force
  * alone (Design System › Signature). It never mixes in `--agent`: this is
  * navigation chrome, not a place reporting automated work.
  *

@@ -11,22 +11,22 @@ export const devices = [
     use: "Màu kể ai đang làm: node/badge/tiến độ mang màu lực lượng phụ trách",
   },
   {
-    name: "Weld seam",
+    name: "Seam",
     token: "--seam",
     util: "bg-seam · animate-seam-flow",
-    use: "Gradient thép→đồng — chỉ ở điểm bàn giao người↔agent; sống khi cộng tác đang chạy",
+    use: "Gradient warp→weft — chỉ ở điểm bàn giao người↔agent; sống khi cộng tác đang chạy",
   },
   {
     name: "Conduct",
     token: "conduct (keyframe)",
     util: "animate-conduct",
-    use: "Agent đang làm việc = nhịp dẫn đồng — thay cho spinner vô hồn",
+    use: "Agent đang làm việc = nhịp thoi đưa của weft — thay cho spinner vô hồn",
   },
   {
     name: "Focus halo",
     token: "--halo",
     util: "focus-visible:shadow-halo",
-    use: "Quầng thép quanh --ring trên mọi control — focus là một người đang thao tác",
+    use: "Quầng warp quanh --ring trên mọi control — focus là một người đang thao tác",
   },
 ];
 
@@ -35,20 +35,22 @@ export const devices = [
 # Signature
 
 Material nhận ra ngay vì mọi component tuân **một luật vật lý** (giấy · mực · độ nâng · ripple).
-Alloy có một luật của riêng nó — rút thẳng từ định vị Ecoma: con người và AI agent là **hai lực
-lượng lao động hạng nhất** cùng vận hành một tổ chức. **Alloy** = hợp kim: thép và đồng, hoà
-thành thứ bền hơn từng kim loại đứng riêng. Đây là ngôn ngữ hình thức biến mệnh đề đó thành thứ
-mọi control cùng mặc, để nhận ra được kể cả khi che logo.
+Loom có một luật của riêng nó — rút thẳng từ định vị Ecoma: con người và AI agent là **hai lực
+lượng lao động hạng nhất** cùng vận hành một tổ chức. **Loom** = khung dệt: **warp** (sợi dọc)
+căng sẵn trên khung, **weft** (sợi ngang) đưa thoi chạy ngang qua, và thứ dệt ra là **một tấm
+vải** — không phải hai mảnh khâu lại. Đây là ngôn ngữ hình thức biến mệnh đề đó thành thứ mọi
+control cùng mặc, để nhận ra được kể cả khi che logo.
 
 ## Định luật
 
-> **Màu kể _ai đang làm_. Mối hàn kể _nơi họ gặp nhau_.**
+> **Màu kể _ai đang làm_. Đường can kể _nơi họ gặp nhau_.**
 
-**Human — thép** (`--primary`): những gì con người tạo, sửa, quyết — kiêm màu hành động mặc định
-vì người cầm lái UI. **Agent — đồng** (`--agent`): việc tự động đang chạy, kết quả agent làm ra.
-**Mối hàn** (`--seam`, gradient thép→đồng nội suy OKLCH): chỉ xuất hiện đúng nơi hai lực lượng
-chạm nhau — điểm bàn giao trong quy trình, tài sản đồng tác giả, khoảnh khắc nhận diện thương
-hiệu. Nền tảng còn lại là màu phẳng kỷ luật trên nền giấy sáng (light-first, xem `Color`).
+**Human — warp** (`--primary`): sợi dọc căng trên khung — những gì con người tạo, sửa, quyết;
+kiêm màu hành động mặc định vì người cầm lái UI. **Agent — weft** (`--agent`): sợi ngang chạy
+qua khung đó — việc tự động đang chạy, kết quả agent làm ra. **Đường can (seam)** (`--seam`,
+gradient warp→weft nội suy OKLCH): chỉ xuất hiện đúng nơi hai sợi bắt nhau — điểm bàn giao
+trong quy trình, tài sản đồng tác giả, khoảnh khắc nhận diện thương hiệu. Nền tảng còn lại là
+màu phẳng kỷ luật trên nền giấy sáng (light-first, xem `Color`).
 
 ## Bốn chữ ký (device)
 
@@ -87,7 +89,7 @@ Một luật, bốn biểu hiện. Mỗi cái là một token → một utility,
 
 `--seam` là chữ ký đắt nhất của hệ, và nó chỉ đắt khi hiếm:
 
-- **Chỉ ở điểm chạm hai lực lượng**: đường nối bàn giao người↔agent, viền tài sản đồng tác giả,
+- **Chỉ ở điểm hai sợi bắt nhau**: đường nối bàn giao người↔agent, viền tài sản đồng tác giả,
   logo/splash. Một bề mặt thuần-người hay thuần-agent không bao giờ mang seam.
 - **Không bao giờ dưới chữ nội dung**, không trên phần tử nhỏ hơn 20px — contrast dọc dải màu
   không kiểm soát được.
@@ -98,9 +100,9 @@ Một luật, bốn biểu hiện. Mỗi cái là một token → một utility,
 
 ## Quy tắc thống nhất cho control: "màu = lực lượng"
 
-Trạng thái bật/chọn của control là **fill thép phẳng** (`bg-primary`): `Checkbox` đã tick,
+Trạng thái bật/chọn của control là **fill warp phẳng** (`bg-primary`): `Checkbox` đã tick,
 `Switch` đã bật, ô active của `SegmentedControl`, dải `Slider` đã kéo — vì đó là lựa chọn của
-người. Bề mặt agent (badge agent, tiến độ tự động, toast do agent phát) mang **đồng**
+người. Bề mặt agent (badge agent, tiến độ tự động, toast do agent phát) mang **weft**
 (`bg-agent` / `animate-conduct`). Focus của _bất kỳ_ control nào cũng nở `shadow-halo` chồng lên
 `--ring`. Không phải "tô màu cho đậm" — mà một luật nhân–quả đọc được: nhìn màu biết ai làm.
 
@@ -108,7 +110,7 @@ người. Bề mặt agent (badge agent, tiến độ tự động, toast do age
 
 `shadow-halo` là **thêm vào**, không thay `outline` của `--ring`: keyboard focus vẫn có ring cứng
 (và outline vẫn hiện dưới forced-colors, nơi box-shadow bị bỏ). Nhịp `conduct` và `seam-flow` tắt
-hoàn toàn dưới `prefers-reduced-motion` qua rule chặn chung của Alloy (`global.css`). Màu lực
+hoàn toàn dưới `prefers-reduced-motion` qua rule chặn chung của Loom (`global.css`). Màu lực
 lượng là tín hiệu trạng thái, không phải trang trí: một bề mặt không có ai làm việc thì giữ
 trung tính, nếu không "ai đang làm" mất nghĩa.
 

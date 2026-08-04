@@ -75,7 +75,15 @@ build/typecheck — invoked directly as
   exception shells out to `pnpm nx graph`, so integration tests skip that path
   (unit tests inject the graph).
 - **`license-scope.mjs` is the one place that answers "which terms govern this
-  path?"** — the root `LICENSE`'s SCOPE section as code. It has two consumers
+  path?"** — the root `LICENSE`'s SCOPE section as code. **The tree answers
+  first and the path only refines it**: `licenseForPath` takes the slug
+  `rootLicenseSlug` reads off the tree's own LICENSE, because a carve-out is a
+  promise a tree makes about part of itself, and a tree that grants nothing has
+  nothing to carve out of — in a proprietary tree every path is proprietary,
+  `packages` directory or not. Never reintroduce a directory name as the
+  first question: this module is consumed by the private control-plane
+  workspace too, and recognising a tree by an area name means its next rename
+  silently reclassifies it. It has two consumers
   that must never disagree: `check-project-conventions` judges the `license:*`
   tag and `license` manifest field a project already declares, and
   `scaffold-lib` decides what a new project is born declaring. Were those two
@@ -358,10 +366,12 @@ build/typecheck — invoked directly as
   `shared/libs/doctrine`. The corpus has two tiers and only one lives here, so
   a downstream workspace runs the same command against its withheld tier
   rather than growing a second implementation of the same rules. Which rules
-  apply is **derived from the root, never passed**: `withheldTier` asks
-  `licenseForPath`, because a caller free to state the tier is free to state
-  it wrongly, and "published tree judged as withheld" is precisely the mistake
-  nobody would notice. Three rules are publication-scoped — bet identifiers
+  apply is **derived from the root, never passed**: `withheldTier` reads the
+  tree's own LICENSE through `rootLicenseSlug`, because a caller free to state
+  the tier is free to state it wrongly, and "published tree judged as withheld"
+  is precisely the mistake nobody would notice. It derives from a legal fact
+  rather than a directory name, which is what lets the withheld tier's
+  workspace rename its areas without changing tier. Three rules are publication-scoped — bet identifiers
   (the ledger defining them lives in the withheld tier), corpus-map routing,
   and orphan families (an owner published across the boundary is not missing);
   episode markers and variant staleness are properties of doctrine prose and

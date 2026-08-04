@@ -1,8 +1,8 @@
 /**
- * Alloy — global stylesheet
+ * Loom — global stylesheet
  * Base element styling + the motion keyframe library, layered into Tailwind's
  * `base` layer. This file is Tailwind-engine-agnostic: the host imports the
- * Tailwind entry (which declares the layer order and loads the Alloy theme
+ * Tailwind entry (which declares the layer order and loads the Loom theme
  * via `@config`) BEFORE this file, then this file appends to `@layer base`.
  * Offline-safe: no network imports here — Geist + Geist Mono are self-hosted
  * (./fonts.css, woff2 vendored in ./fonts/), so every host renders the real
@@ -93,8 +93,9 @@
   }
 }
 
-/* Conduct — "agent is working": a copper conduction pulse. The dual-force
- * law's motion voice for Force 2 (Design System › Signature). */
+/* Conduct — "agent is working": the weft's shuttle beat, a pulse that keeps
+ * time while the thread is being carried across. The dual-force law's motion
+ * voice for Force 2 (Design System › Signature). */
 @keyframes conduct {
   0%,
   100% {
@@ -105,7 +106,7 @@
   }
 }
 
-/* Seam-flow — a live weld seam: the steel↔copper boundary drifts while the
+/* Seam-flow — a live seam: the warp↔weft boundary drifts while the
  * human↔agent collaboration is running. Apply to a `bg-seam` element with
  * `background-size: 200% 100%` (inline style); static once work settles. */
 @keyframes seam-flow {

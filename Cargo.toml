@@ -1,3 +1,20 @@
 [workspace]
 resolver = "3"
-members = []
+members = ["rba/apps/rba-desktop/src-tauri"]
+
+# One lint bar for every crate in the workspace, inherited with
+# `[lints] workspace = true` rather than restated per crate — the same
+# single-source rule the ESLint and golangci configs follow.
+#
+# Cargo's inheritance is all-or-nothing at the `[lints]` level: a crate takes
+# this whole table or none of it, and cannot cherry-pick the clippy half. That
+# is why `unsafe_code` lives here too rather than per-crate. A future crate
+# wrapping a native driver may genuinely need `unsafe`; it opts out by writing
+# its own `[lints]` table, which is a visible decision in a diff instead of a
+# silently missing line.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

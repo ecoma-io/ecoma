@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 /**
  * Surface — the panel/card primitive. Elevation is expressed by hairline
- * borders and background lightness, not heavy shadows (Alloy principle:
+ * borders and background lightness, not heavy shadows (Loom principle:
  * "hairline over shadow"): on the paper-light ground a white `card` already
  * reads as raised, so only `overlay` carries a real shadow.
  */

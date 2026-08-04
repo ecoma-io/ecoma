@@ -1,7 +1,7 @@
 ---
 title: "Review Rubric & Method"
 status: design-end-state
-canonical-sha: 4659be6547d2
+canonical-sha: 2d6ff9c2e4e9
 ---
 
 # Review Rubric & Method
@@ -330,6 +330,22 @@ _Tinh thần: mọi lời hứa có cơ chế; mọi cơ chế có lời hứa._
   một spec, sổ ADR, roadmap và scenario catalog — và không tiêu chí nào đọc lại
   những câu đó khi các tài liệu hạ cánh. M1 và M2 đều PASS ở trạng thái ấy: lời
   hứa có cơ chế và cơ chế phục vụ lời hứa. Chỉ có lời hoãn là cũ._
+- **M4 — chính sách công bố phải giải được hai chiều**: mọi dòng của bảng Chính
+  sách công bố trong bản đồ hồ sơ mà giữ kín một tài liệu hay một mục đều phải
+  giải ra một thứ thực sự tồn tại ở tầng không công bố, và mọi tài liệu ở tầng
+  đó đều phải được một dòng gọi tên. Một mệnh đề giữ kín một mục **không tồn tại
+  ở cả hai nửa** là `minor` khi nó chỉ cũ, và `major` khi nội dung đã mất — chỉ
+  lịch sử của hồ sơ phân biệt được hai trường hợp, nên phép kiểm là một `git log`
+  chứ không phải một lượt đọc cây hiện tại. **Tiêu chí này chỉ chạy được từ
+  workspace giữ cả hai nửa.** Cây công bố về mặt cấu tạo không nhìn thấy tầng
+  không công bố — ranh giới là quyền truy cập repository — nên không gate nào ở
+  đó có thể cưỡng chế nó, và review là trọng tài duy nhất. Đó là lý do nó được
+  viết thành một tiêu chí chứ không phải một gate còn thiếu. _Tiền lệ: dòng
+  roadmap của chính sách giữ kín "dòng §7 nhắc ngưỡng" trong khi §7 chưa bao giờ
+  có dòng đó, và dòng scenario catalog bên cạnh ghi "Phần 2–3" cho một tài liệu
+  mà nửa không công bố của nó chạy tới Phần 3c — trong khi phần kiểm kê ghi một
+  sổ cược B1–B8 đã lớn thành B12. Ba tuyên bố cũ về phía bên kia một ranh giới
+  người đọc không thể bước qua, không cái nào M1 hay M2 bắt được._
 
 ### N — Threat-actor battery
 

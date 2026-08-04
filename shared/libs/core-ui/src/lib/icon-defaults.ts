@@ -1,7 +1,7 @@
 import { setLucideProps } from "@lucide/vue";
 
 /**
- * Apply the Alloy icon defaults once at a host's root (Design System ›
+ * Apply the Loom icon defaults once at a host's root (Design System ›
  * Iconography): size 16, stroke 1.5 — hairline-first, matching the 1px
  * border language. Every `@lucide/vue` icon rendered after this call
  * inherits the defaults, so individual icons only declare `size`/
@@ -13,6 +13,6 @@ import { setLucideProps } from "@lucide/vue";
  * The numbers live HERE, not in each host — call this from the host's entry
  * (`main.ts`, Storybook `preview.ts`) before mounting the app.
  */
-export function applyAlloyIconDefaults(): void {
+export function applyLoomIconDefaults(): void {
   setLucideProps({ size: 16, strokeWidth: 1.5 });
 }

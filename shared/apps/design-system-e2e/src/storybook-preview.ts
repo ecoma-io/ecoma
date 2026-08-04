@@ -64,7 +64,7 @@ export function builtStoryIds(): string[] {
 /**
  * The preview URL for one story. Both URL flags are load-bearing:
  *
- *  - `alloyBare=1` renders the story without the viewport-picker surface
+ *  - `loomBare=1` renders the story without the viewport-picker surface
  *    (.storybook/PreviewSurface.vue): that surface nests a second `iframe.html`
  *    of the SAME story, so a scan without it sees every element twice and
  *    attributes half of them to chrome this project does not own.
@@ -76,7 +76,7 @@ export function builtStoryIds(): string[] {
  *    that reports here is the one the a11y suite configures.
  */
 export function storyUrl(id: string): string {
-  return `/iframe.html?id=${encodeURIComponent(id)}&alloyBare=1&globals=a11y.manual:!true`;
+  return `/iframe.html?id=${encodeURIComponent(id)}&loomBare=1&globals=a11y.manual:!true`;
 }
 
 /** The preview iframe's globals, narrowed to what the render wait below needs. */

@@ -1,6 +1,6 @@
 /**
  * Tailwind v4 entry for the design-system app's Storybook.
- * Loads the engine, then the Alloy theme via the legacy JS config (`@config`)
+ * Loads the engine, then the Loom theme via the legacy JS config (`@config`)
  * so core-ui's shared `tailwind.preset.js` stays the single source of the theme.
  * Imported BEFORE `@ecoma-io/ui/styles/global.css` (which appends to `@layer base`).
  */

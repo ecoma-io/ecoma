@@ -2,6 +2,17 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue's own event, and the one trigger a queue cannot work
+  # without: the queue builds a temporary ref (trunk plus the entries ahead of
+  # this one) and waits for the required checks to report **on that ref**. A
+  # workflow that does not run there reports nothing, so the entry waits out
+  # `check_response_timeout_minutes` and is dropped as failed — a queue that
+  # silently never merges, which is exactly what happened before this line
+  # existed. `nx-run` sends this event down the `run-many` path rather than
+  # `affected`, which is the honest selection here: the queue's whole job is to
+  # prove the would-be trunk green, and there is no "base" to diff a batch of
+  # several entries against that means anything.
+  merge_group:
   push:
     branches: [main]
   # Nightly full-workspace run, and the same on demand. Every other trigger
@@ -53,10 +64,12 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      # Rebase-merge lands every branch commit on main verbatim, and the local
-      # commit-msg hook cannot see amended/rebased history — so both message
-      # gates re-run here per PR commit (merge commits are ignored, matching
-      # commitlint's own defaults).
+      # Every branch commit reaches main verbatim — under merge-commit merging
+      # as the SAME object, through the merge's second parent — and the local
+      # commit-msg hook cannot see amended or rebased history. So both message
+      # gates re-run here, per pull-request commit. Merge commits are skipped on
+      # both sides (`--no-merges` below, commitlint's own defaults on its side):
+      # nobody authors a merge, so there is no scope for one to get wrong.
       - name: Commit messages (Conventional + scope ↔ path)
         if: github.event_name == 'pull_request'
         env:
@@ -114,9 +127,9 @@ jobs:
       # Polyglot toolchains. Go and Rust are UNCONDITIONAL: dev-cli's
       # scaffold-lib integration tests drive the real `go vet` and
       # `cargo check` on every run, whether or not any Go/Rust project
-      # exists yet. golangci-lint and uv only matter once a real project
-      # does, so they key off the workspace marker files. With the first
-      # Rust crate, add Swatinem/rust-cache next to the toolchain step.
+      # exists yet. golangci-lint, the Tauri system libraries and uv only
+      # matter once a real project does, so they key off marker files rather
+      # than a hand-kept list of projects (Rule 14: derive, don't enumerate).
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.work # derives the version from go.work's own pin (CONTRIBUTING.md), never a second copy
@@ -125,6 +138,26 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
+      # The crate registry and `target/` are the whole cost of the Rust lane —
+      # a cold `cargo clippy` on a Tauri crate compiles several hundred
+      # dependencies. Keyed on the lockfile by the action itself.
+      - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: ". -> target"
+
+      # Tauri links GTK and WebKitGTK on Linux and needs their development
+      # headers to `cargo check`, not merely to bundle — so without this step
+      # the Rust lane fails at `gdk-sys` before reaching a line of our code.
+      # Keyed off any `tauri.conf.json` in the tree: a second desktop app
+      # gets the libraries the day it lands, and a tree with no Tauri app
+      # never pays the ~40s install.
+      - name: Install the Tauri system libraries (Linux)
+        if: hashFiles('**/tauri.conf.json') != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev
       # install-only: true — the Go lint target itself invokes golangci-lint
       # (project.json), so this step only needs the verified binary on PATH,
       # not a lint run of its own. The action downloads and checksums the

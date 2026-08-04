@@ -57,8 +57,8 @@ defineEmits<{ "update:modelValue": [value: string] }>();
       cn(
         'group flex items-center gap-2 rounded-md border border-input bg-background text-foreground',
         'transition-[color,background-color,border-color,box-shadow] duration-fast ease-out',
-        // Rim-lit at rest, alloy bloom on focus (Signature law): the field
-        // catches light instead of casting a shadow, and focus opens the alloy.
+        // Rim-lit at rest, the weave blooms on focus (Signature law): the field
+        // catches light instead of casting a shadow, and focus draws it tight.
         'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring',
         !invalid && 'focus-within:shadow-halo',
         size === 'sm' && 'h-8 px-2.5 text-xs',

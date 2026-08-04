@@ -3,7 +3,7 @@ title: "ADR-0008 — Cấu trúc subsystem"
 status: design-end-state
 gate: G0
 frozen-scope: "§4 phạm vi các suite; các boundary rule của §3 và bản kiểm kê project của §2 là phần hiện thực hóa, không phải phần đóng băng"
-canonical-sha: 71dface379fa
+canonical-sha: 3ed0c2bf0fb2
 ---
 
 # ADR-0008 — Cấu trúc subsystem
@@ -189,7 +189,7 @@ Một lần chạy xanh không được ngụ ý nhiều hơn cái nó đã ki�
 | Luật                                                                                                                                                                | Ai giữ                                                | Nấc                                          |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
 | mọi project khai một tag `type:`, `scope:`, `license:`                                                                                                              | `require-project-tags` và `check-project-conventions` | máy                                          |
-| tag `license:` khớp đường dẫn; một carve-out mang LICENSE riêng                                                                                                     | `license-scope` qua `check-project-conventions`       | máy                                          |
+| tag `license:` khớp LICENSE của chính cây, đường dẫn chỉ tinh chỉnh thêm; một carve-out mang LICENSE riêng                                                          | `license-scope` qua `check-project-conventions`       | máy                                          |
 | chiều import qua trục tầng và license, **chỉ TypeScript và Vue**                                                                                                    | `@nx/enforce-module-boundaries`                       | máy                                          |
 | chiều import qua trục tầng và license, **Go**                                                                                                                       | không gì parse Go                                     | **chỉ review**                               |
 | seam giữa các primitive bên trong `engine-domain`                                                                                                                   | không gì                                              | **chỉ review**                               |

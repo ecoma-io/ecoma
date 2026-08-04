@@ -16,7 +16,7 @@ import {
  * The design-token contract, asserted against the BUILT Storybook.
  *
  * `tokens.css` states its laws in prose — the elevation rhythm, the focus ring
- * being the Human force, the seam running steel to copper — and nothing holds
+ * being the Human force, the seam running warp to weft — and nothing holds
  * them. Several are held together by literals that RESTATE another token's
  * value instead of referencing it (`--seam` and `--halo` both spell out
  * `--primary`'s channels), so retuning one token leaves the others silently
@@ -160,7 +160,7 @@ test("the focus ring is the Human force", async ({ tokenPage }) => {
 
   expect(
     painted["--ring"],
-    'tokens.css states "focus ring = Human steel: keyboard focus is a person acting", but --ring restates a colour --primary no longer has. --ring is authored as a literal copy of --primary\'s channels, so retuning one does not carry to the other.',
+    'tokens.css states "focus ring = Human warp: keyboard focus is a person acting", but --ring restates a colour --primary no longer has. --ring is authored as a literal copy of --primary\'s channels, so retuning one does not carry to the other.',
   ).toBe(painted["--primary"]);
 });
 
@@ -213,10 +213,10 @@ test("the focus halo is the Human force", async ({ tokenPage }) => {
   const forces = await paintTokens(tokenPage, ["--primary"]);
   expect(forces["--primary"], "--primary no longer resolves to a colour").not.toBe(UNRESOLVED);
 
-  // Channels only: the halo is deliberately the force at low alpha ("a steel
+  // Channels only: the halo is deliberately the force at low alpha ("a warp
   // haze"), so its opacity is its own business and only the hue must follow.
   expect(
     channels(colors[0]),
-    `tokens.css states the focus halo is "a steel haze" around the ring, but --halo spells --primary's channels out as a literal and they have drifted: the halo is ${colors[0]} while the Human force is now ${forces["--primary"]}.`,
+    `tokens.css states the focus halo is "a warp haze" around the ring, but --halo spells --primary's channels out as a literal and they have drifted: the halo is ${colors[0]} while the Human force is now ${forces["--primary"]}.`,
   ).toEqual(channels(forces["--primary"]));
 });

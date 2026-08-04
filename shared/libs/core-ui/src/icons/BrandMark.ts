@@ -8,7 +8,7 @@ import { createLucideIcon } from "@lucide/vue";
  * as any Lucide icon (size, strokeWidth, color, …) — consumers can't tell
  * custom icons from stock ones. Custom domain icons live in this folder and
  * follow the same recipe: 24-grid geometry, stroke via currentColor. The
- * duotone version (steel and ember halves) lives in the brand assets
+ * duotone version (warp and weft halves) lives in the brand assets
  * (shared/libs/core-ui/docs/design/assets/), not here — an icon stays mono.
  */
 const BrandMark = createLucideIcon("brand-mark", [

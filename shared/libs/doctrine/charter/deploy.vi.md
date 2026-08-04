@@ -1,19 +1,20 @@
 ---
 title: "Deploy & Operations Charter"
 status: design-end-state
-canonical-sha: 7103960d04e6
+canonical-sha: f6d394acc99e
 ---
 
 # Deploy & Operations Charter
 
 ## 1. Ranh giới — ba phân vùng, ba nhà, cấm trộn
 
-| Nhà                      | Nội dung                                                                                                                       | Ship cho self-host?               | License                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ---------------------------- |
-| **`deploy/`**            | Thứ một self-hoster **nhận và chạy**: compose, Helm chart, systemd unit, installer, migration runner, mẫu cấu hình edge router | ✅                                | SUL                          |
-| **`cloud/`**             | IaC + control plane của **nhà vận hành Cloud**: fleet, billing, quota ops, provisioning tự động                                | ❌                                | Proprietary, không public    |
-| **`shared/tools/`**      | Tooling của **người phát triển**: dev-cli, lint rules, repo-care                                                               | ❌ (không phải artifact sản phẩm) | SUL                          |
-| **`<area>/enterprise/`** | Tính năng cấp doanh nghiệp cho **self-host**: SSO, audit export, retention sâu, RBAC nâng cao — **không** chứa đa-tenant       | ✅ (cần license)                  | Enterprise, tag `license:ee` |
+| Nhà                 | Nội dung                                                                                                                       | Ship cho self-host?               | License                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | ------------------------- |
+| **`deploy/`**       | Thứ một self-hoster **nhận và chạy**: compose, Helm chart, systemd unit, installer, migration runner, mẫu cấu hình edge router | ✅                                | SUL                       |
+| **`cloud/`**        | IaC + control plane của **nhà vận hành Cloud**: fleet, billing, quota ops, provisioning tự động                                | ❌                                | Proprietary, không public |
+| **`shared/tools/`** | Tooling của **người phát triển**: dev-cli, lint rules, repo-care                                                               | ❌ (không phải artifact sản phẩm) | SUL                       |
+
+**Các module trả tiền không phải phân vùng thứ tư.** Tính năng cấp doanh nghiệp cho self-host — SSO, audit export, retention sâu, RBAC nâng cao, và **không** chứa đa-tenant — vẫn tới được một self-hoster có license, nhưng mã nguồn của chúng nằm trong workspace không công bố, cạnh control plane, chứ không trong một thư mục `<area>/enterprise/` của repository này. Công bố chúng dưới những điều khoản không cấp gì cả là trao mã cho mọi đối thủ trong khi người mua không có quyền nào trong đó, nên thứ mang tầng ấy là một biên repository chứ không phải một license (North Star §8). Bảng phân vùng trên là bản đồ những gì repository này giữ — đó là lý do chúng không có một hàng trong đó.
 
 **Single-tenant là thuộc tính của HÌNH THÁI, không phải giới hạn kỹ thuật của engine**: mọi cài đặt self-host (SUL lẫn Enterprise) chạy **đúng một tenant**, vì workflow tạo tenant thứ hai chỉ ship trong `cloud/` — **không** vì runtime kiểm quyền (North Star §7 cấm). Engine vẫn giữ nguyên tầng tenant trong cây khoá kể cả khi N=1 (Tenant §2c). Charter này vì thế **không** khai gì về provisioning đa tenant — đó là việc của `cloud/`.
 

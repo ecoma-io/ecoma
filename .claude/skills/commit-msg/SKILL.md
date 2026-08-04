@@ -24,7 +24,7 @@ type(scope): subject
 - **breaking change** — put `!` before the colon (`feat(core-ui)!: …`) and/or a `BREAKING CHANGE:` footer.
 - **body / footer** — optional; leading blank line before each (warning), lines ≤ 100 chars.
 
-Agent note: the `Co-Authored-By: Claude` / `Claude-Session:` trailers are stripped automatically by the `prepare-commit-msg` hook — do not add them, and do not rely on them being present.
+Agent note: agent attribution trailers are **kept**. A commit written with an agent should say so — disclose the tool with a `Generated-by:` or `Assisted-by:` trailer, and leave any `Co-Authored-By: Claude` line the harness appends in place. What must not drift is the **author**: the commit lands under the human operator, which `ensure-commit-identity --check` enforces at pre-commit. The one line that stays out is `Claude-Session:` — a link into a private transcript, not attribution.
 
 ## 2. Scope vocabulary
 

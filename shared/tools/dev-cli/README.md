@@ -39,8 +39,7 @@ Not every command is wired into a gate — `lefthook.yml` and
 - **lefthook pre-commit**: `check-journey-markers-workspace`,
   `check-doc-links`, `check-command-refs`, `check-doctrine`, `check-practice-index`,
   `ensure-commit-identity --check`.
-- **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
-  `check-commit-scope`.
+- **lefthook commit-msg**: `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
   (once per commit in the PR), `check-contributor-record` (with the PR author
   on pull requests, bare otherwise), and `workspace-gates` — every

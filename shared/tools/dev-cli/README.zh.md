@@ -36,8 +36,7 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
 - **lefthook pre-commit**：`check-journey-markers-workspace`、
   `check-doc-links`、`check-command-refs`、`check-doctrine`、`check-practice-index`、
   `ensure-commit-identity --check`。
-- **lefthook prepare-commit-msg / commit-msg**：`strip-claude-trailers`、
-  `check-commit-scope`。
+- **lefthook commit-msg**：`check-commit-scope`。
 - **CI**（`.github/workflows/ci.yml`）：`check-commit-scope --commit <sha>`
   （对 PR 里的每个 commit 各跑一次）、`check-contributor-record`（pull request
   上带 PR 作者参数，其余情况裸跑）、以及 `workspace-gates`——把所有

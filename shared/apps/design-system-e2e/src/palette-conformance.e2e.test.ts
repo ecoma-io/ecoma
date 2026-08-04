@@ -7,7 +7,7 @@ import { colorTokenNames, declaredTokenNames, paintTokens, rawTokenValues } from
  * Holds every rendered story to the token palette.
  *
  * `core-ui`'s own guidance is "never hardcode colors, durations, or easings;
- * use Alloy tokens" — and until this sweep, nothing enforced it. A
+ * use Loom tokens" — and until this sweep, nothing enforced it. A
  * `text-[#3b82f6]` or a `bg-black/40` scrim compiles, renders, and passes both
  * the unit tier (jsdom resolves no colours) and the axe sweep (a hardcoded
  * colour with adequate contrast is perfectly accessible). It surfaces only as a
@@ -120,7 +120,7 @@ for (const id of STORY_IDS) {
 
     expect(
       offPalette,
-      `${id} paints colours that no Alloy token defines. Every colour must come from tokens.css (core-ui CLAUDE.md: "never hardcode colors"), or the surface stops following the token when it is retuned:\n${offPalette.join("\n")}`,
+      `${id} paints colours that no Loom token defines. Every colour must come from tokens.css (core-ui CLAUDE.md: "never hardcode colors"), or the surface stops following the token when it is retuned:\n${offPalette.join("\n")}`,
     ).toEqual([]);
   });
 }

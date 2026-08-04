@@ -2,16 +2,23 @@
   "name": "@ecoma-io/ecoma",
   "homepage": "https://ecoma.io",
   "private": true,
-  "description": "Shared foundation of the @ecoma-io workspace — tooling, design system, app substrates",
+  "description": "A self-hostable labor OS where humans, AI agents, and code fill the same roles. Graph the work, evolve by loop: every output crosses a checkpoint calibrated on your own tenant's data. From a one-person company to an enterprise.",
   "keywords": [
-    "self-hosted",
-    "fair-code",
     "labor-operating-system",
+    "graph-engineering",
+    "loop-engineering",
+    "one-person-company",
+    "solo-founder",
     "workflow-engine",
     "workflow-automation",
-    "human-in-the-loop",
+    "workflow-orchestration",
     "ai-agents",
+    "agent-orchestration",
+    "human-in-the-loop",
+    "business-process-management",
     "rpa",
+    "self-hosted",
+    "fair-code",
     "nx-monorepo"
   ],
   "license": "LicenseRef-Ecoma-SustainableUse-1.0",
@@ -38,7 +45,8 @@
   "pnpm": {
     "overrides": {
       "axios": "^1.18.0",
-      "nx>brace-expansion": "^5.0.8",
+      "nx>brace-expansion": "^5.0.9",
+      "fast-uri": "^3.1.5",
       "js-beautify": "^2.0.3",
       "vitepress>vite": "^8.0.0"
     }
@@ -58,6 +66,7 @@
     "@storybook/vue3-vite": "10.5.6",
     "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/cli": "2.11.1",
     "@types/node": "^26.1.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/coverage-v8": "^4.1.10",

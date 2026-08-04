@@ -51,7 +51,7 @@ defineExpose({ pct });
     <!-- Determinate: a full-width bar slid left by the remaining percentage
          (transform eased over --dur-slow). Indeterminate: a short segment
          sweeping the track on a loop, since there is no percentage to paint.
-         Completion beat: at 100% the fill turns success (Alloy dual-force
+         Completion beat: at 100% the fill turns success (Loom dual-force
          law — a finished piece of work reads as done at a glance), eased in
          over the same --dur-slow lane via the background transition. -->
     <ProgressIndicator

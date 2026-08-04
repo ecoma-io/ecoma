@@ -2,18 +2,19 @@
 name: core-ui
 subsystem: shared
 lang: vi
-description: Design system Alloy — primitive Vue 3, block, và design token dùng chung cho mọi bề mặt sản phẩm Ecoma.
+description: Design system Loom — primitive Vue 3, block, và design token dùng chung cho mọi bề mặt sản phẩm Ecoma.
 ---
 
 > 🌐 [English](./README.md) · **Tiếng Việt** · [中文](./README.zh.md)
 
-# core-ui — Alloy
+# core-ui — Loom
 
-Alloy là design system Ecoma đóng gói dưới tên `@ecoma-io/ui`: các primitive
+Loom là design system Ecoma đóng gói dưới tên `@ecoma-io/ui`: các primitive
 Vue 3 + Tailwind, block, và design token dùng để được **consume**, không
 phải tự tay làm lại, bởi mọi bề mặt sản phẩm trong workspace. Ngôn ngữ hình
-thức của nó là hai lực lượng — Human (thép) × Agent (đồng) — với mối hàn
-gradient chỉ ở nơi hai bên gặp nhau; tông light-first, enterprise.
+thức của nó là hai sợi trên một tấm vải — Human (warp, sợi dọc) × Agent
+(weft, sợi ngang) — với đường can gradient chỉ ở nơi hai sợi bắt nhau; tông
+light-first, enterprise.
 
 <!-- readme:why -->
 
@@ -25,7 +26,7 @@ ranh giới sản phẩm mà repo này sẽ từng có (một app độc lập, 
 shell, hay phần composition riêng của một sản phẩm trên nền đó). Nếu mỗi
 sản phẩm tự tay làm lại nút bấm, dialog, hay skeleton loader của riêng mình,
 mỗi bản sẽ trôi dạt về spacing, motion, và accessibility theo lịch trình
-riêng. Alloy tồn tại để một affordance chung — một primitive, một token,
+riêng. Loom tồn tại để một affordance chung — một primitive, một token,
 một motion pattern — được xây một lần và consume ở khắp nơi, theo một luật
 cho mỗi chiều: sản phẩm consume trước khi tự tay làm lại, và bất kỳ thứ
 generic nào được phác thảo bên trong một sản phẩm sẽ "tốt nghiệp"
@@ -52,7 +53,7 @@ Signature, Principles) đều render ở đó.
 
 ## Vị trí của nó trong hệ sinh thái
 
-Alloy là tier một trong một UI stack hai tầng: lib này sở hữu mọi affordance
+Loom là tier một trong một UI stack hai tầng: lib này sở hữu mọi affordance
 _generic_ (primitive, block, token, motion), còn UI lib riêng của từng sản
 phẩm (tier hai) chỉ sở hữu phần composition đặc thù sản phẩm bên trên. Sự
 phân tách đó là điều giúp một sản phẩm ship một màn hình mà không phải

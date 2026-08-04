@@ -2,7 +2,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
 /**
- * Button — the workhorse. Encodes the Alloy press language:
+ * Button — the workhorse. Encodes the Loom press language:
  *   • hover lifts by fill, not shadow
  *   • active presses down (scale 0.97) — physical, causal feedback
  *   • focus blooms the brand ring

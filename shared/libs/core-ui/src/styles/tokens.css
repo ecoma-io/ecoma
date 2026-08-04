@@ -1,5 +1,5 @@
 /**
- * Alloy — Ecoma design tokens
+ * Loom — Ecoma design tokens
  * ===================================
  * The single source of truth for the visual language shared across every
  * product in the Ecoma ecosystem.
@@ -7,13 +7,16 @@
  * Positioning it encodes: Ecoma is a no-code platform where an organization
  * digitizes its own operations and AI agents are a first-class workforce.
  * The form language is dual-force (Design System › Signature):
- *   - Human (thép / steel) — what people author and decide; doubles as the
- *     default action color because a person drives the UI.
- *   - Agent (đồng / copper) — work an agent is running or has produced.
- *   - The seam (mối hàn) — a steel→copper gradient — appears ONLY where the
+ *   - Human (warp / sợi dọc) — the threads strung and held under tension:
+ *     what people author and decide; doubles as the default action color
+ *     because a person drives the UI.
+ *   - Agent (weft / sợi ngang) — the thread carried across them: work an
+ *     agent is running or has produced.
+ *   - The seam (đường can) — a warp→weft gradient — appears ONLY where the
  *     two forces meet: handoffs, co-authored assets, brand moments. Never
  *     under body text, never on elements smaller than 20px; interaction
  *     states stay flat.
+ * Two threads, one cloth: the forces are one piece of work, not two systems.
  *
  * Colors are authored as space-separated HSL channels so Tailwind can compose
  * them with alpha:  hsl(var(--primary) / 0.5).  (shadcn-vue convention.)
@@ -26,7 +29,7 @@
  */
 
 :root {
-  /* ---- Neutrals: giấy kỹ thuật, lạnh nhẹ về phía thép ------------------ */
+  /* ---- Neutrals: giấy kỹ thuật, lạnh nhẹ về phía warp ------------------ */
   --background: 213 25% 96%;
   --foreground: 213 29% 15%;
 
@@ -54,20 +57,20 @@
   --subtle: 213 20% 94%;
   --subtle-foreground: 213 29% 18%;
 
-  /* ---- Force 1 · Human — thép: default action, structure, decisions ---- */
+  /* ---- Force 1 · Human — warp: default action, structure, decisions ---- */
   --primary: 211 37% 32%;
   --primary-foreground: 0 0% 100%;
-  --primary-muted: 211 35% 92%; /* steel wash for selected/active backgrounds */
+  --primary-muted: 211 35% 92%; /* warp wash for selected/active backgrounds */
 
-  /* ---- Force 2 · Agent — đồng: automated work running / produced ------- */
+  /* ---- Force 2 · Agent — weft: automated work running / produced ------- */
   --agent: 18 56% 39%;
   --agent-foreground: 0 0% 100%;
-  --agent-muted: 18 50% 93%; /* copper wash for agent-driven surfaces */
+  --agent-muted: 18 50% 93%; /* weft wash for agent-driven surfaces */
 
   --secondary: 213 18% 91%;
   --secondary-foreground: 213 29% 18%;
 
-  /* focus ring = Human steel: keyboard focus is a person acting */
+  /* focus ring = Human warp: keyboard focus is a person acting */
   --ring: 211 37% 32%;
 
   /* ---- Functional (hues distinct from both forces) --------------------- */
@@ -80,7 +83,7 @@
   --info: 202 65% 35%;
   --info-foreground: 0 0% 100%;
 
-  /* ---- The seam (mối hàn): the two forces meeting. OKLCH interpolation so
+  /* ---- The seam (đường can): the two forces meeting. OKLCH interpolation so
    * the midpoint never turns muddy. Handoff points and brand moments only —
    * the law lives in Design System › Signature. -------------------------- */
   --seam: linear-gradient(90deg in oklch, hsl(211 37% 32%), hsl(18 56% 39%));
@@ -107,7 +110,7 @@
   --shadow-md: 0 4px 12px -2px hsl(213 30% 12% / 0.1), 0 2px 6px -2px hsl(213 30% 12% / 0.07);
   --shadow-lg: 0 12px 32px -6px hsl(213 30% 12% / 0.14), 0 4px 10px -4px hsl(213 30% 12% / 0.08);
 
-  /* ---- Focus halo: a steel haze AROUND the crisp --ring outline (added on
+  /* ---- Focus halo: a warp haze AROUND the crisp --ring outline (added on
    * top, never replacing it — outline still shows under forced-colors) ---- */
   --halo: 0 0 0 4px hsl(211 37% 32% / 0.15);
 

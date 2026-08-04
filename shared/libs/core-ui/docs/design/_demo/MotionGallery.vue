@@ -49,19 +49,19 @@ const easings = [
     <div class="flex items-center gap-4">
       <div class="h-10 w-10 rounded-full bg-agent/15 animate-conduct" />
       <div class="text-xs text-muted-foreground">
-        <span class="font-medium text-foreground">conduct</span> — nhịp dẫn đồng báo hiệu agent đang
+        <span class="font-medium text-foreground">conduct</span> — nhịp thoi đưa báo hiệu agent đang
         làm việc.
       </div>
     </div>
 
-    <!-- Live weld seam -->
+    <!-- Live seam -->
     <div class="flex items-center gap-4">
       <div
         class="h-2 w-40 shrink-0 rounded-full bg-seam animate-seam-flow"
         style="background-size: 200% 100%"
       />
       <div class="text-xs text-muted-foreground">
-        <span class="font-medium text-foreground">seam-flow</span> — mối hàn sống: biên thép↔đồng
+        <span class="font-medium text-foreground">seam-flow</span> — đường can sống: biên warp↔weft
         trôi chậm khi cuộc cộng tác người↔agent đang diễn ra.
       </div>
     </div>

@@ -1,84 +1,138 @@
 > 🌐 [English](./README.md) · [Tiếng Việt](./README.vi.md) · **中文**
 
-# Ecoma
+<p align="center">
+  <a href="https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml"><img src="https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/ecoma-io/ecoma"><img src="https://api.securityscorecards.dev/projects/github.com/ecoma-io/ecoma/badge" alt="OpenSSF Scorecard"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-fair--code-blue" alt="Fair-code"></a>
+</p>
 
-[![CI](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml/badge.svg)](https://github.com/ecoma-io/ecoma/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/ecoma-io/ecoma/badge)](https://scorecard.dev/viewer/?uri=github.com/ecoma-io/ecoma)
+<p align="center">
+  <a href="https://ecoma.io">ecoma.io</a> ·
+  <a href="https://ecoma.io/doctrine">Doctrine</a> ·
+  <a href="./CONTRIBUTING.md">参与贡献</a>
+</p>
 
-[ecoma.io](https://ecoma.io) · [Doctrine](https://ecoma.io/doctrine)
+---
 
-Ecoma 是一个可自托管的、"fair-code" 的劳动操作系统(labor operating
-system),在其中人类、AI、以及规则/代码共同扮演同一类劳动资源(Role/
-Filler);工作流——无论是确定性流程还是推理型任务——都由人类与 AI 直接在
-引擎内共同设计;每一个输出都要经过一个 checkpoint,其置信度会根据各租户
-自身的数据动态调整;人类的注意力(human attention)被视为一种需要被度量
-和优化的资源。
+## 把工作建成图。用回路演进。
 
-## 如何阅读这个仓库
+大多数自动化工具都要你二选一：确定性流水线，还是 AI agent；工作流引擎，还是聊天
+助手；人在回路里，还是人在回路外。
 
-每个子项目都带有**两份文档,面向两类读者**:
+**Ecoma 拒绝这个选择。** 人、AI agent、规则与代码是同一类东西——填入某个*角色*
+的*劳动资源*。流程中的一步并不关心是人、模型还是脚本在做，它只关心产出是否达到
+它设定的标准。于是工作流就是一张图，而填入每个节点的是什么，是你周二就能改、且
+不必重写任何东西的决定。
 
-- **`README.md` —— 面向人类。** 这是什么、为什么存在、以及它刻意**不**
-  做什么。从这里开始阅读。
-- **`CLAUDE.md` —— 面向编码 agent。** 目录范围内的机制:不变量、隐坑
-  (footgun)、配对规则、运行命令。人类也可以读,但它假定你已经知道这个
-  东西是用来做什么的。
+正是这一个想法，让其余的一切成为可能。
 
-工作区级别的原则与约定位于根目录的 [`CLAUDE.md`](./CLAUDE.md)。
+### 1. Graph engineering——组织结构图变成可执行的东西
+
+工作被建模为一张图：节点是任务，边是交接，每个节点都声明"好的产出"长什么样。人
+与 AI **在引擎内部**共同设计这张图——而不是在一个到周五就已偏离现实的画图工具里。
+
+这张图*就是*流程本身。没有第二份副本需要保持同步。
+
+### 2. Loop engineering——置信度是被测量的，不是被声称的
+
+每一份产出在继续流转之前都要穿过一道**检查点**，而该检查点的置信阈值是依据*你自
+己租户*的数据校准的，而不是依据厂商的演示。持续达标的角色会获得更大的自主权；不
+再达标的角色会被送回评审。
+
+这就是那个回路：运行、测量、重新校准、放松或收紧缰绳。它不是一块你去看的仪表
+板——而是一套会自己行动的机制。
+
+### 3. 从一人公司到企业
+
+同一套引擎服务于两者，因为真正起约束作用的条件完全相同，只是规模不同：**人的注
+意力是这栋楼里最稀缺的资源。**
+
+对独立创始人而言，这个约束是彻底的——你*就是*整栋楼。Ecoma 把你的注意力当作可测
+量的资源：什么会到达你、何时到达、为何到达，成为你设定的策略，而不是你被迫分拣
+的洪流。超出一个人规模的公司不需要换工具，它只需要改阈值。
+
+---
+
+## 实际进展到哪一步
+
+**Ecoma 处于预发布阶段。** 尚无版本发布，也没有分发任何构建产物。做一个供人自
+托管、供人审计的东西，意味着设计必须先于代码正确——所以设计先公开，而本节陈述的
+是真实存在的东西，而不是计划中的东西。
+
+| 层级            | 状态                                                           |
+| --------------- | -------------------------------------------------------------- |
+| **Doctrine**    | 3 份 North Star、27 份规格、各类章程与 ADR——已公开且可阅读     |
+| **工程装置**    | 运行中：CI、各类关卡、提交契约、conformance 台账、多语言工具链 |
+| **设计系统**    | 运行中：Vue 3 原语与区块，背后是一道可阻断的无障碍关卡         |
+| **网站 + 文档** | 运行中：门户外壳与 doctrine 阅读界面                           |
+| **引擎**        | 规格已完整；包的接缝已存在，运行时尚不存在                     |
+
+如果本仓库任何地方对某个产品界面的说法与上表相悖，那是该文件的缺陷，而不是你漏
+看的功能。
+
+## 先读设计，再读代码
+
+推理过程是公开的，而这正是重点。租户所依赖的每一项机制，都在被建造之前写下来，
+这样你就能就其本身的道理与设计争辩，而不必从二进制文件里逆向推断。
+
+请从 [doctrine](https://ecoma.io/doctrine) 开始。在代码树内部，每个子项目都携带
+**面向两类读者的两份文档**：
+
+- **`README.md`**——面向人类。这是什么、为何存在、以及刻意**不**做什么。
+- **`CLAUDE.md`**——面向编码 agent。目录范围内的不变量、陷阱与运行命令。人类也读
+  得懂，但它默认你已经知道这东西是干什么的。
+
+工作区级别的原则位于根目录的 [`CLAUDE.md`](./CLAUDE.md)。
 
 ## 快速开始
 
 ```bash
-# 验证工具链并搭建仓库——依赖、git hooks,以及 e2e 套件所需的 Playwright
-# Chromium。详见 CONTRIBUTING.md。
+# 检查工具链，安装依赖、git 钩子与 Playwright 浏览器
 pnpm run setup
 
 # 设计系统的 Storybook
 pnpm nx run design-system:serve
 
-# 一次代码改动的完成标准(definition of done)
+# 任何代码变更的完成定义
 pnpm nx affected -t lint test typecheck build e2e
 ```
 
-`pnpm nx` 是唯一的任务运行器。约定与架构方面的决策记录在
-[`CLAUDE.md`](./CLAUDE.md) 以及提交历史中。
+`pnpm nx` 是唯一的任务运行器。参见 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。
 
 ## 参与贡献
 
-- [贡献理念](./CONTRIBUTING.md) —— 我们的协作方式
-- [行为准则](./CODE_OF_CONDUCT.md) —— 社区规范
-- [安全策略](./SECURITY.md) —— 如何报告漏洞
+欢迎外部贡献，并且条款是写下来的，而不是临场发挥的：
 
-## 许可证
+- [贡献指南](./CONTRIBUTING.md)——我们如何工作，以及完成的定义
+- [行为准则](./CODE_OF_CONDUCT.md)
+- [安全策略](./SECURITY.md)——如何报告漏洞
+- [`CLA.md`](./CLA.md)——首次合并前的一次性协议
 
-Ecoma 采用 **fair-code**:源码公开,**不是开源(open source)**,同时也**不是
-闭源软件**。这三者并不相同,而它们之间的差别恰恰是关键所在。
+## 许可
 
-源码是公开的,并且会一直如此——产品向租户承诺的每一项机制,都写出来供人阅读、
-自行部署和修改。fair-code 保留的是**商业性的再分发**,其中最典型的就是把
-Ecoma 本身作为服务出售。正因为保留了这一条,其余部分才能够开放。
+Ecoma 是 **fair-code**：源码可见，既不是开源，也不是闭源。这是三件不同的事，而
+差别正是关键。
 
-**本节是便于快速阅读的摘要,不是条款。** 具有法律效力的是
-[`LICENSE`](./LICENSE);当摘要与条款不一致时,**以条款为准**。
+源码是公开的，并将保持公开——产品向租户承诺的每一项机制，都应当可阅读、可自托
+管、可修改。fair-code 保留的是商业再分发，尤其是把 Ecoma 本身作为服务出售。正是
+这条限制，才让其余部分能够开放。
 
-| 路径                           | 条款                                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------------- |
-| 下表未列出的其余部分           | Sustainable Use License                                                            |
-| `<subsystem>/packages/`        | Apache License 2.0 —— 供第三方对接的部分                                           |
-| `<subsystem>/enterprise/`      | **不授予任何权利** —— 需另行签署书面 [Enterprise License](./ENTERPRISE-LICENSE.md) |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs),含这些文件所引用的图片         |
-| `cloud/`                       | 专有,且不公开                                                                      |
-| 第三方组件                     | 依其各自权利人的条款                                                               |
+> **本节是便于快速阅读的摘要，不是条款。**
+> 具有法律效力的是 [`LICENSE`](./LICENSE)，两者不一致时以 `LICENSE` 为准。
 
-自行部署 Ecoma 来运营你自己的组织是**明确允许**的,无论是否用于商业目的,也包
-括用它来生产并向你自己的客户交付商品和服务。**不被允许**的是以**商业目的或收取
-费用**的方式把 Ecoma 提供给他人——无论采取何种形式:出售副本、捆绑进另一个收费
-产品,或者最典型的,替他们运行为托管服务。向他人分发,只有在**既免费又非商业**
-时才被允许。把 Ecoma 嵌入你自己的更大产品另有一项三条件测试——请阅读 `LICENSE`。
+| 路径                           | 条款                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| 未在下方列出的一切             | Sustainable Use License                                                   |
+| `<subsystem>/packages/`        | Apache License 2.0——你所依赖构建的部分                                    |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs)，含这些文件引用的图片 |
+| `cloud/`                       | 专有，且不公开                                                            |
+| 第三方组件                     | 其各自所有者的条款                                                        |
 
-构建过程会**检查这份声明**,而不是靠记忆:每个 project 都声明一个 `license:*`
-标签,当标签与它自身所在的目录不一致时,约定检查会失败。那是针对代码树所声明内
-容的一项 lint —— 真正具有法律效力的是 `LICENSE`。
+**为你自己的组织运行 Ecoma 是明确许可的**——无论商业与否，也包括用来向你的客户交
+付商品与服务。不被许可的是以商业目的或收费方式把 Ecoma 提供给他人：出售副本、把
+它打包进另一个收费产品，或者最明显的一种——为他人以托管服务的形式运行它。向他人
+分发，仅在既免费又非商业时才被许可。
 
-参与贡献需要一次性同意 [`CLA.md`](./CLA.md)。这里的任何许可证都不授予“Ecoma”
-这一名称的任何权利。
+构建过程会核验这份声明，而不是依赖记忆：每个项目都声明一个许可标签，当标签与其
+所在目录不符时，约定关卡就会失败。此处的任何许可都不授予对 Ecoma 这一名称的权
+利。

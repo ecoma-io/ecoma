@@ -102,6 +102,44 @@ describe("checkCommitScope against a real git repo", () => {
     expect(scope(repo, "feat(reacher): scaffold the app\n")).toBe(0);
   });
 
+  it("lets one commit move a project to another subsystem under that project's scope", () => {
+    // The case the check reads a second tree to answer: after the move nothing
+    // named `vider-ui` exists under `vider/` any more, so the deleted half has
+    // an owner only in the parent commit. A real `git mv` and `--no-renames`
+    // (what the check passes `git diff`) mean both sides really do arrive here
+    // as separate paths, the way they will in a rename CI never sees as one.
+    const repo = initGitRepo();
+
+    fixtureGit(repo, ["mv", "vider/libs/vider-ui", "shared/libs/vider-ui"]);
+    expect(scope(repo, "refactor(vider-ui): move under shared\n")).toBe(0);
+    expect(scope(repo, "refactor(workspace): move under shared\n")).toBe(1);
+
+    fixtureGit(repo, ["commit", "-qm", "refactor(vider-ui): move under shared"]);
+    expect(checkCommitScope(["--commit", "HEAD"], { cwd: repo })).toBe(0);
+  });
+
+  it("never lends its old name to a project the commit deleted", () => {
+    // The rule's boundary, and the reason it keys on the name surviving in the
+    // current tree: a project that is gone is gone from commitlint's
+    // `scope-enum` too, so requiring its name here would demand a scope tier 1
+    // refuses — two gates that cannot both be satisfied. What is left is
+    // whatever still owns the path, which differs between these two deletions
+    // and is the point of testing both: `vider` outlives its lib and keeps
+    // owning the space it stood in, while `shared` had only `core-ui` and
+    // stops being a subsystem at all when it goes.
+    const repo = initGitRepo();
+
+    fixtureGit(repo, ["rm", "-rq", "vider/libs/vider-ui"]);
+    expect(scope(repo, "chore(vider): retire the ui lib\n")).toBe(0);
+    expect(scope(repo, "chore(vider-ui): retire the ui lib\n")).toBe(1);
+    expect(scope(repo, "chore(workspace): retire the ui lib\n")).toBe(1);
+    fixtureGit(repo, ["commit", "-qm", "chore(vider): retire the ui lib"]);
+
+    fixtureGit(repo, ["rm", "-rq", "shared/libs/core-ui"]);
+    expect(scope(repo, "chore(workspace): retire the shared lib\n")).toBe(0);
+    expect(scope(repo, "chore(core-ui): retire the shared lib\n")).toBe(1);
+  });
+
   it("judges an existing commit from that commit's own tree in --commit mode", () => {
     const repo = initGitRepo();
 

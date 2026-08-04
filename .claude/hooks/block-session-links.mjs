@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-// PreToolUse hook: refuse to publish agent attribution — or, more importantly,
-// a claude.ai session link — to GitHub, through EITHER route that reaches it.
+// PreToolUse hook: refuse to publish a claude.ai session link to GitHub,
+// through EITHER route that reaches it.
 //
-// The source fix lives in `.claude/settings.json` (`attribution.commit` and
-// `attribution.pr` empty, `attribution.sessionUrl` false), which stops the
-// harness from appending either. This hook is the net for the two cases a
-// setting cannot cover: an agent that types the byline itself out of habit
-// (which is how the line ended up DUPLICATED), and surfaces the setting knows
-// nothing about, such as `gh issue comment`.
+// **Agent attribution is deliberately NOT blocked.** A `Co-Authored-By: Claude`
+// trailer and a "Generated with Claude Code" byline say who wrote the change,
+// which a reader of this history is entitled to know; suppressing them made an
+// agent-written commit indistinguishable from a hand-written one, which is the
+// opposite of what a public record is for. What still may not be published is
+// the session link — a URL into a PRIVATE transcript, on a public thread, that
+// nobody outside the account can open. Those are two different concerns, and
+// only the second is this hook's.
 //
-// A session link is the one that actually matters: it is a URL into a private
-// transcript, published on a public thread. Failing loud beats stripping
-// silently — the body is the agent's to fix, and a silent rewrite would teach
-// nothing (CLAUDE.md > Rule 11).
+// The source fix lives in `.claude/settings.json` (`attribution.sessionUrl`
+// false), which stops the harness from appending one. This hook is the net for
+// the two cases a setting cannot cover: an agent that types the link itself out
+// of habit, and surfaces the setting knows nothing about, such as
+// `gh issue comment`. Failing loud beats stripping silently — the body is the
+// agent's to fix, and a silent rewrite would teach nothing (CLAUDE.md > Rule 11).
 //
 // **Two tool shapes, because guarding only one left the route actually used
 // wide open.** This started as a `Bash`-only hook, matching `gh pr create` and
@@ -43,14 +47,15 @@ import { readFileSync } from "node:fs";
 const PUBLISHING_GH =
   /(?:^|[\n;&|(])[ \t]*(?:[A-Za-z_]\w*=\S*[ \t]+)*gh[ \t]+(?:pr|issue|release)[ \t]+(?:create|edit|comment)\b/m;
 
+// Both spellings of the same thing: the bare URL, and the trailer that carries
+// it. The trailer is listed separately because a `Claude-Session:` line whose
+// value is not a URL still names a private transcript.
 const FORBIDDEN = [
   {
     what: "a claude.ai session link",
     re: /https?:\/\/claude\.ai\/code\/session[_/-]/i,
   },
   { what: "a `Claude-Session:` trailer", re: /^[ \t]*claude-session[ \t]*:/im },
-  { what: "a `Co-Authored-By: Claude` trailer", re: /co-authored-by[ \t]*:[ \t]*claude\b/i },
-  { what: "a “Generated with Claude Code” byline", re: /generated with\s+\[?claude code/i },
 ];
 
 /**
@@ -123,8 +128,9 @@ if (text) {
           permissionDecision: "deny",
           permissionDecisionReason:
             `This would publish ${hits.join(" and ")} to a public GitHub thread. ` +
-            "Remove those lines from the body and run it again — this repo publishes no agent " +
-            "attribution and never a session link (.claude/settings.json > attribution).",
+            "A session link points into a private transcript nobody outside the account can " +
+            "open. Remove that line and run it again — agent attribution itself is fine to " +
+            "keep, it is only the link that must not be published.",
         },
       }),
     );

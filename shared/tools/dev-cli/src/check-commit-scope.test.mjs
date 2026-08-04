@@ -15,6 +15,8 @@ import {
   isIgnoredMessage,
   messageHeader,
   ownerOf,
+  owningProjects,
+  parentProjectsOf,
   parseHeader,
   readProjectGraphDeps,
   transitiveDependsOn,
@@ -81,19 +83,37 @@ const SUBSYSTEMS = deriveSubsystems(PROJECTS);
  * Routes the module's git calls to an in-memory repo: `tracked` maps path →
  * content (index and commit tree alike), `staged`/`commitFiles` are the
  * changed-path listings, `commitMessage` is what `git log` returns.
+ *
+ * `parent` is the tree one commit back, which the check reads to recognise a
+ * project that moved. It defaults to `tracked` — the same tree twice, which is
+ * what every commit that moves nothing looks like — so a test says nothing
+ * about the parent unless the parent is the point.
  */
-function fakeGit({ tracked = {}, staged = [], commitFiles = [], commitMessage = "" }) {
+function fakeGit({
+  tracked = {},
+  parent = null,
+  staged = [],
+  commitFiles = [],
+  commitMessage = "",
+}) {
+  const parentTree = parent ?? tracked;
+  // The two refs the check reads a parent tree through: `HEAD` in hook mode,
+  // `<sha>^` in commit mode. Anything else names the tree under judgement.
+  const isParentRef = (ref) => ref === "HEAD" || ref.endsWith("^");
   vi.mocked(execFileSync).mockImplementation((cmd, args) => {
     if (cmd !== "git") throw new Error(`unexpected command: ${cmd}`);
     if (args[0] === "diff") return `${staged.join("\n")}\n`;
     if (args[0] === "log") return commitMessage;
-    if (args[0] === "ls-files" || args[0] === "ls-tree")
-      return `${Object.keys(tracked).join("\n")}\n`;
+    if (args[0] === "ls-files") return `${Object.keys(tracked).join("\n")}\n`;
+    if (args[0] === "ls-tree")
+      return `${Object.keys(isParentRef(args.at(-1)) ? parentTree : tracked).join("\n")}\n`;
     if (args[0] === "show" && args.includes("--name-only")) return `${commitFiles.join("\n")}\n`;
     if (args[0] === "show") {
-      const path = args.at(-1).replace(/^[^:]*:/, "");
-      if (!(path in tracked)) throw new Error(`no such tracked file: ${path}`);
-      return tracked[path];
+      const spec = args.at(-1);
+      const tree = isParentRef(spec.slice(0, spec.indexOf(":"))) ? parentTree : tracked;
+      const path = spec.replace(/^[^:]*:/, "");
+      if (!(path in tree)) throw new Error(`no such tracked file: ${path}`);
+      return tree[path];
     }
     throw new Error(`unexpected git args: ${args.join(" ")}`);
   });
@@ -374,6 +394,54 @@ describe("discoverProjects", () => {
   });
 });
 
+describe("owningProjects", () => {
+  const moved = [{ name: "doctrine", root: "shared/libs/doctrine" }];
+  const before = [{ name: "doctrine", root: "cloud/libs/doctrine" }];
+
+  it("lends a moved project its old root, so both sides of the move have one owner", () => {
+    const owners = owningProjects(moved, before);
+    expect(ownerOf("cloud/libs/doctrine/charter.md", owners, new Set()).name).toBe("doctrine");
+    expect(ownerOf("shared/libs/doctrine/charter.md", owners, new Set()).name).toBe("doctrine");
+  });
+
+  it("refuses to lend a root to a project the commit actually deleted", () => {
+    // The half that keeps this from becoming a loophole. A deleted project's
+    // name is gone from the tree commitlint derives `scope-enum` from, so
+    // admitting it here would let this tier require a scope tier 1 rejects —
+    // two green gates that cannot both be satisfied.
+    const owners = owningProjects([], before);
+    expect(owners).toEqual([]);
+    expect(ownerOf("cloud/libs/doctrine/charter.md", owners, new Set()).name).toBe(WORKSPACE_SCOPE);
+  });
+
+  it("keeps a project that did not move resolvable exactly once over", () => {
+    expect(ownerOf("shared/libs/doctrine/x.md", owningProjects(moved, moved), new Set()).name).toBe(
+      "doctrine",
+    );
+  });
+});
+
+describe("parentProjectsOf", () => {
+  it("reads the tree one commit back", () => {
+    fakeGit({
+      tracked: { "shared/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }) },
+      parent: { "cloud/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }) },
+    });
+    expect(parentProjectsOf()).toEqual([
+      { name: "doctrine", root: "cloud/libs/doctrine", tags: [] },
+    ]);
+  });
+
+  it("answers with nothing when there is no parent to read", () => {
+    // A root commit and an unborn branch both land here, and neither is an
+    // error: nothing existed before, so nothing owned anything before.
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("fatal: ambiguous argument 'HEAD^'");
+    });
+    expect(parentProjectsOf()).toEqual([]);
+  });
+});
+
 describe("readProjectGraphDeps", () => {
   it("parses the nx graph file and drops npm dependencies", () => {
     vi.mocked(execFileSync).mockImplementation((cmd, args) => {
@@ -499,6 +567,47 @@ describe("checkCommitScope", () => {
     const error = errors();
     expect(checkCommitScope([messageFile("feat(vider,core-ui): both\n")])).toBe(1);
     expect(error).toHaveBeenCalledWith(expect.stringContaining("one scope per commit"));
+  });
+
+  it("lets one commit move a project between subsystems under that project's scope", () => {
+    // The case the tree-of-the-commit view alone cannot express. Both halves
+    // of the move are the same project doing the same thing, so demanding a
+    // split here would demand splitting an act that has no halves — the old
+    // paths cannot be deleted in one commit without the project vanishing from
+    // the tree in between.
+    const moved = {
+      "shared/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }),
+    };
+    fakeGit({
+      tracked: moved,
+      parent: { "cloud/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }) },
+      staged: ["cloud/libs/doctrine/charter.md", "shared/libs/doctrine/charter.md"],
+    });
+    expect(checkCommitScope([messageFile("refactor(doctrine): move under shared\n")])).toBe(0);
+
+    fakeGit({
+      tracked: moved,
+      parent: { "cloud/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }) },
+      staged: ["cloud/libs/doctrine/charter.md", "shared/libs/doctrine/charter.md"],
+    });
+    errors();
+    expect(checkCommitScope([messageFile("refactor(workspace): move under shared\n")])).toBe(1);
+  });
+
+  it("still calls a deleted project's files root-owned, move or no move", () => {
+    // The boundary of the rule above. Nothing in the current tree is named
+    // `doctrine` any more, so its old paths belong to no project and
+    // `workspace` is the only honest scope — the same answer as before
+    // relocation was recognised at all.
+    fakeGit({
+      tracked: TRACKED_PROJECTS,
+      parent: {
+        ...TRACKED_PROJECTS,
+        "cloud/libs/doctrine/project.json": JSON.stringify({ name: "doctrine" }),
+      },
+      staged: ["cloud/libs/doctrine/charter.md"],
+    });
+    expect(checkCommitScope([messageFile("chore(workspace): drop the doctrine tier\n")])).toBe(0);
   });
 
   it("judges an existing commit in --commit mode from that commit's own tree", () => {

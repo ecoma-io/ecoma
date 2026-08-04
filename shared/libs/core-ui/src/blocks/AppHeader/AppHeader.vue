@@ -13,7 +13,7 @@
  * optional search · a trailing cluster for org-switcher, notifications, and
  * the user menu, pushed right by `ml-auto`. Every region is a named slot —
  * this block owns the strip's geometry and elevation, never its content or
- * behavior (Alloy blocks stay presentational, same contract as
+ * behavior (Loom blocks stay presentational, same contract as
  * `PageHeader`/`EmptyState`).
  *
  * The trailing cluster is pushed right by its own `ml-auto`, not by a spacer

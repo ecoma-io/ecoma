@@ -6,7 +6,7 @@ Two narrow entries sit beside the main one, and neither is a style choice: `@eco
 
 ## The UI stack is two tiers — this lib is tier one, consumers must not re-invent it
 
-**Tier 1 (here, Alloy):** every _generic_ affordance — primitives, blocks, tokens, motion. **Tier 2 (a product's own UI lib):** product-specific composition of tier 1, nothing generic of its own. Two rules follow, one per direction:
+**Tier 1 (here, Loom):** every _generic_ affordance — primitives, blocks, tokens, motion. **Tier 2 (a product's own UI lib):** product-specific composition of tier 1, nothing generic of its own. Two rules follow, one per direction:
 
 - **Consume-first (tier 2 → tier 1).** Before hand-rolling ANY generic affordance in a product lib, read the inventory — `src/index.ts` is the complete export list. The failure mode this rule exists for is real and was lived once in a product UI lib: hand-rolled `<p role="alert">` error paragraphs while `InlineError` existed, literal "Đang tải…" text while `Skeleton` existed, silent mutations while `Toast` existed, one-click destructive deletes while `Dialog` existed. The mapping to reach for: field/section error → `InlineError` · list loading → `Skeleton` · transient confirmation → `Toast` (queue is host-owned by design — see its doc header) · blocking confirm or focused form → `Dialog` (portals to `document.body`; tests must query the document, not the wrapper) · boolean setting → `Switch` · hint on a risky control → `Tooltip` · in-progress → `Spinner`/`Progress`.
 - **Graduate-upstream (tier 1 ← tier 2).** A generic affordance drafted inside a product lib is in the wrong package — build it here with the five co-located artifacts (below), then consume it. A block a second leaf needs likewise graduates here.
@@ -87,6 +87,6 @@ better, it is this tier's.
 
 ## Tokens
 
-- Source of truth: `shared/libs/core-ui/src/styles/tokens.css`, mapped to Tailwind via `shared/libs/core-ui/tailwind.preset.js`. Storybook and the desktop app share it — never hardcode colors, durations, or easings; use Alloy tokens (see the Design System docs in the `design-system` Storybook). The dual-force law (Human `--primary` thép · Agent `--agent` đồng · `--seam` gradient only at handoff points) is spec'd in Design System › Signature — a surface must not mix the forces' roles.
+- Source of truth: `shared/libs/core-ui/src/styles/tokens.css`, mapped to Tailwind via `shared/libs/core-ui/tailwind.preset.js`. Storybook and the desktop app share it — never hardcode colors, durations, or easings; use Loom tokens (see the Design System docs in the `design-system` Storybook). The dual-force law (Human `--primary` warp · Agent `--agent` weft · `--seam` gradient only at handoff points) is spec'd in Design System › Signature — a surface must not mix the forces' roles.
 - Tailwind v4 landmine in this repo: bare arbitrary-property utilities like `[transition:a,b,c]` do not compile — use an inline `style` binding instead.
 - Tailwind v4 needs the `design-system` app's `postcss.config.js` (`@tailwindcss/postcss`) for the Storybook Vite build to process `@import "tailwindcss"` — without it no utilities generate. The Storybook host, its Tailwind config, and that PostCSS shim all live in `shared/apps/design-system`; only `tailwind.preset.js` (the theme source) stays here.

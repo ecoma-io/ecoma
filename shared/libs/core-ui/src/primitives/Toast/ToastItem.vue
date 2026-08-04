@@ -6,7 +6,7 @@ import { cn } from "../../lib/cn";
 import type { ToastVariant } from "./Toast.vue";
 
 /**
- * ToastItem — one toast card (ToastRoot + Alloy treatment), INTERNAL to
+ * ToastItem — one toast card (ToastRoot + Loom treatment), INTERNAL to
  * the design system. It must live inside a `ToastProvider` whose
  * `ToastViewport` it teleports into: `Toast` bundles that pair for the
  * standalone case, `ToastStack` (blocks) shares one pair across a host queue

@@ -7,7 +7,7 @@ import * as ButtonStories from "./Button.stories";
 
 # Button
 
-Nút bấm — primitive làm việc nhiều nhất, và là nơi **mã hoá "ngôn ngữ press" của Alloy**.
+Nút bấm — primitive làm việc nhiều nhất, và là nơi **mã hoá "ngôn ngữ press" của Loom**.
 Import từ `@ecoma-io/ui`:
 
 ```ts
@@ -22,7 +22,7 @@ Mọi tương tác đều truyền **nhân–quả** trong ≤140ms (`duration-f
 
 - **Hover** — nâng bằng _fill_ (đổi nền), không đổ bóng.
 - **Active** — **lún xuống** `scale(0.97)`, cho cảm giác vật lý khi bấm.
-- **Focus** — **nở ring thép** (`outline` 2px, offset 2px) — cùng màu focus toàn hệ.
+- **Focus** — **nở ring warp** (`outline` 2px, offset 2px) — cùng màu focus toàn hệ.
 - **Loading** — một **thước phim kinetic** ba beat (mục dưới) dưới lớp **shimmer**
   (`animate-shimmer`) — không bao giờ là một spinner chết cắt cảnh đột ngột.
 
@@ -51,15 +51,15 @@ và ngược lại — screen reader chỉ nghe **một** trạng thái tại m�
 
 | Variant       | Vai trò                            | Khi nào dùng                                          |
 | ------------- | ---------------------------------- | ----------------------------------------------------- |
-| `primary`     | Hành động chính (màu thép — Human) | CTA chính của một khung — **tối đa một cái** mỗi nhóm |
+| `primary`     | Hành động chính (màu warp — Human) | CTA chính của một khung — **tối đa một cái** mỗi nhóm |
 | `secondary`   | Hành động phụ ngang hàng           | đứng cạnh primary nhưng ít trọng lượng hơn            |
 | `outline`     | Phụ, có ranh giới rõ               | trên nền phẳng cần đường viền để tách                 |
 | `subtle`      | Phụ, chìm                          | hành động lặp lại, mật độ cao                         |
 | `ghost`       | Ẩn tới khi hover                   | toolbar/icon, hàng dày đặc                            |
 | `destructive` | Hành động phá huỷ                  | xoá scene/asset — luôn kèm xác nhận                   |
 
-> **Quy tắc màu Human:** chỉ `primary` (và trạng thái loading) được mang thép đậm. Đừng tô
-> thép cho nút phụ — màu hành động dành cho _một_ hành động quan trọng nhất.
+> **Quy tắc màu Human:** chỉ `primary` (và trạng thái loading) được mang warp đậm. Đừng tô
+> warp cho nút phụ — màu hành động dành cho _một_ hành động quan trọng nhất.
 
 ## Sizes
 
@@ -90,7 +90,7 @@ class-set ở nơi khác (vd một `<a>` trông như nút).
 - ✅ Tác vụ dài → `loading` **kèm `loading-text`** để nút tự kể nó đang làm gì ("Đang lưu…"),
   thay vì bắt người dùng đoán từ một vòng quay câm.
 - ❌ Đừng xếp nhiều `primary` cạnh nhau (mất tiêu điểm hành động).
-- ❌ Đừng thêm bóng đổ để tạo "nhấc" — Alloy nhấc bằng fill.
+- ❌ Đừng thêm bóng đổ để tạo "nhấc" — Loom nhấc bằng fill.
 - ❌ Đừng tự đổi nội dung slot khi loading (`{{ loading ? "Đang lưu…" : "Lưu" }}`) — cú swap
   đó cắt cảnh thô và phá vũ đạo; đó chính là việc của `loading-text`.
 

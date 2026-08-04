@@ -53,7 +53,7 @@ describe("Switch", () => {
     expect(wrapper.emitted("update:modelValue")).toBeUndefined();
   });
 
-  it("mirrors the model value into data-state, the hook the checked steel fill and the unchecked muted track both key on", async () => {
+  it("mirrors the model value into data-state, the hook the checked warp fill and the unchecked muted track both key on", async () => {
     const wrapper = mount(Switch, { props: { modelValue: false }, attrs: { "aria-label": "X" } });
     expect(control(wrapper).attributes("data-state")).toBe("unchecked");
     await wrapper.setProps({ modelValue: true });

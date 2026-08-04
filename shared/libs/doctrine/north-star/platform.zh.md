@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Platform — North Star"
 status: design-end-state
-canonical-sha: 1f8f527c5bb7
+canonical-sha: 5931fa1bf284
 ---
 
 # Ecoma Platform — North Star
@@ -117,8 +117,8 @@ compensate、migrate、design——都是**某个 Role 的一个 Task**。没有
   个 Task，并留下痕迹。
 - **步骤之间没有共享可变状态。** 一切都经由 Handoff 移动。
 - **Ecoma 不是一个聊天助手**——但用户在 Ecoma 上搭建聊天机器人是一等用例。产品是
-  **self-serve 优先**的：无需实施团队即可使用。Enterprise 是一个部署与授权层级，不是
-  一条有权决定设计的销售渠道。
+  **self-serve 优先**的：无需实施团队即可使用。Enterprise 是一个部署层级，不是一条有权
+  决定设计的销售渠道。
 - **运行时永不校验 entitlement。** 没有 license key，没有 phone-home。内容的商业化止
   步于分发层。
 - **不自建通用数仓，也不自建 vector 引擎。** 劳动分析是一个 projection 加一条归你所有
@@ -157,16 +157,22 @@ Ecoma 是 **fair-code / source-available**。它刻意不被称作 open source�
 
 一个问题决定每一个单元：**第三方需要这个东西是为了_接入_系统，还是为了_运行_系统？**
 
-| 回答                                                       | 授权                                  |
-| ---------------------------------------------------------- | ------------------------------------- |
-| **接入**——interface、schema、protocol、client、SDK、词汇表 | Apache 2.0                            |
-| **运行**——产品 area 中任何 server、node 或 service 的实现  | fair-code 源码授权                    |
-| 接入某个已声明 extension point 的模块                      | Enterprise，位于 `<area>/enterprise/` |
-| 运营方的控制平面                                           | Proprietary，不公开                   |
+| 回答                                                                  | 授权                |
+| --------------------------------------------------------------------- | ------------------- |
+| **接入**——interface、schema、protocol、client、SDK、词汇表            | Apache 2.0          |
+| **运行**——产品 area 中任何 server、node 或 service 的实现             | fair-code 源码授权  |
+| **两者皆非**——运营方的控制平面，以及填充其 extension point 的付费模块 | Proprietary，不公开 |
 
 这条规则之所以存在，是因为清单会漂移而规则不会。此前的一次尝试在五份 spec 里分别声明
 了宽松授权，而一张按 area 划分的表格却声明每个 area 都用 fair-code 授权——那张表根本无
 法表达比 area 更细粒度的授权。**授权按单元切分，永不按 area 切分。**
+
+曾经还有第四个回答，夹在最后两行之间：付费模块以 source-available 的形式发布，而那份条
+款什么权利都不授予，模块住在自己的 `<area>/enterprise/` 目录里。那个层级已经退役，且从
+未装过一行代码。公开这些模块，等于把源码交给每一个竞争对手，却对最可能要求审计自家基础
+设施上所运行之物的买家一无所授——付出能付的最大代价，换来最弱的保护。取代它的是一条仓库
+边界，而不是又一份授权：付费模块不公开，与控制平面为邻，遵循那棵树自己的条款——这正是上
+表那一行同时覆盖两者的原因。规则本身没有改变；它现在给出三个回答，而不是四个。
 
 ### 仓库拓扑，以及各条边界为何重合
 

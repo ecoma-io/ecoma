@@ -24,7 +24,7 @@ Preset widths come from two vocabularies, never an arbitrary width. Desktop/web 
 
 If the supported range is unknown, ask — do not silently ship generic presets for a desktop app.
 
-**Ecoma app mockups**: the mockup fragment uses Alloy tokens (`shared/libs/core-ui/src/styles/tokens.css`) as its palette, and core-ui is deliberately single-theme (no runtime dark/light switch) — so the _fragment_ stays in that one theme (a deliberate choice, per artifact-design), while the harness shell around it still themes both ways.
+**Ecoma app mockups**: the mockup fragment uses Loom tokens (`shared/libs/core-ui/src/styles/tokens.css`) as its palette, and core-ui is deliberately single-theme (no runtime dark/light switch) — so the _fragment_ stays in that one theme (a deliberate choice, per artifact-design), while the harness shell around it still themes both ways.
 
 ## Mockup content rules
 

@@ -9,7 +9,7 @@ import * as SliderStories from "./Slider.stories";
 
 Chọn một **giá trị liên tục trong dải bị chặn** — khác `NumberField` (số bất kỳ có đơn vị) và `Switch` (nhị phân).
 Ca chuẩn 0.2: `volume` 0–1 của video/audio (khớp `VideoElementSchema.volume`). Dựng trên **Reka UI `Slider`**
-(a11y sẵn), style token Alloy. Import từ `@ecoma-io/ui`:
+(a11y sẵn), style token Loom. Import từ `@ecoma-io/ui`:
 
 ```ts
 import { Slider } from "@ecoma-io/ui";
@@ -22,7 +22,7 @@ import { Slider } from "@ecoma-io/ui";
 | Phần             | Vai trò                                                        |
 | ---------------- | -------------------------------------------------------------- |
 | track            | rãnh `bg-muted rounded-full`                                   |
-| range            | phần đã lấp `bg-primary` (thép — giá trị do người đặt)         |
+| range            | phần đã lấp `bg-primary` (warp — giá trị do người đặt)         |
 | thumb            | núm `bg-background` + shadow + `border-primary`; kéo dọc track |
 | value (tuỳ chọn) | số nhỏ `tabular` cạnh slider (host cấp)                        |
 
@@ -39,7 +39,7 @@ import { Slider } from "@ecoma-io/ui";
 
 ## States
 
-nghỉ / hover (thumb lớn nhẹ) / focus (**ring thép** trên thumb) / đang kéo / disabled (mờ, không kéo).
+nghỉ / hover (thumb lớn nhẹ) / focus (**ring warp** trên thumb) / đang kéo / disabled (mờ, không kéo).
 
 ## A11y
 

@@ -27,7 +27,7 @@ describe("Badge", () => {
     expect(classes).not.toContain("bg-destructive/12");
   });
 
-  it("carries the agent copper on the ai variant and on no other — agent work is signalled, never decorative", () => {
+  it("carries the agent weft on the ai variant and on no other — agent work is signalled, never decorative", () => {
     const ai = mount(Badge, { props: { variant: "ai" }, slots: { default: "AI" } });
     expect(ai.classes()).toContain("bg-agent-muted");
 

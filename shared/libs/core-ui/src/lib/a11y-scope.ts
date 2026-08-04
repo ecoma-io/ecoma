@@ -1,5 +1,5 @@
 /**
- * The WCAG scope Alloy holds itself to: assistive-tech / keyboard-impact rules
+ * The WCAG scope Loom holds itself to: assistive-tech / keyboard-impact rules
  * only, not axe's SEO/document-structure best-practice set (root CLAUDE.md —
  * UX-valuable a11y only).
  *
