@@ -39,7 +39,9 @@ describe("the gate against this repository's own documents", () => {
   });
 
   it("still finds the configuration that makes Renovate this project's own automation", () => {
-    expect(automation).toEqual({ "renovate[bot]": ".github/renovate.json5" });
+    expect(automation).toEqual({
+      "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
+    });
   });
 
   it("asks no contributor record of Renovate, which is what its pull requests need", () => {
@@ -237,7 +239,8 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
       "HEAD~1..HEAD",
     );
     expect(cli.stderr).toBe("");
-    expect(cli.stdout).toMatch(/owe none/);
+    expect(cli.stdout).toMatch(/Commits authored as 'renovate\[bot\]' owe no Signed-off-by/);
+    expect(cli.stdout).toMatch(/1 of the 1 untrailered commit\(s\)/);
     expect(cli.status).toBe(0);
   });
 

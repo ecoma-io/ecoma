@@ -7,6 +7,7 @@ import {
   authorVerdict,
   automationClause,
   claTextHistory,
+  commitsOwedSignOff,
   claVersion,
   licensorHandles,
   listedInContributors,
@@ -259,6 +260,27 @@ describe("the sign-off requirement", () => {
     expect(exec.mock.calls[0][1]).toEqual(expect.arrayContaining(["--no-merges", "base..HEAD"]));
   });
 
+  it("drops only the commits the exempt account authored, keeping a person's on its branch", () => {
+    const unsigned = [
+      { sha: "a", subject: "chore: bump", author: "renovate[bot]" },
+      { sha: "b", subject: "feat: mine", author: "A Person" },
+    ];
+    expect(commitsOwedSignOff(unsigned, "renovate[bot]")).toEqual([unsigned[1]]);
+  });
+
+  it("exempts nothing when no account is exempt", () => {
+    const unsigned = [{ sha: "a", subject: "chore: bump", author: "renovate[bot]" }];
+    expect(commitsOwedSignOff(unsigned, null)).toEqual(unsigned);
+  });
+
+  it("keys on the declared git author name, never the login — the two are different namespaces", () => {
+    // The GitHub Actions bot commits as "GitHub Actions" under the login
+    // `github-actions[bot]`; matching the login would exempt nothing of its.
+    const unsigned = [{ sha: "a", subject: "chore: sync", author: "GitHub Actions" }];
+    expect(commitsOwedSignOff(unsigned, "github-actions[bot]")).toEqual(unsigned);
+    expect(commitsOwedSignOff(unsigned, "GitHub Actions")).toEqual([]);
+  });
+
   it("reports an unreadable range loudly, keeping the git error as the cause", () => {
     expect(() =>
       unsignedCommits("nope..HEAD", () => {
@@ -294,7 +316,7 @@ describe("the automation exemption", () => {
 
   it("exempts an account only while the configuration that runs it is committed", () => {
     expect(projectAutomation((path) => path === ".github/renovate.json5")).toEqual({
-      "renovate[bot]": ".github/renovate.json5",
+      "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
     });
     expect(projectAutomation(() => false)).toEqual({});
   });
@@ -305,7 +327,9 @@ describe("what a pull request author owes", () => {
   const base = {
     licensors: ["owner"],
     clause: CLAUSE,
-    automation: { "renovate[bot]": ".github/renovate.json5" },
+    automation: {
+      "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
+    },
     hasRecord: false,
   };
 

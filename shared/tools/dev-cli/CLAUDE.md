@@ -222,7 +222,15 @@ build/typecheck — invoked directly as
     because a bot opened it lets a person push onto a bot's branch and skip the
     trailer entirely. GitHub is still the only authority on whether an
     _account_ is a machine (`--author-type`), but which commits that account
-    authored is answered from `%an`, which git supplies offline. **That is
+    authored is answered from `%an`, which git supplies offline — compared
+    against the **git author name `PROJECT_AUTOMATION` declares beside the
+    login**, never the login itself. Those are different namespaces that
+    coincide for Renovate and do not in general (the Actions bot commits as
+    "GitHub Actions" under `github-actions[bot]`), so comparing the login would
+    work by accident where it worked at all, and would otherwise turn the gate
+    red on a bot's own commits — reading as the bot owing a certification it
+    cannot give. `commitsOwedSignOff` is a pure function so both directions of
+    that mismatch are pinned without a fixture repository. **That is
     unverified metadata, and the exemption is worth exactly what it is worth**:
     a commit claiming the exempt account's name is exempted with nothing
     checking the claim, so do not read this path as fail-closed. What bounds it
