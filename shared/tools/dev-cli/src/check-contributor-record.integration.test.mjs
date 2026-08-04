@@ -202,6 +202,32 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
     expect(cli.stderr).not.toMatch(/feat: signed work/);
   });
 
+  it("says nothing about the exemption on a range with nothing untrailered to exempt", () => {
+    const dir = buildFixture();
+    writeFileSync(join(dir, ".github/renovate.json5"), "{}\n");
+    writeFileSync(join(dir, "bumped.txt"), "dep");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, [
+      "commit",
+      "-q",
+      "-s",
+      "--author=renovate[bot] <bot@example.com>",
+      "-m",
+      "chore: bump a dependency",
+    ]);
+    const cli = runGateIn(
+      dir,
+      "--author",
+      "renovate[bot]",
+      "--author-type",
+      "Bot",
+      "--commits",
+      "HEAD~1..HEAD",
+    );
+    expect(cli.status).toBe(0);
+    expect(cli.stdout).not.toMatch(/untrailered/);
+  });
+
   it("passes a range whose commits are all signed off", () => {
     const dir = buildFixture();
     writeFileSync(join(dir, "signed.txt"), "one");
