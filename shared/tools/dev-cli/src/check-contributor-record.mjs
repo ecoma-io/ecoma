@@ -256,7 +256,20 @@ export const MACHINE_ACCOUNT = "Bot";
  * agent never belongs here, because it does not produce work without a person
  * behind it.
  */
-export const PROJECT_AUTOMATION = { "renovate[bot]": ".github/renovate.json5" };
+export const PROJECT_AUTOMATION = {
+  "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
+};
+
+/**
+ * `gitAuthor` is declared beside the login because the two are different
+ * namespaces that happen to coincide for Renovate and do not in general — the
+ * GitHub Actions bot commits as "GitHub Actions" under the login
+ * `github-actions[bot]`. Comparing a login against `%an` therefore works by
+ * coincidence where it works at all, and fails by turning the gate red on a
+ * bot's own commits, which reads as the bot owing a certification it cannot
+ * give. Both values are the vendor's published constants, which is what lets
+ * either be written down; neither is derivable from the tree.
+ */
 
 /**
  * The subset of `PROJECT_AUTOMATION` this repository still runs, as
@@ -266,9 +279,22 @@ export const PROJECT_AUTOMATION = { "renovate[bot]": ".github/renovate.json5" };
 export function projectAutomation(exists = existsSync) {
   return Object.fromEntries(
     Object.entries(PROJECT_AUTOMATION)
-      .filter(([, config]) => exists(config))
-      .map(([login, config]) => [login.toLowerCase(), config]),
+      .filter(([, entry]) => exists(entry.config))
+      .map(([login, entry]) => [login.toLowerCase(), entry]),
   );
+}
+
+/**
+ * The unsigned commits still owed a trailer, given the git author name an
+ * exempt machine account commits under (`null` when nothing is exempt).
+ * Separated from its caller so both directions are testable without a
+ * repository: the commits the bot authored drop out, and everything else —
+ * including a person's commit on the bot's own branch — stays.
+ */
+export function commitsOwedSignOff(unsigned, exemptGitAuthor) {
+  if (!exemptGitAuthor) return unsigned;
+  const exempt = exemptGitAuthor.toLowerCase();
+  return unsigned.filter((c) => c.author?.toLowerCase() !== exempt);
 }
 
 /**
@@ -423,8 +449,8 @@ export function authorVerdict(author, { type, licensors, clause, automation, has
           `automated tooling outside the agreement — nothing exempts this pull request`,
       };
     }
-    const config = automation[handle];
-    if (!config) {
+    const entry = automation[handle];
+    if (!entry) {
       return {
         ok: false,
         fault:
@@ -437,8 +463,9 @@ export function authorVerdict(author, { type, licensors, clause, automation, has
     return {
       ok: true,
       automation: true,
+      gitAuthor: entry.gitAuthor,
       note:
-        `'${author}' is a machine account this project runs (${config}), and ${CLA} says: ` +
+        `'${author}' is a machine account this project runs (${entry.config}), and ${CLA} says: ` +
         `"${clause}" No record is required of it. It cannot agree for anyone else, though: work a ` +
         `person authored — anything a coding agent wrote at someone's direction — still needs that ` +
         `person's record, and only review can see that this pull request carries none.`,
@@ -514,7 +541,7 @@ export function checkContributorRecord(args = []) {
     }
   }
 
-  let automationLogin = null;
+  let automationGitAuthor = null;
   const authorAt = args.indexOf("--author");
   if (authorAt !== -1) {
     const author = args[authorAt + 1];
@@ -541,7 +568,7 @@ export function checkContributorRecord(args = []) {
       failed = true;
       console.error(verdict.fault);
     }
-    automationLogin = verdict.automation === true ? author : null;
+    automationGitAuthor = verdict.automation === true ? verdict.gitAuthor : null;
   }
 
   const commitsAt = args.indexOf("--commits");
@@ -580,13 +607,17 @@ export function checkContributorRecord(args = []) {
       // it here would buy nothing and would cost the gate its offline read.
       // A verified answer exists (GitHub resolves each commit to an account),
       // and it is a network call this command deliberately does not make.
-      const exempt = automationLogin?.toLowerCase() ?? null;
-      const owed = exempt ? unsigned.filter((c) => c.author?.toLowerCase() !== exempt) : unsigned;
-      if (exempt && owed.length < unsigned.length) {
+      // The comparison is against the git author name PROJECT_AUTOMATION
+      // declares for the account, never the account's login: the two are
+      // different namespaces that coincide for Renovate and do not in general.
+      const owed = commitsOwedSignOff(unsigned, automationGitAuthor);
+      if (automationGitAuthor) {
         console.log(
-          `${unsigned.length - owed.length} commit(s) in '${range}' authored by ` +
-            `'${automationLogin}' carry no ${SIGN_OFF_TRAILER} trailer and owe none — automation ` +
-            `this project runs certifies nothing, and its commits are not contributions.`,
+          `Commits authored as '${automationGitAuthor}' owe no ${SIGN_OFF_TRAILER} trailer — ` +
+            `automation this project runs certifies nothing, and its commits are not ` +
+            `contributions. ${unsigned.length - owed.length} of the ${unsigned.length} untrailered ` +
+            `commit(s) in '${range}' matched; the rest are reported below. A bot whose commits are ` +
+            `all reported has a git author name PROJECT_AUTOMATION no longer describes.`,
         );
       }
       for (const { sha, subject } of owed) {
