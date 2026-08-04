@@ -41,7 +41,7 @@ vô hiệu hoá mọi thứ trong đó có thể hành động thay vì chỉ đ
 
 <!-- readme:consumers -->
 
-Ba workflow GitHub Actions gọi trực tiếp tool này, cả ba đều dùng
+Sáu workflow GitHub Actions gọi trực tiếp tool này, tất cả đều dùng
 `GITHUB_TOKEN` sẵn có (không cần secret riêng):
 `.github/workflows/issue-triage.yml` chạy `main.mjs triage-issue` khi issue
 `opened`/`reopened` (thêm `workflow_dispatch` thủ công để triage lại issue
@@ -49,7 +49,13 @@ cũ); `.github/workflows/pr-practice-review.yml` chạy `main.mjs review-pr`
 trên PR non-draft `opened`/`reopened`/`synchronize`/`ready_for_review`;
 `.github/workflows/translate-issue.yml` chạy `main.mjs translate-issue` khi
 issue `opened`/`edited`; `.github/workflows/translate-pr.yml` chạy `main.mjs
-translate-pr` khi PR `opened`/`edited`. Không
+translate-pr` khi PR `opened`/`edited`;
+`.github/workflows/cla-notice.yml` chạy `main.mjs cla-notice` khi PR
+`opened`/`reopened`/`synchronize`, báo cho tác giả bị gate
+`dev-cli check-contributor-record` từ chối biết chính xác cần commit gì, trong
+một comment gắn marker được sửa tại chỗ; và
+`.github/workflows/roadmap-label-audit.yml` chạy `main.mjs
+audit-roadmap-labels` hằng tuần. Không
 workflow nào được nối vào required/branch-protection checks — xem
 `readme:boundary`.
 
@@ -88,8 +94,8 @@ chạy trên `node` trần để các job GitHub Actions không cần `pnpm inst
 
 <!-- readme:status -->
 
-Đang hoạt động thật: cả ba workflow chạy tool này trên mọi sự kiện GitHub
-khớp điều kiện, không phải bản nháp hay một seam chưa nối. Mechanics — luật
+Đang hoạt động thật: mọi workflow kể trên chạy tool này trên sự kiện GitHub
+khớp điều kiện của nó, không phải bản nháp hay một seam chưa nối. Mechanics — luật
 quorum/tally verdict, các vocabulary enum, quy trình điều tra nhiều lượt của
 review-pr, ngoại lệ quorum của phần dịch, và các cạm bẫy đã biết — nằm ở
 [`./CLAUDE.md`](./CLAUDE.md).
