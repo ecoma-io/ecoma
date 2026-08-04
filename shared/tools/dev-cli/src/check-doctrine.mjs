@@ -46,7 +46,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { linkTargets } from "./check-doc-links.mjs";
-import { licenseForPath } from "./license-scope.mjs";
+import { ROOT_LICENSE_FILE, rootLicenseSlug } from "./license-scope.mjs";
 import { LANGS } from "./readme-schema.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
@@ -98,23 +98,32 @@ export function doctrineDocPaths(root, list = listTrackedFiles) {
 }
 
 /**
- * A root as the licence map expects it: repo-relative, no `./` prefix, no
- * trailing slash. The value arrives from a command line, where `./cloud/...`
- * and `cloud/...` name one directory — but `licenseForPath` reads the first
- * path segment, so the two spellings would classify differently and the tier
- * would flip on a keystroke. Normalizing at the boundary keeps that function
- * free of input-shape knowledge it has no other reason to carry.
+ * A root as the rest of this gate expects it: repo-relative, no `./` prefix,
+ * no trailing slash. The value arrives from a command line, where
+ * `./shared/...` and `shared/...` name one directory, and several rules below
+ * build paths by concatenation — two spellings would produce two roots for one
+ * tree. Normalizing at the boundary keeps those rules free of input-shape
+ * knowledge they have no other reason to carry.
  */
 export const normalizeRoot = (root) => root.replace(/^\.\//, "").replace(/\/+$/, "");
 
 /**
- * Whether the tree at `root` is the withheld tier, DERIVED from the licence
- * that already governs the path rather than declared a second time (Rule 14
- * rung 1). The two tiers of one corpus differ by exactly one fact — whether
- * the prose is published — and `licenseForPath` is where this workspace
- * already answers it. A downstream tree consuming this gate gets the same
- * answer for free: its doctrine sits under `cloud/`, which that function
- * resolves to `proprietary`.
+ * Whether the tree being judged is the withheld tier, DERIVED rather than
+ * declared (Rule 14 rung 1) — and derived from the tree's own root LICENSE,
+ * which is the fact the two tiers actually differ by. A tree that grants the
+ * Sustainable Use License is published; a tree whose LICENSE grants nothing is
+ * the withheld one. The tier is not a parameter, because a caller free to state
+ * it is a caller free to state it wrongly, and the mistake that matters — a
+ * published tree judged as if it were withheld — is exactly the one that would
+ * go unnoticed.
+ *
+ * **It used to be derived from the doctrine root's first path segment**, via a
+ * licence map that hard-coded `cloud/` as proprietary. That worked only while
+ * the private workspace kept that one directory name: renaming its area — which
+ * its own restructure does — would have silently reclassified the whole tier as
+ * published, and this gate would have started reporting the withheld tier's own
+ * contents as violations. A licence document cannot be renamed out from under
+ * the tree it governs.
  *
  * Three of this gate's rules exist only because a document is public, and
  * running them against the withheld tier would report the tier's own contents
@@ -125,7 +134,18 @@ export const normalizeRoot = (root) => root.replace(/^\.\//, "").replace(/\/+$/,
  * boundary. The remaining rules — no episode coordinates, no stale variant —
  * are properties of doctrine prose in either tier and always run.
  */
-export const withheldTier = (root) => licenseForPath(normalizeRoot(root)) === "proprietary";
+export function withheldTier(read = readFileSync) {
+  let text = "";
+  try {
+    text = read(ROOT_LICENSE_FILE, "utf8");
+  } catch {
+    // No readable LICENSE at all. `rootLicenseSlug` answers `proprietary` for
+    // the empty string, which is the safe direction: a tree whose terms cannot
+    // be read is judged as granting nothing, so the public-only rules stay off
+    // rather than firing against prose they were never meant to see.
+  }
+  return rootLicenseSlug(text) === "proprietary";
+}
 
 /**
  * Markers that must not survive redaction, each with the reason it goes — the
@@ -337,15 +357,15 @@ export function findUnmarkedEntries(files, mapPath = CORPUS_MAP) {
  * tree — so the command a downstream workspace runs against its withheld tier
  * is the same command, differing by its argument rather than by a second
  * implementation of the same rules. Which rules apply is NOT a second
- * argument: it follows from the root through `withheldTier`, because a caller
- * free to state the tier is a caller free to state it wrongly, and the mistake
- * that matters — a published tree judged as if it were withheld — is exactly
- * the one that would go unnoticed.
+ * argument: it follows from the tree's own root LICENSE through
+ * `withheldTier`, because a caller free to state the tier is a caller free to
+ * state it wrongly, and the mistake that matters — a published tree judged as
+ * if it were withheld — is exactly the one that would go unnoticed.
  */
 export function checkDoctrine(args = [], deps = {}) {
   const { read = readFileSync, list = listTrackedFiles, error = console.error } = deps;
   const root = normalizeRoot(args[0] ?? DOCTRINE_ROOT);
-  const withheld = withheldTier(root);
+  const withheld = withheldTier(read);
   const mapPath = corpusMapFor(root);
 
   const paths = doctrineDocPaths(root, list);

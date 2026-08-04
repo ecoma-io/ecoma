@@ -16,13 +16,20 @@ const SCOPES = new Set(["shared", "website", "platform", "rba"]);
 // projects — and the difference is not a lapse. A scope set is open-ended (one
 // more per product domain nobody has named yet), so listing one early would be a
 // claim about content that does not exist. The licence set is closed and already
-// settled: `LICENSE` carves the tree into exactly these four, keyed by path.
-// Enumerating them here is what lets `check-project-conventions` demand the
-// right tag the moment a carve-out directory is born — a vocabulary missing
-// `ee` would reject the very tag the gate requires, and the contributor would
-// be caught between two checks. Every value is named by a depConstraint in
-// eslint.config.mjs, so none is the silent escape this rule exists to close.
-const LICENSES = new Set(["sul", "ee", "apache", "proprietary"]);
+// settled: `LICENSE` carves the tree into exactly these three, and a tree's own
+// LICENSE decides which of them its paths can take. Enumerating them here is
+// what lets `check-project-conventions` demand the right tag the moment a
+// carve-out directory is born — a vocabulary missing a live value would reject
+// the very tag that gate requires, and the contributor would be caught between
+// two checks. Every value is named by a depConstraint in eslint.config.mjs, so
+// none is the silent escape this rule exists to close.
+//
+// `ee` was the fourth and is gone with the Enterprise tier itself. It is worth
+// naming here rather than silently deleting: a slug left in this set after its
+// tier retires is worse than one missing, because a stale `license:ee` tag on a
+// project would keep passing while matching no depConstraint at all — the exact
+// silent escape the paragraph above is about.
+const LICENSES = new Set(["sul", "apache", "proprietary"]);
 // The hex-layer axis is optional (apps, e2e, and non-layered plumbing libs like
 // core-tauri carry none) — but when a layer tag is present it must be from the
 // vocabulary, and there can be at most one: a misspelled `layer:*` matches no

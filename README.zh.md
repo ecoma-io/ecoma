@@ -120,14 +120,13 @@ Ecoma 是 **fair-code**：源码可见，既不是开源，也不是闭源。这
 > **本节是便于快速阅读的摘要，不是条款。**
 > 具有法律效力的是 [`LICENSE`](./LICENSE)，两者不一致时以 `LICENSE` 为准。
 
-| 路径                           | 条款                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------ |
-| 未在下方列出的一切             | Sustainable Use License                                                              |
-| `<subsystem>/packages/`        | Apache License 2.0——你所依赖构建的部分                                               |
-| `<subsystem>/enterprise/`      | **不授予任何权利**——需要另行书面签署的 [Enterprise License](./ENTERPRISE-LICENSE.md) |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs)，含这些文件引用的图片            |
-| `cloud/`                       | 专有，且不公开                                                                       |
-| 第三方组件                     | 其各自所有者的条款                                                                   |
+| 路径                           | 条款                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| 未在下方列出的一切             | Sustainable Use License                                                   |
+| `<subsystem>/packages/`        | Apache License 2.0——你所依赖构建的部分                                    |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs)，含这些文件引用的图片 |
+| `cloud/`                       | 专有，且不公开                                                            |
+| 第三方组件                     | 其各自所有者的条款                                                        |
 
 **为你自己的组织运行 Ecoma 是明确许可的**——无论商业与否，也包括用来向你的客户交
 付商品与服务。不被许可的是以商业目的或收费方式把 Ecoma 提供给他人：出售副本、把

@@ -7,12 +7,21 @@ status: design-end-state
 
 ## 1. The boundary — three partitions, three homes, never mixed
 
-| Home                     | Contents                                                                                                                                                      | Shipped to self-hosters?    | Licence                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------- |
-| **`deploy/`**            | What a self-hoster **receives and runs**: compose files, a Helm chart, systemd units, an installer, the migration runner, edge-router configuration templates | ✅                          | SUL                          |
-| **`cloud/`**             | The Cloud operator's IaC and control plane: fleet, billing, quota operations, automated provisioning                                                          | ❌                          | Proprietary, never public    |
-| **`shared/tools/`**      | The **developer's** tooling: dev-cli, lint rules, repo-care                                                                                                   | ❌ — not a product artifact | SUL                          |
-| **`<area>/enterprise/`** | Enterprise features for **self-hosting**: SSO, audit export, deep retention, advanced RBAC — **not** multi-tenancy                                            | ✅ with a licence           | Enterprise, tag `license:ee` |
+| Home                | Contents                                                                                                                                                      | Shipped to self-hosters?    | Licence                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------- |
+| **`deploy/`**       | What a self-hoster **receives and runs**: compose files, a Helm chart, systemd units, an installer, the migration runner, edge-router configuration templates | ✅                          | SUL                       |
+| **`cloud/`**        | The Cloud operator's IaC and control plane: fleet, billing, quota operations, automated provisioning                                                          | ❌                          | Proprietary, never public |
+| **`shared/tools/`** | The **developer's** tooling: dev-cli, lint rules, repo-care                                                                                                   | ❌ — not a product artifact | SUL                       |
+
+**The paid modules are not a fourth partition.** Enterprise features for
+self-hosting — SSO, audit export, deep retention, advanced RBAC, and **not**
+multi-tenancy — still reach a licensed self-hoster, but their source sits in the
+unpublished workspace beside the control plane rather than in an
+`<area>/enterprise/` directory of this repository. Publishing them under terms
+granting nothing would have handed the code to every competitor while leaving the
+buyer no rights in it, so what carries that tier is a repository boundary and not
+a licence (North Star §8). The partition table above is a map of what this
+repository holds, which is why they have no row in it.
 
 **Single tenancy is a property of the SHAPE, not a technical limit of the
 engine.** Every self-hosted installation, SUL or Enterprise, runs **exactly one

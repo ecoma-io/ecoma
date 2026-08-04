@@ -16,6 +16,12 @@ import {
 
 const file = (path, text) => ({ path, text });
 
+// The two licence texts a fixture can ship. `rootLicenseSlug` reads a title
+// line, so only the first is load-bearing; the closed one is any text that is
+// not that title.
+const SUL_LICENSE = "Sustainable Use License\n\nAcme grants you the rights below.\n";
+const CLOSED_LICENSE = "All rights reserved.\n";
+
 describe("findForbidden", () => {
   it("reports a round number, because it is true only to whoever was in that round", () => {
     expect(findForbidden("chốt ở vòng 25 sau đối kháng")[0]).toMatchObject({
@@ -119,9 +125,11 @@ describe("checkDoctrine", () => {
       .join("\n"),
     ...texts,
   });
+  // The tier is read off the tree's own LICENSE, so a fixture states it there
+  // rather than in the root it passes. These trees are the PUBLISHED one.
   const runOver = (texts, args = []) =>
     checkDoctrine(args, {
-      read: (path) => texts[path],
+      read: (path) => (path === "LICENSE" ? SUL_LICENSE : texts[path]),
       list: () => Object.keys(texts),
       error: () => {},
     });
@@ -180,22 +188,29 @@ describe("checkDoctrine", () => {
 
   it("fails on a citation whose owning document stayed behind, so the family rule is reached too", () => {
     const list = () => ["shared/libs/doctrine/spec/task.md"];
-    expect(checkDoctrine([], { read: () => "freeze tại ◆G2", list, error: () => {} })).toBe(1);
+    const read = (path) => (path === "LICENSE" ? SUL_LICENSE : "freeze tại ◆G2");
+    expect(checkDoctrine([], { read, list, error: () => {} })).toBe(1);
   });
 });
 
 // The withheld tier is judged by the same command with a different rule set,
-// derived from the root rather than declared. Each tier-scoped rule is pinned
-// from both sides: the same fixture under the published root must still fail,
-// so none of these can pass by the rule having quietly stopped running.
+// derived from the tree's own LICENSE rather than declared. Each tier-scoped
+// rule is pinned from both sides: the same fixture under a published LICENSE
+// must still fail, so none of these can pass by the rule having quietly
+// stopped running.
 describe("checkDoctrine over the withheld tier", () => {
   const WITHHELD = "cloud/libs/doctrine";
-  const runAt = (root, texts) =>
+  // Each rule below is pinned from both sides, and the two sides now differ by
+  // the LICENSE the fixture ships — not by the root it is handed. That is the
+  // point of the change these tests cover: a tree is withheld because it grants
+  // nothing, so renaming its areas cannot flip the verdict.
+  const runAt = (root, texts, license = CLOSED_LICENSE) =>
     checkDoctrine([root], {
-      read: (path) => texts[path],
+      read: (path) => (path === "LICENSE" ? license : texts[path]),
       list: () => Object.keys(texts),
       error: () => {},
     });
+  const runPublishedAt = (root, texts) => runAt(root, texts, SUL_LICENSE);
 
   it("accepts a bet identifier in the tier that holds the ledger defining it", () => {
     expect(runAt(WITHHELD, { [`${WITHHELD}/icp-ledger.md`]: "The wedge converts — BET-3." })).toBe(
@@ -208,7 +223,7 @@ describe("checkDoctrine over the withheld tier", () => {
       [CORPUS_MAP]: `[doc](../icp-ledger.md)`,
       [`${DOCTRINE_ROOT}/icp-ledger.md`]: "The wedge converts — BET-3.",
     };
-    expect(runAt(DOCTRINE_ROOT, texts)).toBe(1);
+    expect(runPublishedAt(DOCTRINE_ROOT, texts)).toBe(1);
   });
 
   it("refuses an episode coordinate here too — end state is a property of doctrine, not of publication", () => {
@@ -228,7 +243,7 @@ describe("checkDoctrine over the withheld tier", () => {
     expect(runAt(WITHHELD, { [`${WITHHELD}/web-charter.md`]: "The funnel's dual goal." })).toBe(0);
     // The same lone document under the published root fails for want of the
     // map — the routing rule is scoped, not deleted.
-    expect(runAt(DOCTRINE_ROOT, { [`${DOCTRINE_ROOT}/web-charter.md`]: "x" })).toBe(1);
+    expect(runPublishedAt(DOCTRINE_ROOT, { [`${DOCTRINE_ROOT}/web-charter.md`]: "x" })).toBe(1);
   });
 
   it("lets a withheld document cite a family whose owner is published across the boundary", () => {

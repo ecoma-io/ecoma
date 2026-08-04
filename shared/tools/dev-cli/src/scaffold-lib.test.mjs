@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// A scaffolded project declares the terms ITS OWN tree grants, so every mock
+// below has to say which tree it is. Without a LICENSE the command reads the
+// tree as granting nothing and emits `license:proprietary` — correct behaviour,
+// and the reason these fixtures are explicit rather than empty.
+const SUL_LICENSE = "Sustainable Use License\n\nAcme grants you the rights below.\n";
+
 import {
   deriveGoVersion,
   scaffoldLib,
@@ -77,8 +83,9 @@ describe("scaffoldLib file emission", () => {
   it("writes every required file and registers the alias", () => {
     const written = new Map();
     const fs = {
-      existsSync: () => false,
-      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      existsSync: (path) => path === "LICENSE",
+      readFileSync: (path) =>
+        path === "LICENSE" ? SUL_LICENSE : JSON.stringify({ compilerOptions: { paths: {} } }),
       mkdirSync: vi.fn(),
       writeFileSync: (path, content) => written.set(path, content),
     };
@@ -113,8 +120,9 @@ describe("scaffoldLib file emission", () => {
   it("emits each README variant in its own language, not three copies of the English one", () => {
     const written = new Map();
     const fs = {
-      existsSync: () => false,
-      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      existsSync: (path) => path === "LICENSE",
+      readFileSync: (path) =>
+        path === "LICENSE" ? SUL_LICENSE : JSON.stringify({ compilerOptions: { paths: {} } }),
       mkdirSync: vi.fn(),
       writeFileSync: (path, content) => written.set(path, content),
     };
@@ -144,8 +152,9 @@ describe("scaffoldLib file emission", () => {
 
   it("tells the caller to stage the scaffold before verifying, since check-project-conventions discovers projects from tracked project.json files", () => {
     const fs = {
-      existsSync: () => false,
-      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      existsSync: (path) => path === "LICENSE",
+      readFileSync: (path) =>
+        path === "LICENSE" ? SUL_LICENSE : JSON.stringify({ compilerOptions: { paths: {} } }),
       mkdirSync: vi.fn(),
       writeFileSync: () => {},
     };
@@ -164,8 +173,9 @@ describe("scaffoldLib file emission", () => {
   it("omits the layer tag when no layer is given", () => {
     const written = new Map();
     const fs = {
-      existsSync: () => false,
-      readFileSync: () => JSON.stringify({ compilerOptions: { paths: {} } }),
+      existsSync: (path) => path === "LICENSE",
+      readFileSync: (path) =>
+        path === "LICENSE" ? SUL_LICENSE : JSON.stringify({ compilerOptions: { paths: {} } }),
       mkdirSync: vi.fn(),
       writeFileSync: (path, content) => written.set(path, content),
     };

@@ -194,8 +194,9 @@ reviews:
       description: >
         Flag any added cross-project import in a Go, Rust or Python file whose
         direction the `tags` in the importing and imported `project.json` forbid:
-        `license:sul` must never import `license:ee` (it would ship paid code to
-        every self-hoster), a product domain may depend only on its own libraries
+        `license:apache` must never import `license:sul` (it would hand a third
+        party SUL code under Apache terms, which cannot be granted and cannot be
+        undone), a product domain may depend only on its own libraries
         and on `shared/*`, `shared/*` never reaches into a product domain, and
         domains never import each other. `@nx/enforce-module-boundaries` sees
         only what ESLint parses, so in these languages nothing enforces the

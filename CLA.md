@@ -40,21 +40,19 @@ person behind it; clause 5 is how that work is disclosed.
 ## Why a CLA at all
 
 Ecoma is not licensed under a single licence. The code you contribute may end
-up under any of five sets of terms, decided by where the file lives and not by
+up under any of four sets of terms, decided by where the file lives and not by
 who wrote it:
 
 - the Sustainable Use License, for the implementations that run the system;
 - the Apache License 2.0, for the interfaces and schemas third parties build
   against;
-- a commercial Enterprise License, for modules under an `enterprise`
-  directory;
 - proprietary terms, for the operator control plane;
 - Creative Commons Attribution-ShareAlike 4.0, for the documents under
   `shared/libs/doctrine/` — a copyleft licence, so a derivative of what you
   write there stays open, and attribution travels with it.
 
 [`LICENSE`](./LICENSE) is the source of truth for which path gets which track.
-One of the five licence sets is still in progress: the proprietary terms for
+One of the four licence sets is still in progress: the proprietary terms for
 the operator control plane have not been published. Clause 1 is what would let
 us place your contribution under them, and we say so plainly rather than
 implying `LICENSE` already states them. Ask before you contribute if that
@@ -78,7 +76,7 @@ apply to every contribution you make, before or after that agreement:
    **sublicensable through multiple tiers**, to reproduce, modify, prepare
    derivative works of, publicly display, publicly perform, sublicense and
    distribute your contribution and such derivative works, under any licence
-   terms, including the five named above and any commercial terms.
+   terms, including the four named above and any commercial terms.
 
    This licence is **exclusive** as to one thing only: the right to bring and
    conduct proceedings against a person infringing your contribution as part of
@@ -101,8 +99,8 @@ apply to every contribution you make, before or after that agreement:
    litigation — including a cross-claim or counterclaim — **or sends a written
    notice asserting**, in either case against Ecoma or any recipient, that the
    project, your contribution, or any other software Ecoma makes available
-   (including the contents of any `enterprise` directory and of `cloud/`,
-   whether or not licensed to them) infringes **or contributes to infringement
+   (including the contents of `cloud/`, whether or not licensed to them)
+   infringes **or contributes to infringement
    of** any patent. Termination reaches only the licences this clause granted
    to that person or entity and its affiliates; everyone else's are unaffected,
    and the copyright licence in clause 1 stays in force.
@@ -392,9 +390,14 @@ have already made, and nothing lets us widen one without asking you.
   **in force** — version 1.1, effective 2026-08-04, offered to companies whose
   employees contribute on their employer's behalf. Clause 6 now routes
   employer-owned contributions to this agreement.
-- The **Enterprise License** ([`ENTERPRISE-LICENSE.md`](./ENTERPRISE-LICENSE.md))
-  is **in force** — version 1.1, effective 2026-08-04, for the modules under an
-  `enterprise/` directory.
+- The **Enterprise License** has been **retired**. It covered modules under an
+  `enterprise/` directory, and no such directory was ever created. What
+  replaces it is not another licence but a repository boundary: the paid
+  modules live in the unpublished control-plane workspace, under the
+  proprietary terms below. A contribution you made while that document was in
+  force is unaffected — nothing here narrows a licence you already granted, and
+  the grant in clause 1 never depended on which of the licences above the
+  project chose to publish under.
 - The **proprietary terms** for the operator control plane (`cloud/`) have not
   been published.
 
