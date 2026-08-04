@@ -63,7 +63,11 @@ export function runClaGate({ author, authorType, spawn = spawnSync }) {
 }
 
 /** The failure notice. `repo` is `owner/name`, for absolute links — a comment
- * resolves relative links against the thread URL, not the tree. */
+ * resolves relative links against the thread URL, not the tree. The gate
+ * output is rendered as an INDENTED code block, never a fence: it echoes
+ * record paths a pull request author chose, and a filename carrying backticks
+ * could close a fence and let untrusted text render as this bot's own
+ * guidance — an indented block has no closing delimiter to escape. */
 export function buildClaNoticeComment({ author, repo, gateOutput }) {
   const blob = (path) => `https://github.com/${repo}/blob/HEAD/${path}`;
   const output =
@@ -76,9 +80,7 @@ export function buildClaNoticeComment({ author, repo, gateOutput }) {
     "",
     `Thanks for the pull request, @${author}! The CLA check (\`Contributor record\` in CI) did not pass, so it will stay red until this is resolved. What the gate said:`,
     "",
-    "```",
-    output,
-    "```",
+    ...output.split("\n").map((line) => `    ${line}`),
     "",
     `If you have not agreed to the CLA yet, you agree **once**, in this pull request — it covers every future contribution:`,
     "",
@@ -120,9 +122,11 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
     console.error("cla-notice: --pr <number> and --author <login> are required");
     return 2;
   }
+  // `repo` renders the comment's links, so it is required even when a client
+  // is injected; the token only ever feeds the default client.
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
-  if (!client && (!repo || !token)) {
+  if (!repo || (!client && !token)) {
     console.error("cla-notice: GITHUB_REPOSITORY and GITHUB_TOKEN must be set");
     return 2;
   }
@@ -135,9 +139,28 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
     return 1;
   }
 
+  // Exit 1 aggregates the whole tree's audit, not just this author: a record
+  // someone else broke, or CLA.md's own template drifting, reddens the gate
+  // for every pull request at once. A sign-up notice on those would tell a
+  // compliant contributor to fix what is not theirs — so the notice posts only
+  // when the output names this author's own record or account. Both fault
+  // shapes carry one of those two spellings by construction
+  // (`authorVerdict`, and the roster fault naming the record's handle).
+  const handle = author.toLowerCase();
+  const authorFault =
+    gate.output.toLowerCase().includes(`contributors/${handle}.md`) ||
+    gate.output.toLowerCase().includes(`'${handle}'`);
+
   const gh = client ?? githubClient({ repo, token });
   try {
     const existing = (await gh.listComments(pr)).find((c) => c.body?.startsWith(CLA_NOTICE_MARKER));
+    if (gate.status === 1 && !authorFault) {
+      console.log(
+        `cla-notice: gate is red for repository-wide reasons, not for '${author}' — ` +
+          `no notice; CI's own log is the right channel for that failure`,
+      );
+      return 0;
+    }
     if (gate.status === 1) {
       const body = buildClaNoticeComment({ author, repo, gateOutput: gate.output });
       if (existing) await gh.updateComment(existing.id, body);
