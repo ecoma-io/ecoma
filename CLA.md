@@ -279,16 +279,16 @@ contract, and to credit you as an author. It falls into two groups, and the
 difference between them is the whole of our data-minimisation practice.
 
 **Published, permanently:** the name and email address in your commits, your
-GitHub account name, and what your contributor record carries — your full legal
-name, your handle and your country of residence — together with your row in
-`CONTRIBUTORS.md`. This is part of the public commit history of a public
-repository, it is copied by everyone who clones or forks the project, and **it
-cannot be removed once published**.
+GitHub account name, your signature — your account, the pull request comment it
+came from, and its timestamp — and your row in `CONTRIBUTORS.md`. This is part
+of the public commit history of a public repository, it is copied by everyone
+who clones or forks the project, and **it cannot be removed once published**.
 
-**Held by us, never published:** your full postal address and the contact email
-you send us. These stay with Ecoma. We keep them for as long as the project
-exists, because they are what makes the licence you granted provable, and we
-disclose them only where a court or an authority requires it.
+**Held by us, never published:** your full legal name, your country of
+residence, your full postal address and the contact email you send us. These
+stay with Ecoma. We keep them for as long as the project exists, because they
+are what makes the licence you granted provable, and we disclose them only where
+a court or an authority requires it.
 
 The repository is hosted by GitHub, Inc. in the United States, and email to us
 is handled by Google LLC — so both groups are transferred outside Vietnam.
@@ -310,65 +310,71 @@ data: <john.itvn@gmail.com>.
 
 ## How you agree
 
-You agree to these terms **once**, on your first pull request, by committing a
-contributor record at `contributors/<your-github-handle>.md` containing:
+You agree to these terms **once**, by posting this line as a comment on your
+first pull request:
 
 ```
-Full legal name:
-GitHub:
-Country of residence:
-
-I agree to the Ecoma Contributor License Agreement, version 1.1, at CLA.md, for
-this and every future contribution I make to this project. I have given Ecoma my
-full postal address and a contact email, and I understand that Ecoma does not
-publish either of them.
+I have read the Ecoma Contributor License Agreement, version 1.1, at CLA.md, and I agree to it for this and every future contribution I make to this project.
 ```
 
-Any capitalisation of your handle names the same file. In the same pull request,
-add your row to [`CONTRIBUTORS.md`](./CONTRIBUTORS.md): clause 3.2 makes that
-file how we name you as an author, so it is part of agreeing rather than a
-courtesy that follows later.
+Our CLA assistant reads the comment, records your signature — your GitHub
+account, the comment it came from, and when — into `signatures/version1/cla.json`
+in this repository, and turns the CLA check green. That commit is your written
+assent: it is in the history of a public repository, it travels in every clone,
+and neither of us can quietly change what it says afterwards. You need do
+nothing else to agree, and nothing at all before opening the pull request.
 
-Before that pull request, send your **full postal address and a contact email**
-to <john.itvn@gmail.com>. Sign the record's commit off (`git commit -s`). A
-maintainer confirms the record before merging. "Confirms" means a maintainer
-explicitly approves the record by merging it, or by commenting on the pull
-request stating that the record is complete and accepted — which includes
-confirming that we hold the two details above. A silent merge without review is
-not confirmation. **Nothing in this agreement takes effect, and no licence is
-granted under it, until that record exists.** If you send us material without
-agreeing, we will ask you to agree before we use it, and will discard it if you
-decline.
+**Before we merge**, a maintainer will ask you privately for your **full legal
+name, country of residence, full postal address and a contact email**, through a
+link on the pull request. Send them once; they cover every contribution you make
+afterwards, and we do not publish any of them. Until we hold them the pull
+request waits, and a maintainer says so on the thread rather than leaving you to
+guess.
+
+**Nothing in this agreement takes effect, and no licence is granted under it,
+until both halves exist** — the signature you post and the details we hold. If
+you send us material without agreeing, we will ask you to agree before we use
+it, and will discard it if you decline.
+
+_The private form is not published yet. Until it is, the maintainer asks for the
+four details by email on the pull request thread — the timing above is what
+matters, and it holds either way._
 
 ### Why it is split in two
 
 Copyright law in Vietnam — the law that governs this agreement — requires a
 licence contract to be in writing and to identify both parties, including their
-addresses (`Điều 48` of the Law on Intellectual Property). Your address is
-therefore something we must **hold**, and that is a different requirement from
-publishing it. The contract is the two halves together: the record you commit,
-which fixes what you agreed and when, and the details you send us, which
-identify you. Neither half alone is the agreement.
+addresses (`Điều 48` of the Law on Intellectual Property). Two different things
+follow, and keeping them apart is the whole of this design.
 
-We keep the address and the contact email out of the repository because
-publication cannot be undone. A public commit history is copied by everyone who
-clones or forks the project, and no later decision of ours reaches those copies
-— so a home address published once is published permanently, in exchange for
-nothing the private half does not already give us. This is the same judgement
-[`CORPORATE-CLA.md`](./CORPORATE-CLA.md) makes when it refuses to publish a
-company's signed agreement, and it would be incoherent to protect a company's
+**The writing is public**, because a signature nobody can inspect proves
+nothing. Your signature line, the pull request comment it points at, and the
+commit that added it are all public and permanent, and they fix what you agreed
+and when.
+
+**The identification is held, never published**, because publication cannot be
+undone. A public commit history is copied by everyone who clones or forks the
+project, and no later decision of ours reaches those copies — so a home address
+published once is published permanently, in exchange for nothing that holding it
+does not already give us. That reasoning never applied only to the address: your
+full legal name and your country of residence identify you in exactly the same
+way, so they sit on the same side of the line. This is the judgement
+[`CORPORATE-CLA.md`](./CORPORATE-CLA.md) already makes when it refuses to publish
+a company's signed agreement, and it would be incoherent to protect a company's
 signatory and not you.
 
-What the record does carry is public, and deliberately: your name and GitHub
-handle are already in the commit history and in `CONTRIBUTORS.md`, and your
-country of residence is what tells a reader which mandatory local law the
-governing-law clause cannot displace for you. A reviewer can read the record and
-see that you agreed, to which version, without learning where you live.
+What that costs, said plainly: a reader of this repository can see **that** you
+agreed and **to which version**, but not which country's mandatory law the
+governing-law clause cannot displace for you. That is a question for us and for
+you, and we hold the answer; it was never one a passer-by needed. Nothing else
+about the public half changed — your name and email are in your commits and your
+GitHub account name is on every comment you write, as they are in any public
+repository.
 
-That agreement covers every contribution you make afterwards. Clauses 4 to 6
-are things you re-confirm each time you open a pull request — the pull request
-template asks — because employment and the origin of your work can change, and
-a one-time record cannot notice.
+The agreement you post covers every contribution you make afterwards. Clauses 4
+to 6 are things you re-confirm each time you open a pull request — the pull
+request template asks — because employment and the origin of your work can
+change, and a one-time signature cannot notice.
 
 Separately, sign off each commit. The `Signed-off-by` trailer carries its
 ordinary industry meaning — the
@@ -385,6 +391,11 @@ make after we ask you to agree to it and you do. Contributions you have already
 made stay covered by the version you agreed to, and the licences you granted
 under it stay in force — nothing here lets us take back or narrow a grant you
 have already made, and nothing lets us widen one without asking you.
+
+Asking is a mechanism, not a promise: a new version gets a new signatures file,
+so the CLA check goes red for everyone on their next pull request until they
+post the new sentence. The previous file stays in this repository unchanged, and
+it is the writing for everything merged under the version it names.
 
 ## The other agreements, and where they stand
 

@@ -67,16 +67,24 @@ jobs:
             node shared/tools/dev-cli/src/main.mjs check-commit-scope --commit "$sha"
           done
 
-      # The CLA grants nothing until the contributor's record exists, and only
-      # CI knows who opened the pull request. `user.type` travels with it because
-      # a machine account cannot hold a copyright to license, and GitHub is the
-      # only authority on which accounts are machines — the gate must not infer
-      # that from a `[bot]` suffix. `--commits` adds the other half the agreement
-      # asks for: the `Signed-off-by` trailer on every commit of the branch, with
-      # the same automation exemption, which is why it rides this command rather
-      # than a gate of its own. Bare mode also runs on every push, so a malformed
-      # record is caught wherever it lands.
-      - name: Contributor record and sign-off (CLA acceptance)
+      # The CLA grants nothing until the contributor has agreed, and only CI
+      # knows who opened the pull request. `cla.yml` is what records a signature
+      # and what tells a contributor how to give one; this step is what makes
+      # that verdict reachable from the ONE check branch protection watches.
+      # `ci-gate` gates on this job, so a CLA answer living only in the action's
+      # own commit status would sit outside the thing that actually blocks a
+      # merge. The two cannot disagree: both read the same signatures file, and
+      # the action's allowlist is derived from this same command.
+      #
+      # `user.type` travels with the author because a machine account cannot
+      # hold a copyright to license, and GitHub is the only authority on which
+      # accounts are machines — the gate must not infer that from a `[bot]`
+      # suffix. `--commits` adds the other half the agreement asks for: the
+      # `Signed-off-by` trailer on every commit of the branch, with the same
+      # automation exemption, which is why it rides this command rather than a
+      # gate of its own. Bare mode also runs on every push, so a malformed
+      # signatures file is caught wherever it lands.
+      - name: Contributor signature and sign-off (CLA acceptance)
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
