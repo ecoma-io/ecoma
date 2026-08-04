@@ -1,17 +1,20 @@
 {
-  "$comment": "Single source of the workspace's human-language triad. `code` is the language tag used in filenames and model-facing enums; `label` is the language's own endonym, rendered verbatim in the README language-switcher nav line and in repo-care's translation comment headings. The list is ordered and English is canonical: a consumer needing a default takes the first entry. Consumers: shared/tools/dev-cli/src/readme-schema.mjs (README variant filenames, nav line, parity audit), shared/tools/repo-care/src/translate-thread.mjs (source-language enum, translation targets, section headings). The value lives here rather than in either tool because a cross-project source import between them would be an edge the Nx project graph cannot see — the same reason journey-markers.config.json and practice-index.json sit at the root. Two laws govern this list. TIERING: these are the CORE languages — every governed README variant and thread translation carries all of them; a language added for community reach or search visibility joins the RENDERED SURFACES (site, docs pages) first, and joins this core list only when engineering docs in it earn their keep. ACCOUNTABILITY: every language here needs a review channel someone actually operates — machine translation plus a parity gate proves agreement, never correctness, so a language nobody on the project reads is a published claim nobody can vouch for; adding one is a decision that names its reviewer or states the accepted risk. A downstream workspace may declare its own languages.config.json at its root naming fewer (the private cloud workspace names two: its readers are the operator and the agents); the gates resolve the judged tree first and fall back to this file.",
+  "$comment": "Single source of the workspace's human-language triad. `code` is the language tag used in filenames and model-facing enums; `label` is the language's own endonym, rendered verbatim in the README language-switcher nav line and in repo-care's translation comment headings. `script` is the Unicode script the language's PROSE is written in, and it exists because a free model translating into one language leaks words of another: repo-care's translate-thread rejects a translation carrying letters outside its target's script (plus Latin, which every language here uses for identifiers and names), which is decidable in code and so is not left to a model to notice. The list is ordered and English is canonical: a consumer needing a default takes the first entry. Consumers: shared/tools/dev-cli/src/readme-schema.mjs (README variant filenames, nav line, parity audit), shared/tools/repo-care/src/translate-thread.mjs (source-language enum, translation targets, section headings). The value lives here rather than in either tool because a cross-project source import between them would be an edge the Nx project graph cannot see — the same reason journey-markers.config.json and practice-index.json sit at the root. Two laws govern this list. TIERING: these are the CORE languages — every governed README variant and thread translation carries all of them; a language added for community reach or search visibility joins the RENDERED SURFACES (site, docs pages) first, and joins this core list only when engineering docs in it earn their keep. ACCOUNTABILITY: every language here needs a review channel someone actually operates — machine translation plus a parity gate proves agreement, never correctness, so a language nobody on the project reads is a published claim nobody can vouch for; adding one is a decision that names its reviewer or states the accepted risk. A downstream workspace may declare its own languages.config.json at its root naming fewer (the private cloud workspace names two: its readers are the operator and the agents); the gates resolve the judged tree first and fall back to this file.",
   "languages": [
     {
       "code": "en",
-      "label": "English"
+      "label": "English",
+      "script": "Latin"
     },
     {
       "code": "vi",
-      "label": "Tiếng Việt"
+      "label": "Tiếng Việt",
+      "script": "Latin"
     },
     {
       "code": "zh",
-      "label": "中文"
+      "label": "中文",
+      "script": "Han"
     }
   ]
 }
