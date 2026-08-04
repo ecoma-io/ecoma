@@ -32,6 +32,15 @@ export default tseslint.config(
       "**/storybook-static/**",
       "**/.nuxt/**",
       "**/.output/**",
+      // VitePress writes one module per page here while it builds and removes
+      // them when it finishes. `build` and `lint` are separate targets on the
+      // same project, so Nx runs them at once and a lint that overlaps a build
+      // sees them: doctrine prose reaches the generated module inside a
+      // template literal, which `no-irregular-whitespace` does not skip. Green
+      // or red then depends on which task wins, so the ignore is what makes the
+      // gate deterministic rather than lucky.
+      "**/.vitepress/.temp/**",
+      "**/.vitepress/cache/**",
     ],
   },
 
