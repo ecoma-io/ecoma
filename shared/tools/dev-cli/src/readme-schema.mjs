@@ -1,10 +1,12 @@
 /**
  * Shared schema/audit helpers for the README governance contract (root
  * CLAUDE.md, Documentation): every subsystem-root and subproject README
- * exists in 3 language variants (`README.md` = English/canonical,
- * `README.vi.md`, `README.zh.md`), cross-referencing each other by filename
- * convention alone (no "points-to-sibling" frontmatter field — a total
- * function beats a driftable path). Consumed by both
+ * exists in one variant per workspace-declared language (`README.md` =
+ * English/canonical, plus `README.<code>.md` for each further entry in the
+ * judged tree's `languages.config.json` — three here, two in the private
+ * cloud workspace), cross-referencing each other by filename convention
+ * alone (no "points-to-sibling" frontmatter field — a total function beats a
+ * driftable path). Consumed by both
  * `check-subsystem-readmes.mjs` and
  * `check-subproject-readmes.mjs` so the two gates can never disagree on what
  * a "variant", a nav line, or a section marker is. Each frontmatter's own
@@ -14,20 +16,39 @@
  * markers.
  */
 
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 
-// The triad is a workspace-level value, not this gate's own: repo-care's
+// The language set is a WORKSPACE-level value, not this gate's own: repo-care's
 // thread translation names the same languages, so both read one root config
 // (Rule 14 rung 2) instead of each declaring a copy — see that file's
 // `$comment` for why it sits at the root rather than in either tool.
+//
+// Which workspace, though, is the judged tree's to answer: this gate also runs
+// downstream (the private cloud workspace consumes it at a pinned reference,
+// and its doctrine names two reader languages, not three). So the config is
+// resolved from the root of the tree the session stands in, falling back to
+// this workspace's own copy for trees that declare none — fixtures, and any
+// downstream that accepts the default.
 //
 // Loaded via `createRequire`, deliberately neither a static import nor
 // `node:fs`: the config sits outside this Nx project, so a relative import is
 // an edge the project graph cannot see (`@nx/enforce-module-boundaries` rejects
 // it), while this module's unit-test callers mock `node:fs` wholesale to
 // exercise path handling — a static config must not become the reason those
-// mocks have to know about it.
-const languagesConfig = createRequire(import.meta.url)("../../../../languages.config.json");
+// mocks have to know about it. `git` locates the judged root for the same
+// reason every gate here enumerates through it: the tree being judged is
+// defined by git, not by where this file happens to be installed.
+function workspaceLanguagesConfig() {
+  try {
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+    return createRequire(join(root, "package.json"))("./languages.config.json");
+  } catch {
+    return createRequire(import.meta.url)("../../../../languages.config.json");
+  }
+}
+const languagesConfig = workspaceLanguagesConfig();
 
 export const LANGS = languagesConfig.languages.map((l) => l.code);
 
@@ -58,9 +79,9 @@ export function readmeFilename(lang) {
 
 /**
  * The exact language-switcher nav line a variant must open its body with —
- * `lang`'s own segment is bold and unlinked, the other two link to their
- * sibling filename. Fixed per language, so there is no 3x3 translation
- * matrix to keep in sync — only 3 constants.
+ * `lang`'s own segment is bold and unlinked, the others link to their
+ * sibling filename. Fixed per language, so there is no NxN translation
+ * matrix to keep in sync — one constant per declared language.
  */
 export function expectedNavLine(lang) {
   assertKnownLang(lang);
@@ -107,7 +128,7 @@ export function auditDescription(description) {
 /**
  * Audits a subproject README body for the 5 fixed, ordered section markers.
  * Matched as literal strings (never translated heading prose), so the same
- * check holds across all 3 language variants.
+ * check holds across every workspace-declared language variant.
  */
 export function auditSectionMarkers(body) {
   const errors = [];

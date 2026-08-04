@@ -1,7 +1,7 @@
 /**
  * Enforces the subsystem-root README contract: every top-level directory
  * holding tracked files (dot-dirs are workspace plumbing, not subsystems)
- * carries all 3 language variants (`README.md`, `README.vi.md`,
+ * carries one variant per workspace-declared language (`README.md`, `README.vi.md`,
  * `README.zh.md` — root CLAUDE.md, Documentation), each opening with the
  * canonical frontmatter block, fixed order:
  *
@@ -62,7 +62,9 @@ export function deriveSubsystemRoots(trackedPaths) {
 export function auditSubsystemReadme(name, lang, content) {
   const file = `${name}/${readmeFilename(lang)}`;
   if (content === null) {
-    return [`${file}: missing — every subsystem root declares its area in all 3 language variants`];
+    return [
+      `${file}: missing — every subsystem root declares its area in every workspace-declared language`,
+    ];
   }
   const m = SUBSYSTEM_FRONTMATTER_RE.exec(content);
   if (!m) {
@@ -100,7 +102,9 @@ export function auditSubsystemReadme(name, lang, content) {
 export function auditRootReadme(lang, content) {
   const file = readmeFilename(lang);
   if (content === null) {
-    return [`${file}: missing — the repo root's README must exist in all 3 language variants`];
+    return [
+      `${file}: missing — the repo root's README must exist in every workspace-declared language`,
+    ];
   }
   const normalized = content.replace(/\r\n/g, "\n");
   const expected = expectedNavLine(lang);

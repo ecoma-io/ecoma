@@ -1,6 +1,6 @@
 /**
  * Enforces the subproject README contract: every git-tracked `project.json`'s
- * directory carries all 3 language variants (`README.md`, `README.vi.md`,
+ * directory carries one variant per workspace-declared language (`README.md`, `README.vi.md`,
  * `README.zh.md` — root CLAUDE.md, Documentation), each opening with the
  * canonical frontmatter block, fixed order:
  *
@@ -46,7 +46,9 @@ const SUBPROJECT_FRONTMATTER_RE =
 export function auditSubprojectReadme(projectDir, subsystem, projectName, lang, content) {
   const file = `${projectDir}/${readmeFilename(lang)}`;
   if (content === null) {
-    return [`${file}: missing — every Nx subproject carries a README in all 3 language variants`];
+    return [
+      `${file}: missing — every Nx subproject carries a README in every workspace-declared language`,
+    ];
   }
   const m = SUBPROJECT_FRONTMATTER_RE.exec(content);
   if (!m) {
