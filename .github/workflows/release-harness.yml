@@ -1,24 +1,24 @@
-# CD for the harness release group (nx.json > release.groups.harness) — and,
-# for now, deliberately a REHEARSAL: every nx release invocation below carries
-# --dry-run, so a run proves the whole pipeline resolves (version derivation
-# from conventional commits, per-project changelog, tag pattern, publishable
-# tarball) while writing nothing anywhere. That is exactly what can be proven
-# today, because the two prerequisites of a real publish are operator acts no
-# workflow can perform: the ecoma-io npm org must exist, and this workflow
-# must be configured there as a trusted publisher (OIDC), so that no npm
-# token ever lives in this repository.
+# CD for the harness release group (nx.json > release.groups.harness), in its
+# rehearsal configuration: every nx release invocation below carries --dry-run,
+# so a run proves the whole pipeline resolves (version derivation from
+# conventional commits, per-project changelog, tag pattern, publishable
+# tarball) while writing nothing anywhere. The rehearsal configuration and the
+# read-only token are one mechanism: together they make a dispatch that ships
+# something structurally impossible, which is the correct behaviour of a
+# release lane whose registry side does not exist — a real publish requires
+# operator acts no workflow can perform (the ecoma-io npm org, and this
+# workflow bound there as a trusted publisher over OIDC, so that no npm token
+# ever lives in this repository).
 #
-# Flipping the rehearsal to the real thing is one deliberate edit, listed so
-# it cannot be half-done: (1) drop every --dry-run below; (2) raise
-# permissions to contents: write (nx release pushes the version commit and
-# the {projectName}@{version} tag) plus id-token: write (npm provenance via
+# Converting the lane to a publishing one is one deliberate edit, listed so it
+# cannot be half-done: (1) drop every --dry-run below; (2) raise permissions
+# to contents: write (nx release pushes the version commit and the
+# {projectName}@{version} tag) plus id-token: write (npm provenance via
 # trusted publishing); (3) confirm the trusted-publisher binding on npmjs.
-# Until then the read-only token is the guarantee that a mis-click on the
-# dispatch button cannot ship anything.
 #
 # workflow_dispatch is the release path — the harness group has its own
 # cadence, cut when the operator decides a set of dev-cli changes is worth a
-# version, not on every merge (delivery playbook §6, round 31: tooling rides
+# version, not on every merge (delivery playbook §6: tooling rides
 # its own train, outside one-tag-every-artifact). The pull_request trigger
 # exists for one file only: this one. A workflow edit that breaks the release
 # lane would otherwise be discovered at release time, the worst moment; a PR
