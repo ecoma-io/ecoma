@@ -53,7 +53,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, "..", "..", "..", "..");
 const DEV_CLI = join(REPO_ROOT, "shared/tools/dev-cli/src/main.mjs");
 
-/** The CLA gate's verdict on this author, as `{ status, output }`. */
+/**
+ * The CLA gate's verdict, as `{ status, faults, output }`. `faults` is stderr
+ * alone and is what the attribution decision reads; `output` is stderr and
+ * stdout together and is what the comment shows.
+ */
 export function runClaGate({ author, authorType, commits, spawn = spawnSync }) {
   const args = [DEV_CLI, "check-contributor-record", "--author", author];
   if (authorType) args.push("--author-type", authorType);
