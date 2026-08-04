@@ -39,10 +39,12 @@ marker）、每个 subproject 都要有自己的 `CLAUDE.md`、commit 的 scope 
 - **lefthook prepare-commit-msg / commit-msg**：`strip-claude-trailers`、
   `check-commit-scope`。
 - **CI**（`.github/workflows/ci.yml`）：`check-commit-scope --commit <sha>`
-  （对 PR 里的每个 commit 各跑一次）、`check-journey-markers-workspace`、
-  `check-doc-links`、`check-command-refs`、`check-claude-md`、`check-doctrine`、`check-practice-index`、
-  `check-project-conventions`、`check-subsystem-readmes`、
-  `check-subproject-readmes`。
+  （对 PR 里的每个 commit 各跑一次）、`check-contributor-record`（pull request
+  上带 PR 作者参数，其余情况裸跑）、以及 `workspace-gates`——把所有
+  workspace 级 gate 收进一个命令，清单由 `src/workspace-gates.mjs` 里的
+  `WORKSPACE_GATES` 拥有，而不是在这里或 workflow step 里再抄一份。cloud
+  仓库的 CI 在合并树上跑的正是同一个命令，这也是清单是一个命令而不是一串
+  step 的原因。
 - **每个 project 自己的 `lint` target**（`project.json`——几乎覆盖仓库里
   所有 subproject，包括 `dev-cli` 自己）：以 per-project 的方式跑
   `check-journey-markers`。`check-primitive-artifacts` 只挂在 `core-ui` 的
