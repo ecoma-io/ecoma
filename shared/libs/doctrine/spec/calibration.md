@@ -136,15 +136,27 @@ here; a read at a level emits a **read event** (Tenant & Identity §4), which is
 what answers _who read what about whom_; and `model_policy` routes a cell the way
 it routes a knowledge chunk or a memory entry.
 
-The reason it has to be said is that this was the one source classified in
-substance and absent from the lattice, and the gap is not visible from either
-side. `view_calibration` governs **the cell**; a number _derived_ from cells is
-not the cell, so it inherited no floor and left no read event — a confidence
-rendered beside a client-facing figure crossed to a viewer who holds no Role in
-the tenant at all, silently and by omission rather than by anyone's decision.
-Joining the lattice does not decide whether such a figure may be shown: the
-default still refuses it, and relaxing that is the `calibration_visibility_policy`
-decision, unchanged.
+**The lattice and the grant guard different doors, and neither substitutes for
+the other.** `view_calibration` decides whether a principal _inside_ the tenant
+may read assessment data at all; the classification decides what may _leave_.
+Someone holding a grant that reaches `confidential` but not `view_calibration` is
+refused by the grant, not by the floor — reading the derived figure is still
+reading calibration. The lattice adds the half the grant never had: an egress
+check for the figure once it is drawn, and a read event that records the attempt
+either way.
+
+The reason it has to be said — stated as the history it is, because this
+paragraph describes what the omission _was_ and not what the rule now permits.
+Calibration was the one source classified in substance and absent from the
+lattice, and the gap was invisible from either side: `view_calibration` governs
+**the cell**, and a number _derived_ from cells is not the cell, so **before this
+rule** it inherited no floor and left no read event, and a confidence rendered
+beside a client-facing figure could cross to a viewer holding no Role in the
+tenant at all — by omission rather than by anyone's decision. **Under this rule**
+that figure carries the floor of the cells behind it and reading it emits a read
+event. Joining the lattice still does not decide whether such a figure may be
+shown: the default refuses it, and relaxing that remains the
+`calibration_visibility_policy` decision, unchanged.
 
 ## 7. Non-goals
 
@@ -184,16 +196,19 @@ decision, unchanged.
    §2)?
 5. With a template that splits learning per workspace: does the estimate for
    client A read not one Judgment belonging to client B?
-6. Render a confidence derived from cells to a viewer holding no
-   `view_calibration` in scope — is it refused by floor propagation and the
-   leakage gate, and does the attempt leave a read event naming who asked?
+6. Two doors, asked separately. A principal **inside** the tenant holding a
+   grant that reaches the cells' classification but **not** `view_calibration`
+   asks for a confidence derived from them — is it refused by the grant, and does
+   the attempt leave a read event naming who asked? And the same figure on its
+   way **outside** the tenant — does it carry the cells' floor into the leakage
+   gate, so a policy that permitted the read still does not permit the export?
 
 ## Failure modes
 
-| Failure                                              | Detected by                                                                         | Recovery                                                                                                                                         |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Projection drift, or a wrong cell                    | A checksum by log position (Working Data §2)                                        | Rebuild from the log, with a warning event                                                                                                       |
-| An estimator bug skewing many results                | The estimator has an identity and is shadow-compared before graduation              | Roll back to the previous estimator version, which is possible because it is named                                                               |
-| Poisoning through forged Judgments                   | The `judge` capability, `distinct_filler_from`, and a Conflict on disagreement      | Malicious Judgments are neutralised through re_review and outcome; the actor is accountable in the log                                           |
-| Cell cardinality growing                             | Sparseness, sufficient statistics, and a threshold warning                          | Retention or merging by policy — the log still holds the truth                                                                                   |
-| A derived figure reaching a viewer without the grant | Floor propagation into the leakage gate at egress, and the read event by level (§6) | The egress is refused and recorded; where the figure is wanted outside, the route is `calibration_visibility_policy`, never an unclassified copy |
+| Failure                                              | Detected by                                                                                                                                                                                                                                                    | Recovery                                                                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projection drift, or a wrong cell                    | A checksum by log position (Working Data §2)                                                                                                                                                                                                                   | Rebuild from the log, with a warning event                                                                                                                             |
+| An estimator bug skewing many results                | The estimator has an identity and is shadow-compared before graduation                                                                                                                                                                                         | Roll back to the previous estimator version, which is possible because it is named                                                                                     |
+| Poisoning through forged Judgments                   | The `judge` capability, `distinct_filler_from`, and a Conflict on disagreement                                                                                                                                                                                 | Malicious Judgments are neutralised through re_review and outcome; the actor is accountable in the log                                                                 |
+| Cell cardinality growing                             | Sparseness, sufficient statistics, and a threshold warning                                                                                                                                                                                                     | Retention or merging by policy — the log still holds the truth                                                                                                         |
+| A derived figure reaching a viewer without the grant | **Two checks, not one**: the `view_calibration` grant for a reader inside the tenant, and floor propagation into the leakage gate for the figure leaving it — each catching what the other cannot; the read event by level records the attempt either way (§6) | The read or the egress is refused and recorded; where the figure is genuinely wanted outside, the route is `calibration_visibility_policy`, never an unclassified copy |
