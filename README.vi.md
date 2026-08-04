@@ -137,7 +137,6 @@ dạng dịch vụ. Chính hạn chế đó là lý do phần còn lại có th�
 | ------------------------------ | ------------------------------------------------------------------------------------------- |
 | mọi thứ không nêu dưới đây     | Sustainable Use License                                                                     |
 | `<subsystem>/packages/`        | Apache License 2.0 — thứ bạn dựng lên trên                                                  |
-| `<subsystem>/enterprise/`      | **không cấp quyền nào** — cần một [Enterprise License](./ENTERPRISE-LICENSE.md) viết riêng  |
 | `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), kèm hình ảnh mà các file đó tham chiếu |
 | `cloud/`                       | độc quyền, và không công bố                                                                 |
 | thành phần bên thứ ba          | điều khoản của chính chủ sở hữu chúng                                                       |

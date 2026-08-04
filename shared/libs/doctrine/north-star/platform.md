@@ -141,8 +141,8 @@ rhetorical:
 - **No shared mutable state between steps.** Everything moves through a Handoff.
 - **Ecoma is not a chat assistant** — but a user building a chatbot on Ecoma is a
   first-class use case. The product is **self-serve first**: usable without an
-  implementation team. Enterprise is a deployment and licence tier, not a sales
-  channel that gets to decide the design.
+  implementation team. Enterprise is a deployment tier, not a sales channel that
+  gets to decide the design.
 - **The runtime never checks entitlement.** No licence key, no phone-home.
   Commercialisation of content stops at the distribution layer.
 - **No general-purpose warehouse and no vector engine of our own.** Labour
@@ -185,18 +185,28 @@ pedantry — it is the only way both properties survive.
 One question decides every unit: **does a third party need this to _plug into_
 the system, or to _run_ the system?**
 
-| Answer                                                                 | Licence                                |
-| ---------------------------------------------------------------------- | -------------------------------------- |
-| **Plug into** — interface, schema, protocol, client, SDK, vocabulary   | Apache 2.0                             |
-| **Run** — any server, node or service implementation in a product area | The fair-code source licence           |
-| A module plugging into a declared extension point                      | Enterprise, under `<area>/enterprise/` |
-| The operator's control plane                                           | Proprietary, not published             |
+| Answer                                                                             | Licence                      |
+| ---------------------------------------------------------------------------------- | ---------------------------- |
+| **Plug into** — interface, schema, protocol, client, SDK, vocabulary               | Apache 2.0                   |
+| **Run** — any server, node or service implementation in a product area             | The fair-code source licence |
+| **Neither** — the control plane, and the paid modules filling its extension points | Proprietary, not published   |
 
 The rule exists because a list drifts and a rule does not. An earlier attempt
 declared the permissive licence in five separate specifications while an
 area-level table declared every area under the fair-code licence — the table
 simply could not express a licence below area granularity. **Licences cut by
 unit, never by area.**
+
+A fourth answer once sat between the last two: a paid module was
+source-available under terms that granted nothing, in an `<area>/enterprise/`
+directory of its own. That tier is retired, having never held a line of code.
+Publishing those modules handed the source to every competitor while granting
+no rights to the buyers most likely to demand an audit of what runs on their own
+infrastructure — the largest cost on offer, bought for the weakest protection.
+What replaces it is a repository boundary rather than a licence: the paid
+modules live unpublished beside the control plane, under that tree's own terms,
+which is why the row above covers both. The rule itself is unchanged; it now
+resolves to three answers instead of four.
 
 ### Repository topology, and why the boundaries coincide
 

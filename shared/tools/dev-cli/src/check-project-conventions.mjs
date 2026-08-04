@@ -193,9 +193,20 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
-  for (const p of projects) {
+  // The terms a tree grants are stated by the tree's own LICENSE, and every
+  // path rule below refines that rather than replacing it — so it is read once,
+  // here, before the first rule that needs it. A tree with no readable LICENSE
+  // yields `null` and every one of those rules stands down: the missing-LICENSE
+  // violation raised below is the honest finding, and a path verdict derived
+  // from an absence would be noise dressed as signal.
+  const rootLicenseText = tracked.has(ROOT_LICENSE_FILE)
+    ? (readFile(ROOT_LICENSE_FILE) ?? "").trim()
+    : "";
+  const rootSlug = rootLicenseText ? rootLicenseSlug(rootLicenseText) : null;
+
+  for (const p of rootSlug ? projects : []) {
     const licenseTag = p.tags.find((t) => typeof t === "string" && t.startsWith("license:"));
-    const expected = licenseForPath(p.root);
+    const expected = licenseForPath(p.root, rootSlug);
     if (!licenseTag) {
       violations.push(
         `${p.path}: no 'license:*' tag — expected 'license:${expected}' for this path ` +
@@ -225,8 +236,12 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
+  // Only a tree that grants something has anything to carve out of. In a tree
+  // whose LICENSE grants no rights, a `packages` directory is proprietary like
+  // everything around it, and demanding an Apache LICENSE beside it would be
+  // demanding a grant of source that tree has not published.
   const carveOutRoots = new Map();
-  for (const path of trackedFiles) {
+  for (const path of rootSlug === "sul" ? trackedFiles : []) {
     const segments = path.split("/");
     // `length > 2` keeps a two-segment path — a subsystem's own top-level file,
     // or a submodule gitlink — from registering a carve-out that has no files.
@@ -253,24 +268,44 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
-  // The root manifest's terms come from the LICENSE the tree ships, not from
-  // the path map: `licenseForPath` knows this workspace's geometry, but the
-  // gate also judges the private cloud workspace (delivery playbook §6),
-  // whose root is all-rights-reserved. Nested manifests keep the
-  // path map — their homes are the geometry the map describes. A missing or
-  // empty LICENSE yields no expectation at all: that state already carries
-  // its own violation above, and a second finding derived from an absence
-  // would be noise dressed as signal.
-  const rootLicense = tracked.has(ROOT_LICENSE_FILE)
-    ? (readFile(ROOT_LICENSE_FILE) ?? "").trim()
-    : "";
-  const rootSlug = rootLicense ? rootLicenseSlug(rootLicense) : null;
-  for (const path of trackedFiles) {
+  // A LICENSE anywhere but the root or a carve-out is a COPY of the tree's own
+  // terms, shipped so a published tarball carries the text its `LicenseRef-`
+  // points at. A copy nothing keeps in sync is a copy that goes stale, and this
+  // one did: after the Enterprise tier was retired from the root LICENSE, the
+  // copy still declared five exceptions, still said an `enterprise` directory
+  // was unlicensed, and still sent readers to a document that no longer exists
+  // — terms that were never granted, shipping to every consumer of the package.
+  //
+  // The alternative to a gate is not "no copy". npm resolves nothing across
+  // package boundaries, so the file has to be there. What it can be is checked
+  // (Rule 14: a value copied across two files was never a valid hardcode).
+  for (const path of rootLicenseText ? trackedFiles : []) {
+    if (path === ROOT_LICENSE_FILE || !path.endsWith(`/${ROOT_LICENSE_FILE}`)) continue;
+    const dir = path.slice(0, -`/${ROOT_LICENSE_FILE}`.length);
+    if (carveOutRoots.has(dir)) continue; // its own terms, judged just above
+    if ((readFile(path) ?? "").trim() !== rootLicenseText) {
+      violations.push(
+        `${path}: differs from the root ${ROOT_LICENSE_FILE} — this is a copy shipped inside a ` +
+          `package so its tarball carries the terms its manifest names, and a copy that has ` +
+          `drifted grants whatever it happens to say, to everyone who installs it`,
+      );
+    }
+  }
+
+  // Every manifest's terms now come from one place: the LICENSE the tree ships,
+  // refined by the path only where that tree carves an exception out of itself.
+  // The root manifest takes the tree's terms directly; a nested one asks
+  // `licenseForPath`, which starts from the same slug. Until this read moved to
+  // the top of the function the two used different sources — the root asked the
+  // LICENSE while nested manifests asked a map that hard-coded one directory
+  // name as proprietary — and the comment here recorded that split as a
+  // deliberate exception rather than the drift it was.
+  for (const path of rootSlug ? trackedFiles : []) {
     if (path !== "package.json" && !path.endsWith("/package.json")) continue;
-    if (path === "package.json" && !rootSlug) continue;
     const pkg = parseOrNull(readFile(path));
     if (!pkg) continue;
-    const expected = MANIFEST_LICENSE[path === "package.json" ? rootSlug : licenseForPath(path)];
+    const expected =
+      MANIFEST_LICENSE[path === "package.json" ? rootSlug : licenseForPath(path, rootSlug)];
     if (pkg.license !== expected) {
       violations.push(
         `${path}: "license" is ${JSON.stringify(pkg.license ?? null)}, expected ` +

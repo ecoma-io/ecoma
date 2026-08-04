@@ -24,12 +24,12 @@ ruleTester.run("require-project-tags", rule, {
     project(["type:lib", "scope:shared", "license:sul", "layer:port"]),
     project(["type:lib", "scope:shared", "license:sul", "layer:adapter"]),
     project(["type:lib", "scope:shared", "license:sul", "layer:app"]), // application-service
-    // The other three licence values are legal vocabulary before any project
+    // The other two licence values are legal vocabulary before any project
     // carries them: `check-project-conventions` derives the required tag from a
-    // project's directory, so a carve-out directory's first project must be able
-    // to declare the tag that gate demands.
+    // project's tree and directory, so a carve-out directory's first project —
+    // and the first project of an unpublished tree — must be able to declare
+    // the tag that gate demands.
     project(["type:lib", "scope:shared", "license:apache"]),
-    project(["type:lib", "scope:shared", "license:ee"]),
     project(["type:app", "scope:shared", "license:proprietary"]),
   ],
   invalid: [
@@ -93,8 +93,16 @@ ruleTester.run("require-project-tags", rule, {
       errors: [{ messageId: "licenseCount" }],
     },
     {
-      code: project(["type:lib", "scope:shared", "license:sul", "license:ee"]),
+      code: project(["type:lib", "scope:shared", "license:sul", "license:apache"]),
       errors: [{ messageId: "licenseCount" }],
+    },
+    {
+      // The retired Enterprise tier. Its slug must now be rejected like any
+      // other unknown value: a stale `license:ee` left on a project would match
+      // no depConstraint at all, which is exactly the silent escape this rule
+      // exists to close — and it would read as protection while providing none.
+      code: project(["type:lib", "scope:shared", "license:ee"]),
+      errors: [{ messageId: "badLicense" }],
     },
     {
       // A misspelled licence matches no depConstraint, so `license:sul` code

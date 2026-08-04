@@ -16,11 +16,18 @@
  */
 
 /**
- * Keyed by the directory name directly beneath a subsystem root — `packages`
- * holds what a third party needs to plug INTO Ecoma, `enterprise` what it must
- * buy. Everything else runs the system and is SUL.
+ * Keyed by the directory name directly beneath a subsystem root. One entry:
+ * `packages` holds what a third party needs to plug INTO Ecoma. Everything else
+ * runs the system and takes the tree's own terms.
+ *
+ * There was a second entry, `enterprise: "ee"`, and it is gone with the tier
+ * itself. Source-available-but-no-rights-granted paid a real cost — every
+ * competitor could read the paid modules — for the weakest protection on offer,
+ * and the tier never held a line of code. What replaces it is not a licence but
+ * a repository boundary: enterprise code lives in the private control-plane
+ * workspace, where the terms are that tree's, not a carve-out in this one.
  */
-export const CARVE_OUT_DIRS = { packages: "apache", enterprise: "ee" };
+export const CARVE_OUT_DIRS = { packages: "apache" };
 
 /**
  * A phrase each carve-out's own LICENSE must contain, so the gate judges terms
@@ -32,7 +39,6 @@ export const CARVE_OUT_DIRS = { packages: "apache", enterprise: "ee" };
  */
 export const CARVE_OUT_LICENSE_MARKER = {
   packages: "Apache License",
-  enterprise: "Enterprise License",
 };
 
 /** The root licence, named once so the gate and its message cannot disagree. */
@@ -76,32 +82,46 @@ export function rootLicenseSlug(licenseText) {
  * resolve to the wrong file or to no file, and SBOM tooling parses it instead of
  * escalating it to a human as "unknown".
  *
- * **Both `LicenseRef-` names carry their document's version**, for the reason
- * the form exists: an unversioned reference names a moving target, and a reader
- * holding the tree cannot tell which text governed it. Each licence document
- * lets the licensor publish a later version without touching a licence already
- * granted, so the version is exactly what distinguishes them. A version bump is
- * one edit here rather than one per manifest, which is the whole point of this
- * constant.
+ * **The `LicenseRef-` name carries its document's version**, for the reason the
+ * form exists: an unversioned reference names a moving target, and a reader
+ * holding the tree cannot tell which text governed it. The licence lets the
+ * licensor publish a later version without touching a licence already granted,
+ * so the version is exactly what distinguishes them. A version bump is one edit
+ * here rather than one per manifest, which is the whole point of this constant.
  */
 export const MANIFEST_LICENSE = {
   sul: "LicenseRef-Ecoma-SustainableUse-1.0",
   apache: "Apache-2.0",
-  ee: "LicenseRef-Ecoma-Enterprise-1.0",
   proprietary: "UNLICENSED",
 };
 
 /**
- * The licence slug governing a repo-relative path.
+ * The licence slug governing a repo-relative path in a tree whose own root
+ * LICENSE declares `rootSlug` (from `rootLicenseSlug`).
  *
- * `shared/libs/doctrine` resolves to `sul` and that is not an oversight: the
- * root LICENSE's third carve-out covers the *prose* in that directory, while
- * the `src/` modules beside it are ordinary SUL code. This axis names the tag
- * that constrains imports, and prose has no imports.
+ * **The tree answers first, the path only refines it.** A carve-out is a
+ * PROMISE THE TREE MAKES about part of itself, so a tree that grants nothing
+ * has nothing to carve out of: in a `proprietary` tree every path is
+ * proprietary, `packages` directory or not. Getting this backwards would let a
+ * `packages` directory in the unpublished control plane read as Apache 2.0 — a
+ * grant of source nobody has published, from a licence document that grants no
+ * rights at all.
+ *
+ * That precedence is also what retired the previous version's hard-coded
+ * `segments[0] === "cloud"`. The private workspace was recognised by the NAME
+ * of its area, so renaming that area — which its own restructure does — would
+ * have silently reclassified the whole control plane as SUL, and
+ * `check-project-conventions` would have demanded the tag to match. The tree's
+ * LICENSE is the fact; a directory name never was.
+ *
+ * `shared/libs/doctrine` resolves to `sul` in a SUL tree and that is not an
+ * oversight: the root LICENSE's carve-out for prose covers the *documents* in
+ * that directory, while the `src/` modules beside them are ordinary SUL code.
+ * This axis names the tag that constrains imports, and prose has no imports.
  */
-export function licenseForPath(path) {
+export function licenseForPath(path, rootSlug) {
+  if (rootSlug !== "sul") return rootSlug;
   const segments = path.split("/");
-  if (segments[0] === "cloud") return "proprietary";
   if (segments.length > 1 && CARVE_OUT_DIRS[segments[1]]) return CARVE_OUT_DIRS[segments[1]];
   return "sul";
 }

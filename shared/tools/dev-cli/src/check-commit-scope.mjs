@@ -27,6 +27,21 @@
  * evil, this is rejected outright: split into one commit for the root-owned
  * paths (`workspace`) and one per project/subsystem for the rest.
  *
+ * One path a commit touches may have no owner left in the tree being judged:
+ * the *old* side of a project that this very commit moved. Resolving it
+ * against the commit's tree alone makes a relocation unjudgeable — the old
+ * paths read as root-owned, the new ones as the project's, and the mix is
+ * rejected as needing a split that cannot be made, because deleting a
+ * project's files and creating them elsewhere is one act with one honest
+ * scope. So a project that exists in both the parent tree and this one lends
+ * its parent-tree root as an owner too, and `refactor(doctrine): …` covers the
+ * move whole. The name must survive in the current tree for its old root to
+ * count: a project genuinely *deleted* falls through to whatever still owns
+ * the space it stood in — its subsystem, or `workspace` when it was that
+ * subsystem's last project — exactly as before. Borrowing a name for it would
+ * demand a scope commitlint's `scope-enum` cannot accept, because a vocabulary
+ * derived from the tracked tree cannot contain a name that tree no longer has.
+ *
  * Two modes share the logic; both discover projects from the tree being
  * judged (so a commit scaffolding a new project may already use its scope):
  *   - `check-commit-scope <msg-file>` — commit-msg hook; paths from the index.
@@ -141,6 +156,35 @@ export function discoverProjects(ref = null, cwd = undefined) {
     });
   }
   return projects;
+}
+
+/**
+ * The projects that own the paths of one commit: those in the tree being
+ * judged, plus the parent-tree root of any project that is still there under a
+ * different one. Only the *root* is borrowed, and only for a surviving name —
+ * see the module header for why a deleted project must not borrow one.
+ *
+ * Order matters no more than duplication does: `ownerOf` keeps the deepest
+ * matching root, and a project that did not move contributes the same root
+ * twice.
+ */
+export function owningProjects(projects, parentProjects) {
+  const names = new Set(projects.map((p) => p.name));
+  return [...projects, ...parentProjects.filter((p) => names.has(p.name))];
+}
+
+/**
+ * Projects as of the parent of the commit being judged — the tree that still
+ * held whatever this commit deletes. `[]` when there is no parent to read
+ * (a root commit, an unborn branch, a ref git cannot resolve), which is the
+ * honest answer rather than a failure: nothing existed before.
+ */
+export function parentProjectsOf(ref = null, cwd = undefined) {
+  try {
+    return discoverProjects(ref ? `${ref}^` : "HEAD", cwd);
+  } catch {
+    return [];
+  }
 }
 
 /** Subsystem roots: top-level directories that contain at least one project. */
@@ -314,10 +358,14 @@ export function checkCommitScope(args, { readDeps = readProjectGraphDeps, cwd } 
   if (paths.length === 0) return 0; // empty/amend/exempt-only commit — nothing to judge
 
   const projects = discoverProjects(ref, cwd);
+  // Subsystems come from the tree being judged alone, deliberately: a
+  // subsystem's own files (`<area>/CLAUDE.md`, its READMEs) are its identity,
+  // and moving those is a different act from moving a project that happens to
+  // live inside it. Only project roots are borrowed from the parent.
   const subsystems = deriveSubsystems(projects);
   const { allowed, owners, projectNames, upstreamEligible, mustSplit } = evaluateScopes(
     paths,
-    projects,
+    owningProjects(projects, parentProjectsOf(ref, cwd)),
     subsystems,
   );
 

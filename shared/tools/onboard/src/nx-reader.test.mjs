@@ -114,10 +114,10 @@ describe("readNxGraph", () => {
     const fixture = JSON.stringify({
       graph: {
         nodes: {
-          "ee-module": {
+          "runtime-protocol": {
             data: {
-              root: "cloud/ee",
-              tags: ["scope:shared", "type:lib", "license:ee"],
+              root: "shared/packages/runtime-protocol",
+              tags: ["scope:shared", "type:lib", "license:apache"],
             },
           },
         },
@@ -129,7 +129,7 @@ describe("readNxGraph", () => {
     vi.mocked(readFileSync).mockReturnValue(fixture);
 
     const result = readNxGraph();
-    expect(result.nodes[0].license).toBe("ee");
+    expect(result.nodes[0].license).toBe("apache");
   });
 
   it("defaults license to ? when absent", async () => {

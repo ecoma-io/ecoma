@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Platform — North Star"
 status: design-end-state
-canonical-sha: 1f8f527c5bb7
+canonical-sha: 5931fa1bf284
 ---
 
 # Ecoma Platform — North Star
@@ -143,8 +143,8 @@ cho hay:
   Handoff.
 - **Ecoma không phải một chat assistant** — nhưng một user xây chatbot trên Ecoma
   là use case hạng nhất. Sản phẩm là **self-serve trước hết**: dùng được mà không
-  cần đội triển khai. Enterprise là một tầng deployment và license, không phải
-  một kênh bán được quyền quyết định thiết kế.
+  cần đội triển khai. Enterprise là một tầng deployment, không phải một kênh bán
+  được quyền quyết định thiết kế.
 - **Runtime không bao giờ kiểm entitlement.** Không license key, không
   phone-home. Thương mại hóa nội dung dừng ở tầng phân phối.
 - **Không xây warehouse đa dụng và không xây vector engine riêng.** Labor
@@ -186,18 +186,28 @@ duy nhất để cả hai tính chất cùng sống sót.
 Một câu hỏi duy nhất quyết định mọi đơn vị: **bên thứ ba cần cái này để _cắm
 vào_ hệ, hay để _chạy_ hệ?**
 
-| Trả lời                                                                        | License                               |
-| ------------------------------------------------------------------------------ | ------------------------------------- |
-| **Cắm vào** — interface, schema, protocol, client, SDK, vocabulary             | Apache 2.0                            |
-| **Chạy** — mọi implementation server, node hay service trong một area sản phẩm | License nguồn fair-code               |
-| Một module cắm vào một extension point đã khai báo                             | Enterprise, dưới `<area>/enterprise/` |
-| Control plane của nhà vận hành                                                 | Proprietary, không công bố            |
+| Trả lời                                                                             | License                    |
+| ----------------------------------------------------------------------------------- | -------------------------- |
+| **Cắm vào** — interface, schema, protocol, client, SDK, vocabulary                  | Apache 2.0                 |
+| **Chạy** — mọi implementation server, node hay service trong một area sản phẩm      | License nguồn fair-code    |
+| **Không cả hai** — control plane, và các module trả tiền lấp extension point của nó | Proprietary, không công bố |
 
 Luật này tồn tại vì một danh sách thì trôi còn một luật thì không. Một lần thử
 trước đó đã khai license permissive ở năm spec riêng lẻ trong khi một bảng theo
 area lại khai mọi area đều dùng license fair-code — cái bảng đơn giản là không
 biểu diễn được một license ở mức nhỏ hơn area. **License cắt theo đơn vị, không
 bao giờ theo area.**
+
+Từng có một câu trả lời thứ tư nằm giữa hai hàng cuối: một module trả tiền,
+source-available dưới những điều khoản không cấp gì cả, trong một thư mục
+`<area>/enterprise/` của riêng nó. Tầng đó đã nghỉ, và chưa từng chứa một dòng
+mã. Công bố những module ấy là trao mã nguồn cho mọi đối thủ trong khi không cấp
+quyền nào cho chính những người mua dễ đòi audit thứ đang chạy trên hạ tầng của
+họ nhất — cái giá lớn nhất có thể trả, đổi lấy lớp bảo vệ yếu nhất. Thứ thay thế
+nó là một biên repository chứ không phải một license nữa: các module trả tiền
+sống không công bố, cạnh control plane, dưới điều khoản của chính cây đó — nên
+hàng ở trên phủ cả hai. Bản thân luật không đổi; nó chỉ ra ba câu trả lời thay
+vì bốn.
 
 ### Topology repo, và vì sao các biên trùng nhau
 

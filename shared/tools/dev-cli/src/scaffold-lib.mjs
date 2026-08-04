@@ -41,7 +41,12 @@ import * as nodeFs from "node:fs";
 
 import { deriveSubsystemRoots } from "./check-subsystem-readmes.mjs";
 import { cwdGitEnv } from "./git-env.mjs";
-import { licenseForPath, MANIFEST_LICENSE } from "./license-scope.mjs";
+import {
+  licenseForPath,
+  MANIFEST_LICENSE,
+  ROOT_LICENSE_FILE,
+  rootLicenseSlug,
+} from "./license-scope.mjs";
 // `LANGS` here means programming languages; the README contract's are human
 // languages, hence the alias.
 import {
@@ -83,7 +88,7 @@ const PROJECT_JSON_LINT = "eslint project.json --max-warnings 0";
 export const deriveSourceRoot = (root, files) =>
   Object.keys(files).some((rel) => rel.startsWith("src/")) ? `${root}/src` : root;
 
-const projectJson = (name, root, subsystem, layer, targets, sourceRoot) =>
+const projectJson = (name, root, subsystem, layer, targets, sourceRoot, rootSlug) =>
   JSON.stringify(
     {
       name,
@@ -93,7 +98,7 @@ const projectJson = (name, root, subsystem, layer, targets, sourceRoot) =>
       tags: [
         "type:lib",
         `scope:${subsystem}`,
-        `license:${licenseForPath(root)}`,
+        `license:${licenseForPath(root, rootSlug)}`,
         ...(layer ? [`layer:${layer}`] : []),
       ],
       targets: Object.fromEntries(
@@ -107,14 +112,14 @@ const projectJson = (name, root, subsystem, layer, targets, sourceRoot) =>
     2,
   );
 
-const packageJson = (name, root) =>
+const packageJson = (name, root, rootSlug) =>
   JSON.stringify(
     {
       name: `@ecoma-io/${name}`,
       version: "0.0.1",
       private: true,
       description: `TODO: one line on what @ecoma-io/${name} is`,
-      license: MANIFEST_LICENSE[licenseForPath(root)],
+      license: MANIFEST_LICENSE[licenseForPath(root, rootSlug)],
       type: "module",
       main: "./src/index.ts",
       types: "./src/index.ts",
@@ -288,7 +293,7 @@ Directory-scoped mechanics only — principles live in the root \`CLAUDE.md\`. N
  * (go.work, root manifests, .gitignore) is handled separately.
  */
 const EMITTERS = {
-  ts(name, _subsystem, root) {
+  ts(name, _subsystem, root, _goVersion, rootSlug) {
     return {
       identityLine: `import alias \`@ecoma-io/${name}\``,
       targets: {
@@ -297,7 +302,7 @@ const EMITTERS = {
         test: "vitest run",
       },
       files: {
-        "package.json": `${packageJson(name, root)}\n`,
+        "package.json": `${packageJson(name, root, rootSlug)}\n`,
         "tsconfig.json": `${tsconfigJson}\n`,
         "vitest.config.ts": vitestConfig,
         "src/index.ts": "export {};\n",
@@ -547,11 +552,23 @@ export function scaffoldLib(args = [], fs = nodeFs, listPaths = listTrackedPaths
     return 1;
   }
 
-  const { identityLine, targets, files } = EMITTERS[lang](name, subsystem, root, goVersion);
+  // A project is born declaring the terms its own tree grants — read from
+  // that tree's LICENSE, so a scaffold run in the private workspace produces
+  // `proprietary` without this command knowing anything about which workspace
+  // it is standing in.
+  const rootSlug = rootLicenseSlug(readOrNull(ROOT_LICENSE_FILE) ?? "");
+
+  const { identityLine, targets, files } = EMITTERS[lang](
+    name,
+    subsystem,
+    root,
+    goVersion,
+    rootSlug,
+  );
   fs.mkdirSync(root, { recursive: true });
   fs.writeFileSync(
     `${root}/project.json`,
-    `${projectJson(name, root, subsystem, layer, targets, deriveSourceRoot(root, files))}\n`,
+    `${projectJson(name, root, subsystem, layer, targets, deriveSourceRoot(root, files), rootSlug)}\n`,
   );
   fs.writeFileSync(`${root}/CLAUDE.md`, claudeMdStub(name, root, subsystem, layer, identityLine));
   for (const lang of README_LANGS) {

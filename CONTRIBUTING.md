@@ -178,9 +178,9 @@ Ecoma is **fair-code**: source-available, not open source, and not closed
 either. Which terms apply to a file is decided by where the file lives, and
 [`LICENSE`](./LICENSE) is the source of truth for that mapping — the
 Sustainable Use License for the implementations, Apache 2.0 for the
-`packages` directories third parties build against, a commercial
-[Enterprise License](./ENTERPRISE-LICENSE.md) for `enterprise` directories,
-proprietary for the operator control plane. Every `.md` file under `shared/libs/doctrine/` is licensed separately,
+`packages` directories third parties build against, and proprietary for the
+operator control plane — which lives in its own repository, so a clone of this
+one never holds it. Every `.md` file under `shared/libs/doctrine/` is licensed separately,
 under [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs) — the boundary is the
 file extension, not the word "prose", because a category is not something a
 reader or a compliance tool can evaluate.

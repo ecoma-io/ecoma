@@ -133,14 +133,13 @@ service. That restriction is why the rest can be open.
 > [`LICENSE`](./LICENSE) is what has legal effect, and where the two differ,
 > `LICENSE` governs.
 
-| Path                           | Terms                                                                                          |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| everything not named below     | Sustainable Use License                                                                        |
-| `<subsystem>/packages/`        | Apache License 2.0 — what you build against                                                    |
-| `<subsystem>/enterprise/`      | **no rights granted** — needs a separate written [Enterprise License](./ENTERPRISE-LICENSE.md) |
-| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), with the images those files reference     |
-| `cloud/`                       | proprietary, and not published                                                                 |
-| third-party components         | their own owner's terms                                                                        |
+| Path                           | Terms                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| everything not named below     | Sustainable Use License                                                                    |
+| `<subsystem>/packages/`        | Apache License 2.0 — what you build against                                                |
+| `shared/libs/doctrine/**/*.md` | [CC BY-SA 4.0](./shared/libs/doctrine/LICENSE.docs), with the images those files reference |
+| `cloud/`                       | proprietary, and not published                                                             |
+| third-party components         | their own owner's terms                                                                    |
 
 **Running Ecoma for your own organisation is expressly permitted** — commercial
 or not, including to deliver goods and services to your customers. What is not
