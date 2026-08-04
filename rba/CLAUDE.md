@@ -35,21 +35,21 @@ consequences worth knowing before touching it:
   second crate arriving later must inherit the same bar without anyone
   remembering to copy it.
 
-## Building it needs system libraries the sandbox does not have
+## Building it needs system libraries that are not preinstalled
 
 Tauri links against `webkit2gtk` and GTK on Linux, and needs their development
 headers **even for `cargo check`**. A machine without them cannot compile this
-crate at all, which means:
+crate at all, so `rba-desktop:lint` and `:test` failing with a `pkg-config`
+error is an environment gap, not a code defect — say which of the two you are
+looking at when you report a red lane, because reporting a missing header as a
+code failure sends the next reader hunting in the wrong tree.
 
-- a cloud session cannot prove a Rust change locally — CI is the proof;
-- `rba-desktop:lint` and `:test` failing with a `pkg-config` error is an
-  environment gap, not a code defect. The packages are
-  `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev` and
-  `libayatana-appindicator3-dev`.
-
-Say which of the two you are looking at when you report a red lane. Reporting
-a missing header as a code failure sends the next reader hunting in the wrong
-tree.
+A cloud session **can** install them, and should: run `apt-get update` first
+(without it the install hangs, which reads as "apt is unavailable here" and is
+not), then `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev` and
+`libayatana-appindicator3-dev`. Exact commands are in the project's own
+`CLAUDE.md`. Proving a Rust change locally beats pushing to read CI: with
+`clippy::pedantic` on, the round trip is one push per lint.
 
 ## Scope tag
 

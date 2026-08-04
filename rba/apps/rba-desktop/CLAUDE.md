@@ -12,16 +12,27 @@ before compiling a single line of this crate's own code.
 So a red `rba-desktop:lint` or `rba-desktop:test` is one of two very different
 things, and saying which is part of the report:
 
-| Symptom                                                        | What it is      | What to do                                  |
-| -------------------------------------------------------------- | --------------- | ------------------------------------------- |
-| `pkg-config` cannot find `webkit2gtk-4.1` / `gtk+-3.0`         | environment gap | install the headers, or let CI be the proof |
-| `clippy` / `rustc` diagnostics naming files under `src-tauri/` | a code defect   | fix it                                      |
+| Symptom                                                        | What it is      | What to do                  |
+| -------------------------------------------------------------- | --------------- | --------------------------- |
+| `pkg-config` cannot find `webkit2gtk-4.1` / `gtk+-3.0`         | environment gap | install the headers (below) |
+| `clippy` / `rustc` diagnostics naming files under `src-tauri/` | a code defect   | fix it                      |
 
-The packages are `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,
-`libayatana-appindicator3-dev`. A cloud sandbox generally does not have them
-and generally cannot install them — in that case do not claim the Rust side
-is green. Push and read CI. Claiming a build you did not run is exactly the
-failure Rule 11 names.
+**Install them; do not settle for CI as the proof.** A cloud sandbox does not
+ship them, but it can fetch them — the failure that looks like "apt is
+unavailable here" is usually just an empty package list:
+
+```sh
+apt-get update        # without this, the install below hangs and then fails
+apt-get install -y --no-install-recommends \
+  libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+```
+
+This matters more than it looks. Pushing to read CI costs a round trip per
+mistake, and `clippy::pedantic` is on: the first two defects here were
+`semicolon_if_nothing_returned` and `missing_panics_doc`, one per push, both
+of which a local run reports in seconds. If the headers genuinely cannot be
+installed, then say the Rust half is unproven rather than implying it passed
+— claiming a build you did not run is exactly the failure Rule 11 names.
 
 ## Breaking this crate silently disables the Rust lane
 
