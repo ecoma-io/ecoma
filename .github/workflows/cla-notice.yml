@@ -87,10 +87,15 @@ jobs:
 
       # repo-care and dev-cli both run on bare node (dependency-free by
       # design): no pnpm install.
+      # `--commits` names the pull request's own commits, from the two refs the
+      # step above already fetched. Without it this job would judge less than
+      # the required gate does and stay silent on a red it could explain — a
+      # branch whose commits carry no `Signed-off-by` trailer.
       - name: Tell the author what the CLA gate wants, on the thread
         run: >
           node shared/tools/repo-care/src/main.mjs cla-notice
           --pr "$PR" --author "$PR_AUTHOR" --author-type "$PR_AUTHOR_TYPE"
+          --commits refs/prq/base..refs/prq/head
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
