@@ -137,9 +137,10 @@ export function recordTemplate(claText) {
  * first record that quotes the wrong one.
  */
 export function templateVersionFault({ sentence }, version) {
-  // Case-insensitive, and boundary-guarded so "1.0" never passes on "1.0.1" —
-  // exact punctuation is a wording choice the guard must not block.
-  const named = new RegExp(`version ${escapeRegExp(version)}(?![\\d.])`, "i").test(sentence);
+  // Case-insensitive, and boundary-guarded so "1.0" never passes on "1.0.1"
+  // or "1.0beta" — exact punctuation is a wording choice the guard must not
+  // block, but a longer version token is a different version.
+  const named = new RegExp(`version ${escapeRegExp(version)}(?![\\w.])`, "i").test(sentence);
   return named
     ? null
     : `the assent sentence in the record template does not name version ${version} — ` +
@@ -208,10 +209,12 @@ export function auditRecordAcrossVersions(text, template, version, history) {
  * disappears in the same edit that removes the promise.
  */
 export function attributionClause(claText) {
-  // Anchored on the meaning-carrying words, tolerant of the Markdown between
-  // them — a link relabelled or a backtick dropped must not silently switch
-  // the roster check off while the promise still stands.
-  const m = claText.replace(/\s+/g, " ").match(/naming you in .{0,20}?CONTRIBUTORS\.md/);
+  // Anchored on the meaning-carrying words, tolerant of whatever Markdown sits
+  // between them — a link relabelled, however verbosely, must not silently
+  // switch the roster check off while the promise still stands. The lazy
+  // unbounded gap errs toward finding a promise (fail closed): an over-match
+  // keeps the gate on, which is the recoverable direction.
+  const m = claText.replace(/\s+/g, " ").match(/naming you in .*?CONTRIBUTORS\.md/);
   return m ? m[0] : null;
 }
 
