@@ -38,7 +38,8 @@
   "pnpm": {
     "overrides": {
       "axios": "^1.18.0",
-      "nx>brace-expansion": "^5.0.8",
+      "nx>brace-expansion": "^5.0.9",
+      "fast-uri": "^3.1.5",
       "js-beautify": "^2.0.3",
       "vitepress>vite": "^8.0.0"
     }
