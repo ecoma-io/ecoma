@@ -27,6 +27,16 @@
  *   know that, so this mode is where the "no record, no grant" rule actually
  *   bites.
  *
+ * **A record outlives the version it agreed to.** `CLA.md`'s own change rule
+ * says a new version binds a contributor only once they agree to it, so a
+ * record quoting a superseded assent sentence is valid, not stale. The set of
+ * published versions is derived from git history of `CLA.md` (Rule 14 rung 1),
+ * read lazily — see `auditRecordAcrossVersions`. The same clause-derivation
+ * covers attribution: while `CLA.md` promises naming in `CONTRIBUTORS.md`
+ * (clause 3), every record's handle must be named there, because a merged
+ * contribution whose author that file omits is a promise the project is
+ * already breaking.
+ *
  * **A licensor is exempt, and the exemption is derived rather than named.** The
  * CLA runs *to* whoever can make a licence grant, so it would be circular for
  * them to grant it to themselves. `CODEOWNERS` already answers who that is — it
@@ -67,12 +77,19 @@
  * this repository. A caller that cannot say leaves `--author-type` out and the
  * author is treated as a person, which fails closed.
  */
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+
+import { cwdGitEnv } from "./git-env.mjs";
 
 export const CLA = "CLA.md";
 export const CODEOWNERS = ".github/CODEOWNERS";
 export const CONTRIBUTORS_DIR = "contributors";
+export const CONTRIBUTORS_FILE = "CONTRIBUTORS.md";
+
+/** Literal text made safe to embed in a RegExp source. */
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * The version the agreement declares for itself, e.g. `"1.0"` from
@@ -109,6 +126,100 @@ export function recordTemplate(claText) {
   if (!fields.length) throw new Error(`${CLA}: the record template declares no fields`);
   if (!sentence) throw new Error(`${CLA}: the record template declares no agreement sentence`);
   return { fields, sentence };
+}
+
+/**
+ * The version the agreement declares lives in two places — the
+ * `**Version …**` line (which this gate reads) and inside the fenced assent
+ * sentence (which every record must quote). Nothing forces an edit to move
+ * both, so the gate cross-checks them: a fault here is a defect in `CLA.md`
+ * itself, caught on the commit that drifted them apart rather than on the
+ * first record that quotes the wrong one.
+ */
+export function templateVersionFault({ sentence }, version) {
+  return sentence.includes(`version ${version},`)
+    ? null
+    : `the assent sentence in the record template does not name version ${version} — ` +
+        `the '**Version …**' line and the fenced template have drifted apart; move both in one edit`;
+}
+
+/**
+ * Every text `CLA.md` has ever been committed as, newest first — the set of
+ * published versions, derived from git history rather than restated anywhere
+ * (Rule 14 rung 1). Read lazily and only when a record fails the current
+ * template, so the common case spawns no git. An environment without readable
+ * history (no repository, a shallow clone with nothing behind it) yields `[]`,
+ * which leaves only the working-tree text to judge against — fail closed.
+ */
+export function claTextHistory(exec = execFileSync) {
+  const opts = { env: cwdGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+  let log;
+  try {
+    log = exec("git", ["log", "--format=%H", "--", CLA], opts);
+  } catch {
+    return [];
+  }
+  const texts = [];
+  for (const sha of log.split("\n").filter(Boolean)) {
+    try {
+      texts.push(exec("git", ["show", `${sha}:${CLA}`], opts));
+    } catch {
+      // a commit that deleted CLA.md published nothing a record could cite
+    }
+  }
+  return texts;
+}
+
+/**
+ * Audits one record against the current template first, and — only when that
+ * fails — against every template `CLA.md` ever published, because the
+ * agreement's own change rule says a record stays valid under the version its
+ * author agreed to ("If these terms change"). Without this, publishing a new
+ * version would turn every existing record red at once, which is the opposite
+ * of what the document promises. `history` is a thunk returning past `CLA.md`
+ * texts so the lookup costs nothing while every record matches the present.
+ */
+export function auditRecordAcrossVersions(text, template, version, history) {
+  const faults = auditRecord(text, template, version);
+  if (!faults.length) return { faults };
+  for (const past of history()) {
+    let pastVersion, pastTemplate;
+    try {
+      pastVersion = claVersion(past);
+      pastTemplate = recordTemplate(past);
+    } catch {
+      continue; // a draft predating the version line or the template — nothing a record could cite
+    }
+    if (pastVersion === version && pastTemplate.sentence === template.sentence) continue;
+    if (auditRecord(text, pastTemplate, pastVersion).length === 0) {
+      return { faults: [], supersededVersion: pastVersion };
+    }
+  }
+  return { faults };
+}
+
+/**
+ * The phrase in `CLA.md` that promises contributors a row in
+ * `CONTRIBUTORS.md` (clause 3's naming consent), or `null` when the document
+ * no longer makes it. Like `automationClause`, the check this anchors
+ * disappears in the same edit that removes the promise.
+ */
+export function attributionClause(claText) {
+  const m = claText
+    .replace(/\s+/g, " ")
+    .match(/naming you in \[`CONTRIBUTORS\.md`\]\(\.\/CONTRIBUTORS\.md\)/);
+  return m ? m[0] : null;
+}
+
+/**
+ * Whether `CONTRIBUTORS.md` names a GitHub handle — as `@handle` or a
+ * `github.com/handle` link, case-insensitively, and never as a prefix of a
+ * longer handle.
+ */
+export function listedInContributors(handle, contributorsText) {
+  return new RegExp(`(?:@|github\\.com/)${escapeRegExp(handle)}(?![\\w-])`, "i").test(
+    contributorsText,
+  );
 }
 
 /**
@@ -162,11 +273,15 @@ export function automationClause(claText) {
 /**
  * The GitHub handles that own `/CLA.md` in CODEOWNERS, lower-cased — the people
  * who can make the grant, and so the people the agreement does not apply to.
+ * Of several matching entries the LAST wins, because that is CODEOWNERS' own
+ * precedence rule — reading any other line would derive an owner set GitHub
+ * itself does not enforce.
  */
 export function licensorHandles(codeownersText) {
   const line = codeownersText
     .split("\n")
-    .find((l) => !l.trim().startsWith("#") && /^\/CLA\.md\s/.test(l.trim()));
+    .filter((l) => !l.trim().startsWith("#") && /^\/CLA\.md\s/.test(l.trim()))
+    .at(-1);
   if (!line) throw new Error(`${CODEOWNERS}: no entry for /CLA.md to derive the licensor from`);
   return line
     .trim()
@@ -184,7 +299,7 @@ export function licensorHandles(codeownersText) {
 export function auditRecord(text, { fields, sentence }, version) {
   const faults = [];
   for (const field of fields) {
-    const m = text.match(new RegExp(`^${field}:(.*)$`, "m"));
+    const m = text.match(new RegExp(`^${escapeRegExp(field)}:(.*)$`, "m"));
     if (!m) faults.push(`missing the '${field}:' line the CLA's record template requires`);
     else if (!m[1].trim()) faults.push(`'${field}:' is blank`);
   }
@@ -202,6 +317,17 @@ export function auditRecord(text, { fields, sentence }, version) {
 /** Record filenames are the handle, so the handle is derivable from the tree. */
 function recordPath(handle) {
   return join(CONTRIBUTORS_DIR, `${handle}.md`);
+}
+
+/**
+ * The record file for a GitHub login among `files`, or `null`. Matched
+ * case-insensitively: GitHub logins are case-insensitive but case-preserving,
+ * so a contributor who names their file the way their profile spells it must
+ * not fail against a lower-cased lookup on a case-sensitive filesystem.
+ */
+export function recordFileFor(author, files) {
+  const want = `${author.toLowerCase()}.md`;
+  return files.find((f) => f.toLowerCase() === want) ?? null;
 }
 
 /**
@@ -271,14 +397,49 @@ export function checkContributorRecord(args = []) {
 
   let failed = false;
 
+  const drift = templateVersionFault(template, version);
+  if (drift) {
+    failed = true;
+    console.error(`${CLA}: ${drift}`);
+  }
+
+  let pastTexts;
+  const history = () => (pastTexts ??= claTextHistory());
+  const attribution = attributionClause(claText);
+  const contributorsText =
+    attribution && existsSync(CONTRIBUTORS_FILE) ? readFileSync(CONTRIBUTORS_FILE, "utf8") : "";
+
   const records = existsSync(CONTRIBUTORS_DIR)
     ? readdirSync(CONTRIBUTORS_DIR).filter((f) => f.endsWith(".md") && f !== "README.md")
     : [];
   for (const file of records) {
     const path = join(CONTRIBUTORS_DIR, file);
-    for (const fault of auditRecord(readFileSync(path, "utf8"), template, version)) {
+    const { faults, supersededVersion } = auditRecordAcrossVersions(
+      readFileSync(path, "utf8"),
+      template,
+      version,
+      history,
+    );
+    if (supersededVersion) {
+      console.log(
+        `${path}: assents to ${CLA} as published at version ${supersededVersion} — still in ` +
+          `force: a new version binds a contributor only once they agree to it.`,
+      );
+    }
+    for (const fault of faults) {
       failed = true;
       console.error(`${path}: ${fault}`);
+    }
+    if (attribution) {
+      const handle = file.slice(0, -".md".length);
+      if (!listedInContributors(handle, contributorsText)) {
+        failed = true;
+        console.error(
+          `${CONTRIBUTORS_FILE}: does not name '${handle}', whose record exists — ${CLA} ` +
+            `consents to "${attribution}" as how authors are credited, and that promise holds ` +
+            `from the moment a contribution lands, so add their row in the same pull request`,
+        );
+      }
     }
   }
 
@@ -301,7 +462,7 @@ export function checkContributorRecord(args = []) {
       licensors,
       clause: automationClause(claText),
       automation: projectAutomation(),
-      hasRecord: existsSync(recordPath(author.toLowerCase())),
+      hasRecord: recordFileFor(author, records) !== null,
     });
     if (verdict.note) console.log(verdict.note);
     if (!verdict.ok) {

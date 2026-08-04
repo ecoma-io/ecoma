@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attributionClause,
   auditRecord,
+  auditRecordAcrossVersions,
   authorVerdict,
   automationClause,
+  claTextHistory,
   claVersion,
   licensorHandles,
+  listedInContributors,
   projectAutomation,
+  recordFileFor,
   recordTemplate,
+  templateVersionFault,
 } from "./check-contributor-record.mjs";
 
 const CLA_TEXT = `# Ecoma Contributor License Agreement
@@ -16,6 +22,10 @@ const CLA_TEXT = `# Ecoma Contributor License Agreement
 
 Commits made by automated tooling we run — dependency-update bots and the like
 — are made on our own behalf and are not contributions under this agreement.
+
+You agree that naming you in [\`CONTRIBUTORS.md\`](./CONTRIBUTORS.md), and
+preserving your authorship in the commit history, is a sufficient way of
+naming you as an author.
 
 ## How you agree
 
@@ -78,8 +88,119 @@ describe("the licensor exemption", () => {
     expect(licensorHandles(codeowners)).toEqual(["owner", "second"]);
   });
 
+  it("takes the last matching entry, which is the one CODEOWNERS itself enforces", () => {
+    expect(licensorHandles(`${codeowners}/CLA.md @latest\n`)).toEqual(["latest"]);
+  });
+
   it("refuses when CODEOWNERS protects no CLA, rather than exempting nobody silently", () => {
     expect(() => licensorHandles("/LICENSE @owner\n")).toThrow(/CLA/);
+  });
+});
+
+describe("the template agreeing with its own version line", () => {
+  it("accepts a template whose assent sentence names the declared version", () => {
+    expect(templateVersionFault(TEMPLATE, VERSION)).toBeNull();
+  });
+
+  it("faults the document when the two version spots drift apart", () => {
+    expect(templateVersionFault(TEMPLATE, "2.0")).toMatch(/drifted apart/);
+  });
+});
+
+describe("records agreed under a superseded published version", () => {
+  const NEWER = CLA_TEXT.replace(/version 1\.0/g, "version 2.0").replace(
+    "Version 1.0,",
+    "Version 2.0,",
+  );
+  const newerTemplate = recordTemplate(NEWER);
+  const newerVersion = claVersion(NEWER);
+
+  it("passes a record quoting the assent of a version git history shows was published", () => {
+    expect(
+      auditRecordAcrossVersions(GOOD, newerTemplate, newerVersion, () => [NEWER, CLA_TEXT]),
+    ).toEqual({ faults: [], supersededVersion: "1.0" });
+  });
+
+  it("still fails a record citing a version that was never published", () => {
+    const { faults } = auditRecordAcrossVersions(
+      GOOD.replace(/version 1\.0/g, "version 0.9"),
+      newerTemplate,
+      newerVersion,
+      () => [NEWER, CLA_TEXT],
+    );
+    expect(faults).not.toEqual([]);
+  });
+
+  it("skips history entries that predate the version line or the template", () => {
+    const { faults } = auditRecordAcrossVersions(GOOD, newerTemplate, newerVersion, () => [
+      "# CLA\n\nan early draft with neither\n",
+      CLA_TEXT,
+    ]);
+    expect(faults).toEqual([]);
+  });
+
+  it("never consults history while a record matches the current template", () => {
+    const result = auditRecordAcrossVersions(GOOD, TEMPLATE, VERSION, () => {
+      throw new Error("history should not be read");
+    });
+    expect(result).toEqual({ faults: [] });
+  });
+});
+
+describe("reading the published versions out of git history", () => {
+  it("returns each committed text, skipping commits where the file was absent", () => {
+    const exec = (cmd, cmdArgs) => {
+      if (cmdArgs[0] === "log") return "sha1\nsha2\nsha3\n";
+      if (cmdArgs[1] === "sha2:CLA.md") throw new Error("deleted here");
+      return `text of ${cmdArgs[1]}`;
+    };
+    expect(claTextHistory(exec)).toEqual(["text of sha1:CLA.md", "text of sha3:CLA.md"]);
+  });
+
+  it("yields nothing when history is unreadable, leaving only the working tree to judge", () => {
+    expect(
+      claTextHistory(() => {
+        throw new Error("not a repository");
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("the attribution promise", () => {
+  it("reads the naming consent out of the agreement", () => {
+    expect(attributionClause(CLA_TEXT)).toBe(
+      "naming you in [`CONTRIBUTORS.md`](./CONTRIBUTORS.md)",
+    );
+  });
+
+  it("reports no promise once the agreement stops making one", () => {
+    expect(attributionClause(CLA_TEXT.replace(/naming you in[^,]*,/, ""))).toBeNull();
+  });
+
+  const roster = `| Name | GitHub | Since |
+| ---- | ------ | ----- |
+| Some One | [@Someone](https://github.com/Someone) | 2026-08 |
+`;
+
+  it("finds a handle however the roster cases it", () => {
+    expect(listedInContributors("someone", roster)).toBe(true);
+    expect(listedInContributors("SOMEONE", roster)).toBe(true);
+  });
+
+  it("never accepts a prefix of a longer handle as a listing", () => {
+    expect(listedInContributors("some", roster)).toBe(false);
+    expect(listedInContributors("someone-else", roster)).toBe(false);
+  });
+});
+
+describe("finding a record file for a login", () => {
+  it("matches however the file or the login is cased, since GitHub logins are case-insensitive", () => {
+    expect(recordFileFor("JohnDoe", ["johndoe.md"])).toBe("johndoe.md");
+    expect(recordFileFor("johndoe", ["JohnDoe.md"])).toBe("JohnDoe.md");
+  });
+
+  it("reports no record rather than a near miss", () => {
+    expect(recordFileFor("johndoe", ["johndoe2.md", "README.md"])).toBeNull();
   });
 });
 
