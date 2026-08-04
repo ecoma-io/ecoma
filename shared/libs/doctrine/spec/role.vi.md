@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Role"
 status: design-end-state
-canonical-sha: c766cacbd1b4
+canonical-sha: f681283fa7bc
 ---
 
 # Primitive: Role
@@ -46,6 +46,8 @@ Role là **hợp đồng năng lực cho một vị trí lao động** — độ
 - **Filler loại thứ tư: `process`** — Role được lấp bởi một Process definition@version: task gán role đó = spawn instance con, output = artifact cuối của instance con. Sub-process invocation (sub-workflow kiểu n8n/BPMN) không cần khái niệm riêng; calibration trên process-filler = chất lượng của **cả quy trình con**, và shadow ở cấp process (A/B hai quy trình cạnh tranh, chọn bằng outcome) rơi ra miễn phí từ chính cơ chế shadow sẵn có.
 - **Calibration profile** tích lũy theo `(role, filler_identity, task_type, criterion)` — nguồn: toàn bộ hệ Judgment. Đây là câu trả lời litmus #3 (một thang tin cậy duy nhất cho người lẫn AI) và litmus #4 (cost + quality theo Role bất kể ai lấp).
 - **`environment: production | test`**: một chiều của Filler identity, **độc lập với trust tier**. Filler `environment: test` (mock filler — Test Harness §3) **không đủ tư cách được gán vào task production**, bất kể tier của nó là gì. Án văn: mức-tin-cậy và môi-trường là hai trục; trộn vào một enum tier sẽ tạo nguồn sự thật thứ hai cho taxonomy tier (E5/G6) và làm bảng §5 nói hai chuyện.
+- **Availability mang được một chân trời, và không khai thì `unavailable` nghĩa là _bây giờ_, không phải _cho tới khi_.** Nghỉ phép vốn đã có ngày ở hàng người; cùng trường đó trả lời ca đọc-như-vĩnh-viễn từ bên trong: năng lực sau một agent filler cạn vì trần do người khác reset theo đồng hồ của họ. Chân trời đi cùng escalation `unavailable` (Escalation §2) để handler thấy đang chờ cái gì. Nó **chú thích, không bao giờ treo** — không hoãn terminal handler, không tự nới SLA, không giữ việc lẽ ra chạy sớm hơn được, vì năng lực về sớm thì dùng sớm. Một chân trời đem parking việc tới một ngày chính là cú hold hình-dạng-timeout mà invariant 5 sinh ra để cấm, chỉ đổi đường vào từ timer sang một trường.
+- **Danh tính do bên thứ ba resolve phải được khai là như vậy.** Nơi một filler gọi tên thứ resolve ở chỗ khác — model hosted sau một tên trôi — adapter resolve ra hành vi khác **phải phản ánh vào `config_hash`**: đó là luật model-drift đã chốt ở Checkpoint §8 đọc từ phía này, không phải luật mới. Thứ adapter **không** làm được là bảo chứng cho cái nó không thấy: danh tính **thực sự được phục vụ** ghi ở Attempt (Task §4), và chỗ không phân biệt nổi với cái được yêu cầu thì bản ghi nói thẳng. Trust tier đọc calibration, **không bao giờ đọc một lời khai** — muốn chặn trần graduation cho loại filler này thì đó là giá trị `graduation_policy` do template cấp (§5), không phải luật engine, vì engine đối xử khác nhau theo một thuộc tính được khai chính là bất đối xứng nguyên tắc #1 cấm.
 - Một Role có **pool Filler**; một Filler lấp được nhiều Role.
 
 ## 4. Shadow mode (litmus #2)

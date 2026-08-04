@@ -49,6 +49,29 @@ privileged node would be a place where the audit story quietly stops.
 The engine is strictly symmetric: all three declare the same schema — identity,
 availability, capacity, cost function. There is no `if human` branch anywhere.
 
+**Availability may carry a horizon, and absent one `unavailable` means _now_, not
+_until_.** Leave already puts dates on the person row, and the same field answers
+the case that reads as permanent from the inside: capacity behind an agent filler
+exhausted by a ceiling somebody else resets on their own clock. The horizon
+travels with the `unavailable` escalation (Escalation §2) so a handler can see
+what it is waiting for. It **annotates and never suspends** — it does not defer
+the terminal handler, does not extend an SLA by itself, and does not hold work
+that could run sooner, because capacity returning early is taken early. A horizon
+that parked work until a date would be the timeout-shaped hold invariant 5 exists
+to forbid, arriving through a field instead of through a timer.
+
+**An identity a third party resolves is declared as such.** Where a filler names
+something resolved elsewhere — a hosted model behind a floating name — an adapter
+that resolves it into different behaviour must reflect that in `config_hash`,
+which is Checkpoint §8's settled model-drift rule read from this side rather than
+a new one. What the adapter cannot do is vouch for what it did not see: the
+identity **actually served** is recorded in the Attempt (Task §4), and where it
+cannot be told from the one requested, the record says so. Trust tiers read
+calibration, never a declaration — a ceiling on how far such a filler may
+graduate is a `graduation_policy` value a template supplies (§5), never an engine
+rule, because an engine that treated one filler kind differently on a declared
+property would be the asymmetry principle #1 forbids.
+
 **Identity lineage** stops the flywheel resetting. A new agent identity — changed
 prompt, config or model — declares a `parent_identity`, and its calibration
 profile **inherits from the parent with a decay factor** (a class-C parameter,

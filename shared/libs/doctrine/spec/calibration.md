@@ -124,6 +124,28 @@ holding `view_calibration` within the scope may read it, and
 `calibration_visibility_policy` is an enterprise extension point (Tenant &
 Identity §8).
 
+**A cell is a classified source, on the one lattice.** It carries a
+**classification** like any other classified source and, undeclared, sits at
+`confidential` — the lattice is canonical at Knowledge §3, and this section only
+joins it. Nothing new follows from saying so, which is the point: a figure
+derived from cells inherits their floor through provenance, so publishing one
+outside the tenant meets the **leakage gate** already guarding aggregates
+(Working Data §1); generalising across several subjects meets the **group floor**
+multi-subject distillation already carries (Memory §5), not a second one written
+here; a read at a level emits a **read event** (Tenant & Identity §4), which is
+what answers _who read what about whom_; and `model_policy` routes a cell the way
+it routes a knowledge chunk or a memory entry.
+
+The reason it has to be said is that this was the one source classified in
+substance and absent from the lattice, and the gap is not visible from either
+side. `view_calibration` governs **the cell**; a number _derived_ from cells is
+not the cell, so it inherited no floor and left no read event — a confidence
+rendered beside a client-facing figure crossed to a viewer who holds no Role in
+the tenant at all, silently and by omission rather than by anyone's decision.
+Joining the lattice does not decide whether such a figure may be shown: the
+default still refuses it, and relaxing that is the `calibration_visibility_policy`
+decision, unchanged.
+
 ## 7. Non-goals
 
 - No specific statistical or ML formula. The estimator is the evolving layer and
@@ -162,12 +184,16 @@ Identity §8).
    §2)?
 5. With a template that splits learning per workspace: does the estimate for
    client A read not one Judgment belonging to client B?
+6. Render a confidence derived from cells to a viewer holding no
+   `view_calibration` in scope — is it refused by floor propagation and the
+   leakage gate, and does the attempt leave a read event naming who asked?
 
 ## Failure modes
 
-| Failure                               | Detected by                                                                    | Recovery                                                                                               |
-| ------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Projection drift, or a wrong cell     | A checksum by log position (Working Data §2)                                   | Rebuild from the log, with a warning event                                                             |
-| An estimator bug skewing many results | The estimator has an identity and is shadow-compared before graduation         | Roll back to the previous estimator version, which is possible because it is named                     |
-| Poisoning through forged Judgments    | The `judge` capability, `distinct_filler_from`, and a Conflict on disagreement | Malicious Judgments are neutralised through re_review and outcome; the actor is accountable in the log |
-| Cell cardinality growing              | Sparseness, sufficient statistics, and a threshold warning                     | Retention or merging by policy — the log still holds the truth                                         |
+| Failure                                              | Detected by                                                                         | Recovery                                                                                                                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Projection drift, or a wrong cell                    | A checksum by log position (Working Data §2)                                        | Rebuild from the log, with a warning event                                                                                                       |
+| An estimator bug skewing many results                | The estimator has an identity and is shadow-compared before graduation              | Roll back to the previous estimator version, which is possible because it is named                                                               |
+| Poisoning through forged Judgments                   | The `judge` capability, `distinct_filler_from`, and a Conflict on disagreement      | Malicious Judgments are neutralised through re_review and outcome; the actor is accountable in the log                                           |
+| Cell cardinality growing                             | Sparseness, sufficient statistics, and a threshold warning                          | Retention or merging by policy — the log still holds the truth                                                                                   |
+| A derived figure reaching a viewer without the grant | Floor propagation into the leakage gate at egress, and the read event by level (§6) | The egress is refused and recorded; where the figure is wanted outside, the route is `calibration_visibility_policy`, never an unclassified copy |

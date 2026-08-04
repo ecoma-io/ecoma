@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Escalation"
 status: design-end-state
-canonical-sha: bf2cf79cd45e
+canonical-sha: f5d9f63897f0
 ---
 
 # Primitive: Escalation
@@ -17,7 +17,7 @@ Escalation là **đường đi khai báo trước cho mọi tình huống lệch
 | Trigger               | Nguồn phát                                                                                                             | Đã định nghĩa ở        |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | `sla_breach`          | Task/Gate quá hạn (gồm `awaiting_review`)                                                                              | Checkpoint §6          |
-| `unavailable`         | Không Filler nào trong pool sẵn sàng                                                                                   | Role §3                |
+| `unavailable`         | Không Filler nào trong pool sẵn sàng — mang theo chân trời đã khai nếu có, thứ chỉ chú thích chứ không bao giờ hoãn    | Role §3                |
 | `low_confidence`      | Calibrated confidence < T_low sau retry                                                                                | Checkpoint §4          |
 | `repeated_failure`    | Hết N attempt                                                                                                          | Task §4                |
 | `budget_exceeded`     | Hết fallback chain / trần chi phí                                                                                      | Checkpoint, Task       |

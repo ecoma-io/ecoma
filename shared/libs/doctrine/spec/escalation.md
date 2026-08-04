@@ -24,18 +24,18 @@ and nobody is told.
 
 ## 2. Trigger taxonomy — open, so a new trigger needs no engine change
 
-| Trigger               | Emitted by                                                                                                             | Defined in             |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `sla_breach`          | A Task or Gate past its deadline, including `awaiting_review`                                                          | Checkpoint §6          |
-| `unavailable`         | No Filler in the pool is available                                                                                     | Role §3                |
-| `low_confidence`      | Calibrated confidence below T_low after retry                                                                          | Checkpoint §4          |
-| `repeated_failure`    | N attempts exhausted                                                                                                   | Task §4                |
-| `budget_exceeded`     | The fallback chain or the cost ceiling ran out                                                                         | Checkpoint, Task       |
-| `conflict`            | Contradicting Judgments, or an N-bounce                                                                                | Checkpoint, Handoff §4 |
-| `irreversible_guard`  | A Gate ahead of an irreversible effect did not meet its floor                                                          | Handoff §8             |
-| `assistance_request`  | **A Filler raising its own hand**                                                                                      | §3                     |
-| `unwind_blocked`      | A compensation cannot run                                                                                              | Handoff §8             |
-| `session_interrupted` | A Session effect broke off mid-run — the engine knows exactly which action ran and whether the commit point was passed | Handoff §8             |
+| Trigger               | Emitted by                                                                                                              | Defined in             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `sla_breach`          | A Task or Gate past its deadline, including `awaiting_review`                                                           | Checkpoint §6          |
+| `unavailable`         | No Filler in the pool is available — carrying the declared horizon where there is one, which annotates and never defers | Role §3                |
+| `low_confidence`      | Calibrated confidence below T_low after retry                                                                           | Checkpoint §4          |
+| `repeated_failure`    | N attempts exhausted                                                                                                    | Task §4                |
+| `budget_exceeded`     | The fallback chain or the cost ceiling ran out                                                                          | Checkpoint, Task       |
+| `conflict`            | Contradicting Judgments, or an N-bounce                                                                                 | Checkpoint, Handoff §4 |
+| `irreversible_guard`  | A Gate ahead of an irreversible effect did not meet its floor                                                           | Handoff §8             |
+| `assistance_request`  | **A Filler raising its own hand**                                                                                       | §3                     |
+| `unwind_blocked`      | A compensation cannot run                                                                                               | Handoff §8             |
+| `session_interrupted` | A Session effect broke off mid-run — the engine knows exactly which action ran and whether the commit point was passed  | Handoff §8             |
 
 **`assistance_request` is the philosophically load-bearing one.** An agent does
 not naturally report being stuck, so the mechanism has to make asking for help a

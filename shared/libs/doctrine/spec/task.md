@@ -55,6 +55,21 @@ id. The history "AI tried twice and failed, a person succeeded" therefore stays
 inside one Task, which makes it the most valuable comparison label calibration
 has.
 
+**The identity recorded is the one that ran, not the one that was asked for.** A
+filler identity can name something a third party resolves — a hosted model behind
+a floating name, an external runtime behind an adapter — and what is served under
+that name can change without anyone here declaring it. An Attempt therefore
+records the identity **actually served** beside the one requested, with whatever
+evidence of it the adapter can obtain; where the two cannot be told apart, that
+absence is itself recorded rather than passed over in silence. This is Knowledge
+§4's compensation applied to labour: something that resolves live stays
+reproducible because the version _actually consumed_ sits in provenance, and an
+entry asserting a version nobody can check is a claim the log does not keep. It
+is a record and not a permission — nothing here admits an unverifiable identity
+to a gate it would otherwise fail, and the behavioural half is already settled
+elsewhere: an adapter whose resolution changes behaviour changes `config_hash`
+(Role §3, Checkpoint §8).
+
 Every Attempt is part of the final artifact's provenance.
 
 ## 5. Dynamic spawning — where deterministic and reasoning meet

@@ -81,6 +81,29 @@ filling two roles and approving themselves. The engine forces the capability to
 exist; whether it is on is a template value. Symmetric: it applies to agents as
 much as to people.
 
+**What counts as the same actor is declared, because comparing filler identities
+alone is not symmetric in practice.** The guard takes a `basis`: `filler`, which
+compares filler identities and is the default and today's behaviour, or
+`principal`, which compares the **accountable principal** — for a person,
+themselves; for a rule, whoever authored it; for an agent, the principal whose
+gated administrative Task registered or authorised that filler, which Tenant &
+Identity §4 already records with full identity because `grant_capability` is
+itself labour with a Gate. Nothing new is written down; the edge already exists
+and the comparison simply could not read it. Without the choice, a person who
+puts an agent between themselves and the work gets a guarantee a person acting
+directly does not, which is an `if human` branch arriving as a hole rather than
+as a rule, and Role litmus #3 asks for "every path, including through two roles".
+Which basis applies stays a template value, because how much separation a tenant
+needs is policy.
+
+**Its reach is the gate, not the escalation.** `distinct_filler_from` binds a
+stage or assignment; it says nothing about `override_gate` or `arbiter`, and it
+is not silently extended here. A tenant that needs the same person barred from
+authorising a filler and then overriding the gate over its output expresses that
+where those capabilities are granted (Role §2, Escalation §4) — the guard is
+about who may **judge**, and an override is by construction the path for when
+judging has failed.
+
 Correlated-error warning: several models of the same family judging the same
 criterion is approximately one model. The value of multiple verifiers lies in
 **each judging a different criterion** — factual, tone, compliance — not in

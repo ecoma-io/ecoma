@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Task"
 status: design-end-state
-canonical-sha: bf1a0d3afa92
+canonical-sha: dc880bf73a59
 ---
 
 # Primitive: Task
@@ -38,6 +38,7 @@ created → assigned(filler) → in_progress → produced → gated → done
 - Mỗi lượt thực thi là một **Attempt**: (filler identity, feedback nhận vào, artifact ra, judgment, cost, thời gian).
 - Retry (Checkpoint on_fail) = Attempt mới **mang feedback có cấu trúc của Attempt trước** — retry mù bị cơ chế loại trừ.
 - Reroute = Attempt mới với Filler/Role khác, cùng task id — lịch sử "AI thử 2 lần fail, người làm được" nằm nguyên trong một Task, là nhãn so sánh quý nhất cho calibration.
+- **Danh tính được ghi là cái đã chạy, không phải cái được yêu cầu.** Một filler identity có thể gọi tên thứ do bên thứ ba resolve — model hosted sau một tên trôi, runtime ngoài sau một adapter — và thứ được phục vụ dưới tên đó đổi được mà không ai ở đây khai. Attempt vì thế ghi danh tính **thực sự được phục vụ** bên cạnh cái được yêu cầu, kèm bằng chứng adapter lấy được; chỗ không phân biệt nổi thì **ghi chính sự không phân biệt nổi đó**, không im lặng bỏ qua. Đây là bù trừ của Knowledge §4 áp cho lao động: thứ resolve live vẫn tái tạo được vì version _thực sự tiêu thụ_ nằm trong provenance, còn một entry khẳng định version không ai kiểm được là lời hứa log không giữ. Là **ghi nhận, không phải giấy phép** — không gì ở đây cho một danh tính không kiểm được đi qua gate lẽ ra nó trượt; nửa hành vi đã có án: adapter resolve ra hành vi khác thì đổi `config_hash` (Role §3, Checkpoint §8).
 - Toàn bộ Attempt nằm trong provenance của artifact cuối.
 
 ## 5. Dynamic spawning — cơ chế hợp nhất deterministic/reasoning
