@@ -264,10 +264,16 @@ practice review, thread translation) from GitHub Actions.
   exits 0 whether the gate passed or failed — non-zero only when it could not
   do its own job — so its workflow must never be wired into required checks.
   Its workflow (`cla-notice.yml`) runs on `pull_request_target` for the same
-  fork-token reason as the other PR-side jobs, restores ONLY `contributors/`
-  and `CONTRIBUTORS.md` from the head as data, and checks out the base with
-  `fetch-depth: 0` because the gate reads `CLA.md`'s git history to honour
-  records agreed under superseded versions. No model anywhere: the whole
+  fork-token reason as the other PR-side jobs, materializes ONLY
+  `contributors/` and `CONTRIBUTORS.md` as data out of the pull request's
+  clean merge result (the tree ci.yml's required gate judges, via
+  `git merge-tree --write-tree`; head snapshot when no clean merge exists),
+  and checks out the base with `fetch-depth: 0` because the gate reads
+  `CLA.md`'s git history to honour records agreed under superseded versions.
+  Exit 1 from the gate aggregates the whole tree's audit, so the notice posts
+  only when the output names this author's own record or account; on a
+  repository-wide red an existing notice is flipped to say the author is no
+  longer the cause, and none is ever created. No model anywhere: the whole
   judgment is the gate's exit code (Rule 5).
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
