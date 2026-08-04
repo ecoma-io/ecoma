@@ -74,6 +74,26 @@ const HEALTHY = {
   "tsconfig.base.json": tsconfig({ "@ecoma-io/vider-ui": ["vider/libs/vider-ui/src/index.ts"] }),
 };
 
+/**
+ * `HEALTHY` re-declared as a tree whose LICENSE grants nothing: root manifest,
+ * nested manifests AND project tags all move together. They have to — the tree's
+ * licence is now the first question every one of those rules asks, so a fixture
+ * that moved only the root would be describing a workspace that cannot exist.
+ */
+const closedTree = (license) => ({
+  ...HEALTHY,
+  LICENSE: license,
+  "package.json": pkg({ name: "@ecoma-io/ecoma-cloud", license: "UNLICENSED" }),
+  "vider/libs/vider-ui/package.json": pkg({ name: "@ecoma-io/vider-ui", license: "UNLICENSED" }),
+  "vider/libs/vider-ui/project.json": project([
+    "type:lib",
+    "scope:vider",
+    "layer:view",
+    "license:proprietary",
+  ]),
+  "vider/apps/vider-e2e/project.json": project(["type:e2e", "scope:vider", "license:proprietary"]),
+});
+
 describe("findConventionViolations", () => {
   it("passes a workspace that honors every convention", () => {
     expect(judge(HEALTHY)).toEqual([]);
@@ -458,12 +478,12 @@ describe("findConventionViolations", () => {
     ]);
   });
 
-  it("flags an enterprise module tagged as if it were freely licensed", () => {
+  it("flags a carve-out module tagged as if it took the tree's own terms", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/LICENSE": "Ecoma Enterprise License",
-      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:sul"]),
-      "vider/enterprise/sso/src/index.ts": "export {};",
+      "vider/packages/LICENSE": "Apache License 2.0",
+      "vider/packages/driver-api/project.json": project(["type:lib", "scope:vider", "license:sul"]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
     };
     expect(judge(files)).toEqual([
       expect.stringContaining("'license:sul' does not match the terms its path implies"),
@@ -485,18 +505,19 @@ describe("findConventionViolations", () => {
   it("flags a carve-out directory that ships no terms of its own", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
-      "vider/enterprise/sso/src/index.ts": "export {};",
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:apache",
+      ]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
     };
-    expect(judge(files)).toEqual([expect.stringContaining("vider/enterprise/LICENSE: missing")]);
+    expect(judge(files)).toEqual([expect.stringContaining("vider/packages/LICENSE: missing")]);
   });
 
   it("accepts carve-out directories that declare their own terms throughout", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/LICENSE": "Ecoma Enterprise License",
-      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
-      "vider/enterprise/sso/src/index.ts": "export {};",
       "vider/packages/LICENSE": "Apache License 2.0",
       "vider/packages/driver-api/project.json": project([
         "type:lib",
@@ -533,24 +554,21 @@ describe("findConventionViolations", () => {
 
   it("derives the root manifest's terms from the LICENSE the tree ships", () => {
     // The downstream geometry: the private cloud workspace consumes this gate
-    // with an all-rights-reserved root, so its root manifest is UNLICENSED.
-    const files = {
-      ...HEALTHY,
-      LICENSE: "Copyright (c) 2026 the ecoma project owner. All rights reserved.",
-      "package.json": pkg({ name: "@ecoma-io/ecoma-cloud", license: "UNLICENSED" }),
-    };
-    expect(judge(files)).toEqual([]);
+    // with an all-rights-reserved root, so EVERY manifest in it is UNLICENSED —
+    // not only the root one. Until the tree's licence became the first question
+    // asked, a nested manifest here was judged by a path map that answered
+    // `sul`, and this fixture passed while declaring terms the tree does not
+    // grant.
+    expect(
+      judge(closedTree("Copyright (c) 2026 the ecoma project owner. All rights reserved.")),
+    ).toEqual([]);
   });
 
   it("a LICENSE that merely mentions the SUL by name does not reclassify the tree", () => {
-    const files = {
-      ...HEALTHY,
-      LICENSE:
-        "Copyright (c) 2026. All rights reserved.\n" +
-        "This is not the Sustainable Use License; no licence is granted.",
-      "package.json": pkg({ name: "@ecoma-io/ecoma-cloud", license: "UNLICENSED" }),
-    };
-    expect(judge(files)).toEqual([]);
+    const license =
+      "Copyright (c) 2026. All rights reserved.\n" +
+      "This is not the Sustainable Use License; no licence is granted.";
+    expect(judge(closedTree(license))).toEqual([]);
   });
 
   it("flags a root manifest hiding behind UNLICENSED in a tree whose LICENSE grants SUL", () => {
@@ -600,13 +618,40 @@ describe("findConventionViolations", () => {
   it("flags an empty carve-out licence file", () => {
     const files = {
       ...HEALTHY,
-      "vider/enterprise/LICENSE": "",
-      "vider/enterprise/sso/project.json": project(["type:lib", "scope:vider", "license:ee"]),
-      "vider/enterprise/sso/src/index.ts": "export {};",
+      "vider/packages/LICENSE": "",
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:apache",
+      ]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
     };
-    expect(judge(files)).toEqual([
-      expect.stringContaining("does not name the 'Enterprise License'"),
-    ]);
+    expect(judge(files)).toEqual([expect.stringContaining("does not name the 'Apache License'")]);
+  });
+
+  it("carves nothing out of a tree that grants nothing, whatever a directory is called", () => {
+    // The precedence that let the licence map stop hard-coding one directory
+    // name as proprietary. A `packages` directory in an unpublished tree is not
+    // an Apache grant — that tree has published no source to grant — so the gate
+    // must neither expect an Apache LICENSE beside it nor an `apache` tag on it.
+    const files = {
+      ...closedTree("Copyright (c) 2026. All rights reserved."),
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:proprietary",
+      ]),
+      "vider/packages/driver-api/package.json": pkg({
+        name: "@ecoma-io/driver-api",
+        license: "UNLICENSED",
+      }),
+      "vider/packages/driver-api/src/index.ts": "export {};",
+      "tsconfig.base.json": tsconfig({
+        "@ecoma-io/vider-ui": ["vider/libs/vider-ui/src/index.ts"],
+        "@ecoma-io/driver-api": ["vider/packages/driver-api/src/index.ts"],
+      }),
+    };
+    expect(judge(files)).toEqual([]);
   });
 
   it("holds the workspace-root manifest to the same derivation", () => {
