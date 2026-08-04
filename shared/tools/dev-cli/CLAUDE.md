@@ -222,10 +222,17 @@ build/typecheck — invoked directly as
     because a bot opened it lets a person push onto a bot's branch and skip the
     trailer entirely. GitHub is still the only authority on whether an
     _account_ is a machine (`--author-type`), but which commits that account
-    authored is a question git answers offline, so `unsignedCommits` returns
-    `%an` and the caller filters on it. Matching a name only ever narrows the
-    exemption for an account already known to be a machine, so a mismatch costs
-    a spurious ask rather than a silent pass. CI passes
+    authored is answered from `%an`, which git supplies offline. **That is
+    unverified metadata, and the exemption is worth exactly what it is worth**:
+    a commit claiming the exempt account's name is exempted with nothing
+    checking the claim, so do not read this path as fail-closed. What bounds it
+    is reach rather than verification — the exemption opens only on a pull
+    request GitHub says a machine opened, and a spoofed commit has to land on
+    that account's branch, which needs push access to this repository; anyone
+    holding that can merge past the gate anyway. The verified answer (GitHub
+    resolving each commit to an account) is a network call this command
+    deliberately does not make, so wanting it is a reason to move the check,
+    never to add a fetch here. CI passes
     `origin/$BASE_REF..HEAD`, which is why that job needs `fetch-depth: 0`.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language

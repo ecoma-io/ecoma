@@ -567,10 +567,19 @@ export function checkContributorRecord(args = []) {
       }
       // A machine account opening the pull request exempts the commits IT
       // authored, never the whole range — a person can push onto a bot's
-      // branch, and their commits owe the trailer like anyone else's. Matching
-      // the author NAME is what git can answer offline; it only ever narrows
-      // the exemption for an account GitHub has already told us is a machine,
-      // so a mismatch costs a spurious ask rather than a silent pass.
+      // branch, and their commits owe the trailer like anyone else's.
+      //
+      // **The author name is unverified metadata, and this exemption is only as
+      // good as it**: anyone who can write a commit can write any name into it,
+      // so a commit that claims the exempt account's name is exempted here
+      // without anything checking that claim. What bounds the hole is who can
+      // reach it. The exemption opens at all only for a pull request GitHub
+      // says a machine account opened, and the spoofed commit has to land on
+      // that account's branch — which needs push access to this repository.
+      // Anyone holding that can also merge past this gate directly, so closing
+      // it here would buy nothing and would cost the gate its offline read.
+      // A verified answer exists (GitHub resolves each commit to an account),
+      // and it is a network call this command deliberately does not make.
       const exempt = automationLogin?.toLowerCase() ?? null;
       const owed = exempt ? unsigned.filter((c) => c.author?.toLowerCase() !== exempt) : unsigned;
       if (exempt && owed.length < unsigned.length) {
