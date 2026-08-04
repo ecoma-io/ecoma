@@ -56,4 +56,29 @@ describe("workspace-declared languages against the real filesystem", () => {
     expect(output).toContain("README.vi.md: missing");
     expect(output).not.toContain("README.zh.md");
   });
+
+  it("fails loudly on a language config that exists but cannot be parsed", () => {
+    // The fallback covers a MISSING config only. A tree whose config is
+    // broken must not be quietly judged by the default language set — the
+    // wrong-variant verdicts that would follow read as the tree's fault, not
+    // the config's.
+    const repo = initFixtureRepo("langs-broken", {
+      "languages.config.json": "{ this is not json",
+    });
+
+    const output = runGate(repo, "check-subsystem-readmes");
+
+    expect(output).toContain("languages.config.json");
+    expect(output).not.toContain("README.vi.md: missing");
+  });
+
+  it("fails loudly on a journey-marker config that exists but cannot be parsed", () => {
+    const repo = initFixtureRepo("journey-broken", {
+      "journey-markers.config.json": "{ this is not json",
+    });
+
+    const output = runGate(repo, "check-journey-markers-workspace");
+
+    expect(output).toContain("journey-markers.config.json");
+  });
 });

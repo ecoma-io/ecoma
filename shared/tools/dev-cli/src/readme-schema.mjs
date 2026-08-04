@@ -20,6 +20,8 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
+import { cwdGitEnv } from "./git-env.mjs";
+
 // The language set is a WORKSPACE-level value, not this gate's own: repo-care's
 // thread translation names the same languages, so both read one root config
 // (Rule 14 rung 2) instead of each declaring a copy — see that file's
@@ -41,12 +43,26 @@ import { join } from "node:path";
 // reason every gate here enumerates through it: the tree being judged is
 // defined by git, not by where this file happens to be installed.
 function workspaceLanguagesConfig() {
+  // The fallback covers exactly two states — no git root, no config file —
+  // and nothing else: a root config that EXISTS but cannot be parsed must
+  // throw, because falling back would judge the tree by a language set its
+  // owner never declared, and the wrong-variant verdicts that follow would
+  // read as the tree's fault, not the config's. `resolve` inside the guard,
+  // the require outside of it, is what draws that line. `env: cwdGitEnv()`
+  // for the reason git-env.mjs owns: under a git hook, an inherited GIT_DIR
+  // outranks cwd and would answer for a different repository.
+  let requireFromRoot;
   try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-    return createRequire(join(root, "package.json"))("./languages.config.json");
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      env: cwdGitEnv(),
+    }).trim();
+    requireFromRoot = createRequire(join(root, "package.json"));
+    requireFromRoot.resolve("./languages.config.json");
   } catch {
     return createRequire(import.meta.url)("../../../../languages.config.json");
   }
+  return requireFromRoot("./languages.config.json");
 }
 const languagesConfig = workspaceLanguagesConfig();
 
