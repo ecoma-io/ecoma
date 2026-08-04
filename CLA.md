@@ -107,10 +107,11 @@ apply to every contribution you make, before or after that agreement:
    to that person or entity and its affiliates; everyone else's are unaffected,
    and the copyright licence in clause 1 stays in force.
 
-   That object reaches exactly as far as the one in `LICENSE` — the same acts,
-   the same software, the same result — differing only where this agreement
-   must name its own parties rather than that document's. The width is the
-   point rather than an accident: it reaches software this agreement's own
+   The trigger is the one in `LICENSE`: the same acts, against the same
+   software, firing at the same moment. What each document then does about it
+   is its own — `LICENSE` also graduates the consequence between a company and
+   an individual acting for it, where this clause simply ends the licences it
+   granted. The width of the object is the point rather than an accident: it reaches software this agreement's own
    definition of "the project" deliberately excludes, because a retaliation
    trigger answers a different question from a grant. What we may place under
    which terms is bounded by what you gave us; what costs an aggressor their
