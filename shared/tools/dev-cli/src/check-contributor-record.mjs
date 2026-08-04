@@ -302,15 +302,16 @@ export const SIGN_OFF_TRAILER = "Signed-off-by:";
 
 /**
  * The non-merge commits in `range` that carry no `Signed-off-by` trailer, as
- * `[{ sha, subject }]`. Merges are skipped because git writes them and nobody
- * authors them, matching what commitlint already ignores.
+ * `[{ sha, subject, author }]` where `author` is the commit's author name.
+ * Merges are skipped because git writes them and nobody authors them, matching
+ * what commitlint already ignores.
  *
- * **What this cannot see, stated rather than left to be discovered:** the
- * exemption its caller applies is keyed to the pull request's author, which is
- * the only account CI can ask GitHub about. A range whose commits were authored
- * by several people is judged as one, so a commit by someone other than the
- * opener is held to the trailer either way — which is the safe direction, since
- * the trailer is exactly what that person owes.
+ * `author` is what lets the caller exempt a machine account **per commit**
+ * rather than per pull request. Exempting the whole range because a bot opened
+ * it is too wide: a person can push onto a bot's branch, and their commits
+ * would then escape the trailer entirely. Only GitHub can say whether an
+ * *account* is a machine, but which commits an already-exempt account authored
+ * is a question git can answer offline, which is the half that matters here.
  */
 export function unsignedCommits(range, exec = execFileSync) {
   // The separators come from git's own %x escapes, so no control character
@@ -319,7 +320,7 @@ export function unsignedCommits(range, exec = execFileSync) {
   const FIELD = "\u001f";
   let log;
   try {
-    log = exec("git", ["log", "--no-merges", "--format=%H%x1f%s%x1f%b%x00", range], {
+    log = exec("git", ["log", "--no-merges", "--format=%H%x1f%s%x1f%an%x1f%b%x00", range], {
       env: cwdGitEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -333,8 +334,8 @@ export function unsignedCommits(range, exec = execFileSync) {
   const unsigned = [];
   for (const entry of log.split(RECORD)) {
     if (!entry.trim()) continue;
-    const [sha, subject, body = ""] = entry.replace(/^\s+/, "").split(FIELD);
-    if (!trailer.test(body)) unsigned.push({ sha, subject });
+    const [sha, subject, author, body = ""] = entry.replace(/^\s+/, "").split(FIELD);
+    if (!trailer.test(body)) unsigned.push({ sha, subject, author });
   }
   return unsigned;
 }
@@ -513,7 +514,7 @@ export function checkContributorRecord(args = []) {
     }
   }
 
-  let automationExempt = false;
+  let automationLogin = null;
   const authorAt = args.indexOf("--author");
   if (authorAt !== -1) {
     const author = args[authorAt + 1];
@@ -540,7 +541,7 @@ export function checkContributorRecord(args = []) {
       failed = true;
       console.error(verdict.fault);
     }
-    automationExempt = verdict.automation === true;
+    automationLogin = verdict.automation === true ? author : null;
   }
 
   const commitsAt = args.indexOf("--commits");
@@ -556,11 +557,6 @@ export function checkContributorRecord(args = []) {
         `${CLA} no longer asks for a ${SIGN_OFF_TRAILER} trailer, so the commits in ` +
           `'${range}' are not judged for one.`,
       );
-    } else if (automationExempt) {
-      console.log(
-        `The commits in '${range}' were opened by automation this project runs, which certifies ` +
-          `nothing and needs no ${SIGN_OFF_TRAILER} trailer — its commits are not contributions.`,
-      );
     } else {
       let unsigned;
       try {
@@ -569,7 +565,22 @@ export function checkContributorRecord(args = []) {
         console.error(`check-contributor-record: ${error.message}`);
         return 2;
       }
-      for (const { sha, subject } of unsigned) {
+      // A machine account opening the pull request exempts the commits IT
+      // authored, never the whole range — a person can push onto a bot's
+      // branch, and their commits owe the trailer like anyone else's. Matching
+      // the author NAME is what git can answer offline; it only ever narrows
+      // the exemption for an account GitHub has already told us is a machine,
+      // so a mismatch costs a spurious ask rather than a silent pass.
+      const exempt = automationLogin?.toLowerCase() ?? null;
+      const owed = exempt ? unsigned.filter((c) => c.author?.toLowerCase() !== exempt) : unsigned;
+      if (exempt && owed.length < unsigned.length) {
+        console.log(
+          `${unsigned.length - owed.length} commit(s) in '${range}' authored by ` +
+            `'${automationLogin}' carry no ${SIGN_OFF_TRAILER} trailer and owe none — automation ` +
+            `this project runs certifies nothing, and its commits are not contributions.`,
+        );
+      }
+      for (const { sha, subject } of owed) {
         failed = true;
         console.error(
           `${sha.slice(0, 8)} ("${subject}"): no ${SIGN_OFF_TRAILER} trailer — ${CLA} says: ` +

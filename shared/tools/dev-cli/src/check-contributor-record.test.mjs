@@ -222,23 +222,34 @@ describe("the sign-off requirement", () => {
     expect(signOffClause(CLA_TEXT.replace("Separately, sign off each commit.", ""))).toBeNull();
   });
 
-  /** One `git log --format=%H%x1f%s%x1f%b%x00` record. */
-  const entry = (sha, subject, body) => `${sha}\u001f${subject}\u001f${body}\u0000`;
+  /** One `git log --format=%H%x1f%s%x1f%an%x1f%b%x00` record. */
+  const entry = (sha, subject, author, body) =>
+    `${sha}\u001f${subject}\u001f${author}\u001f${body}\u0000`;
 
   it("names the commits carrying no trailer and passes over the ones that do", () => {
     const log =
-      entry("aaaa1111", "fix: one", "body\n\nSigned-off-by: A Person <a@example.com>\n") +
-      entry("bbbb2222", "fix: two", "no trailer here\n") +
-      entry("cccc3333", "fix: three", "signed-off-by: lower <l@example.com>\n");
+      entry("aaaa1111", "fix: one", "A Person", "body\n\nSigned-off-by: A Person <a@e.com>\n") +
+      entry("bbbb2222", "fix: two", "A Person", "no trailer here\n") +
+      entry("cccc3333", "fix: three", "A Person", "signed-off-by: lower <l@e.com>\n");
     expect(unsignedCommits("base..HEAD", () => log)).toEqual([
-      { sha: "bbbb2222", subject: "fix: two" },
+      { sha: "bbbb2222", subject: "fix: two", author: "A Person" },
     ]);
   });
 
   it("rejects a trailer with nothing after it, which certifies nobody", () => {
-    const log = entry("dddd4444", "fix: four", "Signed-off-by:\n");
+    const log = entry("dddd4444", "fix: four", "A Person", "Signed-off-by:\n");
     expect(unsignedCommits("base..HEAD", () => log)).toEqual([
-      { sha: "dddd4444", subject: "fix: four" },
+      { sha: "dddd4444", subject: "fix: four", author: "A Person" },
+    ]);
+  });
+
+  it("reports each commit's author, which is what lets a caller exempt per commit", () => {
+    const log =
+      entry("eeee5555", "chore: bump", "renovate[bot]", "no trailer\n") +
+      entry("ffff6666", "fix: mine", "A Person", "no trailer\n");
+    expect(unsignedCommits("base..HEAD", () => log).map((c) => c.author)).toEqual([
+      "renovate[bot]",
+      "A Person",
     ]);
   });
 
