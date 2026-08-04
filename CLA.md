@@ -1,6 +1,6 @@
 # Ecoma Contributor License Agreement
 
-**Version 1.0, effective 2026-08-03.**
+**Version 1.1, effective 2026-08-04.**
 
 Before your first contribution is merged, we ask you to agree to these terms.
 This page says plainly why each part exists.
@@ -100,13 +100,23 @@ apply to every contribution you make, before or after that agreement:
    its affiliates, on the date that person or entity institutes patent
    litigation — including a cross-claim or counterclaim — **or sends a written
    notice asserting**, in either case against Ecoma or any recipient, that the
-   project or your contribution infringes a patent. Termination reaches only
-   the licences this clause granted to that person or entity and its
-   affiliates; everyone else's are unaffected, and the copyright licence in
-   clause 1 stays in force. This trigger is deliberately the same as the one in
-   `LICENSE`: if the two differed, an aggressor who lost their patent licence
-   under `LICENSE` would still hold an identical one from every contributor,
-   and the project's patent defence would be worth nothing.
+   project, your contribution, or any other software Ecoma makes available
+   (including the contents of any `enterprise` directory and of `cloud/`,
+   whether or not licensed to them) infringes **or contributes to infringement
+   of** any patent. Termination reaches only the licences this clause granted
+   to that person or entity and its affiliates; everyone else's are unaffected,
+   and the copyright licence in clause 1 stays in force.
+
+   That object is word-for-word the one in `LICENSE`, and the width is the
+   point rather than an accident: it reaches software this agreement's own
+   definition of "the project" deliberately excludes, because a retaliation
+   trigger answers a different question from a grant. What we may place under
+   which terms is bounded by what you gave us; what costs an aggressor their
+   licence is bounded by what they attacked. Were the trigger narrowed to the
+   grant's object, someone who asserted a patent against `cloud/` would lose
+   their patent licence under `LICENSE` and keep an identical one from every
+   contributor, through the whole pre-litigation window — and the project's
+   patent defence would be worth nothing.
 
 3. **Moral rights, and how we handle them.** The law of some countries,
    including Vietnam, gives an author personal rights (`quyền nhân thân`) that
@@ -258,25 +268,36 @@ does not displace them.
 
 ## Your personal data
 
-To run this project we process a small amount of your personal data: the name
-and email address in your commits, your GitHub account name, and the details in
-your contributor record. We do this to establish who granted us the licences in
-this agreement, to satisfy the writing and identification requirements that
-copyright law imposes on a licence contract, and to credit you as an author.
+To run this project we process a small amount of your personal data. We do it to
+establish who granted us the licences in this agreement, to satisfy the writing
+and identification requirements that copyright law imposes on a licence
+contract, and to credit you as an author. It falls into two groups, and the
+difference between them is the whole of our data-minimisation practice.
 
-This data is **published**: it is part of the public commit history of a public
-repository, it is copied by everyone who clones the project, and **it cannot be
-removed once published**. The repository is hosted by GitHub, Inc. in the
-United States, and email to us is handled by Google LLC — so your data is
-transferred outside Vietnam. We keep it for as long as the project exists,
-because it is the record of who licensed what to us.
+**Published, permanently:** the name and email address in your commits, your
+GitHub account name, and what your contributor record carries — your full legal
+name, your handle and your country of residence — together with your row in
+`CONTRIBUTORS.md`. This is part of the public commit history of a public
+repository, it is copied by everyone who clones or forks the project, and **it
+cannot be removed once published**.
 
-**Right to erasure limitation:** Because your personal data is published in the
-commit history of a public Git repository, the right to erasure under Article 17
-GDPR (and analogous rights in other jurisdictions) cannot be fully exercised —
-the data is replicated in every clone and fork, and Ecoma cannot delete it from
-copies it does not control. By agreeing to these terms you acknowledge this
-limitation.
+**Held by us, never published:** your full postal address and the contact email
+you send us. These stay with Ecoma. We keep them for as long as the project
+exists, because they are what makes the licence you granted provable, and we
+disclose them only where a court or an authority requires it.
+
+The repository is hosted by GitHub, Inc. in the United States, and email to us
+is handled by Google LLC — so both groups are transferred outside Vietnam.
+
+**Right to erasure, and its two different limits.** For the published group the
+right under Article 17 GDPR (and analogous rights elsewhere) cannot be fully
+exercised: the data is replicated in every clone and fork, and Ecoma cannot
+delete it from copies it does not control. By agreeing to these terms you
+acknowledge that limitation. For the held group the limit is a different one and
+narrower: we can delete, but while the licences you granted are in force we rely
+on Article 17(3)(e) — the data is what establishes and defends the legal claim
+that we hold those licences at all — so we will not delete it merely on request.
+Ask us anyway if your circumstances change; a correction we can always make.
 
 By agreeing to these terms you consent to that processing, publication and
 transfer. If you would rather not, do not contribute — we would rather you
@@ -290,26 +311,55 @@ contributor record at `contributors/<your-github-handle>.md` containing:
 
 ```
 Full legal name:
-Address:
-Email:
 GitHub:
 Country of residence:
 
-I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
-for this and every future contribution I make to this project.
+I agree to the Ecoma Contributor License Agreement, version 1.1, at CLA.md, for
+this and every future contribution I make to this project. I have given Ecoma my
+full postal address and a contact email, and I understand that Ecoma does not
+publish either of them.
 ```
 
-Sign that commit off (`git commit -s`). A maintainer confirms the record before
-merging. "Confirms" means a maintainer explicitly approves the record by
-merging it, or by commenting on the pull request stating that the record is
-complete and accepted. A silent merge without review is not confirmation. **Nothing in this agreement takes effect, and no licence is granted
-under it, until that record exists.** If you send us material without agreeing,
-we will ask you to agree before we use it, and will discard it if you decline.
+Any capitalisation of your handle names the same file. In the same pull request,
+add your row to [`CONTRIBUTORS.md`](./CONTRIBUTORS.md): clause 3.2 makes that
+file how we name you as an author, so it is part of agreeing rather than a
+courtesy that follows later.
 
-The record carries your name and address because copyright law in Vietnam — the
-law that governs this agreement — requires a licence contract to identify both
-parties. It is not bureaucracy for its own sake, and it is the difference
-between having a grant and being able to prove one.
+Before that pull request, send your **full postal address and a contact email**
+to <john.itvn@gmail.com>. Sign the record's commit off (`git commit -s`). A
+maintainer confirms the record before merging. "Confirms" means a maintainer
+explicitly approves the record by merging it, or by commenting on the pull
+request stating that the record is complete and accepted — which includes
+confirming that we hold the two details above. A silent merge without review is
+not confirmation. **Nothing in this agreement takes effect, and no licence is
+granted under it, until that record exists.** If you send us material without
+agreeing, we will ask you to agree before we use it, and will discard it if you
+decline.
+
+### Why it is split in two
+
+Copyright law in Vietnam — the law that governs this agreement — requires a
+licence contract to be in writing and to identify both parties, including their
+addresses (`Điều 48` of the Law on Intellectual Property). Your address is
+therefore something we must **hold**, and that is a different requirement from
+publishing it. The contract is the two halves together: the record you commit,
+which fixes what you agreed and when, and the details you send us, which
+identify you. Neither half alone is the agreement.
+
+We keep the address and the contact email out of the repository because
+publication cannot be undone. A public commit history is copied by everyone who
+clones or forks the project, and no later decision of ours reaches those copies
+— so a home address published once is published permanently, in exchange for
+nothing the private half does not already give us. This is the same judgement
+[`CORPORATE-CLA.md`](./CORPORATE-CLA.md) makes when it refuses to publish a
+company's signed agreement, and it would be incoherent to protect a company's
+signatory and not you.
+
+What the record does carry is public, and deliberately: your name and GitHub
+handle are already in the commit history and in `CONTRIBUTORS.md`, and your
+country of residence is what tells a reader which mandatory local law the
+governing-law clause cannot displace for you. A reviewer can read the record and
+see that you agreed, to which version, without learning where you live.
 
 That agreement covers every contribution you make afterwards. Clauses 4 to 6
 are things you re-confirm each time you open a pull request — the pull request
@@ -335,11 +385,11 @@ have already made, and nothing lets us widen one without asking you.
 ## The other agreements, and where they stand
 
 - The **corporate agreement** ([`CORPORATE-CLA.md`](./CORPORATE-CLA.md)) is
-  **in force** — version 1.0, effective 2026-07-31, offered to companies whose
+  **in force** — version 1.1, effective 2026-08-04, offered to companies whose
   employees contribute on their employer's behalf. Clause 6 now routes
   employer-owned contributions to this agreement.
 - The **Enterprise License** ([`ENTERPRISE-LICENSE.md`](./ENTERPRISE-LICENSE.md))
-  is **in force** — version 1.0, effective 2026-08-03, for the modules under an
+  is **in force** — version 1.1, effective 2026-08-04, for the modules under an
   `enterprise/` directory.
 - The **proprietary terms** for the operator control plane (`cloud/`) have not
   been published.

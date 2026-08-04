@@ -213,8 +213,14 @@ counting after the CLA moves on, read out of git history — and fails a pull
 request whose author has none. When it does fail, the `CLA notice` workflow
 comments on the pull request with exactly what to commit, so the answer is on
 the thread rather than in a CI log.
-The record carries your name and address because the law governing the
-agreement requires a licence contract to identify both parties.
+
+**Your address does not go in the repository.** The law governing the agreement
+requires a licence contract to identify both parties by name and address, so we
+must hold yours — but holding is not publishing, and a public commit history
+cannot be unpublished. So the record you commit carries your legal name, your
+handle and your country of residence, and your **postal address and contact
+email go to <john.itvn@gmail.com>** instead, where they stay. `CLA.md` >
+"Why it is split in two" sets out both halves.
 
 An account that is not a person is judged differently, because it can hold no
 copyright and so can agree to nothing. Automation this project runs — Renovate
@@ -228,7 +234,10 @@ Sign off each commit with `git commit -s`: that trailer is the
 [Developer Certificate of Origin](https://developercertificate.org/), which is
 a separate thing from the CLA and deliberately kept separate — it is what you
 type reflexively everywhere else, so it must not double as assent to a
-commercial sublicensing grant. Where an AI tool wrote part of a commit, add
+commercial sublicensing grant. `check-contributor-record` enforces it per commit
+in CI, and exempts exactly the automation accounts it already exempts from the
+record itself: a bot certifies nothing, because its commits are not
+contributions. Where an AI tool wrote part of a commit, add
 `Assisted-by: <tool>` — or `Generated-by: <tool>` where it produced
 substantially the whole of one — which is the disclosure `CLA.md` clause 5
 asks for, in the one place that stays with the commit.

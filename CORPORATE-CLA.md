@@ -1,11 +1,12 @@
 # Ecoma Corporate Contributor License Agreement
 
-**Version 1.0, effective 2026-07-31.**
+**Version 1.1, effective 2026-08-04.**
 
 > **In force.** This agreement is offered to companies whose employees
 > contribute to the project on their employer's behalf. Employer-owned
 > contributions that were previously routed to a case-by-case conversation
-> under `CLA.md` clause 6 are now covered by this agreement.
+> under `CLA.md` clause 6 (your employer, if relevant, is on board) are now
+> covered by this agreement.
 
 ## Why this document exists at all
 
@@ -16,16 +17,17 @@ Often they do not. In Vietnam — and in many other places — the economic righ
 in software an employee writes as part of their job belong to their employer
 rather than to them, by default and without either side signing anything for it
 (`Điều 39` and `Điều 20` of the Law on Intellectual Property, unless the
-employer and the author agreed otherwise). `CLA.md` clause 4 says so, and
-clause 6 then tells an employed contributor to talk to us before opening a pull
-request.
+employer and the author agreed otherwise). `CLA.md` clause 4 (the work is yours
+to give) says so, and its clause 6 (your employer, if relevant, is on board)
+then tells an employed contributor to talk to us before opening a pull request.
 
 A conversation is not a mechanism. It leaves no record, it cannot be checked at
 merge time by anyone other than the person who had it, and it produces no
 writing — which matters, because the law governing these agreements requires a
 licence contract to be in writing and to identify both parties. This document is
-the second limb of `CLA.md` clause 6: the corporate agreement that clause says
-we would otherwise ask a contributor to wait for.
+the second limb of `CLA.md` clause 6 (your employer, if relevant, is on board):
+the corporate agreement that clause says we would otherwise ask a contributor to
+wait for.
 
 We ask the Company for a **licence, not ownership**. The Company keeps its
 copyright and may use its own work however it likes, including in its own
@@ -34,10 +36,16 @@ products and in other projects.
 ## Who and what this is about
 
 **"Ecoma"**, **"the project"** and **"contribution"** have the meanings
-[`CLA.md`](./CLA.md) gives them. This document deliberately does not restate
-them. Two definitions of one word in two documents is how the two come apart,
-and it has already happened twice in this project's licensing documents — once
-where a patent-retaliation trigger differed between two files, and once where a
+[`CLA.md`](./CLA.md) gives them **as at version 1.1 of that document**, and
+every reference below to one of its clauses is to that version. Each such
+reference names the clause's subject as well as its number, because a number
+alone is a pointer that a later renumbering turns into a lie without changing a
+character of this file — and this document is one a company signs and keeps.
+
+This document deliberately does not restate those definitions. Two definitions
+of one word in two documents is how the two come apart, and it has already
+happened twice in this project's licensing documents — once where a
+patent-retaliation trigger differed between two files, and once where a
 definition excluded from one document the very thing the other was protecting.
 
 **"The Company"** means the legal entity agreeing to these terms, together with
@@ -79,7 +87,8 @@ agreement.
    non-exclusive as to everything else — the Company keeps the copyright and may
    use its work however it likes.
 
-   The grant is deliberately word-for-word the same scope as `CLA.md` clause 1.
+   The grant is deliberately word-for-word the same scope as `CLA.md` clause 1
+   (the broad copyright licence).
    A narrower inbound grant from a company than from an individual would mean
    the project could place one contributor's line under commercial terms and not
    the next one's, which is the exact defect a contributor agreement exists to
@@ -97,18 +106,23 @@ agreement.
    its affiliates, on the date that person or entity institutes patent
    litigation — including a cross-claim or counterclaim — **or sends a written
    notice asserting**, in either case against Ecoma or any recipient, that the
-   project or a covered contribution infringes a patent. Termination reaches
-   only the licences this clause granted to that person or entity and its
-   affiliates; everyone else's are unaffected, and the copyright licence in
-   clause 1 stays in force.
+   project, a covered contribution, or any other software Ecoma makes available
+   (including the contents of any `enterprise` directory and of `cloud/`,
+   whether or not licensed to them) infringes **or contributes to infringement
+   of** any patent. Termination reaches only the licences this clause granted to
+   that person or entity and its affiliates; everyone else's are unaffected, and
+   the copyright licence in clause 1 stays in force.
 
-   This trigger is deliberately identical to the one in `CLA.md` clause 2 and to
-   the one in `LICENSE`. All three must fire at the same moment. Two of them
-   once differed by a single limb — one fired on litigation, the other also on a
-   written assertion — and the effect was that an aggressor who lost their
-   patent licence under one document still held an identical licence under the
-   other, through the whole pre-litigation window. A third variant of this
-   trigger would reopen that gap for a third time.
+   This trigger is identical to the one in `CLA.md` clause 2 (the patent
+   licence) and to the one in `LICENSE` — the same acts, against the same
+   object, in the same words. All three must fire at the same moment, and
+   checking that is a matter of reading the three paragraphs side by side rather
+   than trusting three assertions that they agree. They have twice not agreed:
+   once by a single limb, where one fired on litigation and the other also on a
+   written assertion; once by object, where two of them reached software the
+   third's definitions excluded. Each time the effect was the same — an
+   aggressor who lost their patent licence under one document still held an
+   identical licence under another, through the whole pre-litigation window.
 
 3. **The Company has the rights it is granting, and the person signing can bind
    it.** To the best of the Company's knowledge:
@@ -144,7 +158,8 @@ agreement.
       transferred or waived by someone else — under `Điều 39`, the employer
       takes the economic rights and the right to publish, while the right to be
       named and the right to object to damaging modification stay with the
-      author personally. `CLA.md` clause 3 is the only place in this project
+      author personally. `CLA.md` clause 3 (moral rights, and how we handle
+      them) is the only place in this project
       where those rights are addressed, and it is addressed with the author,
       because there is nobody else who can address it. A clause here purporting
       to consent on an employee's behalf would be void, and a void clause is
@@ -153,14 +168,16 @@ agreement.
       covered person's own projects, on their own time, fall outside "a covered
       contribution" by definition. Only their individual agreement reaches
       those.
-   3. **`CLA.md` clause 4 needs something for its second limb to attach to.**
+   3. **`CLA.md` clause 4 (the work is yours to give) needs something for its
+      second limb to attach to.**
       That clause asks a contributor to confirm that they own the rights they
       are granting **or have permission from whoever does**. This document is
       what makes the second limb true and checkable. Remove the individual
       agreement and the permission has nothing to attach to.
 
 5. **Material the Company did not create is disclosed before review.** The
-   disclosure duty is the one `CLA.md` clause 5 already sets — named in the pull
+   disclosure duty is the one `CLA.md` clause 5 (code you did not write
+   yourself) already sets — named in the pull
    request description, before review, with its source and its licence; a
    comment in the code is not disclosure. If a covered contribution includes or
    depends on third-party code under a copyleft licence (including the GNU
@@ -411,7 +428,8 @@ absence of coverage detectable. A person whose employer never signed can still
 open a pull request and tick the box on the pull request template, and nothing in
 the repository will contradict them. That limit is inherent — no record we hold
 can reveal an employment relationship nobody told us about — and it is why
-`CLA.md` clause 4's note asks an employed developer to assume their employer owns
+the note in `CLA.md` clause 4 (the work is yours to give) asks an employed
+developer to assume their employer owns
 their work, rather than waiting to be asked.
 
 **We also cannot verify a foreign register.** We take the evidence in step 2 at
