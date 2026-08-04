@@ -1,15 +1,17 @@
 # CD for the desktop application: builds real, unsigned installers on all three
 # desktop platforms and uploads them as run artifacts.
 #
-# **Why this lane builds for real while the harness lane is a dry run.** The two
-# lanes are blocked on different things. `release-harness.yml` cannot publish
-# because the registry side does not exist — an npm org and a trusted-publisher
-# binding are operator acts no workflow can perform, so a real run there would
-# have nowhere to put its output. Bundling has no such gap: `tauri build`
-# produces a genuine `.deb`/`.dmg`/`.msi` with nothing external required, and
-# that artifact IS the proof the packaging pipeline resolves on each platform.
-# What is missing here is signing and a distribution channel, and neither is
-# needed to prove the build.
+# **Why this lane builds for real, and is the only CD lane in the tree.** A lane
+# earns its place by producing something nothing outside this repository has to
+# supply first. Bundling clears that bar: `tauri build` produces a genuine
+# `.deb`/`.dmg`/`.msi` with nothing external required, and that artifact IS the
+# proof the packaging pipeline resolves on each platform. Publishing the
+# workspace tooling to npm never cleared it — the registry side is an operator
+# act no workflow can perform (root `CLAUDE.md`, the release bullet) — so what
+# stood here as a dry-run lane could only ever prove that it resolved, and it
+# was retired rather than left running against nothing. What is missing HERE is
+# only signing and a distribution channel, and neither is needed to prove the
+# build.
 #
 # So the honest posture is: build, keep, do not sign, do not distribute. The
 # installers land as workflow artifacts an operator can download and open.

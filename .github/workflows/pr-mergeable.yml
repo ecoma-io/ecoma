@@ -55,6 +55,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The step below still fetches `refs/pull/<n>/head`, which resolves
+          # anonymously on a public repository, so the persisted credential
+          # buys this job nothing and only widens what a later step could read.
+          persist-credentials: false
 
       # `refs/pull/<n>/head` rather than the head SHA: it resolves in THIS
       # repository for a fork pull request too, where the head commit lives in

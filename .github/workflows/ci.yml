@@ -62,6 +62,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Both jobs in this file run the pull request's own build, lint and
+          # test scripts. Left at its default, checkout writes the job's token
+          # into .git/config where any of that code can read it back out;
+          # nothing here pushes or fetches again, so the token has no reason to
+          # outlive the clone.
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       # Every branch commit reaches main verbatim — under merge-commit merging
@@ -199,6 +205,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       # Cache the downloaded browser binaries only, never the OS packages
