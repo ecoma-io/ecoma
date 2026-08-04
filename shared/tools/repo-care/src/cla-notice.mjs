@@ -54,9 +54,12 @@ const REPO_ROOT = join(HERE, "..", "..", "..", "..");
 const DEV_CLI = join(REPO_ROOT, "shared/tools/dev-cli/src/main.mjs");
 
 /** The CLA gate's verdict on this author, as `{ status, output }`. */
-export function runClaGate({ author, authorType, spawn = spawnSync }) {
+export function runClaGate({ author, authorType, commits, spawn = spawnSync }) {
   const args = [DEV_CLI, "check-contributor-record", "--author", author];
   if (authorType) args.push("--author-type", authorType);
+  // Without the range the messenger would judge less than the required gate
+  // does and stay silent on a red it could explain — the sign-off half.
+  if (commits) args.push("--commits", commits);
   const res = spawn(process.execPath, args, { cwd: REPO_ROOT, encoding: "utf8" });
   return {
     status: res.status,
@@ -86,9 +89,12 @@ export function buildClaNoticeComment({ author, repo, gateOutput }) {
     "",
     `If you have not agreed to the CLA yet, you agree **once**, in this pull request — it covers every future contribution:`,
     "",
-    `1. Read [\`CLA.md\`](${blob("CLA.md")}) — what you grant, what you keep, and why the record carries your name and address.`,
-    `2. Commit a record at the path the gate names above, following the template in \`CLA.md\` under "How you agree", and sign that commit off (\`git commit -s\`).`,
-    `3. Add your row to [\`CONTRIBUTORS.md\`](${blob("CONTRIBUTORS.md")}) in the same pull request.`,
+    `1. Read [\`CLA.md\`](${blob("CLA.md")}) — what you grant, what you keep, and which of your details are published.`,
+    "2. Email your full postal address and a contact email to <john.itvn@gmail.com>. Neither is published: the law governing the agreement requires us to hold them, not to put them in a repository nobody can un-publish.",
+    `3. Commit a record at the path the gate names above, following the template in \`CLA.md\` under "How you agree".`,
+    `4. Add your row to [\`CONTRIBUTORS.md\`](${blob("CONTRIBUTORS.md")}) in the same pull request.`,
+    "",
+    "Every commit on the branch also needs a `Signed-off-by` trailer — that is the Developer Certificate of Origin, and it is separate from agreeing to the CLA. Use `git commit -s`, or `git rebase --signoff <base>` for commits already written.",
     "",
     "Push, and this check re-runs. If this pull request was opened through a bot or coding-agent account, the person who directed it is the contributor and it is their record the gate asks for.",
     "",
@@ -132,6 +138,7 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
   const pr = argValue(args, "--pr");
   const author = argValue(args, "--author");
   const authorType = argValue(args, "--author-type");
+  const commits = argValue(args, "--commits");
   if (!pr || !author) {
     console.error("cla-notice: --pr <number> and --author <login> are required");
     return 2;
@@ -145,7 +152,7 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
     return 2;
   }
 
-  const gate = runClaGate({ author, authorType, spawn });
+  const gate = runClaGate({ author, authorType, commits, spawn });
   if (gate.status !== 0 && gate.status !== 1) {
     // The gate could not judge at all (bad usage, missing documents) — that is
     // this tool's failure to surface, not something to bother the author with.
@@ -160,10 +167,14 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
   // when the output names this author's own record or account. Both fault
   // shapes carry one of those two spellings by construction
   // (`authorVerdict`, and the roster fault naming the record's handle).
+  // A missing sign-off is always this author's to fix whatever it names: the
+  // range judged is the pull request's own commits and nobody else's.
   const handle = author.toLowerCase();
+  const lower = gate.output.toLowerCase();
   const authorFault =
-    gate.output.toLowerCase().includes(`contributors/${handle}.md`) ||
-    gate.output.toLowerCase().includes(`'${handle}'`);
+    lower.includes(`contributors/${handle}.md`) ||
+    lower.includes(`'${handle}'`) ||
+    lower.includes("signed-off-by:");
 
   const gh = client ?? githubClient({ repo, token });
   try {

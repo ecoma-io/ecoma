@@ -270,8 +270,12 @@ practice review, thread translation) from GitHub Actions.
   `git merge-tree --write-tree`; head snapshot when no clean merge exists),
   and checks out the base with `fetch-depth: 0` because the gate reads
   `CLA.md`'s git history to honour records agreed under superseded versions.
+  It passes `--commits refs/prq/base..refs/prq/head` as well, because the
+  required gate judges the branch's `Signed-off-by` trailers too and a
+  messenger that judged less would go silent on a red it could explain.
   Exit 1 from the gate aggregates the whole tree's audit, so the notice posts
-  only when the output names this author's own record or account; on a
+  only when the output names this author's own record or account — or names a
+  missing sign-off, which is always this branch's to fix; on a
   repository-wide red an existing notice is flipped to say the author is no
   longer the cause, and none is ever created. No model anywhere: the whole
   judgment is the gate's exit code (Rule 5).
