@@ -50,6 +50,14 @@ describe("what the gate is asked", () => {
     runClaGate({ author: "someone", spawn });
     expect(spawn.mock.calls[1][1]).not.toContain("--author-type");
   });
+
+  it("forwards the commit range, so it judges the same thing the required gate does", () => {
+    const spawn = passingSpawn();
+    runClaGate({ author: "someone", commits: "base..head", spawn });
+    expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(["--commits", "base..head"]));
+    runClaGate({ author: "someone", spawn });
+    expect(spawn.mock.calls[1][1]).not.toContain("--commits");
+  });
 });
 
 describe("the notice body", () => {
@@ -149,6 +157,17 @@ describe("what a run does to the thread", () => {
     expect(calls.updated).toEqual([
       { id: 5, body: expect.stringContaining("no longer your record") },
     ]);
+  });
+
+  it("posts on a missing sign-off, which is this author's branch whatever commit it names", async () => {
+    const { calls, client } = fakeThread([]);
+    const code = await claNotice(["--pr", "7", "--author", "someone"], {
+      spawn: failingSpawn('abc12345 ("feat: work"): no Signed-off-by: trailer — CLA.md says'),
+      client,
+    });
+    expect(code).toBe(0);
+    expect(calls.created).toHaveLength(1);
+    expect(calls.created[0].body).toContain("Signed-off-by");
   });
 
   it("posts when the roster fault names this author, whatever the record file's casing", async () => {
