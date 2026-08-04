@@ -39,7 +39,7 @@ other shells and libs at build time:
 | Lib                                         | What it is                                                            |
 | ------------------------------------------- | --------------------------------------------------------------------- |
 | [`core-tauri`](./libs/core-tauri/README.md) | Shared Tauri webview plumbing (window chrome) for the desktop shells. |
-| [`core-ui`](./libs/core-ui/README.md)       | Alloy — the design system every product UI composes from.             |
+| [`core-ui`](./libs/core-ui/README.md)       | Loom — the design system every product UI composes from.              |
 
 **[`shared/tools`](./tools)** — a workshop, not a product. These tools never
 ship inside any app; they exist so that rules which would otherwise erode into

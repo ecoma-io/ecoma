@@ -41,7 +41,7 @@ các shell và lib khác consume tại build time:
 | Lib                                         | Nó là gì                                                                          |
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | [`core-tauri`](./libs/core-tauri/README.md) | Phần plumbing webview của Tauri dùng chung (window chrome) cho các desktop shell. |
-| [`core-ui`](./libs/core-ui/README.md)       | Alloy — design system mà mọi UI sản phẩm compose từ đó.                           |
+| [`core-ui`](./libs/core-ui/README.md)       | Loom — design system mà mọi UI sản phẩm compose từ đó.                            |
 
 **[`shared/tools`](./tools)** — xưởng làm việc (workshop), không phải sản
 phẩm. Các tool này không ship trong bất kỳ app nào; chúng tồn tại để những

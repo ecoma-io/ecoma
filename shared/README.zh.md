@@ -38,7 +38,7 @@ description: 每个产品都会用到的共享库(设计系统、桌面壳 webvi
 | Lib                                         | 它是什么                                           |
 | ------------------------------------------- | -------------------------------------------------- |
 | [`core-tauri`](./libs/core-tauri/README.md) | 各桌面 shell 共用的 Tauri webview 管线(窗口外框)。 |
-| [`core-ui`](./libs/core-ui/README.md)       | Alloy —— 所有产品 UI 都以此组合而成的设计系统。    |
+| [`core-ui`](./libs/core-ui/README.md)       | Loom —— 所有产品 UI 都以此组合而成的设计系统。     |
 
 **[`shared/tools`](./tools)** —— 一个工作坊(workshop),而非产品。这些工具
 从不随任何 app 一起发布;它们存在的意义,是让本应逐渐退化成文字说明
