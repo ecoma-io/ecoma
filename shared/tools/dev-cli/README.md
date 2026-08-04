@@ -42,10 +42,12 @@ Not every command is wired into a gate — `lefthook.yml` and
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
-  (once per commit in the PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-command-refs`, `check-claude-md`, `check-doctrine`, `check-practice-index`,
-  `check-project-conventions`, `check-subsystem-readmes`,
-  `check-subproject-readmes`.
+  (once per commit in the PR), `check-contributor-record` (with the PR author
+  on pull requests, bare otherwise), and `workspace-gates` — every
+  workspace-wide gate in one command, whose list is owned by
+  `WORKSPACE_GATES` in `src/workspace-gates.mjs` rather than restated here or
+  as workflow steps. The cloud repository's CI runs that same command over
+  the merged tree, which is why the list is a command and not a step list.
 - **Every project's own `lint` target** (`project.json`, across almost every
   subproject in the repo, including `dev-cli` itself) runs
   `check-journey-markers` per-project. `check-primitive-artifacts` is wired

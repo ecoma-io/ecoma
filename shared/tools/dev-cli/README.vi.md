@@ -41,10 +41,13 @@ Không phải mọi command đều được nối vào gate — `lefthook.yml` v
 - **lefthook prepare-commit-msg / commit-msg**: `strip-claude-trailers`,
   `check-commit-scope`.
 - **CI** (`.github/workflows/ci.yml`): `check-commit-scope --commit <sha>`
-  (chạy cho mỗi commit trong PR), `check-journey-markers-workspace`,
-  `check-doc-links`, `check-command-refs`, `check-claude-md`, `check-doctrine`, `check-practice-index`,
-  `check-project-conventions`, `check-subsystem-readmes`,
-  `check-subproject-readmes`.
+  (chạy cho mỗi commit trong PR), `check-contributor-record` (kèm tác giả PR
+  trên pull request, dạng trần ở các trường hợp còn lại), và
+  `workspace-gates` — toàn bộ gate mức workspace trong một command, danh sách
+  thuộc về `WORKSPACE_GATES` trong `src/workspace-gates.mjs` chứ không khai
+  lại ở đây hay thành step của workflow. CI của repo cloud chạy đúng command
+  đó trên cây gộp, và đó là lý do danh sách là một command chứ không phải một
+  dãy step.
 - **Target `lint` của từng project** (`project.json` — gần như mọi
   subproject trong repo, kể cả chính `dev-cli`): chạy `check-journey-markers`
   ở dạng per-project. Riêng `check-primitive-artifacts` chỉ được nối vào

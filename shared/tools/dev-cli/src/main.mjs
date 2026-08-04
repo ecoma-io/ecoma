@@ -31,6 +31,7 @@ import { RUN_GO_TESTS_COMMAND, runGoTests } from "./run-go-tests.mjs";
 import { RUN_NODE_TESTS_COMMAND, runNodeTests } from "./run-node-tests.mjs";
 import { scaffoldLib } from "./scaffold-lib.mjs";
 import { stripClaudeTrailers } from "./strip-claude-trailers.mjs";
+import { workspaceGates } from "./workspace-gates.mjs";
 
 const COMMANDS = {
   "check-journey-markers": (args) => checkJourneyMarkers(args[0] ?? "."),
@@ -66,6 +67,7 @@ const COMMANDS = {
   [RUN_GO_TESTS_COMMAND]: (args) => runGoTests(args),
   "scaffold-lib": (args) => scaffoldLib(args),
   "strip-claude-trailers": (args) => stripClaudeTrailers(args[0]),
+  "workspace-gates": () => workspaceGates(),
 };
 
 const [command, ...args] = process.argv.slice(2);
