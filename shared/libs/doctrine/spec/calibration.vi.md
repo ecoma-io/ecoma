@@ -1,7 +1,7 @@
 ---
 title: "Calibration Data Model"
 status: design-end-state
-canonical-sha: db875a9d6356
+canonical-sha: 59e88a981cbf
 ---
 
 # Calibration Data Model
@@ -74,7 +74,7 @@ Lý do phải nói ra — và nói như **lịch sử**, vì đoạn này mô t�
 ## 7. Non-goals
 
 - Không công thức thống kê/ML cụ thể (estimator = tầng tiến hóa, có identity §5).
-- Không store mới; không calibration cross-tenant; không nhận input ngoài hệ Judgment.
+- Không store mới; không calibration cross-tenant.
 - **Không nhận input nào không phải một Judgment đã ký trên một output**: hạnh kiểm, chuyên cần, giờ giấc, cảm xúc — không thứ nào vào được một cell; đường ghi §2 là cửa duy nhất, và CalKey (§1) buộc mọi giá trị vào `(role, task_type, criterion@version)`. Không có chiều nào ở đây mà một con người tồn tại tách khỏi output của họ trước một tiêu chí có tên.
 - **Không có consumer nào ngoài danh sách §6, và engine không thêm cái nào**: ngưỡng Gate, graduation, shadow-compare, cost/quality theo Role, routing. Engine không tính gì cho lương thưởng, kỷ luật hay quan hệ lao động, vì không có consumer nào như thế tồn tại. **Một giới hạn được nói ra, đúng giọng RPA: Sandbox & Credential §1**: một Role giữ `view_calibration` làm gì với thứ nó đọc được là nằm ngoài cơ chế này, và `calibration_visibility_policy` (Tenant & Identity §8) **nới** cửa đó chứ không siết. Giả vờ cơ chế với được ra ngoài danh sách consumer của chính nó mới là cách đọc nguy hiểm.
 - Không chấm bên-được-phục-vụ (đó là Memory — ranh giới Memory §0 chiều ngược lại).
@@ -101,7 +101,7 @@ Lý do phải nói ra — và nói như **lịch sử**, vì đoạn này mô t�
 4. Có đường nào thay đổi điểm một filler mà không tạo Judgment hợp lệ (kể cả admin sửa DB — drift-detect Working Data §2)?
 5. Template chọn tách learning theo workspace: ước lượng cho client A không đọc một Judgment nào của client B?
 6. **Hai cửa, hỏi tách nhau.** Một principal **trong** tenant giữ grant chạm tới mức phân loại của cell nhưng **không** giữ `view_calibration` xin một confidence dẫn xuất từ chúng — có bị **grant** từ chối, và cú thử có để lại read event nêu ai đã hỏi? Và cũng con số đó trên đường **ra ngoài** tenant — nó có mang floor của cell vào leakage gate, để một policy đã cho phép **đọc** vẫn không đương nhiên cho phép **xuất**?
-7. Chỉ ra một giá trị trong bất kỳ cell nào không đến từ một Judgment đã ký trên một output, và chỉ ra một consumer của cell không nằm trong danh sách §6. Không chỉ ra được cả hai ⇒ hai gạch đầu dòng đầu của §7 là tuyên bố **bác bỏ được**, không phải một tư thế.
+7. Chỉ ra một giá trị trong bất kỳ cell nào không đến từ một Judgment đã ký trên một output, và chỉ ra một consumer của cell không nằm trong danh sách §6. Không chỉ ra được cả hai ⇒ gạch **không-input** và **không-consumer** của §7 là tuyên bố **bác bỏ được**, không phải một tư thế.
 
 ## FMEA (theo F8)
 
