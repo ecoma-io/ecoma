@@ -6,6 +6,7 @@ import {
   buildTranslatePrompt,
   LANGS,
   parseDetectVerdict,
+  foreignScriptLetters,
   parseTranslation,
   readThread,
   sanitizeTranslation,
@@ -159,12 +160,75 @@ describe("parseTranslation", () => {
   });
 });
 
+describe("foreignScriptLetters", () => {
+  // The strings a live run actually produced on this repository's own pull
+  // request, kept verbatim so the regression is pinned by the defect rather
+  // than by a reconstruction of it.
+  const leakedHan = "Các cuộc định夺 dựa trên chỉ示 của người cấp phép";
+  const leakedThai = "một tài liệu khôngได้ gì";
+
+  it("passes Vietnamese prose carrying its full diacritics", () => {
+    expect(foreignScriptLetters("Tiếng Việt đủ dấu, kể cả ế ộ ữ ỹ — vẫn sạch.", "vi")).toBeNull();
+  });
+
+  it("names the Han letters a free model left inside Vietnamese prose", () => {
+    expect(foreignScriptLetters(leakedHan, "vi")).toBe("夺示");
+  });
+
+  it("names a leaked Thai fragment too, not just the Chinese one", () => {
+    expect(foreignScriptLetters(leakedThai, "vi")).toBe("ได");
+  });
+
+  it("passes Chinese prose, whose own script is what it is written in", () => {
+    expect(foreignScriptLetters("使许可文件保持一致，并强制执行签署。", "zh")).toBeNull();
+  });
+
+  it("allows Latin in every target, since identifiers travel untranslated", () => {
+    expect(foreignScriptLetters("门禁由 check-contributor-record 守护", "zh")).toBeNull();
+    expect(foreignScriptLetters("gate do check-contributor-record giữ", "vi")).toBeNull();
+  });
+
+  it("judges prose only, so a code span or fenced block may hold any script", () => {
+    expect(foreignScriptLetters("chạy `git commit -s 中文` để ký", "vi")).toBeNull();
+    expect(foreignScriptLetters("ví dụ:\n\n```\n视为 received\n```\n\nxong", "vi")).toBeNull();
+  });
+
+  it("reports nothing for a language the config does not describe", () => {
+    expect(foreignScriptLetters("中文", "xx")).toBeNull();
+  });
+});
+
 describe("translateInto", () => {
   it("takes the first usable answer without polling the rest of the pool", async () => {
     const fetchImpl = vi.fn(async () => zenReply({ title: "T", body: "B" }));
     const res = await translateInto({ title: "t", body: "b" }, "vi", { fetchImpl });
     expect(res).toMatchObject({ ok: true, translation: { title: "T", body: "B" } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("rotates past a model whose prose strayed into another script, and takes the clean one", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(zenReply({ title: "Tiêu đề", body: "một tài liệu khôngได้ gì" }))
+      .mockResolvedValueOnce(zenReply({ title: "Tiêu đề", body: "một tài liệu không được gì" }));
+    const res = await translateInto({ title: "t", body: "b" }, "vi", {
+      fetchImpl,
+      models: ["leaky", "clean"],
+    });
+    expect(res).toMatchObject({ ok: true, model: "clean" });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports the strayed characters when no model answers in the target language alone", async () => {
+    const fetchImpl = vi.fn(async () => zenReply({ title: "Tiêu đề", body: "các cuộc định夺" }));
+    const res = await translateInto({ title: "t", body: "b" }, "vi", {
+      fetchImpl,
+      models: ["a", "b"],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors).toHaveLength(2);
+    expect(res.errors[0]).toContain("夺");
+    expect(res.errors[0]).toContain("another script");
   });
 
   it("rotates to the next model when one fails, and reports every failure when none work", async () => {
