@@ -2,6 +2,17 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue's own event, and the one trigger a queue cannot work
+  # without: the queue builds a temporary ref (trunk plus the entries ahead of
+  # this one) and waits for the required checks to report **on that ref**. A
+  # workflow that does not run there reports nothing, so the entry waits out
+  # `check_response_timeout_minutes` and is dropped as failed — a queue that
+  # silently never merges, which is exactly what happened before this line
+  # existed. `nx-run` sends this event down the `run-many` path rather than
+  # `affected`, which is the honest selection here: the queue's whole job is to
+  # prove the would-be trunk green, and there is no "base" to diff a batch of
+  # several entries against that means anything.
+  merge_group:
   push:
     branches: [main]
   # Nightly full-workspace run, and the same on demand. Every other trigger
@@ -53,10 +64,12 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      # Rebase-merge lands every branch commit on main verbatim, and the local
-      # commit-msg hook cannot see amended/rebased history — so both message
-      # gates re-run here per PR commit (merge commits are ignored, matching
-      # commitlint's own defaults).
+      # Every branch commit reaches main verbatim — under merge-commit merging
+      # as the SAME object, through the merge's second parent — and the local
+      # commit-msg hook cannot see amended or rebased history. So both message
+      # gates re-run here, per pull-request commit. Merge commits are skipped on
+      # both sides (`--no-merges` below, commitlint's own defaults on its side):
+      # nobody authors a merge, so there is no scope for one to get wrong.
       - name: Commit messages (Conventional + scope ↔ path)
         if: github.event_name == 'pull_request'
         env:
