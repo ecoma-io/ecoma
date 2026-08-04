@@ -9,10 +9,12 @@ description: Khu vực storefront và tăng trưởng của ecoma.io — vỏ �
 # website
 
 Subsystem mà bản ghi công khai của Website Charter đặt cho bề mặt ecoma.io:
-storefront và tăng trưởng, tách mạnh khỏi Hub sản phẩm. Chính charter bị giữ
-kín (funnel playbook); thứ tồn tại ở đây hôm nay là seam kiến trúc của nó —
+storefront và tăng trưởng, tách mạnh khỏi Hub sản phẩm. Nửa kiến trúc của
+charter đã được publish
+([Website Charter](../shared/libs/doctrine/charter/website.md)); nửa funnel
+của nó vẫn giữ kín. Thứ tồn tại ở đây hôm nay là seam mà nửa published mô tả —
 topology URL, hình dạng i18n, và các app shell sẽ xuất bản bề mặt tiếp thị
-khi charter hạ cánh.
+khi funnel hạ cánh.
 
 <!-- readme:why -->
 
@@ -53,7 +55,7 @@ của bề mặt doctrine, sitemap, và ISR đều có seam dành sẵn ở đó
 ## Cái gì ngoài phạm vi
 
 Chính funnel — copy, tăng trưởng theo ICP, và các quyết định render thuộc về
-Website Charter, và charter bị giữ kín. Bề mặt doctrine sống ở
+Website Charter, và nửa funnel sở hữu phần copy bị giữ kín. Bề mặt doctrine sống ở
 `shared/apps/doctrine-site`, không phải ở đây, và edge router (không phải cây
 này) sở hữu mọi mount. System charter là duy nhất và thuộc về Hub;
 `website/` ghi khu vực, không bao giờ ghi funnel.

@@ -10,9 +10,11 @@ description: The ecoma.io storefront and growth area — the Nuxt app shell at `
 
 The subsystem the Website Charter's public record names for the ecoma.io
 surface: storefront and growth, strongly separated from the product Hub. The
-charter itself is withheld (the funnel playbook); what exists here today is
-its architectural seam — the URL topology, the i18n shape, and the shell
-apps that will publish the marketing surface once the charter lands.
+charter's architectural half is published
+([Website Charter](../shared/libs/doctrine/charter/website.md)); its funnel
+half stays withheld. What exists here today is the seam that half describes —
+the URL topology, the i18n shape, and the shell apps that will publish the
+marketing surface once the funnel lands.
 
 <!-- readme:why -->
 
@@ -54,7 +56,7 @@ not a consumer.
 ## What is not in scope
 
 The funnel itself — copy, ICP-driven growth, and render decisions are the
-Website Charter's, and the charter is withheld. The doctrine surface lives
+Website Charter's, and the funnel half that owns the copy is withheld. The doctrine surface lives
 in `shared/apps/doctrine-site`, not here, and the edge router (not this
 tree) owns every mount. The system charter is single and belongs to the
 Hub; `website/` records the area, never the funnel.

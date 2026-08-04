@@ -3,10 +3,12 @@
 Directory-scoped mechanics only — principles live in the root `CLAUDE.md`,
 cross-product rules in `shared/CLAUDE.md`. The `website/` subsystem holds the
 ecoma.io surface: the storefront and growth area the Website Charter names
-(`shared/libs/doctrine/overview/index.md` corpus map — "area `website/`",
-storefront + growth; strong separation from Hub; URL topology + render §3b;
-`/design`; support chatbot). The charter itself is withheld (the funnel
-playbook); this directory is the architectural seam that area will fill.
+— its architectural half is published at
+`shared/libs/doctrine/charter/website.md` (the Website/Hub/Platform
+classification law, the path-partitioned domain and its render models, the
+security conditions for sharing it), while its funnel half — copy, campaigns,
+surveys, tone — stays withheld. This directory is the architectural seam the
+published half describes.
 
 ## What lives here, and what does not
 
@@ -16,7 +18,7 @@ playbook); this directory is the architectural seam that area will fill.
 - The doctrine surface (`/doctrine`) is a shared app (`shared/apps/doctrine-site`)
   mounted by the edge router; the design system (`/design`) is
   `shared/apps/design-system`. The website app does not render either — the
-  edge router owns every mount (Website Charter §3b).
+  edge router owns every mount (Website Charter §3).
 
 ## The URL topology this shell commits to
 
@@ -51,8 +53,9 @@ that shape, and `site-e2e` pins it — keep the shape when content lands.
   overview corpus map); the design-system app's own docs say `/design-system`.
   Nothing mounts it yet — the shell must not prejudge. When the mount lands,
   settle the conflict upstream first (Rule: resolve conflicts upstream-first).
-- **Marketing content**: the Website Charter (withheld) owns copy, ICP-driven
-  funnels and render §3b. The shell renders an honest status page only —
+- **Marketing content**: the withheld funnel half of the Website Charter owns
+  copy and ICP-driven funnels; the render model is settled in the published
+  charter §3. The shell renders an honest status page only —
   "add a user-facing surface only once it has real function" (root
   `CLAUDE.md`).
 - **Sitemap**: `@nuxtjs/sitemap` is not installed; `robots.txt` deliberately
@@ -61,8 +64,8 @@ that shape, and `site-e2e` pins it — keep the shape when content lands.
   lands with real content it must carry per-locale hreflang alternates, and
   `llms.txt` should grow with the content.
 - **The real navigation**: the shell's only nav is the language switcher
-  (scoped `data-testid="locale-switcher"`, e2e-pinned). The Website Charter
-  owns the real nav; when it lands it must keep the switcher and should
+  (scoped `data-testid="locale-switcher"`, e2e-pinned). The Website Charter's
+  funnel half owns the real nav; when it lands it must keep the switcher and should
   carry the GitHub link and an install/self-host path — dify, n8n and astron
   all anchor self-host from the top bar — plus `/pricing` as a first-class
   destination for a fair-code license.
