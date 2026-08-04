@@ -24,10 +24,21 @@ import { listTrackedFiles } from "./tracked-files.mjs";
 
 // Patterns live in journey-markers.config.json at the repo root — the single
 // source shared with the `local/no-journey-markers` and
-// `local/no-journey-marker-names` ESLint rules. The path is fixed relative to
-// this file (…/shared/tools/dev-cli/src → repo root).
+// `local/no-journey-marker-names` ESLint rules. Resolved from the root of the
+// judged tree first — the gate also runs downstream at a pinned reference,
+// and a workspace may extend the patterns for its own languages — falling
+// back to this workspace's copy for trees that declare none (fixtures, and
+// any downstream accepting the default).
 const CONFIG_URL = new URL("../../../../journey-markers.config.json", import.meta.url);
-const CONFIG = JSON.parse(readFileSync(CONFIG_URL, "utf8"));
+function workspaceJourneyConfig() {
+  try {
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+    return JSON.parse(readFileSync(resolve(root, "journey-markers.config.json"), "utf8"));
+  } catch {
+    return JSON.parse(readFileSync(CONFIG_URL, "utf8"));
+  }
+}
+const CONFIG = workspaceJourneyConfig();
 export const MARKER_RE = new RegExp(CONFIG.pattern, "i");
 const NAME_RE = new RegExp(CONFIG.namePattern);
 
