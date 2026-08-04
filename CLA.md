@@ -40,7 +40,7 @@ person behind it; clause 5 is how that work is disclosed.
 ## Why a CLA at all
 
 Ecoma is not licensed under a single licence. The code you contribute may end
-up under any of five sets of terms, decided by where the file lives and not by
+up under any of four sets of terms, decided by where the file lives and not by
 who wrote it:
 
 - the Sustainable Use License, for the implementations that run the system;
@@ -52,7 +52,7 @@ who wrote it:
   write there stays open, and attribution travels with it.
 
 [`LICENSE`](./LICENSE) is the source of truth for which path gets which track.
-One of the five licence sets is still in progress: the proprietary terms for
+One of the four licence sets is still in progress: the proprietary terms for
 the operator control plane have not been published. Clause 1 is what would let
 us place your contribution under them, and we say so plainly rather than
 implying `LICENSE` already states them. Ask before you contribute if that
@@ -76,7 +76,7 @@ apply to every contribution you make, before or after that agreement:
    **sublicensable through multiple tiers**, to reproduce, modify, prepare
    derivative works of, publicly display, publicly perform, sublicense and
    distribute your contribution and such derivative works, under any licence
-   terms, including the five named above and any commercial terms.
+   terms, including the four named above and any commercial terms.
 
    This licence is **exclusive** as to one thing only: the right to bring and
    conduct proceedings against a person infringing your contribution as part of
