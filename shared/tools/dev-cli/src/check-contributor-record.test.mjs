@@ -102,8 +102,20 @@ describe("the template agreeing with its own version line", () => {
     expect(templateVersionFault(TEMPLATE, VERSION)).toBeNull();
   });
 
+  it("accepts a wording that cases or punctuates the token differently", () => {
+    expect(
+      templateVersionFault({ sentence: "assent to Version 1.0 of this CLA" }, "1.0"),
+    ).toBeNull();
+  });
+
   it("faults the document when the two version spots drift apart", () => {
     expect(templateVersionFault(TEMPLATE, "2.0")).toMatch(/drifted apart/);
+  });
+
+  it("never reads a longer version as naming its prefix", () => {
+    expect(templateVersionFault({ sentence: "version 1.0.1, at CLA.md" }, "1.0")).toMatch(
+      /drifted apart/,
+    );
   });
 });
 
@@ -168,9 +180,12 @@ describe("reading the published versions out of git history", () => {
 
 describe("the attribution promise", () => {
   it("reads the naming consent out of the agreement", () => {
-    expect(attributionClause(CLA_TEXT)).toBe(
-      "naming you in [`CONTRIBUTORS.md`](./CONTRIBUTORS.md)",
-    );
+    expect(attributionClause(CLA_TEXT)).toBe("naming you in [`CONTRIBUTORS.md");
+  });
+
+  it("survives the link being relabelled or unformatted, since the promise did", () => {
+    const plain = CLA_TEXT.replace("[`CONTRIBUTORS.md`](./CONTRIBUTORS.md)", "CONTRIBUTORS.md");
+    expect(attributionClause(plain)).toBe("naming you in CONTRIBUTORS.md");
   });
 
   it("reports no promise once the agreement stops making one", () => {

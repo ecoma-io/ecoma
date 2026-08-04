@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   CLA,
@@ -118,6 +118,11 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
 | A Person | [@CasedUser](https://github.com/CasedUser) | 2026-08 |
 `;
 
+  const fixtures = [];
+  afterEach(() => {
+    for (const dir of fixtures.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
   const buildFixture = () => {
     const dir = initFixtureRepo("cla-gate", {
       "CLA.md": claAt("1.0"),
@@ -125,6 +130,7 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
       "CONTRIBUTORS.md": roster,
       "contributors/CasedUser.md": record("1.0"),
     });
+    fixtures.push(dir);
     fixtureGit(dir, ["commit", "-q", "-m", "publish CLA 1.0"]);
     writeFileSync(join(dir, "CLA.md"), claAt("1.1"));
     fixtureGit(dir, ["add", "-A"]);
