@@ -142,3 +142,10 @@ repeated here. Two are specific to this object and are easy to miss:
 Anything the constitution's step or these two ask for and the run cannot show
 means the run is unfinished — report it as unfinished rather than reporting a
 verdict.
+
+## Downstream workspaces
+
+The private cloud workspace consumes this skill through its pinned harness
+reference: the procedure is unchanged, but `shared/tools/dev-cli/...`
+commands are reached at `.harness/shared/tools/dev-cli/...` there, and the
+tree being judged is the one the session stands in.

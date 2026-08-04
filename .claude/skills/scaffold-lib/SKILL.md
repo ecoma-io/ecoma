@@ -52,3 +52,10 @@ pnpm nx run <name>:lint && pnpm nx run <name>:typecheck && pnpm nx run <name>:te
 `check-project-conventions` reads `git ls-files`, so it reports the alias as pointing at a missing file until the scaffold is staged. Run `git add` first rather than debugging a path that is on disk.
 
 **Two commits, not one.** The generator always writes a root-owned file alongside the project — `tsconfig.base.json` for `ts`, and `go.work` · `Cargo.toml` · `pyproject.toml` for the others — and `check-commit-scope` refuses to cover a root-owned path and a project-owned one under a single scope. Commit the project as `feat(<name>): …`, then the root registration as `build(workspace): …`. That order matters: an alias pointing at a file that does not exist yet breaks resolution for anything typechecking in between, while a library with no alias merely goes unimported.
+
+## Downstream workspaces
+
+The private cloud workspace consumes this skill through its pinned harness
+reference: the procedure is unchanged, but `shared/tools/dev-cli/...`
+commands are reached at `.harness/shared/tools/dev-cli/...` there, and the
+tree being judged is the one the session stands in.

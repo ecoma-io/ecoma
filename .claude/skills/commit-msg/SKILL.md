@@ -105,3 +105,10 @@ chore(workspace): add lodash and use it in the Slider        # package.json + co
 ```
 
 becomes two commits: `chore(workspace): add lodash` (root `package.json` only), then `feat(core-ui): use lodash in Slider` (project-owned only).
+
+## Downstream workspaces
+
+The private cloud workspace consumes this skill through its pinned harness
+reference: the procedure is unchanged, but `shared/tools/dev-cli/...`
+commands are reached at `.harness/shared/tools/dev-cli/...` there, and the
+tree being judged is the one the session stands in.
