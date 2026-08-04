@@ -416,7 +416,7 @@ describe("findConventionViolations", () => {
   });
 
   it("exempts a publishable manifest (private: false) from alias pairing", () => {
-    // A unit nx release publishes is consumed through the registry, not the
+    // A unit declared publishable is resolved through a registry, not the
     // graph — an alias for it would be wiring nobody imports through.
     const files = {
       ...HEALTHY,
