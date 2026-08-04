@@ -415,6 +415,22 @@ describe("findConventionViolations", () => {
     ]);
   });
 
+  it("exempts a publishable manifest (private: false) from alias pairing", () => {
+    // A unit nx release publishes is consumed through the registry, not the
+    // graph — an alias for it would be wiring nobody imports through.
+    const files = {
+      ...HEALTHY,
+      "shared/libs/hash/project.json": project(["type:lib", "scope:shared", "layer:util"]),
+      "shared/libs/hash/package.json": JSON.stringify({
+        name: "@ecoma-io/hash",
+        private: false,
+        license: "LicenseRef-Ecoma-SustainableUse-1.0",
+        bin: { hash: "src/main.mjs" },
+      }),
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
   it("exempts path-invoked tools: a type:lib without a package.json is fine", () => {
     const files = {
       ...HEALTHY,
