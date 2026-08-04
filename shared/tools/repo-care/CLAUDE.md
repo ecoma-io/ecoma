@@ -327,7 +327,11 @@ practice review, thread translation) from GitHub Actions.
     so the reason reaches stderr naming the characters: a model straying and a
     malformed response are different failures and read differently. A rejected
     answer rotates the pool like any other, so the usual path is a clean
-    translation from the next model.
+    translation from the next model. **It is not a quality gate and must not
+    be read as one**: the same runs also produced a mangled word, a heading
+    missing its first letter, and an identifier glued to prose — all of them
+    Latin, all of them passing. One decidable question is answered; the rest of
+    translation quality stays contained by additiveness, not verified.
   - A target language that no model could translate is skipped loudly on
     stderr while the rest still post; all targets failing is exit 1, because
     silence would read as "already translated" on the next run.

@@ -183,6 +183,14 @@ function proseOnly(text) {
  * proper noun outside a code span, which is refused and retried — loud, and
  * far cheaper than the silent alternative of publishing scrambled prose under
  * this project's name.
+ *
+ * **What it does NOT catch, so nobody reads it as a quality gate.** The same
+ * live runs also produced a mangled word (`bị từ chiri`), a heading that lost
+ * its first letter (`##creenshot`), and an identifier glued to prose
+ * (`hướng dẫn_style`). Every one of those is written in Latin, so every one
+ * passes here. This answers exactly one question — is the prose in the
+ * language it claims — and translation quality remains what the module header
+ * says it is: contained by being additive, never verified.
  */
 export function foreignScriptLetters(text, lang) {
   const script = LANG_SCRIPTS[lang];
