@@ -71,16 +71,21 @@ jobs:
       # CI knows who opened the pull request. `user.type` travels with it because
       # a machine account cannot hold a copyright to license, and GitHub is the
       # only authority on which accounts are machines — the gate must not infer
-      # that from a `[bot]` suffix. Bare mode also runs on every push, so a
-      # malformed record is caught wherever it lands.
-      - name: Contributor record (CLA acceptance)
+      # that from a `[bot]` suffix. `--commits` adds the other half the agreement
+      # asks for: the `Signed-off-by` trailer on every commit of the branch, with
+      # the same automation exemption, which is why it rides this command rather
+      # than a gate of its own. Bare mode also runs on every push, so a malformed
+      # record is caught wherever it lands.
+      - name: Contributor record and sign-off (CLA acceptance)
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ -n "$PR_AUTHOR" ]; then
             node shared/tools/dev-cli/src/main.mjs check-contributor-record \
-              --author "$PR_AUTHOR" --author-type "$PR_AUTHOR_TYPE"
+              --author "$PR_AUTHOR" --author-type "$PR_AUTHOR_TYPE" \
+              --commits "origin/$BASE_REF..HEAD"
           else
             node shared/tools/dev-cli/src/main.mjs check-contributor-record
           fi
