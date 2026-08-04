@@ -2,6 +2,11 @@
 # module that decides which terms a path carries. A licence grant is
 # irreversible for code already released under it, so these must never land on
 # an approval from someone who could not make that grant.
+#
+# This file owns itself first: `check-contributor-record` derives the licensor
+# exemption from the `/CLA.md` entry below, so an unowned CODEOWNERS would let
+# a pull request edit that entry and exempt its own author in the same change.
+/.github/CODEOWNERS                               @johnitvn
 /LICENSE                                          @johnitvn
 /CLA.md                                           @johnitvn
 /CORPORATE-CLA.md                                 @johnitvn
