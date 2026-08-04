@@ -90,6 +90,28 @@ the agency chooses.
 
 At n=1 there is one default workspace, invisible.
 
+**A workspace is an identity, and that is the whole of it.** It carries a
+`workspace_id` because declarations across the corpus scope something _to a
+workspace_ while only ever writing the **kind** of scope — `tenant | workspace` —
+where a referent was needed, and a calibration dimension whose values cannot be
+named is not a dimension. It carries **no lineage**: merge and split have no
+semantics here, so there is nothing for a lineage to record.
+
+**The limit, because closing a client is the question this raises.** There is no
+workspace lifecycle, and in particular no `purge`. The key tree is
+`root → tenant DEK → subject key` and **three tiers is sufficient and is fixed**
+(Vault & Key §2) — a workspace holds no key, so no shred can be scoped to one.
+Closing a client is therefore the existing parts, in order: an **export** (a Task
+of a Role with a Gate, §2b), the **subject-key shreds** the departing people are
+owed (§6), the **visitor-key shreds** their clickstream carries, then retention
+and GC. **Work product stays**, because §6 places artifacts and judgments with the
+tenant and the workspace was never their owner. A bulk delete is _unavailable_
+rather than merely unbuilt: it is the shape a tamper-evident chain exposes (Event
+Log §4b), the next rebuild revives it because rebuild-equivalence is scoped to the
+readable key set and not to rows (§3), and completeness would leak through sibling
+dedup references in any case (Artifact Store §4). Wanting one is, once more,
+wanting a tenant.
+
 ## 4. One permission system — administration is labour too
 
 **There is no "admin user type."** An administrator is a person — or,

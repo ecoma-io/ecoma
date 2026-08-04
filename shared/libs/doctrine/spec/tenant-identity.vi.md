@@ -1,7 +1,7 @@
 ---
 title: "Tenant & Identity"
 status: design-end-state
-canonical-sha: 6b89f887090d
+canonical-sha: 7f10b84f23c4
 ---
 
 # Tenant & Identity
@@ -58,6 +58,8 @@ Tenant là entity, nên có vòng đời như mọi entity (không phải khái 
 - **KHÔNG PHẢI BIÊN AN NINH — nói thẳng, ở đây và ở mọi trang bán hàng**. Workspace là biên **quản trị và hiển thị**. Trong cùng một tenant: artifact **dedup được phép** (chỉ cross-tenant mới cấm — Artifact Store §4), cùng **một** tenant DEK, cùng namespace log. Một agency phục vụ hai brand đối thủ mà nói _"dữ liệu hai bên cách ly"_ là **nói sai**. Câu đúng: _"dữ liệu của bạn không rời khỏi cài đặt của agency"_ — agency là bên kiểm soát dữ liệu, đúng như mọi quan hệ agency–client bình thường. Đường nâng cấp tự nhiên và có thật: **cần biên an ninh ⇒ cần tenant ⇒ cần cài đặt thứ hai hoặc Cloud.**
 - **Không phải ranh giới cứng**: tenant vẫn là biên mã hóa/học; chia sẻ xuyên workspace = grant tường minh. Gộp hay tách learning xuyên workspace là **giá trị template** (engine ép chiều tồn tại — agency tự chọn pool chung hay riêng).
 - n=1: một workspace mặc định, vô hình (K1).
+- **Workspace là một danh tính, và chỉ có thế**: mang `workspace_id`, vì hàng loạt khai báo trong corpus scope thứ gì đó _về một workspace_ nhưng chỉ viết **loại** scope (`tenant | workspace`) ở chỗ cần một sở chỉ — một chiều calibration mà giá trị không gọi tên được thì không phải một chiều. **Không có lineage**: merge/split không có ngữ nghĩa ở đây nên chẳng có gì cho lineage ghi.
+- **Giới hạn, vì đóng một client mới là câu hỏi thật**: không có vòng đời workspace, đặc biệt **không có `purge`**. Cây khóa là `root → tenant DEK → subject key` và **ba tầng là đủ và cố định** (Vault & Key §2) — workspace không giữ khóa nào, nên không shred nào scope được vào nó. Đóng một client vì thế là các mảnh đã có, theo thứ tự: **export** (Task của một Role có Gate, §2b), **shred subject key** mà người rời đi được hưởng (§6), **shred visitor key** mà clickstream của họ mang, rồi retention/GC. **Work product ở lại**, vì §6 đặt artifact và judgment ở tenant — workspace chưa bao giờ sở hữu chúng. Xóa hàng loạt là _không khả dụng_ chứ không phải chưa làm: đó đúng là hình thù mà chuỗi tamper-evident phơi ra (Event Log §4b), rebuild kế tiếp làm nó sống lại vì rebuild-equivalence scope theo tập khóa còn đọc được chứ không theo dòng (§3), và tính đầy đủ dù sao cũng rò qua tham chiếu dedup anh em (Artifact Store §4). Muốn có nó, một lần nữa, là muốn một tenant.
 
 ## 4. Một hệ phân quyền duy nhất — quản trị cũng là lao động
 

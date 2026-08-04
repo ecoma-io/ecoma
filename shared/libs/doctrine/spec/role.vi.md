@@ -1,7 +1,7 @@
 ---
 title: "Primitive: Role"
 status: design-end-state
-canonical-sha: f681283fa7bc
+canonical-sha: 05940859c3c8
 ---
 
 # Primitive: Role
@@ -70,6 +70,7 @@ Role là **hợp đồng năng lực cho một vị trí lao động** — độ
 - Giáng lập tức khi calibration sụt (liên thông cơ chế "tự siết" của Checkpoint §4).
 - Tier gắn với `(filler, role, task_type)` — một agent autonomous ở việc này vẫn gated ở việc khác.
 - Đây là **câu chuyện sản phẩm cốt lõi**: hành trình human → AI không phải quyết định một lần, mà là thang máy có đồng hồ đo, hai chiều, theo từng loại việc.
+- **Đồng hồ đo cái gì, và ai đọc nó — cả hai đều đóng**: output trước một tiêu chí có tên, và danh sách consumer của Calibration §6. Tài liệu đó §7 nói ra như một giới hạn chứ không phải một tư thế; mục này không thêm consumer nào: tier là thứ các con số làm dịch chuyển, và là thứ duy nhất chúng làm dịch chuyển ở đây.
 
 ## 6. Duality
 

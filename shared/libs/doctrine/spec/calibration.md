@@ -164,8 +164,19 @@ shown: the default refuses it, and relaxing that remains the
   carries an identity (§5).
 - No new store, no cross-tenant calibration, and no input from outside the
   Judgment system.
-- Not an HR performance tool. It serves routing and quality, and its visibility
-  is tight.
+- **No input that is not a signed Judgment on an output.** Nothing about conduct,
+  attendance, hours or sentiment can enter a cell — §2's write path is the only
+  door, and the CalKey (§1) binds every value to
+  `(role, task_type, criterion@version)`. There is no dimension in which a person
+  exists here apart from their output against a named criterion.
+- **No consumer beyond §6's list, and the engine adds none**: gate thresholds,
+  graduation, shadow comparison, cost and quality per Role, routing. The engine
+  computes nothing for compensation, discipline or employment, because no such
+  consumer exists. **A stated limit, in the voice RPA: Sandbox & Credential §1
+  uses**: what a Role holding `view_calibration` does with what it reads is
+  outside this mechanism, and `calibration_visibility_policy` (Tenant & Identity
+  §8) widens that door rather than narrowing it. Pretending the mechanism reaches
+  past its own consumer list is the dangerous reading.
 - It does not score the party being served — that is Memory, and Memory §0 draws
   the same line from the other side.
 
@@ -202,6 +213,10 @@ shown: the default refuses it, and relaxing that remains the
    the attempt leave a read event naming who asked? And the same figure on its
    way **outside** the tenant — does it carry the cells' floor into the leakage
    gate, so a policy that permitted the read still does not permit the export?
+7. Name a value in any cell that did not arrive as a signed Judgment on an
+   output, and name a consumer of a cell that is not in §6's list. If neither can
+   be produced, §7's first two bullets are falsifiable claims rather than a
+   posture.
 
 ## Failure modes
 
