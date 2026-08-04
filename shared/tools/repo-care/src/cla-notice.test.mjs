@@ -138,6 +138,19 @@ describe("what a run does to the thread", () => {
     expect(calls.updated).toHaveLength(0);
   });
 
+  it("flips an earlier notice to 'no longer your record' when the remaining red is not this author's", async () => {
+    const { calls, client } = fakeThread([{ id: 5, body: `${CLA_NOTICE_MARKER}\nold` }]);
+    const code = await claNotice(["--pr", "7", "--author", "someone"], {
+      spawn: failingSpawn("contributors/other-person.md: 'Address:' is blank"),
+      client,
+    });
+    expect(code).toBe(0);
+    expect(calls.created).toHaveLength(0);
+    expect(calls.updated).toEqual([
+      { id: 5, body: expect.stringContaining("no longer your record") },
+    ]);
+  });
+
   it("posts when the roster fault names this author, whatever the record file's casing", async () => {
     const { calls, client } = fakeThread([]);
     await claNotice(["--pr", "7", "--author", "CasedUser"], {

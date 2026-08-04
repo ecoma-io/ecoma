@@ -12,11 +12,13 @@
  * `pull_request_target` in its own workflow rather than as a step in `ci.yml`
  * — the same trigger reasoning as `pr-practice-review.yml`, with the same
  * boundary: nothing from the pull request head is ever executed. The
- * workflow restores only `contributors/` from the head — records are
- * markdown data — while `CLA.md`, `CODEOWNERS` and every script stay the
- * trusted base versions. A side effect worth having: the base `CODEOWNERS`
- * judges the licensor exemption here, so a pull request editing that file
- * cannot exempt its own author in this comment's verdict.
+ * workflow materializes only `contributors/` and `CONTRIBUTORS.md` out of
+ * the pull request's clean merge result (the same tree ci.yml judges;
+ * head snapshot when no clean merge exists) — records are markdown data —
+ * while `CLA.md`, `CODEOWNERS` and every script stay the trusted base
+ * versions. A side effect worth having: the base `CODEOWNERS` judges the
+ * licensor exemption here, so a pull request editing that file cannot
+ * exempt its own author in this comment's verdict.
  *
  * The verdict is the gate's, spawned rather than restated (Rule 14 rung 1):
  * `dev-cli check-contributor-record --author … --author-type …` from this
@@ -94,6 +96,18 @@ export function buildClaNoticeComment({ author, repo, gateOutput }) {
   ].join("\n");
 }
 
+/** What an existing notice becomes when the gate stays red for reasons that
+ * are not this author's — never created fresh, only ever an update, so a
+ * contributor who fixed their part stops being told to act. */
+export function buildClaRepoWideComment({ author }) {
+  return [
+    CLA_NOTICE_MARKER,
+    "### Contributor License Agreement — no longer your record",
+    "",
+    `@${author}, your part of the CLA check is no longer what fails it. The check is currently red for a repository-wide reason (see the CI log); a maintainer owns that failure, and no CLA action is needed from you. (This comment previously asked for a record.)`,
+  ].join("\n");
+}
+
 /** What the notice becomes once the gate passes — kept, not deleted, so the
  * thread's history stays truthful. */
 export function buildClaResolvedComment({ author }) {
@@ -153,11 +167,18 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
 
   const gh = client ?? githubClient({ repo, token });
   try {
+    // The thread is read before the repository-wide short-circuit on purpose:
+    // an earlier author-specific notice must not stay frozen at "action
+    // needed" after the author fixed their part, so that branch still needs
+    // to know whether a notice exists — and a thread this command cannot read
+    // is a loud exit 1, never a silent skip.
     const existing = (await gh.listComments(pr)).find((c) => c.body?.startsWith(CLA_NOTICE_MARKER));
     if (gate.status === 1 && !authorFault) {
+      if (existing) await gh.updateComment(existing.id, buildClaRepoWideComment({ author }));
       console.log(
         `cla-notice: gate is red for repository-wide reasons, not for '${author}' — ` +
-          `no notice; CI's own log is the right channel for that failure`,
+          `${existing ? "existing notice flipped to say so" : "no notice"}; ` +
+          `CI's own log is the right channel for that failure`,
       );
       return 0;
     }
