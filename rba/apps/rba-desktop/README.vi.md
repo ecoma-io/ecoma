@@ -75,9 +75,13 @@ root mỏng: một `run()` dựng cửa sổ, và một `main` gọi nó.
 ## Trạng thái
 
 Scaffold, và được dán nhãn trung thực là scaffold: cửa sổ mở ra, render một
-tiêu đề, và mang đúng một unit test Rust. `bundle.active` là `false` trong
-`tauri.conf.json` — chưa installer nào được tạo cho tới khi có bộ icon và một
-danh tính ký.
+tiêu đề, và mang đúng một unit test Rust.
+
+`release-desktop.yml` dựng installer `.deb`/`.dmg`/`.msi` thật trên cả ba nền
+tảng rồi tải lên làm artifact của run. Chúng **chưa ký** và không đi đâu cả:
+danh tính ký và kênh phân phối chưa tồn tại, mà cũng không cần cái nào để
+chứng minh pipeline đóng gói chạy được. Bộ icon là placeholder sinh từ
+`product-ecoma-rba.svg`.
 
 Build nó cần các header phát triển GTK/WebKit mà Tauri liên kết tới; một máy
 thiếu chúng thậm chí không `cargo check` được crate này. Cơ chế dành cho agent,
