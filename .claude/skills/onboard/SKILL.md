@@ -161,3 +161,11 @@ Same ladder as before — applies only to the git rhythm portion:
 | `since=<expr>`       | since `<expr>`            | next coarser span (or all-time if young) | all-time, one line |
 
 The git window drives `git-reader.mjs --window=<arg>`.
+
+## Editions
+
+This is the contributor edition: its trajectory section reads the published
+roadmap, which deliberately withholds its unlock thresholds and its map of
+weak points. The private cloud workspace shadows this skill with an owner
+edition that reads the withheld halves beside these — same method, whole
+corpus.
