@@ -1,7 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -54,10 +51,15 @@ describe("dev-cli entry point", () => {
   });
 
   it("forwards positional arguments to the command", () => {
-    const msgPath = join(mkdtempSync(join(tmpdir(), "dev-cli-msg-")), "COMMIT_EDITMSG");
-    writeFileSync(msgPath, "fix: y\n\nClaude-Session: https://claude.ai/code/session_abc\n");
+    // Two subtrees, one of them violating: the argument is what decides which
+    // is judged, so the pair proves the value ARRIVED rather than that some
+    // default happened to give the same verdict.
+    const repo = initGitRepo({
+      "clean/notes.md": "# notes\n",
+      "dirty/phase-2-notes.md": "# notes\n",
+    });
 
-    expect(runCli(["strip-claude-trailers", msgPath]).status).toBe(0);
-    expect(readFileSync(msgPath, "utf8")).toBe("fix: y\n");
+    expect(runCli(["check-journey-markers", "clean"], repo).status).toBe(0);
+    expect(runCli(["check-journey-markers", "dirty"], repo).status).toBe(1);
   });
 });
