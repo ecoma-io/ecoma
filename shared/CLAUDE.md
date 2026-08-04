@@ -42,9 +42,11 @@ say so in the pull request rather than letting the green run imply otherwise.
   `local/no-journey-markers` / `local/no-journey-marker-names` ESLint rules),
   `practice-index.json` (practice cards naming the CLAUDE.md tier that
   owns each rule), `languages.config.json` (the ordered human-language
-  triad with its endonyms, read by `dev-cli`'s `readme-schema` for the README
+  triad with its endonyms and the Unicode script each writes its prose in, read
+  by `dev-cli`'s `readme-schema` for the README
   variant filenames and nav line, and by `repo-care`'s `translate-thread` for
-  its detection enum and translation targets), and `coverage.config.json` (the
+  its detection enum, translation targets, and the script check that refuses a
+  translation carrying letters of another language), and `coverage.config.json` (the
   test-coverage floor, read by every project's `vitest.config.*`, by
   `dev-cli`'s `run-node-tests` for the one project on Node's built-in runner —
   an `nx:run-commands` string cannot read JSON, so the thresholds become CLI
