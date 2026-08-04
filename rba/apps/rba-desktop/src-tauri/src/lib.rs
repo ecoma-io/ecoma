@@ -9,6 +9,15 @@
 ///
 /// Separated from `main` so the mobile entry point below and the desktop binary
 /// share one startup path rather than two that can drift.
+///
+/// # Panics
+///
+/// Panics if the Tauri runtime cannot start — a missing system webview, a
+/// malformed `tauri.conf.json`, or a window the OS refuses to create. Each of
+/// those is a broken installation rather than a runtime condition, and there is
+/// nothing to fall back to: this process exists to show that window. Returning
+/// a `Result` would only move the same abort one frame up, into a `main` with
+/// no better answer than this one.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
