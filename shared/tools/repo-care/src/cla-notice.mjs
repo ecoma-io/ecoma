@@ -61,9 +61,17 @@ export function runClaGate({ author, authorType, commits, spawn = spawnSync }) {
   // does and stay silent on a red it could explain — the sign-off half.
   if (commits) args.push("--commits", commits);
   const res = spawn(process.execPath, args, { cwd: REPO_ROOT, encoding: "utf8" });
+  // `faults` is stderr alone. The gate prints its FAULTS there and its NOTES —
+  // an exemption it applied, a rule the agreement no longer states — on stdout,
+  // and those notes quote the same vocabulary a fault does. Deciding whose
+  // fault a red is from the merged text therefore reads a note as a fault; the
+  // comment still shows both, because a note is context worth having.
+  const faults = (res.stderr ?? "").trim();
+  const notes = (res.stdout ?? "").trim();
   return {
     status: res.status,
-    output: `${res.stderr ?? ""}${res.stdout ? `\n${res.stdout}` : ""}`.trim(),
+    faults,
+    output: [faults, notes].filter(Boolean).join("\n"),
   };
 }
 
@@ -167,10 +175,12 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
   // when the output names this author's own record or account. Both fault
   // shapes carry one of those two spellings by construction
   // (`authorVerdict`, and the roster fault naming the record's handle).
-  // A missing sign-off is always this author's to fix whatever it names: the
-  // range judged is the pull request's own commits and nobody else's.
+  // A missing sign-off is always this author's to fix whatever commit it names:
+  // the range judged is the pull request's own commits and nobody else's. Read
+  // off `faults`, never the merged output — the gate's notes name the same
+  // trailer while reporting no fault at all.
   const handle = author.toLowerCase();
-  const lower = gate.output.toLowerCase();
+  const lower = gate.faults.toLowerCase();
   const authorFault =
     lower.includes(`contributors/${handle}.md`) ||
     lower.includes(`'${handle}'`) ||

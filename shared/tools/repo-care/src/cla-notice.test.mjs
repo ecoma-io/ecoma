@@ -159,6 +159,26 @@ describe("what a run does to the thread", () => {
     ]);
   });
 
+  it("reads faults off stderr, so a note quoting the same trailer is not read as one", async () => {
+    const { calls, client } = fakeThread([{ id: 5, body: `${CLA_NOTICE_MARKER}\nold` }]);
+    const code = await claNotice(["--pr", "7", "--author", "renovate[bot]"], {
+      // The gate's exemption NOTE names the trailer on stdout while the only
+      // fault, on stderr, belongs to somebody else's record.
+      spawn: vi.fn(() => ({
+        status: 1,
+        stderr: "contributors/other-person.md: 'Full legal name:' is blank",
+        stdout:
+          "1 commit(s) authored by 'renovate[bot]' carry no Signed-off-by: trailer and owe none",
+      })),
+      client,
+    });
+    expect(code).toBe(0);
+    expect(calls.created).toHaveLength(0);
+    expect(calls.updated).toEqual([
+      { id: 5, body: expect.stringContaining("no longer your record") },
+    ]);
+  });
+
   it("posts on a missing sign-off, which is this author's branch whatever commit it names", async () => {
     const { calls, client } = fakeThread([]);
     const code = await claNotice(["--pr", "7", "--author", "someone"], {

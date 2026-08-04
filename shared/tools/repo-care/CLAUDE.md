@@ -277,7 +277,12 @@ practice review, thread translation) from GitHub Actions.
   only when the output names this author's own record or account — or names a
   missing sign-off, which is always this branch's to fix; on a
   repository-wide red an existing notice is flipped to say the author is no
-  longer the cause, and none is ever created. No model anywhere: the whole
+  longer the cause, and none is ever created. **That decision reads `faults`
+  (the gate's stderr) and never the merged output**: the gate prints its
+  exemptions and its "the agreement no longer asks" note on stdout, and those
+  notes quote the same trailer a fault does — deciding from the merged text
+  reads a note as a fault and hands a bot a personal to-do list. The comment
+  still shows both, because a note is context worth having. No model anywhere: the whole
   judgment is the gate's exit code (Rule 5).
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
