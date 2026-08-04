@@ -1,0 +1,63 @@
+{
+  "$comment": "The repository settings that are NOT code — branch rules and merge policy — written down because nothing else can hold them. A clone carries every gate in this tree, and none of these: delete the repository and they are gone, recreate it and they come back as GitHub's defaults, which are not these. That is the failure this file exists to prevent, and it is not hypothetical — `ci-gate` being a required check is the only thing standing between a red run and a merge. Apply with `gh api --method PUT repos/ecoma-io/ecoma --input <the repository object>` and `gh api --method POST repos/ecoma-io/ecoma/rulesets --input <a rulesets entry>`; read the live state back with the same paths and `GET` to diff it against this file. This is a record, not an enforcer: no gate compares it to reality, because doing so needs an admin token and this repository holds none. Check it by hand when something about landing a change feels different from what is written here.",
+  "repository": {
+    "$comment": "Merge policy. Exactly one method stays enabled, so the strategy is a mechanism rather than whichever button someone clicked. `delete_branch_on_merge` is safe under merge commits and only under them: a merge commit's second parent puts the branch's commits on the default branch as the SAME objects, so deleting the ref removes a pointer and no history. Under rebase the branch commits are REPLAYED as new objects and the originals are reachable only through that ref — which is why 88 stale branches had accumulated before this file existed.",
+    "allow_merge_commit": true,
+    "allow_squash_merge": false,
+    "allow_rebase_merge": false,
+    "delete_branch_on_merge": true
+  },
+  "rulesets": [
+    {
+      "name": "main",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+      "rules": [
+        { "type": "deletion" },
+        { "type": "non_fast_forward" },
+        {
+          "$comment": "`required_linear_history` is deliberately ABSENT. It forbids merge commits outright — a `PUT .../pulls/N/merge` with `merge_method: merge` answers `405 Merge commits are not allowed on this repository` even while the repository object says they are. Linearity is recoverable as a view (`git log --first-parent`, `git bisect --first-parent`); the pull-request boundary a merge commit records is not recoverable at all once a rebase has flattened it, and that boundary is what makes `git revert -m 1 <merge>` the one operation the engineering charter §2 promises.",
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": true,
+            "dismissal_restriction": { "enabled": false, "allowed_actors": [] },
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": false,
+            "allowed_merge_methods": ["merge"]
+          }
+        },
+        {
+          "$comment": "`integration_id` 15368 is GitHub Actions: it pins the check to the app that produces it, so a differently-owned check of the same name cannot satisfy it. `ci-gate` is a single aggregating job on purpose — one name to require, so adding a CI job never means remembering to add it here too.",
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [{ "context": "ci-gate", "integration_id": 15368 }]
+          }
+        },
+        {
+          "$comment": "The merge queue the engineering charter §2 states: an approved pull request does not merge directly, it queues and CI re-runs on the would-be trunk — trunk plus the entries ahead of it. `ALLGREEN` is what makes that real rather than decorative: a batch lands only if every entry in it passes together, so the interference case §2 names (two individually-correct changes that are wrong combined) fails the batch instead of landing. `merge_method: MERGE` matches the pull_request rule above; a queue configured to squash or rebase would quietly undo the decision recorded there. THIS RULE HAS A CODE DEPENDENCY, and it is the one place in this file where enabling a setting alone makes things worse than leaving it off: the queue waits for `ci-gate` to report on the temporary queue ref, so `.github/workflows/ci.yml` must list `merge_group` among its triggers. Without it nothing runs there, no check reports, and every entry waits out `check_response_timeout_minutes` and is dropped — a queue that accepts pull requests and merges none, with no error anywhere saying so. Removing that trigger and keeping this rule is the failure mode; they change together or not at all.",
+          "type": "merge_queue",
+          "parameters": {
+            "merge_method": "MERGE",
+            "grouping_strategy": "ALLGREEN",
+            "max_entries_to_build": 5,
+            "min_entries_to_merge": 1,
+            "max_entries_to_merge": 5,
+            "min_entries_to_merge_wait_minutes": 2,
+            "check_response_timeout_minutes": 60
+          }
+        }
+      ]
+    }
+  ],
+  "notAppliedYet": {
+    "$comment": "Where this file and the live repository disagree, so a reader can tell a record from a wish. Everything here needs an admin token; the sessions that maintain this file hold a fine-grained token without one, and can READ the ruleset but not write it. Re-check with `gh api repos/ecoma-io/ecoma/rulesets/{id}` — a stale entry in this block is worse than none, because it reads as a known gap when it is really an unread one.",
+    "squashAndRebaseStillEnabled": "Live: `allow_squash_merge` and `allow_rebase_merge` both true. Target: both false. This is the weakest of the gaps and the reason it is listed rather than fixed quietly: the `pull_request` rule's `allowed_merge_methods: [\"merge\"]` already refuses the other two on the default branch, so the repository toggles change nothing about what can land — they only leave two buttons in the UI that answer 405. Turning them off makes the mechanism match the record instead of relying on a second rule to override a first.",
+    "deletionAndNonFastForward": "Live: BOTH ABSENT. Target: both present, as recorded above. Without `deletion` the default branch can be deleted outright; without `non_fast_forward` it can be force-pushed, which rewrites landed history and silently breaks every `nx release` version derived from it. They were live before the merge-method change and are not now. If dropping them was deliberate — a repository reset needs `deletion` gone to proceed — then restoring them belongs on the checklist for the tree that replaces this one, because nothing here will notice their absence."
+  }
+}
