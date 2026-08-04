@@ -111,7 +111,8 @@ apply to every contribution you make, before or after that agreement:
    software, firing at the same moment. What each document then does about it
    is its own — `LICENSE` also graduates the consequence between a company and
    an individual acting for it, where this clause simply ends the licences it
-   granted. The width of the object is the point rather than an accident: it reaches software this agreement's own
+   granted. The width of the object is the point rather than an accident: it
+   reaches software this agreement's own
    definition of "the project" deliberately excludes, because a retaliation
    trigger answers a different question from a grant. What we may place under
    which terms is bounded by what you gave us; what costs an aggressor their
