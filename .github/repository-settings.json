@@ -38,14 +38,26 @@
             "do_not_enforce_on_create": false,
             "required_status_checks": [{ "context": "ci-gate", "integration_id": 15368 }]
           }
+        },
+        {
+          "$comment": "The merge queue the engineering charter §2 states: an approved pull request does not merge directly, it queues and CI re-runs on the would-be trunk — trunk plus the entries ahead of it. `ALLGREEN` is what makes that real rather than decorative: a batch lands only if every entry in it passes together, so the interference case §2 names (two individually-correct changes that are wrong combined) fails the batch instead of landing. `merge_method: MERGE` matches the pull_request rule above; a queue configured to squash or rebase would quietly undo the decision recorded there.",
+          "type": "merge_queue",
+          "parameters": {
+            "merge_method": "MERGE",
+            "grouping_strategy": "ALLGREEN",
+            "max_entries_to_build": 5,
+            "min_entries_to_merge": 1,
+            "max_entries_to_merge": 5,
+            "min_entries_to_merge_wait_minutes": 5,
+            "check_response_timeout_minutes": 60
+          }
         }
       ]
     }
   ],
   "notAppliedYet": {
-    "$comment": "What this file describes that the live repository does not yet have, so a reader can tell a record from a wish. Both need an admin token; the sessions that wrote this file hold a fine-grained token without one.",
-    "mergeMethod": "Live: `required_linear_history` present and `allowed_merge_methods: [\"rebase\"]`. Target: the rule dropped and the method set to `merge`.",
-    "deleteBranchOnMerge": "Live: false. Target: true.",
-    "mergeQueue": "Neither live nor targeted here. The engineering charter §2 states a merge queue as the end state — CI re-run on the would-be trunk — and no rule in this file provides one. That gap is real and is the charter's to discharge, not this file's to hide."
+    "$comment": "Where this file and the live repository disagree, so a reader can tell a record from a wish. Everything here needs an admin token; the sessions that maintain this file hold a fine-grained token without one, and can READ the ruleset but not write it. Re-check with `gh api repos/ecoma-io/ecoma/rulesets/{id}` — a stale entry in this block is worse than none, because it reads as a known gap when it is really an unread one.",
+    "deleteBranchOnMerge": "Live: false. Target: true. Safe only under merge commits, for the reason the `repository` block gives — and the 88 stale branches on origin are what the false setting has already cost.",
+    "deletionAndNonFastForward": "Live: BOTH ABSENT. Target: both present, as recorded above. Without `deletion` the default branch can be deleted outright; without `non_fast_forward` it can be force-pushed, which rewrites landed history and silently breaks every `nx release` version derived from it. They were live before the merge-method change and are not now. If dropping them was deliberate — a repository reset needs `deletion` gone to proceed — then restoring them belongs on the checklist for the tree that replaces this one, because nothing here will notice their absence."
   }
 }
