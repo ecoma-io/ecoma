@@ -160,7 +160,7 @@ onBeforeUnmount(() => teardownDrag?.());
     @value-commit="onCommit"
   >
     <SliderTrack class="relative h-1.5 w-full grow rounded-full bg-muted">
-      <!-- The filled range is the human-set value — flat steel fill (Alloy law). -->
+      <!-- The filled range is the human-set value — flat warp fill (Loom law). -->
       <SliderRange class="absolute h-full rounded-full bg-primary" />
     </SliderTrack>
     <SliderThumb

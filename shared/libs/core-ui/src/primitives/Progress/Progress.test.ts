@@ -29,7 +29,7 @@ describe("Progress", () => {
     expect((wrapper.vm as unknown as { pct: number | null }).pct).toBeNull();
   });
 
-  it("turns the fill success only at 100% — a finished bar reads done, an in-flight one stays steel", async () => {
+  it("turns the fill success only at 100% — a finished bar reads done, an in-flight one stays warp", async () => {
     const wrapper = mount(Progress, { props: { modelValue: 99, max: 100, ariaLabel: "Upload" } });
     const indicator = wrapper.get('[role="progressbar"] > *');
     expect(indicator.classes()).not.toContain("bg-success");

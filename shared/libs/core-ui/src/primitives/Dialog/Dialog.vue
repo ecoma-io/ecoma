@@ -16,7 +16,7 @@ import { cn } from "../../lib/cn";
  * Dialog — a modal task surface that blocks the rest of the UI until resolved
  * (confirm a destructive action, a focused form). Built on Reka UI's Dialog:
  * focus trap, Esc-to-close, `aria-modal`, and the title wired as the accessible
- * name. Alloy tokens.
+ * name. Loom tokens.
  *
  * Reach for `Popover` instead when the panel is non-blocking secondary content,
  * and `Toast` for a transient notification the user need not act on. The title

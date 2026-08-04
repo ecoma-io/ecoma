@@ -240,7 +240,7 @@ function onPointerDown(event: PointerEvent) {
       cn(
         'group relative inline-flex h-9 w-full items-center rounded-md border border-input bg-background',
         'transition-[color,background-color,box-shadow] duration-fast ease-out',
-        // Rim-lit at rest, alloy bloom on focus (Signature law).
+        // Rim-lit at rest, the weave blooms on focus (Signature law).
         'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring',
         !invalid && 'focus-within:shadow-halo',
         invalid && 'border-destructive focus-within:outline-destructive',

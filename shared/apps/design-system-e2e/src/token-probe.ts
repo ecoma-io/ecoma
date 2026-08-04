@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "playwright/test";
 
 /**
- * Reads Alloy's design tokens as the BUILT Storybook actually resolves them.
+ * Reads Loom's design tokens as the BUILT Storybook actually resolves them.
  *
  * The division of labour is deliberate and holds throughout: token NAMES come
  * from the stylesheet, token VALUES come from the browser. Converting
@@ -37,7 +37,7 @@ export function declaredTokenNames(): string[] {
  * computed-value time — `hsl(var(--deleted))`, or a token whose channels stopped
  * being a colour — falls back to the parent's colour rather than to anything
  * that announces the failure. Painting the parent an unmistakable value turns
- * that silent fallback into a reading a test can assert on. No Alloy token
+ * that silent fallback into a reading a test can assert on. No Loom token
  * resolves to this, which is what makes it unambiguous.
  */
 export const UNRESOLVED = "rgb(1, 2, 3)";
@@ -99,7 +99,7 @@ export async function rawTokenValues(page: Page, names: string[]): Promise<Recor
 }
 
 /**
- * The space-separated HSL channel triple Alloy authors colours as
+ * The space-separated HSL channel triple Loom authors colours as
  * (`211 37% 32%` — the shadcn convention `tokens.css` documents), which is what
  * separates a colour token from `--radius`, `--dur-fast` or `--font-sans`
  * without a hand-maintained list of which is which.

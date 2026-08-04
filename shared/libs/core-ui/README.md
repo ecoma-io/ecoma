@@ -2,18 +2,18 @@
 name: core-ui
 subsystem: shared
 lang: en
-description: Alloy design system — Vue 3 primitives, blocks, and design tokens shared across every Ecoma product surface.
+description: Loom design system — Vue 3 primitives, blocks, and design tokens shared across every Ecoma product surface.
 ---
 
 > 🌐 **English** · [Tiếng Việt](./README.vi.md) · [中文](./README.zh.md)
 
-# core-ui — Alloy
+# core-ui — Loom
 
-Alloy is the design system Ecoma ships as `@ecoma-io/ui`: Vue 3 + Tailwind
+Loom is the design system Ecoma ships as `@ecoma-io/ui`: Vue 3 + Tailwind
 primitives, blocks, and design tokens meant to be consumed, not
 re-implemented, by every product surface in the workspace. Its formal
-language is two forces — Human (steel) × Agent (copper) — with a gradient
-seam only where the two meet; light-first, enterprise-toned.
+language is two threads on one cloth — Human (warp) × Agent (weft) — with a
+gradient seam only where they cross; light-first, enterprise-toned.
 
 <!-- readme:why -->
 
@@ -24,7 +24,7 @@ human side that means screens — screens that cross every product boundary
 this repo will ever hold (a standalone app, a workspace shell, or a product's
 own composition on top of one). If every product hand-rolls its own button,
 dialog, or skeleton loader, each copy drifts in spacing, motion, and
-accessibility on its own schedule. Alloy exists so a generic affordance — a
+accessibility on its own schedule. Loom exists so a generic affordance — a
 primitive, a token, a motion pattern — is built once and consumed everywhere,
 under one rule in each direction: a product consumes before it hand-rolls,
 and anything generic drafted inside a product graduates back up here instead
@@ -50,7 +50,7 @@ Principles) render there.
 
 ## Where it sits
 
-Alloy is tier one of a two-tier UI stack: this lib owns every _generic_
+Loom is tier one of a two-tier UI stack: this lib owns every _generic_
 affordance (primitives, blocks, tokens, motion), while each product's own UI
 lib (tier two) owns only that product's composition on top. That split is
 what lets a product ship a screen without re-deciding what a button or a

@@ -39,10 +39,10 @@ const boxClass = cn(
   // while fill/border stay on the instant --ease-out — the "springy transform,
   // steady color" split (boxStyle below), same language as Button/Switch.
   "active:scale-90",
-  // Checked = a human decision (Alloy law): the box fills flat steel.
+  // Checked = a human decision (Loom law): the box fills flat warp.
   "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
   "data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground",
-  // Focus opens the alloy: the brand ring blooms.
+  // Focus draws the weave tight: the brand ring blooms.
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:shadow-halo",
   "disabled:cursor-not-allowed",
 );

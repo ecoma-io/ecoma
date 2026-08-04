@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Iconography swatch — Lucide as Alloy's icon system. Demonstrates the
+ * Iconography swatch — Lucide as Loom's icon system. Demonstrates the
  * four conventions the docs page pins: (1) defaults set once via
- * applyAlloyIconDefaults (size 16, stroke 1.5 — hairline-first), (2) the
+ * applyLoomIconDefaults (size 16, stroke 1.5 — hairline-first), (2) the
  * 14/16/20 size ladder, (3) the ≤12px glyph exception — stroke 2.5, shown
  * side by side against the un-bumped 1.5 in the very controls that use it,
  * (4) custom domain icons (BrandMark) built with createLucideIcon are
@@ -28,10 +28,10 @@ import {
   Undo2,
 } from "@lucide/vue";
 import BrandMark from "../../../src/icons/BrandMark";
-import { applyAlloyIconDefaults } from "../../../src/lib/icon-defaults";
+import { applyLoomIconDefaults } from "../../../src/lib/icon-defaults";
 
 // One-time defaults for the whole subtree — hosts call this at their entry.
-applyAlloyIconDefaults();
+applyLoomIconDefaults();
 
 const sampler = [
   { icon: Play, name: "Play" },
@@ -119,7 +119,7 @@ const smallGlyphs = [
     <div class="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
       <div class="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
         Sampler theo domain — mặc định qua
-        <code class="tabular normal-case">applyAlloyIconDefaults</code>
+        <code class="tabular normal-case">applyLoomIconDefaults</code>
       </div>
       <div class="grid grid-cols-7 gap-2">
         <div

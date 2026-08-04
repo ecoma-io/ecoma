@@ -2,7 +2,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
 /**
- * Badge — small status / meta chip. The `ai` variant wears the agent copper
+ * Badge — small status / meta chip. The `ai` variant wears the agent weft
  * used to signal AI presence across the product.
  */
 export const badgeVariants = cva(

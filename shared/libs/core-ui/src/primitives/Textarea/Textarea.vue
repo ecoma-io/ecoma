@@ -56,7 +56,7 @@ defineEmits<{ "update:modelValue": [value: string] }>();
       cn(
         'rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm',
         'transition-[color,background-color,border-color,box-shadow] duration-fast ease-out',
-        // Rim-lit at rest, alloy bloom on focus (Signature law).
+        // Rim-lit at rest, the weave blooms on focus (Signature law).
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
         !invalid && 'focus-visible:shadow-halo',
         'placeholder:text-muted-foreground',

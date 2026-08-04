@@ -26,7 +26,7 @@ export const Sample = ({ label, shadow, note }) => (
 
 # Elevation
 
-**Hairline-over-shadow.** Alloy phân tầng chủ yếu bằng **đường viền mảnh** và **độ sáng
+**Hairline-over-shadow.** Loom phân tầng chủ yếu bằng **đường viền mảnh** và **độ sáng
 bề mặt**, không phải bóng đổ. Bóng mềm lạnh chỉ dành cho những gì thật sự _nổi trên_ mặt phẳng:
 popover, dropdown, dialog, toast.
 
@@ -34,7 +34,7 @@ popover, dropdown, dialog, toast.
 
 ## Nhịp ba lớp của app shell
 
-Một app Alloy phân vùng bằng **độ sáng nền theo đúng một trật tự**:
+Một app Loom phân vùng bằng **độ sáng nền theo đúng một trật tự**:
 
 | Lớp    | Token                            | Vai trò                                                          |
 | ------ | -------------------------------- | ---------------------------------------------------------------- |
@@ -50,7 +50,7 @@ nội dung công việc là nhân vật chính.
 Một dải **ghim** (`position: sticky`) là trường hợp duy nhất mà nội dung _chạy bên dưới_ một mặt
 phẳng khác. Nếu dải đó đục hoàn toàn, cuộn trang thành ra nội dung "biến mất" ở một đường cắt phẳng —
 mắt không đọc được là có gì bị che hay đã hết. Phản xạ quen thuộc là đổ bóng xuống dưới dải để tạo
-chiều sâu; Alloy **không làm vậy** — bóng ở đây sẽ là bóng thường trực trên một thứ không hề nổi.
+chiều sâu; Loom **không làm vậy** — bóng ở đây sẽ là bóng thường trực trên một thứ không hề nổi.
 
 Thay vào đó: **mặt phẳng bán trong + `backdrop-blur`, và giữ nguyên hairline `border-b`**. Cái mờ
 phía sau kính nói "còn nội dung nữa ở dưới", còn cạnh vẫn là một đường 1px chứ không phải vệt bóng.
@@ -130,10 +130,10 @@ target bàn phím). Không dùng strong đại trà — hai bậc chỉ có ngh�
 </div>
 
 <div style={{ marginTop: "1.5rem", fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
-  Trên nền giấy sáng của Alloy, tầng nổi thể hiện bằng bề mặt **trắng hơn nền** (card trắng trên
+  Trên nền giấy sáng của Loom, tầng nổi thể hiện bằng bề mặt **trắng hơn nền** (card trắng trên
   giấy kỹ thuật) cộng hairline; bóng giữ mờ, lạnh, và chỉ leo thang theo mức độ "nổi thật" (popover
-  → dialog). Không có glow: phát sáng không phải ngôn ngữ của hệ này — màu lực lượng và mối hàn mới
-  là chữ ký (xem <code>Signature</code>).
+  → dialog). Không có glow: phát sáng không phải ngôn ngữ của hệ này — màu lực lượng và đường can
+  mới là chữ ký (xem <code>Signature</code>).
 </div>
 
 </div>
