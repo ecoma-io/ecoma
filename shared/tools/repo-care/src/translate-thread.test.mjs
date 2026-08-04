@@ -188,6 +188,14 @@ describe("foreignScriptLetters", () => {
     expect(foreignScriptLetters("gate do check-contributor-record giữ", "vi")).toBeNull();
   });
 
+  it("closes a code span on a backtick run of its own length, as CommonMark does", () => {
+    // A single-backtick reading takes ``视为`` for two empty spans and judges
+    // what sits between them, refusing a translation that did nothing wrong.
+    expect(foreignScriptLetters("xem ``视为`` nhé", "vi")).toBeNull();
+    expect(foreignScriptLetters("dùng ``a`b 视为`` nhé", "vi")).toBeNull();
+    expect(foreignScriptLetters("xem ```视为``` nhé", "vi")).toBeNull();
+  });
+
   it("judges prose only, so a code span or fenced block may hold any script", () => {
     expect(foreignScriptLetters("chạy `git commit -s 中文` để ký", "vi")).toBeNull();
     expect(foreignScriptLetters("ví dụ:\n\n```\n视为 received\n```\n\nxong", "vi")).toBeNull();
