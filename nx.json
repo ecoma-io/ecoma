@@ -48,9 +48,28 @@
         "^default",
         "coverageConfig",
         "{workspaceRoot}/vitest.property-seed.mjs",
-        { "env": "CI" }
+        {
+          "env": "CI"
+        }
       ]
     }
   },
-  "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"]
+  "plugins": ["./shared/tools/nx-polyglot-graph/index.mjs"],
+  "release": {
+    "groups": {
+      "harness": {
+        "projects": ["dev-cli"],
+        "projectsRelationship": "independent",
+        "releaseTag": {
+          "pattern": "{projectName}@{version}"
+        },
+        "version": {
+          "conventionalCommits": true
+        },
+        "changelog": {
+          "projectChangelogs": true
+        }
+      }
+    }
+  }
 }
