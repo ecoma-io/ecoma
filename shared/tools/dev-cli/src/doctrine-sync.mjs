@@ -31,7 +31,13 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { DOCTRINE_ROOT, doctrineDocPaths, fingerprint, variantOf } from "./check-doctrine.mjs";
+import {
+  DOCTRINE_ROOT,
+  doctrineDocPaths,
+  fingerprint,
+  normalizeRoot,
+  variantOf,
+} from "./check-doctrine.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
 /** The leading `---` … `---` block, with its keys captured. */
@@ -88,7 +94,7 @@ export function doctrineSync(args = [], deps = {}) {
     error = console.error,
   } = deps;
 
-  const paths = doctrineDocPaths(args[0] ?? DOCTRINE_ROOT, list);
+  const paths = doctrineDocPaths(normalizeRoot(args[0] ?? DOCTRINE_ROOT), list);
 
   let failed = false;
   const written = [];

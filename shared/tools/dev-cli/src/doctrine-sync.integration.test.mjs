@@ -66,7 +66,7 @@ describe("doctrine-sync over a real index", () => {
     const { deps, read } = fixture();
 
     expect(doctrineSync([], deps)).toBe(0);
-    expect(checkDoctrine(read, deps.list)).toBe(0);
+    expect(checkDoctrine([], { read, list: deps.list, error: () => {} })).toBe(0);
   });
 
   it("stamps a variant that recorded the wrong fingerprint", () => {
