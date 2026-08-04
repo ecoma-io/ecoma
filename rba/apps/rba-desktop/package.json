@@ -1,0 +1,8 @@
+{
+  "name": "@ecoma-io/rba-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ecoma RBA desktop shell — the Tauri host that proves the Rust toolchain and composes the shared design system",
+  "license": "LicenseRef-Ecoma-SustainableUse-1.0",
+  "type": "module"
+}

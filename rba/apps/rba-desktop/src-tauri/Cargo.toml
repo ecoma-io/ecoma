@@ -1,0 +1,26 @@
+[package]
+name = "rba-desktop"
+version = "0.0.0"
+description = "Ecoma RBA desktop shell"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+license = "LicenseRef-Ecoma-SustainableUse-1.0"
+
+# The binary and the library are one crate deliberately. Tauri's mobile entry
+# point calls into a library target, and splitting the two would give the
+# desktop and mobile builds different code paths to keep in sync — the second
+# codepath this workspace's RPA principle #5 exists to forbid.
+[lib]
+name = "rba_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+# The lint bar lives in the workspace manifest — one home, every crate.
+[lints]
+workspace = true
