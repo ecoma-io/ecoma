@@ -14,13 +14,29 @@
 #      — the bug hunt. `review-pr` deliberately does not do this, and no gate
 #      can.
 #
+# **Holding that third boundary takes active work, because cubic's defaults
+# push against it.** cubic auto-discovers context files with no configuration
+# and no opt-out: every `CLAUDE.md` in the tree, `.claude/skills/`, the READMEs,
+# `.github/`. Two of those skills — `preflight` and `conformance-review` — ARE
+# review rubrics, so left alone cubic reads this workspace's practice rules and
+# starts reporting against them, which is precisely `review-pr`'s job. The
+# `custom_instructions` below are what neutralize that: they name the
+# auto-discovered material and reclassify it from rubric to background.
+#
+# Linking `practice-index.json` from a custom rule would be the wrong repair in
+# both directions. `custom_rules[].file_paths` concatenates a file INTO the
+# review prompt as an enforceable instruction, so it would make cubic enforce
+# the very rubric it must skip; and the field caps the description plus every
+# linked file at 10,000 characters, under that file's own size. The exclusions
+# below are therefore stated by CATEGORY, which is what keeps them true as cards
+# are added — a per-card list would go stale into duplicate findings.
+#
 # The reasoning lives in this file rather than in a CLAUDE.md because no nested
 # guidance loads for someone editing a root config file — the same reason each
 # workflow in `.github/workflows` carries its own header.
 #
-# Every setting below exists to hold that boundary. A cubic finding that another
-# reviewer would also have made is a defect in THIS file, not a bonus: it costs a
-# maintainer the same attention as a wrong finding.
+# A maintainer can steer one review without touching this file, by commenting
+# `@cubic-dev-ai rerun and focus on <…>` on the pull request.
 #
 # cubic is free for public repositories, so this costs nothing here. It reviews
 # only this public tree; the withheld doctrine tier lives in another repository
@@ -37,9 +53,12 @@ reviews:
   incremental_commits: true
   check_drafts: false
 
-  # `medium`. The value cubic adds is a bug nobody else can find, and `low`
-  # trades exactly that away. Two advisory bots on one thread is already the
-  # noise ceiling, so `high` would spend the remaining attention on speculation.
+  # How picky the reviewer is; the vendor documents the knob but not what each
+  # level changes, so this is a starting point to calibrate against real runs
+  # rather than a derived value. `medium` because the value cubic adds is a bug
+  # nobody else can find and `low` risks trading exactly that away, while two
+  # advisory bots on one thread is already the noise ceiling — leaving `high`
+  # nothing to spend but speculation.
   sensitivity: medium
 
   # A superseded finding must not read as an open one. `review-pr` gets the same
@@ -62,29 +81,36 @@ reviews:
     off-by-one and boundary errors, incorrect use of a library or platform API,
     and untrusted input reaching a dangerous sink unvalidated.
 
-    Do NOT report any of the following. Each already has an owner, and a
-    duplicate finding costs a maintainer the same attention as a wrong one:
+    Two other reviewers already cover everything else, so a finding outside that
+    scope is a duplicate — and a duplicate costs a maintainer the same attention
+    as a wrong one. Report NONE of the following:
 
     - Formatting and style. Prettier and ESLint decide these and CI fails on
-      them, so a comment about them is noise on an already-red build.
-    - Anything the rubric in `practice-index.json` covers. Read that file — it
-      is the live list, so do not work from this summary of it. It belongs to
-      another reviewer and spans weakened or thin tests, behavior changed
-      without a test, disguised stubs, unrelated refactoring mixed into a
-      focused change, boilerplate documentation, description-versus-diff
-      mismatch, journey markers in comments and names, hand-rolled code a
-      built-in already does, unjustified hardcoded values, and README language
-      parity.
-    - Missing or wrong documentation, README translations, and commit message
-      form. `dev-cli` gates all three in CI.
-    - Test coverage percentages. Every test target reads one shared floor from
-      `coverage.config.json`.
+      them, so such a comment is noise on an already-red build.
+    - Test quality and test presence: assertions that are too weak, a test whose
+      title promises more than it checks, behavior changed without a test, a
+      stub returning a fabricated success, coverage percentages.
+    - Documentation quality, agreement between README language variants, comment
+      wording, names that describe how code came to be rather than what it is,
+      and commit message form.
+    - Refactor hygiene and design taste: unrelated cleanup mixed into a focused
+      change, a hand-rolled helper duplicating a built-in, a hardcoded value that
+      could be derived, and whether the pull request description matches the
+      diff.
 
-    Context, not rubric: the root `CLAUDE.md` and each project's own `CLAUDE.md`
-    describe how this codebase actually works — provider errors that arrive as
-    HTTP 200, tools that must run on bare node, boundaries no lint reads. Read
-    them to judge whether changed code is CORRECT here. Never report a
-    deviation from them as a finding; that is the other reviewer's rubric.
+    That list names CATEGORIES, not individual rules, so that it keeps holding
+    as the other reviewer's rubric grows.
+
+    You will pick up this repository's context files automatically, and that is
+    the one place they will mislead you. The root `CLAUDE.md`, every project's
+    own `CLAUDE.md`, and the review procedures under `.claude/skills/` —
+    `preflight` and `conformance-review` above all — ARE the other reviewer's
+    rubric, written out in full. Read all of it: it describes provider errors
+    that arrive as HTTP 200, tools that must run on bare node, boundaries no
+    lint reads, and that knowledge is what lets you tell correct code from
+    incorrect code here. But never report a deviation from it. If the only
+    reason you would flag something is that a CLAUDE.md or a skill says so, drop
+    the finding.
 
   ignore:
     files:
@@ -99,21 +125,24 @@ reviews:
       - "**/coverage/**"
       - cubic.yaml
 
-  # Five slots, and none of them restates a rule `practice-index.json` already
-  # carries — a second copy would drift with nothing to catch it. Each names a
-  # failure mode that is SILENT (it produces a green build), EXPENSIVE, and
-  # unreachable by any gate in this workspace.
+  # Five slots, the plan's cap. None restates a rule `practice-index.json`
+  # already carries — a second copy would drift with nothing to catch it. Each
+  # names a failure mode that is SILENT (it produces a green build), EXPENSIVE,
+  # and unreachable by every gate in this workspace. Each opens with what to
+  # flag, because the vendor's guidance for these is to be explicit before
+  # explanatory.
   custom_rules:
     - name: Bare-node tooling stays dependency-free
       description: >
-        `shared/tools/repo-care` is invoked by GitHub Actions as `node <path>`
-        with no install step and has no package.json at all; `shared/tools/dev-cli`
-        is a published package that declares no dependencies and is spawned by
-        those same workflows. An import of anything outside `node:` builtins and
-        the tool's own files therefore crashes the workflow at import time — and
-        nothing catches it first, because the test runner resolves modules from
-        the root install that the workflow never performs. Flag any added
-        non-builtin import in a non-test source file of either tool.
+        Flag any import of a module outside `node:` builtins and the tool's own
+        files added to a non-test source file under `shared/tools/repo-care` or
+        `shared/tools/dev-cli/src`. `repo-care` is invoked by GitHub Actions as
+        `node <path>` with no install step and has no package.json at all;
+        `dev-cli` is a published package that declares no dependencies and is
+        spawned by those same workflows. Such an import therefore crashes the
+        workflow at import time — and nothing catches it first, because the test
+        runner resolves modules from the root install that the workflow never
+        performs.
       include:
         - shared/tools/repo-care/**
         - shared/tools/dev-cli/src/**
@@ -123,56 +152,54 @@ reviews:
 
     - name: Untrusted text is rendered, never concatenated
       description: >
-        In `shared/tools/repo-care`, any text the tool did not author — issue and
-        pull request titles and bodies, comment bodies, model output, and file
-        contents fetched at a pull request head — must pass through
-        `sanitizeTranslation`, or through `review-pr`'s `renderText` and
-        `renderPath` wrappers when the value lands inside a single heading, list
-        item, or code span. Placing such text into a comment body directly lets
-        it forge another job's marker comment and hijack that job's in-place
-        edit, close a `<details>` container early, or re-ping people on every
-        run. Flag any new comment body built from such text without those
-        helpers, and any new helper that reimplements their rules instead of
-        calling them.
+        Flag any GitHub comment body assembled in `shared/tools/repo-care` from
+        text the tool did not author — issue and pull request titles and bodies,
+        comment bodies, model output, file contents fetched at a pull request
+        head — unless that text passes through `sanitizeTranslation`, or through
+        `review-pr`'s `renderText` and `renderPath` wrappers when the value lands
+        inside a single heading, list item, or code span. Flag a new helper that
+        reimplements those rules instead of calling them. Text placed into a
+        comment directly can forge another job's marker comment and hijack that
+        job's in-place edit, close a `<details>` container early, or re-ping
+        people on every run.
       include:
         - shared/tools/repo-care/**
 
     - name: pull_request_target never executes head code
       description: >
-        A workflow triggered by `pull_request_target` runs against the base ref
-        holding a write token. It may read pull request head content through the
-        API as DATA, but must never check it out, execute it, install from it, or
-        interpolate it into a shell command. Flag a `ref:` naming the head, a
-        `run:` step consuming head-controlled input, an install or build step
-        after head files are restored, and any action referenced by tag or branch
-        rather than a full commit SHA.
+        In any workflow triggered by `pull_request_target`, flag a `ref:` naming
+        the pull request head, a `run:` step consuming head-controlled input, an
+        install or build step after head files are restored, and any action
+        referenced by tag or branch rather than a full commit SHA. Such a
+        workflow runs against the base ref holding a write token, so head content
+        may be read through the API as DATA and never executed.
       include:
         - .github/workflows/**
 
     - name: Nx target inputs replace the defaults
       description: >
-        Declaring `inputs` on a target REPLACES the list from `nx.json`'s
-        `targetDefaults` rather than merging with it, so a target that declares
-        its own must restate every default that still applies — `default` and
-        `coverageConfig`. Dropping `coverageConfig` that way replays a cached
-        green after the coverage floor is raised. Separately, a target that
-        SPAWNS a workspace tool has to name that tool in its own `inputs`:
-        `implicitDependencies` feeds `nx affected` only, never the task hash, so
-        without it a changed tool replays a stale cached result.
+        Flag a target that declares its own `inputs` without restating the
+        defaults that still apply to it — `default` and `coverageConfig` — and a
+        target that SPAWNS a workspace tool without naming that tool in those
+        same `inputs`. Declaring `inputs` REPLACES the list from `nx.json`'s
+        `targetDefaults` rather than merging with it, so a dropped
+        `coverageConfig` replays a cached green after the coverage floor is
+        raised; and `implicitDependencies` feeds `nx affected` only, never the
+        task hash, so without the input a changed tool replays a stale result.
       include:
         - "**/project.json"
         - nx.json
 
     - name: Polyglot dependency boundaries are review-only
       description: >
-        `@nx/enforce-module-boundaries` sees only what ESLint parses, so for Go,
-        Rust and Python NOTHING enforces the tag constraints declared in
-        `eslint.config.mjs`. Judge every added cross-project import in these
-        languages against the `tags` in the importing and imported
-        `project.json`: `license:sul` must never import `license:ee` (it would
-        ship paid code to every self-hoster), a product domain may depend only on
-        its own libraries and on `shared/*`, `shared/*` never reaches into a
-        product domain, and domains never import each other.
+        Flag any added cross-project import in a Go, Rust or Python file whose
+        direction the `tags` in the importing and imported `project.json` forbid:
+        `license:sul` must never import `license:ee` (it would ship paid code to
+        every self-hoster), a product domain may depend only on its own libraries
+        and on `shared/*`, `shared/*` never reaches into a product domain, and
+        domains never import each other. `@nx/enforce-module-boundaries` sees
+        only what ESLint parses, so in these languages nothing enforces the
+        constraints declared in `eslint.config.mjs`.
       include:
         - "**/*.go"
         - "**/*.rs"
