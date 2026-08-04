@@ -1,5 +1,5 @@
 /**
- * Alloy Tailwind preset — the shared theme.
+ * Loom Tailwind preset — the shared theme.
  * Consumed by Storybook now and by apps/desktop later, so tokens live in ONE
  * place, shared across every Ecoma product. Colors read from CSS variables
  * (see src/styles/tokens.css), which define a single default theme — no
@@ -34,13 +34,13 @@ export default {
         sunken: hsl("--sunken"),
         card: { DEFAULT: hsl("--card"), foreground: hsl("--card-foreground") },
         popover: { DEFAULT: hsl("--popover"), foreground: hsl("--popover-foreground") },
-        // Force 1 · Human (thép) — default action color: a person drives the UI.
+        // Force 1 · Human (warp) — default action color: a person drives the UI.
         primary: {
           DEFAULT: hsl("--primary"),
           foreground: hsl("--primary-foreground"),
           muted: hsl("--primary-muted"),
         },
-        // Force 2 · Agent (đồng) — automated work running / produced.
+        // Force 2 · Agent (weft) — automated work running / produced.
         agent: {
           DEFAULT: hsl("--agent"),
           foreground: hsl("--agent-foreground"),
@@ -111,9 +111,9 @@ export default {
         "fade-rise": "fade-rise var(--dur) var(--ease-out) both",
         "scale-in": "scale-in var(--dur-fast) var(--ease-spring) both",
         shimmer: "shimmer 1.6s linear infinite",
-        // Agent at work — the copper conduction pulse (see global.css).
+        // Agent at work — the weft's shuttle beat (see global.css).
         conduct: "conduct 1.8s var(--ease-in-out) infinite",
-        // A live seam: the steel↔copper boundary drifts while the
+        // A live seam: the warp↔weft boundary drifts while the
         // collaboration is running; static once the work settles.
         "seam-flow": "seam-flow 3.2s linear infinite",
         "progress-indeterminate": "progress-indeterminate 1.3s var(--ease-in-out) infinite",

@@ -9,7 +9,7 @@ import * as NumberFieldStories from "./NumberField.stories";
 
 Nhập một số có ràng buộc, **có thể kéo-chỉnh** (scrub trên nhãn/thân) ngoài gõ trực tiếp — cùng cảm giác "kéo số"
 của editor chuyên nghiệp. Là xương sống của `Inspector` (x/y/width/height/rotation/fontSize/startFrame/…). Dựng trên
-**Reka UI `NumberField`** (a11y + spinbutton sẵn), style bằng token Alloy. Import từ `@ecoma-io/ui`:
+**Reka UI `NumberField`** (a11y + spinbutton sẵn), style bằng token Loom. Import từ `@ecoma-io/ui`:
 
 ```ts
 import { NumberField } from "@ecoma-io/ui";
@@ -42,7 +42,7 @@ Tách hai sự kiện để một lần kéo dài = **một** checkpoint, không
 
 ## States
 
-nghỉ / focus (**ring thép**) / đang-scrub (con trỏ `ew-resize`, giá trị chạy) / disabled (mờ) / ngoài min-max
+nghỉ / focus (**ring warp**) / đang-scrub (con trỏ `ew-resize`, giá trị chạy) / disabled (mờ) / ngoài min-max
 (kẹp giá trị, không nhấp nháy) / **invalid** (`invalid` — viền + outline destructive, `aria-invalid` trên
 spinbutton; cùng ngôn ngữ lỗi với TextField/Textarea/Select, dùng khi giá trị vi phạm một ràng buộc mà
 min/max không kẹp được — vd hai field mâu thuẫn nhau).

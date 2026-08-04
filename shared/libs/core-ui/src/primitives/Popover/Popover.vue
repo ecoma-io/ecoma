@@ -13,7 +13,7 @@ import { cn } from "../../lib/cn";
  * Popover — a floating panel anchored to a trigger for secondary content the
  * user opts into (filters, a colour picker, a details card). Built on Reka
  * UI's Popover: focus moves into the panel, Esc/outside-click closes,
- * `aria-expanded`/`aria-controls` wired. Alloy tokens.
+ * `aria-expanded`/`aria-controls` wired. Loom tokens.
  *
  * Compared to the neighbours: reach for `DropdownMenu` when the panel is a list
  * of *commands* (roving focus, typeahead), `Tooltip` for a non-interactive hint

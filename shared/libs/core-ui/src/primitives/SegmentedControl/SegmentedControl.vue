@@ -16,7 +16,7 @@ import { cn } from "../../lib/cn";
 /**
  * SegmentedControl — pick one of 2–5 mutually exclusive options, all visible at
  * once; one is always active. Built on Reka UI's RadioGroup (single-choice,
- * roving tabindex, arrow-key navigation). Styled with Alloy tokens.
+ * roving tabindex, arrow-key navigation). Styled with Loom tokens.
  */
 const props = withDefaults(
   defineProps<{

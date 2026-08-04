@@ -56,7 +56,7 @@ Mỗi phần tử trong `tabs` cần một slot cùng tên `value` chứa nội 
 
 ## States
 
-active / inactive · hover · focus-visible (ring thép trên trigger) · disabled (per-tab: giảm opacity,
+active / inactive · hover · focus-visible (ring warp trên trigger) · disabled (per-tab: giảm opacity,
 không nhận click/phím, indicator không trượt tới).
 
 ## A11y
@@ -69,7 +69,7 @@ di chuyển selection trong list, Tab thoát list (roving tabindex — Reka UI l
 Indicator dùng chung trượt tới trigger active (`--dur-fast`/`--ease-spring`, đo bằng các biến CSS Reka
 cấp qua `ResizeObserver` nội bộ); trigger tự thân chỉ đổi màu chữ bằng `--ease-out`. Panel active
 `animate-fade-rise` mỗi lần đổi tab (nội dung trồi nhẹ lên đồng thời với indicator trượt). Tôn trọng
-`prefers-reduced-motion` qua rule chặn chung của Alloy (`global.css`), không cần xử lý riêng.
+`prefers-reduced-motion` qua rule chặn chung của Loom (`global.css`), không cần xử lý riêng.
 
 ## Do / Don't
 

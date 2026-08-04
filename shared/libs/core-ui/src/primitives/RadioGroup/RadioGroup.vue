@@ -67,9 +67,9 @@ defineEmits<{ "update:modelValue": [value: string] }>();
             // rides --ease-spring while border stays instant --ease-out (style
             // below), same press language as Button/Switch/Checkbox.
             'active:scale-90',
-            // Selected = a human decision (Alloy law): the ring turns steel.
+            // Selected = a human decision (Loom law): the ring turns warp.
             'data-[state=checked]:border-primary',
-            // Focus opens the alloy: the brand ring blooms.
+            // Focus draws the weave tight: the brand ring blooms.
             'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:shadow-halo',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )

@@ -1,10 +1,10 @@
 /**
- * @ecoma-io/ui — Alloy design system.
+ * @ecoma-io/ui — Loom design system.
  * Public entry: primitives + utilities. Tokens/styles are imported by hosts
  * directly (see ./styles/global.css and ../tailwind.preset.js).
  */
 export { cn } from "./lib/cn";
-export { applyAlloyIconDefaults } from "./lib/icon-defaults";
+export { applyLoomIconDefaults } from "./lib/icon-defaults";
 // WCAG_TAGS is deliberately NOT re-exported here — it ships from the narrow
 // `@ecoma-io/ui/a11y` entry so a non-Vue consumer can read it without pulling
 // in every component below (see tsconfig.base.json).

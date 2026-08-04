@@ -4,11 +4,11 @@ import Checkbox from "../../../src/primitives/Checkbox/Checkbox.vue";
 import Switch from "../../../src/primitives/Switch/Switch.vue";
 import TextField from "../../../src/primitives/TextField/TextField.vue";
 
-// The four signature devices of the Alloy dual-force law, each isolated so its
+// The four signature devices of the Loom dual-force law, each isolated so its
 // token reads on its own. The swatches use the real utilities
 // (bg-primary / bg-agent / bg-seam / animate-seam-flow / animate-conduct /
 // shadow-halo) so this page also proves they compile. The live Checkbox/Switch
-// show the "checked = steel fill" rule on real components; focus the TextField
+// show the "checked = warp fill" rule on real components; focus the TextField
 // to see the halo.
 const checked = ref(true);
 const on = ref(true);
@@ -34,7 +34,7 @@ const text = ref("Quy trình nhập kho");
         <div>
           <div class="text-sm font-medium">Dual-force fill</div>
           <div class="text-xs text-muted-foreground">
-            Màu kể ai đang làm — thép cho người, đồng cho agent
+            Màu kể ai đang làm — warp cho người, weft cho agent
           </div>
         </div>
       </div>
@@ -45,9 +45,9 @@ const text = ref("Quy trình nhập kho");
           style="background-size: 200% 100%"
         />
         <div>
-          <div class="text-sm font-medium">Weld seam</div>
+          <div class="text-sm font-medium">Seam</div>
           <div class="text-xs text-muted-foreground">
-            Mối hàn thép→đồng tại điểm bàn giao — sống khi cộng tác đang chạy
+            Đường can warp→weft tại điểm bàn giao — sống khi cộng tác đang chạy
           </div>
         </div>
       </div>
@@ -63,22 +63,22 @@ const text = ref("Quy trình nhập kho");
         </div>
         <div>
           <div class="text-sm font-medium">Conduct</div>
-          <div class="text-xs text-muted-foreground">Nhịp dẫn đồng — agent đang làm việc</div>
+          <div class="text-xs text-muted-foreground">Nhịp thoi đưa — agent đang làm việc</div>
         </div>
       </div>
 
       <div class="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
         <div class="flex items-center gap-3">
           <span class="h-5 w-5 rounded-sm bg-primary" />
-          <Checkbox v-model="checked" label="Đã chọn — fill thép" />
+          <Checkbox v-model="checked" label="Đã chọn — fill warp" />
           <!-- Switch carries no label of its own by design (its doc header: the
                setting row owns it). This gallery has no row, so the name goes here. -->
-          <Switch v-model="on" aria-label="Đã bật — fill thép" />
+          <Switch v-model="on" aria-label="Đã bật — fill warp" />
         </div>
         <div>
           <div class="text-sm font-medium">Màu = lực lượng</div>
           <div class="text-xs text-muted-foreground">
-            Bật/chọn là quyết định của người → fill thép phẳng, không glow
+            Bật/chọn là quyết định của người → fill warp phẳng, không glow
           </div>
         </div>
       </div>
@@ -86,7 +86,7 @@ const text = ref("Quy trình nhập kho");
 
     <div class="rounded-lg border border-border bg-card p-5">
       <div class="mb-2 text-xs text-muted-foreground">
-        Bấm vào field để thấy focus halo (quầng thép quanh ring) trên component thật:
+        Bấm vào field để thấy focus halo (quầng warp quanh ring) trên component thật:
       </div>
       <TextField v-model="text" class="w-full max-w-sm" aria-label="Tên quy trình" />
     </div>

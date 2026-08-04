@@ -5,7 +5,7 @@
  * name, its live count and one line of orientation, and owns the surface's
  * primary actions.
  *
- * Two things it deliberately does, both from the Alloy spec pages:
+ * Two things it deliberately does, both from the Loom spec pages:
  *
  * - **Pinned, and separated by a hairline — never a shadow** (Design System ›
  *   Elevation, "hairline over shadow" and "pinned chrome"). It sits on

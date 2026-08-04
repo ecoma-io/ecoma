@@ -4,7 +4,7 @@
  * `preview.ts` reads it, and the preset iframe below sets it, which is what
  * keeps the nested frame from wrapping itself again forever.
  */
-export const BARE_PARAM = "alloyBare";
+export const BARE_PARAM = "loomBare";
 
 /** Widths the picker offers; `null` = unconstrained, the real browser window. */
 export const VIEWPORT_WIDTHS = {
@@ -26,7 +26,7 @@ import { SegmentedControl } from "@ecoma-io/ui";
 
 /**
  * Wraps every story with an inline viewport preview surface — replaces the
- * removed toolbar chrome (manager.ts hides showToolbar entirely). Alloy ships
+ * removed toolbar chrome (manager.ts hides showToolbar entirely). Loom ships
  * a single default theme (no runtime light/dark switch), so this only needs to
  * control preview width — from a narrow window up to ultrawide.
  *

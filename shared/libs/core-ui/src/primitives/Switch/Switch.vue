@@ -27,9 +27,9 @@ defineEmits<{ "update:modelValue": [value: boolean] }>();
         'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-transparent',
         'transition-[background-color,filter,box-shadow] duration-instant ease-out',
         'hover:brightness-95',
-        // Checked = a human decision (Alloy law): the track fills flat steel.
+        // Checked = a human decision (Loom law): the track fills flat warp.
         'data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30',
-        // Focus opens the alloy: the brand ring blooms.
+        // Focus draws the weave tight: the brand ring blooms.
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:shadow-halo',
         'disabled:cursor-not-allowed disabled:opacity-50',
       )

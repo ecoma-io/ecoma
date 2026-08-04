@@ -1,6 +1,6 @@
 // Tailwind config for the design-system app's Storybook (the a11y-gated host
 // for core-ui's stories and design docs). Theme comes from core-ui's shared
-// Alloy preset; content scans the component source this Storybook renders plus
+// Loom preset; content scans the component source this Storybook renders plus
 // this app's own .storybook files — nothing else contributes markup.
 //
 // The preset import is relative across projects on purpose: jiti loads this

@@ -38,7 +38,7 @@ const { attrs, rest: triggerAttrs } = useSplitAttrs();
 /**
  * Select — pick one value from a closed list (~3–15 items) via a compact
  * trigger + popover listbox. Built on Reka UI's Select: arrow-key navigation,
- * typeahead, Esc-to-close, aria-expanded/haspopup="listbox". Alloy tokens.
+ * typeahead, Esc-to-close, aria-expanded/haspopup="listbox". Loom tokens.
  */
 withDefaults(
   defineProps<{
@@ -77,7 +77,7 @@ defineEmits<{ "update:modelValue": [value: string] }>();
         cn(
           'group inline-flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background text-foreground',
           'transition-[color,background-color,box-shadow] duration-fast ease-out hover:bg-subtle',
-          // Rim-lit at rest, alloy bloom on focus (Signature law).
+          // Rim-lit at rest, the weave blooms on focus (Signature law).
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
           !invalid && 'focus-visible:shadow-halo',
           size === 'sm' && 'h-8 px-2.5 text-xs',

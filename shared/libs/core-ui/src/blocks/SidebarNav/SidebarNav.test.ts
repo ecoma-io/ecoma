@@ -59,7 +59,7 @@ describe("SidebarNav", () => {
     expect(links[1].attributes("aria-current")).toBeUndefined();
   });
 
-  it("paints the active item with the human/thép accent alone — a tinted fill, never the agent copper", () => {
+  it("paints the active item with the human/warp accent alone — a tinted fill, never the agent weft", () => {
     const wrapper = mount(SidebarNav, { props: { sections: SECTIONS } });
     const links = wrapper.findAll("a");
     expect(links[0].classes()).toContain("bg-primary/10");

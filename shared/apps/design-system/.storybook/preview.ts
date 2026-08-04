@@ -2,17 +2,17 @@ import type { Preview, Decorator } from "@storybook/vue3-vite";
 import { h } from "vue";
 import PreviewSurface, { BARE_PARAM } from "./PreviewSurface.vue";
 
-import "./tailwind.css"; // Tailwind v4 engine + Alloy theme (@config) — load first.
+import "./tailwind.css"; // Tailwind v4 engine + Loom theme (@config) — load first.
 // Cross-project imports go through core-ui's public aliases (resolved by the
 // derived alias entries in main.ts's viteFinal) — a relative path into another
 // project is banned by @nx/enforce-module-boundaries.
 import "@ecoma-io/ui/styles/global.css";
-import { applyAlloyIconDefaults } from "@ecoma-io/ui";
+import { applyLoomIconDefaults } from "@ecoma-io/ui";
 // Shared with the design-system-e2e axe gate so the panel and the gate can't
 // disagree on what counts as a violation — see that module's header.
 import { WCAG_TAGS } from "@ecoma-io/ui/a11y";
 
-applyAlloyIconDefaults(); // lucide size 16 / stroke 1.5 — Design System › Iconography
+applyLoomIconDefaults(); // lucide size 16 / stroke 1.5 — Design System › Iconography
 
 /**
  * Wrap every demo in the inline viewport preview surface (toolbar is hidden —

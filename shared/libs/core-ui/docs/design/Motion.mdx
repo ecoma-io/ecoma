@@ -30,9 +30,9 @@ export const eases = [
 
 # Motion
 
-Chuyển động là **ngữ nghĩa**, không phải trang trí. Đây là chất riêng lớn nhất của Alloy:
+Chuyển động là **ngữ nghĩa**, không phải trang trí. Đây là chất riêng lớn nhất của Loom:
 mọi thay đổi trạng thái đều có micro-animation ngắn, truyền đạt **quan hệ nhân–quả** —
-bấm thì lún, mở thì nở, agent đang làm thì dẫn nhịp, mối hàn đang cộng tác thì trôi.
+bấm thì lún, mở thì nở, agent đang làm thì đưa thoi, đường can đang cộng tác thì trôi.
 
 **Trần 200ms cho mọi feedback UI.** Nhanh để cảm thấy tức thời, không bao giờ ì ạch.
 
@@ -89,7 +89,7 @@ bấm thì lún, mở thì nở, agent đang làm thì dẫn nhịp, mối hàn 
 
 Bấm **Replay** để xem lại. `fade` chỉ mờ (nền overlay không được dịch chuyển), `fade-rise` và
 `scale-in` cho nội dung xuất hiện; `toast-in` cho Toast trượt vào theo trục swipe; `conduct` là
-nhịp dẫn đồng báo hiệu agent đang làm việc; `seam-flow` cho mối hàn sống khi cộng tác người↔agent
+nhịp thoi đưa báo hiệu agent đang làm việc; `seam-flow` cho đường can sống khi cộng tác người↔agent
 đang chạy; `progress-indeterminate` là đoạn quét khi chưa có phần trăm để vẽ; các làn easing cho
 thấy khác biệt về cảm giác.
 
@@ -168,7 +168,7 @@ quy tắc scope-theo-state ở mục trên. Xem `Popover.vue`.
 
 ## Two tiers of motion
 
-Alloy chia motion làm **hai tầng**, dùng đúng công cụ cho đúng việc:
+Loom chia motion làm **hai tầng**, dùng đúng công cụ cho đúng việc:
 
 | Tầng                                  | Công cụ                                                   | Dùng cho                                                                                        | Trần                               |
 | ------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------- |
@@ -196,7 +196,7 @@ Khi nào token CSS đuối và nên leo lên GSAP:
 
 ## Accent example — AI returns result moment
 
-Đây chính là loại motion mà tầng token cố tình _không_ làm: quầng đồng bung ra khi agent bàn
+Đây chính là loại motion mà tầng token cố tình _không_ làm: quầng weft bung ra khi agent bàn
 giao, rồi kết quả trồi lên theo `stagger` với overshoot `back.out`. Bấm **Diễn lại accent**.
 
 <Canvas of={Demos.GsapAccent} />
@@ -206,7 +206,7 @@ import gsap from "gsap";
 
 const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-// Quầng đồng bung ra khi agent bàn giao (accent, không phải feedback)
+// Quầng weft bung ra khi agent bàn giao (accent, không phải feedback)
 tl.fromTo(
   ".burst",
   { scale: 0.6, opacity: 0.85 },
@@ -228,7 +228,7 @@ tl.fromTo(
 - **Vẫn tôn trọng token.** Ease/thời lượng GSAP soi chiếu theo thang ở trên: các bước ngắn bám
   `--ease-out`, overshoot là họ hàng của `--ease-spring`. Accent không được _lệch tông_ khỏi hệ.
 - **Điểm chạm là nhân vật chính.** Accent gần như luôn xoay quanh khoảnh khắc hai lực lượng gặp
-  nhau — agent bàn giao, người phê duyệt, mối hàn khép — đó là lý do nó "ấn tượng" mà vẫn nhất quán.
+  nhau — agent bàn giao, người phê duyệt, đường can khép — đó là lý do nó "ấn tượng" mà vẫn nhất quán.
 - **Reduced-motion là bắt buộc, không phải tuỳ chọn.** Với `prefers-reduced-motion: reduce`, bỏ
   toàn bộ dàn cảnh và hiện thẳng trạng thái cuối (demo trên đã làm đúng vậy).
 - **Dọn dẹp.** Chạy accent trong `gsap.context()` và `revert()` khi unmount / trước khi diễn lại,

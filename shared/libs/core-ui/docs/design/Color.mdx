@@ -11,9 +11,9 @@ export const swatches = [
   { name: "border", v: "--border" },
   { name: "border-strong", v: "--border-strong" },
   { name: "foreground", v: "--foreground" },
-  { name: "primary · Human (thép)", v: "--primary" },
+  { name: "primary · Human (warp)", v: "--primary" },
   { name: "primary-muted", v: "--primary-muted" },
-  { name: "agent · Agent (đồng)", v: "--agent" },
+  { name: "agent · Agent (weft)", v: "--agent" },
   { name: "agent-muted", v: "--agent-muted" },
   { name: "secondary", v: "--secondary" },
   { name: "destructive", v: "--destructive" },
@@ -77,27 +77,29 @@ export const Seam = () => (
 
 # Color
 
-Bảng màu Alloy là **hai lực lượng trên nền giấy**: trung tính giấy kỹ thuật sáng (lạnh nhẹ về
-phía thép) làm nền cho toàn bộ UI, và **hai màu có vai trò** — không phải một accent trang trí.
+Bảng màu Loom là **hai sợi trên nền giấy**: trung tính giấy kỹ thuật sáng (ngả nhẹ về phía
+xanh của warp) làm nền cho toàn bộ UI, và **hai màu có vai trò** — không phải một accent trang
+trí.
 
-### Human — thép (`--primary`)
+### Human — warp (`--primary`)
 
-Màu của **con người**: những gì người tạo, sửa, quyết. Kiêm màu hành động mặc định — nút
-primary, CTA, focus ring, trạng thái bật/chọn của control — vì người cầm lái UI. Wash
-`--primary-muted` cho nền selected/active.
+Sợi dọc căng sẵn trên khung, màu của **con người**: những gì người tạo, sửa, quyết. Kiêm màu
+hành động mặc định — nút primary, CTA, focus ring, trạng thái bật/chọn của control — vì người
+cầm lái UI. Wash `--primary-muted` cho nền selected/active.
 
-### Agent — đồng (`--agent`)
+### Agent — weft (`--agent`)
 
-Màu của **lực lượng lao động agent**: badge agent, bước quy trình do agent chạy, tiến độ tự
-động, nhịp `conduct`. Wash `--agent-muted` cho bề mặt agent. Đồng không phải "màu phụ" của
-thép — hai lực lượng ngang hàng, mỗi bên một việc. Không dùng đồng cho hành động của người,
-không dùng thép cho việc agent đang chạy: **màu kể ai đang làm**, trộn vai là mất nghĩa.
+Sợi ngang đưa thoi chạy qua khung đó, màu của **lực lượng lao động agent**: badge agent, bước
+quy trình do agent chạy, tiến độ tự động, nhịp `conduct`. Wash `--agent-muted` cho bề mặt agent.
+Weft không phải "màu phụ" của warp — không có sợi ngang thì không thành vải; hai lực lượng ngang
+hàng, mỗi bên một việc. Không dùng weft cho hành động của người, không dùng warp cho việc agent
+đang chạy: **màu kể ai đang làm**, trộn vai là mất nghĩa.
 
-### Mối hàn — `--seam`
+### Đường can (seam) — `--seam`
 
 <Seam />
 
-Gradient thép→đồng, nội suy **OKLCH** để đoạn giữa không xỉn. Chỉ ở điểm chạm hai lực lượng —
+Gradient warp→weft, nội suy **OKLCH** để đoạn giữa không xỉn. Chỉ ở điểm hai sợi bắt nhau —
 luật đầy đủ ở `Signature`. Không bao giờ dưới chữ nội dung, không trên phần tử nhỏ hơn 20px,
 không làm nền lớn.
 
@@ -110,8 +112,8 @@ _Elevation_).
 ### Functional
 
 `--destructive` / `--success` / `--warning` / `--info` được chỉnh đậm đủ đọc trên nền sáng
-(fill kèm chữ trắng đạt AA). Hue cố ý tách khỏi cả hai lực lượng: info không được lẫn với thép,
-warning không được lẫn với đồng — nếu không màu lực lượng ngừng mang nghĩa.
+(fill kèm chữ trắng đạt AA). Hue cố ý tách khỏi cả hai lực lượng: info không được lẫn với warp,
+warning không được lẫn với weft — nếu không màu lực lượng ngừng mang nghĩa.
 
 ## Default palette
 

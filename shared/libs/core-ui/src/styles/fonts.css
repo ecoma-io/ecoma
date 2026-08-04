@@ -1,12 +1,12 @@
 /**
- * Alloy — self-hosted type: Geist + Geist Mono (variable, wght 100–900).
+ * Loom — self-hosted type: Geist + Geist Mono (variable, wght 100–900).
  * Files vendored from the `geist` npm package (Vercel), licensed SIL OFL 1.1
  * (see ./fonts/OFL.txt — the license travels with the fonts). Self-hosting is
  * the offline-safe rule made real: `tokens.css` names Geist first in
  * --font-sans/--font-mono, and this file is what makes that name resolve in
  * every host (web, desktop, Storybook) with no network fetch.
  *
- * Imported by ./global.css so every host that loads the Alloy base styles
+ * Imported by ./global.css so every host that loads the Loom base styles
  * gets the faces for free — hosts never import this file directly.
  */
 @font-face {

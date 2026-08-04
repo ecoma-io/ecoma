@@ -6,7 +6,7 @@ import IconographyDemo from "./IconographyDemo.vue";
 import GsapAccentDemo from "./GsapAccentDemo.vue";
 
 /**
- * Demo host stories for the Design layer (Alloy foundations). Referenced
+ * Demo host stories for the Design layer (Loom foundations). Referenced
  * by the MDX docs via <Canvas of={…} />.
  * '!dev' hides them from the sidebar; '!test' keeps them out of the vitest
  * a11y gate — they are doc scaffolding (GSAP/animation showcases, not
