@@ -18,6 +18,17 @@
 # remote. That registration is not optional: `git ls-files
 # --recurse-submodules`, which every workspace gate enumerates through, stops
 # at an unregistered gitlink and reports nothing under `cloud/` at all.
+#
+# These lines say nothing about the reverse direction — a cloud session
+# attached to the private repository reaching this one — because no file can
+# grant it: such a session is born with credentials for its own checkout
+# only, and a session environment cannot declare a second repository source.
+# The sanctioned route is the session's own repository grant (`add_repo`,
+# push access), requested at the start of the session while the operator is
+# still present to approve it — measured working end-to-end 2026-08-04. The
+# private repository's mount hook prints that instruction into every cloud
+# session, and its doctrine carries the degraded patch-series fallback for
+# when the grant fails.
 [submodule "cloud"]
 	path = cloud
 	url = ../ecoma-cloud.git
