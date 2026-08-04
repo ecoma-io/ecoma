@@ -654,6 +654,46 @@ describe("findConventionViolations", () => {
     expect(judge(files)).toEqual([]);
   });
 
+  it("accepts a package's copy of the root LICENSE when it matches byte for byte", () => {
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/LICENSE": HEALTHY.LICENSE,
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("flags a package's copy of the root LICENSE once it has drifted", () => {
+    // The real failure this covers: retiring a tier from the root LICENSE left
+    // a publishable package shipping the old text, so its tarball granted terms
+    // the project had withdrawn — to everyone who installed it. npm resolves
+    // nothing across package boundaries, so the copy must exist; what it must
+    // not be is unchecked.
+    const files = {
+      ...HEALTHY,
+      "vider/libs/vider-ui/LICENSE": `${HEALTHY.LICENSE}\n\nAlso: an enterprise directory is unlicensed.`,
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining("vider/libs/vider-ui/LICENSE: differs from the root LICENSE"),
+    ]);
+  });
+
+  it("leaves a carve-out's own LICENSE to the rule that judges its terms", () => {
+    // A `packages` directory ships the Apache text, which is SUPPOSED to differ
+    // from the root. Judging it by the copy rule would demand the two be equal
+    // and make the carve-out impossible to satisfy.
+    const files = {
+      ...HEALTHY,
+      "vider/packages/LICENSE": "Apache License 2.0",
+      "vider/packages/driver-api/project.json": project([
+        "type:lib",
+        "scope:vider",
+        "license:apache",
+      ]),
+      "vider/packages/driver-api/src/index.ts": "export {};",
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
   it("holds the workspace-root manifest to the same derivation", () => {
     const files = { ...HEALTHY, "package.json": JSON.stringify({ private: true }) };
     expect(judge(files)).toEqual([expect.stringContaining('package.json: "license" is null')]);

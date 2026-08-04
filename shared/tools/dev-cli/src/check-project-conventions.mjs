@@ -268,6 +268,30 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
+  // A LICENSE anywhere but the root or a carve-out is a COPY of the tree's own
+  // terms, shipped so a published tarball carries the text its `LicenseRef-`
+  // points at. A copy nothing keeps in sync is a copy that goes stale, and this
+  // one did: after the Enterprise tier was retired from the root LICENSE, the
+  // copy still declared five exceptions, still said an `enterprise` directory
+  // was unlicensed, and still sent readers to a document that no longer exists
+  // — terms that were never granted, shipping to every consumer of the package.
+  //
+  // The alternative to a gate is not "no copy". npm resolves nothing across
+  // package boundaries, so the file has to be there. What it can be is checked
+  // (Rule 14: a value copied across two files was never a valid hardcode).
+  for (const path of rootLicenseText ? trackedFiles : []) {
+    if (path === ROOT_LICENSE_FILE || !path.endsWith(`/${ROOT_LICENSE_FILE}`)) continue;
+    const dir = path.slice(0, -`/${ROOT_LICENSE_FILE}`.length);
+    if (carveOutRoots.has(dir)) continue; // its own terms, judged just above
+    if ((readFile(path) ?? "").trim() !== rootLicenseText) {
+      violations.push(
+        `${path}: differs from the root ${ROOT_LICENSE_FILE} — this is a copy shipped inside a ` +
+          `package so its tarball carries the terms its manifest names, and a copy that has ` +
+          `drifted grants whatever it happens to say, to everyone who installs it`,
+      );
+    }
+  }
+
   // Every manifest's terms now come from one place: the LICENSE the tree ships,
   // refined by the path only where that tree carves an exception out of itself.
   // The root manifest takes the tree's terms directly; a nested one asks
