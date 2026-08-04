@@ -127,6 +127,26 @@ describe("what a run does to the thread", () => {
     expect(clean.calls.updated).toHaveLength(0);
   });
 
+  it("stays silent when the gate is red for reasons that are not this author's", async () => {
+    const { calls, client } = fakeThread([]);
+    const code = await claNotice(["--pr", "7", "--author", "someone"], {
+      spawn: failingSpawn("contributors/other-person.md: 'Address:' is blank"),
+      client,
+    });
+    expect(code).toBe(0);
+    expect(calls.created).toHaveLength(0);
+    expect(calls.updated).toHaveLength(0);
+  });
+
+  it("posts when the roster fault names this author, whatever the record file's casing", async () => {
+    const { calls, client } = fakeThread([]);
+    await claNotice(["--pr", "7", "--author", "CasedUser"], {
+      spawn: failingSpawn("CONTRIBUTORS.md: does not name 'CasedUser', whose record exists"),
+      client,
+    });
+    expect(calls.created).toHaveLength(1);
+  });
+
   it("never claims a comment that merely quotes the marker mid-body", async () => {
     const { calls, client } = fakeThread([{ id: 9, body: `quoting ${CLA_NOTICE_MARKER} inside` }]);
     await claNotice(["--pr", "7", "--author", "someone"], { spawn: failingSpawn(), client });
