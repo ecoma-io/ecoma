@@ -46,33 +46,74 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { linkTargets } from "./check-doc-links.mjs";
+import { licenseForPath } from "./license-scope.mjs";
 import { LANGS } from "./readme-schema.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
-/** The published tree. Everything below is scoped to it. */
+/** The published tree — the root judged when the caller names none. */
 export const DOCTRINE_ROOT = "shared/libs/doctrine";
 
 /**
- * The pathspec naming the documents this gate judges: markdown inside the
- * tree's families, and deliberately not the project's own `README.md` triad or
- * its `CLAUDE.md`, which sit at the root. Those carry a different contract —
- * the README triad is a fixed-order frontmatter block gated by
- * `check-subproject-readmes`, in which a `canonical-sha` key is a violation
- * rather than a requirement, and its three languages are peers rather than a
- * canonical with variants.
+ * The pathspec naming every markdown file under a doctrine root. In git
+ * pathspec syntax `*` crosses `/`, so this reaches any depth.
  *
  * Named rather than written inline because `doctrine-sync` writes the
  * fingerprints this gate reads: the two scanning different sets is exactly how
  * a README acquires a key no gate asked for.
  */
-export const DOCTRINE_DOCS = `${DOCTRINE_ROOT}/**/*.md`;
+export const doctrineDocs = (root) => `${root}/*.md`;
+export const DOCTRINE_DOCS = doctrineDocs(DOCTRINE_ROOT);
+
+/**
+ * The project's own files, excluded from every rule here because they carry a
+ * different contract: the README variants are a fixed-order frontmatter block
+ * gated by `check-subproject-readmes`, in which a `canonical-sha` key is a
+ * violation rather than a requirement and the languages are peers rather than
+ * a canonical with variants; `CLAUDE.md` is directory guidance, not doctrine.
+ *
+ * Excluded by WHAT THE FILE IS rather than by where it sits. A depth-based
+ * pathspec (`root/ ** /*.md`) excludes the same four files in the published
+ * tree only because its documents live one directory down — and in the
+ * withheld tier, where every document sits directly at the root, that same
+ * pathspec matches NOTHING and the gate reports a clean tree having read no
+ * file at all. Measured, not reasoned: the gate ran green over a withheld tier
+ * carrying a deliberately planted round marker until this was fixed.
+ */
+export const PROJECT_OWNED_DOC = /^(?:README(?:\.[a-z]{2})?|CLAUDE)\.md$/;
+
+/** Every doctrine document under `root`, project-owned files excluded. */
+export function doctrineDocPaths(root, list = listTrackedFiles) {
+  return list([doctrineDocs(root)]).filter(
+    (path) => !PROJECT_OWNED_DOC.test(path.slice(path.lastIndexOf("/") + 1)),
+  );
+}
+
+/**
+ * Whether the tree at `root` is the withheld tier, DERIVED from the licence
+ * that already governs the path rather than declared a second time (Rule 14
+ * rung 1). The two tiers of one corpus differ by exactly one fact — whether
+ * the prose is published — and `licenseForPath` is where this workspace
+ * already answers it. A downstream tree consuming this gate gets the same
+ * answer for free: its doctrine sits under `cloud/`, which that function
+ * resolves to `proprietary`.
+ *
+ * Three of this gate's rules exist only because a document is public, and
+ * running them against the withheld tier would report the tier's own contents
+ * as violations: bet identifiers are refused in the published tree precisely
+ * because the ledger that owns them lives in the withheld one; the corpus map
+ * routes the published tree and no other; and a reference family whose owner
+ * is published is not orphaned when a withheld document cites it across the
+ * boundary. The remaining rules — no episode coordinates, no stale variant —
+ * are properties of doctrine prose in either tier and always run.
+ */
+export const withheldTier = (root) => licenseForPath(root) === "proprietary";
 
 /**
  * Markers that must not survive redaction, each with the reason it goes — the
  * message a failing file shows, so the fix is obvious without opening this
  * file.
  */
-export const FORBIDDEN = [
+export const EPISODE_MARKERS = [
   {
     id: "round",
     pattern: /\b(?:vòng|round)\s*#?\s*\d+[a-z]?\b/gi,
@@ -93,12 +134,25 @@ export const FORBIDDEN = [
     pattern: /\bW\d{1,2}\b/g,
     why: "keep what the blind spot is; drop the label that only indexes our own history",
   },
+];
+
+/**
+ * Markers refused because the document is PUBLISHED, not because it is
+ * doctrine — so they are judged in the published tier alone. A bet identifier
+ * is legitimate vocabulary in the tier that holds the ledger defining it; what
+ * makes it a violation here is publication, which is the one thing the two
+ * tiers do not share.
+ */
+export const PUBLICATION_MARKERS = [
   {
     id: "bet",
     pattern: /\bBET-\d{1,2}\b/g,
     why: "bet identifiers belong to the market ledger, which is not published",
   },
 ];
+
+/** Every marker the published tier refuses — the two sets above, in order. */
+export const FORBIDDEN = [...EPISODE_MARKERS, ...PUBLICATION_MARKERS];
 
 /**
  * Reference families and the filename fragment of the document that owns each.
@@ -111,11 +165,18 @@ export const FAMILIES = [
   { id: "adr", pattern: /ADR-\d{4}/, owner: "adr", cites: "an ADR" },
 ];
 
-/** Every forbidden marker in `text`, with its line number. Pure. */
-export function findForbidden(text) {
+/**
+ * Every marker from `rules` in `text`, with its line number. Pure.
+ *
+ * The rule set is a parameter rather than a constant read inside because which
+ * markers apply is a property of the TIER being judged, and a function that
+ * decided that for itself would need to know the tier — a second place for the
+ * one fact `withheldTier` already derives.
+ */
+export function findForbidden(text, rules = FORBIDDEN) {
   const lines = text.split("\n");
   const hits = [];
-  for (const rule of FORBIDDEN) {
+  for (const rule of rules) {
     lines.forEach((line, i) => {
       for (const match of line.matchAll(rule.pattern)) {
         hits.push({ line: i + 1, marker: match[0], id: rule.id, why: rule.why });
@@ -142,8 +203,12 @@ export function findOrphanFamilies(files) {
  * published page it does not name is a page nobody arrives at, and nobody
  * reports a page they do not know exists — the same failure `buildNav`'s
  * refusals close on the site, closed here on the content instead.
+ *
+ * The published tier alone has one: it is the document that tells an outside
+ * reader what exists, and the withheld tier has no outside reader to tell.
  */
-export const CORPUS_MAP = `${DOCTRINE_ROOT}/overview/index.md`;
+export const corpusMapFor = (root) => `${root}/overview/index.md`;
+export const CORPUS_MAP = corpusMapFor(DOCTRINE_ROOT);
 
 /**
  * Documents in `files` the corpus map does not route to. Pure; `files` is a
@@ -157,18 +222,18 @@ export const CORPUS_MAP = `${DOCTRINE_ROOT}/overview/index.md`;
  * document as its canonical, so the canonical's row routes both, and an
  * orphaned variant is `findStaleVariants`' finding, not this one's.
  */
-export function findUnmappedDocuments(files) {
+export function findUnmappedDocuments(files, mapPath = CORPUS_MAP) {
   if (files.length === 0) return []; // nothing published yet, so nothing to route
 
-  const map = files.find((f) => f.path === CORPUS_MAP);
-  if (!map) return [{ path: CORPUS_MAP, why: "the corpus map itself is missing" }];
+  const map = files.find((f) => f.path === mapPath);
+  if (!map) return [{ path: mapPath, why: "the corpus map itself is missing" }];
 
   const routed = new Set(linkTargets(map.text, map.path).map((link) => link.resolved));
   return files
-    .filter((f) => f.path !== CORPUS_MAP && !variantOf(f.path) && !routed.has(resolve(f.path)))
+    .filter((f) => f.path !== mapPath && !variantOf(f.path) && !routed.has(resolve(f.path)))
     .map((f) => ({
       path: f.path,
-      why: `no row in ${CORPUS_MAP} — a published document the corpus map does not route to`,
+      why: `no row in ${mapPath} — a published document the corpus map does not route to`,
     }));
 }
 
@@ -220,13 +285,13 @@ const SEPARATOR = /^[\s|:-]+$/;
  * the licence ledger, the publishing policy — carry no such link in that
  * column, so the derivation selects exactly one table without being told which.
  */
-export function findUnmarkedEntries(files) {
-  const map = files.find((f) => f.path === CORPUS_MAP);
+export function findUnmarkedEntries(files, mapPath = CORPUS_MAP) {
+  const map = files.find((f) => f.path === mapPath);
   if (!map) return []; // an absent map is findUnmappedDocuments' finding, not a second one
 
-  const root = resolve(DOCTRINE_ROOT);
+  const root = resolve(mapPath, "../..");
   const routes = (cell) =>
-    linkTargets(cell, CORPUS_MAP).some((link) => link.resolved.startsWith(`${root}/`));
+    linkTargets(cell, mapPath).some((link) => link.resolved.startsWith(`${root}/`));
 
   const problems = [];
   for (const rows of tablesIn(map.text)) {
@@ -246,33 +311,52 @@ export function findUnmarkedEntries(files) {
   return problems;
 }
 
-/** Scans the published tree. Returns a process exit code. */
-export function checkDoctrine(read = readFileSync, list = listTrackedFiles) {
-  const paths = list([DOCTRINE_DOCS]);
+/**
+ * Scans a doctrine tree. Returns a process exit code.
+ *
+ * `args[0]` names the root to judge, defaulting to this workspace's published
+ * tree — so the command a downstream workspace runs against its withheld tier
+ * is the same command, differing by its argument rather than by a second
+ * implementation of the same rules. Which rules apply is NOT a second
+ * argument: it follows from the root through `withheldTier`, because a caller
+ * free to state the tier is a caller free to state it wrongly, and the mistake
+ * that matters — a published tree judged as if it were withheld — is exactly
+ * the one that would go unnoticed.
+ */
+export function checkDoctrine(args = [], deps = {}) {
+  const { read = readFileSync, list = listTrackedFiles, error = console.error } = deps;
+  const root = args[0] ?? DOCTRINE_ROOT;
+  const withheld = withheldTier(root);
+  const mapPath = corpusMapFor(root);
+
+  const paths = doctrineDocPaths(root, list);
   const files = paths.map((path) => ({ path, text: read(path, "utf8") }));
 
   let failed = false;
+  const markers = withheld ? EPISODE_MARKERS : FORBIDDEN;
   for (const file of files) {
-    for (const hit of findForbidden(file.text)) {
-      console.error(`${file.path}:${hit.line}: '${hit.marker}' — ${hit.why}`);
+    for (const hit of findForbidden(file.text, markers)) {
+      error(`${file.path}:${hit.line}: '${hit.marker}' — ${hit.why}`);
       failed = true;
     }
   }
   for (const problem of findStaleVariants(files)) {
-    console.error(`${problem.path}: ${problem.kind} translation — ${problem.why}`);
+    error(`${problem.path}: ${problem.kind} translation — ${problem.why}`);
     failed = true;
   }
-  for (const problem of findUnmappedDocuments(files)) {
-    console.error(`${problem.path}: ${problem.why}`);
+  if (withheld) return failed ? 1 : 0;
+
+  for (const problem of findUnmappedDocuments(files, mapPath)) {
+    error(`${problem.path}: ${problem.why}`);
     failed = true;
   }
-  for (const problem of findUnmarkedEntries(files)) {
-    console.error(`${CORPUS_MAP}:${problem.line}: ${problem.why}`);
+  for (const problem of findUnmarkedEntries(files, mapPath)) {
+    error(`${mapPath}:${problem.line}: ${problem.why}`);
     failed = true;
   }
   for (const family of findOrphanFamilies(files)) {
-    console.error(
-      `${DOCTRINE_ROOT}: cites ${family.cites} but the document that owns that family did not travel with it`,
+    error(
+      `${root}: cites ${family.cites} but the document that owns that family did not travel with it`,
     );
     failed = true;
   }

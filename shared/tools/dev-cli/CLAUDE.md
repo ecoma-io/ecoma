@@ -298,11 +298,29 @@ build/typecheck — invoked directly as
   performs a freeze: after one, a change to that interface is breaking and travels
   a major, so it stays a human act. `--run` executes the suites through Nx;
   without it the command is pure and runs on every commit.
+- **`check-doctrine` takes the root it judges**, defaulting to
+  `shared/libs/doctrine`. The corpus has two tiers and only one lives here, so
+  a downstream workspace runs the same command against its withheld tier
+  rather than growing a second implementation of the same rules. Which rules
+  apply is **derived from the root, never passed**: `withheldTier` asks
+  `licenseForPath`, because a caller free to state the tier is free to state
+  it wrongly, and "published tree judged as withheld" is precisely the mistake
+  nobody would notice. Three rules are publication-scoped — bet identifiers
+  (the ledger defining them lives in the withheld tier), corpus-map routing,
+  and orphan families (an owner published across the boundary is not missing);
+  episode markers and variant staleness are properties of doctrine prose and
+  run in both. **Documents are selected by what a file is, not by how deep it
+  sits**: `doctrineDocPaths` lists every `.md` under the root and drops the
+  README variants and `CLAUDE.md` by name. A depth-based pathspec excluded
+  those four only by accident of this tree's layout, and matched **nothing** in
+  a tier whose documents sit directly at its root — the gate then reported
+  clean having opened no file, which is the failure mode that reads as success.
 - `doctrine-sync` is the write side of `check-doctrine`'s staleness rule: it
   stamps each variant's `canonical-sha` with the fingerprint of the canonical
-  beside it. Both sides scan `check-doctrine`'s exported `DOCTRINE_DOCS`
-  pathspec, which reaches the documents inside the tree's families and
-  **not** the project's own `README.md` triad at the root — those three are
+  beside it. Both sides select documents through the same `doctrineDocPaths`
+  and take the same root argument, so the reader and the writer of one
+  fingerprint cannot be pointed at different trees. That selection reaches the
+  tree's documents and **not** the project's own README variants — those are
   peers under the fixed-order frontmatter block `check-subproject-readmes`
   gates, where a `canonical-sha` key is a failure rather than a repair. Two
   things to know before running it: it reads the git **index**, so a newly
