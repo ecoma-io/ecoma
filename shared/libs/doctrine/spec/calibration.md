@@ -162,8 +162,7 @@ shown: the default refuses it, and relaxing that remains the
 
 - No specific statistical or ML formula. The estimator is the evolving layer and
   carries an identity (§5).
-- No new store, no cross-tenant calibration, and no input from outside the
-  Judgment system.
+- No new store, and no cross-tenant calibration.
 - **No input that is not a signed Judgment on an output.** Nothing about conduct,
   attendance, hours or sentiment can enter a cell — §2's write path is the only
   door, and the CalKey (§1) binds every value to
@@ -215,8 +214,8 @@ shown: the default refuses it, and relaxing that remains the
    gate, so a policy that permitted the read still does not permit the export?
 7. Name a value in any cell that did not arrive as a signed Judgment on an
    output, and name a consumer of a cell that is not in §6's list. If neither can
-   be produced, §7's first two bullets are falsifiable claims rather than a
-   posture.
+   be produced, §7's **no-input** and **no-consumer** bullets are falsifiable
+   claims rather than a posture.
 
 ## Failure modes
 
