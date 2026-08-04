@@ -273,7 +273,8 @@ export const PROJECT_AUTOMATION = {
 
 /**
  * The subset of `PROJECT_AUTOMATION` this repository still runs, as
- * `{ <lower-cased login>: <the config that runs it> }`. `exists` is injected so
+ * `{ <lower-cased login>: { config, gitAuthor } }` — the entry as
+ * `PROJECT_AUTOMATION` declares it, keyed for lookup. `exists` is injected so
  * the reading can be tested without a tree.
  */
 export function projectAutomation(exists = existsSync) {
@@ -611,13 +612,16 @@ export function checkContributorRecord(args = []) {
       // declares for the account, never the account's login: the two are
       // different namespaces that coincide for Renovate and do not in general.
       const owed = commitsOwedSignOff(unsigned, automationGitAuthor);
-      if (automationGitAuthor) {
+      // Only worth saying when the exemption had something to act on: on an
+      // all-signed range the counts would read "0 of 0 … the rest are reported
+      // below" with nothing below, which is noise contradicting itself.
+      if (automationGitAuthor && unsigned.length > 0) {
         console.log(
           `Commits authored as '${automationGitAuthor}' owe no ${SIGN_OFF_TRAILER} trailer — ` +
             `automation this project runs certifies nothing, and its commits are not ` +
             `contributions. ${unsigned.length - owed.length} of the ${unsigned.length} untrailered ` +
-            `commit(s) in '${range}' matched; the rest are reported below. A bot whose commits are ` +
-            `all reported has a git author name PROJECT_AUTOMATION no longer describes.`,
+            `commit(s) in '${range}' matched; any remainder is reported below. A bot whose commits ` +
+            `are all reported has a git author name PROJECT_AUTOMATION no longer describes.`,
         );
       }
       for (const { sha, subject } of owed) {
