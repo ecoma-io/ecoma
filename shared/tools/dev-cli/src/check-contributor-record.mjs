@@ -1,31 +1,44 @@
 /**
  * Gates the acceptance mechanism `CLA.md` declares: a contributor agrees once,
- * by committing `contributors/<github-handle>.md`, and **nothing is granted
- * until that record exists**.
+ * by posting the agreement sentence as a pull request comment, and **nothing is
+ * granted until that signature exists**.
  *
  * That sentence was the whole control. `CONTRIBUTING.md` and `CLA.md` both
  * state it, `CODEOWNERS` protects the licence texts from being changed by
  * someone who could not make the grant — and nothing at all checked that a
- * merged contribution had a record behind it. The failure is silent by
+ * merged contribution had a signature behind it. The failure is silent by
  * construction and lands years later: the project cannot say what rights it
  * holds in that code, and relicensing needs a person it may no longer be able
  * to find.
  *
- * **Every vocabulary here is read out of `CLA.md`, never restated** (Rule 14
- * rung 1). The required field labels and the agreement sentence come from the
- * fenced block under "How you agree", and the version comes from the document's
- * effective-version line. Editing the agreement therefore moves the gate with
- * it; a copy here would be a second contract nobody knows they are signing.
+ * **What records the signature is the CLA action, not this gate.** The
+ * contributor's comment is turned into a line in the signatures file by
+ * `contributor-assistant/github-action` (`.github/workflows/cla.yml`), which
+ * commits it to this repository — so the writing the agreement needs lives in
+ * the tree, in git history, and in every clone, rather than in a service's
+ * database. This gate is the half that keeps the required check honest: the
+ * action publishes its own commit status, and branch protection here watches
+ * exactly one check (`ci-gate`), so the verdict has to be re-derivable inside
+ * CI or it is not covered by the thing that blocks a merge.
  *
- * Three modes, because the questions have different availability:
+ * **Every vocabulary here is read out of `CLA.md` or the workflow, never
+ * restated** (Rule 14 rung 1). The agreement sentence and the version come from
+ * `CLA.md`; the signatures path comes from the workflow input that writes it.
+ * Editing the agreement therefore moves the gate with it, and a workflow
+ * pointed at a new signature generation cannot leave this gate reading the old
+ * one. The dependency runs the other way too: `--sign-comment` and
+ * `--allowlist` print what the workflow needs as inputs, so the workflow
+ * derives them from here instead of writing a second copy of the sentence and a
+ * second answer to who is exempt.
  *
- * - Bare (pre-commit, CI): audits the **shape** of every record that exists.
- *   Runs offline, judges the tree, and is the mode that catches a record
- *   committed with a field missing.
+ * Modes, because the questions have different availability:
+ *
+ * - Bare (pre-push, CI): audits the **shape** of the signatures file and the
+ *   attribution promise around it. Runs offline, judges the tree.
  * - `--author <login> [--author-type <user.type>]`: additionally judges who
- *   opened the pull request — normally by requiring a record of them. Only CI can
- *   know that, so this mode is where the "no record, no grant" rule actually
- *   bites.
+ *   opened the pull request — normally by requiring a signature from them. Only
+ *   CI can know that, so this mode is where the "no signature, no grant" rule
+ *   actually bites.
  * - `--commits <range>`: additionally judges that every non-merge commit in the
  *   range carries the `Signed-off-by` trailer `CLA.md` asks for — the Developer
  *   Certificate of Origin, which the agreement deliberately keeps separate from
@@ -34,16 +47,17 @@
  *   certifies nothing, its commits are not contributions, and re-deriving that
  *   set somewhere else would be a second answer to a question this file has
  *   already answered.
+ * - `--sign-comment` / `--allowlist`: print, for the workflow to consume.
  *
- * **A record outlives the version it agreed to.** `CLA.md`'s own change rule
- * says a new version binds a contributor only once they agree to it, so a
- * record quoting a superseded assent sentence is valid, not stale. The set of
- * published versions is derived from git history of `CLA.md` (Rule 14 rung 1),
- * read lazily — see `auditRecordAcrossVersions`. The same clause-derivation
- * covers attribution: while `CLA.md` promises naming in `CONTRIBUTORS.md`
- * (clause 3), every record's handle must be named there, because a merged
- * contribution whose author that file omits is a promise the project is
- * already breaking.
+ * **A signature is bound to a version by the file it lands in.** `CLA.md`'s own
+ * change rule says a new version binds a contributor only once they agree to
+ * it, and the action's versioning is the mechanism: publishing a new version
+ * moves `path-to-signatures` to the next generation, everyone signs again, and
+ * the previous generation's file stays in the tree as the writing for
+ * everything already merged under it. That is why the join key is a path here
+ * and not a search through `CLA.md`'s git history — the history read was
+ * answering "which text did this record quote", a question a per-version file
+ * answers by construction.
  *
  * **A licensor is exempt, and the exemption is derived rather than named.** The
  * CLA runs *to* whoever can make a licence grant, so it would be circular for
@@ -60,7 +74,7 @@
  * the same edit. The law under which the agreement is governed says the same
  * thing from the other side: copyright arises only from a human's substantial
  * and decisive contribution, so a dependency bump nobody authored carries no
- * right for anyone to grant, and a record for it would be a licence contract
+ * right for anyone to grant, and a signature for it would be a licence contract
  * with a party that has no legal personality.
  *
  * **Being a machine account is necessary for that exemption and nowhere near
@@ -71,7 +85,7 @@
  *   and lockfile hashes — no authored expression, no author, nothing to license.
  * - A **coding agent** produces code, and someone directed it. Either that person
  *   steered it enough to be its author, in which case *they* are the contributor
- *   and owe a record, or nobody did, in which case no copyright arose and the
+ *   and owe a signature, or nobody did, in which case no copyright arose and the
  *   agreement's own clause on undisclosed provenance decides whether it can be
  *   taken at all. Neither branch is satisfied by the opener being a bot.
  *
@@ -84,17 +98,23 @@
  * it is answered by the tree, since automation this project runs is configured in
  * this repository. A caller that cannot say leaves `--author-type` out and the
  * author is treated as a person, which fails closed.
+ *
+ * **What this gate does not judge**, stated so it is not mistaken for covered:
+ * a pull request whose commits were authored by someone other than the account
+ * that opened it. `--author` asks about the opener; the action asks about every
+ * committer and is the wider of the two. Narrowing to the opener here is
+ * deliberate — GitHub is the only authority that can resolve a commit's author
+ * to an account, and that is a network call this command does not make.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 
 import { cwdGitEnv } from "./git-env.mjs";
 
 export const CLA = "CLA.md";
 export const CODEOWNERS = ".github/CODEOWNERS";
-export const CONTRIBUTORS_DIR = "contributors";
 export const CONTRIBUTORS_FILE = "CONTRIBUTORS.md";
+export const CLA_WORKFLOW = ".github/workflows/cla.yml";
 
 /** Literal text made safe to embed in a RegExp source. */
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -102,7 +122,8 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /**
  * The version the agreement declares for itself, e.g. `"1.0"` from
  * `**Version 1.0, effective 2026-07-30.**`. Throws rather than guessing: a
- * document with no version cannot have a record that names the right one.
+ * document with no version cannot have an assent sentence that names the right
+ * one.
  */
 export function claVersion(claText) {
   const m = claText.match(/^\*\*Version\s+([0-9.]+),/m);
@@ -111,103 +132,55 @@ export function claVersion(claText) {
 }
 
 /**
- * The record template `CLA.md` publishes — the fenced block under "How you
- * agree". Returns `{ fields, sentence }`: the `Label:` lines a record must
- * carry, and the one-sentence assent, whitespace-normalized because the
- * document wraps it and a record need not wrap it the same way.
+ * The agreement sentence `CLA.md` publishes — the fenced block under "How you
+ * agree", whitespace-normalized because the document may wrap it and the
+ * comparison the action makes is on a single trimmed line.
  */
-export function recordTemplate(claText) {
+export function assentSentence(claText) {
   const section = claText.split(/^## How you agree$/m)[1];
   if (!section) throw new Error(`${CLA}: no '## How you agree' section`);
   const fence = section.match(/```\n([\s\S]*?)```/);
-  if (!fence) throw new Error(`${CLA}: '## How you agree' carries no fenced record template`);
-
-  const body = fence[1];
-  const fields = [...body.matchAll(/^([A-Z][A-Za-z ]*):\s*$/gm)].map((m) => m[1]);
-  const sentence = body
-    .split("\n")
-    .filter((l) => !/^[A-Z][A-Za-z ]*:\s*$/.test(l) && l.trim())
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!fields.length) throw new Error(`${CLA}: the record template declares no fields`);
-  if (!sentence) throw new Error(`${CLA}: the record template declares no agreement sentence`);
-  return { fields, sentence };
+  if (!fence) throw new Error(`${CLA}: '## How you agree' carries no fenced agreement sentence`);
+  const sentence = fence[1].replace(/\s+/g, " ").trim();
+  if (!sentence) throw new Error(`${CLA}: the fenced agreement sentence is empty`);
+  return sentence;
 }
 
 /**
  * The version the agreement declares lives in two places — the
  * `**Version …**` line (which this gate reads) and inside the fenced assent
- * sentence (which every record must quote). Nothing forces an edit to move
- * both, so the gate cross-checks them: a fault here is a defect in `CLA.md`
- * itself, caught on the commit that drifted them apart rather than on the
- * first record that quotes the wrong one.
+ * sentence (which every signature quotes). Nothing forces an edit to move both,
+ * so the gate cross-checks them: a fault here is a defect in `CLA.md` itself,
+ * caught on the commit that drifted them apart rather than on the first
+ * signature that quotes the wrong one.
  */
-export function templateVersionFault({ sentence }, version) {
+export function templateVersionFault(sentence, version) {
   // Case-insensitive, and boundary-guarded so "1.0" never passes on "1.0.1"
   // or "1.0beta" — exact punctuation is a wording choice the guard must not
   // block, but a longer version token is a different version.
   const named = new RegExp(`version ${escapeRegExp(version)}(?![\\w.])`, "i").test(sentence);
   return named
     ? null
-    : `the assent sentence in the record template does not name version ${version} — ` +
-        `the '**Version …**' line and the fenced template have drifted apart; move both in one edit`;
+    : `the assent sentence does not name version ${version} — the '**Version …**' line and the ` +
+        `fenced sentence have drifted apart; move both in one edit`;
 }
 
 /**
- * Every text `CLA.md` has ever been committed as, newest first — the set of
- * published versions, derived from git history rather than restated anywhere
- * (Rule 14 rung 1). Read lazily and only when a record fails the current
- * template, so the common case spawns no git. An environment without readable
- * history (no repository, a shallow clone with nothing behind it) yields `[]`,
- * which leaves only the working-tree text to judge against — fail closed.
+ * Where the CLA workflow writes signatures, read off its own
+ * `path-to-signatures` input (Rule 14 rung 1). Throws when the workflow is
+ * absent or names no path: with no workflow nothing records a signature, so a
+ * gate that quietly reported green would be certifying an acceptance mechanism
+ * that is not installed.
  */
-export function claTextHistory(exec = execFileSync) {
-  const opts = { env: cwdGitEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
-  let log;
-  try {
-    log = exec("git", ["log", "--format=%H", "--", CLA], opts);
-  } catch {
-    return [];
+export function signaturesPath(workflowText) {
+  const m = workflowText.match(/^\s*path-to-signatures:\s*["']?([^"'\s#]+)/m);
+  if (!m) {
+    throw new Error(
+      `${CLA_WORKFLOW}: no 'path-to-signatures:' input — nothing records a CLA signature, so ` +
+        `this gate cannot say who agreed`,
+    );
   }
-  const texts = [];
-  for (const sha of log.split("\n").filter(Boolean)) {
-    try {
-      texts.push(exec("git", ["show", `${sha}:${CLA}`], opts));
-    } catch {
-      // a commit that deleted CLA.md published nothing a record could cite
-    }
-  }
-  return texts;
-}
-
-/**
- * Audits one record against the current template first, and — only when that
- * fails — against every template `CLA.md` ever published, because the
- * agreement's own change rule says a record stays valid under the version its
- * author agreed to ("If these terms change"). Without this, publishing a new
- * version would turn every existing record red at once, which is the opposite
- * of what the document promises. `history` is a thunk returning past `CLA.md`
- * texts so the lookup costs nothing while every record matches the present.
- */
-export function auditRecordAcrossVersions(text, template, version, history) {
-  const faults = auditRecord(text, template, version);
-  if (!faults.length) return { faults };
-  for (const past of history()) {
-    let pastVersion, pastTemplate;
-    try {
-      pastVersion = claVersion(past);
-      pastTemplate = recordTemplate(past);
-    } catch {
-      continue; // a draft predating the version line or the template — nothing a record could cite
-    }
-    if (pastVersion === version && pastTemplate.sentence === template.sentence) continue;
-    if (auditRecord(text, pastTemplate, pastVersion).length === 0) {
-      return { faults: [], supersededVersion: pastVersion };
-    }
-  }
-  return { faults };
+  return m[1].replace(/^\.\//, "");
 }
 
 /**
@@ -235,6 +208,55 @@ export function listedInContributors(handle, contributorsText) {
   return new RegExp(`(?:@|github\\.com/)${escapeRegExp(handle)}(?![\\w-])`, "i").test(
     contributorsText,
   );
+}
+
+/**
+ * The signatories in a signatures file's text, as `{ logins, faults }`.
+ * `logins` is what everything downstream asks about; `faults` names anything
+ * the file carries that is not a usable signature.
+ *
+ * The file is written by a third-party action, which makes auditing its shape
+ * the point rather than paranoia: it is the only writing behind every grant the
+ * project holds, and a truncated or hand-edited one fails silently in the
+ * direction that matters — an entry that no longer names anybody still counts
+ * as a file that exists.
+ */
+export function auditSignatures(text, path) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    return { logins: [], faults: [`${path}: is not valid JSON (${error.message})`] };
+  }
+  const entries = parsed?.signedContributors;
+  if (!Array.isArray(entries)) {
+    return {
+      logins: [],
+      faults: [
+        `${path}: carries no 'signedContributors' array — the CLA action writes one, so a file ` +
+          `without it is either hand-made or truncated, and it evidences no grant`,
+      ],
+    };
+  }
+  const logins = [];
+  const faults = [];
+  for (const [i, entry] of entries.entries()) {
+    const at = `${path}: signedContributors[${i}]`;
+    if (typeof entry?.name !== "string" || !entry.name.trim()) {
+      faults.push(`${at} names no GitHub account, so it identifies nobody`);
+      continue;
+    }
+    if (typeof entry.created_at !== "string" || !entry.created_at.trim()) {
+      // Without a timestamp the signature cannot be placed against the version
+      // that was published when it was made, which is what the agreement's own
+      // change rule turns on.
+      faults.push(
+        `${at} ('${entry.name}') carries no created_at, so it is a signature with no date`,
+      );
+    }
+    logins.push(entry.name);
+  }
+  return { logins, faults };
 }
 
 /**
@@ -283,6 +305,18 @@ export function projectAutomation(exists = existsSync) {
       .filter(([, entry]) => exists(entry.config))
       .map(([login, entry]) => [login.toLowerCase(), entry]),
   );
+}
+
+/**
+ * The accounts the CLA action must not ask for a signature, as the action's own
+ * comma-separated `allowlist` input: whoever can make the grant, plus the
+ * automation whose commits the agreement puts outside itself. Both sets are the
+ * ones `authorVerdict` already exempts, which is the point — the workflow reads
+ * this instead of restating them, so the action's status and the required check
+ * cannot disagree about who is exempt.
+ */
+export function allowlist(licensors, automation) {
+  return [...licensors, ...Object.keys(automation)].join(",");
 }
 
 /**
@@ -389,55 +423,19 @@ export function licensorHandles(codeownersText) {
 }
 
 /**
- * Returns the faults in one record's text — a missing field, a field left
- * blank, or an assent sentence that is absent or names another version. Pure:
- * `template` and `version` are what `CLA.md` said, passed in.
- */
-export function auditRecord(text, { fields, sentence }, version) {
-  const faults = [];
-  for (const field of fields) {
-    const m = text.match(new RegExp(`^${escapeRegExp(field)}:(.*)$`, "m"));
-    if (!m) faults.push(`missing the '${field}:' line the CLA's record template requires`);
-    else if (!m[1].trim()) faults.push(`'${field}:' is blank`);
-  }
-  const normalized = text.replace(/\s+/g, " ");
-  if (!normalized.includes(sentence)) {
-    faults.push(
-      normalized.includes("Contributor License Agreement")
-        ? `the agreement sentence does not match CLA.md version ${version} verbatim`
-        : "carries no agreement sentence",
-    );
-  }
-  return faults;
-}
-
-/** Record filenames are the handle, so the handle is derivable from the tree. */
-function recordPath(handle) {
-  return join(CONTRIBUTORS_DIR, `${handle}.md`);
-}
-
-/**
- * The record file for a GitHub login among `files`, or `null`. Matched
- * case-insensitively: GitHub logins are case-insensitive but case-preserving,
- * so a contributor who names their file the way their profile spells it must
- * not fail against a lower-cased lookup on a case-sensitive filesystem.
- */
-export function recordFileFor(author, files) {
-  const want = `${author.toLowerCase()}.md`;
-  return files.find((f) => f.toLowerCase() === want) ?? null;
-}
-
-/**
  * What the author of a pull request owes, given who they are. Returns
  * `{ ok, fault?, note? }`: `fault` is why the pull request cannot be merged,
  * `note` is what the gate assumed in letting one through — an exemption nobody
  * sees is an exemption nobody reviews, so it is printed rather than kept.
  *
- * Pure: `licensors`, `clause`, `automation` and `hasRecord` are what the tree
+ * Pure: `licensors`, `clause`, `automation` and `hasSigned` are what the tree
  * and `CLA.md` said, passed in. An absent `type` means the caller could not ask
  * GitHub what kind of account this is, and the author is treated as a person.
  */
-export function authorVerdict(author, { type, licensors, clause, automation, hasRecord }) {
+export function authorVerdict(
+  author,
+  { type, licensors, clause, automation, hasSigned, sentence },
+) {
   const handle = author.toLowerCase();
   if (licensors.includes(handle)) return { ok: true };
 
@@ -458,7 +456,7 @@ export function authorVerdict(author, { type, licensors, clause, automation, has
           `'${author}' is a machine account this project does not run — ${CLA} exempts its own ` +
           `automation, and nothing committed here configures this account. Either it is ours, and ` +
           `its login belongs in PROJECT_AUTOMATION beside the file that runs it; or it is acting ` +
-          `for a person, and that person authored the work and needs their own record`,
+          `for a person, and that person authored the work and needs their own signature`,
       };
     }
     return {
@@ -467,76 +465,96 @@ export function authorVerdict(author, { type, licensors, clause, automation, has
       gitAuthor: entry.gitAuthor,
       note:
         `'${author}' is a machine account this project runs (${entry.config}), and ${CLA} says: ` +
-        `"${clause}" No record is required of it. It cannot agree for anyone else, though: work a ` +
+        `"${clause}" No signature is required of it. It cannot agree for anyone else, though: work a ` +
         `person authored — anything a coding agent wrote at someone's direction — still needs that ` +
-        `person's record, and only review can see that this pull request carries none.`,
+        `person's signature, and only review can see that this pull request carries none.`,
     };
   }
 
-  if (!hasRecord) {
+  if (!hasSigned) {
     return {
       ok: false,
       fault:
-        `${recordPath(handle)}: missing — ${CLA} grants nothing until this record exists, ` +
-        `so a contribution from '${author}' cannot be merged yet`,
+        `'${author}' has not agreed to ${CLA} — it grants nothing until they do, so this ` +
+        `contribution cannot be merged yet. To agree, post this as a comment on the pull ` +
+        `request:\n\n    ${sentence}`,
     };
   }
   return { ok: true };
 }
 
+function argValue(args, flag) {
+  const at = args.indexOf(flag);
+  return at === -1 ? undefined : args[at + 1];
+}
+
 /**
- * Audits every existing record, and — given `--author <login>` — what that
- * author owes. Returns a process exit code.
+ * Audits the signatures file, and — given `--author <login>` — what that author
+ * owes. Returns a process exit code.
  */
 export function checkContributorRecord(args = []) {
   const claText = readFileSync(CLA, "utf8");
   const version = claVersion(claText);
-  const template = recordTemplate(claText);
+  const sentence = assentSentence(claText);
   const licensors = licensorHandles(readFileSync(CODEOWNERS, "utf8"));
+  const automation = projectAutomation();
+
+  // Print-only modes come first: they exist so the workflow can be configured
+  // from this file's derivations, and a workflow that is only asking what to
+  // put in an input has no reason to be told the tree's audit on stdout.
+  if (args.includes("--sign-comment")) {
+    console.log(sentence);
+    return 0;
+  }
+  if (args.includes("--allowlist")) {
+    console.log(allowlist(licensors, automation));
+    return 0;
+  }
 
   let failed = false;
 
-  const drift = templateVersionFault(template, version);
+  const drift = templateVersionFault(sentence, version);
   if (drift) {
     failed = true;
     console.error(`${CLA}: ${drift}`);
   }
 
-  let pastTexts;
-  const history = () => (pastTexts ??= claTextHistory());
+  let path, signatures;
+  try {
+    path = signaturesPath(readFileSync(CLA_WORKFLOW, "utf8"));
+  } catch (error) {
+    console.error(`check-contributor-record: ${error.message}`);
+    return 1;
+  }
+  if (existsSync(path)) {
+    signatures = auditSignatures(readFileSync(path, "utf8"), path);
+  } else {
+    // The action creates the file with the first signature, and until then
+    // there is nothing to audit — every author so far was exempt. Said out
+    // loud, because "no signatures" and "signatures not checked" look
+    // identical in a green log.
+    signatures = { logins: [], faults: [] };
+    console.log(
+      `${path}: does not exist yet — the CLA action creates it with the first signature, so ` +
+        `nobody outside the licensor and this project's own automation has agreed so far.`,
+    );
+  }
+  for (const fault of signatures.faults) {
+    failed = true;
+    console.error(fault);
+  }
+
   const attribution = attributionClause(claText);
   const contributorsText =
     attribution && existsSync(CONTRIBUTORS_FILE) ? readFileSync(CONTRIBUTORS_FILE, "utf8") : "";
-
-  const records = existsSync(CONTRIBUTORS_DIR)
-    ? readdirSync(CONTRIBUTORS_DIR).filter((f) => f.endsWith(".md") && f !== "README.md")
-    : [];
-  for (const file of records) {
-    const path = join(CONTRIBUTORS_DIR, file);
-    const { faults, supersededVersion } = auditRecordAcrossVersions(
-      readFileSync(path, "utf8"),
-      template,
-      version,
-      history,
-    );
-    if (supersededVersion) {
-      console.log(
-        `${path}: assents to ${CLA} as published at version ${supersededVersion} — still in ` +
-          `force: a new version binds a contributor only once they agree to it.`,
-      );
-    }
-    for (const fault of faults) {
-      failed = true;
-      console.error(`${path}: ${fault}`);
-    }
-    if (attribution) {
-      const handle = file.slice(0, -".md".length);
-      if (!listedInContributors(handle, contributorsText)) {
+  if (attribution) {
+    for (const login of signatures.logins) {
+      if (!listedInContributors(login, contributorsText)) {
         failed = true;
         console.error(
-          `${CONTRIBUTORS_FILE}: does not name '${handle}', whose record exists — ${CLA} ` +
+          `${CONTRIBUTORS_FILE}: does not name '${login}', who has signed — ${CLA} ` +
             `consents to "${attribution}" as how authors are credited, and that promise holds ` +
-            `from the moment a contribution lands, so add their row in the same pull request`,
+            `from the moment a contribution lands. 'dev-cli sync-contributors' adds the row.`,
         );
       }
     }
@@ -557,12 +575,14 @@ export function checkContributorRecord(args = []) {
       );
       return 2;
     }
+    const signed = signatures.logins.map((l) => l.toLowerCase());
     const verdict = authorVerdict(author, {
       type: typeAt === -1 ? undefined : args[typeAt + 1],
       licensors,
       clause: automationClause(claText),
-      automation: projectAutomation(),
-      hasRecord: recordFileFor(author, records) !== null,
+      automation,
+      hasSigned: signed.includes(author.toLowerCase()),
+      sentence,
     });
     if (verdict.note) console.log(verdict.note);
     if (!verdict.ok) {
@@ -574,7 +594,7 @@ export function checkContributorRecord(args = []) {
 
   const commitsAt = args.indexOf("--commits");
   if (commitsAt !== -1) {
-    const range = args[commitsAt + 1];
+    const range = argValue(args, "--commits");
     if (!range) {
       console.error("check-contributor-record: --commits needs a git range");
       return 2;

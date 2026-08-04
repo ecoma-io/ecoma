@@ -32,6 +32,7 @@ import { RUN_GO_TESTS_COMMAND, runGoTests } from "./run-go-tests.mjs";
 import { RUN_NODE_TESTS_COMMAND, runNodeTests } from "./run-node-tests.mjs";
 import { scaffoldLib } from "./scaffold-lib.mjs";
 import { stripClaudeTrailers } from "./strip-claude-trailers.mjs";
+import { syncContributors } from "./sync-contributors.mjs";
 import { workspaceGates } from "./workspace-gates.mjs";
 
 const COMMANDS = {
@@ -69,6 +70,7 @@ const COMMANDS = {
   [RUN_GO_TESTS_COMMAND]: (args) => runGoTests(args),
   "scaffold-lib": (args) => scaffoldLib(args),
   "strip-claude-trailers": (args) => stripClaudeTrailers(args[0]),
+  "sync-contributors": (args) => syncContributors(args),
   "workspace-gates": () => workspaceGates(),
 };
 
