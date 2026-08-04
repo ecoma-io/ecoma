@@ -39,19 +39,24 @@ export const CARVE_OUT_LICENSE_MARKER = {
 export const ROOT_LICENSE_FILE = "LICENSE";
 
 /**
- * The marker naming the root licence itself — the mirror, for the tree's own
+ * The title line of the root licence itself — the mirror, for the tree's own
  * terms, of `CARVE_OUT_LICENSE_MARKER` for a carve-out's. It exists because
  * this gate no longer judges only this workspace: the private cloud workspace
  * consumes it as part of the harness (delivery playbook §6, round 31), and its
  * root LICENSE is an all-rights-reserved notice, not the SUL text. Deriving
  * the root slug from the LICENSE a tree actually ships lets one gate judge
  * both geometries without either tree carrying a copy of the rule.
+ *
+ * Anchored to a line START, not matched as a substring: an all-rights notice
+ * is free to MENTION the Sustainable Use License by name ("this is not
+ * the..."), and a mention must not reclassify the tree. Only a LICENSE whose
+ * title line IS the licence's name declares those terms.
  */
-export const ROOT_LICENSE_MARKER = "Sustainable Use License";
+export const ROOT_LICENSE_TITLE_RE = /^Sustainable Use License\b/m;
 
 /** The licence slug a tree's own root LICENSE text declares. */
 export function rootLicenseSlug(licenseText) {
-  return (licenseText ?? "").includes(ROOT_LICENSE_MARKER) ? "sul" : "proprietary";
+  return ROOT_LICENSE_TITLE_RE.test(licenseText ?? "") ? "sul" : "proprietary";
 }
 
 /**
