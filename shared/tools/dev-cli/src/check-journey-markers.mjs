@@ -31,11 +31,28 @@ import { listTrackedFiles } from "./tracked-files.mjs";
 // any downstream accepting the default).
 const CONFIG_URL = new URL("../../../../journey-markers.config.json", import.meta.url);
 function workspaceJourneyConfig() {
+  // Fallback only when the tree has no config to read — a config that exists
+  // but cannot be parsed throws, NAMING ITS FILE (JSON.parse alone names
+  // nothing), so a misconfigured tree fails loudly instead of being scanned
+  // under defaults its owner never chose. The read sits inside the guard,
+  // the parse outside it, which is what draws that line. `env: cwdGitEnv()`
+  // for the reason git-env.mjs owns, same as every git spawn in this file.
+  let text;
+  let source = "journey-markers.config.json at the judged tree's root";
   try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-    return JSON.parse(readFileSync(resolve(root, "journey-markers.config.json"), "utf8"));
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      env: cwdGitEnv(),
+    }).trim();
+    text = readFileSync(resolve(root, "journey-markers.config.json"), "utf8");
   } catch {
-    return JSON.parse(readFileSync(CONFIG_URL, "utf8"));
+    text = readFileSync(CONFIG_URL, "utf8");
+    source = CONFIG_URL.pathname;
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${source}: ${error.message}`, { cause: error });
   }
 }
 const CONFIG = workspaceJourneyConfig();
