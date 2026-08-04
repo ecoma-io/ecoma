@@ -9,8 +9,9 @@ description: ecoma.io 的商店与增长区域 — 位于 `/` 的 Nuxt 应用外
 # website
 
 Website Charter 的公开记录为 ecoma.io 表面指定的子系统：商店与增长，与产品
-Hub 强分离。宪章本身被保留（漏斗剧本）；今天这里存在的是它的架构接缝 —
-URL 拓扑、i18n 形态，以及将在宪章落地后发布营销表面的应用外壳。
+Hub 强分离。宪章的架构半部已经发布（[Website Charter](../shared/libs/doctrine/charter/website.md)）；
+其漏斗半部仍被保留。今天这里存在的是发布半部所描述的接缝 —
+URL 拓扑、i18n 形态，以及将在漏斗落地后发布营销表面的应用外壳。
 
 <!-- readme:why -->
 
@@ -47,8 +48,7 @@ locale 构建迁移、站点地图和 ISR 都在那里预留了接缝。这里�
 
 ## 什么不在范围内
 
-漏斗本身 — 文案、按 ICP 的增长与渲染决策属于 Website Charter，而该宪章被
-保留。doctrine 表面位于 `shared/apps/doctrine-site`，不在这里，并且边缘
+漏斗本身 — 文案、按 ICP 的增长与渲染决策属于 Website Charter，而拥有文案的漏斗半部被保留。doctrine 表面位于 `shared/apps/doctrine-site`，不在这里，并且边缘
 路由器（不是这棵树）拥有所有挂载。系统宪章唯一且属于 Hub；`website/`
 记录区域，从不记录漏斗。
 
