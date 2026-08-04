@@ -2,14 +2,14 @@
  * Holds every restatement of a legal document's version and effective date to
  * the document itself.
  *
- * `CLA.md`, `CORPORATE-CLA.md` and `ENTERPRISE-LICENSE.md` each open with
+ * `CLA.md` and `CORPORATE-CLA.md` each open with
  * `**Version <n>, effective <date>.**`, and the pair is then repeated in prose
- * elsewhere — `CLA.md` summarises the other two under "The other agreements",
- * `CORPORATE-CLA.md` pins the `CLA.md` version its definitions are taken from,
- * and the doctrine overview's legal rows quote both. Nothing forced those
- * copies to move with the documents, and two of them had already drifted a
- * whole version and a whole date behind. That is Rule 14's stated failure mode:
- * a value copied across ≥2 files was never a valid hardcode, it was an unsynced
+ * elsewhere — `CLA.md` summarises the other agreements under "The other
+ * agreements", `CORPORATE-CLA.md` pins the `CLA.md` version its definitions are
+ * taken from, and the doctrine overview's legal rows quote both. Nothing forced
+ * those copies to move with the documents, and some had already drifted a whole
+ * version and a whole date behind. That is Rule 14's stated failure mode: a
+ * value copied across ≥2 files was never a valid hardcode, it was an unsynced
  * config that skipped rung 2.
  *
  * **Where the single value lives, and why not git.** The named home is the
@@ -101,8 +101,7 @@ export function declaredVersion(text) {
  * comes first: `CLAIM_WINDOW` characters, or the next mention of any legal
  * document — including another mention of the same one. The second boundary is
  * what makes a list of documents safe to write as a list: the paragraph about
- * `CORPORATE-CLA.md` cannot lend its version to the paragraph about
- * `ENTERPRISE-LICENSE.md` that follows it.
+ * one agreement cannot lend its version to the paragraph about the next one.
  */
 export function restatementsIn(text, names) {
   const mentions = [];
@@ -161,9 +160,9 @@ export function auditRestatements(text, sources) {
  * Every tracked Markdown file that declares a version line, keyed by filename.
  * Two files with the same basename in different directories would be
  * indistinguishable to a prose mention, so the second one is refused rather
- * than silently shadowing the first — `ENTERPRISE-LICENSE.md` is explicitly a
- * document that gets copied into the directory it governs, which is exactly how
- * that collision would arrive.
+ * than silently shadowing the first. A legal text is exactly the kind of file
+ * that gets copied — vendored beside the code it governs, or carried into a
+ * package — and that is how the collision arrives.
  */
 export function legalSources(files, read = (f) => readFileSync(f, "utf8")) {
   const sources = {};

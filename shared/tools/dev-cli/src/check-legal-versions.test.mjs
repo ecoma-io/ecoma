@@ -17,11 +17,11 @@ vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
 const CLA = { version: "1.1", effective: "2026-08-04" };
 const CORPORATE = { version: "1.1", effective: "2026-08-04" };
-const ENTERPRISE = { version: "2.0", effective: "2026-09-01" };
+const SUPPORT = { version: "2.0", effective: "2026-09-01" };
 const SOURCES = {
   "CLA.md": CLA,
   "CORPORATE-CLA.md": CORPORATE,
-  "ENTERPRISE-LICENSE.md": ENTERPRISE,
+  "SUPPORT-TERMS.md": SUPPORT,
 };
 
 describe("declaredVersion", () => {
@@ -44,11 +44,10 @@ describe("declaredVersion", () => {
 
 describe("restatementsIn", () => {
   it("reads a version and a date that follow the document's filename as claims about it", () => {
-    const text =
-      "The Enterprise License (`ENTERPRISE-LICENSE.md`) is version 2.0, effective 2026-09-01.";
+    const text = "The support terms (`SUPPORT-TERMS.md`) are version 2.0, effective 2026-09-01.";
     expect(restatementsIn(text, Object.keys(SOURCES))).toEqual([
-      { name: "ENTERPRISE-LICENSE.md", kind: "version", claimed: "2.0", line: 1 },
-      { name: "ENTERPRISE-LICENSE.md", kind: "effective date", claimed: "2026-09-01", line: 1 },
+      { name: "SUPPORT-TERMS.md", kind: "version", claimed: "2.0", line: 1 },
+      { name: "SUPPORT-TERMS.md", kind: "effective date", claimed: "2026-09-01", line: 1 },
     ]);
   });
 
@@ -68,13 +67,13 @@ describe("restatementsIn", () => {
     // them as a second claim about the first document.
     const text = [
       "- `CORPORATE-CLA.md` is in force — version 1.1, effective 2026-08-04.",
-      "- `ENTERPRISE-LICENSE.md` is in force — version 2.0, effective 2026-09-01.",
+      "- `SUPPORT-TERMS.md` is in force — version 2.0, effective 2026-09-01.",
     ].join("\n");
     expect(restatementsIn(text, Object.keys(SOURCES))).toEqual([
       { name: "CORPORATE-CLA.md", kind: "version", claimed: "1.1", line: 1 },
       { name: "CORPORATE-CLA.md", kind: "effective date", claimed: "2026-08-04", line: 1 },
-      { name: "ENTERPRISE-LICENSE.md", kind: "version", claimed: "2.0", line: 2 },
-      { name: "ENTERPRISE-LICENSE.md", kind: "effective date", claimed: "2026-09-01", line: 2 },
+      { name: "SUPPORT-TERMS.md", kind: "version", claimed: "2.0", line: 2 },
+      { name: "SUPPORT-TERMS.md", kind: "effective date", claimed: "2026-09-01", line: 2 },
     ]);
   });
 
@@ -100,15 +99,15 @@ describe("restatementsIn", () => {
   });
 
   it("reports the line of the mention, so a wide table row points at the row", () => {
-    const text = `intro\n\n| L5 | \`ENTERPRISE-LICENSE.md\`, version 2.0 |`;
+    const text = `intro\n\n| L5 | \`SUPPORT-TERMS.md\`, version 2.0 |`;
     expect(restatementsIn(text, Object.keys(SOURCES))[0].line).toBe(3);
   });
 });
 
 describe("auditRestatements", () => {
   it("faults a version that disagrees with the document, naming both numbers", () => {
-    const [fault] = auditRestatements("`ENTERPRISE-LICENSE.md`, version 1.0", SOURCES);
-    expect(fault).toContain("says ENTERPRISE-LICENSE.md is at version 1.0");
+    const [fault] = auditRestatements("`SUPPORT-TERMS.md`, version 1.0", SOURCES);
+    expect(fault).toContain("says SUPPORT-TERMS.md is at version 1.0");
     expect(fault).toContain("declares 2.0");
   });
 
@@ -136,8 +135,8 @@ describe("legalSources", () => {
   const texts = {
     "CLA.md": "**Version 1.1, effective 2026-08-04.**",
     "README.md": "Ecoma is fair-code.",
-    "shared/enterprise/ENTERPRISE-LICENSE.md": "**Version 2.0, effective 2026-09-01.**",
-    "ENTERPRISE-LICENSE.md": "**Version 2.0, effective 2026-09-01.**",
+    "shared/pkg/SUPPORT-TERMS.md": "**Version 2.0, effective 2026-09-01.**",
+    "SUPPORT-TERMS.md": "**Version 2.0, effective 2026-09-01.**",
   };
   const read = (f) => texts[f];
 
@@ -148,19 +147,16 @@ describe("legalSources", () => {
   });
 
   it("refuses two declaring files with one basename instead of shadowing one", () => {
-    // ENTERPRISE-LICENSE.md is a document that gets copied into the directory
-    // it governs. Once two copies exist, a prose mention of the filename cannot
-    // say which it means — and silently judging against whichever was listed
-    // first would let the copy drift unnoticed, which is the exact defect this
-    // gate exists for.
-    const { collisions } = legalSources(
-      ["ENTERPRISE-LICENSE.md", "shared/enterprise/ENTERPRISE-LICENSE.md"],
-      read,
-    );
+    // A legal text is exactly the kind of file that gets copied — vendored
+    // beside the code it governs, or carried into a package. Once two copies
+    // exist, a prose mention of the filename cannot say which it means, and
+    // silently judging against whichever was listed first would let the copy
+    // drift unnoticed, which is the exact defect this gate exists for.
+    const { collisions } = legalSources(["SUPPORT-TERMS.md", "shared/pkg/SUPPORT-TERMS.md"], read);
     expect(collisions).toEqual([
       {
-        name: "ENTERPRISE-LICENSE.md",
-        files: ["ENTERPRISE-LICENSE.md", "shared/enterprise/ENTERPRISE-LICENSE.md"],
+        name: "SUPPORT-TERMS.md",
+        files: ["SUPPORT-TERMS.md", "shared/pkg/SUPPORT-TERMS.md"],
       },
     ]);
   });
