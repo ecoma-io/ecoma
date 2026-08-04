@@ -35,18 +35,39 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      # Languages analyzed: javascript-typescript, and go (go.work declares
-      # the platform/ engine modules). Rust's Cargo workspace still declares
-      # zero members and no Python project exists yet -- add a matrix leg for
-      # each once a real project lands in that language.
+      # Languages analyzed: javascript-typescript, go (go.work declares the
+      # platform/ engine modules), and actions.
+      #
+      # `actions` needs a leg of its own even though the workflow files are
+      # already IN the javascript-typescript database -- that invocation
+      # extracts them (its log names the count it scanned) and then interprets
+      # `js/*` queries and nothing else. So without this leg every
+      # workflow-security query runs zero times: expression injection of
+      # `github.event.*` into a `run:` block, untrusted checkout under
+      # `pull_request_target`, artifact poisoning, a job with no
+      # `permissions:`. Three workflows here run under `pull_request_target`
+      # holding a write token, which is the exact shape those queries police,
+      # and reviewing them by eye is the thing a query pack exists to replace.
+      #
+      # Rust and Python have no leg. The Cargo workspace does have a member
+      # (rba-desktop), so `rust` is a real candidate -- it stays out until a
+      # `build-mode: none` extraction is proven against a Tauri crate on a
+      # runner, because a leg that cannot extract turns CodeQL red on code it
+      # has never analyzed once. Python has no project at all yet.
       matrix:
         include:
           - language: javascript-typescript
             build-mode: none
           - language: go
             build-mode: autobuild
+          # `none` is the only mode `actions` has: workflow files are read as
+          # data, never built.
+          - language: actions
+            build-mode: none
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Same derivation as ci.yml: the Go version comes from go.work's own
       # pin, never a second copy. Only the Go leg needs the toolchain.
