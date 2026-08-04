@@ -16,9 +16,10 @@ tags via `@nx/enforce-module-boundaries` in the root `eslint.config.mjs` — tha
 config is the source of truth; do not restate the constraints elsewhere.
 
 **That enforcement reaches only what ESLint parses**, which is a limit rather
-than a restatement, and it matters most on the `license:*` axis: the rule that
-`license:sul` may never import `license:ee` is what keeps paid code out of every
-self-hosted install, and for a Go, Rust or Python project **nothing checks it**.
+than a restatement, and it matters most on the `license:*` axis: the rule that a
+`license:apache` project may import nothing but Apache is what keeps SUL source
+out of what third parties receive under Apache 2.0 — a grant nobody can withdraw
+once made — and for a Go, Rust or Python project **nothing checks it**.
 `nx-polyglot-graph` gives `nx affected` those edges, but no lint reads them. Put
 a carve-out module in one of those languages and the boundary is review-only —
 say so in the pull request rather than letting the green run imply otherwise.
