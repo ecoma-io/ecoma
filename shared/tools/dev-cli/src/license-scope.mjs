@@ -42,7 +42,7 @@ export const ROOT_LICENSE_FILE = "LICENSE";
  * The title line of the root licence itself — the mirror, for the tree's own
  * terms, of `CARVE_OUT_LICENSE_MARKER` for a carve-out's. It exists because
  * this gate no longer judges only this workspace: the private cloud workspace
- * consumes it as part of the harness (delivery playbook §6, round 31), and its
+ * consumes it as part of the harness (delivery playbook §6), and its
  * root LICENSE is an all-rights-reserved notice, not the SUL text. Deriving
  * the root slug from the LICENSE a tree actually ships lets one gate judge
  * both geometries without either tree carrying a copy of the rule.
