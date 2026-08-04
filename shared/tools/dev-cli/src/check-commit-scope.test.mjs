@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -445,7 +445,7 @@ describe("parentProjectsOf", () => {
 describe("readProjectGraphDeps", () => {
   it("parses the nx graph file and drops npm dependencies", () => {
     vi.mocked(execFileSync).mockImplementation((cmd, args) => {
-      if (cmd !== "pnpm") throw new Error(`unexpected command: ${cmd}`);
+      if (cmd !== process.execPath) throw new Error(`unexpected command: ${cmd}`);
       const out = args.find((a) => a.startsWith("--file=")).slice("--file=".length);
       writeFileSync(
         out,
@@ -464,17 +464,50 @@ describe("readProjectGraphDeps", () => {
     expect(deps.get("core-ui")).toEqual([]);
   });
 
-  it("shells out with shell: true so pnpm's Windows .cmd shim resolves", () => {
+  it("runs Nx's own entry under this Node binary, so no platform-specific bin is spawned", () => {
     vi.mocked(execFileSync).mockImplementation((cmd, args) => {
       const out = args.find((a) => a.startsWith("--file=")).slice("--file=".length);
       writeFileSync(out, JSON.stringify({ graph: { dependencies: {} } }));
     });
     readProjectGraphDeps();
-    expect(execFileSync).toHaveBeenCalledWith(
-      "pnpm",
-      expect.any(Array),
-      expect.objectContaining({ shell: true }),
-    );
+    const [command, args, options] = vi.mocked(execFileSync).mock.calls.at(-1);
+    // Resolved, not named: the `nx` bin is a `.cmd` shim on Windows, and this is
+    // the JS file that shim would have run. Asserting it exists is what makes
+    // the test fail on a bad resolve rather than on a mock that never noticed.
+    expect(command).toBe(process.execPath);
+    expect(args[0]).toMatch(/nx[\\/].*\.js$/);
+    expect(existsSync(args[0])).toBe(true);
+    // The security half, and the reason the line above is worth the trouble:
+    // with no shell there is no command string for an argument to be re-parsed
+    // inside. Re-adding `shell: true` must fail here.
+    expect(options.shell).toBeUndefined();
+  });
+
+  it("hands a temp path holding shell metacharacters to argv, intact and inert", () => {
+    // TMPDIR is the only input to this call anything outside the process picks,
+    // and `tmpdir()` reads it. A directory named with `$(…)` and backticks would
+    // be a command substitution to a shell; as one argv element it is just a
+    // name. Pinning it here is what stops the shell coming back unnoticed.
+    const hostile = mkdtempSync(join(tmpdir(), "commit-scope-$(id);`id`-"));
+    const previous = process.env.TMPDIR;
+    process.env.TMPDIR = hostile;
+    try {
+      vi.mocked(execFileSync).mockImplementation((cmd, args) => {
+        const out = args.find((a) => a.startsWith("--file=")).slice("--file=".length);
+        writeFileSync(out, JSON.stringify({ graph: { dependencies: {} } }));
+      });
+      readProjectGraphDeps();
+      const [, args, options] = vi.mocked(execFileSync).mock.calls.at(-1);
+      const fileArgs = args.filter((a) => a.startsWith("--file="));
+      expect(fileArgs).toHaveLength(1);
+      expect(fileArgs[0]).toContain(hostile);
+      expect(fileArgs[0]).toContain("$(id)");
+      expect(fileArgs[0]).toContain("`id`");
+      expect(options.shell).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previous;
+    }
   });
 });
 

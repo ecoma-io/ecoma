@@ -8,7 +8,7 @@ import { fixtureGit, initFixtureRepo } from "./git-fixture.mjs";
 
 /**
  * The upstream exception is exercised by the unit tests only — resolving it
- * spawns `pnpm nx graph`, which needs a real Nx workspace.
+ * spawns Nx's own CLI, which needs a real Nx workspace.
  *
  * Nothing here touches the process working directory: every git call goes
  * through `fixtureGit` (scrubbed env + `-C` + pinned cwd), every write is
