@@ -515,6 +515,29 @@ describe("findConventionViolations", () => {
     ]);
   });
 
+  it("derives the root manifest's terms from the LICENSE the tree ships", () => {
+    // The downstream geometry: the private cloud workspace consumes this gate
+    // with an all-rights-reserved root, so its root manifest is UNLICENSED.
+    const files = {
+      ...HEALTHY,
+      LICENSE: "Copyright (c) 2026 the ecoma project owner. All rights reserved.",
+      "package.json": pkg({ name: "@ecoma-io/ecoma-cloud", license: "UNLICENSED" }),
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
+  it("flags a root manifest hiding behind UNLICENSED in a tree whose LICENSE grants SUL", () => {
+    const files = {
+      ...HEALTHY,
+      "package.json": pkg({ name: "@ecoma-io/ecoma", license: "UNLICENSED" }),
+    };
+    expect(judge(files)).toEqual([
+      expect.stringContaining(
+        '"license" is "UNLICENSED", expected "LicenseRef-Ecoma-SustainableUse-1.0"',
+      ),
+    ]);
+  });
+
   it("flags a workspace whose root licence is gone", () => {
     const files = { ...HEALTHY };
     delete files.LICENSE;
