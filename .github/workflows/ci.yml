@@ -42,6 +42,12 @@ jobs:
       # until the repository is on disk. Full history (fetch-depth: 0) because
       # both `nx affected` and `commitlint --from origin/<base>` diff against
       # history, not just the tip commit.
+      #
+      # No `submodules:` on any checkout in this file is a decision, not a
+      # default left in place: the `cloud` gitlink names a private repository
+      # this CI must never fetch, and the absent-`cloud/` state is the only
+      # state this workflow is meant to judge — the cloud repository's own CI
+      # covers the merged tree by mounting this workspace around itself.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -79,34 +85,18 @@ jobs:
             node shared/tools/dev-cli/src/main.mjs check-contributor-record
           fi
 
-      # Roadmap rule #7: a gate is a frozen text plus an independent suite.
-      # Reports the ledger every run and fails a freeze that has no suite.
-      - name: Conformance gate ledger (roadmap rule #7)
-        run: node shared/tools/dev-cli/src/main.mjs conformance
-
-      # Repo-wide doc gates that `nx affected` can't cover: journey markers
-      # (Rule 13) in files no nx project owns (root docs, the subsystem-root
-      # CLAUDE.md files, .github, .claude), and broken relative Markdown links.
-      - name: Journey markers in workspace-level docs
-        run: node shared/tools/dev-cli/src/main.mjs check-journey-markers-workspace
-      - name: Broken Markdown links
-        run: node shared/tools/dev-cli/src/main.mjs check-doc-links
-      - name: dev-cli command citations still name a real command
-        run: node shared/tools/dev-cli/src/main.mjs check-command-refs
-      - name: Per-subproject CLAUDE.md present
-        run: node shared/tools/dev-cli/src/main.mjs check-claude-md
-      - name: Published doctrine stays checkable by a stranger
-        run: node shared/tools/dev-cli/src/main.mjs check-doctrine
-      - name: Roadmap ids stay unique and resolvable
-        run: node shared/tools/dev-cli/src/main.mjs check-roadmap-ids
-      - name: Doctrine index cites live rules
-        run: node shared/tools/dev-cli/src/main.mjs check-practice-index
-      - name: Subsystem-root READMEs declare their area
-        run: node shared/tools/dev-cli/src/main.mjs check-subsystem-readmes
-      - name: Subproject READMEs present and structured
-        run: node shared/tools/dev-cli/src/main.mjs check-subproject-readmes
-      - name: Project structure conventions
-        run: node shared/tools/dev-cli/src/main.mjs check-project-conventions
+      # Every workspace-wide gate — the conformance ledger (roadmap rule #7)
+      # and the repo-wide doc gates `nx affected` can't cover — in one
+      # invocation. The list itself lives in dev-cli (`WORKSPACE_GATES` in
+      # `src/workspace-gates.mjs`) rather than as steps here, because this
+      # workflow is not its only consumer: the cloud repository's CI mounts
+      # this workspace and runs the same command over the merged tree. A step
+      # list here would be a second copy for it to re-derive, and a derivation
+      # can silently disagree with the file it reads. The command's integration
+      # test holds the inverse direction: a bare dev-cli gate step added to
+      # this file instead of to WORKSPACE_GATES fails the suite.
+      - name: Workspace gates (the list lives in dev-cli; both CIs run it)
+        run: node shared/tools/dev-cli/src/main.mjs workspace-gates
 
       # Polyglot toolchains. Go and Rust are UNCONDITIONAL: dev-cli's
       # scaffold-lib integration tests drive the real `go vet` and
