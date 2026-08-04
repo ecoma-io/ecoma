@@ -70,9 +70,17 @@ public level — checked, traced, and simultaneously a structural defence agains
 prompt injection, since "print your entire policy here" fails the leakage
 criterion.
 
-A collection's `model_policy` is one of `any` / `tenant_approved` /
-`self_host_only` / `human_only`, routing models by secrecy: a `secret` collection
-never enters the context of an external model API.
+`model_policy` is one of `any` / `tenant_approved` / `self_host_only` /
+`human_only`, and it is a property of **the classification level, not only of a
+Collection**. It routes by secrecy _anything classified that would enter a model's
+context_ — a knowledge chunk, a memory entry (Memory §2), an envelope field —
+because the context window is one door and a rule that guarded only Collections
+would leave the others open. A `secret` level never enters the context of an
+external model API, whatever entity carries it. A Collection names its own
+`model_policy` as the level's default made concrete; the lattice is where the rule
+lives, so a second classified source cannot forget it. This governs context
+_entering_ a model, which the egress guard — governing outputs _leaving_ — does
+not: the two are different directions and both are required.
 
 ## 4. Versioning — a deliberate exception to pinning
 

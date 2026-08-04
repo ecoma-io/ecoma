@@ -1,7 +1,7 @@
 ---
 title: "RPA: Sandbox & Credential"
 status: design-end-state
-canonical-sha: ff107b934b0b
+canonical-sha: f88e5cf3ec53
 ---
 
 # RPA: Sandbox & Credential
@@ -15,6 +15,7 @@ canonical-sha: ff107b934b0b
 
 - Mức cách ly là tham số cascade (engine ép tồn tại; template cấp: chặt cho production, lỏng cho dev).
 - Sandbox chết cùng session trừ khi khai `persistent_profile` (đăng nhập giữ phiên dài) — profile bền là tài nguyên có id, gắn credential scope riêng.
+- **Một giới hạn được nêu rõ, vì nội dung của profile không phải thứ vault thu hồi được**: thứ thu hồi được là credential scope phía ecoma của profile; cookie/token phiên **bên trong** profile là trạng thái đã đăng nhập của _hệ đích_, nằm trên đĩa của node. Trên node attended đĩa đó là laptop nhân sự người ta cầm trong tay, nên khi node bị decommission hoặc thu hồi khẩn cấp (RPA North Star §4), cắt khóa của nó chặn việc tương lai nhưng **không với tới các login đã nằm trong profile** — chẳng gì với tới được, giả vờ ngược lại là cách đọc nguy hiểm. Cơ chế thực sự với tới chúng được nêu rõ chứ không để ngầm: decommission một node giữ `persistent_profile` **đi kèm một compensation Task** xoay/thu hồi credential hệ-đích trong credential scope của profile đó. Không khai thì credential bị coi là vẫn còn sống — cách đọc bảo thủ, nhất quán với reversibility-không-khai-là-irreversible.
 - **Network egress policy** thuộc sandbox: allowlist domain — session không đi lang thang được ra ngoài scope.
 
 ## 2. Credential vault

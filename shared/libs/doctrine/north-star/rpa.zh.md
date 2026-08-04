@@ -1,7 +1,7 @@
 ---
 title: "Ecoma RPA — North Star"
 status: design-end-state
-canonical-sha: 404f3517c22f
+canonical-sha: 1c0ec166adad
 ---
 
 # Ecoma RPA — North Star
@@ -79,7 +79,10 @@ filler 池，然后一个够格的 node，而版本正是够格条件之一。
 任务只路由到显式获授该 scope 的 node，而 vault 只在 driver 层、按会话限定范围、向已注
 册的 node 身份签发短时效密钥。有计划的下线是一次 **graceful drain**：node 停止领取，运
 行中的会话自然结束或按 lease 改派，然后吊销密钥——每一步都是一个 event。这与被攻陷 node
-的紧急吊销是不同的流程，后者立即切断。
+的紧急吊销是不同的流程，后者立即切断。两种流程都只吊销 vault 所持有的东西；node
+上的 `persistent_profile` 承载着目标系统自身的登录，落在那个范围之外，因此对持有
+它的 node 执行 decommission 时，须配上一个轮换目标系统 credential 的 compensation
+Task（Sandbox & Credential §1）。
 
 **接管有通道，但绝无常驻权限。** 不存在任何环境性的远程控制能力。查看或控制通道**按会
 话打开、由 node 主动发起、方向向外**，前提是一次 assistance request 被接受且 node 自身

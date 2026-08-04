@@ -1,7 +1,7 @@
 ---
 title: "Quota & Scheduling Fairness"
 status: design-end-state
-canonical-sha: a42f456af3ea
+canonical-sha: 0406f73d0468
 ---
 
 # Quota & Scheduling Fairness
@@ -184,6 +184,21 @@ correlation áp dụng nguyên vẹn (Escalation §5), nên một process misfir
 **một** escalation đang mở kèm bộ đếm, chứ không phải một nghìn dòng trong hàng
 đợi chú ý (invariant 3). Trigger ở đây là một thành viên của taxonomy **mở** ở
 Escalation §2, nên nhận thêm nó không cần cơ chế mới.
+
+**Bản ghi kế toán của chính engine không bao giờ chịu admission, và điều này đóng
+một vòng tự tham chiếu.** Một trần lưu trữ được thi hành tại admission (§1) —
+nhưng quyết định biên ghi lại một write bị từ chối, cái Violation, cái escalation
+và mọi entry vòng đời đều là **bản ghi nội bộ của engine, không phải đơn vị của
+tenant**; nếu chúng cũng bị gate thì cái entry giải thích "vì sao tôi bị chặn"
+không thể ghi được đúng khoảnh khắc mà luật hiển thị và invariant 5 đều đòi. Vì
+thế chúng được miễn: admission gate _đơn vị_ của tenant (một Lease, một write
+DataTable, một artifact), không bao giờ gate bản ghi của chính engine về việc đã
+gate một đơn vị. Thứ chặn phần kế toán đó là chống bão và các cơ chế phát ra nó,
+không phải cái trần. Điều này cũng chốt cách đọc "trần đúng tuyệt đối — không tồn
+tại độ vượt" (§1) đối lại "mỗi đơn vị có đúng một lần admission" (§3): admission
+lưu trữ là **per đơn vị**, nên một đơn vị đang chạy ghi vào `budget` của chính nó
+vượt trên khoảnh khắc trần bị chạm — "tuyệt đối" mô tả việc từ chối đơn vị _kế
+tiếp_, không phải đóng băng chính cái log.
 
 ## 6. Công bằng giữa các tenant — và Lease là đường duy nhất chạm việc đang chạy
 

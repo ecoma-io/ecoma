@@ -41,12 +41,13 @@ correlation (Trigger & Channel §3).
 `(subject, content, provenance → the evidence in the log, confidence,
 classification, decay_policy, lineage)`
 
-| Rule                | Mechanism                                                                                                                                                                                |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Against fabrication | **Provenance is mandatory**: an entry must point back to the originating event or artifact — why it is remembered. No source means it structurally cannot enter                          |
-| Against poisoning   | A subject's own assertion ("I always get 50% off") is a claim with low basis weight. It **never promotes itself into a fact**; promotion goes through a Gate with a verifier or a person |
-| Immutability        | An entry is a content-addressed artifact with an event recording it. Editing means **superseding with lineage**; a contradiction raises a **Conflict** event                             |
-| Secrecy             | `confidential` by default; egress and leakage gates apply unchanged; erasing a subject is **crypto-shredding** (Event Log §4)                                                            |
+| Rule                | Mechanism                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Against fabrication | **Provenance is mandatory**: an entry must point back to the originating event or artifact — why it is remembered. No source means it structurally cannot enter                                                                                                                                                                                                                                     |
+| Against poisoning   | A subject's own assertion ("I always get 50% off") is a claim with low basis weight. It **never promotes itself into a fact**; promotion goes through a Gate with a verifier or a person                                                                                                                                                                                                            |
+| Immutability        | An entry is a content-addressed artifact with an event recording it. Editing means **superseding with lineage**; a contradiction raises a **Conflict** event                                                                                                                                                                                                                                        |
+| Secrecy             | `confidential` by default; egress and leakage gates apply unchanged; **model routing applies too** — an entry carries a classification, and by that level's `model_policy` a `secret`-classified memory never enters an external model's context (Knowledge §3, where model routing is a property of the level, not only of a Collection). Erasing a subject is **crypto-shredding** (Event Log §4) |
+| Observing workspace | An entry records, through its provenance (§4), **the workspace in which it was observed** — the dimension retrieval filters on. It is recovered from provenance rather than stored twice (one truth, one home)                                                                                                                                                                                      |
 
 ## 3. Remembering is labour
 
@@ -70,6 +71,18 @@ scope.
 **Cross-subject isolation**: the retrieval scope is the instance's subject plus
 `tenant_self`. Customer A never sees anything about customer B — structurally,
 not because a prompt asked nicely.
+
+**Cross-workspace isolation, the same wall vertically**: cross-subject isolation
+is not enough when one Party is served from two workspaces — the same human
+contact acting for two competing client brands (Tenant & Identity §3, §5). An
+entry carries the workspace it was observed in (§2), and **retrieval defaults to
+the entries observed within the instance's own workspace, plus `tenant_self`**;
+undeclared means narrowest, exactly as distillation resolves it (§5). Pooling a
+subject's memory across workspaces is the **explicit pool-choice** Tenant &
+Identity §3 already grants an agency, never a silent default — so an observation
+recorded while serving brand A does not surface in a task serving brand B. Without
+this, the retrieval door has no workspace dimension at all, and C6's rule (declare
+the workspace dimension, undeclared is narrowest) is violated by omission.
 
 Semantic search reuses **Knowledge's vector adapter**; nothing is invented here.
 A "memory bank per subject" is a projection that can be rebuilt.
@@ -130,18 +143,25 @@ Knowledge is what has graduated.
 4. What scenario lets customer A see a memory about customer B?
    4b. Is there any path by which distillation across client A's subjects becomes
    knowledge used for client B, in a different workspace, without an explicit
-   declaration?
+   declaration? And, at **retrieval**: does a memory observed while serving one
+   workspace reach a task serving another workspace for the same Party, without the
+   explicit cross-workspace pool-choice?
+   4c. A `secret`-classified memory entry and a task whose Role is filled by an
+   external model API — is there any path by which the entry enters that model's
+   context?
 5. A customer demands to be forgotten — does destroying one key remove all
    ability to read it, without puncturing the log?
 
 ## 9. Decisions
 
-| Question                  | Settled                                                                                                                                                  |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default                   | Off in the engine; a vertical template turns it on                                                                                                       |
-| Subject                   | An open taxonomy: external_user / external_org / tenant_self. **A filler as subject is forbidden**, to avoid a second source of truth beside calibration |
-| Ownership                 | The organisation's, keyed by subject — never the filler's, which is what litmus #1 tests                                                                 |
-| Fabrication and poisoning | Mandatory provenance, low-weight claims, and a Gate                                                                                                      |
-| Aging and death           | Decay, memory calibration from outcomes, supersede and Conflict                                                                                          |
-| Graduation                | Distilled into Knowledge through a Curator task; multi-subject generalisation through the leakage gate; **scope defaults to the narrowest workspace**    |
-| Infrastructure            | No new store — Event Log, content-addressed storage, the vector adapter, and projections                                                                 |
+| Question                  | Settled                                                                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default                   | Off in the engine; a vertical template turns it on                                                                                                                                                                      |
+| Subject                   | An open taxonomy: external_user / external_org / tenant_self. **A filler as subject is forbidden**, to avoid a second source of truth beside calibration                                                                |
+| Ownership                 | The organisation's, keyed by subject — never the filler's, which is what litmus #1 tests                                                                                                                                |
+| Fabrication and poisoning | Mandatory provenance, low-weight claims, and a Gate                                                                                                                                                                     |
+| Aging and death           | Decay, memory calibration from outcomes, supersede and Conflict                                                                                                                                                         |
+| Graduation                | Distilled into Knowledge through a Curator task; multi-subject generalisation through the leakage gate; **scope defaults to the narrowest workspace**                                                                   |
+| Retrieval isolation       | Cross-subject by party id, **and cross-workspace by the observing workspace** — retrieval defaults to the instance's own workspace plus `tenant_self`; pooling across workspaces is an explicit choice (C6)             |
+| Model routing             | An entry's classification routes it by the level's `model_policy` (Knowledge §3): a `secret` memory never enters an external model's context. Model routing lives on the classification level, not only on a Collection |
+| Infrastructure            | No new store — Event Log, content-addressed storage, the vector adapter, and projections                                                                                                                                |

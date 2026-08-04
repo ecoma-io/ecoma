@@ -1,7 +1,7 @@
 ---
 title: "Module: Memory"
 status: design-end-state
-canonical-sha: 03e38ded7197
+canonical-sha: d20651276143
 ---
 
 # Module: Memory
@@ -22,12 +22,13 @@ canonical-sha: 03e38ded7197
 
 `(subject, nội dung, provenance → bằng chứng trong log, confidence, classification, decay_policy, lineage)`
 
-| Luật            | Cơ chế                                                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chống bịa       | **Provenance bắt buộc**: entry phải trỏ về event/artifact gốc — "nhớ vì đâu". Không nguồn = không vào, về cấu trúc                           |
-| Chống poisoning | Lời subject tự khai ("tôi luôn được giảm 50%") = claim basis trọng số thấp — **không tự thăng thành fact**; thăng qua Gate có verifier/người |
-| Bất biến        | Entry là artifact CAS + event ghi nhận; sửa = **supersede có lineage**; mâu thuẫn → **Conflict event**                                       |
-| Mật             | Mặc định `confidential`; egress/leakage-gate áp nguyên; erasure của subject = **crypto-shredding** (Event Log §4)                            |
+| Luật               | Cơ chế                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chống bịa          | **Provenance bắt buộc**: entry phải trỏ về event/artifact gốc — "nhớ vì đâu". Không nguồn = không vào, về cấu trúc                                                                                                                                                                                                                                       |
+| Chống poisoning    | Lời subject tự khai ("tôi luôn được giảm 50%") = claim basis trọng số thấp — **không tự thăng thành fact**; thăng qua Gate có verifier/người                                                                                                                                                                                                             |
+| Bất biến           | Entry là artifact CAS + event ghi nhận; sửa = **supersede có lineage**; mâu thuẫn → **Conflict event**                                                                                                                                                                                                                                                   |
+| Mật                | Mặc định `confidential`; egress/leakage-gate áp nguyên; **routing model cũng áp** — entry mang classification, và theo `model_policy` của mức đó, memory `secret` không bao giờ vào context của model ngoài (Knowledge §3, nơi routing model là thuộc tính của mức, không chỉ của Collection). Erasure của subject = **crypto-shredding** (Event Log §4) |
+| Workspace quan sát | Entry ghi, qua provenance (§4), **workspace mà nó được quan sát** — chiều mà retrieval lọc theo. Khôi phục từ provenance chứ không lưu hai lần (một sự thật, một nhà)                                                                                                                                                                                    |
 
 ## 3. Ghi nhớ là lao động
 
@@ -38,6 +39,7 @@ canonical-sha: 03e38ded7197
 
 - Contract khai `memory_requirements` — đứng cạnh `knowledge_requirements` và context envelope (Handoff §3): **một cửa, ba nguồn ngữ cảnh**. Người nhận bản render, AI nhận structured — cùng scope.
 - **Cross-subject isolation**: scope retrieval = subject của instance (+ `tenant_self`) — khách A không bao giờ thấy chuyện khách B, về cấu trúc, không nhờ prompt.
+- **Cross-workspace isolation — cùng vách đó theo chiều dọc**: cross-subject chưa đủ khi một Party được phục vụ từ hai workspace — cùng một người liên hệ hành động cho hai brand client cạnh tranh (Tenant & Identity §3, §5). Entry mang workspace mà nó được quan sát (§2), và **retrieval mặc định = entry quan sát trong chính workspace của instance, + `tenant_self`**; không khai = hẹp nhất, đúng như distill giải quyết (§5). Gộp memory của một subject xuyên workspace là **pool-choice tường minh** mà Tenant & Identity §3 đã cấp cho agency, không phải mặc định ngầm — nên quan sát ghi khi phục vụ brand A không nổi lên trong task phục vụ brand B. Thiếu luật này, cửa retrieval không có chiều workspace nào cả, và luật C6 (khai chiều workspace, không khai = hẹp nhất) bị vi phạm do bỏ sót.
 - Tìm ngữ nghĩa qua **vector adapter của Knowledge** (án văn không tự chế giữ nguyên); "memory bank per subject" = projection rebuild được.
 
 ## 5. Vòng đời — sinh, già, chết, tốt nghiệp
@@ -79,17 +81,20 @@ Mirror đúng distillation agent→script: Memory là quan sát, Knowledge là t
 2. Chỉ vào một entry bất kỳ: truy được _bằng chứng gốc_ trong log?
 3. Khách cố cài fact giả qua chat — có đường nào thành fact mà không qua Gate?
 4. Kịch bản nào để khách A thấy hồi ức về khách B?
-   4b. Distill từ nhiều subject của client A có đường nào thành tri thức dùng cho client B (workspace khác) mà không khai tường minh?
+   4b. Distill từ nhiều subject của client A có đường nào thành tri thức dùng cho client B (workspace khác) mà không khai tường minh? Và, ở **retrieval**: memory quan sát khi phục vụ một workspace có chạm tới task phục vụ workspace khác của cùng Party, mà không có pool-choice cross-workspace tường minh?
+   4c. Một memory entry classified `secret` và một task có Role được lấp bởi model API ngoài — có đường nào để entry vào context của model đó?
 5. Khách đòi quên — một lệnh hủy khóa xóa sạch khả năng đọc, log không đục?
 
 ## 9. Nhật ký quyết định
 
-| Vấn đề              | Chốt                                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Mặc định            | Tắt ở engine; template vertical bật — K5                                                                                                 |
-| Subject             | Taxonomy mở: external_user / external_org / tenant_self; **cấm filler-as-subject** (án văn: tránh nguồn sự thật thứ hai với calibration) |
-| Chủ sở hữu          | Tổ chức theo subject — không thuộc filler (khác Astron, hệ quả litmus #1)                                                                |
-| Chống bịa/poisoning | Provenance bắt buộc + claim trọng số thấp + Gate                                                                                         |
-| Già & chết          | Decay + memory calibration từ outcome + supersede/Conflict                                                                               |
-| Tốt nghiệp          | Distill lên Knowledge qua Curator task; generalize đa-subject qua leakage-gate; **scope mặc định = workspace hẹp nhất**                  |
-| Hạ tầng             | Zero store mới — Event Log + CAS + vector adapter + projection                                                                           |
+| Vấn đề              | Chốt                                                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mặc định            | Tắt ở engine; template vertical bật — K5                                                                                                                                                                      |
+| Subject             | Taxonomy mở: external_user / external_org / tenant_self; **cấm filler-as-subject** (án văn: tránh nguồn sự thật thứ hai với calibration)                                                                      |
+| Chủ sở hữu          | Tổ chức theo subject — không thuộc filler (khác Astron, hệ quả litmus #1)                                                                                                                                     |
+| Chống bịa/poisoning | Provenance bắt buộc + claim trọng số thấp + Gate                                                                                                                                                              |
+| Già & chết          | Decay + memory calibration từ outcome + supersede/Conflict                                                                                                                                                    |
+| Tốt nghiệp          | Distill lên Knowledge qua Curator task; generalize đa-subject qua leakage-gate; **scope mặc định = workspace hẹp nhất**                                                                                       |
+| Cô lập retrieval    | Cross-subject theo party id, **và cross-workspace theo workspace quan sát** — retrieval mặc định = workspace của chính instance + `tenant_self`; gộp xuyên workspace là lựa chọn tường minh (C6)              |
+| Routing model       | Classification của entry route nó theo `model_policy` của mức (Knowledge §3): memory `secret` không bao giờ vào context của model ngoài. Routing model nằm trên mức classification, không chỉ trên Collection |
+| Hạ tầng             | Zero store mới — Event Log + CAS + vector adapter + projection                                                                                                                                                |

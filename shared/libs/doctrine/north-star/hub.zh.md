@@ -1,7 +1,7 @@
 ---
 title: "Ecoma Hub — North Star"
 status: design-end-state
-canonical-sha: 8b10e81c759b
+canonical-sha: 10c9ed4db890
 ---
 
 # Ecoma Hub — North Star
@@ -31,7 +31,11 @@ canonical-sha: 8b10e81c759b
    key。商业化止步于分发层——pull 与 update。
 2. **digest 是真相；语义化版本是给人的界面。** 机器在 lockfile 里 pin digest；人说名字
    加一个版本范围。公共实例是不可变的：已发布的东西永不删除，只从解析中撤下，因此一个
-   既有的 pin 可以永远工作下去。
+   既有的 pin 可以永远工作下去——**"永远"是指在安装它的那条 engine train 上**。跨越一
+   个 engine major 是一个独立的、带 gate 的动作：upgrade 会拿新 train 重新读取 lockfile
+   里的每一个 pin，并在 cutover _之前_ 浮现任何会被已移除路径破坏的 pin（Release &
+   Compatibility §3），这样"永久运行"与"deprecated 路径在 major 处被移除"就不会悄无声息
+   地相撞。
 3. **不信任发布者。** 租户在安装时重跑静态分析，而一份声明少于分析所发现内容的 manifest
    会被拒绝，而不是被警告。签名与透明日志抵御跨镜像的篡改。
 4. **内容信任复用已经存在的机制。** block 内部的 filler 从较低信任层级起步，因为它在这

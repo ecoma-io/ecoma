@@ -1,7 +1,7 @@
 ---
 title: "Subsystem: Event Log"
 status: design-end-state
-canonical-sha: 7d2267e27c39
+canonical-sha: 11418270b10c
 ---
 
 # Subsystem: Event Log
@@ -22,6 +22,8 @@ canonical-sha: 7d2267e27c39
 ## 3. Projections — luật một nguồn sự thật
 
 Mọi view đều là projection, **rebuild được từ log**, không được trở thành nguồn sự thật thứ hai.
+
+**Rebuild-equivalence được giới hạn theo tập khóa còn đọc được.** Sau một crypto-shred (§4) payload nhạy cảm của một entry không còn giải mã được, nên "rebuild ra kết quả tương đương" nghĩa là tương đương _với các khóa còn tồn tại_ — một projection dựng lại không thể, và không được phép, tái tạo thứ một shred đã hủy. Projection trên dữ liệu đã shred render các trường không đọc được thành một giá trị `shredded` tường minh (trường hợp DataTable ở Working Data §1), và một time-travel read as-of vị trí trước-shred cũng thấy đúng thế — shred không bị hoàn tác bằng cách đọc quá khứ. Litmus tương đương (#1) đọc theo cách này, không phải một lời hứa hồi sinh khóa.
 
 **Luật `run_kind`**: entry mang `run_kind` (§1); **mọi projection phải khai tường minh lập trường của mình với nhãn này** — engine ép trường khai tồn tại, không có mặc định im lặng. Án văn: Test Harness §1 khai hệ quả cho 4 consumer (calibration / metering / DataTable / effect) nhưng nhãn không có nhà ⇒ hai kỹ sư sẽ lọc ở hai chỗ khác nhau, và một projection mới viết sau sẽ **quên lọc**. Lập trường mặc định của các projection đã biết:
 

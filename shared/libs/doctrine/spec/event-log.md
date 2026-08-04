@@ -63,6 +63,16 @@ within a stream is detectable rather than merely disallowed.
 Every view is a projection, **rebuildable from the log**, and none may become a
 second source of truth.
 
+**Rebuild-equivalence is scoped to the currently-readable key set.** After a
+crypto-shred (§4) an entry's sensitive payload no longer decrypts, so "rebuild to
+an equivalent result" means equivalent _given the keys that still exist_ — a
+rebuilt projection cannot, and must not, reconstruct what a shred destroyed. A
+projection over shredded data renders the unreadable fields as an explicit
+`shredded` value (the DataTable case is Working Data §1), and a time-travel read
+as of a pre-shred position sees the same — the shred is not undone by reading the
+past. The equivalence litmus (#1) is read this way, not as a promise to revive a
+key.
+
 **The `run_kind` law**: entries carry `run_kind` (§1), and **every projection must
 declare its position on that label explicitly**. The engine forces the
 declaration to exist; there is no silent default.

@@ -1,7 +1,7 @@
 ---
 title: "Release & Compatibility"
 status: design-end-state
-canonical-sha: b0f79bd8e452
+canonical-sha: cbc2fc523558
 ---
 
 # Release & Compatibility
@@ -61,7 +61,7 @@ Lúc bắt tay, bên khởi tạo gửi `protocol_versions_supported[]`; bên nh
 - **Trước 1.0 thì minor đóng vai major** _(cluster-run.0)_. **Điều kiện cắt `1.0.0`: khi ◆G4 đóng** — tức mọi interface tầng 1–3 đã freeze (North Star §8, roadmap §1b). Án văn: `1.0` là lời hứa "khung dây công khai đã ổn định"; neo nó vào **cổng freeze cuối cùng** là neo vào một sự kiện có thật, thay vì vào cảm giác sẵn sàng. Tới đó, breaking được phép ở minor và mọi luật dưới đây đọc "minor" thay cho "major".
 - **Breaking chỉ ở major.** Minor thêm, patch sửa.
 - **Deprecation ≥1 minor trước khi xóa**, và đánh dấu **trong chính artifact khai** — `deprecated_since` + `removed_in` trên protocol descriptor, contract, manifest field. **Không đánh dấu trong changelog**: changelog không kiểm được bằng máy, và cái không kiểm được bằng máy sẽ trôi.
-- Mỗi lần một đường deprecated được dùng, engine phát entry **`deprecated_used`** (ai, ở đâu, đường nào). Projection "ai còn dùng gì" là **điều kiện để dám xóa** — không có nó thì việc xóa là đoán.
+- Mỗi lần một đường deprecated được dùng, engine phát entry **`deprecated_used`** (ai, ở đâu, đường nào). Projection "ai còn dùng gì" là **điều kiện để dám xóa** — không có nó thì việc xóa là đoán. **Projection đếm cả block đã cài, không chỉ lưu lượng sống**: một block pin từ một publisher đã biến mất vẫn _dùng_ một đường ngay cả giữa các lần chạy, và lockfile của nó là nơi đọc ra cái dùng đó. Điều này hòa giải việc xóa với lời hứa của Hub rằng một pin đã cài **chạy vĩnh viễn** (Hub North Star §2): "vĩnh viễn" bị giới hạn trong _train đã cài nó_, và vượt một major là hành động có gate của chính tenant. Trước cutover (§4 pha 1), upgrade **chạy lại static analysis kiểu lúc-cài trên lockfile đối chiếu train mới**, và một pin dùng đường mà major mới xóa sẽ nổi lên thành một **quyết định có gate trước khi** upgrade tiến hành — không bao giờ là một break lúc chạy phát hiện sau cutover, và không bao giờ là một upgrade bị chặn im lặng. Tenant chọn: giữ train, thay block, hoặc chấp nhận mất mát kèm một bản ghi.
 
 ## 4. Upgrade
 

@@ -20,6 +20,20 @@ login that has to survive across sessions. A persistent profile is then a
 resource with an id and a credential scope of its own, because a shared login
 that belongs to nothing is a credential nobody can revoke.
 
+**A stated limit, because the profile's contents are not the vault's to revoke.**
+The revocable thing is the profile's ecoma-side credential scope; the session
+cookies and tokens **inside** the profile are the _target system's_ authenticated
+state, sitting on the node's disk. On an attended node that disk is a staff
+laptop the person physically holds, so when a node is decommissioned or emergency-
+revoked (RPA North Star §4), cutting its keys stops future work but **does not
+reach the logins already in the profile** — nothing could, and pretending
+otherwise is the dangerous reading. The mechanism that does reach them is stated
+rather than left implicit: decommissioning a node that holds a persistent profile
+**pairs with a compensation Task** that rotates or revokes the target-system
+credential in that profile's credential scope. Undeclared, the credential is
+treated as still live — the conservative reading, consistent with
+reversibility-not-declared-is-irreversible.
+
 **Network egress policy belongs to the sandbox**: a domain allowlist, so a
 session cannot wander outside its scope.
 

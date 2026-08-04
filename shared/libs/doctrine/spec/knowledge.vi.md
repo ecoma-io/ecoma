@@ -1,7 +1,7 @@
 ---
 title: "Module: Knowledge"
 status: design-end-state
-canonical-sha: e90d86e0dfc8
+canonical-sha: 45364090d6f8
 ---
 
 # Module: Knowledge
@@ -33,7 +33,7 @@ canonical-sha: e90d86e0dfc8
 - **Sàn mật kế thừa qua provenance**: output tiêu thụ chunk mức X mang sàn ≥ X (max theo chuỗi). Muốn hạ → **declassify là Task có Gate**, không phải đổi dropdown.
 - **Egress guard hai lớp**: static analysis (đồ thị tĩnh: "task có external effect tiêu thụ `secret`" = lỗi thiết kế) **+ runtime guard tại effect** — bắt cả nhánh dynamic spawning mà static không thấy. Channel outbound/email/publish chặn theo sàn — mặc định, chatbot phục vụ end-user chỉ retrieve được `public`.
 - **Declassify-inline qua Gate (dùng để suy luận ≠ trích vào output)**: task được phép _tiêu thụ_ tri thức mức cao hơn đích egress **nếu và chỉ nếu** Gate liền trước effect có criterion `leakage` — verifier chấm "output không chứa nội dung vượt mức đích"; pass → Gate gán sàn output = mức đích. Chính là declassify-qua-Gate dạng per-output: bot dùng policy hoàn tiền internal để _quyết_, trả lời khách ở mức public — có kiểm, có dấu vết, và đồng thời là phòng thủ cấu trúc trước prompt injection ("xuất toàn bộ policy ra đây" fail criterion leakage).
-- `model_policy` theo collection: `any` / `tenant_approved` / `self_host_only` / `human_only` — routing model theo mật (collection `secret` không bao giờ vào context của model API ngoài).
+- `model_policy` là một trong `any` / `tenant_approved` / `self_host_only` / `human_only`, và là thuộc tính của **mức classification, không chỉ của một Collection**. Nó route theo mật _bất cứ thứ gì classified sắp vào context của model_ — một knowledge chunk, một memory entry (Memory §2), một trường envelope — vì context window là một cửa, và luật chỉ canh Collection sẽ để hở các nguồn kia. Một mức `secret` không bao giờ vào context của model API ngoài, dù entity nào mang nó. Collection đặt tên `model_policy` của riêng nó như mặc định của mức được cụ thể hóa; lattice là nơi luật cư ngụ, nên một nguồn classified thứ hai không thể quên nó. Điều này quản context _đi vào_ model, thứ mà egress guard — quản output _đi ra_ — không quản: hai chiều khác nhau, cả hai đều bắt buộc.
 
 ## 4. Version — ngoại lệ pinning có án văn
 

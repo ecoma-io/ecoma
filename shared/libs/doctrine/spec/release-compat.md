@@ -99,7 +99,17 @@ machine-checkable, and what cannot be checked by machine drifts.
 
 Every use of a deprecated path emits a **`deprecated_used`** entry — who, where,
 which path. The projection "who still uses what" is **the precondition for daring
-to remove it**; without it, removal is a guess.
+to remove it**; without it, removal is a guess. **The projection counts installed
+blocks, not only live traffic**: a pinned block from a publisher who has
+disappeared still _uses_ a path even between runs, and its lockfile is where that
+use is read. This reconciles removal with Hub's promise that an installed pin
+**runs forever** (Hub North Star §2): "forever" is scoped to _the train that
+installed it_, and crossing a major is the tenant's own gated act. Before cutover
+(§4 phase 1), the upgrade **re-runs install-time static analysis of the lockfile
+against the new train**, and a pin that uses a path the new major removes surfaces
+as a **gated decision before** the upgrade proceeds — never a runtime break
+discovered after cutover, and never a silently blocked upgrade. The tenant
+chooses: hold the train, replace the block, or accept the loss with a record.
 
 ## 4. Upgrade
 
