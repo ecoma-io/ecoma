@@ -1,0 +1,45 @@
+{
+  "name": "rba-desktop",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "rba/apps/rba-desktop",
+  "tags": ["type:app", "scope:rba", "license:sul"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist"],
+      "options": { "cwd": "{projectRoot}", "command": "vite build" }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "{projectRoot}", "command": "vite" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "cwd": "{projectRoot}", "command": "vue-tsc --noEmit" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["default", "lintTooling", "rustGlobals"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "eslint . --max-warnings 0 && node ../../../shared/tools/dev-cli/src/main.mjs check-journey-markers . && cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "inputs": ["default", "^default", "rustGlobals"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "cargo test --manifest-path src-tauri/Cargo.toml"
+      }
+    },
+    "bundle": {
+      "executor": "nx:run-commands",
+      "inputs": ["production", "^production", "rustGlobals"],
+      "outputs": ["{workspaceRoot}/target/release/bundle"],
+      "options": { "cwd": "{projectRoot}", "command": "tauri build" }
+    }
+  }
+}

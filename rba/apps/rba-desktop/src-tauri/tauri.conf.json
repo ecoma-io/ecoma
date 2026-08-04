@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Ecoma RBA",
+  "version": "0.0.0",
+  "identifier": "io.ecoma.rba.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:6011",
+    "beforeDevCommand": "pnpm nx run rba-desktop:serve",
+    "beforeBuildCommand": "pnpm nx run rba-desktop:build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ecoma RBA",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 880,
+        "minHeight": 560,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}
