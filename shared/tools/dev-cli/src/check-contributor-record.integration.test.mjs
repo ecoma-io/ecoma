@@ -210,12 +210,23 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
     expect(cli.status).toBe(0);
   });
 
-  it("asks no trailer of automation this project runs, whose commits are not contributions", () => {
-    const dir = buildFixture();
-    const range = addSignedAndUnsigned(dir);
+  /** An unsigned commit authored by the machine account, inside the range. */
+  const addUnsignedBotCommit = (dir) => {
     writeFileSync(join(dir, ".github/renovate.json5"), "{}\n");
+    writeFileSync(join(dir, "bumped.txt"), "dep");
     fixtureGit(dir, ["add", "-A"]);
-    fixtureGit(dir, ["commit", "-q", "-s", "-m", "chore: configure renovate"]);
+    fixtureGit(dir, [
+      "commit",
+      "-q",
+      "--author=renovate[bot] <bot@example.com>",
+      "-m",
+      "chore: bump a dependency",
+    ]);
+  };
+
+  it("asks no trailer of the commits automation itself authored", () => {
+    const dir = buildFixture();
+    addUnsignedBotCommit(dir);
     const cli = runGateIn(
       dir,
       "--author",
@@ -223,10 +234,31 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
       "--author-type",
       "Bot",
       "--commits",
-      range,
+      "HEAD~1..HEAD",
     );
     expect(cli.stderr).toBe("");
+    expect(cli.stdout).toMatch(/owe none/);
     expect(cli.status).toBe(0);
+  });
+
+  it("still holds a person's unsigned commit pushed onto a bot's branch", () => {
+    const dir = buildFixture();
+    addUnsignedBotCommit(dir);
+    writeFileSync(join(dir, "human.txt"), "mine");
+    fixtureGit(dir, ["add", "-A"]);
+    fixtureGit(dir, ["commit", "-q", "-m", "feat: unsigned human work"]);
+    const cli = runGateIn(
+      dir,
+      "--author",
+      "renovate[bot]",
+      "--author-type",
+      "Bot",
+      "--commits",
+      "HEAD~2..HEAD",
+    );
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/unsigned human work/);
+    expect(cli.stderr).not.toMatch(/bump a dependency/);
   });
 
   it("stops asking for a trailer once the agreement stops asking", () => {

@@ -217,9 +217,15 @@ build/typecheck — invoked directly as
     project runs certifies nothing, so a second gate would have to re-derive
     `PROJECT_AUTOMATION` and could disagree with it. Clause-anchored like the
     rest (`signOffClause`): delete the sentence from `CLA.md` and the check
-    stops in the same edit. It judges the whole range against the pull
-    request's author, the only account CI can ask GitHub about, so a commit by
-    someone else is still held to the trailer — the safe direction. CI passes
+    stops in the same edit. **The exemption is per commit, not per pull
+    request**, and that distinction is the whole of it: exempting the range
+    because a bot opened it lets a person push onto a bot's branch and skip the
+    trailer entirely. GitHub is still the only authority on whether an
+    _account_ is a machine (`--author-type`), but which commits that account
+    authored is a question git answers offline, so `unsignedCommits` returns
+    `%an` and the caller filters on it. Matching a name only ever narrows the
+    exemption for an account already known to be a machine, so a mismatch costs
+    a spurious ask rather than a silent pass. CI passes
     `origin/$BASE_REF..HEAD`, which is why that job needs `fetch-depth: 0`.
 - `check-subsystem-readmes` gates the subsystem-root README contract: every
   top-level non-dot directory holding tracked files carries all 3 language
