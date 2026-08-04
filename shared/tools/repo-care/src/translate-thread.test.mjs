@@ -196,6 +196,20 @@ describe("foreignScriptLetters", () => {
   it("reports nothing for a language the config does not describe", () => {
     expect(foreignScriptLetters("中文", "xx")).toBeNull();
   });
+
+  // Also from a live run — the translation this very change was opened with.
+  it("catches a leak that reached the thread after the rule was written", () => {
+    expect(foreignScriptLetters("bản gốc vẫn là tham chiếu权威", "vi")).toBe("权威");
+  });
+
+  // The same runs produced these, and every one of them is Latin. Pinned so
+  // the guard's reach is a fact in the suite rather than a claim in prose: it
+  // answers one question, and translation quality is not that question.
+  it("passes the other ways a free model garbles prose, which are not its question", () => {
+    expect(foreignScriptLetters("bị từ chiri và thử lại", "vi")).toBeNull();
+    expect(foreignScriptLetters("##creenshot (nếu áp dụng)", "vi")).toBeNull();
+    expect(foreignScriptLetters("Code tuân theo hướng dẫn_style", "vi")).toBeNull();
+  });
 });
 
 describe("translateInto", () => {
