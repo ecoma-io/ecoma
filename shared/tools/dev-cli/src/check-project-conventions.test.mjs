@@ -542,6 +542,17 @@ describe("findConventionViolations", () => {
     expect(judge(files)).toEqual([]);
   });
 
+  it("a LICENSE that merely mentions the SUL by name does not reclassify the tree", () => {
+    const files = {
+      ...HEALTHY,
+      LICENSE:
+        "Copyright (c) 2026. All rights reserved.\n" +
+        "This is not the Sustainable Use License; no licence is granted.",
+      "package.json": pkg({ name: "@ecoma-io/ecoma-cloud", license: "UNLICENSED" }),
+    };
+    expect(judge(files)).toEqual([]);
+  });
+
   it("flags a root manifest hiding behind UNLICENSED in a tree whose LICENSE grants SUL", () => {
     const files = {
       ...HEALTHY,
