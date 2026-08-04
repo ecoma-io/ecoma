@@ -71,6 +71,7 @@ import {
   MANIFEST_LICENSE,
   ROOT_LICENSE_FILE,
   licenseForPath,
+  rootLicenseSlug,
 } from "./license-scope.mjs";
 
 import {
@@ -252,11 +253,24 @@ export function findConventionViolations(trackedFiles, readFile) {
     }
   }
 
+  // The root manifest's terms come from the LICENSE the tree ships, not from
+  // the path map: `licenseForPath` knows this workspace's geometry, but the
+  // gate also judges the private cloud workspace (delivery playbook §6,
+  // round 31), whose root is all-rights-reserved. Nested manifests keep the
+  // path map — their homes are the geometry the map describes. A missing or
+  // empty LICENSE yields no expectation at all: that state already carries
+  // its own violation above, and a second finding derived from an absence
+  // would be noise dressed as signal.
+  const rootLicense = tracked.has(ROOT_LICENSE_FILE)
+    ? (readFile(ROOT_LICENSE_FILE) ?? "").trim()
+    : "";
+  const rootSlug = rootLicense ? rootLicenseSlug(rootLicense) : null;
   for (const path of trackedFiles) {
     if (path !== "package.json" && !path.endsWith("/package.json")) continue;
+    if (path === "package.json" && !rootSlug) continue;
     const pkg = parseOrNull(readFile(path));
     if (!pkg) continue;
-    const expected = MANIFEST_LICENSE[licenseForPath(path)];
+    const expected = MANIFEST_LICENSE[path === "package.json" ? rootSlug : licenseForPath(path)];
     if (pkg.license !== expected) {
       violations.push(
         `${path}: "license" is ${JSON.stringify(pkg.license ?? null)}, expected ` +

@@ -39,6 +39,22 @@ export const CARVE_OUT_LICENSE_MARKER = {
 export const ROOT_LICENSE_FILE = "LICENSE";
 
 /**
+ * The marker naming the root licence itself — the mirror, for the tree's own
+ * terms, of `CARVE_OUT_LICENSE_MARKER` for a carve-out's. It exists because
+ * this gate no longer judges only this workspace: the private cloud workspace
+ * consumes it as part of the harness (delivery playbook §6, round 31), and its
+ * root LICENSE is an all-rights-reserved notice, not the SUL text. Deriving
+ * the root slug from the LICENSE a tree actually ships lets one gate judge
+ * both geometries without either tree carrying a copy of the rule.
+ */
+export const ROOT_LICENSE_MARKER = "Sustainable Use License";
+
+/** The licence slug a tree's own root LICENSE text declares. */
+export function rootLicenseSlug(licenseText) {
+  return (licenseText ?? "").includes(ROOT_LICENSE_MARKER) ? "sul" : "proprietary";
+}
+
+/**
  * What a `package.json` must declare for each licence slug.
  *
  * Every value is a valid SPDX expression. Only Apache has a registered
