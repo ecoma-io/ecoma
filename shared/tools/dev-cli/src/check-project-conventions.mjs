@@ -446,6 +446,13 @@ export function findConventionViolations(trackedFiles, readFile) {
     const pkgPath = `${p.root}/package.json`;
     if (!tracked.has(pkgPath)) continue; // path-invoked tools carry no manifest
     const pkg = parseOrNull(readFile(pkgPath));
+    // A publishable manifest (`private: false`) is consumed through the
+    // registry, not the graph: it exists so `nx release` can version and
+    // publish the unit for downstream workspaces (delivery playbook §6,
+    // round 31), and a tsconfig alias for it would be wiring nobody imports
+    // through. The pairing rule keeps guarding what it was written for —
+    // internal lib manifests, which stay `private: true` and alias-paired.
+    if (pkg?.private === false) continue;
     if (pkg?.name?.startsWith("@ecoma-io/") && !aliasSet.has(pkg.name)) {
       violations.push(
         `${pkgPath}: '${pkg.name}' has no @ecoma-io base alias in tsconfig.base.json — ` +

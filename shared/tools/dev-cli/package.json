@@ -1,0 +1,25 @@
+{
+  "name": "@ecoma-io/dev-cli",
+  "version": "0.0.0",
+  "description": "Deterministic workspace gates and developer commands for the ecoma workspace and its downstream consumers",
+  "type": "module",
+  "license": "LicenseRef-Ecoma-SustainableUse-1.0",
+  "private": false,
+  "bin": {
+    "dev-cli": "src/main.mjs"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.mjs",
+    "!src/git-fixture.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecoma-io/ecoma.git",
+    "directory": "shared/tools/dev-cli"
+  }
+}
