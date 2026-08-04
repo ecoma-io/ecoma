@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   splitLangs,
@@ -119,24 +119,20 @@ describe("checkDoctrine", () => {
       .join("\n"),
     ...texts,
   });
-  const runOver = (texts) =>
-    checkDoctrine(
-      (path) => texts[path],
-      () => Object.keys(texts),
-    );
+  const runOver = (texts, args = []) =>
+    checkDoctrine(args, {
+      read: (path) => texts[path],
+      list: () => Object.keys(texts),
+      error: () => {},
+    });
 
   it("passes an empty tree, so the gate can land before the documents it will guard", () => {
-    expect(
-      checkDoctrine(
-        () => "",
-        () => [],
-      ),
-    ).toBe(0);
+    expect(checkDoctrine([], { read: () => "", list: () => [], error: () => {} })).toBe(0);
   });
 
   it("fails on a marker that survived redaction", () => {
     const list = () => ["shared/libs/doctrine/spec/role.md"];
-    expect(checkDoctrine(() => "chốt vòng 12", list)).toBe(1);
+    expect(checkDoctrine([], { read: () => "chốt vòng 12", list, error: () => {} })).toBe(1);
   });
 
   it("passes a tree whose prose carries no coordinates and cites nothing orphaned", () => {
@@ -159,12 +155,7 @@ describe("checkDoctrine", () => {
       "shared/libs/doctrine/spec/role.md": `${canonical} đã sửa`,
       "shared/libs/doctrine/spec/role.vi.md": `---\ncanonical-sha: ${fingerprint(canonical)}\n---\n# Vai`,
     };
-    expect(
-      checkDoctrine(
-        (path) => texts[path],
-        () => Object.keys(texts),
-      ),
-    ).toBe(1);
+    expect(runOver(texts)).toBe(1);
   });
 
   it("passes the same pair once the variant records the canonical it was written from", () => {
@@ -189,7 +180,81 @@ describe("checkDoctrine", () => {
 
   it("fails on a citation whose owning document stayed behind, so the family rule is reached too", () => {
     const list = () => ["shared/libs/doctrine/spec/task.md"];
-    expect(checkDoctrine(() => "freeze tại ◆G2", list)).toBe(1);
+    expect(checkDoctrine([], { read: () => "freeze tại ◆G2", list, error: () => {} })).toBe(1);
+  });
+});
+
+// The withheld tier is judged by the same command with a different rule set,
+// derived from the root rather than declared. Each tier-scoped rule is pinned
+// from both sides: the same fixture under the published root must still fail,
+// so none of these can pass by the rule having quietly stopped running.
+describe("checkDoctrine over the withheld tier", () => {
+  const WITHHELD = "cloud/libs/doctrine";
+  const runAt = (root, texts) =>
+    checkDoctrine([root], {
+      read: (path) => texts[path],
+      list: () => Object.keys(texts),
+      error: () => {},
+    });
+
+  it("accepts a bet identifier in the tier that holds the ledger defining it", () => {
+    expect(runAt(WITHHELD, { [`${WITHHELD}/icp-ledger.md`]: "The wedge converts — BET-3." })).toBe(
+      0,
+    );
+  });
+
+  it("still refuses that identifier where publication is what makes it a violation", () => {
+    const texts = {
+      [CORPUS_MAP]: `[doc](../icp-ledger.md)`,
+      [`${DOCTRINE_ROOT}/icp-ledger.md`]: "The wedge converts — BET-3.",
+    };
+    expect(runAt(DOCTRINE_ROOT, texts)).toBe(1);
+  });
+
+  it("refuses an episode coordinate here too — end state is a property of doctrine, not of publication", () => {
+    expect(runAt(WITHHELD, { [`${WITHHELD}/eng-charter.md`]: "chốt ở vòng 31" })).toBe(1);
+  });
+
+  it("holds a variant to its canonical here too", () => {
+    const canonical = "# Charter\n\nbody";
+    const texts = {
+      [`${WITHHELD}/eng-charter.md`]: `${canonical} edited`,
+      [`${WITHHELD}/eng-charter.vi.md`]: `---\ncanonical-sha: ${fingerprint(canonical)}\n---\n# Điều lệ`,
+    };
+    expect(runAt(WITHHELD, texts)).toBe(1);
+  });
+
+  it("demands no corpus map, because the tier has no outside reader to route", () => {
+    expect(runAt(WITHHELD, { [`${WITHHELD}/web-charter.md`]: "The funnel's dual goal." })).toBe(0);
+    // The same lone document under the published root fails for want of the
+    // map — the routing rule is scoped, not deleted.
+    expect(runAt(DOCTRINE_ROOT, { [`${DOCTRINE_ROOT}/web-charter.md`]: "x" })).toBe(1);
+  });
+
+  it("lets a withheld document cite a family whose owner is published across the boundary", () => {
+    expect(runAt(WITHHELD, { [`${WITHHELD}/roadmap-unpublished.md`]: "blocked until ◆G4" })).toBe(
+      0,
+    );
+  });
+
+  // The failure this pins is the one that reads as success: a tree whose
+  // documents sit directly at its root was matched by no pathspec, so the gate
+  // reported clean having opened nothing. Asserting the exit code alone cannot
+  // tell that apart from a genuinely clean tree — the list call is the evidence.
+  it("reaches documents sitting directly at the root, where the withheld tier keeps all of them", () => {
+    const list = vi.fn(() => [`${WITHHELD}/eng-charter.md`]);
+    const read = vi.fn(() => "chốt ở vòng 31");
+    expect(checkDoctrine([WITHHELD], { read, list, error: () => {} })).toBe(1);
+    expect(read).toHaveBeenCalled();
+  });
+
+  it("still leaves the project's own README and CLAUDE.md to their own gate", () => {
+    const texts = {
+      [`${WITHHELD}/README.md`]: "vòng 31",
+      [`${WITHHELD}/README.vi.md`]: "vòng 31",
+      [`${WITHHELD}/CLAUDE.md`]: "vòng 31",
+    };
+    expect(runAt(WITHHELD, texts)).toBe(0);
   });
 });
 

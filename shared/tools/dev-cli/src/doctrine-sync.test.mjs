@@ -171,13 +171,13 @@ describe("doctrineSync", () => {
   it("scans the documents inside the tree's families, leaving the project's own README triad at the root untouched", () => {
     const { deps } = harness({});
     doctrineSync([], deps);
-    expect(deps.list).toHaveBeenCalledWith(["shared/libs/doctrine/**/*.md"]);
+    expect(deps.list).toHaveBeenCalledWith(["shared/libs/doctrine/*.md"]);
   });
 
-  it("scans only the pathspec it is given, so one family can be stamped without the tree", () => {
+  it("scans only the root it is given, so one family can be stamped without the tree", () => {
     const { deps } = harness({});
     doctrineSync(["shared/libs/doctrine/spec"], deps);
-    expect(deps.list).toHaveBeenCalledWith(["shared/libs/doctrine/spec"]);
+    expect(deps.list).toHaveBeenCalledWith(["shared/libs/doctrine/spec/*.md"]);
   });
 
   it("ignores a non-markdown file the pathspec swept in", () => {

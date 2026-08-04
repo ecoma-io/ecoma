@@ -17,11 +17,10 @@
  * authority it no longer earns, that the staleness rule exists to catch.
  *
  * It reads the git index (`listTrackedFiles`) through the gate's own
- * `DOCTRINE_DOCS` pathspec, so the set it writes is the set the gate judges —
- * which is what keeps the project's `README.md` triad out of its reach. Those
- * three are peers under a fixed-order frontmatter contract, and a
- * `canonical-sha` key stamped into one is a `check-subproject-readmes` failure,
- * not a repair.
+ * `doctrineDocPaths`, so the set it writes is the set the gate judges — which
+ * is what keeps the project's README variants out of its reach. Those are
+ * peers under a fixed-order frontmatter contract, and a `canonical-sha` key
+ * stamped into one is a `check-subproject-readmes` failure, not a repair.
  *
  * Reading the index rather than walking the filesystem means a newly written
  * variant must be `git add`ed to be seen. That is deliberate: a file the gate
@@ -32,7 +31,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { DOCTRINE_DOCS, fingerprint, variantOf } from "./check-doctrine.mjs";
+import { DOCTRINE_ROOT, doctrineDocPaths, fingerprint, variantOf } from "./check-doctrine.mjs";
 import { listTrackedFiles } from "./tracked-files.mjs";
 
 /** The leading `---` … `---` block, with its keys captured. */
@@ -71,7 +70,12 @@ export function recordCanonicalSha(text, sha) {
 }
 
 /**
- * Stamps every variant under `args[0]` (the whole doctrine tree by default).
+ * Stamps every variant under the root named by `args[0]`, defaulting to this
+ * workspace's published tree — the same argument `check-doctrine` takes, so
+ * the write side and the read side of one fingerprint cannot be pointed at
+ * different trees by accident. A family directory is a root like any other, so
+ * one family can still be stamped without the whole tree.
+ *
  * Returns a process exit code: non-zero for a variant it cannot stamp, never
  * for one it simply had no work to do on.
  */
@@ -84,7 +88,7 @@ export function doctrineSync(args = [], deps = {}) {
     error = console.error,
   } = deps;
 
-  const paths = list([args[0] ?? DOCTRINE_DOCS]).filter((path) => path.endsWith(".md"));
+  const paths = doctrineDocPaths(args[0] ?? DOCTRINE_ROOT, list);
 
   let failed = false;
   const written = [];
