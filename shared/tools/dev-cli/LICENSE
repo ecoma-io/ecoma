@@ -1,0 +1,309 @@
+Sustainable Use License, version 1.0, Ecoma edition
+SPDX identifier: LicenseRef-Ecoma-SustainableUse-1.0
+
+Copyright (c) 2026 Mai Ngọc Hóa (also known as John Martin) and each contributor who retains copyright in their contributions under CLA.md
+
+This document licenses the source code of Ecoma. It is a fair-code licence:
+the source is public, and you may read it, self-host it and modify it. It is
+not an OSI open-source licence, and Ecoma is never described as "open source".
+What it withholds is commercial redistribution — above all, selling Ecoma
+itself as a service, and any distribution to others that is not both free of
+charge and non-commercial. That restriction is why the rest can be open.
+
+That paragraph describes the licence in outline. The sections below are its
+terms, and where the two differ, the terms below govern.
+
+These terms are BASED ON the Sustainable Use License 1.0 but are not that
+licence. The SCOPE section, the clarifications in LIMITATIONS, the patent
+retaliation trigger, the definition of "the software", and the GOVERNING LAW,
+LANGUAGE and LIABILITY sections are additions or changes. A review of the base
+licence is not a review of this one.
+
+
+SCOPE
+
+These terms cover every file in the repository the licensor publishes at
+https://github.com/ecoma-io/ecoma (the "Repository"), with five exceptions.
+
+Each exception identifies files by their path within the Repository as the
+licensor publishes it. The terms that govern a file are fixed by its path in
+the version of the Repository in which you received it. If the licensor later
+publishes a version in which that file sits elsewhere, the terms of that later
+version apply only to copies you obtain from it; no license you already hold is
+narrowed or withdrawn. Moving, copying or renaming a file yourself changes
+nothing. A file that is a copy of or a derivative work based on a file from the
+Repository carries the same terms as its source file, regardless of its name,
+location or the name of the directory it sits in within your own tree. This
+paragraph governs over any other in this SCOPE section.
+
+Where more than one exception could apply to a file, the later-numbered
+exception prevails over the earlier.
+
+  1. Any directory named `packages` directly beneath a subsystem root — which
+     the licensor uses only for the interfaces, schemas, protocols, clients
+     and vocabularies a third party needs in order to plug into Ecoma — is
+     licensed by the licensor under the Apache License 2.0, published at
+     https://www.apache.org/licenses/LICENSE-2.0 and also placed in that
+     directory. Nothing in this document limits those files. If such a
+     directory reaches you without a copy of the Apache License 2.0 in it, the
+     Apache License 2.0 governs those files nonetheless.
+
+  2. Any directory named `enterprise` directly beneath a subsystem root is NOT
+     licensed by this document. Those files are published so that they can be
+     read and audited, and no right to use, copy, distribute, make available
+     or prepare derivative works of them is granted here. Using them requires
+     a separate written Enterprise License from the licensor, whose terms are
+     placed in that directory. If those terms are not present, no rights in
+     those files are granted at all.
+
+  3. Every file whose name ends in `.md`, in `shared/libs/doctrine/` and in
+     every directory beneath it, together with every image file located in
+     that directory or beneath it that such a file references, is licensed by
+     the licensor under the Creative Commons Attribution-ShareAlike 4.0
+     International License, whose full text is at
+     https://creativecommons.org/licenses/by-sa/4.0/legalcode and which is
+     summarised in `shared/libs/doctrine/LICENSE.docs`. An image outside that
+     directory is not licensed by this exception, whatever references it.
+     Every other file in that directory, including everything under
+     `shared/libs/doctrine/src/`, is covered by this document. If such a file
+     reaches you without a copy of `LICENSE.docs`, that Creative Commons
+     licence governs it nonetheless.
+
+  4. The `cloud/` directory is proprietary. Its contents are not published in
+     the Repository. If it is present in your working tree, it is not licensed
+     by this document and no rights to it are granted here.
+
+  5. Any third-party component distributed in the Repository remains licensed
+     under the terms its own owner provides, which are stated in or alongside
+     that component. The licensor grants no rights in such components beyond
+     those their owner grants, and nothing in this document limits or extends
+     them.
+
+
+ACCEPTANCE
+
+By using the software, you agree to all of the terms and conditions of this
+document.
+
+
+COPYRIGHT LICENSE
+
+The licensor grants you a perpetual, irrevocable (except as TERMINATION
+provides), non-exclusive, royalty-free, worldwide, non-sublicensable license to
+use, copy, distribute, make available, and prepare derivative works of the
+software, in each case subject to the limitations below.
+
+The license is non-transferable, except that you may transfer it to a successor
+to all or substantially all of your business or assets, on notice to the
+licensor, provided the successor accepts these terms.
+
+
+LIMITATIONS
+
+You may use or modify the software only for your own internal business
+purposes or for non-commercial or personal use. Your own internal business
+purposes include those of your company as defined below, and each entity in
+your company may use the software on that basis.
+
+For the avoidance of doubt, running the software on your own infrastructure to
+operate your own organisation is an internal business purpose, whether or not
+your organisation is commercial, and whether you run it unmodified or with
+changes of your own. This includes using the software to produce or to deliver
+goods and services to your own customers, subject to the two paragraphs below.
+
+Providing the software's functionality to your own customers as part of a
+larger product is also an internal business purpose, but only where all of the
+following are true: (a) the product provides substantial functionality of its
+own, independent of the software; (b) your customers cannot reach
+substantially the functionality of the software through the product; and (c)
+the product is not marketed, priced or sold on the basis of functionality that
+the software provides. A product whose principal value to the customer is
+functionality the software provides does not satisfy (b) or (c), however it is
+branded, packaged or extended. Where (a), (b) and (c) are all satisfied, you
+may charge for that product, and the next paragraph does not restrict you.
+
+Except as the preceding paragraph permits, you may distribute the software or
+provide it to others only if you do so free of charge and for non-commercial
+purposes. In every case, and whether or not the preceding paragraph applies,
+you may not provide the software to third parties as a hosted or managed
+service where the service gives them substantially the functionality of the
+software.
+
+You may not alter, remove, or obscure any licensing, copyright, or other
+notices of the licensor in the software. This license grants you no rights in
+the licensor's trademarks or trade dress.
+
+You may not use the software to train, fine-tune, or otherwise improve an
+artificial intelligence or machine learning model whose output competes with
+the software or reproduces its functionality, whether or not that output is
+itself software. Nor may you extract, mine or systematically collect the
+software's structure, logic or behaviour for the purpose of building a
+competing product. For the purposes of this paragraph, "competes with" means
+the model or its output is offered as a substitute for the software or any
+substantial part of its functionality, whether commercially or non-commercially,
+and "reproduces its functionality" means the model or its output can perform
+substantially the same tasks as the software in substantially the same way.
+
+
+PATENTS
+
+The licensor grants you a perpetual, irrevocable (except as this section
+provides) license, under any patent claims the licensor can license, or becomes
+able to license, to make, have made, use, sell, offer for sale, import, have
+imported, and otherwise transfer the software, in each case subject to the
+limitations and conditions in this license. This license does not cover any
+patent claims that you cause to be infringed by modifications or additions to
+the software.
+
+If you institute patent litigation — including a cross-claim or counterclaim —
+or send a written notice asserting, in either case, that the software or any
+other software the licensor makes available (including the contents of any
+`enterprise` directory and of `cloud/`, whether or not licensed to you)
+infringes or contributes to infringement of any patent, your patent license
+granted under these terms ends immediately. If your company does so and you do
+not, your patent license ends immediately only as to work you do on behalf of
+your company.
+
+
+NOTICES
+
+You must ensure that anyone who gets a copy of any part of the software from
+you also gets a copy of these terms.
+
+If you modify the software, you must include in any modified copies of the
+software a prominent notice stating that you have modified the software.
+
+If you provide any part of the software to another person, you must preserve
+each file's path within the Repository, or else the notice that identifies
+which terms govern it. Rights under this document are addressed by path, so a
+file separated from its path cannot be read for its terms.
+
+The software may contain cryptographic functions. You are responsible for
+compliance with applicable export control and sanctions laws, including the
+United States Export Administration Regulations and the European Union
+Dual-Use Regulation, before downloading, using or distributing the software.
+You represent and warrant that you are not located in, under the control of,
+or a national or resident of any country subject to comprehensive sanctions
+by the United Nations, the United States, the European Union, or Vietnam,
+and that you are not listed on any denied-persons or sanctioned-parties list.
+
+
+NO OTHER RIGHTS
+
+These terms do not imply any licenses other than those expressly granted in
+these terms. This does not limit the licences the SCOPE section states.
+
+
+TERMINATION
+
+If you use the software in violation of these terms, such use is not licensed,
+and your licenses will automatically terminate. If the licensor provides you
+with a notice of your violation, and you cease all violation of this license
+no later than 30 days after you receive that notice, your licenses will be
+reinstated retroactively. However, if you violate these terms after such
+reinstatement, any additional violation of these terms will cause your
+licenses to terminate automatically and permanently.
+
+A notice under this section may be sent to any address, account or contact
+channel you have used in connection with the software, and is treated as
+received when it is sent.
+
+Apart from the termination this section describes, the licensor may not revoke
+or withdraw your licenses. Publishing a later version of these terms does not
+affect any license you already hold: a copy you received under these terms
+stays governed by these terms. The death, dissolution, insolvency or
+reorganisation of the licensor, or any transfer of the project, does not affect
+licenses already granted. Where the licensor is a natural person, their death,
+incapacity or disappearance does not prevent their legal representative,
+successor or estate from granting new licenses under these same terms to new
+recipients.
+
+
+LIABILITY
+
+The software is provided free of charge. To the fullest extent the applicable
+law permits, the licensor gives no warranty or condition of any kind, and the
+software comes as is.
+
+Where the applicable law does not permit the exclusion of a warranty or of
+liability, the licensor's aggregate liability to you, on every claim arising
+out of these terms or out of the use or nature of the software taken together,
+is limited to the total amount you have paid the licensor for the software,
+and where you have paid nothing, to VND 1.000.000. The parties agree that this
+limit reflects that the software is supplied at no charge and that you accept
+the risk of using it. The licensor is in no case liable for indirect or
+consequential damages or for lost profits.
+
+
+COMMERCIAL LICENSES AND NOTICES
+
+For any use these terms do not permit — including offering the software as a
+hosted or managed service, and any use of an `enterprise` directory — the
+licensor offers separate written terms. Write to john.itvn@gmail.com. Any
+notice to the licensor under these terms is given at that address.
+
+
+GOVERNING LAW AND FORUM
+
+These terms are governed by the laws of the Socialist Republic of Vietnam,
+without regard to its conflict-of-laws rules. Any dispute arising out of or
+relating to these terms, or to the use or nature of the software, is subject to
+the exclusive jurisdiction of the competent courts of Vietnam, and you consent
+to that jurisdiction. Where the mandatory law of your own country of residence
+gives you rights that this section cannot displace, this section does not
+displace them.
+
+
+LANGUAGE
+
+These terms are published in English. Where the licensor publishes a Vietnamese
+version, that version governs in any proceeding before a court or authority of
+Vietnam, and the English version governs elsewhere. Where you are a consumer,
+you may rely on whichever version is in your own language.
+
+
+SEVERABILITY
+
+If any provision of these terms is held unenforceable, it is to be enforced to
+the greatest extent permitted, and if that is not possible, severed. The
+remaining provisions stay in full effect. The parties agree that the
+LIMITATIONS section is a fundamental condition of the licences granted here; if
+any part of LIMITATIONS is held unenforceable as to you, your licenses
+terminate as to the use that part would have prohibited, and are not enlarged
+by the severance.
+
+
+DEFINITIONS
+
+The "licensor" is Mai Ngọc Hóa, an individual also known as John Martin. Where
+the licensor transfers the copyright in the software to another person or to a
+legal entity, that person or entity becomes the licensor for the purposes of
+these terms from the date of the transfer, and these terms continue unchanged.
+
+The "software" is the software the licensor makes available under these terms,
+including any portion of it, in source code, compiled or interpreted object
+code, container image form or any other form, and excluding everything the
+SCOPE section above excludes.
+
+A "subsystem root" is any directory located immediately at the root of the
+Repository's directory tree whose name does not begin with a dot, other than
+`cloud`. The root of the Repository is not itself a subsystem root.
+
+"You" refers to the individual or entity agreeing to these terms.
+
+"Your company" is any legal entity, sole proprietorship, or other kind of
+organization that you work for, plus all organizations that have control over,
+are under the control of, or are under common control with that organization.
+Control means ownership of substantially all the assets of an entity, or the
+power to direct its management and policies by vote, contract, or otherwise.
+Control can be direct or indirect.
+
+"Your licenses" are all the licenses granted to you for the software under
+these terms.
+
+"Use" means any act with the software that, absent these terms, would require
+the permission of the copyright owner — including copying, running, modifying,
+distributing and providing it.
+
+"Provide" includes making functionality available over a network, whether or
+not a copy of the software is conveyed.
