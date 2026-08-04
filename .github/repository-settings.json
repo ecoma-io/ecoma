@@ -1,0 +1,51 @@
+{
+  "$comment": "The repository settings that are NOT code — branch rules and merge policy — written down because nothing else can hold them. A clone carries every gate in this tree, and none of these: delete the repository and they are gone, recreate it and they come back as GitHub's defaults, which are not these. That is the failure this file exists to prevent, and it is not hypothetical — `ci-gate` being a required check is the only thing standing between a red run and a merge. Apply with `gh api --method PUT repos/ecoma-io/ecoma --input <the repository object>` and `gh api --method POST repos/ecoma-io/ecoma/rulesets --input <a rulesets entry>`; read the live state back with the same paths and `GET` to diff it against this file. This is a record, not an enforcer: no gate compares it to reality, because doing so needs an admin token and this repository holds none. Check it by hand when something about landing a change feels different from what is written here.",
+  "repository": {
+    "$comment": "Merge policy. Exactly one method stays enabled, so the strategy is a mechanism rather than whichever button someone clicked. `delete_branch_on_merge` is safe under merge commits and only under them: a merge commit's second parent puts the branch's commits on the default branch as the SAME objects, so deleting the ref removes a pointer and no history. Under rebase the branch commits are REPLAYED as new objects and the originals are reachable only through that ref — which is why 88 stale branches had accumulated before this file existed.",
+    "allow_merge_commit": true,
+    "allow_squash_merge": false,
+    "allow_rebase_merge": false,
+    "delete_branch_on_merge": true
+  },
+  "rulesets": [
+    {
+      "name": "main",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+      "rules": [
+        { "type": "deletion" },
+        { "type": "non_fast_forward" },
+        {
+          "$comment": "`required_linear_history` is deliberately ABSENT. It forbids merge commits outright — a `PUT .../pulls/N/merge` with `merge_method: merge` answers `405 Merge commits are not allowed on this repository` even while the repository object says they are. Linearity is recoverable as a view (`git log --first-parent`, `git bisect --first-parent`); the pull-request boundary a merge commit records is not recoverable at all once a rebase has flattened it, and that boundary is what makes `git revert -m 1 <merge>` the one operation the engineering charter §2 promises.",
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": false,
+            "dismissal_restriction": { "enabled": false, "allowed_actors": [] },
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": false,
+            "allowed_merge_methods": ["merge"]
+          }
+        },
+        {
+          "$comment": "`integration_id` 15368 is GitHub Actions: it pins the check to the app that produces it, so a differently-owned check of the same name cannot satisfy it. `ci-gate` is a single aggregating job on purpose — one name to require, so adding a CI job never means remembering to add it here too.",
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": false,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [{ "context": "ci-gate", "integration_id": 15368 }]
+          }
+        }
+      ]
+    }
+  ],
+  "notAppliedYet": {
+    "$comment": "What this file describes that the live repository does not yet have, so a reader can tell a record from a wish. Both need an admin token; the sessions that wrote this file hold a fine-grained token without one.",
+    "mergeMethod": "Live: `required_linear_history` present and `allowed_merge_methods: [\"rebase\"]`. Target: the rule dropped and the method set to `merge`.",
+    "deleteBranchOnMerge": "Live: false. Target: true.",
+    "mergeQueue": "Neither live nor targeted here. The engineering charter §2 states a merge queue as the end state — CI re-run on the would-be trunk — and no rule in this file provides one. That gap is real and is the charter's to discharge, not this file's to hide."
+  }
+}

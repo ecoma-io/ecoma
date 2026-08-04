@@ -53,10 +53,12 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      # Rebase-merge lands every branch commit on main verbatim, and the local
-      # commit-msg hook cannot see amended/rebased history — so both message
-      # gates re-run here per PR commit (merge commits are ignored, matching
-      # commitlint's own defaults).
+      # Every branch commit reaches main verbatim — under merge-commit merging
+      # as the SAME object, through the merge's second parent — and the local
+      # commit-msg hook cannot see amended or rebased history. So both message
+      # gates re-run here, per pull-request commit. Merge commits are skipped on
+      # both sides (`--no-merges` below, commitlint's own defaults on its side):
+      # nobody authors a merge, so there is no scope for one to get wrong.
       - name: Commit messages (Conventional + scope ↔ path)
         if: github.event_name == 'pull_request'
         env:
