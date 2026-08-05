@@ -1,16 +1,41 @@
 /**
  * Go resolver — static analysis only, no `go` binary required (the same
- * property gonx gets from tree-sitter, achieved here with two regexes over a
- * format that `gofmt` keeps canonical for the whole ecosystem).
+ * property gonx gets from tree-sitter, achieved here with a comment mask and
+ * two regexes over a format that `gofmt` keeps canonical for the whole
+ * ecosystem).
  *
  * Model: one Go module per Nx project (`<projectRoot>/go.mod`); the module
  * path is the project's identity. An import of another project's module path
  * (exact or `<modulePath>/...`) is a static edge.
  *
- * Known parse limits, deliberate and pinned by tests: an `import (…)` block
- * is read up to the first `)`, and a commented-out import inside the block
- * still counts. Both misread only hand-mangled sources gofmt would rewrite,
- * and the worst case is a spurious graph edge — never a missed project.
+ * **Comments are blanked before either regex runs** (`maskGoComments`). A
+ * regex that cannot see a comment misreads ordinary, `gofmt`-clean Go in both
+ * directions, and only one of those directions is survivable. A `)` written
+ * inside a comment — `// TODO(alice): drop this once the port lands`, or the
+ * note a blank import is expected to carry, `_ "github.com/lib/pq" // register
+ * the driver (postgres)` — closes the `import (…)` block early, and every
+ * import below it disappears: no graph edge, so `nx affected` stops rebuilding
+ * dependents, and no import record, so the boundary check calls the file clean
+ * while a violation sits in it. A checker that reports "clean" about a file it
+ * failed to read is worse than no checker. The opposite direction — an import
+ * written inside a block comment counted as one that is written — costs a
+ * spurious edge, and the same mask removes it.
+ *
+ * Known parse limits, deliberate and pinned by tests. Each errs toward a
+ * record naming text the file really contains, never toward a missed import,
+ * and all but the first are shapes `gofmt` rewrites:
+ *
+ * - A **raw string literal** holding what looks like an import declaration at
+ *   the start of one of its lines is read as that declaration. `gofmt` leaves
+ *   such a file alone, so this is the one limit a formatted tree still meets.
+ *   The mask keeps raw strings intact on purpose: an import path is itself a
+ *   string literal, and a mask that ate string literals would have nothing
+ *   left to read.
+ * - `import` must open its line, after indentation only. `import "a"; import
+ *   "b"` yields the first alone, and so does `import ("a"; "b")`; inside a
+ *   block, each import needs its own line for the same reason.
+ * - An import path spelled as a raw string rather than a quoted one is not
+ *   read. Legal Go, which `gofmt` rewrites to the interpreted form.
  *
  * Two layers read those regexes. `resolveGoDependencies` reduces them to Nx
  * graph edges; `analyzeGo` returns the fuller import-site record
@@ -33,17 +58,11 @@
  * - `kind` is always `static`. Go has no dynamic import, no type-only import,
  *   and no re-export form; a blank (`_`) or dot (`.`) import is still an
  *   ordinary compile-time dependency.
- * - `spelling` is `{ path: false, relative: false }`, always. Go has no
- *   relative import form inside a module — every import is the full package
- *   path — so there is no spelling for this bit to be true for. **Known
- *   exposure, surfaced rather than fixed here:** a `.go` file importing
- *   another package of its OWN module resolves to its own project and is
- *   therefore reported as `noSelfCircularDependencies`, asking for a relative
- *   form Go does not have. No file in this workspace does it, so there is no
- *   evidence to fix it against; whether Go should instead say "an import that
- *   lands in my own project is internal" is a judgement about a language whose
- *   package graph cannot cycle at all, and it belongs in the change that has a
- *   real case to argue from.
+ * - `spelling.path` is always `false`; `spelling.relative` is true exactly when
+ *   the import resolved to the source file's own project. Go has no relative
+ *   import form, so the second bit reads what an import REACHED rather than
+ *   how it was written — `isOwnProjectImport` states why that is the honest
+ *   answer for a language whose package graph cannot cycle.
  */
 import {
   emptyResult,
@@ -60,21 +79,92 @@ export function parseGoModulePath(goModText) {
   return match ? match[1] : null;
 }
 
+/** Every character of `text` except its line breaks, replaced by a space. */
+const blankOut = (text) => text.replace(/[^\n]/g, " ");
+
+/** Where the scan has to stop and decide: a comment opener or a literal. */
+const LEXICAL_START = /\/\/|\/\*|["'`]/g;
+
+/**
+ * `goText` with every comment blanked out, byte-for-byte the same length and
+ * with its line breaks in place, so an offset into the result is the same
+ * offset into the original.
+ *
+ * A regex that cannot see a comment reads Go wrong in both directions, and
+ * this is the single pass that makes both go away — see the header for what
+ * each direction costs. Blanking rather than deleting is what keeps
+ * `positionAt` honest: the import-site record is read as `file:line:column`,
+ * and a mask that shortened the text would report every position after the
+ * first comment somewhere it is not.
+ *
+ * The scan has to know Go's literals to know where a comment is NOT: `//`
+ * inside a string is text, and so is the `*` + `/` that would otherwise close
+ * a block comment. Three literal forms carry that risk — an interpreted string
+ * and a rune literal, both escaped with `\` and neither able to span a line,
+ * and a raw string, which takes no escapes and may span as many lines as it
+ * likes. Go's block comments do not nest, so the first terminator closes one
+ * however many openers precede it.
+ *
+ * @param {string} goText
+ * @returns {string} Same length as `goText`.
+ */
+export function maskGoComments(goText) {
+  const scan = new RegExp(LEXICAL_START.source, "g");
+  let masked = "";
+  let copied = 0;
+  let match;
+  while ((match = scan.exec(goText)) !== null) {
+    const start = match.index;
+    let end;
+    let isComment = false;
+    if (match[0] === "//") {
+      // A line comment runs to the newline, which is not part of it.
+      const newline = goText.indexOf("\n", start);
+      end = newline === -1 ? goText.length : newline;
+      isComment = true;
+    } else if (match[0] === "/*") {
+      const terminator = goText.indexOf("*/", start + 2);
+      end = terminator === -1 ? goText.length : terminator + 2;
+      isComment = true;
+    } else if (match[0] === "`") {
+      const close = goText.indexOf("`", start + 1);
+      end = close === -1 ? goText.length : close + 1;
+    } else {
+      // Interpreted string or rune literal: `\` escapes the next character,
+      // except at a line break, where the literal is unterminated instead.
+      let at = start + 1;
+      while (at < goText.length && goText[at] !== match[0] && goText[at] !== "\n") {
+        at += goText[at] === "\\" && goText[at + 1] !== "\n" ? 2 : 1;
+      }
+      end = Math.min(goText[at] === match[0] ? at + 1 : at, goText.length);
+    }
+    const span = goText.slice(start, end);
+    masked += goText.slice(copied, start) + (isComment ? blankOut(span) : span);
+    copied = end;
+    scan.lastIndex = end;
+  }
+  return masked + goText.slice(copied);
+}
+
 /**
  * Every import in a .go file with the offset of its quoted path, in source
  * order and WITHOUT deduplication — one entry per written import, which is
  * what an import-site record is (`analysis/contract.md`).
  *
+ * Offsets index the ORIGINAL text, not the mask: `maskGoComments` preserves
+ * length, so the two are the same coordinate system.
+ *
  * @param {string} goText
  * @returns {{ specifier: string, offset: number }[]}
  */
 export function parseGoImportSites(goText) {
+  const source = maskGoComments(goText);
   const sites = [];
   // import "p" | import alias "p" | import _ "p" | import . "p"
-  for (const m of goText.matchAll(/^\s*import\s+(?:[A-Za-z_.][\w.]*\s+)?"([^"]+)"/gm)) {
+  for (const m of source.matchAll(/^\s*import\s+(?:[A-Za-z_.][\w.]*\s+)?"([^"]+)"/gm)) {
     sites.push({ specifier: m[1], offset: m.index + m[0].indexOf('"') });
   }
-  for (const block of goText.matchAll(/^\s*import\s*\(([\s\S]*?)\)/gm)) {
+  for (const block of source.matchAll(/^\s*import\s*\(([\s\S]*?)\)/gm)) {
     const contentOffset = block.index + block[0].indexOf("(") + 1;
     for (const m of block[1].matchAll(/^\s*(?:[A-Za-z_.][\w.]*\s+)?"([^"]+)"/gm)) {
       sites.push({ specifier: m[1], offset: contentOffset + m.index + m[0].indexOf('"') });
@@ -151,6 +241,31 @@ const isUnderModule = (importPath, modulePath) =>
   importPath === modulePath || importPath.startsWith(`${modulePath}/`);
 
 /**
+ * Did this import land inside the file's own project — the `spelling.relative`
+ * bit of the analysis record (`contract.md`)?
+ *
+ * Go has no relative import form: every import is the full module-qualified
+ * package path, so a package reaching a sibling package of its own module must
+ * spell the module path out. That is the same position Rust's
+ * `isOwnProjectPath` answers for a binary naming its own package's library
+ * crate — the language offers no other spelling, so the spelling is not
+ * evidence of anything.
+ *
+ * The bit exists as counter-evidence for `noSelfCircularDependencies`, which
+ * names a file leaving its project through the project's public alias and
+ * coming back in. A Go import cannot be that: the compiler rejects an import
+ * cycle outright, so an import resolving to the source's own project is
+ * internal by construction, and reporting it would demand a form the language
+ * does not have. Nx models one module as one project, so source and target
+ * land on the same node whenever a real Go project has two packages.
+ *
+ * @param {string|null} target The project the import resolved to.
+ * @param {{name: string}|null} owner The project owning the source file.
+ * @returns {boolean}
+ */
+const isOwnProjectImport = (target, owner) => target !== null && target === owner?.name;
+
+/**
  * Analyzes one `.go` file.
  *
  * An import of the file's own module resolves to its own project rather than
@@ -193,14 +308,15 @@ export function analyzeGo({ sourceFile, text, workspace }) {
         column,
         specifier: site.specifier,
         kind: "static",
-        // Neither bit is ever set for Go, and both answers are the language's
-        // rather than a default. A Go import path is a PACKAGE path resolved
-        // through the module graph, never a filesystem path resolved against
-        // the importing file — modules mode rejects `import "./sub"` outright —
-        // so `path` is false. And Go has no relative import form at all inside
-        // a module: `spelling.relative` has nothing it could be true for. See
-        // the header's known limits for what that costs.
-        spelling: { path: false, relative: false },
+        // Both answers are the language's rather than a default. `path` is
+        // never true: a Go import path is a PACKAGE path resolved through the
+        // module graph, never a filesystem path resolved against the importing
+        // file — modules mode rejects `import "./sub"` outright.
+        //
+        // `relative` is true exactly when the import landed inside the file's
+        // own project, which is `isOwnProjectImport` above and the same answer
+        // Rust gives a binary that names its own package's library crate.
+        spelling: { path: false, relative: isOwnProjectImport(target, owner) },
         resolved: {
           target,
           file: null,
