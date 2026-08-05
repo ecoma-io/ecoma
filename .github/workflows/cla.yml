@@ -15,20 +15,23 @@ on:
     types: [opened, closed, synchronize]
 
 permissions:
-  # `contents: write` is what records the signature: the action commits it to
-  # the signatures file in this repository, so the writing the agreement needs
-  # lives in the tree and in every clone rather than in a service's database.
-  # That is the whole reason this repository runs the action rather than a
-  # hosted CLA bot. The branch it writes to must let the Actions app push —
-  # a protected `main` with no bypass for it makes the action fail loudly on
-  # the first signature. The alternative, if that bypass is unwanted, is the
-  # action's own `branch:` input pointing at an unprotected branch; the cost is
-  # that `check-contributor-record` in ci.yml can no longer read the file from
-  # a normal checkout, so the tree stops being the single place the answer is.
-  contents: write
-  pull-requests: write
-  statuses: write
-  actions: write
+  # Read, and only read, which is not the obvious shape for a workflow whose
+  # whole job is to write a signature into this repository.
+  #
+  # The write happens under a GitHub App's installation token, minted in the
+  # job below, and the reason is a hard limit rather than a preference:
+  # `github-actions[bot]` CANNOT be added to a ruleset's bypass list. It is not
+  # selectable in the UI and no integration id is accepted over the API —
+  # GitHub keeps its own Actions token non-bypassable on purpose, so that write
+  # access to this file never becomes write access past every rule. A bypass
+  # list takes repository roles, teams, GitHub Apps and deploy keys; this token
+  # is none of them. Granting `contents: write` here would therefore buy a
+  # permission that still cannot commit to a protected default branch, while
+  # handing every step in this job more authority than it needs.
+  #
+  # So the only thing the default token does here is check the repository out.
+  # What the App needs instead is listed beside the token it mints.
+  contents: read
 
 concurrency:
   group: cla-${{ github.event.issue.number || github.event.pull_request.number }}
@@ -46,11 +49,46 @@ jobs:
       github.event_name == 'pull_request_target' ||
       (github.event.issue.pull_request != null && github.event.comment.body != '')
     steps:
+      # The App comes first because everything after it writes with the token
+      # it mints — including `git push` in the last step, which authenticates
+      # through the credential this job's checkout persists.
+      #
+      # The guard exists because the failure it replaces is unreadable: without
+      # it a missing secret surfaces as a generic "input required" from an
+      # action whose name says nothing about why this repository needs an App.
+      - name: Require the app credentials this workflow cannot work without
+        env:
+          APP_ID: ${{ secrets.CLA_APP_ID }}
+        run: |
+          [ -n "$APP_ID" ] || {
+            echo "::error::CLA_APP_ID and CLA_APP_PRIVATE_KEY are not set. Recording a signature means committing to a protected branch, which the Actions token cannot do and cannot be granted. See .github/repository-settings.json > notAppliedYet.claAppBypassAndSecrets."
+            exit 1
+          }
+
+      # No app id appears in this file (Rule 14). Both halves come from
+      # secrets, so rotating the key — or moving to a different App — is a
+      # settings change and never a code change.
+      - name: Mint the installation token that may write to a protected branch
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.CLA_APP_ID }}
+          private-key: ${{ secrets.CLA_APP_PRIVATE_KEY }}
+
       # No `ref:` — the default under `pull_request_target` is the base branch,
       # the trusted copy, and naming a `github.event.pull_request` ref would
       # trip Scorecard's dangerous-workflow check (see pr-practice-review.yml).
-      # Only dev-cli is read off this checkout, to derive the two inputs below.
+      #
+      # `token:` and the persisted credential are both deliberate, and both are
+      # departures from the `persist-credentials: false` this repository uses
+      # everywhere else. The last step commits CONTRIBUTORS.md and pushes it,
+      # and a push needs a credential on disk; leaving the default token here
+      # would persist one that cannot write to a protected branch anyway. The
+      # exposure that convention normally guards against does not arise: this
+      # job never checks out or executes anything from the pull request head.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -98,7 +136,12 @@ jobs:
       - name: Record the signature and set the check
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Every call the action makes rides this token, so the app — not this
+          # workflow — is what needs `contents: write` (the signature commit),
+          # `pull-requests: write` (the comment), `statuses: write` (the check)
+          # and `actions: write` (the re-run on `recheck`). That is also why the
+          # workflow's own `permissions:` block asks for read and nothing more.
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
           # Read by `check-contributor-record` off this very input, so the gate
           # and the writer can never point at different generations. Publishing
@@ -137,18 +180,28 @@ jobs:
       # not a step to hand a first-time contributor. It is added here, from the
       # signature the step above just committed, which is why the tree is
       # re-read rather than reused.
+      # The push below lands on the same protected branch as the signature, so
+      # it rides the same App: the checkout above persisted that credential,
+      # which is what `git push` picks up. The identity is the App's too — a
+      # commit attributed to `github-actions[bot]` here would name an actor
+      # that provably could not have made it.
       - name: Credit the signatory in CONTRIBUTORS.md
         if: github.event_name == 'issue_comment'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          # Read from the token step rather than written here, so the author
+          # cannot drift from whichever App actually holds the bypass. The
+          # numeric `<id>+slug[bot]@…` form is skipped deliberately: it buys an
+          # avatar link and costs an API call for an id nothing else needs.
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           git fetch --no-tags --depth=1 origin main
           git checkout -B main FETCH_HEAD
           node shared/tools/dev-cli/src/main.mjs sync-contributors \
             --signatures signatures/version1/cla.json
           if ! git diff --quiet -- CONTRIBUTORS.md; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "$APP_SLUG[bot]"
+            git config user.email "$APP_SLUG[bot]@users.noreply.github.com"
             git commit -s -m "chore(workspace): credit a new signatory in CONTRIBUTORS.md" \
               -m "CLA.md clause 3.2 names CONTRIBUTORS.md as how the project credits an author, so the row is owed from the moment a signature exists." \
               -- CONTRIBUTORS.md
