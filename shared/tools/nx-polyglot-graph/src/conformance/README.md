@@ -61,7 +61,7 @@ statement pass as agreement.
 | messageId                                    | agree | stricter | weaker | verdict          |
 | -------------------------------------------- | ----: | -------: | -----: | ---------------- |
 | `noRelativeOrAbsoluteImportsAcrossLibraries` |     2 |        0 |      0 | agree            |
-| `noRelativeOrAbsoluteExternals`              |     3 |        0 |  **1** | **WEAKER**       |
+| `noRelativeOrAbsoluteExternals`              |     4 |        0 |      0 | agree            |
 | `noCircularDependencies`                     |     1 |        0 |      0 | agree            |
 | `noSelfCircularDependencies`                 |     2 |        1 |      0 | agree + stricter |
 | `noImportsOfApps`                            |     1 |        1 |      0 | agree + stricter |
@@ -72,7 +72,7 @@ statement pass as agreement.
 | `bannedExternalImportsViolation`             |     4 |        2 |      0 | agree + stricter |
 | `nestedBannedExternalImportsViolation`       |     1 |        0 |      0 | agree            |
 | `noTransitiveDependencies`                   |     2 |        1 |      0 | agree + stricter |
-| `onlyTagsConstraintViolation`                |     9 |        2 |  **1** | **WEAKER**       |
+| `onlyTagsConstraintViolation`                |    10 |        2 |      0 | agree + stricter |
 | `emptyOnlyTagsConstraintViolation`           |     1 |        0 |      0 | agree            |
 | `notTagsConstraintViolation`                 |     2 |        0 |      0 | agree            |
 
@@ -81,49 +81,29 @@ every run. The table above is a transcription; the run is the authority.
 
 ## Defects — where this engine is WEAKER than ESLint
 
-Two, both found by this suite, neither known before it existed. Each is recorded
-in the catalogue by name, so the suite fails if a third appears **and** fails if
-one of these is fixed without the ledger being updated.
+**None.** No probe in the catalogue records one, and the suite is what says so:
+`carries exactly the false negatives its own ledger records` compares the false
+negatives it observes against the ones the catalogue declares, in both
+directions. A new one fails the run because nothing declares it; a declared one
+that stopped happening fails the run because the declaration outlived it. So an
+empty list here is a measurement, not a claim — and it cannot rot into a claim
+without the run going red.
 
-### 1. A relative path that resolves outside every project
+Two of the catalogue's probes exist because they each caught one, and the
+properties they pin are the two a reader should check first. Each is covered
+from both sides — the fixture that produced the finding, and a unit test beside
+the code that states the intent without needing ESLint to run:
 
-`noRelativeOrAbsoluteExternals` · `external-resources-reached-by-path`
-
-`import { there } from "../../../outside/present"`, where `outside/present.ts`
-exists but belongs to no project. ESLint reports. This engine reports nothing.
-
-The cause is the synthesized-external mechanism firing on a specifier that is a
-path. The analyzer resolves the file, sees no owning project, and marks the
-record `external: true` with `packageName: null`. `externalNodeFor` then falls
-back to `getPackageNameFromImportPath("../../../outside/present")`, which returns
-`".."`, and synthesizes `npm:..`. Having a target — however synthetic — makes
-`evaluateSite` skip the `if (!targetProject)` branch, and that branch is the only
-place `noRelativeOrAbsoluteExternals` is reported.
-
-Upstream has no such node, so it falls into the branch and reports. The
-near-misses beside this one agree: the same spelling pointing at a file that does
-**not** exist, and the absolute `/outside/present`, both resolve to nothing and
-both engines report.
-
-The fix belongs in `src/rules/index.mjs`: a specifier that `isRelativePath` or
-starts with `/` must not be given a synthesized external node, because upstream
-never has one for a path either.
-
-### 2. `require.resolve()` is invisible to the analyzer
-
-`onlyTagsConstraintViolation` (and, by construction, all fifteen) ·
-`import-forms-a-boundary-check-must-see`
-
-Upstream's `getImportFromRequireCall` accepts both `require(...)` and
-`require.resolve(...)` — the latter has a `MemberExpression` callee. The
-TypeScript analyzer matches only `ts.isIdentifier(node.expression) &&
-node.expression.text === "require"`, so a `require.resolve("@x/y")` call produces
-no import record at all.
-
-This is worse than one missing message. No record means no rule runs, so **every
-one of the fifteen checks is unenforced on that call**, not just the one the
-fixture happens to trigger. The fix belongs in
-`src/analysis/typescript.mjs`'s `importSitesIn`.
+- a specifier that is a path receives **no** synthesized external node, because
+  a package name is what synthesis needs and a path is never one. Refusing it is
+  what puts the site back in the `if (!targetProject)` branch, the only place
+  `noRelativeOrAbsoluteExternals` is reported (`external-resources-reached-by-path`;
+  `isPathSpecifier` in `src/rules/index.mjs`).
+- `require.resolve(...)` produces an import site, matching the second callee
+  form upstream's `getImportFromRequireCall` admits. A form that produces no
+  record leaves not one message missing but **all fifteen rules void on that
+  call** (`import-forms-a-boundary-check-must-see`; `isRequireCallee` in
+  `src/analysis/typescript.mjs`).
 
 ## Decisions — where this engine is deliberately stricter
 
@@ -259,18 +239,19 @@ ESLint does not, and parity is what makes this comparison mean anything.
 ## What this licenses
 
 **`@nx/enforce-module-boundaries` cannot be removed from `eslint.config.mjs`
-today.** Not because the reimplementation is far off — thirteen of fifteen
-message types agree wherever both engines can see the code — but because the two
-false negatives above are exactly the failure mode that makes removal
-irreversible. Delete the ESLint rule now and `require.resolve()` becomes an
-unchecked hole in every one of the fifteen rules, with nothing left to notice.
+today** — but the reason has changed shape. All fifteen message types agree
+wherever both engines can see the code, and no probe records a false negative;
+what blocks removal is now the other two conditions below, neither of which is
+about correctness on the fixtures.
 
-Three things have to become true first.
+Three things have to become true first, and one of them is.
 
-1. **Both defects fixed, and this suite green with an empty defect ledger.** The
-   `carries exactly the false negatives its own ledger records` test turns that
-   into a gate rather than a memory: it fails on a new false negative and it
-   fails when a recorded one is fixed and the ledger is not updated.
+1. **No false negative, and this suite green with an empty defect ledger.**
+   Met, and held rather than remembered: the
+   `carries exactly the false negatives its own ledger records` test fails on a
+   new false negative and fails when a recorded one is fixed without the ledger
+   moving with it. It is the condition that can regress in one commit, so it is
+   the one worth re-reading the run for rather than this paragraph.
 2. **The stricter list stays a decision, not a surprise.** Every fail-closed row
    fires on a graph field this repository's `src/graph/` does not populate today.
    Removing ESLint would put those false alarms in front of contributors on real
@@ -284,6 +265,7 @@ Three things have to become true first.
 
 Until then the honest position is the one the tool already takes: run **both**.
 ESLint stays authoritative for JavaScript, TypeScript and Vue, where it is
-correct and where this engine is currently weaker in two known places. This tool
-covers Go, Rust and Python, where ESLint reports nothing at all and any
-enforcement is a strict improvement over the silence it replaces.
+correct and where agreement is measured on 39 minimal trees rather than on the
+code contributors actually write. This tool covers Go, Rust and Python, where
+ESLint reports nothing at all and any enforcement is a strict improvement over
+the silence it replaces.

@@ -113,16 +113,7 @@ export const CONFORMANCE_CASES = [
     ],
     probes: [
       { file: "libs/walker/src/missing.ts", upstream: ["noRelativeOrAbsoluteExternals"] },
-      {
-        file: "libs/walker/src/present.ts",
-        upstream: ["noRelativeOrAbsoluteExternals"],
-        tool: [],
-        divergence: {
-          direction: "weaker",
-          reason:
-            "the record resolves outside every project, so an external node is synthesized for a specifier that is a PATH — and a target, however synthetic, skips the branch that owns this message",
-        },
-      },
+      { file: "libs/walker/src/present.ts", upstream: ["noRelativeOrAbsoluteExternals"] },
       { file: "libs/walker/src/rooted.ts", upstream: ["noRelativeOrAbsoluteExternals"] },
       { file: "libs/walker/src/escapes.ts", upstream: ["noRelativeOrAbsoluteExternals"] },
     ],
@@ -1199,12 +1190,6 @@ export const CONFORMANCE_CASES = [
       {
         file: "libs/forms-source/src/require-resolve.cjs",
         upstream: ["onlyTagsConstraintViolation"],
-        tool: [],
-        divergence: {
-          direction: "weaker",
-          reason:
-            "upstream's require handler accepts `require.resolve(...)` as well as `require(...)`; the TypeScript analyzer matches only a bare `require` identifier, so the import site is never recorded",
-        },
       },
       {
         file: "libs/forms-source/src/import-equals.ts",

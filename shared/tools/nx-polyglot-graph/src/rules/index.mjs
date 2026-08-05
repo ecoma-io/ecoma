@@ -127,6 +127,20 @@ const isProjectGraphProjectNode = (node) =>
   node.type === "app" || node.type === "e2e" || node.type === "lib";
 
 /**
+ * A specifier that is a PATH rather than a package name: `.`, `..`, `./x`,
+ * `../x`, or an absolute `/x`.
+ *
+ * Named once because two places must ask the identical question — the external
+ * node lookup refuses exactly what the `!targetProject` branch reports as
+ * `noRelativeOrAbsoluteExternals`. Two spellings of one test could drift apart,
+ * and the gap between them would be a site that is given no target and then
+ * reported by nothing (Rule 14).
+ *
+ * `isRelativePath`, not `isRelative`: a bare `.` or `..` is a path here.
+ */
+const isPathSpecifier = (specifier) => isRelativePath(specifier) || specifier.startsWith("/");
+
+/**
  * Everything the per-site evaluation needs, computed once for the whole run.
  * Building it per site would recompute the reachability matrix for every
  * import in the workspace.
@@ -182,7 +196,8 @@ function createContext(importSites, graph, config) {
 }
 
 /**
- * The external node an external specifier points at.
+ * The external node an external specifier points at, or `undefined` when the
+ * specifier is a path and so points at no package at all.
  *
  * Upstream looks the package up in `projectGraph.externalNodes` and BAILS when
  * it is not there — no target, no check. This engine synthesises one instead,
@@ -193,8 +208,20 @@ function createContext(importSites, graph, config) {
  * A ban that cannot fire is the false negative this tool exists to remove, so
  * the analysis record's own answer — it resolved outside every project, and
  * this is the package — is taken as sufficient.
+ *
+ * A PATH is where that stops, and it is not an exception to the mechanism but
+ * its precondition: a package name is what the mechanism needs, and a path
+ * never is one. Upstream is structurally the same — `TargetProjectLocator`'s
+ * `findProjectFromImport` opens with `isRelativePath` and then only ever
+ * resolves the path to a file, so a relative specifier never reaches its npm
+ * lookup at all. Deriving a name from a path here produced garbage that looked
+ * like a package (`".."` from `../../../outside/present`, `""` from
+ * `/outside/present`), and any target — however synthetic — makes `evaluateSite`
+ * skip the one branch that reports `noRelativeOrAbsoluteExternals`. Nothing is
+ * lost by refusing: what is refused here is exactly what that branch reports.
  */
 function externalNodeFor(site, ctx) {
+  if (isPathSpecifier(site.specifier)) return undefined;
   const packageName = site.resolved.packageName ?? getPackageNameFromImportPath(site.specifier);
   const known = ctx.externalByPackage.get(packageName);
   if (known) return known;
@@ -373,9 +400,10 @@ function evaluateSite(site, ctx) {
   targetProject = targetProject ?? resolveTargetNode(site, ctx);
 
   if (!targetProject) {
-    // Note `isRelativePath` here, not `isRelative`: a bare `.` or `..` counts
-    // as a path at this point though it did not count as one above.
-    if (isRelativePath(imp) || imp.startsWith("/")) {
+    // A bare `.` or `..` counts as a path at this point though it did not count
+    // as one above — see `isPathSpecifier`, which `externalNodeFor` refuses on
+    // so that every path reaching here is reported rather than given a target.
+    if (isPathSpecifier(imp)) {
       return [violationOf(site, sourceProject, null, "noRelativeOrAbsoluteExternals")];
     }
     if (options.banTransitiveDependencies && !isBuiltinModuleImport(imp)) {

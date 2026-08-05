@@ -260,6 +260,33 @@ describe("analyzeTypeScript — import kinds", () => {
     ]);
   });
 
+  it("records `require.resolve` as static, the other callee upstream's require handler admits", () => {
+    // Upstream's `getImportFromRequireCall` accepts a bare `require` identifier
+    // AND a `require.resolve` member expression. A form that yields no record
+    // is not one missing message: with no site, all fifteen rules are void on
+    // that call, and the boundary reports clean because it never looked.
+    //
+    // `static`, like `require` itself: the specifier is literal, it survives to
+    // runtime, and it is read where the statement stands. That the call returns
+    // a path rather than the module's exports is a fact about its value, which
+    // no rule reads.
+    expect(kindsOf('const where = require.resolve("@acme/ui");')).toEqual(["static @acme/ui"]);
+    expect(analyze('const where = require.resolve("@acme/ui");').imports[0].resolved.target).toBe(
+      "ui",
+    );
+  });
+
+  it("admits those two callee forms and no cousin of them", () => {
+    // Widening past upstream would report where ESLint stays silent, and a
+    // difference from ESLint has to be a decision someone wrote down. Upstream
+    // demands an identifier property, so a computed `require["resolve"]` is out
+    // there and out here for the same reason.
+    expect(kindsOf('const w = require["resolve"]("@acme/ui");')).toEqual([]);
+    expect(kindsOf('const w = require.paths("@acme/ui");')).toEqual([]);
+    expect(kindsOf('const w = resolve("@acme/ui");')).toEqual([]);
+    expect(kindsOf('const w = req.resolve("@acme/ui");')).toEqual([]);
+  });
+
   it("calls a mixed import static, because part of it survives to runtime", () => {
     // `B` is a value. Calling the statement type-only would let a rule that
     // exempts erased imports exempt a real runtime dependency.
@@ -304,6 +331,16 @@ describe("analyzeTypeScript — what it cannot know, reported rather than guesse
     const { imports, failures } = analyze("const m = require(name);");
     expect(imports[0]).toMatchObject({ kind: "static", specifier: "name", resolved: null });
     expect(failures).toHaveLength(1);
+    expect(failures[0].reason).toContain("'require(name)'");
+  });
+
+  it("names the call form the failure is about, so `require.resolve` is not reported as `require`", () => {
+    // Both forms are `kind: "static"`, so the kind cannot name the construct.
+    // A diagnostic that quotes a call the file does not contain sends its
+    // reader looking for the wrong line.
+    const { failures } = analyze("const m = require.resolve(name);");
+    expect(failures).toHaveLength(1);
+    expect(failures[0].reason).toContain("'require.resolve(name)'");
   });
 
   it("resolves a template literal that interpolates nothing", () => {

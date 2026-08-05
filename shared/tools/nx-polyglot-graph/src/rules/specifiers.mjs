@@ -70,7 +70,8 @@ export function getPackageNameFromImportPath(importExpression) {
  * is treated as a built-in here. The only consequence is that
  * `banTransitiveDependencies` does not fire on it — the direction that produces
  * no false alarm, and `bannedExternalImports` still sees it (see `./index.mjs`,
- * which synthesises an external node for every external record).
+ * which synthesises an external node for an external record whose specifier
+ * names a package; a path names none and gets none).
  */
 export function isBuiltinModuleImport(importExpr) {
   const packageName = getPackageNameFromImportPath(importExpr);

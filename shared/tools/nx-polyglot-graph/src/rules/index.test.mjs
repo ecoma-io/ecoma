@@ -195,6 +195,83 @@ describe("evaluate", () => {
       );
       expect(violations).toEqual([]);
     });
+
+    it("reports a path that RESOLVED to a file no project owns", () => {
+      // The record resolved — the file exists — and belongs to no project, so
+      // it arrives external with no package name. Deriving one from the path
+      // yields `".."`, and a target, however synthetic, skips the only branch
+      // that reports this message: the site went from a violation to silence,
+      // which is the false negative direction that is never a decision.
+      const violations = evaluate(
+        [
+          site({
+            specifier: "../../../outside/present",
+            resolved: {
+              target: null,
+              file: "outside/present.ts",
+              external: true,
+              packageName: null,
+            },
+          }),
+        ],
+        twoLibs(),
+        config(permissive),
+      );
+      expect(idsOf(violations)).toEqual(["noRelativeOrAbsoluteExternals"]);
+      expect(violations[0].targetProject).toBeNull();
+    });
+
+    it("reports an absolute path that resolved outside every project", () => {
+      // `getPackageNameFromImportPath("/outside/present")` is the empty string,
+      // so the synthesized node was `npm:` — a package with no name.
+      const violations = evaluate(
+        [
+          site({
+            specifier: "/outside/present",
+            resolved: {
+              target: null,
+              file: "outside/present.ts",
+              external: true,
+              packageName: null,
+            },
+          }),
+        ],
+        twoLibs(),
+        config(permissive),
+      );
+      expect(idsOf(violations)).toEqual(["noRelativeOrAbsoluteExternals"]);
+    });
+
+    it("refuses an external node to a path only, never to a package name", () => {
+      // The exclusion is scoped by the SPELLING of the specifier, and the scope
+      // is load-bearing in both directions. Widen it and the synthesis stops
+      // working, which is what makes a ban reachable at all in Go, Rust and
+      // Python — the graph registers no external nodes for those. Narrow it and
+      // a path is handed a package that does not exist. One record of each
+      // shape, one graph, one ban: both must land.
+      const banning = [{ sourceTag: "zone:x", bannedExternalImports: ["rustshell*"] }];
+      const violations = evaluate(
+        [
+          external("rustshell"),
+          site({
+            specifier: "../../../outside/rustshell",
+            resolved: {
+              target: null,
+              file: "outside/rustshell.rs",
+              external: true,
+              packageName: null,
+            },
+          }),
+        ],
+        twoLibs(),
+        config(banning),
+      );
+      expect(idsOf(violations)).toEqual([
+        "bannedExternalImportsViolation",
+        "noRelativeOrAbsoluteExternals",
+      ]);
+      expect(violations[0].targetProject).toBe("npm:rustshell");
+    });
   });
 
   describe("noCircularDependencies", () => {

@@ -71,10 +71,18 @@ judgement call resolves toward reporting. The ones that change a verdict:
   `src/graph/` deliberately registers no crates, PyPI distributions or Go
   modules as external nodes, and upstream bails when it cannot find one — which
   would leave `bannedExternalImports` unenforceable outside JavaScript. The
-  record's own answer is taken instead.
-- **`require()` of a lazy-loaded library is reported**, where ESLint exempts it.
-  The analysis contract records `require` as `kind: "static"`, like an `import`
-  statement, and the two cannot be told apart from the record.
+  record's own answer is taken instead. The reach is narrower than it reads:
+  upstream's locator also resolves `node_modules`, so the synthesis changes a
+  verdict only where an analyzer names a package without needing it installed —
+  Go, Rust and Python (`../conformance/README.md`). **A specifier that is a path
+  gets no node, synthesized or otherwise**, because a package name is what the
+  mechanism needs and a path is never one; `isPathSpecifier` in `index.mjs` is
+  the same test the branch that reports `noRelativeOrAbsoluteExternals` uses, so
+  a path refused a target is a path that gets reported.
+- **`require()` and `require.resolve()` of a lazy-loaded library are reported**,
+  where ESLint exempts both. The analysis contract records either call as
+  `kind: "static"`, like an `import` statement, and the three cannot be told
+  apart from the record.
 - **An `ignoredCircularDependencies` pattern this engine cannot expand exactly
   is rejected at config load.** Nx expands them with minimatch, which this
   project may not import, and an ignore list that expands to almost the right set

@@ -24,9 +24,12 @@
  *   `tsconfig.base.json` `paths` rather than workspace links, so the case does
  *   not arise here; a consumer workspace that used links would see the missing
  *   edge as an unattributed external, never as a wrong project.
- * - **A bare `require(x)` is read as an import** even when `require` is a
- *   local function of that name. Worst case is a spurious record naming a
- *   specifier the file really does contain — never a missed one.
+ * - **`require(x)` and `require.resolve(x)` are read as imports** even when
+ *   `require` is a local function of that name. Worst case is a spurious
+ *   record naming a specifier the file really does contain — never a missed
+ *   one. Those two callee forms are exactly the ones upstream's
+ *   `getImportFromRequireCall` admits, and `isRequireCallee` below matches its
+ *   shape node kind for node kind rather than widening it.
  *
  * ## One `kind` per import site, and how a mixed statement is judged
  *
@@ -234,6 +237,34 @@ function exportDeclarationKind(node) {
 }
 
 /**
+ * Whether a call's callee names a CommonJS module lookup — upstream's
+ * `getImportFromRequireCall` test, in TypeScript's AST instead of ESTree's.
+ *
+ * Upstream admits exactly two shapes and refuses everything else: a bare
+ * `require` identifier, and a `MemberExpression` whose object is the identifier
+ * `require` and whose property is the identifier `resolve`. Mapped node kind
+ * for node kind, ESTree's non-computed `MemberExpression` is TypeScript's
+ * `PropertyAccessExpression` — so `require["resolve"](x)` is refused by both,
+ * upstream because its property is a `Literal` rather than an `Identifier` and
+ * here because it parses as an `ElementAccessExpression`. A `PrivateIdentifier`
+ * name keeps its `#` in `.text` and so can never equal `"resolve"`.
+ *
+ * Matching upstream's shape rather than a wider one is the point: a callee
+ * upstream ignores would make this engine report where ESLint stays silent, and
+ * every divergence in either direction has to be a decision someone wrote down
+ * (`../conformance/README.md`).
+ */
+function isRequireCallee(callee) {
+  if (ts.isIdentifier(callee)) return callee.text === "require";
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    ts.isIdentifier(callee.expression) &&
+    callee.expression.text === "require" &&
+    callee.name.text === "resolve"
+  );
+}
+
+/**
  * Every import site in a parsed source, in source order.
  *
  * Order is established by sorting on offset rather than by trusting the walk:
@@ -241,15 +272,20 @@ function exportDeclarationKind(node) {
  * and `contract.md` promises source order as a property of the output, not as
  * a side effect of the traversal.
  *
- * @returns {{ offset: number, specifier: string, kind: string, literal: boolean }[]}
+ * `callee` is the call form a site was written with (`import`, `require`,
+ * `require.resolve`) and is absent for a declaration; it names the construct in
+ * the failure a non-literal argument produces, so the report quotes what the
+ * file actually says.
+ *
+ * @returns {{ offset: number, specifier: string, kind: string, literal: boolean, callee?: string }[]}
  */
 function importSitesIn(sourceFile) {
   const sites = [];
   const at = (node) => node.getStart(sourceFile);
 
-  const push = (node, kind) => {
+  const push = (node, kind, callee) => {
     if (ts.isStringLiteralLike(node)) {
-      sites.push({ offset: at(node), specifier: node.text, kind, literal: true });
+      sites.push({ offset: at(node), specifier: node.text, kind, literal: true, callee });
       return;
     }
     // A non-literal argument: the site is real and the target is not knowable
@@ -260,15 +296,16 @@ function importSitesIn(sourceFile) {
       specifier: sourceFile.text.slice(at(node), node.end).trim(),
       kind,
       literal: false,
+      callee,
     });
   };
 
-  const pushCallArgument = (call, kind) => {
+  const pushCallArgument = (call, kind, callee) => {
     if (call.arguments.length === 0) {
-      sites.push({ offset: at(call), specifier: "", kind, literal: false });
+      sites.push({ offset: at(call), specifier: "", kind, literal: false, callee });
       return;
     }
-    push(call.arguments[0], kind);
+    push(call.arguments[0], kind, callee);
   };
 
   const visit = (node) => {
@@ -283,12 +320,30 @@ function importSitesIn(sourceFile) {
       push(node.moduleReference.expression, node.isTypeOnly ? "type-only" : "static");
     } else if (ts.isCallExpression(node)) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        pushCallArgument(node, "dynamic");
-      } else if (ts.isIdentifier(node.expression) && node.expression.text === "require") {
-        // `require` is a static form per `contract.md`'s kind table, however
-        // its argument is spelled; a non-literal one is unresolvable, not
-        // dynamic.
-        pushCallArgument(node, "static");
+        pushCallArgument(node, "dynamic", "import");
+      } else if (isRequireCallee(node.expression)) {
+        // `static` for `require(...)` and `require.resolve(...)` alike.
+        // `contract.md`'s kinds separate sites by what survives to runtime and
+        // by when the target is fetched — `type-only` is erased, `dynamic` is
+        // deferred — and `require.resolve("x")` is neither: the specifier is
+        // written literally, survives to runtime, and is read where the
+        // statement stands. That the call yields a PATH rather than the
+        // module's exports is a fact about its VALUE, and no rule reads the
+        // value; all fifteen read the specifier, on which the two calls are the
+        // same static declaration of a dependency on another project.
+        //
+        // Upstream agrees by construction — both forms enter its one
+        // `run(imp, node)` with nothing distinguishing them — so any other kind
+        // here would move a verdict away from ESLint on a site the two
+        // otherwise agree about (`kind === "static"` is what gates the
+        // lazy-loaded check).
+        //
+        // A non-literal argument is unresolvable, not dynamic, either way.
+        pushCallArgument(
+          node,
+          "static",
+          ts.isIdentifier(node.expression) ? "require" : "require.resolve",
+        );
       }
     }
     ts.forEachChild(node, visit);
@@ -452,12 +507,17 @@ export function analyzeTypeScript({ sourceFile, text, workspace, lang }) {
 
     for (const site of importSitesIn(parsed)) {
       const { line, character } = parsed.getLineAndCharacterOfPosition(site.offset);
+      // Every call site carries its own `callee`. A declaration reaches the
+      // fallback only under parser recovery — a non-literal module specifier is
+      // a grammar error there — and `import x = require(y)` is the form that
+      // makes `require` the right word for it.
+      const callee = site.callee ?? (site.kind === "dynamic" ? "import" : "require");
       const { resolved, reason } = site.literal
         ? resolveSpecifier(site.specifier, sourceFile, workspace)
         : {
             resolved: null,
             reason:
-              `'${site.kind === "dynamic" ? "import" : "require"}(${site.specifier})' has a non-literal argument, ` +
+              `'${callee}(${site.specifier})' has a non-literal argument, ` +
               `so its target is not knowable statically`,
           };
       result.imports.push({
