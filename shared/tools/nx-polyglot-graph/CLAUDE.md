@@ -26,8 +26,8 @@ index.mjs              Nx plugin entry — re-export only, nothing else
 cli.mjs, lsp.mjs       executables (bin entries in package.json)
 src/analysis/          which import is written where, and what it resolves to
 src/graph/             analysis reduced to Nx dependency records
-src/config.mjs         loads + shape-validates the workspace boundary config
-src/rules/             the boundary rules (empty — see its README)
+src/config.mjs         loads + validates the workspace boundary config
+src/rules/             the boundary rules — `evaluate(sites, graph, config)`
 src/report/            rendering violations (empty — see its README)
 ```
 
@@ -40,7 +40,9 @@ src/report/            rendering violations (empty — see its README)
   `{ source, target, sourceFile, type }` and Nx drops anything else, so the two
   layers stay separate rather than one growing fields the other discards.
 - **`src/rules/` reads records, never files.** It gets analysis output and the
-  loaded config, nothing more.
+  loaded config, nothing more. Its own README carries the three upstream
+  semantics a reimplementation gets backwards, and every place it is
+  deliberately stricter than ESLint — read it before touching a rule.
 
 ## The analysis contract is frozen — read it before writing an analyzer
 

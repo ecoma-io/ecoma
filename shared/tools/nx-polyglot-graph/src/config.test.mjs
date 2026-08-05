@@ -83,6 +83,62 @@ describe("findBoundaryConfigViolations", () => {
     expect(violations[0]).toMatch(/onlyDependOnLibsWithTags: must be an array of strings/);
   });
 
+  // An empty entry throws nothing and reads like nothing, which is why it
+  // survives review: in a tag list it silently never matches, and in `allow` it
+  // compiles to a regex that matches every import in the workspace.
+  it("rejects an empty entry in any list, naming the entry's own index", () => {
+    expect(
+      findBoundaryConfigViolations({
+        ...wellFormed(),
+        depConstraints: [{ sourceTag: "type:lib", onlyDependOnLibsWithTags: ["type:lib", ""] }],
+      })[0],
+    ).toMatch(/depConstraints\[0\]\.onlyDependOnLibsWithTags\[1\]: must not be empty/);
+    expect(findBoundaryConfigViolations(withOptions({ allow: [""] }))[0]).toMatch(
+      /moduleBoundaryOptions\.allow\[0\]: must not be empty/,
+    );
+    expect(
+      findBoundaryConfigViolations({
+        ...wellFormed(),
+        depConstraints: [{ allSourceTags: ["type:lib", ""] }],
+      })[0],
+    ).toMatch(/allSourceTags\[1\]: must not be empty/);
+  });
+
+  // Every one of these reaches a `new RegExp` inside a matcher. Uncaught, the
+  // throw arrives from the middle of a run with no idea which row produced it.
+  it("rejects a pattern that will not compile, in whichever matcher will build it", () => {
+    expect(
+      findBoundaryConfigViolations({
+        ...wellFormed(),
+        depConstraints: [{ sourceTag: "/(unclosed/" }],
+      })[0],
+    ).toMatch(/depConstraints\[0\]\.sourceTag: '\/\(unclosed\/' is not a valid tag pattern/);
+    expect(
+      findBoundaryConfigViolations({
+        ...wellFormed(),
+        depConstraints: [{ sourceTag: "type:lib", bannedExternalImports: ["[unclosed"] }],
+      })[0],
+    ).toMatch(/bannedExternalImports\[0\]: '\[unclosed' is not a valid import glob/);
+    expect(findBoundaryConfigViolations(withOptions({ allow: ["@scope/(pkg"] }))[0]).toMatch(
+      /allow\[0\]: '@scope\/\(pkg' is not a valid import pattern/,
+    );
+  });
+
+  // Nx expands these with minimatch; this workspace's second enforcer cannot,
+  // and an ignore list that expands to almost the right set hides real cycles.
+  it("rejects an ignored-cycle pattern whose expansion cannot be reproduced exactly", () => {
+    expect(
+      findBoundaryConfigViolations(
+        withOptions({ ignoredCircularDependencies: [["libs/*", "b"]] }),
+      )[0],
+    ).toMatch(/ignoredCircularDependencies\[0\]\[0\]: 'libs\/\*' uses glob syntax/);
+    expect(
+      findBoundaryConfigViolations(
+        withOptions({ ignoredCircularDependencies: [["tag:zone:x", "*"]] }),
+      ),
+    ).toEqual([]);
+  });
+
   it("reports the index of every bad row, so a long table names its offenders", () => {
     const violations = findBoundaryConfigViolations({
       ...wellFormed(),
