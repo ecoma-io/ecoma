@@ -180,3 +180,65 @@ export const moduleBoundaryOptions = {
   banTransitiveDependencies: false,
   checkNestedExternalImports: false,
 };
+
+/**
+ * The violations this workspace has decided to accept, each with the reason it
+ * was accepted.
+ *
+ * Every entry below is a REAL violation of the table above, not a false alarm.
+ * Each is a config file read by a loader that resolves neither the tsconfig
+ * `paths` alias nor an internal-only package name, so the alias form does not
+ * merely read worse — it fails at run time while the config is being loaded, and
+ * the relative path is the only spelling that works. Each project's
+ * `project.json` still declares the graph edge, so nothing here hides a
+ * dependency; what is exempted is the SPELLING rule, on one import, in one file.
+ *
+ * **Why they live here and not only in a comment.** The
+ * `eslint-disable-next-line @nx/enforce-module-boundaries` directives stay where
+ * they are — `@nx/enforce-module-boundaries` still runs and still needs them.
+ * But a directive comment is a JavaScript convention, and this table has a
+ * second reader in `shared/tools/nx-polyglot-graph`, which judges Go, Rust and
+ * Python too. Teaching it to parse ESLint comments would tie a
+ * language-agnostic checker to one language's syntax AND give exemptions a
+ * second home besides this file — which is the thing this file exists to
+ * prevent. In one list they are visible, greppable and reviewable together, and
+ * a reader counting this workspace's escape hatches counts them here.
+ *
+ * `reason` is mandatory, enforced at load by that tool's `src/config.mjs`. An
+ * unexplained suppression is indistinguishable from a boundary that quietly
+ * stopped being enforced, and nobody can tell later whether it still applies.
+ * `messageId` narrows each entry to the one violation type its import actually
+ * draws, so an entry cannot silently start covering a different mistake in the
+ * same file.
+ *
+ * A suppression removes a VERDICT and never a failure: the checker applies these
+ * after judging every import, so a file listed here is still fully analyzed and
+ * anything it could not resolve is still reported.
+ */
+export const boundarySuppressions = [
+  {
+    path: "rba/apps/rba-desktop/tailwind.config.js",
+    messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+    reason:
+      "jiti loads this file at build time and resolves neither tsconfig `paths` nor the " +
+      "internal-only `@ecoma-io/ui` package name, so core-ui's shared preset can only be " +
+      "reached by relative path. Scoped to that one line, as the file's header states.",
+  },
+  {
+    path: "shared/apps/design-system/tailwind.config.js",
+    messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+    reason:
+      "jiti loads this file at build time (`@config` in .storybook/tailwind.css) and resolves " +
+      "neither tsconfig `paths` nor the internal-only `@ecoma-io/ui` package name, so the alias " +
+      "form cannot work here. Scoped to that one line, as the file's header states.",
+  },
+  {
+    path: "shared/apps/doctrine-site/.vitepress/config.ts",
+    messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+    reason:
+      "VitePress loads this file through Vite's config loader, which externalises every bare " +
+      "specifier it can resolve through Node; `@ecoma-io/doctrine` is a tsconfig `paths` alias " +
+      "and nothing else, so the alias form fails at run time with ERR_MODULE_NOT_FOUND while the " +
+      "config is loading, while a relative specifier is resolved and bundled instead.",
+  },
+];
