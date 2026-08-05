@@ -1000,7 +1000,7 @@ export const CONFORMANCE_CASES = [
   {
     id: "banned-external-import-of-a-package-that-is-not-installed",
     intent:
-      "The exact edge of the synthesized-external-node divergence. Upstream's locator finds an npm target either in the graph's external nodes or by resolving `node_modules`, so it only comes up empty for a package that is on neither — and there the TypeScript analyzer also records the import as unresolvable, so this engine synthesizes nothing and is silent too. The synthesis therefore changes a verdict only for the languages whose analyzers name a package without needing it installed.",
+      "The exact edge of the synthesized-external-node divergence. Upstream's locator finds an npm target only through the graph's `externalNodes` — the `node_modules` read supplies the `name@version` it looks up there — so it comes up empty for anything absent from that map, and there the TypeScript analyzer also records the import as unresolvable, so this engine synthesizes nothing and is silent too. The synthesis therefore changes a verdict only for the languages whose analyzers name a package without needing it installed.",
     projects: [
       {
         name: "ghost-source",
@@ -1295,7 +1295,11 @@ export const CONFORMANCE_CASES = [
     ],
   },
 
-  // ------------------------------------------- the languages ESLint cannot read
+  // ----------------------------------------- the languages beyond TypeScript's
+  // Vue leads deliberately: ESLint CAN read it, given a parser, and the case
+  // measures that rather than assuming it. Everything after it is a language
+  // ESLint has no parser for, where upstream's silence is inability and this
+  // engine is the only enforcement.
   {
     id: "banned-external-import-in-a-vue-single-file-component",
     intent:
@@ -1666,6 +1670,79 @@ export const CONFORMANCE_CASES = [
       // external, silently and without a failure. A resolver that answered
       // "unplaceable" here would be honest and useless.
       { file: "libs/layout-reader/src/layoutreader/reaches_pypi.py", upstream: [] },
+    ],
+  },
+  {
+    id: "one-module-crossing-however-the-go-import-is-spelled",
+    intent:
+      "One crossing into a neighbouring Go module, written seven ways gofmt leaves untouched, and three spellings of an import that stays inside the module. ESLint parses none of it, so a form the parser drops is caught only by its own siblings disagreeing with it — which is exactly how a `)` inside a comment, truncating an `import (…)` block, stayed invisible while reporting no failure either.",
+    projects: [
+      {
+        name: "spelled-go",
+        root: "libs/spelled-go",
+        tags: ["axis:spelled-go"],
+        files: {
+          "go.mod": "module example.test/spelledlocal\n\ngo 1.24\n",
+          "helper/helper.go": "package helper\n\ntype Thing struct{}\n",
+          "single.go": 'package spelledlocal\n\nimport "example.test/spelledother/store"\n',
+          "block.go": 'package spelledlocal\n\nimport (\n\t"example.test/spelledother/store"\n)\n',
+          // The false negative this group exists for: gofmt leaves this block
+          // exactly as written, and a parser reading to the first `)` stops
+          // inside the comment.
+          "comment-paren.go":
+            'package spelledlocal\n\nimport (\n\t// TODO(alice): drop this once the port lands\n\t"example.test/spelledother/store"\n)\n',
+          // The same trigger in the form Go's own conventions ask for: a blank
+          // import is expected to carry an explanation, and explanations have
+          // parentheses in them.
+          "blank.go":
+            'package spelledlocal\n\nimport (\n\t_ "example.test/spelledother/store" // register the driver (postgres)\n)\n',
+          "trailing-comment.go":
+            'package spelledlocal\n\nimport (\n\t"example.test/spelledother/store" // keep until the port lands (see the note above)\n)\n',
+          "aliased.go": 'package spelledlocal\n\nimport shop "example.test/spelledother/store"\n',
+          "dot.go": 'package spelledlocal\n\nimport . "example.test/spelledother/store"\n',
+          // Inside its own module. Go has no relative import form, so these are
+          // spelled identically to a crossing and are told apart only by where
+          // the module path lands — the reason a Go import of a sibling package
+          // must not be read as a barrel cycle.
+          "inside-single.go": 'package spelledlocal\n\nimport "example.test/spelledlocal/helper"\n',
+          "inside-block.go":
+            'package spelledlocal\n\nimport (\n\t"example.test/spelledlocal/helper"\n)\n',
+          "inside-comment-paren.go":
+            'package spelledlocal\n\nimport (\n\t// TODO(bob): fold this into the parent (later)\n\t"example.test/spelledlocal/helper"\n)\n',
+        },
+      },
+      {
+        name: "spelled-go-neighbour",
+        root: "libs/spelled-go-neighbour",
+        tags: ["axis:spelled-go-refused"],
+        files: {
+          "go.mod": "module example.test/spelledother\n\ngo 1.24\n",
+          "store/store.go": "package store\n",
+        },
+      },
+    ],
+    depConstraints: [
+      { sourceTag: "axis:spelled-go", onlyDependOnLibsWithTags: ["axis:spelled-go-allowed"] },
+    ],
+    probes: [
+      ...["single", "block", "comment-paren", "blank", "trailing-comment", "aliased", "dot"].map(
+        (form) => ({
+          file: `libs/spelled-go/${form}.go`,
+          spelling: "an import that leaves the module",
+          upstream: [],
+          tool: ["onlyTagsConstraintViolation"],
+          divergence: {
+            direction: "stricter",
+            reason:
+              "ESLint has no parser for `.go`, so the tag axis has no mechanism behind it there",
+          },
+        }),
+      ),
+      ...["inside-single", "inside-block", "inside-comment-paren"].map((form) => ({
+        file: `libs/spelled-go/${form}.go`,
+        spelling: "an import that stays inside the module",
+        upstream: [],
+      })),
     ],
   },
   {

@@ -1,7 +1,7 @@
 {
   "name": "nx-polyglot-graph",
   "version": "0.0.0",
-  "description": "Polyglot module-boundary enforcement for an Nx workspace: cross-project graph edges for Go, Rust and Python, plus boundary checking for the languages ESLint cannot read",
+  "description": "Polyglot module-boundary enforcement for an Nx workspace: cross-project graph edges for Go, Rust and Python, and boundary checking across every language its analyzers read",
   "type": "module",
   "license": "LicenseRef-Ecoma-SustainableUse-1.0",
   "private": true,

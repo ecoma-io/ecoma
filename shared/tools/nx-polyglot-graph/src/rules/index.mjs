@@ -459,7 +459,11 @@ function evaluateSite(site, ctx) {
   // `spelling.relative` is the counter-evidence, and it is the record's answer
   // rather than this layer's: what counts as "instead of a relative path" is
   // `./x` in JavaScript, `crate::`/`self::`/`super::` or a sibling crate target
-  // of the same Cargo package in Rust, and a leading-dot import in Python.
+  // of the same Cargo package in Rust, a leading-dot import in Python, and in
+  // Go any import landing back in the source file's own project — Go has no
+  // relative import form at all, so treating one as evidence of a barrel cycle
+  // would demand syntax the language does not have, and its compiler already
+  // forbids the cycle this rule looks for.
   if (
     sourceProject === targetProject &&
     !circularPathHasPair([sourceProject, targetProject], ignored)

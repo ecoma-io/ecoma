@@ -1,8 +1,10 @@
 /**
  * SARIF 2.1.0 — the machine-readable half of the report, written for GitHub's
- * `upload-sarif` and validated against the published schema rather than
- * eyeballed. A file GitHub silently rejects is worse than no file at all: the
- * job stays green, the annotations never appear, and nothing says why.
+ * `upload-sarif`. No schema validator is installed in this workspace; what
+ * `sarif.integration.test.mjs` pins is the subset of the 2.1.0 schema a
+ * rejected upload turns on. A file GitHub silently rejects is worse than no
+ * file at all: the job stays green, the annotations never appear, and nothing
+ * says why.
  *
  * Four fields carry the whole value and each is easy to get subtly wrong:
  *

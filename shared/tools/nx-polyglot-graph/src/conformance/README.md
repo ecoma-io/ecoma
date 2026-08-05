@@ -11,8 +11,8 @@ replaces. Today ESLint is right about JavaScript, TypeScript and Vue and silent
 about Go, Rust and Python — and silence you know about beats a green light you
 cannot trust.
 
-**42 fixture workspaces, 87 probes, 84 projects.** Every one of upstream's
-fifteen message ids is triggered by at least one probe, and 52 of the 87 probes
+**46 fixture workspaces, 116 probes, 94 projects.** Every one of upstream's
+fifteen message ids is triggered by at least one probe, and 80 of the 116 probes
 are near-misses where ESLint must report nothing.
 
 ## How it runs
@@ -65,23 +65,28 @@ statement pass as agreement.
 
 ## The differential table
 
-| messageId                                    | agree | stricter | weaker | verdict          |
-| -------------------------------------------- | ----: | -------: | -----: | ---------------- |
-| `noRelativeOrAbsoluteImportsAcrossLibraries` |     3 |        0 |      0 | agree            |
-| `noRelativeOrAbsoluteExternals`              |     4 |        0 |      0 | agree            |
-| `noCircularDependencies`                     |     1 |        0 |      0 | agree            |
-| `noSelfCircularDependencies`                 |     2 |        1 |      0 | agree + stricter |
-| `noImportsOfApps`                            |     1 |        1 |      0 | agree + stricter |
-| `noImportsOfE2e`                             |     1 |        0 |      0 | agree            |
-| `noImportOfNonBuildableLibraries`            |     1 |        0 |      0 | agree            |
-| `noImportsOfLazyLoadedLibraries`             |     1 |        1 |      0 | agree + stricter |
-| `projectWithoutTagsCannotHaveDependencies`   |     1 |        0 |      0 | agree            |
-| `bannedExternalImportsViolation`             |     4 |        2 |      0 | agree + stricter |
-| `nestedBannedExternalImportsViolation`       |     1 |        0 |      0 | agree            |
-| `noTransitiveDependencies`                   |     2 |        1 |      0 | agree + stricter |
-| `onlyTagsConstraintViolation`                |    10 |        4 |      0 | agree + stricter |
-| `emptyOnlyTagsConstraintViolation`           |     1 |        0 |      0 | agree            |
-| `notTagsConstraintViolation`                 |     2 |        0 |      0 | agree            |
+`comparable` is the column that keeps the rest honest: it counts the probes of
+that row ESLint could parse at all. A `weaker` of 0 is a claim about those
+probes and no others, because an engine that never read the file cannot be
+diverged from. The paragraph under the table says what that leaves out.
+
+| messageId                                    | agree | stricter | weaker | comparable | verdict          |
+| -------------------------------------------- | ----: | -------: | -----: | ---------: | ---------------- |
+| `noRelativeOrAbsoluteImportsAcrossLibraries` |     3 |        1 |      1 |          5 | WEAKER — DEFECT  |
+| `noRelativeOrAbsoluteExternals`              |     4 |        0 |      0 |          4 | agree            |
+| `noCircularDependencies`                     |     1 |        0 |      0 |          1 | agree            |
+| `noSelfCircularDependencies`                 |     2 |        1 |      0 |          3 | agree + stricter |
+| `noImportsOfApps`                            |     1 |        1 |      0 |          2 | agree + stricter |
+| `noImportsOfE2e`                             |     1 |        0 |      0 |          1 | agree            |
+| `noImportOfNonBuildableLibraries`            |     1 |        0 |      0 |          1 | agree            |
+| `noImportsOfLazyLoadedLibraries`             |     1 |        1 |      0 |          2 | agree + stricter |
+| `projectWithoutTagsCannotHaveDependencies`   |     1 |        0 |      0 |          1 | agree            |
+| `bannedExternalImportsViolation`             |     4 |        2 |      0 |          4 | agree + stricter |
+| `nestedBannedExternalImportsViolation`       |     1 |        0 |      0 |          1 | agree            |
+| `noTransitiveDependencies`                   |     2 |        1 |      0 |          3 | agree + stricter |
+| `onlyTagsConstraintViolation`                |    10 |       21 |      0 |         11 | agree + stricter |
+| `emptyOnlyTagsConstraintViolation`           |     1 |        0 |      0 |          1 | agree            |
+| `notTagsConstraintViolation`                 |     2 |        0 |      0 |          2 | agree            |
 
 The suite prints this table, and every divergence beneath it with its reason —
 but only under a reporter that does not swallow a passing test's console output.
@@ -219,16 +224,20 @@ Measured, not assumed. Asked to lint a `.go` file, ESLint answers:
 
 > File ignored because no matching configuration was supplied.
 
-That is the whole reason this tool exists, and it is pinned as a test. Five
+That is the whole reason this tool exists, and it is pinned as a test. Nine
 cases show the tool enforcing where ESLint cannot:
 
 | language | case                                                         | this tool reports                |
 | -------- | ------------------------------------------------------------ | -------------------------------- |
 | Rust     | `banned-external-crate-import-in-rust`                       | `bannedExternalImportsViolation` |
 | Rust     | `paths-inside-a-crate-and-across-one-in-rust`                | `onlyTagsConstraintViolation`    |
+| Rust     | `one-crate-crossing-however-the-use-is-spelled`              | `onlyTagsConstraintViolation`    |
 | Python   | `banned-external-module-import-in-python`                    | `bannedExternalImportsViolation` |
 | Python   | `relative-imports-inside-a-package-and-across-one-in-python` | `onlyTagsConstraintViolation`    |
+| Python   | `one-module-crossing-however-the-import-is-spelled`          | `onlyTagsConstraintViolation`    |
+| Python   | `one-package-however-its-manifest-places-it`                 | `onlyTagsConstraintViolation`    |
 | Go       | `layer-constraint-violation-in-go`                           | `onlyTagsConstraintViolation`    |
+| Go       | `one-module-crossing-however-the-go-import-is-spelled`       | `onlyTagsConstraintViolation`    |
 
 The two "paths inside" cases carry the near-miss half as well, and it is the
 half they were built for: the same file spelling an import that stays inside its
@@ -241,6 +250,25 @@ because the rules layer decided relativeness with `.`, `..`, `./`, `../` —
 JavaScript's shape, in a language that spells the same idea `crate::`. The
 record now carries the answer per language (`../analysis/contract.md`), and
 these two cases are what stop it regressing behind a silent ESLint.
+
+### One import, every spelling — the assertion that needs no ESLint
+
+The four `however-…-is-spelled` cases exist because the rest of this half
+cannot catch its own mistakes. Where ESLint has no parser, the only other
+statement about a probe is the `tool: [...]` a person wrote by hand, and that
+agrees with the engine by construction — including when the engine is wrong
+about a shape nobody thought to write. Every defect found by adversarial review
+in this half was such a shape: a comment containing `)` inside a Go
+`import (…)` block, a Python package placed by `package-dir` rather than under
+`src/`, a `use` spelled `pub(crate) use`.
+
+So a probe may carry a `spelling` key naming the import it writes, and the
+suite requires every probe sharing one key to reach the **same** verdict —
+compared against the engines' actual output, never against what the probe
+claims. A form the analyzer silently drops disagrees with its own siblings and
+takes the run red, with no ESLint involved and nobody needing to have guessed
+the right answer in advance. A group of one is reported too: a spelling group
+that lost its siblings asserts nothing, and would otherwise die quietly.
 
 **Vue is not on that list, and that is a finding.** A `.vue` file gets
 `vue-eslint-parser` in [`eslint.config.mjs`](../../../../../eslint.config.mjs),

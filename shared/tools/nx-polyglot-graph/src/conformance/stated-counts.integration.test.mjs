@@ -96,8 +96,9 @@ describe("the numbers README.md states about this catalogue", () => {
     );
 
     expect(readableCases, correction("the N fixture workspaces ESLint can read")).toBe(
-      CONFORMANCE_CASES.filter((spec) => spec.probes.some((probe) => isUpstreamReadable(probe.file)))
-        .length,
+      CONFORMANCE_CASES.filter((spec) =>
+        spec.probes.some((probe) => isUpstreamReadable(probe.file)),
+      ).length,
     );
   });
 
@@ -128,11 +129,18 @@ describe("the numbers README.md states about this catalogue", () => {
     // table looking complete. The run's own table is driven off the installed
     // rule; this holds the copy in the README to the same set of ids without
     // needing ESLint, so it fails in seconds rather than in two minutes.
-    const rows = [...README.matchAll(/^\| `(\w+)` +\| +\d+ \| +\d+ \| +\d+ \| [^|]+\|$/gmu)].map(
-      (match) => match[1],
-    );
+    const rows = [
+      ...README.matchAll(/^\| `(\w+)` +\| +\d+ \| +\d+ \| +\d+ \| +\d+ \| [^|]+\|$/gmu),
+    ].map((match) => match[1]);
 
-    expect(rows.length, "rows in the differential table").toBe(MESSAGE_IDS.length);
+    // Zero rows means the pattern stopped matching the table, not that the
+    // table emptied — a column added to the run's output and transcribed here
+    // does exactly that. Say so, because "expected 0 to be 15" reads as a
+    // missing table and sends the reader to the wrong file.
+    expect(
+      rows.length,
+      "rows in the differential table (zero means this pattern no longer matches its shape)",
+    ).toBe(MESSAGE_IDS.length);
     expect([...rows].sort()).toEqual([...MESSAGE_IDS].sort());
   });
 });

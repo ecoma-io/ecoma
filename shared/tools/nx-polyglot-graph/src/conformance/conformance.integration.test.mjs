@@ -192,7 +192,10 @@ describe("this engine against @nx/enforce-module-boundaries", () => {
     // The deliverable itself: the table a reader consults before trusting this
     // engine, and beneath it every disagreement by name. Printed rather than
     // only asserted, because a count that exists only inside an assertion
-    // cannot be read by anyone deciding.
+    // cannot be read by anyone deciding — but vitest's default reporter
+    // swallows a passing test's console output, so it reaches that reader only
+    // under `--reporter=verbose` (measured on 4.1.10; `README.md` beside this
+    // file names the command).
     console.info(`\n${renderTable(outcome.summary)}\n`);
     console.info(`divergences\n-----------\n${renderDivergences(outcome.rows)}\n`);
     console.info(`same verdict, different message text\n${renderTextDifferences(outcome.rows)}\n`);
