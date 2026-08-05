@@ -72,8 +72,9 @@ build/typecheck — invoked directly as
   `checkCommitScope(args, { readDeps, cwd })` — where `readDeps` injects the
   graph and `cwd` names the repository to judge; production callers pass
   neither, since the hook and CI both run at the repo root. The upstream-scope
-  exception shells out to `pnpm nx graph`, so integration tests skip that path
-  (unit tests inject the graph).
+  exception runs Nx's own CLI entry under `node` — never a shell, and
+  `check-commit-scope.mjs` records why that distinction is load-bearing — so
+  integration tests skip that path (unit tests inject the graph).
 - **`license-scope.mjs` is the one place that answers "which terms govern this
   path?"** — the root `LICENSE`'s SCOPE section as code. **The tree answers
   first and the path only refines it**: `licenseForPath` takes the slug

@@ -56,6 +56,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -305,10 +306,37 @@ function logOwners(owners) {
   }
 }
 
+const require = createRequire(import.meta.url);
+
+/**
+ * Absolute path to Nx's own CLI entry — the file its `nx` bin points at.
+ * Called from inside the graph read rather than at module load, because that is
+ * the one command here needing an installed workspace: every other dev-cli
+ * command runs on bare node with no `node_modules` (`cla-notice.yml`), and a
+ * top-level resolve would break all of them to serve this one.
+ */
+function nxCli() {
+  const pkgPath = require.resolve("nx/package.json");
+  const { bin } = JSON.parse(readFileSync(pkgPath, "utf8"));
+  return join(dirname(pkgPath), typeof bin === "string" ? bin : bin.nx);
+}
+
 /** Direct project → project dependencies from `nx graph` (npm packages dropped). */
 export function readProjectGraphDeps() {
   const out = join(mkdtempSync(join(tmpdir(), "commit-scope-graph-")), "graph.json");
-  execFileSync("pnpm", ["nx", "graph", `--file=${out}`], { stdio: "ignore", shell: true });
+  // Nx's own entry under this Node binary, never `pnpm nx` behind `shell: true`.
+  // The shell was here for one reason — a package manager's bin is a `.cmd` shim
+  // on Windows that `execFileSync` cannot spawn directly — and it is the wrong
+  // half of that problem to solve: resolving the tool's real JS entry takes the
+  // platform-specific bin out of the picture altogether rather than wrapping it,
+  // which is how `run-e2e.mjs` launches Playwright for the same reason.
+  //
+  // Losing the shell also closes a hole worth naming, because it is why this
+  // reads oddly at first glance: `out` descends from `tmpdir()`, i.e. from
+  // TMPDIR/TMP/TEMP, so under a shell those variables reached a command string
+  // that would re-parse whatever metacharacters they carried. As argv they are
+  // inert. Both forms were measured to emit a byte-identical graph.
+  execFileSync(process.execPath, [nxCli(), "graph", `--file=${out}`], { stdio: "ignore" });
   const graph = JSON.parse(readFileSync(out, "utf8"));
   const deps = new Map();
   for (const [name, edges] of Object.entries(graph.graph?.dependencies ?? {})) {
