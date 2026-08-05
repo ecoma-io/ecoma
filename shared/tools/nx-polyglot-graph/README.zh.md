@@ -53,8 +53,11 @@ Nx 本身。它在 `nx.json` → `plugins` 下注册为
 `messageId`。它分析不了的文件会收到一条明说这一点的诊断——所以这个 server
 给出的空诊断列表永远意味着"没有违规",绝不意味着"没有检查"。
 
-之所以是编辑器而不是 ESLint 插件:ESLint 插件只够得着 JS 和 TS,也就是本
-来就能用的那一半;Go、Rust、Python 和 Vue 什么都得不到。
+之所以是编辑器而不是 ESLint 插件:ESLint 插件只在 ESLint 有 parser 的地方
+才运行。在本工作区那就是 JS、TS **和 Vue**——已实测:一个 import 了被禁包
+的 `.vue` 文件,从 ESLint 和从本工具拿到的是同一条
+`@nx/enforce-module-boundaries` 消息,只有各自划出的列不同。Go、Rust 和
+Python 根本没有 parser,那才是 ESLint 插件永远够不着的那一半。
 
 **Claude Code** 从本仓库自己的插件目录 `.claude/plugins` 加载它。
 `.claude/settings.json` 带着 `enabledPlugins` 条目;注册 marketplace 是每
@@ -67,9 +70,10 @@ claude plugin marketplace add ./.claude/plugins
 ```
 
 之后,会话每次编辑 Go、Rust、Python 或 Vue 文件都会拿到边界诊断。server 声
-明是那个插件 `plugin.json` 里的 `lspServers`;JS 和 TS 被刻意留给 ESLint,
-因为编辑器每个文件扩展名只给一个 server,认领它们会挤掉开发者在那里真正需
-要的语言服务器。
+明是那个插件 `plugin.json` 里的 `lspServers`,它认领 analyzer 能处理的每一个
+扩展名,只把 JS/TS 一族排除在外:编辑器每个文件扩展名只给一个 server,认领
+它们会挤掉开发者在那里真正需要的语言服务器。`.vue` 落在被认领的这一侧,而
+ESLint 也读它,所以 Vue 是唯一被两个执行器同时覆盖的扩展名。
 
 **任何其他 LSP 客户端**启动的是同一个可执行文件:
 
@@ -139,8 +143,8 @@ check` 读取 Nx 图,分析一个项目拥有的每一个被跟踪的源文件,�
 务给编辑器,为每条违规发布一条诊断——或者发布一条说明它看不了的诊断,绝不
 会给出一个它并未挣得的空列表。
 
-两个执行器有意并行运行。ESLint 对 JavaScript 和 TypeScript 保持权威;本工具
-覆盖 ESLint 完全读不了的 Go、Rust 和 Python。`src/conformance/` 度量两者在哪
-里一致、在哪里不一致,任何让其中一方退休的决定都要以它为依据。机制、各语言
+两个执行器有意并行运行。ESLint 对 JavaScript、TypeScript 和 Vue 保持权威;本
+工具覆盖 ESLint 完全读不了的 Go、Rust 和 Python。`src/conformance/` 度量两者
+在哪里一致、在哪里不一致,任何让其中一方退休的决定都要以它为依据。机制、各语言
 的解析限制,以及一个项目一个清单的建模假设,都在
 [`./CLAUDE.md`](./CLAUDE.md) 里。
