@@ -19,11 +19,29 @@
  * name, an area, or a tag value: everything comes from the graph and the
  * config.
  *
- * Validation is shape only. Whether `layer:adapter` should be allowed to reach
- * `layer:domain` is the workspace's decision, stated in that config with its
- * reasoning; this module has no opinion on the values and must not grow one.
+ * Validation covers shape, and one thing beyond it: whether every pattern the
+ * table contains can actually be used. Nx feeds tags, external-import globs and
+ * `allow` entries to three different matchers, each of which builds a `RegExp`,
+ * so an unbalanced bracket in a constraint row throws from inside a rule
+ * halfway through a run — and an EMPTY entry throws nothing at all, it just
+ * quietly matches nothing (or, in `allow`, everything). Both classes are caught
+ * here by asking `./rules/match.mjs` — the same matchers the rules use, so the
+ * check is the real one and not a second opinion about it. That is why a module
+ * this low imports one from `./rules/`: the alternative is a second copy of the
+ * matchers, which is the failure mode this whole file exists to prevent.
+ *
+ * What it still has no opinion on is the VALUES. Whether `layer:adapter` should
+ * be allowed to reach `layer:domain` is the workspace's decision, stated in that
+ * config with its reasoning; this module must not grow a view on it.
  */
 import { pathToFileURL } from "node:url";
+
+import {
+  globPatternError,
+  importPatternError,
+  projectPatternError,
+  tagPatternError,
+} from "./rules/match.mjs";
 
 /**
  * The config's filename, named once. Every consumer that has to look for the
@@ -33,7 +51,15 @@ import { pathToFileURL } from "node:url";
  */
 export const MODULE_BOUNDARIES_CONFIG_FILE = "module-boundaries.config.mjs";
 
-/** The eight non-table options, with the type each must have. */
+/**
+ * The eight non-table options, with the type each must have, and — where the
+ * option's entries are patterns rather than plain names — the matcher they have
+ * to survive. `../rules/match.mjs` owns those matchers; asking them directly is
+ * what makes this check the real one rather than an approximation of it.
+ *
+ * `buildTargets` carries no matcher because its entries are target names,
+ * compared with `===`. It still gets the empty-string check every list gets.
+ */
 const OPTION_TYPES = {
   allow: "string[]",
   buildTargets: "string[]",
@@ -45,18 +71,33 @@ const OPTION_TYPES = {
   checkNestedExternalImports: "boolean",
 };
 
+const OPTION_ENTRY_MATCHERS = {
+  // Both are matched with `matchImportWithWildcard`, whose fallback branch is
+  // an unanchored `new RegExp(entry)`. `""` compiles to a regex matching every
+  // string, so one empty entry in `allow` exempts the entire workspace from all
+  // fifteen rules — silently, and reading like an empty list.
+  allow: importPatternError,
+  checkDynamicDependenciesExceptions: importPatternError,
+  // Expanded through Nx's `findMatchingProjects`; this engine reproduces only
+  // the part it can reproduce exactly, and rejects the rest here rather than
+  // suppressing cycles it half-understands.
+  ignoredCircularDependencies: projectPatternError,
+};
+
 /**
  * The keys a constraint row may carry, per `@nx/enforce-module-boundaries`'
- * own schema. Two row shapes share one list of lists: a row keys on either one
- * `sourceTag` or an `allSourceTags` array, and both then take the same four
- * optional list fields.
+ * own schema, each with the matcher its entries are fed to. Two row shapes
+ * share one list of lists: a row keys on either one `sourceTag` or an
+ * `allSourceTags` array, and both then take the same four optional list fields.
  */
-const ROW_LIST_KEYS = [
-  "onlyDependOnLibsWithTags",
-  "notDependOnLibsWithTags",
-  "allowedExternalImports",
-  "bannedExternalImports",
-];
+const ROW_LIST_MATCHERS = {
+  onlyDependOnLibsWithTags: tagPatternError,
+  notDependOnLibsWithTags: tagPatternError,
+  allowedExternalImports: globPatternError,
+  bannedExternalImports: globPatternError,
+};
+
+const ROW_LIST_KEYS = Object.keys(ROW_LIST_MATCHERS);
 
 const isStringArray = (value) =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -66,6 +107,39 @@ const isTagPairArray = (value) =>
 
 const isPlainObject = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * What is wrong with the entries of one string list, each message naming the
+ * entry's own index so a long list points at the offender rather than at
+ * itself.
+ *
+ * Two classes of problem, and neither would ever throw at runtime — which is
+ * why they are caught here. An **empty entry** is silent: depending on the list
+ * it lands in, it matches nothing (a rule that reads as enforced and is not),
+ * or it matches everything (`allow: [""]`). A **pattern that will not compile**
+ * throws from inside a rule, halfway through a run, with no idea which config
+ * row produced it.
+ *
+ * @param {string[]} values
+ * @param {string} at Dotted path of the list, for the message.
+ * @param {((pattern: string) => string|null)|undefined} patternError
+ * @returns {string[]}
+ */
+function listEntryViolations(values, at, patternError) {
+  const violations = [];
+  values.forEach((value, index) => {
+    if (value === "") {
+      violations.push(
+        `${at}[${index}]: must not be empty — an empty pattern is never what a reader ` +
+          `expects, and in 'allow' it matches every import in the workspace`,
+      );
+      return;
+    }
+    const problem = patternError?.(value);
+    if (problem) violations.push(`${at}[${index}]: '${value}' ${problem}`);
+  });
+  return violations;
+}
 
 /** One row's problems, prefixed with its index so a report names the offender. */
 function constraintRowViolations(row, index) {
@@ -88,11 +162,25 @@ function constraintRowViolations(row, index) {
     violations.push(
       `${at}.allSourceTags: must be an array of at least 2 strings, got ${describe(row.allSourceTags)}`,
     );
+  } else if (hasAllSourceTags) {
+    // A combo row matches only projects carrying EVERY tag it names, so one
+    // unusable tag makes the whole row match nothing — and a row that matches
+    // nothing does not error, it approves.
+    violations.push(
+      ...listEntryViolations(row.allSourceTags, `${at}.allSourceTags`, tagPatternError),
+    );
+  }
+  if (hasSourceTag && typeof row.sourceTag === "string" && row.sourceTag !== "") {
+    const problem = tagPatternError(row.sourceTag);
+    if (problem) violations.push(`${at}.sourceTag: '${row.sourceTag}' ${problem}`);
   }
   for (const key of ROW_LIST_KEYS) {
-    if (key in row && !isStringArray(row[key])) {
+    if (!(key in row)) continue;
+    if (!isStringArray(row[key])) {
       violations.push(`${at}.${key}: must be an array of strings, got ${describe(row[key])}`);
+      continue;
     }
+    violations.push(...listEntryViolations(row[key], `${at}.${key}`, ROW_LIST_MATCHERS[key]));
   }
   // Rejected rather than ignored: an unknown key is almost always a
   // misspelling of one above (`bannedExternalImport`), and the rule would
@@ -157,8 +245,20 @@ export function findBoundaryConfigViolations(module) {
         : type === "string[]"
           ? isStringArray(value)
           : isTagPairArray(value);
-    if (!ok)
+    if (!ok) {
       violations.push(`moduleBoundaryOptions.${key}: must be ${type}, got ${describe(value)}`);
+      continue;
+    }
+    const at = `moduleBoundaryOptions.${key}`;
+    if (type === "string[]") {
+      violations.push(...listEntryViolations(value, at, OPTION_ENTRY_MATCHERS[key]));
+    } else if (type === "pair[]") {
+      value.forEach((pair, index) =>
+        violations.push(
+          ...listEntryViolations(pair, `${at}[${index}]`, OPTION_ENTRY_MATCHERS[key]),
+        ),
+      );
+    }
   }
   for (const key of Object.keys(moduleBoundaryOptions)) {
     if (!(key in OPTION_TYPES)) {
