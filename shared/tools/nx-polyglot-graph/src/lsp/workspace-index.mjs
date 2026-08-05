@@ -48,6 +48,7 @@ import { join } from "node:path";
 
 import { analyzeFile, languageOf } from "../analysis/analyze.mjs";
 import { findMatchingProjects } from "../rules/match.mjs";
+import { environmentForTree } from "../workspace.mjs";
 
 /** The file Nx reads to learn a project exists — and so does this. */
 export const PROJECT_CONFIG_FILE = "project.json";
@@ -146,8 +147,12 @@ export function parseProjectJson(text) {
 export function listWorkspaceFiles(root) {
   let stdout;
   try {
+    // `environmentForTree` and not the inherited environment: `GIT_DIR` beats
+    // `cwd`, so a server started from a git hook would list another
+    // repository's files and resolve them against this root.
     stdout = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
       cwd: root,
+      env: environmentForTree(),
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
     });

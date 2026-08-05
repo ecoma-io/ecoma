@@ -38,6 +38,48 @@ import { fileFailure, projectOwning } from "./analysis/source-util.mjs";
 const require = createRequire(import.meta.url);
 
 /**
+ * The environment variables that point git at a repository OTHER than the one
+ * containing the directory it runs in. Each overrides `cwd`, so a spawn that
+ * inherits them reads a different tree than the caller asked for.
+ *
+ * A git hook is the case that matters, and it is where this tool runs: git
+ * exports `GIT_DIR` (and often `GIT_INDEX_FILE`) to every hook, so a `check`
+ * or a language server started from `pre-commit`/`pre-push` would list the
+ * ambient repository's files while resolving them against the root it was
+ * given. Every read then fails against a path that belongs to another tree —
+ * a verdict about the wrong workspace, or none at all.
+ *
+ * Which tree is judged is `root`'s decision alone. `GIT_CEILING_DIRECTORIES`
+ * is in the list for the same reason from the other direction: it can stop
+ * discovery before reaching the root the caller named.
+ */
+const AMBIENT_GIT_REDIRECTS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_CEILING_DIRECTORIES",
+];
+
+/**
+ * `env` with every ambient git redirect removed, for a spawn that must read
+ * the tree it is pointed at. Nx gets it too — it shells out to git itself, and
+ * a graph built from another repository's files is the same defect one layer
+ * further away.
+ *
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {Record<string, string|undefined>}
+ */
+export function environmentForTree(env = process.env) {
+  const clean = { ...env };
+  for (const name of AMBIENT_GIT_REDIRECTS) delete clean[name];
+  return clean;
+}
+
+/**
  * Runs a program and returns its stdout, throwing an `Error` that names the
  * program when it fails. The single seam every spawn in this module goes
  * through, so a test drives the whole scan without a git repository or an Nx
@@ -50,7 +92,12 @@ const require = createRequire(import.meta.url);
  */
 export function runProcess(file, args, cwd) {
   try {
-    return execFileSync(file, args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    return execFileSync(file, args, {
+      cwd,
+      env: environmentForTree(),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
   } catch (cause) {
     throw new Error(
       `nx-polyglot-graph: \`${[file, ...args].join(" ")}\` failed in ${cwd}: ` +

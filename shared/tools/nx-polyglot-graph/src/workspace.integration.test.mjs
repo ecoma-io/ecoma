@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   analyzeWorkspace,
   createWorkspace,
+  environmentForTree,
   findWorkspaceRoot,
+  listTrackedFiles,
   readProjectGraph,
 } from "./workspace.mjs";
 
@@ -110,6 +113,49 @@ describe("finding the tree to judge", () => {
     const orphan = mkdtempSync(join(tmpdir(), "polyglot-orphan-"));
     afterAll(() => rmSync(orphan, { recursive: true, force: true }));
     expect(findWorkspaceRoot(orphan)).toBeNull();
+  });
+});
+
+describe("deciding which tree git answers about", () => {
+  // `GIT_DIR` overrides `cwd`, and git exports it to every hook — which is
+  // where this tool runs, from `pre-commit` and `pre-push`. Inheriting it lists
+  // the ambient repository's files while resolving them against the root the
+  // caller named, so every read fails against a path belonging to another tree
+  // and the verdict covers nothing. Real git, real repositories: a stub would
+  // pin the intent and miss the mechanism, which is entirely inside git.
+  const gitTree = (files) => {
+    const directory = mkdtempSync(join(tmpdir(), "polyglot-gitdir-"));
+    afterAll(() => rmSync(directory, { recursive: true, force: true }));
+    const git = (...args) =>
+      execFileSync("git", args, { cwd: directory, env: environmentForTree(), encoding: "utf8" });
+    git("init", "-q");
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(directory, name), text);
+    git("add", "-A");
+    return directory;
+  };
+
+  it("lists the files of the tree it was given, not the one GIT_DIR names", () => {
+    const judged = gitTree({ "judged.go": "package judged\n" });
+    const ambient = gitTree({ "ambient.go": "package ambient\n" });
+
+    const inherited = process.env.GIT_DIR;
+    process.env.GIT_DIR = join(ambient, ".git");
+    try {
+      expect(listTrackedFiles(judged)).toEqual(["judged.go"]);
+    } finally {
+      if (inherited === undefined) delete process.env.GIT_DIR;
+      else process.env.GIT_DIR = inherited;
+    }
+  });
+
+  it("strips every variable that redirects git, and leaves the rest of the environment alone", () => {
+    const cleaned = environmentForTree({
+      GIT_DIR: "/elsewhere/.git",
+      GIT_WORK_TREE: "/elsewhere",
+      GIT_INDEX_FILE: "/elsewhere/index",
+      PATH: "/usr/bin",
+    });
+    expect(cleaned).toEqual({ PATH: "/usr/bin" });
   });
 });
 

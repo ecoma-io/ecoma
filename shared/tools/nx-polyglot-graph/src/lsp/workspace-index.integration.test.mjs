@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { environmentForTree } from "../workspace.mjs";
 import { buildWorkspaceIndex, listWorkspaceFiles, readWorkspaceFile } from "./workspace-index.mjs";
 
 let root;
@@ -40,7 +41,10 @@ beforeAll(() => {
   write("libs/outer/go.mod", "module example.test/outer\n\ngo 1.23\n");
   write("libs/outer/thing/thing.go", "package thing\n");
   write("ignored/generated.go", 'package generated\n\nimport "example.test/inner"\n');
-  execFileSync("git", ["init", "-q"], { cwd: root });
+  // `environmentForTree` because `GIT_DIR` beats `cwd`, and this suite runs
+  // from a git hook on every push: inheriting it would re-initialise the
+  // ambient repository and leave this fixture with no `.git` of its own.
+  execFileSync("git", ["init", "-q"], { cwd: root, env: environmentForTree() });
 });
 
 afterAll(() => {

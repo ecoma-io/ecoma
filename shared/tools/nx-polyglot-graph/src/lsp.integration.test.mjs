@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { encodeMessage, frameMessages } from "./lsp/protocol.mjs";
+import { environmentForTree } from "./workspace.mjs";
 
 const SERVER = fileURLToPath(new URL("../lsp.mjs", import.meta.url));
 
@@ -150,7 +151,12 @@ beforeAll(() => {
   // The index reads its file list from git, so the fixture has to be a tree git
   // can answer for. No commit is needed: `--others --exclude-standard` covers
   // files that exist but are not committed, which is what an editor sees.
-  execFileSync("git", ["init", "-q"], { cwd: root });
+  //
+  // `environmentForTree` for the same reason the server itself uses it:
+  // `GIT_DIR` beats `cwd`, and this suite runs from a git hook on every push.
+  // Inheriting it would re-initialise the ambient repository and leave this
+  // fixture with no `.git` of its own.
+  execFileSync("git", ["init", "-q"], { cwd: root, env: environmentForTree() });
 });
 
 afterAll(() => {
