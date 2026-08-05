@@ -41,8 +41,48 @@ Nx 本身。它在 `nx.json` → `plugins` 下注册为
 或工具代码直接导入它。
 
 它还在自己的 `package.json` 里以 `bin` 条目声明了两个可执行文件:
-`cli.mjs` 用于终端运行,`lsp.mjs` 用于编辑器。两者都还没有强制执行任何规
-则,而且都直说这一点而不是假装——`cli.mjs check` 会以非 0 退出。
+`cli.mjs` 用于终端运行,`lsp.mjs` 用于编辑器。
+
+### 在编辑器里运行它
+
+`lsp.mjs` 通过 stdio 说 Language Server Protocol,为每一条边界违规发布一
+条诊断,带着 `@nx/enforce-module-boundaries` 对同一个 import 会报出的那个
+`messageId`。它分析不了的文件会收到一条明说这一点的诊断——所以这个 server
+给出的空诊断列表永远意味着"没有违规",绝不意味着"没有检查"。
+
+之所以是编辑器而不是 ESLint 插件:ESLint 插件只够得着 JS 和 TS,也就是本
+来就能用的那一半;Go、Rust、Python 和 Vue 什么都得不到。
+
+**Claude Code** 从本仓库自己的插件目录 `.claude/plugins` 加载它。
+`.claude/settings.json` 带着 `enabledPlugins` 条目;注册 marketplace 是每
+个开发者的一次性动作,因为仓库本身无权声明——`extraKnownMarketplaces` 只从
+user、flag 和 managed settings 读取,这样一个 checkout 就无法让会话运行其
+机器主人从未同意过的插件代码:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+之后,会话每次编辑 Go、Rust、Python 或 Vue 文件都会拿到边界诊断。server 声
+明是那个插件 `plugin.json` 里的 `lspServers`;JS 和 TS 被刻意留给 ESLint,
+因为编辑器每个文件扩展名只给一个 server,认领它们会挤掉开发者在那里真正需
+要的语言服务器。
+
+**任何其他 LSP 客户端**启动的是同一个可执行文件:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       —— 仅在编辑器的根目录不是工作区根目录时需要
+watched files          **/module-boundaries.config.mjs 和 **/project.json
+```
+
+工作区根目录依次取自 `initializationOptions`、`workspaceFolders`、
+`rootUri`、`rootPath`,最后是工作目录。只声明全文本同步。支持动态注册的客
+户端会被要求监视上面那两个文件,这样一次约束变更就会重新诊断所有打开的文
+件。做不到的客户端会在 stderr 上被告知,此后只有当那个文件是通过编辑器本
+身保存时才会看到约束变更——在编辑器之外改动它则不会。
 
 <!-- readme:ecosystem -->
 
@@ -89,8 +129,11 @@ Go、Rust 和 Python 的源码读成已解析的 import 记录——写下的是
 `ts.resolveModuleName`,Vue 的 `<script>` 提取用的是 Vue 自己的 SFC
 parser;两者都没有在这里被重写。
 
-强制执行这一半仍然只是骨架,而且是一副很吵的骨架。`src/rules/` 下还没有任
-何规则,所以 `cli.mjs check` 会失败,而不是报告一棵干净的代码树,`lsp.mjs`
-也不声明任何 capability,而不是把每个文件都涂绿。机制、每种语言的解析边
-界,以及 one-manifest-per-project 的建模假设都写在
+强制执行这一半在编辑器里已经是真的,在终端里仍然是骨架。`src/rules/` 在
+分析记录之上复现了 `@nx/enforce-module-boundaries` 的十五项检查,而
+`lsp.mjs` 把它们端了出来:它从被 track 的 `project.json` 文件构建项目图,
+判定编辑器打开的那个 buffer,并为每条违规发布一条诊断——或者发布一条说明
+自己没能看的诊断,绝不会给出一份它没挣来的空列表。`cli.mjs check` 还没有
+接到那个引擎上,它以非 0 退出,而不是报告一棵它从未查看过的干净代码树。机
+制、每种语言的解析边界,以及 one-manifest-per-project 的建模假设都写在
 [`./CLAUDE.md`](./CLAUDE.md)。

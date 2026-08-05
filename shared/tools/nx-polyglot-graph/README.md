@@ -44,9 +44,54 @@ own project graph — `nx affected`, `nx graph`, `nx run-many`. No product or
 tooling code imports it directly.
 
 It also declares two executables as `bin` entries in its own `package.json`:
-`cli.mjs` for a terminal run and `lsp.mjs` for an editor. Neither enforces
-anything yet, and both say so instead of pretending — `cli.mjs check` exits
-non-zero.
+`cli.mjs` for a terminal run and `lsp.mjs` for an editor.
+
+### Running it in an editor
+
+`lsp.mjs` speaks the Language Server Protocol over stdio and publishes one
+diagnostic per boundary violation, carrying the same `messageId`
+`@nx/enforce-module-boundaries` reports for that import. A file it could not
+analyze gets a diagnostic saying exactly that — so an empty diagnostic list
+from this server always means "no violation", never "not checked".
+
+An editor rather than an ESLint plugin because an ESLint plugin reaches only
+JS and TS, which is the half that already works: Go, Rust, Python and Vue
+would get nothing.
+
+**Claude Code** loads it from this repository's own plugin catalogue, under
+`.claude/plugins`. `.claude/settings.json` carries the `enabledPlugins` entry;
+registering the marketplace is a one-time act per developer, because a
+repository is not allowed to declare one — `extraKnownMarketplaces` is read
+from user, flag and managed settings only, so a checkout cannot make a session
+run plugin code its owner never agreed to:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+After that a session gets boundary diagnostics on every edit to a Go, Rust,
+Python or Vue file. The server entry is `lspServers` in that plugin's
+`plugin.json`; JS and TS are deliberately left to ESLint, because an editor
+gives one server per file extension and claiming those would displace the
+language server a developer actually needs there.
+
+**Any other LSP client** launches the same executable:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       — only when the editor's root is not the workspace root
+watched files          **/module-boundaries.config.mjs and **/project.json
+```
+
+The workspace root is taken from `initializationOptions`, then
+`workspaceFolders`, then `rootUri`, then `rootPath`, then the working
+directory. Only full text synchronisation is advertised. A client that
+supports dynamic registration is asked to watch the two files above, so a
+constraint change re-diagnoses every open file. One that cannot is told so on
+stderr, and then only sees a constraint change when that file is saved through
+the editor itself — never when it changes beside it.
 
 <!-- readme:ecosystem -->
 
@@ -97,8 +142,12 @@ against the record shape frozen in `src/analysis/contract.md`. TypeScript
 resolution is TypeScript's own `ts.resolveModuleName` and Vue's `<script>`
 extraction is Vue's own SFC parser; neither is reimplemented here.
 
-The enforcement half is still a scaffold, and a loud one. No rule exists under
-`src/rules/`, so `cli.mjs check` fails rather than reporting a clean tree, and
-`lsp.mjs` advertises no capabilities rather than painting every file green.
-Mechanics, per-language parse limits, and the one-manifest-per-project
-modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).
+The enforcement half is real in the editor and still a scaffold at the
+terminal. `src/rules/` reproduces the fifteen `@nx/enforce-module-boundaries`
+checks over analysis records, and `lsp.mjs` serves them: it builds the project
+graph from the tracked `project.json` files, judges the buffer the editor has
+open, and publishes a diagnostic per violation — or a diagnostic saying it
+could not look, never an empty list it did not earn. `cli.mjs check` is not
+wired to that engine yet and exits non-zero rather than reporting a clean tree
+it never inspected. Mechanics, per-language parse limits, and the
+one-manifest-per-project modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).

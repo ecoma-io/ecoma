@@ -45,9 +45,55 @@ project graph của nó — `nx affected`, `nx graph`, `nx run-many`. Không có
 mã sản phẩm hay tooling nào import nó trực tiếp.
 
 Nó cũng khai báo hai executable dưới dạng entry `bin` trong `package.json`
-của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho editor. Cả
-hai chưa enforce gì cả, và cả hai đều nói thẳng ra thay vì giả vờ —
-`cli.mjs check` thoát với mã khác 0.
+của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho editor.
+
+### Chạy nó trong editor
+
+`lsp.mjs` nói Language Server Protocol qua stdio và publish một diagnostic
+cho mỗi vi phạm boundary, mang đúng cái `messageId` mà
+`@nx/enforce-module-boundaries` báo cho import đó. Một file nó không phân
+tích được sẽ nhận một diagnostic nói đúng điều đó — nên một danh sách
+diagnostic rỗng từ server này luôn có nghĩa là "không có vi phạm", không bao
+giờ là "chưa kiểm tra".
+
+Là editor chứ không phải ESLint plugin, vì một ESLint plugin chỉ với tới JS
+và TS, tức là đúng cái nửa vốn đã chạy được: Go, Rust, Python và Vue sẽ
+không nhận được gì.
+
+**Claude Code** nạp nó từ chính catalogue plugin của repository này, nằm dưới
+`.claude/plugins`. `.claude/settings.json` mang entry `enabledPlugins`; việc
+đăng ký marketplace là một thao tác một lần của mỗi lập trình viên, vì một
+repository không được phép tự khai báo — `extraKnownMarketplaces` chỉ được
+đọc từ user, flag và managed settings, nên một checkout không thể khiến một
+session chạy mã plugin mà chủ máy chưa từng đồng ý:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+Sau đó một session sẽ nhận diagnostic boundary ở mỗi lần sửa một file Go,
+Rust, Python hoặc Vue. Khai báo server là `lspServers` trong `plugin.json`
+của plugin đó; JS và TS được cố ý để lại cho ESLint, vì editor chỉ cho một
+server trên mỗi phần mở rộng file và nhận chúng sẽ đẩy văng đúng cái language
+server mà lập trình viên thực sự cần ở đó.
+
+**Bất kỳ LSP client nào khác** khởi chạy đúng executable đó:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       — chỉ cần khi root của editor không phải root workspace
+watched files          **/module-boundaries.config.mjs và **/project.json
+```
+
+Root của workspace được lấy từ `initializationOptions`, rồi
+`workspaceFolders`, rồi `rootUri`, rồi `rootPath`, rồi thư mục làm việc. Chỉ
+đồng bộ toàn văn bản được quảng cáo. Client nào hỗ trợ dynamic registration
+sẽ được yêu cầu theo dõi hai file trên, nên một thay đổi constraint sẽ chẩn
+đoán lại mọi file đang mở. Client nào không làm được sẽ được báo trên stderr,
+và sau đó chỉ thấy thay đổi constraint khi file đó được lưu qua chính editor
+— không bao giờ khi nó đổi ở bên ngoài.
 
 <!-- readme:ecosystem -->
 
@@ -98,8 +144,13 @@ dạng record đã chốt trong `src/analysis/contract.md`. Phần resolve TypeS
 là chính `ts.resolveModuleName` của TypeScript, còn phần tách `<script>` của
 Vue là chính SFC parser của Vue; không cái nào bị viết lại ở đây.
 
-Nửa enforcement thì vẫn là khung, và là một cái khung ồn ào. Chưa có rule nào
-dưới `src/rules/`, nên `cli.mjs check` fail thay vì báo cây code sạch, và
-`lsp.mjs` không quảng cáo capability nào thay vì tô xanh mọi file. Cơ chế,
-giới hạn parse của từng ngôn ngữ, và giả định one-manifest-per-project nằm ở
+Nửa enforcement đã thật ở phía editor và vẫn là khung ở phía terminal.
+`src/rules/` tái hiện mười lăm kiểm tra của `@nx/enforce-module-boundaries`
+trên các record analysis, còn `lsp.mjs` phục vụ chúng: nó dựng project graph
+từ các file `project.json` được track, phán buffer mà editor đang mở, và
+publish một diagnostic cho mỗi vi phạm — hoặc một diagnostic nói rằng nó
+không nhìn được, chứ không bao giờ là một danh sách rỗng mà nó chưa xứng
+đáng. `cli.mjs check` chưa được nối vào engine đó và thoát với mã khác 0 thay
+vì báo một cây code sạch mà nó chưa hề soi. Cơ chế, giới hạn parse của từng
+ngôn ngữ, và giả định one-manifest-per-project nằm ở
 [`./CLAUDE.md`](./CLAUDE.md).

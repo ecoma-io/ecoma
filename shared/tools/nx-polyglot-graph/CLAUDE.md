@@ -29,6 +29,7 @@ src/graph/             analysis reduced to Nx dependency records
 src/config.mjs         loads + validates the workspace boundary config
 src/rules/             the boundary rules — `evaluate(sites, graph, config)`
 src/report/            rendering violations (empty — see its README)
+src/lsp/               the language server: lifecycle, index, diagnostics
 ```
 
 - **`index.mjs` holds no logic.** Nx loads it on every graph computation, so
@@ -43,6 +44,30 @@ src/report/            rendering violations (empty — see its README)
   loaded config, nothing more. Its own README carries the three upstream
   semantics a reimplementation gets backwards, and every place it is
   deliberately stricter than ESLint — read it before touching a rule.
+- **`src/lsp/` is the only layer allowed to build a graph.** `evaluate` is
+  pure and takes a graph it does not build; under Nx that graph comes from Nx,
+  and a language server has no Nx. `src/lsp/workspace-index.mjs` builds the
+  same shape from the tracked `project.json` files, reproducing Nx's own
+  `getProjectType` (including the `-e2e` suffix rule) rather than inventing a
+  second answer. `lsp.mjs` itself holds only the stdio wiring.
+
+## The one rule the language server exists to hold
+
+**An empty diagnostic list must mean "no violation", and nothing else.** An
+editor draws nothing for `[]`, and a developer reads nothing as "checked,
+clean" — so a file the server could not analyze is the one case that must
+never look like a file with no problems.
+
+Two guards, deliberately: `src/lsp/diagnose.mjs` returns `analyzed: false`
+with at least one diagnostic on every path that did not reach a verdict, and
+`src/lsp/server.mjs` re-checks that before the bytes leave the process. An
+empty list is published from exactly two named places — a completed analysis
+that found nothing, and `clearDiagnostics` when a document closes. Anything
+that adds a third is the defect this design is built around.
+
+The consequence for a change here: a new failure mode needs a diagnostic, not
+a `return`. A `catch` that swallows, an early `return []`, or a guard that
+skips a document silently all produce the same wrong answer.
 
 ## The analysis contract is frozen — read it before writing an analyzer
 
@@ -158,10 +183,12 @@ openly, never fake done). Concretely:
   is not an error.
 - `cli.mjs check` exits **3** (`not implemented`), distinct from **2**
   (usage) and the reserved **1** (violations found). Exit 0 was the bug.
-- `lsp.mjs` advertises an **empty capability set**, so no editor asks it for
-  diagnostics, and answers every other request with `MethodNotFound` (-32601).
-  Advertising `textDocumentSync` and replying with an empty diagnostic array
-  would paint every file green while no rule had run.
+- `lsp.mjs` is no longer a stub — it advertises `textDocumentSync` because it
+  now serves it. What it still does not advertise is everything else: no
+  hover, no definition, no incremental sync. A capability is a promise, and
+  incremental sync in particular stays unadvertised until it can be proven
+  correct, because one mis-applied ranged edit puts every later diagnostic on
+  the wrong line.
 
 ## Tests
 
@@ -192,3 +219,17 @@ openly, never fake done). Concretely:
 - `cli.mjs` and `lsp.mjs` are driven as spawned subprocesses, which in-process
   V8 coverage cannot see — hence their absence from `vitest.config.mjs`'s
   coverage `include`, the same exclusion `dev-cli` makes for its `main.mjs`.
+  That is also why `lsp.mjs` holds only wiring: everything with a decision in
+  it lives under `src/lsp/`, where coverage can see it.
+- **The language server's coordinate conversion is pinned from the fixture,
+  never from a literal.** `src/lsp/diagnostics.test.mjs` computes the expected
+  0-based position by searching the fixture text, so changing the fixture
+  moves both sides and changing the conversion moves only one. A diagnostic
+  one line off is worse than no diagnostic: it sends every reader to the wrong
+  import, confidently.
+- **The editor configuration is tested against the analyzer registry.** A
+  `.lsp.json`-style manifest cannot import anything, so its extension list is
+  a second copy of `LANGUAGE_BY_EXTENSION`;
+  `src/lsp/editor-config.integration.test.mjs` is what keeps that copy honest
+  (Rule 14), the same arrangement `messages.mjs` has with
+  `upstream.integration.test.mjs`.
