@@ -19,12 +19,20 @@ permissions:
   # the signatures file in this repository, so the writing the agreement needs
   # lives in the tree and in every clone rather than in a service's database.
   # That is the whole reason this repository runs the action rather than a
-  # hosted CLA bot. The branch it writes to must let the Actions app push —
-  # a protected `main` with no bypass for it makes the action fail loudly on
-  # the first signature. The alternative, if that bypass is unwanted, is the
-  # action's own `branch:` input pointing at an unprotected branch; the cost is
-  # that `check-contributor-record` in ci.yml can no longer read the file from
-  # a normal checkout, so the tree stops being the single place the answer is.
+  # hosted CLA bot.
+  #
+  # It is necessary and not sufficient, and the gap belongs here because the
+  # workaround everyone reaches for first does not exist: `github-actions[bot]`
+  # CANNOT be added to a ruleset's bypass list. It is not selectable in the UI
+  # and no integration id is accepted over the API — GitHub keeps its own
+  # Actions token non-bypassable on purpose, so that write access to this file
+  # never becomes write access past every rule. A bypass list takes repository
+  # roles, teams, GitHub Apps and deploy keys; this token is none of them. So a
+  # default branch under a `pull_request` rule refuses the commit, and the
+  # first signature fails loudly. The two answers that do work — a dedicated
+  # GitHub App on the bypass list, or the action's own `branch:` input pointing
+  # somewhere the ruleset does not cover — are recorded with their costs in
+  # `.github/repository-settings.json`, where settings decisions live.
   contents: write
   pull-requests: write
   statuses: write
