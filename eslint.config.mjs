@@ -5,6 +5,7 @@ import vueA11y from "eslint-plugin-vuejs-accessibility";
 import globals from "globals";
 import * as jsoncParser from "jsonc-eslint-parser";
 import tseslint from "typescript-eslint";
+import { depConstraints, moduleBoundaryOptions } from "./module-boundaries.config.mjs";
 import noFocusedOrSkippedTests from "./shared/tools/eslint-local-rules/no-focused-or-skipped-tests.mjs";
 import noJourneyMarkerNames from "./shared/tools/eslint-local-rules/no-journey-marker-names.mjs";
 import noJourneyMarkers from "./shared/tools/eslint-local-rules/no-journey-markers.mjs";
@@ -49,118 +50,15 @@ export default tseslint.config(
   ...vue.configs["flat/essential"],
   ...vueA11y.configs["flat/recommended"],
 
-  // Nx module boundaries — enforce the scope/type tags declared in each project.json.
+  // Nx module boundaries — enforce the type/scope/layer/licence tags declared in
+  // each project.json. The table and the eight option values come from the
+  // workspace's single boundary config; ESLint is one of its two readers, and
+  // the reason it stopped owning them is that it can only judge JS and TS
+  // (`module-boundaries.config.mjs` header; root CLAUDE.md, Rule 14).
   {
     plugins: { "@nx": nx },
     rules: {
-      "@nx/enforce-module-boundaries": [
-        "error",
-        {
-          depConstraints: [
-            // Layer axis: apps consume libs; libs never import apps.
-            { sourceTag: "type:app", onlyDependOnLibsWithTags: ["type:lib"] },
-            { sourceTag: "type:lib", onlyDependOnLibsWithTags: ["type:lib"] },
-            // An e2e project drives a built artifact from the outside; it may
-            // name a lib's public API (shared a11y scope, fixture types) but
-            // never another e2e suite, and never an app's internals.
-            { sourceTag: "type:e2e", onlyDependOnLibsWithTags: ["type:lib"] },
-            // Scope axis: a product domain gets its own scope tag when it takes
-            // root, constrained to its own libs plus shared ones; shared libs
-            // never reach into a product domain. Only the scope that has a
-            // project today appears here — a scope is added in the change that
-            // lands its first project, never in anticipation of one.
-            { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
-            {
-              sourceTag: "scope:website",
-              onlyDependOnLibsWithTags: ["scope:website", "scope:shared"],
-            },
-            {
-              sourceTag: "scope:platform",
-              onlyDependOnLibsWithTags: ["scope:platform", "scope:shared"],
-            },
-            {
-              sourceTag: "scope:rba",
-              onlyDependOnLibsWithTags: ["scope:rba", "scope:shared"],
-            },
-            // Hex layer axis (domain/port/adapter/view + util), enforced from the
-            // first brick so an import flowing the wrong way fails lint at once.
-            // A dep must satisfy every one of its source's tag constraints, so
-            // these compose with the scope/type axes above.
-            //   util    → cross-cutting pure helpers (hashing…), leaf-agnostic
-            //   domain  → pure types/logic; depends only on domain + util
-            //   port    → an interface a domain exposes; may name domain types
-            //   adapter → implements a port; may use port + domain
-            //   view    → presentational; may use domain, never adapter, and never
-            //             the desktop host runtime (it emits intents, the shell wires them)
-            //   app     → application-service (agent-runtime, tool-proxy): orchestrates
-            //             over ports; may use port + domain + util + peer app, but
-            //             NEVER an adapter directly — reaching an engine/store means
-            //             going through its port, so the engine stays swappable
-            { sourceTag: "layer:util", onlyDependOnLibsWithTags: ["layer:util"] },
-            { sourceTag: "layer:domain", onlyDependOnLibsWithTags: ["layer:domain", "layer:util"] },
-            {
-              sourceTag: "layer:port",
-              onlyDependOnLibsWithTags: ["layer:domain", "layer:port", "layer:util"],
-            },
-            {
-              sourceTag: "layer:adapter",
-              onlyDependOnLibsWithTags: [
-                "layer:domain",
-                "layer:port",
-                "layer:adapter",
-                "layer:util",
-              ],
-            },
-            {
-              sourceTag: "layer:view",
-              onlyDependOnLibsWithTags: ["layer:view", "layer:domain", "layer:util"],
-              // A view lib emits intents and lets the shell wire them, so it must
-              // not reach the desktop host runtime directly. Named for the shell
-              // this workspace actually ships (Tauri) — a banned import for a
-              // package no longer installed enforces nothing. Adding a second
-              // shell means adding its runtime here in the same pass.
-              bannedExternalImports: ["@tauri-apps/*"],
-            },
-            {
-              sourceTag: "layer:app",
-              onlyDependOnLibsWithTags: ["layer:app", "layer:port", "layer:domain", "layer:util"],
-            },
-            // Licence axis — the carve-out in the root LICENSE, made executable.
-            // A tree's own LICENSE decides the terms it grants;
-            // `check-project-conventions` makes each project's `license:*` tag
-            // agree with what its tree and path imply; these three constraints
-            // make the import graph respect the result. Without them the
-            // boundary is a sentence in a legal document that the build has no
-            // way to hold anyone to.
-            //
-            //   sul   → may use SUL and Apache code.
-            //   apache→ Apache only, and this direction is the load-bearing one.
-            //           A `packages/` unit is what third parties receive under
-            //           Apache 2.0; importing SUL code would hand them SUL code
-            //           under Apache terms, which we cannot grant and cannot undo.
-            //   proprietary → the operator control plane calls public mechanisms
-            //           and patches none, so it may depend on them, and nothing
-            //           public may depend on it (it is absent from a contributor's
-            //           clone, so such an import would not even resolve).
-            //
-            // There was a fourth, `license:ee`, forbidden to SUL code so that an
-            // Enterprise module could never ship to every self-hoster through a
-            // one-line import. The tier is retired, and the constraint goes with
-            // it rather than lingering over a tag nothing can carry — a rule
-            // whose source tag no project can hold is a rule that proves nothing
-            // while reading as protection.
-            {
-              sourceTag: "license:sul",
-              onlyDependOnLibsWithTags: ["license:sul", "license:apache"],
-            },
-            { sourceTag: "license:apache", onlyDependOnLibsWithTags: ["license:apache"] },
-            {
-              sourceTag: "license:proprietary",
-              onlyDependOnLibsWithTags: ["license:proprietary", "license:sul", "license:apache"],
-            },
-          ],
-        },
-      ],
+      "@nx/enforce-module-boundaries": ["error", { ...moduleBoundaryOptions, depConstraints }],
     },
   },
 
