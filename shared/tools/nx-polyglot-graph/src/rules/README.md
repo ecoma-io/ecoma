@@ -85,12 +85,16 @@ judgement call resolves toward reporting. The ones that change a verdict:
   `src/graph/` deliberately registers no crates, PyPI distributions or Go
   modules as external nodes, and upstream bails when it cannot find one — which
   would leave `bannedExternalImports` unenforceable outside JavaScript. The
-  record's own answer is taken instead. The reach is narrower than it reads:
-  upstream's locator also resolves `node_modules`, so the synthesis changes a
-  verdict only where an analyzer names a package without needing it installed —
-  Go, Rust and Python (`../conformance/README.md`). **A specifier that is a path
-  gets no node, synthesized or otherwise**, because a package name is what the
-  mechanism needs and a path is never one; `isPathSpecifier` in `index.mjs` is
+  record's own answer is taken instead. Upstream's `node_modules` read is not a
+  second way in: it supplies only the `name@version` used to look a node up in a
+  map built from `externalNodes`, so an installed package with no node still
+  resolves to nothing (measured, `../conformance/README.md`). What that reach
+  amounts to in practice is narrower than the mechanism — a JS, TS or Vue
+  external record exists only for an installed package, which already has a
+  node, so the synthesis changes a verdict only for Go, Rust and Python.
+  **A specifier that is a path gets no node, synthesized or otherwise**,
+  because a package name is what the mechanism needs and a path is never one;
+  `isPathSpecifier` in `index.mjs` is
   the same test the branch that reports `noRelativeOrAbsoluteExternals` uses, so
   a path refused a target is a path that gets reported. "Is a path" is the
   RECORD's answer, not this layer's — a Rust `use` path and a Python dotted

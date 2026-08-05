@@ -57,9 +57,12 @@ diagnostic per boundary violation, carrying the same `messageId`
 analyze gets a diagnostic saying exactly that — so an empty diagnostic list
 from this server always means "no violation", never "not checked".
 
-An editor rather than an ESLint plugin because an ESLint plugin reaches only
-JS and TS, which is the half that already works: Go, Rust, Python and Vue
-would get nothing.
+An editor rather than an ESLint plugin because an ESLint plugin only runs where
+ESLint has a parser. In this workspace that is JS, TS **and Vue** — measured, a
+`.vue` file importing a banned package draws the same
+`@nx/enforce-module-boundaries` message from ESLint and from this tool,
+differing only in the column each underlines. Go, Rust and Python have no parser
+at all, and that is the half an ESLint plugin could never reach.
 
 **Claude Code** loads it from this repository's own plugin catalogue, under
 `.claude/plugins`. `.claude/settings.json` carries the `enabledPlugins` entry;
@@ -74,9 +77,11 @@ claude plugin marketplace add ./.claude/plugins
 
 After that a session gets boundary diagnostics on every edit to a Go, Rust,
 Python or Vue file. The server entry is `lspServers` in that plugin's
-`plugin.json`; JS and TS are deliberately left to ESLint, because an editor
-gives one server per file extension and claiming those would displace the
-language server a developer actually needs there.
+`plugin.json`, and it claims every extension the analyzers handle except the
+JS/TS family: an editor gives one server per file extension, so claiming those
+would displace the language server a developer actually needs there. `.vue`
+falls on the claimed side of that line and ESLint reads it too, which makes Vue
+the one extension both enforcers cover.
 
 **Any other LSP client** launches the same executable:
 
@@ -154,8 +159,8 @@ the same engine to an editor, publishing a diagnostic per violation — or a
 diagnostic saying it could not look, never an empty list it did not earn.
 
 Both enforcers run side by side on purpose. ESLint stays authoritative for
-JavaScript and TypeScript; this tool covers Go, Rust and Python, which ESLint
-cannot read at all. `src/conformance/` measures where the two agree and where
-they do not, and it is what a decision to retire either one would rest on.
-Mechanics, per-language parse limits, and the one-manifest-per-project
+JavaScript, TypeScript and Vue; this tool covers Go, Rust and Python, which
+ESLint cannot read at all. `src/conformance/` measures where the two agree and
+where they do not, and it is what a decision to retire either one would rest
+on. Mechanics, per-language parse limits, and the one-manifest-per-project
 modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).

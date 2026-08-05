@@ -31,6 +31,8 @@ src/workspace.mjs      which projects and files a run covers, and their analysis
 src/rules/             the boundary rules — `evaluate(sites, graph, config)`
 src/report/            rendering violations as text and as SARIF
 src/lsp/               the language server: lifecycle, index, diagnostics
+src/conformance/       the differential against ESLint, and this project's
+                       checks on its own declarations
 ```
 
 - **`index.mjs` holds no logic.** Nx loads it on every graph computation, so
@@ -91,10 +93,11 @@ parallel, and that only works if none of them gets to reinterpret the shape.
 The four decisions most likely to be re-litigated, each settled there with its
 reason: the record is a **superset of a graph edge** (five of the fifteen rule
 violations are decided on the raw specifier, which `nx graph --file=` does not
-emit — 0 of 12 edges carried provenance when measured); an **intra-project
-relative import is still emitted**; an analyzer **never throws on a malformed
-file**, it records the failure; a **dynamic import with a non-literal argument
-resolves to `null`** and is reported unresolvable rather than dropped.
+emit — measured, every edge it emits carries `source`, `target` and `type` and
+nothing else); an **intra-project relative import is still emitted**; an
+analyzer **never throws on a malformed file**, it records the failure; a
+**dynamic import with a non-literal argument resolves to `null`** and is
+reported unresolvable rather than dropped.
 
 TypeScript resolution is `ts.resolveModuleName` — a public API, already a root
 dependency, already correct on this workspace. Call it; never reimplement path
@@ -125,11 +128,16 @@ which stays unresolved on purpose because resolving it would mean applying
   hand-written `project.json` (root `CLAUDE.md` → Workspace Execution), and
   targets are never inferred — resist upstreaming the inferred-target model
   from gonx/@nxlv/python; rejecting it is this plugin's reason to exist.
-- **No workspace project may be imported from here, `dev-cli` included.** Node
-  built-ins, `typescript`, and `vue/compiler-sfc` only. Nothing enforces this
-  today, which is exactly why it is written down: self-contained is what keeps
-  a later extraction cheap. `vue/compiler-sfc` is reached through the root
-  `vue` dependency's own public subpath — the `@vue/compiler-sfc` package is
+- **No workspace project may be imported from here, `dev-cli` included**, and no
+  third-party package beyond Node's built-ins and a short declared list.
+  Self-contained is what keeps a later extraction cheap.
+  `src/conformance/boundary.test.mjs` enforces both, walking the tree so a
+  module added tomorrow is covered, and it is where the allow-list itself lives
+  — one entry per package with the reason it earns. The list is NOT restated
+  here on purpose: it used to be, it drifted, and prose beside a gate is the
+  copy that loses. Adding a dependency means adding it there, in the same diff.
+  `vue/compiler-sfc` is reached through the root `vue` dependency's own public
+  subpath — the `@vue/compiler-sfc` package is
   NOT declared at the root, so importing it by that name would be a phantom
   dependency that pnpm's strict layout does not resolve. It is also loaded
   lazily via `createRequire` rather than at module scope: this tool runs over

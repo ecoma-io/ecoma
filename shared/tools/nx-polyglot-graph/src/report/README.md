@@ -9,15 +9,24 @@ payload:
   is why the analysis record carries 1-based positions
   (`../analysis/contract.md`);
 - `sarif.mjs` — SARIF 2.1.0 for CI, so a failing job can be read without
-  scraping a human report, and so GitHub can annotate the diff. Validated
-  against the published schema rather than eyeballed: a file GitHub silently
-  rejects leaves the job green with no annotations and no reason given.
+  scraping a human report, and so GitHub can annotate the diff. The failure it
+  guards against is a file GitHub silently rejects: the job stays green, no
+  annotation appears, and nothing says why. Nothing here validates against the
+  published schema — there is no schema validator in this workspace at all.
+  What `sarif.integration.test.mjs` pins instead is the subset of the 2.1.0
+  schema a rejected upload turns on, checked against the real message table:
+  `version`, `tool.driver.name`, a `ruleId` that resolves in the catalogue, a
+  non-empty `message.text`, and a repository-relative `uri` with a 1-based
+  `startLine`/`startColumn`.
 
-## What lands here next
+## Where the LSP conversion lives, and why not here
 
-LSP diagnostics for `../../lsp.mjs`, whose positions are 0-based — the
-conversion belongs here, in one place, rather than in the rule that found the
-violation.
+Not here. Language Server Protocol positions are 0-based and the analysis
+record's are 1-based, and the subtraction is in `../lsp/diagnostics.mjs` beside
+the rest of the protocol shaping — because a diagnostic is more than a
+converted position, and splitting it across two directories would put half a
+format in each. `../../CLAUDE.md` records the same division: everything with a
+decision in it lives under `src/lsp/`, and `lsp.mjs` holds only the wiring.
 
 ## The two formats say the same thing in different places
 

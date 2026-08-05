@@ -60,9 +60,12 @@ tích được sẽ nhận một diagnostic nói đúng điều đó — nên m�
 diagnostic rỗng từ server này luôn có nghĩa là "không có vi phạm", không bao
 giờ là "chưa kiểm tra".
 
-Là editor chứ không phải ESLint plugin, vì một ESLint plugin chỉ với tới JS
-và TS, tức là đúng cái nửa vốn đã chạy được: Go, Rust, Python và Vue sẽ
-không nhận được gì.
+Là editor chứ không phải ESLint plugin, vì một ESLint plugin chỉ chạy ở nơi
+ESLint có parser. Trong workspace này đó là JS, TS **và Vue** — đã đo: một
+file `.vue` import một package bị cấm nhận đúng cùng một message
+`@nx/enforce-module-boundaries` từ ESLint và từ tool này, chỉ khác cột mà mỗi
+bên gạch chân. Go, Rust và Python không có parser nào cả, và đó chính là nửa
+mà một ESLint plugin không bao giờ với tới được.
 
 **Claude Code** nạp nó từ chính catalogue plugin của repository này, nằm dưới
 `.claude/plugins`. `.claude/settings.json` mang entry `enabledPlugins`; việc
@@ -77,9 +80,11 @@ claude plugin marketplace add ./.claude/plugins
 
 Sau đó một session sẽ nhận diagnostic boundary ở mỗi lần sửa một file Go,
 Rust, Python hoặc Vue. Khai báo server là `lspServers` trong `plugin.json`
-của plugin đó; JS và TS được cố ý để lại cho ESLint, vì editor chỉ cho một
-server trên mỗi phần mở rộng file và nhận chúng sẽ đẩy văng đúng cái language
-server mà lập trình viên thực sự cần ở đó.
+của plugin đó, và nó nhận mọi phần mở rộng mà các analyzer xử lý được, trừ họ
+JS/TS: editor chỉ cho một server trên mỗi phần mở rộng file, nên nhận chúng sẽ
+đẩy văng đúng cái language server mà lập trình viên thực sự cần ở đó. `.vue`
+nằm ở phía được nhận của ranh giới đó và ESLint cũng đọc nó, nên Vue là phần
+mở rộng duy nhất được cả hai enforcer phủ.
 
 **Bất kỳ LSP client nào khác** khởi chạy đúng executable đó:
 
@@ -157,8 +162,8 @@ editor, publish một diagnostic cho mỗi vi phạm — hoặc một diagnostic
 nó không nhìn được, không bao giờ là một danh sách rỗng mà nó chưa xứng đáng.
 
 Hai enforcer chạy song song một cách có chủ ý. ESLint giữ thẩm quyền cho
-JavaScript và TypeScript; tool này phủ Go, Rust và Python — những thứ ESLint
-hoàn toàn không đọc được. `src/conformance/` đo chỗ hai bên đồng thuận và chỗ
-không, và đó là căn cứ cho bất kỳ quyết định nào về việc cho một bên nghỉ. Cơ
-chế, giới hạn parse theo từng ngôn ngữ, và giả định một-manifest-mỗi-project
-nằm trong [`./CLAUDE.md`](./CLAUDE.md).
+JavaScript, TypeScript và Vue; tool này phủ Go, Rust và Python — những thứ
+ESLint hoàn toàn không đọc được. `src/conformance/` đo chỗ hai bên đồng thuận
+và chỗ không, và đó là căn cứ cho bất kỳ quyết định nào về việc cho một bên
+nghỉ. Cơ chế, giới hạn parse theo từng ngôn ngữ, và giả định
+một-manifest-mỗi-project nằm trong [`./CLAUDE.md`](./CLAUDE.md).

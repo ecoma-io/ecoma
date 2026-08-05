@@ -41,10 +41,13 @@ An Nx dependency is `{ source, target, sourceFile, type }`: which project
 depends on which, and one file to blame. That is everything `nx affected`
 needs, and it was everything this tool produced while it only fed the graph.
 
-It is not enough to enforce a boundary. Measured on this workspace:
-`nx graph --file=` emitted **no `sourceFile` and no import specifier** on any
-of its edges — 0 of 12 carried provenance. Five of the fifteen violation types
-`@nx/enforce-module-boundaries` reports are decided on the raw specifier
+It is not enough to enforce a boundary. Measured on this workspace,
+`nx graph --file=` emits **no `sourceFile` and no import specifier** on any edge
+at all: every edge in that output carries `source`, `target` and `type`, and no
+other key. A count belongs in the run rather than in this sentence — the
+denominator moves with every project added, and the fact that survives it is
+that the set of keys does not include provenance. Five of the fifteen violation
+types `@nx/enforce-module-boundaries` reports are decided on the raw specifier
 itself, not on the project pair it resolves to:
 
 - a relative or absolute path that crosses a project boundary — the projects
