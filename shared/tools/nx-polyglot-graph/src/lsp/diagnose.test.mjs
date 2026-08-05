@@ -89,6 +89,80 @@ describe("an empty diagnostic list means no violation, and nothing else", () => 
     expect(diagnostics[0].severity).toBe(2);
   });
 
+  it("refuses to call a document analyzed while the index is missing part of the tree", () => {
+    // The failure the two existing guards structurally cannot see. Nothing
+    // threw: the analyzer returned, the rule engine returned, and every
+    // function on the path answered normally — over a graph that is missing a
+    // project. `analyzed: true` here would publish `[]` over the violation
+    // that missing project would have caused, which is the one outcome this
+    // module exists to prevent.
+    const { analyzed, diagnostics } = diagnoseDocument({
+      ...REQUEST,
+      index: {
+        ...REQUEST.index,
+        skippedProjects: [{ file: "libs/outer/project.json", reason: "is not valid JSON: x" }],
+      },
+    });
+
+    expect(analyzed).toBe(false);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].message).toContain("libs/outer/project.json");
+    expect(diagnostics[0].message).toContain("INCOMPLETE");
+  });
+
+  it("puts what the tree was missing ahead of the verdict computed against it", () => {
+    // Order is the argument: the qualification has to be read before the thing
+    // it qualifies, or a reader takes the violation list for the whole answer.
+    analyzeFile.mockReturnValue({ imports: [], failures: [] });
+    evaluate.mockReturnValue([
+      {
+        sourceFile: SOURCE_FILE,
+        line: 3,
+        column: 8,
+        specifier: "example.test/outer",
+        messageId: "onlyTagsConstraintViolation",
+        message: "A project tagged with x can only depend on libs tagged with y",
+      },
+    ]);
+
+    const { analyzed, diagnostics } = diagnoseDocument({
+      ...REQUEST,
+      index: {
+        ...REQUEST.index,
+        fileFailures: [{ sourceFile: "libs/inner/generated.go", reason: "could not be read" }],
+      },
+    });
+
+    expect(analyzed).toBe(false);
+    expect(diagnostics.map((d) => d.code)).toEqual([
+      "analysisFailure",
+      "onlyTagsConstraintViolation",
+    ]);
+    expect(diagnostics[0].message).toContain("libs/inner/generated.go");
+  });
+
+  it("keeps the report about the tree even on a path that reached no verdict at all", () => {
+    // Two different things went wrong and each has a different fix. Dropping
+    // the first because the second is louder would send the developer to the
+    // analyzer and leave the unreadable `project.json` for them to find later.
+    analyzeFile.mockImplementation(() => {
+      throw new Error("no elvish import analyzer is implemented yet");
+    });
+
+    const { analyzed, diagnostics } = diagnoseDocument({
+      ...REQUEST,
+      index: {
+        ...REQUEST.index,
+        skippedProjects: [{ file: "libs/outer/project.json", reason: "could not be read" }],
+      },
+    });
+
+    expect(analyzed).toBe(false);
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics[0].message).toContain("libs/outer/project.json");
+    expect(diagnostics[1].message).toContain("no elvish import analyzer");
+  });
+
   it("refuses a verdict the engine returned about a different file", () => {
     // The engine is handed only this document's sites, so this cannot happen
     // unless the two disagree about which file they are discussing — at which

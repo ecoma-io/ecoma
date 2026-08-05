@@ -174,6 +174,49 @@ export function failureDiagnostic(failure, lines) {
 }
 
 /**
+ * How many gaps one diagnostic names before it counts the rest.
+ *
+ * A message is read or it is skipped, and a list of forty paths is skipped. Five
+ * is enough to start on and short enough to finish; the count that follows says
+ * the rest are there.
+ */
+const NAMED_GAP_LIMIT = 5;
+
+/**
+ * A diagnostic for a verdict computed against an INCOMPLETE project graph.
+ *
+ * Different from `analysisFailedDiagnostic` in exactly the way that matters to
+ * a reader: a rule pass did run over this document and what it found is below.
+ * What is missing is part of the tree it was compared against, so the verdict
+ * can be short a violation it had no way to see. Severity is `warning` for the
+ * same reason `failureDiagnostic` is — "not all judged", not "this is wrong".
+ *
+ * One diagnostic carries every gap. One per gap would scale the marker count
+ * with the breakage, and a developer who has just broken one `project.json`
+ * would meet a wall of identical warnings on a file that has nothing to do
+ * with it.
+ *
+ * @param {string[]} gaps From `./workspace-index.mjs`' `indexGaps`.
+ * @param {string[]} lines
+ * @returns {object} LSP `Diagnostic`.
+ */
+export function incompleteIndexDiagnostic(gaps, lines) {
+  const named = gaps.slice(0, NAMED_GAP_LIMIT);
+  const remaining = gaps.length - named.length;
+  return {
+    range: rangeAt({ line: null, column: null }, lines),
+    severity: DIAGNOSTIC_SEVERITY.warning,
+    code: ANALYSIS_FAILURE_CODE,
+    source: DIAGNOSTIC_SOURCE,
+    message:
+      `Module boundaries were checked against an INCOMPLETE view of this workspace, so the ` +
+      `verdict for this file can be missing violations it had no way to see: ` +
+      `${named.join("; ")}${remaining > 0 ? `; and ${remaining} more` : ""}. ` +
+      `Fix what is named here and every open file is re-checked against the whole tree.`,
+  };
+}
+
+/**
  * A diagnostic for a document the server could not analyze AT ALL — the config
  * would not load, the workspace index could not be built, an analyzer threw.
  *

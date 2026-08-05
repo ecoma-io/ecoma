@@ -6,6 +6,7 @@ import {
   DIAGNOSTIC_SOURCE,
   documentLines,
   failureDiagnostic,
+  incompleteIndexDiagnostic,
   rangeAt,
   violationDiagnostic,
 } from "./diagnostics.mjs";
@@ -172,5 +173,41 @@ describe("diagnostics a reader has to be able to tell apart", () => {
     expect(diagnostic.code).toBe(ANALYSIS_FAILURE_CODE);
     expect(diagnostic.message).toContain("could not be checked");
     expect(diagnostic.message).toContain("NOT a clean result");
+  });
+
+  it("names every file behind an incomplete graph, so the reader knows what to open", () => {
+    // The report is only actionable if it says which file broke. A message
+    // that said "the index is incomplete" and stopped would leave a developer
+    // with a warning on a file that is not the problem and no way to find the
+    // one that is.
+    const diagnostic = incompleteIndexDiagnostic(
+      ["libs/outer/project.json is not valid JSON: InvalidSymbol in JSON at 1:3"],
+      lines,
+    );
+
+    expect(diagnostic.code).toBe(ANALYSIS_FAILURE_CODE);
+    // A warning, not an error: a rule pass DID run over this document and what
+    // it found is in the same list. What is qualified is the tree it ran over.
+    expect(diagnostic.severity).toBe(2);
+    expect(diagnostic.message).toContain("INCOMPLETE");
+    expect(diagnostic.message).toContain("libs/outer/project.json");
+  });
+
+  it("folds many gaps into one diagnostic and counts the ones it does not name", () => {
+    // One marker per broken file would scale the noise with the breakage: a
+    // developer who mistyped one `project.json` would meet a wall of identical
+    // warnings on a file that has nothing to do with it, and learn to dismiss
+    // the whole class.
+    const gaps = Array.from(
+      { length: 9 },
+      (_, index) => `libs/p${index}/project.json is unreadable`,
+    );
+
+    const diagnostic = incompleteIndexDiagnostic(gaps, lines);
+
+    expect(diagnostic.message).toContain("libs/p0/project.json");
+    expect(diagnostic.message).toContain("libs/p4/project.json");
+    expect(diagnostic.message).not.toContain("libs/p5/project.json");
+    expect(diagnostic.message).toContain("and 4 more");
   });
 });
