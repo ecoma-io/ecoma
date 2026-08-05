@@ -31,6 +31,7 @@ import { checkCommandRefs } from "./check-command-refs.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
 import { checkDoctrine } from "./check-doctrine.mjs";
 import { checkWorkspaceDocs } from "./check-journey-markers.mjs";
+import { checkLegalVersions } from "./check-legal-versions.mjs";
 import { checkPracticeIndex } from "./check-practice-index.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
@@ -49,6 +50,7 @@ export const WORKSPACE_GATES = [
   ["check-doc-links", () => checkDocLinks()],
   ["check-command-refs", () => checkCommandRefs()],
   ["check-claude-md", () => checkClaudeMd()],
+  ["check-legal-versions", () => checkLegalVersions()],
   ["check-doctrine", () => checkDoctrine()],
   ["check-roadmap-ids", () => checkRoadmapIds()],
   ["check-practice-index", () => checkPracticeIndex()],

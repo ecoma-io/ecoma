@@ -6,11 +6,11 @@ on:
   # job under that trigger could never post the comment this one exists for —
   # and first-time contributors, the entire audience of a CLA notice, arrive
   # from forks. The trigger is safe here under the same boundary those jobs
-  # hold: nothing from the pull request head is ever executed. The two paths
-  # restored below are markdown records read as data; every script, `CLA.md`
-  # and `CODEOWNERS` stay the trusted base versions — which also means a pull
-  # request editing `CODEOWNERS` cannot exempt its own author in this job's
-  # verdict.
+  # hold: nothing from the pull request head is ever executed. Since the CLA
+  # action records signatures onto the base branch, nothing from the head has to
+  # be read as data either — every file this job judges is the trusted base
+  # version, which also means a pull request editing `CODEOWNERS` cannot exempt
+  # its own author in this job's verdict.
   pull_request_target:
     types: [opened, reopened, synchronize]
 
@@ -18,17 +18,23 @@ permissions:
   contents: read
   pull-requests: write
 
-# A rapid push supersedes the in-flight run: only the newest head's records
-# decide what the notice should say.
+# A rapid push supersedes the in-flight run: only the newest head decides what
+# the notice should say.
 concurrency:
   group: cla-notice-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  # NOT a required check, deliberately: ci.yml's `Contributor record` step is
+  # NOT a required check, deliberately: ci.yml's `Contributor signature` step is
   # the gate. This job is its messenger — it re-runs the same dev-cli command
   # and turns a red log line into a comment that tells the author exactly what
-  # to commit. It exits non-zero only when it could not do its own job.
+  # to do. It exits non-zero only when it could not do its own job.
+  #
+  # What it explains has narrowed to the half `cla.yml` does not: the CLA
+  # action posts its own thread comment naming the sentence to sign, so a notice
+  # repeating that would be two bots asking for the same thing. The sign-off
+  # trailer has no such messenger, and it is the red a contributor is most
+  # likely to hit after signing.
   notice:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -36,9 +42,10 @@ jobs:
       # No `ref:` here, deliberately — the default under this trigger is the
       # base branch, the trusted copy, and naming any `github.event.pull_request`
       # ref would trip Scorecard's dangerous-workflow check (see
-      # pr-practice-review.yml). Full history because the gate accepts records
-      # agreed under superseded CLA versions by reading `CLA.md`'s git history;
-      # a shallow clone would wrongly fail those records.
+      # pr-practice-review.yml). Full history because the gate judges the pull
+      # request's own commits for their `Signed-off-by` trailers, which needs
+      # both endpoints of the range reachable; a shallow clone would leave the
+      # merge base unresolvable and the range empty.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -53,17 +60,12 @@ jobs:
         with:
           node-version-file: .node-version
 
-      # The records the gate judges are the ones the REQUIRED gate judges:
-      # ci.yml runs on the pull request's merge commit, so this job rebuilds
-      # the same three-way merge with `git merge-tree --write-tree` (the
-      # pr-mergeable.yml plumbing — no working copy, nothing executed) and
-      # materializes only the two markdown record paths out of it, as data.
-      # A record or roster row that landed on the base after the branch was
-      # cut is therefore seen here exactly as CI sees it, and a deletion in
-      # the head is judged as a deletion. On a conflicted pull request no
-      # merge exists for either job to judge — CI never even starts — so the
-      # head snapshot is the honest fallback. Neither path is ever executed.
-      - name: Materialize the merge result's contributor records as data
+      # The head's commits, as data — read by `git log`, never executed. The
+      # signatures the gate judges need no fetching: the CLA action commits them
+      # to the base branch, so this checkout already carries them, which is what
+      # let the merge-result reconstruction this job used to do go away with the
+      # committed-record flow it existed for.
+      - name: Fetch the pull request's commits
         env:
           NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.base_ref }}
@@ -71,32 +73,9 @@ jobs:
           git fetch --no-tags origin \
             "+refs/pull/$NUMBER/head:refs/prq/head" \
             "+refs/heads/$BASE_REF:refs/prq/base"
-          # Exit status, not output shape: a CONFLICTED merge also writes a
-          # tree id (with conflict markers inside), and judging that would
-          # fault records nobody wrote. Only a clean merge (status 0) is what
-          # CI would judge.
-          set +e
-          git merge-tree --write-tree refs/prq/base refs/prq/head > merge-tree.out
-          merged=$?
-          set -e
-          tree=refs/prq/head
-          if [ "$merged" -eq 0 ] && head -n 1 merge-tree.out | grep -Eq '^[0-9a-f]{40,64}$'; then
-            tree=$(head -n 1 merge-tree.out)
-          else
-            echo "no clean merge tree — judging the head snapshot instead"
-          fi
-          rm -rf contributors CONTRIBUTORS.md
-          git checkout "$tree" -- contributors/ 2>/dev/null \
-            || echo "the merge result carries no contributors/ directory"
-          git checkout "$tree" -- CONTRIBUTORS.md 2>/dev/null \
-            || echo "the merge result carries no CONTRIBUTORS.md"
 
       # repo-care and dev-cli both run on bare node (dependency-free by
       # design): no pnpm install.
-      # `--commits` names the pull request's own commits, from the two refs the
-      # step above already fetched. Without it this job would judge less than
-      # the required gate does and stay silent on a red it could explain — a
-      # branch whose commits carry no `Signed-off-by` trailer.
       - name: Tell the author what the CLA gate wants, on the thread
         run: >
           node shared/tools/repo-care/src/main.mjs cla-notice

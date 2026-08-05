@@ -399,10 +399,10 @@ Questions, or a request about this data: <john.itvn@gmail.com>.
    <john.itvn@gmail.com> with the Company's registered name, registered address,
    country, registration number, a named point of contact, and the initial
    covered list. Ecoma counter-signs and returns a copy. Unlike the individual
-   agreement — where a committed contributor record is the whole of it — this is
-   a two-signature document, because there is no way for a legal entity to sign
-   anything by committing to a repository, and because we should be identifiable
-   as a party by the same standard we ask of the Company.
+   agreement — where a comment posted on a pull request is the whole of the
+   assent — this is a two-signature document, because there is no way for a
+   legal entity to sign anything by commenting on a pull request, and because we
+   should be identifiable as a party by the same standard we ask of the Company.
 
 2. **Authority is evidenced, not asserted.** The Company sends, with the signed
    document, either the entry in its companies register naming the signatory as

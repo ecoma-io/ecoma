@@ -174,36 +174,60 @@ build/typecheck — invoked directly as
   command citation is a shell invocation, not a link — conflating the two
   would make the gate's name stop describing what it checks.
 - **`check-contributor-record` is the enforcement half of `CLA.md`'s acceptance
-  rule**, which until now was a sentence in two documents and nothing else: a
-  contributor agrees by committing `contributors/<handle>.md`, and nothing is
-  granted until that record exists. Every vocabulary is read out of `CLA.md` —
-  the required field labels and the assent sentence from the fenced block under
-  "How you agree", the version from the effective-version line — so amending the
-  agreement moves the gate rather than leaving a second contract behind
-  (Rule 14 rung 1). The licensor exemption is derived the same way: the CLA runs
-  _to_ whoever can make the grant, and `CODEOWNERS`' owners of `/CLA.md` are
-  already that set, protected there for exactly this reason. Bare mode audits
-  the shape of every record that exists and runs offline; `--author <login>`
+  rule**: a contributor agrees by posting the agreement sentence as a pull
+  request comment, and nothing is granted until that signature exists. **What
+  records the signature is the CLA action, not this gate** —
+  `contributor-assistant/github-action` (`.github/workflows/cla.yml`) turns the
+  comment into a line in a signatures file and commits it here, so the writing
+  the agreement needs lives in the tree rather than in a service's database.
+  This gate is what keeps the required check honest: the action publishes its
+  own commit status, branch protection watches exactly one check (`ci-gate`),
+  so the verdict has to be re-derivable inside CI or it is not covered by the
+  thing that blocks a merge. Every vocabulary is read out of `CLA.md` or the
+  workflow — the assent sentence from the fenced block under "How you agree",
+  the version from the effective-version line, the signatures path from the
+  `path-to-signatures:` input that writes it — so amending the agreement or
+  moving the file moves the gate rather than leaving a second contract behind
+  (Rule 14 rung 1). **The dependency runs both ways**: `--sign-comment` and
+  `--allowlist` print what the workflow needs as inputs, so the action derives
+  them from here instead of holding a second copy of the sentence and a second
+  answer to who is exempt. The licensor exemption is derived the same way: the
+  CLA runs _to_ whoever can make the grant, and `CODEOWNERS`' owners of
+  `/CLA.md` are already that set, protected there for exactly this reason. Bare
+  mode audits the signatures file's shape and runs offline; `--author <login>`
   additionally judges that login, and only CI can know who opened a pull
-  request — which is why that mode lives in `ci.yml` rather than in a
-  hook. It judges the record, never the person: whether an address is real
-  stays with the maintainer who confirms it.
-  - **A record outlives the version it agreed to.** `CLA.md`'s change rule says
-    a new version binds a contributor only once they agree to it, so on a
-    version bump the gate must not turn every existing record red. When a
-    record fails the current template, `auditRecordAcrossVersions` retries it
-    against every text `CLA.md` was ever committed as (`claTextHistory`, git
-    history via `cwdGitEnv` — which is why CI checkouts that run this gate
-    need `fetch-depth: 0`); a match on a superseded published version passes
-    with a printed note. The gate also cross-checks the `**Version …**` line
-    against the version inside the fenced assent sentence
-    (`templateVersionFault`) — the two spots must move in one edit. Record
-    lookup for `--author` is case-insensitive (`recordFileFor`), because
-    GitHub logins are; and while `CLA.md` still promises naming in
-    `CONTRIBUTORS.md` (`attributionClause`, clause 3), every record's handle
-    must be listed there — the moral-rights naming consent is the one legally
-    load-bearing promise no other gate watches. `licensorHandles` takes the
-    **last** matching CODEOWNERS entry, GitHub's own precedence.
+  request — which is why that mode lives in `ci.yml` rather than in a hook. It
+  judges the signature, never the person: whether the private details are real
+  stays with the maintainer who asks for them before merge.
+  - **A signature is bound to a version by the file it lands in.** `CLA.md`'s
+    change rule says a version binds a contributor only once they agree to it,
+    and the action's versioning is the mechanism: publishing a version moves
+    `path-to-signatures` to the next generation, everyone signs again, and the
+    previous generation's file stays in the tree as the writing for everything
+    already merged under it. The join key is therefore a path, not a search
+    through `CLA.md`'s git history — which is what that history read used to
+    answer, and why nothing here needs `fetch-depth: 0` any more. The gate does
+    still cross-check the `**Version …**` line against the version inside the
+    fenced assent sentence (`templateVersionFault`) — the two spots must move
+    in one edit. `auditSignatures` judges the shape of the file itself, because
+    it is a third party's write and the only writing behind every grant the
+    project holds; and while `CLA.md` promises naming in `CONTRIBUTORS.md`
+    (`attributionClause`, clause 3), every signatory must be listed there — the
+    moral-rights naming consent is the one legally load-bearing promise no
+    other gate watches. `licensorHandles` takes the **last** matching CODEOWNERS
+    entry, GitHub's own precedence.
+  - **`sync-contributors` is the other side of that promise**, and it is a
+    separate command because it WRITES where the gate only judges: given the
+    signatures file, it appends a `CONTRIBUTORS.md` row for every signatory the
+    roster does not name, and `cla.yml` commits the result. Clause 3.2 makes
+    that file how the project credits an author, so the row is what the project
+    owes rather than a step to hand a first-time contributor. **Additive,
+    never regenerating**: an existing row is left exactly as it is, because the
+    name column is how a person chose to be credited and a rewrite would
+    repeatedly replace that with a handle. That also makes it idempotent. It
+    re-pads the table on write because Prettier owns this file's formatting,
+    and a signatory whose signature carries no usable date is skipped rather
+    than credited with an invented month.
   - **The automation exemption is deliberately not a "is it a bot" test**, and
     the difference is the whole design. `--author-type` carries GitHub's
     `user.type` from the pull request payload — the only authority on which
@@ -214,8 +238,8 @@ build/typecheck — invoked directly as
     and only a pair whose file is still committed is exempt, so retiring a tool
     retires its exemption with no edit here. A coding agent's machine account
     therefore fails, and that is the point — the person who directed it authored
-    the work and owes the record, so exempting every bot would leave anyone who
-    has not agreed one move from merging. Both halves are also conditional on
+    the work and owes the signature, so exempting every bot would leave anyone
+    who has not agreed one move from merging. Both halves are also conditional on
     `CLA.md` still carrying the sentence that puts automated commits outside the
     agreement, read at run time like every other vocabulary here.
   - **`--commits <range>` holds the DCO half**, which two documents asked for

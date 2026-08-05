@@ -5,6 +5,7 @@ vi.mock("./check-command-refs.mjs", () => ({ checkCommandRefs: vi.fn(() => 0) })
 vi.mock("./check-doc-links.mjs", () => ({ checkDocLinks: vi.fn(() => 0) }));
 vi.mock("./check-doctrine.mjs", () => ({ checkDoctrine: vi.fn(() => 0) }));
 vi.mock("./check-journey-markers.mjs", () => ({ checkWorkspaceDocs: vi.fn(() => 0) }));
+vi.mock("./check-legal-versions.mjs", () => ({ checkLegalVersions: vi.fn(() => 0) }));
 vi.mock("./check-practice-index.mjs", () => ({ checkPracticeIndex: vi.fn(() => 0) }));
 vi.mock("./check-project-conventions.mjs", () => ({ checkProjectConventions: vi.fn(() => 0) }));
 vi.mock("./check-roadmap-ids.mjs", () => ({ checkRoadmapIds: vi.fn(() => 0) }));
@@ -17,6 +18,7 @@ import { checkCommandRefs } from "./check-command-refs.mjs";
 import { checkDocLinks } from "./check-doc-links.mjs";
 import { checkDoctrine } from "./check-doctrine.mjs";
 import { checkWorkspaceDocs } from "./check-journey-markers.mjs";
+import { checkLegalVersions } from "./check-legal-versions.mjs";
 import { checkPracticeIndex } from "./check-practice-index.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
@@ -130,6 +132,7 @@ describe("the list itself", () => {
       "check-doc-links": checkDocLinks,
       "check-command-refs": checkCommandRefs,
       "check-claude-md": checkClaudeMd,
+      "check-legal-versions": checkLegalVersions,
       "check-doctrine": checkDoctrine,
       "check-roadmap-ids": checkRoadmapIds,
       "check-practice-index": checkPracticeIndex,

@@ -44,14 +44,14 @@ describe("the gate against this repository's own documents", () => {
     });
   });
 
-  it("asks no contributor record of Renovate, which is what its pull requests need", () => {
+  it("asks no signature of Renovate, which is what its pull requests need", () => {
     expect(
       authorVerdict("renovate[bot]", {
         type: "Bot",
         licensors: licensorHandles(read(CODEOWNERS)),
         clause,
         automation,
-        hasRecord: false,
+        hasSigned: false,
       }),
     ).toMatchObject({ ok: true });
   });
@@ -81,14 +81,39 @@ describe("the gate against this repository's own documents", () => {
     expect(cli.status).toBe(2);
     expect(cli.stderr).toMatch(/user\.type/);
   });
+
+  // The two print modes are what `cla.yml` feeds the CLA action as inputs, so
+  // they are exercised the way the workflow runs them: the real CLI over the
+  // real documents. A sentence the action does not recognise leaves every
+  // contributor posting a comment that records nothing, and it fails silently
+  // — the action simply keeps saying "not signed".
+  it("prints the agreement sentence CLA.md publishes, as one line the action can compare", () => {
+    const cli = runGate("--sign-comment");
+    expect(cli.status).toBe(0);
+    expect(cli.stdout.trim().split("\n")).toHaveLength(1);
+    expect(cli.stdout).toContain(read(CLA).match(/^\*\*Version\s+([0-9.]+),/m)[1]);
+  });
+
+  it("prints an allowlist naming the licensor, so the action exempts who the gate exempts", () => {
+    const cli = runGate("--allowlist");
+    expect(cli.status).toBe(0);
+    const listed = cli.stdout.trim().split(",");
+    for (const licensor of licensorHandles(read(CODEOWNERS))) {
+      expect(listed.map((l) => l.toLowerCase())).toContain(licensor);
+    }
+    expect(listed).toContain("renovate[bot]");
+  });
 });
 
 /**
- * The version-history half needs a repository whose CLA.md has actually moved,
- * which the live tree cannot stage — so these run the real CLI inside a
- * fixture repo, across a published version bump.
+ * The rest needs a tree that can be broken on purpose — a signatures file with
+ * a hole in it, a workflow that records nothing, a branch whose commits carry
+ * no trailer — which the live tree cannot stage. These run the real CLI inside
+ * a fixture repo.
  */
-describe("the gate across a CLA version bump, in a fixture repository", () => {
+describe("the gate over a fixture repository", () => {
+  const SIGNATURES = "signatures/version1/cla.json";
+
   const claAt = (version) => `# CLA
 
 **Version ${version}, effective 2026-08-01.**
@@ -104,19 +129,21 @@ Separately, sign off each commit.
 ## How you agree
 
 \`\`\`
-Full legal name:
-GitHub:
-
-I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.md,
-for this and every future contribution I make to this project.
+I have read the Ecoma Contributor License Agreement, version ${version}, at CLA.md,
+and I agree to it for this and every future contribution I make to this project.
 \`\`\`
 `;
 
-  const record = (version) => `Full legal name: A Person
-GitHub: CasedUser
-
-I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.md, for this and every future contribution I make to this project.
+  const workflow = (path) => `name: CLA
+jobs:
+  cla:
+    steps:
+      - uses: contributor-assistant/github-action@abc123
+        with:
+          path-to-signatures: "${path}"
 `;
+
+  const signedBy = (...entries) => `${JSON.stringify({ signedContributors: entries }, null, 2)}\n`;
 
   const roster = `# Contributors
 
@@ -130,17 +157,16 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
     for (const dir of fixtures.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  const buildFixture = () => {
+  const buildFixture = (files = {}) => {
     const dir = initFixtureRepo("cla-gate", {
-      "CLA.md": claAt("1.0"),
+      "CLA.md": claAt("1.1"),
       ".github/CODEOWNERS": "/CLA.md @owner\n",
+      ".github/workflows/cla.yml": workflow(SIGNATURES),
       "CONTRIBUTORS.md": roster,
-      "contributors/CasedUser.md": record("1.0"),
+      [SIGNATURES]: signedBy({ name: "CasedUser", created_at: "2026-08-04T09:15:00Z" }),
+      ...files,
     });
     fixtures.push(dir);
-    fixtureGit(dir, ["commit", "-q", "-m", "publish CLA 1.0"]);
-    writeFileSync(join(dir, "CLA.md"), claAt("1.1"));
-    fixtureGit(dir, ["add", "-A"]);
     fixtureGit(dir, ["commit", "-q", "-m", "publish CLA 1.1"]);
     return dir;
   };
@@ -152,34 +178,76 @@ I agree to the Ecoma Contributor License Agreement, version ${version}, at CLA.m
       { cwd: dir, encoding: "utf8", env: fixtureEnv() },
     );
 
-  it("keeps a record valid under the version it agreed to after a newer one is published", () => {
-    const dir = buildFixture();
-    const cli = runGateIn(dir);
+  it("passes a tree whose signatures file and roster agree", () => {
+    const cli = runGateIn(buildFixture());
     expect(cli.stderr).toBe("");
-    expect(cli.stdout).toMatch(/version 1\.0/);
     expect(cli.status).toBe(0);
   });
 
-  it("matches an author to their record whatever the casing, as GitHub logins do", () => {
+  it("matches an author to their signature whatever the casing, as GitHub logins do", () => {
     const cli = runGateIn(buildFixture(), "--author", "caseduser", "--author-type", "User");
     expect(cli.stderr).toBe("");
     expect(cli.status).toBe(0);
   });
 
-  it("still refuses a record assenting to a version never published", () => {
-    const dir = buildFixture();
-    writeFileSync(join(dir, "contributors/CasedUser.md"), record("0.9"));
-    const cli = runGateIn(dir);
+  it("refuses an author the signatures file does not name, and quotes the line to post", () => {
+    const cli = runGateIn(buildFixture(), "--author", "stranger", "--author-type", "User");
     expect(cli.status).toBe(1);
-    expect(cli.stderr).toMatch(/agreement sentence/);
+    expect(cli.stderr).toMatch(/'stranger' has not agreed/);
+    expect(cli.stderr).toContain("I have read the Ecoma Contributor License Agreement");
   });
 
-  it("holds the attribution promise: a record whose handle CONTRIBUTORS.md omits fails", () => {
+  it("reads the signatures path off the workflow, so moving it moves the gate", () => {
+    // Publishing a version moves `path-to-signatures` to the next generation.
+    // A gate holding its own copy of the path would keep judging the previous
+    // one and pass everybody who had signed the superseded agreement.
+    const moved = "signatures/version2/cla.json";
+    const cli = runGateIn(
+      buildFixture({
+        ".github/workflows/cla.yml": workflow(moved),
+        [moved]: signedBy({ name: "Later", created_at: "2026-09-01T00:00:00Z" }),
+      }),
+      "--author",
+      "CasedUser",
+      "--author-type",
+      "User",
+    );
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/'CasedUser' has not agreed/);
+  });
+
+  it("says out loud that nothing has been signed yet rather than passing silently", () => {
+    // "No signatures" and "signatures not checked" look identical in a green
+    // log, and the file does not exist until the first contributor signs.
     const dir = buildFixture();
-    writeFileSync(join(dir, "CONTRIBUTORS.md"), "# Contributors\n\nnobody yet\n");
+    rmSync(join(dir, SIGNATURES));
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(0);
+    expect(cli.stdout).toMatch(/does not exist yet/);
+  });
+
+  it("refuses a tree whose workflow records no signature at all", () => {
+    // Without the action nothing writes a signature, so a gate reporting green
+    // would be certifying an acceptance mechanism that is not installed.
+    const dir = buildFixture({ ".github/workflows/cla.yml": "name: CLA\njobs: {}\n" });
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/path-to-signatures/);
+  });
+
+  it("faults a signatures file the action could not have written", () => {
+    const dir = buildFixture({ [SIGNATURES]: "{ truncated" });
+    const cli = runGateIn(dir);
+    expect(cli.status).toBe(1);
+    expect(cli.stderr).toMatch(/not valid JSON/);
+  });
+
+  it("holds the attribution promise: a signatory CONTRIBUTORS.md omits fails", () => {
+    const dir = buildFixture({ "CONTRIBUTORS.md": "# Contributors\n\nnobody yet\n" });
     const cli = runGateIn(dir);
     expect(cli.status).toBe(1);
     expect(cli.stderr).toMatch(/CONTRIBUTORS\.md/);
+    expect(cli.stderr).toMatch(/sync-contributors/);
   });
 
   /** Adds two commits to a fixture: one signed off, one not. */

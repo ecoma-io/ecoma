@@ -1,19 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  allowlist,
+  assentSentence,
   attributionClause,
-  auditRecord,
-  auditRecordAcrossVersions,
+  auditSignatures,
   authorVerdict,
   automationClause,
-  claTextHistory,
-  commitsOwedSignOff,
   claVersion,
+  commitsOwedSignOff,
   licensorHandles,
   listedInContributors,
   projectAutomation,
-  recordFileFor,
-  recordTemplate,
+  signaturesPath,
   signOffClause,
   templateVersionFault,
   unsignedCommits,
@@ -35,43 +34,42 @@ ordinary industry meaning.
 
 ## How you agree
 
-You agree once, by committing a record at \`contributors/<handle>.md\` containing:
+You agree once, by posting this line as a comment on your first pull request:
 
 \`\`\`
-Full legal name:
-Address:
-GitHub:
-
-I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
-for this and every future contribution I make to this project.
+I have read the Ecoma Contributor License Agreement, version 1.0, at CLA.md,
+and I agree to it for this and every future contribution I make to this project.
 \`\`\`
 
-Sign that commit off.
+Sign each commit off.
 `;
 
-const TEMPLATE = recordTemplate(CLA_TEXT);
+const SENTENCE = assentSentence(CLA_TEXT);
 const VERSION = claVersion(CLA_TEXT);
 
-const GOOD = `Full legal name: A Contributor
-Address: 1 Some Street, Somewhere
-GitHub: someone
-
-I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md, for this and every future contribution I make to this project.
+const WORKFLOW = `name: CLA
+jobs:
+  cla:
+    steps:
+      - uses: contributor-assistant/github-action@abc123
+        with:
+          path-to-signatures: "signatures/version1/cla.json"
+          branch: "main"
 `;
 
+/** One signatures file as the CLA action writes it. */
+const signatures = (...entries) => JSON.stringify({ signedContributors: entries });
+const SIGNED = { name: "CasedUser", created_at: "2026-08-04T09:15:00Z" };
+
 describe("reading the agreement rather than restating it", () => {
-  it("takes the version from the document, so a new version moves the gate with it", () => {
+  it("takes the version from the document, so publishing a version moves the gate with it", () => {
     expect(VERSION).toBe("1.0");
     expect(claVersion(CLA_TEXT.replace("Version 1.0,", "Version 2.0,"))).toBe("2.0");
   });
 
-  it("takes the required fields from the published template", () => {
-    expect(TEMPLATE.fields).toEqual(["Full legal name", "Address", "GitHub"]);
-  });
-
-  it("joins the wrapped assent into one sentence, since a record need not wrap it the same way", () => {
-    expect(TEMPLATE.sentence).toBe(
-      "I agree to the Ecoma Contributor License Agreement, version 1.0, at CLA.md, for this and every future contribution I make to this project.",
+  it("joins the wrapped assent into one sentence, since a comment is compared as one line", () => {
+    expect(SENTENCE).toBe(
+      "I have read the Ecoma Contributor License Agreement, version 1.0, at CLA.md, and I agree to it for this and every future contribution I make to this project.",
     );
   });
 
@@ -79,8 +77,35 @@ describe("reading the agreement rather than restating it", () => {
     expect(() => claVersion("# CLA\n\nno version line\n")).toThrow(/version/);
   });
 
-  it("refuses a document whose acceptance section carries no template", () => {
-    expect(() => recordTemplate("# CLA\n\n## How you agree\n\nJust ask us.\n")).toThrow(/template/);
+  it("refuses a document whose acceptance section fences no sentence", () => {
+    expect(() => assentSentence("# CLA\n\n## How you agree\n\nJust ask us.\n")).toThrow(/sentence/);
+  });
+
+  it("refuses an empty fence, which would let any comment at all count as assent", () => {
+    expect(() => assentSentence("# CLA\n\n## How you agree\n\n```\n \n```\n")).toThrow(/empty/);
+  });
+});
+
+describe("where the signatures are written", () => {
+  it("reads the path off the workflow input that writes it, so the two cannot point apart", () => {
+    expect(signaturesPath(WORKFLOW)).toBe("signatures/version1/cla.json");
+  });
+
+  it("accepts the input unquoted, since YAML does not require quoting it", () => {
+    expect(signaturesPath("          path-to-signatures: signatures/version1/cla.json\n")).toBe(
+      "signatures/version1/cla.json",
+    );
+  });
+
+  it("normalizes a leading './', which names the same file and would miss the lookup", () => {
+    expect(signaturesPath('  path-to-signatures: "./sigs/cla.json"\n')).toBe("sigs/cla.json");
+  });
+
+  it("refuses a workflow that records nothing rather than reporting green", () => {
+    // A gate that stayed silent here would certify an acceptance mechanism
+    // that is not installed — every pull request passing because nothing
+    // writes a signature at all.
+    expect(() => signaturesPath("name: CLA\njobs: {}\n")).toThrow(/path-to-signatures/);
   });
 });
 
@@ -103,84 +128,79 @@ describe("the licensor exemption", () => {
   });
 });
 
-describe("the template agreeing with its own version line", () => {
-  it("accepts a template whose assent sentence names the declared version", () => {
-    expect(templateVersionFault(TEMPLATE, VERSION)).toBeNull();
+describe("what the workflow is told to exempt", () => {
+  const automation = {
+    "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
+  };
+
+  it("hands the action the same two exempt sets the required check applies", () => {
+    // The action's own status and CI's required check must not disagree about
+    // who is exempt, which is why the workflow reads this instead of writing a
+    // second answer.
+    expect(allowlist(["owner"], automation)).toBe("owner,renovate[bot]");
+  });
+
+  it("exempts nobody extra when the tree runs no automation", () => {
+    expect(allowlist(["owner"], {})).toBe("owner");
+  });
+});
+
+describe("the agreement agreeing with its own version line", () => {
+  it("accepts an assent sentence that names the declared version", () => {
+    expect(templateVersionFault(SENTENCE, VERSION)).toBeNull();
   });
 
   it("accepts a wording that cases or punctuates the token differently", () => {
-    expect(
-      templateVersionFault({ sentence: "assent to Version 1.0 of this CLA" }, "1.0"),
-    ).toBeNull();
+    expect(templateVersionFault("assent to Version 1.0 of this CLA", "1.0")).toBeNull();
   });
 
   it("faults the document when the two version spots drift apart", () => {
-    expect(templateVersionFault(TEMPLATE, "2.0")).toMatch(/drifted apart/);
+    expect(templateVersionFault(SENTENCE, "2.0")).toMatch(/drifted apart/);
   });
 
   it("never reads a longer version as naming its prefix", () => {
-    expect(templateVersionFault({ sentence: "version 1.0.1, at CLA.md" }, "1.0")).toMatch(
-      /drifted apart/,
-    );
+    expect(templateVersionFault("version 1.0.1, at CLA.md", "1.0")).toMatch(/drifted apart/);
   });
 });
 
-describe("records agreed under a superseded published version", () => {
-  const NEWER = CLA_TEXT.replace(/version 1\.0/g, "version 2.0").replace(
-    "Version 1.0,",
-    "Version 2.0,",
-  );
-  const newerTemplate = recordTemplate(NEWER);
-  const newerVersion = claVersion(NEWER);
+describe("auditing the file the CLA action writes", () => {
+  const PATH = "signatures/version1/cla.json";
 
-  it("passes a record quoting the assent of a version git history shows was published", () => {
-    expect(
-      auditRecordAcrossVersions(GOOD, newerTemplate, newerVersion, () => [NEWER, CLA_TEXT]),
-    ).toEqual({ faults: [], supersededVersion: "1.0" });
-  });
-
-  it("still fails a record citing a version that was never published", () => {
-    const { faults } = auditRecordAcrossVersions(
-      GOOD.replace(/version 1\.0/g, "version 0.9"),
-      newerTemplate,
-      newerVersion,
-      () => [NEWER, CLA_TEXT],
-    );
-    expect(faults).not.toEqual([]);
-  });
-
-  it("skips history entries that predate the version line or the template", () => {
-    const { faults } = auditRecordAcrossVersions(GOOD, newerTemplate, newerVersion, () => [
-      "# CLA\n\nan early draft with neither\n",
-      CLA_TEXT,
-    ]);
-    expect(faults).toEqual([]);
-  });
-
-  it("never consults history while a record matches the current template", () => {
-    const result = auditRecordAcrossVersions(GOOD, TEMPLATE, VERSION, () => {
-      throw new Error("history should not be read");
+  it("reports every signatory the file names, which is what the gate asks about", () => {
+    const second = { name: "Someone", created_at: "2026-08-05T10:00:00Z" };
+    expect(auditSignatures(signatures(SIGNED, second), PATH)).toEqual({
+      logins: ["CasedUser", "Someone"],
+      faults: [],
     });
-    expect(result).toEqual({ faults: [] });
-  });
-});
-
-describe("reading the published versions out of git history", () => {
-  it("returns each committed text, skipping commits where the file was absent", () => {
-    const exec = (cmd, cmdArgs) => {
-      if (cmdArgs[0] === "log") return "sha1\nsha2\nsha3\n";
-      if (cmdArgs[1] === "sha2:CLA.md") throw new Error("deleted here");
-      return `text of ${cmdArgs[1]}`;
-    };
-    expect(claTextHistory(exec)).toEqual(["text of sha1:CLA.md", "text of sha3:CLA.md"]);
   });
 
-  it("yields nothing when history is unreadable, leaving only the working tree to judge", () => {
-    expect(
-      claTextHistory(() => {
-        throw new Error("not a repository");
-      }),
-    ).toEqual([]);
+  it("faults a file that is not JSON, keeping the parser's own reason", () => {
+    const { logins, faults } = auditSignatures("{ truncated", PATH);
+    expect(logins).toEqual([]);
+    expect(faults[0]).toContain(PATH);
+  });
+
+  it("faults a shape carrying no signatory array, which evidences no grant at all", () => {
+    // The failure that matters is silent: an entry that names nobody still
+    // counts as "the file exists", and this is the only writing behind every
+    // grant the project holds.
+    expect(auditSignatures(JSON.stringify({ somethingElse: [] }), PATH).faults[0]).toMatch(
+      /signedContributors/,
+    );
+  });
+
+  it("refuses an entry naming no account, and never counts it as a signatory", () => {
+    const { logins, faults } = auditSignatures(signatures({ created_at: "2026-08-04" }), PATH);
+    expect(logins).toEqual([]);
+    expect(faults[0]).toMatch(/identifies nobody/);
+  });
+
+  it("faults a signature with no date, since nothing then places it against a version", () => {
+    const { logins, faults } = auditSignatures(signatures({ name: "Someone" }), PATH);
+    expect(faults[0]).toMatch(/no created_at/);
+    // Still a named account: the fault is the missing date, and dropping the
+    // login would additionally fail the author who did sign.
+    expect(logins).toEqual(["Someone"]);
   });
 });
 
@@ -290,17 +310,6 @@ describe("the sign-off requirement", () => {
   });
 });
 
-describe("finding a record file for a login", () => {
-  it("matches however the file or the login is cased, since GitHub logins are case-insensitive", () => {
-    expect(recordFileFor("JohnDoe", ["johndoe.md"])).toBe("johndoe.md");
-    expect(recordFileFor("johndoe", ["JohnDoe.md"])).toBe("JohnDoe.md");
-  });
-
-  it("reports no record rather than a near miss", () => {
-    expect(recordFileFor("johndoe", ["johndoe2.md", "README.md"])).toBeNull();
-  });
-});
-
 describe("the automation exemption", () => {
   const CLAUSE = automationClause(CLA_TEXT);
 
@@ -330,21 +339,25 @@ describe("what a pull request author owes", () => {
     automation: {
       "renovate[bot]": { config: ".github/renovate.json5", gitAuthor: "renovate[bot]" },
     },
-    hasRecord: false,
+    hasSigned: false,
+    sentence: SENTENCE,
   };
 
   it("asks nothing of a licensor, who cannot grant a licence to themselves", () => {
     expect(authorVerdict("Owner", base)).toEqual({ ok: true });
   });
 
-  it("asks nothing further of a contributor whose record exists", () => {
-    expect(authorVerdict("someone", { ...base, hasRecord: true })).toEqual({ ok: true });
+  it("asks nothing further of a contributor whose signature the file names", () => {
+    expect(authorVerdict("someone", { ...base, hasSigned: true })).toEqual({ ok: true });
   });
 
-  it("names the record a contributor still owes", () => {
+  it("quotes the login and the sentence to post, so the fault is self-service", () => {
     const verdict = authorVerdict("someone", base);
     expect(verdict.ok).toBe(false);
-    expect(verdict.fault).toContain("contributors/someone.md");
+    // The single-quoted login is what `cla-notice` keys on to decide whether a
+    // repository-wide red is this author's to fix.
+    expect(verdict.fault).toContain("'someone'");
+    expect(verdict.fault).toContain(SENTENCE);
   });
 
   it("lets through automation the project runs, saying which config makes it ours", () => {
@@ -358,7 +371,7 @@ describe("what a pull request author owes", () => {
     const verdict = authorVerdict("some-agent[bot]", { ...base, type: "Bot" });
     expect(verdict.ok).toBe(false);
     expect(verdict.fault).toContain("does not run");
-    expect(verdict.fault).toContain("needs their own record");
+    expect(verdict.fault).toContain("needs their own signature");
   });
 
   it("stops exempting automation once the agreement stops exempting it", () => {
@@ -370,44 +383,6 @@ describe("what a pull request author owes", () => {
   it("treats an author of unknown kind as a person, so an unasked question fails closed", () => {
     const verdict = authorVerdict("renovate[bot]", base);
     expect(verdict.ok).toBe(false);
-    expect(verdict.fault).toContain("contributors/renovate[bot].md");
-  });
-});
-
-describe("auditing a record", () => {
-  it("passes a record carrying every field and the verbatim assent", () => {
-    expect(auditRecord(GOOD, TEMPLATE, VERSION)).toEqual([]);
-  });
-
-  it("names a field the record left out", () => {
-    expect(auditRecord(GOOD.replace(/^Address:.*$/m, ""), TEMPLATE, VERSION)).toEqual([
-      "missing the 'Address:' line the CLA's record template requires",
-    ]);
-  });
-
-  it("rejects a field present but blank, which reads as answered and is not", () => {
-    expect(
-      auditRecord(GOOD.replace("Address: 1 Some Street, Somewhere", "Address:"), TEMPLATE, VERSION),
-    ).toEqual(["'Address:' is blank"]);
-  });
-
-  it("accepts an assent the contributor wrapped differently, since wrapping is not the agreement", () => {
-    const wrapped = GOOD.replace(
-      "version 1.0, at CLA.md, for this",
-      "version 1.0, at CLA.md,\nfor this",
-    );
-    expect(auditRecord(wrapped, TEMPLATE, VERSION)).toEqual([]);
-  });
-
-  it("rejects assent to a different version, which is agreement to another document", () => {
-    const stale = GOOD.replace("version 1.0", "version 0.9");
-    expect(auditRecord(stale, TEMPLATE, VERSION)).toEqual([
-      "the agreement sentence does not match CLA.md version 1.0 verbatim",
-    ]);
-  });
-
-  it("reports a record with the fields and no assent as unsigned, not as merely malformed", () => {
-    const fieldsOnly = GOOD.split("\n").slice(0, 3).join("\n");
-    expect(auditRecord(fieldsOnly, TEMPLATE, VERSION)).toEqual(["carries no agreement sentence"]);
+    expect(verdict.fault).toContain("'renovate[bot]'");
   });
 });

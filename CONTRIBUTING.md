@@ -193,34 +193,40 @@ not a legal control — `LICENSE` is what governs.
 Because the project offers its code under more than one set of terms, we need
 the right to do that for your contribution too. That is what
 [`CLA.md`](./CLA.md) grants — a licence, not ownership; you keep the copyright
-in your work. You agree once, on your first pull request, by committing a
-contributor record at `contributors/<your-github-handle>.md` (any casing of
-your handle works); add your row to [`CONTRIBUTORS.md`](./CONTRIBUTORS.md) in
-the same pull request, because `CLA.md` clause 3 makes that file part of how
-the project credits authorship. A maintainer
-confirms the record before merging, and nothing is granted until it exists.
-`check-contributor-record` holds those rules in CI: it audits every record
-against the template `CLA.md` publishes — the version you agreed to keeps
-counting after the CLA moves on, read out of git history — and fails a pull
-request whose author has none. When it does fail, the `CLA notice` workflow
-comments on the pull request with exactly what to commit, so the answer is on
-the thread rather than in a CI log.
+in your work. **Nothing is required of you before you open a pull request.**
+You agree once, by posting one line as a comment on it — the CLA workflow tells
+you the exact wording on the thread, and it is the sentence `CLA.md` publishes
+under "How you agree". Our CLA assistant
+([`contributor-assistant/github-action`](https://github.com/contributor-assistant/github-action),
+pinned by commit) reads the comment, commits your signature to
+`signatures/version1/cla.json` in this repository, and turns the check green.
+Your row in [`CONTRIBUTORS.md`](./CONTRIBUTORS.md) is added by the same
+workflow: `CLA.md` clause 3 makes that file part of how the project credits
+authorship, which makes it the project's job rather than a step to hand you.
 
-**Your address does not go in the repository.** The law governing the agreement
-requires a licence contract to identify both parties by name and address, so we
-must hold yours — but holding is not publishing, and a public commit history
-cannot be unpublished. So the record you commit carries your legal name, your
-handle and your country of residence, and your **postal address and contact
-email go to <john.itvn@gmail.com>** instead, where they stay. `CLA.md` >
-"Why it is split in two" sets out both halves.
+`check-contributor-record` is what makes that verdict bind. Branch protection
+watches exactly one check (`ci-gate`), so CI re-derives the answer from the same
+signatures file the action writes, and fails a pull request whose author has not
+signed. It reads the sentence and the exemptions out of `CLA.md` and
+`CODEOWNERS`, and the action's configuration is derived from that same command —
+so the bot's status and the required check cannot come apart.
+
+**Your address does not go in the repository, and neither does your legal
+name.** The law governing the agreement requires a licence contract to identify
+both parties by name and address, so we must hold yours — but holding is not
+publishing, and a public commit history cannot be unpublished. What is published
+is the signature: your account, the comment, the timestamp. What we hold is your
+**full legal name, country of residence, postal address and contact email**, and
+a maintainer asks for those privately **before merge**, not before you open the
+pull request. `CLA.md` > "Why it is split in two" sets out both halves.
 
 An account that is not a person is judged differently, because it can hold no
 copyright and so can agree to nothing. Automation this project runs — Renovate
-today — needs no record: `CLA.md` puts those commits outside the agreement, and
-the gate exempts exactly the accounts a committed configuration here puts to
+today — needs no signature: `CLA.md` puts those commits outside the agreement,
+and the gate exempts exactly the accounts a committed configuration here puts to
 work. Any other machine account fails, including one a coding agent opens pull
 requests through: the person who directed it is the contributor, and it is
-their record the CLA asks for.
+their signature the CLA asks for.
 
 Sign off each commit with `git commit -s`: that trailer is the
 [Developer Certificate of Origin](https://developercertificate.org/), which is
@@ -228,8 +234,11 @@ a separate thing from the CLA and deliberately kept separate — it is what you
 type reflexively everywhere else, so it must not double as assent to a
 commercial sublicensing grant. `check-contributor-record` enforces it per commit
 in CI, and exempts exactly the automation accounts it already exempts from the
-record itself: a bot certifies nothing, because its commits are not
-contributions. Where an AI tool wrote part of a commit, add
+signature itself: a bot certifies nothing, because its commits are not
+contributions. It is the one half the CLA assistant does not cover, which is why
+the `CLA notice` workflow still comments when a commit is missing the trailer —
+the answer belongs on the thread rather than in a CI log. Where an AI tool wrote
+part of a commit, add
 `Assisted-by: <tool>` — or `Generated-by: <tool>` where it produced
 substantially the whole of one — which is the disclosure `CLA.md` clause 5
 asks for, in the one place that stays with the commit.

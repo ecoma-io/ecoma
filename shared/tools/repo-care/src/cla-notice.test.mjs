@@ -8,7 +8,10 @@ import {
   runClaGate,
 } from "./cla-notice.mjs";
 
-const failingSpawn = (stderr = "contributors/someone.md: missing — CLA.md grants nothing") =>
+// The default stderr is the shape `authorVerdict` actually emits for an author
+// who has not signed: the login in single quotes, which is the only thing the
+// attribution decision may key on.
+const failingSpawn = (stderr = "'someone' has not agreed to CLA.md — it grants nothing until") =>
   vi.fn(() => ({ status: 1, stderr, stdout: "" }));
 const passingSpawn = () => vi.fn(() => ({ status: 0, stderr: "", stdout: "" }));
 
@@ -64,7 +67,7 @@ describe("the notice body", () => {
   const body = buildClaNoticeComment({
     author: "someone",
     repo: "owner/repo",
-    gateOutput: "contributors/someone.md: missing",
+    gateOutput: "'someone' has not agreed to CLA.md",
   });
 
   it("opens with its marker, which is what the next run's lookup anchors on", () => {
@@ -72,10 +75,19 @@ describe("the notice body", () => {
   });
 
   it("carries the gate's own words and absolute links a comment can resolve", () => {
-    expect(body).toContain("contributors/someone.md: missing");
+    expect(body).toContain("'someone' has not agreed to CLA.md");
     expect(body).toContain("https://github.com/owner/repo/blob/HEAD/CLA.md");
-    expect(body).toContain("https://github.com/owner/repo/blob/HEAD/CONTRIBUTORS.md");
     expect(body).toContain("@someone");
+  });
+
+  it("names the sign-off half itself and leaves the signing half to the CLA action", () => {
+    // Two bots asking for the same thing in words that can disagree is the
+    // failure this split exists to prevent: the action's own comment is the
+    // only place the sentence to post is spelled out, because it reads that
+    // sentence out of CLA.md at run time.
+    expect(body).toContain("Signed-off-by");
+    expect(body).toContain("git commit -s");
+    expect(body).not.toMatch(/I have read the Ecoma Contributor License Agreement/);
   });
 
   it("truncates a runaway gate output loudly rather than posting it whole", () => {
@@ -138,7 +150,7 @@ describe("what a run does to the thread", () => {
   it("stays silent when the gate is red for reasons that are not this author's", async () => {
     const { calls, client } = fakeThread([]);
     const code = await claNotice(["--pr", "7", "--author", "someone"], {
-      spawn: failingSpawn("contributors/other-person.md: 'Address:' is blank"),
+      spawn: failingSpawn("CONTRIBUTORS.md: does not name 'other-person', who has signed"),
       client,
     });
     expect(code).toBe(0);
@@ -146,16 +158,16 @@ describe("what a run does to the thread", () => {
     expect(calls.updated).toHaveLength(0);
   });
 
-  it("flips an earlier notice to 'no longer your record' when the remaining red is not this author's", async () => {
+  it("flips an earlier notice to say so when the remaining red is not this author's", async () => {
     const { calls, client } = fakeThread([{ id: 5, body: `${CLA_NOTICE_MARKER}\nold` }]);
     const code = await claNotice(["--pr", "7", "--author", "someone"], {
-      spawn: failingSpawn("contributors/other-person.md: 'Address:' is blank"),
+      spawn: failingSpawn("CONTRIBUTORS.md: does not name 'other-person', who has signed"),
       client,
     });
     expect(code).toBe(0);
     expect(calls.created).toHaveLength(0);
     expect(calls.updated).toEqual([
-      { id: 5, body: expect.stringContaining("no longer your record") },
+      { id: 5, body: expect.stringContaining("no longer yours to fix") },
     ]);
   });
 
@@ -163,10 +175,10 @@ describe("what a run does to the thread", () => {
     const { calls, client } = fakeThread([{ id: 5, body: `${CLA_NOTICE_MARKER}\nold` }]);
     const code = await claNotice(["--pr", "7", "--author", "renovate[bot]"], {
       // The gate's exemption NOTE names the trailer on stdout while the only
-      // fault, on stderr, belongs to somebody else's record.
+      // fault, on stderr, belongs to somebody else.
       spawn: vi.fn(() => ({
         status: 1,
-        stderr: "contributors/other-person.md: 'Full legal name:' is blank",
+        stderr: "signatures/version1/cla.json: signedContributors[2] names no GitHub account",
         stdout:
           "1 commit(s) authored by 'renovate[bot]' carry no Signed-off-by: trailer and owe none",
       })),
@@ -175,7 +187,7 @@ describe("what a run does to the thread", () => {
     expect(code).toBe(0);
     expect(calls.created).toHaveLength(0);
     expect(calls.updated).toEqual([
-      { id: 5, body: expect.stringContaining("no longer your record") },
+      { id: 5, body: expect.stringContaining("no longer yours to fix") },
     ]);
   });
 
@@ -190,10 +202,10 @@ describe("what a run does to the thread", () => {
     expect(calls.created[0].body).toContain("Signed-off-by");
   });
 
-  it("posts when the roster fault names this author, whatever the record file's casing", async () => {
+  it("posts when the roster fault names this author, whatever the login's casing", async () => {
     const { calls, client } = fakeThread([]);
     await claNotice(["--pr", "7", "--author", "CasedUser"], {
-      spawn: failingSpawn("CONTRIBUTORS.md: does not name 'CasedUser', whose record exists"),
+      spawn: failingSpawn("CONTRIBUTORS.md: does not name 'CasedUser', who has signed"),
       client,
     });
     expect(calls.created).toHaveLength(1);

@@ -266,38 +266,48 @@ practice review, thread translation) from GitHub Actions.
   `cla-notice`, it carries no model at all, which is why nothing here
   mentions a quorum: the whole judgment is set membership (Rule 5).
 - **`cla-notice` is the messenger for the CLA gate, never a second gate.**
-  `ci.yml`'s `Contributor record` step stays the required check; this command
-  re-runs the same `dev-cli check-contributor-record --author …` (spawned from
-  this module's own repo root — the same seam as `audit-roadmap-labels`,
-  covered by the same `implicitDependencies: ["dev-cli"]`) and turns a red
-  log line into one `CLA_NOTICE_MARKER` comment telling the author exactly
-  what to commit, `startsWith`-anchored and edited in place like every other
-  thread comment here. Created only on a failure; flipped to a short
-  "resolved" note once the gate passes (never deleted — the thread's history
-  stays truthful); a pull request that was never red gets no comment. It
-  exits 0 whether the gate passed or failed — non-zero only when it could not
-  do its own job — so its workflow must never be wired into required checks.
-  Its workflow (`cla-notice.yml`) runs on `pull_request_target` for the same
-  fork-token reason as the other PR-side jobs, materializes ONLY
-  `contributors/` and `CONTRIBUTORS.md` as data out of the pull request's
-  clean merge result (the tree ci.yml's required gate judges, via
-  `git merge-tree --write-tree`; head snapshot when no clean merge exists),
-  and checks out the base with `fetch-depth: 0` because the gate reads
-  `CLA.md`'s git history to honour records agreed under superseded versions.
-  It passes `--commits refs/prq/base..refs/prq/head` as well, because the
-  required gate judges the branch's `Signed-off-by` trailers too and a
-  messenger that judged less would go silent on a red it could explain.
-  Exit 1 from the gate aggregates the whole tree's audit, so the notice posts
-  only when the output names this author's own record or account — or names a
-  missing sign-off, which is always this branch's to fix; on a
-  repository-wide red an existing notice is flipped to say the author is no
-  longer the cause, and none is ever created. **That decision reads `faults`
-  (the gate's stderr) and never the merged output**: the gate prints its
-  exemptions and its "the agreement no longer asks" note on stdout, and those
-  notes quote the same trailer a fault does — deciding from the merged text
-  reads a note as a fault and hands a bot a personal to-do list. The comment
-  still shows both, because a note is context worth having. No model anywhere: the whole
-  judgment is the gate's exit code (Rule 5).
+  `ci.yml`'s `Contributor signature and sign-off` step stays the required
+  check; this command re-runs the same `dev-cli check-contributor-record
+--author …` (spawned from this module's own repo root — the same seam as
+  `audit-roadmap-labels`, covered by the same
+  `implicitDependencies: ["dev-cli"]`) and turns a red log line into one
+  `CLA_NOTICE_MARKER` comment telling the author exactly what to do,
+  `startsWith`-anchored and edited in place like every other thread comment
+  here. Created only on a failure; flipped to a short "resolved" note once the
+  gate passes (never deleted — the thread's history stays truthful); a pull
+  request that was never red gets no comment. It exits 0 whether the gate
+  passed or failed — non-zero only when it could not do its own job — so its
+  workflow must never be wired into required checks.
+  - **What it explains is the half `cla.yml` does not.** The CLA action posts
+    its own thread comment naming the sentence to sign, so a notice repeating
+    that would be two bots asking for the same thing in words that can
+    disagree. The `Signed-off-by` trailer has no such messenger, and it is the
+    red a contributor is most likely to hit after signing — which is what this
+    comment leads with. It still points at `CLA.md` for the signing half, and
+    never restates the sentence.
+  - Its workflow (`cla-notice.yml`) runs on `pull_request_target` for the same
+    fork-token reason as the other PR-side jobs, and reads nothing from the head
+    as data: the CLA action commits signatures to the BASE branch, so a plain
+    checkout already carries every file the gate judges — which is what let the
+    `git merge-tree` reconstruction this job used to do go away with the
+    committed-record flow it existed for. It still checks out with
+    `fetch-depth: 0`, now because the sign-off half needs both endpoints of the
+    commit range reachable. It passes `--commits refs/prq/base..refs/prq/head`
+    as well, because the required gate judges the branch's `Signed-off-by`
+    trailers too and a messenger that judged less would go silent on a red it
+    could explain.
+  - Exit 1 from the gate aggregates the whole tree's audit, so the notice posts
+    only when the output names this author's own account in single quotes — the
+    spelling every author-specific fault carries by construction — or names a
+    missing sign-off, which is always this branch's to fix; on a
+    repository-wide red an existing notice is flipped to say the author is no
+    longer the cause, and none is ever created. **That decision reads `faults`
+    (the gate's stderr) and never the merged output**: the gate prints its
+    exemptions and its "the agreement no longer asks" note on stdout, and those
+    notes quote the same trailer a fault does — deciding from the merged text
+    reads a note as a fault and hands a bot a personal to-do list. The comment
+    still shows both, because a note is context worth having. No model anywhere: the whole
+    judgment is the gate's exit code (Rule 5).
 - **`translate-thread` backs both `translate-issue` and `translate-pr`** —
   one implementation, because GitHub models a PR as an issue (same
   `GET /issues/{n}`, same comments endpoint) and the only difference is which

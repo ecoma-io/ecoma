@@ -15,6 +15,7 @@ import { checkPracticeIndex } from "./check-practice-index.mjs";
 import { checkE2eStoryCoverage } from "./check-e2e-story-coverage.mjs";
 import { checkGofmt } from "./check-gofmt.mjs";
 import { checkJourneyMarkers, checkWorkspaceDocs } from "./check-journey-markers.mjs";
+import { checkLegalVersions } from "./check-legal-versions.mjs";
 import { checkPrimitiveArtifacts } from "./check-primitive-artifacts.mjs";
 import { checkProjectConventions } from "./check-project-conventions.mjs";
 import { checkRoadmapIds } from "./check-roadmap-ids.mjs";
@@ -30,6 +31,7 @@ import { runE2e } from "./run-e2e.mjs";
 import { RUN_GO_TESTS_COMMAND, runGoTests } from "./run-go-tests.mjs";
 import { RUN_NODE_TESTS_COMMAND, runNodeTests } from "./run-node-tests.mjs";
 import { scaffoldLib } from "./scaffold-lib.mjs";
+import { syncContributors } from "./sync-contributors.mjs";
 import { workspaceGates } from "./workspace-gates.mjs";
 
 const COMMANDS = {
@@ -44,6 +46,7 @@ const COMMANDS = {
   "check-practice-index": () => checkPracticeIndex(),
   "check-e2e-story-coverage": (args) => checkE2eStoryCoverage(args),
   "check-gofmt": () => checkGofmt(),
+  "check-legal-versions": () => checkLegalVersions(),
   "check-primitive-artifacts": () => checkPrimitiveArtifacts(),
   "check-project-conventions": () => checkProjectConventions(),
   "check-roadmap-ids": () => checkRoadmapIds(),
@@ -65,6 +68,7 @@ const COMMANDS = {
   // target to name this command, off this same exported spelling.
   [RUN_GO_TESTS_COMMAND]: (args) => runGoTests(args),
   "scaffold-lib": (args) => scaffoldLib(args),
+  "sync-contributors": (args) => syncContributors(args),
   "workspace-gates": () => workspaceGates(),
 };
 

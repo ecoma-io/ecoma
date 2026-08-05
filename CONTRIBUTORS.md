@@ -9,4 +9,4 @@ The commit history is the complete record; this file is the readable one.
 
 | Name                       | GitHub                                   | Since   |
 | -------------------------- | ---------------------------------------- | ------- |
-| Mai Ngọc Hóa (John Martin) | [@johnitvn](https://github.com/johnitvn) | 2026-07 |
+| Mai Ngọc Hóa (John Martin) | [@johnitvn](https://github.com/johnitvn) | 2026-08 |

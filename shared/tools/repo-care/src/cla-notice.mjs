@@ -4,28 +4,32 @@
  * on the thread what is missing and how to fix it, instead of leaving them a
  * red check whose log they may never open.
  *
- * It is a MESSENGER, never a second gate. `ci.yml`'s `Contributor record`
- * step remains the required check; this command exits 0 whether the gate
- * passed or failed, and non-zero only when it could not do its own job
- * (bad invocation, no token, GitHub refusing the comment). A fork pull
- * request's `pull_request` token is read-only, which is why this runs from
- * `pull_request_target` in its own workflow rather than as a step in `ci.yml`
- * — the same trigger reasoning as `pr-practice-review.yml`, with the same
- * boundary: nothing from the pull request head is ever executed. The
- * workflow materializes only `contributors/` and `CONTRIBUTORS.md` out of
- * the pull request's clean merge result (the same tree ci.yml judges;
- * head snapshot when no clean merge exists) — records are markdown data —
- * while `CLA.md`, `CODEOWNERS` and every script stay the trusted base
- * versions. A side effect worth having: the base `CODEOWNERS` judges the
- * licensor exemption here, so a pull request editing that file cannot
- * exempt its own author in this comment's verdict.
+ * It is a MESSENGER, never a second gate. `ci.yml`'s
+ * `Contributor signature and sign-off` step remains the required check; this
+ * command exits 0 whether the gate passed or failed, and non-zero only when it
+ * could not do its own job (bad invocation, no token, GitHub refusing the
+ * comment). A fork pull request's `pull_request` token is read-only, which is
+ * why this runs from `pull_request_target` in its own workflow rather than as a
+ * step in `ci.yml` — the same trigger reasoning as `pr-practice-review.yml`,
+ * with the same boundary: nothing from the pull request head is ever executed.
+ * Every file the gate reads is the trusted base version: the CLA action commits
+ * signatures to the base branch, so a checkout already carries them and nothing
+ * from the head has to be read as data either. A side effect worth having: the
+ * base `CODEOWNERS` judges the licensor exemption here, so a pull request
+ * editing that file cannot exempt its own author in this comment's verdict.
  *
  * The verdict is the gate's, spawned rather than restated (Rule 14 rung 1):
  * `dev-cli check-contributor-record --author … --author-type …` from this
  * module's own repo root, the same seam `audit-roadmap-labels` uses (covered
  * by this project's `implicitDependencies: ["dev-cli"]`). Its stderr goes
- * into the comment verbatim inside a code fence — it already names the exact
- * record path owed, and it is this workspace's own deterministic text.
+ * into the comment verbatim inside a code fence — it already names what is
+ * owed, and it is this workspace's own deterministic text.
+ *
+ * **What it explains has narrowed to the half the CLA action does not.** That
+ * action posts its own thread comment naming the sentence to sign, so a notice
+ * repeating it would be two bots asking for the same thing in words that can
+ * disagree. The `Signed-off-by` trailer has no such messenger, and it is the
+ * red a contributor is most likely to hit after signing.
  *
  * Comment discipline matches the other thread-writing commands: one
  * `CLA_NOTICE_MARKER` comment, `startsWith`-anchored, edited in place —
@@ -47,8 +51,9 @@ export const CLA_NOTICE_MARKER = "<!-- repo-care:cla-notice -->";
 const MAX_GATE_OUTPUT_CHARS = 1500;
 
 // Derived from this file's own location, never from the process: the gate
-// reads CLA.md and contributors/ through repo-relative paths, and a
-// workflow's working directory is not something to rely on.
+// reads CLA.md, the CLA workflow and the signatures file it names through
+// repo-relative paths, and a workflow's working directory is not something to
+// rely on.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, "..", "..", "..", "..");
 const DEV_CLI = join(REPO_ROOT, "shared/tools/dev-cli/src/main.mjs");
@@ -82,9 +87,9 @@ export function runClaGate({ author, authorType, commits, spawn = spawnSync }) {
 /** The failure notice. `repo` is `owner/name`, for absolute links — a comment
  * resolves relative links against the thread URL, not the tree. The gate
  * output is rendered as an INDENTED code block, never a fence: it echoes
- * record paths a pull request author chose, and a filename carrying backticks
- * could close a fence and let untrusted text render as this bot's own
- * guidance — an indented block has no closing delimiter to escape. */
+ * account names and commit subjects a pull request author chose, and one
+ * carrying backticks could close a fence and let untrusted text render as this
+ * bot's own guidance — an indented block has no closing delimiter to escape. */
 export function buildClaNoticeComment({ author, repo, gateOutput }) {
   const blob = (path) => `https://github.com/${repo}/blob/HEAD/${path}`;
   const output =
@@ -95,22 +100,21 @@ export function buildClaNoticeComment({ author, repo, gateOutput }) {
     CLA_NOTICE_MARKER,
     "### Contributor License Agreement — action needed",
     "",
-    `Thanks for the pull request, @${author}! The CLA check (\`Contributor record\` in CI) did not pass, so it will stay red until this is resolved. What the gate said:`,
+    `Thanks for the pull request, @${author}! The CLA check (\`Contributor signature and sign-off\` in CI) did not pass, so it will stay red until this is resolved. What the gate said:`,
     "",
     ...output.split("\n").map((line) => `    ${line}`),
     "",
-    `If you have not agreed to the CLA yet, you agree **once**, in this pull request — it covers every future contribution:`,
+    "**Every commit on the branch needs a `Signed-off-by` trailer.** That is the [Developer Certificate of Origin](https://developercertificate.org/), and it is deliberately separate from agreeing to the CLA — it must not double as assent to a commercial sublicensing grant. Use `git commit -s` for new commits, or `git rebase --signoff <base>` for ones already written, then force-push.",
     "",
-    `1. Read [\`CLA.md\`](${blob("CLA.md")}) — what you grant, what you keep, and which of your details are published.`,
-    "2. Email your full postal address and a contact email to <john.itvn@gmail.com>. Neither is published: the law governing the agreement requires us to hold them, not to put them in a repository nobody can un-publish.",
-    `3. Commit a record at the path the gate names above, following the template in \`CLA.md\` under "How you agree".`,
-    `4. Add your row to [\`CONTRIBUTORS.md\`](${blob("CONTRIBUTORS.md")}) in the same pull request.`,
+    // The signing half is the CLA assistant's own comment on this thread; it
+    // names the exact sentence, which is read out of CLA.md at run time.
+    // Repeating it here would be two bots asking for the same thing in words
+    // that can disagree.
+    `**If the CLA itself is what is red**, the CLA assistant has commented on this thread with the one line to post — you agree **once**, right here, and it covers every future contribution. [\`CLA.md\`](${blob("CLA.md")}) is what you are agreeing to: a licence, not ownership, and it says which of your details are published and which we only hold. Nothing is needed before opening a pull request; a maintainer asks privately for the details we must hold before merge.`,
     "",
-    "Every commit on the branch also needs a `Signed-off-by` trailer — that is the Developer Certificate of Origin, and it is separate from agreeing to the CLA. Use `git commit -s`, or `git rebase --signoff <base>` for commits already written.",
+    "Push, and this check re-runs. If this pull request was opened through a bot or coding-agent account, the person who directed it is the contributor and it is their signature the gate asks for.",
     "",
-    "Push, and this check re-runs. If this pull request was opened through a bot or coding-agent account, the person who directed it is the contributor and it is their record the gate asks for.",
-    "",
-    "A maintainer confirms the record before merging. A question about the CLA never delays review — ask right here on the thread.",
+    "A question about the CLA never delays review — ask right here on the thread.",
   ].join("\n");
 }
 
@@ -120,9 +124,9 @@ export function buildClaNoticeComment({ author, repo, gateOutput }) {
 export function buildClaRepoWideComment({ author }) {
   return [
     CLA_NOTICE_MARKER,
-    "### Contributor License Agreement — no longer your record",
+    "### Contributor License Agreement — no longer yours to fix",
     "",
-    `@${author}, your part of the CLA check is no longer what fails it. The check is currently red for a repository-wide reason (see the CI log); a maintainer owns that failure, and no CLA action is needed from you. (This comment previously asked for a record.)`,
+    `@${author}, your part of the CLA check is no longer what fails it. The check is currently red for a repository-wide reason (see the CI log); a maintainer owns that failure, and no CLA action is needed from you. (This comment previously asked you to act.)`,
   ].join("\n");
 }
 
@@ -133,7 +137,7 @@ export function buildClaResolvedComment({ author }) {
     CLA_NOTICE_MARKER,
     "### Contributor License Agreement — resolved",
     "",
-    `The CLA check passes for this pull request now — thanks, @${author}. A maintainer still confirms the contributor record before merging. (This comment previously listed what was missing.)`,
+    `The CLA check passes for this pull request now — thanks, @${author}. Before merging, a maintainer still asks privately for the details \`CLA.md\` says we must hold and never publish. (This comment previously listed what was missing.)`,
   ].join("\n");
 }
 
@@ -172,23 +176,21 @@ export async function claNotice(args, { spawn = spawnSync, client } = {}) {
     return 1;
   }
 
-  // Exit 1 aggregates the whole tree's audit, not just this author: a record
-  // someone else broke, or CLA.md's own template drifting, reddens the gate
-  // for every pull request at once. A sign-up notice on those would tell a
-  // compliant contributor to fix what is not theirs — so the notice posts only
-  // when the output names this author's own record or account. Both fault
-  // shapes carry one of those two spellings by construction
-  // (`authorVerdict`, and the roster fault naming the record's handle).
+  // Exit 1 aggregates the whole tree's audit, not just this author: a
+  // signatures file someone else corrupted, or CLA.md's own version line
+  // drifting from its assent sentence, reddens the gate for every pull request
+  // at once. A sign-up notice on those would tell a compliant contributor to
+  // fix what is not theirs — so the notice posts only when the output names
+  // this author's own account. Every author-specific fault quotes the login in
+  // single quotes by construction (`authorVerdict`, and the roster fault naming
+  // the signatory it cannot find in CONTRIBUTORS.md).
   // A missing sign-off is always this author's to fix whatever commit it names:
   // the range judged is the pull request's own commits and nobody else's. Read
   // off `faults`, never the merged output — the gate's notes name the same
   // trailer while reporting no fault at all.
   const handle = author.toLowerCase();
   const lower = gate.faults.toLowerCase();
-  const authorFault =
-    lower.includes(`contributors/${handle}.md`) ||
-    lower.includes(`'${handle}'`) ||
-    lower.includes("signed-off-by:");
+  const authorFault = lower.includes(`'${handle}'`) || lower.includes("signed-off-by:");
 
   const gh = client ?? githubClient({ repo, token });
   try {
