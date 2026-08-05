@@ -23,6 +23,27 @@
  * verdict without a reason is rejected, because a deliberate difference from
  * ESLint is a decision and decisions get written down.
  *
+ * ## `spelling`, and why a declared answer is not enough on its own
+ *
+ * A declaration can only be as good as the person who wrote it. Where ESLint
+ * has no parser — `.go`, `.rs`, `.py` — there is nothing to diff against, so
+ * `tool: [...]` is the ONLY assertion, and it is written by whoever built the
+ * fixture. Write it wrong and the suite agrees with the wrong answer forever;
+ * the shape nobody thought to write is not covered at all.
+ *
+ * So probes may also declare a `spelling`: a key naming the ONE import they
+ * each write a different way. Every probe sharing a key must reach the same
+ * verdict, and that assertion needs nobody to have predicted what the verdict
+ * is. A package at `src/pkg` and the same package under a declared
+ * `package-dir` are one import spelled two ways; if one is enforced and the
+ * other silently reads as a PyPI distribution, the group disagrees with itself
+ * and the run goes red even where every `tool: [...]` beside it says exactly
+ * what the engine did.
+ *
+ * The mechanism is language-agnostic and takes one field per probe. A group
+ * needs at least two members — one spelling cannot disagree with itself, and
+ * the suite says so rather than passing a group that lost its siblings.
+ *
  * ## What may not appear here
  *
  * No project name, tag value or area from any real workspace. This tool runs
@@ -89,7 +110,7 @@ export const CONFORMANCE_CASES = [
   {
     id: "an-exemption-both-enforcers-were-told-about",
     intent:
-      "A violation the workspace decided to accept. ESLint is told with its directive comment, this engine with a `boundarySuppressions` entry carrying the same reason — the two mechanisms are different because a comment convention is JavaScript's and this tool judges four other languages. Both must go quiet, and the identical import one file over, told to neither, must still be reported by both.",
+      "A violation the workspace decided to accept. ESLint is told with its directive comment, this engine with a `boundarySuppressions` entry carrying the same reason — the two mechanisms are different because a comment convention is JavaScript's and this tool judges four other languages. Both must go quiet, and the identical import one file over, told to neither, must still be reported by both. Because the mechanisms are different, telling only ONE of them is a configuration a workspace can reach by accident, and each half is probed rather than described: it is the only place the catalogue measures what the two mechanisms cost when they drift apart.",
     projects: [
       {
         name: "exempt-source",
@@ -100,6 +121,14 @@ export const CONFORMANCE_CASES = [
             'import { target } from "../../exempt-target/src/index";\nexport const a = target;\n',
           "src/reported.ts":
             'import { target } from "../../exempt-target/src/index";\nexport const b = target;\n',
+          // Told to ESLint only: the directive is there, no suppression entry
+          // names this path.
+          "src/directive-only.ts":
+            "// eslint-disable-next-line @nx/enforce-module-boundaries -- told to one enforcer only\n" +
+            'import { target } from "../../exempt-target/src/index";\nexport const c = target;\n',
+          // Told to this engine only: a suppression entry names it, no comment.
+          "src/suppression-only.ts":
+            'import { target } from "../../exempt-target/src/index";\nexport const d = target;\n',
         },
       },
       {
@@ -114,12 +143,37 @@ export const CONFORMANCE_CASES = [
         messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
         reason: "the loader that reads this file resolves no alias",
       },
+      {
+        path: "libs/exempt-source/src/suppression-only.ts",
+        messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+        reason: "the loader that reads this file resolves no alias",
+      },
     ],
     probes: [
       { file: "libs/exempt-source/src/allowed.ts", upstream: [] },
       {
         file: "libs/exempt-source/src/reported.ts",
         upstream: ["noRelativeOrAbsoluteImportsAcrossLibraries"],
+      },
+      {
+        file: "libs/exempt-source/src/directive-only.ts",
+        upstream: [],
+        tool: ["noRelativeOrAbsoluteImportsAcrossLibraries"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "an `eslint-disable` directive exempts upstream and nothing here: reading ESLint's comment syntax would tie a five-language tool to a JavaScript convention and give exemptions a second home besides the shared config",
+        },
+      },
+      {
+        file: "libs/exempt-source/src/suppression-only.ts",
+        upstream: ["noRelativeOrAbsoluteImportsAcrossLibraries"],
+        tool: [],
+        divergence: {
+          direction: "weaker",
+          reason:
+            "a `boundarySuppressions` entry exempts this engine and nothing upstream, which cannot read the shared config — the one weaker direction that is a mechanism difference rather than a missed import, and the reason a workspace running both must configure both",
+        },
       },
     ],
   },
@@ -1425,6 +1479,193 @@ export const CONFORMANCE_CASES = [
             "ESLint has no parser for `.py`, so the tag axis has no mechanism behind it there",
         },
       },
+    ],
+  },
+  {
+    id: "one-crate-crossing-however-the-use-is-spelled",
+    intent:
+      "One crossing into a neighbouring crate, written four ways Rust accepts, and the same four spellings pointing back inside the crate. ESLint parses none of it, so the only thing that can catch a spelling the parser drops is the other three spellings of the same import disagreeing with it.",
+    projects: [
+      {
+        name: "spelled-crate",
+        root: "libs/spelled-crate",
+        tags: ["axis:spelled-crate"],
+        files: {
+          "Cargo.toml": '[package]\nname = "spelledlocal"\nversion = "0.1.0"\n',
+          "src/lib.rs": "pub mod helper;\n",
+          "src/helper.rs": "pub struct Thing;\n",
+          "src/plain.rs": "use spelledother::Store;\n\npub fn plain() -> Store {\n    Store\n}\n",
+          "src/braced.rs":
+            "use spelledother::{Store};\n\npub fn braced() -> Store {\n    Store\n}\n",
+          "src/crate-visible.rs": "pub(crate) use spelledother::Store;\n",
+          "src/renamed.rs":
+            "use spelledother::Store as Shop;\n\npub fn renamed() -> Shop {\n    Shop\n}\n",
+          "src/inside-plain.rs":
+            "use crate::helper::Thing;\n\npub fn inside() -> Thing {\n    Thing\n}\n",
+          "src/inside-braced.rs":
+            "use crate::helper::{Thing};\n\npub fn inside_braced() -> Thing {\n    Thing\n}\n",
+          "src/inside-crate-visible.rs": "pub(crate) use crate::helper::Thing;\n",
+          "src/inside-renamed.rs":
+            "use crate::helper::Thing as Other;\n\npub fn inside_renamed() -> Other {\n    Other\n}\n",
+        },
+      },
+      {
+        name: "spelled-crate-neighbour",
+        root: "libs/spelled-crate-neighbour",
+        tags: ["axis:spelled-crate-refused"],
+        files: {
+          "Cargo.toml": '[package]\nname = "spelledother"\nversion = "0.1.0"\n',
+          "src/lib.rs": "pub struct Store;\n",
+        },
+      },
+    ],
+    depConstraints: [
+      { sourceTag: "axis:spelled-crate", onlyDependOnLibsWithTags: ["axis:spelled-crate-allowed"] },
+    ],
+    probes: [
+      ...["plain", "braced", "crate-visible", "renamed"].map((form) => ({
+        file: `libs/spelled-crate/src/${form}.rs`,
+        spelling: "a use that leaves the crate",
+        upstream: [],
+        tool: ["onlyTagsConstraintViolation"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "ESLint has no parser for `.rs`, so the tag axis has no mechanism behind it there",
+        },
+      })),
+      ...["plain", "braced", "crate-visible", "renamed"].map((form) => ({
+        file: `libs/spelled-crate/src/inside-${form}.rs`,
+        spelling: "a use that stays inside the crate",
+        upstream: [],
+      })),
+    ],
+  },
+  {
+    id: "one-module-crossing-however-the-import-is-spelled",
+    intent:
+      "One crossing into a neighbouring package, written the three ways Python spells it, and the two spellings of a relative import that stays inside its own package. `from pkg import sub` names `pkg` where `import pkg.sub` names `pkg.sub`; the specifiers differ and the verdict may not.",
+    projects: [
+      {
+        name: "spelled-module",
+        root: "libs/spelled-module",
+        tags: ["axis:spelled-module"],
+        files: {
+          "src/spelledlocal/__init__.py": "",
+          "src/spelledlocal/helper.py": "class Thing:\n    pass\n",
+          "src/spelledlocal/plain.py": "import spelledother.store\n",
+          "src/spelledlocal/from_package.py": "from spelledother import store\n",
+          "src/spelledlocal/from_module.py": "from spelledother.store import Store\n",
+          "src/spelledlocal/inside_named.py": "from .helper import Thing\n",
+          "src/spelledlocal/inside_module.py": "from . import helper\n",
+        },
+      },
+      {
+        name: "spelled-module-neighbour",
+        root: "libs/spelled-module-neighbour",
+        tags: ["axis:spelled-module-refused"],
+        files: {
+          "src/spelledother/__init__.py": "",
+          "src/spelledother/store.py": "class Store:\n    pass\n",
+        },
+      },
+    ],
+    depConstraints: [
+      {
+        sourceTag: "axis:spelled-module",
+        onlyDependOnLibsWithTags: ["axis:spelled-module-allowed"],
+      },
+    ],
+    probes: [
+      ...["plain", "from_package", "from_module"].map((form) => ({
+        file: `libs/spelled-module/src/spelledlocal/${form}.py`,
+        spelling: "an import that leaves the package",
+        upstream: [],
+        tool: ["onlyTagsConstraintViolation"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "ESLint has no parser for `.py`, so the tag axis has no mechanism behind it there",
+        },
+      })),
+      ...["inside_named", "inside_module"].map((form) => ({
+        file: `libs/spelled-module/src/spelledlocal/${form}.py`,
+        spelling: "a relative import that stays inside the package",
+        upstream: [],
+      })),
+    ],
+  },
+  {
+    id: "one-package-however-its-manifest-places-it",
+    intent:
+      "Three first-party Python packages holding the same thing, placed three ways a build backend accepts: under `src/`, under a `[tool.setuptools] package-dir`, and under a `[tool.hatch.build.targets.wheel] packages` path. All three import identically at runtime, so all three crossings into them must be judged identically — a layout the resolver cannot read must never make a project read as a PyPI distribution, which is a verdict rather than a blind spot and erases every tag constraint on the way past.",
+    projects: [
+      {
+        name: "layout-reader",
+        root: "libs/layout-reader",
+        tags: ["axis:layout-reader"],
+        files: {
+          "pyproject.toml": '[project]\nname = "layoutreader"\n',
+          "src/layoutreader/__init__.py": "",
+          "src/layoutreader/reaches_plain.py": "from layoutplain.item import Item\n",
+          "src/layoutreader/reaches_declared.py": "from layoutdeclared.item import Item\n",
+          "src/layoutreader/reaches_hatched.py": "from layouthatched.item import Item\n",
+          "src/layoutreader/reaches_pypi.py": "import os\n",
+        },
+      },
+      {
+        name: "layout-plain",
+        root: "libs/layout-plain",
+        tags: ["axis:layout-refused"],
+        files: {
+          "pyproject.toml": '[project]\nname = "layoutplain"\n',
+          "src/layoutplain/__init__.py": "",
+          "src/layoutplain/item.py": "class Item:\n    pass\n",
+        },
+      },
+      {
+        name: "layout-declared",
+        root: "libs/layout-declared",
+        tags: ["axis:layout-refused"],
+        files: {
+          "pyproject.toml":
+            '[project]\nname = "layoutdeclared"\n\n[tool.setuptools]\npackage-dir = { "" = "lib" }\n',
+          "lib/layoutdeclared/__init__.py": "",
+          "lib/layoutdeclared/item.py": "class Item:\n    pass\n",
+        },
+      },
+      {
+        name: "layout-hatched",
+        root: "libs/layout-hatched",
+        tags: ["axis:layout-refused"],
+        files: {
+          "pyproject.toml":
+            '[project]\nname = "layouthatched"\n\n[tool.hatch.build.targets.wheel]\npackages = ["python/layouthatched"]\n',
+          "python/layouthatched/__init__.py": "",
+          "python/layouthatched/item.py": "class Item:\n    pass\n",
+        },
+      },
+    ],
+    depConstraints: [
+      { sourceTag: "axis:layout-reader", onlyDependOnLibsWithTags: ["axis:layout-allowed"] },
+    ],
+    probes: [
+      ...["plain", "declared", "hatched"].map((placement) => ({
+        file: `libs/layout-reader/src/layoutreader/reaches_${placement}.py`,
+        spelling: "a crossing into a first-party package",
+        upstream: [],
+        tool: ["onlyTagsConstraintViolation"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "ESLint has no parser for `.py`, so the tag axis has no mechanism behind it there",
+        },
+      })),
+      // The near-miss the fix must not swallow: with every project's packages
+      // where the resolver can see them, a name that reaches none of them is
+      // external, silently and without a failure. A resolver that answered
+      // "unplaceable" here would be honest and useless.
+      { file: "libs/layout-reader/src/layoutreader/reaches_pypi.py", upstream: [] },
     ],
   },
   {

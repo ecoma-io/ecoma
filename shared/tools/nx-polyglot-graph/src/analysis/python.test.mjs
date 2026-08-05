@@ -8,6 +8,7 @@ import {
   parseRequirementName,
   pythonImportRoots,
   pythonModuleIndex,
+  pythonPackageLayout,
   resolvePythonDependencies,
 } from "./python.mjs";
 
@@ -150,6 +151,256 @@ describe("import roots derived from the layout", () => {
 
   it("ignores a directory Python cannot spell in an import", () => {
     expect(pythonImportRoots("libs/a", ["libs/a/src/my-pkg/thing.py"])).toEqual([]);
+  });
+
+  it("reads a package through a directory only the manifest names", () => {
+    // Without the declared directory the file still lands somewhere — under
+    // the project root, as `lib.alpha` — which is worse than invisible: it is
+    // a name nothing imports, so `import alpha` reaches no project at all.
+    const files = ["libs/alpha/lib/alpha/__init__.py"];
+    expect(pythonImportRoots("libs/alpha", files)).toEqual(["lib"]);
+    expect(pythonImportRoots("libs/alpha", files, ["lib"])).toEqual(["alpha"]);
+  });
+
+  it("keeps the project root last, so a declared directory is never read through it", () => {
+    // With the root first, `lib/alpha/thing.py` indexes as `lib.alpha.thing` —
+    // a dotted name nothing imports — and the package stays invisible for a
+    // second reason.
+    const index = pythonModuleIndex("libs/alpha", ["libs/alpha/lib/alpha/thing.py"], ["lib"]);
+    expect([...index.keys()]).toEqual(["alpha.thing", "alpha"]);
+  });
+});
+
+describe("package locations a pyproject.toml declares", () => {
+  const layoutOf = (toml) => pythonPackageLayout(toml);
+
+  it("has nothing to say about a project with no manifest", () => {
+    // No declaration is not a gap: the filesystem scan is the whole answer.
+    expect(layoutOf(null)).toEqual({ directories: [], unmodelled: [] });
+  });
+
+  it("reads the four declarations a build backend states a directory in", () => {
+    expect(layoutOf('[tool.setuptools]\npackage-dir = { "" = "lib" }\n').directories).toEqual([
+      "lib",
+    ]);
+    expect(
+      layoutOf('[tool.setuptools.packages.find]\nwhere = ["lib", "extra"]\n').directories,
+    ).toEqual(["lib", "extra"]);
+    // hatch ships `python/pkg` into the wheel as `pkg`, so the base is `python`.
+    expect(
+      layoutOf('[tool.hatch.build.targets.wheel]\npackages = ["python/pkg", "flat"]\n').directories,
+    ).toEqual(["python", ""]);
+    expect(
+      layoutOf('[tool.poetry]\npackages = [{ include = "pkg", from = "lib" }, { include = "b" }]\n')
+        .directories,
+    ).toEqual(["lib", ""]);
+  });
+
+  it("reads the tables whichever backend the manifest names, because presence is the declaration", () => {
+    // A `[tool.hatch…]` table means hatch even when `[build-system]` is absent,
+    // which is exactly the manifest shape that hid a first-party package.
+    const toml =
+      '[build-system]\nrequires = ["setuptools"]\nbuild-backend = "setuptools.build_meta"\n\n' +
+      '[tool.hatch.build.targets.wheel]\npackages = ["python/pkg"]\n';
+    expect(layoutOf(toml)).toEqual({ directories: ["python"], unmodelled: [] });
+  });
+
+  it("refuses to answer for a package-dir key that renames rather than relocates", () => {
+    // `{"pkg" = "lib/other"}` makes `lib/other` importable as `pkg`; no base
+    // this scan could add would ever produce that name.
+    const layout = layoutOf('[tool.setuptools]\npackage-dir = { pkg = "lib/other" }\n');
+    expect(layout.directories).toEqual([]);
+    expect(layout.unmodelled).toEqual([
+      "its `[tool.setuptools] package-dir` renames the package 'pkg'",
+    ]);
+  });
+
+  it("refuses to answer for a hatch sources rewrite or a poetry to-rename", () => {
+    expect(
+      layoutOf('[tool.hatch.build.targets.wheel]\npackages = ["a"]\nsources = ["a"]\n').unmodelled,
+    ).toEqual([
+      "its `[tool.hatch.build.targets.wheel] sources` rewrites the path each package is imported under",
+    ]);
+    expect(
+      layoutOf('[tool.poetry]\npackages = [{ include = "pkg", to = "vendored" }]\n').unmodelled,
+    ).toEqual(["its `[tool.poetry] packages` renames a package with `to`"]);
+  });
+
+  it("refuses to answer for a build backend whose keys it does not read", () => {
+    // maturin's `[tool.maturin] python-source` and scikit-build's
+    // `[tool.scikit-build] wheel.packages` both relocate packages in a key
+    // nothing here reads, so "no declaration found" would be a false reading.
+    const layout = layoutOf('[build-system]\nrequires = ["maturin"]\nbuild-backend = "maturin"\n');
+    expect(layout.unmodelled).toEqual([
+      "it builds with 'maturin', whose package-location keys this reader does not read",
+    ]);
+    // An ABSENT backend is setuptools by PEP 517's fallback, which IS read.
+    expect(layoutOf('[project]\nname = "a"\n').unmodelled).toEqual([]);
+  });
+
+  it("refuses to answer for a manifest that is not valid TOML", () => {
+    expect(layoutOf("[project\nname = 'a'\n").unmodelled).toEqual([
+      "its `pyproject.toml` is not valid TOML, so nothing it declares can be read",
+    ]);
+  });
+
+  it("refuses to answer for a declaration in a shape the reader cannot walk", () => {
+    expect(layoutOf('[tool.setuptools]\npackage-dir = "lib"\n').unmodelled).toEqual([
+      "its `[tool.setuptools] package-dir` is not a table",
+    ]);
+    expect(layoutOf("[tool.setuptools.packages.find]\nwhere = 3\n").unmodelled).toEqual([
+      "its `[tool.setuptools.packages.find] where` is not a list of directories",
+    ]);
+    expect(layoutOf("[tool.hatch.build]\npackages = 3\n").unmodelled).toEqual([
+      "its `[tool.hatch.build] packages` is not a list of paths",
+    ]);
+    expect(layoutOf('[tool.poetry]\npackages = "pkg"\n').unmodelled).toEqual([
+      "its `[tool.poetry] packages` is not a list",
+    ]);
+    expect(layoutOf('[tool.poetry]\npackages = ["pkg"]\n').unmodelled).toEqual([
+      "its `[tool.poetry] packages` holds an entry that is not a table",
+    ]);
+  });
+
+  it("leaves a plain setuptools packages list alone, since those names sit at the default bases", () => {
+    expect(layoutOf('[tool.setuptools]\npackages = ["pkg", "pkg.sub"]\n')).toEqual({
+      directories: [],
+      unmodelled: [],
+    });
+  });
+});
+
+describe("a Python package outside the two default bases", () => {
+  /** A two-project tree where `storage`'s package sits wherever `manifest` says. */
+  const workspaceWith = (manifest, packageDirectory) => {
+    const files = {
+      "apps/viewer/pyproject.toml": '[project]\nname = "viewer"\n',
+      "apps/viewer/src/viewer/app.py": "import storage.secret\n",
+      "libs/storage/pyproject.toml": manifest,
+      [`libs/storage/${packageDirectory}/storage/__init__.py`]: "",
+      [`libs/storage/${packageDirectory}/storage/secret.py`]: "TOKEN = 'x'\n",
+    };
+    const byProject = {
+      viewer: Object.keys(files).filter((file) => file.startsWith("apps/viewer/")),
+      storage: Object.keys(files).filter((file) => file.startsWith("libs/storage/")),
+    };
+    return {
+      root: "/w",
+      projects: [
+        { name: "viewer", root: "apps/viewer" },
+        { name: "storage", root: "libs/storage" },
+      ],
+      filesOf: (name) => byProject[name] ?? [],
+      readFile: (path) => files[path] ?? null,
+    };
+  };
+
+  const analyzeImporter = (manifest, packageDirectory) =>
+    analyzePython({
+      sourceFile: "apps/viewer/src/viewer/app.py",
+      text: "import storage.secret\n",
+      workspace: workspaceWith(manifest, packageDirectory),
+    });
+
+  it("is still a project, not a PyPI distribution that happens to share its name", () => {
+    // The whole defect in one assertion. Resolving to nothing made the record
+    // `external: true`, and `../rules/` returns from its `type === "npm"`
+    // branch before any tag constraint is read — so a real cross-project import
+    // produced neither a violation nor a failure. Not a blind spot: an answer,
+    // and the wrong one.
+    for (const [manifest, directory] of [
+      ['[project]\nname = "storage"\n\n[tool.setuptools]\npackage-dir = { "" = "lib" }\n', "lib"],
+      ['[project]\nname = "storage"\n\n[tool.setuptools.packages.find]\nwhere = ["lib"]\n', "lib"],
+      [
+        '[project]\nname = "storage"\n\n[tool.hatch.build.targets.wheel]\npackages = ["python/storage"]\n',
+        "python",
+      ],
+      [
+        '[project]\nname = "storage"\n\n[tool.poetry]\npackages = [{ include = "storage", from = "lib" }]\n',
+        "lib",
+      ],
+    ]) {
+      const { imports, failures } = analyzeImporter(manifest, directory);
+      expect(failures, manifest).toEqual([]);
+      expect(imports[0].resolved, manifest).toEqual({
+        target: "storage",
+        file: `libs/storage/${directory}/storage/secret.py`,
+        external: false,
+        packageName: null,
+      });
+    }
+  });
+
+  it("is recorded as unplaceable when its manifest declares a layout this reader cannot follow", () => {
+    // The floor: stop asserting what is not known. A failure is a blind spot a
+    // maintainer can see; `external: true` is a green light nobody can trust.
+    const { imports, failures } = analyzeImporter(
+      '[project]\nname = "storage"\n\n[tool.setuptools]\npackage-dir = { storage = "lib/vendor" }\n',
+      "lib",
+    );
+    expect(imports[0].resolved).toBeNull();
+    expect(failures).toHaveLength(1);
+    expect(failures[0].reason).toMatch(/reaches no project.*cannot conclude it is external/su);
+    expect(failures[0].reason).toMatch(/project 'storage'.*renames the package 'storage'/su);
+    expect(failures[0].line).toBe(1);
+  });
+
+  it("withholds the external verdict from every unplaceable name, not only the matching one", () => {
+    // A package this reader cannot locate could carry ANY top-level import
+    // name, so the doubt is workspace-wide. Narrowing it to names that look
+    // first-party would be the same guess in a smaller costume.
+    const workspace = workspaceWith(
+      '[project]\nname = "storage"\n\n[build-system]\nrequires = ["maturin"]\nbuild-backend = "maturin"\n',
+      "lib",
+    );
+    const { imports, failures } = analyzePython({
+      sourceFile: "apps/viewer/src/viewer/app.py",
+      text: "import os\n",
+      workspace,
+    });
+    expect(imports[0].resolved).toBeNull();
+    expect(failures[0].reason).toMatch(/it builds with 'maturin'/u);
+  });
+
+  it("keeps calling a name external when every project's packages are where it can look", () => {
+    // The near-miss. A reader that answered "unplaceable" for every stdlib
+    // import would be honest and useless; the doubt has to be earned.
+    const { imports, failures } = analyzePython({
+      sourceFile: "apps/viewer/src/viewer/app.py",
+      text: "import os\n",
+      workspace: workspaceWith(
+        '[project]\nname = "storage"\n\n[tool.setuptools]\npackage-dir = { "" = "lib" }\n',
+        "lib",
+      ),
+    });
+    expect(failures).toEqual([]);
+    expect(imports[0].resolved).toEqual({
+      target: null,
+      file: null,
+      external: true,
+      packageName: "os",
+    });
+  });
+
+  it("anchors a relative import at the package the manifest relocated, not one level up", () => {
+    // The declared base decides the importing file's OWN package too. Read
+    // against the default bases, `lib/storage/secret.py` sits in `lib.storage`
+    // — a name nothing imports — so `from ..` lands on the invented `lib`
+    // instead of leaving the top-level package the way Python says it does.
+    const workspace = workspaceWith(
+      '[project]\nname = "storage"\n\n[tool.setuptools]\npackage-dir = { "" = "lib" }\n',
+      "lib",
+    );
+    const analyze = (text) =>
+      analyzePython({ sourceFile: "libs/storage/lib/storage/secret.py", text, workspace });
+
+    const inside = analyze("from . import sibling\n");
+    expect(inside.failures).toEqual([]);
+    expect(inside.imports[0].resolved).toMatchObject({ target: "storage", external: false });
+
+    const climbing = analyze("from .. import escape\n");
+    expect(climbing.imports[0].resolved).toBeNull();
+    expect(climbing.failures[0].reason).toMatch(/climbs past the top-level package/u);
   });
 });
 

@@ -24,9 +24,12 @@ import { MESSAGE_IDS } from "../rules/messages.mjs";
 import { CONFORMANCE_CASES } from "./cases.mjs";
 import {
   compareCase,
+  measuredScope,
   renderDivergences,
   renderTable,
   renderTextDifferences,
+  spellingDisagreements,
+  spellingGroups,
   summarize,
   verdictOf,
 } from "./differential.mjs";
@@ -143,6 +146,46 @@ describe("this engine against @nx/enforce-module-boundaries", () => {
       }
     }
     expect(unexpected).toEqual([]);
+  });
+
+  it("gives one import the same verdict however it is written", () => {
+    // The axis that needs no ESLint. Where upstream has no parser the only
+    // other assertion is the `tool: [...]` someone wrote by hand, which agrees
+    // with the engine's answer by construction — including when that answer is
+    // wrong on a shape nobody thought to write. Spellings of one import cannot
+    // agree with each other by construction: a form the analyzer drops, or a
+    // package placed where the resolver does not look, disagrees with its own
+    // siblings and takes the run red with it.
+    expect(
+      spellingDisagreements(outcome.rows),
+      "one import, judged differently depending on how it is spelled",
+    ).toEqual([]);
+    // A mechanism with no members is a mechanism that cannot fail.
+    expect(spellingGroups(outcome.rows).size).toBeGreaterThan(0);
+  });
+
+  it("states in data which half of the catalogue ESLint could read at all", () => {
+    // `weaker` is only ever populated from a file upstream can parse, so a zero
+    // in that column is a measurement for `.ts`/`.vue` and an arithmetic
+    // certainty for `.go`/`.rs`/`.py`. The two are indistinguishable in the
+    // number; they are not in this object, which is why the run emits it.
+    const scope = measuredScope(outcome.rows);
+    console.info(`\nmeasured scope\n--------------\n${JSON.stringify(scope, null, 2)}\n`);
+    expect(scope.probes).toBe(scope.comparable + scope.incomparable);
+    expect(scope.incomparableExtensions).toEqual([".go", ".py", ".rs"]);
+    expect(scope.comparable).toBeGreaterThan(0);
+
+    const weakerOnUnreadable = outcome.rows
+      .filter((row) => !row.upstreamReadable)
+      .flatMap((row) => row.weaker);
+    expect(weakerOnUnreadable, "a weaker row upstream could not have produced").toEqual([]);
+
+    for (const row of outcome.summary) {
+      expect(
+        row.weaker,
+        `${row.messageId} reports more weaker rows than comparable ones`,
+      ).toBeLessThanOrEqual(row.comparable);
+    }
   });
 
   it("renders one differential row per violation type, each with a direction", () => {

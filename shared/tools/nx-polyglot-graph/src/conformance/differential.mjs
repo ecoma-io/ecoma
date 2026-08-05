@@ -24,6 +24,27 @@
  * difference: same file, same statement, same rule. A violation this engine
  * reports at a different statement stays unmatched, and so surfaces as one
  * stricter plus one weaker rather than being quietly absorbed.
+ *
+ * ## The axis that does not need ESLint at all
+ *
+ * Everything above is a diff, and a diff needs a counterparty. ESLint has no
+ * parser for `.go`, `.rs` or `.py`, so `weaker` is EMPTY BY CONSTRUCTION for
+ * those three — not measured and found to be zero, but unmeasurable. What is
+ * left for them is each probe's hand-written `tool: [...]`, which can only
+ * catch a regression on a fixture shape somebody already thought to write.
+ *
+ * So a second axis, which compares this engine against ITSELF:
+ * **`spelling`**. Probes carrying the same `spelling` key write one and the
+ * same import in different ways — `use a::b;` and `use a::{b};`, a package at
+ * `src/pkg` and the same package under a declared `package-dir` — and the
+ * suite requires them to produce the identical verdict. No expectation has to
+ * be right for that to bite: a spelling the analyzer silently drops disagrees
+ * with its siblings even when someone wrote the wrong `tool: [...]` down for
+ * it and the declaration check went green.
+ *
+ * `measuredScope` is the same honesty applied to the diff itself — which
+ * probes upstream could read at all, as data, so "zero weaker rows" can be
+ * read as the JS/TS/Vue measurement it is.
  */
 
 /** Is `(line, column)` inside the `[start, end)` range of an ESLint message? */
@@ -164,25 +185,127 @@ export function compareCase(materialized, upstreamByFile, toolViolations) {
       divergence: probe.divergence ?? null,
       probeUpstream: probe.upstream ?? [],
       upstreamReadable: upstream.readable,
+      // The group of probes writing one import several ways, or null. The
+      // spelling axis is decided on these two fields alone, never on what the
+      // probe CLAIMED — a claim is exactly what it must be able to outlive.
+      spelling: probe.spelling ?? null,
+      reported: { upstream: actualUpstream, tool: actualTool },
       ...comparison,
     });
   }
   return { rows, breaches };
 }
 
-/** Every outcome for one messageId, across every case that produced it. */
-function tallyFor(rows, messageId) {
-  const tally = { agree: 0, stricter: 0, weaker: 0, cases: new Set(), notes: new Set() };
+/** The probes of each `caseId / spelling` group, keyed by that pair. */
+export function spellingGroups(rows) {
+  const groups = new Map();
   for (const row of rows) {
-    for (const hit of row.agree) {
-      if (hit.messageId !== messageId) continue;
-      tally.agree++;
+    if (!row.spelling) continue;
+    const key = `${row.caseId} / ${row.spelling}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return groups;
+}
+
+/** What one probe's two engines actually said, as one comparable string. */
+const verdictText = (row) =>
+  `upstream [${row.reported.upstream.join(", ") || "nothing"}], this engine [${
+    row.reported.tool.join(", ") || "nothing"
+  }]`;
+
+/**
+ * Every spelling group whose members did not all reach the same verdict.
+ *
+ * A group of one is reported too. It asserts nothing — one spelling cannot
+ * disagree with itself — and a group that lost its siblings to an edit is
+ * exactly the silent way this axis would stop working.
+ *
+ * @param {object[]} rows From `compareCase`.
+ * @returns {string[]} One line per group that failed, empty when all agree.
+ */
+export function spellingDisagreements(rows) {
+  const lines = [];
+  for (const [key, members] of spellingGroups(rows)) {
+    if (members.length < 2) {
+      lines.push(
+        `${key}: only one probe writes this import, so nothing is compared. A spelling group ` +
+          `needs at least two spellings to say anything.`,
+      );
+      continue;
+    }
+    const first = verdictText(members[0]);
+    if (members.every((row) => verdictText(row) === first)) continue;
+    lines.push(
+      `${key}: one import, different verdicts depending on how it is written — ` +
+        members.map((row) => `${row.file} → ${verdictText(row)}`).join("; "),
+    );
+  }
+  return lines;
+}
+
+/**
+ * What the differential actually measured, as data rather than as prose.
+ *
+ * `weaker` can only ever be non-zero where upstream could parse the file, so a
+ * reader deciding what "zero weaker rows" covers needs the readable/unreadable
+ * split beside the number. Emitting it here — rather than describing it in a
+ * document beside the run — is what stops the scope and the figure from
+ * drifting apart.
+ *
+ * @param {object[]} rows From `compareCase`.
+ */
+export function measuredScope(rows) {
+  const extensionOf = (file) => file.slice(file.lastIndexOf("."));
+  const comparableExtensions = new Set();
+  const incomparableExtensions = new Set();
+  let comparable = 0;
+  for (const row of rows) {
+    if (row.upstreamReadable) {
+      comparable++;
+      comparableExtensions.add(extensionOf(row.file));
+    } else {
+      incomparableExtensions.add(extensionOf(row.file));
+    }
+  }
+  return {
+    probes: rows.length,
+    comparable,
+    incomparable: rows.length - comparable,
+    comparableExtensions: [...comparableExtensions].sort(),
+    incomparableExtensions: [...incomparableExtensions].sort(),
+    spellingGroups: spellingGroups(rows).size,
+  };
+}
+
+/**
+ * Every outcome for one messageId, across every case that produced it.
+ *
+ * `comparable` counts the hits upstream could have contradicted — the ones on
+ * a file it can parse. Where it is 0 the `weaker` column beside it is 0 by
+ * construction and says nothing about this engine (see `measuredScope`).
+ */
+function tallyFor(rows, messageId) {
+  const tally = {
+    agree: 0,
+    stricter: 0,
+    weaker: 0,
+    comparable: 0,
+    cases: new Set(),
+    notes: new Set(),
+  };
+  for (const row of rows) {
+    const count = (hit) => {
+      if (hit.messageId !== messageId) return false;
       tally.cases.add(row.caseId);
+      if (row.upstreamReadable) tally.comparable++;
+      return true;
+    };
+    for (const hit of row.agree) {
+      if (count(hit)) tally.agree++;
     }
     for (const hit of row.stricter) {
-      if (hit.messageId !== messageId) continue;
+      if (!count(hit)) continue;
       tally.stricter++;
-      tally.cases.add(row.caseId);
       tally.notes.add(
         hit.upstreamReadable
           ? (row.divergence?.reason ?? "undeclared")
@@ -190,9 +313,7 @@ function tallyFor(rows, messageId) {
       );
     }
     for (const hit of row.weaker) {
-      if (hit.messageId !== messageId) continue;
-      tally.weaker++;
-      tally.cases.add(row.caseId);
+      if (count(hit)) tally.weaker++;
     }
   }
   return tally;
@@ -219,6 +340,7 @@ export function summarize(rows, upstreamMessageIds, toolMessageIds) {
       agree: tally.agree,
       stricter: tally.stricter,
       weaker: tally.weaker,
+      comparable: tally.comparable,
       exercised: tally.agree + tally.stricter + tally.weaker > 0,
       cases: [...tally.cases].sort(),
       notes: [...tally.notes].sort(),
@@ -226,14 +348,20 @@ export function summarize(rows, upstreamMessageIds, toolMessageIds) {
   });
 }
 
-/** The summary as a fixed-width table, for a terminal and for a report. */
+/**
+ * The summary as a fixed-width table, for a terminal and for a report.
+ *
+ * `comparable` sits beside `weaker` deliberately: a 0 in the weaker column is
+ * a measurement only where the number to its left is not also 0.
+ */
 export function renderTable(summary) {
-  const header = ["messageId", "agree", "stricter", "weaker", "verdict"];
+  const header = ["messageId", "agree", "stricter", "weaker", "comparable", "verdict"];
   const body = summary.map((row) => [
     row.messageId,
     String(row.agree),
     String(row.stricter),
     String(row.weaker),
+    String(row.comparable),
     verdictOf(row),
   ]);
   const widths = header.map((_, column) =>

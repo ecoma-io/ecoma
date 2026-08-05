@@ -30,12 +30,8 @@
  * ## Import roots come from the filesystem, because that is what Python reads
  *
  * Python has no `ts.resolveModuleName` to delegate to, and it does not need
- * one: an import name is a directory or file name on `sys.path`. Every build
- * backend declares packages differently — setuptools has `packages`,
- * hatchling has `[tool.hatch.build.targets.wheel] packages`, poetry has
- * `[tool.poetry] packages`, pdm and flit have their own — and reading five
- * dialects to learn what the tree already states would be five ways to be
- * wrong. So the layout itself is read:
+ * one: an import name is a directory or file name on `sys.path`. So the layout
+ * itself is read:
  *
  * ```
  * src/<pkg>/__init__.py   -> import name <pkg>   (src layout)
@@ -48,6 +44,45 @@
  * root-level `conftest.py` that pytest makes importable as `conftest`. A file
  * is attributed to the first base that contains it, so a src-layout package is
  * never also indexed as `src.<pkg>`.
+ *
+ * ## Those two bases are not the whole layout, and assuming they were asserted a lie
+ *
+ * A package may sit anywhere its build backend says it does —
+ * `[tool.setuptools] package-dir = {"" = "lib"}` and
+ * `[tool.hatch.build.targets.wheel] packages = ["python/pkg"]` are both real,
+ * both import fine at runtime, and neither puts a directory where the scan
+ * above looks. Reading only the two default bases did not make that a blind
+ * spot the tool reported; it made the import resolve to nothing, which the
+ * branch below turned into `external: true` — a positive assertion that a
+ * first-party project is a PyPI distribution. Every tag constraint then
+ * evaporates, because `../rules/` returns from its `type === "npm"` branch
+ * before the constraint block. The contract's "never guesses a target from a
+ * name that looks similar" was being honoured in one direction and inverted in
+ * the other: this guessed that NO project owns the name.
+ *
+ * So the declarations are read, with `smol-toml` — already a dependency, and
+ * already parsing these same manifests one function up. Four shapes, because
+ * each is a table lookup rather than a build backend reimplemented:
+ *
+ * ```
+ * [tool.setuptools] package-dir = { "" = "lib" }        -> lib
+ * [tool.setuptools.packages.find] where = ["lib"]       -> lib
+ * [tool.hatch.build.targets.wheel] packages = ["py/x"]  -> py      (wheel path is `x`)
+ * [tool.poetry] packages = [{ include = "x", from = "lib" }] -> lib
+ * ```
+ *
+ * They are read whichever backend `[build-system]` names, because the table's
+ * presence is the declaration; a manifest carries at most one of them.
+ *
+ * **Everything else is a FAILURE, never an `external: true`.** A `package-dir`
+ * key other than `""` (which renames a package rather than naming a root), a
+ * hatch `sources` rewrite, a poetry `to`, a `pyproject.toml` that is not valid
+ * TOML, and a `[build-system] build-backend` this file does not read all mean
+ * the same thing: some directory of this workspace may be importable under a
+ * name nothing here knows. An import that then resolves to no project is
+ * recorded with `resolved: null` and a failure saying which project's manifest
+ * put the answer out of reach. That is louder than the silence it replaces and
+ * strictly weaker than the falsehood it replaces.
  *
  * **PEP 420 namespace packages are the one case the filesystem cannot settle,
  * and here is what this does about it.** A directory with no `__init__.py` is
@@ -193,9 +228,169 @@ const isRelativeImport = (specifier) => specifier.startsWith(".");
 /** A name Python can spell in an import statement. */
 const isImportableName = (name) => /^[A-Za-z_]\w*$/.test(name);
 
-/** The two directories a project puts on `sys.path`, src layout first. */
-const importBasesOf = (projectRoot) =>
-  projectRoot === "" ? ["src", ""] : [`${projectRoot}/src`, projectRoot];
+/** The directory `path` sits in, or `""` when it sits at the top. */
+const parentDirectory = (path) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
+
+/**
+ * `[tool.setuptools]`: `package-dir` names an import root only under the `""`
+ * key. Any other key maps ONE package name to a directory, which is a rename —
+ * `{"pkg" = "lib/other"}` makes `lib/other` importable as `pkg`, and no base
+ * this scan could add would produce that name.
+ */
+function setuptoolsDirectories(manifest) {
+  const directories = [];
+  const unmodelled = [];
+  const setuptools = manifest.tool?.setuptools ?? {};
+
+  const packageDir = setuptools["package-dir"];
+  if (packageDir !== undefined) {
+    if (typeof packageDir !== "object" || packageDir === null || Array.isArray(packageDir)) {
+      unmodelled.push("its `[tool.setuptools] package-dir` is not a table");
+    } else {
+      for (const [name, directory] of Object.entries(packageDir)) {
+        if (name === "" && typeof directory === "string") directories.push(directory);
+        else unmodelled.push(`its \`[tool.setuptools] package-dir\` renames the package '${name}'`);
+      }
+    }
+  }
+
+  // `[tool.setuptools.packages.find] where` — a list of directories to search.
+  // `packages` may instead be a plain array of import names, in which case
+  // there is no `.find` table and the names live at the default bases.
+  const where = setuptools.packages?.find?.where;
+  if (where !== undefined) {
+    if (Array.isArray(where) && where.every((entry) => typeof entry === "string")) {
+      directories.push(...where);
+    } else {
+      unmodelled.push("its `[tool.setuptools.packages.find] where` is not a list of directories");
+    }
+  }
+  return { directories, unmodelled };
+}
+
+/**
+ * `[tool.hatch.build]` and its wheel target: `packages = ["python/pkg"]` ships
+ * `python/pkg` into the wheel as `pkg`, so the import base is the entry's
+ * PARENT. `sources` rewrites those paths arbitrarily and is not followed.
+ */
+function hatchDirectories(manifest) {
+  const directories = [];
+  const unmodelled = [];
+  const build = manifest.tool?.hatch?.build ?? {};
+  const tables = [
+    ["[tool.hatch.build]", build],
+    ["[tool.hatch.build.targets.wheel]", build.targets?.wheel ?? {}],
+  ];
+  for (const [label, table] of tables) {
+    if (table.sources !== undefined) {
+      unmodelled.push(`its \`${label} sources\` rewrites the path each package is imported under`);
+    }
+    if (table.packages === undefined) continue;
+    if (!Array.isArray(table.packages) || table.packages.some((e) => typeof e !== "string")) {
+      unmodelled.push(`its \`${label} packages\` is not a list of paths`);
+      continue;
+    }
+    directories.push(...table.packages.map(parentDirectory));
+  }
+  return { directories, unmodelled };
+}
+
+/**
+ * `[tool.poetry] packages`: each entry's `from` is the import base, defaulting
+ * to the project root. `to` renames the package inside the wheel and is not
+ * followed.
+ */
+function poetryDirectories(manifest) {
+  const directories = [];
+  const unmodelled = [];
+  const packages = manifest.tool?.poetry?.packages;
+  if (packages === undefined) return { directories, unmodelled };
+  if (!Array.isArray(packages)) {
+    unmodelled.push("its `[tool.poetry] packages` is not a list");
+    return { directories, unmodelled };
+  }
+  for (const entry of packages) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      unmodelled.push("its `[tool.poetry] packages` holds an entry that is not a table");
+    } else if (entry.to !== undefined) {
+      unmodelled.push("its `[tool.poetry] packages` renames a package with `to`");
+    } else {
+      directories.push(typeof entry.from === "string" ? entry.from : "");
+    }
+  }
+  return { directories, unmodelled };
+}
+
+/**
+ * The `[build-system] build-backend` values whose package-location keys the
+ * three readers above cover. A backend outside this list declares its packages
+ * in keys nothing here reads — maturin's `[tool.maturin] python-source` and
+ * scikit-build's `[tool.scikit-build] wheel.packages` are two — so its layout
+ * is unknown rather than default. An ABSENT `build-backend` is setuptools by
+ * PEP 517's fallback, which is read.
+ */
+const READ_BUILD_BACKENDS = new Set([
+  "setuptools.build_meta",
+  "setuptools.build_meta:__legacy__",
+  "hatchling.build",
+  "poetry.core.masonry.api",
+  "poetry.masonry.api",
+]);
+
+/**
+ * Where a project's `pyproject.toml` says its packages live, relative to the
+ * project root — and everything it declares that this reader cannot follow.
+ *
+ * @param {string|null} manifestText Contents, or null when the project has no
+ *   `pyproject.toml` at all — then it declares nothing and the filesystem scan
+ *   is the whole answer, which is not a gap.
+ * @returns {{ directories: string[], unmodelled: string[] }}
+ */
+export function pythonPackageLayout(manifestText) {
+  if (manifestText === null) return { directories: [], unmodelled: [] };
+  const manifest = parseManifest(manifestText);
+  if (manifest === null) {
+    return {
+      directories: [],
+      unmodelled: ["its `pyproject.toml` is not valid TOML, so nothing it declares can be read"],
+    };
+  }
+
+  const directories = [];
+  const unmodelled = [];
+  // Read by table presence rather than by the declared backend: a manifest
+  // carries at most one of these, and a `[tool.hatch…]` table means hatch
+  // whether or not `[build-system]` bothered to say so.
+  for (const read of [setuptoolsDirectories, hatchDirectories, poetryDirectories]) {
+    const found = read(manifest);
+    directories.push(...found.directories);
+    unmodelled.push(...found.unmodelled);
+  }
+
+  const backend = manifest["build-system"]?.["build-backend"];
+  if (backend !== undefined && !READ_BUILD_BACKENDS.has(backend)) {
+    unmodelled.push(
+      `it builds with '${backend}', whose package-location keys this reader does not read`,
+    );
+  }
+  return { directories, unmodelled };
+}
+
+/**
+ * The directories a project puts on `sys.path`: whatever its manifest declared,
+ * then the two the filesystem answers with.
+ *
+ * The project root is always LAST. A declared subdirectory that also matched
+ * the root first would index `lib/pkg/mod.py` as `lib.pkg.mod` — a dotted name
+ * nothing imports — and the package would stay invisible for a second reason.
+ */
+const importBasesOf = (projectRoot, directories = []) => {
+  const root = normalizePath(projectRoot, "");
+  const declared = directories
+    .map((directory) => normalizePath(projectRoot, directory))
+    .filter((base) => base !== root);
+  return [...new Set([...declared, normalizePath(projectRoot, "src"), root])];
+};
 
 /** `file` relative to `base`, or null when it is not under it. */
 function relativeTo(base, file) {
@@ -204,8 +399,8 @@ function relativeTo(base, file) {
 }
 
 /** A `.py` file's path components below its import base, or null. */
-function componentsOf(file, projectRoot) {
-  for (const base of importBasesOf(projectRoot)) {
+function componentsOf(file, projectRoot, directories) {
+  for (const base of importBasesOf(projectRoot, directories)) {
     const relative = relativeTo(base, file);
     if (relative === null) continue;
     return relative.slice(0, -".py".length).split("/");
@@ -214,8 +409,8 @@ function componentsOf(file, projectRoot) {
 }
 
 /** The dotted path a `.py` file is importable as, relative to its base. */
-function dottedNameOf(file, projectRoot) {
-  const parts = componentsOf(file, projectRoot);
+function dottedNameOf(file, projectRoot, directories) {
+  const parts = componentsOf(file, projectRoot, directories);
   if (parts === null) return null;
   if (parts[parts.length - 1] === "__init__") parts.pop();
   return parts.every(isImportableName) ? parts : null;
@@ -229,8 +424,8 @@ function dottedNameOf(file, projectRoot) {
  * Dropping the last path component answers both, which dropping `__init__`
  * first would not.
  */
-function ownPackageOf(file, projectRoot) {
-  const parts = componentsOf(file, projectRoot);
+function ownPackageOf(file, projectRoot, directories) {
+  const parts = componentsOf(file, projectRoot, directories);
   if (parts === null) return null;
   parts.pop();
   return parts.every(isImportableName) ? parts : null;
@@ -247,13 +442,15 @@ function ownPackageOf(file, projectRoot) {
  *
  * @param {string} projectRoot Workspace-relative.
  * @param {string[]} files The project's tracked files, workspace-relative.
+ * @param {string[]} [directories] Extra import bases the manifest declared,
+ *   relative to the project root; `pythonPackageLayout` reads them.
  * @returns {Map<string, { file: string|null, namespace: boolean }>}
  */
-export function pythonModuleIndex(projectRoot, files) {
+export function pythonModuleIndex(projectRoot, files, directories = []) {
   const index = new Map();
   for (const file of files) {
     if (!file.endsWith(".py")) continue;
-    const parts = dottedNameOf(file, projectRoot);
+    const parts = dottedNameOf(file, projectRoot, directories);
     if (parts === null || parts.length === 0) continue;
     index.set(parts.join("."), { file, namespace: false });
     for (let depth = 1; depth < parts.length; depth++) {
@@ -271,27 +468,47 @@ export function pythonModuleIndex(projectRoot, files) {
  *
  * @param {string} projectRoot
  * @param {string[]} files
+ * @param {string[]} [directories] As `pythonModuleIndex`.
  * @returns {string[]}
  */
-export function pythonImportRoots(projectRoot, files) {
-  return [...pythonModuleIndex(projectRoot, files).keys()]
+export function pythonImportRoots(projectRoot, files, directories = []) {
+  return [...pythonModuleIndex(projectRoot, files, directories).keys()]
     .filter((name) => !name.includes("."))
     .sort();
 }
 
-/** Every Python project's module index, plus the global dotted-name map. */
+/**
+ * Every Python project's module index, the global dotted-name map, and the
+ * projects whose declared layout this reader could not follow.
+ *
+ * `unmodelled` is workspace-scoped on purpose. A package this reader cannot
+ * locate could carry ANY top-level import name, so it is not the importing
+ * project that is compromised but every name that resolves to nothing —
+ * whichever file wrote it.
+ *
+ * @returns {{ byModule: Map<string, object[]>, directoriesOf: Map<string, string[]>,
+ *   unmodelled: { project: string, reason: string }[] }}
+ */
 const pythonModulesOf = perWorkspace((workspace) => {
   const byModule = new Map(); // dotted name -> [{ project, file }]
+  const directoriesOf = new Map(); // project name -> declared import bases
+  const unmodelled = [];
   for (const project of workspace.projects) {
     const files = workspace.filesOf(project.name);
     if (!files.some((file) => file.endsWith(".py"))) continue;
-    for (const [dotted, entry] of pythonModuleIndex(project.root, files)) {
+    const manifestPath = normalizePath(project.root, "pyproject.toml");
+    const layout = pythonPackageLayout(
+      files.includes(manifestPath) ? (workspace.readFile(manifestPath) ?? null) : null,
+    );
+    directoriesOf.set(project.name, layout.directories);
+    for (const reason of layout.unmodelled) unmodelled.push({ project: project.name, reason });
+    for (const [dotted, entry] of pythonModuleIndex(project.root, files, layout.directories)) {
       const owners = byModule.get(dotted) ?? [];
       owners.push({ project: project.name, file: entry.file });
       byModule.set(dotted, owners);
     }
   }
-  return byModule;
+  return { byModule, directoriesOf, unmodelled };
 });
 
 /**
@@ -406,9 +623,11 @@ export function parsePythonImportSites(pythonText) {
 export function analyzePython({ sourceFile, text, workspace }) {
   const result = emptyResult();
   try {
-    const byModule = pythonModulesOf(workspace);
+    const { byModule, directoriesOf, unmodelled } = pythonModulesOf(workspace);
     const owner = projectOwning(workspace.projects, sourceFile);
-    const ownPackage = owner ? ownPackageOf(sourceFile, owner.root) : null;
+    const ownPackage = owner
+      ? ownPackageOf(sourceFile, owner.root, directoriesOf.get(owner.name) ?? [])
+      : null;
 
     for (const site of parsePythonImportSites(text)) {
       const { line, column } = positionAt(text, site.offset);
@@ -452,6 +671,23 @@ export function analyzePython({ sourceFile, text, workspace }) {
 
       const resolution = resolveModuleName(absolute, byModule);
       if (resolution === null) {
+        // Reaching no project is only evidence of a PyPI package when every
+        // project's packages are where this reader can see them. Otherwise the
+        // honest answer is that the name is unplaceable — asserting `external`
+        // here is what let a first-party import cross a tag boundary silently.
+        if (unmodelled.length > 0) {
+          fail(
+            `'${site.specifier}' reaches no project, and this reader cannot conclude it is ` +
+              `external — ${unmodelled
+                .map(
+                  (entry) =>
+                    `project '${entry.project}' may place its packages where this reader ` +
+                    `cannot look: ${entry.reason}`,
+                )
+                .join("; ")}. A first-party package put there would look exactly like this.`,
+          );
+          continue;
+        }
         record.resolved = {
           target: null,
           file: null,
