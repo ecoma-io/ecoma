@@ -45,9 +45,12 @@ project graph của nó — `nx affected`, `nx graph`, `nx run-many`. Không có
 mã sản phẩm hay tooling nào import nó trực tiếp.
 
 Nó cũng khai báo hai executable dưới dạng entry `bin` trong `package.json`
-của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho editor. Cả
-hai chưa enforce gì cả, và cả hai đều nói thẳng ra thay vì giả vờ —
-`cli.mjs check` thoát với mã khác 0.
+của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho editor.
+`cli.mjs check` đã là một checker thật và đã được nối thành gate — danh sách
+pre-push trong `lefthook.yml` chạy nó trên toàn workspace, còn
+`.github/workflows/ci.yml` chạy nó trong một job riêng rồi upload SARIF của nó
+lên GitHub code scanning. `lsp.mjs` vẫn không quảng cáo capability nào thay vì
+tô xanh mọi file.
 
 <!-- readme:ecosystem -->
 
@@ -98,8 +101,15 @@ dạng record đã chốt trong `src/analysis/contract.md`. Phần resolve TypeS
 là chính `ts.resolveModuleName` của TypeScript, còn phần tách `<script>` của
 Vue là chính SFC parser của Vue; không cái nào bị viết lại ở đây.
 
-Nửa enforcement thì vẫn là khung, và là một cái khung ồn ào. Chưa có rule nào
-dưới `src/rules/`, nên `cli.mjs check` fail thay vì báo cây code sạch, và
-`lsp.mjs` không quảng cáo capability nào thay vì tô xanh mọi file. Cơ chế,
-giới hạn parse của từng ngôn ngữ, và giả định one-manifest-per-project nằm ở
+Nửa enforcement đã chạy. `src/rules/` tái hiện đủ mười lăm loại vi phạm của
+`@nx/enforce-module-boundaries` dưới tám option của nó, trên các record phân
+tích thay vì trên AST của ESLint; `cli.mjs check` đọc graph của Nx, phân tích
+mọi file nguồn được track mà một project sở hữu, và thoát với mã 1 khi có bất
+kỳ vi phạm nào, kèm báo cáo `file:line:column` hoặc SARIF 2.1.0. Hai enforcer
+chạy song song là có chủ ý: ESLint vẫn là nguồn phán quyết cho JavaScript và
+TypeScript cho tới khi một bộ conformance chứng minh được hai bên đồng thuận.
+
+Nửa dành cho editor thì vẫn là khung, và là một cái khung ồn ào: `lsp.mjs`
+không quảng cáo capability nào thay vì tô xanh mọi file. Cơ chế, giới hạn parse
+của từng ngôn ngữ, và giả định one-manifest-per-project nằm ở
 [`./CLAUDE.md`](./CLAUDE.md).

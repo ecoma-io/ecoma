@@ -1,0 +1,269 @@
+/**
+ * The tree a run judges: which projects exist, which files they own, and what
+ * analyzing all of them produces.
+ *
+ * This is the layer neither `analysis/` nor `rules/` is allowed to be. An
+ * analyzer is handed one file and never decides which files to visit
+ * (`analysis/contract.md`); a rule is handed records and never reads a file
+ * (`rules/README.md`). Somebody still has to answer both questions, and the
+ * answer touches the filesystem and spawns processes — so it lives here, once,
+ * behind injectable seams, rather than inside `../cli.mjs` where a spawned
+ * subprocess is the only way to test it.
+ *
+ * **Projects and tags come from Nx, never from a walk of our own.** The graph
+ * is the workspace's own answer to "what is a project and what is it tagged" —
+ * derived from `project.json`, `nx.json` plugins (this one included) and
+ * whatever inference Nx applies. A second reader of `project.json` files would
+ * be a second answer, and the two would disagree exactly where a plugin
+ * contributes an edge. Nx is spawned rather than imported for the same reason
+ * the project imports no workspace code: `nx` is not on this project's import
+ * list (project `CLAUDE.md`), and its own `nx graph --file=` is a stable
+ * documented surface where its internal module layout is not.
+ *
+ * **Files come from git.** `nx graph --file=` emits no file map, and the
+ * alternative — walking the tree — would need its own ignore rules that drift
+ * from `.gitignore` the first time a build directory is added. `git ls-files`
+ * is the same tracked-file set every resolver in this project already reasons
+ * about ("Resolvers read tracked files only", project `CLAUDE.md`).
+ */
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+
+import { analyzeFile, languageOf } from "./analysis/analyze.mjs";
+import { fileFailure, projectOwning } from "./analysis/source-util.mjs";
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Runs a program and returns its stdout, throwing an `Error` that names the
+ * program when it fails. The single seam every spawn in this module goes
+ * through, so a test drives the whole scan without a git repository or an Nx
+ * installation.
+ *
+ * @param {string} file Executable path.
+ * @param {string[]} args
+ * @param {string} cwd
+ * @returns {string}
+ */
+export function runProcess(file, args, cwd) {
+  try {
+    return execFileSync(file, args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch (cause) {
+    throw new Error(
+      `nx-polyglot-graph: \`${[file, ...args].join(" ")}\` failed in ${cwd}: ` +
+        `${cause?.stderr || cause?.message || cause}`,
+      { cause },
+    );
+  }
+}
+
+/**
+ * The workspace root at or above `from`, identified by its `nx.json`.
+ *
+ * Nx's own root-finding rule, reproduced because the CLI has to agree with the
+ * `nx` it spawns about which tree is being judged. It is deliberately NOT
+ * derived from this file's own location: under a pinned harness clone the tool
+ * sits inside `.harness/` and the tree it judges is the consumer's root, so
+ * walking up from `import.meta.url` would find the harness (same reason
+ * `loadBoundaryConfig` takes a root — see `config.mjs`).
+ *
+ * @param {string} from Absolute directory to start at.
+ * @returns {string|null} Absolute path, or `null` when no ancestor has one.
+ */
+export function findWorkspaceRoot(from) {
+  let current = resolve(from);
+  for (;;) {
+    if (existsSync(join(current, "nx.json"))) return current;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+/**
+ * Absolute path to Nx's own CLI entry — the JS file its `nx` bin points at.
+ *
+ * Spawned under this Node binary rather than through `pnpm nx`, which takes the
+ * package manager's platform-specific bin shim out of the picture instead of
+ * wrapping it, and leaves no shell for a `TMPDIR` carrying metacharacters to
+ * reach. `dev-cli` resolves Nx the same way for the same reasons and states
+ * them at length; this is a second copy of ten lines rather than an import
+ * because this project may import no workspace project, `dev-cli` included
+ * (project `CLAUDE.md`) — self-containment is what keeps a later extraction
+ * free, and it is paid for here.
+ */
+function nxCli() {
+  const manifest = require.resolve("nx/package.json");
+  const { bin } = JSON.parse(readFileSync(manifest, "utf8"));
+  return join(dirname(manifest), typeof bin === "string" ? bin : bin.nx);
+}
+
+/**
+ * The Nx project graph for `workspaceRoot`, in the shape `evaluate()` consumes.
+ *
+ * `nx graph --file=<json>` emits `{ graph: { nodes, dependencies } }` and no
+ * `externalNodes`; the rule engine synthesises those from the analysis records
+ * instead, which is what makes `bannedExternalImports` reachable for crates and
+ * Go modules at all (`rules/index.mjs` → `externalNodeFor`).
+ *
+ * @param {string} workspaceRoot
+ * @param {{ run?: typeof runProcess }} [io] Injectable spawn.
+ * @returns {object} `{ nodes, dependencies }`.
+ */
+export function readProjectGraph(workspaceRoot, { run = runProcess } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "nx-polyglot-graph-"));
+  const file = join(dir, "graph.json");
+  try {
+    run(process.execPath, [nxCli(), "graph", `--file=${file}`], workspaceRoot);
+    const { graph } = JSON.parse(readFileSync(file, "utf8"));
+    if (!graph?.nodes) {
+      throw new Error(
+        `nx-polyglot-graph: \`nx graph\` produced no \`graph.nodes\` in ${file} — ` +
+          `nothing can be judged against a graph with no projects in it`,
+      );
+    }
+    return graph;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Every tracked file in the workspace, workspace-relative.
+ *
+ * `-z` because a path may contain a newline, and because git otherwise quotes
+ * and escapes any path outside plain ASCII — a quoted path would then be read
+ * as a filename that does not exist.
+ *
+ * @param {string} workspaceRoot
+ * @param {{ run?: typeof runProcess }} [io]
+ * @returns {string[]}
+ */
+export function listTrackedFiles(workspaceRoot, { run = runProcess } = {}) {
+  const out = run("git", ["ls-files", "-z"], workspaceRoot);
+  return out.split("\0").filter((path) => path !== "");
+}
+
+/**
+ * The `Workspace` the analysis contract defines — `{ root, projects, filesOf,
+ * readFile }` — plus the per-project file index it is built from, which the
+ * caller needs to decide what to analyze.
+ *
+ * Files are attributed by longest-root-prefix match, which is `projectOwning`'s
+ * job and not a second copy of it: a project nested in another's directory owns
+ * its own files, and a first-match answer would hand them to the parent.
+ *
+ * @param {{ root: string, graph: object, files: string[], read?: (path: string) => string|null }} input
+ * @returns {{ workspace: object, filesByProject: Map<string, string[]>, owned: {file: string, project: string}[] }}
+ */
+export function createWorkspace({ root, graph, files, read }) {
+  const projects = Object.values(graph.nodes).map((node) => ({
+    name: node.name,
+    root: node.data.root,
+  }));
+  const filesByProject = new Map(projects.map((project) => [project.name, []]));
+  const owned = [];
+  for (const file of files) {
+    const project = projectOwning(projects, file);
+    // A file no project owns is outside the boundary system entirely — the rule
+    // engine returns nothing for it (`rules/index.mjs`), so it is dropped here
+    // rather than read and analyzed for a verdict that cannot exist.
+    if (!project) continue;
+    filesByProject.get(project.name).push(file);
+    owned.push({ file, project: project.name });
+  }
+
+  const readFile =
+    read ??
+    ((path) => {
+      try {
+        return readFileSync(join(root, path), "utf8");
+      } catch {
+        return null;
+      }
+    });
+
+  return {
+    workspace: {
+      root,
+      projects,
+      filesOf: (name) => filesByProject.get(name) ?? [],
+      readFile,
+    },
+    filesByProject,
+    owned,
+  };
+}
+
+/**
+ * The tracked files a scoped run covers, given the paths a user named.
+ *
+ * A path may be absolute or relative to `cwd`, and may name a file or a
+ * directory; a directory selects everything under it. No paths means the whole
+ * workspace, which is the gate's mode — a scoped run is a local pre-check and
+ * cannot be more, because the cycle and lazy-load rules judge the file graph as
+ * a whole and the engine's index describes what was analyzed rather than what
+ * exists (`rules/index.mjs` → `createFileDependencyIndex`).
+ *
+ * @param {string[]} files Workspace-relative tracked files.
+ * @param {string[]} paths As typed on the command line.
+ * @param {{ root: string, cwd: string }} location
+ * @returns {string[]} A subset of `files`.
+ * @throws {Error} when a path lies outside the workspace — silently selecting
+ *   nothing would report a clean tree for a run that inspected none of it.
+ */
+export function selectFiles(files, paths, { root, cwd }) {
+  if (paths.length === 0) return files;
+  const prefixes = paths.map((path) => {
+    const absolute = isAbsolute(path) ? path : resolve(cwd, path);
+    const rel = relative(root, absolute);
+    if (rel === "") return "";
+    if (rel.startsWith("..") || isAbsolute(rel)) {
+      throw new Error(
+        `nx-polyglot-graph: '${path}' is outside the workspace at ${root} — ` +
+          `there is nothing there this tool could check`,
+      );
+    }
+    return rel;
+  });
+  return files.filter((file) =>
+    prefixes.some((prefix) => prefix === "" || file === prefix || file.startsWith(`${prefix}/`)),
+  );
+}
+
+/**
+ * Analyzes every file that has an analyzer, in the order given.
+ *
+ * A file whose extension no analyzer claims is skipped before it is read —
+ * `analyzeFile` would return the empty envelope for it anyway, and most of a
+ * tracked tree is Markdown, JSON and images. A file that cannot be READ is a
+ * failure record, never a throw: one unreadable file must not blank a run, or a
+ * report empty because the tool tripped and a report empty because the tree is
+ * clean print the same thing (`analysis/contract.md`).
+ *
+ * @param {object} workspace The `Workspace` from `createWorkspace`.
+ * @param {string[]} files Workspace-relative paths to consider.
+ * @param {{ analyze?: typeof analyzeFile }} [io] Injectable analyzer.
+ * @returns {{ imports: object[], failures: object[], analyzed: number }}
+ */
+export function analyzeWorkspace(workspace, files, { analyze = analyzeFile } = {}) {
+  const imports = [];
+  const failures = [];
+  let analyzed = 0;
+  for (const sourceFile of files) {
+    if (languageOf(sourceFile) === null) continue;
+    const text = workspace.readFile(sourceFile);
+    if (text === null) {
+      failures.push(fileFailure(sourceFile, "could not be read"));
+      continue;
+    }
+    analyzed += 1;
+    const result = analyze({ sourceFile, text, workspace });
+    imports.push(...result.imports);
+    failures.push(...result.failures);
+  }
+  return { imports, failures, analyzed };
+}

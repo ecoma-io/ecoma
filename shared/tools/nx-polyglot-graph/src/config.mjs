@@ -385,19 +385,23 @@ export function findBoundaryConfigViolations(module) {
 }
 
 /**
- * Loads and validates the workspace's boundary config.
+ * Loads and validates one boundary config, named by its own absolute path.
  *
- * @param {string} workspaceRoot Absolute path of the workspace root — the tree
- *   being judged, which is not this module's own tree when the tool runs from
- *   a pinned harness clone.
+ * The path-taking form exists because the config's location and the tree being
+ * judged are two facts, not one. They coincide in this repository and come
+ * apart under a pinned harness clone, and a run may need to say so explicitly —
+ * `cli.mjs --config` is that seam. `loadBoundaryConfig` below is the common
+ * case expressed in terms of this one, so both forms answer through the same
+ * validation and neither can drift into a second opinion about a malformed row.
+ *
+ * @param {string} path Absolute path of the config file.
  * @returns {Promise<{ depConstraints: object[], options: object, suppressions: object[] }>}
  *   `suppressions` is `[]` when the config declares none.
  * @throws {Error} when the file is missing, unloadable, or malformed. Loud on
  *   purpose: an enforcer that starts with no rules enforces nothing and says
  *   nothing, which is the failure this whole tool exists to end.
  */
-export async function loadBoundaryConfig(workspaceRoot) {
-  const path = `${workspaceRoot.replace(/\/$/, "")}/${MODULE_BOUNDARIES_CONFIG_FILE}`;
+export async function loadBoundaryConfigFile(path) {
   let module;
   try {
     module = await import(pathToFileURL(path).href);
@@ -415,4 +419,19 @@ export async function loadBoundaryConfig(workspaceRoot) {
     options: module.moduleBoundaryOptions,
     suppressions: module.boundarySuppressions ?? [],
   };
+}
+
+/**
+ * Loads and validates the boundary config a workspace root implies.
+ *
+ * @param {string} workspaceRoot Absolute path of the workspace root — the tree
+ *   being judged, which is not this module's own tree when the tool runs from
+ *   a pinned harness clone.
+ * @returns {Promise<{ depConstraints: object[], options: object, suppressions: object[] }>}
+ * @throws {Error} as `loadBoundaryConfigFile`.
+ */
+export async function loadBoundaryConfig(workspaceRoot) {
+  return loadBoundaryConfigFile(
+    `${workspaceRoot.replace(/\/$/, "")}/${MODULE_BOUNDARIES_CONFIG_FILE}`,
+  );
 }

@@ -41,8 +41,11 @@ Nx 本身。它在 `nx.json` → `plugins` 下注册为
 或工具代码直接导入它。
 
 它还在自己的 `package.json` 里以 `bin` 条目声明了两个可执行文件:
-`cli.mjs` 用于终端运行,`lsp.mjs` 用于编辑器。两者都还没有强制执行任何规
-则,而且都直说这一点而不是假装——`cli.mjs check` 会以非 0 退出。
+`cli.mjs` 用于终端运行,`lsp.mjs` 用于编辑器。`cli.mjs check` 已经是一个真
+正的检查器,并且已经接成门禁——`lefthook.yml` 的 pre-push 列表在整个工作区
+上运行它,`.github/workflows/ci.yml` 在一个独立的 job 里运行它并把它的 SARIF
+上传到 GitHub code scanning。`lsp.mjs` 仍然不声明任何 capability,而不是把
+每个文件都涂绿。
 
 <!-- readme:ecosystem -->
 
@@ -89,8 +92,13 @@ Go、Rust 和 Python 的源码读成已解析的 import 记录——写下的是
 `ts.resolveModuleName`,Vue 的 `<script>` 提取用的是 Vue 自己的 SFC
 parser;两者都没有在这里被重写。
 
-强制执行这一半仍然只是骨架,而且是一副很吵的骨架。`src/rules/` 下还没有任
-何规则,所以 `cli.mjs check` 会失败,而不是报告一棵干净的代码树,`lsp.mjs`
-也不声明任何 capability,而不是把每个文件都涂绿。机制、每种语言的解析边
-界,以及 one-manifest-per-project 的建模假设都写在
-[`./CLAUDE.md`](./CLAUDE.md)。
+强制执行这一半已经在跑了。`src/rules/` 在分析记录之上(而不是在 ESLint 的
+AST 之上)复现了 `@nx/enforce-module-boundaries` 的全部十五种违规类型及其八
+个选项;`cli.mjs check` 读取 Nx 的图,分析每个项目所拥有的、被 git 跟踪的
+源文件,只要有任何违规就以 1 退出,并给出 `file:line:column` 报告或
+SARIF 2.1.0。两个执行器并行运行是有意为之:在一套 conformance 套件证明二者
+一致之前,JavaScript 和 TypeScript 仍以 ESLint 的判定为准。
+
+面向编辑器的那一半仍然只是骨架,而且是一副很吵的骨架:`lsp.mjs` 不声明任何
+capability,而不是把每个文件都涂绿。机制、每种语言的解析边界,以及
+one-manifest-per-project 的建模假设都写在 [`./CLAUDE.md`](./CLAUDE.md)。
