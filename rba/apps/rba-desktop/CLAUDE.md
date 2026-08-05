@@ -41,6 +41,53 @@ and `rustfmt` stop being exercised anywhere in the workspace, and nothing else
 turns red to say so. That is the whole reason the project exists, so treat its
 red as a toolchain outage rather than one app's problem.
 
+## The RUSTSEC wall is one dependency, and the fix is upstream's
+
+`cargo audit` and OpenSSF Scorecard both report seventeen RUSTSEC findings
+against this crate — sixteen `unmaintained`, one `unsound`. That is one
+problem, not seventeen: `tauri` is this crate's only direct dependency, and
+every finding arrives through it.
+
+| Finding group                         | Reaches us via                                            |
+| ------------------------------------- | --------------------------------------------------------- |
+| gtk3-rs is archived (ten crates)      | `tao` / `wry` / `muda` — Tauri's Linux window and webview |
+| `proc-macro-error` is unmaintained    | `glib-macros` ← `glib` ← gtk3-rs                          |
+| five `unic-*` crates are unmaintained | `urlpattern` ← `tauri-utils`                              |
+| `glib::VariantStrIter` is unsound     | `glib` ← gtk3-rs                                          |
+
+Sixteen have no fixed version to move to — the crates are archived, so there is
+nothing to upgrade into. The seventeenth does have one, `glib >= 0.20.0`, and
+Cargo still refuses it, because `gtk 0.18.2` requires `glib ^0.18` and Tauri
+v2's Linux runtime requires gtk3. Two commands print that wall rather than
+describing it:
+
+```sh
+cargo update -p glib --precise 0.20.0        # blocked by gtk 0.18.2's glib ^0.18
+cargo update -p urlpattern --precise 0.4.0   # blocked by tauri-utils' urlpattern ^0.3
+```
+
+The second matters as much as the first: `urlpattern 0.4.0` is the release that
+swapped the `unic-*` family for `icu_properties`, so it would clear five of the
+sixteen on its own, and `tauri-utils` is the thing pinning us below it.
+
+The `unsound` one is the only finding whose blast radius is checkable rather
+than assumed. `glib::Variant::array_iter_str` is the sole public constructor of
+the affected `VariantStrIter` (`VariantStrIter::new` is `pub(crate)`), so
+grepping the resolved sources for `array_iter_str` answers whether anything we
+ship can reach it — re-run that check before treating the advisory as inert.
+
+The exit is a Tauri release off gtk3, tracked upstream at
+[tauri-apps/tauri#12561](https://github.com/tauri-apps/tauri/issues/12561)
+(move `tauri-runtime-wry` to gtk4-rs) and by the `tauri-cef` line that swaps
+WebKitGTK for Chromium. Neither is consumable: crates.io carries no `tauri`
+outside the 2.x line and no `tauri-cef` at all. Keep the dependency spelled
+`tauri = "2"` — it already resolves to the newest 2.x, so a tighter pin buys no
+newer transitive crate and costs the next patch release.
+
+**Do not silence any of this.** A `deny.toml`, an audit allowlist, or an
+`--ignore RUSTSEC-…` flag changes nothing about what ships, and removes the one
+signal that would tell us the upstream move landed.
+
 ## Two manifests, one lint bar
 
 `Cargo.toml` at the workspace root owns the lint bar — `unsafe_code = "forbid"`
