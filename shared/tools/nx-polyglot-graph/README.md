@@ -44,9 +44,11 @@ own project graph — `nx affected`, `nx graph`, `nx run-many`. No product or
 tooling code imports it directly.
 
 It also declares two executables as `bin` entries in its own `package.json`:
-`cli.mjs` for a terminal run and `lsp.mjs` for an editor. Neither enforces
-anything yet, and both say so instead of pretending — `cli.mjs check` exits
-non-zero.
+`cli.mjs` for a terminal run and `lsp.mjs` for an editor. `cli.mjs check` is a
+real checker and is wired as a gate — `lefthook.yml`'s pre-push list runs it
+over the whole workspace, and `.github/workflows/ci.yml` runs it in a job of
+its own that uploads its SARIF to GitHub code scanning. `lsp.mjs` still
+advertises no capabilities rather than painting every file green.
 
 <!-- readme:ecosystem -->
 
@@ -97,8 +99,15 @@ against the record shape frozen in `src/analysis/contract.md`. TypeScript
 resolution is TypeScript's own `ts.resolveModuleName` and Vue's `<script>`
 extraction is Vue's own SFC parser; neither is reimplemented here.
 
-The enforcement half is still a scaffold, and a loud one. No rule exists under
-`src/rules/`, so `cli.mjs check` fails rather than reporting a clean tree, and
-`lsp.mjs` advertises no capabilities rather than painting every file green.
-Mechanics, per-language parse limits, and the one-manifest-per-project
-modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).
+The enforcement half runs. `src/rules/` reproduces all fifteen
+`@nx/enforce-module-boundaries` violation types under its eight options, over
+analysis records rather than an ESLint AST; `cli.mjs check` reads the Nx graph,
+analyzes every tracked source file a project owns, and exits 1 on any
+violation, with a `file:line:column` report or SARIF 2.1.0. Both enforcers run
+side by side on purpose: ESLint stays authoritative for JavaScript and
+TypeScript until a conformance suite proves the two agree.
+
+The editor half is still a scaffold, and a loud one: `lsp.mjs` advertises no
+capabilities rather than painting every file green. Mechanics, per-language
+parse limits, and the one-manifest-per-project modeling assumption are in
+[`./CLAUDE.md`](./CLAUDE.md).

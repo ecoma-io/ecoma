@@ -1,0 +1,132 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, describe, expect, it } from "vitest";
+
+import {
+  analyzeWorkspace,
+  createWorkspace,
+  findWorkspaceRoot,
+  readProjectGraph,
+} from "./workspace.mjs";
+
+/**
+ * The scan driven with its real collaborators: the project attribution the rest
+ * of the tool resolves against, and the real Go analyzer over a real file on
+ * disk. Both interactions are the behaviour being pinned — a nested project is
+ * only interesting because `projectOwning` answers by longest prefix, and a
+ * `Workspace` is only correct if an analyzer can actually resolve through it.
+ */
+
+const root = mkdtempSync(join(tmpdir(), "polyglot-workspace-"));
+afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+const write = (relativePath, text) => {
+  mkdirSync(join(root, relativePath, ".."), { recursive: true });
+  writeFileSync(join(root, relativePath), text);
+};
+
+// An outer project with a second project nested inside its directory — the one
+// shape a first-match attribution gets wrong, and this workspace has one
+// (a Tauri app keeps its crate under `src-tauri/`).
+const graph = {
+  nodes: {
+    outer: { name: "outer", type: "lib", data: { root: "libs/outer" } },
+    inner: { name: "inner", type: "lib", data: { root: "libs/outer/inner" } },
+  },
+};
+
+write("libs/outer/go.mod", "module example.com/outer\n\ngo 1.24\n");
+write("libs/outer/outer.go", 'package outer\n\nimport (\n\t"example.com/inner/pkg"\n)\n');
+write("libs/outer/inner/go.mod", "module example.com/inner\n\ngo 1.24\n");
+write("libs/outer/inner/pkg.go", "package pkg\n");
+write("nx.json", "{}\n");
+
+const files = [
+  "libs/outer/go.mod",
+  "libs/outer/outer.go",
+  "libs/outer/inner/go.mod",
+  "libs/outer/inner/pkg.go",
+  "nx.json",
+];
+
+describe("attributing files to projects", () => {
+  it("gives a nested project its own files instead of handing them to the parent", () => {
+    // First-match attribution would put every inner file under `outer`, so
+    // every intra-project import there would read as a boundary crossing and
+    // every real crossing out of it would vanish.
+    const { workspace } = createWorkspace({ root, graph, files });
+    expect(workspace.filesOf("inner")).toEqual([
+      "libs/outer/inner/go.mod",
+      "libs/outer/inner/pkg.go",
+    ]);
+    expect(workspace.filesOf("outer")).toEqual(["libs/outer/go.mod", "libs/outer/outer.go"]);
+  });
+});
+
+describe("analyzing through the real workspace", () => {
+  it("resolves a cross-project import to the project the graph names, at its own line and column", () => {
+    // The whole point of the object this module builds: an analyzer resolves
+    // through `filesOf`/`readFile`, so a wrong file index yields a wrong
+    // verdict rather than an error anyone would notice.
+    const { workspace, owned } = createWorkspace({ root, graph, files });
+    const { imports, failures } = analyzeWorkspace(
+      workspace,
+      owned.map(({ file }) => file),
+    );
+
+    expect(failures).toEqual([]);
+    expect(imports).toEqual([
+      {
+        sourceFile: "libs/outer/outer.go",
+        line: 4,
+        column: 2,
+        specifier: "example.com/inner/pkg",
+        kind: "static",
+        resolved: { target: "inner", file: null, external: false, packageName: null },
+      },
+    ]);
+  });
+
+  it("reads files off disk when no reader is injected, which is how the CLI runs", () => {
+    const { workspace } = createWorkspace({ root, graph, files });
+    expect(workspace.readFile("libs/outer/inner/go.mod")).toContain("module example.com/inner");
+    expect(workspace.readFile("libs/outer/missing.go")).toBeNull();
+  });
+});
+
+describe("finding the tree to judge", () => {
+  it("walks up from the working directory to the nx.json above it", () => {
+    expect(findWorkspaceRoot(join(root, "libs/outer/inner"))).toBe(root);
+  });
+
+  it("returns null rather than guessing when no ancestor is an Nx workspace", () => {
+    // Guessing would judge some other tree's files against this tree's rules.
+    const orphan = mkdtempSync(join(tmpdir(), "polyglot-orphan-"));
+    afterAll(() => rmSync(orphan, { recursive: true, force: true }));
+    expect(findWorkspaceRoot(orphan)).toBeNull();
+  });
+});
+
+describe("reading the project graph", () => {
+  it("asks Nx for the graph as JSON and returns its nodes and dependencies", () => {
+    const run = (_file, args, cwd) => {
+      expect(cwd).toBe(root);
+      expect(args).toContain("graph");
+      const target = args.find((arg) => arg.startsWith("--file="))?.slice("--file=".length);
+      writeFileSync(target, JSON.stringify({ graph }));
+      return "";
+    };
+    expect(readProjectGraph(root, { run })).toEqual(graph);
+  });
+
+  it("fails loudly on a graph with no projects, rather than judging a tree it cannot see", () => {
+    const run = (_file, args) => {
+      const target = args.find((arg) => arg.startsWith("--file="))?.slice("--file=".length);
+      writeFileSync(target, JSON.stringify({ graph: {} }));
+      return "";
+    };
+    expect(() => readProjectGraph(root, { run })).toThrow(/no `graph.nodes`/);
+  });
+});

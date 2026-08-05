@@ -27,8 +27,9 @@ cli.mjs, lsp.mjs       executables (bin entries in package.json)
 src/analysis/          which import is written where, and what it resolves to
 src/graph/             analysis reduced to Nx dependency records
 src/config.mjs         loads + validates the workspace boundary config
+src/workspace.mjs      which projects and files a run covers, and their analysis
 src/rules/             the boundary rules — `evaluate(sites, graph, config)`
-src/report/            rendering violations (empty — see its README)
+src/report/            rendering violations as text and as SARIF
 ```
 
 - **`index.mjs` holds no logic.** Nx loads it on every graph computation, so
@@ -43,6 +44,17 @@ src/report/            rendering violations (empty — see its README)
   loaded config, nothing more. Its own README carries the three upstream
   semantics a reimplementation gets backwards, and every place it is
   deliberately stricter than ESLint — read it before touching a rule.
+- **`src/workspace.mjs` is the only layer allowed to answer "which files".**
+  An analyzer is handed one file and a rule is handed records, so the question
+  lands here — with the two spawns that come with it. Projects and tags come
+  from `nx graph --file=` (never a second walk of `project.json` files, which
+  would disagree with Nx wherever a plugin contributes an edge); files come
+  from `git ls-files`, because the graph JSON carries no file map and a tree
+  walk would need ignore rules that drift from `.gitignore`. Both are
+  injectable, which is what lets a test drive the whole pipeline with neither
+  Nx nor git present.
+- **`src/report/` renders, and decides nothing.** A formatter that filtered
+  would be a rule wearing a formatter's name.
 
 ## The analysis contract is frozen — read it before writing an analyzer
 
@@ -156,8 +168,13 @@ openly, never fake done). Concretely:
   its analyzer lands. An unrecognised extension is a no-op returning the empty
   envelope: the dispatcher is pointed at every tracked file, and `README.md`
   is not an error.
-- `cli.mjs check` exits **3** (`not implemented`), distinct from **2**
-  (usage) and the reserved **1** (violations found). Exit 0 was the bug.
+- `cli.mjs check` keeps four distinct exit codes, and the distinction that
+  matters is **3** (the run could not complete — no workspace, malformed
+  config, `nx graph` or `git` failed) against **1** (violations found) and
+  **0** (clean). A checker that could not look must never be mistaken for one
+  that looked and found nothing; **2** stays a usage error. Exit 0 was the bug.
+  `check` also states what it inspected — imports, files, projects — beside
+  every verdict, because "no violations" is a claim about coverage too.
 - `lsp.mjs` advertises an **empty capability set**, so no editor asks it for
   diagnostics, and answers every other request with `MethodNotFound` (-32601).
   Advertising `textDocumentSync` and replying with an empty diagnostic array
@@ -192,3 +209,14 @@ openly, never fake done). Concretely:
 - `cli.mjs` and `lsp.mjs` are driven as spawned subprocesses, which in-process
   V8 coverage cannot see — hence their absence from `vitest.config.mjs`'s
   coverage `include`, the same exclusion `dev-cli` makes for its `main.mjs`.
+  `cli.integration.test.mjs` therefore does both: it spawns the real binary for
+  the exit-code and usage contract, and calls `check()`/`runCli()` in-process
+  over a fixture Go workspace — real analyzer, real rules, real report, with
+  only Nx and git injected — so the exact `file:line:column` a developer acts
+  on is pinned rather than assumed.
+- **A SARIF test that only checks the file parses is not a test.** The failure
+  guarded against is an upload GitHub silently rejects, so
+  `report/sarif.integration.test.mjs` builds one result per `messageId` from
+  the real message table and asserts the fields a rejection turns on: a
+  `ruleId` that resolves in the catalogue, a non-empty message, and a
+  repository-relative `uri` with a 1-based `startLine`/`startColumn`.
