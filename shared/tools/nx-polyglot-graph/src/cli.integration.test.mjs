@@ -212,6 +212,33 @@ describe("the exit contract", () => {
     expect(await runCli(["check", "/somewhere/else"], streams)).toBe(EXIT.usage);
     expect(streams.lines.err.join("\n")).toContain("outside the workspace");
   });
+
+  it("refuses to exit 0 over a file it could not analyze, because 0 is read as 'checked, and fine'", async () => {
+    // The same principle as the case above, applied to a run that DID start.
+    // The clean half of the tree, plus one file the analyzer never got a
+    // verdict about: the summary counts it, so exit 0 would report coverage
+    // this run does not have. Exit 3 — no verdict — not 1, which would claim
+    // a boundary was crossed.
+    const streams = {
+      ...env(),
+      listFiles: () => [...files, "libs/adapter/absent.go"],
+    };
+    expect(await runCli(["check", "libs/adapter"], streams)).toBe(EXIT.error);
+    const report = streams.lines.out.join("\n");
+    expect(report).toContain("✔ no boundary violations");
+    expect(report).toContain("1 file could not be analyzed at all");
+    expect(report).toContain("libs/adapter/absent.go  could not be read");
+  });
+
+  it("still exits 1 when the tree is dirty AND a file could not be analyzed, since that verdict is certain", async () => {
+    // Precedence matters to a caller that branches: a violation is a finding
+    // it can act on, and the unanalyzed file is listed in the same report
+    // either way. Only a run with no findings may be downgraded to "no
+    // verdict".
+    const streams = { ...env(), listFiles: () => [...files, "libs/domain/absent.go"] };
+    expect(await runCli(["check"], streams)).toBe(EXIT.violations);
+    expect(streams.lines.out.join("\n")).toContain("could not be analyzed at all");
+  });
 });
 
 describe("the option surface", () => {

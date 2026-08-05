@@ -19,12 +19,21 @@
  *
  * Exit codes are part of the contract; a script calling this has to tell "your
  * tree is dirty" from "you typed it wrong" from "the checker itself broke":
- *   0  no violations
+ *   0  no violations, and every selected file was analyzed
  *   1  boundary violations found
  *   2  usage error — unknown command, missing argument, path outside the tree
- *   3  the run could not complete — no workspace, malformed config, `nx graph`
- *      or `git` failed. Distinct from 1 on purpose: a checker that could not
- *      look must never be mistaken for one that looked and found nothing.
+ *   3  no verdict — no workspace, malformed config, `nx graph` or `git` failed,
+ *      or a selected file could not be analyzed at all. Distinct from 1 on
+ *      purpose: a checker that could not look must never be mistaken for one
+ *      that looked and found nothing.
+ *
+ * That last clause is why 3 covers a partial run and not only a total one. A
+ * file with no analyzer, an unreadable file, a `tsconfig` that will not load —
+ * each leaves a file the summary counts but no rule ever judged, and exiting 0
+ * there is precisely the mistake the code exists to prevent. An import site
+ * whose specifier is not statically knowable is NOT this case: that file was
+ * judged, one position in it has no answer, and `src/report/text.mjs` prints
+ * the two under separate headings for the same reason they get separate codes.
  *
  * Argument parsing stays hand-rolled while there is one command, matching
  * `dev-cli`'s entry point next door; reach for a framework when several
@@ -34,6 +43,7 @@ import { writeFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { isWholeFileFailure } from "./src/analysis/source-util.mjs";
 import {
   loadBoundaryConfig,
   loadBoundaryConfigFile,
@@ -80,7 +90,7 @@ Naming paths scopes the run to those files. That is a fast local pre-check and
 not the gate: the cycle and lazy-load rules judge the file graph as a whole, so
 a scoped run can miss what a whole-workspace run would find.
 
-Exit codes: ${EXIT.ok} clean · ${EXIT.violations} violations found · ${EXIT.usage} usage error · ${EXIT.error} the run could not complete`;
+Exit codes: ${EXIT.ok} clean · ${EXIT.violations} violations found · ${EXIT.usage} usage error · ${EXIT.error} no verdict (a file could not be analyzed, or the run could not start)`;
 
 /**
  * Splits `check`'s arguments into options and paths.
@@ -179,6 +189,11 @@ export async function check(
     }),
     violations: violations.length,
     analyzed,
+    // Files the run produced no verdict about, counted here rather than
+    // recomputed by the caller: the exit code and the report must agree about
+    // which failures mean "not covered", and one predicate is how they do.
+    unchecked: new Set(failures.filter(isWholeFileFailure).map((failure) => failure.sourceFile))
+      .size,
   };
 }
 
@@ -247,12 +262,22 @@ export async function runCli(argv, env) {
     // about a run that just failed the build.
     env.err(
       `nx-polyglot-graph: ${result.violations} violation${result.violations === 1 ? "" : "s"} ` +
-        `over ${result.analyzed} analyzed file${result.analyzed === 1 ? "" : "s"} → ${options.output}`,
+        `over ${result.analyzed} analyzed file${result.analyzed === 1 ? "" : "s"}` +
+        (result.unchecked > 0
+          ? `, ${result.unchecked} file${result.unchecked === 1 ? "" : "s"} not analyzed`
+          : "") +
+        ` → ${options.output}`,
     );
   } else {
     env.out(result.report);
   }
-  return result.violations > 0 ? EXIT.violations : EXIT.ok;
+
+  // Violations first: they are a verdict, and a caller that gets 1 knows the
+  // tree is dirty whatever else the run could not reach — the report lists the
+  // unreached files either way. A clean run with a file nobody could analyze is
+  // the case that must not return 0, because 0 is read as "checked, and fine".
+  if (result.violations > 0) return EXIT.violations;
+  return result.unchecked > 0 ? EXIT.error : EXIT.ok;
 }
 
 // Run only when invoked as a program, so importing this module for its exit

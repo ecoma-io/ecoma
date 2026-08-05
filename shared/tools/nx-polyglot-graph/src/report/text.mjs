@@ -21,6 +21,7 @@
  * wearing a formatter's name, and it would disagree with the engine the first
  * time either changed (`README.md` beside this file).
  */
+import { isWholeFileFailure } from "../analysis/source-util.mjs";
 
 /** Two spaces of indent for a violation's detail lines, four for wrapped text. */
 const DETAIL = "  ";
@@ -83,33 +84,60 @@ export function formatViolation(violation) {
   ].join("\n");
 }
 
+/** One failure as `file` or `file:line:column`, then its reason. */
+const formatFailure = (failure) =>
+  `${DETAIL}${isWholeFileFailure(failure) ? failure.sourceFile : `${failure.sourceFile}:${failure.line}:${failure.column}`}  ${failure.reason}`;
+
 /**
- * What analysis could not read, resolve, or parse.
+ * What analysis could not read, resolve, or parse — printed on every run,
+ * including a clean one, and never counted as a violation.
  *
- * Printed on every run, including a clean one, and NOT counted as a violation:
- * a specifier this tool cannot resolve is a place it has no verdict about, and
- * the two must never be conflated in either direction. Hiding them would let
- * the tool's blind spots grow silently, which is the failure mode it exists to
- * remove; failing on them would make an unreadable third-party fixture block a
- * merge over a boundary nobody crossed.
+ * Two sections, because the two things a failure can mean have opposite
+ * consequences and one heading for both hid that for as long as it existed.
+ *
+ * A SITE failure is a blind spot: the file was analyzed, and one specifier in
+ * it is not statically knowable — `import(url)` with a computed argument is
+ * the honest example. The rest of the file still got a verdict. Failing the
+ * run on these would let one unresolvable third-party specifier block a merge
+ * over a boundary nobody crossed, and they are legitimately permanent.
+ *
+ * A WHOLE-FILE failure is a hole: nothing was read, parsed, or analyzed, so
+ * this file contributed no verdict at all. The summary line above still counts
+ * imports and files, so a reader who sees "no boundary violations" is being
+ * told about coverage; a file in this section is coverage that is missing.
+ * `cli.mjs` exits non-zero on these for that reason, and the heading says so
+ * rather than leaving the exit code to be discovered.
  *
  * @param {object[]} failures `AnalysisFailure` records.
  * @returns {string}
  */
 export function formatFailures(failures) {
   if (failures.length === 0) return "";
-  const lines = failures.map((failure) => {
-    const at =
-      failure.line === null
-        ? failure.sourceFile
-        : `${failure.sourceFile}:${failure.line}:${failure.column}`;
-    return `${DETAIL}${at}  ${failure.reason}`;
-  });
-  return [
-    `${failures.length} import${failures.length === 1 ? "" : "s"} or file${failures.length === 1 ? "" : "s"} could not be resolved. ` +
-      `These are blind spots, not verdicts — the run does not fail on them:`,
-    ...lines,
-  ].join("\n");
+  const unchecked = failures.filter(isWholeFileFailure);
+  const blind = failures.filter((failure) => !isWholeFileFailure(failure));
+  const sections = [];
+
+  if (unchecked.length > 0) {
+    const files = new Set(unchecked.map((failure) => failure.sourceFile)).size;
+    sections.push(
+      [
+        `✖ ${files} file${files === 1 ? "" : "s"} could not be analyzed at all, so ${files === 1 ? "it is" : "they are"} ` +
+          `not covered by the verdict above and the run fails:`,
+        ...unchecked.map(formatFailure),
+      ].join("\n"),
+    );
+  }
+
+  if (blind.length > 0) {
+    sections.push(
+      [
+        `${blind.length} import${blind.length === 1 ? "" : "s"} could not be resolved. ` +
+          `These are blind spots inside files that were analyzed, not verdicts — the run does not fail on them:`,
+        ...blind.map(formatFailure),
+      ].join("\n"),
+    );
+  }
+  return sections.join("\n\n");
 }
 
 /**

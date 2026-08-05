@@ -109,7 +109,8 @@ describe("analysis failures", () => {
     const text = formatFailures([
       { sourceFile: "a/b.ts", line: 3, column: 8, reason: "TypeScript cannot resolve 'x'" },
     ]);
-    expect(text).toContain("blind spots, not verdicts");
+    expect(text).toContain("not verdicts");
+    expect(text).toContain("the run does not fail on them");
     expect(text).toContain("a/b.ts:3:8  TypeScript cannot resolve 'x'");
   });
 
@@ -119,6 +120,38 @@ describe("analysis failures", () => {
     ]);
     expect(text).toContain("a/b.rs  unreadable");
     expect(text).not.toContain("a/b.rs:");
+  });
+
+  it("separates a file with no verdict from an import with none, because only one fails the run", () => {
+    // One heading for both is what let a file nobody analyzed sit in a list
+    // headed "the run does not fail on them" while the summary above counted
+    // it as inspected. A reader must be able to tell coverage that is missing
+    // from a position that has no static answer.
+    const text = formatFailures([
+      {
+        sourceFile: "a/b.ts",
+        line: 3,
+        column: 8,
+        reason: "import(url) is not statically knowable",
+      },
+      { sourceFile: "a/c.vue", line: null, column: null, reason: "Vue analysis failed" },
+    ]);
+    expect(text).toContain("1 file could not be analyzed at all");
+    expect(text).toContain("the run fails");
+    expect(text).toContain("a/c.vue  Vue analysis failed");
+    expect(text).toContain("blind spots inside files that were analyzed");
+    expect(text).toContain("a/b.ts:3:8");
+    // The blind-spot count must not absorb the unanalyzed file, or the two
+    // sections would disagree about how much the run actually covered.
+    expect(text).toContain("1 import could not be resolved");
+  });
+
+  it("counts unanalyzed files rather than their failures, so one bad file cannot look like many", () => {
+    const text = formatFailures([
+      { sourceFile: "a/b.vue", line: null, column: null, reason: "first" },
+      { sourceFile: "a/b.vue", line: null, column: null, reason: "second" },
+    ]);
+    expect(text).toContain("1 file could not be analyzed at all");
   });
 
   it("says nothing at all when there were none", () => {
@@ -153,10 +186,14 @@ describe("the report as a whole", () => {
     const text = formatReport(
       run({
         violations: [violation()],
-        failures: [{ sourceFile: "a/b.ts", line: null, column: null, reason: "unreadable" }],
+        failures: [
+          { sourceFile: "a/b.ts", line: 9, column: 1, reason: "not statically knowable" },
+          { sourceFile: "a/c.ts", line: null, column: null, reason: "unreadable" },
+        ],
       }),
     );
     expect(text).toContain("✖ 1 boundary violation");
-    expect(text).toContain("blind spots, not verdicts");
+    expect(text).toContain("blind spots inside files that were analyzed");
+    expect(text).toContain("could not be analyzed at all");
   });
 });

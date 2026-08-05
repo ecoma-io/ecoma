@@ -137,3 +137,21 @@ export const fileFailure = (sourceFile, reason) => ({
   column: null,
   reason,
 });
+
+/**
+ * Whether a failure means the file has NO verdict at all, rather than one
+ * import site inside it having none.
+ *
+ * The distinction is the difference between a blind spot and a hole. A site
+ * failure says "this file was analyzed and one specifier in it is not
+ * statically knowable" — the other imports in it were still judged. A whole-
+ * file failure says the file was never read, never parsed, or had no analyzer
+ * that could run, so "no violations here" is not a finding about it; it is the
+ * absence of one. Only the shape carries this: a null position is what the
+ * analysis contract already means by "about the file as a whole", so callers
+ * ask here instead of re-testing `line === null` and drifting apart.
+ *
+ * @param {{ line: number|null }} failure
+ * @returns {boolean}
+ */
+export const isWholeFileFailure = (failure) => failure.line === null;
