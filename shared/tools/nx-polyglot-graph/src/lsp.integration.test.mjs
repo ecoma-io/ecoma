@@ -16,7 +16,7 @@
  */
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -78,6 +78,39 @@ const VUE_WITH_VIOLATION = [
 
 /** TypeScript the compiler cannot parse — an import clause that never closes. */
 const UNPARSEABLE_TS = 'import { thing from "./thing";\nexport const value = ;\n';
+
+/**
+ * `outer`'s configuration in the JSONC Nx accepts and `JSON.parse` refuses: a
+ * line comment, a block comment and a trailing comma, all in one file.
+ *
+ * Nx reads `project.json` through `readJsonFile` → `parseJson` → jsonc-parser
+ * with `allowTrailingComma: true`, so this file names a project that really
+ * exists — `nx graph` has it and `../cli.mjs` has it.
+ */
+const OUTER_PROJECT_JSON_C = [
+  "{",
+  "  // the far side of the boundary",
+  '  "name": "outer",',
+  "  /* a library, like everything in this fixture */",
+  '  "projectType": "library",',
+  '  "tags": ["zone:outer"],',
+  "}",
+  "",
+].join("\n");
+
+/** The same treatment applied to the project the open document belongs to. */
+const INNER_PROJECT_JSON_C = [
+  "{",
+  "  // the near side",
+  '  "name": "inner",',
+  '  "projectType": "library",',
+  '  "tags": ["zone:inner"],',
+  "}",
+  "",
+].join("\n");
+
+/** A `project.json` neither parser can read. */
+const UNREADABLE_PROJECT_JSON = "{ this is not a project configuration";
 
 let root;
 const files = {
@@ -334,10 +367,11 @@ describe("a real editor session against a real workspace", () => {
   }, 30_000);
 
   it("reads the imports inside a .vue script block and points at the line they are on", async () => {
-    // The second language no ESLint-based server reaches usefully here, and the
-    // one whose positions are computed twice — once inside the block, once
-    // mapped back to the file. A diagnostic naming the wrong line is worse
-    // than none, so the line is checked against the SFC itself.
+    // ESLint reaches `.vue` here too, so this is the one language where the
+    // two engines answer the same file — and the one whose positions are
+    // computed twice, once inside the script block and once mapped back to the
+    // file. A diagnostic naming the wrong line is worse than none, so the line
+    // is checked against the SFC itself.
     const { client } = await connected();
     const uri = uriOf("libs/inner/Panel.vue");
 
@@ -389,6 +423,110 @@ describe("a real editor session against a real workspace", () => {
     }
 
     client.kill();
+  }, 30_000);
+
+  it("keeps the verdict when a project.json is written in the JSONC Nx accepts", async () => {
+    // The form Nx accepts and `JSON.parse` refuses. A server that reads the
+    // file with `JSON.parse` loses the project from its graph; the Go import
+    // then resolves as an external package, the rule engine's npm branch
+    // returns before any tag check runs, and the marker that was on screen a
+    // moment ago disappears. Nothing tells the developer their editor stopped
+    // enforcing — `nx graph`, ESLint and the CLI all still see the project.
+    //
+    // Both sides are exercised, because they fail differently: the IMPORTED
+    // project's config erases a marker that was already up, and the open file's
+    // OWN config puts the document in no project at all, which crosses no
+    // boundary and so reads clean from the first publish. Each re-index builds
+    // the index from scratch, so the last assertion is over a tree where both
+    // files are JSONC.
+    const { client } = await connected();
+    const uri = uriOf("libs/inner/main.go");
+
+    client.send({
+      jsonrpc: "2.0",
+      method: "textDocument/didOpen",
+      params: { textDocument: { uri, languageId: "go", version: 1, text: GO_WITH_VIOLATION } },
+    });
+    expect(await client.diagnosticsFor(uri)).not.toHaveLength(0);
+
+    try {
+      write("libs/outer/project.json", OUTER_PROJECT_JSON_C);
+      client.send({
+        jsonrpc: "2.0",
+        method: "workspace/didChangeWatchedFiles",
+        params: { changes: [{ uri: uriOf("libs/outer/project.json"), type: 2 }] },
+      });
+      expect((await client.diagnosticsFor(uri, 1)).map((d) => d.code)).toContain(
+        "onlyTagsConstraintViolation",
+      );
+
+      write("libs/inner/project.json", INNER_PROJECT_JSON_C);
+      client.send({
+        jsonrpc: "2.0",
+        method: "workspace/didChangeWatchedFiles",
+        params: { changes: [{ uri: uriOf("libs/inner/project.json"), type: 2 }] },
+      });
+      expect((await client.diagnosticsFor(uri, 2)).map((d) => d.code)).toContain(
+        "onlyTagsConstraintViolation",
+      );
+    } finally {
+      write("libs/outer/project.json", files["libs/outer/project.json"]);
+      write("libs/inner/project.json", files["libs/inner/project.json"]);
+    }
+
+    client.kill();
+  }, 30_000);
+
+  it("says what it could not read instead of reporting a tree it never saw whole", async () => {
+    // The two things the index records and nothing used to read, together
+    // because a reader gets them together: a `project.json` no parser can read
+    // takes its project out of the graph, and a symlink pointing outside the
+    // checkout is listed by git and cannot be opened, so whatever it imports
+    // contributes no edge. Both are dropped on purpose — one broken file must
+    // not blank the graph for every other project — and both change the
+    // transitive closure two of the fifteen rules are decided on.
+    //
+    // What must not follow is silence. Without the imported project the tag
+    // check never runs at all, so the honest answer is a report naming every
+    // file to fix, in ONE diagnostic rather than one per gap. Fixing them
+    // brings the real verdict straight back.
+    const dangling = join(root, "libs/inner/generated.go");
+    write("libs/outer/project.json", UNREADABLE_PROJECT_JSON);
+    symlinkSync("./nowhere.go", dangling);
+    try {
+      const { client } = await connected();
+      const uri = uriOf("libs/inner/main.go");
+
+      client.send({
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: { textDocument: { uri, languageId: "go", version: 1, text: GO_WITH_VIOLATION } },
+      });
+
+      const diagnostics = await client.diagnosticsFor(uri);
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0].code).toBe("analysisFailure");
+      expect(diagnostics[0].message).toContain("INCOMPLETE");
+      expect(diagnostics[0].message).toContain("libs/outer/project.json");
+      expect(diagnostics[0].message).toContain("libs/inner/generated.go");
+
+      write("libs/outer/project.json", files["libs/outer/project.json"]);
+      rmSync(dangling, { force: true });
+      client.send({
+        jsonrpc: "2.0",
+        method: "workspace/didChangeWatchedFiles",
+        params: { changes: [{ uri: uriOf("libs/outer/project.json"), type: 2 }] },
+      });
+
+      expect((await client.diagnosticsFor(uri, 1)).map((d) => d.code)).toEqual([
+        "onlyTagsConstraintViolation",
+      ]);
+      client.kill();
+    } finally {
+      write("libs/outer/project.json", files["libs/outer/project.json"]);
+      rmSync(dangling, { force: true });
+    }
   }, 30_000);
 
   it("registers a file watcher for the two files a verdict depends on", async () => {

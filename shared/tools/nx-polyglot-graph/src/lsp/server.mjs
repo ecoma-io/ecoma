@@ -9,11 +9,19 @@
  *
  * ## Why a language server and not an ESLint plugin
  *
- * An ESLint plugin reaches JS and TS files in an editor — exactly the half that
- * `@nx/enforce-module-boundaries` already covers. Go, Rust, Python and the
- * `<script>` block of a `.vue` file would get nothing, and those are the
- * languages this tool exists for (project CLAUDE.md). One server over a
- * protocol every editor speaks covers all of them at once.
+ * An ESLint plugin reaches what ESLint can parse, and in this workspace that is
+ * JS, TS and `.vue` — the root `eslint.config.mjs` hands the last one
+ * `vue-eslint-parser` and states the boundary rule in a block with no `files`
+ * filter, so `@nx/enforce-module-boundaries` judges a single-file component
+ * too. Measured: both engines report the same crossing for the same `.vue`
+ * import, differing only in the column they point at.
+ *
+ * Go, Rust and Python have no ESLint parser at all — `eslint` answers "File
+ * ignored because no matching configuration was supplied" and the project's
+ * `lint` target exits 0 over a violating import (project CLAUDE.md). So this
+ * server is the ONLY enforcement those three have, and for JS, TS and Vue it
+ * is a second opinion that `../conformance/` holds to the same verdict. One
+ * protocol every editor speaks serves all of them at once.
  *
  * ## The rule that governs every path through this file
  *

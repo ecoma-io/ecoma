@@ -58,16 +58,21 @@ describe("the Claude Code plugin that routes files to this server", () => {
     expect(existsSync(join(ROOT, entry))).toBe(true);
   });
 
-  it("routes every language that has no other boundary enforcement in this workspace", () => {
-    // Go, Rust, Python and Vue: the four the tool exists for, where a
-    // `layer:`/`scope:`/`license:` tag has no mechanism behind it today.
-    // A fifth language landing in the analyzer registry and not here would be
-    // analyzed by the CLI and never by an editor.
-    const unenforced = Object.entries(LANGUAGE_BY_EXTENSION)
+  it("routes every language the analyzers handle except the JS/TS family", () => {
+    // ESLint runs wherever it has a parser, and here that is JS, TS AND Vue —
+    // `eslint.config.mjs` gives `.vue` `vue-eslint-parser` and states the
+    // boundary rule in a block with no `files` filter. Go, Rust and Python are
+    // the half it cannot reach at all, so for those three this server is the
+    // only enforcement a `layer:`/`scope:`/`license:` tag has. `.vue` is routed
+    // anyway, as a second opinion `../conformance/` holds to the same verdict.
+    // What must not happen either way is a language landing in the analyzer
+    // registry and not here: it would be checked by the CLI and never by an
+    // editor.
+    const routed = Object.entries(LANGUAGE_BY_EXTENSION)
       .filter(([, language]) => language !== "typescript")
       .map(([extension]) => extension);
 
-    expect(Object.keys(server.extensionToLanguage).sort()).toEqual(unenforced.sort());
+    expect(Object.keys(server.extensionToLanguage).sort()).toEqual(routed.sort());
   });
 
   it("leaves JS and TS to the enforcer that already covers them", () => {

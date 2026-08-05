@@ -3,11 +3,13 @@
  * protocol fixes, and the `file:` URI conversion every other module here needs.
  *
  * Implemented directly rather than pulled from `vscode-languageserver`, for the
- * reason the project CLAUDE.md gives for the whole directory: this tool imports
- * Node built-ins, `typescript` and `vue/compiler-sfc` and nothing else, and the
- * base protocol is a fixed external contract of about forty lines. Adding a
- * third-party dependency for it would put a decision in this project that the
- * root manifest owns.
+ * reason the project CLAUDE.md gives for the whole directory: this tool reaches
+ * outside Node's built-ins only where something it must AGREE with already
+ * lives there — TypeScript's own resolver, Vue's own SFC parser, Nx's own JSON
+ * reader (`./workspace-index.mjs`). The base protocol is nothing of the kind:
+ * it is a fixed external contract of about forty lines, written down in a
+ * specification, and a third-party package for it would put a dependency
+ * decision in this project that the root manifest owns.
  *
  * Every constant below is a value the SPECIFICATION fixes, not a workspace
  * choice — the one class of literal Rule 14 allows to be written inline, and it

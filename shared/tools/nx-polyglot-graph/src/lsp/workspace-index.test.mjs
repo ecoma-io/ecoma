@@ -5,6 +5,7 @@ import {
   buildNodes,
   buildWorkspaceIndex,
   discoverProjects,
+  indexGaps,
   nodeTypeOf,
   PROJECT_CONFIG_FILE,
 } from "./workspace-index.mjs";
@@ -51,6 +52,45 @@ describe("discovering the projects a tree declares", () => {
       "stated-name",
     ]);
     expect(projects.find((p) => p.name === "stated-name").root).toBe("stated");
+  });
+
+  it("reads every JSONC form Nx reads, because a project Nx has is a project", () => {
+    // Nx parses `project.json` with jsonc-parser and `allowTrailingComma`, so
+    // each file below names a project that exists everywhere else in the
+    // toolchain — in `nx graph`, in ESLint's view, in `../../cli.mjs`. Dropping
+    // one here takes it out of the graph, turns every import of it into an
+    // external package, and paints a real crossing clean in the editor while
+    // the CLI still fails on it.
+    const { projects, skipped } = discoverProjects(
+      tree({
+        [`trailing-comma/${PROJECT_CONFIG_FILE}`]: '{"name":"trailing-comma","tags":["a"],}',
+        [`line-comment/${PROJECT_CONFIG_FILE}`]: '{\n// the near side\n"name":"line-comment"\n}',
+        [`block-comment/${PROJECT_CONFIG_FILE}`]: '{/* the far side */"name":"block-comment"}',
+      }),
+    );
+
+    expect(skipped).toEqual([]);
+    expect(projects.map((p) => p.name).sort()).toEqual([
+      "block-comment",
+      "line-comment",
+      "trailing-comma",
+    ]);
+    expect(projects.find((p) => p.name === "trailing-comma").config.tags).toEqual(["a"]);
+  });
+
+  it("takes a package.json name through the same parser project.json goes through", () => {
+    // Nx reads both files with `readJsonFile`. A `package.json` this could not
+    // parse would silently fall through to the directory name — a project the
+    // graph knows under one name and every constraint row names under another.
+    const { projects } = discoverProjects(
+      tree({
+        [`somewhere/${PROJECT_CONFIG_FILE}`]: "{}",
+        "somewhere/package.json":
+          '{\n// published under a different name\n"name":"@scope/thing"\n}',
+      }),
+    );
+
+    expect(projects.map((p) => p.name)).toEqual(["@scope/thing"]);
   });
 
   it("skips a project.json it cannot read instead of blanking the whole graph", () => {
@@ -226,5 +266,62 @@ describe("building the index over a whole tree", () => {
         },
       }),
     ).toThrow(/not a git repository/u);
+  });
+});
+
+describe("what the index could not read, as something a caller can publish", () => {
+  it("says nothing at all about a tree that was read whole", () => {
+    // The property the whole design rests on: this must be silent in the normal
+    // case, or the report it makes in the abnormal one is worth nothing.
+    expect(indexGaps({ skippedProjects: [], fileFailures: [] })).toEqual([]);
+    expect(indexGaps({})).toEqual([]);
+  });
+
+  it("names the dropped project and says what its absence costs", () => {
+    // A project missing from the graph does not merely lose its own files: an
+    // import of it resolves as an external package instead, and every edge that
+    // pointed at it is dropped. Saying which file to fix is what makes the
+    // report actionable rather than merely alarming.
+    const gaps = indexGaps({
+      skippedProjects: [
+        { file: "libs/outer/project.json", reason: "is not valid JSON: InvalidSymbol at 1:3" },
+      ],
+    });
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toContain("libs/outer/project.json");
+    expect(gaps[0]).toContain("missing from the graph");
+  });
+
+  it("names a file whose imports never reached the graph", () => {
+    // Two of the fifteen rules are decided on the transitive closure
+    // (`../rules/reachability.mjs`), so an edge that was never recorded can
+    // hide a cycle or a tag violation several projects away from the file that
+    // could not be read.
+    const gaps = indexGaps({
+      fileFailures: [{ sourceFile: "libs/inner/generated.go", reason: "could not be read" }],
+    });
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toContain("libs/inner/generated.go");
+    expect(gaps[0]).toContain("could not be read");
+  });
+
+  it("keeps a multi-line reason to its first line, which is the line that locates it", () => {
+    // Nx's parse errors carry an ASCII code frame under their first line. The
+    // location is already in that first line, and a diagnostic message that
+    // opens a drawing mid-sentence reads as noise — which is the one thing a
+    // report published on every open document cannot afford to be.
+    const gaps = indexGaps({
+      skippedProjects: [
+        {
+          file: "libs/outer/project.json",
+          reason: "is not valid JSON: InvalidSymbol in JSON at 1:3\n> 1 | { nope\n    |   ^^^^\n",
+        },
+      ],
+    });
+
+    expect(gaps[0]).not.toContain("\n");
+    expect(gaps[0]).toContain("InvalidSymbol in JSON at 1:3");
   });
 });
