@@ -15,7 +15,22 @@ import { evaluate, MESSAGE_IDS } from "./index.mjs";
  * The near misses are the tests that matter: a suite of violations alone still
  * passes when a rule is replaced by `return []`'s opposite — a rule that always
  * fires.
+ *
  */
+
+/**
+ * How the JavaScript family spells a specifier — the answer
+ * `specifierSpelling` in `../analysis/typescript.mjs` gives, restated because a
+ * unit test here may not import a project-internal module unmocked (root
+ * `CLAUDE.md`), and mocking the thing whose output shape is the point would
+ * make these fixtures state nothing. The real one is pinned beside itself in
+ * `typescript.test.mjs`, and the conformance suite drives both together over
+ * one tree — a drift between them shows up there rather than hiding here.
+ */
+const jsSpelling = (specifier) => {
+  const relative = [".", ".."].includes(specifier) || /^\.\.?\//u.test(specifier);
+  return { path: relative || specifier.startsWith("/"), relative };
+};
 
 const project = (name, { type = "lib", root = `area/${name}`, tags = [], ...data } = {}) => ({
   name,
@@ -29,21 +44,33 @@ const graphOf = (projects, extra = {}) => ({
   ...extra,
 });
 
-/** An import of `@fixture/beta` from a file in `alpha`, resolved to `beta`. */
-const site = (overrides = {}) => ({
-  sourceFile: "area/alpha/src/index.ts",
-  line: 3,
-  column: 1,
-  specifier: "@fixture/beta",
-  kind: "static",
-  resolved: {
-    target: "beta",
-    file: "area/beta/src/index.ts",
-    external: false,
-    packageName: null,
-  },
-  ...overrides,
-});
+/**
+ * An import of `@fixture/beta` from a file in `alpha`, resolved to `beta`.
+ *
+ * `spelling` is filled in from the specifier with the JavaScript family's own
+ * shape, because that is the language every `.ts` fixture below is written in —
+ * a fixture that stated it by hand would drift from the specifier beside it. A
+ * case testing another language's spelling passes `spelling` explicitly, which
+ * is exactly what an analyzer for that language does.
+ */
+const site = (overrides = {}) => {
+  const specifier = overrides.specifier ?? "@fixture/beta";
+  return {
+    sourceFile: "area/alpha/src/index.ts",
+    line: 3,
+    column: 1,
+    kind: "static",
+    spelling: jsSpelling(specifier),
+    resolved: {
+      target: "beta",
+      file: "area/beta/src/index.ts",
+      external: false,
+      packageName: null,
+    },
+    ...overrides,
+    specifier,
+  };
+};
 
 const external = (packageName, specifier = packageName) =>
   site({
@@ -190,6 +217,27 @@ describe("evaluate", () => {
     it("stays silent for an unresolved package name, which is not a path", () => {
       const violations = evaluate(
         [site({ specifier: "some-package", resolved: null })],
+        twoLibs(),
+        config(permissive),
+      );
+      expect(violations).toEqual([]);
+    });
+
+    it("stays silent for a relative import in a language whose specifiers are names", () => {
+      // Python writes `from . import x`, and the analyzer records the specifier
+      // as `.` — which the JavaScript shape reads as a path and this message
+      // then blames for "a relative or absolute path". It is a module name.
+      // When such an import cannot be resolved the honest output is the analysis
+      // FAILURE the analyzer already recorded, not a violation about paths.
+      const violations = evaluate(
+        [
+          site({
+            sourceFile: "area/alpha/src/pkg/mod.py",
+            specifier: ".",
+            spelling: { path: false, relative: true },
+            resolved: null,
+          }),
+        ],
         twoLibs(),
         config(permissive),
       );
@@ -427,6 +475,43 @@ describe("evaluate", () => {
         config(permissive),
       );
       expect(violations).toEqual([]);
+    });
+
+    it("takes 'reached relatively' from the record, so another language's spelling counts", () => {
+      // The bug this pins reported `use super::product_name` and a Rust binary
+      // calling its own package's library crate as self-circular, on an
+      // untouched tree. Neither is a round trip out through a public alias:
+      // Rust spells an intra-project reference `crate::`/`self::`/`super::`, or
+      // — between the bin and lib targets Cargo compiles from one package —
+      // the library crate's own name, which is the ONLY spelling there is.
+      const rustSelfImports = ["super::product_name", "rba_desktop_lib::"].map((specifier) =>
+        site({
+          sourceFile: "area/alpha/src/main.rs",
+          specifier,
+          spelling: { path: false, relative: true },
+          resolved: { target: "alpha", file: null, external: false, packageName: null },
+        }),
+      );
+      expect(evaluate(rustSelfImports, twoLibs(), config(permissive))).toEqual([]);
+    });
+
+    it("still reports a self-import the record says was NOT spelled relatively", () => {
+      // The near miss for the case above: same shape, same language, one bit
+      // different. Without it, `spelling.relative` could be read as "always
+      // exempt a non-JavaScript record" and every test above would still pass.
+      const violations = evaluate(
+        [
+          site({
+            sourceFile: "area/alpha/src/main.rs",
+            specifier: "unrelated_crate::thing",
+            spelling: { path: false, relative: false },
+            resolved: { target: "alpha", file: null, external: false, packageName: null },
+          }),
+        ],
+        twoLibs(),
+        config(permissive),
+      );
+      expect(idsOf(violations)).toEqual(["noSelfCircularDependencies"]);
     });
   });
 
@@ -1021,6 +1106,17 @@ describe("evaluate", () => {
       expect(() => evaluate([site()], graph, config(permissive))).toThrow(
         /resolved to project 'beta'/,
       );
+    });
+
+    it("rejects a record carrying no spelling instead of reading the specifier itself", () => {
+      // Deriving it here is what the engine used to do, with JavaScript's shape,
+      // and it is how an analyzer for the next language would inherit the same
+      // two false positives without anyone noticing. The record states it or the
+      // run stops — and it stops before any verdict, not at whichever branch
+      // happens to ask first.
+      const bare = site();
+      delete bare.spelling;
+      expect(() => evaluate([bare], twoLibs(), config(permissive))).toThrow(/no `spelling`/);
     });
 
     it("ignores an import from a file that belongs to no project", () => {

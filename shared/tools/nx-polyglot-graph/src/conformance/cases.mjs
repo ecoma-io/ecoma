@@ -1292,6 +1292,105 @@ export const CONFORMANCE_CASES = [
     ],
   },
   {
+    id: "paths-inside-a-crate-and-across-one-in-rust",
+    intent:
+      "Rust's relative forms are `crate::`, `self::` and `super::`; between the bin and lib crates Cargo builds from one package there is no relative form at all, and the library's own name is the only spelling. None is the round trip out through a public alias that `noSelfCircularDependencies` names, and the crossing probe proves the engine is reading these files rather than failing to.",
+    projects: [
+      {
+        name: "rust-local",
+        root: "libs/rust-local",
+        tags: ["axis:rust-local"],
+        files: {
+          "Cargo.toml":
+            '[package]\nname = "rustlocal"\nversion = "0.1.0"\n\n[lib]\nname = "rustlocal_lib"\n',
+          "src/lib.rs":
+            "pub mod helper;\n\nuse crate::helper::Thing;\n\npub fn run() -> Thing {\n    Thing\n}\n",
+          "src/helper.rs": "use self::inner::Thing;\n\npub mod inner {\n    pub struct Thing;\n}\n",
+          "src/probe.rs": "use super::helper::Thing;\n\npub fn probe() -> Thing {\n    Thing\n}\n",
+          // `rba-desktop` in miniature: a binary calling into the library crate
+          // of its own package, renamed by `[lib] name` so that name is the
+          // only spelling that compiles.
+          "src/main.rs": "fn main() {\n    rustlocal_lib::run();\n}\n",
+          "src/crosses.rs": "use rustother::Store;\n\npub fn open() -> Store {\n    Store\n}\n",
+        },
+      },
+      {
+        name: "rust-neighbour",
+        root: "libs/rust-neighbour",
+        tags: ["axis:rust-refused"],
+        files: {
+          "Cargo.toml": '[package]\nname = "rustother"\nversion = "0.1.0"\n',
+          "src/lib.rs": "pub struct Store;\n",
+        },
+      },
+    ],
+    depConstraints: [
+      { sourceTag: "axis:rust-local", onlyDependOnLibsWithTags: ["axis:rust-permitted"] },
+    ],
+    probes: [
+      { file: "libs/rust-local/src/lib.rs", upstream: [] },
+      { file: "libs/rust-local/src/helper.rs", upstream: [] },
+      { file: "libs/rust-local/src/probe.rs", upstream: [] },
+      { file: "libs/rust-local/src/main.rs", upstream: [] },
+      {
+        file: "libs/rust-local/src/crosses.rs",
+        upstream: [],
+        tool: ["onlyTagsConstraintViolation"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "ESLint has no parser for `.rs`, so the tag axis has no mechanism behind it there",
+        },
+      },
+    ],
+  },
+  {
+    id: "relative-imports-inside-a-package-and-across-one-in-python",
+    intent:
+      "Python's relative forms are the leading-dot imports, and only two of their spellings — a bare `.` and `..` — happen to look like JavaScript's. `.helper` and `..helper` are the ones a JavaScript-shaped predicate reads as package names.",
+    projects: [
+      {
+        name: "python-local",
+        root: "libs/python-local",
+        tags: ["axis:python-local"],
+        files: {
+          "src/pylocal/__init__.py": "",
+          "src/pylocal/helper.py": "class Thing:\n    pass\n",
+          "src/pylocal/service.py": "from . import helper\nfrom .helper import Thing\n",
+          "src/pylocal/deep/__init__.py": "",
+          "src/pylocal/deep/thing.py": "from ..helper import Thing\n",
+          "src/pylocal/crosses.py": "from pyneighbour.store import Store\n",
+        },
+      },
+      {
+        name: "python-neighbour",
+        root: "libs/python-neighbour",
+        tags: ["axis:python-refused"],
+        files: {
+          "src/pyneighbour/__init__.py": "",
+          "src/pyneighbour/store.py": "class Store:\n    pass\n",
+        },
+      },
+    ],
+    depConstraints: [
+      { sourceTag: "axis:python-local", onlyDependOnLibsWithTags: ["axis:python-permitted"] },
+    ],
+    probes: [
+      { file: "libs/python-local/src/pylocal/service.py", upstream: [] },
+      { file: "libs/python-local/src/pylocal/deep/thing.py", upstream: [] },
+      {
+        file: "libs/python-local/src/pylocal/crosses.py",
+        upstream: [],
+        tool: ["onlyTagsConstraintViolation"],
+        divergence: {
+          direction: "stricter",
+          reason:
+            "ESLint has no parser for `.py`, so the tag axis has no mechanism behind it there",
+        },
+      },
+    ],
+  },
+  {
     id: "layer-constraint-violation-in-go",
     intent:
       "A Go project's tags are a declaration with no mechanism behind them under ESLint; here the same tag axis is enforced across a real Go import.",

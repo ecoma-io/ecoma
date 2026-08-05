@@ -7,8 +7,8 @@
  * edge (`../analysis/contract.md`, "superset of a graph edge"): the projects
  * involved can be entirely correct while the SPELLING is the violation.
  *
- * Two predicates in this file differ by two characters and upstream uses BOTH,
- * in different places, deliberately or otherwise:
+ * Upstream uses two relative-path predicates that differ by two characters, in
+ * different places, deliberately or otherwise:
  *
  *   isRelative(s)      './' or '../'                       — used to decide
  *                      whether a specifier is a path worth resolving
@@ -17,8 +17,18 @@
  *                      whether a self-import is spelled relatively
  *
  * A bare `.` or `..` is therefore a path to one and a package name to the
- * other. Collapsing them into one helper changes which rule fires on `import x
- * from ".."`, so both are kept, each named after its upstream source.
+ * other, and collapsing them changes which rule fires on `import x from ".."`.
+ * Only the first lives here. The second was a question about SPELLING, and
+ * spelling is per-language: `.`, `..`, `./`, `../` is JavaScript's shape, while
+ * Rust spells the same idea `crate::`/`self::`/`super::` and Python spells it
+ * `.mod`/`..pkg`. It moved to the layer that knows which language it is reading
+ * — every record now carries `spelling` (`../analysis/contract.md`), and
+ * `isRelativePath`'s text lives on as `specifierSpelling` in
+ * `../analysis/typescript.mjs`, applied to the family it was written for.
+ *
+ * `isRelative` stays because its caller below is path ARITHMETIC rather than a
+ * judgement about spelling: it joins the specifier onto the source file's
+ * directory, which only a filesystem path can survive.
  */
 import { posix } from "node:path";
 import { isBuiltin } from "node:module";
@@ -39,11 +49,6 @@ export const DEFAULT_WORKSPACE_LAYOUT = Object.freeze({ libsDir: "libs", appsDir
 /** `./x` or `../x` — upstream's `isRelative`, from `runtime-lint-utils`. */
 export function isRelative(s) {
   return s.startsWith("./") || s.startsWith("../");
-}
-
-/** `.`, `..`, `./x` or `../x` — upstream's `isRelativePath`, from nx `fileutils`. */
-export function isRelativePath(path) {
-  return path === "." || path === ".." || path.startsWith("./") || path.startsWith("../");
 }
 
 /**

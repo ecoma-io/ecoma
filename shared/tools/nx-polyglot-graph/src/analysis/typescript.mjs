@@ -101,6 +101,38 @@ const SCRIPT_KIND_BY_LANG = Object.freeze({
 });
 
 /**
+ * How a JavaScript-family specifier is SPELLED — the per-language half of the
+ * analysis record (`contract.md`, "How the specifier is spelled").
+ *
+ * This is the family where the two bits coincide, which is exactly why the rule
+ * engine used to derive them itself and got Rust and Python wrong: here a
+ * relative reference IS a filesystem path, so one predicate answered both
+ * questions and looked general. It is not — a Rust `super::x` and a Python
+ * `..pkg` are relative and are not paths.
+ *
+ * `relative` is upstream's `isRelativePath` (nx `fileutils`), which accepts a
+ * bare `.` and `..` where its two-character neighbour `isRelative`
+ * (`../rules/specifiers.mjs`, still used for upstream's path arithmetic) does
+ * not. The two must keep disagreeing about those two inputs, so they are stated
+ * once each rather than derived from one another.
+ *
+ * A non-literal `import()` argument arrives here as its own source text
+ * (`` `./${dir}/x` ``), which starts with a backtick or a quote and so is
+ * neither — the honest answer for a specifier nobody can read.
+ *
+ * @param {string} specifier The raw string as written.
+ * @returns {{ path: boolean, relative: boolean }}
+ */
+export function specifierSpelling(specifier) {
+  const relative =
+    specifier === "." ||
+    specifier === ".." ||
+    specifier.startsWith("./") ||
+    specifier.startsWith("../");
+  return { path: relative || specifier.startsWith("/"), relative };
+}
+
+/**
  * The package a bare specifier names, or `null` when the specifier is a path
  * rather than a package.
  *
@@ -526,6 +558,7 @@ export function analyzeTypeScript({ sourceFile, text, workspace, lang }) {
         column: character + 1,
         specifier: site.specifier,
         kind: site.kind,
+        spelling: specifierSpelling(site.specifier),
         resolved,
       });
       if (reason) {

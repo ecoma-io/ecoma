@@ -9,23 +9,26 @@ import {
   isBuiltinModuleImport,
   isConstraintBanningProject,
   isRelative,
-  isRelativePath,
   normalizeProjectRoot,
 } from "./specifiers.mjs";
 
-describe("the two relative-path predicates", () => {
-  // They differ by two inputs, upstream uses both in different places, and the
-  // difference decides which rule fires on `import x from ".."`.
-  it("disagrees about a bare dot and a bare double dot", () => {
+describe("isRelative", () => {
+  // Upstream's narrower relative predicate, and the narrowness is the point: it
+  // gates path ARITHMETIC below, and a bare `.` or `..` joined onto a directory
+  // is not a specifier anyone wrote. Its two-character neighbour — which
+  // accepts both and answers about SPELLING — now lives in
+  // `../analysis/typescript.mjs`, because spelling is per-language and this
+  // layer never learns which language it is holding.
+  it("refuses a bare dot and a bare double dot", () => {
     expect(isRelative(".")).toBe(false);
-    expect(isRelativePath(".")).toBe(true);
     expect(isRelative("..")).toBe(false);
-    expect(isRelativePath("..")).toBe(true);
   });
 
-  it("agrees about everything else", () => {
-    for (const specifier of ["./a", "../a", "@scope/pkg", "pkg", "/absolute"]) {
-      expect(isRelative(specifier)).toBe(isRelativePath(specifier));
+  it("accepts the two prefixes path arithmetic can resolve, and nothing else", () => {
+    expect(isRelative("./a")).toBe(true);
+    expect(isRelative("../a")).toBe(true);
+    for (const specifier of ["@scope/pkg", "pkg", "/absolute", "super::a", "..pkg"]) {
+      expect(isRelative(specifier)).toBe(false);
     }
   });
 });

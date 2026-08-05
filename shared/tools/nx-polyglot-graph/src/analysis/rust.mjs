@@ -181,6 +181,39 @@ const crateNamesOf = perWorkspace((workspace) => {
 const OWN_CRATE_ROOTS = new Set(["crate", "self", "super"]);
 
 /**
+ * Is this `use` path spelled as a reference inside the file's own project —
+ * the `spelling.relative` bit of the analysis record (`contract.md`)?
+ *
+ * Two spellings qualify, and the second is the one a JavaScript-shaped
+ * predicate cannot see.
+ *
+ * 1. **`crate::`, `self::`, `super::`** — Rust's relative forms. They are what
+ *    `./x` and `../x` are to JavaScript, and a `.rs` file that uses them has
+ *    not left its crate at all.
+ * 2. **A crate name this file's OWN project declares.** One Cargo package
+ *    compiles several crates — a `[lib]`, a `[[bin]]`, tests, examples — and a
+ *    binary reaches its package's library by naming it (`rba_desktop_lib::run`,
+ *    which `[lib] name` may rename outright). Nx models the package as one
+ *    project, so source and target land on the same node; Cargo offers no other
+ *    spelling for it, and its crate graph cannot cycle, so this is never the
+ *    round trip out through a public alias and back in that
+ *    `noSelfCircularDependencies` names.
+ *
+ * Nothing here is a filesystem path: a `use` path names items inside a module
+ * tree, so `spelling.path` is always false for Rust.
+ *
+ * @param {string|null} root The `use` path's first segment; `null` for a brace group.
+ * @param {{name: string}|null} owner The project owning the source file.
+ * @param {Map<string, string>} byCrate Crate import name → project name.
+ * @returns {boolean}
+ */
+function isOwnProjectPath(root, owner, byCrate) {
+  if (root === null) return false;
+  if (OWN_CRATE_ROOTS.has(root)) return true;
+  return owner !== null && byCrate.get(crateIdentifier(root)) === owner.name;
+}
+
+/**
  * The crate segment a `use` path starts with, or `null` when the path opens
  * with a brace group and names none.
  */
@@ -276,7 +309,9 @@ export function parseRustUseSites(rustText, knownCrates = new Set()) {
  * `file` is always `null`: a Rust path names an item inside a crate, and which
  * `.rs` file defines it is a question only the compiler's module tree can
  * answer. `crate::`/`self::`/`super::` resolve to the file's own project —
- * intra-project imports are recorded, not dropped (`contract.md`).
+ * intra-project imports are recorded, not dropped (`contract.md`) — and
+ * `isOwnProjectPath` above states which spellings reach the file's own project
+ * without leaving it, which is the fact the self-circular rule reads.
  *
  * @param {{ sourceFile: string, text: string, workspace: object }} request
  * @returns {{ imports: object[], failures: object[] }}
@@ -322,6 +357,7 @@ export function analyzeRust({ sourceFile, text, workspace }) {
         column,
         specifier: site.specifier,
         kind: site.kind,
+        spelling: { path: false, relative: isOwnProjectPath(site.root, owner, byCrate) },
         resolved,
       });
     }

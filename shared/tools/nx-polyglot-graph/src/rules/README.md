@@ -7,7 +7,9 @@ reach Go, Rust, Python and Vue — the languages ESLint cannot read, where a
 types are decided on the raw import specifier rather than on the project pair,
 which is why the analysis record carries the specifier and its position and why
 an Nx graph edge alone cannot serve them (`../analysis/contract.md`, "superset
-of a graph edge").
+of a graph edge"). It also carries how the specifier is SPELLED, because that
+question has a different answer per language and this layer never learns which
+language it is holding.
 
 One entry point:
 
@@ -78,7 +80,9 @@ judgement call resolves toward reporting. The ones that change a verdict:
   gets no node, synthesized or otherwise**, because a package name is what the
   mechanism needs and a path is never one; `isPathSpecifier` in `index.mjs` is
   the same test the branch that reports `noRelativeOrAbsoluteExternals` uses, so
-  a path refused a target is a path that gets reported.
+  a path refused a target is a path that gets reported. "Is a path" is the
+  RECORD's answer, not this layer's — a Rust `use` path and a Python dotted
+  module are names, and a bare `.` is a path in one language and not in another.
 - **`require()` and `require.resolve()` of a lazy-loaded library are reported**,
   where ESLint exempts both. The analysis contract records either call as
   `kind: "static"`, like an `import` statement, and the three cannot be told

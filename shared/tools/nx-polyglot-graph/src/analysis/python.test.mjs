@@ -258,6 +258,7 @@ describe("analyzePython", () => {
       column: 6,
       specifier: "beta.store",
       kind: "static",
+      spelling: { path: false, relative: false },
       resolved: {
         target: "beta",
         file: "libs/beta/src/beta/store.py",
@@ -310,6 +311,34 @@ describe("analyzePython", () => {
       [".", "libs/alpha/src/alpha/__init__.py"],
       [".deep", "libs/alpha/src/alpha/deep/__init__.py"],
     ]);
+  });
+
+  it("calls every leading-dot form relative, and none of them a path", () => {
+    // Python's `./x` and `../x` — and the two the rules layer's old
+    // JavaScript-shaped predicate got wrong in both directions: `.deep` and
+    // `..beta` read as package names to it, while a bare `.` read as a
+    // filesystem path, which is what `noRelativeOrAbsoluteExternals` is about
+    // and a dotted module name is not.
+    const { imports } = analyze(
+      "from . import deep\nfrom .deep import thing\nfrom ..beta import store\nimport beta.store\n",
+    );
+    expect(imports.map((record) => [record.specifier, record.spelling])).toEqual([
+      [".", { path: false, relative: true }],
+      [".deep", { path: false, relative: true }],
+      ["..beta", { path: false, relative: true }],
+      ["beta.store", { path: false, relative: false }],
+    ]);
+  });
+
+  it("still calls a relative import relative when it resolved to nothing", () => {
+    // `from ... import escape` climbs out of the project and resolves to
+    // nothing. The record is still spelled relatively, so nothing downstream
+    // may call it a path: the honest output is the analysis failure, not a
+    // violation about a path nobody wrote.
+    const { imports, failures } = analyze("from ... import escape\n");
+    expect(imports[0].spelling).toEqual({ path: false, relative: true });
+    expect(imports[0].resolved).toBeNull();
+    expect(failures).toHaveLength(1);
   });
 
   it("anchors a relative import in an __init__.py at its own package, not its parent", () => {

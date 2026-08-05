@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeTypeScript, packageNameOf } from "./typescript.mjs";
+import { analyzeTypeScript, packageNameOf, specifierSpelling } from "./typescript.mjs";
 
 /**
  * An in-memory workspace with real path aliases. Resolution runs through
@@ -96,6 +96,7 @@ describe("analyzeTypeScript — resolution through TypeScript's own resolver", (
         column: 24, // the opening quote of `"@acme/ui"`
         specifier: "@acme/ui",
         kind: "static",
+        spelling: { path: false, relative: false },
         resolved: {
           target: "ui",
           file: "libs/ui/src/index.ts",
@@ -227,6 +228,58 @@ describe("analyzeTypeScript — the record every rule reads", () => {
   it("keeps the specifier exactly as written, deep path and all", () => {
     const { imports } = analyze('import w from "@acme-vendor/api/window";');
     expect(imports[0].specifier).toBe("@acme-vendor/api/window");
+  });
+
+  it("states how each specifier is spelled, on the record the rules read", () => {
+    // The rules layer no longer derives this, and the derivation it used to do
+    // was JavaScript's shape applied to every language (`contract.md`). Pinned
+    // through the analyzer and not only through `specifierSpelling` below,
+    // because a field the classifier computes and the analyzer forgets to
+    // attach reads downstream as an analyzer that predates the contract.
+    const text = [
+      'import a from "./util";',
+      'import b from "@acme/ui";',
+      'import c from "/rooted";',
+    ].join("\n");
+    expect(analyze(text).imports.map((record) => record.spelling)).toEqual([
+      { path: true, relative: true },
+      { path: false, relative: false },
+      { path: true, relative: false },
+    ]);
+  });
+});
+
+describe("specifierSpelling", () => {
+  // The JavaScript family is the one where "is it a path" and "does it stay
+  // inside its own project" have the same answer, which is exactly why one
+  // predicate downstream looked general enough to serve every language.
+  it("calls a relative path both a path and relative, bare dots included", () => {
+    for (const specifier of ["./a", "../a", ".", ".."]) {
+      expect(specifierSpelling(specifier)).toEqual({ path: true, relative: true });
+    }
+  });
+
+  it("calls a rooted path a path and not relative", () => {
+    expect(specifierSpelling("/outside/present")).toEqual({ path: true, relative: false });
+  });
+
+  it("calls a package name neither, scoped or not", () => {
+    for (const specifier of ["@scope/pkg", "pkg", "@scope/pkg/deep/path"]) {
+      expect(specifierSpelling(specifier)).toEqual({ path: false, relative: false });
+    }
+  });
+
+  it("has no opinion about another language's relative form, because it is not this language's", () => {
+    // The scope guard. `super::x` and `..pkg` are relative in their own
+    // languages and their own analyzers say so; this classifier answering for
+    // them would be the JavaScript-shaped predicate rebuilt one layer down.
+    for (const specifier of ["super::product_name", "..pkg.sub", "example.com/mod/pkg"]) {
+      expect(specifierSpelling(specifier)).toEqual({ path: false, relative: false });
+    }
+  });
+
+  it("calls a non-literal argument's source text neither", () => {
+    expect(specifierSpelling("`./${dir}/x`")).toEqual({ path: false, relative: false });
   });
 });
 

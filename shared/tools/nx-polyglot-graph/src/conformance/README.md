@@ -11,9 +11,9 @@ replaces. Today ESLint is right about JavaScript and TypeScript and silent about
 Go, Rust and Python — and silence you know about beats a green light you cannot
 trust.
 
-**39 fixture workspaces, 77 probes, 78 projects.** Every one of upstream's
-fifteen message ids is triggered by at least one probe, and 43 of the 77 probes
-are near-misses that must report nothing.
+**41 fixture workspaces, 85 probes, 82 projects.** Every one of upstream's
+fifteen message ids is triggered by at least one probe, and 51 of the 85 probes
+are near-misses where ESLint must report nothing.
 
 ## How it runs
 
@@ -72,7 +72,7 @@ statement pass as agreement.
 | `bannedExternalImportsViolation`             |     4 |        2 |      0 | agree + stricter |
 | `nestedBannedExternalImportsViolation`       |     1 |        0 |      0 | agree            |
 | `noTransitiveDependencies`                   |     2 |        1 |      0 | agree + stricter |
-| `onlyTagsConstraintViolation`                |    10 |        2 |      0 | agree + stricter |
+| `onlyTagsConstraintViolation`                |    10 |        4 |      0 | agree + stricter |
 | `emptyOnlyTagsConstraintViolation`           |     1 |        0 |      0 | agree            |
 | `notTagsConstraintViolation`                 |     2 |        0 |      0 | agree            |
 
@@ -132,14 +132,28 @@ Measured, not assumed. Asked to lint a `.go` file, ESLint answers:
 
 > File ignored because no matching configuration was supplied.
 
-That is the whole reason this tool exists, and it is pinned as a test. Three
+That is the whole reason this tool exists, and it is pinned as a test. Five
 cases show the tool enforcing where ESLint cannot:
 
-| language | case                                      | this tool reports                |
-| -------- | ----------------------------------------- | -------------------------------- |
-| Rust     | `banned-external-crate-import-in-rust`    | `bannedExternalImportsViolation` |
-| Python   | `banned-external-module-import-in-python` | `bannedExternalImportsViolation` |
-| Go       | `layer-constraint-violation-in-go`        | `onlyTagsConstraintViolation`    |
+| language | case                                                         | this tool reports                |
+| -------- | ------------------------------------------------------------ | -------------------------------- |
+| Rust     | `banned-external-crate-import-in-rust`                       | `bannedExternalImportsViolation` |
+| Rust     | `paths-inside-a-crate-and-across-one-in-rust`                | `onlyTagsConstraintViolation`    |
+| Python   | `banned-external-module-import-in-python`                    | `bannedExternalImportsViolation` |
+| Python   | `relative-imports-inside-a-package-and-across-one-in-python` | `onlyTagsConstraintViolation`    |
+| Go       | `layer-constraint-violation-in-go`                           | `onlyTagsConstraintViolation`    |
+
+The two "paths inside" cases carry the near-miss half as well, and it is the
+half they were built for: the same file spelling an import that stays inside its
+own project must produce nothing. Both engines being unable to read `.rs` and
+`.py` is what makes that half easy to get wrong — nothing on the ESLint side
+disagrees with a false positive there. Measured on the untouched tree, that is
+exactly what happened: `use super::product_name` and a binary calling its own
+package's library crate were both reported as `noSelfCircularDependencies`,
+because the rules layer decided relativeness with `.`, `..`, `./`, `../` —
+JavaScript's shape, in a language that spells the same idea `crate::`. The
+record now carries the answer per language (`../analysis/contract.md`), and
+these two cases are what stop it regressing behind a silent ESLint.
 
 **Vue is not on that list, and that is a finding.** A `.vue` file gets
 `vue-eslint-parser` in [`eslint.config.mjs`](../../../../../eslint.config.mjs),

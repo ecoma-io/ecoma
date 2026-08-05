@@ -215,8 +215,25 @@ describe("analyzeGo", () => {
       column: 2,
       specifier: "example.com/acme/beta/store",
       kind: "static",
+      spelling: { path: false, relative: false },
       resolved: { target: "beta", file: null, external: false, packageName: null },
     });
+  });
+
+  it("calls no Go import a path and none of them relative, its own module included", () => {
+    // Both answers are the language's rather than a default. Go rejects
+    // `import "./x"` in modules mode, so an import path is never resolved
+    // against the file's own directory; and Go has no relative form at all, so
+    // there is nothing `relative` could be true for. The analyzer's header
+    // records what the second answer costs a project that imports its own
+    // module — no file in this workspace does.
+    const text = 'package main\n\nimport (\n\t"fmt"\n\t"example.com/acme/alpha/store"\n)\n';
+    const { imports } = analyze(text);
+    expect(imports.map((record) => [record.specifier, record.spelling])).toEqual([
+      ["fmt", { path: false, relative: false }],
+      ["example.com/acme/alpha/store", { path: false, relative: false }],
+    ]);
+    expect(imports[1].resolved.target).toBe("alpha");
   });
 
   it("resolves to the innermost module when one module path nests inside another", () => {

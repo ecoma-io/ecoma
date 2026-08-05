@@ -55,7 +55,6 @@ import {
   hasBannedImport,
   isAbsoluteImportIntoAnotherProject,
   isBuiltinModuleImport,
-  isRelativePath,
 } from "./specifiers.mjs";
 import {
   appIsMFERemote,
@@ -127,18 +126,47 @@ const isProjectGraphProjectNode = (node) =>
   node.type === "app" || node.type === "e2e" || node.type === "lib";
 
 /**
+ * How the analyzer says this specifier is spelled, or a loud failure.
+ *
+ * This layer used to answer for itself, with one predicate shaped like
+ * JavaScript's `./x`. That is wrong in every language whose imports are names
+ * rather than paths, and it was measurably wrong: `use super::product_name` and
+ * a Rust binary calling its own package's library crate were both reported as
+ * `noSelfCircularDependencies` on an untouched tree. The fact is per-language,
+ * the analyzer knows the language and this layer does not, so the record
+ * carries it (`../analysis/contract.md`).
+ *
+ * A record that omits it **throws** rather than defaulting to the JavaScript
+ * shape. A default would let the next analyzer inherit this bug in silence,
+ * which is precisely how this one survived four languages.
+ */
+function spellingOf(site) {
+  const spelling = site.spelling;
+  if (typeof spelling?.path !== "boolean" || typeof spelling?.relative !== "boolean") {
+    throw new Error(
+      `nx-polyglot-graph: ${site.sourceFile}:${site.line}:${site.column} imports ` +
+        `'${site.specifier}' in a record carrying no \`spelling\` — the analysis contract ` +
+        `requires \`{ path, relative }\` on every import site, because whether a specifier ` +
+        `is a path and whether it stays inside its own project are per-language questions ` +
+        `only the analyzer can answer. See src/analysis/contract.md.`,
+    );
+  }
+  return spelling;
+}
+
+/**
  * A specifier that is a PATH rather than a package name: `.`, `..`, `./x`,
- * `../x`, or an absolute `/x`.
+ * `../x`, or an absolute `/x` in the JavaScript family, and nothing at all in
+ * Go, Rust or Python, whose specifiers are names.
  *
  * Named once because two places must ask the identical question — the external
  * node lookup refuses exactly what the `!targetProject` branch reports as
  * `noRelativeOrAbsoluteExternals`. Two spellings of one test could drift apart,
  * and the gap between them would be a site that is given no target and then
- * reported by nothing (Rule 14).
- *
- * `isRelativePath`, not `isRelative`: a bare `.` or `..` is a path here.
+ * reported by nothing (Rule 14). Making the answer language-aware moved where
+ * it is computed, not how many places compute it.
  */
-const isPathSpecifier = (specifier) => isRelativePath(specifier) || specifier.startsWith("/");
+const isPathSpecifier = (site) => spellingOf(site).path;
 
 /**
  * Everything the per-site evaluation needs, computed once for the whole run.
@@ -159,6 +187,11 @@ function createContext(importSites, graph, config) {
         violations.join("\n  "),
     );
   }
+
+  // Checked for the whole run before any verdict, not lazily per branch: a
+  // record whose analyzer never learned the question would otherwise be judged
+  // silently everywhere the check does not happen to fall.
+  for (const site of importSites) spellingOf(site);
 
   const mappings = createProjectRootMappings(graph.nodes);
   const reach = buildReachability(graph);
@@ -221,7 +254,7 @@ function createContext(importSites, graph, config) {
  * lost by refusing: what is refused here is exactly what that branch reports.
  */
 function externalNodeFor(site, ctx) {
-  if (isPathSpecifier(site.specifier)) return undefined;
+  if (isPathSpecifier(site)) return undefined;
   const packageName = site.resolved.packageName ?? getPackageNameFromImportPath(site.specifier);
   const known = ctx.externalByPackage.get(packageName);
   if (known) return known;
@@ -403,7 +436,7 @@ function evaluateSite(site, ctx) {
     // A bare `.` or `..` counts as a path at this point though it did not count
     // as one above — see `isPathSpecifier`, which `externalNodeFor` refuses on
     // so that every path reaching here is reported rather than given a target.
-    if (isPathSpecifier(imp)) {
+    if (isPathSpecifier(site)) {
       return [violationOf(site, sourceProject, null, "noRelativeOrAbsoluteExternals")];
     }
     if (options.banTransitiveDependencies && !isBuiltinModuleImport(imp)) {
@@ -415,13 +448,18 @@ function evaluateSite(site, ctx) {
   // A file reaching its own project through the project's public alias instead
   // of a relative path: a cycle through the barrel, and invisible in an edge
   // list because the edge starts and ends at the same node.
+  //
+  // `spelling.relative` is the counter-evidence, and it is the record's answer
+  // rather than this layer's: what counts as "instead of a relative path" is
+  // `./x` in JavaScript, `crate::`/`self::`/`super::` or a sibling crate target
+  // of the same Cargo package in Rust, and a leading-dot import in Python.
   if (
     sourceProject === targetProject &&
     !circularPathHasPair([sourceProject, targetProject], ignored)
   ) {
     if (
       !options.allowCircularSelfDependency &&
-      !isRelativePath(imp) &&
+      !spellingOf(site).relative &&
       !belongsToDifferentEntryPoint(site.resolved?.file ?? null, site.sourceFile, sourceProject)
     ) {
       return [

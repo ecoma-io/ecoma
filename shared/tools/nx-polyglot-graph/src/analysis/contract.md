@@ -22,6 +22,10 @@ dependency. A file importing the same project three times yields three records.
   line, column, // 1-based, for editor diagnostics
   specifier,    // the RAW string as written
   kind,         // "static" | "dynamic" | "type-only" | "re-export"
+  spelling: {   // how it is WRITTEN — per language, never derived downstream
+    path,        // a filesystem path rather than a package/module/crate name
+    relative,    // reaches inside its own project without leaving it
+  },
   resolved: {   // null when unresolvable — record it, never guess
     target,      // project name, or null when external
     file,        // workspace-relative resolved file, or null
@@ -60,6 +64,44 @@ what an edge threw away, and neither can be recovered from the graph
 afterwards. `line`/`column` are 1-based because that is what an editor
 diagnostic and a `file:line:col` terminal report want; converting once here
 beats every consumer remembering which convention this tool chose.
+
+### How the specifier is spelled is a per-language fact, so the analyzer states it
+
+`specifier` is the raw text; `spelling` is what that text IS in the language it
+was written in. Two bits, because the rules ask two independent questions:
+
+|                                   | `path` | `relative` |
+| --------------------------------- | :----: | :--------: |
+| `./x`, `../x`, `.`, `..` (JS)     |  yes   |    yes     |
+| `/x` (JS)                         |  yes   |     no     |
+| `crate::x`, `self::x`, `super::x` |   no   |    yes     |
+| `rba_desktop_lib::run` from a bin |   no   |    yes     |
+| `.mod`, `..pkg.sub` (Python)      |   no   |    yes     |
+| `react`, `serde`, `example.com/m` |   no   |     no     |
+
+`path` says the specifier is a **filesystem path**: resolvable by path
+arithmetic against the importing file, and naming no package. It decides
+whether a specifier may receive a synthesized external node, and which message
+an unresolvable one gets. `relative` says the specifier **reaches inside its
+own project without going out through the project's public name** — the
+counter-evidence `noSelfCircularDependencies` looks for.
+
+**Why the analyzer answers and not the rules.** The rules layer used to derive
+both from the text with one predicate — `.`, `..`, `./`, `../` — which is
+JavaScript's shape and only JavaScript's. Measured on this workspace, that
+reported two violations that were not: `use super::product_name` and a binary
+calling its own package's library crate, both ordinary Rust. Python is the same
+exposure with the sign reversed on each bit: `..pkg` is relative and read as a
+package name, while a bare `.` is not a path and would have been reported as
+one. The analyzer already knows the language and has already resolved the
+import; the rules layer knows neither, and a language table there would be a
+second registry drifting from `LANGUAGE_BY_EXTENSION`. So the record carries the
+fact and the rule reads it.
+
+The field is **mandatory**, and `evaluate()` throws on a record that omits it
+rather than falling back to the JavaScript shape. A default is how the next
+analyzer inherits this bug silently; a throw is how it is told, once, at the
+first record it produces.
 
 ### Intra-project imports are emitted too
 

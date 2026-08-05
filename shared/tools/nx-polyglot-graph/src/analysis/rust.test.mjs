@@ -211,6 +211,7 @@ describe("analyzeRust", () => {
       column: 5,
       specifier: "engine_core::task::Task",
       kind: "static",
+      spelling: { path: false, relative: false },
       resolved: { target: "core", file: null, external: false, packageName: null },
     });
   });
@@ -234,6 +235,51 @@ describe("analyzeRust", () => {
     const { imports } = analyze("use crate::a::B;\nuse self::c::D;\nuse super::e::F;\n");
     expect(imports.map((record) => record.resolved.target)).toEqual(["shell", "shell", "shell"]);
     expect(imports.every((record) => record.resolved.external === false)).toBe(true);
+  });
+
+  it("calls crate::, self:: and super:: relative, which is what they are in Rust", () => {
+    // `spelling.relative` is what keeps `noSelfCircularDependencies` off these,
+    // and the rules layer cannot work it out: it used to test `.`, `..`, `./`
+    // and `../`, which is JavaScript's shape and none of these.
+    const { imports } = analyze("use crate::a::B;\nuse self::c::D;\nuse super::e::F;\n");
+    expect(imports.map((record) => record.spelling)).toEqual([
+      { path: false, relative: true },
+      { path: false, relative: true },
+      { path: false, relative: true },
+    ]);
+  });
+
+  it("calls a crate the file's OWN project declares relative, because Cargo has no other spelling", () => {
+    // A binary reaching its package's library crate — `shell_lib`, renamed by
+    // `[lib] name` so no other spelling exists at all. Nx models the package as
+    // one project, so source and target are the same node; Cargo compiles two
+    // crates and its graph cannot cycle, so this is not the round trip out
+    // through a public alias that the self-circular rule names.
+    expect(analyze("fn main() {\n    shell_lib::run();\n}\n").imports[0].spelling).toEqual({
+      path: false,
+      relative: true,
+    });
+  });
+
+  it("calls another project's crate neither relative nor a path", () => {
+    // The near miss: same syntax, same `::` separator, a different project. And
+    // no `use` path is ever a filesystem path, in any of these cases.
+    expect(analyze("use engine_core::task::Task;\n").imports[0].spelling).toEqual({
+      path: false,
+      relative: false,
+    });
+    expect(analyze("use serde::de::Deserialize;\n").imports[0].spelling).toEqual({
+      path: false,
+      relative: false,
+    });
+  });
+
+  it("calls a crate named from a file no project owns neither, having no own project to match", () => {
+    // `owner` is null here and `byCrate.get(...)` is undefined; reading the two
+    // as equal would make every loose `.rs` file in the tree call every crate
+    // its own.
+    const { imports } = analyze("use shell_lib::run;\n", "loose/script.rs");
+    expect(imports[0].spelling).toEqual({ path: false, relative: false });
   });
 
   it("marks an unknown crate external and names it in the spelling a source can write", () => {

@@ -167,6 +167,29 @@ export function resolvePythonDependencies(projects, filesOf, readFile) {
   return dependencies;
 }
 
+/**
+ * Is this specifier one of Python's relative forms — the `spelling.relative`
+ * bit of the analysis record (`contract.md`)?
+ *
+ * `from . import x`, `from .mod import y`, `from ..pkg.sub import z`: a leading
+ * dot count, resolved against the importing file's own package and unable to
+ * name anything outside it (`resolveRelativeModule` reports the climb that
+ * tries). These are Python's `./x` and `../x`, and the rule engine's old
+ * JavaScript-shaped predicate saw only the two spellings that happen to
+ * coincide — a bare `.` and `..` — while `.mod` and `..pkg` read as package
+ * names to it.
+ *
+ * They are not filesystem paths, which is the other half: a dotted module name
+ * is resolved on `sys.path`, never by path arithmetic against the source file,
+ * so `spelling.path` is always false for Python. That distinction is what stops
+ * an unresolvable `from . import x` from being reported as
+ * `noRelativeOrAbsoluteExternals` — a message about a path, aimed at a name.
+ *
+ * @param {string} specifier As written.
+ * @returns {boolean}
+ */
+const isRelativeImport = (specifier) => specifier.startsWith(".");
+
 /** A name Python can spell in an import statement. */
 const isImportableName = (name) => /^[A-Za-z_]\w*$/.test(name);
 
@@ -395,6 +418,7 @@ export function analyzePython({ sourceFile, text, workspace }) {
         column,
         specifier: site.specifier,
         kind: site.kind,
+        spelling: { path: false, relative: isRelativeImport(site.specifier) },
         resolved: null,
       };
       result.imports.push(record);

@@ -58,6 +58,23 @@ import { analyzeVue } from "./vue.mjs";
  */
 
 /**
+ * How the specifier is SPELLED, in the two terms the rules ask about — and the
+ * analyzer answers, because the answer is per-LANGUAGE and only the analyzer
+ * knows which language it read. `contract.md` carries the reasoning.
+ *
+ * @typedef {object} SpecifierSpelling
+ * @property {boolean} path The specifier is a filesystem path — resolvable by
+ *   path arithmetic against the importing file, and naming no package. True
+ *   only for the JavaScript family (`.`, `..`, `./x`, `../x`, `/x`); a Go
+ *   import path, a Rust `use` path and a Python dotted module are names.
+ * @property {boolean} relative The specifier reaches inside the importing
+ *   file's own project without going out through the project's public name —
+ *   `./x` and `../x` in JavaScript, `crate::`/`self::`/`super::` and a sibling
+ *   crate target of the same Cargo package in Rust, a leading-dot import in
+ *   Python. It is the counter-evidence `noSelfCircularDependencies` looks for.
+ */
+
+/**
  * One import site — one import as WRITTEN, not one resolved dependency. The
  * same target imported three times in a file yields three of these.
  *
@@ -68,6 +85,9 @@ import { analyzeVue } from "./vue.mjs";
  * @property {string} specifier The raw string as written — never normalised,
  *   never resolved in place. Five of the rules are decided on this text.
  * @property {ImportKind} kind
+ * @property {SpecifierSpelling} spelling Mandatory. The rule engine refuses a
+ *   record without it rather than reading the specifier itself, which is how it
+ *   used to answer and how it got two languages wrong.
  * @property {ResolvedImport|null} resolved `null` when unresolvable; the
  *   reason then appears in the run's `failures`.
  */

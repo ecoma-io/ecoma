@@ -33,6 +33,17 @@
  * - `kind` is always `static`. Go has no dynamic import, no type-only import,
  *   and no re-export form; a blank (`_`) or dot (`.`) import is still an
  *   ordinary compile-time dependency.
+ * - `spelling` is `{ path: false, relative: false }`, always. Go has no
+ *   relative import form inside a module — every import is the full package
+ *   path — so there is no spelling for this bit to be true for. **Known
+ *   exposure, surfaced rather than fixed here:** a `.go` file importing
+ *   another package of its OWN module resolves to its own project and is
+ *   therefore reported as `noSelfCircularDependencies`, asking for a relative
+ *   form Go does not have. No file in this workspace does it, so there is no
+ *   evidence to fix it against; whether Go should instead say "an import that
+ *   lands in my own project is internal" is a judgement about a language whose
+ *   package graph cannot cycle at all, and it belongs in the change that has a
+ *   real case to argue from.
  */
 import {
   emptyResult,
@@ -182,6 +193,14 @@ export function analyzeGo({ sourceFile, text, workspace }) {
         column,
         specifier: site.specifier,
         kind: "static",
+        // Neither bit is ever set for Go, and both answers are the language's
+        // rather than a default. A Go import path is a PACKAGE path resolved
+        // through the module graph, never a filesystem path resolved against
+        // the importing file — modules mode rejects `import "./sub"` outright —
+        // so `path` is false. And Go has no relative import form at all inside
+        // a module: `spelling.relative` has nothing it could be true for. See
+        // the header's known limits for what that costs.
+        spelling: { path: false, relative: false },
         resolved: {
           target,
           file: null,
