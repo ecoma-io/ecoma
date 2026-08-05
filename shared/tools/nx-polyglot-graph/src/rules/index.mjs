@@ -2,11 +2,16 @@
  * The rule engine: import sites in, violations out, one pure function.
  *
  * This reproduces `@nx/enforce-module-boundaries` over `ImportSite` records
- * instead of an ESLint AST, so the same fifteen checks reach Go, Rust, Python
- * and Vue — languages ESLint cannot read at all, and where a layer-violating
+ * instead of an ESLint AST, so the same fifteen checks reach `.go`, `.rs` and
+ * `.py` — the languages ESLint cannot read at all, and where a layer-violating
  * import passes `lint` today because the project's lint target runs `eslint
  * project.json` and eslint answers "File ignored because no matching
  * configuration was supplied" for a `.go` file.
+ *
+ * `.vue` is NOT one of them, though this header used to say so:
+ * `eslint.config.mjs` gives it `vue-eslint-parser` and the boundary rule block
+ * there carries no `files` filter, so upstream judges a single-file component
+ * and the two engines agree on it (`../conformance/README.md`).
  *
  * ## The order is the semantics
  *

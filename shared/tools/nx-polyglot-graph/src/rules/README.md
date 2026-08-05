@@ -2,9 +2,21 @@
 
 `@nx/enforce-module-boundaries` reproduced over analysis records instead of an
 ESLint AST, so the same **15 violation types** under the same **8 options**
-reach Go, Rust, Python and Vue — the languages ESLint cannot read, where a
-`layer:`/`scope:`/`license:` tag has no mechanism behind it today. Five of those
-types are decided on the raw import specifier rather than on the project pair,
+reach `.go`, `.rs` and `.py` — the languages ESLint cannot read, where a
+`layer:`/`scope:`/`license:` tag has no mechanism behind it today. Measured, not
+assumed: asked to lint a `.go` file, ESLint answers "File ignored because no
+matching configuration was supplied."
+
+**Vue is not on that list, and this file said it was.** `eslint.config.mjs`
+supplies `vue-eslint-parser`, the boundary rule block there carries no `files`
+filter, and both engines report the same `messageId` and message on the same
+`.vue` violation — differing only in column, which is the difference they have
+on every `.ts` file too. Two independent runs measured it, and
+`banned-external-import-in-a-vue-single-file-component` pins it
+(`../conformance/README.md`). Vue was never a blind spot.
+
+Five of those types are decided on the raw import specifier rather than on the
+project pair,
 which is why the analysis record carries the specifier and its position and why
 an Nx graph edge alone cannot serve them (`../analysis/contract.md`, "superset
 of a graph edge"). It also carries how the specifier is SPELLED, because that
