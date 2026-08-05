@@ -1,0 +1,20 @@
+{
+  "name": "nx-polyglot-graph",
+  "version": "0.0.0",
+  "description": "Polyglot module-boundary enforcement for an Nx workspace: cross-project graph edges for Go, Rust and Python, and boundary checking across every language its analyzers read",
+  "type": "module",
+  "license": "LicenseRef-Ecoma-SustainableUse-1.0",
+  "private": true,
+  "bin": {
+    "nx-polyglot-graph": "cli.mjs",
+    "nx-polyglot-graph-lsp": "lsp.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecoma-io/ecoma.git",
+    "directory": "shared/tools/nx-polyglot-graph"
+  }
+}

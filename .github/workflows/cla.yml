@@ -38,7 +38,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  cla:
+  # Whether the App this workflow writes with exists yet — asked in its own job
+  # so the answer can SKIP the one below rather than fail it.
+  #
+  # The four steps that bring it into existence need repository-admin rights
+  # and are listed in `.github/repository-settings.json` >
+  # `notAppliedYet.claAppBypassAndSecrets`. Until they are done no signature can
+  # be recorded, and the only open question is what an unconfigured repository
+  # should show for it.
+  #
+  # Not a failure, which is what this used to be. `cla` is not one of the
+  # ruleset's required checks — `ci-gate` is the only one — so a red X here
+  # blocked no merge and gated no contribution. It appeared on every pull
+  # request for a condition none of them caused, and a check that is always red
+  # is a check nobody reads, including on the day it means something. Not a
+  # success either: that would claim a CLA was checked when none was. A skipped
+  # job is neither, which is the truth, and the warning below says why where a
+  # reader is already looking.
+  #
+  # The message it carries is the one the removed guard carried, for the reason
+  # that guard existed: without it a missing secret surfaces as a generic "input
+  # required" from an action whose name says nothing about why this repository
+  # needs an App at all.
+  credentials:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # `recheck` is the action's own re-run word; the sign comment is derived
@@ -48,23 +70,33 @@ jobs:
     if: >-
       github.event_name == 'pull_request_target' ||
       (github.event.issue.pull_request != null && github.event.comment.body != '')
+    outputs:
+      present: ${{ steps.app.outputs.present }}
+    steps:
+      - name: Report whether the app credentials this workflow needs exist
+        id: app
+        env:
+          APP_ID: ${{ secrets.CLA_APP_ID }}
+        run: |
+          if [ -n "$APP_ID" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=CLA flow is inert::CLA_APP_ID and CLA_APP_PRIVATE_KEY are not set, so no signature can be recorded and the CLA check is skipped rather than run. Recording a signature means committing to a protected branch, which the Actions token cannot do and cannot be granted. The four admin steps are in .github/repository-settings.json > notAppliedYet.claAppBypassAndSecrets."
+          fi
+
+  cla:
+    needs: credentials
+    # Skipped, not failed, when the App is absent — see the job above. A
+    # skipped `needs` skips this job too, so the event guard is not repeated.
+    if: needs.credentials.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       # The App comes first because everything after it writes with the token
       # it mints — including `git push` in the last step, which authenticates
       # through the credential this job's checkout persists.
       #
-      # The guard exists because the failure it replaces is unreadable: without
-      # it a missing secret surfaces as a generic "input required" from an
-      # action whose name says nothing about why this repository needs an App.
-      - name: Require the app credentials this workflow cannot work without
-        env:
-          APP_ID: ${{ secrets.CLA_APP_ID }}
-        run: |
-          [ -n "$APP_ID" ] || {
-            echo "::error::CLA_APP_ID and CLA_APP_PRIVATE_KEY are not set. Recording a signature means committing to a protected branch, which the Actions token cannot do and cannot be granted. See .github/repository-settings.json > notAppliedYet.claAppBypassAndSecrets."
-            exit 1
-          }
-
       # No app id appears in this file (Rule 14). Both halves come from
       # secrets, so rotating the key — or moving to a different App — is a
       # settings change and never a code change.

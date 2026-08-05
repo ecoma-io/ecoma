@@ -64,6 +64,17 @@ pre-push:
       # included even though pre-commit lints per commit: a commit made with
       # hooks bypassed (rebase, --no-verify) would otherwise reach CI unlinted.
       run: pnpm nx affected -t lint typecheck test build
+    module-boundaries:
+      # The layer/scope/licence axes in the languages ESLint cannot read. The
+      # `verify` run above covers JS/TS through @nx/enforce-module-boundaries;
+      # a Go, Rust or Python import that crosses a layer passes it silently —
+      # measured, a layer-violating Go import left `nx run engine-domain:lint`
+      # at exit 0, because that target runs eslint and eslint answers "File
+      # ignored because no matching configuration was supplied" for a .go file.
+      # Whole-workspace rather than affected-scoped, and not for thoroughness:
+      # the cycle and lazy-load rules judge the file graph as a whole, so a
+      # scoped run reports on a graph it only partly assembled.
+      run: node shared/tools/nx-polyglot-graph/cli.mjs check
     repo-gates:
       # The repo-wide dev-cli gates CI blocks on that no per-project target
       # carries — without them here, a red lands only on the PR (root

@@ -23,6 +23,7 @@
     "rustGlobals": ["{workspaceRoot}/Cargo.toml", "{workspaceRoot}/Cargo.lock"],
     "lintTooling": [
       "{workspaceRoot}/eslint.config.mjs",
+      "{workspaceRoot}/module-boundaries.config.mjs",
       "{workspaceRoot}/shared/tools/eslint-local-rules/**/*",
       "{workspaceRoot}/journey-markers.config.json",
       "devCli"
