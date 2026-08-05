@@ -1141,6 +1141,77 @@ describe("evaluate", () => {
     });
   });
 
+  describe("suppressions", () => {
+    /** A relative import that crosses into another project — a real violation. */
+    const crossing = () =>
+      site({
+        specifier: "../../beta/src/thing",
+        resolved: {
+          target: "beta",
+          file: "area/beta/src/thing.ts",
+          external: false,
+          packageName: null,
+        },
+      });
+
+    const suppressed = (suppressions, sites = [crossing()]) =>
+      evaluate(sites, twoLibs(), { ...config(permissive), suppressions });
+
+    it("removes a violation the workspace decided to accept, with its reason", () => {
+      expect(
+        suppressed([
+          {
+            path: "area/alpha/src/index.ts",
+            reason: "the bundler loading this file resolves no alias",
+          },
+        ]),
+      ).toEqual([]);
+    });
+
+    it("leaves every other file alone, so a suppression covers what it names", () => {
+      expect(
+        idsOf(suppressed([{ path: "area/alpha/src/other.ts", reason: "a different file" }])),
+      ).toEqual(["noRelativeOrAbsoluteImportsAcrossLibraries"]);
+    });
+
+    it("removes only the violation type it names when it names one", () => {
+      expect(
+        idsOf(
+          suppressed([
+            { path: "area/alpha/src/index.ts", messageId: "noImportsOfApps", reason: "not this" },
+          ]),
+        ),
+      ).toEqual(["noRelativeOrAbsoluteImportsAcrossLibraries"]);
+    });
+
+    it("suppresses nothing when the config declares none", () => {
+      expect(idsOf(evaluate([crossing()], twoLibs(), config(permissive)))).toEqual([
+        "noRelativeOrAbsoluteImportsAcrossLibraries",
+      ]);
+    });
+
+    it("rejects a suppression with no reason before it can silence anything", () => {
+      expect(() => suppressed([{ path: "area/alpha/src/index.ts" }])).toThrow(
+        /boundarySuppressions\[0\]\.reason/,
+      );
+    });
+
+    it("cannot silence a failure, because the engine still judges the file it covers", () => {
+      // The load-bearing ordering: suppressions filter VERDICTS, they do not
+      // skip sites. A file-level skip would also skip the checks that make this
+      // throw — and "I could not tell" is not something anyone can decide to
+      // accept. The record below names a project the graph does not have, in a
+      // file a suppression covers completely.
+      const graph = graphOf([project("alpha", { tags: ["zone:x"] })]);
+      expect(() =>
+        evaluate([site()], graph, {
+          ...config(permissive),
+          suppressions: [{ path: "area/alpha/**", reason: "covers the whole project" }],
+        }),
+      ).toThrow(/resolved to project 'beta'/);
+    });
+  });
+
   describe("the violation record", () => {
     it("carries the position, the specifier and the rendered message", () => {
       const graph = graphOf([

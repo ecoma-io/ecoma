@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findBoundaryConfigViolations } from "./config.mjs";
+import { findBoundaryConfigViolations, suppressionCovers } from "./config.mjs";
 
 /** A minimal well-formed config; each test bends exactly one thing. */
 const wellFormed = () => ({
@@ -197,5 +197,132 @@ describe("findBoundaryConfigViolations", () => {
     expect(findBoundaryConfigViolations({ ...wellFormed(), moduleBoundaryOptions: [] })[0]).toMatch(
       /moduleBoundaryOptions: must be an exported object/,
     );
+  });
+});
+
+describe("boundarySuppressions", () => {
+  const withSuppressions = (boundarySuppressions) => ({ ...wellFormed(), boundarySuppressions });
+
+  it("accepts a path glob with a reason, with or without a messageId filter", () => {
+    expect(
+      findBoundaryConfigViolations(
+        withSuppressions([
+          { path: "area/app/some.config.js", reason: "the loader cannot resolve the alias" },
+          {
+            path: "area/*/other.config.js",
+            messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+            reason: "same, scoped to the one violation type it draws",
+          },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("treats an absent list as suppressing nothing rather than as a missing option", () => {
+    // The eight options are rejected when unstated because a default here would
+    // be a second copy of something ESLint also reads. A suppression has no
+    // second reader, and an empty one is the answer that cannot hide anything.
+    expect(findBoundaryConfigViolations(wellFormed())).toEqual([]);
+    expect(findBoundaryConfigViolations(withSuppressions([]))).toEqual([]);
+  });
+
+  it("rejects an entry with no reason, which is the whole point of the shape", () => {
+    // An unexplained suppression is indistinguishable from a boundary that
+    // quietly stopped being enforced, and it is the one that rots: nobody can
+    // tell later whether the exemption still applies.
+    const violations = findBoundaryConfigViolations(
+      withSuppressions([{ path: "area/app/some.config.js" }]),
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatch(/boundarySuppressions\[0\]\.reason: must be a non-empty string/);
+  });
+
+  it("rejects a reason that is only whitespace, which explains as little as none", () => {
+    expect(
+      findBoundaryConfigViolations(withSuppressions([{ path: "a.js", reason: "   " }]))[0],
+    ).toMatch(/reason: must be a non-empty string/);
+  });
+
+  it("rejects a missing or empty path, which would match nothing and read as an exemption", () => {
+    expect(findBoundaryConfigViolations(withSuppressions([{ reason: "why" }]))[0]).toMatch(
+      /boundarySuppressions\[0\]\.path: must be a non-empty glob/,
+    );
+    expect(
+      findBoundaryConfigViolations(withSuppressions([{ path: "", reason: "why" }]))[0],
+    ).toMatch(/path: must be a non-empty glob/);
+  });
+
+  it("rejects a messageId this engine cannot report, which would suppress nothing", () => {
+    expect(
+      findBoundaryConfigViolations(
+        withSuppressions([{ path: "a.js", messageId: "noRelativeImports", reason: "why" }]),
+      )[0],
+    ).toMatch(/messageId: .* is not a violation type this engine reports/);
+  });
+
+  it("rejects a field the shape does not have, usually a misspelling of one it does", () => {
+    expect(
+      findBoundaryConfigViolations(
+        withSuppressions([{ path: "a.js", reason: "why", messageIds: ["x"] }]),
+      )[0],
+    ).toMatch(/messageIds: not a suppression field/);
+  });
+
+  it("rejects an entry that is not an object, and a list that is not an array", () => {
+    expect(findBoundaryConfigViolations(withSuppressions(["a.js"]))[0]).toMatch(
+      /boundarySuppressions\[0\]: must be an object/,
+    );
+    expect(findBoundaryConfigViolations(withSuppressions({}))[0]).toMatch(
+      /boundarySuppressions: must be an exported array/,
+    );
+  });
+});
+
+describe("suppressionCovers", () => {
+  const violation = (sourceFile, messageId = "noRelativeOrAbsoluteImportsAcrossLibraries") => ({
+    sourceFile,
+    messageId,
+  });
+
+  it("matches an exact path and a glob over it", () => {
+    expect(
+      suppressionCovers(
+        { path: "area/app/tailwind.config.js" },
+        violation("area/app/tailwind.config.js"),
+      ),
+    ).toBe(true);
+    expect(
+      suppressionCovers(
+        { path: "area/*/tailwind.config.js" },
+        violation("area/app/tailwind.config.js"),
+      ),
+    ).toBe(true);
+    expect(
+      suppressionCovers({ path: "area/**/*.config.js" }, violation("area/one/two/x.config.js")),
+    ).toBe(true);
+  });
+
+  it("does not spill onto a neighbouring file the glob does not name", () => {
+    // A suppression that covered more than it says is the failure mode: the
+    // next file added beside it inherits an exemption nobody decided on.
+    expect(
+      suppressionCovers(
+        { path: "area/app/tailwind.config.js" },
+        violation("area/app/vite.config.js"),
+      ),
+    ).toBe(false);
+    expect(
+      suppressionCovers(
+        { path: "area/*/tailwind.config.js" },
+        violation("area/a/b/tailwind.config.js"),
+      ),
+    ).toBe(false);
+  });
+
+  it("covers every violation type when no messageId is named, and only one when it is", () => {
+    expect(suppressionCovers({ path: "a.js" }, violation("a.js", "noImportsOfApps"))).toBe(true);
+    expect(
+      suppressionCovers({ path: "a.js", messageId: "noImportsOfApps" }, violation("a.js")),
+    ).toBe(false);
   });
 });

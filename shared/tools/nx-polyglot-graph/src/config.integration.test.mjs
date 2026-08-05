@@ -39,6 +39,24 @@ describe("loadBoundaryConfig over the real workspace", () => {
     ]);
   });
 
+  it("gives every exemption this workspace has taken a reason a reader can weigh", async () => {
+    // The suppression list is where a violation someone accepted goes, and the
+    // failure mode is not a crash — it is an entry nobody can judge later,
+    // sitting in the file that decides what the boundary means. `loadBoundaryConfig`
+    // rejects a reason-less entry, so this asserting nothing beyond "it loaded"
+    // would be circular; what it adds is that the real file's entries say
+    // something, not merely that they say a string.
+    const { suppressions } = await loadBoundaryConfig(workspaceRoot);
+    expect(Array.isArray(suppressions)).toBe(true);
+    for (const entry of suppressions) {
+      expect(entry.path, JSON.stringify(entry)).toBeTruthy();
+      expect(
+        entry.reason.trim().split(/\s+/u).length,
+        `${entry.path} explains itself`,
+      ).toBeGreaterThan(3);
+    }
+  });
+
   it("resolves the config against the tree it is judging, not against its own location", async () => {
     // The tool also runs from a pinned harness clone inside another workspace,
     // where its own directory and the config it must read are in different

@@ -11,8 +11,8 @@ replaces. Today ESLint is right about JavaScript and TypeScript and silent about
 Go, Rust and Python — and silence you know about beats a green light you cannot
 trust.
 
-**41 fixture workspaces, 85 probes, 82 projects.** Every one of upstream's
-fifteen message ids is triggered by at least one probe, and 51 of the 85 probes
+**42 fixture workspaces, 87 probes, 84 projects.** Every one of upstream's
+fifteen message ids is triggered by at least one probe, and 52 of the 87 probes
 are near-misses where ESLint must report nothing.
 
 ## How it runs
@@ -60,7 +60,7 @@ statement pass as agreement.
 
 | messageId                                    | agree | stricter | weaker | verdict          |
 | -------------------------------------------- | ----: | -------: | -----: | ---------------- |
-| `noRelativeOrAbsoluteImportsAcrossLibraries` |     2 |        0 |      0 | agree            |
+| `noRelativeOrAbsoluteImportsAcrossLibraries` |     3 |        0 |      0 | agree            |
 | `noRelativeOrAbsoluteExternals`              |     4 |        0 |      0 | agree            |
 | `noCircularDependencies`                     |     1 |        0 |      0 | agree            |
 | `noSelfCircularDependencies`                 |     2 |        1 |      0 | agree + stricter |
@@ -125,6 +125,42 @@ an optional graph field and its absence means "the exemption does not apply". An
 adapter that supplies the field gets upstream's answer exactly; one that does not
 gets a false alarm a maintainer can see, rather than a boundary that quietly
 stopped being enforced.
+
+## Decisions — where the two are told about an exemption differently
+
+One divergence is not about a verdict but about the mechanism that removes one,
+and it therefore points BOTH ways:
+
+| divergence                                                             | direction | verified how                                                                                     |
+| ---------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| upstream honours an `eslint-disable` directive; this engine ignores it | stricter  | `an-exemption-both-enforcers-were-told-about` — the directive alone leaves this engine reporting |
+| this engine honours `boundarySuppressions`; upstream does not read it  | weaker    | the same case — the config entry alone leaves ESLint reporting                                   |
+
+**Why the exemptions do not live in comments.** Reading ESLint's directive
+syntax would tie a language-agnostic tool to a JavaScript comment convention
+that Go, Rust and Python have no equivalent for, and it would give exemptions a
+second home besides `module-boundaries.config.mjs` — which exists precisely so
+the boundary law has one. In the shared config every exemption is visible,
+reviewable and greppable in one place, and a mandatory `reason` is enforceable
+at load in a way a comment never is.
+
+**Why neither direction appears in the table above.** The case declares BOTH
+mechanisms on the same import, which is the configuration a workspace using this
+actually runs — the three exemptions in this repository each carry an
+`eslint-disable-next-line` for ESLint and a `boundarySuppressions` entry for this
+engine. Told about it, both engines go silent and no row is produced; the case's
+second probe is the same import told to neither, which both report. So the two
+half-divergences above are measured by construction rather than left as prose,
+and neither can become a false negative without that probe going red.
+
+**A suppression can never silence a failure.** It filters violations after every
+site has been judged, so it cannot skip the checks that make `evaluate()` throw
+— a record naming a project the graph does not contain stays fatal inside a fully
+suppressed file, which `src/rules/index.test.mjs` pins. Analysis failures never
+reach the rule engine at all: they travel beside the records in the analyzer's
+envelope. A verdict is something someone can decide to accept; "I could not tell"
+is the absence of one, and a config that could silence it would turn a blind spot
+into a green light.
 
 ## The languages ESLint cannot read
 

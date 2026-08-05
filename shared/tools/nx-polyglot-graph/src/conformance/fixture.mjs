@@ -345,6 +345,13 @@ export function materialize(root, cases, defaultOptions) {
       projectFileMap: buildProjectFileMap(spec),
       files: projectFiles(spec),
       depConstraints: spec.depConstraints ?? [],
+      // A case writes its suppression paths relative to its own tree, like
+      // every other path it declares; the case-id prefix is added here, once,
+      // the same way project roots and entry points get it above.
+      suppressions: (spec.suppressions ?? []).map((entry) => ({
+        ...entry,
+        path: `${spec.id}/${entry.path}`,
+      })),
       options: { ...optionDefaults, ...(spec.options ?? {}) },
       projects: spec.projects.map((project) => ({
         name: project.name,

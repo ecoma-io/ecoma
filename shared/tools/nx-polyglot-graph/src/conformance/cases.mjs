@@ -87,6 +87,43 @@ export const CONFORMANCE_CASES = [
     ],
   },
   {
+    id: "an-exemption-both-enforcers-were-told-about",
+    intent:
+      "A violation the workspace decided to accept. ESLint is told with its directive comment, this engine with a `boundarySuppressions` entry carrying the same reason — the two mechanisms are different because a comment convention is JavaScript's and this tool judges four other languages. Both must go quiet, and the identical import one file over, told to neither, must still be reported by both.",
+    projects: [
+      {
+        name: "exempt-source",
+        root: "libs/exempt-source",
+        files: {
+          "src/allowed.ts":
+            "// eslint-disable-next-line @nx/enforce-module-boundaries -- the loader that reads this file resolves no alias\n" +
+            'import { target } from "../../exempt-target/src/index";\nexport const a = target;\n',
+          "src/reported.ts":
+            'import { target } from "../../exempt-target/src/index";\nexport const b = target;\n',
+        },
+      },
+      {
+        name: "exempt-target",
+        root: "libs/exempt-target",
+        files: { "src/index.ts": barrel("target") },
+      },
+    ],
+    suppressions: [
+      {
+        path: "libs/exempt-source/src/allowed.ts",
+        messageId: "noRelativeOrAbsoluteImportsAcrossLibraries",
+        reason: "the loader that reads this file resolves no alias",
+      },
+    ],
+    probes: [
+      { file: "libs/exempt-source/src/allowed.ts", upstream: [] },
+      {
+        file: "libs/exempt-source/src/reported.ts",
+        upstream: ["noRelativeOrAbsoluteImportsAcrossLibraries"],
+      },
+    ],
+  },
+  {
     id: "external-resources-reached-by-path",
     intent:
       "A relative or absolute path that lands in no project is an external resource reached the wrong way — and the near-miss is the same spelling pointing at a file that does exist outside every project.",

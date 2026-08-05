@@ -33,7 +33,16 @@
  * What it still has no opinion on is the VALUES. Whether `layer:adapter` should
  * be allowed to reach `layer:domain` is the workspace's decision, stated in that
  * config with its reasoning; this module must not grow a view on it.
+ *
+ * The one shape here that upstream has no counterpart for is
+ * `boundarySuppressions`: the exemptions a workspace has decided to accept, each
+ * with the reason it was accepted. ESLint takes those as `eslint-disable`
+ * comments, which is a JavaScript convention with no equivalent in Go, Rust or
+ * Python and would give exemptions a second home besides the config this file
+ * exists to keep single. Validation is where the mandatory reason is enforced,
+ * loudly, at load — see `suppressionRowViolations`.
  */
+import { posix } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -42,6 +51,7 @@ import {
   projectPatternError,
   tagPatternError,
 } from "./rules/match.mjs";
+import { MESSAGE_IDS } from "./rules/messages.mjs";
 
 /**
  * The config's filename, named once. Every consumer that has to look for the
@@ -195,6 +205,91 @@ function constraintRowViolations(row, index) {
   return violations;
 }
 
+/**
+ * The keys a suppression entry may carry. `reason` is not optional, and that is
+ * the whole point of the shape — see `suppressionRowViolations`.
+ */
+const SUPPRESSION_KEYS = ["path", "messageId", "reason"];
+
+/**
+ * Does this suppression cover a violation at `sourceFile` with `messageId`?
+ *
+ * `path` is a glob over the workspace-relative path of the importing file,
+ * matched with `node:path`'s own `matchesGlob`. The stdlib, deliberately: this
+ * project may import no third-party matcher (project `CLAUDE.md`), and the
+ * alternative — hand-rolling an almost-minimatch — is exactly what
+ * `projectPatternError` already refuses to do for `ignoredCircularDependencies`.
+ * A pattern it cannot parse returns false rather than throwing, which for a
+ * suppression fails toward reporting.
+ *
+ * `posix` and not the platform default: every path in an analysis record is
+ * workspace-relative and `/`-separated (`analysis/contract.md`), so there is no
+ * platform to detect and a Windows run must not read `\` as an escape.
+ *
+ * An entry with no `messageId` covers every violation type at that path. That
+ * is the broader form on purpose: the files this exists for are config files a
+ * loader cannot resolve aliases in, and which message their one import draws is
+ * a detail of the spelling rather than of the decision.
+ *
+ * @param {{path: string, messageId?: string}} suppression
+ * @param {{sourceFile: string, messageId: string}} violation
+ * @returns {boolean}
+ */
+export function suppressionCovers(suppression, violation) {
+  if (suppression.messageId !== undefined && suppression.messageId !== violation.messageId) {
+    return false;
+  }
+  return posix.matchesGlob(violation.sourceFile, suppression.path);
+}
+
+/**
+ * One suppression entry's problems, prefixed with its index.
+ *
+ * **A missing `reason` is rejected, and that check is why this validator
+ * exists.** A suppression is a violation someone decided to accept; with the
+ * decision unwritten, what is left is a hole that reads as "clean" to every
+ * later reader — the state this whole tool was built to end. Defaulting the
+ * field to `""` would make it decorative, and a decorative field is one nobody
+ * fills in.
+ *
+ * `messageId` is checked against the fifteen ids the rules layer can produce,
+ * read from `messages.mjs` rather than listed here: a typo'd id suppresses
+ * nothing, which is the safe direction, but it also reads as a decision that
+ * has been taken when it has not.
+ */
+function suppressionRowViolations(row, index) {
+  const at = `boundarySuppressions[${index}]`;
+  if (!isPlainObject(row)) return [`${at}: must be an object, got ${describe(row)}`];
+
+  const violations = [];
+  if (typeof row.path !== "string" || row.path === "") {
+    violations.push(
+      `${at}.path: must be a non-empty glob over the workspace-relative path of the ` +
+        `importing file, got ${describe(row.path)}`,
+    );
+  }
+  if (typeof row.reason !== "string" || row.reason.trim() === "") {
+    violations.push(
+      `${at}.reason: must be a non-empty string — a suppression is a violation someone ` +
+        `decided to accept, and one with no reason written down is indistinguishable from ` +
+        `a boundary that quietly stopped being enforced`,
+    );
+  }
+  if ("messageId" in row && !MESSAGE_IDS.includes(row.messageId)) {
+    violations.push(
+      `${at}.messageId: ${describe(row.messageId)} is not a violation type this engine ` +
+        `reports — expected one of ${MESSAGE_IDS.join(", ")}`,
+    );
+  }
+  for (const key of Object.keys(row)) {
+    if (SUPPRESSION_KEYS.includes(key)) continue;
+    violations.push(
+      `${at}.${key}: not a suppression field — expected one of ${SUPPRESSION_KEYS.join(", ")}`,
+    );
+  }
+  return violations;
+}
+
 /** A value's type, for an error message that shows what was actually there. */
 function describe(value) {
   if (Array.isArray(value)) return `an array (${JSON.stringify(value)})`;
@@ -213,7 +308,25 @@ export function findBoundaryConfigViolations(module) {
   if (!isPlainObject(module)) return [`config: expected a module object, got ${describe(module)}`];
 
   const violations = [];
-  const { depConstraints, moduleBoundaryOptions } = module;
+  const { depConstraints, moduleBoundaryOptions, boundarySuppressions } = module;
+
+  // Absent means "nothing is suppressed", which is the only default that fails
+  // toward reporting — unlike the eight options above, where a missing value
+  // would be a second copy of something ESLint also reads and this module has
+  // no business guessing. A suppression has no second reader: ESLint uses its
+  // own directives, so there is nothing here to disagree with.
+  if (boundarySuppressions !== undefined) {
+    if (!Array.isArray(boundarySuppressions)) {
+      violations.push(
+        `boundarySuppressions: must be an exported array when present, got ` +
+          `${describe(boundarySuppressions)}`,
+      );
+    } else {
+      boundarySuppressions.forEach((row, index) =>
+        violations.push(...suppressionRowViolations(row, index)),
+      );
+    }
+  }
 
   if (!Array.isArray(depConstraints)) {
     violations.push(
@@ -277,7 +390,8 @@ export function findBoundaryConfigViolations(module) {
  * @param {string} workspaceRoot Absolute path of the workspace root — the tree
  *   being judged, which is not this module's own tree when the tool runs from
  *   a pinned harness clone.
- * @returns {Promise<{ depConstraints: object[], options: object }>}
+ * @returns {Promise<{ depConstraints: object[], options: object, suppressions: object[] }>}
+ *   `suppressions` is `[]` when the config declares none.
  * @throws {Error} when the file is missing, unloadable, or malformed. Loud on
  *   purpose: an enforcer that starts with no rules enforces nothing and says
  *   nothing, which is the failure this whole tool exists to end.
@@ -296,5 +410,9 @@ export async function loadBoundaryConfig(workspaceRoot) {
   if (violations.length > 0) {
     throw new Error(`nx-polyglot-graph: ${path} is malformed:\n  ${violations.join("\n  ")}`);
   }
-  return { depConstraints: module.depConstraints, options: module.moduleBoundaryOptions };
+  return {
+    depConstraints: module.depConstraints,
+    options: module.moduleBoundaryOptions,
+    suppressions: module.boundarySuppressions ?? [],
+  };
 }

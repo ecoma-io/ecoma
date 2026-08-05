@@ -40,7 +40,7 @@
  *
  * @see ../analysis/contract.md for the `ImportSite` shape this consumes.
  */
-import { findBoundaryConfigViolations } from "../config.mjs";
+import { findBoundaryConfigViolations, suppressionCovers } from "../config.mjs";
 
 import { matchImportWithWildcard, findMatchingProjects } from "./match.mjs";
 import { renderMessage } from "./messages.mjs";
@@ -185,6 +185,7 @@ function createContext(importSites, graph, config) {
   const violations = findBoundaryConfigViolations({
     depConstraints: config?.depConstraints,
     moduleBoundaryOptions: config?.options,
+    boundarySuppressions: config?.suppressions,
   });
   if (violations.length > 0) {
     throw new Error(
@@ -219,6 +220,7 @@ function createContext(importSites, graph, config) {
     graph,
     depConstraints: config.depConstraints,
     options: config.options,
+    suppressions: config.suppressions ?? [],
     workspaceLayout: graph.workspaceLayout ?? DEFAULT_WORKSPACE_LAYOUT,
     mappings,
     reach,
@@ -570,20 +572,41 @@ function evaluateSite(site, ctx) {
  * Pure: the same three arguments always produce the same violations, and none
  * of them is read from disk here.
  *
+ * ## Suppressions are a filter over VERDICTS, never a skip over sites
+ *
+ * `config.suppressions` removes violations the workspace has decided to accept,
+ * each carrying the reason it was accepted (`../config.mjs`). The filter runs
+ * AFTER every site has been judged, and that ordering is the load-bearing part
+ * rather than an implementation detail: skipping a suppressed file up front
+ * would also skip the checks that make this function throw — a record naming a
+ * project the graph does not have, a malformed config — and a suppression must
+ * never be able to silence "I could not tell". A violation is a decision
+ * someone can accept; a failure is the absence of one, and accepting it would
+ * turn a blind spot into a green light.
+ *
+ * The suppression vocabulary has no field that could name a failure either: an
+ * entry carries a path glob, an optional `messageId` out of `MESSAGE_IDS`, and
+ * its reason. Analysis failures never reach this function at all — they travel
+ * beside the records in the analyzer's envelope (`../analysis/contract.md`).
+ *
  * @param {object[]} importSites Analysis records — see `../analysis/contract.md`.
  * @param {ProjectGraph} graph
- * @param {{depConstraints: object[], options: object}} config As
- *   `loadBoundaryConfig` returns it.
- * @returns {Violation[]} in the order the sites were given; a site may
- *   contribute zero, one, or (in two documented cases) several.
+ * @param {{depConstraints: object[], options: object, suppressions?: object[]}} config
+ *   As `loadBoundaryConfig` returns it. An absent `suppressions` suppresses
+ *   nothing, which is the direction that cannot hide a violation.
+ * @returns {Violation[]} in the order the sites were given, minus the ones a
+ *   suppression covers; a site may contribute zero, one, or (in two documented
+ *   cases) several.
  * @throws {Error} when the config is malformed, when the graph has no `nodes`,
- *   or when a record names a project the graph does not contain. Loud on
- *   purpose: an enforcer that starts on a broken input and reports nothing is
- *   indistinguishable from a clean tree.
+ *   when a record carries no `spelling`, or when a record names a project the
+ *   graph does not contain. Loud on purpose: an enforcer that starts on a
+ *   broken input and reports nothing is indistinguishable from a clean tree.
  */
 export function evaluate(importSites, graph, config) {
   const ctx = createContext(importSites, graph, config);
   const violations = [];
   for (const site of importSites) violations.push(...evaluateSite(site, ctx));
-  return violations;
+  return violations.filter(
+    (violation) => !ctx.suppressions.some((entry) => suppressionCovers(entry, violation)),
+  );
 }

@@ -223,6 +223,7 @@ export function runEngine(root, materialized) {
   const violations = evaluate(sites, materialized.graph, {
     depConstraints: materialized.depConstraints,
     options: materialized.options,
+    suppressions: materialized.suppressions,
   });
   return { violations, failures };
 }
