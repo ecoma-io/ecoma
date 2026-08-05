@@ -54,7 +54,15 @@ const SHIPPED_PACKAGES = new Map([
   ["typescript", "module resolution, delegated rather than reimplemented"],
   ["smol-toml", "Cargo.toml and pyproject.toml, which have no stdlib parser"],
   ["vue/compiler-sfc", "SFC parsing, reached through the root `vue` dependency's own subpath"],
-  ["nx/package.json", "resolved for the CLI's path only; nx itself is never loaded by the tool"],
+  ["nx/package.json", "resolved for the CLI's path"],
+  [
+    "nx/src/utils/json.js",
+    "the language server reads project.json through Nx's own parseJson, so a config Nx " +
+      "accepts — a trailing comma, a line or block comment — cannot drop a project from the " +
+      "LSP graph while nx graph still sees it. Reached lazily, and a tree where it does not " +
+      "resolve raises rather than falling back to JSON.parse, which would quietly restore the " +
+      "blind spot it was added to end",
+  ],
 ]);
 
 /**
