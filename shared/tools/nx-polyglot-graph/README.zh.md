@@ -44,8 +44,48 @@ Nx 本身。它在 `nx.json` → `plugins` 下注册为
 `cli.mjs` 用于终端运行,`lsp.mjs` 用于编辑器。`cli.mjs check` 已经是一个真
 正的检查器,并且已经接成门禁——`lefthook.yml` 的 pre-push 列表在整个工作区
 上运行它,`.github/workflows/ci.yml` 在一个独立的 job 里运行它并把它的 SARIF
-上传到 GitHub code scanning。`lsp.mjs` 仍然不声明任何 capability,而不是把
-每个文件都涂绿。
+上传到 GitHub code scanning。
+
+### 在编辑器里运行它
+
+`lsp.mjs` 通过 stdio 说 Language Server Protocol,为每一条边界违规发布一
+条诊断,带着 `@nx/enforce-module-boundaries` 对同一个 import 会报出的那个
+`messageId`。它分析不了的文件会收到一条明说这一点的诊断——所以这个 server
+给出的空诊断列表永远意味着"没有违规",绝不意味着"没有检查"。
+
+之所以是编辑器而不是 ESLint 插件:ESLint 插件只够得着 JS 和 TS,也就是本
+来就能用的那一半;Go、Rust、Python 和 Vue 什么都得不到。
+
+**Claude Code** 从本仓库自己的插件目录 `.claude/plugins` 加载它。
+`.claude/settings.json` 带着 `enabledPlugins` 条目;注册 marketplace 是每
+个开发者的一次性动作,因为仓库本身无权声明——`extraKnownMarketplaces` 只从
+user、flag 和 managed settings 读取,这样一个 checkout 就无法让会话运行其
+机器主人从未同意过的插件代码:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+之后,会话每次编辑 Go、Rust、Python 或 Vue 文件都会拿到边界诊断。server 声
+明是那个插件 `plugin.json` 里的 `lspServers`;JS 和 TS 被刻意留给 ESLint,
+因为编辑器每个文件扩展名只给一个 server,认领它们会挤掉开发者在那里真正需
+要的语言服务器。
+
+**任何其他 LSP 客户端**启动的是同一个可执行文件:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       —— 仅在编辑器的根目录不是工作区根目录时需要
+watched files          **/module-boundaries.config.mjs 和 **/project.json
+```
+
+工作区根目录依次取自 `initializationOptions`、`workspaceFolders`、
+`rootUri`、`rootPath`,最后是工作目录。只声明全文本同步。支持动态注册的客
+户端会被要求监视上面那两个文件,这样一次约束变更就会重新诊断所有打开的文
+件。做不到的客户端会在 stderr 上被告知,此后只有当那个文件是通过编辑器本
+身保存时才会看到约束变更——在编辑器之外改动它则不会。
 
 <!-- readme:ecosystem -->
 
@@ -92,13 +132,15 @@ Go、Rust 和 Python 的源码读成已解析的 import 记录——写下的是
 `ts.resolveModuleName`,Vue 的 `<script>` 提取用的是 Vue 自己的 SFC
 parser;两者都没有在这里被重写。
 
-强制执行这一半已经在跑了。`src/rules/` 在分析记录之上(而不是在 ESLint 的
-AST 之上)复现了 `@nx/enforce-module-boundaries` 的全部十五种违规类型及其八
-个选项;`cli.mjs check` 读取 Nx 的图,分析每个项目所拥有的、被 git 跟踪的
-源文件,只要有任何违规就以 1 退出,并给出 `file:line:column` 报告或
-SARIF 2.1.0。两个执行器并行运行是有意为之:在一套 conformance 套件证明二者
-一致之前,JavaScript 和 TypeScript 仍以 ESLint 的判定为准。
+两半都在运行。`src/rules/` 在分析记录之上(而不是 ESLint 的 AST)复现了
+`@nx/enforce-module-boundaries` 全部十五种违规类型及其八个选项。`cli.mjs
+check` 读取 Nx 图,分析一个项目拥有的每一个被跟踪的源文件,一旦有违规就以 1
+退出,并给出 `file:line:column` 报告或 SARIF 2.1.0。`lsp.mjs` 把同一个引擎服
+务给编辑器,为每条违规发布一条诊断——或者发布一条说明它看不了的诊断,绝不
+会给出一个它并未挣得的空列表。
 
-面向编辑器的那一半仍然只是骨架,而且是一副很吵的骨架:`lsp.mjs` 不声明任何
-capability,而不是把每个文件都涂绿。机制、每种语言的解析边界,以及
-one-manifest-per-project 的建模假设都写在 [`./CLAUDE.md`](./CLAUDE.md)。
+两个执行器有意并行运行。ESLint 对 JavaScript 和 TypeScript 保持权威;本工具
+覆盖 ESLint 完全读不了的 Go、Rust 和 Python。`src/conformance/` 度量两者在哪
+里一致、在哪里不一致,任何让其中一方退休的决定都要以它为依据。机制、各语言
+的解析限制,以及一个项目一个清单的建模假设,都在
+[`./CLAUDE.md`](./CLAUDE.md) 里。

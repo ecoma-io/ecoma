@@ -1,0 +1,16 @@
+{
+  "$comment": "This repository's own plugin catalogue, hosted in the tree rather than anywhere else, so a session gets its plugins from the same commit as the code they act on — nothing to publish, nothing to keep in sync, and a change to a plugin is reviewed in the pull request that makes it.\n\nRegistering it is a ONE-TIME act by each developer, and it cannot be checked in: `claude plugin marketplace add ./.claude/plugins` (or `/plugin marketplace add ./.claude/plugins` in a session). `.claude/settings.json` carries the `enabledPlugins` entry, which IS honoured at project scope, so nothing else is needed after that. `extraKnownMarketplaces` is deliberately NOT set there — measured against Claude Code 2.1.222, that key is read from user, flag and managed settings only and skipped in project and local settings, so a repository cannot make a checkout run plugin code its owner never agreed to. Setting it here would be a config that silently does nothing.\n\nClaude Code ignores manifest keys it does not know (`claude plugin validate` says so in as many words), which is where this note lives; the same convention as `coverage.config.json` at the repo root.",
+  "name": "ecoma",
+  "description": "This repository's own plugins, versioned with the code they act on",
+  "owner": {
+    "name": "Ecoma"
+  },
+  "plugins": [
+    {
+      "name": "nx-polyglot-graph",
+      "source": "./nx-polyglot-graph",
+      "version": "1.0.0",
+      "description": "Module-boundary diagnostics for Go, Rust, Python and Vue, from the workspace's own boundary config"
+    }
+  ]
+}

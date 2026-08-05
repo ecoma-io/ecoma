@@ -47,8 +47,54 @@ It also declares two executables as `bin` entries in its own `package.json`:
 `cli.mjs` for a terminal run and `lsp.mjs` for an editor. `cli.mjs check` is a
 real checker and is wired as a gate — `lefthook.yml`'s pre-push list runs it
 over the whole workspace, and `.github/workflows/ci.yml` runs it in a job of
-its own that uploads its SARIF to GitHub code scanning. `lsp.mjs` still
-advertises no capabilities rather than painting every file green.
+its own that uploads its SARIF to GitHub code scanning.
+
+### Running it in an editor
+
+`lsp.mjs` speaks the Language Server Protocol over stdio and publishes one
+diagnostic per boundary violation, carrying the same `messageId`
+`@nx/enforce-module-boundaries` reports for that import. A file it could not
+analyze gets a diagnostic saying exactly that — so an empty diagnostic list
+from this server always means "no violation", never "not checked".
+
+An editor rather than an ESLint plugin because an ESLint plugin reaches only
+JS and TS, which is the half that already works: Go, Rust, Python and Vue
+would get nothing.
+
+**Claude Code** loads it from this repository's own plugin catalogue, under
+`.claude/plugins`. `.claude/settings.json` carries the `enabledPlugins` entry;
+registering the marketplace is a one-time act per developer, because a
+repository is not allowed to declare one — `extraKnownMarketplaces` is read
+from user, flag and managed settings only, so a checkout cannot make a session
+run plugin code its owner never agreed to:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+After that a session gets boundary diagnostics on every edit to a Go, Rust,
+Python or Vue file. The server entry is `lspServers` in that plugin's
+`plugin.json`; JS and TS are deliberately left to ESLint, because an editor
+gives one server per file extension and claiming those would displace the
+language server a developer actually needs there.
+
+**Any other LSP client** launches the same executable:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       — only when the editor's root is not the workspace root
+watched files          **/module-boundaries.config.mjs and **/project.json
+```
+
+The workspace root is taken from `initializationOptions`, then
+`workspaceFolders`, then `rootUri`, then `rootPath`, then the working
+directory. Only full text synchronisation is advertised. A client that
+supports dynamic registration is asked to watch the two files above, so a
+constraint change re-diagnoses every open file. One that cannot is told so on
+stderr, and then only sees a constraint change when that file is saved through
+the editor itself — never when it changes beside it.
 
 <!-- readme:ecosystem -->
 
@@ -99,15 +145,17 @@ against the record shape frozen in `src/analysis/contract.md`. TypeScript
 resolution is TypeScript's own `ts.resolveModuleName` and Vue's `<script>`
 extraction is Vue's own SFC parser; neither is reimplemented here.
 
-The enforcement half runs. `src/rules/` reproduces all fifteen
+Both halves run. `src/rules/` reproduces all fifteen
 `@nx/enforce-module-boundaries` violation types under its eight options, over
-analysis records rather than an ESLint AST; `cli.mjs check` reads the Nx graph,
+analysis records rather than an ESLint AST. `cli.mjs check` reads the Nx graph,
 analyzes every tracked source file a project owns, and exits 1 on any
-violation, with a `file:line:column` report or SARIF 2.1.0. Both enforcers run
-side by side on purpose: ESLint stays authoritative for JavaScript and
-TypeScript until a conformance suite proves the two agree.
+violation, with a `file:line:column` report or SARIF 2.1.0. `lsp.mjs` serves
+the same engine to an editor, publishing a diagnostic per violation — or a
+diagnostic saying it could not look, never an empty list it did not earn.
 
-The editor half is still a scaffold, and a loud one: `lsp.mjs` advertises no
-capabilities rather than painting every file green. Mechanics, per-language
-parse limits, and the one-manifest-per-project modeling assumption are in
-[`./CLAUDE.md`](./CLAUDE.md).
+Both enforcers run side by side on purpose. ESLint stays authoritative for
+JavaScript and TypeScript; this tool covers Go, Rust and Python, which ESLint
+cannot read at all. `src/conformance/` measures where the two agree and where
+they do not, and it is what a decision to retire either one would rest on.
+Mechanics, per-language parse limits, and the one-manifest-per-project
+modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).

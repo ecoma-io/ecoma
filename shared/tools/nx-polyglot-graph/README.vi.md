@@ -49,8 +49,55 @@ của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho edit
 `cli.mjs check` đã là một checker thật và đã được nối thành gate — danh sách
 pre-push trong `lefthook.yml` chạy nó trên toàn workspace, còn
 `.github/workflows/ci.yml` chạy nó trong một job riêng rồi upload SARIF của nó
-lên GitHub code scanning. `lsp.mjs` vẫn không quảng cáo capability nào thay vì
-tô xanh mọi file.
+lên GitHub code scanning.
+
+### Chạy nó trong editor
+
+`lsp.mjs` nói Language Server Protocol qua stdio và publish một diagnostic
+cho mỗi vi phạm boundary, mang đúng cái `messageId` mà
+`@nx/enforce-module-boundaries` báo cho import đó. Một file nó không phân
+tích được sẽ nhận một diagnostic nói đúng điều đó — nên một danh sách
+diagnostic rỗng từ server này luôn có nghĩa là "không có vi phạm", không bao
+giờ là "chưa kiểm tra".
+
+Là editor chứ không phải ESLint plugin, vì một ESLint plugin chỉ với tới JS
+và TS, tức là đúng cái nửa vốn đã chạy được: Go, Rust, Python và Vue sẽ
+không nhận được gì.
+
+**Claude Code** nạp nó từ chính catalogue plugin của repository này, nằm dưới
+`.claude/plugins`. `.claude/settings.json` mang entry `enabledPlugins`; việc
+đăng ký marketplace là một thao tác một lần của mỗi lập trình viên, vì một
+repository không được phép tự khai báo — `extraKnownMarketplaces` chỉ được
+đọc từ user, flag và managed settings, nên một checkout không thể khiến một
+session chạy mã plugin mà chủ máy chưa từng đồng ý:
+
+```shell
+claude plugin marketplace add ./.claude/plugins
+```
+
+Sau đó một session sẽ nhận diagnostic boundary ở mỗi lần sửa một file Go,
+Rust, Python hoặc Vue. Khai báo server là `lspServers` trong `plugin.json`
+của plugin đó; JS và TS được cố ý để lại cho ESLint, vì editor chỉ cho một
+server trên mỗi phần mở rộng file và nhận chúng sẽ đẩy văng đúng cái language
+server mà lập trình viên thực sự cần ở đó.
+
+**Bất kỳ LSP client nào khác** khởi chạy đúng executable đó:
+
+```text
+command                node <workspace>/shared/tools/nx-polyglot-graph/lsp.mjs
+transport              stdio
+initializationOptions  { "workspaceRoot": "<workspace>" }
+                       — chỉ cần khi root của editor không phải root workspace
+watched files          **/module-boundaries.config.mjs và **/project.json
+```
+
+Root của workspace được lấy từ `initializationOptions`, rồi
+`workspaceFolders`, rồi `rootUri`, rồi `rootPath`, rồi thư mục làm việc. Chỉ
+đồng bộ toàn văn bản được quảng cáo. Client nào hỗ trợ dynamic registration
+sẽ được yêu cầu theo dõi hai file trên, nên một thay đổi constraint sẽ chẩn
+đoán lại mọi file đang mở. Client nào không làm được sẽ được báo trên stderr,
+và sau đó chỉ thấy thay đổi constraint khi file đó được lưu qua chính editor
+— không bao giờ khi nó đổi ở bên ngoài.
 
 <!-- readme:ecosystem -->
 
@@ -101,15 +148,17 @@ dạng record đã chốt trong `src/analysis/contract.md`. Phần resolve TypeS
 là chính `ts.resolveModuleName` của TypeScript, còn phần tách `<script>` của
 Vue là chính SFC parser của Vue; không cái nào bị viết lại ở đây.
 
-Nửa enforcement đã chạy. `src/rules/` tái hiện đủ mười lăm loại vi phạm của
-`@nx/enforce-module-boundaries` dưới tám option của nó, trên các record phân
-tích thay vì trên AST của ESLint; `cli.mjs check` đọc graph của Nx, phân tích
-mọi file nguồn được track mà một project sở hữu, và thoát với mã 1 khi có bất
-kỳ vi phạm nào, kèm báo cáo `file:line:column` hoặc SARIF 2.1.0. Hai enforcer
-chạy song song là có chủ ý: ESLint vẫn là nguồn phán quyết cho JavaScript và
-TypeScript cho tới khi một bộ conformance chứng minh được hai bên đồng thuận.
+Cả hai nửa đều chạy. `src/rules/` tái hiện đủ mười lăm loại vi phạm của
+`@nx/enforce-module-boundaries` dưới tám option của nó, trên bản ghi analysis
+thay vì AST của ESLint. `cli.mjs check` đọc graph Nx, phân tích mọi file source
+được track mà một project sở hữu, và exit 1 khi có vi phạm, kèm báo cáo
+`file:line:column` hoặc SARIF 2.1.0. `lsp.mjs` phục vụ chính engine đó cho
+editor, publish một diagnostic cho mỗi vi phạm — hoặc một diagnostic nói rằng
+nó không nhìn được, không bao giờ là một danh sách rỗng mà nó chưa xứng đáng.
 
-Nửa dành cho editor thì vẫn là khung, và là một cái khung ồn ào: `lsp.mjs`
-không quảng cáo capability nào thay vì tô xanh mọi file. Cơ chế, giới hạn parse
-của từng ngôn ngữ, và giả định one-manifest-per-project nằm ở
-[`./CLAUDE.md`](./CLAUDE.md).
+Hai enforcer chạy song song một cách có chủ ý. ESLint giữ thẩm quyền cho
+JavaScript và TypeScript; tool này phủ Go, Rust và Python — những thứ ESLint
+hoàn toàn không đọc được. `src/conformance/` đo chỗ hai bên đồng thuận và chỗ
+không, và đó là căn cứ cho bất kỳ quyết định nào về việc cho một bên nghỉ. Cơ
+chế, giới hạn parse theo từng ngôn ngữ, và giả định một-manifest-mỗi-project
+nằm trong [`./CLAUDE.md`](./CLAUDE.md).

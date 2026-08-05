@@ -84,6 +84,10 @@ describe("analyzing through the real workspace", () => {
         column: 2,
         specifier: "example.com/inner/pkg",
         kind: "static",
+        // Go has no relative import form: a module path is absolute by
+        // construction, so both bits are false and neither the self-circular
+        // check nor the path-specifier check can fire on one.
+        spelling: { path: false, relative: false },
         resolved: { target: "inner", file: null, external: false, packageName: null },
       },
     ]);
