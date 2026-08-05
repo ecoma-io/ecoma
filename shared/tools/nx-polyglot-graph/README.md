@@ -90,10 +90,15 @@ Go/Rust/Python cross-project edges in the workspace graph, covered by a unit
 test per resolver plus an integration test that drives the real Nx entry point
 over a tmpdir fixture.
 
-The enforcement half is a scaffold, and a loud one. No rule exists under
-`src/rules/`, no language analyzer exists under `src/analysis/`, and every
-entry point that would need one fails rather than reporting a clean tree. What
-those analyzers must return is already frozen, in
-`src/analysis/contract.md`, so they can be written independently and still
-agree. Mechanics, parse limits, and the one-manifest-per-project modeling
-assumption are in [`./CLAUDE.md`](./CLAUDE.md).
+The analysis half is real. `src/analysis/` reads TypeScript, JavaScript, Vue,
+Go, Rust and Python sources into resolved import records — which import was
+written, on which line and column, in which form, and what it points at —
+against the record shape frozen in `src/analysis/contract.md`. TypeScript
+resolution is TypeScript's own `ts.resolveModuleName` and Vue's `<script>`
+extraction is Vue's own SFC parser; neither is reimplemented here.
+
+The enforcement half is still a scaffold, and a loud one. No rule exists under
+`src/rules/`, so `cli.mjs check` fails rather than reporting a clean tree, and
+`lsp.mjs` advertises no capabilities rather than painting every file green.
+Mechanics, per-language parse limits, and the one-manifest-per-project
+modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).

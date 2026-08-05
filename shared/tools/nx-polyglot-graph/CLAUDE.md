@@ -61,6 +61,18 @@ TypeScript resolution is `ts.resolveModuleName` — a public API, already a root
 dependency, already correct on this workspace. Call it; never reimplement path
 mapping or extension probing.
 
+Two things that resolver structurally cannot answer, and what `typescript.mjs`
+does instead of pretending. A **Node built-in** (`node:fs`, `fs`) has no
+package to find, so it is classified by `node:module`'s own `isBuiltin` —
+checked after TypeScript, never before, and never against a hand-kept list.
+A **relative specifier TypeScript declines** because the extension is not one
+it compiles (`.vue`, `.css`, `.svg`) is already a path: it is normalised and
+tested for existence, with no extension probing, no `index` lookup and no
+`paths` mapping. Anything beyond those two is the second resolver this project
+must not grow — including an aliased asset (`@ecoma-io/ui/styles/global.css`),
+which stays unresolved on purpose because resolving it would mean applying
+`paths` here.
+
 ## Standing constraints
 
 - **Static analysis by design.** Resolvers read tracked files only (regex over
@@ -75,23 +87,46 @@ mapping or extension probing.
   targets are never inferred — resist upstreaming the inferred-target model
   from gonx/@nxlv/python; rejecting it is this plugin's reason to exist.
 - **No workspace project may be imported from here, `dev-cli` included.** Node
-  built-ins and `typescript` only. Nothing enforces this today, which is
-  exactly why it is written down: self-contained is what keeps a later
-  extraction cheap.
+  built-ins, `typescript`, and `vue/compiler-sfc` only. Nothing enforces this
+  today, which is exactly why it is written down: self-contained is what keeps
+  a later extraction cheap. `vue/compiler-sfc` is reached through the root
+  `vue` dependency's own public subpath — the `@vue/compiler-sfc` package is
+  NOT declared at the root, so importing it by that name would be a phantom
+  dependency that pnpm's strict layout does not resolve. It is also loaded
+  lazily via `createRequire` rather than at module scope: this tool runs over
+  trees with no Vue at all (the private control-plane workspace has none), and
+  a top-level import would make a missing `vue` break Go, Rust and Python
+  analysis in a workspace with no `.vue` file to analyze.
 - **Never assume this repository's project names, areas, or tag values.** The
   tool also runs inside the private control-plane workspace through a pinned
   harness clone, over a different tree. Everything comes from the graph and
   from the config — which is why `loadBoundaryConfig` takes a workspace root
   rather than walking up from its own location.
-- **One module/crate/package per project root** is the modeling assumption:
-  identity is `<projectRoot>/go.mod` · `Cargo.toml [package]` ·
-  `pyproject.toml [project]`. A nested second manifest inside one project is
-  not resolved — split it into its own project instead.
-- Known, pinned parse limits (see each resolver's header + tests): Go block
+- **One module/crate/package per project root** is the modeling assumption for
+  `src/graph/`: identity is `<projectRoot>/go.mod` · `Cargo.toml [package]` ·
+  `pyproject.toml [project]`. A nested second manifest inside one project
+  yields no edge — split it into its own project instead. **`src/analysis/` is
+  deliberately broader**, because it attributes a FILE rather than a manifest:
+  a crate or module nested inside a project still belongs to the project whose
+  directory contains it, and this workspace has one — `rba-desktop` keeps its
+  crate in `src-tauri/`, the layout Tauri prescribes, so the graph draws no
+  Rust edge for it while analysis reads its sources. The two disagreeing there
+  is the documented modeling limit surfacing, not a bug in either.
+- Known, pinned parse limits (see each analyzer's header + tests): Go block
   imports are read to the first `)` and commented-out imports inside a block
-  still count (worst case: a spurious edge, never a missed one); Python
-  edges follow uv semantics strictly — no `[tool.uv.sources]` entry, no
-  edge, even when the name matches a sibling package.
+  still count; Rust reads `use` only at the start of a line and resolves a
+  uniform path toward the crate, and a renamed `package = "…"` dependency is
+  followed by the manifest resolver alone; Python matches per line, so a
+  continued line or a triple-quoted string that looks like an import is
+  misread. The worst case of every one is a spurious record naming text the
+  file really contains — never a missed project.
+- **Graph edges and source records answer different questions, and both stay.**
+  A Python manifest edge follows uv semantics strictly — no
+  `[tool.uv.sources]` entry, no edge, even when the name matches a sibling
+  package — while `analyzePython` reads the `.py` sources, where an undeclared
+  `import other_project.thing` imports fine at runtime and crosses the boundary
+  anyway. Neither replaces the other; a declared-but-unused dependency and an
+  undeclared-but-imported one are both findings.
 - External packages (crates.io, PyPI, Go module proxy) are deliberately NOT
   added as `externalNodes` — only project↔project edges matter to
   `nx affected`, and external-node bookkeeping is where the community
@@ -113,10 +148,12 @@ file already states, and the two would disagree the day one changed.
 Nothing that cannot enforce reports success (root `CLAUDE.md` — scaffold
 openly, never fake done). Concretely:
 
-- `analyzeFile` **throws** for any extension it recognises, naming the missing
-  language. An unrecognised extension is a no-op returning the empty envelope —
-  the dispatcher is pointed at every tracked file, and `README.md` is not an
-  error.
+- `analyzeFile` dispatches through two tables — extension → language, language
+  → analyzer — and **throws** for a language the first table claims and the
+  second does not, naming it. That is how the next language stays loud before
+  its analyzer lands. An unrecognised extension is a no-op returning the empty
+  envelope: the dispatcher is pointed at every tracked file, and `README.md`
+  is not an error.
 - `cli.mjs check` exits **3** (`not implemented`), distinct from **2**
   (usage) and the reserved **1** (violations found). Exit 0 was the bug.
 - `lsp.mjs` advertises an **empty capability set**, so no editor asks it for
@@ -126,6 +163,18 @@ openly, never fake done). Concretely:
 
 ## Tests
 
+- **An analyzer test that would pass against a hard-coded name→project map is
+  not a test.** Resolution is driven over an in-memory workspace whose
+  `readFile` backs a real fixture tree, so `ts.resolveModuleName` runs for
+  real; `typescript.test.mjs` repoints a `tsconfig.base.json` alias without
+  changing the specifier and requires the answer to move with it.
+- **The Vue analyzer's positions carry two tiers, and it needs both.**
+  `vue.test.mjs` mocks the TypeScript analyzer to pin the text handed over —
+  the whole file with everything outside the script block blanked, so no
+  arithmetic can be wrong. `vue.integration.test.mjs` drives the real pair and
+  checks the line a reader finally sees, against positions computed from the
+  fixture rather than written as literals. A diagnostic naming the wrong line
+  is worse than none, so it is pinned from both sides.
 - The resolver contract is shared and injectable:
   `resolve(projects, filesOf, readFile)`. Unit tests inject in-memory files;
   `src/graph/create-dependencies.integration.test.mjs` drives the real entry

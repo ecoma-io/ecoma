@@ -82,9 +82,15 @@ CI 的文档门禁步骤和只写 TS 的贡献者——图依然能算出来。�
 唯一来源,每个 resolver 都有对应的单元测试覆盖,外加一个驱动真实 Nx 入
 口、基于 tmpdir fixture 的集成测试。
 
-强制执行这一半还只是骨架,而且是一副很吵的骨架。`src/rules/` 下还没有任何
-规则,`src/analysis/` 下还没有任何语言分析器,凡是需要它们的入口点都会失
-败,而不是报告一棵干净的代码树。那些分析器必须返回什么,已经在
-`src/analysis/contract.md` 里定死了,好让它们各自独立编写也不会互相打架。
-机制、解析边界,以及 one-manifest-per-project 的建模假设都写在
+分析这一半已经是真的了。`src/analysis/` 把 TypeScript、JavaScript、Vue、
+Go、Rust 和 Python 的源码读成已解析的 import 记录——写下的是哪一个 import、
+在第几行第几列、以什么形式、指向什么——遵循 `src/analysis/contract.md` 里
+定死的记录形状。TypeScript 的解析用的是 TypeScript 自己的
+`ts.resolveModuleName`,Vue 的 `<script>` 提取用的是 Vue 自己的 SFC
+parser;两者都没有在这里被重写。
+
+强制执行这一半仍然只是骨架,而且是一副很吵的骨架。`src/rules/` 下还没有任
+何规则,所以 `cli.mjs check` 会失败,而不是报告一棵干净的代码树,`lsp.mjs`
+也不声明任何 capability,而不是把每个文件都涂绿。机制、每种语言的解析边
+界,以及 one-manifest-per-project 的建模假设都写在
 [`./CLAUDE.md`](./CLAUDE.md)。

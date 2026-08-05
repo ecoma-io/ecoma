@@ -91,10 +91,15 @@ liên project Go/Rust/Python trong graph của workspace, được phủ bởi m
 test cho mỗi resolver cộng với một integration test chạy thẳng entry point
 thật của Nx trên một fixture tmpdir.
 
-Nửa enforcement mới chỉ là khung, và là một cái khung ồn ào. Chưa có rule nào
-dưới `src/rules/`, chưa có analyzer ngôn ngữ nào dưới `src/analysis/`, và mọi
-entry point cần đến chúng đều fail thay vì báo cây code sạch. Thứ mà các
-analyzer đó phải trả về thì đã được chốt sẵn, trong
-`src/analysis/contract.md`, để chúng có thể được viết độc lập mà vẫn khớp
-nhau. Cơ chế, giới hạn parse, và giả định one-manifest-per-project nằm ở
+Nửa analysis đã là thật. `src/analysis/` đọc source TypeScript, JavaScript,
+Vue, Go, Rust và Python thành các record import đã resolve — import nào được
+viết ra, ở dòng và cột nào, dưới dạng nào, và trỏ tới đâu — theo đúng hình
+dạng record đã chốt trong `src/analysis/contract.md`. Phần resolve TypeScript
+là chính `ts.resolveModuleName` của TypeScript, còn phần tách `<script>` của
+Vue là chính SFC parser của Vue; không cái nào bị viết lại ở đây.
+
+Nửa enforcement thì vẫn là khung, và là một cái khung ồn ào. Chưa có rule nào
+dưới `src/rules/`, nên `cli.mjs check` fail thay vì báo cây code sạch, và
+`lsp.mjs` không quảng cáo capability nào thay vì tô xanh mọi file. Cơ chế,
+giới hạn parse của từng ngôn ngữ, và giả định one-manifest-per-project nằm ở
 [`./CLAUDE.md`](./CLAUDE.md).

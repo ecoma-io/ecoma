@@ -8,13 +8,23 @@
  * beside this file. The types below are that document's machine-readable half;
  * neither is edited without the other.
  *
- * No analyzer is implemented yet. `analyzeFile` therefore throws for every
- * extension it recognises, by design: an empty result would read as "this file
+ * Two tables decide everything here and nothing else does: an extension names
+ * a language (`LANGUAGE_BY_EXTENSION`), a language names an analyzer
+ * (`ANALYZER_BY_LANGUAGE`). A language registered in the first table with no
+ * entry in the second **throws**, and that is the scaffold staying loud for
+ * whichever language arrives next: an empty result would read as "this file
  * imports nothing", which is indistinguishable from "clean" and is the exact
  * fake-green this repository refuses (root CLAUDE.md — scaffold openly, never
- * fake done). An extension it does NOT recognise is a different case and
- * returns the empty envelope — see `LANGUAGE_BY_EXTENSION`.
+ * fake done). An extension in neither table is a different case and returns
+ * the empty envelope.
  */
+
+import { analyzeGo } from "./go.mjs";
+import { analyzePython } from "./python.mjs";
+import { analyzeRust } from "./rust.mjs";
+import { emptyResult } from "./source-util.mjs";
+import { analyzeTypeScript } from "./typescript.mjs";
+import { analyzeVue } from "./vue.mjs";
 
 /**
  * Where a specifier points. `null` on the record itself when the specifier
@@ -129,6 +139,13 @@
  * `.mjs`/`.cjs` are listed beside `.js` rather than folded into it: this
  * workspace's own tools are `.mjs`, so leaving them out would exempt the
  * enforcer from itself.
+ *
+ * `.vue` names its own language rather than folding into `typescript`. A `.vue`
+ * file is not TypeScript — its imports live inside `<script>` blocks that have
+ * to be located before anything can read them, and the block's `lang` decides
+ * which of TypeScript's four dialects applies. The Vue analyzer does that and
+ * then hands the block to the TypeScript one; the sharing belongs there, not
+ * in this table.
  */
 export const LANGUAGE_BY_EXTENSION = Object.freeze({
   ".ts": "typescript",
@@ -139,14 +156,25 @@ export const LANGUAGE_BY_EXTENSION = Object.freeze({
   ".jsx": "typescript",
   ".mjs": "typescript",
   ".cjs": "typescript",
-  ".vue": "typescript",
+  ".vue": "vue",
   ".go": "go",
   ".rs": "rust",
   ".py": "python",
 });
 
-/** An empty result, so a no-op and a clean file are the same shape. */
-const emptyResult = () => ({ imports: [], failures: [] });
+/**
+ * Language → the analyzer that owns it. The second of the dispatcher's two
+ * tables, kept separate from the extension registry because the two answer
+ * different questions: which language a filename is written in, and whether
+ * this tool can read that language yet.
+ */
+const ANALYZER_BY_LANGUAGE = Object.freeze({
+  typescript: analyzeTypeScript,
+  vue: analyzeVue,
+  go: analyzeGo,
+  rust: analyzeRust,
+  python: analyzePython,
+});
 
 /**
  * The language owning `sourceFile`, or `null` when no analyzer claims its
@@ -168,18 +196,39 @@ export function languageOf(sourceFile) {
 }
 
 /**
+ * The analyzer owning `language`.
+ *
+ * Throws for a language `LANGUAGE_BY_EXTENSION` claims but no analyzer
+ * implements. That is the one legitimate throw in this layer (`contract.md`):
+ * a malformed file is data and becomes a `failure`, but a missing
+ * implementation is not an input problem, and reporting an empty result for it
+ * would say "this file imports nothing" about every file of that language.
+ *
+ * @param {string} language
+ * @returns {Analyzer}
+ * @throws {Error} when no analyzer is registered for `language`.
+ */
+export function analyzerFor(language) {
+  const analyzer = ANALYZER_BY_LANGUAGE[language];
+  if (analyzer) return analyzer;
+  throw new Error(
+    `nx-polyglot-graph: no ${language} import analyzer is implemented yet. This is a stub, ` +
+      `not a clean result — see src/analysis/contract.md for the record shape an analyzer must return.`,
+  );
+}
+
+/**
  * Analyzes one file by dispatching on its extension.
  *
- * An extension no analyzer claims is a NO-OP returning the empty envelope, not
+ * An extension no language claims is a NO-OP returning the empty envelope, not
  * an error: this is pointed at whatever files a project owns, and those include
  * `README.md`, `project.json`, and a lockfile. Failing on them would make every
  * run red for reasons no rule cares about, and the fix would be an ignore list
  * someone has to keep in sync with the tree.
  *
- * A recognised extension currently THROWS, and will keep throwing until that
- * language's analyzer lands. This is the scaffold being loud: returning an
- * empty result instead would report every Go file in the workspace as importing
- * nothing, which is exactly how a boundary check passes while checking nothing.
+ * Every analyzer catches its own errors, so a malformed or unreadable file
+ * comes back as records plus failures. The only throw that escapes here is
+ * `analyzerFor`'s, for a language with no implementation.
  *
  * @param {AnalysisRequest} request
  * @returns {AnalysisResult}
@@ -188,9 +237,5 @@ export function languageOf(sourceFile) {
 export function analyzeFile(request) {
   const language = languageOf(request.sourceFile);
   if (language === null) return emptyResult();
-  throw new Error(
-    `nx-polyglot-graph: no ${language} import analyzer is implemented yet, so ` +
-      `'${request.sourceFile}' cannot be analyzed. This is a stub, not a clean result — ` +
-      `see src/analysis/contract.md for the record shape an analyzer must return.`,
-  );
+  return analyzerFor(language)(request);
 }

@@ -1,7 +1,13 @@
 import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 
-import { parseGoImports, parseGoModulePath, resolveGoDependencies } from "./go.mjs";
+import {
+  analyzeGo,
+  parseGoImports,
+  parseGoImportSites,
+  parseGoModulePath,
+  resolveGoDependencies,
+} from "./go.mjs";
 
 const modulePath = fc
   .array(fc.constantFrom(..."abcdefgh"), { minLength: 1, maxLength: 6 })
@@ -133,5 +139,150 @@ describe("resolveGoDependencies", () => {
       "acme/libs/alpha/main.go": 'package main\n\nimport "example.com/acme/betafake"\n',
     };
     expect(resolveGoDependencies(projects, filesOf, (p) => lookalike[p] ?? null)).toEqual([]);
+  });
+});
+
+describe("parseGoImportSites", () => {
+  const source = [
+    "package main", // 1
+    "", // 2
+    "import (", // 3
+    '\t"fmt"', // 4
+    '\t_ "example.com/acme/beta/pkg"', // 5
+    ")", // 6
+    "", // 7
+    'import "example.com/acme/gamma"', // 8
+  ].join("\n");
+
+  it("keeps one entry per written import, with the offset of its quoted path", () => {
+    expect(
+      parseGoImportSites(source).map((site) => [site.specifier, source.slice(site.offset)[0]]),
+    ).toEqual([
+      ["fmt", '"'],
+      ["example.com/acme/beta/pkg", '"'],
+      ["example.com/acme/gamma", '"'],
+    ]);
+  });
+
+  it("returns sites in source order, not block-form after single-form", () => {
+    // The single-form import is written last but sits after the block; a
+    // parser that appended one regex's matches to the other's would report a
+    // record order that contradicts `contract.md`'s source-order promise.
+    const offsets = parseGoImportSites(source).map((site) => site.offset);
+    expect([...offsets].sort((a, b) => a - b)).toEqual(offsets);
+  });
+
+  it("is the single parse both layers read — `parseGoImports` is its deduped view", () => {
+    const doubled = 'package x\n\nimport "fmt"\nimport "fmt"\n';
+    expect(parseGoImportSites(doubled)).toHaveLength(2);
+    expect(parseGoImports(doubled)).toEqual(["fmt"]);
+  });
+});
+
+describe("analyzeGo", () => {
+  const workspace = {
+    root: "/w",
+    projects: [
+      { name: "alpha", root: "acme/libs/alpha" },
+      { name: "beta", root: "acme/libs/beta" },
+      { name: "beta-nested", root: "acme/libs/beta/nested" },
+    ],
+    filesOf: (name) =>
+      ({
+        alpha: ["acme/libs/alpha/go.mod", "acme/libs/alpha/main.go"],
+        beta: ["acme/libs/beta/go.mod"],
+        "beta-nested": ["acme/libs/beta/nested/go.mod"],
+      })[name] ?? [],
+    readFile: (path) =>
+      ({
+        "acme/libs/alpha/go.mod": "module example.com/acme/alpha\n",
+        "acme/libs/beta/go.mod": "module example.com/acme/beta\n",
+        "acme/libs/beta/nested/go.mod": "module example.com/acme/beta/nested\n",
+      })[path] ?? null,
+  };
+  const analyze = (text, sourceFile = "acme/libs/alpha/main.go") =>
+    analyzeGo({ sourceFile, text, workspace });
+
+  it("names the project, the line, the column and the raw path an import crosses to", () => {
+    // The whole reason this layer exists: an Nx edge says only that alpha
+    // depends on beta. This is the record a reader can act on.
+    const text = 'package main\n\nimport (\n\t"fmt"\n\t"example.com/acme/beta/store"\n)\n';
+    const { imports, failures } = analyze(text);
+    expect(failures).toEqual([]);
+    expect(imports[1]).toEqual({
+      sourceFile: "acme/libs/alpha/main.go",
+      line: 5,
+      column: 2,
+      specifier: "example.com/acme/beta/store",
+      kind: "static",
+      resolved: { target: "beta", file: null, external: false, packageName: null },
+    });
+  });
+
+  it("resolves to the innermost module when one module path nests inside another", () => {
+    // `example.com/acme/beta/nested` lives under `example.com/acme/beta`. A
+    // first-match answer names the parent project and the nested project's
+    // every dependency disappears into it.
+    const { imports } = analyze('package main\n\nimport "example.com/acme/beta/nested/x"\n');
+    expect(imports[0].resolved.target).toBe("beta-nested");
+  });
+
+  it("emits an import of the file's own module rather than dropping it", () => {
+    // `contract.md` keeps intra-project imports: a rule about a project
+    // reaching itself through its public path cannot be written without them.
+    const { imports } = analyze('package main\n\nimport "example.com/acme/alpha/internal"\n');
+    expect(imports[0].resolved).toEqual({
+      target: "alpha",
+      file: null,
+      external: false,
+      packageName: null,
+    });
+  });
+
+  it("marks a stdlib or proxy import external and carries its whole path as the package", () => {
+    // Where a module path ends inside `github.com/aws/aws-sdk-go-v2/service/s3`
+    // is knowable only to the module proxy, so the full path stands in and a
+    // `bannedExternalImports` glob matches it the same way.
+    const { imports } = analyze(
+      'package main\n\nimport (\n\t"net/http"\n\t"github.com/aws/aws-sdk-go-v2/service/s3"\n)\n',
+    );
+    expect(imports.map((record) => record.resolved)).toEqual([
+      { target: null, file: null, external: true, packageName: "net/http" },
+      {
+        target: null,
+        file: null,
+        external: true,
+        packageName: "github.com/aws/aws-sdk-go-v2/service/s3",
+      },
+    ]);
+  });
+
+  it("finds a module nested below the project root, which the edge resolver does not model", () => {
+    // A crate or module in a subdirectory still belongs to the project whose
+    // directory contains it. Analysis attributes a file, so it can see one.
+    const nested = {
+      ...workspace,
+      projects: [{ name: "app", root: "apps/thing" }],
+      filesOf: () => ["apps/thing/go/go.mod", "apps/thing/go/main.go"],
+      readFile: (path) => (path === "apps/thing/go/go.mod" ? "module example.com/thing\n" : null),
+    };
+    const { imports } = analyzeGo({
+      sourceFile: "apps/thing/go/main.go",
+      text: 'package main\n\nimport "example.com/thing/sub"\n',
+      workspace: nested,
+    });
+    expect(imports[0].resolved.target).toBe("app");
+  });
+
+  it("returns an envelope rather than throwing when the workspace misbehaves", () => {
+    const hostile = {
+      ...workspace,
+      filesOf: () => {
+        throw new Error("graph unavailable");
+      },
+    };
+    const result = analyzeGo({ sourceFile: "a/b.go", text: 'import "fmt"', workspace: hostile });
+    expect(result.imports).toEqual([]);
+    expect(result.failures[0].reason).toMatch(/graph unavailable/);
   });
 });
