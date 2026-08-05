@@ -3,6 +3,9 @@
   "attribution": {
     "sessionUrl": false
   },
+  "enabledPlugins": {
+    "nx-polyglot-graph@ecoma": true
+  },
   "hooks": {
     "SessionStart": [
       {
