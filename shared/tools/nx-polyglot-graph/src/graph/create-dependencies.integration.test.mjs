@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { createDependencies } from "../index.mjs";
+import { createDependencies } from "../../index.mjs";
 
 /**
  * Drives the real plugin entry point over a real filesystem fixture holding
@@ -12,6 +12,11 @@ import { createDependencies } from "../index.mjs";
  * (projects, fileMap.projectFileMap, workspaceRoot). What this pins: the
  * adapter wiring — ctx → resolver contract → raw dependency objects — not
  * the per-language parsing, which the unit tests own.
+ *
+ * Deliberately reached through `index.mjs` rather than through the module
+ * beside it: what Nx loads is the entry, so an entry that stopped re-exporting
+ * `createDependencies` would leave every Go/Rust/Python edge out of the graph
+ * while this file, pointed at the implementation, still passed.
  */
 describe("createDependencies over a real workspace fixture", () => {
   const root = mkdtempSync(join(tmpdir(), "polyglot-graph-"));

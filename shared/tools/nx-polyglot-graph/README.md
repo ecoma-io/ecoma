@@ -26,6 +26,14 @@ each project's own polyglot `nx:run-commands` stay the single source of
 truth for what a target does. This plugin exists to add the missing edges
 only, without smuggling target inference back in.
 
+The same gap has a second half. `@nx/enforce-module-boundaries` reads only
+JavaScript and TypeScript, so in a Go or Rust project the `layer:`, `scope:`
+and `license:` tags are a declaration with no mechanism behind them: a `.go`
+file given an import that violates the layer axis shows the edge in the graph
+and still passes `lint`. This project is where that mechanism is being built,
+which is why it now carries an analysis layer and its own entry points
+alongside the graph plugin.
+
 <!-- readme:consumers -->
 
 ## Who consumes it
@@ -33,7 +41,12 @@ only, without smuggling target inference back in.
 Nx itself. It is registered under `nx.json` → `plugins` as
 `./shared/tools/nx-polyglot-graph/index.mjs` and runs wherever Nx builds its
 own project graph — `nx affected`, `nx graph`, `nx run-many`. No product or
-tooling code imports it directly; it has no other consumer.
+tooling code imports it directly.
+
+It also declares two executables as `bin` entries in its own `package.json`:
+`cli.mjs` for a terminal run and `lsp.mjs` for an editor. Neither enforces
+anything yet, and both say so instead of pretending — `cli.mjs check` exits
+non-zero.
 
 <!-- readme:ecosystem -->
 
@@ -61,12 +74,26 @@ TS-only contributors. It also never records external packages (crates.io,
 PyPI, the Go module proxy) as `externalNodes` — only project-to-project
 edges matter to `nx affected`.
 
+It also does not restate the boundary rules. The constraint table lives once
+at the workspace root in `module-boundaries.config.mjs`, which ESLint reads
+too; `src/config.mjs` is the only thing here that loads it. And nothing here
+assumes this repository's project names, areas, or tag values — the tool has
+to run over the private control-plane workspace as well, so everything comes
+from the graph and that config.
+
 <!-- readme:status -->
 
 ## Status
 
-Active and load-bearing: it is the only source of Go/Rust/Python
-cross-project edges in the workspace graph, covered by a unit test per
-resolver plus an integration test that drives the real Nx entry point over a
-tmpdir fixture. Mechanics, parse limits, and the one-manifest-per-project
-modeling assumption are in [`./CLAUDE.md`](./CLAUDE.md).
+The graph half is active and load-bearing: it is the only source of
+Go/Rust/Python cross-project edges in the workspace graph, covered by a unit
+test per resolver plus an integration test that drives the real Nx entry point
+over a tmpdir fixture.
+
+The enforcement half is a scaffold, and a loud one. No rule exists under
+`src/rules/`, no language analyzer exists under `src/analysis/`, and every
+entry point that would need one fails rather than reporting a clean tree. What
+those analyzers must return is already frozen, in
+`src/analysis/contract.md`, so they can be written independently and still
+agree. Mechanics, parse limits, and the one-manifest-per-project modeling
+assumption are in [`./CLAUDE.md`](./CLAUDE.md).

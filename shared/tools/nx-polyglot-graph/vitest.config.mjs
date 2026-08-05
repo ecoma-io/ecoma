@@ -23,6 +23,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       enabled: true,
+      // `index.mjs` is named because Nx loads it and nothing else; it is
+      // exercised in-process by the graph integration test. `cli.mjs` and
+      // `lsp.mjs` are deliberately absent: both call `process.exit` and are
+      // driven end-to-end as spawned subprocesses, which in-process V8
+      // coverage cannot see (same reason dev-cli excludes its `main.mjs`).
       include: ["src/**/*.mjs", "index.mjs"],
       exclude: ["src/**/*.test.mjs"],
       thresholds,

@@ -27,6 +27,14 @@ của từng project đa ngôn ngữ vẫn là nguồn sự thật duy nhất ch
 làm gì. Plugin này chỉ tồn tại để bù đúng phần edge còn thiếu, không lén đưa
 việc infer target quay trở lại.
 
+Khoảng trống đó còn một nửa nữa. `@nx/enforce-module-boundaries` chỉ đọc
+được JavaScript và TypeScript, nên trong một project Go hay Rust, các tag
+`layer:`, `scope:` và `license:` chỉ là lời khai báo không có cơ chế nào đứng
+sau: một file `.go` được thêm import vi phạm trục layer vẫn hiện edge trong
+graph và vẫn qua `lint`. Project này là nơi cơ chế đó đang được xây, nên giờ
+nó mang thêm một tầng phân tích và các entry point riêng bên cạnh plugin
+graph.
+
 <!-- readme:consumers -->
 
 ## Ai đang consume nó
@@ -34,8 +42,12 @@ việc infer target quay trở lại.
 Chính Nx. Nó được khai báo trong `nx.json` → `plugins` dưới tên
 `./shared/tools/nx-polyglot-graph/index.mjs` và chạy ở bất cứ đâu Nx tự dựng
 project graph của nó — `nx affected`, `nx graph`, `nx run-many`. Không có
-mã sản phẩm hay tooling nào import nó trực tiếp; nó không có consumer nào
-khác.
+mã sản phẩm hay tooling nào import nó trực tiếp.
+
+Nó cũng khai báo hai executable dưới dạng entry `bin` trong `package.json`
+của chính nó: `cli.mjs` cho lần chạy ở terminal và `lsp.mjs` cho editor. Cả
+hai chưa enforce gì cả, và cả hai đều nói thẳng ra thay vì giả vờ —
+`cli.mjs check` thoát với mã khác 0.
 
 <!-- readme:ecosystem -->
 
@@ -63,12 +75,26 @@ contributor chỉ làm TS. Nó cũng không bao giờ ghi external package
 (crates.io, PyPI, Go module proxy) thành `externalNodes` — chỉ edge giữa
 project với project mới có ý nghĩa với `nx affected`.
 
+Nó cũng không chép lại bộ luật ranh giới. Bảng constraint chỉ nằm một chỗ, ở
+gốc workspace trong `module-boundaries.config.mjs`, chính là file ESLint cũng
+đọc; `src/config.mjs` là thứ duy nhất ở đây nạp nó. Và không có gì ở đây giả
+định tên project, khu vực, hay giá trị tag của riêng repo này — công cụ còn
+phải chạy trên workspace control-plane riêng tư, nên mọi thứ đều đến từ graph
+và từ config đó.
+
 <!-- readme:status -->
 
 ## Trạng thái
 
-Đang hoạt động và là gate thật sự: đây là nguồn duy nhất của edge liên
-project Go/Rust/Python trong graph của workspace, được phủ bởi một unit test
-cho mỗi resolver cộng với một integration test chạy thẳng entry point thật
-của Nx trên một fixture tmpdir. Cơ chế, giới hạn parse, và giả định
-one-manifest-per-project nằm ở [`./CLAUDE.md`](./CLAUDE.md).
+Nửa graph đang hoạt động và là gate thật sự: đây là nguồn duy nhất của edge
+liên project Go/Rust/Python trong graph của workspace, được phủ bởi một unit
+test cho mỗi resolver cộng với một integration test chạy thẳng entry point
+thật của Nx trên một fixture tmpdir.
+
+Nửa enforcement mới chỉ là khung, và là một cái khung ồn ào. Chưa có rule nào
+dưới `src/rules/`, chưa có analyzer ngôn ngữ nào dưới `src/analysis/`, và mọi
+entry point cần đến chúng đều fail thay vì báo cây code sạch. Thứ mà các
+analyzer đó phải trả về thì đã được chốt sẵn, trong
+`src/analysis/contract.md`, để chúng có thể được viết độc lập mà vẫn khớp
+nhau. Cơ chế, giới hạn parse, và giả định one-manifest-per-project nằm ở
+[`./CLAUDE.md`](./CLAUDE.md).
