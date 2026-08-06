@@ -60,13 +60,13 @@ Nx 本身。它在 `nx.json` → `plugins` 下注册为
 Python 根本没有 parser,那才是 ESLint 插件永远够不着的那一半。
 
 **Claude Code** 从本仓库自己的插件目录 `.claude/plugins` 加载它。
-`.claude/settings.json` 带着 `enabledPlugins` 条目;注册 marketplace 是每
-个开发者的一次性动作,因为仓库本身无权声明——`extraKnownMarketplaces` 只从
-user、flag 和 managed settings 读取,这样一个 checkout 就无法让会话运行其
-机器主人从未同意过的插件代码:
+`.claude/settings.json` 注册该目录并启用插件,因此没有任何需要手动添加的东
+西。这两个键只在你信任本目录之后才会被读取——那个信任提示就是闸门,而不是
+某个缺失的配置。启用一个插件并不等于安装它,所以首个会话会打印出完成安装的
+那一条命令:
 
 ```shell
-claude plugin marketplace add ./.claude/plugins
+claude plugin install nx-polyglot-graph@ecoma --scope project
 ```
 
 之后,会话每次编辑 Go、Rust、Python 或 Vue 文件都会拿到边界诊断。server 声
