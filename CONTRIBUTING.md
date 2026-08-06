@@ -69,6 +69,18 @@ Claude Code cloud sessions provision themselves with the same script
 `--yes` in remote sandboxes only, so there is exactly one setup path to
 maintain.
 
+The same file declares one shared Claude Code plugin:
+[`litmus`](https://github.com/ecoma-io/litmus), a portable set of test-craft
+skills, registered as a marketplace under `extraKnownMarketplaces` and turned on
+under `enabledPlugins`. Declaring it in the checked-in settings rather than
+leaving each contributor to add it is what makes it the same for everyone; a
+plugin installed per-person is a per-person answer to a workspace question.
+Claude Code offers to install it once you trust this folder, so nothing is
+fetched behind your back — if the offer never appears, or a session reports the
+plugin as not installed, run `claude plugin install litmus@litmus`. Its skills
+arrive namespaced (`/litmus:write-test`) and therefore never shadow this repo's
+own `/write-test`, which stays the place the workspace's own rules are written.
+
 ## Development Workflow
 
 1. **Read [`CLAUDE.md`](./CLAUDE.md) first** — Product & Strategy and the numbered Working Principles record the decisions and constraints the project is built on.

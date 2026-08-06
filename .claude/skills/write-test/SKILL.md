@@ -7,6 +7,8 @@ description: Write a test that fits this repo's enforced taxonomy and actually p
 
 The lint rules enforce the mechanics (`local/no-unmocked-internal-imports`, `local/no-focused-or-skipped-tests` — see `eslint.config.mjs`); this skill owns the judgment they cannot check: picking the tier and making the test worth having (Rule 8).
 
+Two skills answer to that name and they do not overlap. **`/litmus:write-test`** (the `litmus` plugin, enabled for everyone in `.claude/settings.json`) owns the craft that is true in any repository: where to put the seam, which test double is the lightest one that works, asserting on outcomes rather than call sequences, and proving a test can fail before trusting it green. This one owns only what is true _here_ — the enforced taxonomy, the lint rules that reject a test, the per-language property/fuzz mechanics, and the workspace rules a portable skill cannot know. Reach for the portable one when the question is how to write the test; this one when the question is what this repo will accept.
+
 ## 1. Pick the tier — by what is under test, not by convenience
 
 The tier is a judgment call about **what is under test**, and it is the same call in every language:
