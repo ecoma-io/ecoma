@@ -69,17 +69,24 @@ Claude Code cloud sessions provision themselves with the same script
 `--yes` in remote sandboxes only, so there is exactly one setup path to
 maintain.
 
-The same file declares one shared Claude Code plugin:
+The same file declares two Claude Code marketplaces and the plugins they carry:
 [`litmus`](https://github.com/ecoma-io/litmus), a portable set of test-craft
-skills, registered as a marketplace under `extraKnownMarketplaces` and turned on
-under `enabledPlugins`. Declaring it in the checked-in settings rather than
-leaving each contributor to add it is what makes it the same for everyone; a
-plugin installed per-person is a per-person answer to a workspace question.
-Claude Code offers to install it once you trust this folder, so nothing is
-fetched behind your back — if the offer never appears, or a session reports the
-plugin as not installed, run `claude plugin install litmus@litmus`. Its skills
-arrive namespaced (`/litmus:write-test`) and therefore never shadow this repo's
-own `/write-test`, which stays the place the workspace's own rules are written.
+skills, and this repository's own catalogue at `.claude/plugins`, which ships
+`nx-polyglot-graph`. Both are registered under `extraKnownMarketplaces` and
+turned on under `enabledPlugins`. Declaring them in the checked-in settings
+rather than leaving each contributor to add them is what makes it the same for
+everyone; a plugin installed per-person is a per-person answer to a workspace
+question. Neither key is read until you trust this folder, so nothing is fetched
+behind your back — that trust prompt is the gate, and it is why there is no
+SessionStart hook registering marketplaces for you.
+
+Enabling a plugin does not install it. A first session prints which enabled
+plugin is missing along with the command to fix it — `claude plugin install
+litmus@litmus --scope project`, and the same for `nx-polyglot-graph@ecoma`. That
+one command per plugin is the only manual step, and it writes to your own plugin
+cache rather than into this tree. litmus's skills arrive namespaced
+(`/litmus:write-test`) and therefore never shadow this repo's own `/write-test`,
+which stays the place the workspace's own rules are written.
 
 ## Development Workflow
 
