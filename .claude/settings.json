@@ -6,16 +6,20 @@
         "source": "github",
         "repo": "ecoma-io/litmus"
       }
+    },
+    "ecoma": {
+      "source": {
+        "source": "directory",
+        "path": "./.claude/plugins"
+      }
     }
   },
   "enabledPlugins": {
-    "litmus@litmus": true
+    "litmus@litmus": true,
+    "nx-polyglot-graph@ecoma": true
   },
   "attribution": {
     "sessionUrl": false
-  },
-  "enabledPlugins": {
-    "nx-polyglot-graph@ecoma": true
   },
   "hooks": {
     "SessionStart": [

@@ -82,9 +82,19 @@ describe("the plugin catalogue this repository hosts for its own sessions", () =
   it("enables each plugin under the name the two manifests actually spell", () => {
     // `enabledPlugins` is the only place the two names are joined, and it is a
     // string: a rename on either side leaves it pointing at nothing.
-    const expected = marketplace.plugins.map((entry) => `${entry.name}@${marketplace.name}`);
+    //
+    // Scoped to the keys naming THIS marketplace, in both directions. The file
+    // also enables plugins from other marketplaces (litmus), which are not this
+    // catalogue's business — but a `@ecoma` key with no entry behind it is, so
+    // the comparison is an equality over that suffix rather than a subset check
+    // that a stale rename would slip through.
+    const suffix = `@${marketplace.name}`;
+    const expected = marketplace.plugins.map((entry) => `${entry.name}${suffix}`);
+    const enabled = Object.keys(settings.enabledPlugins ?? {}).filter((key) =>
+      key.endsWith(suffix),
+    );
 
-    expect(Object.keys(settings.enabledPlugins ?? {}).sort()).toEqual([...expected].sort());
+    expect(enabled.sort()).toEqual([...expected].sort());
     for (const key of expected) expect(settings.enabledPlugins[key]).toBe(true);
   });
 

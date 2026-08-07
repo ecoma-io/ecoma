@@ -68,14 +68,14 @@ bên gạch chân. Go, Rust và Python không có parser nào cả, và đó ch�
 mà một ESLint plugin không bao giờ với tới được.
 
 **Claude Code** nạp nó từ chính catalogue plugin của repository này, nằm dưới
-`.claude/plugins`. `.claude/settings.json` mang entry `enabledPlugins`; việc
-đăng ký marketplace là một thao tác một lần của mỗi lập trình viên, vì một
-repository không được phép tự khai báo — `extraKnownMarketplaces` chỉ được
-đọc từ user, flag và managed settings, nên một checkout không thể khiến một
-session chạy mã plugin mà chủ máy chưa từng đồng ý:
+`.claude/plugins`. `.claude/settings.json` đăng ký thư mục đó và bật plugin, nên
+không còn gì phải thêm bằng tay. Cả hai key chỉ được đọc sau khi bạn trust thư
+mục này — trust prompt chính là cái cổng, không phải một config còn thiếu. Bật
+một plugin không có nghĩa là cài nó, nên session đầu tiên sẽ in ra đúng một lệnh
+làm việc đó:
 
 ```shell
-claude plugin marketplace add ./.claude/plugins
+claude plugin install nx-polyglot-graph@ecoma --scope project
 ```
 
 Sau đó một session sẽ nhận diagnostic boundary ở mỗi lần sửa một file Go,

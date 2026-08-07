@@ -65,14 +65,14 @@ differing only in the column each underlines. Go, Rust and Python have no parser
 at all, and that is the half an ESLint plugin could never reach.
 
 **Claude Code** loads it from this repository's own plugin catalogue, under
-`.claude/plugins`. `.claude/settings.json` carries the `enabledPlugins` entry;
-registering the marketplace is a one-time act per developer, because a
-repository is not allowed to declare one — `extraKnownMarketplaces` is read
-from user, flag and managed settings only, so a checkout cannot make a session
-run plugin code its owner never agreed to:
+`.claude/plugins`. `.claude/settings.json` registers that directory and enables
+the plugin, so there is nothing to add by hand. Both keys are read only after you
+trust this folder — the trust prompt is the gate, not a missing config. Enabling
+a plugin does not install it, so a first session prints the one command that
+does:
 
 ```shell
-claude plugin marketplace add ./.claude/plugins
+claude plugin install nx-polyglot-graph@ecoma --scope project
 ```
 
 After that a session gets boundary diagnostics on every edit to a Go, Rust,
