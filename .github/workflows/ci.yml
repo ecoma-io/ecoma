@@ -140,7 +140,7 @@ jobs:
         with:
           go-version-file: go.work # derives the version from go.work's own pin (CONTRIBUTING.md), never a second copy
           cache: false # the Go modules have no external deps (no go.sum anywhere); enable with the first Go dependency
-      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 → stable
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1 → stable
         with:
           toolchain: stable
           components: clippy, rustfmt
