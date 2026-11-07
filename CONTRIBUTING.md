@@ -226,6 +226,8 @@ Coding agent làm việc theo cùng quy trình, với các quy tắc bổ sung:
 
 Skill và định nghĩa subagent là nguồn canonical ở `.agents/`; `.claude/` và `.opencode/` chỉ chứa output sinh. Không author trực tiếp file sinh ra. Quy tắc đầy đủ về skill usage và escalation → [`AGENTS.md`](AGENTS.md) `Workflow`.
 
+**Agent chuyên vai.** Danh mục năm agent (`engineering-orchestrator`, `repository-analyst`, `architect`, `implementer`, `verifier`) cùng trách nhiệm và ranh giới read-only/write của từng vai nằm ở [`AGENTS.md`](AGENTS.md) `Agent catalog` — đó là nguồn canonical, không chép lại ở đây. Dùng orchestrator cho một task cần điều phối: chạy `claude --agent engineering-orchestrator`, hoặc chọn agent đó trong OpenCode sau khi `pnpm dx repo-prepare` sinh `.opencode/agents/`. Các agent chuyên vai còn lại do orchestrator dispatch, không tự chạy song song ngoài nó.
+
 ## 10. Tài liệu canonical
 
 | Cần biết                                              | Đọc                                                                                                            |

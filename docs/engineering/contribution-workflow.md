@@ -165,6 +165,15 @@ Agent thực hiện cùng mười hành động trên, với bốn khác biệt:
 
 Quy tắc chọn skill và escalation đầy đủ → [`AGENTS.md`](../../AGENTS.md) `Workflow`.
 
+Danh mục agent canonical nằm ở [`AGENTS.md`](../../AGENTS.md) `Agent catalog`: năm vai
+(`engineering-orchestrator`, `repository-analyst`, `architect`, `implementer`, `verifier`),
+trách nhiệm và ranh giới của từng vai. Tài liệu này không chép lại danh mục đó. Ranh giới
+chỉ được tool thực thi khi một tool bị rút hoàn toàn — `repository-analyst` và `architect`
+không có write tool và không có shell; mọi ranh giới khác, kể cả scope lock và vai chỉ
+đọc nhưng có `Bash`, đều là instruction-level vì `Bash` vẫn ghi được file. Chỉ
+`engineering-orchestrator` dispatch agent khác; mỗi agent được dispatch nhận một scope lock
+tường minh và không kế thừa scope rộng hơn.
+
 ## 5. Bảo trì tài liệu này
 
 - Canonical location là `docs/engineering/contribution-workflow.md`.
