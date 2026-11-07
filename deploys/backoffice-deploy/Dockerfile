@@ -6,7 +6,7 @@
 #
 # Build context là REPO ROOT. Hai stage: build + runtime slim.
 
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 FROM ${NODE_IMAGE} AS build
 
 RUN corepack enable
