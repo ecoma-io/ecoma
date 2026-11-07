@@ -12,7 +12,7 @@
     "postgres": "3.4.9"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261103.1",
+    "@cloudflare/workers-types": "5.20261106.1",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@commitlint/config-nx-scopes": "^21.2.3",
@@ -40,7 +40,7 @@
     "@pulumi/command": "^1.2.1",
     "@pulumi/docker": "^5.2.0",
     "@pulumi/docker-build": "0.0.23",
-    "@pulumi/pulumi": "3.273.0",
+    "@pulumi/pulumi": "3.274.1",
     "@swc/helpers": "~0.5.18",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.19.1",
@@ -65,7 +65,7 @@
     "nx": "23.3.1",
     "oxfmt": "^0.76.0",
     "oxlint": "^1.87.0",
-    "pulumi": "3.273.0",
+    "pulumi": "3.274.1",
     "rehype-katex": "^7.0.1",
     "reka-ui": "^2.11.0",
     "remark-math": "^6.0.0",
@@ -84,7 +84,7 @@
     "vue": "^3.5.13",
     "vue-router": "^5.4.0",
     "vue-tsc": "^2.2.12",
-    "wrangler": "4.157.0"
+    "wrangler": "4.158.0"
   },
-  "packageManager": "pnpm@12.16.1"
+  "packageManager": "pnpm@12.18.0"
 }
