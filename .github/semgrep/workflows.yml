@@ -1,0 +1,499 @@
+# Workflow của chính repository này nằm trong phạm vi nửa credential-boundary
+# của SECURITY.md: một lần chạy `pull_request_target` hoặc một action không
+# được pin SHA đều mở cho pull request do fork gửi một đường tới secrets và
+# quyền ghi của repository này. Ngôn ngữ `actions` của CodeQL đã chạy sẵn các
+# kiểm tra này trong query suite của nó; các rule ở đây vẫn được giữ vì chạy
+# trong vài giây, ngay trong job test các rule của repository, và vì mất preset
+# action-pinning của renovate.json (ví dụ một workflow bị sửa tay để thêm tag
+# thay vì SHA) nên fail ngay trong pull request đó, thay vì chờ job riêng chậm
+# hơn của CodeQL.
+#
+# `languages: [yaml]` — workflow của GitHub Actions chỉ là YAML thuần, nên các
+# rule cấu trúc ở đây không cần tới lớp trung gian `generic`/pattern-regex.
+#
+# Fixture nằm ở workflows.test.yaml, được chạy bằng `semgrep --test --config
+# .github/semgrep .github/semgrep`. File đó có khóa `rules: []` ở top level dù
+# bản thân nó không phải rule config: `--config` coi đệ quy mọi file
+# `.yml`/`.yaml` dưới `.github/semgrep` là một rule config ứng viên bất kể quy
+# ước đặt tên fixture, và một file không có khóa `rules:` ở top level sẽ làm cả
+# lượt chạy abort với exit 7. Infix `.test.` trong tên file cũng mang ý nghĩa:
+# một file có đuôi `.yml`/`.yaml` cần infix đó để được nhận là test target chứ
+# không chỉ là một ứng viên config. Không yêu cầu nào được tài liệu hoá; cả hai
+# đều đã được xác nhận bằng cách chạy thật trên semgrep 1.176.1, và cả hai chỉ
+# áp dụng cho fixture `languages: [yaml]` — scripts.mjs không cần.
+#
+# Ba điều đã đo trực tiếp trên semgrep 1.176.1 và điều khiển hình dạng của các
+# rule dưới đây; cả ba đều là bẫy im lặng — rule vẫn "vượt" `--test` khi rơi
+# vào một trong chúng, chỉ là không bắt gì nữa:
+#
+#   1. `metavariable-regex` phải nằm trong một khối `patterns:`. Khi viết thẳng
+#      làm key cấp cao cạnh `pattern:`, semgrep bỏ qua nó và rule match MỌI
+#      giá trị — nghĩa là rule pin SHA sẽ báo cả `@v4` lẫn `@<40 hex>` và vẫn
+#      trông như đang chạy.
+#   2. `metavariable-regex` bám vào ĐẦU chuỗi (hành vi `re.match`, không phải
+#      `re.search`): `ref: $R` với regex `event\.pull_request` không khớp
+#      `${{ github.event.pull_request.head.sha }}`. Luôn viết `^` tường minh và
+#      dùng `$` khi muốn match toàn chuỗi.
+#   3. semgrep gán một YAML scalar được đặt trong ngoặc KÈM cả dấu ngoặc, nên
+#      mọi regex xét giá trị của `uses:`/`image:` phải cho phép `['"]?` ở hai
+#      đầu. Đây là lý do rule pin SHA âm thầm bỏ sót `uses: "actions/checkout@…"`
+#      trước khi được viết lại.
+#
+# Pattern cấu trúc trên các step của workflow cần ellipsis `...` ở MỌI tầng
+# mapping có thể mang key anh em: một YAML mapping pattern nếu sẽ chỉ khớp đúng
+# các key đó, nên `- uses: $ACT` đứng một mình âm thầm chỉ khớp những step mà
+# `uses:` là key duy nhất (đo trên 1.176.1 — một step checkout mang `with:`
+# không khớp gì cho tới khi thêm ellipsis).
+#
+# Một rule kết hợp hai điều kiện trong CÙNG file (privileged trigger + một năng
+# lực nguy hiểm) dùng `patterns:` với hai pattern có range KHÁC nhau. Để phép
+# giao hai range đó, pattern mô tả trigger phải khớp NODE GỐC của document —
+# tức là kết thúc bằng một ellipsis ở tầng root — chứ không phải chỉ node
+# `on:`; nếu không range của nó là vài dòng đầu file và phép giao luôn rỗng.
+# Đây là cơ chế thay cho danh sách loại trừ theo tên file mà rule
+# `workflow-dangerous-trigger` cũ từng dùng.
+#
+# Cấu trúc thư mục: `.github/semgrep/` để NGẦN, chia theo tên file
+# (`workflows.yml`, `architecture.yml`, `security.yml`) chứ không chia theo thư
+# mục con. Lý do không chia thư mục con là identity: check_id của một rule được
+# ghép từ đường dẫn config (`github.semgrep.<rule-id>` khi nạp
+# `--config .github/semgrep`), nên đổi độ sâu là đổi rule id trong SARIF của
+# code scanning — rule cũ biến mất, rule mới hiện lên như chưa từng chạy.
+# Tên file mang đúng sự phân chia theo lĩnh vực mà không đổi identity đó; thư mục con chỉ
+# được cân nhắc lại nếu số rule vượt qua mức một file còn đọc được.
+#
+# Metadata tuân theo quy ước của chính các rule trong registry của semgrep cho
+# cùng nhóm lỗi (sao chép từ `run-shell-injection.yaml` và
+# `github-actions-mutable-action-tag.yaml` của semgrep-rules, không phải tự
+# nghĩ ra): CWE-78 cho cặp injection, CWE-1357/CWE-353 cho cặp supply-chain,
+# cùng các references mà người đọc hành động được. Chúng tới code scanning dưới
+# dạng SARIF rule tag.
+rules:
+  - id: workflow-action-not-pinned-to-sha
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      This `uses:` is not pinned to a full commit SHA. A tag or branch is a
+      pointer the upstream owner can repoint at any commit, including one that
+      runs on a later pull request without this repository ever changing a byte
+      — the exact drift renovate.json's action-pinning preset exists to close.
+      Pin to the SHA and keep the `# vX.Y.Z` comment for a human to read. Local
+      paths (`./…`, `../…`) and `docker://image@sha256:…` are accepted: the
+      first is this repository's own code, the second is already digest-pinned.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - 'CWE-1357: Reliance on Insufficiently Trustworthy Component'
+        - 'CWE-353: Missing Support for Integrity Check'
+      owasp:
+        - 'A08:2021 - Software and Data Integrity Failures'
+        - 'A08:2025 - Software and Data Integrity Failures'
+      references:
+        - https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    patterns:
+      # Cấu trúc thay cho pattern-regex cũ: regex đọc văn bản thô nên nó match
+      # cả một comment (`# uses: actions/checkout@v4`) lẫn một giá trị `name:`
+      # chứa chuỗi "uses:" — hai FP đã đo trực tiếp. `uses:` là một key YAML
+      # thật thì comment và chuỗi không bao giờ là key được.
+      - pattern: 'uses: $REF'
+      - metavariable-regex:
+          metavariable: $REF
+          # Một negative lookahead phủ ba dạng hợp lệ: đường dẫn nội bộ,
+          # `docker://…@sha256:<64 hex>`, và `owner/repo[/path]@<40 hex>`.
+          # Mọi thứ còn lại — tag, nhánh, SHA ngắn, `docker://alpine:3.19`,
+          # `owner/repo` không có `@` — là finding. Anchoring tường minh vì
+          # semgrep bám vào đầu chuỗi (mục 2 ở header).
+          regex: '^(?!(?:[''"]?\.{1,2}/[^''"]*[''"]?|[''"]?docker://[^''"\s]+@sha256:[0-9a-fA-F]{64}[''"]?|[''"]?[^''"\s@/]+/[^''"\s@]+(?:/[^''"\s@]+)*@[0-9a-fA-F]{40}[''"]?)$).+$'
+
+  - id: workflow-expression-interpolated-into-run
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      An attacker-reachable expression is interpolated directly into a `run:`
+      step. GitHub substitutes the raw string before the shell ever sees it, so
+      shell metacharacters carried by the value run as commands with this
+      workflow's permissions. Reachable sources covered here: `github.event.*`,
+      `github.head_ref`/`base_ref`/`ref`/`ref_name`/`triggering_actor` (branch,
+      tag and actor names are attacker-supplied on fork pulls), `steps.<id>.outputs.*`,
+      `needs.<job>.outputs.*` (second-order — whatever wrote the output may have
+      been reachable from untrusted input), and reusable-workflow/dispatch
+      `inputs.*`, including through a `fromJSON(...)` unwrap. Pass the value
+      through an `env:` variable and reference `$VAR` in the script instead; the
+      shell then sees it as inert data. Deliberately NOT sources:
+      `steps.<id>.outcome`/`conclusion` and `needs.<job>.result` (closed enum
+      values, not strings), statically declared `matrix.*` values
+      (workflow-authored; a matrix generated from event data surfaces its
+      values through outputs or inputs, both covered), and `env.*` reads (the
+      hoisted-variable indirection this rule asks for is how values legitimately
+      arrive in a step).
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - 'A01:2017 - Injection'
+        - 'A03:2021 - Injection'
+        - 'A05:2025 - Injection'
+      references:
+        - https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+        - https://securitylab.github.com/research/github-actions-untrusted-input/
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: HIGH
+      impact: HIGH
+    patterns:
+      - pattern: 'run: $RUN'
+      - metavariable-pattern:
+          metavariable: $RUN
+          patterns:
+            - pattern-regex: '\$\{\{\s*(?:(?i:fromjson)\s*\(\s*)?(?:github\.event\.[\w.]+|github\.head_ref|github\.base_ref|github\.ref\b|github\.ref_name|github\.triggering_actor|steps\.[\w-]+\.outputs\.[\w.-]+|needs\.[\w-]+\.outputs\.[\w.-]+|inputs\.[\w-]+)'
+
+  - id: workflow-secret-interpolated-into-run
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      A `${{ secrets.* }}` value is interpolated directly into a `run:` step.
+      The secret is substituted into the script text verbatim, so anything the
+      command does with its arguments — echo it under `set -x`, pass it to a
+      tool that logs them, embed it in an error message — puts the credential
+      into the run log, which anyone with read access can view. Pass it through
+      an `env:` variable and reference `$VAR` instead; GitHub redacts masked
+      values from logs, and quoting "$VAR" keeps the shell from splitting it.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - 'A01:2017 - Injection'
+        - 'A03:2021 - Injection'
+        - 'A05:2025 - Injection'
+      references:
+        - https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-secrets-in-workflows
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: LOW
+      impact: HIGH
+    patterns:
+      - pattern: 'run: $RUN'
+      - metavariable-pattern:
+          metavariable: $RUN
+          patterns:
+            # Không yêu cầu dấu đóng ngoặc là cố ý: một secret được ghép vào
+            # biểu thức lớn hơn (`${{ secrets.A || github.token }}`) rò rỉ
+            # không kém gì so với một secret được in riêng.
+            - pattern-regex: '\$\{\{\s*secrets\.[\w-]+'
+
+  # Hai rule dưới thay thế rule `workflow-dangerous-trigger` cũ. Rule cũ gắn một
+  # WARNING vào CHÍNH keyword `pull_request_target`/`workflow_run` rồi lấy lại
+  # tiếng nói của nó bằng ba đường loại trừ theo tên file — hai trong ba file đó
+  # (`review.yml`, `janitor.yml`) thậm chí không tồn tại trong repository, và
+  # câu message chỉ còn nhắc tới hai. Kết quả là invariant thực sự ("privileged
+  # trigger chỉ được dùng khi nó không materialize hay thực thi code không tin
+  # cậy") bị thay bằng niềm tin vào tên file.
+  #
+  # Hai rule mới lấy lại đúng invariant đó: trigger tự nó KHÔNG còn là finding.
+  # Một workflow privileged được phép tồn tại — nó chỉ bị báo khi nó làm thêm
+  # việc khiến đặc quyền trở nên nguy hiểm. Vì điều kiện đầu tiên cần người đọc
+  # xác minh ngữ cảnh (checkout mặc định của `actions/checkout` dưới
+  # `pull_request_target` là BASE ref, tức là ref tin cậy), rule untrusted-head
+  # giữ WARNING theo phân tầng severity: ERROR chỉ dành cho điều chứng minh được
+  # một cách tuyệt đối mà không cần biết intent.
+  #
+  # Ranh giới trusted/untrusted là lõi của cả hai rule:
+  #   - Trusted: `ref:` tường minh trỏ về base (`ref: main`,
+  #     `github.event.repository.default_branch`,
+  #     `github.event.pull_request.base.*`) hoặc KHÔNG có `ref:` (mặc định là
+  #     base ref). Chính checkout này cộng một `run:` là pattern hợp lệ của
+  #     labeler/drift-check — không được báo.
+  #   - Untrusted: `ref:`/`repository:` built từ
+  #     `github.event.pull_request.head.*`, `github.head_ref`,
+  #     `github.event.workflow_run.head_*` hoặc dạng `refs/pull/…` — tức là cây
+  #     do PR kiểm soát. Gọi tắt "PR-controlled" dưới đây.
+  # Rule thứ hai chỉ nổ khi hai nửa cùng xuất hiện: checkout PR-controlled TRONG
+  # CÙNG danh sách `steps:` và `run:` nằm SAU nó (Semgrep list pattern khớp theo
+  # thứ tự, nên `run:` đứng trước checkout không khớp —树 chưa được materialize
+  # thì không có gì để execute). Đây là high-confidence untrusted-input →
+  # execution nên nó là ERROR; mọi trường hợp thiếu một nửa đều im lặng.
+  #
+  # Fixture: workflows.test.yaml (root `pull_request_target`) và
+  # workflows.workflow-run.test.yaml (root `workflow_run`). Mỗi document YAML chỉ
+  # có đúng MỘT key `on:` nên mỗi trigger cần một document riêng — semgrep gán
+  # fixture cho rule file theo stem trước dấu chấm đầu tiên
+  # (`workflows.<x>.test.yaml` → `workflows.yml`), cho phép nhiều test file cho
+  # một rule file; xem header của workflows.test.yaml.
+  - id: workflow-privileged-trigger-untrusted-head-checkout
+    languages: [yaml]
+    severity: WARNING
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      A privileged trigger (`pull_request_target` / `workflow_run`) in this
+      workflow is combined with an `actions/checkout` whose `ref:` or
+      `repository:` is built from an attacker-reachable expression —
+      `github.event.pull_request.head.*`, `github.head_ref`,
+      `github.event.workflow_run.head_*`, or `refs/pull/…`. That materializes
+      the pull request's own tree inside a job that holds this repository's
+      secrets and write token, so every later `run:` step executes code that
+      never passed this repository's review. Read the checkout step: if the
+      expression really does resolve to a trusted ref, restate it as the base
+      ref (or drop the `ref:` and let the default apply) so the safety is a
+      property of the YAML rather than of the reader. If it does not, the job
+      must not execute anything from that tree.
+    metadata:
+      category: security
+      confidence: MEDIUM
+      cwe:
+        - 'CWE-829: Inclusion of Functionality from Untrusted Control Sphere'
+      owasp:
+        - 'A08:2021 - Software and Data Integrity Failures'
+        - 'A08:2025 - Software and Data Integrity Failures'
+      references:
+        - https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+        - https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#top-ways-to-keep-github-actions-secure
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    patterns:
+      # Pattern mô tả trigger phải kết thúc bằng ellipsis ở tầng root để range
+      # của nó là CẢ document — xem mục 3 ở header.
+      - pattern-inside: |
+          on:
+            ...
+            $TRIGGER: ...
+          ...
+      - metavariable-regex:
+          metavariable: $TRIGGER
+          regex: '^(?:pull_request_target|workflow_run)$'
+      # Hai shape: `ref:` dưới `with:`, hoặc `repository:` chọn repo khác (đầu
+      # vào của `repository:` cũng attacker-controlled khi lấy từ head).
+      # Regex của `$REF` có hai nhánh vì metavariable-regex của semgrep bám vào
+      # ĐẦU chuỗi (mục 2 ở header): một ref dạng `refs/pull/…` không mở đầu
+      # bằng `${{`, còn một ref lấy head thì có.
+      - pattern-either:
+          - pattern: |
+              - uses: $ACTION
+                ...
+                with:
+                  ...
+                  ref: $REF
+                  ...
+          - pattern: |
+              - uses: $ACTION
+                ...
+                with:
+                  ...
+                  repository: $REF
+                  ...
+      - metavariable-regex:
+          metavariable: $ACTION
+          regex: '^[''"]?actions/checkout@'
+      - metavariable-regex:
+          metavariable: $REF
+          regex: '^(?:[''"]?.*refs/pull/|[''"]?\$\{\{.*(?:github\.event\.pull_request\.head|github\.head_ref|github\.event\.workflow_run\.head))'
+
+  - id: workflow-privileged-trigger-runs-after-checkout
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      A privileged trigger (`pull_request_target` / `workflow_run`) is combined
+      with an `actions/checkout` that materializes a PR-controlled tree and a
+      `run:` step after it in the same job. That is the pwn-request shape in its
+      complete form: code this repository never reviewed executes with this
+      repository's secrets and write token. Either checkout a trusted ref
+      (omit `ref:` for the base default, or state the base branch explicitly)
+      so no PR-controlled tree is materialized, or move the execution into a
+      job that holds no secrets. A trusted checkout (base/default ref, or no
+      `ref:`) followed by `run:` is intentionally not reported — this rule
+      reports the `run:` step; the untrusted checkout above it is the other
+      half.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - 'CWE-829: Inclusion of Functionality from Untrusted Control Sphere'
+      owasp:
+        - 'A08:2021 - Software and Data Integrity Failures'
+        - 'A08:2025 - Software and Data Integrity Failures'
+      references:
+        - https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: HIGH
+      impact: HIGH
+    patterns:
+      - pattern-inside: |
+          on:
+            ...
+            $TRIGGER: ...
+          ...
+      - metavariable-regex:
+          metavariable: $TRIGGER
+          regex: '^(?:pull_request_target|workflow_run)$'
+      # Hai `pattern-inside` cùng thu hẹp range: root document và danh sách
+      # `steps:` chứa checkout. `run:` nằm NGOÀI cùng một `steps:` đó (khác job)
+      # thì không nằm trong range → không finding, đúng ý nghĩa "cùng job".
+      - pattern-either:
+          - pattern-inside: |
+              steps:
+                ...
+                - uses: $ACTION
+                  ...
+                  with:
+                    ...
+                    ref: $REF
+                    ...
+                ...
+                - run: $SCRIPT
+          - pattern-inside: |
+              steps:
+                ...
+                - uses: $ACTION
+                  ...
+                  with:
+                    ...
+                    repository: $REF
+                    ...
+                ...
+                - run: $SCRIPT
+      - metavariable-regex:
+          metavariable: $ACTION
+          regex: '^[''"]?actions/checkout@'
+      - metavariable-regex:
+          metavariable: $REF
+          regex: '^(?:[''"]?.*refs/pull/|[''"]?\$\{\{.*(?:github\.event\.pull_request\.head|github\.head_ref|github\.event\.workflow_run\.head))'
+      - pattern: 'run: $SCRIPT'
+
+  - id: workflow-checkout-persists-credentials
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      This `actions/checkout` step does not set `with: persist-credentials:
+      false`, so the default applies and the job's token stays configured in
+      the runner's git config for the rest of the job — every later step,
+      including one running pulled-in or generated code, inherits push/pull
+      access to this repository without declaring it. Every checkout in this
+      repository states `persist-credentials: false` explicitly and reaches
+      authenticated APIs through an explicitly passed token instead; keep that
+      invariant. If a step genuinely needs persisted git credentials, say so
+      in a comment beside the checkout rather than relying on the default.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - 'CWE-522: Insufficiently Protected Credentials'
+      references:
+        - https://unit42.paloaltonetworks.com/github-artipacked-github-action/
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    patterns:
+      - pattern: |
+          - uses: $ACTION
+            ...
+      - metavariable-regex:
+          metavariable: $ACTION
+          # Dấu ngoặc kép mở đầu tuỳ chọn mang ý nghĩa: semgrep gán một YAML scalar
+          # được đặt trong ngoặc kép KÈM cả dấu ngoặc, nên cách viết không ngoặc
+          # âm thầm bỏ sót `uses: "actions/checkout@…"` (đo trên 1.176.1).
+          regex: '^[''""]?actions/checkout@'
+      - pattern-not: |
+          - uses: $ACTION
+            with:
+              persist-credentials: false
+              ...
+            ...
+
+  - id: workflow-container-image-not-digest-pinned
+    languages: [yaml]
+    severity: ERROR
+    paths:
+      include:
+        - '/.github/workflows/**'
+    message: >-
+      This container image reference is not pinned to a sha256 digest. Job-level
+      and service containers are pulled and run with whatever the tag currently
+      resolves to upstream — a repointed tag executes inside the job with the
+      workflow's access, the same supply-chain exposure an unpinned `uses:`
+      carries. Pin `name:tag@sha256:<64 hex>` and keep the tag readable beside
+      it; Renovate bumps both halves together. (Step-level `docker://` refs are
+      the pinning rule above's jurisdiction.)
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - 'CWE-1357: Reliance on Insufficiently Trustworthy Component'
+        - 'CWE-353: Missing Support for Integrity Check'
+      owasp:
+        - 'A08:2021 - Software and Data Integrity Failures'
+        - 'A08:2025 - Software and Data Integrity Failures'
+      references:
+        - https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
+      technology:
+        - github-actions
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    patterns:
+      # Cấu trúc thay cho pattern-regex cũ, cùng lý do với rule pin SHA: regex
+      # đọc văn bản thô match cả comment (`# image: alpine:3.19`) lẫn một giá trị
+      # `name:` chứa chuỗi "image:" — hai FP đã đo trực tiếp. Gắn với `container:`
+      # và `services:` thay vì match mọi `image:` để không đọc nhầm input của một
+      # action (`with: image: …`).
+      - pattern-either:
+          # `pattern-inside` chứ không phải `pattern` để node được báo là CHÍNH
+          # dòng `image:` — annotation của fixture và dòng người đọc cần xem đều
+          # là dòng đó, không phải dòng mở đầu khối `container:`.
+          - pattern-inside: |
+              container:
+                ...
+                image: $IMAGE
+                ...
+          - pattern-inside: |
+              services:
+                ...
+                $SERVICE:
+                  ...
+                  image: $IMAGE
+                  ...
+      - pattern: 'image: $IMAGE'
+      - metavariable-regex:
+          metavariable: $IMAGE
+          regex: '^(?![''"]?[^''"]*@sha256:[0-9a-fA-F]{64}[''"]?$).+$'

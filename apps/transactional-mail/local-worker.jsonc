@@ -1,0 +1,9 @@
+{
+  // Opt-in marker của local worker runtime (PR6 discovery, issue #68):
+  // sự hiện diện của file này khai báo "app này chạy qua `wrangler dev` của
+  // `pnpm dx local-worker-up`" — không marker nghĩa là app KHÔNG tham gia
+  // runtime đó (Nuxt app giữ Docker/Traefik local riêng). Readiness là
+  // DECLARATION, không suy từ config wrangler: control plane serve
+  // `GET /health` (src/main.ts §1.1) nên poll HTTP.
+  "readiness": "http-health",
+}

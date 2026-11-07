@@ -1,0 +1,51 @@
+{
+  // Worker của deploy unit `remote-cache` (P4.1) — control plane của bounded
+  // context `remote-cache` (ADR-0015): skeleton quản lý project trong tenant
+  // qua API key. Data plane (serve cache) KHÔNG thuộc Worker này (P4.2);
+  // quota (P4.3) và lifecycle/hardening (P4.4) cũng vậy.
+  //
+  // `nodejs_compat` khai báo TƯỜNG MINH (cùng lý do `apps/staff-access`):
+  // driver PostgreSQL runtime cần `node:buffer`, `node:events`, `node:stream`
+  // khi chạy qua Hyperdrive. Ranh giới `runtime:edge` giữ nguyên như các Worker
+  // khác: không filesystem, không process, không API ngoài những gì Workers
+  // cung cấp.
+  //
+  // Hyperdrive binding `DB_REMOTE_CACHE` chỉ là chỗ dành: database
+  // `db-remote-cache` chưa được provision (provisioning là việc của deploy unit
+  // khi được dựng — ADR-0015 §"Hệ quả"), nên không có `id` thật nào được ghim —
+  // cùng pattern "id chuỗi rỗng" của `apps/staff-access` và `apps/pact-broker-api`
+  // (local runtime `tools/dx` chặn mọi `id` non-empty trong `hyperdrive` của
+  // app đã opt-in). Connection string thật của local chạy qua biến
+  // `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE`
+  // (platform facts PF3/PF4); thiếu biến lúc `wrangler dev` là lỗi boot tường
+  // minh, và deploy production thiếu binding thật vẫn fail-closed ở
+  // `src/config.ts`. Query cache của Hyperdrive config này PHẢI OFF khi
+  // provision (cache không invalidate khi ghi — một API key đã revoke trả về
+  // từ cache là lần cấp quyền thứ hai). Migration KHÔNG chạy qua binding này —
+  // chúng chạy từ CI runner bằng credential `ecoma_remote_cache_migrator`
+  // (HD6: Hyperdrive không hỗ trợ advisory lock).
+  "hyperdrive": [
+    {
+      "binding": "DB_REMOTE_CACHE",
+      "id": "",
+    },
+  ],
+  //
+  // KHÔNG có deploy target/staging/production env ở đây: provisioning của
+  // deploy unit thuộc milestone sau, và Wrangler env `staging`/`production`
+  // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api`).
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-remote-cache",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  // KHÔNG có `routes`/`hostname`: hostname chưa được chốt ở docs đích (deploy
+  // unit mới được dựng ở P4.1). Custom domain khai báo cùng staging/production
+  // khi provision.
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4207,
+  },
+}

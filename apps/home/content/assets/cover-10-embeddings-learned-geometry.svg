@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Embeddings: turning discrete symbols into learned geometry</title>
+  <desc id="cover-desc">Course cover for lesson 10 of 30, Classical machine learning. Abstract point cloud motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 10 of 30 · Classical machine learning</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="312.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Embeddings: turning discrete</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">symbols into learned geometry</text>
+
+  <g aria-hidden="true">
+    <circle cx="1010" cy="294" r="150" fill="none" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="10 10"/>
+        <circle cx="975.7" cy="270.0" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="876.7" cy="257.7" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="975.2" cy="228.6" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1097.7" cy="200.5" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1134.6" cy="357.0" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1016.8" cy="320.2" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1018.3" cy="293.6" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1006.8" cy="296.8" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1094.8" cy="335.2" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1110.7" cy="241.9" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1009.5" cy="285.1" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="958.8" cy="247.1" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1045.7" cy="413.7" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1112.0" cy="341.2" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1012.3" cy="297.0" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="988.4" cy="192.9" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1084.7" cy="207.3" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1063.4" cy="204.8" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1056.2" cy="304.7" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1064.1" cy="368.7" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="978.9" cy="322.1" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1020.9" cy="251.6" r="9" fill="#4f46e5" opacity="0.7"/>
+        <circle cx="1050" cy="264" r="13" fill="#0f766e"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">10 / 30</text>
+</svg>

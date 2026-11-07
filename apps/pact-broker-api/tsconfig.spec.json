@@ -1,0 +1,36 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "Composite để `nx typecheck` (`tsc --build --emitDeclarationOnly`) build được solution project này: TS5069 đòi `declaration`/`composite` cho emitDeclarationOnly. `lib` nâng lên `es2023` (base đặt `es2022`) vì `unicorn/no-array-sort` cấm `Array#sort` còn `toSorted` chỉ có trong es2023. `allowImportingTsExtensions` cho harness/spec import nhau bằng phần mở rộng thật (`.ts`) — cùng hệ quả với `tsconfig.db.json`. `rootDir` là chính project (spec nhánh `tests/` và `src/`), outDir tách khỏi app để .d.ts không đè nhau. Repo/db runtime đã về `@ecoma-io/pact-broker-api-infrastructure`; spec integration import qua package name nên không cần file nguồn nào của project đó trong file list.",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023"],
+    "allowImportingTsExtensions": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "resolveJsonModule": true,
+    "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
+  },
+  "include": [
+    "vitest.config.mts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "tests/**/*.test.ts",
+    "tests/**/*.spec.ts",
+    "tests/**/*.ts",
+    // Spec integration import `../src/main` bằng đường dẫn tương đối — file
+    // nguồn phải nằm trong file list (composite + files cứng) hoặc tsc
+    // TS6307/TS2307.
+    "src/main.ts",
+    "db/**/*.mts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
+}

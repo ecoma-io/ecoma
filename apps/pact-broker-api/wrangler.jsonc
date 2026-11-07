@@ -1,0 +1,63 @@
+{
+  // API-only Worker của bounded context `pact-broker`: phục vụ Pact Broker
+  // protocol (HAL) cho Pact CLI và dashboard BFF. KHÔNG có UI — dashboard
+  // thuộc deploy unit `pact-broker-app` (`apps/pact-broker-app`, Nuxt BFF).
+  //
+  // `nodejs_compat` khai báo TƯỜNG MINH: driver PostgreSQL (`pg`) cần
+  // `node:buffer`, `node:events`, `node:stream` khi chạy qua Hyperdrive.
+  // Ranh giới `runtime:edge` giữ nguyên như `auth`: không filesystem, không
+  // process, không API ngoài những gì Workers cung cấp.
+  //
+  // Hyperdrive binding `HYPERDRIVE` chỉ là chỗ dành: database `db-pact-broker`
+  // chưa được provision remote, nên không có `id` thật nào được ghim — cùng
+  // pattern "id chuỗi rỗng" của `apps/auth` (local runtime `tools/dx` chặn mọi
+  // `id` non-empty trong `hyperdrive` của app đã opt-in). Connection string
+  // thật của local chạy qua biến
+  // `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`
+  // (platform facts PF3/PF4), không nằm ở file này; thiếu biến lúc `wrangler
+  // dev` là lỗi boot tường minh, và deploy production thiếu binding thật vẫn
+  // fail-closed ở `src/config.ts`. Tên binding phải khớp đúng những gì
+  // `src/config.ts` đọc (`env.HYPERDRIVE`) — comment trước đây ghi "DB" là
+  // dự định cũ chưa khớp code. Migration KHÔNG chạy qua binding này — chúng
+  // chạy từ CI runner bằng chuỗi kết nối trực tiếp (docs/applications/pact-broker/03-operations.md §2), vì Hyperdrive không hỗ trợ advisory lock.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "",
+    },
+  ],
+  //
+  // KHÔNG có deploy target/staging/production env ở đây: đường deploy trực
+  // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
+  // Wrangler env `staging`/`production` sẽ thêm khi provision.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-pact-broker-api",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  // KHÔNG có `routes`/`hostname`: hostname dự kiến `pact.ecoma.io` nhưng chưa
+  // provision. Custom domain khai báo cùng staging/production khi provision.
+  "observability": {
+    "enabled": true,
+  },
+  //
+  // ── Queue consumer ───────────────────────────────────────────────────────────
+  // Consumer của queue entitlement event (P3.2): nhận envelope `EntitlementEvent`
+  // từ `staff-access-relay` (P2.2), áp dụng vào membership Pact Broker.
+  // Tên queue khớp producer khai ở `apps/staff-access-relay/wrangler.jsonc`.
+  "queues": {
+    "consumers": [
+      {
+        "queue": "ecoma-staff-access-entitlement-events",
+        "binding": "ENTITLEMENT_EVENTS_QUEUE",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "ecoma-staff-access-entitlement-events-dlq",
+      },
+    ],
+  },
+  "dev": {
+    "port": 4204,
+  },
+}

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="clm-title clm-desc">
+  <title id="clm-title">One resource, two locale URLs</title>
+  <desc id="clm-desc">A single documentation resource, the Installation page, maps to two public URLs, one per locale, linked by reciprocal hreflang attributes en and vi-VN.</desc>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="720" height="420" fill="#ffffff"/>
+
+  <defs>
+    <style>
+      .label { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+      .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Heading -->
+  <text x="360" y="42" text-anchor="middle" class="label" font-size="19" font-weight="700" fill="#0f172a">One resource, two locale URLs</text>
+  <text x="360" y="64" text-anchor="middle" class="label" font-size="13" fill="#64748b">Localized at the source — the content path is the public route</text>
+
+  <!-- Resource node -->
+  <rect x="40" y="160" width="200" height="100" rx="10" fill="#0f172a"/>
+  <text x="140" y="196" text-anchor="middle" class="label" font-size="15" font-weight="700" fill="#f8fafc">Resource</text>
+  <text x="140" y="220" text-anchor="middle" class="label" font-size="13" fill="#cbd5e1">Installation page</text>
+  <text x="140" y="242" text-anchor="middle" class="mono" font-size="11" fill="#94a3b8">getting-started/installation</text>
+
+  <!-- Locale URL nodes -->
+  <rect x="460" y="90" width="220" height="96" rx="10" fill="#f8fafc" stroke="#0f172a" stroke-width="2"/>
+  <rect x="460" y="90" width="6" height="96" fill="#0f172a"/>
+  <text x="482" y="120" class="label" font-size="12" font-weight="700" fill="#0f172a">English</text>
+  <text x="482" y="142" class="mono" font-size="12" fill="#334155">/en/docs/getting-started</text>
+  <text x="482" y="160" class="mono" font-size="12" fill="#334155">/installation</text>
+  <text x="482" y="177" class="label" font-size="10" fill="#64748b">hreflang: en · lang: en</text>
+
+  <rect x="460" y="234" width="220" height="96" rx="10" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <rect x="460" y="234" width="6" height="96" fill="#334155"/>
+  <text x="482" y="264" class="label" font-size="12" font-weight="700" fill="#0f172a">Tiếng Việt</text>
+  <text x="482" y="286" class="mono" font-size="12" fill="#334155">/vi/docs/getting-started</text>
+  <text x="482" y="304" class="mono" font-size="12" fill="#334155">/installation</text>
+  <text x="482" y="321" class="label" font-size="10" fill="#64748b">hreflang: vi-VN · lang: vi-VN</text>
+
+  <!-- Arrows from resource to URLs -->
+  <line x1="240" y1="186" x2="448" y2="140" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="240" y1="234" x2="448" y2="280" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- hreflang two-way link between the two URL cards -->
+  <path d="M 690 190 C 712 200, 712 224, 690 230" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 690 230 C 712 240, 712 264, 690 270" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" transform="translate(0,-40)"/>
+  <text x="704" y="212" text-anchor="middle" class="label" font-size="10" font-weight="600" fill="#475569" transform="rotate(90 704 212)">en ↔ vi-VN</text>
+
+  <!-- Content tree footnote -->
+  <rect x="40" y="356" width="640" height="40" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="360" y="373" text-anchor="middle" class="mono" font-size="11" fill="#334155">content/en/docs/…/installation.md</text>
+  <text x="360" y="388" text-anchor="middle" class="mono" font-size="11" fill="#334155">content/vi/docs/…/installation.md</text>
+
+  <!-- Footer note -->
+  <text x="360" y="412" text-anchor="middle" class="label" font-size="11" fill="#64748b">No per-page locale mapping — the directory is the route; each URL advertises its twin via hreflang</text>
+</svg>

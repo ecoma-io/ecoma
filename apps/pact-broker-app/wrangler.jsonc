@@ -1,0 +1,90 @@
+{
+  // Nuxt/Nitro output cho Cloudflare Workers. Preset `cloudflare_module`
+  // bundle server vào một Worker module; `main` trỏ vào entry mà Nitro emit.
+  //
+  // `assets.directory` là output của `nuxt build --prerender`, phục vụ static
+  // asset của app.
+  //
+  // Worker identity lâu dài — PR không tạo Worker mới, Preview chạy dưới
+  // identity này. Reference: docs/architecture/02-delivery.md §5.
+  //
+  // `pact-broker-app` là deploy unit thứ hai của bounded context `pact-broker`:
+  // dashboard BFF, KHÔNG có Hyperdrive binding nào (invariant 1 của
+  // `01-architecture.md` §8 — một service một database; chỉ `pact-broker-api`
+  // chạm `db-pact-broker`). Nó nói chuyện với API qua HTTP + machine token.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-pact-broker-app",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-10-05",
+  // Nitro dựa vào một số Node.js API qua shim nội bộ (stream, buffer).
+  // App này là Nuxt app, không phải Worker thuần, nên `nodejs_compat` ở đây là
+  // do Nitro yêu cầu chứ không phải nới lỏng boundary của `runtime:edge`.
+  //
+  // Cloudflare từ `compatibility_date` 2026-08-04 đã bật sẵn `nodejs_compat`
+  // nên flag ở trên là thừa về mặt runtime. Nhưng KHÔNG bỏ: Nitro đọc chính
+  // config này để tự bật `cloudflare.nodeCompat` — bỏ flag ở đây ⇒ Nitro build
+  // thiếu shim ⇒ runtime lỗi, mà `wrangler deploy --dry-run` vẫn báo pass.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    // Không đặt `run_worker_first`: với Nuxt SSR, mọi request đều phải qua
+    // Worker (render + payload). Chỉ khi một path thực sự cần phục vụ HTML
+    // tĩnh mới bật nó cho path đó, để không mất SSR.
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4205,
+  },
+  // --- Staging / Production — Issue #166 ---
+  //
+  // Mỗi deploy unit có **hai Worker identity riêng**, đặt tên theo
+  // `{target}-{slug}` đúng quy ước của tầng delivery (`02-delivery.md` §7.2,
+  // thiết kế chưa hiện thực):
+  // staging `stg-ecoma-pact-broker-app`, production `ecoma-pact-broker-app`.
+  //
+  // ⚠️ Không có target `deploy` nào trong `package.json`: đường deploy trực
+  // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
+  //
+  // Staging chưa có custom domain: theo §5.4 hostname ưu tiên `workers.dev`.
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-pact-broker-app",
+      // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
+      // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
+      // deploy unit mà không phải suy đoán từ `account_id` (subdomain
+      // `workers.dev` là cấu hình riêng của Cloudflare account, không suy ra
+      // được từ `account_id`).
+      //
+      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
+      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
+      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
+      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Địa chỉ của pact-broker-api mà BFF gọi. `vars` KHÔNG inherit từ
+      // top-level, nên khai tường minh cho từng env. Giá trị `https://` này là
+      // placeholder **có cấu trúc hợp lệ** — BFF chấp nhận nó (origin parse
+      // được) nhưng API ở đó chưa tồn tại, nên mọi `/api/broker/**` trả 502 và
+      // `/ready` vẫn báo ready (chỉ kiểm cấu hình, không probe). Token đi qua
+      // Worker Secrets (`NITRO_PACT_BROKER_API_TOKEN`), KHÔNG qua `vars`.
+      "vars": {
+        "NITRO_PACT_BROKER_API_BASE_URL": "https://stg-ecoma-pact-broker-api.workers.dev",
+      },
+      // Bề mặt public — xem ghi chú cùng khoá ở `apps/backoffice`.
+      "smokeSurface": {},
+    },
+    "production": {
+      "name": "ecoma-pact-broker-app",
+      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Cùng quy tắc với staging; production trỏ API production. Machine token
+      // của BFF phải có scope `read` — dashboard phiên này chỉ đọc.
+      "vars": {
+        "NITRO_PACT_BROKER_API_BASE_URL": "https://ecoma-pact-broker-api.workers.dev",
+      },
+      "smokeSurface": {},
+    },
+  },
+}

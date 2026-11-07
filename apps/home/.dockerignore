@@ -1,0 +1,48 @@
+# `.dockerignore` cho `apps/home`.
+#
+# PHẠM VI: file này CHỈ có hiệu lực khi build context là chính `apps/home`
+# (`docker build apps/home`). `home-deploy` truyền context là **repo root** (pnpm
+# workspace cần `pnpm-lock.yaml`, `patches/`, `libs/ui-ecoma-logo` ở root), mà
+# Docker chỉ đọc `.dockerignore` ở gốc context — với context repo root, ROOT
+# `.dockerignore` mới là thứ chi phối lọc context, file này bị bỏ qua hoàn toàn.
+#
+# ⚠️ KHÔNG có đường build single-app nào dùng file này: `docker build apps/home`
+# chắc chắn fail vì Dockerfile cần `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
+# `patches/`, `libs/ui-ecoma-logo/` và `tsconfig.base.json` — tất cả nằm ngoài
+# context `apps/home`. File chỉ là lớp lọc phòng thủ cho context đó (giữ pattern
+# chuẩn của Nuxt/pnpm), không phải hợp đồng rằng lệnh đó chạy được.
+
+# Dependency — không bao giờ copy vào image.
+node_modules
+**/node_modules
+
+# Env file chứa secret/địa chỉ local — không bao giờ vào context, ở bất kỳ độ
+# sâu nào (`.env`, `.env.local`...). `.dev.vars*` cùng lớp secret của Wrangler
+# (repo quy ước trong `.gitignore`).
+# `.env*` đã phủ cả root (`**/` khớp 0 segment) nên chỉ giữ một dòng.
+.env*
+**/.dev.vars*
+
+# Kết quả build Nuxt: image được tạo TỪ `.output`, nên `.output` chỉ là input
+# trung gian và copy nó vào context chỉ làm build chậm.
+.nuxt
+.output
+.nitro
+.cache
+.data
+
+# Lockfile/metadata sinh tự động.
+*.log
+.eslintcache
+**/*.tsbuildinfo
+
+# Test và công cụ dev không dùng khi build image.
+tests
+vitest.config.mts
+Dockerfile
+.dockerignore
+
+# Git — image không cần VCS metadata.
+.git
+.gitignore
+.github

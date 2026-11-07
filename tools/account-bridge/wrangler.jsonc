@@ -1,0 +1,28 @@
+{
+  // Shim worker của identity local platform (docs/architecture/local-development/
+  // 02-account-auth-topology.md §Service bindings): mặt trước service-binding cho container
+  // account. Worker caller (`ecoma-auth`) giữ binding `ACCOUNT_SERVICE` đúng
+  // shape contract thật; shim chuyển tiếp fetch qua HTTP plain tới upstream
+  // (PF8), bảo mật lớp application là envelope HMAC `ecoma-internal-v1` —
+  // hợp đồng thật, không mock.
+  //
+  // Worker này CHỈ là một phần của topology local: chưa có identity Cloudflare
+  // (không `env.staging`/`env.production`, không `routes`). Bên trong là HTTP
+  // plain, đúng ngữ nghĩa service binding production (binding không cung cấp
+  // TLS). Upstream khai qua biến `BRIDGE_TARGET_ORIGIN` (env local), KHÔNG
+  // hard-code ở đây: namespace worktree đổi tên container, và hard-code URL ở
+  // config committed là chôn một giá trị hạ tầng vào Git.
+  //
+  // KHÔNG bật `nodejs_compat`: shim không import Node builtin nào (project
+  // `runtime:edge` — .oxlintrc.json chặn import `node:*`).
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-account-bridge",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4204,
+  },
+}

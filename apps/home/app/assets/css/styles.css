@@ -1,0 +1,501 @@
+@import 'tailwindcss';
+/*
+ * KaTeX — stylesheet của rehype-katex output. Import qua `css` của Nuxt nên
+ * bundle vào CSS build-time (không CDN runtime): trang prerender mang sẵn
+ * style, math hiển thị đúng ngay ở HTML tĩnh, không phụ thuộc client JS.
+ * Font của KaTeX được bundler resolve từ package (woff2) như mọi asset khác.
+ */
+@import 'katex/dist/katex.min.css';
+/*
+ * Tailwind v4 source registration cho `@ecoma-io/ui-ecoma-logo` — **bắt buộc**.
+ *
+ * Library này render inline `<svg>` với hai class `fill-brand`/`fill-foam`
+ * (design token). Tailwind v4 chỉ sinh utility từ các file nó quét, và library
+ * nằm ngoài module graph của app — `@source` ở đây là cách duy nhất để CSS
+ * production chứa hai class đó. Nếu bỏ qua, logo render với `fill` đen mặc định
+ * và mất màu thương hiệu; TypeScript check vẫn xanh nên không có dấu hiệu.
+ *
+ * Đường dẫn tính từ file này (`apps/home/app/assets/css/`) tới thư mục nguồn
+ * của library: 5 cấp `..` mới tới workspace root, rồi `libs/ui-ecoma-logo/src`
+ * → `../../../../../libs/ui-ecoma-logo/src`. Đếm sai một cấp (4 thay vì 5) sẽ
+ * trỏ vào `apps/libs/...` không tồn tại, và Tailwind bỏ qua âm thầm — không có
+ * lỗi build, chỉ mất utility. Đăng ký cả `.vue` (chứa class) và `.ts`
+ * (constants) để không bỏ sót file nào. Không dùng broad workspace scan thay vì
+ * đăng ký tương đối — nó không giải quyết được vấn đề cho consumer mới.
+ */
+@source "../../../../../libs/ui-ecoma-logo/src/**/*.{vue,ts}";
+
+/*
+ * Sau khi hợp nhất, mọi template (shell, brand, error pages, docs, blog) đều
+ * nằm trong module graph của app (`app/**`) — Tailwind v4 tự quét hết, không
+ * còn cần `@source` cho template nằm ngoài graph (issue #58 đã đóng theo
+ * hướng khác: lib bị xoá, không còn gì để đăng ký).
+ */
+
+/*
+ * Design tokens của bề mặt public Ecoma — **một bộ token duy nhất** cho
+ * homepage, docs, blog, legal và error pages. Nền tối phân lớp lấy từ nhận
+ * diện thương hiệu: nền `#161618`, primary `#006AFF`; mọi màu khác được suy
+ * ra làm lớp bề mặt (surface/line) hoặc lớp chữ (foam/muted/faint) trên nền
+ * đó. Không có bộ token cạnh tranh: template KHÔNG dùng palette mặc định
+ * (slate/…) cho màu giao diện — chỉ token ở dưới đây.
+ *
+ * Tailwind v4 sinh utility từ `@theme`: `bg-ink`, `bg-ink-deep`, `bg-surface`,
+ * `bg-surface-raised`, `border-line`, `text-foam`, `text-muted`, `text-faint`,
+ * `bg-brand`, `text-brand`, `text-brand-soft`, `rounded-card`, `ease-soft`…
+ * Token cũngExpose dưới dạng CSS variable gốc (`var(--color-ink)`) cho những
+ * chỗ cần giá trị thô (body, keyframes).
+ */
+@theme {
+  /* Nền phân lớp: trang < bề mặt nổi < bề mặt nhấn */
+  --color-ink: #161618;
+  --color-ink-deep: #101013;
+  --color-surface: #1e1e22;
+  --color-surface-raised: #25252b;
+
+  /* Viền subtle — một bước sáng hơn nền, không bao giờ dùng màu đặc */
+  --color-line: #34343d;
+
+  /* Chữ: chính / phụ / ba cấp. `faint` đạt WCAG AA (≥ 4.5:1) trên **mọi** nền
+   * token — giá trị cũ #757986 chỉ đạt 3.5–4.4:1 (fail trên cả 4 nền), vi phạm
+   * ở chính các nhãn text-xs/text-sm nó đang render. */
+  --color-foam: #f5f7fb;
+  --color-muted: #a4a8b3;
+  --color-faint: #8b8f9a;
+
+  /* Primary thương hiệu + biến thể hover và link */
+  /*
+   * `brand` và `brand-hover` đều là NỀN của chữ trắng ở CTA primary
+   * (`bg-brand text-white hover:bg-brand-hover`), nên cả hai phải đạt WCAG AA
+   * 4.5:1 — chữ `text-sm` (14px) không thuộc "large text" nên ngưỡng không
+   * được nới. Đo bằng công thức tương phản tương đối của WCAG:
+   * brand #006aff = 4.66:1 (pass, nhưng sát ngưỡng), hover #2a6fd6 = 4.84:1
+   * (pass). Giá trị hover cũ #3388ff chỉ 3.44:1 — fail, làm mờ chữ đúng ở
+   * trạng thái hover mà người dùng đang nhìn để quyết định bấm. Vì vậy hover
+   * đi theo hướng TỐI hơn brand (tăng tương phản với chữ trắng) thay vì sáng
+   * hơn.
+   */
+  --color-brand: #006aff;
+  --color-brand-hover: #2a6fd6;
+  --color-brand-soft: #75b2ff;
+
+  /* Hình học + motion dùng chung */
+  --radius-card: 18px;
+  --ease-soft: cubic-bezier(0.2, 0.75, 0.25, 1);
+
+  /*
+   * Breakpoint `2xl` hạ từ 1536px (mặc định Tailwind) xuống 1440px: mockup
+   * `home.html` được thiết kế ở viewport 1440px, và layout 3 cột của docs
+   * (`16rem_1fr_16rem`) chỉ cần thêm ~40–60px là đủ. Ở 1536px phần thừa rơi
+   * vào padding hai bên, lệch khỏi mockup.
+   */
+  --breakpoint-2xl: 90rem; /* 1440px */
+
+  /*
+   * Hai breakpoint mở rộng cho màn hình rộng, đặt TÊN để đọc code ra ý nghĩa
+   * thay vì phải nhớ con số:
+   *
+   * - `wide` (1600px) — laptop 16" màn rộng, và ngưỡng mà một cột đọc prose
+   *   duy nhất bắt đầu trông lạc lõng giữa màn hình.
+   * - `ultrawide` (1920px) — 24" / 27", cũng là bề rộng phổ biến của trình
+   *   duyệt trên desktop. Đặt ở 1920 chứ không phải 2560 vì ở 2560px một
+   *   container đọc vẫn phải giữ cột chữ hợp lý; nới thêm chỉ tăng khoảng
+   *   trống hai bên chứ không thêm được nội dung.
+   *
+   * Cả hai phía trên `2xl` (1440px) nên thứ tự phân tầng là
+   * mobile → tablet → laptop → desktop(2xl) → wide → ultrawide.
+   *
+   * Lưu ý: sửa ngưỡng bất kỳ nào trong nhóm này đều dễ đổi ý nghĩa của
+   * variant đang dùng, nên phải soi lại call-site. Repo hiện chưa dùng
+   * `wide:`/`ultrawide:` ở đâu.
+   */
+  --breakpoint-wide: 100rem; /* 1600px */
+  --breakpoint-ultrawide: 120rem; /* 1920px */
+
+  /*
+   * Scale `max-w` nối tiếp quy ước Tailwind: `7xl` (80rem) → `8xl` → `9xl`.
+   * Tailwind dừng ở `7xl`, nên muốn container rộng hơn thì phải tự định nghĩa —
+   * giữ đúng nhịp `+8rem` của Tailwind để đọc `8xl` là biết ngay hơn `7xl`
+   * một bậc.
+   *
+   * Container shell dùng chung cho header, footer và thân các landing page là
+   * `9xl` (96rem = 1536px): rộng hơn mọi ngưỡng `2xl`/`wide` nên padding
+   * `lg:px-8` không bao giờ bị cắt, và vẫn dưới `ultrawide` (1920px) để một
+   * màn 27" không kéo giãn cột đọc quá dài. Muốn rộng hơn nữa thì dùng
+   * `wide:` / `ultrawide:` để siết padding thay vì tăng max-width vô hạn.
+   */
+  --container-8xl: 88rem; /* 1408px */
+  --container-9xl: 96rem; /* 1536px */
+}
+
+/*
+ * Nền và chữ mặc định của toàn bộ public surface — đặt ở `base` để mọi page
+ * (kể cả error page render trần) kế thừa cùng một nền tối, không chớp trắng
+ * giữa các chuyển trang.
+ */
+@layer base {
+  body {
+    @apply bg-ink text-foam antialiased;
+  }
+
+  ::selection {
+    @apply bg-brand text-white;
+  }
+}
+
+/*
+ * Typography cho Markdown content của **docs** — utility thuần qua `@apply`,
+ * không thêm typography package. Scope `.docs-content` (không phải tag toàn
+ * cục) để không rò style sang landing/legal/blog. Giá trị màu đọc từ token ở
+ * `@theme`: heading `text-foam`, thân bài `text-muted` (tương phản ≥ 7:1 trên
+ * `--color-ink`), link `text-brand-soft`, code/pre và bảng dùng các lớp nền
+ * phân lớp của token.
+ */
+
+.docs-content h1 {
+  @apply mb-6 scroll-mt-20 text-3xl font-bold tracking-tight text-foam;
+}
+
+.docs-content h2 {
+  @apply mt-10 mb-4 scroll-mt-20 text-2xl font-semibold tracking-tight text-foam;
+}
+
+.docs-content h3 {
+  @apply mt-8 mb-3 scroll-mt-20 text-xl font-semibold tracking-tight text-foam;
+}
+
+.docs-content p {
+  @apply mb-4 leading-relaxed text-muted;
+}
+
+.docs-content a {
+  @apply text-brand-soft underline hover:text-foam focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+}
+
+.docs-content ul {
+  @apply mb-4 list-disc space-y-1 pl-6 text-muted;
+}
+
+.docs-content ol {
+  @apply mb-4 list-decimal space-y-1 pl-6 text-muted;
+}
+
+.docs-content blockquote {
+  @apply my-6 border-l-4 border-line pl-4 italic text-muted;
+}
+
+.docs-content code {
+  @apply rounded bg-surface-raised px-1 py-0.5 font-mono text-sm text-brand-soft;
+}
+
+.docs-content pre {
+  @apply my-6 max-w-full overflow-x-auto rounded-lg border border-line bg-ink-deep p-4;
+}
+
+.docs-content pre code {
+  @apply block w-fit min-w-full bg-transparent p-0 text-foam;
+}
+
+/*
+ * `my-6` và scroll ngang **không** đặt ở đây mà ở component `ProseTable` của
+ * app (`app/components/mdc/ProseTable.vue`): `overflow-x` bị trình duyệt bỏ
+ * qua trên chính `<table>` (`display: table`), và đặt `display: block` lên
+ * table sẽ làm mất table semantics. Bảng được bọc trong một scroll container
+ * thật, nên rule này chỉ còn lo phần chữ và bề rộng.
+ */
+.docs-content table {
+  @apply w-full text-sm;
+}
+
+.docs-content table thead {
+  @apply border-b border-line bg-surface text-left;
+}
+
+.docs-content table th,
+.docs-content table td {
+  @apply border-b border-line px-3 py-2 text-left;
+}
+
+.docs-content table th {
+  @apply font-semibold text-foam;
+}
+
+.docs-content table tbody tr:hover {
+  @apply bg-surface;
+}
+
+.docs-content hr {
+  @apply my-8 border-t border-line;
+}
+
+.docs-content strong {
+  @apply font-semibold text-foam;
+}
+
+.docs-content em {
+  @apply italic;
+}
+
+/*
+ * Typography cho Markdown content của **blog** — cùng bộ rule dạng
+ * `.docs-content`, nhưng chọn giá trị cho văn xuôi dài: cột đọc bị chặn bề
+ * rộng ở component (không ở đây), heading có `scroll-mt` nhẹ, và `pre` giữ
+ * scroll ngang riêng thay vì kéo giãn cột.
+ */
+
+.blog-content h1 {
+  @apply mb-6 scroll-mt-24 text-3xl font-bold tracking-tight text-foam;
+}
+
+.blog-content h2 {
+  @apply mt-10 mb-4 scroll-mt-24 text-2xl font-semibold tracking-tight text-foam;
+}
+
+.blog-content h3 {
+  @apply mt-8 mb-3 scroll-mt-24 text-xl font-semibold tracking-tight text-foam;
+}
+
+/*
+ * h4-h6: Markdown cho phép tới h6, và content không bị chặn các mức này ở
+ * schema hay lint — thiếu rule thì heading sâu rơi về style mặc định của UA
+ * (nhỏ hơn h3 ở trên) và mất `scroll-mt-*` nên bị header sticky che khi điều
+ * hướng anchor. Reset về cùng scale với h3, chỉ khác cỡ nhẹ để giữ nhịp phân
+ * cấp thị giác.
+ */
+.blog-content h4 {
+  @apply mt-8 mb-3 scroll-mt-24 text-lg font-semibold tracking-tight text-foam;
+}
+
+.blog-content h5 {
+  @apply mt-8 mb-3 scroll-mt-24 text-base font-semibold tracking-tight text-foam;
+}
+
+.blog-content h6 {
+  @apply mt-8 mb-3 scroll-mt-24 text-base font-semibold tracking-tight text-muted;
+}
+
+.blog-content p {
+  @apply mb-4 text-lg leading-relaxed text-muted;
+}
+
+.blog-content a {
+  @apply text-brand-soft underline hover:text-foam focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+}
+
+.blog-content ul {
+  @apply mb-4 list-disc space-y-1 pl-6 text-lg text-muted;
+}
+
+.blog-content ol {
+  @apply mb-4 list-decimal space-y-1 pl-6 text-lg text-muted;
+}
+
+.blog-content blockquote {
+  @apply my-6 border-l-4 border-line pl-4 text-lg italic text-muted;
+}
+
+.blog-content code {
+  @apply rounded bg-surface-raised px-1 py-0.5 font-mono text-sm text-brand-soft;
+}
+
+.blog-content pre {
+  @apply my-6 max-w-full overflow-x-auto rounded-lg border border-line bg-ink-deep p-4;
+}
+
+.blog-content pre code {
+  @apply block w-fit min-w-full bg-transparent p-0 text-foam;
+}
+
+/*
+ * `my-6` và scroll ngang của bảng blog cũng nằm ở `ProseTable` (cùng component
+ * với docs — bản a11y-upgraded có `tabindex`/`role="region"`/label theo
+ * locale), nên rule này chỉ lo phần chữ và bề rộng.
+ */
+.blog-content table {
+  @apply w-full text-sm;
+}
+
+.blog-content table thead {
+  @apply border-b border-line bg-surface text-left;
+}
+
+.blog-content table th,
+.blog-content table td {
+  @apply border-b border-line px-3 py-2 text-left;
+}
+
+.blog-content table th {
+  @apply font-semibold text-foam;
+}
+
+.blog-content table tbody tr:hover {
+  @apply bg-surface;
+}
+
+.blog-content hr {
+  @apply my-8 border-t border-line;
+}
+
+.blog-content strong {
+  @apply font-semibold text-foam;
+}
+
+.blog-content em {
+  @apply italic;
+}
+
+/*
+ * Ảnh trong Markdown của blog (inline illustration) — không phụ thuộc một quy
+ * ước class nào từ author: mọi ảnh trong article tự responsive, bo góc nhẹ và
+ * giữ `alt` do Markdown sinh ra. Docs không có rule tương ứng (giữ nguyên hành
+ * vi cũ của `.docs-content` — ảnh docs render mặc định).
+ */
+.blog-content img {
+  @apply my-6 w-full rounded-lg border border-line;
+}
+
+/*
+ * Typography cho Markdown content của **Legal Center** (`legal-content` ở
+ * `LegalDocumentView.vue`) — cùng bộ rule dạng `.blog-content`, chọn giá trị
+ * cho văn xuôi pháp lý: cỡ `text-base` (văn bản pháp lý dày đặc, không cỡ
+ * lớn như blog), không `scroll-mt-*` (legal không có nav anchor trong trang
+ * nên không có nguy cơ heading bị header sticky che).
+ */
+.legal-content h1 {
+  @apply mb-6 text-3xl font-bold tracking-tight text-foam;
+}
+
+.legal-content h2 {
+  @apply mt-10 mb-4 text-2xl font-semibold tracking-tight text-foam;
+}
+
+.legal-content h3 {
+  @apply mt-8 mb-3 text-xl font-semibold tracking-tight text-foam;
+}
+
+/*
+ * h4-h6: Markdown cho phép tới h6 và content legal không bị chặn các mức này
+ * ở schema hay lint — thiếu rule thì heading sâu rơi về style mặc định của
+ * UA. Reset về cùng scale với h3, chỉ khác cỡ nhẹ để giữ nhịp phân cấp.
+ */
+.legal-content h4 {
+  @apply mt-8 mb-3 text-lg font-semibold tracking-tight text-foam;
+}
+
+.legal-content h5 {
+  @apply mt-8 mb-3 text-base font-semibold tracking-tight text-foam;
+}
+
+.legal-content h6 {
+  @apply mt-8 mb-3 text-base font-semibold tracking-tight text-muted;
+}
+
+.legal-content p {
+  @apply mb-4 leading-relaxed text-muted;
+}
+
+.legal-content a {
+  @apply text-brand-soft underline hover:text-foam focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+}
+
+.legal-content ul {
+  @apply mb-4 list-disc space-y-1 pl-6 text-muted;
+}
+
+.legal-content ol {
+  @apply mb-4 list-decimal space-y-1 pl-6 text-muted;
+}
+
+.legal-content blockquote {
+  @apply my-6 border-l-4 border-line pl-4 italic text-muted;
+}
+
+.legal-content code {
+  @apply rounded bg-surface-raised px-1 py-0.5 font-mono text-sm text-brand-soft;
+}
+
+.legal-content pre {
+  @apply my-6 max-w-full overflow-x-auto rounded-lg border border-line bg-ink-deep p-4;
+}
+
+.legal-content pre code {
+  @apply block w-fit min-w-full bg-transparent p-0 text-foam;
+}
+
+.legal-content table {
+  @apply w-full text-sm;
+}
+
+.legal-content table thead {
+  @apply border-b border-line bg-surface text-left;
+}
+
+.legal-content table th,
+.legal-content table td {
+  @apply border-b border-line px-3 py-2 text-left;
+}
+
+.legal-content table th {
+  @apply font-semibold text-foam;
+}
+
+.legal-content table tbody tr:hover {
+  @apply bg-surface;
+}
+
+.legal-content hr {
+  @apply my-8 border-t border-line;
+}
+
+.legal-content strong {
+  @apply font-semibold text-foam;
+}
+
+.legal-content em {
+  @apply italic;
+}
+
+/*
+ * Hero art của homepage — nền sáng dần thuần CSS (không ảnh, không canvas):
+ * một vệt sáng primary mờ phía sau hero, vẽ bằng radial-gradient phủ nhiều
+ * lớp. Chi tiết chuyển động (float, orbit) nằm ở composable
+ * `home-motion.ts` (GSAP, client-only); phần tĩnh này render được trên SSR
+ * nên layout không nhảy khi hydrate.
+ */
+.hero-glow {
+  background:
+    radial-gradient(42rem 20rem at 78% 8%, rgb(0 106 255 / 0.16), transparent 62%),
+    radial-gradient(30rem 16rem at 12% 0%, rgb(0 106 255 / 0.08), transparent 58%);
+}
+
+/*
+ * Lưới chấm mờ của hero — texture độ sâu cho nền tối, absolute phía sau nội
+ * dung (`pointer-events-none` ở template).
+ */
+.hero-grid {
+  background-image: radial-gradient(rgb(117 178 255 / 0.14) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.9), transparent 82%);
+}
+
+/*
+ * Code window của khối Developers — khung giả terminal: chỉ trình bày, text
+ * nằm trong HOME_CONTENT (không hardcode trong template) và KHÔNG copy-able
+ * qua JS (copy-to-clipboard là một interaction cần test riêng; ở đây giữ
+ * thuần hiển thị để SSR render đủ và không có state client).
+ */
+.dev-terminal {
+  @apply rounded-card border border-line bg-ink-deep shadow-[0_18px_60px_rgb(0_0_0/0.45)];
+}
+
+.dev-terminal-bar {
+  @apply flex items-center gap-1.5 border-b border-line px-4 py-3;
+}
+
+.dev-terminal-dot {
+  @apply size-2.5 rounded-full bg-surface-raised;
+}
+
+.dev-terminal-body {
+  @apply overflow-x-auto p-4 font-mono text-sm leading-relaxed;
+}

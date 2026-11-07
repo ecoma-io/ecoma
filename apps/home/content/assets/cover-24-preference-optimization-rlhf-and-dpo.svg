@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Preference optimization: RLHF, reward models, and DPO</title>
+  <desc id="cover-desc">Course cover for lesson 24 of 30, Inference and adaptation. Abstract preference branch motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 24 of 30 · Inference and adaptation</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="314.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="40" font-weight="650" fill="#0f172a">Preference optimization: RLHF,</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="40" font-weight="650" fill="#0f172a">reward models, and DPO</text>
+
+  <g aria-hidden="true">
+    <circle cx="852" cy="294" r="28" fill="#e0e7ff" stroke="#4f46e5" stroke-width="4"/>
+        <path d="M 882 294 C 932 294, 962 166, 1012 166" fill="none" stroke="#64748b" stroke-width="4"/>
+        <path d="M 882 294 C 932 294, 962 422, 1012 422" fill="none" stroke="#64748b" stroke-width="4"/>
+        <text x="1022" y="174" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#0f172a">chosen</text>
+        <text x="1022" y="430" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#64748b">rejected</text>
+        <circle cx="1138" cy="166" r="34" fill="#ccfbf1" stroke="#0f766e" stroke-width="4"/>
+        <circle cx="1138" cy="422" r="34" fill="#ffffff" stroke="#cbd5e1" stroke-width="4"/>
+        <text x="816" y="302" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="20" fill="#64748b">x</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">24 / 30</text>
+</svg>

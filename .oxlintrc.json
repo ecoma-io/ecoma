@@ -1,0 +1,841 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "vue", "unicorn", "promise", "node", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "options": {
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "jsPlugins": [
+    "@nx/oxlint/boundaries-plugin",
+    {
+      "name": "nuxt",
+      "specifier": "@nuxt/eslint-plugin"
+    }
+  ],
+  "rules": {
+    "for-direction": [2],
+    "no-async-promise-executor": [2],
+    "no-case-declarations": [2],
+    "no-compare-neg-zero": [2],
+    "no-cond-assign": [2, "except-parens"],
+    "no-console": [2],
+    "no-underscore-dangle": [
+      2,
+      {
+        "allow": ["__PRERENDERED_CONTENT_PATHS__"]
+      }
+    ],
+    "no-constant-binary-expression": [
+      2,
+      {
+        "checkRelationalComparisons": false
+      }
+    ],
+    "no-constant-condition": [
+      2,
+      {
+        "checkLoops": "allExceptWhileTrue"
+      }
+    ],
+    "no-control-regex": [2],
+    "no-debugger": [2],
+    "no-delete-var": [2],
+    "no-dupe-else-if": [2],
+    "no-duplicate-case": [2],
+    "no-empty": [
+      2,
+      {
+        "allowEmptyCatch": false
+      }
+    ],
+    "no-empty-character-class": [2],
+    "no-empty-pattern": [
+      2,
+      {
+        "allowObjectPatternsAsParameters": false
+      }
+    ],
+    "no-empty-static-block": [2],
+    "no-ex-assign": [2],
+    "no-extra-boolean-cast": [2, {}],
+    "no-fallthrough": [
+      2,
+      {
+        "allowEmptyCase": false,
+        "reportUnusedFallthroughComment": false
+      }
+    ],
+    "no-global-assign": [
+      2,
+      {
+        "exceptions": []
+      }
+    ],
+    "no-invalid-regexp": [2, {}],
+    "no-irregular-whitespace": [
+      2,
+      {
+        "skipComments": false,
+        "skipJSXText": false,
+        "skipRegExps": false,
+        "skipStrings": true,
+        "skipTemplates": false
+      }
+    ],
+    "no-loss-of-precision": [2],
+    "no-misleading-character-class": [
+      2,
+      {
+        "allowEscape": false
+      }
+    ],
+    "no-nonoctal-decimal-escape": [2],
+    "no-promise-executor-return": [2],
+    "no-prototype-builtins": [2],
+    "no-regex-spaces": [2],
+    "no-self-assign": [
+      2,
+      {
+        "props": true
+      }
+    ],
+    "no-shadow-restricted-names": [
+      2,
+      {
+        "reportGlobalThis": true
+      }
+    ],
+    "no-sparse-arrays": [2],
+    "no-unassigned-vars": [2],
+    "no-unexpected-multiline": [2],
+    "no-unsafe-finally": [2],
+    "no-unsafe-optional-chaining": [
+      2,
+      {
+        "disallowArithmeticOperators": false
+      }
+    ],
+    "no-unused-labels": [2],
+    "no-unused-private-class-members": [2],
+    "no-useless-assignment": [2],
+    "no-useless-backreference": [2],
+    "no-useless-catch": [2],
+    "no-useless-escape": [
+      2,
+      {
+        "allowRegexCharacters": []
+      }
+    ],
+    "no-var": [2],
+    "prefer-const": [
+      2,
+      {
+        "destructuring": "any",
+        "ignoreReadBeforeAssign": false
+      }
+    ],
+    "prefer-rest-params": [2],
+    "prefer-spread": [2],
+    "preserve-caught-error": [
+      2,
+      {
+        "requireCatchParameter": false
+      }
+    ],
+    "require-unicode-regexp": [2],
+    "require-yield": [2],
+    "use-isnan": [
+      2,
+      {
+        "enforceForIndexOf": false,
+        "enforceForSwitchCase": true
+      }
+    ],
+    "valid-typeof": [
+      2,
+      {
+        "requireStringLiterals": false
+      }
+    ],
+    "@typescript-eslint/adjacent-overload-signatures": [2],
+    "@typescript-eslint/ban-ts-comment": [
+      2,
+      {
+        "minimumDescriptionLength": 10
+      }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+      2,
+      {
+        "disallowTypeAnnotations": false,
+        "prefer": "type-imports"
+      }
+    ],
+    "@typescript-eslint/explicit-function-return-type": [2],
+    "@typescript-eslint/no-array-constructor": [2],
+    "@typescript-eslint/no-duplicate-enum-values": [2],
+    "@typescript-eslint/no-dynamic-delete": [2],
+    "@typescript-eslint/no-empty-function": [
+      2,
+      {
+        "allow": []
+      }
+    ],
+    "@typescript-eslint/no-empty-interface": [2],
+    "@typescript-eslint/no-empty-object-type": [2],
+    "@typescript-eslint/no-explicit-any": [2],
+    "@typescript-eslint/no-extra-non-null-assertion": [2],
+    "@typescript-eslint/no-extraneous-class": [2],
+    "@typescript-eslint/no-import-type-side-effects": [2],
+    "@typescript-eslint/no-inferrable-types": [2],
+    "@typescript-eslint/no-invalid-void-type": [2],
+    "@typescript-eslint/no-misused-new": [2],
+    "@typescript-eslint/no-namespace": [2],
+    "@typescript-eslint/no-non-null-asserted-nullish-coalescing": [2],
+    "@typescript-eslint/no-non-null-asserted-optional-chain": [2],
+    "@typescript-eslint/no-non-null-assertion": [2],
+    "@typescript-eslint/no-require-imports": [2],
+    "@typescript-eslint/no-this-alias": [2],
+    "@typescript-eslint/no-unnecessary-type-constraint": [2],
+    "@typescript-eslint/no-unsafe-declaration-merging": [2],
+    "@typescript-eslint/no-unsafe-function-type": [2],
+    "@typescript-eslint/no-unused-expressions": [
+      2,
+      {
+        "allowShortCircuit": false,
+        "allowTaggedTemplates": false,
+        "allowTernary": false
+      }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      2,
+      {
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "ignoreRestSiblings": true,
+        "vars": "all",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/no-useless-constructor": [2],
+    "@typescript-eslint/no-wrapper-object-types": [2],
+    "@typescript-eslint/prefer-as-const": [2],
+    "@typescript-eslint/prefer-literal-enum-member": [2],
+    "@typescript-eslint/prefer-namespace-keyword": [2],
+    "@typescript-eslint/triple-slash-reference": [2],
+    "@typescript-eslint/unified-signatures": [2],
+    "@nx/enforce-module-boundaries": [
+      2,
+      {
+        "enforceBuildableLibDependency": true,
+        "allow": ["^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$"],
+        "depConstraints": [
+          // Type dependency direction.
+          // `notDependOn*` là cấm TRANSITIVE (mọi project reachable); `onlyDependOn*` là lượt direct edge.
+          // domain: không chạm application/infrastructure/composition/tooling kể cả qua trung gian.
+          {
+            "sourceTag": "type:domain",
+            "notDependOnLibsWithTags": [
+              "type:application",
+              "type:infrastructure",
+              "type:composition",
+              "type:tooling"
+            ]
+          },
+          {
+            "sourceTag": "type:application",
+            "notDependOnLibsWithTags": ["type:infrastructure", "type:composition", "type:tooling"]
+          },
+          {
+            "sourceTag": "type:infrastructure",
+            "onlyDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:contracts",
+              "type:infrastructure"
+            ]
+          },
+          // contracts: boundary artifact — cấm implementation/domain logic kể cả qua trung gian.
+          {
+            "sourceTag": "type:contracts",
+            "notDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:infrastructure",
+              "type:composition",
+              "type:tooling"
+            ]
+          },
+          // composition: WHITELIST đúng bảng §7 — chỉ compose bốn type lib. Target
+          // `type:composition` khác (app→app: một deploy unit import trực tiếp deploy
+          // unit khác) và `type:tooling` không có mặt trong allowlist nên bị chặn ở
+          // lượt direct; taxonomy cũ bảo vệ ranh giới này qua `type:web`/`type:service`
+          // → onlyDependOn ["type:lib"] — whitelist giữ đúng ranh giới đó.
+          {
+            "sourceTag": "type:composition",
+            "onlyDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:contracts",
+              "type:infrastructure"
+            ]
+          },
+          // tooling: chỉ phụ thuộc tooling — developer tool không làm library runtime cho app.
+          {
+            "sourceTag": "type:tooling",
+            "onlyDependOnLibsWithTags": ["type:tooling"]
+          },
+          // deployment: provisioning/orchestration (project Pulumi) — KHÁC `type:infrastructure`
+          // (adapter/implementation chạy trong runtime của app). Mô tả quan hệ deployment không
+          // cần import code của app hay code nghiệp vụ: chỉ cần project deployment khác (để dựa
+          // vào tầng nền), contract, adapter hạ tầng và tooling provision.
+          //
+          // `notDependOnLibsWithTags` là lượt TRANSITIVE — deploy project không được chạm domain /
+          // application / composition KỂ CẢ QUA TRUNG GIAN. Đó là điểm chính: một Pulumi program
+          // import `@ecoma-io/account-domain` qua một lib trung gian trông hợp lệ ở lượt direct
+          // nhưng vẫn kéo logic nghiệp vụ vào tầng provision, nơi nó không được test và không
+          // thuộc về bất kỳ deploy unit nào. Ba type này VẮNG MẶT khỏi allowlist phía dưới
+          // chính vì đã bị cấm transitive: đưa chúng vào `onlyDependOnLibsWithTags` sẽ mâu thuẫn
+          // (lượt direct cho phép trong khi lượt transitive cấm) và tạo cho đọc giả một allowlist
+          // nói dối rằng cạnh trực tiếp tới chúng là hợp lệ.
+          {
+            "sourceTag": "type:deployment",
+            "notDependOnLibsWithTags": ["type:domain", "type:application", "type:composition"],
+            // `type:deployment` ở đây là CHO PHÉP edge tới một deployment project —
+            // nghĩa là tới `platform-deploy`. Constraint này là universal (OR-match
+            // trên target), nên nó KHÔNG thể chọn riêng `platform-deploy`: một
+            // `a-deploy → b-deploy` cũng được phép ở đây. Bất biến "chỉ được
+            // phụ thuộc `platform-deploy`" là existential (phải có MỘT edge này),
+            // và nó được thực thi bởi `validateDeploymentGraph` trong
+            // `tools/dx/src/architecture/arch-tags.ts` — xem `05-code-architecture.md` §2.1.
+            "onlyDependOnLibsWithTags": [
+              "type:deployment",
+              "type:contracts",
+              "type:infrastructure",
+              "type:tooling"
+            ]
+          },
+          // Scope: bounded context (account, auth, backoffice, llm, ...) được phụ thuộc
+          // trực tiếp hai TẦNG NỀN (shared, platform) — toàn bộ implementation của
+          // tầng nền được phép dùng, đúng vai trò foundation layer trong §6.3 docs —
+          // và `type:contracts` của scope bất kỳ. Giữa các scope NGANG HÀNG,
+          // `onlyDependOnLibsWithTags` khớp BẤT KỂ tag nào trong danh sách nên
+          // implementation scope khác không có tên ở đây: consumer chỉ chạm được
+          // contract của scope khác, còn import implementation chéo scope trượt
+          // vào allowlist sẽ bị constraint `type:*` phía trên chặn (notDependOn
+          // transitive với domain/application, onlyDependOn với infrastructure).
+          {
+            "sourceTag": "scope:public",
+            "onlyDependOnLibsWithTags": [
+              "scope:public",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          {
+            "sourceTag": "scope:account",
+            "onlyDependOnLibsWithTags": [
+              "scope:account",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          {
+            "sourceTag": "scope:auth",
+            "onlyDependOnLibsWithTags": [
+              "scope:auth",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          {
+            "sourceTag": "scope:backoffice",
+            "onlyDependOnLibsWithTags": [
+              "scope:backoffice",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          // scope:staff-access — bounded context Staff Access (roadmap Phase 1):
+          // staff directory, role/permission catalog, assignment, entitlement, audit.
+          // Trước Phase 1 nghiệp vụ này nằm trong `backoffice`; scope riêng theo
+          // đúng ranh giới ownership của bounded context (`05` §6.3), cùng chính
+          // sách mặc định như các bounded context khác.
+          {
+            "sourceTag": "scope:staff-access",
+            "onlyDependOnLibsWithTags": [
+              "scope:staff-access",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          // scope:remote-cache — bounded context Remote Cache (ADR-0015, roadmap
+          // Phase 4): tenant/project/membership/API key, quota/retention/usage/audit.
+          // Scope riêng theo đúng ranh giới ownership của bounded context, cùng
+          // chính sách mặc định như các bounded context khác.
+          {
+            "sourceTag": "scope:remote-cache",
+            "onlyDependOnLibsWithTags": [
+              "scope:remote-cache",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          // scope:shared là ĐÁY của trục ownership: CHỈ được phụ thuộc shared —
+          // không platform, không implementation, không contract của scope nghiệp vụ
+          // nào. `onlyDependOnLibsWithTags` khớp bất kỳ tag nào trong danh sách nên
+          // để `type:contracts` vào đây là mở `shared → contracts của scope bất kỳ`
+          // (target chỉ cần MỘT tag khớp), tạo chu trình shared ↔ contracts của
+          // scope đó — đảo chiều dependency của tầng đáy. Ngoại lệ `type:contracts`
+          // là cho CONSUMER chạm contract của provider; tầng đáy không consume.
+          {
+            "sourceTag": "scope:shared",
+            "onlyDependOnLibsWithTags": ["scope:shared"]
+          },
+          // scope:platform là tầng nền duy nhất được mở rộng từ shared: chỉ phụ thuộc
+          // platform + shared + contract, không phụ thuộc scope nghiệp vụ nào.
+          {
+            "sourceTag": "scope:platform",
+            "onlyDependOnLibsWithTags": ["scope:platform", "scope:shared", "type:contracts"]
+          },
+          // Ba scope ownership của LLM product (ADR-0019). `scope:llm` đã bị xoá:
+          // một scope chung cho mọi LLM domain library không chặn được Consumer
+          // import Seller. Ba scope loại trừ lẫn nhau ngay ở mức tag — mỗi scope
+          // CHỈ được phụ thuộc chính nó, nền tảng dùng chung và không gì khác.
+          // Cố ý KHÔNG có `type:contracts` như các scope nghiệp vụ khác: ADR-0019
+          // cấm Consumer và Seller phụ thuộc nhau kể cả transitively, và hiện
+          // không có contract lib nào của LLM product để một ngoại lệ như vậy phục
+          // vụ. Khi cần contract xuyên phía, thêm nó cùng một ADR supersede.
+          // Ranh giới giữa các bounded context TRONG cùng một scope do
+          // `validateLlmBoundaries` trong `pnpm dx arch-check` kiểm trên graph.
+          {
+            "sourceTag": "scope:llm-consumer",
+            "onlyDependOnLibsWithTags": ["scope:llm-consumer", "scope:shared", "scope:platform"]
+          },
+          {
+            "sourceTag": "scope:llm-seller",
+            "onlyDependOnLibsWithTags": ["scope:llm-seller", "scope:shared", "scope:platform"]
+          },
+          {
+            "sourceTag": "scope:llm-shared",
+            "onlyDependOnLibsWithTags": ["scope:llm-shared", "scope:shared", "scope:platform"]
+          },
+          {
+            "sourceTag": "scope:pact",
+            "onlyDependOnLibsWithTags": [
+              "scope:pact",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          {
+            "sourceTag": "scope:payment",
+            "onlyDependOnLibsWithTags": [
+              "scope:payment",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          {
+            "sourceTag": "scope:local",
+            "onlyDependOnLibsWithTags": ["scope:local", "scope:shared"]
+          },
+          {
+            "sourceTag": "scope:messaging",
+            "onlyDependOnLibsWithTags": ["scope:messaging", "scope:shared", "scope:platform"]
+          },
+          {
+            "sourceTag": "scope:notifications",
+            "onlyDependOnLibsWithTags": [
+              "scope:notifications",
+              "scope:shared",
+              "scope:platform",
+              "type:contracts"
+            ]
+          },
+          // Runtime compatibility, lượt direct edge theo tag thật. Lượt transitive
+          // (edge không được chạm native qua chuỗi lib) và tag schema (đúng một
+          // tag mỗi dimension) do tools/dx arch-tags validator kiểm trên project
+          // graph, chạy unconditional trong CI — Node builtin không tạo graph edge
+          // nên cấm import builtin vẫn do no-restricted-imports +
+          // import/no-nodejs-modules theo override glob ở dưới.
+          {
+            "allSourceTags": ["type:composition", "runtime:edge"],
+            "onlyDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:contracts",
+              "type:infrastructure",
+              "runtime:edge",
+              "runtime:universal"
+            ]
+          },
+          {
+            "allSourceTags": ["type:composition", "runtime:browser"],
+            "onlyDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:contracts",
+              "type:infrastructure",
+              "runtime:browser",
+              "runtime:universal"
+            ]
+          },
+          {
+            "allSourceTags": ["type:composition", "runtime:native"],
+            "onlyDependOnLibsWithTags": [
+              "type:domain",
+              "type:application",
+              "type:contracts",
+              "type:infrastructure",
+              "runtime:native",
+              "runtime:universal"
+            ]
+          }
+        ]
+      }
+    ],
+    "import/first": [2],
+    "import/no-duplicates": [2],
+    "import/no-mutable-exports": [2],
+    "import/no-named-default": [2]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.vue"],
+      "rules": {
+        "vue/no-arrow-functions-in-watch": [2],
+        "vue/no-async-in-computed-properties": [2],
+        "vue/no-computed-properties-in-data": [2],
+        "vue/no-deprecated-data-object-declaration": [2],
+        "vue/no-deprecated-delete-set": [2],
+        "vue/no-deprecated-destroyed-lifecycle": [2],
+        "vue/no-deprecated-events-api": [2],
+        "vue/no-deprecated-model-definition": [2],
+        "vue/no-deprecated-props-default-this": [2],
+        "vue/no-deprecated-vue-config-keycodes": [2],
+        "vue/no-dupe-keys": [2],
+        "vue/no-export-in-script-setup": [2],
+        "vue/no-expose-after-await": [2],
+        "vue/no-lifecycle-after-await": [2],
+        "vue/no-reserved-component-names": [2],
+        "vue/no-reserved-keys": [2],
+        "vue/no-reserved-props": [2],
+        "vue/no-shared-component-data": [2],
+        "vue/no-side-effects-in-computed-properties": [2],
+        "vue/no-watch-after-await": [2],
+        "vue/prefer-import-from-vue": [2],
+        "vue/require-prop-type-constructor": [2],
+        "vue/require-render-return": [2],
+        "vue/require-slots-as-functions": [2],
+        "vue/return-in-computed-property": [2],
+        "vue/return-in-emits-validator": [2],
+        "vue/valid-define-emits": [2],
+        "vue/valid-define-options": [2],
+        "vue/valid-define-props": [2],
+        "vue/valid-next-tick": [2],
+        "vue/component-definition-name-casing": [1],
+        "vue/prop-name-casing": [1],
+        "vue/require-default-prop": [1],
+        "vue/require-prop-types": [1],
+        "vue/no-multiple-slot-args": [1],
+        "vue/no-required-prop-with-default": [1],
+        "vue/define-emits-declaration": "error",
+        "vue/define-props-declaration": "error",
+        "vue/define-props-destructuring": "error",
+        "vue/max-props": "error",
+        "vue/next-tick-style": "error",
+        "vue/no-import-compiler-macros": "error",
+        "vue/no-this-in-before-route-enter": "error",
+        "vue/require-default-export": "error",
+        "vue/require-direct-export": "error",
+        "vue/require-typed-ref": "error"
+      }
+    },
+    {
+      "files": ["apps/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,vue}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "Project runtime:edge không được import Node.js builtin. Dùng Web API hoặc biến thể `node:` tương ứng."
+              },
+              {
+                "group": [
+                  "fs",
+                  "path",
+                  "os",
+                  "crypto",
+                  "child_process",
+                  "stream",
+                  "http",
+                  "https",
+                  "net",
+                  "tls",
+                  "zlib",
+                  "url",
+                  "util",
+                  "buffer",
+                  "events",
+                  "worker_threads",
+                  "cluster",
+                  "dns"
+                ],
+                "message": "Project runtime:edge không được import Node.js builtin. Dùng Web API hoặc biến thể `node:` tương ứng."
+              }
+            ]
+          }
+        ],
+        "import/no-nodejs-modules": [2],
+        "nuxt/prefer-import-meta": [2],
+        "nuxt/no-nuxt-config-test-key": [2]
+      }
+    },
+    {
+      "files": ["libs/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,vue}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "Lib runtime:universal không được import Node.js builtin (phải chạy được trên edge). Dùng Web API hoặc biến thể `node:` tương ứng."
+              },
+              {
+                "group": [
+                  "fs",
+                  "path",
+                  "os",
+                  "crypto",
+                  "child_process",
+                  "stream",
+                  "http",
+                  "https",
+                  "net",
+                  "tls",
+                  "zlib",
+                  "url",
+                  "util",
+                  "buffer",
+                  "events",
+                  "worker_threads",
+                  "cluster",
+                  "dns"
+                ],
+                "message": "Lib runtime:universal không được import Node.js builtin (phải chạy được trên edge). Dùng Web API hoặc biến thể `node:` tương ứng."
+              }
+            ]
+          }
+        ],
+        "import/no-nodejs-modules": [2],
+        "nuxt/prefer-import-meta": [2],
+        "nuxt/no-nuxt-config-test-key": [2]
+      }
+    },
+    {
+      "files": ["tools/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      // `libs/deployment` là lib `runtime:native` DUY NHẤT: nó chạy trên Node
+      // runner (Pulumi CLI harness, lifecycle entry, dx CLI) và KHÔNG BAO GIỜ
+      // được bundle vào Worker edge — các consumer của nó đều là `type:deployment`
+      // hay `type:tooling` với `runtime:native`, được module-boundary chặn khỏi
+      // runtime:edge (một lib edge import được lib này là vi phạm allowlist
+      // `runtime:*` ngay ở lượt direct). Nó cần `node:child_process` (spawn
+      // pulumi/docker), `node:crypto` (sinh passphrase/secret), `node:fs`/
+      // `node:path` (state dir theo worktree) — cùng tính chất với block
+      // `apps/**/deploy/**` phía trên: tooling Node, không thuộc runtime:edge.
+      // Block này đứng SAU override `libs/**` nên exemption có hiệu lực; chỉ
+      // exemption cho đúng lib này, mọi lib khác vẫn cấm builtin như cũ.
+      "files": ["libs/deployment/src/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": {
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Tooling deploy pipeline (apps/home/deploy/**) chạy trên Node runner
+      // trong GitHub Actions, không phải trên edge runtime của app — được
+      // phép console (log tiến trình job) và Node builtins (fs, path...).
+      // Block này nằm SAU override `apps/**` (~dòng 490): oxlint/ESLint
+      // resolve `overrides` theo semantics "config khớp SAU cùng thắng",
+      // nên thứ tự hiện tại mới làm exemption có hiệu lực — đưa block lên
+      // trước `apps/**` sẽ bị override ngược và deploy pipeline mất Node
+      // builtins.
+      "files": ["apps/**/deploy/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": {
+        "no-console": "off",
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Cầu Node bridge của `oidc-provider` (`apps/auth/src/oidc/runtime.ts`):
+      // `cloudflare:node` KHÔNG export hàm tạo server — docs Workers yêu cầu tạo
+      // server `node:http` thật (`provider.callback()` bọc qua `createServer`)
+      // rồi truyền vào `httpServerHandler`/`handleAsNodeRequest`, với
+      // `nodejs_compat` bật (wrangler.jsonc của auth đã bật). Tức import
+      // `node:http` ở ĐÚNG file này là yêu cầu của nền tảng, không phải lọt
+      // builtin vào serving path edge nói chung — override chỉ mở `node:http`
+      // cho file bridge, mọi builtin khác và mọi file khác của app vẫn bị cấm.
+      // Block này đứng SAU block `apps/**` nên exemption có hiệu lực.
+      "files": ["apps/*/src/oidc/runtime.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["node:*", "!node:http"],
+                "message": "Chỉ `node:http` (cầu cloudflare:node của provider) được phép ở file này; builtin khác bị cấm (runtime:edge)."
+              }
+            ]
+          }
+        ],
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Migration runner của service (`apps/account/db/**`) chạy ở **CI runner**
+      // bằng PostgreSQL client kết nối thẳng, không chạy trong Worker: Hyperdrive
+      // không hỗ trợ advisory lock (`docs/architecture/04-platform-facts.md` HD6), mà
+      // giữ lock là bước quan trọng nhất của runner. Nó cần `node:fs` để đọc file
+      // SQL và `console.log` để báo từng migration đã apply — cùng tính chất với
+      // `deploy/**` phía trên: tooling Node-only, không được bundle vào edge.
+      //
+      // Block này đứng SAU override `apps/**` nên exemption có hiệu lực, và glob
+      // hẹp theo `db/**` chứ không phải cả app — Worker code của app vẫn chịu
+      // ràng buộc `runtime:edge`.
+      "files": ["apps/*/db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": {
+        "no-console": "off",
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Spec chạy ở test time trên Node runner, không được bundle vào Worker
+      // edge — nên được phép đọc file thật (`node:fs`) để assert trên artifact
+      // đã build (`.output`) thay vì chỉ assert trên source. Đây là lý do duy
+      // nhất các override lint runtime của `apps/**` không áp cho spec.
+      "files": ["**/*.{spec,test}.{ts,tsx,js,jsx,mts,cts}"],
+      "rules": {
+        "@typescript-eslint/explicit-function-return-type": "off",
+        // Spec đọc artifact thật từ đĩa (build output, fixture) — quyền mà
+        // `import.meta.glob` không phủ hết (Vitest route `.css` qua pipeline
+        // riêng, `?raw` trả chuỗi rỗng). Cùng tính chất với block `deploy/**`
+        // phía trên: file test chạy trên Node, không thuộc runtime:edge của
+        // app — block này đứng sau block `apps/**` nên exemption có hiệu lực.
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Authoring script của curriculum (`tests/curriculum-scaffold.mjs`) chạy
+      // thủ công trên máy tác giả để dựng khung 30 bài + 30 cover. Nó không
+      // được import bởi app, không được bundle vào Worker, và không chạy
+      // trong CI — giống `deploy/**` và `*.spec.*`, nó thuộc Node tooling chứ
+      // không thuộc runtime:edge, nên được phép `node:fs`/`node:path` và
+      // `console.log` để báo số file đã dựng. Block này đứng sau `apps/**`
+      // nên exemption có hiệu lực; không mở rộng cho mọi file trong
+      // `tests/` — helper chỉ đọc, không import Node builtin.
+      "files": ["apps/*/tests/*.mjs"],
+      "rules": {
+        "no-console": "off",
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Harness của integration test chạy trên Node runner (Vitest), không
+      // được bundle vào Worker edge — nó cần `node:crypto` để hash identifier
+      // và `node:fs`/`node:path` để dựng/locate container, đúng lý do mà
+      // override `**/*.spec.*` phía trên cho phép Node builtin cho spec. Tên file
+      // **không** khớp `*.spec.*` vì đây là module tiện ích được spec import, nên
+      // cần một block riêng; glob `tests/**` phủ cả suite app-owned lẫn support
+      // của nó dưới `tests/` (mọi mức lồng nhau, gồm `tests/integrations/` và
+      // `tests/databases/` — 06-testing.md §2), ngang `src/`.
+      //
+      // `no-console` tắt cho cùng lý do tools khác trong repo (`tools/**`,
+      // `db/**`, `deploy/**`): harness là tooling Node, và `probeDocker` phải
+      // in được cảnh báo tiếng Anh rõ ràng khi Docker thiếu — skip im lặng
+      // với exit 0 là thứ đã từng làm mất cả một spec file (11 test) mà không
+      // ai biết. Không có đường nào gửi warning đó qua `writeLog` của app:
+      // logger là runtime code của Worker, không thuộc test harness.
+      //
+      // Giữ đúng nguyên tắc của block trên: chỉ exemption, không nới rule ở
+      // đâu khác; Worker code của app vẫn chịu ràng buộc `runtime:edge`.
+      "files": [
+        "apps/*/tests/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
+        "libs/*/tests/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"
+      ],
+      "rules": {
+        "no-console": "off",
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
+      // Config của Vitest chạy trên Node runner, KHÔNG được bundle vào Worker
+      // edge — nó chỉ tồn tại lúc test nên được phép dùng `node:fs`/`node:path`.
+      // Cùng tính chất với block `*.spec.*` và `deploy/**` phía trên: file build-time
+      // trên Node, không thuộc runtime:edge của app. Block này đứng sau block
+      // `apps/**` nên exemption có hiệu lực; chỉ exemption cho **config**, không
+      // mở rộng cho code app (`apps/account/app/**` vẫn cấm Node builtin).
+      "files": ["apps/*/vitest.config.mts", "apps/*/vite.config.mts"],
+      "rules": { "no-restricted-imports": "off", "import/no-nodejs-modules": "off" }
+    },
+    {
+      // Build-time Nuxt module đọc artifact build trên đĩa (`apps/home/modules/
+      // static-assets-guard.ts`): hook `nitro:build:public-assets` chạy trong
+      // tiến trình build Node SAU prerender, đếm file trong `.output/public/
+      // assets` - không bao giờ được bundle vào Worker edge, nên cùng tính chất
+      // với `deploy/**`, `*.spec.*` và vitest config phía trên: tooling Node,
+      // không thuộc runtime:edge của app. Block này đứng sau block `apps/**`
+      // nên exemption có hiệu lực; chỉ exemption cho **module build-time này**,
+      // không mở rộng cho code app khác (`apps/home/app/**` vẫn cấm Node
+      // builtin).
+      "files": ["apps/home/modules/static-assets-guard.ts"],
+      "rules": { "no-restricted-imports": "off", "import/no-nodejs-modules": "off" }
+    },
+    {
+      // System E2E suite (`system-tests/**`) chạy trên Node runner thông qua
+      // Playwright, không bundle vào Worker edge — cùng tính chất với
+      // `deploy/**`, `db/**`, `apps/*/tests/**` và harness
+      // `docker-probe.global-setup.ts` phía trên: tooling Node. `global-setup.ts`
+      // là fail-closed gate: kênh output DUY NHẤT của nó là console (stdout vì
+      // plugin Nx gộp theo stream), và policy ngôn ngữ bắt buộc output chương
+      // trình là tiếng Anh — tắt `no-console` cho toàn cây `system-tests/**` với
+      // đúng rationale của `tools/**`: gate phải in được lỗi + remedy rõ ràng,
+      // exit 1 im lặng là thứ đã từng nuốt mất nguyên một spec file. Chỉ
+      // exemption, không nới rule nào khác; Worker code của app vẫn chịu ràng
+      // buộc runtime:edge như cũ.
+      "files": ["system-tests/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": { "no-console": "off" }
+    }
+  ]
+}

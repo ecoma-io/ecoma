@@ -1,0 +1,95 @@
+{
+  // Delivery plane của Push Notification: Queue consumer nhận Delivery Command
+  // từ Queue `ecoma-push-delivery`, resolve runtime data qua Service Binding
+  // `PUSH_NOTIFICATION_SERVICE` trỏ về control plane, ghi job state vào D1
+  // `push-job`. KHÔNG có hostname, KHÔNG expose HTTP API, KHÔNG routing.
+  //
+  // Reference: docs/applications/web-push-notification-job/01-architecture.md,
+  // docs/applications/web-push-notification-job/03-operations.md §1–§4.
+  //
+  // KHÔNG bật `nodejs_compat`: project mang tag `runtime:edge` và
+  // .oxlintrc.json chặn import Node.js builtin trong mọi project `runtime:edge`.
+  //
+  // `workers_dev: false` bắt buộc (task §10): Worker không expose HTTP API nào —
+  // tắt workers.dev subdomain để không có hostname công khai.
+  "workers_dev": false,
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-web-push-notification-job",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+
+  // D1 `push-job` — job/delivery execution state của chính worker này
+  // (attempt record, processed marker — job 01 §11b). KHÔNG đọc D1 `push`
+  // của control plane; control plane data resolve qua PUSH_NOTIFICATION_SERVICE.
+  //
+  // `database_id` cố ý KHÔNG khai báo ở đây: chưa provisioning. Resource D1 do
+  // provisioning hạ tầng tạo và cung cấp `database_id` (docs/architecture/02-delivery.md
+  // §9.1) — **không** tự tạo D1 bằng `wrangler d1 create`. Wrangler chỉ được chạy
+  // migration (`wrangler d1 migrations apply`).
+  // Binding + vòng đời D1 của service: xem docs/applications/web-push-notification-job/03-operations.md §2.
+  "d1_databases": [
+    {
+      "binding": "push-job",
+      "database_name": "push-job",
+    },
+  ],
+
+  // Consumer của Queue `ecoma-push-delivery` + DLQ `ecoma-push-delivery-dlq`
+  // (03-operations.md §4). `max_retries` = 3 theo mặc định platform (QU2).
+  // Batch size / batch timeout / max concurrency để default: docs chỉ nêu
+  // tham số phải kiểm soát (§4) nhưng CHƯA chốt giá trị — không bịa.
+  //
+  // Per-message ACK/retry là yêu cầu bắt buộc (§4) — mỗi message được
+  // ack/retry độc lập trong `handleQueueBatch` (src/main.ts), và mỗi message có
+  // trace disposition riêng nên một message lỗi không kéo message anh em.
+  "queues": {
+    "consumers": [
+      {
+        "queue": "ecoma-push-delivery",
+        "max_retries": 3,
+        "dead_letter_queue": "ecoma-push-delivery-dlq",
+      },
+    ],
+    // Producer `QUEUE` cho phép job gửi lại message khi reconciliation re-deliver
+    // việc kẹt từ D1 `push-job` (FR-022 — job 02-requirements.md; config key
+    // `QUEUE` liệt kê ở 03-operations.md §3).
+    //
+    // ⚠️ Re-deliver **đã implement**: `runJobReconciliation` trong
+    // `libs/web-push-notification-job-application` phát lại **chính xác** envelope gốc đã
+    // lưu, qua đúng `delivery_id`, qua binding `QUEUE` này; nó không reroute, không tạo
+    // delivery mới, không ghi logical delivery state.
+    //
+    // ⚠️ **Cơ chế kích hoạt ở production vẫn là một câu hỏi chưa chốt.** Sweep hiện chỉ chạy
+    // qua `POST /internal/reconcile/jobs` (xác thực `RUNTIME_API_SHARED_SECRET` +
+    // `RUNTIME_API_EXPECTED_PRINCIPAL`, fail-closed). KHÔNG thêm `triggers.crons`/`scheduled`
+    // ở đây: docs chưa chốt, và thêm cron là thêm một quyết định hạ tầng chưa ai chịu trách
+    // nhiệm. Xem TODO ở `apps/web-push-notification-job/src/main.ts`.
+    "producers": [
+      {
+        "queue": "ecoma-push-delivery",
+        "binding": "QUEUE",
+      },
+    ],
+  },
+
+  // Service Binding private tới control plane (cùng Cloudflare account → không
+  // qua internet, không cần token — architecture `01` §6). Tên binding theo
+  // docs/applications/web-push-notification-job/03-operations.md §3.
+  "services": [
+    {
+      "binding": "PUSH_NOTIFICATION_SERVICE",
+      "service": "ecoma-push-notification",
+    },
+  ],
+
+  // Cấu hình runtime theo 03-operations.md §3 (QUEUE, PUSH_NOTIFICATION_SERVICE,
+  // LOG_LEVEL, ENVIRONMENT). Giá trị LOG_LEVEL/ENVIRONMENT là convention-derived
+  // (mặc định "info"/"production") — production đổi qua `wrangler deploy --var`.
+  "vars": {
+    "LOG_LEVEL": "info",
+    "ENVIRONMENT": "production",
+  },
+}

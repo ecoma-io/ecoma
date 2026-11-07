@@ -1,0 +1,10 @@
+diff --git a/dist/types.js b/dist/types.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..2be9eb126198e43f1d0709e670bc4a28f209ff8b
+--- /dev/null
++++ b/dist/types.js
+@@ -0,0 +1,4 @@
++const HMR_EVENT = "nuxt-content-assets:update";
++export {
++  HMR_EVENT
++};

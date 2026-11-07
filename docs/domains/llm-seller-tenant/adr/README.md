@@ -1,0 +1,21 @@
+# LLM Seller Tenant — ADR index
+
+Architectural decision record của bounded context **LLM Seller Tenant**. Mỗi quyết định có **một** canonical location là ADR tương ứng; [`domain-model.md`](../domain-model.md) giữ con trỏ tới đó, không nhân bản nội dung. Đảo một quyết định đã Accepted phải qua ADR mới, không sửa ADR cũ một cách âm thầm.
+
+ADR `0001`, `0002`, `0005`, `0007` thuộc context này theo phân chia của [ADR-0018](../../llm-seller-governance/adr/0018-seller-bounded-context-split.md); nội dung quyết định không đổi khi chuyển context.
+
+| #    | Quyết định                                                                           | Trạng thái | File                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 0001 | Seller tenant ownership: một owner, transfer tường minh                              | Accepted   | [`0001-seller-tenant-ownership-and-transfer.md`](./0001-seller-tenant-ownership-and-transfer.md)                               |
+| 0002 | Sự tồn tại của tenant tách khỏi operational eligibility; không có `status` lifecycle | Accepted   | [`0002-tenant-existence-separate-from-eligibility.md`](./0002-tenant-existence-separate-from-eligibility.md)                   |
+| 0005 | Membership grant và ranh giới permission tài chính của Seller                        | Accepted   | [`0005-membership-grants-and-financial-permission-boundary.md`](./0005-membership-grants-and-financial-permission-boundary.md) |
+| 0007 | Ranh giới permission identifier giữa Seller và `staff-access`                        | Accepted   | [`0007-permission-identifier-boundary.md`](./0007-permission-identifier-boundary.md)                                           |
+
+Quyết định thuộc context khác, không nhân bản tại đây:
+
+- [`llm-seller-governance/adr/`](../../llm-seller-governance/adr/README.md) — restriction, appeal, verification, legal/tax, data lifecycle và tách context.
+- [`llm-financial/adr/0001`](../../llm-financial/adr/0001-independent-seller-console-tenant.md) — Seller/Consumer tenant độc lập.
+- [`llm-financial/adr/0003`](../../llm-financial/adr/0003-financial-ownership.md) — ownership giữa LLM Financial, Payment và Payout.
+- [`llm-financial/adr/0005`](../../llm-financial/adr/0005-ec-to-uc-conversion.md) — EC→UC conversion và dual authorization.
+- [`llm-financial/adr/0007`](../../llm-financial/adr/0007-seller-settlement-holds.md) — settlement hold ≠ Seller restriction.
+- [`llm-financial/adr/0008`](../../llm-financial/adr/0008-seller-tax-profile.md) — ownership split seller legal/tax profile vs tax calculation.

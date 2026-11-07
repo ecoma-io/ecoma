@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Multi-head attention and transformer blocks</title>
+  <desc id="cover-desc">Course cover for lesson 15 of 30, Language modeling. Abstract layer stack motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 15 of 30 · Language modeling</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="304.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="650" fill="#0f172a">Multi-head attention and</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="650" fill="#0f172a">transformer blocks</text>
+
+  <g aria-hidden="true">
+    <rect x="836" y="346" width="276" height="96" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+        <rect x="850" y="294" width="276" height="96" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+        <rect x="864" y="242" width="276" height="96" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+        <rect x="878" y="190" width="276" height="96" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+        <rect x="892" y="138" width="276" height="96" rx="12" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+        <text x="846" y="142" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#64748b">blocks × L</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">15 / 30</text>
+</svg>

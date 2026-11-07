@@ -1,0 +1,297 @@
+name: Code Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request to review (the number alone)'
+        type: string
+        required: true
+      full_review:
+        description: 'Re-review from the merge-base instead of from the last checkpoint'
+        type: boolean
+        required: false
+        default: false
+  pull_request_target:
+    types: [opened, ready_for_review, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Group theo PR: event payload cho trigger tự động (pull_request_target —
+  # inputs context rỗng trên event này), input cho dispatch thủ công, run_id
+  # làm fallback an toàn. PR khác nhau có group khác nhau nên không bao giờ
+  # tự hủy lẫn nhau; trong cùng một PR, run mới thay thế run cũ.
+  group: >-
+    ocr-pr-${{
+      (github.event_name == 'pull_request_target' && github.event.pull_request.number) ||
+      (github.event_name == 'workflow_dispatch' && inputs.pr_number) ||
+      github.run_id
+    }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI review (OpenCodeReview)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    # Trigger tự động (pull_request_target) chỉ review PR nội bộ (head branch
+    # thuộc repo này), không draft, và không thuộc branch prefix automation/
+    # (PR do bot dependency tạo — bỏ qua để tiết kiệm chi phí LLM; vẫn review
+    # được bằng workflow_dispatch). workflow_dispatch luôn chạy. Job-level if
+    # để run bị skip không cấp phát runner. Workflow không bao giờ checkout
+    # hay thực thi code PR head.
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      (
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.draft != true &&
+        !startsWith(github.event.pull_request.head.ref, 'automation/')
+      )
+    env:
+      # Tắt self-updater chạy nền của CLI để tránh thay package giữa chừng
+      # (npm i -g @latest tách rời trong lúc 'ocr config set' đang chạy)
+      # gây ra các lỗi "Cannot find module" cạnh tranh.
+      OCR_NO_UPDATE: '1'
+    steps:
+      - name: Resolve PR info and check for changes
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Event payload cho trigger pull_request_target; inputs context
+          # chỉ được điền trên workflow_dispatch (trên pull_request_target
+          # nó đánh giá là chuỗi rỗng).
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            // PR number được đọc theo nguồn sự kiện: payload cho trigger
+            // privileged pull_request_target, input cho workflow_dispatch.
+            const requested = (process.env.PR_NUMBER || '').trim();
+            if (!/^[1-9][0-9]*$/.test(requested)) {
+              core.setFailed(`pr_number must be a pull request number alone; got ${JSON.stringify(requested)}.`);
+              return;
+            }
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number(requested),
+            });
+
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('title', pr.title);
+            core.setOutput('body', pr.body);
+
+            // Kiểm tra số lượng commits hoặc đối chiếu HEAD SHA với BASE SHA
+            const hasNoChanges = pr.commits === 0 || pr.head.sha === pr.base.sha;
+            core.setOutput('skip_review', hasNoChanges ? 'true' : 'false');
+
+            if (hasNoChanges) {
+              core.info('No changes detected between head and base. Skipping review. Step will be skipped.');
+            }
+
+      - name: Preflight OpenCodeReview CLI
+        if: steps.pr.outputs.skip_review != 'true'
+        id: preflight
+        shell: bash
+        env:
+          OCR_VERSION_PIN: '1.12.12'
+        run: |
+          set -euo pipefail
+          # npm >= 11 gate install scripts bằng allow-scripts; bật đúng cho package
+          # này để postinstall (tải binary + verify checksum) chạy một cách xác định.
+          npm config set allow-scripts="@alibaba-group/open-code-review"
+          npm install -g --no-audit --no-fund "@alibaba-group/open-code-review@${OCR_VERSION_PIN}"
+          if ! command -v ocr >/dev/null 2>&1; then
+            echo "::error::'ocr' executable không nằm trên PATH sau khi cài @alibaba-group/open-code-review@${OCR_VERSION_PIN}; kiểm tra liên kết bin toàn cục của npm."
+            exit 1
+          fi
+          OCR_VERSION_OUTPUT="$(ocr version 2>/dev/null || true)"
+          printf '%s\n' "$OCR_VERSION_OUTPUT"
+          if ! printf '%s' "$OCR_VERSION_OUTPUT" | grep -qE "open-code-review[[:space:]]+v${OCR_VERSION_PIN//./\\.}([[:space:]]|\$)"; then
+            echo "::error::Phiên bản OpenCodeReview không khớp pin: muốn v${OCR_VERSION_PIN}, nhận được: ${OCR_VERSION_OUTPUT}"
+            exit 1
+          fi
+          echo "OpenCodeReview preflight OK: v${OCR_VERSION_PIN}."
+
+      - name: Generate app token
+        if: steps.pr.outputs.skip_review != 'true'
+        id: app-token
+        # Pin như mọi third-party action trong repo; v3.3.0 của
+        # actions/create-github-app-token. Token minted chỉ cho repo hiện tại,
+        # với đúng quyền mà action OCR cần: pull_requests: write để đọc/đăng
+        # review comment, contents: write vì `resolve_outdated: 'true'` gate
+        # mutation resolve trên quyền repo-write chứ không phải scope
+        # pull-requests (action tự tài liệu hoá yêu cầu này). Hạn mức API của
+        # token này là 5,000 requests/hour per installation của App
+        # (scale +50 rph/repo trên 20 repos, +50 rph/user trên 20 users, trần
+        # 12,500 rph) — cao hơn 1,000 rph/repo của `github.token` và không dùng
+        # chung băng với các workflow khác.
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.ECOMA_APP_ID }}
+          private-key: ${{ secrets.ECOMA_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: write
+          permission-contents: write
+
+      # Job này chưa có checkout nào khi bước probe chạy, và không được giả định
+      # hành vi nội bộ của action bên thứ ba để lấy ref tin cậy từ đó. Checkout
+      # tường minh vào một thư mục riêng: trên `pull_request_target` là **base**
+      # (ref tin cậy, cũng là rule mà lần review sắp tới sẽ dùng); trên
+      # `workflow_dispatch` là ref được dispatch — nhánh feature mà người có quyền
+      # write chủ động chọn để kiểm chính cấu hình trên đó trước khi merge.
+      # `persist-credentials: false` để không lưu token vào checkout, và không có
+      # nội dung PR head nào được checkout hay thực thi.
+      #
+      # Đo được trên run 38888565040: action review tự checkout **ref của event**
+      # (`-B fix/dx-markdown-ai-review` khi dispatch, base branch khi
+      # `pull_request_target`) và chỉ lấy PR head dưới dạng git object, không
+      # materialize cây PR head — nên probe và lần review lấy rule từ cùng ref,
+      # khác hẳn giả định "review đọc rule của PR head". Bước gate ở dưới thì cố
+      # ý dùng `steps.pr.outputs.base_ref`; hai nguồn khác nhau khi dispatch từ
+      # một nhánh có rule khác base.
+      - name: Check out the trusted ref for the selection probe
+        if: steps.pr.outputs.skip_review != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || steps.pr.outputs.base_ref }}
+          persist-credentials: false
+          path: ocr-probe
+
+      # Kiểm contract selection trên **đúng bản CLI pinned** trước khi trả tiền cho
+      # một lần review. `.github/ocr-rules.json` chỉ là một tệp JSON: một include
+      # bị gỡ, một glob sai, hay một exclude phủ nhầm đều không làm assert shape nào
+      # đỏ, nhưng đều khiến Markdown rơi khỏi phạm vi review — đúng lỗi #239, chỉ
+      # khác là lần này job vẫn xanh. Probe chạy `ocr review --preview` (chỉ đọc
+      # diff, không gọi LLM) trên repo thí nghiệm và fail nếu `.md` không được chọn,
+      # nếu `include` vượt qua bộ lọc secret, nếu `exclude` của rule mất hiệu lực,
+      # hoặc nếu range rỗng bị đọc như một review sạch.
+      - name: Verify the selection contract on the pinned CLI
+        if: steps.pr.outputs.skip_review != 'true'
+        shell: bash
+        run: |
+          # Gán vào biến trước khi dùng: `set -e` không áp dụng cho command
+          # substitution nằm trong danh sách tham số, nên `command -v ocr` thiếu
+          # sẽ lặng lẽ truyền chuỗi rỗng và probe báo một lỗi khó hiểu về phiên
+          # bản thay vì chỉ ra nguyên nhân thật.
+          set -euo pipefail
+          OCR_BIN="$(command -v ocr)"
+          node "$GITHUB_WORKSPACE/ocr-probe/tools/dx/scripts/ocr-selection-probe.mjs" \
+            --ocr "$OCR_BIN" \
+            --rule "$GITHUB_WORKSPACE/ocr-probe/.github/ocr-rules.json" \
+            --workflow "$GITHUB_WORKSPACE/ocr-probe/.github/workflows/code-review.yml"
+          # Dọn checkout thí nghiệm: action review chạy sau bước này và tự checkout
+          # vào workspace root, nên để lại một repo lồng nhau ở đó là thay đổi tiền
+          # đề môi trường của action mà không có lý do.
+          rm -rf "$GITHUB_WORKSPACE/ocr-probe"
+
+      - name: Review the pull request
+        id: ocr
+        if: steps.pr.outputs.skip_review != 'true'
+        uses: alibaba/open-code-review@abb7abcd5c5196fa0278dc87db85780fa269562f # v1.13.5
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          base_ref: ${{ steps.pr.outputs.base_ref }}
+          head_sha: ${{ steps.pr.outputs.head_sha }}
+          # pr_number/full_review chỉ có giá trị trên dispatch; trên trigger
+          # tự động chuỗi rỗng là đúng (full_review rỗng → incremental).
+          pr_number: ${{ inputs.pr_number }}
+          full_review: ${{ inputs.full_review }}
+          background: |
+            Project: Ecoma.io monorepo
+
+            This is a greenfield platform under active construction. Distinguish
+            implemented contracts from planned architecture; do not report intentionally
+            unimplemented future capabilities as defects.
+
+            Architecture invariants:
+            - Services own their data; no cross-service direct database access.
+            - Cross-service communication uses explicit APIs or events.
+            - Services remain independently deployable.
+            - No node-local durable/shared state.
+            - Secrets must not leak to clients or logs.
+            - API/event contract changes must remain expand-compatible.
+            - Reliable event publication requires transactional outbox and idempotency
+              where applicable.
+            - Observability must not expose prompt bodies or sensitive request content.
+            - Respect Nx project boundaries and service runtime constraints.
+
+            Documentation and language:
+            - Commit titles and messages must be written in English.
+            - `AGENTS.md` must be written in English
+            - Other documents must be written in Vietnamese, while retaining proper nouns, terminology, and technical terms in English.
+            - All documents must be concise and succinct; they must be entirely free of internal contradictions and consistent with one another.
+            - The documentation describes the desired target state; therefore, it can be written before the current state of the codebase.
+
+            Review priorities:
+            1. Architecture and boundary violations.
+            2. Security and data exposure.
+            3. Breaking API/event contracts.
+            4. Persistence, transaction, consistency, and idempotency bugs.
+            5. Reliability and production correctness.
+            6. Significant performance regressions.
+
+            Do not report style-only issues unless explicitly required by repository rules.
+
+            PR Title: ${{ steps.pr.outputs.title }}
+            PR Description:
+            ${{ steps.pr.outputs.body }}
+          llm_url: ${{ secrets.ECOMA_LLM_BASE_URL }}
+          llm_auth_token: ${{ secrets.ECOMA_LLM_API_KEY }}
+          llm_model: glm-5.3-flash
+          llm_use_anthropic: false
+          llm_protocol: openai
+          language: Vietnamese
+          ocr_version: 1.12.12
+          llm_timeout: '360'
+          review_task_timeout: '120'
+          effort: high
+          review_concurrency: '32'
+          stream_progress: 'true'
+          upload_artifacts: 'true'
+          sticky_summary: 'true'
+          incremental: 'true'
+          incremental_overlap_threshold: '0.75'
+          checkpoint_range: 'true'
+          resolve_outdated: 'true'
+          review_comment_batch_size: '100'
+          rule: .github/ocr-rules.json
+          route_severity_below: medium
+
+      # Cổng phải chạy script và rule của BASE branch — ref tin cậy — chứ không
+      # phải bất cứ thứ gì action bên thứ ba để lại trong workspace. Checkout
+      # tường minh base ref vào một thư mục riêng để ranh giới tin cậy là thuộc
+      # tính của YAML chứ không phải giả định về hành vi nội bộ của action;
+      # `persist-credentials: false` để không lưu token vào checkout.
+      - name: Check out the base branch for the gate
+        if: steps.ocr.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.pr.outputs.base_ref }}
+          persist-credentials: false
+          path: ocr-gate
+
+      # Action kết thúc thành công ngay cả khi không file nào được chọn để review
+      # (`status: skipped`, `summary.files_reviewed: 0`), nên bước này đọc kết quả
+      # thật rồi fail-closed — ngoại trừ trường hợp `skipped` mà cổng chứng minh
+      # được TOÀN BỘ file thay đổi đều nằm ngoài phạm vi review theo rule (không
+      # có gì để review, không phải xanh giả #239): lúc đó nó pass kèm ghi chú
+      # "0 in-scope file(s)" thay vì đỏ. Đây là bước duy nhất quyết định "đã
+      # review hay chưa"; nó không thay đổi hành vi của action và không cần thêm
+      # secret/quyền nào. `--rule` trỏ vào project rule trong base checkout (đúng
+      # nguồn mà `ocr` đọc), để cổng đối chiếu được file bị bỏ qua có thật sự nằm
+      # ngoài phạm vi rule hay không; không truyền nội dung nào từ PR head.
+      - name: Verify the review result
+        id: verify
+        if: steps.ocr.outcome == 'success'
+        shell: bash
+        run: |
+          node "$GITHUB_WORKSPACE/ocr-gate/tools/dx/scripts/ocr-result-gate.mjs" \
+            --result /tmp/ocr-result.json \
+            --stderr /tmp/ocr-stderr.log \
+            --rule "$GITHUB_WORKSPACE/ocr-gate/.github/ocr-rules.json"

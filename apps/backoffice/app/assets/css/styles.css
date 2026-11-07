@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+/*
+ * CSS của shell dashboard — một entry dùng chung.
+ */
+@import '../../../../../libs/ui-app-shell/src/styles/app-shell.css';
+
+/*
+ * Logo brand tokens (được shell sử dụng khi dùng EcomaLogo, nhưng không được
+ * định nghĩa trong app-shell.css — riêng cho backoffice này chúng ta thêm).
+ * Định nghĩa ở đây để không sửa shared library.
+ */
+@theme {
+  --color-brand: #006aff;
+  --color-foam: #f6f7fc;
+}
+
+/*
+ * Tailwind v4 source registration cho libs/ui-ecoma-logo.
+ * Cùng số cấp từ apps/backoffice/app/assets/css -> workspace root.
+ */
+@source "../../../../../libs/ui-ecoma-logo/src/**/*.{vue,ts}";
+
+/*
+ * Tailwind v4 source registration cho @ecoma-io/ui-app-shell.
+ * (app shell lib cũng tự đăng ký, nhưng consumer vẫn đăng ký để đảm bảo)
+ */
+@source "../../../../../libs/ui-app-shell/src/**/*.{vue,ts}";

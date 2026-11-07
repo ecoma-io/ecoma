@@ -1,0 +1,62 @@
+# Pact Broker — Requirements (deploy-unit)
+
+> Yêu cầu của deploy unit `pact-broker-api` + `pact-broker-app`. Bounded context requirements (business) → [`docs/domains/pact-broker/domain-model.md`](../../domains/pact-broker/domain-model.md) (canonical). File này chỉ giữ yêu cầu đặc thù deploy unit: tương thích protocol, interface, ràng buộc runtime và bảo mật kỹ thuật.
+
+## 1. Functional (deploy-unit)
+
+| ID     | Yêu cầu                                                                                                                                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-001 | Pact CLI publish được pact: `PUT /pacts/provider/{p}/consumer/{c}/version/{v}` và `POST /contracts/publish` (batch, validate-all-before-write).                                                                                                |
+| FR-002 | CLI đọc được `pacts-for-verification` với selector tag/branch/mainBranch/deployed; index HAL công bố các link mà CLI gate (`pb:publish-contracts`, `pb:pacticipant-branch-version`, `pb:provider-pacts-for-verification`).                     |
+| FR-003 | Route ghi verification result và matrix response trả về đầy đủ consumer/provider/version/verification theo hình dạng CLI đọc; quy tắc phán quyết tri-state `deployable` → [`domain-model.md`](../../domains/pact-broker/domain-model.md) §2.3. |
+| FR-005 | Environments CRUD; record deployed/undeployed version qua đường `pact-broker-client` (POST `/deployed-versions/environment/{env}`).                                                                                                            |
+| FR-008 | Machine token API: tạo (plaintext hiện một lần), list (chỉ metadata), revoke; token scope `read`/`write`/`admin`; semantics token → [`domain-model.md`](../../domains/pact-broker/domain-model.md) §2.5.                                       |
+| FR-010 | Dashboard `pact-broker-app`: xem pacts, verifications, matrix, environments, tokens; quản lý trong phạm vi role (BFF + OIDC).                                                                                                                  |
+| FR-012 | HAL responses tương thích Pact CLI ≥ 2.86 (branch/build-url publish); index compatibility version `2.107.0`.                                                                                                                                   |
+
+## 2. Non-functional (deploy-unit)
+
+| ID      | Yêu cầu                                                                                                                                        |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-001 | Mọi timestamp `timestamptz` UTC.                                                                                                               |
+| NFR-002 | Migration idempotent, forward-fix only, chạy từ CI runner với `pg_advisory_lock`; role `_migrator` không bao giờ là Worker secret.             |
+| NFR-003 | Worker không DDL; serving path không advisory lock/LISTEN/PREPARE (HD6).                                                                       |
+| NFR-004 | Test: unit pure (port từ upstream), integration PostgreSQL thật qua testcontainers, API test qua Hono `app.request` — không cần dịch vụ ngoài. |
+| NFR-005 | Bootstrap/build/test/migrate không cần Account/Auth/broker production nào đang sống.                                                           |
+| NFR-006 | Token lookup qua hash PK; phản hồi auth 401 đồng nhất; audit phân biệt reason.                                                                 |
+| NFR-007 | Body limit 10MB (publish batch 4MB, single pact 1MB) giống upstream; streaming check trước khi đọc body.                                       |
+
+## 3. Security
+
+| ID     | Yêu cầu                                                                                                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SR-001 | Không shared token global như upstream: mỗi token gắn đúng một tenant + scopes; không token cross-tenant.                                                          |
+| SR-002 | Token lưu hash-only (SHA-256); plaintext không bao giờ ghi DB hay log.                                                                                             |
+| SR-003 | Không public-read default như upstream `ALLOW_PUBLIC_READ`: mọi endpoint domain (trừ badge nếu bật) yêu cầu credential.                                            |
+| SR-004 | Browser không gửi được role/permission mà BFF tin: mọi authorization check chạy server-side trên token đã verify.                                                  |
+| SR-005 | CORS mặc định chặn chéo-origin; chỉ mở cho origin dashboard đã cấu hình.                                                                                           |
+| SR-006 | Webhook outbound mặc định TẮT; bật đòi SSRF guard chứng minh được (HTTPS-only, block private/loopback/metadata, DNS rebinding defense). Production path không bật. |
+| SR-007 | Không log Authorization header, token, body pact ở đường lỗi.                                                                                                      |
+| SR-008 | Audit append-only ở DB (trigger chặn UPDATE).                                                                                                                      |
+
+## 4. Non-goals (deploy-unit)
+
+- Webhook outbound production (SR-006 — tắt cho đến khi có SSRF guard).
+- Badge SVG public (đòi public read — mâu thuẫn SR-003; cân nhắc sau).
+- UI quản lý tenant toàn hệ thống (dashboard chỉ thấy tenant của mình).
+- Cross-tenant sharing pacts (nhất thiết tenant-isolated).
+- BFF session/principal auth cho `pact-broker-app` (#144) — hoãn tới khi đường mang credential tới BFF được chốt. Target hiện tại: BFF dùng machine token server-side với scope `read` (SR-004), fail-closed 503 khi broker config thiếu (xem [`tests/broker-config.spec.ts`](../../../apps/pact-broker-app/tests/broker-config.spec.ts)), và bất biến read-only-bff (chỉ method đọc, xem [`tests/read-only-bff.spec.ts`](../../../apps/pact-broker-app/tests/read-only-bff.spec.ts)). Cross-reference [ADR-0011](../../domains/staff-access/adr/0011-authn-boundary-and-unauthenticated-response.md) cho authn boundary.
+- Migration UI/down-migration.
+
+## 5. Acceptance
+
+| Kiểm chứng                                                                                                         | Bằng chứng bắt buộc                                          |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Publish bằng payload Pact CLI thật (fixture từ upstream test helpers) qua cả hai đường PUT và `/contracts/publish` | API test xanh + index HAL chứa link gate                     |
+| `can-i-deploy` với verification fail → exit fail; unknown → exit fail                                              | API test assert tri-state + reason                           |
+| Hai request đồng thời `ensureDefaultTenant` cùng sub                                                               | Integration test PostgreSQL thật, đúng 1 tenant              |
+| Row lệch tenant (INSERT tham chiếu chéo)                                                                           | Integration test bị FK từ chối ở DB                          |
+| Revoke token rồi dùng ngay                                                                                         | API test 401 ngay request đầu sau revoke                     |
+| Migration chạy 2 lần liên tiếp                                                                                     | Integration test lần 2 là no-op                              |
+| BFF fail-closed 503 khi thiếu config; không có write route dưới `server/api/broker/`                               | `tests/broker-config.spec.ts`, `tests/read-only-bff.spec.ts` |
+| `nx typecheck lint test test-integration` của cả hai app                                                           | Xanh local, không skip có chủ đích ngoài Docker-missing      |

@@ -1,0 +1,17 @@
+# Cấu hình CodeQL cho workflow `.github/workflows/code-analysis.yml` (trỏ qua
+# `config-file` của step Initialize CodeQL).
+#
+# ⚠️ `paths-ignore: .github/semgrep` là có chủ đích và KHÔNG phải cách né một
+# finding: thư mục này là fixture harness của `semgrep --test` — TypeScript
+# không build, không deploy, không nhận input người dùng, và các dòng
+# `console.log(token)` trong đó là ca "bệnh" CHỦ ĐÍCH để rule Semgrep phải bắt
+# được (xem `.github/semgrep/security.test.ts`). CodeQL js/ts quét vào đó chỉ
+# sinh alert `clear-text-logging` thuần noise, lặp lại với mọi ca pin mới —
+# đã đo: 5 alerts (#3-#7) mở mãi trên code scanning vì đúng hình dạng đó.
+# Loại cả thư mục không mất đường scan nào có giá trị; mọi code thật của repo
+# vẫn được quét đầy đủ.
+#
+# Khối này là GLOBAL (không per-language): matrix `actions` không có file nào
+# dưới `.github/semgrep` nên không bị ảnh hưởng.
+paths-ignore:
+  - .github/semgrep

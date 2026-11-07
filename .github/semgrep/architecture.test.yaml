@@ -1,0 +1,34 @@
+rules: []
+
+# Fixture cho `architecture-service-declares-database-it-does-not-own`. Cấu
+# trúc là JSON trong một file YAML (khóa `rules: []` ở đầu vẫn bắt buộc để
+# `semgrep --config .github/semgrep` không abort), nên các dòng dưới đây viết
+# đúng dạng `"database_name": "x"` mà pattern-regex của rule tìm — một bản ghi
+# không có ngoặc kép không phải là JSON và rule không có gì để đọc.
+#
+# Rule phân biệt bằng ĐƯỜNG DẪN FILE: file của owner bị loại trừ, mọi file
+# wrangler khác khai báo database là finding. Trong fixture này đường dẫn là
+# `.github/semgrep/architecture.test.yaml` — không nằm trong danh sách loại
+# trừ — nên MỌI database_name dưới đây đều phải fire, và đó chính là lý các
+# case `ok:` nằm ở đâu: chúng chứng minh giá trị database KHÔNG quyết định
+# finding, đường dẫn mới quyết định.
+
+# ruleid: architecture-service-declares-database-it-does-not-own
+'database_name': 'push'
+# ruleid: architecture-service-declares-database-it-does-not-own
+'database_name': 'push-job'
+# ruleid: architecture-service-declares-database-it-does-not-own
+'database_name': 'mail'
+# ruleid: architecture-service-declares-database-it-does-not-own
+'database_name': 'mail-job'
+
+# Anchor `^\s*` là thứ khiến một dòng comment không bị coi là khai báo:
+# `pattern-regex` đọc văn bản thô, nên đây là regression case cho FP đó.
+# ok: architecture-service-declares-database-it-does-not-own
+#   "database_name": "identity"
+# ok: architecture-service-declares-database-it-does-not-own
+// "database_name": 'payment'
+
+# Một dòng chỉ có key mà không có value không phải là một khai báo.
+# ok: architecture-service-declares-database-it-does-not-own
+'database_name':

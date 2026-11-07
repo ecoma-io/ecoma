@@ -1,0 +1,62 @@
+commit-msg:
+  commands:
+    'lint commit message':
+      run: pnpm exec commitlint --edit {1}
+
+pre-commit:
+  commands:
+    'format':
+      glob: '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,vue,json,jsonc,css,scss,html,md,yml,yaml}'
+      run: npx oxfmt --write --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    'lint':
+      glob: '*.{js,jsx,ts,tsx,mts,cts,mjs,cjs,vue}'
+      run: npx oxlint --fix --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    # Commit chưa tồn tại lúc pre-commit chạy, nên chỉ kiểm được cấu hình ký — cũng
+    # chính là nguyên nhân gốc của việc mất chữ ký khi rebase. Shell thuần vì
+    # `npx tsx` tốn ~1.1s khởi động, còn `git config` mất ~2ms.
+    'commit signing config':
+      run: ./tools/dx/check-signing-config.sh
+    # Rule semgrep chỉ được kiểm bằng fixture ở CI hiện tại, tức một rule viết
+    # sai vẫn đi qua được commit rồi mới đỏ ở `analysis-gate`. Chạy `--test` ngay
+    # khi commit chạm bộ rule để lỗi hiện ra tại chỗ. `eval` chỉ định target là
+    # thư mục rule, nên glob dưới đây chỉ quyết định **có chạy hay không**, giống
+    # cách `semgrep-scan-local` dùng danh sách file đã đổi.
+    'semgrep rule fixtures':
+      glob: '.github/semgrep/**'
+      run: pnpm dx semgrep-test-local
+
+# Gate chặn thật cho commit vừa tạo: `pre-push` KHÔNG đủ, vì lefthook bỏ qua mọi
+# command pre-push khi lần push không đổi file nào (đo được: một commit rỗng làm
+# cả `lint`/`test` sẵn có bị skip) — đúng lúc đó một commit unsigned có thể lọt.
+# `post-commit` thì luôn chạy, kể cả dưới `--no-verify`.
+#
+# Ranh giới phải nói rõ: `post-commit` KHÔNG chặn được. Commit đã được tạo, exit
+# 1 vẫn để nó tồn tại và `git commit` vẫn trả 0. Nó chỉ để báo ngay tại chỗ;
+# `pre-push` mới là gate chặn. Ba gate bổ sung cho nhau theo đúng phần việc của
+# từng thời điểm: pre-commit chặn cấu hình sai, post-commit báo, pre-push chặn.
+post-commit:
+  commands:
+    'commit signing':
+      run: pnpm dx commit-signing --check head
+
+pre-push:
+  parallel: true
+  commands:
+    'commit signing':
+      run: pnpm dx commit-signing --check push
+    'secret leaks scan':
+      run: pnpm dx gitleak-local --config gitleaks.toml --no-banner --redact --verbose --exit-code 1
+    # Rule của chính repository này, chạy bằng docker và gate bằng đúng script mà
+    # CI dùng (`filter-accepted.py`), nên một lần push xanh không có nghĩa khác
+    # với một lần `analysis-gate` xanh. Lệnh nằm ở `tools/dx` vì lý do của
+    # `pr-check`: YAML khai báo lệnh, DX giữ luật — gồm cả danh sách extension
+    # nào thuộc phạm vi rule (đo được, không phải suy đoán).
+    #
+    # `semgrep-scan-local` chứ không phải `semgrep-scan-ci`: bản local có điều
+    # kiện chạy (không file nào thuộc phạm vi rule thì bỏ qua); bản CI luôn quét.
+    'semgrep rules':
+      run: pnpm dx semgrep-scan-local
+    verify:
+      run: npx nx affected --target=lint --target=test --base=origin/HEAD

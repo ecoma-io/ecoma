@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/07/schema#",
+  "$id": "https://ecoma-io.dev/tools/dx/security-tools.lock.schema.json",
+  "title": "Security tools image lock",
+  "description": "Locks immutable digests of the Docker images used by security scanning tools (gitleaks, semgrep) so CI and local hooks run the exact same engine versions.",
+  "type": "object",
+  "required": ["gitleaks", "semgrep"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema file."
+    },
+    "//": {
+      "type": "string",
+      "description": "JSONC comment key. Human-readable notes only; ignored by tooling."
+    },
+    "gitleaks": {
+      "$ref": "#/definitions/securityToolImage",
+      "description": "Gitleaks image pin."
+    },
+    "semgrep": {
+      "$ref": "#/definitions/securityToolImage",
+      "description": "Semgrep image pin."
+    }
+  },
+  "definitions": {
+    "securityToolImage": {
+      "type": "object",
+      "required": ["image", "pinnedIn"],
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._/-]+:[^@]+@sha256:[0-9a-f]{64}$",
+          "description": "Docker image reference pinned by an immutable sha256 digest (not a mutable tag)."
+        },
+        "pinnedIn": {
+          "type": "object",
+          "description": "Files where this image is pinned, keyed by integration name (e.g. ci, lefthook, dx).",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "example": {
+            "ci": ".github/workflows/code-analysis.yml",
+            "lefthook": "lefthook.yml",
+            "dx": "tools/dx/src/security/semgrep-scan.ts"
+          }
+        }
+      }
+    }
+  }
+}

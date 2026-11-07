@@ -1,0 +1,150 @@
+# `.dockerignore` cho build context là REPO ROOT.
+#
+# `home-deploy` build image `apps/home` với context là repo root (`deploys/
+# home-deploy/index.ts` truyền `context: { location: worktreeRoot }`, Dockerfile
+# nằm ở `deploys/home-deploy` nhưng mọi path COPY là path tương đối với context
+# root), mà Docker CHỈ đọc `.dockerignore` ở gốc context — với context repo
+# root, `apps/home/.dockerignore` bị bỏ qua hoàn toàn. File này là lớp lọc duy
+# nhất cho đường build đó; nó cũng có hiệu lực cho mọi build khác dùng context root.
+#
+# THIẾT KẾ: whitelist + blacklist lai — dòng `/*` chặn mặc định mọi thứ ở root,
+# rồi mở đúng skeleton (manifest/lockfile/patch) và subtree được phép vào
+# context. Chặn mặc định để file/thư mục mới tạo ở root (state, cert, ghi chú
+# cục bộ...) không tự động trôi vào build context gửi cho builder.
+#
+# Docker bỏ qua mọi dòng `!` chạm vào path có thư mục cha đang bị LOẠI, nên
+# muốn mở một file trong thư mục bị `*` chặn phải theo trình tự: re-include
+# thư mục (`!tools/dx`), re-exclude con của nó (`tools/dx/*`), rồi
+# re-include đúng file cần (`!tools/dx/package.json`).
+#
+# Input bắt buộc của build — đối chiếu từng dòng COPY trong
+# `deploys/home-deploy/Dockerfile`, `deploys/backoffice-deploy/Dockerfile`,
+# `deploys/account-deploy/Dockerfile`, `deploys/auth-deploy/Dockerfile`,
+# `deploys/pact-broker-app-deploy/Dockerfile`,
+# `deploys/pact-broker-api-deploy/Dockerfile`,
+# `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace:
+# `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`, `patches/`,
+# `tools/dx/package.json`, `apps/home/**`, `apps/backoffice/**`,
+# `apps/account/**`, `apps/pact-broker-app/**`, `libs/ui-ecoma-logo/**`,
+# `libs/ui-app-shell/**`, `libs/backoffice-domain/**`,
+# `libs/account-contracts/**`, `libs/auth-contracts/**`,
+# `libs/internal-auth-contracts/**`, `tsconfig.base.json`,
+# `deploys/auth-deploy/wic-entrypoint.sh`,
+# `deploys/pact-broker-api-deploy/wic-entrypoint.sh`. Spec
+# `tools/dx/src/docker-context.spec.ts` đọc trực tiếp file này để chốt các path
+# đó; sửa file là spec tự chạy lại.
+#
+# Với mỗi path, pattern CUỐI CÙNG khớp path đó quyết định include/exclude.
+
+/*
+!pnpm-workspace.yaml
+!package.json
+!pnpm-lock.yaml
+!patches
+!tools
+!apps
+!libs
+!tsconfig.base.json
+
+# Chỉ mở đúng subtree mà các image dùng — app/lib khác của workspace không có
+# lý do gì nằm trong context của image này.
+apps/*
+!apps/home
+!apps/backoffice
+!apps/account
+!apps/pact-broker-app
+libs/*
+!libs/backoffice-domain
+!libs/backoffice-application
+!libs/backoffice-infrastructure
+!libs/ui-app-shell
+!libs/ui-ecoma-logo
+!libs/account-contracts
+!libs/auth-contracts
+!libs/internal-auth-contracts
+!libs/staff-access-contracts
+!libs/account-domain
+!libs/transactional-mail-contracts
+tools/*
+!tools/dx
+tools/dx/*
+!tools/dx/package.json
+
+# Image WIC (auth-deploy, pact-broker-api-deploy, transactional-mail-deploy,
+# push-notification-deploy, staff-access-deploy) COPY đúng MỘT file entrypoint
+# mỗi unit của thư mục `deploys/` — script của container wrangler dev. Cùng
+# trình tự mở-lại-đúng-file như `tools/dx` phía trên: `deploys/*` chặn phần
+# còn lại của thư mục (Pulumi program, Pulumi.yaml... không thuộc build context).
+deploys/*
+!deploys/auth-deploy/wic-entrypoint.sh
+!deploys/pact-broker-api-deploy/wic-entrypoint.sh
+!deploys/transactional-mail-deploy/wic-entrypoint.sh
+!deploys/push-notification-deploy/wic-entrypoint.sh
+!deploys/staff-access-deploy/wic-entrypoint.sh
+!deploys/remote-cache-deploy/wic-entrypoint.sh
+
+# Blacklist bên trong các subtree đã mở: dependency, kết quả build trung gian
+# và cache dev không bao giờ là input — copy vào context chỉ làm chậm và có
+# nguy cơ bundle dữ liệu cũ (`.data` là sqlite local của Nuxt Content, `.nuxt`
+# là metadata dev) vào image.
+**/node_modules
+**/dist
+**/out-tsc
+**/.output
+**/.nuxt
+**/.nitro
+**/.cache
+**/.data
+**/.wrangler
+**/coverage
+**/*.log
+**/.eslintcache
+**/*.tsbuildinfo
+
+# Env file chứa secret/địa chỉ local — không bao giờ vào context, ở bất kỳ độ
+# sâu nào (`.env`, `.env.local`...). `.dev.vars*` cùng lớp với `.env*`: repo
+# quy ước đây là secret local của Wrangler (`.gitignore` chặn vì lý do đó), và
+# whitelist mở `apps/home/**` nên file local trên máy developer sẽ lọt context
+# nếu không chặn tường minh.
+**/.env*
+**/.dev.vars*
+
+# Secret/state của local deployment: chặn TƯỜNG MINH chứ không để cho `/*` ở
+# gốc lo. Whitelist phía trên hiện chưa mở các subtree này, nhưng chỉ cần sau
+# này thêm một dòng `!deploys` (hoặc mở rộng `!tools`, hay artifact sinh ra
+# dưới `apps/home/`) là private key TLS và ciphertext secret lọt thẳng vào
+# build context — blacklist ở đây biến ý định bảo mật thành thuộc tính của file
+# thay vì hệ quả của whitelist.
+**/.pulumi-local-state/
+**/.pulumi-local-passphrase
+**/local-certs
+**/*.key
+**/*.pem
+**/Pulumi.*.yaml
+.git
+
+# Source test và config test của app không phải input của image — subtree
+# `apps/home` được mở trọn nên phải loại tường minh. Spec colocated dưới
+# `app/**` cùng loại: chúng là source test, và typecheck lúc build (`nuxt
+# build` với `typescript.typeCheck: true`) gãy nếu chúng vào context mà helper
+# `tests/` của chúng thì bị loại (`../tests/harness` không resolve).
+apps/home/tests
+apps/home/vitest.config.mts
+apps/backoffice/tests
+apps/backoffice/vitest.config.mts
+apps/backoffice/tsconfig.db.json
+apps/backoffice/tsconfig.spec.json
+# Spec colocated của backoffice (sau #277) import helper `tests/` bị loại phía
+# trên — cùng lý do với `apps/account/app/**/*.spec.ts` ngay dưới đây: vào
+# context là `nuxt build` chết TS2307 lúc typecheck.
+apps/backoffice/app/**/*.spec.ts
+apps/account/tests
+apps/account/vitest.config.mts
+apps/account/tsconfig.db.json
+apps/account/tsconfig.spec.json
+apps/account/app/**/*.spec.ts
+# Cùng lý do với các app trên: spec colocated của pact-broker-app import
+# helper `tests/` đã bị loại — vào context là `nuxt build` chết TS2307.
+apps/pact-broker-app/app/**/*.spec.ts
+apps/pact-broker-app/tests
+apps/pact-broker-app/vitest.config.mts

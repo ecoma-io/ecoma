@@ -1,0 +1,83 @@
+{
+  // API-only Worker của bounded context `identity`: sẽ sở hữu endpoint protocol
+  // OAuth 2.0/OIDC. KHÔNG có UI — không Nuxt, không Vue, không trang login hay
+  // consent. Phần UI và BFF (kể cả login và consent UI) thuộc deploy unit
+  // `account` (`apps/account`, Worker `ecoma-account`).
+  // Reference: docs/architecture/01-architecture.md §2.
+  //
+  // `nodejs_compat` được khai báo TƯỜNG MINH, không phải vì `auth` nới lỏng
+  // ranh giới `runtime:edge`: `compatibility_date` 2026-10-05 đã tự bật Node
+  // compat cho Worker này từ trước, nên Worker vốn đã có `node:buffer`,
+  // `node:events`. Driver PostgreSQL (`postgres`) cần chúng, còn `jose` thì
+  // không — `jose` vẫn là thư viện JOSE duy nhất và không import `node:*`.
+  //
+  // Ranh giới thật của `runtime:edge` KHÔNG phải "không có Node API" mà là:
+  // không phụ thuộc filesystem, không phụ thuộc process, không dùng API mà
+  // Cloudflare Workers không cung cấp. `.oxlintrc.json` chặn import trực tiếp
+  // Node builtin trong project `runtime:edge`; driver được phép dùng qua
+  // lớp adapter trong `libs/auth-infrastructure`, không import thẳng
+  // trong `apps/auth`.
+  //
+  // Worker identity lâu dài — PR không tạo Worker mới, Preview chạy dưới
+  // identity này. Reference: docs/architecture/02-delivery.md §5.
+  //
+  // `db-auth` là database của `auth` (xem docs/applications/auth/01-architecture.md
+  // §2 và §3). `id` dưới đây là chuỗi rỗng CỐ Ý (khác pattern toàn số 0 của
+  // `account`): provisioning chưa có Hyperdrive config thật, và local runtime
+  // (`tools/dx`) chặn mọi `id` non-empty trong `hyperdrive` của app đã opt-in
+  // (`REMOTE_ID_CONTAINER_KEYS` trong worker-config.ts) — chuỗi rỗng vừa qua
+  // được validation schema của Wrangler (id phải là string), vừa giữ invariant
+  // "không trỏ tới resource remote". Connection string thật của local chạy qua
+  // biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`
+  // (platform facts PF3/PF4), không nằm ở file này; thiếu biến lúc `wrangler
+  // dev` là lỗi boot tường minh (fail-closed), và deploy production thiếu
+  // binding thật vẫn fail-closed ở `src/config.ts` + `src/main.ts` `/ready`.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-auth",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  // KHÔNG có `routes`/`hostname` ở đây. `auth.ecoma.io` là hostname DỰ KIẾN
+  // khi service được implement; custom domain khai báo cùng staging/production
+  // như `home` (apps/home/wrangler.jsonc), chưa provision trong PR này.
+  // Hyperdrive binding tới `db-auth` — CHỈ tên binding, không host/port/user
+  // (invariant 4, docs/architecture/01-architecture.md): application code đọc
+  // `env.HYPERDRIVE.connectionString` lúc runtime, không chứa thông tin kết nối.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "",
+    },
+  ],
+  // Service binding tới shim worker `ecoma-account-bridge` (local platform,
+  // `02-account-auth.md` §Service bindings): binding `ACCOUNT_SERVICE` giữ nguyên
+  // shape contract thật — code gọi `binding.fetch()` không biết gì về shim.
+  // Shim ở production là Worker account thật (cùng shape); ở local nó là worker
+  // chuyển tiếp HTTP tới container account. Worker này chưa có identity
+  // Cloudflare (chưa khai `env.*` nào dùng nó) — khai ở top level theo cùng
+  // kiểu "chỗ dành" của `hyperdrive` phía trên.
+  "services": [
+    {
+      "binding": "ACCOUNT_SERVICE",
+      "service": "ecoma-account-bridge",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4203,
+    // Local lane: worker nhận request qua proxy nội bộ (Traefik chấm dứt HTTPS
+    // rồi forward plain HTTP vào WIC). `upstream_protocol: "https"` nói wrangler
+    // dev coi protocol "thật" của request là HTTPS: URL nội bộ mà workerd thấy
+    // (`MF-Original-URL`, scheme suy từ `dev.origin.secure` của wrangler) nhận
+    // scheme `https://`, và glue (`withForwardedProto` trong `src/oidc/
+    // runtime.ts`) ghi `x-forwarded-proto: https` từ URL scheme đó cho oidc-
+    // provider (đã bật `proxy`). Thiếu key này scheme là `http` (default =
+    // `local_protocol`), `cookies.secure: true` của provider ném "Cannot send
+    // secure cookie over unencrypted connection" — 500 ở MỌI route set cookie
+    // của `/auth` (#285). Production Workers nhận HTTPS native nên không đụng
+    // key `dev` này (chỉ wrangler dev đọc).
+    "upstream_protocol": "https",
+  },
+}

@@ -1,0 +1,62 @@
+{
+  // Worker của deploy unit `staff-access` (P1.4) — service quản trị nhân sự:
+  // management API staff/role/permission/assignment, authorization audit query,
+  // entitlement read model. Bounded context sở hữu nghiệp vụ này là
+  // `staff-access` (ADR-0013 — supersede phạm vi staff/RBAC của A21);
+  // `backoffice` chỉ còn composition/UI + BFF và tiêu thụ contract của context
+  // này (`libs/staff-access-contracts`).
+  //
+  // `nodejs_compat` khai báo TƯỜNG MINH (cùng lý do `apps/pact-broker-api`):
+  // driver PostgreSQL runtime cần `node:buffer`, `node:events`, `node:stream`
+  // khi chạy qua Hyperdrive. Ranh giới `runtime:edge` giữ nguyên như các Worker
+  // khác: không filesystem, không process, không API ngoài những gì Workers
+  // cung cấp.
+  //
+  // Hyperdrive binding `DB_STAFF_ACCESS` chỉ là chỗ dành: database
+  // `db-staff-access` chưa được provision (provisioning là việc của deploy unit
+  // khi được dựng — ADR-0013 §"Hệ quả"), nên không có `id` thật nào được ghim —
+  // cùng pattern "id chuỗi rỗng" của `apps/pact-broker-api` và `apps/auth`
+  // (local runtime `tools/dx` chặn mọi `id` non-empty trong `hyperdrive` của
+  // app đã opt-in). Connection string thật của local chạy qua biến
+  // `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_STAFF_ACCESS`
+  // (platform facts PF3/PF4); thiếu biến lúc `wrangler dev` là lỗi boot tường
+  // minh, và deploy production thiếu binding thật vẫn fail-closed ở
+  // `src/config.ts`. Query cache của Hyperdrive config này PHẢI OFF khi
+  // provision (ADR-0001: cache không invalidate khi ghi — một assignment đã
+  // revoke trả về từ cache là lần cấp quyền thứ hai). Migration KHÔNG chạy qua
+  // binding này — chúng chạy từ CI runner bằng credential `ecoma_staff_access_migrator`
+  // (HD6: Hyperdrive không hỗ trợ advisory lock).
+  "hyperdrive": [
+    {
+      "binding": "DB_STAFF_ACCESS",
+      "id": "",
+    },
+  ],
+  //
+  // KHÔNG có deploy target/staging/production env ở đây: provisioning của
+  // deploy unit thuộc Milestone B, và Wrangler env `staging`/`production`
+  // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api`).
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-staff-access",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  // KHÔNG có `routes`/`hostname`: hostname chưa được chốt ở docs đích (deploy
+  // unit chưa tồn tại). Custom domain khai báo cùng staging/production khi
+  // provision.
+  "observability": {
+    "enabled": true,
+  },
+  "secrets": {
+    "required": [
+      "AUTH_INTERNAL_SECRET",
+      "AUTH_INTERNAL_KID",
+      "AUTH_INTERNAL_PREVIOUS_SECRET",
+      "AUTH_INTERNAL_PREVIOUS_KID",
+      "AUTH_INTERNAL_SKEW_SECONDS",
+    ],
+  },
+  "dev": {
+    "port": 4206,
+  },
+}

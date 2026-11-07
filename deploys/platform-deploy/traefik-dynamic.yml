@@ -1,0 +1,22 @@
+# Dynamic configuration của Traefik (file provider) — nội dung tĩnh, bind-mount
+# vào container tại /tmp/traefik-dynamic.yml.
+#
+# Vì sao là file bind-mount thay vì `uploads` của @pulumi/docker: cơ chế upload
+# content của provider 5.2.0 remount rootfs của container read-only lúc tạo —
+# Docker rootless cấm operation đó ("remount-ro ... operation not permitted").
+# Bind-mount file thường hoạt động trên cả rootful lẫn rootless.
+#
+# `defaultCertificate` của store mặc định phục vụ MỌI hostname không có
+# certificate riêng, nên một store là đủ cho `fbi.com` lẫn subdomain sau này.
+#
+# ⚠️ `fbi.com` ở hai dòng dưới là HARD-CODE thứ hai của hostname local (nguồn
+# chân lý là `LOCAL_ROOT_HOSTNAME` trong `platform-outputs-contract` của
+# `@ecoma-io/deployment`). Chương trình Pulumi đã khóa file này với hằng số bằng spec
+# `traefik-dynamic.yml consistency` trong `platform-outputs-contract.spec.ts` —
+# đổi hostname mà quên file này, test đỏ ngay trước khi kịp deploy sai.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/fbi.com.crt
+        keyFile: /certs/fbi.com.key

@@ -1,0 +1,307 @@
+{
+  "name": "@ecoma-io/transactional-mailer-job",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@ecoma-io/transactional-mailer-job-application": "workspace:*",
+    "@ecoma-io/transactional-mailer-job-infrastructure": "workspace:*"
+  },
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:messaging",
+      "runtime:edge"
+    ],
+    "targets": {
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/transactional-mailer-job",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        }
+      },
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "platform": "neutral",
+          "outputPath": "apps/transactional-mailer-job/dist",
+          "format": [
+            "esm"
+          ],
+          "bundle": true,
+          "main": "apps/transactional-mailer-job/src/main.ts",
+          "tsConfig": "apps/transactional-mailer-job/tsconfig.app.json",
+          "assets": [
+            "apps/transactional-mailer-job/src/assets"
+          ],
+          "esbuildOptions": {
+            "sourcemap": true,
+            "outExtension": {
+              ".js": ".js"
+            },
+            "conditions": [
+              "workerd",
+              "worker",
+              "browser"
+            ]
+          }
+        },
+        "configurations": {
+          "development": {},
+          "production": {
+            "esbuildOptions": {
+              "sourcemap": false,
+              "outExtension": {
+                ".js": ".js"
+              },
+              "conditions": [
+                "workerd",
+                "worker",
+                "browser"
+              ]
+            }
+          }
+        }
+      },
+      "prune-lockfile": {
+        "dependsOn": [
+          "build"
+        ],
+        "cache": true,
+        "executor": "@nx/js:prune-lockfile",
+        "inputs": [
+          "default",
+          "^default",
+          "{workspaceRoot}/pnpm-workspace.yaml",
+          "{workspaceRoot}/package.json",
+          {
+            "runtime": "node -e \"try{console.log('pnpm major '+require('child_process').execSync('pnpm --version',{stdio:['ignore','pipe','ignore']}).toString().trim().split('.')[0])}catch{console.log('pnpm major unavailable')}\""
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/package.json",
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/pnpm-lock.yaml",
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/pnpm-workspace.yaml",
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/patches",
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/local_path_modules"
+        ],
+        "options": {
+          "buildTarget": "build"
+        }
+      },
+      "copy-workspace-modules": {
+        "dependsOn": [
+          "build"
+        ],
+        "cache": true,
+        "outputs": [
+          "{workspaceRoot}/apps/transactional-mailer-job/dist/workspace_modules"
+        ],
+        "executor": "@nx/js:copy-workspace-modules",
+        "options": {
+          "buildTarget": "build"
+        }
+      },
+      "prune": {
+        "dependsOn": [
+          "prune-lockfile",
+          "copy-workspace-modules"
+        ],
+        "executor": "nx:noop"
+      },
+      "serve": {
+        "continuous": true,
+        "executor": "nx:run-commands",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "cwd": "apps/transactional-mailer-job",
+          "command": "npx wrangler dev --config wrangler.jsonc"
+        },
+        "configurations": {}
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/tsconfig.app.json",
+          "{projectRoot}/tsconfig.spec.json",
+          "{projectRoot}/src/**/*.ts",
+          "{projectRoot}/vite.config.ts",
+          "{projectRoot}/vite.config.mts",
+          "{projectRoot}/vitest.config.ts",
+          "{projectRoot}/vitest.config.mts",
+          "{projectRoot}/vitest.integration.config.mts",
+          "{projectRoot}/src/**/*.test.ts",
+          "{projectRoot}/src/**/*.spec.ts",
+          "{projectRoot}/src/**/*.test.tsx",
+          "{projectRoot}/src/**/*.spec.tsx",
+          "{projectRoot}/src/**/*.test.js",
+          "{projectRoot}/src/**/*.spec.js",
+          "{projectRoot}/src/**/*.test.jsx",
+          "{projectRoot}/src/**/*.spec.jsx",
+          "{projectRoot}/src/**/*.d.ts",
+          "{projectRoot}/tests/**/*.ts",
+          "!{projectRoot}/out-tsc/**/*",
+          "!{projectRoot}/dist/**/*",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          },
+          "^{projectRoot}/tsconfig.lib.json"
+        ],
+        "outputs": [
+          "{projectRoot}/tsconfig.tsbuildinfo",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/out-tsc/tsconfig.app.tsbuildinfo",
+          "{projectRoot}/out-tsc/vitest/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/vitest/tsconfig.spec.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/transactional-mailer-job",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/transactional-mailer-job",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

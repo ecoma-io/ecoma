@@ -1,0 +1,266 @@
+[
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-api/src/routes/admin.ts",
+    "start": 102,
+    "end": 115,
+    "reason": "Show-once machine token creation: POST /admin/machine-tokens tra token ban ro DUNG MOT LAN trong response 201 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Line pin doi theo khoang cach import khi tach repo layer (#335) - noi dung response khong doi.",
+    "lines": {
+      "102": "^    return c\\.json\\($",
+      "103": "^      \\{$",
+      "104": "^        token: \\{$",
+      "105": "^          id: record\\.id,$",
+      "106": "^          name: parsed\\.data\\.name,$",
+      "107": "^          scopes: parsed\\.data\\.scopes,$",
+      "108": "^          createdAt: record\\.createdAt,$",
+      "109": "^          revokedAt: null,$",
+      "110": "^        \\},$",
+      "111": "^        // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
+      "112": "^        secret: token,$",
+      "113": "^      \\},$",
+      "114": "^      201,$",
+      "115": "^    \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/pact-broker-api-infrastructure/src/repo/webhook-repo.ts",
+    "start": 204,
+    "end": 212,
+    "reason": "Webhook execution log: responseStatus/responseBody la COT DB cua bang pact.webhook_executions va dong thoi la field cua DTO route tra ve - khong the doi ten mot ben. Du lieu la nhat ky thuc thi webhook cua TENANT va route GET /webhooks/:id/executions phuc vu dung tenant do (readAuth + tenantId scope). Outbound delivery hien TAT cung (SR-006) nen responseBody hom nay chi chua chuoi tinh; khi bat lai, kenh nay van la thiet ke da duyet. Entry di theo file khi repo layer tach sang libs/pact-broker-api-infrastructure (#335) - file di chuyen nguyen ven nen line pin giu nguyen.",
+    "lines": {
+      "204": "^    return rows\\.map\\(\\(r\\) => \\(\\{$",
+      "205": "^      id: r\\.id,$",
+      "206": "^      event: r\\.event,$",
+      "207": "^      trigger: r\\.trigger,$",
+      "208": "^      succeeded: r\\.succeeded,$",
+      "209": "^      responseStatus: r\\.response_status,$",
+      "210": "^      responseBody: r\\.response_body,$",
+      "211": "^      executedAt: r\\.executed_at\\.toISOString\\(\\),$",
+      "212": "^    \\}\\)\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-api/src/routes/webhooks.ts",
+    "start": 232,
+    "end": 244,
+    "reason": "Route GET /webhooks/:id/executions echo DTO tu webhook-repo (cung chap nhan o webhook-repo.ts): nhat ky thuc thi webhook tra ve cho dung tenant so huu webhook. Field responseBody/responseStatus la hop cong API cua executions list.",
+    "lines": {
+      "232": "^        executions: executions\\.map\\(\\(e\\) => \\(\\{$",
+      "233": "^          id: e\\.id,$",
+      "234": "^          event: e\\.event,$",
+      "235": "^          triggeredBy: e\\.trigger,$",
+      "236": "^          responseStatus: e\\.responseStatus,$",
+      "237": "^          responseBody: e\\.responseBody,$",
+      "238": "^          succeeded: e\\.succeeded,$",
+      "239": "^          executedAt: e\\.executedAt,$",
+      "240": "^          _links: \\{$",
+      "241": "^            self: hal\\.link\\(`/webhooks/\\$\\{id\\}/executions/\\$\\{e\\.id\\}`\\),$",
+      "242": "^            'pb:webhook': hal\\.link\\(`/webhooks/\\$\\{id\\}`\\),$",
+      "243": "^          \\},$",
+      "244": "^        \\}\\)\\),$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/pact-broker-api-application/src/token-auth.ts",
+    "start": 105,
+    "end": 105,
+    "reason": "Decision core cua machine-token auth ( authorizeToken ) tra TokenDecision chua token bearer da doc tu header - KHONG phai HTTP response: gia tri nay chi di tiep trong process de middleware o app entry quyet dinh 401, va bien `token` o day la gia tri DA DUOC DOC tu request header (no khong roi khoi process qua duong nay). Rule taint match 'token' naming heuristic FP. Commit 401 dong nhat khong bao gio echo token vao response (verify boi integration suite).",
+    "lines": {
+      "105": "^    return \\{ outcome: 'unauthorized', token \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/pact-broker-api-application/src/token-auth.ts",
+    "start": 109,
+    "end": 109,
+    "reason": "Cung FP voi entry 105: nhanh token revoking/tenant suspended cua authorizeToken tra cung TokenDecision - token bearer chi vong trong process, khong tren wire.",
+    "lines": {
+      "109": "^    return \\{ outcome: 'unauthorized', token \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/platform-deploy/platform-env.ts",
+    "start": 77,
+    "end": 77,
+    "reason": "Rehomed from tools/dx local-env.ts:196 (PR #424 ownership split: platform env handling is owned by deploys/platform-deploy): internal CLI helper returns the PostgreSQL password to the caller that writes stack config/.env - deploys/ has no HTTP handler; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "lines": {
+      "77": "^    return \\{ state: 'found', password \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/platform-deploy/platform-env.ts",
+    "start": 172,
+    "end": 172,
+    "reason": "Rehomed from tools/dx local-env.ts:291 (PR #424 ownership split): same internal password lookup result, no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "lines": {
+      "172": "^    return \\{ ok: true, password: lookup.password, generated: false \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/platform-deploy/platform-env.ts",
+    "start": 245,
+    "end": 245,
+    "reason": "Rehomed from tools/dx local-env.ts:364 (PR #424 ownership split): newly generated PostgreSQL password returned to the .env writer inside the deploy entry tooling; no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "lines": {
+      "245": "^  return \\{ ok: true, password, generated: true \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache/src/routes.ts",
+    "start": 203,
+    "end": 203,
+    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san.",
+    "lines": {
+      "203": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache/src/routes.ts",
+    "start": 235,
+    "end": 235,
+    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata.",
+    "lines": {
+      "235": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-api/src/routes/admin.ts",
+    "start": 150,
+    "end": 163,
+    "reason": "Show-once machine token rotation: POST /admin/machine-tokens/:id/rotate tra token ban ro DUNG MOT LAN trong response 200 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Xoay thay token_hash cu, token cu mat hieu luc luc lan sau. Xoay + ghi audit cung transaction tren mot pg client (fail-closed) - doi vi tri block response vi xoay chuyen vao trong try/catch/COMMIT.",
+    "lines": {
+      "150": "^      return c\\.json\\($",
+      "151": "^        \\{$",
+      "152": "^          token: \\{$",
+      "153": "^            id: rotated\\.record\\.id,$",
+      "154": "^            name: rotated\\.record\\.name,$",
+      "155": "^            scopes: rotated\\.record\\.scopes\\.split\\(' '\\)\\.filter\\(\\(s\\) => s !== ''\\),$",
+      "156": "^            createdAt: rotated\\.record\\.createdAt,$",
+      "157": "^            revokedAt: null,$",
+      "158": "^          \\},$",
+      "159": "^          // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
+      "160": "^          secret: rotated\\.token,$",
+      "161": "^        \\},$",
+      "162": "^        200,$",
+      "163": "^      \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
+    "start": 150,
+    "end": 150,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "lines": {
+      "150": "^\\ \\ if\\ \\(existing\\.some\\(\\(credential\\)\\ =>\\ credential\\.id\\ ===\\ input\\.id\\)\\)\\ \\{$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
+    "start": 162,
+    "end": 162,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "lines": {
+      "162": "^\\ \\ return\\ llmMarketplaceOk\\(Object\\.freeze\\(\\{\\ credential,\\ plaintext:\\ input\\.plaintext\\ \\}\\)\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
+    "start": 202,
+    "end": 208,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "lines": {
+      "202": "^\\ \\ return\\ llmMarketplaceOk\\($",
+      "203": "^\\ \\ \\ \\ Object\\.freeze\\(\\{$",
+      "204": "^\\ \\ \\ \\ \\ \\ \\.\\.\\.input\\.credential,$",
+      "205": "^\\ \\ \\ \\ \\ \\ revokedAt:\\ input\\.revokedAt,$",
+      "206": "^\\ \\ \\ \\ \\ \\ revokedBy:\\ input\\.revokedBy,$",
+      "207": "^\\ \\ \\ \\ \\}\\),$",
+      "208": "^\\ \\ \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
+    "start": 213,
+    "end": 217,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "lines": {
+      "213": "^\\ \\ return\\ \\($",
+      "214": "^\\ \\ \\ \\ isProviderCredential\\(credential\\)\\ \\&\\&$",
+      "215": "^\\ \\ \\ \\ credential\\.revokedAt\\ ===\\ null\\ \\&\\&$",
+      "216": "^\\ \\ \\ \\ credential\\.revokedBy\\ ===\\ null$",
+      "217": "^\\ \\ \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
+    "start": 245,
+    "end": 245,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "lines": {
+      "245": "^\\ \\ return\\ llmMarketplaceOk\\(credential\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/conversion.ts",
+    "start": 282,
+    "end": 291,
+    "reason": "Domain library thuần: `return financialOk(...)` trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên field `authorization` (heuristic đặt tên của rule) trên `ConversionAuthorizationEvidence` — một verdict struct gồm tenant ref opaque, ba cờ boolean `same_identity`/`seller_payout_authorized`/`console_payment_authorized` và `evaluated_at`; không có token, secret hay credential nào (docs/domains/llm-financial/domain-model.md §3, ADR-0005). Hình dạng `financialOk(Object.freeze({...}))` rơi vào nhánh sink `return $VALUE` vì `pattern-not` chỉ loại lời gọi có đúng một argument là object literal; đây là FP cấu trúc, không phải đường ra wire. Pin dịch thêm 8 dòng khi nhánh replay của `convertEcToUc` so thêm danh tính; nội dung response không đổi.",
+    "lines": {
+      "282": "^\\ \\ return\\ financialOk\\($",
+      "283": "^\\ \\ \\ \\ Object\\.freeze\\(\\{$",
+      "284": "^\\ \\ \\ \\ \\ \\ book:\\ Object\\.freeze\\(\\{$",
+      "285": "^\\ \\ \\ \\ \\ \\ \\ \\ \\.\\.\\.targetCommit\\.value\\.book,$",
+      "286": "^\\ \\ \\ \\ \\ \\ \\ \\ conversions:\\ freezeArray\\(\\[\\.\\.\\.targetCommit\\.value\\.book\\.conversions,\\ conversion\\]\\),$",
+      "287": "^\\ \\ \\ \\ \\ \\ \\}\\),$",
+      "288": "^\\ \\ \\ \\ \\ \\ conversion,$",
+      "289": "^\\ \\ \\ \\ \\ \\ replayed:\\ false,$",
+      "290": "^\\ \\ \\ \\ \\}\\),$",
+      "291": "^\\ \\ \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/records.ts",
+    "start": 628,
+    "end": 647,
+    "reason": "Domain library thuần: đây là type guard `isConversion` trả về một BOOLEAN (hội các predicate shape), không trả về record và không mang bit nào của dữ liệu — cùng lớp một chiều với sanitizer `$ENTITY.totalLifetime() < $LIMIT` của rule. Taint khởi phát từ tên field `record.authorization` (heuristic đặt tên của rule) trên `ConversionAuthorizationEvidence`, vốn không chứa token/secret (xem entry conversion.ts và docs/domains/llm-financial/domain-model.md §3). Dòng này khớp nhánh sink `return $VALUE` chỉ vì biểu thức được bọc trong ngoặc; không có đường nào từ file này ra wire. Pin dịch 11 dòng khi `Conversion` đổi `source_transaction_id`/`target_transaction_id` sang `LedgerTransactionId`; nội dung guard không đổi.",
+    "lines": {
+      "628": "^\\ \\ return\\ \\($",
+      "629": "^\\ \\ \\ \\ isOpaqueId\\(record\\.conversion_id\\)\\ \\&\\&$",
+      "630": "^\\ \\ \\ \\ isOpaqueId\\(record\\.actor_ref\\)\\ \\&\\&$",
+      "631": "^\\ \\ \\ \\ isOpaqueId\\(record\\.source_seller_tenant\\)\\ \\&\\&$",
+      "632": "^\\ \\ \\ \\ isOpaqueId\\(record\\.destination_console_tenant\\)\\ \\&\\&$",
+      "633": "^\\ \\ \\ \\ isOpaqueId\\(record\\.source_wallet_id\\)\\ \\&\\&$",
+      "634": "^\\ \\ \\ \\ isOpaqueId\\(record\\.destination_wallet_id\\)\\ \\&\\&$",
+      "635": "^\\ \\ \\ \\ isMoney\\(record\\.source_amount\\)\\ \\&\\&$",
+      "636": "^\\ \\ \\ \\ record\\.source_amount\\.denomination\\ ===\\ 'EC'\\ \\&\\&$",
+      "637": "^\\ \\ \\ \\ isMoney\\(record\\.target_amount\\)\\ \\&\\&$",
+      "638": "^\\ \\ \\ \\ record\\.target_amount\\.denomination\\ ===\\ 'UC'\\ \\&\\&$",
+      "639": "^\\ \\ \\ \\ isConversionRatio\\(record\\.ratio\\)\\ \\&\\&$",
+      "640": "^\\ \\ \\ \\ isConversionAuthorizationEvidence\\(record\\.authorization\\)\\ \\&\\&$",
+      "641": "^\\ \\ \\ \\ isOpaqueId\\(record\\.source_transaction_id\\)\\ \\&\\&$",
+      "642": "^\\ \\ \\ \\ isOpaqueId\\(record\\.target_transaction_id\\)\\ \\&\\&$",
+      "643": "^\\ \\ \\ \\ isEpochMillis\\(record\\.created_at\\)\\ \\&\\&$",
+      "644": "^\\ \\ \\ \\ isOpaqueId\\(record\\.fencing_token\\)\\ \\&\\&$",
+      "645": "^\\ \\ \\ \\ Array\\.isArray\\(record\\.source_entry_ids\\)\\ \\&\\&$",
+      "646": "^\\ \\ \\ \\ Array\\.isArray\\(record\\.target_entry_ids\\)$",
+      "647": "^\\ \\ \\);$"
+    }
+  }
+]

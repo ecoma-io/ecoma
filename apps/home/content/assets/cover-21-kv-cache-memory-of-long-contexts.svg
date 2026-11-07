@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: The KV cache: why long contexts consume so much memory</title>
+  <desc id="cover-desc">Course cover for lesson 21 of 30, Inference and adaptation. Abstract memory bars motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 21 of 30 · Inference and adaptation</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="272.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="650" fill="#0f172a">The KV cache: why long</text>
+  <text x="88" y="336.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="650" fill="#0f172a">contexts consume so much</text>
+  <text x="88" y="400.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="650" fill="#0f172a">memory</text>
+
+  <g aria-hidden="true">
+    <rect x="823" y="343.5" width="44" height="118.5" rx="6" fill="#0f766e" opacity="0.57"/>
+        <rect x="889" y="304" width="44" height="158.0" rx="6" fill="#0f766e" opacity="0.65"/>
+        <rect x="955" y="264.5" width="44" height="197.5" rx="6" fill="#0f766e" opacity="0.72"/>
+        <rect x="1021" y="225" width="44" height="237.0" rx="6" fill="#0f766e" opacity="0.80"/>
+        <rect x="1087" y="185.5" width="44" height="276.5" rx="6" fill="#0f766e" opacity="0.88"/>
+        <rect x="1153" y="146" width="44" height="316.0" rx="6" fill="#0f766e" opacity="0.95"/>
+        <line x1="832" y1="462" x2="1188" y2="462" stroke="#cbd5e1" stroke-width="3"/>
+        <text x="836" y="130" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#64748b">2·L·H·S</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">21 / 30</text>
+</svg>

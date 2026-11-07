@@ -1,0 +1,257 @@
+{
+  "name": "@ecoma-io/backoffice",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@ecoma-io/account-contracts": "workspace:*",
+    "@ecoma-io/backoffice-application": "workspace:*",
+    "@ecoma-io/backoffice-domain": "workspace:*",
+    "@ecoma-io/backoffice-infrastructure": "workspace:*",
+    "@ecoma-io/staff-access-contracts": "workspace:*",
+    "@ecoma-io/ui-app-shell": "workspace:*",
+    "@ecoma-io/ui-ecoma-logo": "workspace:*",
+    "jose": "6.2.15"
+  },
+  "devDependencies": {
+    "@nuxtjs/i18n": "10.6.0",
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "^8.23.1",
+    "@vite-pwa/assets-generator": "1.0.4",
+    "@vite-pwa/nuxt": "1.1.1",
+    "pg": "^8.23.1",
+    "testcontainers": "12.2.1"
+  },
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:backoffice",
+      "runtime:edge"
+    ],
+    "targets": {
+      "nuxt-prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "npx nuxt prepare"
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^typecheck",
+          "nuxt-prepare"
+        ],
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/tsconfig.base.json",
+          {
+            "externalDependencies": [
+              "vue-tsc"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "npx nuxt typecheck"
+        },
+        "//": [
+          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
+          "mirror đúng cách apps/home đã làm: Nuxt sinh `.nuxt/tsconfig.*.json`",
+          "với `noEmit: true`, còn target mặc định chạy `tsc --build",
+          "--emitDeclarationOnly` — hai option xung đột (TS5069), và trước",
+          "nuxt-prepare thì các file đó chưa tồn tại (TS5083). `nuxt typecheck`",
+          "(vue-tsc qua @nuxt/cli) là đường đúng: hiểu project references Nuxt 4,",
+          "dùng đúng các `.nuxt/tsconfig.*.json`, và bắt được lỗi type thật.",
+          "Bị bỏ sót cho đến khi lockfile thay đổi làm `nx affected` gồm cả",
+          "project này — target chỉ pass ở dạng bị plugin tắt (no-op), runner",
+          "sạch sẽ hard-fail TS5083 khi tập affected mở rộng."
+        ]
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "dependsOn": [
+          "nuxt-prepare"
+        ]
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        }
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "nuxt-prepare"
+        ],
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+        },
+        "//": [
+          "BỎ `build`, GIỮ `nuxt-prepare`: suite integration dựng app h3 thủ công và",
+          "import handler/middleware trực tiếp từ `server/**` (TS nguồn), không spec nào",
+          "đọc `.output/` hay `.nuxt` lúc chạy (vitest không typecheck). `nuxt-prepare`",
+          "vẫn cần vì environment/test stack của app dựa trên việc `.nuxt` tồn tại sau",
+          "khi Nuxt generate (cùng lý do target `test` giữ nó)."
+        ]
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "npx tsc --noEmit -p tsconfig.db.json"
+        }
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "build": {
+        "cache": true,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nuxt",
+          "{projectRoot}/.output"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "nuxt build"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "serve": {
+        "continuous": true,
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/backoffice",
+          "command": "nuxt dev"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

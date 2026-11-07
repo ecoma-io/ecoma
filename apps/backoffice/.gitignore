@@ -1,0 +1,8 @@
+# Artifact của bộ test browser (`e2e` target).
+#
+# Đặt ở đây thay vì `.gitignore` gốc repo: hai thư mục này chỉ do
+# `apps/backoffice` sinh ra, và một file ở gốc repo không thuộc project nào nên
+# Nx coi thay đổi vào nó là ảnh hưởng **toàn bộ** workspace — mọi PR chạm file
+# này sẽ kéo cả 21 project vào affected set.
+playwright-report
+test-results

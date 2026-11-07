@@ -1,0 +1,11 @@
+{
+  // Opt-in marker của local worker runtime (discovery, tools/dx worker-discovery):
+  // shim này cần chạy qua `wrangler dev` để service binding của `ecoma-auth`
+  // giải được qua dev registry (PF6/PF7 — registry chỉ nhận workerd process).
+  // Shim serve `/health` tường minh ( readiness là DECLARATION, không suy đoán)
+  // để poll HTTP của orchestration đạt: shim sống ⇔ binding connector sống.
+  // `/health` của shim KHÔNG kiểm upstream — fail-closed của upstream thể hiện
+  // ở `/ready` của auth (binding reachable ⇒ đỏ khi account chết), không phải
+  // ở liveness của shim.
+  "readiness": "http-health",
+}

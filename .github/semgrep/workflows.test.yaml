@@ -1,0 +1,471 @@
+# File này là fixture semgrep --test cho workflows.yml, không phải một workflow
+# thật — nó không bao giờ chạy như một workflow; không gì dưới .github/semgrep
+# là một workflow trigger.
+# Khóa `rules: []` ở top level tồn tại chỉ để `semgrep --config .github/semgrep`,
+# vốn nạp mọi file .yml/.yaml trong thư mục đó làm một rule config ứng viên, thấy
+# ở đây một config hợp lệ (rỗng) thay vì báo lỗi
+# "missing keys ... 'rules'" — xem phần WHY trong header của chính workflows.yml.
+#
+# Một document YAML có đúng MỘT key `on:`, nên root của fixture này là
+# `pull_request_target` — điều kiện cần của hai rule privileged. Hệ quả: hai
+# rule đó chỉ có case dương ở đây. Ngược lại (một trigger an toàn như
+# `pull_request` ⇒ rule im lặng) không thể nằm cùng document với case dương, và
+# được kiểm chứng bằng lệnh scan trực tiếp ghi ở cuối PR/report thay vì bằng
+# annotation. Mọi case âm CÒN đặt được trong document này thì đều có ở dưới:
+# ref tin cậy, job không checkout, job không run, và checkout với run ở hai job
+# khác nhau.
+#
+# Ngược lại, ba case âm cần một trigger an toàn cho `on:` — job `injection` và
+# các job container dưới đây chỉ tồn tại để giữ các verdict của rule còn lại
+# tách khỏi hai rule privileged: một job chỉ được fire `runs-after-checkout`
+# khi NÓ có cả checkout lẫn `run:`, nên mọi job mang `run:` cho rule expression/
+# secret đều cố ý KHÔNG có `uses: actions/checkout`.
+#
+# Mỗi rule cần cả hai nửa — một case `ruleid:` phải khớp và các near-miss `ok:`
+# không được khớp; lý do nửa dương là nửa mang ý nghĩa được lập luận một lần
+# trong ../../AGENTS.md ("The Semgrep directory has two non-obvious constraints")
+# và không lặp lại theo từng fixture ở đây.
+#
+# Annotation gắn vào dòng ngay TRƯỚC dòng finding, và finding luôn bắt đầu ở dòng
+# mở đầu của node mà rule match: một step bắt đầu ở dòng `- uses:`, còn rule
+# runs-after-checkout match chính dòng `run:` nên annotation của nó nằm ngay trên
+# dòng `run:`.
+rules: []
+
+name: fake workflow, fixture only
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  # Việc pin SHA: một job chỉ chứa các step `uses:`, cố ý không có `run:` nào,
+  # để không một dòng nào ở đây lọt vào verdict của runs-after-checkout.
+  pinning:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: 'actions/checkout@v4'
+        with:
+          persist-credentials: false
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: 'actions/checkout@v4'
+        with:
+          persist-credentials: false
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: nrwl/nx-set-shas@main
+        with:
+          persist-credentials: false
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: nrwl/nx-set-shas@3d3c42e
+        with:
+          persist-credentials: false
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: org/repo/.github/workflows/release.yml@v1
+        with:
+          persist-credentials: false
+      # Regression: một `docker://` không có digest. Regex cũ không thấy nó
+      # (nó đòi `owner/name@`) trong khi message của rule container lại chỉ
+      # hành động "jurisdiction" sang đây — một lỗ hổng đã bị bỏ qua.
+      # ruleid: workflow-action-not-pinned-to-sha
+      - uses: docker://alpine:3.19
+        with:
+          persist-credentials: false
+
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        with:
+          persist-credentials: false
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        with:
+          persist-credentials: false
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: docker://alpine@sha256:3d3c42e5aac5ba805825da76410c181273ba90b1deadbeefdeadbeefdeadbeef
+        with:
+          persist-credentials: false
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: ./.github/actions/setup-node-pnpm
+      # ok: workflow-action-not-pinned-to-sha
+      - uses: ./local-action
+
+  # `uses:` ở cấp JOB (gọi reusable workflow) cũng là một key `uses:` thật,
+  # nên rule pin SHA áp dụng cho nó — và vì đây là một job callable, nó nằm
+  # ngoài mọi `steps:` nên không rule privileged nào chạm tới nó.
+  reusable-call:
+    # ok: workflow-action-not-pinned-to-sha
+    uses: org/repo/.github/workflows/release.yml@3d3c42e5aac5ba805825da76410c181273ba90b1
+  reusable-call-unpinned:
+    # ruleid: workflow-action-not-pinned-to-sha
+    uses: org/repo/.github/workflows/release.yml@v1
+
+  # Regression hai chiều của rule pin SHA: pattern-regex cũ đọc văn bản thô nên
+  # match cả một comment và cả một giá trị `name:` chỉ tình cờ chứa chuỗi
+  # "uses:". Một pattern YAML cấu trúc không thể match hai cái đó, và hai dòng
+  # `ok:` bên dưới là thứ giữ regression đó không quay lại.
+  pinning-false-positives:
+    runs-on: ubuntu-26.04
+    steps:
+      # ok: workflow-action-not-pinned-to-sha
+      # uses: actions/checkout@v4
+      # ok: workflow-action-not-pinned-to-sha
+      - name: 'uses: actions/checkout@v4 in a name'
+        run: echo ok
+      # Chú thích `# v7.0.1` phía sau một SHA được phủ ở job `pinning` phía
+      # trên — nó nằm ở đó vì job này có một `run:`, và một job privileged có
+      # CẢ checkout lẫn run chính là điều mà runs-after-checkout báo.
+
+  # persist-credentials. Job này cố ý không có `run:` để runs-after-checkout im
+  # lặng, và mọi `uses:` ở đây đã được pin để rule pin SHA im lặng — đúng một
+  # rule sở hữu mỗi verdict.
+  credentials:
+    runs-on: ubuntu-26.04
+    steps:
+      # Thiếu hẳn `with:` — giá trị mặc định được áp dụng.
+      # ruleid: workflow-checkout-persists-credentials
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # `with:` có mặt nhưng không có key đó, cộng thêm key anh em — vẫn là
+      # ruleid vì giá trị mặc định không đổi.
+      # ruleid: workflow-checkout-persists-credentials
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: main
+      # Chủ động bật LẠI được nêu tường minh — vẫn là finding.
+      # ruleid: workflow-checkout-persists-credentials
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: true
+      # Dấu ngoặc kép quanh giá trị `uses:` không đổi gì — semgrep gán scalar
+      # đặt trong ngoặc kèm cả dấu ngoặc, và regex của rule cho phép nó.
+      # ruleid: workflow-checkout-persists-credentials
+      - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+      # ok: workflow-checkout-persists-credentials
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # ok: workflow-checkout-persists-credentials
+      - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Action không phải checkout không thuộc việc của rule này.
+      # ok: workflow-checkout-persists-credentials
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+
+  # Nhóm expression/secret. Job này cố ý KHÔNG có `uses: actions/checkout` nào,
+  # nên hai rule privileged im lặng trên mọi dòng `run:` bên dưới — đây là cách
+  # một verdict duy nhất mỗi rule được bảo toàn trong cùng một document.
+  injection:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: echo "${{ github.event.pull_request.title }}"
+      # ok: workflow-expression-interpolated-into-run
+      - run: echo "${{ github.sha }}"
+      # ok: workflow-expression-interpolated-into-run
+      - run: echo "$TITLE"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+
+      # Các nguồn đã mở rộng: output bậc hai, input của dispatch, và tên nhánh —
+      # gồm cả qua một lần unwrap bằng fromJSON, đúng cách viết mà repository
+      # này từng dùng ở site thật duy nhất.
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: node scripts/example-push.mjs --branch "${{ fromJSON(steps.release.outputs.pr).headBranchName }}"
+      # Tên hàm không phân biệt hoa thường trong ngôn ngữ biểu thức của GitHub.
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: node scripts/example-push.mjs --tag "${{ FromJSON(needs.prepare.outputs.matrix).name }}"
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: |
+          node scripts/example-push.mjs --tag "${{ needs.prepare.outputs.tag }}"
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: deploy --environment ${{ inputs.environment }}
+      # ruleid: workflow-expression-interpolated-into-run
+      - run: echo "${{ github.ref }}"
+
+      # Enum đóng là giá trị, không phải chuỗi do kẻ tấn công viết; các entry
+      # matrix tĩnh do chính workflow viết; và lớp gián tiếp qua env: bên dưới
+      # chính là cách sửa mà message chỉ định. Không cái nào được phép báo.
+      # ok: workflow-expression-interpolated-into-run
+      - run: echo "${{ steps.build.outcome }}"
+      # ok: workflow-expression-interpolated-into-run
+      - run: echo "${{ needs.gate.result }}"
+      # ok: workflow-expression-interpolated-into-run
+      - run: pnpm e2e --shard=${{ matrix.shard }}/2
+      # ok: workflow-expression-interpolated-into-run
+      - run: node scripts/example-push.mjs --branch "$BRANCH"
+        env:
+          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+
+      # ruleid: workflow-secret-interpolated-into-run
+      - run: npm publish --//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+      # Ghép vào một biểu thức lớn hơn là cùng một lỗ rò rỉ.
+      # ruleid: workflow-secret-interpolated-into-run
+      - run: deploy --token "${{ secrets.DEPLOY_TOKEN || github.token }}"
+      # Secret trong một block scalar nhiều dòng vẫn bị nội suy vào văn bản script.
+      # ruleid: workflow-secret-interpolated-into-run
+      - run: |
+          curl -H "Authorization: Bearer ${{ secrets.MAILGUN_API_KEY }}" \
+            https://api.example.com/send
+      # Secret nằm trong một subshell/confix nhúng — vẫn là cùng một run:.
+      # ruleid: workflow-secret-interpolated-into-run
+      - run: node -e "publish(process.argv[1])" "${{ secrets.NPM_TOKEN }}"
+      # ok: workflow-secret-interpolated-into-run
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # `secrets.*` trong `with:` là input của action, không phải văn bản shell.
+      # ok: workflow-secret-interpolated-into-run
+      - uses: alibaba/open-code-review@182898cf522da3d04157b422752d028417974e19
+        with:
+          llm_auth_token: ${{ secrets.LLM_AUTH_TOKEN }}
+
+  # Hai rule privileged — ref không tin cậy. Job này cố ý không có `run:`,
+  # nên runs-after-checkout im lặng ở đây.
+  privileged-untrusted-head:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.head_ref }}
+      # `repository:` cũng attacker-controlled khi lấy từ head của PR.
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: refs/pull/${{ github.event.number }}/merge
+
+      # Ref tường minh trỏ về nhánh mặc định của repository — chính là điều mà
+      # message của rule yêu cầu ghi ra thay vì để người đọc suy luận.
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      # Không có `ref:` — mặc định của actions/checkout dưới pull_request_target
+      # là BASE ref, tức là ref tin cậy; rule không được suy diễn ngược lại.
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # Ref tĩnh do workflow tự viết.
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: main
+
+  # `workflow_run` + checkout theo `head_sha` của chính event đó. Với
+  # `workflow_run` thì `head_sha` **không** attacker-reachable theo cách
+  # `pull_request.head.*` là: nó chỉ xuất hiện trong event của một run CI đã
+  # kết thúc. Nhưng rule không suy diễn — trigger privileged cộng ref lấy từ
+  # head là shape nó chặn, và message của rule yêu cầu đúng một việc: viết
+  # lại thành base ref để an toàn là thuộc tính của YAML, không phải của người
+  # đọc. `.github/workflows/staging.yaml` (job `audit`) làm đúng điều đó.
+  workflow-run-default-branch-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      # `run:` sau một base-ref checkout vẫn hợp lệ (pattern đọc cấu hình rồi
+      # tính toán, không phải pattern materialize cây của PR).
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: npx tsx tools/delivery/src/deploy-unit-audit.mts
+
+  # Đối lập trực tiếp với case trên: cùng trigger `workflow_run`, cùng một job,
+  # nhưng checkout theo head. Đây là shape staging.yaml từng mắc và phải sửa.
+  workflow-run-head-sha-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      # ruleid: workflow-privileged-trigger-runs-after-checkout
+      - run: npx tsx tools/delivery/src/deploy-unit-audit.mts
+
+  # Rule privileged — checkout rồi chạy shell CÙNG job. Annotation nằm trên
+  # dòng `run:` vì đó là node mà rule match.
+  privileged-run-same-job:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # Checkout KHÔNG có ref (= BASE ref tin cậy) + run cùng job: hợp lệ,
+      # không phải finding. Rule chỉ nổ khi checkout mang ref không tin cậy.
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: pnpm install --frozen-lockfile && pnpm test
+
+  # Hai job tách rời: job A checkout nhưng không chạy gì, job B chạy shell nhưng
+  # không có cây nào được materialize. Không job nào đơn lẻ đủ điều kiện, và
+  # rule bị giới hạn ở phạm vi một danh sách `steps:` nên cũng không được ghép
+  # hai job lại với nhau.
+  privileged-split-a:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+  privileged-split-b:
+    runs-on: ubuntu-26.04
+    steps:
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: echo "no checkout in this job"
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/setup-node@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          node-version-file: .node-version
+
+  # Container. `run:` ở đây là của chính job container và job này không có
+  # checkout, nên runs-after-checkout im lặng.
+  container-unpinned:
+    runs-on: ubuntu-26.04
+    container:
+      # ruleid: workflow-container-image-not-digest-pinned
+      image: semgrep/semgrep:1.176.1
+    steps:
+      - run: echo ok
+  container-quoted:
+    runs-on: ubuntu-26.04
+    container:
+      # ruleid: workflow-container-image-not-digest-pinned
+      image: 'redis:7'
+    steps:
+      - run: echo ok
+  container-pinned:
+    runs-on: ubuntu-26.04
+    container:
+      # ok: workflow-container-image-not-digest-pinned
+      image: semgrep/semgrep:1.176.1@sha256:34ab619bf1391a24bfda3f05debd0d8a6ce3093c2d5f9d39cfc00f83c1397823
+      options: --rm
+    steps:
+      - run: echo ok
+  services-unpinned:
+    runs-on: ubuntu-26.04
+    services:
+      redis:
+        # ruleid: workflow-container-image-not-digest-pinned
+        image: redis:7
+      postgres:
+        # ok: workflow-container-image-not-digest-pinned
+        image: postgres:16@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b
+        env:
+          POSTGRES_PASSWORD: not-a-rule-concern
+    steps:
+      - run: echo ok
+
+  # Regression hai chiều của rule container: pattern-regex cũ match một comment
+  # và một giá trị chỉ tình cờ chứa chuỗi "image:".
+  container-false-positives:
+    runs-on: ubuntu-26.04
+    container:
+      # ok: workflow-container-image-not-digest-pinned
+      # image: alpine:3.19
+      # ok: workflow-container-image-not-digest-pinned
+      name: 'image: alpine:3.19'
+      image: alpine@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b
+    steps:
+      - run: echo ok
+
+  workflow_run_privileged-untrusted-head:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha }}
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_branch }}
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+
+  pull_request_target_trusted-base-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # Ref tường minh trỏ về base — trusted, cả hai rule im lặng.
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: echo trusted-base
+
+  pull_request_target_pr-head-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+  pull_request_target_pr-controlled-execution:
+    runs-on: ubuntu-26.04
+    steps:
+      # PR-controlled checkout + run CÙNG job — nửa dương của rule thứ hai.
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.ref }}
+      # ruleid: workflow-privileged-trigger-runs-after-checkout
+      - run: echo executes-pr-code
+
+  pull_request_target_trusted-checkout-no-ref:
+    runs-on: ubuntu-26.04
+    steps:
+      # Không có ref — mặc định là BASE ref (trusted). run sau checkout vẫn
+      # được phép: chính là pattern labeler/drift-check hợp lệ.
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: echo trusted-default
+
+  pull_request_target_run-before-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # `run:` đứng TRƯỚC checkout PR-controlled — list pattern khớp theo thứ tự
+      # nên tree chưa được materialize khi script chạy → không finding.
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: echo before-materialize
+      # Checkout vẫn là untrusted head — rule một phát hiện nó dù run không bị báo.
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.head_ref }}

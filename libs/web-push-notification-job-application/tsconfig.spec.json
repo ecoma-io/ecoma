@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node"],
+    // `es2023` **không** phải nâng cấp tuỳ chọn: repo dùng `Array#toSorted` cho mọi assertion
+    // so key set (`Object.keys(x).toSorted()`), vì `sort()` mutate tham số và một key set
+    // dùng chung giữa hai lần assert sẽ hỏng theo thứ tự. `tsconfig.lib.json` của project này
+    // vẫn giữ `es2022` — code **chạy thật** không được dùng `toSorted`, chỉ spec.
+    "lib": ["es2023"],
+    "tsBuildInfoFile": "out-tsc/vitest/tsconfig.spec.tsbuildinfo"
+  },
+  "include": ["vitest.config.mts", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
+}

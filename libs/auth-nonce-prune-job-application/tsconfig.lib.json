@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "forceConsistentCasingInFileNames": true,
+    "types": [],
+    "rootDir": "src",
+    // `dom` cho global `setTimeout` của `defaultSleep` — cùng pattern
+    // `libs/backoffice-application` (lib edge không được import builtin Node,
+    // còn `setTimeout` là global của Web API/workerd).
+    "lib": ["es2022", "dom"],
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["out-tsc", "dist", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": []
+}

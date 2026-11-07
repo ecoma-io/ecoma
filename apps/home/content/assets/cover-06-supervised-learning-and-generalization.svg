@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: From data to models: supervised learning and generalization</title>
+  <desc id="cover-desc">Course cover for lesson 06 of 30, Classical machine learning. Abstract scatter split motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 06 of 30 · Classical machine learning</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="269.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="650" fill="#0f172a">From data to models:</text>
+  <text x="88" y="335.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="650" fill="#0f172a">supervised learning and</text>
+  <text x="88" y="401.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="650" fill="#0f172a">generalization</text>
+
+  <g aria-hidden="true">
+    <line x1="842" y1="126" x2="932" y2="462" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="12 9"/>
+        <line x1="932" y1="462" x2="1178" y2="126" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="12 9"/>
+        <circle cx="1038.3" cy="300.8" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1152.7" cy="362.4" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1097.1" cy="359.2" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1017.3" cy="174.2" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="854.9" cy="199.9" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="936.9" cy="465.0" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1082.4" cy="353.0" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="962.5" cy="210.2" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="874.0" cy="431.4" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1130.3" cy="410.9" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="993.2" cy="218.7" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="1127.5" cy="137.6" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="1101.5" cy="453.3" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1114.9" cy="161.6" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="953.9" cy="345.4" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="857.3" cy="214.6" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="1011.7" cy="386.3" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="931.4" cy="299.7" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="838.9" cy="320.6" r="9" fill="#0f766e" opacity="0.8"/>
+        <circle cx="1029.0" cy="346.1" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1079.5" cy="415.6" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1117.6" cy="201.1" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1125.6" cy="269.2" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1153.7" cy="170.0" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="1129.2" cy="221.7" r="9" fill="#4f46e5" opacity="0.8"/>
+        <circle cx="844.1" cy="290.1" r="9" fill="#0f766e" opacity="0.8"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">06 / 30</text>
+</svg>

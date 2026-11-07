@@ -1,0 +1,151 @@
+{
+  // Nuxt/Nitro output cho Cloudflare Workers. Preset `cloudflare_module`
+  // bundle server vào một Worker module; `main` trỏ vào entry mà Nitro emit.
+  //
+  // `assets.directory` là output của `nuxt build --prerender`, phục vụ static
+  // asset của app.
+  //
+  // Worker identity lâu dài — PR không tạo Worker mới, Preview chạy dưới
+  // identity này. Reference: docs/architecture/02-delivery.md §5.
+  //
+  // `account` là một trong hai deploy unit của bounded context `identity`:
+  // nó giữ account UI + BFF (kể cả login và consent UI). Endpoint protocol
+  // OAuth 2.0/OIDC thuộc deploy unit kia — `auth` (`apps/auth`,
+  // Worker `ecoma-auth`) — không phải app này.
+  // Reference: docs/architecture/01-architecture.md §2.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-account",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-10-05",
+  // Nitro dựa vào một số Node.js API qua shim nội bộ (stream, buffer).
+  // Khác với `auth`: app này là Nuxt app, không phải Worker thuần, nên
+  // `nodejs_compat` ở đây là do Nitro yêu cầu chứ không phải nới lỏng
+  // boundary của `runtime:edge`.
+  //
+  // Cloudflare từ `compatibility_date` 2026-08-04 đã bật sẵn `nodejs_compat`
+  // và `nodejs_compat_v2` nên flag ở trên là thừa về mặt runtime. Nhưng KHÔNG
+  // bỏ: Nitro đọc chính config này để tự bật `cloudflare.nodeCompat`
+  // (nitropack/dist/presets/cloudflare/utils.mjs — nhánh
+  // `userCompatibilityFlags.has("nodejs_compat")`), và nodeCompat là thứ quyết
+  // định việc build có polyfill Node cho runtime bundle hay không. Bỏ flag ở đây
+  // ⇒ Nitro build thiếu shim ⇒ runtime lỗi, mà `wrangler deploy --dry-run`
+  // vẫn báo pass.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    // Không đặt `run_worker_first`: với Nuxt SSR, mọi request đều phải qua
+    // Worker (render + payload). Chỉ khi một path thực sự cần phục vụ HTML
+    // tĩnh mới bật nó cho path đó, để không mất SSR.
+  },
+  "observability": {
+    "enabled": true,
+  },
+  // Hyperdrive binding tới `db-account`.
+  //
+  // ⚠️ **CHỈ tên binding — không host, không port, không user.** `01-architecture.md`
+  // invariant 4: application code chỉ chứa tên binding. `id` ở đây là định danh
+  // Hyperdrive config **theo môi trường**, nó thuộc hạ tầng chứ không phải thông tin
+  // kết nối; connection string thật lấy ở runtime qua `binding.connectionString`
+  //
+  // ⚠️ **Binding này KHÔNG được Preview dùng** (`01-architecture.md` invariant 2).
+  // Worker đích giữ Hyperdrive production nên một Preview gọi binding là **ghi vào dữ
+  // liệu production qua một Worker production**. Với `identity` không có ngoại lệ:
+  // `auth → account` qua contract status là **đường xác thực**, không phải đường đọc
+  // (`03-operations.md` §4). Wrangler **không** inherit binding vào `env.<lane>` (đo
+  // trên `wrangler` 4.151.0: top-level `hyperdrive` không xuất hiện trong
+  // `env.staging`/`env.production`), nên hai làn dưới đây **không** có binding
+  // `DB_ACCOUNT` cho tới khi mỗi `env` tự khai `hyperdrive` của nó (→ `02-delivery.md`
+  // §4.1 · §9.1). `id` đang là placeholder toàn số 0 nên deploy hiện tại fail closed.
+  // Sau khi provisioning, mỗi `env` PHẢI khai Hyperdrive config riêng của nó (staging
+  // tuyệt đối không trỏ vào Hyperdrive production). Thiếu binding ⇒ Worker
+  // môi trường đó fail closed ở `server/routes/ready.get.ts`, chứ không rơi về
+  // đường không xác thực.
+  //
+  // ⚠️ **QUERY CACHE OFF — bắt buộc, không có ngoại lệ.** Cache được đặt ở **config
+  // Hyperdrive**, không phải ở `wrangler.jsonc`, nên không có key nào ở file này tắt
+  // được nó; việc tắt là thao tác vận hành trên `db-account` (`03-operations.md` §5).
+  // Lý do:
+  //   - HD3: query cache **bật mặc định** (`max_age` 60s, tối đa 1h).
+  //   - HD4: cache **không** invalidate khi ghi.
+  // Hệ quả nếu để mặc định: `GET /internal/account/status` là control point
+  // fail-closed lúc `auth` phát hành token (FR-011e yêu cầu đọc **trực tiếp**, không
+  // stale read). Một account bị `suspended` sẽ vẫn được `auth` đọc là `active` trong
+  // tối đa 60s — đúng loại lỗi mà invariant 14 (`01-architecture.md` §9) cấm trên mọi
+  // đường correctness. Invariant 14 liệt kê ledger/quota/settlement làm ví dụ;
+  // invariant 30 là lý do contract status rơi vào cùng nhóm: nó là chốt chặn cuối lúc
+  // `auth` phát hành, và quyết định phát hành **không** được dựa trên dữ liệu cũ.
+  // Đây là đường correctness nên không có ngoại lệ nào.
+  //
+  // ⚠️ **`db-account` CHƯA được provision** (`01-architecture.md` §10). `id` dưới đây
+  // là placeholder để cấu hình JSON hợp lệ và có hình dạng đúng; deploy sẽ fail cho
+  // tới khi config thật tồn tại. Điền id giả vào production để "cho deploy chạy" là
+  // đổi một lỗi lộ ra sớm lấy một lỗi im lặng lúc chạy thật.
+  "hyperdrive": [
+    {
+      "binding": "DB_ACCOUNT",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
+  "dev": {
+    "port": 4202,
+  },
+  // --- Staging / Production — Issue #166 ---
+  //
+  // Trước đây `account` chỉ có một Worker (`ecoma-account`) và không có env nào,
+  // nên deploy target của làn staging và của làn production là **cùng một**
+  // Worker. Điều đó làm staging ghi đè production — vi phạm mô hình hai làn ở
+  // `docs/architecture/02-delivery.md` §7.
+  //
+  // Mỗi deploy unit có **hai Worker identity riêng**, đặt tên theo
+  // `{target}-{slug}` đúng quy ước của tầng delivery (overview `02-delivery.md`
+  // §7.2, thiết kế chưa hiện thực):
+  // staging `stg-ecoma-account`, production `ecoma-account`. Tên Worker là
+  // vĩnh viễn, không đổi theo tag.
+  //
+  // Staging chưa có custom domain: theo §5.4 hostname ưu tiên `workers.dev`,
+  // custom domain chỉ khi UX cần origin ổn định. `account` là admin surface
+  // chưa có public URL ổn định, nên `workers.dev` là đủ cho smoke check. Thêm
+  // route custom domain khi UX thật sự cần, sau khi xác minh certificate/Access
+  // (§12).
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-account",
+      // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
+      // bo qua nó; nó tồn tại để pipeline delivery tương lai (§7.2) có một
+      // origin tất định cho deploy unit mà không phải suy đoán từ `account_id`
+      // (subdomain `workers.dev` là cấu hình riêng của Cloudflare account,
+      // không suy ra được từ `account_id`).
+      //
+      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
+      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
+      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
+      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý: một
+      // URL bịa ra sẽ làm smoke fail bằng lý do "DNS không resolve" trong khi
+      // nguyên nhân thật là URL sai từ đầu.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Bề mặt public của `account` — xem ghi chú cùng khoá ở `apps/home`.
+      // App này **phẳng**: không có chiều locale (không `app/pages/[locale]`),
+      // không có content collection, chưa có public domain. Khai tường minh
+      // (thay vì bỏ trống) để "không có" là một quyết định đã ghi, và để thêm
+      // locale về sau là một thay đổi khai báo được nhìn thấy trong diff.
+      //
+      // Không khai `productionOrigin`/`staticAssetProbePath`: app chưa có
+      // canonical policy (chưa có domain production) và chưa có bề mặt
+      // static-asset riêng. Smoke check bỏ các assertion đó chứ không biến
+      // chúng thành pass giả.
+      "smokeSurface": {},
+    },
+    "production": {
+      "name": "ecoma-account",
+      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa
+      // tay. Production của hai app này chưa có custom domain, nên origin
+      // smoke check của lane production cũng phải đến từ `devOrigin`.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Cùng bề mặt với staging: khác biệt giữa hai làn là
+      // canonical/noindex, không phải tập route. Xem ghi chú `smokeSurface`
+      // ở env staging.
+      "smokeSurface": {},
+    },
+  },
+}

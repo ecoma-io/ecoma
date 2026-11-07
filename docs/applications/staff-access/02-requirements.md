@@ -1,0 +1,182 @@
+# Staff Access (application) — Requirements
+
+> Ứng dụng `staff-access` hiện thực nghiệp vụ của bounded context [`staff-access`](../../domains/staff-access/domain-model.md) và kế thừa trách nhiệm vận hành staff/RBAC từ composition `backoffice` ([ADR-0013](../../domains/staff-access/adr/0013-staff-access-ownership-transfer.md)).
+
+> Phạm vi: yêu cầu bảo mật runtime, threat model, acceptance matrix và non-goals kỹ thuật của ứng dụng `staff-access`.
+> Kiến trúc component → [`01-architecture.md`](./01-architecture.md) · business semantics → [`docs/domains/staff-access/domain-model.md`](../../domains/staff-access/domain-model.md) · system boundary → [`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md) §2.2, §8 (A21–A24), §9, §10.
+
+> ⚠️ **Chưa có test nào chứng minh các yêu cầu dưới đây.** Ứng dụng có test cho prototype và hạ tầng UI (dữ liệu mẫu, catalog i18n, shell, nguồn Tailwind), nhưng không test nào thực thi một quyết định authorization, đọc/ghi staff persistence hay enforce RBAC. Bảng §5 là kịch bản phải dựng khi implement, không phải danh sách test đang chạy.
+
+## 1. Mục đích
+
+Tài liệu này biến các quyết định authorization của Domain Model thành yêu cầu **kiểm chứng được**: security requirements (SR), threat model, acceptance matrix, non-goals — để khi implement biết chính xác cái gì phải chứng minh bằng `test` / `config` / `sql` / `manual`.
+
+Mỗi `SR-xxx` là một yêu cầu kiểm chứng được, không phải một lời khuyên; mỗi threat `T-xx` trỏ về `SR-xxx` thật ở §2; mỗi acceptance `AC-xxx` là một quan sát cụ thể có thể dựng thành test.
+
+Quy ước ID: `SR-0xx` yêu cầu bảo mật · `T-xx` mối đe doạ · `AC-xxx` kịch bản chấp nhận. Khi thêm yêu cầu mới, thêm ID mới — **không tái sử dụng** ID đã cấp, để tham chiếu chéo không đổi nghĩa.
+
+## 2. Phạm vi
+
+**Trong phạm vi:**
+
+- Staff directory và staff lifecycle ở tầng runtime.
+- Role/permission catalog và staff-role assignment.
+- Authorization audit và privileged-operation workflow.
+- Cách ứng dụng tiêu thụ Account ID (`sub`) và token đã xác thực từ `account`/`auth`, và những gì nó **không** được tin từ client.
+
+**Ngoài phạm vi:** dữ liệu danh tính và credential/MFA của account (→ `account`), giao thức OAuth 2.0/OIDC (→ `auth`), chính sách authorization của từng resource-owning backend — xem non-goals §6.
+
+## 3. Security requirements
+
+Mỗi cột "Kiểm chứng" phải là một hành vi **chạy được hoặc kiểm được** (`test` / `config` / `sql` / `manual`) — không có ô nào ghi "được review" chung chung. Một kiểm chứng chỉ có giá trị khi nó thực sự **đỏ** lúc kiểm soát tương ứng bị phá; một test xanh vì lý do khác không phải bằng chứng.
+
+### 3.1. Identity, claim và nguồn bằng chứng
+
+| ID     | Yêu cầu                                                                                                                      | Kiểm chứng                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| SR-001 | **Không tin** identity/role/permission/scope/MFA flag do client supply — principal luôn lấy từ token đã xác thực server-side | Test: request kèm claim/header/body mang role hay MFA flag giả → bị bỏ qua và `403`, kết quả không đổi |
+| SR-017 | Step-up evidence chỉ đến từ **trusted `auth` flow**; không bao giờ tin cờ MFA do client supply                               | Test: request mang `mfa: true` do client gửi, thiếu bằng chứng từ `auth` → bị yêu cầu step-up lại      |
+
+### 3.2. Enforcement
+
+| ID     | Yêu cầu                                                                                                                    | Kiểm chứng                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| SR-002 | **Deny-by-default**: request không có kết quả authorize rõ ràng bị từ chối; không có đường allow khi thiếu dữ liệu         | Test: request thiếu dữ liệu authorization → `403`; config review: không route mặc định allow                             |
+| SR-003 | Enforcement **server-side, mỗi request**, tại resource-owning backend — không kiểm một lần lúc đăng nhập rồi cho qua       | Test: session hợp lệ gọi thẳng API thao tác không được phép → `403` ở từng request                                       |
+| SR-004 | **Object-level + scope-level check** — có quyền theo loại không có nghĩa truy cập mọi object; kiểm ownership/data scope    | Test: staff có permission nhưng truy cập object ngoài phạm vi → `403`                                                    |
+| SR-020 | **Catalog là nguồn sự thật duy nhất của permission** — resource-owning backend không tự phát minh permission ngoài catalog | Test: backend gọi permission không có trong catalog → bị từ chối; catalog review phát hiện permission dùng mà không khai |
+| SR-016 | **Không có** unrestricted `isAdmin` bypass: mọi account đều đi qua cùng một enforcement với permission hữu hạn             | Test: account gắn role "admin" không có permission X → vẫn `403` với X                                                   |
+
+### 3.3. Thao tác nhạy cảm và governance
+
+| ID     | Yêu cầu                                                                                                                                                                                        | Kiểm chứng                                                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| SR-005 | **Cấm self-assignment / self-elevation, và cấm cấp vượt quyền mình có** — không gán role cho chính mình vượt quyền, không tự nâng quyền, không cấp cho người khác quyền mà chính mình không có | Test: staff gán role cho chính mình vượt quyền → `403` + có audit; staff cấp cho người khác permission mình không có → `403` + có audit |
+| SR-006 | **Separation of duties**: permission quản trị role tách khỏi permission thao tác nghiệp vụ thường ngày                                                                                         | Test: phân tích permission của role nghiệp vụ thường → không chứa permission cấp role                                                   |
+| SR-007 | **Mass-affecting role edit phải được gated** — thao tác sửa nhiều assignment cùng lúc đi qua approval gate riêng                                                                               | Test: mass edit không qua approval gate → bị từ chối; qua gate → được ghi audit                                                         |
+| SR-008 | **Re-check authorization at write time** khi privilege thay đổi — không dùng kết quả đã cache trước thay đổi (chống TOCTOU)                                                                    | Test: revoke quyền đồng thời với thao tác ghi → thao tác ghi sau bị từ chối                                                             |
+| SR-009 | Bootstrap first-administrator và emergency recovery: **documented + audited**, không có bypass flag/cờ `isAdmin` chưa document                                                                 | Test: mọi lần dùng recovery tạo audit record; manual review: không tồn tại flag bypass trong code/config                                |
+
+### 3.4. Ranh giới dữ liệu, contract và audit
+
+| ID     | Yêu cầu                                                                                                                                                                                                                  | Kiểm chứng                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| SR-010 | Least-privilege DB credential; **runtime privilege ≠ migrator privilege**                                                                                                                                                | Sql: `has_table_privilege` sweep chỉ còn quyền tối thiểu; runtime role không có DDL privilege                                           |
+| SR-011 | `account`/`auth` **không bao giờ** mutate dữ liệu staff/role/permission của `staff-access` (bất kỳ storage nào)                                                                                                          | Sql (sau khi storage chốt): grant của role `account`/`auth` trên dữ liệu staff/RBAC là none; module-boundary lint không cho import chéo |
+| SR-012 | Internal contracts xác thực bằng **envelope HMAC** (signature + timestamp + nonce, chống replay bền vững); vị trí mạng nội bộ **không** là trust                                                                         | Test: request nội bộ thiếu chữ ký/envelope → `401`, kể cả đi qua Service Binding                                                        |
+| SR-013 | Mỗi privileged operation ghi **authorization audit** đủ các trường: actor, target, action, time, result, reason, request/correlation ID                                                                                  | Test: mỗi thao tác tạo đúng một record với đủ 7 trường; thiếu bất kỳ trường nào → fail                                                  |
+| SR-014 | Audit **không bao giờ** chứa access token, auth secret, password hay PII                                                                                                                                                 | Test: grep log/audit không thấy token/secret/password; mẫu dữ liệu audit không chứa trường nhận dạng thừa                               |
+| SR-015 | Authorization audit **append-only** và **access-restricted**                                                                                                                                                             | Sql: UPDATE/DELETE trên audit bị từ chối; grant read chỉ cho role được phép                                                             |
+| SR-021 | Entitlement read model và event **chỉ mang tính khả dụng sản phẩm** — không mang verdict allow/deny, permission list hay per-resource scope (pin → [`domain-model.md`](../../domains/staff-access/domain-model.md) §3.6) | Test: consumer validator từ chối payload mang field verdict/permission/scope bị cấm                                                     |
+
+### 3.5. Khả dụng và vận hành
+
+| ID     | Yêu cầu                                                                                                                                                                  | Kiểm chứng                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| SR-018 | Quyết định **deny cũng phải quan sát được** như quyết định allow — một request bị từ chối mà không để lại dấu vết là mất tín hiệu điều tra; nội dung ghi vẫn theo SR-014 | Test: một request bị từ chối vì thiếu permission tạo được tín hiệu/audit tương ứng                 |
+| SR-019 | Kiểm tra authorization **không** được phụ thuộc vào observability; observability không bao giờ là serving-path dependency                                                | Test: tắt/giả lập observability lỗi (`503`) → thao tác authorization vẫn chạy đúng như bình thường |
+
+## 4. Threat model
+
+Mỗi mối đe doạ có tài sản/ranh giới, đường tấn công, phòng ngừa, phát hiện, hành vi khi hỏng và trỏ về SR thật.
+
+### 4.1. Quyền, role và assignment
+
+| ID   | Tài sản / ranh giới        | Đường tấn công                                                                                                      | Phòng ngừa                                                                                    | Phát hiện                                                           | Khi hỏng                            | Yêu cầu        |
+| ---- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------- | -------------- |
+| T-01 | Role/permission assignment | Staff tự gán role cho chính mình (self-grant), tự nâng quyền, hoặc cấp cho người khác quyền vượt quá quyền của mình | Cấm self-assignment; authority check tại write time, kể cả khi target là người khác           | Audit ghi actor = target bất thường, hoặc actor cấp quyền vượt mình | Escalation ngay trong hệ thống      | SR-005, SR-008 |
+| T-02 | Object staff/role          | IDOR/BOLA — truy cập record staff/role của người khác qua ID đoán được                                              | Object-level + scope check server-side (CWE-639)                                              | Audit truy cập object ngoài scope                                   | Đọc/sửa assignment của người khác   | SR-003, SR-004 |
+| T-03 | Hàng loạt assignment       | Mass edit làm thay đổi quyền của cả tập                                                                             | Approval gate cho mass-affecting edit                                                         | Alert theo quy mô thao tác                                          | Mất quyền hàng loạt, phát hiện chậm | SR-007         |
+| T-04 | Tính toàn vẹn catalog      | Backend tự thêm permission ngoài catalog                                                                            | Catalog là nguồn sự thật duy nhất; contract/catalog review                                    | Catalog diff bất thường                                             | Permission "ma" không ai quản trị   | SR-020         |
+| T-17 | Phân tách nhiệm vụ         | Một người vừa có permission quản trị role vừa có permission nghiệp vụ → tự phê duyệt thao tác của chính mình        | Permission quản trị role tách khỏi permission nghiệp vụ; approval độc lập cho thao tác rủi ro | Audit thấy actor vừa cấp role vừa thực thi                          | Approval gate chỉ còn hình thức     | SR-006         |
+
+### 4.2. Token, session và freshness
+
+| ID   | Tài sản / ranh giới    | Đường tấn công                                                    | Phòng ngừa                                                         | Phát hiện                           | Khi hỏng                                | Yêu cầu        |
+| ---- | ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------- | --------------------------------------- | -------------- |
+| T-05 | Privilege hiện hành    | Token còn hạn nhưng staff đã `terminated` / assignment đã hết hạn | Privilege check đọc trạng thái hiện hành, không suy từ token       | Audit deny với token hợp lệ         | Staff đã `terminated` vẫn thao tác được | SR-001, SR-003 |
+| T-06 | Privilege hiện hành    | Account bị `suspended` nhưng token cũ vẫn dùng                    | Fail closed khi trạng thái không đọc được; revocation theo mô hình | Audit deny sau suspension           | Quyền sống lâu hơn dự kiến (A24)        | SR-002, SR-003 |
+| T-07 | Bằng chứng MFA/step-up | Client supply cờ MFA/role/scope trong header, query hay body      | Chỉ tin evidence từ trusted `auth` flow; bỏ qua claim client       | Audit request mang claim bất thường | Bỏ qua bước step-up                     | SR-001, SR-017 |
+
+### 4.3. Ranh giới giữa các context và contract nội bộ
+
+| ID   | Tài sản / ranh giới           | Đường tấn công                                                        | Phòng ngừa                                                    | Phát hiện                            | Khi hỏng                                     | Yêu cầu        |
+| ---- | ----------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------ | -------------------------------------------- | -------------- |
+| T-08 | Dữ liệu staff/role/permission | `account`/`auth` (hoặc code bị nhầm scope) ghi thẳng vào dữ liệu RBAC | Grant REVOKE chéo + module-boundary lint                      | Sweep grant định kỳ                  | Vi phạm ownership, audit mất dấu vết ai sửa  | SR-011, SR-010 |
+| T-09 | Internal contract             | Replay/tampering lời gọi nội bộ tới contract của `staff-access`       | Envelope HMAC: chữ ký + timestamp + nonce chống replay        | Alert chữ ký sai / replay bị từ chối | Gọi thao tác nhạy cảm dưới danh tính service | SR-012         |
+| T-10 | Privileged BFF                | Confused deputy — BFF hành động thay identity chưa xác minh           | Principal lấy từ server-side verified token, không từ request | Audit principal thực thi bất thường  | Thực thi quyền dưới danh tính khác           | SR-001, SR-013 |
+| T-11 | Bootstrap / recovery          | Lạm dụng đường first-admin hoặc emergency recovery để tạo quyền       | Đường documented + audited, không bypass flag                 | Alert dùng recovery; audit bootstrap | Backdoor quyền không qua governance          | SR-009, SR-016 |
+
+### 4.4. Audit
+
+| ID   | Tài sản / ranh giới | Đường tấn công                               | Phòng ngừa                                   | Phát hiện                       | Khi hỏng                         | Yêu cầu |
+| ---- | ------------------- | -------------------------------------------- | -------------------------------------------- | ------------------------------- | -------------------------------- | ------- |
+| T-12 | Authorization audit | Xoá/sửa audit để che thao tác                | Append-only; access-restricted               | Update/delete thất bại; gap log | Mất bằng chứng điều tra          | SR-015  |
+| T-13 | Audit + log         | Rò access token/secret/PII vào audit hay log | Whitelist field; cấm secret trong mọi record | Scrub/grep tự động              | Token bị lộ từ nơi lẽ ra an toàn | SR-014  |
+
+### 4.5. Khả dụng và phụ thuộc
+
+| ID   | Tài sản / ranh giới                | Đường tấn công / sự cố                                                               | Phòng ngừa                                                                      | Phát hiện                                         | Khi hỏng                                                  | Yêu cầu        |
+| ---- | ---------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- | -------------- |
+| T-14 | Quyết định authorization           | Trạng thái authorization của principal **không đọc được** (lỗi, timeout, down)       | **Fail closed** — không có degraded allow path; unknown status không phải allow | Alert tỉ lệ deny do lỗi đọc trạng thái            | Nếu allow khi unknown: cấp quyền cho người chưa chắc chắn | SR-002, SR-003 |
+| T-15 | Catalog và assignment              | Catalog/assignment không đọc được hoặc mơ hồ (không xác định permission nào áp dụng) | Từ chối thao tác; không suy diễn permission từ tên role hay chức danh           | Alert catalog/assignment read failure             | Thao tác chạy dưới tập quyền đoán sai                     | SR-002, SR-016 |
+| T-16 | Ranh giới `staff-access` ↔ backend | Backend dùng cache permission cũ sau khi quyền bị thu hồi                            | Versioned/cache invalidation theo ngưỡng risk class (§5 thiết kế)               | Alert quyết định deny với state mới               | Cửa sổ quyền sống lâu hơn ngưỡng đã chốt                  | SR-003, SR-008 |
+| T-18 | Tín hiệu của quyết định deny       | Request bị từ chối không để lại dấu vết → mất khả năng điều tra                      | Quyết định deny ghi tín hiệu/audit như quyết định allow; nội dung theo SR-014   | Đối chiếu số deny với tín hiệu ghi được           | Tấn công hoặc lỗi cấu hình diễn ra âm thầm                | SR-018         |
+| T-19 | Observability                      | Pipeline log/metric lỗi hoặc chậm làm hỏng đường authorization                       | Observability tách khỏi serving path; lỗi observability không chặn quyết định   | Alert lỗi observability độc lập với lỗi authorize | Availability của authorization phụ thuộc hệ thống phụ trợ | SR-019         |
+
+## 5. Acceptance matrix
+
+Cột "Phương pháp" phân biệt kiểm thử tự động (`test`), kiểm tra cấu hình (`config`), kiểm tra SQL (`sql`) và kiểm tra thủ công (`manual`). Mỗi dòng là một **quan sát cụ thể**, dựng thẳng thành test/config check được.
+
+⚠️ **Chưa có test nào chứng minh các dòng dưới đây** — app có test cho prototype và UI (xem đầu tài liệu), nhưng **không** test nào thực thi một quyết định authorization, đọc/ghi staff persistence hay enforce RBAC, nên bảng này vẫn là kịch bản phải dựng khi implement, không phải danh sách test đang chạy. `app/backoffice-data/prototype-fixture.spec.ts` chỉ ghim **bất biến của dữ liệu mẫu** (ví dụ fixture không chứa role bypass toàn quyền) — đó là invariant của fixture, **không** phải bằng chứng enforcement. Khi dựng, mỗi kịch bản phải được chứng minh bằng **mutation**: phá bỏ kiểm soát tương ứng thì kịch bản phải **đỏ** (và phải xác nhận mutation thực sự được áp dụng). Một dòng xanh sau khi gỡ kiểm soát là dòng vô nghĩa.
+
+| ID     | Kịch bản                                                                                                               | Kết quả mong đợi                                                                                  | Phương pháp |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
+| AC-001 | Request với role **không** chứa permission X                                                                           | `403`                                                                                             | test        |
+| AC-002 | Token còn hạn nhưng staff đã `suspended` **hoặc** trạng thái authorization của principal không đọc được (lỗi/timeout)  | Từ chối; không thực thi thao tác; **không** có nhánh allow nào chạy                               | test        |
+| AC-003 | Staff có hai role — một có permission X, một không                                                                     | Chỉ thao tác được phép của X đi qua                                                               | test        |
+| AC-004 | UI ẩn nút nhưng gọi thẳng API tương ứng                                                                                | Vẫn `403`                                                                                         | test        |
+| AC-005 | Request kèm claim/header giả mạo role hoặc `mfa: true` từ client                                                       | Bị bỏ qua/không đủ bằng chứng → `403` hoặc yêu cầu step-up                                        | test        |
+| AC-006 | Staff gọi gán role cho chính mình vượt quyền                                                                           | `403` + có audit record                                                                           | test        |
+| AC-007 | Truy cập object staff/role của người khác bằng ID đoán được                                                            | `403` (object-level check)                                                                        | test        |
+| AC-008 | Mass edit assignment không qua approval gate                                                                           | Bị từ chối; qua gate thì có audit                                                                 | test        |
+| AC-009 | Revoke quyền đồng thời với một thao tác ghi                                                                            | Thao tác ghi sau revoke bị từ chối                                                                | test        |
+| AC-010 | Account bị suspend ở `account`, staff status không đổi                                                                 | Staff status giữ nguyên; ghi hai trục là độc lập                                                  | test        |
+| AC-011 | Role `account`/`auth` thử đọc/ghi dữ liệu staff/role                                                                   | Bị từ chối (grant = none)                                                                         | sql         |
+| AC-012 | Runtime role quét `has_table_privilege`                                                                                | Chỉ còn quyền tối thiểu; không có DDL privilege                                                   | sql         |
+| AC-013 | Gọi internal contract thiếu envelope HMAC / chữ ký hợp lệ                                                              | `401`, kể cả khi request đến từ mạng nội bộ                                                       | test        |
+| AC-014 | Grep nội dung authorization audit sau một privileged operation                                                         | Đủ 7 trường (actor, target, action, time, result, reason, correlation ID); không token/secret/PII | test        |
+| AC-015 | UPDATE/DELETE trên authorization audit                                                                                 | Bị từ chối                                                                                        | sql         |
+| AC-016 | Dùng emergency recovery để tạo quyền đầu tiên                                                                          | Có audit record đầy đủ; không đường bypass flag tồn tại                                           | manual      |
+| AC-017 | Assignment có **scope** giới hạn (resource/đơn vị); staff có permission nhưng gọi operation ngoài scope của assignment | `403` (scope-level check) — có permission không đồng nghĩa truy cập mọi object cùng loại          | test        |
+| AC-018 | Token còn hạn nhưng assignment đã **hết hạn theo thời gian**                                                           | Từ chối; không thực thi thao tác                                                                  | test        |
+| AC-019 | Backend gọi một permission **không có** trong catalog của `staff-access`                                               | Bị từ chối; catalog review phát hiện permission dùng mà không khai                                | test        |
+| AC-020 | Staff có quyền quản trị role, gán cho **người khác** một role chứa permission mà chính mình không có                   | `403` + có audit record (không cấp được quyền vượt quá authority của mình)                        | test        |
+
+## 6. Non-goals
+
+Đây là ranh giới, không phải backlog: bất kỳ mục nào ở cột "Không làm" nếu được implement trong `staff-access` sẽ vi phạm ownership đã chốt ([`../../architecture/01-architecture.md`](../../architecture/01-architecture.md) §8 A21–A24). Không có mục nào là "nếu có thời gian" — mỗi việc đều có chủ sở hữu khác đang làm.
+
+| Không làm                                                              | Vì sao                                                                                                                                            | Ai làm thay thế                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Dữ liệu danh tính của account, credential, MFA, passkey, recovery      | `account` sở hữu dữ liệu danh tính canonical của account                                                                                          | `account`                              |
+| OAuth 2.0/OIDC flows, client/redirect URI, token issuance & revocation | `auth` sở hữu giao thức; `staff-access` chỉ tiêu thụ token                                                                                        | `auth`                                 |
+| Ánh xạ OAuth scope → application permission                            | **Scope ≠ permission** — `account`/`auth`/`staff-access` đều không làm việc đó (A22)                                                              | không ai làm — hai khái niệm khác nhau |
+| Enforce authorization **thay** resource-owning backend                 | Mỗi backend enforce trên operation của chính nó (A23)                                                                                             | resource-owning backend                |
+| Database schema / migration cho staff/RBAC                             | Storage đã chốt ([staff-access ADR-0001](../../domains/staff-access/adr/0001-storage-schema-staff-rbac.md)); schema chi tiết → workstream A (#85) | —                                      |
+| Policy engine ngoài / ABAC / role hierarchy                            | **Deferred**: v1 = RBAC, bật khi có điều kiện kích hoạt được ghi ở §3.8 của thiết kế                                                              | —                                      |
+
+## 7. Quyết định kiến trúc
+
+Các quyết định kiến trúc của `staff-access` (storage/schema staff/RBAC, revocation latency theo risk class, cách đưa trạng thái authorization tới resource-owning backend, bootstrap first-admin, custom role administration, step-up mechanism, ABAC/ReBAC/role hierarchy, retention audit, internal contract cho kết quả authorization) được giữ ở **một chỗ con trỏ duy nhất**: [ADR index của bounded context](../../domains/staff-access/adr/README.md) — mỗi quyết định có canonical là một ADR, tài liệu này không nhân bản quyết định. Retention của authorization audit đi theo policy retention hệ thống, canonical ở [`../../architecture/01-architecture.md`](../../architecture/01-architecture.md) §10 ([staff-access ADR-0008](../../domains/staff-access/adr/0008-audit-retention.md)).
+
+## 8. Tham chiếu
+
+| Tiêu chuẩn                                                                           | URL                                                                                | Vì sao trích dẫn ở đây                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **RFC 9700** — Best Current Practice for OAuth 2.0 Security (BCP 240)                | https://www.rfc-editor.org/rfc/rfc9700.html                                        | Nền tảng cho SR-002/SR-003 theo hướng resource server: access token "SHOULD be audience-restricted to a specific resource server", "the resource server MUST refuse to serve the respective request", và "The privileges associated with an access token SHOULD be restricted to the minimum required"                                                                                                       |
+| **OIDC Core 1.0**                                                                    | https://openid.net/specs/openid-connect-core-1_0.html                              | ID Token là JWT "that contains Claims about the Authentication event" và validation `iss`/`aud`/`exp`/chữ ký theo §3.1.3.7 — vì sao ID Token không phải API access token cho resource server (SR-003)                                                                                                                                                                                                        |
+| **OWASP Authorization Cheat Sheet**                                                  | https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html      | SR-002/SR-003/SR-004/SR-016: deny by default, "Permission should be validated correctly on every request", server-side-only, object-level check, least privilege cả horizontal lẫn vertical, và authorization logging là detective control                                                                                                                                                                   |
+| **OWASP Session Management Cheat Sheet**                                             | https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html | SR-008/SR-017 và freshness ở §5 thiết kế: invalidate "server-side", "The session ID must be renewed or regenerated… after any privilege level change", xoá cookie một mình không invalidate bản sao session                                                                                                                                                                                                  |
+| **NIST SP 800-162** — Guide to ABAC Definition and Considerations                    | https://csrc.nist.gov/pubs/sp/800/162/upd2/final                                   | Định nghĩa ABAC: authorization "determined by evaluating attributes" của subject/object/operation/environment — cơ sở để ABAC **deferred** ở v1 (§3.8 thiết kế)                                                                                                                                                                                                                                              |
+| **NIST RBAC** — Role-Based Access Control project (NIST RBAC model, ANSI/INCITS 359) | https://csrc.nist.gov/projects/role-based-access-control                           | Cơ sở cho domain model §3: "The RBAC Reference Model defines sets of basic RBAC elements" (users, roles, permissions, operations, objects) — vì sao **role = tập permission** và permission gắn với action + resource domain (§3.3, §3.4). RBAC định nghĩa cả role hierarchies ([NIST RBAC FAQ](https://csrc.nist.gov/projects/role-based-access-control/faqs)), nhưng hierarchy là **deferred** ở v1 (§3.8) |

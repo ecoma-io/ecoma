@@ -1,0 +1,283 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run every project instead of the affected set'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Check PR title
+        if: github.event_name == 'pull_request'
+        run: pnpm dx pr-check
+      - name: Format check
+        if: github.event_name == 'pull_request'
+        run: npx oxfmt --check .
+      - name: Architecture tag validation
+        run: pnpm dx arch-check
+      # `force` chỉ tồn tại với workflow_dispatch; mọi trigger khác để nó rỗng và
+      # `!inputs.force` ra `true`, nên PR/push vẫn chạy theo affected như cũ.
+      # Khi dispatch với force=true thì affected=false → action rơi sang `run-many`.
+      - name: Linting &  type check
+        if: github.event_name != 'merge_group'
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: lint typecheck
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+
+  unit-test:
+    name: unit-test
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    # Target `test` chạy spec colocated với subject trong project sở hữu
+    # (contract `docs/architecture/06-testing.md` §4); suite app-owned dưới `tests/`
+    # chạy qua target `test-integration` ở job `integration-test` bên dưới.
+    # Lưu ý: một số project vẫn giữ spec phụ thuộc dependency thật colocated
+    # trong `src/`, nên chúng đang chạy dưới `test` ngay ở job này; dời về tầng
+    # đúng thuộc migration theo issue #357. Tách job để hai tầng test chạy song
+    # song trên hai runner thay vì nối tiếp trong cùng một job.
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      # Rust toolchain chỉ cài khi workspace có Cargo project — mọi PR JS thuần
+      # không trả phí cài đặt. Version compiler đọc từ `rust-toolchain.toml` ở
+      # workspace root (single source of truth cho cả local và CI, cùng nguồn
+      # với cache key Cargo); rustup directory override giữ local/CI cùng
+      # toolchain.
+      - name: Detect Cargo projects
+        id: cargo-projects
+        run: |
+          if find . -name 'Cargo.toml' -not -path '*/node_modules/*' -not -path './.nx/*' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "toolchain=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - name: Setup Rust toolchain
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
+          components: clippy, rustfmt
+      - name: Cache Cargo
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+      - name: Unit test
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: test
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+
+  integration-test:
+    name: integration-test
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    # PostgreSQL thật cho các suite `test-integration` của `apps/account`,
+    # `auth-infrastructure` và `apps/auth` đến từ **testcontainers**:
+    # mỗi spec file tự dựng một container `postgres:17-alpine`, provision hai role
+    # đúng runbook `apps/auth/migrations/README.md` (migrator có DDL, runtime chỉ
+    # DML) và apply migration bằng credential migrator thật. Không có service
+    # container hay biến `AUTH_TEST_PG_*` nào ở đây — runner chỉ cần có Docker.
+    # Password trong harness là của database nhúng ném đi sau mỗi run, không phải
+    # credential của môi trường thật; các migration không đọc secret nào.
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      # Rust toolchain chỉ cài khi workspace có Cargo project — mọi PR JS thuần
+      # không trả phí cài đặt. Version compiler đọc từ `rust-toolchain.toml` ở
+      # workspace root (single source of truth cho cả local và CI, cùng nguồn
+      # với cache key Cargo); rustup directory override giữ local/CI cùng
+      # toolchain.
+      - name: Detect Cargo projects
+        id: cargo-projects
+        run: |
+          if find . -name 'Cargo.toml' -not -path '*/node_modules/*' -not -path './.nx/*' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "toolchain=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - name: Setup Rust toolchain
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
+          components: clippy, rustfmt
+      - name: Cache Cargo
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+      - name: Integration test
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: test-integration
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+  build:
+    name: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Build
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: build
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+
+  # Bộ system test (Playwright + Chromium thật) chạy trên local platform stack
+  # thật: invocation `nx affected -t system-test -c local` là ĐƯỜNG DUY NHẤT dẫn
+  # stack vào job — qua `dependsOn` target `system-test` của từng suite trỏ tới
+  # `local-up` của deploy project nó cần, Nx tự schedule deploy prerequisite
+  # trước suite (task `local-up` chạy `pulumi up` thật, tự sinh passphrase Pulumi
+  # + mật khẩu PostgreSQL, KHÔNG secret production nào được inject, và task
+  # platform ghi `.env` với ROOT_HOST/ROOT_DOMAIN mà các suite đọc). Suite
+  # fail-closed khi stack không có (gate trong `global-setup.ts`), nên không
+  # deploy là đỏ: chạy thật là điều kiện của job này, không phải cải tiến. Không
+  # còn bước deploy hardcoded nào đứng trước invocation — trong đó PR docs-only
+  # được "không deploy" một cách tự nhiên: affected không chọn suite nào thì
+  # task graph rỗng, không `pulumi up` nào chạy.
+  #
+  # Job KHÔNG có `if:` nào — và đó là điều kiện đúng đắn của nó. `ci-gate` fail với
+  # mọi kết quả khác `success`, kể cả `skipped`, nên một job bị bỏ qua ở đây sẽ làm
+  # đỏ cả pipeline. Trên PR chỉ chạm tài liệu, `nx affected -t system-test` không có
+  # project nào bị ảnh hưởng và thoát 0 với "0 tasks" (các target `system-test` đều
+  # `cache: false`, nhưng affected = 0 task thì không tốn phút test — lẫn phút
+  # deploy — nào).
+  system-test:
+    name: system-test
+    runs-on: ubuntu-26.04
+    # Deploy lane 9 unit build image home/account/auth/pact/mail/push khi cache
+    # Docker của runner lạnh; tests bổ sung gate retry + chromium thật. 60 phút
+    # là trần đo từ budget 15 phút deploy + 4 suite chạy tuần tự (mỗi suite
+    # ~1 phút đo thực tế), không phải mục tiêu: job xanh điển hình kết thúc
+    # sớm hơn nhiều, và PR docs-only kết thúc gần như ngay lập tức (0 task).
+    timeout-minutes: 60
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      # `@playwright/test` không có postinstall tải browser, nên runner sạch không
+      # có Chromium; `--with-deps` cài luôn các thư viện hệ thống mà Chromium cần.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      # Deploy không còn là step riêng: nó nằm TRONG invocation bên dưới qua task
+      # graph (mỗi target `system-test` khai `dependsOn` → `local-up` của deploy
+      # project nó cần, configuration `local` chọn đúng lane), nên một invocation
+      # chạy trọn vẹn deploy + test. System-test KHÔNG retry: mã nguồn phải đáng
+      # tin cậy, retry chỉ che giấu flake thật và làm chậm phản hồi CI khi đỏ.
+      # Nếu race/deploy lock xuất hiện, phải sửa ở nguồn (container init, stack
+      # lock mồ côi) thay vì che bằng retry. `retries` giữ mặc định 1 (không
+      # retry) của action; `retry-command` không truyền.
+      # `threads: '1'`: cả 4 suite chia sẻ MỘT stack trên runner (grants, mail
+      # sink D1, OTP rate-limit, Traefik) — chạy song song tái tạo đúng xung đột
+      # chéo suite mà per-file identities đã xử lý trong phạm vi một suite, nên
+      # thực thi tuần tự theo quyết định của user.
+      - name: System tests
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: system-test
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+          threads: '1'
+          configuration: local
+      # Chỉ khi đỏ: trace, screenshot và HTML report là bằng chứng duy nhất còn lại
+      # sau khi runner bị xoá, và không có chúng thì một job đỏ ở CI là thứ người
+      # khác không tái hiện được. Đường dẫn theo BỐN suite system-test
+      # (`system-tests/e2e/<suite>/`) — mỗi suite tự giữ `playwright-report/` +
+      # `test-results/` ngay trong project của nó.
+      - name: Upload Playwright artifacts
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: system-test-playwright-artifacts
+          path: system-tests/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ci-gate:
+    name: ci-gate
+    needs: [verify, unit-test, integration-test, build, system-test]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/aggregate-gate
+        with:
+          results: ${{ join(needs.*.result, ' ') }}
+          gate-name: 'ci-gate'

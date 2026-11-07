@@ -1,0 +1,43 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "declaration": true,
+    "lib": ["es2023", "dom"],
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    // Spec import harness bằng phần mở rộng thật (`../tests/integrations/harness.ts`):
+    // Vitest cần nó khi chạy, và đây là điều kiện để `import.meta.dirname` được type
+    // đúng — cùng cách `tsconfig.db.json` của `apps/account` đã ghi lại.
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "vite.config.ts",
+    "vite.config.mts",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    // Source runner DB của unit được spec integration import trực tiếp — phải
+    // nằm trong file list của project này (composite + files cứng) hoặc tsc
+    // TS6307. `db/**` không thuộc `tsconfig.app.json` (edge runtime), nên thêm
+    // ở đây thay vì mở include của app.
+    "db/**/*.mts",
+    "tests/**/*.ts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.js",
+    "src/**/*.spec.js",
+    "src/**/*.test.jsx",
+    "src/**/*.spec.jsx",
+    "src/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
+}

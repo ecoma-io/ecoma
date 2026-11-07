@@ -1,0 +1,20 @@
+{
+  "include": [
+    "**/*.md",
+    "**/*.markdown",
+    "**/*.mdx",
+    "**/*.spec.{js,jsx,ts,tsx}",
+    "**/*.test.{js,jsx,ts,tsx}",
+    "**/*_test.py"
+  ],
+  "exclude": [
+    "**/*.generated.*",
+    "**/testdata/**",
+    "**/fixtures/**",
+    "**/__tests__/**",
+    "**/__snapshots__/**",
+    "**/dist/**",
+    "**/.nuxt/**",
+    "**/{id_rsa,id_dsa,id_ecdsa,id_ed25519}*"
+  ]
+}

@@ -1,0 +1,215 @@
+name: Code Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    # PR đã được scan đầy đủ ở lượt pull_request trước khi vào merge queue, nên
+    # lượt chạy lặp lại ở merge_group chỉ tốn runner mà không thêm thông tin.
+    if: github.event_name != 'merge_group'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@a3d1b77a1ba1550fbb5c74db1dc3a11f4a481126 # v3.39.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # ⚠️ `paths`/`paths-ignore` KHÔNG phải input của action (đã soi
+          # action.yml ở SHA pin) — chúng nằm trong config file này. File hiện
+          # chỉ loại `.github/semgrep` (fixture harness của Semgrep, xem comment
+          # trong file vì sao là loại có chủ đích chứ không phải né finding).
+          config-file: ./.github/codeql-config.yml
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@a3d1b77a1ba1550fbb5c74db1dc3a11f4a481126 # v3.39.2
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  semgrep:
+    name: Semgrep
+    # Xem comment ở job `codeql` phía trên.
+    if: github.event_name != 'merge_group'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Test the rules against their fixtures
+        run: pnpm dx semgrep-test-ci
+      # `semgrep-scan-ci`, không phải `semgrep-scan-local`: bản local có điều kiện
+      # chạy theo file đã đổi, còn ở đây một lần scan bị bỏ qua là required check
+      # xanh trong khi chưa quét gì. Hai lệnh dùng chung engine, rule và gate.
+      - name: Scan
+        run: pnpm dx semgrep-scan-ci --report-path=/tmp/semgrep.sarif
+      # Hai bước cuối của job này dùng chung một định nghĩa "finding được chấp
+      # nhận" trong `.github/semgrep/accepted-shapes.json` (xem comment trong
+      # file vì sao 3 shape này là thiết kế có chủ đích chứ không phải né
+      # finding): bước `Filter` bỏ chúng khỏi SARIF trước khi upload, bước
+      # `Enforce` thay `--error` bằng chế độ gate của cùng script.
+      #
+      # Vì sao không dùng cơ chế sẵn có của semgrep:
+      # * `nosemgrep` (inline suppression): đo trên 1.181.0 — làm `--error` xanh
+      #   NHƯNG result vẫn nằm trong SARIF, nên code scanning vẫn mở alert. Tệ
+      #   hơn nữa: chuỗi token đó trong PROSE bình thường (comment giải thích)
+      #   cũng kích hoạt `suppressions: inSource` cho finding ở dòng kế tiếp —
+      #   đã gặp thật trên authorization-service.ts ở repo này.
+      # * `paths.exclude` của rule: loại cả FILE khỏi quét, che luôn finding
+      #   thật phát sinh sau này trong cùng file đó.
+      # * `--error` + exit code: không phân biệt được accepted với finding mới.
+      # Script fail-closed theo cả hai hướng: dòng nguồn lệch khỏi regex ghim
+      # → FAIL (phải xem lại bởi người); entry không còn khớp result nào → FAIL
+      # (ép prune khi finding đã được sửa thật).
+      - name: Filter the accepted shapes out of the SARIF
+        run: >-
+          python3 .github/semgrep/filter-accepted.py filter
+          /tmp/semgrep.sarif .github/semgrep/accepted-shapes.json
+          > /tmp/semgrep.upload.sarif
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@a3d1b77a1ba1550fbb5c74db1dc3a11f4a481126 # v3.39.2
+        with:
+          sarif_file: /tmp/semgrep.upload.sarif
+          category: semgrep
+      - name: Enforce the repository's own rules
+        run: >-
+          pnpm dx semgrep-scan-ci --report-path=/tmp/semgrep.gate.sarif
+          && python3 .github/semgrep/filter-accepted.py gate
+          /tmp/semgrep.gate.sarif .github/semgrep/accepted-shapes.json
+
+  gitleaks:
+    name: Gitleaks
+    # Xem comment ở job `codeql` phía trên.
+    if: github.event_name != 'merge_group'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Bước resolve scope chạy `pnpm dx gitleaks-scope`, mà `tools/dx` phụ thuộc
+      # `citty` — nên job này cần cài dependency. Workflow này vốn chỉ chạy
+      # scanner tải về nên chưa từng cần; các job khác (`semgrep`, `codeql`) giữ
+      # nguyên không cài.
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      # `gitleaks detect` không có `--log-opts` thì chạy
+      # `git log -p -U0 --full-history --all` — `--all` là MỌI ref trong
+      # checkout, nên một PR sạch vẫn đỏ vì secret nằm ở nhánh không liên quan,
+      # và `analysis-gate` (required check) đỏ theo. Bước này chọn đúng range
+      # cho từng event và XÁC MINH nó trước khi gitleaks chạy: gitleaks 8.30.1
+      # trả exit 0 cho cả range rỗng lẫn range không tồn tại, tức "quét sai
+      # phạm vi" và "không có secret" cùng ra một tín hiệu xanh.
+      - name: Resolve the scan scope
+        id: scope
+        env:
+          GITLEAKS_EVENT_NAME: ${{ github.event_name }}
+          GITLEAKS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITLEAKS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GITLEAKS_BEFORE_SHA: ${{ github.event.before }}
+          GITLEAKS_AFTER_SHA: ${{ github.event.after }}
+        run: |
+          # Qua entrypoint citty (`pnpm dx <subcommand>`), không phải chạy file
+          # .ts trực tiếp: file đó export default một `defineCommand`, nên chạy
+          # thẳng sẽ không vào `run()` và im lặng exit 0.
+          #
+          # `pipefail` là bắt buộc ở đây. Trong `a | b | c` chỉ exit code của `c`
+          # quyết định, nên khi dx fail (ví dụ range rỗng) mà `grep` vẫn tìm
+          # được dòng `log-opts=` rỗng thì step vẫn XANH và `SCAN_LOG_OPTS` rỗng
+          # — tức quét sai phạm vi trong khi gate báo sạch. Fail closed bắt buộc
+          # phải nhìn exit code của chính dx.
+          set -o pipefail
+          scope_output=$(npx tsx tools/dx gitleaks-scope | tee /dev/stderr)
+          echo "$scope_output" | grep '^log-opts=' >> "$GITHUB_OUTPUT"
+          echo "$scope_output" | grep '^commits=' >> "$GITHUB_OUTPUT"
+          {
+            echo "--- gitleaks scan scope ---"
+            echo '```'
+            echo "$scope_output" | grep '^gitleaks '
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Scan for secrets
+        env:
+          SCAN_LOG_OPTS: ${{ steps.scope.outputs.log-opts }}
+        run: |
+          # `gitleak-ci` tự fail-closed: gọi checkScanRange trước khi chạy
+          # docker, và KHÔNG chạy docker nếu range rỗng / không tồn tại / không
+          # resolve được. Điều này ngăn việc một lần quét rỗng (gitleaks trả
+          # exit 0 kèm "0 commits scanned") bị hiểu nhầm là đã qua gate.
+          #
+          # `GITLEAKS_CONFIG_TOML` là precedence cao nhất sau `--config` và chỉ
+          # gộp `useDefault`, nên nó ép bộ rule về đúng mặc định của gitleaks,
+          # bỏ qua mọi `.gitleaks.toml` mà PR thêm vào. Xoá `.gitleaksignore`
+          # khỏi worktree là cách chặn duy nhất còn lại. Repo hiện không có
+          # file nào trong hai danh sách này, nên không mất khả năng đang dùng;
+          # nếu sau này cần thì phải do CI sở hữu, không do PR mang vào.
+          rm -f "$GITHUB_WORKSPACE/.gitleaksignore"
+          export GITLEAKS_CONFIG_TOML=$'[extend]\nuseDefault = true\n'
+          pnpm dx gitleak-ci --git-log-opts="$SCAN_LOG_OPTS"
+      - name: Upload the findings report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gitleaks-results.sarif
+          path: ${{ runner.temp }}/results.sarif
+          if-no-files-found: ignore
+
+  analysis-gate:
+    name: analysis-gate
+    needs: [codeql, semgrep, gitleaks]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Analysis intentionally skipped for merge_group
+        # Trong merge queue, các job analysis (codeql/semgrep/gitleaks) đã bị skip
+        # vì PR đã được scan đầy đủ ở lượt pull_request; gate không có kết quả nào
+        # để tổng hợp nên chỉ ghi log rồi kết thúc thành công. Không coi lượt skip
+        # này là một lần scan đã qua.
+        if: github.event_name == 'merge_group'
+        run: |
+          echo "::notice::[analysis-gate] Security analysis intentionally skipped for merge_group; the pull_request run already scanned this change set."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name != 'merge_group'
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/aggregate-gate
+        if: github.event_name != 'merge_group'
+        with:
+          results: ${{ join(needs.*.result, ' ') }}
+          gate-name: 'analysis-gate'

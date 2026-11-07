@@ -1,0 +1,114 @@
+{
+  "name": "web-push-notification-job-deploy",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "ecoma": {
+    "deployment": {
+      "status": "scaffold"
+    }
+  },
+  "nx": {
+    "implicitDependencies": [
+      "platform-deploy"
+    ],
+    "tags": [
+      "type:deployment",
+      "scope:notifications",
+      "runtime:native"
+    ],
+    "targets": {
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/deploys/.eslintignore",
+          "{workspaceRoot}/deploys/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "production",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/bin/tsconfig.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/web-push-notification-job-deploy",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

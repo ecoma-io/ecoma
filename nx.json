@@ -1,0 +1,124 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "analytics": false,
+  "neverConnectToCloud": true,
+  "tui": {
+    "enabled": false
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/.oxlintrc.json",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/.output",
+      "!{projectRoot}/.nuxt",
+      "!{projectRoot}/dist"
+    ],
+    "sharedGlobals": []
+  },
+  "plugins": [],
+  "release": {
+    "projects": ["@ecoma-io/home"],
+    "projectsRelationship": "independent",
+    "version": {
+      "conventionalCommits": true,
+      "fallbackCurrentVersionResolver": "disk"
+    },
+    "versionPlans": true,
+    "git": {
+      "commit": false,
+      "commitMessage": "chore: release {projectName} {version}",
+      "tag": false,
+      "push": false
+    },
+    "changelog": {
+      "projectChangelogs": {
+        "file": "{projectRoot}/CHANGELOG.md"
+      }
+    },
+    "releaseTag": {
+      "pattern": "{projectName}@{version}"
+    }
+  },
+  "targetDefaults": {
+    "test": {
+      "dependsOn": [],
+      "metadata": {
+        "//": [
+          "Mặc định KHÔNG build upstream trước unit test. Mọi package workspace",
+          "export thẳng `./src/index.ts` (điều kiện `@ecoma-io/source` + `default`",
+          "trong `exports`), vitest chạy TS nguồn trực tiếp — không spec nào import",
+          "`dist/`, nên `^build` từng là chi phí chết: mỗi `nx test` kéo cả chuỗi",
+          "build của mọi lib phụ thuộc (L0 baseline 2026-10: ~795s/39 project,",
+          "phần lớn là build không ai đọc). App nào test thật sự cần artifact build",
+          "phải khai `dependsOn` riêng ở project của nó (vd `apps/home` đọc",
+          "`.output/` sau `build`, `apps/account` test-integration đọc bundle",
+          "Nitro) — mặc định chung này chỉ phục vụ lane unit, nơi artifact không",
+          "tồn tại trong imports."
+        ]
+      }
+    },
+    "@nx/esbuild:esbuild": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": [
+        "production",
+        "^production",
+        {
+          "json": "{workspaceRoot}/tsconfig.json",
+          "fields": ["extends", "files", "include"]
+        },
+        "{workspaceRoot}/pnpm-workspace.yaml",
+        {
+          "json": "{workspaceRoot}/package.json",
+          "fields": [
+            "packageManager",
+            "pnpm.onlyBuiltDependencies",
+            "pnpm.neverBuiltDependencies",
+            "pnpm.allowBuilds",
+            "pnpm.supportedArchitectures",
+            "pnpm.patchedDependencies"
+          ]
+        },
+        {
+          "runtime": "node -e \"try{console.log('pnpm major '+require('child_process').execSync('pnpm --version',{stdio:['ignore','pipe','ignore']}).toString().trim().split('.')[0])}catch{console.log('pnpm major unavailable')}\""
+        }
+      ]
+    },
+    "local-up": [
+      {
+        "filter": {
+          "projects": ["tag:type:deployment"]
+        },
+        "cache": false,
+        "metadata": {
+          "//": "Local deployment lane targets. Thứ tự up là CONTRACT nhưng NẰM TRONG từng deploy project (target `local-up` khai `dependsOn` riêng của nó trong `deploys/*/package.json` — chỉ các prerequisite THẬT: platform + StackReference/secret cross-stack, không có cạnh chỉ-tạo-thứ-tự) — `nx.json` chỉ đặt chính sách chung: `cache: false` là CONTRACT chứ không phải tối ưu, target mutate Docker resource và Pulumi state thật của máy developer, cache hit là bỏ một side effect. Lệnh thực thi là entry colocated `deploys/<p>/local.ts up` (KHÔNG khóa lane toàn cục, không gọi lệnh DX nào; serialization thật của cùng một stack là state lock của Pulumi). Một unit test chặn target local-* quay lại cacheable hoặc sinh configuration (lane) mới — lane local phải là lane DUY NHẤT của các target này."
+        }
+      }
+    ],
+    "local-down": [
+      {
+        "filter": {
+          "projects": ["tag:type:deployment"]
+        },
+        "cache": false,
+        "metadata": {
+          "//": "Xem entry `local-up`: cùng một-lane policy (không bao giờ cacheable). Teardown KHÔNG yêu cầu thứ tự ngược toàn cục: mỗi deploy project tự xoá resource của mình trong namespace Docker của worktree — `pulumi destroy` tự serialize trên stack state của chính nó, hai stack khác nhau độc lập nhau, và resource chéo stack duy nhất (Docker network của platform) là namespace-scoped: destroy platform khi container unit còn gắn sẽ fail-loud với 'active endpoints' và xanh lại khi chạy lại sau khi unit đã down, nên an toàn mà KHÔNG cần cạnh teardown. Target này cố ý KHÔNG có `dependsOn`: các project down song song, chạy lại local-down sau khi các unit đã down là idempotent."
+        }
+      }
+    ],
+    "local-smoke": [
+      {
+        "filter": {
+          "projects": ["platform-deploy"]
+        },
+        "cache": false,
+        "metadata": {
+          "//": "Xem entry `local-up`: lane local duy nhất, không bao giờ cacheable. `dependsOn` chỉ gồm `home-deploy:local-up` — smoke HTTPS kiểm chuỗi redirect `/` → `/en` của home qua Traefik, nên home là prerequisite THẬT của giá trị smoke; KHÔNG kéo các unit khác vì smoke không đo chúng (cạnh đó sẽ chỉ tạo thứ tự). Là node lá của lane."
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node"],
+    "lib": ["es2022"],
+    "tsBuildInfoFile": "out-tsc/vitest/tsconfig.spec.tsbuildinfo"
+  },
+  "include": ["vitest.config.mts", "src/**/*.test.ts", "src/**/*.spec.ts", "tests/**/*.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
+}

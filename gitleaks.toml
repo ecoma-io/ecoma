@@ -1,0 +1,62 @@
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  '''^tmp/''',
+  '''^.nx/''',
+  '''^*/node_modules/''',
+  '''^*/dist/''',
+  '''^*/.output/''',
+  '''.*/.nuxt/.*''',
+  'deploys/platform-deploy/local-certs',
+  # Stack Pulumi local theo namespace — chứa passphrase/secret của stack local,
+  # nằm trong .gitignore (Pulumi.local-*.yaml), không bao giờ vào Git/PR.
+  # `gitleaks dir` quét cả file gitignored trên máy developer nên cần allowlist
+  # tường minh để không chặn push từ worktree đã dựng local stack.
+  # Prefix worktree lồng nhau (`^(\.claude/worktrees/[^/]+/)?`) khớp cả scan chạy
+  # từ checkout chính với worktree agent con (`agent-*/deploys/...`) — cùng quy
+  # ước với các pattern phía dưới; thiếu prefix thì mọi push từ checkout giữ
+  # worktree agent đã dựng local stack bị chặn bởi state Pulumi của agent (đo
+  # được: 18 findings generic-api-key chặn pre-push).
+  '''^(\.claude/worktrees/[^/]+/)?deploys/[^/]+/Pulumi\.local-[^/]+\.yaml$''',
+  # Log wrangler dev của local worker stack: output wrangler nhét cả request
+  # headers vào log, trong đó có shared secret cục bộ của worktree (mục đích
+  # mỗi worktree tự xoay, không dùng chung). Thư mục nằm trong .gitignore
+  # (`.worker-local-state/`) và không bao giờ vào Git/PR — quét ra đây chỉ
+  # sinh false positive chặn mọi push từ worktree đã chạy local stack.
+  # State dir ngoài log còn chứa generated config và D1/Queue local, chỉ
+  # allowlist đúng tài sản gây leak đã đo
+  # (`<stateDir>/.wrangler-home/.wrangler/logs/`)
+  # để phần còn lại vẫn giữ độ phủ scan.
+  # Phù hợp cả khi scan chạy từ worktree lồng nhau (vd `.claude/worktrees/<name>/...`).
+  # Chỉ thư mục log của wrangler — tệp khác dưới `.wrangler/` (vd cache credential
+  # khi login) vẫn giữ độ phủ scan.
+  '''^(\.claude/worktrees/[^/]+/)?\.worker-local-state/\.wrangler-home/\.wrangler/logs/''',
+  # `.dev.vars` của mọi service app — per-worktree local secret, luôn gitignored
+  # (`.dev.vars*`). `generic-api-key` khớp đúng dạng giá trị của nó
+  # (MAIL_QUARANTINE_HMAC_KEY hex, MAIL_FINGERPRINT_KEYRING); không allowlist thì
+  # một thay đổi giá trị sau này chặn push từ mọi worktree đã dựng local stack.
+  # Mẫu tổng quát theo `devVarsArgv` (tools/dx) — generic mọi worker entry, không
+  # neo cứng prefix để khớp cả worktree lồng nhau; neo `$` đúng filename duy nhất
+  # mà orchestration đọc (biến thể `.dev.vars.*` khác vẫn giữ độ phủ scan).
+  # Lưu ý: allowlist theo path áp dụng cho MỌI chế độ quét gồm cả `gitleaks detect`
+  # lịch sử Git; nếu `.dev.vars` bị commit nhầm qua `git add -f`, scan sẽ im lặng —
+  # biện pháp bù chưa triển khai tại thời điểm PR này (theo dõi issue #48).
+  '''^(\.claude/worktrees/[^/]+/)?apps/[^/]+/\.dev\.vars$''',
+  # `.env` ở root worktree — artifact orchestration ghi `ROOT_HOST` +
+  # `POSTGRES_PASSWORD` sau khi đọc platform outputs (đúng hai key này, mode 0600,
+  # gitignored `.env*`, không chương trình Pulumi nào đọc nó). `gitleaks dir` quét
+  # cả file gitignored nên không allowlist thì mọi push từ worktree đã dựng local
+  # stack bị chặn bởi chính artifact của công cụ — cùng lớp false positive với
+  # hai mục ở trên. Neo đúng filename `.env` ở root (hoặc worktree lồng nhau);
+  # biến thể `.env.<gì khác>` không khớp vẫn giữ độ phủ scan.
+  '''^(\.claude/worktrees/[^/]+/)?\.env$''',
+  # History file của Pulumi CLI dưới state backend cục bộ — CLI ghi toàn bộ
+  # config mỗi lệnh (gồm secret plaintext của stack local) vào
+  # `.pulumi-local-state/.pulumi/history/<project>/<stack>/*.history.json`
+  # (đo được, chặn push thật). Toàn thư mục state nằm trong .gitignore
+  # (`.pulumi-local-state/`) và là state máy developer — allowlist đúng
+  # thư mục history, phần khác của state vẫn giữ độ phủ scan.
+  '''^(\.claude/worktrees/[^/]+/)?\.pulumi-local-state/\.pulumi/history/''',
+]

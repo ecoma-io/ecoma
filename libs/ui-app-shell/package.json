@@ -1,0 +1,175 @@
+{
+  "name": "@ecoma-io/ui-app-shell",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "@ecoma-io/source": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./styles/app-shell.css": "./src/styles/app-shell.css"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.57.0",
+    "@vueuse/core": "^15.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "reka-ui": "^2.11.0",
+    "tailwind-merge": "^3.7.0",
+    "tw-animate-css": "^1.4.0",
+    "vaul-vue": "^0.4.1"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.13"
+  },
+  "nx": {
+    "tags": [
+      "type:application",
+      "scope:shared",
+      "runtime:universal"
+    ],
+    "targets": {
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default"
+        ],
+        "options": {
+          "cwd": "{projectRoot}",
+          "command": "vue-tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "//": [
+          "Ghi đè target `typecheck` mà plugin @nx/js suy ra. Target suy ra chạy",
+          "`tsc --build tsconfig.json --emitDeclarationOnly`, nhưng `tsc` gốc",
+          "không đọc được `.vue` — lib này re-export component SFC từ index nên",
+          "program của lib chứa `.vue`, và `tsc` sẽ báo TS6307 rồi `noEmitOnError`",
+          "chặn emit. `vue-tsc` là compiler hiểu SFC; dùng cùng cờ `--build` và",
+          "cùng tsconfig để giữ nguyên project references và buildinfo."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/libs/.eslintignore",
+          "{workspaceRoot}/libs/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "libs/ui-app-shell",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "build": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default"
+        ],
+        "outputs": [
+          "{workspaceRoot}/dist/out-tsc/ui-app-shell"
+        ],
+        "options": {
+          "cwd": "{projectRoot}",
+          "command": "vue-tsc --build tsconfig.lib.json"
+        },
+        "//": "Dùng vue-tsc thay vì tsc thuần để emit declaration đúng cho SFC .vue; với emitDeclarationOnly chỉ sinh .d.ts, không sinh JS rác."
+      }
+    }
+  }
+}

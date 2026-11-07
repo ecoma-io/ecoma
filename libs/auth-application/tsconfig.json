@@ -1,0 +1,45 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "rootDir": "src",
+    "lib": ["es2022", "dom"],
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "out-tsc",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    // Test-support chỉ tồn tại lúc spec (fixture dựng port thật cho spec colocated):
+    // không thuộc bundle lib, và lib build không cần type `jose` lúc emit d.ts.
+    "src/signing-key-test-support.ts"
+  ],
+  "references": [
+    {
+      "path": "../auth-domain"
+    },
+    {
+      "path": "../account-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../auth-contracts/tsconfig.lib.json"
+    }
+  ],
+  "nx": {
+    "sync": {
+      "ignoredReferences": [
+        "../account-contracts/tsconfig.lib.json",
+        "../auth-contracts/tsconfig.lib.json"
+      ]
+    }
+  }
+}

@@ -1,0 +1,216 @@
+{
+  "name": "platform-deploy",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {
+    "@ecoma-io/deployment": "workspace:*"
+  },
+  "ecoma": {
+    "deployment": {
+      "status": "implemented"
+    }
+  },
+  "nx": {
+    "implicitDependencies": [
+      "@ecoma-io/deployment"
+    ],
+    "tags": [
+      "type:deployment",
+      "scope:platform",
+      "runtime:native"
+    ],
+    "targets": {
+      "local-up": {
+        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi health gate container CỦA CHÍNH unit (`ecoma-<ns>-postgres` healthy theo healthcheck Docker của unit). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/platform-deploy",
+          "command": "npx tsx local.ts up"
+        },
+        "configurations": {
+          "local": {}
+        }
+      },
+      "local-smoke": {
+        "//": "Smoke HTTPS qua Traefik (`local.ts smoke`, script `local-smoke.mjs`): kiểm đúng MỘT chuỗi — `/` của home trả 302 `/en`, `/en` trả 2xx HTML title Ecoma.io, TLS verify bằng certificate local. Prerequisite duy nhất là `home-deploy:local-up` — cạnh có căn cứ kỹ thuật (smoke đo hành vi của home); KHÔNG kéo auth/pact/mail/push vì smoke không đo chúng và cạnh đó chỉ tạo thứ tự. `nx run-many -t local-up -c local` vẫn dựng đủ lane vì mỗi unit khai `dependsOn` riêng; smoke chỉ dành cho bước xác minh cuối lane. Là node lá (không ai dependsOn nó).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/platform-deploy",
+          "command": "npx tsx local.ts smoke"
+        },
+        "configurations": {
+          "local": {}
+        },
+        "dependsOn": [
+          {
+            "projects": [
+              "home-deploy"
+            ],
+            "target": "local-up"
+          }
+        ]
+      },
+      "local-down": {
+        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`; platform tự xoá volume PostgreSQL mọi lần down). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/platform-deploy",
+          "command": "npx tsx local.ts down"
+        },
+        "configurations": {
+          "local": {}
+        }
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/platform-deploy",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/deploys/.eslintignore",
+          "{workspaceRoot}/deploys/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "production",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/bin/deploys/platform-deploy/tsconfig.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/platform-deploy",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

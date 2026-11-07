@@ -1,0 +1,52 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./libs/auth-application"
+    },
+    {
+      "path": "./libs/auth-domain"
+    },
+    {
+      "path": "./deploys/web-push-notification-job-deploy"
+    },
+    {
+      "path": "./deploys/transactional-mailer-job-deploy"
+    },
+    {
+      "path": "./deploys/transactional-mail-deploy"
+    },
+    {
+      "path": "./deploys/push-notification-deploy"
+    },
+    {
+      "path": "./deploys/pact-broker-api-deploy"
+    },
+    {
+      "path": "./deploys/pact-broker-app-deploy"
+    },
+    {
+      "path": "./deploys/backoffice-deploy"
+    },
+    {
+      "path": "./deploys/platform-deploy"
+    },
+    {
+      "path": "./deploys/account-deploy"
+    },
+    {
+      "path": "./deploys/auth-deploy"
+    },
+    {
+      "path": "./deploys/home-deploy"
+    },
+    {
+      "path": "./deploys/staff-access-deploy"
+    },
+    {
+      "path": "./deploys/remote-cache-deploy"
+    }
+  ]
+}

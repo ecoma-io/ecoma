@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Loss functions: what does a model actually learn to minimize?</title>
+  <desc id="cover-desc">Course cover for lesson 07 of 30, Classical machine learning. Abstract crossing curves motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 07 of 30 · Classical machine learning</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="281.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="44" font-weight="650" fill="#0f172a">Loss functions: what does a</text>
+  <text x="88" y="339.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="44" font-weight="650" fill="#0f172a">model actually learn to</text>
+  <text x="88" y="397.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="44" font-weight="650" fill="#0f172a">minimize?</text>
+
+  <g aria-hidden="true">
+    <path d="M 836 126 C 962 216, 982 432, 1184 452" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round"/>
+        <path d="M 836 452 C 952 452, 1032 136, 1184 126" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>
+        <line x1="836" y1="472" x2="1184" y2="472" stroke="#cbd5e1" stroke-width="3"/>
+        <circle cx="1008" cy="268" r="10" fill="#0f172a"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">07 / 30</text>
+</svg>

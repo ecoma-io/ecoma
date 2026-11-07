@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Gradient descent and backpropagation: learning through optimization</title>
+  <desc id="cover-desc">Course cover for lesson 08 of 30, Classical machine learning. Abstract contour descent motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 08 of 30 · Classical machine learning</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="275.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="650" fill="#0f172a">Gradient descent and</text>
+  <text x="88" y="337.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="650" fill="#0f172a">backpropagation: learning</text>
+  <text x="88" y="399.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="650" fill="#0f172a">through optimization</text>
+
+  <g aria-hidden="true">
+    <ellipse cx="1010" cy="294" rx="170" ry="120" fill="none" stroke="#cbd5e1" stroke-width="4"/>
+        <ellipse cx="1010" cy="294" rx="120" ry="84" fill="none" stroke="#cbd5e1" stroke-width="4"/>
+        <ellipse cx="1010" cy="294" rx="70" ry="49" fill="none" stroke="#cbd5e1" stroke-width="4"/>
+        <path d="M 842 136 L 930 208 L 1008 272 L 984 276 L 998 286" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="998" cy="286" r="12" fill="#0f766e"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">08 / 30</text>
+</svg>

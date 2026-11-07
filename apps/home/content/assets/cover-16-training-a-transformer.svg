@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Training a transformer: from tokens to parameter updates</title>
+  <desc id="cover-desc">Course cover for lesson 16 of 30, Pretraining and scaling. Abstract cycle loop motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 16 of 30 · Pretraining and scaling</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="312.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Training a transformer: from</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">tokens to parameter updates</text>
+
+  <g aria-hidden="true">
+    <path d="M 903.1 239.5 A 120 120 0 0 1 1130.0 294.0" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round"/>
+        <path d="M 1093.6 208.0 A 120 120 0 0 1 974.5 408.6" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round"/>
+        <path d="M 1107.1 364.5 A 120 120 0 0 1 891.5 275.2" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round"/>
+        <path d="M 939.5 391.1 A 120 120 0 0 1 1028.8 175.5" fill="none" stroke="#4f46e5" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="1010" cy="294" r="52" fill="#e0e7ff" stroke="#4f46e5" stroke-width="4"/>
+        <text x="1010" y="303" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#0f172a" text-anchor="middle">step</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">16 / 30</text>
+</svg>

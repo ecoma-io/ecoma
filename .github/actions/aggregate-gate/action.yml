@@ -1,0 +1,47 @@
+name: 'Aggregate Gate'
+description: 'Evaluates multiple job results using a strict ALLOW-list approach to ensure all dependencies succeeded.'
+
+inputs:
+  results:
+    # KHÔNG dùng `${{ join(needs.*.result, ' ') }}`: cả file này được phân tích
+    # như một expression template, mà `needs` không nằm trong scope của metadata
+    # của một composite action, nên chỉ cần nhắc tới nó ở đây là fail template
+    # validation trước khi bất kỳ step nào chạy.
+    # Caller tự join các kết quả rồi truyền chuỗi đã hoàn tất vào đây.
+    description: 'Space-separated results of the needs context, joined into one string by the caller'
+    required: true
+  gate-name:
+    description: 'Name of the gate for logging purposes'
+    required: false
+    default: 'aggregate-gate'
+
+runs:
+  using: 'composite'
+  steps:
+    # Một ALLOW-list: nêu tên duy nhất kết quả có nghĩa là "an toàn" và fail với mọi thứ khác.
+    # Hình dạng deny-list (`contains(..., 'failure') || ... 'cancelled'`) có thể báo xanh
+    # trên một pipeline đỏ nếu một dependency fail ở step "Set up job" trong lúc sự cố
+    # (dẫn tới một trạng thái rỗng hoặc không nhận ra được).
+    - name: Fail unless every job succeeded
+      shell: bash
+      env:
+        RESULTS: ${{ inputs.results }}
+        GATE_NAME: ${{ inputs.gate-name }}
+      run: |
+        echo "[$GATE_NAME] needs results:${RESULTS:-<empty>}"
+
+        # Chặn trường hợp kết quả rỗng (ví dụ job hỏng hoàn toàn nên không khởi động được)
+        if [ -z "$RESULTS" ]; then
+          echo "::error::[$GATE_NAME] got no result from its dependencies. Refusing to pass."
+          exit 1
+        fi
+
+        # Kiểm tra nghiêm ngặt rằng MỌI kết quả đều là 'success'
+        for result in $RESULTS; do
+          if [ "$result" != "success" ]; then
+            echo "::error::[$GATE_NAME] a required job reported '$result' rather than success."
+            exit 1
+          fi
+        done
+
+        echo "[$GATE_NAME] Every required job succeeded."

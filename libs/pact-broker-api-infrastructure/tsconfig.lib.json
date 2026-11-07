@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    // WebCrypto (`crypto.subtle`) của SHA-256 tính content hash cần lib
+    // `dom` — cùng cách `libs/identity-auth-domain` đã làm.
+    "lib": ["es2022", "dom"],
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "out-tsc", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": [
+    {
+      "path": "../pact-broker-api-application/tsconfig.lib.json"
+    },
+    {
+      "path": "../pact-broker-api-domain/tsconfig.lib.json"
+    }
+  ]
+}

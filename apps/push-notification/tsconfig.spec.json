@@ -1,0 +1,36 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "module/moduleResolution KHÔNG nodenext: nodenext hạ CommonJS cho package không có `\"type\": \"module\"`, và `import.meta` (mà `tests/d1-harness.ts` dùng để định vị `migrations/`) là compile error dưới CommonJS (TS1470). App build ra ESM (`@nx/esbuild` `format: esm`), nên spec project phải cùng module goal — cùng lý do và cùng hệ quả như `tsconfig.app.json` của app này. `lib` nâng lên `es2023` (base đặt `es2022`) vì `unicorn/no-array-sort` cấm `Array#sort` còn `toSorted` chỉ có trong es2023; `target` giữ nguyên nên output không phát sinh cú pháp mới.",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "declaration": true,
+    "lib": ["es2023"],
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "vite.config.ts",
+    "vite.config.mts",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "vitest.integration.config.mts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.js",
+    "src/**/*.spec.js",
+    "src/**/*.test.jsx",
+    "src/**/*.spec.jsx",
+    "src/**/*.d.ts",
+    "tests/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
+}

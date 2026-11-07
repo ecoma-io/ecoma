@@ -1,0 +1,71 @@
+{
+  // Control plane của Push Notification: internal API (không hostname public),
+  // domain state trong D1 `push` (Device, Subscription, Provider, Notification,
+  // Delivery, Outbox) và publish Delivery Command sang Queue qua transactional
+  // outbox. Routing LUÔN xảy ra trước khi enqueue.
+  //
+  // Reference: docs/applications/push-notification/01-architecture.md §12,
+  // docs/applications/push-notification/03-operations.md §4–§5,
+  // docs/architecture/01-architecture.md (service map `push-notification`).
+  //
+  // KHÔNG bật `nodejs_compat`: project mang tag `runtime:edge` và
+  // .oxlintrc.json chặn import Node.js builtin trong mọi project `runtime:edge`.
+  //
+  // KHÔNG có `routes`/`hostname` public — service chỉ có internal API,
+  // gọi qua Service Binding từ Worker cùng account (architecture `01` §6).
+  //
+  // `workers_dev: false` bắt buộc (task §10 / SR-006): Worker chỉ được gọi qua
+  // Service Binding; tắt workers.dev subdomain để không có hostname công khai
+  // nào expose private delivery runtime API hay Admin API.
+  "workers_dev": false,
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-push-notification",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+
+  // D1 `push` — authoritative storage của control plane (mỗi service một D1;
+  // `web-push-notification-job` KHÔNG đọc database này, resolve runtime data
+  // qua private delivery interface — push 01 §12.1, job 01 §6).
+  //
+  // `database_id` cố ý KHÔNG khai báo ở đây: chưa provisioning. Resource D1 do
+  // provisioning hạ tầng tạo và cung cấp `database_id` (docs/architecture/02-delivery.md
+  // §9.1) — **không** tự tạo D1 bằng `wrangler d1 create`. Wrangler chỉ được chạy
+  // migration (`wrangler d1 migrations apply`).
+  // Binding + vòng đời D1 của service: xem docs/applications/push-notification/03-operations.md §2.
+  "d1_databases": [
+    {
+      "binding": "push",
+      "database_name": "push",
+    },
+  ],
+
+  // Producer của Queue `ecoma-push-delivery` (tên Queue theo
+  // docs/applications/push-notification/03-operations.md §5.1). Consumer + DLQ
+  // khai báo ở apps/web-push-notification-job/wrangler.jsonc.
+  //
+  // KHÔNG có trigger cron ở đây: tham số vận hành của Outbox Publisher
+  // (poll interval, lease…) chưa chốt (03-operations.md §5.4) — publish đi
+  // qua POST /internal/outbox/publish, trigger mechanism để gọi route này
+  // chưa chốt nên không được bịa cron.
+  "queues": {
+    "producers": [
+      {
+        "queue": "ecoma-push-delivery",
+        "binding": "QUEUE",
+      },
+    ],
+  },
+
+  // Cấu hình runtime không phải secret (structured log bắt buộc có
+  // service/environment — 03-operations.md §23). Giá trị mặc định là
+  // convention-derived; production đổi qua `wrangler deploy --var`.
+  // Secret (encryption root key cho provider credential) dùng Worker Secret
+  // riêng — KHÔNG nằm trong file này (03-operations.md §14).
+  "vars": {
+    "LOG_LEVEL": "info",
+    "ENVIRONMENT": "production",
+  },
+}

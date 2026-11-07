@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Reproducible LLM experiments: from hypothesis to reliable results</title>
+  <desc id="cover-desc">Course cover for lesson 30 of 30, Evaluation and RAG. Abstract error bars motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 30 of 30 · Evaluation and RAG</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="284.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Reproducible LLM experiments:</text>
+  <text x="88" y="340.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">from hypothesis to reliable</text>
+  <text x="88" y="396.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">results</text>
+
+  <g aria-hidden="true">
+    <line x1="836" y1="294" x2="1184" y2="294" stroke="#cbd5e1" stroke-width="3"/>
+        <circle cx="910" cy="294" r="12" fill="#4f46e5"/>
+        <line x1="866" y1="294" x2="954" y2="294" stroke="#0f766e" stroke-width="5"/>
+        <line x1="866" y1="280" x2="866" y2="308" stroke="#0f766e" stroke-width="5"/>
+        <line x1="954" y1="280" x2="954" y2="308" stroke="#0f766e" stroke-width="5"/>
+        <circle cx="1000" cy="294" r="12" fill="#4f46e5"/>
+        <line x1="980" y1="294" x2="1020" y2="294" stroke="#0f766e" stroke-width="5"/>
+        <line x1="980" y1="280" x2="980" y2="308" stroke="#0f766e" stroke-width="5"/>
+        <line x1="1020" y1="280" x2="1020" y2="308" stroke="#0f766e" stroke-width="5"/>
+        <circle cx="1096" cy="294" r="12" fill="#4f46e5"/>
+        <line x1="1030" y1="294" x2="1162" y2="294" stroke="#0f766e" stroke-width="5"/>
+        <line x1="1030" y1="280" x2="1030" y2="308" stroke="#0f766e" stroke-width="5"/>
+        <line x1="1162" y1="280" x2="1162" y2="308" stroke="#0f766e" stroke-width="5"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">30 / 30</text>
+</svg>

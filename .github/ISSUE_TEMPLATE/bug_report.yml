@@ -1,0 +1,72 @@
+name: Báo lỗi
+description: Mô tả một lỗi quan sát được trong service, CI hoặc tooling
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Viết issue bằng tiếng Việt; giữ nguyên file path, error code, technical term.
+        Loại công việc và quy tắc Issue: `docs/engineering/work-management.md`.
+
+  - type: dropdown
+    id: work-kind
+    attributes:
+      label: Loại công việc
+      description: |
+        Bản chất thay đổi, khác với nhãn issue. Các lựa chọn xếp theo thứ tự ưu tiên ở
+        `docs/engineering/evolution-process.md` §4.1: Remediation → Experiment → Modelling → Delivery → Discovery.
+        Không chắc thì để trống và ghi lý do trong phần chi tiết.
+      options:
+        - Remediation — đóng một deviation đã được chấp nhận, hoặc gap do slice trước để lại hay do target thay đổi
+        - Experiment — đo một giả thuyết, kết quả sẽ bị bỏ hoặc viết lại
+        - Modelling — sản phẩm chính là specification hoặc ADR
+        - Delivery — tạo behaviour mới có giá trị
+        - Discovery — chỉ tạo ra hiểu biết, không tạo behaviour
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Mô tả lỗi
+      description: Chuyện gì đã xảy ra, ở đâu, khi nào.
+      placeholder: 'Ví dụ: CI fail ở bước Check PR title với lỗi scope-enum trên nhánh ...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Các bước tái hiện
+      description: Các bước tối thiểu để tái hiện; nếu không tái hiện được thì ghi rõ điều kiện.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kỳ vọng
+      description: Kết quả mong đợi.
+    validations:
+      required: true
+
+  - type: input
+    id: scope
+    attributes:
+      label: Scope
+      description: 'Nx project bị ảnh hưởng (nếu biết) — vd: account, llm-console, docs.'
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / error code
+      description: Dán log hoặc error code nguyên văn (không dịch, không cắt quan trọng).
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Môi trường
+      description: Local / CI / Preview / Staging / Production; version, URL hoặc commit SHA liên quan.

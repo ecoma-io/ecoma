@@ -1,0 +1,271 @@
+{
+  "name": "@ecoma-io/local-smoke",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "//": [
+      "implicitDependencies — tập deploy unit mà kết quả smoke phụ thuộc:",
+      "- platform-deploy: certificate local `deploys/platform-deploy/local-certs/fbi.com.crt` script đọc trực tiếp,",
+      "  và target `local-smoke` của platform là consumer duy nhất của script này (`local.ts smoke`).",
+      "- home-deploy: chuỗi redirect `/` → `/en` + title `Ecoma.io` mà script verify là hành vi serving của home",
+      "  qua Traefik — smoke đo đúng MỘT chuỗi đó nên khai đúng hai cạnh này, không kéo unit nào khác."
+    ],
+    "implicitDependencies": [
+      "platform-deploy",
+      "home-deploy"
+    ],
+    "tags": [
+      "type:tooling",
+      "scope:public",
+      "runtime:native"
+    ],
+    "targets": {
+      "smoke": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "system-tests/local-smoke",
+          "command": "node src/local-smoke.mjs"
+        },
+        "//": [
+          "Target chạy script smoke với ROOT_HOST đọc từ `.env` của worktree (target `local-smoke` của",
+          "platform-deploy truyền giá trị qua argv). `cache: false` là CONTRACT (cùng rationale với",
+          "`system-test`): script verify serving-path sống ngoài inputs của Nx."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/system-tests/.eslintignore",
+          "{workspaceRoot}/system-tests/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "build",
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/tsconfig.lib.json",
+          "{projectRoot}/tsconfig.spec.json",
+          "{projectRoot}/src/**/*.ts",
+          "{projectRoot}/vite.config.ts",
+          "{projectRoot}/vite.config.mts",
+          "{projectRoot}/vitest.config.ts",
+          "{projectRoot}/vitest.config.mts",
+          "{projectRoot}/src/**/*.test.ts",
+          "{projectRoot}/src/**/*.spec.ts",
+          "{projectRoot}/src/**/*.test.tsx",
+          "{projectRoot}/src/**/*.spec.tsx",
+          "{projectRoot}/src/**/*.test.js",
+          "{projectRoot}/src/**/*.spec.js",
+          "{projectRoot}/src/**/*.test.jsx",
+          "{projectRoot}/src/**/*.spec.jsx",
+          "{projectRoot}/src/**/*.d.ts",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/tsconfig.tsbuildinfo",
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/dist/tsconfig.lib.tsbuildinfo",
+          "{projectRoot}/out-tsc/vitest/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/vitest/tsconfig.spec.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "system-tests/local-smoke",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "system-tests/local-smoke",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "build": {
+        "dependsOn": [
+          "^build"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.lib.json",
+          "{projectRoot}/src/**/*.ts",
+          "!{projectRoot}/vite.config.ts",
+          "!{projectRoot}/vite.config.mts",
+          "!{projectRoot}/vitest.config.ts",
+          "!{projectRoot}/vitest.config.mts",
+          "!{projectRoot}/src/**/*.test.ts",
+          "!{projectRoot}/src/**/*.spec.ts",
+          "!{projectRoot}/src/**/*.test.tsx",
+          "!{projectRoot}/src/**/*.spec.tsx",
+          "!{projectRoot}/src/**/*.test.js",
+          "!{projectRoot}/src/**/*.spec.js",
+          "!{projectRoot}/src/**/*.test.jsx",
+          "!{projectRoot}/src/**/*.spec.jsx",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/dist/tsconfig.lib.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Builds the project with `tsc`.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "{projectRoot}",
+          "command": "tsc --build tsconfig.lib.json"
+        },
+        "configurations": {}
+      }
+    }
+  }
+}

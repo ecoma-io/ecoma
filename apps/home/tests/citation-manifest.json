@@ -1,0 +1,229 @@
+{
+  "citations": [
+    {
+      "article": "01.vectors-matrices-and-tensors",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "08.gradient-descent-and-backpropagation",
+      "arxivId": "1412.6980",
+      "expectedTitle": "Adam: A Method for Stochastic Optimization"
+    },
+    {
+      "article": "08.gradient-descent-and-backpropagation",
+      "arxivId": "1710.05941",
+      "expectedTitle": "Searching for Activation Functions"
+    },
+    {
+      "article": "08.gradient-descent-and-backpropagation",
+      "arxivId": "1711.05101",
+      "expectedTitle": "Decoupled Weight Decay Regularization"
+    },
+    {
+      "article": "08.gradient-descent-and-backpropagation",
+      "arxivId": "1904.00962",
+      "expectedTitle": "Large Batch Optimization for Deep Learning: Training BERT in 76 minutes"
+    },
+    {
+      "article": "09.overfitting-regularization-bias-variance",
+      "arxivId": "1711.05101",
+      "expectedTitle": "Decoupled Weight Decay Regularization"
+    },
+    {
+      "article": "09.overfitting-regularization-bias-variance",
+      "arxivId": "1812.11118",
+      "expectedTitle": "Reconciling modern machine learning practice and the bias-variance trade-off"
+    },
+    {
+      "article": "09.overfitting-regularization-bias-variance",
+      "arxivId": "1912.02292",
+      "expectedTitle": "Deep Double Descent: Where Bigger Models and More Data Hurt"
+    },
+    {
+      "article": "10.embeddings-learned-geometry",
+      "arxivId": "1702.08734",
+      "expectedTitle": "Billion-scale similarity search with GPUs"
+    },
+    {
+      "article": "10.embeddings-learned-geometry",
+      "arxivId": "1909.00512",
+      "expectedTitle": "How Contextual are Contextualized Word Representations? Comparing the Geometry of BERT, ELMo, and GPT-2 Embeddings"
+    },
+    {
+      "article": "12.language-modeling-next-token-prediction",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "13.positional-information-in-transformers",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "14.attention-from-first-principles",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "15.multi-head-attention-and-transformer-blocks",
+      "arxivId": "1512.03385",
+      "expectedTitle": "Deep Residual Learning for Image Recognition"
+    },
+    {
+      "article": "15.multi-head-attention-and-transformer-blocks",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "15.multi-head-attention-and-transformer-blocks",
+      "arxivId": "1810.04805",
+      "expectedTitle": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+    },
+    {
+      "article": "16.training-a-transformer",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "16.training-a-transformer",
+      "arxivId": "2001.08361",
+      "expectedTitle": "Scaling Laws for Neural Language Models"
+    },
+    {
+      "article": "16.training-a-transformer",
+      "arxivId": "2203.15556",
+      "expectedTitle": "Training Compute-Optimal Large Language Models"
+    },
+    {
+      "article": "17.scaling-laws-parameters-and-data",
+      "arxivId": "2001.08361",
+      "expectedTitle": "Scaling Laws for Neural Language Models"
+    },
+    {
+      "article": "17.scaling-laws-parameters-and-data",
+      "arxivId": "2203.15556",
+      "expectedTitle": "Training Compute-Optimal Large Language Models"
+    },
+    {
+      "article": "18.data-curation-quality-and-contamination",
+      "arxivId": "2001.08361",
+      "expectedTitle": "Scaling Laws for Neural Language Models"
+    },
+    {
+      "article": "18.data-curation-quality-and-contamination",
+      "arxivId": "2203.15556",
+      "expectedTitle": "Training Compute-Optimal Large Language Models"
+    },
+    {
+      "article": "19.distributed-training-parallelism",
+      "arxivId": "2309.06180",
+      "expectedTitle": "Efficient Memory Management for Large Language Model Serving with PagedAttention"
+    },
+    {
+      "article": "20.llm-inference-prefill-and-decode",
+      "arxivId": "2309.06180",
+      "expectedTitle": "Efficient Memory Management for Large Language Model Serving with PagedAttention"
+    },
+    {
+      "article": "21.kv-cache-memory-of-long-contexts",
+      "arxivId": "1706.03762",
+      "expectedTitle": "Attention Is All You Need"
+    },
+    {
+      "article": "21.kv-cache-memory-of-long-contexts",
+      "arxivId": "2309.06180",
+      "expectedTitle": "Efficient Memory Management for Large Language Model Serving with PagedAttention"
+    },
+    {
+      "article": "22.quantization-precision-and-efficiency",
+      "arxivId": "2210.17323",
+      "expectedTitle": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers"
+    },
+    {
+      "article": "22.quantization-precision-and-efficiency",
+      "arxivId": "2211.10438",
+      "expectedTitle": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models"
+    },
+    {
+      "article": "22.quantization-precision-and-efficiency",
+      "arxivId": "2306.00978",
+      "expectedTitle": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration"
+    },
+    {
+      "article": "23.supervised-fine-tuning-instructions",
+      "arxivId": "2107.06499",
+      "expectedTitle": "Deduplicating Training Data Makes Language Models Better"
+    },
+    {
+      "article": "23.supervised-fine-tuning-instructions",
+      "arxivId": "2109.01652",
+      "expectedTitle": "Finetuned Language Models Are Zero-Shot Learners"
+    },
+    {
+      "article": "23.supervised-fine-tuning-instructions",
+      "arxivId": "2203.02155",
+      "expectedTitle": "Training language models to follow instructions with human feedback"
+    },
+    {
+      "article": "24.preference-optimization-rlhf-and-dpo",
+      "arxivId": "2203.02155",
+      "expectedTitle": "Training language models to follow instructions with human feedback"
+    },
+    {
+      "article": "24.preference-optimization-rlhf-and-dpo",
+      "arxivId": "2305.18290",
+      "expectedTitle": "Direct Preference Optimization: Your Language Model is Secretly a Reward Model"
+    },
+    {
+      "article": "25.evaluating-language-models",
+      "arxivId": "2104.08663",
+      "expectedTitle": "BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models"
+    },
+    {
+      "article": "25.evaluating-language-models",
+      "arxivId": "2210.07316",
+      "expectedTitle": "MTEB: Massive Text Embedding Benchmark"
+    },
+    {
+      "article": "25.evaluating-language-models",
+      "arxivId": "2309.15217",
+      "expectedTitle": "RAGAS: Automated Evaluation of Retrieval Augmented Generation"
+    },
+    {
+      "article": "26.rag-fundamentals",
+      "arxivId": "2005.11401",
+      "expectedTitle": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
+    },
+    {
+      "article": "27.embedding-retrieval-similarity-and-ann",
+      "arxivId": "1702.08734",
+      "expectedTitle": "Billion-scale similarity search with GPUs"
+    },
+    {
+      "article": "27.embedding-retrieval-similarity-and-ann",
+      "arxivId": "2104.08663",
+      "expectedTitle": "BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models"
+    },
+    {
+      "article": "28.reranking-and-hybrid-search",
+      "arxivId": "2004.04906",
+      "expectedTitle": "Dense Passage Retrieval for Open-Domain Question Answering"
+    },
+    {
+      "article": "28.reranking-and-hybrid-search",
+      "arxivId": "2004.12832",
+      "expectedTitle": "ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT"
+    },
+    {
+      "article": "29.evaluating-rag-systems",
+      "arxivId": "2104.08663",
+      "expectedTitle": "BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models"
+    },
+    {
+      "article": "29.evaluating-rag-systems",
+      "arxivId": "2309.15217",
+      "expectedTitle": "RAGAS: Automated Evaluation of Retrieval Augmented Generation"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Linear algebra for neural networks: projections, rank, and geometry</title>
+  <desc id="cover-desc">Course cover for lesson 02 of 30, Mathematical foundations. Abstract projection motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 02 of 30 · Mathematical foundations</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="284.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Linear algebra for neural</text>
+  <text x="88" y="340.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">networks: projections, rank,</text>
+  <text x="88" y="396.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">and geometry</text>
+
+  <g aria-hidden="true">
+    <line x1="832" y1="462" x2="1188" y2="462" stroke="#cbd5e1" stroke-width="3"/>
+        <line x1="832" y1="462" x2="832" y2="116" stroke="#cbd5e1" stroke-width="3"/>
+        <line x1="832" y1="462" x2="1120" y2="136" stroke="#0f172a" stroke-width="6" stroke-linecap="round"/>
+        <line x1="1120" y1="462" x2="832" y2="462" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="10 8"/>
+        <line x1="832" y1="462" x2="1120" y2="462" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="832" cy="462" r="9" fill="#64748b"/>
+        <circle cx="1120" cy="136" r="11" fill="#0f172a"/>
+        <circle cx="1120" cy="462" r="9" fill="#0f766e"/>
+        <text x="836" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#64748b">proj</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">02 / 30</text>
+</svg>

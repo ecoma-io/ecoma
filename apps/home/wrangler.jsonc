@@ -1,0 +1,33 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-home",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    "html_handling": "drop-trailing-slash",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4200,
+  },
+  // --- Staging: https://ecoma.io.vn — Worker `stg-ecoma-home` ---
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-home",
+      "routes": [{ "pattern": "ecoma.io.vn", "custom_domain": true }],
+      "vars": {
+        "NITRO_PUBLIC_NO_INDEX": "true",
+      },
+    },
+    // --- Production: https://ecoma.io — Worker `ecoma-home` ---
+    "production": {
+      "name": "ecoma-home",
+      "routes": [{ "pattern": "ecoma.io", "custom_domain": true }],
+    },
+  },
+}

@@ -1,0 +1,38 @@
+rules: []
+
+name: fake workflow, workflow_run fixture
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+jobs:
+  workflow_run_trusted-checkout:
+    runs-on: ubuntu-26.04
+    steps:
+      # ok: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # ok: workflow-privileged-trigger-runs-after-checkout
+      - run: echo trusted
+
+  workflow_run_execution:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha }}
+      # ruleid: workflow-privileged-trigger-runs-after-checkout
+      - run: echo executes-untrusted-code
+
+  workflow_run_untrusted-head-ref:
+    runs-on: ubuntu-26.04
+    steps:
+      # ruleid: workflow-privileged-trigger-untrusted-head-checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_ref }}

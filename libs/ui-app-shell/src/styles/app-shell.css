@@ -1,0 +1,469 @@
+/*
+ * Ported from https://github.com/dianprata/nuxt-shadcn-dashboard
+ * (commit 54988681e50feaa4935828882da93faff06cf042), MIT,
+ * Copyright (c) 2024 Dian Pratama.
+ * Xem libs/ui-app-shell/THIRD-PARTY-NOTICES.md.
+ *
+ * Entry CSS của `@ecoma-io/ui-app-shell`. App dùng shell nhập file này từ CSS
+ * của chính nó:
+ *
+ *   @import 'tailwindcss';
+ *   @import '@ecoma-io/ui-app-shell/styles/app-shell.css';
+ *
+ * File này **không** `@import 'tailwindcss'`: CSS được nhập vào cùng một lần
+ * biên dịch với entry của app, nên nhập lại Tailwind ở đây sẽ nạp preflight và
+ * `@theme` hai lần, làm phồng CSS production và tạo hai chỗ định nghĩa token.
+ * Đổi lại, app phải tự nhập Tailwind trước (mọi app Nuxt trong repo đã làm vậy).
+ *
+ * Sáu mục cần biết khi đối chiếu với nguồn. Năm mục đầu thuộc **hợp đồng sản
+ * phẩm** (shell ở Ecoma chỉ có **một** chế độ) — trong đó bốn mục là lệch và
+ * mục thứ năm là giữ nguyên có chủ ý; mục thứ sáu là **lệch tầng cascade**,
+ * không liên quan tới chế độ và được giải thích riêng tại rule của nó (cuối file):
+ *
+ * 1. Nguyên bản có hai khối token: `:root` (sáng) và `.dark` (tối), cộng thêm
+ *    một khai `color-scheme` ở thẻ `html` cho phép hai chế độ, cùng hai override
+ *    theo class cho từng chế độ. Ở đây `:root` mang thẳng giá trị tối của nguồn
+ *    và `color-scheme` được set thẳng về tối — không còn nhánh sáng nào để trộn.
+ *    Class `dark` vẫn **bắt buộc** trên `<html>` (app thêm qua
+ *    `appShellHeadAttributes`), nhưng vì một lý do khác: mọi utility `dark:` trong
+ *    primitive biên dịch thành `.dark &`, nên thiếu class đó là mất phần lớn
+ *    giao diện — trong khi token thì đã đúng sẵn.
+ * 2. Bỏ `--vis-*`. Đó là biến của thư viện vẽ chart của nguồn (một phụ thuộc
+ *    riêng, gắn với các trang demo không port), có mặt trong cả `:root` lẫn
+ *    từng khối `.color-*`.
+ * 3. Bỏ **toàn bộ** họ `.theme-*`: `.theme-mono`, `.theme-scaled` (hai lựa chọn
+ *    typography đã bị gỡ khỏi bảng tuỳ chỉnh), `.theme-rounded-*` (năm bậc bán
+ *    kính) và bốn `.theme-<font>` (`inter`/`noto-sans`/`nunito-sans`/`figtree`).
+ *    Giữ CSS lại thì thành cấu hình chết: không còn đường nào đặt các class đó
+ *    lên DOM.
+ * 4. Bỏ các `@keyframes accordion-*`. Accordion không có component nào port,
+ *    nên animation của nó không có nơi tiêu thụ.
+ * 5. Giữ nguyên **cả mười** `.color-*` của nguồn, và giữ nguyên thứ tự khai báo
+ *    của nguồn. Tám trong số đó khớp với tám tên chọn được của
+ *    `APP_SHELL_THEME_COLORS` (`default` không cần class vì nó là chính `:root`);
+ *    `.color-amber` và `.color-purple` **không** có trong danh sách chọn, nhưng
+ *    vẫn được giữ lại đúng như nguồn (xem khối ngay trên `@layer base`).
+ * 6. `button, [type='button'] { @apply cursor-pointer }` nằm trong `@layer base`,
+ *    còn nguồn để nó **trần** (không thuộc layer nào). Đây là lệch cascade chứ
+ *    không phải lệch hợp đồng: lý do đầy đủ nằm ở comment trên chính rule đó.
+ *
+ * `@source` bên dưới là phần **bắt buộc đối với một consumer chỉ dùng
+ * component mà không tự khai `@source`**: Tailwind tự dò source theo thư mục của
+ * app, còn file của library nằm ngoài `apps/<tên>/` (và sau này còn nằm trong
+ * `node_modules` khi được resolve qua package name), nên nếu cả hai phía đều
+ * không khai thì class của library bị loại khỏi CSS production trong khi dev vẫn
+ * đủ — hỏng chỉ thấy ở bản build.
+ *
+ * Không có chuyện dòng này "chịu tải" khi app cũng khai `@source`: đo bằng A/B
+ * build thật (bỏ từng dòng rồi build lại) thì hai dòng trỏ cùng một cây source
+ * và **mỗi dòng một mình đã đủ** — có cả hai, chỉ có dòng này, hay chỉ có dòng
+ * của app đều ra cùng class set (84.200 byte); chỉ khi bỏ **cả hai** thì CSS tụt
+ * còn 41.112 byte. Số đo này lấy trên `apps/backoffice`, sau khi app đó khai đủ
+ * sáu weight của Geist trong `@nuxt/fonts`; bản đo cũ (66.459 / 23.371 byte) là
+ * trước khi các weight đó được nạp.
+ *
+ * Đường dẫn tính tương đối từ chính file CSS này (`src/styles/` → `src/`).
+ */
+
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Geist', Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    'Geist Mono', ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Giá trị token của chế độ tối trong nguồn (`.dark`), đặt thẳng vào `:root`. */
+:root {
+  color-scheme: dark;
+  --header-height: 54px;
+  --radius: 0.625rem;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --warning: oklch(79.5% 0.184 86.047);
+  --warning-foreground: oklch(42.1% 0.095 57.708);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.439 0 0);
+  --surface: oklch(0.2 0 0);
+  --surface-foreground: oklch(0.708 0 0);
+}
+
+/*
+ * Bang mau chon duoc cua shell, chep nguyen tu `themes.css` cua nguon (chi bo
+ * cac dong `--vis-primary-color`). Moi class o day ung voi mot muc trong bang
+ * chon mau (`lib/preferences/types.ts`), va hai class `.color-amber` /
+ * `.color-purple` duoc giu lai du khong co muc nao chon chung: chung co that
+ * trong CSS nguon, con chieu nguoc lai (mot lua chon khong co CSS) moi la loi.
+ *
+ * ⚠️ Cac class nay phai nam tren mot phan tu **con** cua phan tu mang class
+ * `dark`, khong phai cung phan tu. Nguon lam dung vay: `dark` do color-mode
+ * gan len `<html>`, con `color-*` gan len `<body>` (xem `app.vue` cua nguon).
+ * Ly do nam o khoi `@variant dark` ben trong moi class: no bien dich thanh
+ * `.color-x:is(.dark *)`, tuc la doi hoi `.color-x` la hau due cua `.dark`.
+ * Gan ca hai class len cung `<html>` thi phan `@variant dark` khong bao gio
+ * khop va mau sac se roi ve gia tri cua nhanh sang. `appShellHeadAttributes`
+ * chia thuoc tinh dung theo quy tac do.
+ */
+
+.color-blue {
+  --primary: var(--color-blue-700);
+  --primary-foreground: var(--color-blue-50);
+  /* --ring: var(--color-blue-100); */
+  --sidebar-primary: var(--color-blue-600);
+  --sidebar-primary-foreground: var(--color-blue-50);
+  /* --sidebar-ring: var(--color-blue-400); */
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
+
+  @variant dark {
+    --primary: var(--color-blue-700);
+    --primary-foreground: var(--color-blue-50);
+    /* --ring: var(--color-blue-900); */
+    --sidebar-primary: var(--color-blue-500);
+    --sidebar-primary-foreground: var(--color-blue-50);
+    /* --sidebar-ring: var(--color-blue-900); */
+  }
+}
+
+.color-green {
+  --primary: var(--color-lime-600);
+  --primary-foreground: var(--color-lime-50);
+  --ring: var(--color-lime-400);
+  --chart-1: var(--color-green-300);
+  --chart-2: var(--color-green-500);
+  --chart-3: var(--color-green-600);
+  --chart-4: var(--color-green-700);
+  --chart-5: var(--color-green-800);
+  --sidebar-primary: var(--color-lime-600);
+  --sidebar-primary-foreground: var(--color-lime-50);
+  --sidebar-ring: var(--color-lime-400);
+
+  @variant dark {
+    --primary: var(--color-lime-600);
+    --primary-foreground: var(--color-lime-50);
+    --ring: var(--color-lime-900);
+    --sidebar-primary: var(--color-lime-500);
+    --sidebar-primary-foreground: var(--color-lime-50);
+    --sidebar-ring: var(--color-lime-900);
+  }
+}
+
+.color-amber {
+  --primary: var(--color-amber-600);
+  --primary-foreground: var(--color-amber-50);
+  --ring: var(--color-amber-400);
+  --chart-1: var(--color-amber-300);
+  --chart-2: var(--color-amber-500);
+  --chart-3: var(--color-amber-600);
+  --chart-4: var(--color-amber-700);
+  --chart-5: var(--color-amber-800);
+  --sidebar-primary: var(--color-amber-600);
+  --sidebar-primary-foreground: var(--color-amber-50);
+  --sidebar-ring: var(--color-amber-400);
+
+  @variant dark {
+    --primary: var(--color-amber-500);
+    --primary-foreground: var(--color-amber-50);
+    --ring: var(--color-amber-900);
+    --sidebar-primary: var(--color-amber-500);
+    --sidebar-primary-foreground: var(--color-amber-50);
+    --sidebar-ring: var(--color-amber-900);
+  }
+}
+
+.color-rose {
+  --primary: var(--color-rose-600);
+  --primary-foreground: var(--color-rose-50);
+  --ring: var(--color-rose-400);
+  --chart-1: var(--color-rose-300);
+  --chart-2: var(--color-rose-500);
+  --chart-3: var(--color-rose-600);
+  --chart-4: var(--color-rose-700);
+  --chart-5: var(--color-rose-800);
+  --sidebar-primary: var(--color-rose-600);
+  --sidebar-primary-foreground: var(--color-rose-50);
+  --sidebar-ring: var(--color-rose-400);
+
+  @variant dark {
+    --primary: var(--color-rose-500);
+    --primary-foreground: var(--color-rose-50);
+    --ring: var(--color-rose-900);
+    --sidebar-primary: var(--color-rose-500);
+    --sidebar-primary-foreground: var(--color-rose-50);
+    --sidebar-ring: var(--color-rose-900);
+  }
+}
+
+.color-purple {
+  --primary: var(--color-purple-600);
+  --primary-foreground: var(--color-purple-50);
+  --ring: var(--color-purple-400);
+  --chart-1: var(--color-purple-300);
+  --chart-2: var(--color-purple-500);
+  --chart-3: var(--color-purple-600);
+  --chart-4: var(--color-purple-700);
+  --chart-5: var(--color-purple-800);
+  --sidebar-primary: var(--color-purple-600);
+  --sidebar-primary-foreground: var(--color-purple-50);
+  --sidebar-ring: var(--color-purple-400);
+
+  @variant dark {
+    --primary: var(--color-purple-500);
+    --primary-foreground: var(--color-purple-50);
+    --ring: var(--color-purple-900);
+    --sidebar-primary: var(--color-purple-500);
+    --sidebar-primary-foreground: var(--color-purple-50);
+    --sidebar-ring: var(--color-purple-900);
+  }
+}
+
+.color-orange {
+  --primary: var(--color-orange-600);
+  --primary-foreground: var(--color-orange-50);
+  --ring: var(--color-orange-400);
+  --chart-1: var(--color-orange-300);
+  --chart-2: var(--color-orange-500);
+  --chart-3: var(--color-orange-600);
+  --chart-4: var(--color-orange-700);
+  --chart-5: var(--color-orange-800);
+  --sidebar-primary: var(--color-orange-600);
+  --sidebar-primary-foreground: var(--color-orange-50);
+  --sidebar-ring: var(--color-orange-400);
+
+  @variant dark {
+    --primary: var(--color-orange-500);
+    --primary-foreground: var(--color-orange-50);
+    --ring: var(--color-orange-900);
+    --sidebar-primary: var(--color-orange-500);
+    --sidebar-primary-foreground: var(--color-orange-50);
+    --sidebar-ring: var(--color-orange-900);
+  }
+}
+
+.color-teal {
+  --primary: var(--color-teal-600);
+  --primary-foreground: var(--color-teal-50);
+  --chart-1: var(--color-teal-300);
+  --chart-2: var(--color-teal-500);
+  --chart-3: var(--color-teal-600);
+  --chart-4: var(--color-teal-700);
+  --chart-5: var(--color-teal-800);
+  --sidebar-primary: var(--color-teal-600);
+  --sidebar-primary-foreground: var(--color-teal-50);
+  --sidebar-ring: var(--color-teal-400);
+
+  @variant dark {
+    --primary: var(--color-teal-500);
+    --primary-foreground: var(--color-teal-50);
+    --sidebar-primary: var(--color-teal-500);
+    --sidebar-primary-foreground: var(--color-teal-50);
+    --sidebar-ring: var(--color-teal-900);
+  }
+}
+
+.color-red {
+  --primary: var(--color-red-600);
+  --primary-foreground: var(--color-red-50);
+  --ring: var(--color-red-400);
+  --chart-1: var(--color-red-300);
+  --chart-2: var(--color-red-500);
+  --chart-3: var(--color-red-600);
+  --chart-4: var(--color-red-700);
+  --chart-5: var(--color-red-800);
+  --sidebar-primary: var(--color-red-600);
+  --sidebar-primary-foreground: var(--color-red-50);
+  --sidebar-ring: var(--color-red-400);
+
+  @variant dark {
+    --primary: var(--color-red-500);
+    --primary-foreground: var(--color-red-50);
+    --ring: var(--color-red-900);
+    --sidebar-primary: var(--color-red-500);
+    --sidebar-primary-foreground: var(--color-red-50);
+    --sidebar-ring: var(--color-red-900);
+  }
+}
+
+.color-yellow {
+  --primary: var(--color-yellow-400);
+  --primary-foreground: var(--color-yellow-900);
+  --ring: var(--color-yellow-400);
+  --chart-1: var(--color-yellow-300);
+  --chart-2: var(--color-yellow-500);
+  --chart-3: var(--color-yellow-600);
+  --chart-4: var(--color-yellow-700);
+  --chart-5: var(--color-yellow-800);
+  --sidebar-primary: var(--color-yellow-600);
+  --sidebar-primary-foreground: var(--color-yellow-50);
+  --sidebar-ring: var(--color-yellow-400);
+
+  @variant dark {
+    --primary: var(--color-yellow-500);
+    --primary-foreground: var(--color-yellow-900);
+    --ring: var(--color-yellow-900);
+    --sidebar-primary: var(--color-yellow-500);
+    --sidebar-primary-foreground: var(--color-yellow-50);
+    --sidebar-ring: var(--color-yellow-900);
+  }
+}
+
+.color-violet {
+  --primary: var(--color-violet-600);
+  --primary-foreground: var(--color-violet-50);
+  --ring: var(--color-violet-400);
+  --chart-1: var(--color-violet-300);
+  --chart-2: var(--color-violet-500);
+  --chart-3: var(--color-violet-600);
+  --chart-4: var(--color-violet-700);
+  --chart-5: var(--color-violet-800);
+  --sidebar-primary: var(--color-violet-600);
+  --sidebar-primary-foreground: var(--color-violet-50);
+  --sidebar-ring: var(--color-violet-400);
+
+  @variant dark {
+    --primary: var(--color-violet-500);
+    --primary-foreground: var(--color-violet-50);
+    --ring: var(--color-violet-900);
+    --sidebar-primary: var(--color-violet-500);
+    --sidebar-primary-foreground: var(--color-violet-50);
+    --sidebar-ring: var(--color-violet-900);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    /*
+     * Bốn class nguồn đặt trên `<Body>` của `app.vue`. Ở đây phần body sống
+     * trong CSS của library chứ không do app truyền class, vì `bg-background`
+     * và `text-foreground` đã nằm sẵn ở rule này từ trước — thêm hai cái còn lại
+     * cùng chỗ thay vì tách ra một API class cho app.
+     *
+     * `overscroll-none`: nguồn chặn scroll chaining ở body — hết nội dung thì
+     * không kéo theo trang cha/nền. Đo trên bản build trước khi sửa: computed
+     * `overscroll-behavior: auto`, tức không có gì chặn.
+     *
+     * `antialiased`: nguồn bật `-webkit-font-smoothing: antialiased` +
+     * `-moz-osx-font-smoothing: grayscale`. Trước khi sửa đo được `auto`/`auto`.
+     * Với Geist (nét mảnh) đây là khác biệt thấy được về độ dày nét chữ.
+     */
+    @apply bg-background text-foreground overscroll-none antialiased;
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  a:active,
+  button:active {
+    @apply opacity-60 md:opacity-100;
+  }
+}
+
+/*
+ * Tiện ích ẩn scrollbar. Shell chưa dùng, nhưng nó thuộc phần CSS nguồn dành
+ * cho nội dung bên trong shell (bảng, hàng thẻ cuộn ngang) — chỗ mà ba app dùng
+ * shell sẽ cần, nên giữ lại thay vì để mỗi app tự định nghĩa lại.
+ */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * Mặc định con trỏ cho button. Phải nằm trong `@layer base` như khối
+ * `a:active, button:active` phía trên, **không** để trần: Tailwind v4 khai
+ * `@layer theme, base, components, utilities`, và theo CSS Cascade thì
+ * declaration không thuộc layer nào luôn thắng mọi declaration có layer, bất kể
+ * specificity. Để trần thì rule này đè hết utility `cursor-*` của chính thư
+ * viện lẫn của app — cụ thể là `cursor-w-resize`/`cursor-e-resize` của
+ * `SidebarRail` không bao giờ hiện, mất affordance "kéo để đổi bề rộng".
+ * Nằm trong `base` thì utility layer vẫn thắng, còn đây chỉ là mặc định.
+ */
+@layer base {
+  button,
+  [type='button'] {
+    @apply cursor-pointer;
+  }
+}
+
+@source '../**/*.{vue,ts}';

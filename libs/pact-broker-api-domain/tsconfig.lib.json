@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    // WebCrypto (`crypto.subtle`, `crypto.getRandomValues`) của `hashing.ts`
+    // cần lib `dom` — cùng cách `libs/identity-auth-domain` đã làm; không có
+    // `types` nào ở đây, mọi global đều đến từ lib chuẩn.
+    "lib": ["es2022", "dom"],
+    "types": [],
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "out-tsc", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": []
+}

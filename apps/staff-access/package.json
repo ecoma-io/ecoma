@@ -1,0 +1,289 @@
+{
+  "name": "@ecoma-io/staff-access",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ecoma-io/internal-auth-contracts": "workspace:*",
+    "@ecoma-io/staff-access-contracts": "workspace:*",
+    "@ecoma-io/staff-access-domain": "workspace:*",
+    "@ecoma-io/staff-access-infrastructure": "workspace:*",
+    "hono": "^4.13.13",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "^8.15.6",
+    "testcontainers": "12.2.1"
+  },
+  "//": [
+    "`pg` giu o dependencies cho `db/apply.mts` + `db/migrate.mts` — migration",
+    "runner chay o CI runner (Node), khong thuoc bundle Worker. Nguon `pg`",
+    "runtime cua app la `@ecoma-io/staff-access-infrastructure` (postgres.js",
+    "qua Hyperdrive).",
+    "`hono` la runtime HTTP cua Worker; routes/service API thuoc Milestone B"
+  ],
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:staff-access",
+      "runtime:edge"
+    ],
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "platform": "neutral",
+          "outputPath": "apps/staff-access/dist",
+          "format": [
+            "esm"
+          ],
+          "bundle": true,
+          "main": "apps/staff-access/src/main.ts",
+          "tsConfig": "apps/staff-access/tsconfig.app.json",
+          "esbuildOptions": {
+            "sourcemap": true,
+            "outExtension": {
+              ".js": ".js"
+            },
+            "conditions": [
+              "workerd",
+              "worker",
+              "browser"
+            ],
+            "external": [
+              "node:buffer",
+              "node:events",
+              "node:stream"
+            ]
+          },
+          "skipTypeCheck": true,
+          "declaration": false
+        },
+        "configurations": {
+          "development": {},
+          "production": {
+            "esbuildOptions": {
+              "sourcemap": false,
+              "outExtension": {
+                ".js": ".js"
+              },
+              "conditions": [
+                "workerd",
+                "worker",
+                "browser"
+              ],
+              "external": [
+                "node:buffer",
+                "node:events",
+                "node:stream"
+              ]
+            }
+          }
+        }
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/staff-access",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        }
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/staff-access",
+          "command": "npx tsc --noEmit -p tsconfig.db.json"
+        }
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "dependsOn": [],
+        "options": {
+          "cwd": "apps/staff-access",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+        },
+        "//": [
+          "KHONG `build`: suite integration import thang TS nguon — `../../db/apply.mts`,",
+          "cac lib qua export workspace. Khong spec nao doc `dist/` hay type do wrangler",
+          "sinh ra; esbuild bundle chi tieu thu o lan deploy. Go `build` khoi dependsOn",
+          "bo chi phi bundle ma khong doi ca suite chay."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/tsconfig.app.json",
+          "{projectRoot}/tsconfig.spec.json",
+          "{projectRoot}/src/**/*.ts",
+          "{projectRoot}/vitest.config.mts",
+          "{projectRoot}/src/**/*.test.ts",
+          "{projectRoot}/src/**/*.spec.ts",
+          "{projectRoot}/tests/**/*.test.ts",
+          "{projectRoot}/tests/**/*.spec.ts",
+          "{projectRoot}/tests/**/*.ts",
+          "{projectRoot}/src/main.ts",
+          "{projectRoot}/src/config.ts",
+          "{projectRoot}/db/**/*.mts",
+          "!{projectRoot}/out-tsc/**/*",
+          "!{projectRoot}/dist/**/*",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          },
+          "^{projectRoot}/tsconfig.lib.json"
+        ],
+        "outputs": [
+          "{projectRoot}/tsconfig.tsbuildinfo",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/out-tsc/tsconfig.app.tsbuildinfo",
+          "{projectRoot}/out-tsc/vitest/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/tsconfig.spec.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/staff-access",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/staff-access",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+# Xem https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files để biết thêm về ignore file.
+
+# Kết quả build
+dist
+tmp
+out-tsc
+
+# dependency
+node_modules
+
+# IDE và editor
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# lưu trữ linh tinh
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# File hệ thống
+.DS_Store
+Thumbs.db
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+.claude/worktrees
+.claude/settings.local.json
+# Output sinh từ `.agents/` bởi `pnpm dx sync-agent-config`; nguồn duy nhất nằm
+# ở `.agents/`, không author trực tiếp các thư mục này.
+.claude/skills/
+.claude/agents/
+.opencode/skills/
+.opencode/agents/
+# `CLAUDE.md` không còn được sinh (Claude Code đọc `AGENTS.md` trực tiếp); pattern
+# ở lại để các file include còn tồn tại trên máy developer không lọt vào Git.
+CLAUDE.md
+
+# Output của Nuxt dev/build
+.output
+.data
+.nuxt
+.nitro
+.cache
+vitest.config.*.timestamp*
+test-output
+tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
+# Wrangler: cache local và config sinh tự động
+.wrangler
+
+# Wrangler/CI: secrets của Worker. Phải dùng wildcard vì Wrangler đọc cả
+# `.dev.vars.<env>` và `.env.<env>` (theo từng environment ngoài `production`).
+.dev.vars*
+.env*
+
+# Pulumi: state backend, stack config và passphrase KHÔNG BAO GIỜ vào Git
+# (`docs/architecture/02-delivery.md` §7.4.1, `docs/architecture/03-operations.md` §3.1).
+# - `.pulumi/` là thư mục state cục bộ mà `pulumi login --local`/file backend
+#   tự sinh.
+# - `Pulumi.*.yaml` là stack config cục bộ — chứa `encryptionsalt` và (với
+#   stack staging/production) ciphertext `secure:`. Chặn luôn thay vì trông
+#   vào từng lần cẩn thận: một secret ghi sai dạng sẽ trở thành plaintext
+#   commit được. `Pulumi.yaml` (manifest) KHÔNG nằm trong pattern này và vẫn
+#   phải commit.
+# - Passphrase chỉ sống ở `PULUMI_CONFIG_PASSPHRASE`/`PULUMI_CONFIG_PASSPHRASE_FILE`
+#   ngoài repo, hoặc file `.pulumi-local-passphrase` sinh tự động cho local stack.
+.pulumi/
+# State backend `file://` của local deployment — nằm trong worktree
+# (`.pulumi-local-state/.pulumi/...`). Pattern `.pulumi/` ở trên đã che nó,
+# nhưng entry tường minh giữ Contracts: đổi tên thư mục state không âm thầm
+# đưa state vào Git.
+.pulumi-local-state/
+# Passphrase do entry `local-up` (tools/dx local-entry helper) sinh cho local stack của worktree
+# (xem `resolveLocalPassphrase` trong
+# `libs/deployment/src/pulumi-context.ts`).
+# Entry tường minh: đổi tên file không được âm thầm đưa passphrase vào Git.
+.pulumi-local-passphrase
+Pulumi.*.yaml
+
+# State lifecycle của Worker process local (`worker-process.ts`): metadata
+# PID/identity của từng `wrangler dev` chạy trong worktree. Entry tường minh:
+# đổi tên thư mục không âm thầm đưa metadata runtime vào Git.
+.worker-local-state/
+
+
+
+# Python: bytecode do `python3 tests/verify-*.py` va `unittest` sinh ra. Loi chay
+# trong repo dung `-B` nen thuong khong co; `-B` chi chan `__pycache__` khi import
+# trong process do, con tien trinh con (vd `multiprocessing`) van ghi duoc.
+__pycache__/
+*.py[cod]
+
+# Playwright: output của system-test suites (`system-tests/<category>/<suite>/`).
+# `test-results/` chứa trace/screenshot/video khi test đỏ; `playwright-report/`
+# chứa HTML report. Cả hai là artifact chạy-thật, không phải source — commit là
+# rác review và phình repo. `open: 'never'` trên CI không đổi chuyện ghi file.
+test-results/
+playwright-report/
+# Output của Playwright CLI (có thể chứa credentials)
+.playwright-cli/

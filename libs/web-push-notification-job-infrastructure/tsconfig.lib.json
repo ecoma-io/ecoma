@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "lib = es2023, KHÔNG es2022: repo cấm Array#sort (nó mutate đầu vào) nên thứ tự khoá metric được sắp bằng `toSorted`, và `toSorted` chỉ có từ ES2023. Đây là cấu hình của unit này, không phải .oxlintrc.json/tsconfig.base.json — và `libs/transactional-mail-infrastructure` đã dùng cùng lựa chọn này.",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "forceConsistentCasingInFileNames": true,
+    "types": ["@cloudflare/workers-types"],
+    "rootDir": "src",
+    "lib": ["es2023"],
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["out-tsc", "dist", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": [
+    {
+      "path": "../web-push-notification-job-application/tsconfig.lib.json"
+    },
+    {
+      "path": "../push-notification-contracts/tsconfig.lib.json"
+    }
+  ]
+}

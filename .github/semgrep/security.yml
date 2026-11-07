@@ -1,0 +1,363 @@
+# Nhóm rule dữ liệu nhạy cảm: enforce invariant quan sát được (observability)
+# trong AGENTS.md — "Observability must not become a serving-path dependency;
+# never log prompt/response bodies" — và rò rỉ secret qua response. Đây là
+# phần Semgrep nhận trách nhiệm mà CodeQL và Gitleaks KHÔNG đảm nhận:
+#
+#   - Gitleaks tìm secret ở dạng LITERAL trong Git. Một giá trị được đọc từ
+#     environment rồi in ra log hoặc trả về client không phải literal nên nó
+#     nằm ngoài phạm vi Gitleaks hoàn toàn.
+#   - CodeQL analizes injection/flow generic trên JS/TS, nhưng không biết danh
+#     sáchfield nào của repository này được coi là dữ liệu nhạy cảm theo
+#     AGENTS.md (prompt, response, authorization, cookie, token, secret,
+#     apiKey, accessToken, refreshToken, password) và danh sách được phép
+#     in ra (userId, requestId).
+#
+# Quan hệ với `no-console` của .oxlintrc.json — KHÔNG phải là duplicate:
+#   - oxlint cấm MỌI `console.*` trong `apps/**` và `libs/**`, nhưng nó không
+#     nhìn được GIÁ TRỊ được in; và nó được bật lại (off) cho `tools/**`.
+#   - Rule này nhìn được giá trị, và đây là guard DUY NHẤT trong `tools/**`
+#     nơi `no-console` bị tắt có chủ đích.
+#   Nghĩa là hai rule đi theo hai trục khác nhau: oxlint = "không có console ở
+#   đây", Semgrep = "không có dữ liệu nhạy cảm trong console ở đâu cũng được".
+#
+# `mode: taint` — nguồn là identifier/field có tên khớp threat model, sink là
+# nơi giá trị rời khỏi process. `metavariable-regex` bám ĐẦU chuỗi trên
+# semgrep 1.176.1 nên mọi regex dưới đây đều anchor bằng `^` và `(?i:…)` theo
+# nhóm (Str không nhận cờ `(?i)` trần).
+#
+# Fixture: security.test.ts.
+rules:
+  - id: security-sensitive-value-logged
+    languages: [typescript]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A value named like sensitive data is written to a log sink. The
+      repository's observability invariant is absolute: never log prompt or
+      response bodies, and never log credentials — a run log is readable by
+      anyone with read access and survives far longer than the value's
+      lifetime. Log `userId`/`requestId` and an opaque reference instead; the
+      identifier is what correlates a trace, not the payload. Note that
+      `no-console` in .oxlintrc.json already bans `console.*` outright under
+      `apps/**` and `libs/**` — this rule is the guard for the places that
+      ban is deliberately lifted (`tools/**`) and for the value itself, which
+      lint cannot see.
+    metadata:
+      category: security
+      confidence: MEDIUM
+      cwe:
+        - 'CWE-532: Insertion of Sensitive Information into Log File'
+      owasp:
+        - 'A09:2021 - Security Logging and Monitoring Failures'
+        - 'A09:2025 - Logging and Alerting Failures'
+      references:
+        - https://cwe.mitre.org/data/definitions/532.html
+      technology:
+        - typescript
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    pattern-sources:
+      # Hai nhánh tách rời là có chủ đích, và chúng khác nhau ĐÚNG MỘT từ:
+      # `response`. Biến trần `response` trong repository này là một `Response`
+      # của fetch/h3 — `response.status`, `await response.json()` là đọc metadata
+      # của HTTP, không phải đọc body của LLM — và chính pattern đó đã đo ra 7
+      # FP trên apps/*/server/api/greet.spec.ts. Body chỉ được nhận diện qua
+      # tên nói rõ nó là body (`responseBody`, `x.response`), chứ không qua
+      # `response` trần.
+      #
+      # ⚠️ `pattern-not: '"$_"'` loại STRING THUẦN CHỮ khỏi nhánh identifier.
+      # Đo được trên 1.181.0: string literal single-quote thì KHÔNG bao giờ là
+      # nguồn, nhưng template literal (backtick) thuần chữ — không có `${}` —
+      # VẪN là nguồn nếu text của nó khớp regex, và taint sống qua interpolation
+      # (`SELECT ${CREDENTIAL_COLUMNS}` chảy tới kết quả query rồi về `return`
+      # của repository — FP thật ở d1-inventory-repositories). Một string không
+      # có interpolation không mang dữ liệu runtime nào, nên loại nó không mở
+      # lỗ cho dữ liệu thật.
+      #
+      # ⚠️ **Giới hạn đã biết của exemption này**: trên 1.181.0, `'"$_"'` khớp
+      # cả template CÓ interpolation (đã đo — `` const t = `token_${x}` `` mất
+      # taint), tức exemption rộng hơn "thuần chữ" một cách không mong muốn.
+      # Lỗ hở đòi TỔNG HỢP 3 điều kiện: string có tiền tố literal khớp tên
+      # nhạy cảm + interpolation mang giá trị runtime + string đó ra sink —
+      # `` `${token}` `` thuần thì text bắt đầu bằng `${`, không bao giờ khớp
+      # regex nguồn từ đầu. Không có cách diễn đạt "string thuần chữ" riêng
+      # trên OSS: `pattern-nots: or:` bị từ chối schema, pattern
+      # `` `...${...}...` `` không ghim được vào pattern-not. Chi tiết và lý do
+      # không ghim fixture cho hình dạng đó: security.test.ts, khối comment
+      # "Giới hạn đã biết". Nếu semgrep tách hai node kind này, thu hẹp
+      # exemption là việc cần làm lại.
+      - patterns:
+          - pattern-not: '"$_"'
+          - pattern: $SENSITIVE
+          - metavariable-regex:
+              metavariable: $SENSITIVE
+              regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|passwords?|credentials?))([_.\-]|$)'
+      - patterns:
+          - pattern: $OWNER.$SENSITIVE
+          - metavariable-regex:
+              metavariable: $SENSITIVE
+              regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|responses?|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|passwords?|credentials?))([_.\-]|$)'
+    pattern-sinks:
+      - pattern-either:
+          - pattern: console.$METHOD($...ARGS)
+          - pattern: process.stdout.write($...ARGS)
+          - pattern: process.stderr.write($...ARGS)
+
+  - id: security-sensitive-value-in-http-response
+    languages: [typescript]
+    severity: ERROR
+    mode: taint
+    paths:
+      exclude:
+        # Rule này soi "giá trị nhạy cảm rời khỏi handler ra HTTP". File `.spec.ts`
+        # là unit test: không có HTTP handler, không deploy, giá trị trong đó không
+        # bao giờ lên wire. Taint mode không phân biệt được `return` trong handler
+        # với `return` của arrow function trong test — nên
+        # `lazyConfigValidator(() => ({ internalHmacSecret: secret }))` trong
+        # `config-validation.spec.ts` bị flag (code-scanning alert 22), dù lambda
+        # đó cung cấp config cho validator ĐANG ĐƯỢC TEST, không phải response.
+        # Sửa ở rule thay vì `nosemgrep`: `nosemgrep` làm gate `--error` xanh nhưng
+        # KHÔNG loại result khỏi SARIF, mà code scanning không tôn trọng suppressions.
+        #
+        # Cố ý KHÔNG loại `*.test.ts`: `.github/semgrep/security.test.ts` là fixture
+        # harness của chính rule này — loại nó thì `semgrep --test` hết finding để
+        # assert, và các FP thật trong test harness sẽ không còn ai bắt.
+        - '*.spec.ts'
+    message: >-
+      A value named like sensitive data reaches a response. Returning it puts
+      the credential or the prompt/response body on the wire, into the client,
+      and into every intermediate cache and access log between here and the
+      caller — the same exposure as logging it, but to a strictly wider
+      audience. Return an opaque reference (`userId`, `requestId`) and let the
+      holder of the secret prove possession of it on a separate path.
+    metadata:
+      category: security
+      confidence: MEDIUM
+      cwe:
+        - 'CWE-200: Exposure of Sensitive Information to an Unauthorized Actor'
+      owasp:
+        - 'A01:2021 - Broken Access Control'
+        - 'A04:2021 - Insecure Design'
+      references:
+        - https://cwe.mitre.org/data/definitions/200.html
+      technology:
+        - typescript
+      subcategory:
+        - vuln
+      likelihood: MEDIUM
+      impact: HIGH
+    pattern-sources:
+      # Hai nhánh tách rời là có chủ đích, và chúng khác nhau ĐÚNG MỘT từ:
+      # `response`. Biến trần `response` trong repository này là một `Response`
+      # của fetch/h3 — `response.status`, `await response.json()` là đọc metadata
+      # của HTTP, không phải đọc body của LLM — và chính pattern đó đã đo ra 7
+      # FP trên apps/*/server/api/greet.spec.ts. Body chỉ được nhận diện qua
+      # tên nói rõ nó là body (`responseBody`, `x.response`), chứ không qua
+      # `response` trần.
+      #
+      # ⚠️ `pattern-not: '"$_"'` loại STRING THUẦN CHỮ khỏi nhánh identifier —
+      # cùng lý do và cùng giới hạn đã biết với rule
+      # `security-sensitive-value-logged`: string không có interpolation không
+      # mang dữ liệu runtime; exemption rộng hơn mong đợi trên 1.181.0 (khớp cả
+      # template có interpolation) — xem khối comment đầy đủ ở rule kia.
+      - patterns:
+          - pattern-not: '"$_"'
+          - pattern: $SENSITIVE
+          - metavariable-regex:
+              metavariable: $SENSITIVE
+              regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|id_?tokens?|client_?secrets?|session_?tokens?|passwords?|credentials?))([_.\-]|$)'
+      - patterns:
+          - pattern: $OWNER.$SENSITIVE
+          - metavariable-regex:
+              metavariable: $SENSITIVE
+              regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|responses?|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|id_?tokens?|client_?secrets?|session_?tokens?|passwords?|credentials?))([_.\-]|$)'
+    pattern-sanitizers:
+      # HMAC là phép băm có khóa (keyed hash), KHÔNG phải phép mã hóa: đưa secret
+      # vào `crypto.subtle.sign` rồi trả kết quả ra KHÔNG làm lộ secret. Digest
+      # 32 byte đó không chứa bit nào của khóa, nên không thể đảo ngược về secret —
+      # đó chính là tính chất khiến HMAC dùng được cho signature và token.
+      #
+      # Không có sanitizer này, `signCanonical()` (internal-auth-contracts) bị flag vì
+      # taint đi `secret` → `importKey` → `sign` → `return signature`: đó là false
+      # positive, và FP đúng như vậy là kiểu khiến rule dần biến thành tiếng ồn
+      # rồi bị bỏ qua. `crypto.subtle.digest` được miễn tương tự: SHA-256 không
+      # có khóa, đầu vào không thể suy ra từ digest.
+      #
+      # PHẠM VI: chỉ `sign`/`verify`/`digest`. KHÔNG miễn `importKey`, `encrypt` hay
+      # `decrypt`: `encrypt` trả ciphertext mà `decrypt` vẫn khôi phục được plaintext
+      # gốc, nên coi nó là sanitizer sẽ mở đúng lỗ hổng mà rule này sinh ra để chặn.
+      #
+      # Từng cái đều có ca `ok:` ghim (đã đo bằng cách gỡ từng sanitizer một):
+      #   `sign`   → `signWithSecret`   (gỡ ra: ca này đỏ, scan repo +1 finding)
+      #   `verify` → `verifySecretMac`  (gỡ ra: ca này đỏ; scan repo +0)
+      #   `digest` → `hashSecret`       (gỡ ra: ca này đỏ; scan repo +0)
+      # Hai cái sau hiện không cắt finding nào trong repo — chúng giữ một ranh giới
+      # đúng về mặt hình dạng (kết quả là boolean/digest một chiều, không mang lại
+      # khóa) và được ghim bằng fixture, nên khi hình dạng đó xuất hiện trong code
+      # thật thì ranh giới đã sẵn và đã có test chứng minh.
+      - pattern: crypto.subtle.sign(...)
+      - pattern: crypto.subtle.verify(...)
+      - pattern: crypto.subtle.digest(...)
+      # So sánh lifetime của một entity ra BOOLEAN — `$X.totalLifetime() < $N`.
+      # Kết quả là MỘT BIT (so sánh số học), không mang lại bit nào của entity,
+      # kể cả khi entity đó là object refresh-token của OIDC provider — cùng lớp
+      # một chiều với `crypto.subtle.verify` ở trên (kết quả boolean).
+      # Đã đo: gỡ sanitizer này thì ca `ok:` `refreshLifetimeBoolean` đỏ và scan
+      # repo thêm đúng MỘT finding (provider.ts — rotate refresh token).
+      - patterns:
+          - pattern: '$ENTITY.totalLifetime() < $LIMIT'
+      # `verifyRequest(...)` KHÔNG nằm trong danh sách sanitizer. Đã đo cả hai chiều:
+      #   * Thêm lại `- pattern: verifyRequest(...)` ⇒ `semgrep --test` vẫn 10/10 và
+      #     scan repository **không đổi một dòng finding nào** — nó không cắt gì cả,
+      #     nên không ca nào phụ thuộc nó và không fixture nào ghim được nó.
+      #   * Hình dạng duy nhất nó sẽ cắt là `const r = await verifyRequest({...});
+      #     return r;`. Hình dạng đó hiện **bị flag** (đã đo), tức là một FP của
+      #     nhánh sink, và nó không tồn tại ở đâu trong repo.
+      # Một exemption không ca nào phụ thuộc chỉ là một ranh giới thêm hở, không phải
+      # một ranh giới đã ghim — nên nó bị gỡ thay vì được giữ lại kèm comment. Cửa
+      # phía trước là FP ồn ào (thấy được ngay ở CI, và người sửa chỉ cần đổi hình
+      # dạng trả về), không phải một lỗ hở im lặng; rule security ưu tiên vế đó.
+      #
+      # (`VerifyResult` chỉ mang `{ok, nonce, timestamp}` hoặc `{ok, reason}` — không
+      # trường nào mang lại khóa — nên nếu muốn thêm lại ranh giới này thì nó vẫn hợp
+      # lệ, nhưng phải kèm một ca `ok:` ghim nó VÀ một ca `ruleid:` chứng minh một
+      # hàm cục bộ trùng tên-hình-dạng vẫn bị flag, đúng quy trình ở cuối khối này.)
+
+      # Hàm KÝ request nội bộ canonical: ranh giới một chiều ở chiều ngược lại so với
+      # `crypto.subtle.sign`. `signRequest({secret, ...})` trả timestamp, nonce và
+      # `v1=<HMAC-SHA-256 hex>` (`libs/internal-auth-contracts`) — không trường nào mang
+      # lại secret: chữ ký là keyed hash, không đảo ngược được về khóa. Hình dạng
+      # `new Headers(...)` KHÔNG được `pattern-not` `return $CALLEE({..., ...})` ở
+      # nhánh sink loại (New khác Call), nên nó rơi vào nhánh `return $VALUE` — dù đây
+      # là header của request ĐI RA, không phải response trả cho caller. Đó là FP mà
+      # sanitizer này cắt, và nó phải chữa ở rule chứ không bằng `nosemgrep`:
+      # `nosemgrep` làm gate `--error` xanh nhưng KHÔNG loại result khỏi SARIF, và
+      # GitHub code scanning không tôn trọng mảng `suppressions` trong SARIF.
+      #
+      # ⚠️ **Khớp theo HÌNH DẠNG envelope, không theo tên trần.** Bản trước là
+      # `signRequest(...)` trần: MỌI lời gọi trùng tên ở bất kỳ file nào đều thành
+      # ranh giới miễn nhiễm, kể cả một bản cài đặt thứ hai ở service khác. Đã đo một
+      # lỗ thật — một hàm cục bộ tên `signRequest` trả thẳng tham số của nó (tức trả
+      # chính secret) làm taint biến mất ở `return out`, nên `{ data: out }` lọt lưới
+      # (probe `leakThroughShadowedSigner`, dòng `return out` KHÔNG bị báo với rule
+      # cũ và CÓ bị báo với rule này). Ràng buộc thêm hai trường đặc trưng của
+      # envelope (`secret` + `timestamp`) khiến hàm trùng tên không có hình dạng đó
+      # không còn được miễn.
+      #
+      # Vì vậy rule không dựa vào "trên repo chỉ có một `signRequest`" làm bằng chứng
+      # an toàn — ranh giới tự nó phải phân biệt được, và fixture `ruleid:` ở cuối
+      # file chứng minh điều đó.
+      #
+      # Đã đo: gỡ riêng sanitizer này làm ca `ok:` `signInternalHeaders` đỏ; scan repo
+      # **không** thêm finding nào (đường taint của lời gọi thật trong
+      # `account-client.ts` bị fingerprint `signInternalRequest` bên dưới cắt trước).
+      - patterns:
+          - pattern: 'signRequest({..., secret: $S, ..., timestamp: $T, ...})'
+
+      # Điểm ký thứ hai của hệ thống: `signInternalRequest` (`apps/auth`) gọi
+      # `signRequest` rồi trả `{ headers, body }` để hai thứ đó không thể lệch nhau.
+      # Cùng ranh giới một chiều — giá trị trả về là header ĐÃ KÝ, không mang khóa —
+      # nhưng taint đi vào qua tham số tên `secret` của chính nó và ra ở giá trị trả
+      # về, nên sanitizer của `signRequest` bên trong không cắt được đường đó. Đã đo:
+      # bỏ fingerprint này thì `apps/auth/src/account-client.ts` báo lại đúng 2
+      # finding (`return this.#send(...)` — chính hai dòng mà `main` từng bịt bằng
+      # `nosemgrep`, tức là một hồi quy độ phủ do PR gỡ hết `nosemgrep` đi).
+      #
+      # ⚠️ Cùng nguyên tắc hình-dạng-không-tên như trên: trường `nowMs` là đặc trưng
+      # của điểm ký này; một hàm cục bộ trùng tên thiếu nó sẽ KHÔNG được miễn.
+      #
+      # Ghim bằng ca `ok:` `signInternalForAccountClient` (hình dạng thật: kết quả đã
+      # ký được forward vào một lời gọi HAI tham số rồi `return` — lời gọi hai tham số
+      # không bị `pattern-not` của nhánh sink loại). Đã đo: gỡ sanitizer ⇒ ca đó đỏ và
+      # scan repo thêm đúng hai finding `account-client.ts:337` và `:349`.
+      - patterns:
+          - pattern: 'signInternalRequest({..., secret: $S, ..., nowMs: $N, ...})'
+
+      #
+      # ⚠️ **Các sanitizer trên khớp theo HÌNH DẠNG lời gọi, không theo symbol.**
+      # Ranh giới vẫn là giả định, không phải bằng chứng — nhưng khác với trước, một
+      # hàm trùng tên KHÔNG có đúng hình dạng envelope đã không còn tự động được miễn.
+      #
+      # ⚠️ **Quy trình bắt buộc khi thêm/bớt sanitizer, và cách đo từng cái một:**
+      #   1. Gỡ từng sanitizer khỏi danh sách rồi chạy lại `semgrep --test` — đúng
+      #      SAN ca `ok:` bị phụ thuộc nó phải chuyển sang `incorrect lines`. Một
+      #      sanitizer không làm đỏ ca nào là exemption thừa, phải gỡ.
+      #   2. Chạy `semgrep scan --config .github/semgrep --sarif` và so số dòng
+      #      finding trước/sau — gỡ sai sẽ làm alert quay lại.
+      #   3. Không chấp nhận chỉ vì `semgrep scan --error` exit 0: kiểm SARIF, vì
+      #      `nosemgrep` không xoá result khỏi SARIF.
+      #
+      # Kết quả đo đủ 5 sanitizer đang có (mỗi dòng: ca `ok:` chuyển đỏ khi gỡ, và
+      # số finding thêm ra trên toàn repo): `sign`→`signWithSecret` (+1),
+      # `verify`→`verifySecretMac` (+0), `digest`→`hashSecret` (+0),
+      # `signRequest`→`signInternalHeaders` (+0), `signInternalRequest`→
+      # `signInternalForAccountClient` (+2). Không còn sanitizer nào không có ca ghim.
+
+    pattern-sinks:
+      # Đo được trên các auth lib cũ của bounded context identity + `apps/auth` (PR #175): 8 FP, phần lớn
+      # cùng một hình dạng — `return verifyEnvelope({ secret: params.secret, … })`
+      # và `return { ok, nonce }`. Ở cả hai, giá trị đi **VÀO** object literal để
+      # kiểm chữ ký hoặc đóng gói kết quả xác thực; nó không đi ra ngoài.
+      #
+      # Vì vậy sink được tách làm hai nhánh thay vì một `return $VALUE` đơn:
+      #   1. Object literal có field tên nhạy cảm → vẫn là sink thật (trả
+      #      `{ token }` ra ngoài là rò rỉ), nhưng phải khớp TÊN field.
+      #   2. Mọi hình dạng khác → chỉ sink khi không phải object literal và
+      #      không phải lời gọi hàm, tức `return token`, `return config.accessToken`.
+      #
+      # ⚠️ Loại trừ BẮT BUỘC dùng `pattern-not` (bản đơn). `pattern-not-either` KHÔNG
+      # hợp lệ trong semgrep 1.176.1 — nó bị bỏ qua âm thầm và rule báo cáo sai.
+      # Đã kiểm chứng bằng probe trước khi dùng; xem fixture ở security.test.ts.
+      - patterns:
+          - pattern-either:
+              - pattern: 'return {..., $LEAK: $V, ...}'
+              - pattern: 'new Response({..., $LEAK: $V, ...}, ...)'
+              - pattern: '$CALLEE.json({..., $LEAK: $V, ...})'
+              # Free-function `json({...})` PHẢI có ở đây: `pattern-not`
+              # `return $CALLEE({..., ...})` ở nhánh 2 cũng khớp `json(...)` trần
+              # ($CALLEE = json), nên `return json({ token })` trôi qua cả hai
+              # nhánh nếu chỉ dựa vào `json($VALUE, ...)` — đã đo bằng probe.
+              # Pattern `json(...)` trần KHÔNG khớp member call `c.json(...)`,
+              # nên thêm ở đây không nhân đôi với `$CALLEE.json(...)`.
+              - pattern: 'json({..., $LEAK: $V, ...})'
+          - metavariable-regex:
+              metavariable: $LEAK
+              regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|id_?tokens?|client_?secrets?|session_?tokens?|passwords?|credentials?))([_.\-]|$)'
+      # Object spread: `return { ...tokenResponse }` đẩy NGUYÊN object ra ngoài
+      # mà không có field `tên: giá trị` nào cho nhánh $LEAK bám vào, và
+      # `pattern-not` `return {..., ...}` ở nhánh giá trị loại nó — hai nhánh
+      # cùng bỏ sót, đã đo bằng probe. Spread mang khóa KHÔNG xác định được
+      # (khác `data: token` — ở đó thêm tên vào $LEAK là chữa được), nên mọi
+      # spread đều là hình dạng bệnh. PHẢI nằm trong nhánh RIÊNG: đặt chung
+      # nhánh $LEAK thì `patterns` đòi $LEAK được bind, spread không bind nên
+      # không bao giờ khớp — đã đo, không phải suy đoán.
+      # Chấp nhận trade-off: `return { ok: true, ...metadata }` cũng bắt —
+      # đúng chủ đích vì khóa trong metadata không nhìn được.
+      - pattern-either:
+          - pattern: 'return {..., ...$REST, ...}'
+          - pattern: 'new Response({... , ...$REST, ...}, ...)'
+          - pattern: '$CALLEE.json({... , ...$REST, ...})'
+          - pattern: 'json({... , ...$REST, ...})'
+      - patterns:
+          - pattern-either:
+              - pattern: 'return $VALUE'
+              - pattern: 'new Response($VALUE, ...)'
+              # `json(...)` trần (free function) — member call `c.json(...)`
+              # do `$CALLEE.json(...)` ở nhánh 1 bao, vì pattern `json(...)`
+              # của semgrep KHÔNG khớp `x.json(...)`. Dạng free function có
+              # object literal thì phải bắt ở nhánh 1 (pattern `json({...})`
+              # kèm $LEAK) vì `pattern-not` bên dưới cũng loại nó khỏi nhánh này.
+              - pattern: 'json($VALUE, ...)'
+          - pattern-not: 'return {..., ...}'
+          # ⚠️ Giới hạn đã biết: `pattern-not` này chỉ lọc lời gọi có ĐÚNG MỘT
+          # argument là object literal. `verifyEnvelope(a, {secret})` vẫn lọt
+          # qua — đã đo bằng probe. Hệ quả đo được thứ hai: `c.json({ data: token })`
+          # cũng lọt — khóa `data` không nằm trong danh sách $LEAK nên nhánh 1
+          # không bắt, còn nhánh 2 bị `pattern-not` này loại. Mở rộng thành
+          # `$CALLEE($...ARGS)` thì loại luôn `return passthrough(token)` (một
+          # dạng rò rỉ thật, đo được). Không có hình dạng nào vừa đủ hẹp vừa
+          # đủ rộng: ranh giới này là đánh đổi đã biết, và `security.test.ts`
+          # giữ hai đầu của nó.
+          - pattern-not: 'return $CALLEE({..., ...})'

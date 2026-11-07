@@ -1,0 +1,16 @@
+# Toolchain Rust dùng chung cho local development và CI.
+#
+# File này đi cùng `.node-version`: cùng một convention — version được pin bằng
+# file riêng ở workspace root, tool manager (rustup / Node version manager)
+# đọc file này tự động khi vào workspace, không có version manager thứ hai.
+#
+# `cargo fmt` / `cargo clippy` / `cargo test` / `cargo build` chạy với đúng
+# toolchain này bất kể default toolchain của máy, vì mọi crate trong workspace
+# đều nằm dưới thư mục chứa file này (directory-based override của rustup).
+#
+# Version mới phải qua renovate/cập nhật thủ công kèm CI; không dùng
+# `stable` trần vì CI và hai máy dev sẽ trôi khác nhau giữa các release.
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

@@ -1,0 +1,34 @@
+@import 'tailwindcss';
+
+/*
+ * CSS của shell dashboard — một entry dùng chung.
+ * Đường dẫn tương đối, KHÔNG specifier package: alias của app cũng bị áp cho
+ * resolver stylesheet của Tailwind, import qua `@ecoma-io/ui-app-shell/...`
+ * sẽ resolve sai và build đỏ `ENOTDIR` (chỉ lộ ở `nuxt build`).
+ */
+@import '../../../../../libs/ui-app-shell/src/styles/app-shell.css';
+
+/*
+ * Logo brand tokens (được shell sử dụng khi dùng EcomaLogo, nhưng không được
+ * định nghĩa trong app-shell.css — riêng cho app này chúng ta thêm).
+ * Định nghĩa ở đây để không sửa shared library.
+ */
+@theme {
+  --color-brand: #006aff;
+  --color-foam: #f6f7fc;
+}
+
+/*
+ * Tailwind v4 source registration cho libs/ui-ecoma-logo.
+ * Cùng số cấp từ apps/pact-broker-app/app/assets/css -> workspace root.
+ * Đếm sai một cấp là lỗi im lặng của Tailwind (không lỗi build, chỉ mất
+ * utility) — `tests/tailwind-source.spec.ts` ghim các base này tồn tại.
+ */
+@source "../../../../../libs/ui-ecoma-logo/src/**/*.{vue,ts}";
+
+/*
+ * Tailwind v4 source registration cho @ecoma-io/ui-app-shell.
+ * Hai lớp `@source` dư thừa lẫn nhau nhưng cả hai đều phải khai: chỉ khi
+ * thiếu CẢ HAI mới mất class (đo trên build thật của apps/backoffice).
+ */
+@source "../../../../../libs/ui-app-shell/src/**/*.{vue,ts}";

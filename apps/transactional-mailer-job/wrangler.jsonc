@@ -1,0 +1,104 @@
+{
+  // Delivery worker (Queue consumer) của mail bounded context: nhận Mail Command
+  // từ Queue `ecoma-mail-delivery`, resolve runtime data qua Service Binding
+  // `TRANSACTIONAL_MAIL_SERVICE` trỏ về control plane, ghi job state vào D1
+  // `mail-job`. KHÔNG có hostname, KHÔNG expose HTTP API.
+  //
+  // Reference: docs/applications/transactional-mailer-job/01-architecture.md,
+  // docs/architecture/03-operations.md §11.4 (mô hình job của notification và mail).
+  //
+  // KHÔNG bật `nodejs_compat`: project mang tag `runtime:edge` và
+  // .oxlintrc.json chặn import Node.js builtin trong mọi project `runtime:edge`.
+  //
+  // `triggers.crons` đi cùng `scheduled()` của `src/main.ts` — handler đã export
+  // (report sweep + stale-lease sweep + blocked backlog sweep, 01-architecture.md §7;
+  // docs/architecture/03-operations.md §10). Nhịp `*/5 * * * *` là giá trị khởi điểm khớp
+  // nhịp cron của control plane: report-lease và execution lease đều tính bằng chục
+  // giây, nên một khoảng 5 phút giữa hai lần quét là đủ cho alert vận hành mà không
+  // tạo retry storm. Giá trị chốt ở deploy (03-operations.md §1.2), không phải con số
+  // đã được load-test.
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
+  //
+  // CHƯA khai `env.staging`/`env.production`: chưa có Worker identity cho làn
+  // nào của hai làn deploy (thiết kế `02-delivery.md` §7.2, chưa hiện thực),
+  // nên app nằm ngoài deploy matrix. Binding khai ở khối top level dưới đây
+  // KHÔNG được Wrangler kế thừa vào named environment — mỗi `env.<lane>` phải
+  // khai lại binding của nó tường minh (overview `02` §4.1).
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-transactional-mailer-job",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+
+  // D1 `mail-job` — job/delivery execution state của chính worker này
+  // (attempts, outcome, processed marker). KHÔNG đọc D1 `mail` của control plane;
+  // control plane data resolve qua TRANSACTIONAL_MAIL_SERVICE.
+  //
+  // `database_id` cố ý KHÔNG khai báo ở đây: chưa provisioning. Resource D1 do
+  // provisioning hạ tầng tạo và cung cấp `database_id` (docs/architecture/02-delivery.md
+  // §9.1) — **không** tự tạo D1 bằng `wrangler d1 create`. Wrangler chỉ được chạy
+  // migration (`wrangler d1 migrations apply`).
+  // Binding + vòng đời D1 của service: xem docs/applications/transactional-mailer-job/03-operations.md §2.
+  "d1_databases": [
+    {
+      "binding": "mail-job",
+      "database_name": "mail-job",
+    },
+  ],
+
+  // Consumer của Queue `ecoma-mail-delivery` (tên suy từ tiền lệ
+  // `ecoma-push-delivery` / `ecoma-push-delivery-dlq` — convention-derived,
+  // xem 01-architecture.md §6). DLQ bắt buộc: hết retry mà không có DLQ thì
+  // message bị xoá vĩnh viễn (overview `04` QU3). `max_retries` = 3 theo
+  // mặc định platform (overview `04` QU2).
+  //
+  // Consumer thứ hai cùng worker: Queue `ecoma-mail-lifecycle-events` nhận lifecycle
+  // event của provider Email Service qua Event Subscriptions (§11.3). CHƯA provision
+  // Event Subscriptions hay queue thật — queue chưa tồn tại thì consumer chỉ không
+  // nhận message; mọi path ingest khác vô hại. `max_retries` thấp hơn delivery path
+  // (2): event hỏng đi quarantine chứ không quay vòng retry (§11.3).
+  "queues": {
+    "consumers": [
+      {
+        "queue": "ecoma-mail-delivery",
+        "max_retries": 3,
+        "dead_letter_queue": "ecoma-mail-delivery-dlq",
+      },
+      {
+        "queue": "ecoma-mail-lifecycle-events",
+        "max_retries": 2,
+        "dead_letter_queue": "ecoma-mail-lifecycle-events-dlq",
+      },
+    ],
+  },
+
+  // Service Binding private (cùng Cloudflare account → không qua internet,
+  // không cần token — architecture `01` §6). Tên binding suy từ tiền lệ
+  // `PUSH_NOTIFICATION_SERVICE` của web-push-notification-job
+  // (docs/applications/web-push-notification-job/03-operations.md §3).
+  "services": [
+    {
+      "binding": "TRANSACTIONAL_MAIL_SERVICE",
+      "service": "ecoma-transactional-mail",
+    },
+  ],
+
+  // Email Sending binding — kênh gửi thật của provider Cloudflare (provider mặc định,
+  // `MAIL_PROVIDER_KIND=cloudflare`). `allowed_sender_addresses` ghim sender đúng một
+  // địa chỉ; loader fail-closed nếu `MAIL_CF_SENDER` khác giá trị này — hai lớp chặn
+  // phải nói cùng một sự thật. CHƯA provision: sender domain `ecoma.io` cần được
+  // onboard Email Service trước khi binding hoạt động thật; `wrangler dev` mô phỏng
+  // binding cục bộ (log console, không gửi thư) nên local/dev không cần provision.
+  // Reference: docs/applications/transactional-mailer-job/01-architecture.md §11,
+  // docs/applications/transactional-mailer-job/03-operations.md (trạng thái provision).
+  "send_email": [
+    {
+      "name": "SEND_EMAIL",
+      "allowed_sender_addresses": ["no-reply@ecoma.io"],
+    },
+  ],
+}

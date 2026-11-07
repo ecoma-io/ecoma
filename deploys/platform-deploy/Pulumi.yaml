@@ -1,0 +1,7 @@
+name: platform-deploy
+description: Platform deployment root project - owns the shared platform provisioning role
+runtime: nodejs
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: typescript

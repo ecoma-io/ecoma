@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Language modeling: probability, likelihood, and next-token prediction</title>
+  <desc id="cover-desc">Course cover for lesson 12 of 30, Language modeling. Abstract chain probability motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 12 of 30 · Language modeling</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="284.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Language modeling:</text>
+  <text x="88" y="340.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">probability, likelihood, and</text>
+  <text x="88" y="396.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">next-token prediction</text>
+
+  <g aria-hidden="true">
+    <circle cx="858" cy="294" r="34" fill="#4f46e5"/>
+        <circle cx="1010" cy="188" r="34" fill="#e0e7ff" stroke="#4f46e5" stroke-width="4"/>
+        <circle cx="1010" cy="294" r="34" fill="#e0e7ff" stroke="#4f46e5" stroke-width="4"/>
+        <circle cx="1010" cy="400" r="34" fill="#e0e7ff" stroke="#4f46e5" stroke-width="4"/>
+        <circle cx="1162" cy="294" r="34" fill="#0f766e"/>
+        <line x1="892" y1="294" x2="970" y2="188" stroke="#64748b" stroke-width="3"/>
+        <line x1="892" y1="294" x2="970" y2="294" stroke="#64748b" stroke-width="3"/>
+        <line x1="892" y1="294" x2="970" y2="400" stroke="#64748b" stroke-width="3"/>
+        <line x1="1050" y1="188" x2="1128" y2="294" stroke="#64748b" stroke-width="3"/>
+        <line x1="1050" y1="294" x2="1128" y2="294" stroke="#64748b" stroke-width="3"/>
+        <line x1="1050" y1="400" x2="1128" y2="294" stroke="#64748b" stroke-width="3"/>
+        <text x="820" y="118" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#64748b">P(w | context)</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">12 / 30</text>
+</svg>

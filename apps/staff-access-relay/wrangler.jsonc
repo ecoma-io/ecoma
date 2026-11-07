@@ -1,0 +1,77 @@
+{
+  // Relay outbox entitlement (P2.2, issue #449): cron Worker claim hàng chưa
+  // publish trong `staff_access.entitlement_outbox_events` (FOR UPDATE SKIP
+  // LOCKED qua partial index) rồi publish vào Cloudflare Queues với idempotency
+  // key = event_id. KHÔNG có route, KHÔNG có fetch export, KHÔNG có consumer
+  // queue ở đây — consumer là workstream riêng (P2.3).
+  //
+  // KHÔNG bật `nodejs_compat`: app mang tag `runtime:edge` và .oxlintrc.json
+  // chặn import Node builtin trong code của app. Driver `pg` tự dùng shim Node
+  // mà nền tảng cung cấp qua điều kiện resolve (pattern auth-nonce-prune-job).
+  //
+  // Nhịp cron `*/1 * * * *` — một phút là nhịp nhỏ nhất Cloudflare Cron Triggers
+  // hỗ trợ; ADR-0014 đòi deadline delivery theo risk class (`high` ≤ 5s) mà một
+  // nhịp cron một phút không đáp ứng được một mình: deadline là ràng buộc cho
+  // consumer freshness bound + alert vận hành, không phải promise của cron.
+  // Đổi nhịp là đổi config deploy, không phải sửa code.
+  "triggers": {
+    "crons": ["*/1 * * * *"],
+  },
+  //
+  "workers_dev": false,
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-staff-access-relay",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+  //
+  // ── Hyperdrive binding ────────────────────────────────────────────────────────
+  // `DB_STAFF_ACCESS` → Hyperdrive của `db-staff-access` (schema `staff_access`,
+  // role runtime `ecoma_staff_access_runtime` — relay chỉ UPDATE cột
+  // published_at/attempts/last_error, đúng grant cột của 0004).
+  //
+  // ⚠️ **CHỈ tên binding — không host, không port, không user, không password.**
+  // Connection string lấy ở runtime qua `binding.connectionString`. `id` là
+  // placeholder toàn số 0 — Hyperdrive chưa provision; điền id thật trước khi
+  // provisioning cung cấp là deploy chạy được mà runtime đỏ (báo muộn thay vì
+  // báo sớm).
+  //
+  // ⚠️ Wrangler KHÔNG kế thừa top-level binding vào named environment — mỗi
+  // `env.<lane>` khai lại binding của chính nó (đo trên Wrangler, cùng phát hiện
+  // với auth-nonce-prune-job).
+  "hyperdrive": [
+    {
+      "binding": "DB_STAFF_ACCESS",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
+  //
+  // ── Queue producer ───────────────────────────────────────────────────────────
+  // Tên queue suy theo tiền lệ `ecoma-mail-delivery` / `ecoma-push-delivery`.
+  // Consumer (P2.3) khai binding consumer riêng ở app của nó; relay chỉ là
+  // producer. Queue chưa provision — deploy fail-closed đúng ý: publish sẽ lỗi
+  // cho tới khi provisioning tạo queue thật, không có id giả nào ở đây.
+  "queues": {
+    "producers": [
+      {
+        "queue": "ecoma-staff-access-entitlement-events",
+        "binding": "ENTITLEMENT_EVENTS_QUEUE",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "ecoma-staff-access-entitlement-settlement",
+        "max_batch_size": 50,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+      },
+    ],
+  },
+  //
+  // KHÔNG khai env.staging/env.production: chưa có Worker identity cho làn nào
+  // (thiết kế 02-delivery.md §7.2 chưa hiện thực) — cùng trạng thái với
+  // transactional-mailer-job. Binding top level KHÔNG được kế thừa vào named
+  // environment, nên khi bật env.<lane> phải khai lại tường minh.
+}

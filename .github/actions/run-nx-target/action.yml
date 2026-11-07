@@ -1,0 +1,163 @@
+name: 'Run Nx target'
+description: 'Runs one or more Nx targets, scoped to the affected projects by default'
+
+inputs:
+  affected:
+    description: |
+      Scope the run to the projects affected since the merge base ('true'), or run
+      the targets on every project in the workspace ('false').
+    required: false
+    default: 'false'
+  targets:
+    description: |
+      Target names to run, e.g. 'test' or 'test,typecheck'. Separate multiple
+      targets with a comma; surrounding whitespace is ignored, so 'test, typecheck'
+      and 'test typecheck' are both accepted.
+    required: true
+  threads:
+    description: 'Maximum number of Nx tasks to run in parallel.'
+    required: false
+    default: '6'
+  bail:
+    description: |
+      Stop the Nx run after the first failed task ('--nxBail'). Tasks already
+      running still finish; the exit code stays non-zero. Callers opt in where
+      a red run carries no diagnostic value beyond the first failure — the
+      merge queue re-runs each entry separately, so later failures in the same
+      run are re-reported there anyway.
+    required: false
+    default: 'false'
+  configuration:
+    description: |
+      Nx configuration ('-c') forwarded to the run, e.g. 'local' to select the
+      local deployment lane of the deploy projects a target depends on. Empty
+      (the default) runs the targets without a configuration, exactly as this
+      action did before the input existed, so existing callers keep their
+      behaviour unchanged.
+    required: false
+    default: ''
+  retries:
+    description: |
+      Total number of attempts (1 = no retry). Between two attempts the action
+      runs the 'retry-command' script when one is provided. The Nx invocation
+      itself is byte-identical on every attempt — retrying never changes the
+      command shape, only repeats it. A failing run after the last attempt
+      fails the step; nothing swallows an error.
+    required: false
+    default: '1'
+  retry-command:
+    description: |
+      Bash script executed before every attempt except the first (bounded,
+      must not fail the run — its output is informational). Typical use:
+      cleaning stale lock files left behind by a killed deployment lane so
+      the next attempt starts from a state the lane can resume.
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    # `nx-set-shas` ghi NX_BASE/NX_HEAD ra $GITHUB_ENV (input
+    # `set-environment-variables-for-job` mặc định là 'true') và Nx đọc lại hai
+    # biến đó khi không có --base/--head tường minh, nên step `nx affected` phía
+    # dưới tự biết base/head mà không cần truyền tay.
+    #
+    # Chỉ chạy ở nhánh affected: nhánh `run-many` không so base/head, nên set-shas
+    # ở đó chỉ tốn thêm thời gian gọi API tìm workflow thành công gần nhất.
+    - name: Derive appropriate SHAs for base and head
+      if: inputs.affected == 'true'
+      uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
+
+    - name: Run Nx targets
+      shell: bash
+      env:
+        # Đọc qua `env:` chứ không nội suy thẳng vào `run:`: người gọi kiểm soát
+        # giá trị này, và `env:` giữ nó là dữ liệu vô hại thay vì văn bản script.
+        AFFECTED: ${{ inputs.affected }}
+        RAW_TARGETS: ${{ inputs.targets }}
+        THREADS: ${{ inputs.threads }}
+        BAIL: ${{ inputs.bail }}
+        CONFIGURATION: ${{ inputs.configuration }}
+        RETRIES: ${{ inputs.retries }}
+        RETRY_COMMAND: ${{ inputs.retry-command }}
+      run: |
+        set -euo pipefail
+
+        # Nx coerce `-t` bằng `parseCSV`, hàm chỉ tách theo dấu phẩy và KHÔNG trim.
+        # "test, typecheck" vì thế cho ra phần tử " typecheck" — một target không
+        # tồn tại, và lệnh sập xuống bằng thông báo lỗi khó hiểu. Chuẩn hoá ở đây
+        # để cả ba cách viết dưới đây ra cùng một lệnh:
+        #   "test,typecheck"   "test, typecheck"   "test typecheck"
+        IFS=$', \t\n' read -ra words <<< "$RAW_TARGETS"
+        targets="$(IFS=,; echo "${words[*]}")"
+
+        if [ -z "$targets" ]; then
+          echo "::error::run-nx-target: input 'targets' resolved to nothing. Pass at least one target, e.g. 'test' or 'test,typecheck'."
+          exit 1
+        fi
+
+        # Bash word splitting is deliberate: an empty flag must vanish from the
+        # command line entirely (`$bail_flag` unquoted), a present one arrives
+        # as the single argument `--nxBail`. `$config_flag` follows the same
+        # rule for the configuration: no input means no `-c` argument at all,
+        # which is byte-for-byte the command line the action built before the
+        # input existed.
+        bail_flag=''
+        if [ "$BAIL" = 'true' ]; then
+          bail_flag='--nxBail'
+        fi
+
+        config_flag=''
+        if [ -n "$CONFIGURATION" ]; then
+          config_flag="--configuration=$CONFIGURATION"
+        fi
+
+        run_nx() {
+          if [ "$AFFECTED" = 'true' ]; then
+            echo "Running on the affected set: npx nx affected -t $targets $config_flag"
+            npx nx affected -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+          else
+            echo "Running on every project: npx nx run-many -t $targets $config_flag"
+            npx nx run-many -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+          fi
+        }
+
+        # Retry mặc định 1 attempt: callers không truyền `retries` giữ nguyên hành
+        # vi cũ (một lần chạy, lỗi là đỏ ngay). Caller có `retries` > 1 thì mỗi
+        # attempt chạy lại CÙNG lệnh (hàm `run_nx` ở trên), và `retry-command`
+        # (nếu có) chạy trước mọi attempt trừ attempt đầu — đây là điểm níu
+        # giữa hai attempt, ví dụ dọn stack lock mồ côi của một lane deploy bị
+        # giết giữa chừng. Lỗi của lệnh thật KHÔNG bao giờ bị nuốt: hết attempts
+        # là `exit 1` của chính lệnh `nx`, không bó thêm gì.
+        attempts="$(printf '%d' "$RETRIES" 2>/dev/null)" || attempts=1
+        case "$attempts" in
+          ''|*[!0-9]*|0) attempts=1 ;;
+        esac
+
+        attempt=1
+        while [ "$attempt" -le "$attempts" ]; do
+          if [ "$attempt" -gt 1 ]; then
+            echo "run-nx-target: retry attempt ${attempt}/${attempts}"
+            if [ -n "$RETRY_COMMAND" ]; then
+              # `retry-command` là script tin cậy của chính repo (nội dung nằm
+              # trong action metadata/workflow của repo, không phải dữ liệu
+              # event) — ghi ra file rồi bash chạy, để không dính quoting của
+              # một chuỗi nhúng vào dòng lệnh.
+              retry_script="$(mktemp)"
+              printf '%s\n' "$RETRY_COMMAND" > "$retry_script"
+              # Lỗi của dọn dẹp được in ra nhưng không chặn vòng retry: mục đích
+              # của nó là cho attempt kế một lối thoát, không phải phán xét lần
+              # này. Lệnh `nx` ở dưới vẫn quyết định đỏ/xanh.
+              bash "$retry_script" || echo "run-nx-target: retry-command exited non-zero (continuing)" >&2
+              rm -f "$retry_script"
+            fi
+          fi
+          if run_nx; then
+            exit 0
+          fi
+          echo "run-nx-target: attempt ${attempt} failed" >&2
+          attempt=$((attempt + 1))
+          # Ngủ chỉ nằm trên đường thất bại, giữ nhịp với vòng retry cũ.
+          [ "$attempt" -le "$attempts" ] && sleep 10
+        done
+        exit 1

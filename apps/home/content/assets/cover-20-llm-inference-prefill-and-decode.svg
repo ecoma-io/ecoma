@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: LLM inference: prefill, decode, and autoregressive generation</title>
+  <desc id="cover-desc">Course cover for lesson 20 of 30, Inference and adaptation. Abstract prefill timeline motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 20 of 30 · Inference and adaptation</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="278.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">LLM inference: prefill,</text>
+  <text x="88" y="338.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">decode, and autoregressive</text>
+  <text x="88" y="398.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">generation</text>
+
+  <g aria-hidden="true">
+    <line x1="836" y1="294" x2="1184" y2="294" stroke="#cbd5e1" stroke-width="3"/>
+        <rect x="842" y="250" width="150" height="60" rx="10" fill="#4f46e5"/>
+        <text x="917" y="280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#ffffff" text-anchor="middle">prefill</text>
+        <rect x="1008" y="264" width="46" height="32" rx="7" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+        <rect x="1062" y="264" width="46" height="32" rx="7" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+        <rect x="1116" y="264" width="46" height="32" rx="7" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+        <rect x="1170" y="264" width="46" height="32" rx="7" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+        <text x="1228" y="280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#0f766e">decode ×n</text>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">20 / 30</text>
+</svg>

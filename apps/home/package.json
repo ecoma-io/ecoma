@@ -1,0 +1,257 @@
+{
+  "name": "@ecoma-io/home",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+  },
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:public",
+      "runtime:edge"
+    ],
+    "targets": {
+      "build": {
+        "cache": true,
+        "dependsOn": [
+          "^build",
+          "nuxt-prepare"
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nuxt",
+          "{projectRoot}/.output"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/home",
+          "command": "nuxt build"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "//": [
+          "`dependsOn` gồm `^build` và `nuxt-prepare`: mọi đường vào build đều đã",
+          "qua `nuxt prepare` để `.nuxt` types sẵn sàng, không còn phụ thuộc thứ tự",
+          "task trong graph. `test` dependsOn `build`, nên chuỗi test → build →",
+          "nuxt-prepare được đảm bảo trọn vẹn."
+        ]
+      },
+      "nuxt-prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/home",
+          "command": "npx nuxt prepare"
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^typecheck",
+          "nuxt-prepare"
+        ],
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/tsconfig.base.json",
+          {
+            "externalDependencies": [
+              "vue-tsc"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "apps/home",
+          "command": "npx nuxt typecheck"
+        },
+        "//": [
+          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
+          "mirror đúng cách apps/docs đã làm: Nuxt sinh `.nuxt/tsconfig.*.json`",
+          "với `noEmit: true`, còn target mặc định chạy `tsc --build",
+          "--emitDeclarationOnly` — hai option xung đột (TS5069), và trước",
+          "nuxt-prepare thì các file đó chưa tồn tại (TS5083). `nuxt typecheck`",
+          "(vue-tsc qua @nuxt/cli) là đường đúng: hiểu project references Nuxt 4,",
+          "dùng đúng các `.nuxt/tsconfig.*.json`, và bắt được lỗi type thật.",
+          "Home cần override này khi nó nằm trong tập affected của CI `verify`",
+          "(`nx affected -t typecheck`) — chưa có override, target chỉ pass ở",
+          "dạng bị plugin tắt (no-op), runner sạch sẽ hard-fail TS5083."
+        ]
+      },
+      "test-python": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "{projectRoot}/tests/**/*.py"
+        ],
+        "options": {
+          "cwd": "apps/home",
+          "command": "python3 -B -m unittest discover -s tests/python -t tests/python && python3 -B -m unittest discover -s tests -t tests -p 'verify_examples_test.py'"
+        },
+        "//": [
+          "Unit test Python của `tests/verify-citations.py` (module `tests/citation_verify.py`,",
+          "`tests/citation-manifest.json`) và của `tests/verify-examples.py`.",
+          "`tests/python/` chỉ chứa `test_citation_verify.py`; `discover` mặc định pattern là",
+          "`test*.py` nên file test đặt cạnh module (`verify_examples_test.py`) không được",
+          "gọi bởi lệnh đầu — lệnh thứ hai với `-p` tường minh là bắt buộc, nếu không 66 test",
+          "kia chỉ chạy được khi tay mà CI không bao giờ thấy.",
+          "CI chỉ chạy `nx affected -t test`, nên file",
+          "Python thuần sẽ không bao giờ được chạy nếu không có target này. Lớp HTTP được",
+          "inject nên **không có request mạng** trong CI: `python3` là tool sẵn có của",
+          "image `ubuntu-26.04`, và các script `tests/verify-*.py` sẵn đã giả định có.",
+          "`-B` để không ghi bytecode trong worktree; `.gitignore` cũng chặn `__pycache__`",
+          "vì tên cache đó không lấp lánh trong review diff.",
+          "Đường live (`verify-citations.py --live`) là công cụ review, không thuộc CI."
+        ]
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/home",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "dependsOn": [
+          "nuxt-prepare",
+          "build",
+          "test-python"
+        ],
+        "//": [
+          "`test` phụ thuộc `build`: suite `tests/static-output.spec.ts`",
+          "assert trên output production thật (`.output/public` prerender +",
+          "`.output/server` Worker bundle). `nx test @ecoma-io/home` (local lẫn",
+          "`nx affected -t test` trong CI) giờ luôn build trước, nên một page/",
+          "media/404 fallback hỏng lộ ngay ở bước test thay vì chỉ thấy khi đã",
+          "deploy. (Migrated từ apps/blogs: `test` previously depended on",
+          "`build-static` — home build is the SSR Worker build.)",
+          "`test-python` là target thứ ba: test Python của citation verification và",
+          "của example verification, chạy song song với phần Vitest và không cần Nuxt build."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "serve": {
+        "continuous": true,
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/home",
+          "command": "nuxt dev"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

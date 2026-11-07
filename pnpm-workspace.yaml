@@ -1,0 +1,64 @@
+packages:
+  - 'apps/*'
+  - 'libs/*'
+  - 'deploys/*'
+  - 'tools/*'
+  - 'docs'
+  - 'system-tests/e2e/*'
+  - 'system-tests/local-smoke'
+autoInstallPeers: true
+
+# pnpm >= 11 không còn đọc `only-built-dependencies` trong `.npmrc`; danh sách
+# build script được phép chạy khai báo ở đây, và chỉ ở đây.
+#
+# Thiếu một package ở đây ⇒ `pnpm install` exit code 1 với
+# ERR_PNPM_IGNORED_BUILDS, nên thêm package mới có postinstall là phải bổ sung
+# ở đây luôn.
+allowBuilds:
+  nx: true
+  '@parcel/watcher': true
+  '@scarf/scarf': true
+  '@pulumi/command': true
+  # Tương tự `@pulumi/command`: script `install` tải pulumi plugin
+  # `resource docker-build` về plugin store của máy. Không cho chạy thì plugin
+  # thiếu lúc `pulumi up` — và thiếu allowlist thì `pnpm install` fail hẳn với
+  # ERR_PNPM_IGNORED_BUILDS (đã gặp trên CI của PR này).
+  '@pulumi/docker-build': true
+
+  esbuild: true
+  lefthook: true
+  protobufjs: true
+  unrs-resolver: true
+  workerd: true
+  sharp: true
+  # Kéo theo bởi `testcontainers` → `dockerode` → `docker-modem` → `ssh2`, dùng
+  # cho các integration suite PostgreSQL (`apps/account`, `apps/auth`,
+  # `libs/auth-infrastructure`). Cả hai đều là **devDependency** nên không
+  # bao giờ vào bundle Worker.
+  #
+  # `cpu-features` build native bằng `node-gyp`; `ssh2` bọc nó trong `try {} catch {}`
+  # nên thiếu binding chỉ khiến `cpuInfo` là `undefined` chứ không hỏng gì. Cho
+  # build vẫn đúng hành vi upstream, và `node-gyp` trên CI runner chậm hơn một chút
+  # so với bỏ qua — đổi lấy việc không phải đoán xem `ssh2` có chịu được khi thiếu.
+  ssh2: true
+  cpu-features: true
+  # Kéo theo bởi `vaul-vue` (Drawer của `ui-app-shell`) → `@vueuse/core@10`
+  # → `vue-demi`. `vue-demi` có postinstall để chọn đúng shim Vue 2/Vue 3 khi
+  # cài; thiếu bước này, import của nó vẫn chạy nhưng ở nhánh Vue 3 detection
+  # chưa được ghim. Đây là dependency của library dùng chung nên có mặt ở cả
+  # bundle app lẫn test.
+  vue-demi: true
+
+# Patch tạm cho @nx/js: getInputs() áp offset cho `include` nhưng bỏ sót cho
+# `exclude`, khiến exclude của .nuxt/tsconfig.*.json (vd `../../../node_modules`)
+# bị tính sai fileset. Gỡ khi upstream fix (nrwl/nx#26521).
+patchedDependencies:
+  '@nx/js@23.3.0': patches/@nx__js@23.3.0.patch
+  # Patch tạm cho dev-server của nitropack: tắt redirect trailing-slash của
+  # `serve-static` làm 404 `/en` (issue #111). Bản vá theo version: bump
+  # nitropack ⇒ pnpm chỉ warn, patch im lặng mất tác dụng mà `pnpm install` vẫn
+  # xanh. Renovate có automerge cho patch/minor nên đường này rất dễ bị đi qua
+  # một cách âm thầm. Gỡ khi upstream fix serve-static redirect, hoặc khi
+  # `publicAssets` của Nuxt không còn chứa cache `nuxt-content-assets`.
+  nitropack@2.13.4: patches/nitropack@2.13.4.patch
+  nuxt-content-assets@3.0.1: patches/nuxt-content-assets@3.0.1.patch

@@ -1,0 +1,31 @@
+-- 0003_provider_call_boundary.sql — marker ranh giới gọi provider (cửa sổ an toàn idempotency).
+--
+-- Nguồn: GitHub issue #37; docs/applications/transactional-mailer-job/01-architecture.md §9.3
+-- (hazard của Idempotency-Key giữ kết quả ~24 giờ) và §9.2.2 hàng 9 (crash giữa lúc provider
+-- accept và lúc persist kết quả không có exactly-once).
+--
+-- `provider_call_at` là epoch-ms của lần gọi provider đầu tiên mà worker **đã ghi bền vững**
+-- ngay trước khi gửi request (conditional UPDATE có guard lease/generation, xem JSDoc của
+-- `markProviderCallBoundary`). Từ mốc này provider CÓ THỂ đã nhận email cho dù worker chết
+-- trước khi persist kết quả — tức bắt đầu "cửa sổ mơ hồ" của kết quả provider:
+--   - Trong cửa sổ an toàn (provider còn giữ Idempotency-Key, Resend giữ ~24 giờ), một lần
+--     gọi lại với cùng key `mailjob_${delivery_id}` là an toàn: provider dedupe, hoặc chưa
+--     bao giờ thấy request đầu.
+--   - Ngoài cửa sổ, gọi lại không còn chống duplicate — worker PHẢI đưa job vào trạng thái
+--     operator-needed (`blocked` + `last_error_class='provider-ambiguous-outcome'` + report
+--     pending + alert) thay vì tự gọi lại provider.
+--
+-- NULL nghĩa là "chưa từng có marker bền vững" — đúng cho mọi row trước migration này và
+-- cho mọi claim chưa tới bước gọi provider. Không có đường nào xoá marker do worker: marker
+-- tồn tại là một sự thật về thế giới (đã có request rời khỏi worker), không thể rút lại.
+-- Cố ý KHÔNG reset khi redrive tăng `dispatch_generation` (statement (b) không đụng cột
+-- này): cửa sổ theo delivery (key cố định `mailjob_${delivery_id}`), không theo generation.
+--
+-- Không CHECK mới: mọi giá trị NULL/số nguyên đều hợp lệ ở mọi status (row terminal vẫn
+-- giữ marker cũ của nó), nên không có parity để encode. Guard thuộc các conditional UPDATE
+-- ở consumer, cùng hình dạng với các statement canonical khác.
+--
+-- Expand-compatible: `ALTER TABLE ... ADD COLUMN` trên SQLite là metadata-only, không
+-- rewrite row — row cũ đọc được ngay với giá trị NULL.
+
+ALTER TABLE mail_jobs ADD COLUMN provider_call_at INTEGER;

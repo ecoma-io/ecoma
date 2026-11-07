@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Reranking and hybrid search: improving retrieval quality</title>
+  <desc id="cover-desc">Course cover for lesson 28 of 30, Evaluation and RAG. Abstract rerank ladder motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 28 of 30 · Evaluation and RAG</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="312.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">Reranking and hybrid search:</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="650" fill="#0f172a">improving retrieval quality</text>
+
+  <g aria-hidden="true">
+    <rect x="846" y="412" width="66" height="50" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <text x="879" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" fill="#64748b" text-anchor="middle">cand</text>
+        <rect x="934" y="346" width="66" height="116" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <text x="967" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" fill="#64748b" text-anchor="middle">cand</text>
+        <rect x="1022" y="280" width="66" height="182" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <text x="1055" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" fill="#64748b" text-anchor="middle">cand</text>
+        <rect x="1110" y="214" width="66" height="248" rx="8" fill="#0f766e" stroke="#0f766e" stroke-width="3"/>
+        <text x="1143" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="17" fill="#64748b" text-anchor="middle">top</text>
+        <line x1="832" y1="462" x2="1188" y2="462" stroke="#cbd5e1" stroke-width="3"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">28 / 30</text>
+</svg>

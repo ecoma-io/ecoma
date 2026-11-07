@@ -1,0 +1,75 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", "group:monorepos"],
+  "branchPrefix": "automation/",
+  "semanticCommitType": "chore",
+  "semanticCommits": "enabled",
+  "semanticCommitScope": "",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "minimumReleaseAge": "1 day",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 10,
+  "rangeStrategy": "replace",
+  "enabledManagers": ["npm", "github-actions", "nodenv", "docker"],
+  "platformAutomerge": true,
+  "automergeStrategy": "squash",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 4am on monday"]
+  },
+
+  "osvVulnerabilityAlerts": true,
+
+  "vulnerabilityAlerts": {
+    "description": "Cấu hình riêng cho PR vá lỗ hổng bảo mật (packageRules các rule do Renovate tự sinh).",
+    "enabled": true,
+    "automerge": true,
+    "minimumReleaseAge": null,
+    "labels": ["security", "dependencies"]
+  },
+
+  "prBodyNotes": [
+    "Lưu ý pnpm: dependency mới có postinstall/build script phải được thêm vào `allowBuilds` trong `pnpm-workspace.yaml`, nếu không `pnpm install` exit 1 với `ERR_PNPM_IGNORED_BUILDS`.",
+    "Lưu ý migration: nâng `drizzle-kit` có thể đổi snapshot schema — kiểm tra `schema.contract.json` và migration gate theo `docs/architecture/02-delivery.md` §3.",
+    "PR patch/minor đã bật automerge: sau khi approve và CI xanh, GitHub Auto-merge sẽ tự đưa PR vào merge queue."
+  ],
+  "prBodyTemplate": "### Cập nhật dependency\n\n{{#if isGroup}}Đây là PR tổng hợp nâng cấp nhiều dependencies.{{else}}Nâng cấp `{{depName}}` từ `{{currentVersion}}` lên `{{newVersion}}`.{{/if}}\n\n{{{table}}}\n\n{{{notes}}}\n\n{{{changelogs}}}\n\n{{{warnings}}}\n\n{{{errors}}}\n\n{{{footer}}}",
+
+  "packageRules": [
+    {
+      "description": "1. Tắt toàn bộ major update thông thường",
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "2. Mọi patch gộp một PR, automerge, cửa sổ 0-4h hằng ngày (VN)",
+      "matchManagers": ["npm", "nodenv"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "all-patch-updates",
+      "schedule": ["* 0-4 * * *"],
+      "automerge": true
+    },
+    {
+      "description": "3. Mọi minor gộp một PR, automerge",
+      "matchManagers": ["npm", "nodenv"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "all-minor-updates",
+      "automerge": true
+    },
+    {
+      "description": "4. drizzle-kit: PR riêng, không automerge, pin exact (02-delivery §3)",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["drizzle-kit"],
+      "groupName": "drizzle-kit",
+      "rangeStrategy": "pin",
+      "automerge": false
+    },
+    {
+      "description": "5. Gộp gitleaks và semgrep image vào 1 PR, không automerge (cần review bảo mật)",
+      "matchManagers": ["docker"],
+      "matchPackageNames": ["zricethezav/gitleaks", "semgrep/semgrep"],
+      "groupName": "dx-security-tools",
+      "automerge": false
+    }
+  ]
+}

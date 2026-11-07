@@ -1,0 +1,89 @@
+name: Công việc kỹ thuật
+description: Discovery, Modelling, Experiment hoặc một work item kỹ thuật không thuộc bug / feature / tài liệu
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dùng form này khi công việc là điều tra, mô hình hoá, thử nghiệm, hoặc một delivery/remediation
+        không mô tả được bằng form bug / feature / tài liệu. Không phải work item thì đừng dùng form này:
+        xem khác biệt giữa work item, coordination ledger, precondition tracker và experiment record ở
+        `docs/engineering/work-management.md` §2.2.
+        Viết body bằng tiếng Việt; giữ nguyên file path, command, error code và technical term.
+
+  - type: dropdown
+    id: work-kind
+    attributes:
+      label: Loại công việc
+      description: |
+        Bản chất thay đổi, khác với nhãn issue. Các lựa chọn xếp theo thứ tự ưu tiên ở
+        `docs/engineering/evolution-process.md` §4.1: Remediation → Experiment → Modelling → Delivery → Discovery.
+        Không chắc thì để trống và ghi lý do trong phần chi tiết.
+      options:
+        - Remediation — đóng một deviation đã được chấp nhận, hoặc gap do slice trước để lại hay do target thay đổi
+        - Experiment — đo một giả thuyết, kết quả sẽ bị bỏ hoặc viết lại
+        - Modelling — sản phẩm chính là specification hoặc ADR
+        - Delivery — tạo behaviour mới có giá trị
+        - Discovery — chỉ tạo ra hiểu biết, không tạo behaviour
+    validations:
+      required: false
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: |
+        Kết quả quan sát được sau khi công việc xong — không phải danh sách việc cần làm.
+        Với Discovery: câu hỏi cần trả lời. Với Modelling: specification/ADR nào sẽ thay đổi.
+        Với Experiment: hypothesis và câu hỏi nó trả lời.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Phạm vi
+      description: Phần nào của hệ thống được phép thay đổi, và phần nào là non-goal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Bằng chứng và ràng buộc
+      description: |
+        Ghi rõ đâu là đã verify (kèm `file:line` hoặc lệnh), đâu là suy luận, đâu là chưa biết.
+        Nêu invariant, contract hoặc quyết định đã accept đang ràng buộc công việc này, kèm link canonical.
+    validations:
+      required: true
+
+  - type: textarea
+    id: experiment-criteria
+    attributes:
+      label: Tiêu chí đo (chỉ cho Experiment)
+      description: |
+        Hypothesis, phạm vi và môi trường đo, tiêu chí đánh giá đặt trước, cách ghi kết quả.
+        Bỏ trống với các loại công việc khác.
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependency và quyết định đang mở
+      description: Work item hoặc điều kiện phải xong trước; quyết định chưa chốt nào đang chặn công việc này.
+
+  - type: textarea
+    id: completion
+    attributes:
+      label: Điều kiện hoàn thành
+      description: |
+        Cách verify, không phải danh sách task. Mỗi tiêu chí phải kiểm được mà không cần đoán ý người viết.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Liên quan
+      description: Issue/PR/tài liệu canonical liên quan, dạng link chính xác (`#N`, path).

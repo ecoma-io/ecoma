@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "out-tsc",
+    "module": "esnext",
+    "types": ["node"],
+    "lib": ["es2023", "dom"],
+    "rootDir": "src",
+    "moduleResolution": "bundler",
+    "tsBuildInfoFile": "out-tsc/tsconfig.app.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["out-tsc", "dist", "vitest.config.mts", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": [
+    {
+      "path": "../../libs/remote-cache-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/remote-cache-infrastructure/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/remote-cache-domain/tsconfig.lib.json"
+    }
+  ]
+}

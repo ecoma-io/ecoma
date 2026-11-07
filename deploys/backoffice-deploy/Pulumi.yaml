@@ -1,0 +1,7 @@
+name: backoffice-deploy
+description: Backoffice local deployment
+runtime: nodejs
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: typescript

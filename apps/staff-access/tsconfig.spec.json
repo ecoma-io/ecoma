@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "Composite de `nx typecheck` (`tsc --build --emitDeclarationOnly`) build duoc solution project nay: TS5069 doi `declaration`/`composite` cho emitDeclarationOnly. `lib` nang len `es2023` (base dat `es2022`) vi `unicorn/no-array-sort` cam `Array#sort` con `toSorted` chi co trong es2023. `allowImportingTsExtensions` cho harness/spec import nhau bang phan mo rong that (.ts) — cung he qua voi `tsconfig.db.json`. `rootDir` la chinh project (spec nhanh `tests/` va `src/`), outDir tach khoi app de .d.ts khong de nhau.",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023"],
+    "allowImportingTsExtensions": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "resolveJsonModule": true,
+    "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
+  },
+  "include": [
+    "vitest.config.mts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "tests/**/*.test.ts",
+    "tests/**/*.spec.ts",
+    "tests/**/*.ts",
+    "src/main.ts",
+    "src/config.ts",
+    "db/**/*.mts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    }
+  ]
+}

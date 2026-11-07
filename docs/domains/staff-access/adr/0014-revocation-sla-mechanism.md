@@ -1,0 +1,102 @@
+# ADR-0014 — Cơ chế đáp ứng revocation SLA: event-driven invalidation có deadline theo risk class; freshness bound, fail-closed và re-check-at-write-time là control bắt buộc
+
+> 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4): ADR này chốt cơ chế đáp ứng revocation latency của [ADR-0002](./0002-revocation-latency-risk-class.md), và đặt ràng buộc bắt buộc lên relay/consumer.
+
+> **Trạng thái:** Accepted · **Ngày:** 2026-10-30 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §10 (hàng "Bounded revocation latency", A24) · [ADR-0002](./0002-revocation-latency-risk-class.md), `roadmap.md` Phase 2 (P2.5) — file đã bị xoá theo #553 · **Issue:** #438
+
+## Bối cảnh
+
+[ADR-0002](./0002-revocation-latency-risk-class.md) chốt hai risk class với target revocation latency — `normal` ≤ 60 giây, `high` ≤ 5 giây — và ghi rõ con số **không tự sinh ra cơ chế**: cơ chế cụ thể do workstream sau chọn, miễn đạt target, và việc chọn là điều kiện trước khi bật role assignment thật. ADR-0009 chốt **hình dạng lan truyền**: không sync-call-per-request, chỉ batch/event-based sync. Roadmap P2.5 chốt thêm hai ràng buộc: Cloudflare Queues (hay hàng đợi nào) **không được tuyên bố** đơn thuần bảo đảm ngưỡng ≤ 5 giây — phải có control thứ hai — và cơ chế phải lock trước Phase 3 rollout.
+
+Câu hỏi ADR này phải trả lời: trong bốn cơ chế ứng viên đã liệt kê ở [`domain-model.md`](../domain-model.md) §5 — short-lived token, online check, versioned authorization state, cache invalidation — cơ chế nào (hay tổ hợp nào) đáp ứng từng target, và hệ quả của lựa chọn lên relay/consumer là gì.
+
+Số liệu nền đã chốt của hệ thống: access token của `auth` là **JWT ES256 TTL 300 giây**, resource server verify offline bằng JWKS, không introspection ([`../auth/01-architecture.md`](../../../applications/auth/01-architecture.md) §6.2). Hệ quả mô hình offline: token đã cấp còn được chấp nhận tới hết TTL, tức **độ trễ thu hồi qua token-TTL là 300 giây** — vượt target `normal` (60 giây) gần 5 lần, chưa nói tới target `high`. Con số này là giới hạn cấu trúc của mô hình token hiện hành, không phải một con số có thể tinh chỉnh chốc lát.
+
+## Phương án
+
+Đánh giá từng cơ chế ứng viên một mình, đặt cạnh hai target:
+
+| #   | Cơ chế                                                                                                                  | Đạt `normal` ≤ 60s?                                                                                                                                                                                                                                                               | Đạt `high` ≤ 5s?                                                                                                                                                                                                                                                                           | Đánh giá                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Short-lived token** — giảm TTL access token tới khi TTL là control duy nhất                                           | Đạt nếu TTL ≤ ~60 giây, kèm refresh path mềm mại; chấp nhận được về độ trễ nhưng đổi lấy tần suất refresh rất cao trên mọi session staff, và **chỉ có ý nghĩa nếu token không mang quyền** — còn nếu consumer vẫn đọc quyền từ state đồng bộ thì TTL chỉ đóng góp một phần cửa sổ | Không thực dụng — TTL ≤ 5 giây biến mọi protected request thành chuỗi refresh liên tục; đây chính là cửa sổ race in-flight mà [`../auth/01-architecture.md`](../../../applications/auth/01-architecture.md) §6.0 đã thừa nhận không loại bỏ được                                           | Một mình không đủ cho `high`; hạ TTL xuống mức đáp ứng `normal` là chi phí vận hành lớn mà cửa sổ vẫn không phải 0. Giữ TTL 300 giây hiện hành — chỉ là giới hạn đời sống credential, không dùng TTL làm control chính                                                                                                                                                                                                                     |
+| 2   | **Online check** — gọi kiểm tra authorization trung tâm mỗi protected request                                           | Đạt về mặt latency lý thuyết (thấy trạng thái hiện hành)                                                                                                                                                                                                                          | Đạt về mặt latency lý thuyết, nếu trung tâm trả lời đủ nhanh và luôn available                                                                                                                                                                                                             | **Loại trước khi đo latency**: vi phạm trực tiếp quyết định hình dạng của [ADR-0009](./0009-no-internal-authorization-result-contract.md) — sync-call-per-request biến authorization thành serving-path dependency, một sự cố trung tâm làm sập đường serve của backend; ADR-0009 phương án 3 đã loại riêng nhánh "chỉ class `high`". Chọn nó đòi supersede ADR-0009 — bài toán revocation không tự đưa ra lý do đủ mạnh để trả cái giá đó |
+| 3   | **Versioned authorization state** — token/state mang version, backend từ chối version đã thu hồi                        | Đạt nếu việc phát hành version mới tới backend nằm trong cửa sổ 60 giây — tức vẫn cần kênh lan truyền bất đồng bộ có deadline; version chỉ là **định dạng** của state, không phải **kênh**                                                                                        | Đạt nếu kênh lan truyền có deadline ≤ 5 giây cho version mới — cùng nhận xét trên: version không tự giao hàng                                                                                                                                                                              | Không phải một cơ chế đứng riêng; nó là hình dạng dữ liệu đi kèm kênh lan truyền. Chấp nhận **làm thành phần** của tổ hợp, không phải trả lời chính                                                                                                                                                                                                                                                                                        |
+| 4   | **Cache invalidation (event-driven)** — event thay đổi quyền push qua outbox/queue, consumer xoá cache/validation state | Đạt nếu delivery có deadline và consumer idempotent; outbox bảo đảm không mất event sau commit (A8), reconciliation bắt các delivery rớt                                                                                                                                          | Không bảo đảm **một mình**: hàng đợi là at-least-once, unordered, batch retry ([`../../../architecture/04-platform-facts.md`](../../../architecture/04-platform-facts.md) QU1/QU4) — delivery có thể delay, retry, duplicate, sai thứ tự; roadmap P2.5 đã cấm tuyên bố queue-only ≤ 5 giây | Đúng hướng kiến trúc (A8, ADR-0009: batch/event-based sync là kênh duy nhất), nhưng **cần control thứ hai** để đóng khoảng cách giữa "event đã giao" và "trạng thái đã hiện hành" — đúng điều ADR-0002 đòi. Chấp nhận làm **kênh chính**, kèm control bổ sung                                                                                                                                                                              |
+
+Kết quả loại/tổ hợp: phương án 2 loại; phương án 1 không đủ một mình; phương án 3 và 4 không đứng riêng mà bổ sung nhau. Chỉ một tổ hợp đáp ứng cả hai target trong ranh giới ADR-0009: **event-driven invalidation làm kênh chính + re-check-at-write-time và freshness bound làm control bắt buộc + version trong payload làm định dạng state** — với deadline phân biệt theo risk class.
+
+## Quyết định
+
+- **Cơ chế chốt là tổ hợp, phân biệt theo risk class:**
+  - **Kênh chính — event-driven invalidation với deadline delivery theo risk class:** thay đổi authorization state (assignment revoke, staff `terminated`, role edit) phát event qua transactional outbox (A8); class `high` có **deadline delivery ≤ 5 giây**, class `normal` **≤ 60 giây**; consumer cập nhật local authorization state trong deadline của lớp nó phục vụ. Event delivery trễ quá deadline là tín hiệu vận hành (alert), không phải điều kiện degrade cho phép dùng stale state.
+  - **Control bắt buộc thứ nhất — freshness bound + fail-closed:** mọi bản ghi authorization state mà resource-owning backend giữ phải mang dấu thời điểm cập nhật; khi local state cũ hơn deadline của lớp operation đang phục vụ mà không có bản cập nhật mới hơn, backend **không dùng state đó** — xử lý theo **fail-closed**, đúng deny-by-default hiện hành (A23; T-14: trạng thái không đọc được không phải allow). Đây là control thứ hai mà roadmap P2.5 đòi bên cạnh kênh event: deadline là mục tiêu vận hành của kênh, freshness bound là điều kiện **đúng đắn** để dùng state — kênh trễ thì state bị từ chối chứ không được phép chạy tiếp. Hai lớp khác nhau ở deadline (5 giây vs 60 giây) và ở xác suất thực tế phải fail, không ở hành vi khi vượt. Fail-closed tại đây là hành vi của **consumer đối với state nội bộ của nó** — khác mô hình verify offline của token và không mâu thuẫn gì ở đó ([`../auth/01-architecture.md`](../../../applications/auth/01-architecture.md) §6.2 mô tả một ranh giới khác: token verify offline, không hỏi ai).
+  - **Control bắt buộc thứ hai — re-check-at-write-time, giữ nguyên phạm vi của ADR-0002/SR-008: mọi thao tác ghi, không phân biệt class.** ADR-0002 đã chốt re-check at write time là lớp phòng thủ bắt buộc cho mọi thao tác ghi (chống TOCTOU) — ADR này không mở rộng hay thu hẹp phạm vi đó; nó bổ sung kênh event có deadline cho phía đọc. Kết hợp: cửa sổ stale của **đường đọc** bị chặn trên bởi deadline + freshness bound; **đường ghi** không phụ thuộc cửa sổ đó vì luôn re-check trên trạng thái hiện hành tại thời điểm ghi.
+  - **Định dạng state — version trong payload:** event mang **version/revision tăng dần của authorization state**; consumer idempotent (invariant 8), xử lý out-of-order bằng cách so version — state cũ hơn bản đã thấy bị bỏ qua, không rollback. Version là định dạng dữ liệu, không thay thế deadline delivery: nó bảo đảm consumer không đi lùi, không bảo đảm event tới đúng giờ.
+  - **TTL access token không đổi:** TTL 300 giây của `auth` là giới hạn đời sống của **credential** ở tầng authentication (một token không sống quá 5 phút như một JWT), **không phải** control đáp ứng target — cửa sổ privilege bị chặn bởi deadline + freshness bound ở bên dưới, không phụ thuộc TTL.
+- **Phân tích quan hệ với ADR-0009 — tổ hợp này không vi phạm:** ADR-0009 cấm sync-call-per-request trên đường request; tổ hợp này **không có** lời gọi nào từ resource-owning backend sang `staff-access` trên đường serve — mọi cập nhật state đều qua kênh bất đồng bộ (outbox → event), và re-check-at-write-time diễn ra **trên dữ liệu local** của backend, không phải một lời gọi mạng về nguồn sự thật. Deadline delivery là thuộc tính của **kênh giao hàng**, không biến kênh đó thành sync-call. ADR-0009 giữ nguyên hiệu lực, không supersede và không tinh chỉnh.
+- **Không đổi TTL access token.** TTL 300 giây hiện hành không phải công cụ đáp ứng target — hạ TTL xuống 60 giây chưa đủ cho `high` và đòi tần suất refresh quá cao; với deadline + freshness bound chặn cửa sổ privilege ở bên dưới, TTL chỉ còn vai trò giới hạn đời sống credential ở tầng authentication và không cần đổi. ADR-0002 không bị sửa: hai target giữ nguyên, đây là cơ chế hiện thực chúng.
+- **Hai control bắt buộc là điều kiện hiệu lực của tổ hợp, không phải khuyến nghị.** Gỡ một trong hai — freshness bound hay re-check-at-write-time — là trả lại tình trạng "hàng đợi đơn thuần" mà ADR-0002 loại và ADR-0002 loại; bất kỳ thay đổi nào với chúng phải qua ADR mới.
+- **Số đo và acceptance:** việc đo revocation latency thực tế là acceptance criterion khi cơ chế ra đời ([ADR-0002](./0002-revocation-latency-risk-class.md)); cơ chế này thêm hai tín hiệu đo bắt buộc: **delivery latency theo event class** (percentile của khoảng cách giữa commit state và local state cập nhật xong ở consumer) và **tỉ lệ freshness-bound fail-closed** ở consumer (số request bị từ chối vì state stale quá deadline).
+
+## Hệ quả
+
+- **Hệ quả lên P2.2 (relay):** relay outbox → queue phải **mang và bảo đảm deadline theo event class** — event class `high` có deadline delivery ≤ 5 giây, class `normal` ≤ 60 giây. Relay không được gộp hai class thành một deadline chung; retry/backoff của class `high` phải được thiết kế sao cho tổng thời gian tới khi consumer nhận được nằm trong deadline, hoặc vượt thì được đánh dấu như delivery thất bại deadline (theo dõi, không mất — outbox vẫn là nguồn sự thật, reconciliation bắt các delivery rớt). Design chi tiết relay là của P2.2, nhưng **deadline phân class là ràng buộc đầu vào bắt buộc** của nó từ ADR này.
+- **Hệ quả lên P2.3 (consumer):** consumer ở từng sản phẩm phải idempotent (invariant 8), xử lý out-of-order bằng version như Quyết định, và **giữ freshness bound** trên local authorization state: mọi bản ghi mang dấu thời điểm cập nhật; state stale quá deadline của lớp operation → **fail-closed** với cả hai lớp (khác nhau ở deadline, không ở hành vi). Consumer cũng phải expose hai tín hiệu đo ở Quyết định. Consumer không gọi ngược `staff-access` trên đường request (ADR-0009).
+- **Lớp `high` và `normal` dùng cùng một cơ chế tổ hợp, khác nhau ở deadline delivery.** Không có hai cơ chế kiến trúc riêng cho hai lớp — một kênh, hai deadline, một hành vi fail-closed khi freshness bị vượt.
+- **Đường dành cho trường hợp hiếm cần thu hồi sát tức thời hơn SLA (compliance, sự cố bảo mật nghiêm trọng):** thu hồi authorization state vẫn đi qua cùng kênh event + deadline; hai công cụ bổ sung nằm ở hai enforcement point khác — `/revocation` của `auth` thu hồi grant/token (mô hình revocation của `auth`, tách biệt theo ADR-0002), và re-check-at-write-time chặn mọi thao tác ghi ngay tại thời điểm ghi bất kể event chưa tới. **Không có đường nào hứa cửa sổ bằng 0 cho token đã cấp trên đường đọc**, đúng nguyên tắc ADR-0002 ("không hứa thu hồi tức thời"); ngưỡng target không được nới lỏng âm thầm — hạ target qua quyết định ADR mới nếu thật sự cần.
+- **Không có cơ chế nào ở đây đổi ownership:** `staff-access` vẫn sở hữu source of truth và outbox; resource-owning backend sở hữu local projection và enforcement (A21–A24, ADR-0013); `auth` vẫn sở hữu token revocation — hai mô hình revocation (authorization state của `staff-access`, token/session của `auth`) vẫn tách biệt như ADR-0002 đã ghi.
+- **Câu hỏi "Cách đưa trạng thái authorization tới resource-owning backend"** (open decision ở [`../../architecture/01-architecture.md`](../../../architecture/01-architecture.md) §10) **không được giải quyết ở đây.** ADR-0009 đã chốt hình dạng (batch/event-based sync, không sync-call-per-request) nhưng hình thức cụ thể — outbox event, batch pull, hay projection do backend giữ — được ADR-0009 giao cho từng backend/workstream quyết định. Deadline phân class của ADR này là ràng buộc mà mọi hình thức cụ thể phải đáp ứng, không phải một lựa chọn hình thức.
+
+## Cross-reference
+
+- **Áp dụng target của:** [ADR-0002](./0002-revocation-latency-risk-class.md) (`normal` ≤ 60s, `high` ≤ 5s) — ADR này là cơ chế hiện thực hai target đó; ADR-0002 không bị sửa.
+- **Ranh giới hình dạng lan truyền:** [ADR-0009](./0009-no-internal-authorization-result-contract.md) — không sync-call-per-request; tổ hợp của ADR này nằm trong ranh giới đó, phân tích quan hệ ở Quyết định.
+- **System:** A8 (transactional outbox), A23 (enforce tại backend, không authorization-as-serving-path-dependency), A24 (token validity ≠ privilege currency) · invariant 8 (idempotent consumer), 31 (bốn cơ chế tách biệt) · §10 (hàng "Bounded revocation latency" — chuyển sang đã chốt) ([`../../../architecture/01-architecture.md`](../../../architecture/01-architecture.md)).
+- **Context:** [`../domain-model.md`](../domain-model.md) §4 (re-check-at-write-time, SR-008), §5 (bốn cơ chế ứng viên) · §9 (hàng "Cơ chế đáp ứng revocation SLA") · SR-002, SR-003, SR-008 · T-05, T-06, T-14, T-16 ([`../../../applications/staff-access/02-requirements.md`](../../../applications/staff-access/02-requirements.md)).
+- **Kế thừa roadmap cũ:** Phase 2 — P2.5 (ADR này), P2.2 (relay deadline theo event class → [ADR-0016](./0016-outbox-relay-mechanism.md)), P2.3 (consumer freshness bound).
+- **Platform facts:** QU1/QU4 (at-least-once, unordered, batch retry — nền của control thứ hai) ([`../../../architecture/04-platform-facts.md`](../../../architecture/04-platform-facts.md)).
+- **Token model:** [`../auth/01-architecture.md`](../../../applications/auth/01-architecture.md) §6.2 (JWT ES256 TTL 300 giây, verify offline).
+- **Implementation:** #438 (ADR này) · umbrella #436.
+
+---
+
+## Amendment — Settle mechanism (issue #483)
+
+**Quyết định:** thêm cột `settled_at timestamptz NULL` vào bảng
+`staff_access.entitlement_outbox_events` (consumer-side acknowledgement). Không
+tạo bảng settle riêng, không đổi wire contract (envelope không mang transport
+field — frozen).
+
+### Lý do chọn consumer-side acknowledgement trên outbox
+
+- Preserve frozen event contract: không có field mới trong envelope; settle là
+  thuộc tính của outbox row, không của event.
+- Expand, backward compatible: cột nullable, default NULL; row cũ không có settle
+  được coi là "chưa settle" — an toàn (redrive có điều kiện).
+- Một service sở hữu một database: consumer (pact-broker) không ghi trực tiếp
+  vào DB staff-access; nó gọi `POST /outbox/:event_id/settle` (HMAC-protected,
+  internal) do staff-access sở hữu. staff-access là authority duy nhất ghi
+  `settled_at`.
+- Redrive có bằng chứng: reconciler chỉ redrive row khi `published_at IS NOT NULL
+  AND settled_at IS NULL AND age > deadline`. Không redrive dựa trên proxy tuổi
+  published_at một mình (tránh duplicate vô căn cứ).
+
+### Quy tắc redrive
+
+- Redrive = `replay(event_id)` (reset published_at, attempts, last_error) trên
+  row đã publish nhưng chưa settle quá deadline. `settled_at` được giữ nguyên
+  (không reset) trong quá trình replay — consumer idempotent theo revision sẽ
+  chấp nhận duplicate replay.
+- Publish evidence: `published_at IS NOT NULL` — bằng chứng event đã publish.
+- Settle status: `settled_at IS NULL` — consumer chưa acknowledge.
+- Chỉ redrive khi cả hai đồng thời đúng và `age > deadline`.
+- Consumer ghi settle sau khi apply thành công (idempotent theo revision).
+- Re-check-at-write-time: entitlement read model (`isEntitlementFresh`) đã fail-
+  closed khi state stale quá deadline; giữ nguyên.
+
+### Open risks
+
+- Consumer settle call là best-effort: nếu settle call thất bại, row có thể bị
+  redrive duplicate — consumer idempotent theo revision nên chấp nhận.
+- Không có automatic redrive cho row không có settle endpoint wiring (consumer
+  cũ): giữ alert-only fallback.

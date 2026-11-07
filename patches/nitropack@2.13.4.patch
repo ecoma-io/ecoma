@@ -1,0 +1,23 @@
+diff --git a/dist/core/index.mjs b/dist/core/index.mjs
+index 8a601e0360c576d1e1c0e73da413d2393b8beb26..ced2db658620d710779d83bf43ed0ed617a0967a 100644
+--- a/dist/core/index.mjs
++++ b/dist/core/index.mjs
+@@ -2814,6 +2814,18 @@ class DevServer {
+         fromNodeMiddleware(
+           serveStatic(asset.dir, {
+             dotfiles: "allow",
++            // Patch (ecoma-io, issue #111): tắt redirect trailing-slash của
++            // serve-static trong DEV. publicAssets bao gồm cache của
++            // `nuxt-content-assets`, vốn chứa thư mục `en/`, `vi/` trùng tên
++            // route của app — redirect 301 `/en` -> `/en/` của middleware này
++            // đứng TRƯỚC worker, rồi `validate()` của `[locale]/index.vue`
++            // (chủ ý chỉ nhận `/en` không slash) từ chối `/en/` -> 404 trang
++            // chủ ở dev. Với `redirect: false`, thư mục không có index.html
++            // trở thành lỗi 404 nội bộ của send mà serve-static fall through
++            // (next() không arg) về worker với path gốc — app route thắng.
++            // Production không đi qua code này (worker phục vụ assets trực
++            // tiếp), nên chỉ dev bị ảnh hưởng.
++            redirect: false,
+             setHeaders(res, path) {
+               if (path.endsWith(".gz")) {
+                 res.setHeader("Content-Encoding", "gzip");

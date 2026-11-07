@@ -1,0 +1,50 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    // `types: []` là một phần của invariant `runtime:universal`: khi `types`
+    // không được chỉ định, TypeScript tự include mọi package dưới
+    // `node_modules/@types` tìm thấy tính từ tsconfig đi lên — kể cả
+    // `@types/node` (devDependency ở root). Khi đó global của Node (`process`,
+    // `Buffer`, `__dirname`…) vẫn typecheck xanh và lời hứa "lib này chạy được
+    // trên edge" trở thành vô nghĩa. Type cho shim `*.vue` nằm trong chính
+    // `src/` nên không bị ảnh hưởng.
+    "types": [],
+    "outDir": "../../dist/out-tsc/ui-app-shell",
+    "rootDir": "src",
+    "declaration": true,
+    // Chỉ emit `.d.ts`: `.vue` không có output JS đi kèm trong artifact này và
+    // library được consumer dùng trực tiếp từ source qua `alias`, nên emit JS
+    // chỉ tạo ra file rác trỏ tới `./Button.vue`.
+    "emitDeclarationOnly": true,
+    // Ghim `tsBuildInfoFile` vào TRONG `outDir` thay vì để TS tự chọn chỗ.
+    // Mặc định (`getTsBuildInfoEmitOutputFilePath`) đặt buildinfo tại
+    // `outDir/<relative từ rootDir tới tsconfig>`; vì `rootDir` là `src` còn
+    // tsconfig nằm ở gốc project nên relative là `..`, khiến buildinfo rơi ra
+    // `dist/out-tsc/tsconfig.lib.tsbuildinfo` — NGOÀI `outDir` và trùng chỗ với
+    // buildinfo của project khác dùng chung `dist/out-tsc`. Hệ quả: rebuild
+    // sạch bằng cách xoá `dist/out-tsc/ui-app-shell` không xoá được buildinfo
+    // này, TS tưởng lib còn up-to-date, bỏ qua emit `.d.ts`, rồi
+    // `tsconfig.spec.json` (reference tới lib) báo TS6305.
+    "tsBuildInfoFile": "../../dist/out-tsc/ui-app-shell/tsconfig.lib.tsbuildinfo"
+  },
+  // `src/**/*.vue` phải thuộc include: `src/index.ts` re-export trực tiếp
+  // component SFC nên chúng nằm trong program của lib. Thiếu pattern này, chế
+  // độ `--build` báo TS6307 ("file is not listed within the file list of
+  // project"), `noEmitOnError` ngăn emit `.d.ts`, rồi spec reference báo TS6305.
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  "exclude": [
+    "vite.config.ts",
+    "vite.config.mts",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.js",
+    "src/**/*.spec.js",
+    "src/**/*.test.jsx",
+    "src/**/*.spec.jsx"
+  ]
+}

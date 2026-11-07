@@ -1,0 +1,106 @@
+{
+  "//": "Cron-trigger Worker dọn nonce hết hạn cho HAI database nội bộ (`db-auth`, `db-account`) — thay GitHub Action `.github/workflows/identity-nonce-prune.yaml`. KHÔNG có route, KHÔNG có hostname, KHÔNG có fetch export, KHÔNG có queue, KHÔNG có D1. Reference: docs/applications/auth-nonce-prune-job/01-architecture.md.",
+  //
+  // KHÔNG bật `nodejs_compat`: app mang tag `runtime:edge` và .oxlintrc.json chặn
+  // import Node builtin trong code của app. Driver `pg` tự dùng shim Node mà
+  // nền tảng cung cấp qua điều kiện resolve (02-delivery §6: không import Node
+  // builtin ở `runtime:edge`); nếu cần Node builtin cho code của app thì phải
+  // khai `compatibility_flags` tường minh ở đây và ghi lý do riêng.
+  //
+  // `triggers.crons` — MỘT nhịp đặt theo UTC: `17 3 * * *` = 03:17 UTC = 10:17 ICT.
+  // Phút lệch :00 là kế thừa quyết định của workflow cũ: GitHub nêu tải cao điểm
+  // đầu mỗi giờ (04-platform-facts §2.17 GH2) và khuyến nghị chọn phút khác;
+  // Worker Cron Triggers không đòi riêng quy tắc đó, nhưng giữ nguyên nhịp để
+  // hành vi "một lần mỗi ngày lúc lệch giờ round" không thay đổi khi đổi cơ chế.
+  // Nhịp là chính sách vận hành — thấy test replay window bị lệch (nonce giữ
+  // lâu hơn skew của envelope) thì chỉnh nhịp, không đổi thuật toán.
+  //
+  "triggers": {
+    "crons": ["17 3 * * *"],
+  },
+  //
+  "workers_dev": false,
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-auth-nonce-prune-job",
+  "main": "dist/main.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+  //
+  // ── Hyperdrive bindings ───────────────────────────────────────────────────────
+  // Hai binding, mỗi binding một kho nonce của lambda đúng service:
+  //   `DB_AUTH`    → Hyperdrive của `db-auth`    (schema `auth`,    role pruner `ecoma_auth_nonce_pruner`)
+  //   `DB_ACCOUNT` → Hyperdrive của `db-account` (schema `account`, role pruner `ecoma_account_nonce_pruner`)
+  //
+  // ⚠️ **CHỈ tên binding — không host, không port, không user, không password.** Connection
+  // string thật lấy ở runtime qua `binding.connectionString` (pattern
+  // `apps/account/server/utils/db.ts`). `id` là định danh Hyperdrive config theo
+  // **môi trường**, không phải thông tin kết nối.
+  //
+  // ⚠️ **`id` là placeholder toàn số 0** — Hyperdrive chưa provision. Deploy hiện tại
+  // fail-closed vì Worker kết nối không được qua một Hyperdrive config nào hợp lệ.
+  // KHÔNG điền `id` thật trước khi Hyperdrive config thật tồn tại: điền id giả chỉ
+  // làm deploy chạy được mà runtime đỏ — một lỗi báo muộn thay vì báo sớm.
+  //
+  // ⚠️ **Wrangler KHÔNG kế thừa top-level `hyperdrive` vào named environment**
+  // (đo trên Wrangler 4.151: top-level binding không xuất hiện trong `env.<lane>` —
+  // cùng phát hiện ở `apps/account/wrangler.jsonc`). Vì thế MỖI `env.<lane>` phải
+  // khai lại binding của chính nó, không có shortcut nào — xem khối `env` phía dưới.
+  "hyperdrive": [
+    {
+      "binding": "DB_AUTH",
+      "id": "00000000000000000000000000000000",
+    },
+    {
+      "binding": "DB_ACCOUNT",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
+  //
+  // ── env.staging / env.production ─────────────────────────────────────────────
+  // Hai identity Worker theo quy ước `{target}-{slug}` của tầng delivery
+  // (overview `02-delivery.md` §7.2, thiết kế chưa hiện thực):
+  // staging `stg-ecoma-auth-nonce-prune-job`, production `ecoma-auth-nonce-prune-job`.
+  // Tên Worker là vĩnh viễn, không đổi theo tag.
+  //
+  // ⚠️ Mỗi env PHẢI khai lại 2 Hyperdrive của LÀN ĐÓ — không ái gì từ top-level, và
+  // tuyệt đối không cho staging trỏ vào Hyperdrive production (02-delivery §4.1,
+  // điều 1 + điều 5). `id` mỗi env là placeholder cho tới khi provisioning hạ tầng
+  // cung cấp id thật: staging riêng, production riêng, không dùng chung.
+  //
+  // KHÔNG khai `devOrigin`/`smokeSurface` như các app khác: Worker này KHÔNG expose
+  // bất kỳ HTTP endpoint nào (bắt buộc theo 01-architecture.md §2 — KHÔNG fetch export,
+  // KHÔNG host, KHÔNG /health), nên smoke check HTTP không tồn tại. Không có endpoint,
+  // there is no origin to probe — thiếu origin là đúng trạng thái, không phải cấu hình
+  // khuyết. Xác minh deploy tiến tới là: Past events của Cron Dashboard (đỏ/không),
+  // và `wrangler tail` khi cần đọc log từng run (03-operations.md §3).
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-auth-nonce-prune-job",
+      "hyperdrive": [
+        {
+          "binding": "DB_AUTH",
+          "id": "00000000000000000000000000000000",
+        },
+        {
+          "binding": "DB_ACCOUNT",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
+    },
+    "production": {
+      "name": "ecoma-auth-nonce-prune-job",
+      "hyperdrive": [
+        {
+          "binding": "DB_AUTH",
+          "id": "00000000000000000000000000000000",
+        },
+        {
+          "binding": "DB_ACCOUNT",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
+    },
+  },
+}

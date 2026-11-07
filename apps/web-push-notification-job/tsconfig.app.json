@@ -1,0 +1,54 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "module/moduleResolution = esnext + bundler, KHÔNG nodenext. nodenext bắt buộc mọi relative import phải có phần mở rộng '.js', trong khi convention của repo (và của chính các lib mà file này reference) là import không phần mở rộng — nên nodenext ở đây làm build fail ở chính file của app. Đây là cấu hình của unit này, không phải .oxlintrc.json/tsconfig.base.json.",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "out-tsc",
+    "module": "esnext",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "rootDir": "src",
+    "moduleResolution": "bundler",
+    "tsBuildInfoFile": "out-tsc/tsconfig.app.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "out-tsc",
+    "dist",
+    "vite.config.ts",
+    "vite.config.mts",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.tsx",
+    "src/**/*.test.js",
+    "src/**/*.spec.js",
+    "src/**/*.test.jsx",
+    "src/**/*.spec.jsx"
+  ],
+  "references": [
+    {
+      "path": "../../libs/push-notification-infrastructure/tsconfig.lib.json"
+    },
+    {
+      "path": "../push-notification/tsconfig.app.json"
+    },
+    {
+      "path": "../../libs/web-push-notification-job-infrastructure/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/web-push-notification-job-application/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/push-notification-domain/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/push-notification-contracts/tsconfig.lib.json"
+    }
+  ]
+}

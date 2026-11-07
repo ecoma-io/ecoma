@@ -1,0 +1,121 @@
+{
+  "name": "@ecoma-io/identity-login-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.37.0"
+  },
+  "nx": {
+    "//": [
+      "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
+      "- platform-deploy: cert local `deploys/platform-deploy/local-certs/fbi.com.crt` (global-setup.ts + e2e/support/local-origin.ts đọc trực tiếp),",
+      "  `ROOT_DOMAIN`/`ROOT_HOST` do `local-up` của platform ghi vào `.env`, router Traefik của platform route `account.<host>`,",
+      "  và container `ecoma-<ns>-postgres` mà e2e/support/local-stack.ts seed nằm trong namespace của platform.",
+      "- account-deploy: origin `account.<host>` là điểm đến của toàn bộ suite — gate probe `/api/auth/session` và mọi spec gọi",
+      "  challenge/verify/session/logout (apps/account), đồng thời `db-account` mà suite seed là database account sở hữu.",
+      "- transactional-mail-deploy: OTP được đọc từ mail sink D1 trong container `ecoma-<ns>-mail-wic`",
+      "  (`local-stack.ts::pollOtpFromSink` docker exec vào đó) do `local-up` của mail provision.",
+      "KHÔNG khai auth-deploy: luồng login OTP này KHÔNG chạm origin auth — challenge/verify/session/logout là route của account",
+      "(apps/account/server/api/auth/*) và suite không bao giờ gọi `auth.<host>`; account chỉ push kết quả verify về auth qua handoff",
+      "khi browser đi luồng OIDC (identity-oidc-e2e), còn suite này chạy thuần API account và không truyền `handle` nào.",
+      "Không khai home/backoffice/pact/push: suite không chạm origin nào của chúng."
+    ],
+    "implicitDependencies": [
+      "platform-deploy",
+      "account-deploy",
+      "transactional-mail-deploy"
+    ],
+    "tags": [
+      "type:tooling",
+      "scope:account",
+      "runtime:native"
+    ],
+    "targets": {
+      "system-test": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "platform-deploy",
+              "account-deploy",
+              "transactional-mail-deploy"
+            ],
+            "target": "local-up"
+          }
+        ],
+        "configurations": {
+          "local": {}
+        },
+        "options": {
+          "cwd": "system-tests/e2e/identity-login-e2e",
+          "command": "npx playwright test"
+        },
+        "//": [
+          "Target canonical `system-test` của system-test suite (docs/architecture/06-testing.md §4) —",
+          "suite tự định nghĩa cách thực thi của mình. `cache: false` là CONTRACT chứ không phải",
+          "tối ưu (cùng rationale với entry `local-up` của `nx.json`): target không mutate gì trong",
+          "repo, nhưng stack local phía sau là external state sống ngoài inputs của Nx — một cache",
+          "hit sẽ che việc stack đã đổi trạng thái (container recreate, router Traefik chưa đăng ký",
+          "lại) và trả kết quả xanh cho một hệ thống KHÔNG còn chạy như lúc cache được ghi. Suite",
+          "verify cả hệ thống đang chạy thật nên mỗi lần chạy phải chạm stack thật.",
+          "`dependsOn` kéo prerequisite deploy: `local-up` của đúng ba deploy project mà suite phụ",
+          "thuộc — Nx schedule chúng TRƯỚC playwright test, dùng lại task đã chạy thay vì deploy lại.",
+          "Chỉ `local-up`, KHÔNG `local-smoke`: smoke dependsOn `home-deploy` (nó kiểm chuỗi redirect của home) nên sẽ ép",
+          "deploy cả 9 unit cho một suite chỉ cần 3. `configurations.local` cùng tên configuration mà",
+          "target `local-up` khai — `-c local` trên lệnh Nx lan configuration vào task prerequisite",
+          "(task id `...:local-up:local`)."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/system-tests/e2e/.eslintignore",
+          "{workspaceRoot}/system-tests/e2e/.gitignore",
+          "{workspaceRoot}/system-tests/.eslintignore",
+          "{workspaceRoot}/system-tests/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      }
+    }
+  }
+}

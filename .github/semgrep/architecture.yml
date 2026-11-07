@@ -1,0 +1,52 @@
+# Nhóm rule kiến trúc: enforce các invariant trong AGENTS.md ("One service owns
+# each database; another service must not access that database directly",
+# "Cross-service communication uses the defined API/event contracts, not shared
+# database access") ở chỗ duy nhất trong repository nơi một service TUYỂN CHỌN
+# những database nó mở quyền truy cập: `wrangler.jsonc`.
+#
+# `languages: [generic]` — `.jsonc` KHÔNG được semgrep quét bằng `languages:
+# [json]` (đo trên 1.172.0: "Targets scanned: 0"); `generic` + `pattern-regex`
+# là cách duy nhất đọc được file này.
+#
+# Regex nhận cả `'` lẫn `"` dù JSONC chỉ hợp lệ với `"`. Lý do là oxfmt — mà
+# CI chạy `npx oxfmt --check .` và lefthook chạy `--write` trên staged file —
+# chuẩn hoá mọi scalar YAML về dấu nháy đơn, nên một fixture viết `"x"` sẽ
+# thành `'x'` và pattern chỉ match `"x"` sẽ im lặng. Anchor `^` vẫn là thứ
+# loại trừ comment: một dòng `// …` hay `# …` không bắt đầu bằng dấu ngoặc.
+rules:
+  - id: architecture-service-declares-database-it-does-not-own
+    languages: [generic]
+    severity: ERROR
+    paths:
+      include:
+        - '**/wrangler.jsonc'
+      exclude:
+        - '**/apps/push-notification/wrangler.jsonc'
+        - '**/apps/web-push-notification-job/wrangler.jsonc'
+        - '**/apps/transactional-mail/wrangler.jsonc'
+        - '**/apps/transactional-mailer-job/wrangler.jsonc'
+    message: >-
+      This `wrangler.jsonc` declares a D1 database but this app is not on the
+      ownership list for any database. One service owns each database and
+      another service must never open it directly. Cross-service exchange goes
+      through Queue or service bindings; those are not policed by this rule.
+      If this app genuinely owns a new database, add its path to the exclude
+      list at the same time as the ownership row in
+      docs/architecture/01-architecture.md.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe:
+        - 'CWE-284: Improper Access Control'
+      owasp:
+        - 'A04:2021 - Insecure Design'
+        - 'A04:2025 - Insecure Design'
+      references:
+        - https://developers.cloudflare.com/d1/
+      technology:
+        - cloudflare-workers
+      subcategory:
+        - vuln
+      likelihood: LOW
+      impact: HIGH
+    pattern-regex: '^\s*[''""]database_name[''""]\s*:\s*[''""][^''""]+[''""]'

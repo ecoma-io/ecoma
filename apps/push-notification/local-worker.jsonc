@@ -1,0 +1,10 @@
+{
+  // Opt-in marker của local worker runtime (PR6 discovery, issue #68):
+  // sự hiện diện của file này khai báo "app này chạy qua `wrangler dev` của
+  // `pnpm dx local-worker-up`" — không marker nghĩa là app KHÔNG tham gia
+  // runtime đó. Readiness là DECLARATION, không suy từ config wrangler:
+  // control plane push-notification KHÔNG serve `GET /health` (src/main.ts
+  // chỉ có /v1/notifications, /internal/**, /admin/v1/** — không healthcheck)
+  // nên poll HTTP sẽ timeout — dùng banner `Ready on http` của wrangler dev.
+  "readiness": "log-banner",
+}

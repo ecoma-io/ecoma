@@ -1,0 +1,130 @@
+/**
+ * Design token và primitive class của bề mặt **tài khoản**.
+ *
+ * Đây là bảng token **riêng của app này**, cố ý không dùng lại token của public
+ * surface (`apps/home/app/assets/css/styles.css`). Account là sản phẩm quản lý
+ * tài khoản: nền sáng, đọc lâu, nhiều form. Mượn palette tối của landing page
+ * sẽ tạo ra một trang nhập email tối trong khi phần còn lại của sản phẩm là sáng
+ * — và nếu sau này ai đó cho rằng chúng "nên giống nhau" thì đổi token ở đây
+ * không đụng tới home.
+ *
+ * ⚠️ Mọi giá trị màu ở dưới đều đạt WCAG AA (≥ 4.5:1) trên nền nó được dùng:
+ * nội dung tài khoản gồm nhiều chữ nhỏ mờ (`text-xs text-muted`) trên nền trắng,
+ * nơi một giá trị "đẹp" ở mức 4.0:1 là lỗi đọc được, không phải lựa chọn thẩm mỹ.
+ */
+/*
+ * Khai báo pipeline của Tailwind v4. ⚠️ KHÔNG được bỏ dòng này: `@theme` bên dưới
+ * chỉ khai token, nó **không** nạp Tailwind — thiếu import thì mọi utility mặc định
+ * (`text-white`, `sr-only`, `focus:*`…) không tồn tại và build chết ngay ở
+ * `@apply`, thay vì im lặng rơi class.
+ */
+@import 'tailwindcss';
+
+@theme {
+  /* Nền: trang < thẻ < ô nhập. Tăng dần độ tương phản để đường viền đọc được
+   * mà không cần viền nặng. */
+  --color-ink: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-surface-raised: #ffffff;
+  --color-field: #ffffff;
+
+  /*
+   * Nền **tối** cho layout auth và lớp phủ `::backdrop` của dialog — hai chỗ
+   * duy nhất cần một màu sẫm, và chúng phải có token riêng: `--color-ink` là
+   * màu **chữ** trên nền brand (trắng), dùng nó làm `bg-ink` cho ra nền trắng
+   * — lớp phủ dialog thành 40% trắng làm SÁNG thay vì mờ, và trang đăng nhập
+   * trùng màu với thẻ account-card mất hết ranh giới.
+   */
+  --color-canvas-deep: #12141a;
+
+  /* Viền: đủ nhìn thấy trên nền sáng nhưng không tranh chữ. */
+  --color-line: #d5d9e0;
+  --color-line-strong: #a8b0bd;
+
+  /* Chữ. `faint` là mức thấp nhất còn đạt AA trên cả ba nền — nó được dùng cho
+   * nhãn phụ và mốc thời gian, không dùng cho nội dung chính. */
+  --color-foam: #16181d;
+  --color-muted: #5b6472;
+  --color-faint: #6b7380;
+
+  /* Primary thương hiệu — nền của chữ trắng, nên phải đạt AA. */
+  --color-brand: #0b5cd5;
+  --color-brand-hover: #0a4fb4;
+  --color-brand-soft: #0b5cd5;
+
+  /* Trạng thái. Mỗi cặp nền/chữ đều đạt AA; `danger` dùng cho hành động phá
+   * huỷ và lỗi, `success` cho xác nhận đã lưu. */
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-success: #17663a;
+  --color-success-soft: #eef8f1;
+  --color-warning-soft: #fff8eb;
+  --color-warning-line: #e0a12a;
+
+  --radius-card: 12px;
+  --radius-field: 8px;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-foam antialiased;
+  }
+
+  ::selection {
+    @apply bg-brand text-ink;
+  }
+
+  /*
+   * Một chỗ duy nhất cho focus ring. `:focus-visible` chứ không phải `:focus`:
+   * người dùng chuột không thấy viền nhấp sau khi bấm, người bàn phím luôn thấy.
+   * Đây là điều kiện a11y bắt buộc của toàn app — không để mỗi control tự chọn
+   * focus style rồi quên mất ở một cái.
+   */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+/*
+ * Primitive dùng chung. Chúng là `@utility` của Tailwind v4 nên vẫn xuất hiện
+ * trong HTML class như bình thường (`@apply` trong CSS thường sẽ sinh class
+ * riêng và không bị tree-shake).
+ */
+@utility account-card {
+  @apply rounded-card border border-line bg-surface-raised;
+}
+
+@utility account-field {
+  @apply w-full rounded-field border border-line-strong bg-field px-3 py-2 text-foam;
+  @apply placeholder:text-faint;
+  @apply disabled:cursor-not-allowed disabled:bg-surface disabled:text-faint;
+}
+
+@utility account-label {
+  @apply block text-sm font-medium text-foam;
+}
+
+@utility account-hint {
+  @apply mt-1 text-sm text-muted;
+}
+
+@utility account-button-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-field bg-brand px-4 py-2;
+  @apply text-sm font-semibold text-ink;
+  @apply hover:bg-brand-hover;
+  @apply disabled:cursor-not-allowed disabled:bg-line-strong disabled:text-ink;
+}
+
+@utility account-button-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-field border border-line-strong px-4 py-2;
+  @apply text-sm font-semibold text-foam;
+  @apply hover:bg-surface;
+  @apply disabled:cursor-not-allowed disabled:text-faint;
+}
+
+@utility account-button-danger {
+  @apply inline-flex items-center justify-center gap-2 rounded-field border border-danger px-4 py-2;
+  @apply text-sm font-semibold text-danger;
+  @apply hover:bg-danger-soft;
+  @apply disabled:cursor-not-allowed disabled:border-line-strong disabled:text-faint;
+}

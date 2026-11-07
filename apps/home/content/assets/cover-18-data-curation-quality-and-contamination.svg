@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="cover-title cover-desc">
+  <title id="cover-title">Cover: Data curation for language models: quality, deduplication, and contamination</title>
+  <desc id="cover-desc">Course cover for lesson 18 of 30, Pretraining and scaling. Abstract curation funnel motif beside the lesson title.</desc>
+
+  <rect x="0" y="0" width="1280" height="720" fill="#f8fafc"/>
+  <rect x="0" y="632" width="1280" height="88" fill="#e2e8f0"/>
+
+  <text x="88" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" letter-spacing="1" fill="#4f46e5">Lesson 18 of 30 · Pretraining and scaling</text>
+  <line x1="88" y1="140" x2="208" y2="140" stroke="#4f46e5" stroke-width="4"/>
+
+  <text x="88" y="248.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">Data curation for language</text>
+  <text x="88" y="308.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">models: quality,</text>
+  <text x="88" y="368.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">deduplication, and</text>
+  <text x="88" y="428.0" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="650" fill="#0f172a">contamination</text>
+
+  <g aria-hidden="true">
+    <rect x="842.0" y="126" width="336" height="40" rx="10" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <rect x="877.0" y="218" width="266" height="74" rx="10" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <rect x="907.0" y="310" width="206" height="108" rx="10" fill="#e0e7ff" stroke="#4f46e5" stroke-width="3"/>
+        <rect x="932.0" y="402" width="156" height="140" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="3"/>
+  </g>
+
+  <text x="88" y="690" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="24" fill="#64748b">ecoma.io · AI/ML/LLM curriculum</text>
+  <text x="1192" y="690" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="24" fill="#64748b" text-anchor="end">18 / 30</text>
+</svg>

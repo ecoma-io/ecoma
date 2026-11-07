@@ -1,0 +1,15 @@
+diff --git a/dist/src/plugins/typescript/plugin.js b/dist/src/plugins/typescript/plugin.js
+index 385392a7da6ef9b2731cd1018f36b20e57453b5e..3884fc442b2809248b0988910dc69ed8b3db1156 100644
+--- a/dist/src/plugins/typescript/plugin.js
++++ b/dist/src/plugins/typescript/plugin.js
+@@ -470,8 +470,8 @@ function getInputs(namedInputs, config, tsConfig, internalProjectReferences, wor
+                     // TS treats an implicit-glob exclude like "dist" as excluding the
+                     // whole subtree, so emit it as "dist/**/*".
+                     excludePaths.add(isImplicitGlobSpec(excludePath)
+-                        ? `${excludePath}/**/*`
+-                        : excludePath);
++                        ? `${(0, node_path_1.join)(offset, excludePath)}/**/*`
++                        : (0, node_path_1.join)(offset, excludePath));
+                 }
+             });
+         }
