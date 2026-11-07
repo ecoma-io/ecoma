@@ -179,7 +179,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** chọn thay đổi tiếp theo theo giá trị, rủi ro, dependency và chi phí.
 - **Input:** danh sách gap/opportunity; ưu tiên hiện hành; dependency giữa các slice.
-- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone hoặc Project khi cần visibility — chưa có cấu hình nào như vậy được xác minh (§4.2).
+- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và quyết định tracking trong Project theo [`work-management.md`](./work-management.md) §3.3 — đánh giá từng Issue độc lập, không suy từ Milestone hay priority.
 - **Output:** Issue có outcome, phạm vi và tiêu chí verify.
 - **Hoàn thành khi:** slice phát biểu được outcome quan sát được, giới hạn phạm vi rõ, tiêu chí verify thuộc đúng tầng, dependency đã biết.
 - **Kế tiếp:** sang Deliver. Slice quá lớn, hoặc thiếu bằng chứng để verify, quay lại §6.2 hoặc §6.3.

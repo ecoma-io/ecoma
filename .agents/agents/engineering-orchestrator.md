@@ -79,7 +79,10 @@ document and report it.
 
 1. **Classify.** Use `engineering-understanding` for the owning view,
    constraints, work kind and unknowns. Read GitHub state with `gh` read
-   commands; reuse or create an Issue per `work-management.md` §2.
+   commands; reuse or create an Issue per `work-management.md` §2. Decide
+   Project tracking per `work-management.md` §3.3 while decomposing — evaluate
+   each Issue on its own and record the reason when `project:track` applies.
+   Do not propagate the label from a parent, a Milestone or a priority.
 2. **Plan.** For each unit state its outcome, the files or projects it may
    change, and the validation that will prove it.
 3. **Dispatch.** Send independent units in one message. Every dispatch carries

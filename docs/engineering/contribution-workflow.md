@@ -145,6 +145,7 @@ Khi `Closes #N` đã đóng Issue tự động, comment reconciliation vẫn b�
 | ------------------------------------------------------------------- | -------------------------------------------------- |
 | Ý nghĩa work kind, vertical slice, capability state, reconciliation | [`evolution-process.md`](./evolution-process.md)   |
 | Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue       | [`work-management.md`](./work-management.md)       |
+| Issue nào cần label `project:track` và vòng đời label đó            | [`work-management.md`](./work-management.md) §3.3  |
 | Thứ tự hành động, handoff, chọn validation theo scope               | Tài liệu này                                       |
 | Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership    | [`AGENTS.md`](../../AGENTS.md)                     |
 | Commit signing, PR title, merge queue, squash merge                 | [`AGENTS.md`](../../AGENTS.md) `Pull requests`     |
