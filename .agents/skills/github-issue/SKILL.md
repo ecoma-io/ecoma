@@ -50,6 +50,9 @@ asserting):
   restriction and PR rules do not apply to Issues.
 - Work kind is **not** a label. Do not create one; record it in the body or in
   the form field.
+- `project:track` **is** a label, and the only label this skill applies on its
+  own authority — per `work-management.md` §3.3. Every other label, Project
+  field, Milestone and assignee still follows the verified-value rule below.
 
 ## Decide whether an Issue should exist
 
@@ -131,6 +134,30 @@ For ledgers, precondition trackers, experiment records and decision Issues,
 use free structure. Every heading must carry information — no empty
 placeholders.
 
+## Decide Project tracking
+
+Read `work-management.md` §3.3 before deciding. That section owns the policy,
+the per-work-kind default, the criteria and the lifecycle; this skill only
+states how to apply it while authoring an Issue.
+
+- Decide at Issue level. One Issue in a Milestone or an Epic may need tracking
+  while its siblings do not; never inherit the label from a parent, a
+  Milestone, a product or a priority.
+- Apply the label `project:track` only when the Issue needs portfolio
+  visibility or cross-workstream coordination — a dependency worth ordering, an
+  outcome on the critical path, or a decision several workstreams wait on.
+- State the reason in one sentence: either a `## Theo dõi Project` section in
+  the body or, when the body must not change, a comment on the Issue.
+- A missing coordination reason means no label. "Priority is high" and
+  "belongs to the MVP milestone" are not reasons.
+- Do not infer the label's effect. The Project membership it produces is
+  configuration read from GitHub, not something this skill asserts.
+
+When reviewing Issues rather than creating one, check both directions: an
+Issue that needs tracking but has no label, and an Issue with the label and no
+valid reason. Report; do not relabel another unit's Issue without
+authorization.
+
 ## Ground every claim
 
 Keep these categories distinguishable in the body:
@@ -161,7 +188,8 @@ Write the body to a file so backticks, `$` and Vietnamese text survive intact.
 
 - Set only verified, existing values. Prefer no label over an invented one.
   Never set a milestone, Project field or assignee that you have not confirmed
-  exists — and never set one as a placeholder.
+  exists — and never set one as a placeholder. `project:track` is applied only
+  under the Project-tracking decision above.
 - Include verified references to related Issues, PRs, documents and evidence
   as exact links (`#N`, paths).
 - If the user asks only for a draft, return the title and body without
@@ -189,11 +217,13 @@ Write the body to a file so backticks, `$` and Vietnamese text survive intact.
 3. Can every completion criterion be verified without guessing?
 4. Are verified facts, requirements, inferences and unknowns distinguishable?
 5. Is the work kind stated, and does it match the body rather than the label?
-6. Is this a work item — not accidentally a ledger, tracker or record?
-7. Is the Issue genuinely new, properly linked, or correctly reused?
-8. Does every heading add necessary information?
-9. Are technical terms and identifiers accurate?
-10. Does the content comply with repository policy and the task's
+6. Is the Project tracking decision made explicitly, with its reason recorded
+   when the label is applied?
+7. Is this a work item — not accidentally a ledger, tracker or record?
+8. Is the Issue genuinely new, properly linked, or correctly reused?
+9. Does every heading add necessary information?
+10. Are technical terms and identifiers accurate?
+11. Does the content comply with repository policy and the task's
     authorization?
 
 ## Escalation

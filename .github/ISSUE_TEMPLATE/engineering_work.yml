@@ -65,6 +65,16 @@ body:
         Bỏ trống với các loại công việc khác.
 
   - type: textarea
+    id: project-tracking
+    attributes:
+      label: Theo dõi Project
+      description: |
+        Chỉ điền khi Issue cần portfolio visibility hoặc coordination giữa các workstream — một câu nêu lý do.
+        Kèm theo label `project:track`. Điều kiện phân loại ở `docs/engineering/work-management.md` §3.3.
+        Không gắn label chỉ vì Issue thuộc Milestone #1, thuộc một product, hoặc có priority cao.
+        Không cần theo dõi thì để trống.
+
+  - type: textarea
     id: dependencies
     attributes:
       label: Dependency và quyết định đang mở
