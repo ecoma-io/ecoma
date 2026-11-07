@@ -64,16 +64,28 @@ cho hai coding agent:
   rỗng, chúng được đồng bộ như một nguồn rỗng (làm trống đích). Bước này tôn
   trọng `.gitignore` cho việc duyệt và cho các input được copy, và không đi
   theo symlink ra ngoài source tree.
-- **Agents** — mỗi file `.agents/agents/<name>.md` là một định nghĩa subagent,
-  viết bằng frontmatter của Claude Code (`name`, `description`, `tools`,
-  `model`, tùy chọn). Lệnh sinh `.claude/agents/<name>.md` gần nguyên văn và
-  `.opencode/agents/<name>.md` với `mode: subagent` cộng `permissions` suy ra
-  từ `tools`. Vì OpenCode áp rule khai báo sau thắng rule khai báo trước, file
-  sinh ra đặt catch-all `deny` trước rồi mới tới các `allow` — đây là thứ thực
-  sự giới hạn quyền của agent. `model` chỉ được truyền sang OpenCode khi có
-  dạng `provider/model`; alias của Claude bị bỏ kèm cảnh báo.
+- **Agents** — mỗi file `.agents/agents/<name>.md` là một định nghĩa agent, viết
+  bằng frontmatter của Claude Code (`name`, `description`, `tools`, `model`,
+  `mode`, tùy chọn). Lệnh sinh `.claude/agents/<name>.md` gần nguyên văn và
+  `.opencode/agents/<name>.md` với `mode` cộng `permissions` suy ra từ `tools`.
+  `mode` chỉ nhận đúng ba giá trị `primary`, `subagent`, `all`; bỏ trống thì
+  mặc định là `subagent`. Key này chỉ ảnh hưởng file OpenCode — Claude Code
+  không có field `mode` nên nó không bao giờ được ghi vào
+  `.claude/agents/<name>.md`. Vì OpenCode áp rule khai báo sau thắng rule khai
+  báo trước, file sinh ra đặt catch-all `deny` trước rồi mới tới các `allow` —
+  đây là thứ thực sự giới hạn quyền của agent. `model` chỉ được truyền sang
+  OpenCode khi có dạng `provider/model`; alias của Claude bị bỏ kèm cảnh báo.
 
-`name` phải trùng tên file, mọi key khác ngoài bốn key trên là lỗi, và một tên
+Năm định nghĩa agent hiện được sinh: `engineering-orchestrator` (`mode: primary`,
+không có `Edit`/`Write` nhưng có `Bash`), `repository-analyst` và `architect`
+(chỉ đọc, tool-enforced: không có write tool và không có shell), `implementer`
+(ghi trong scope lock), `verifier` (không có `Edit`/`Write`, dùng `Bash` để chạy
+validation). Chỉ hai vai không có write tool **và** không có shell mới thực sự bị
+tool chặn ghi; mọi scope lock khác là instruction-level vì một `Bash` được cấp
+vẫn ghi được file. Danh mục và ranh giới từng vai nằm ở `AGENTS.md` `Workflow` →
+`Agent catalog`.
+
+`name` phải trùng tên file, mọi key khác ngoài năm key trên là lỗi, và một tên
 tool không có trong bảng ánh xạ cũng là lỗi — ba trường hợp đó fail lệnh thay vì
 sinh ra một agent bị chặn quyền mà không ai biết.
 

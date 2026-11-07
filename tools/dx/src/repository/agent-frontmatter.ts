@@ -1,24 +1,31 @@
 import { parse as parseYaml } from 'yaml';
 
 /**
- * Frontmatter của một định nghĩa subagent trong `.agents/agents/`.
+ * Frontmatter của một định nghĩa agent trong `.agents/agents/`.
  *
  * Shape này là của Claude Code (`name`, `description`, `tools`, `model`) và là
- * định dạng duy nhất được phép ở nguồn. Mỗi đích sinh ra một biến thể riêng:
- * Claude nhận gần nguyên văn, OpenCode nhận `description` + `mode` + các
- * `permissions` suy ra từ `tools`.
+ * định dạng duy nhất được phép ở nguồn, cộng thêm `mode` — key chỉ OpenCode
+ * hiểu. Mỗi đích sinh ra một biến thể riêng: Claude nhận gần nguyên văn (không
+ * có `mode`), OpenCode nhận `description` + `mode` + các `permissions` suy ra từ
+ * `tools`.
  */
 export interface AgentSource {
   readonly name: string;
   readonly description: string;
   readonly tools: readonly string[] | undefined;
   readonly model: string | undefined;
+  readonly mode: AgentMode | undefined;
   /** Phần sau frontmatter, giữ nguyên văn — đây là system prompt của agent. */
   readonly body: string;
 }
 
+/** Giá trị `mode` mà OpenCode chấp nhận cho một agent. */
+export const AGENT_MODES = ['primary', 'subagent', 'all'] as const;
+
+export type AgentMode = (typeof AGENT_MODES)[number];
+
 /** Key duy nhất được phép trong frontmatter nguồn. */
-const ALLOWED_KEYS = new Set(['name', 'description', 'tools', 'model']);
+const ALLOWED_KEYS = new Set(['name', 'description', 'tools', 'model', 'mode']);
 
 /**
  * Tool của Claude Code ánh xạ sang `action` trong `permissions` của OpenCode.
@@ -96,6 +103,31 @@ function parseTools(value: unknown, label: string): readonly string[] | undefine
 }
 
 /**
+ * Đọc `mode` — key chỉ ảnh hưởng tới file OpenCode.
+ *
+ * Vắng mặt là hợp lệ và được hiểu là `subagent`, đúng mặc định của renderer
+ * OpenCode. Mọi giá trị khác ba giá trị OpenCode hiểu đều là lỗi: một `mode` gõ
+ * sai sẽ khiến OpenCode âm thầm dùng mặc định, tức agent chạy sai vai.
+ */
+function parseMode(value: unknown, label: string): AgentMode | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${label}: "mode" must be one of ${AGENT_MODES.join(', ')}`);
+  }
+
+  const mode = value.trim();
+
+  if (!(AGENT_MODES as readonly string[]).includes(mode)) {
+    throw new Error(`${label}: "mode" must be one of ${AGENT_MODES.join(', ')}, got "${mode}"`);
+  }
+
+  return mode as AgentMode;
+}
+
+/**
  * Parse và validate một file agent nguồn.
  *
  * Mọi lỗi nêu rõ file và key sai: file nguồn do người viết tạo, nên thông báo
@@ -122,7 +154,7 @@ export function parseAgentSource(contents: string, label: string): AgentSource {
     }
   }
 
-  const { name, description, tools, model } = frontmatter;
+  const { name, description, tools, model, mode } = frontmatter;
 
   if (typeof name !== 'string' || name.trim() === '') {
     throw new Error(`${label}: frontmatter requires a non-empty "name"`);
@@ -137,6 +169,7 @@ export function parseAgentSource(contents: string, label: string): AgentSource {
   }
 
   const parsedTools = parseTools(tools, label);
+  const parsedMode = parseMode(mode, label);
 
   for (const tool of parsedTools ?? []) {
     if (!Object.hasOwn(TOOL_ACTIONS, tool)) {
@@ -151,6 +184,7 @@ export function parseAgentSource(contents: string, label: string): AgentSource {
     description,
     tools: parsedTools,
     model: typeof model === 'string' ? model.trim() : undefined,
+    mode: parsedMode,
     body: contents.slice(match[0].length),
   };
 }
@@ -163,8 +197,9 @@ function quote(value: string): string {
 /**
  * Sinh file agent cho Claude Code.
  *
- * Giữ nguyên bốn key của nguồn, chỉ chuẩn hoá `tools` về dạng chuỗi phân tách
- * bằng dấu phẩy để hai lần chạy cho ra cùng byte.
+ * Giữ nguyên các key của nguồn, chỉ chuẩn hoá `tools` về dạng chuỗi phân tách
+ * bằng dấu phẩy để hai lần chạy cho ra cùng byte. `mode` không được ghi ra:
+ * Claude Code không có field này trong frontmatter agent.
  */
 export function renderClaudeAgent(agent: AgentSource): string {
   const lines = ['---', `name: ${quote(agent.name)}`, `description: ${quote(agent.description)}`];
@@ -192,9 +227,10 @@ export interface OpencodeAgent {
  *
  * OpenCode khai báo tool access bằng `permissions` chứ không có field `tools`, và
  * mặc định `mode: primary` cho agent tuỳ biến — thiếu `mode: subagent` thì một
- * subagent sẽ chiếm chỗ của agent chính. Rule khai báo sau thắng rule khai báo
- * trước, nên catch-all `deny` phải đứng đầu để các `allow` phía sau mới có tác
- * dụng giới hạn.
+ * subagent sẽ chiếm chỗ của agent chính. Vì vậy `mode` của nguồn được ghi ra, và
+ * nguồn không khai báo thì mặc định là `subagent`. Rule khai báo sau thắng rule
+ * khai báo trước, nên catch-all `deny` phải đứng đầu để các `allow` phía sau mới
+ * có tác dụng giới hạn.
  *
  * `model` chỉ được truyền khi có dạng `provider/model`: Claude chấp nhận alias
  * như `sonnet`, OpenCode thì không. Bỏ alias kèm cảnh báo trung thực hơn là sinh
@@ -202,7 +238,11 @@ export interface OpencodeAgent {
  */
 export function renderOpencodeAgent(agent: AgentSource): OpencodeAgent {
   const warnings: string[] = [];
-  const lines = ['---', `description: ${quote(agent.description)}`, 'mode: subagent'];
+  const lines = [
+    '---',
+    `description: ${quote(agent.description)}`,
+    `mode: ${agent.mode ?? 'subagent'}`,
+  ];
 
   if (agent.model !== undefined) {
     if (agent.model.includes('/')) {

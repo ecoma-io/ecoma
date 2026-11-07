@@ -559,6 +559,125 @@ describe('syncAgentConfig - agent definitions', () => {
     expect(contents.endsWith('You are a reviewer.\n')).toBe(true);
   });
 
+  it('defaults to subagent in OpenCode and writes no mode for Claude', async () => {
+    const root = await makeRepo({ '.agents/agents/reviewer.md': REVIEWER });
+
+    await syncAgentConfig(root);
+
+    expect(await readFile(join(root, '.opencode/agents/reviewer.md'), 'utf8')).toContain(
+      'mode: subagent',
+    );
+    expect(await readFile(join(root, '.claude/agents/reviewer.md'), 'utf8')).not.toContain('mode:');
+  });
+
+  it('renders a primary mode in OpenCode and keeps it out of the Claude definition', async () => {
+    const root = await makeRepo({
+      '.agents/agents/lead.md': [
+        '---',
+        'name: lead',
+        'description: Coordinates other agents',
+        'tools: Read, Agent',
+        'mode: primary',
+        '---',
+        'You lead.',
+        '',
+      ].join('\n'),
+    });
+
+    await syncAgentConfig(root);
+
+    const opencode = await readFile(join(root, '.opencode/agents/lead.md'), 'utf8');
+
+    expect(opencode).toContain('mode: primary');
+    expect(opencode).not.toContain('mode: subagent');
+    expect(await readFile(join(root, '.claude/agents/lead.md'), 'utf8')).not.toContain('mode:');
+  });
+
+  it('accepts and renders mode: all', async () => {
+    const root = await makeRepo({
+      '.agents/agents/both.md': [
+        '---',
+        'name: both',
+        'description: Usable both ways',
+        'mode: all',
+        '---',
+        'Prompt.',
+        '',
+      ].join('\n'),
+    });
+
+    await syncAgentConfig(root);
+
+    expect(await readFile(join(root, '.opencode/agents/both.md'), 'utf8')).toContain('mode: all');
+  });
+
+  it('rejects an invalid mode and names the file and the accepted values', async () => {
+    const root = await makeRepo({
+      '.agents/agents/reviewer.md': [
+        '---',
+        'name: reviewer',
+        'description: Invalid mode',
+        'mode: sometimes',
+        '---',
+        'Prompt.',
+        '',
+      ].join('\n'),
+    });
+
+    await expect(syncAgentConfig(root)).rejects.toThrow(
+      /\.agents\/agents\/reviewer\.md.*"mode".*primary, subagent, all/u,
+    );
+  });
+
+  it('rejects an empty mode', async () => {
+    const root = await makeRepo({
+      '.agents/agents/reviewer.md': [
+        '---',
+        'name: reviewer',
+        'description: Empty mode',
+        'mode: ""',
+        '---',
+        'Prompt.',
+        '',
+      ].join('\n'),
+    });
+
+    await expect(syncAgentConfig(root)).rejects.toThrow(/\.agents\/agents\/reviewer\.md.*"mode"/u);
+  });
+
+  it('keeps mode from disturbing the other rendered fields', async () => {
+    const root = await makeRepo({
+      '.agents/agents/reviewer.md': [
+        '---',
+        'name: reviewer',
+        'description: Review code without changing it',
+        'tools: Read, Grep, Bash',
+        'model: claude-sonnet-5-5',
+        'mode: primary',
+        '---',
+        'You are a reviewer.',
+        '',
+      ].join('\n'),
+    });
+
+    await syncAgentConfig(root);
+
+    const claude = await readFile(join(root, '.claude/agents/reviewer.md'), 'utf8');
+
+    expect(claude).toContain('name: "reviewer"');
+    expect(claude).toContain('description: "Review code without changing it"');
+    expect(claude).toContain('tools: "Read, Grep, Bash"');
+    expect(claude).toContain('model: "claude-sonnet-5-5"');
+    expect(claude).not.toContain('mode:');
+    expect(claude.endsWith('You are a reviewer.\n')).toBe(true);
+
+    const opencode = await readFile(join(root, '.opencode/agents/reviewer.md'), 'utf8');
+
+    expect(opencode).toContain('mode: primary');
+    expect(opencode.indexOf('effect: deny')).toBeLessThan(opencode.indexOf('effect: allow'));
+    expect(opencode.endsWith('You are a reviewer.\n')).toBe(true);
+  });
+
   it('puts the catch-all deny before the allowed actions', async () => {
     // OpenCode áp rule khai báo sau thắng rule khai báo trước, nên thứ tự này là
     // thứ duy nhất thực sự giới hạn quyền của agent.
@@ -708,14 +827,16 @@ describe('syncAgentConfig - agent definitions', () => {
         '---',
         'name: reviewer',
         'description: Has an extra key',
-        'mode: subagent',
+        'temperature: 0.2',
         '---',
         'Prompt.',
         '',
       ].join('\n'),
     });
 
-    await expect(syncAgentConfig(root)).rejects.toThrow(/unsupported frontmatter key "mode"/u);
+    await expect(syncAgentConfig(root)).rejects.toThrow(
+      /unsupported frontmatter key "temperature"/u,
+    );
   });
 
   it('rejects an empty tools list instead of generating a tool-less agent', async () => {
