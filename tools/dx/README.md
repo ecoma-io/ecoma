@@ -68,8 +68,9 @@ cho hai coding agent:
   bằng frontmatter của Claude Code (`name`, `description`, `tools`, `model`,
   `mode`, tùy chọn). Lệnh sinh `.claude/agents/<name>.md` gần nguyên văn và
   `.opencode/agents/<name>.md` với `mode` cộng `permissions` suy ra từ `tools`.
-  `mode` chỉ nhận đúng ba giá trị `primary`, `subagent`, `all`; bỏ trống thì
-  mặc định là `subagent`. Key này chỉ ảnh hưởng file OpenCode — Claude Code
+  `mode` chỉ nhận đúng ba giá trị `primary`, `subagent`, `all`; chỉ khi **vắng
+  mặt** key thì mới mặc định là `subagent` — key có mặt nhưng để trống là lỗi,
+  giống `tools` và `model`. Key này chỉ ảnh hưởng file OpenCode — Claude Code
   không có field `mode` nên nó không bao giờ được ghi vào
   `.claude/agents/<name>.md`. Vì OpenCode áp rule khai báo sau thắng rule khai
   báo trước, file sinh ra đặt catch-all `deny` trước rồi mới tới các `allow` —

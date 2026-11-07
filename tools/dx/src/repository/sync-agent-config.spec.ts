@@ -645,6 +645,22 @@ describe('syncAgentConfig - agent definitions', () => {
     await expect(syncAgentConfig(root)).rejects.toThrow(/\.agents\/agents\/reviewer\.md.*"mode"/u);
   });
 
+  it('rejects a bare mode key instead of reading it as an omission', async () => {
+    const root = await makeRepo({
+      '.agents/agents/reviewer.md': [
+        '---',
+        'name: reviewer',
+        'description: Bare mode',
+        'mode:',
+        '---',
+        'Prompt.',
+        '',
+      ].join('\n'),
+    });
+
+    await expect(syncAgentConfig(root)).rejects.toThrow(/\.agents\/agents\/reviewer\.md.*"mode"/u);
+  });
+
   it('keeps mode from disturbing the other rendered fields', async () => {
     const root = await makeRepo({
       '.agents/agents/reviewer.md': [

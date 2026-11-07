@@ -105,9 +105,12 @@ function parseTools(value: unknown, label: string): readonly string[] | undefine
 /**
  * Đọc `mode` — key chỉ ảnh hưởng tới file OpenCode.
  *
- * Vắng mặt là hợp lệ và được hiểu là `subagent`, đúng mặc định của renderer
- * OpenCode. Mọi giá trị khác ba giá trị OpenCode hiểu đều là lỗi: một `mode` gõ
- * sai sẽ khiến OpenCode âm thầm dùng mặc định, tức agent chạy sai vai.
+ * Chỉ **vắng mặt** mới được hiểu là `subagent`, đúng mặc định của renderer
+ * OpenCode. Key có mặt nhưng để trống (`mode:` hay `mode: ""`) là lỗi, giống
+ * `tools` và `model`: YAML đọc giá trị trống thành `null`, và một key rỗng là
+ * lỗi gõ chứ không phải ý định bỏ key — coi nó là "vắng mặt" sẽ nuốt mất lỗi
+ * đó. Mọi giá trị khác ba giá trị OpenCode hiểu cũng là lỗi, vì một `mode` gõ
+ * sai khiến OpenCode âm thầm dùng mặc định, tức agent chạy sai vai.
  */
 function parseMode(value: unknown, label: string): AgentMode | undefined {
   if (value === undefined) {
