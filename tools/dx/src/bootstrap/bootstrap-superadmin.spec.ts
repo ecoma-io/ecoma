@@ -196,6 +196,44 @@ describe('runBootstrapSuperadmin', () => {
     expect(result.assignmentId).toBeUndefined();
   });
 
+  it('keeps guard_denied as the outcome when the diagnostic read-back also fails', () => {
+    // Sau khi guard từ chối, S3 chỉ là chẩn đoán. Nó fail vì lần chạy này chưa
+    // từng ghi gì — nhưng lý do dừng vẫn là từ chối của guard, không phải S3:
+    // báo `failed` ở đây sẽ chỉ vào sai bước và che mất `mode_mismatch`.
+    let verifyCalls = 0;
+    const runner: BootstrapStageRunner = (request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls === 1
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'verified', { sub: `sub_${'e'.repeat(32)}` });
+      }
+      if (request.action === 'provision') {
+        return success('account.provision', 'created', { sub: `sub_${'e'.repeat(32)}` });
+      }
+      if (request.action === 'staff-provision') {
+        return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
+      }
+      return { ok: false, stage: 'staff.verify', reason: 'no_bootstrap_administrator' };
+    };
+
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-7',
+      operatorRef: '',
+      runStage: runner,
+    });
+
+    expect(result.outcome).toBe('guard_denied');
+    expect(result.failedStage).toBeUndefined();
+    expect(result.stages.map((s) => s.outcome)).toEqual([
+      'fresh',
+      'created',
+      'verified',
+      'denied',
+      'denied',
+    ]);
+  });
+
   it('does not leak the input payload into the stage log', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-6',

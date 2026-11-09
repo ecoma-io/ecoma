@@ -241,6 +241,12 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
  * không có nhánh cấp lại quyền. Lần chạy này không ghi dữ liệu nghiệp vụ, nên
  * nó chạy S3 để trả bằng chứng đọc được rồi báo `guard_denied` — không báo
  * `bootstrapped`, vì không có bước ghi nào đã thành công.
+ *
+ * S3 ở đây chỉ là **chẩn đoán**: sau một lần bị từ chối, phép đọc lại có thể
+ * thấy trạng thái administrator hiện có, hoặc cũng có thể fail vì lần chạy của
+ * chúng ta chưa từng ghi gì. Cả hai trường hợp đều không đổi kết luận — từ chối
+ * của guard mới là lý do dừng, và exit code vẫn khác 0 — nên kết quả vẫn là
+ * `guard_denied` và kết quả S3 chỉ đi vào nhật ký.
  */
 function finishGuardDenied(
   stages: BootstrapStageLogEntry[],
@@ -259,17 +265,11 @@ function finishGuardDenied(
     action: 'staff-verify',
     input: { correlation_id: correlationId },
   });
-  if (!verification.ok) {
-    stages.push({ stage: verification.stage, outcome: 'denied', detail: verification.reason });
-    return {
-      outcome: 'failed',
-      correlationId,
-      failedStage: verification.stage,
-      reason: verification.reason,
-      stages,
-    };
-  }
-  stages.push({ stage: verification.stage, outcome: 'verified' });
+  stages.push(
+    verification.ok
+      ? { stage: verification.stage, outcome: verification.status }
+      : { stage: verification.stage, outcome: 'denied', detail: verification.reason },
+  );
   return { outcome: 'guard_denied', correlationId, sub, stages };
 }
 
