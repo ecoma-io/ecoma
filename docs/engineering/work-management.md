@@ -186,7 +186,7 @@ Ba thứ này không phải một trạng thái đồng bộ hai chiều: label 
 
 Bảng này chỉ là bộ lọc sơ bộ theo bản chất công việc; tiêu chí quyết định vẫn là ba dạng nhu cầu ở §3.2.
 
-Gắn label khi cần theo dõi **dependency, ownership, tiến độ hoặc quyết định** ở cấp portfolio, và nhu cầu đó khớp một trong ba dạng ở §3.2. Trắc nghiệm: nêu được _ai hoặc cái gì_ cần visibility mà Issue hoặc Milestone không thể hiện — có thể là nhiều work item đang chờ, một thứ tự cần giữ, một mốc đo của cả nhóm, hoặc một quyết định nhiều nơi phải theo. Chỉ một workstream cũng đủ khi điều kiện đó đúng; số workstream không phải tiêu chí.
+Gắn label khi nhu cầu coordination ở cấp portfolio khớp một trong ba dạng ở §3.2. Trắc nghiệm: nêu được _ai hoặc cái gì_ cần visibility mà Issue hoặc Milestone không thể hiện — nhiều work item đang chờ, một thứ tự cần giữ, một mốc đo của cả nhóm, hoặc một nhóm work item theo dõi qua nhiều Milestone. Chỉ một workstream cũng đủ khi điều kiện đó đúng; số workstream không phải tiêu chí.
 
 **Rationale bắt buộc.** Bảng trên chỉ cho biết nhóm nào _có thể_ được track; nó không tự chứng minh một Issue cụ thể cần track. Một quyết định Track chỉ hợp lệ khi trả lời được ba câu, bằng nội dung thực tế của Issue:
 
