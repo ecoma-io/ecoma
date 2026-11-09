@@ -23,7 +23,7 @@
 
 **Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`); nếu một trong hai khác 0 thì chỉ **recovery**, và chỉ với authorization hai-phím của §3.2–§3.3. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
 
-⚠️ `admins_before` và `admins_ever` là **số đo do procedure tính**, không phải giá trị người chạy truyền vào: chúng đi vào audit dưới dạng kết quả đo, và không được dùng cho bất kỳ quyết định nào khi là input. Hai truy vấn canonical (đếm **administrator**, không đếm assignment) ở Bước 7.
+⚠️ `admins_before` và `admins_ever` là **số đo do procedure tính**, không phải giá trị người chạy truyền vào: chúng đi vào audit dưới dạng kết quả đo, và không được dùng cho bất kỳ quyết định nào khi là input. Hai truy vấn canonical ở Bước 7 — chúng đếm hai thứ khác nhau: `admins_before` đếm **administrator còn hiệu lực** (`count(DISTINCT staff_id)`), `admins_ever` đếm **hàng assignment từng tồn tại** của role canonical, nên nó chỉ dùng làm ngưỡng khác 0 và không bao giờ được báo cáo như số administrator (ADR-0022 Quyết định 4).
 
 **Approval:** lần bootstrap đầu tiên **không** cần hai-phím (ADR-0020 Quyết định 11, không phải quyết định của ADR-0021). Hai-phím **không** bị bỏ cho emergency recovery — xem §3.2–§3.3.
 
