@@ -108,18 +108,21 @@ Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `
 ⚠️ **Thao tác này chưa tồn tại.** Không có CLI create-or-resolve trong `apps/account` ở thời điểm tài liệu này; mục này là đặc tả cho #17, không phải mô tả một lệnh chạy được. Đường verify lần đầu (nhắc dưới đây) cũng **chưa tồn tại**.
 
 - **Bề mặt:** CLI offline trong `apps/account`, chạy bằng credential migrator/owner của `db-account` (ADR-0020 Quyết định 3(b)). Không route, không flag, không cron.
-- **Idempotency:** chuẩn hoá địa chỉ bằng đúng hàm của luồng OTP, tra `account.email_addresses` theo `address_hash` (SHA-256 hex, không theo địa chỉ trần). Không có hàng nào → sinh `sub` mới và ghi `account.users` + `account.email_addresses` trong một transaction; có đúng một `sub` còn sống với hàng `pending` → trả lại chính `sub` đó.
-- **Fail-closed, không chọn một hàng:** có hàng `verified` cho địa chỉ, có nhiều hơn một `sub`, `sub` đã `suspended`/`deleted`, hoặc Account đó còn địa chỉ `verified`/`is_sign_in` khác — tất cả dừng procedure. Lý do: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ vẫn có thể mang địa chỉ bootstrap ở trạng thái `pending`; nhận `sub` đó là cấp quyền administrator cho người đăng nhập bằng địa chỉ của họ (ADR-0021 Quyết định 2).
+- **Concurrency:** đọc và ghi trong **một** transaction dưới `pg_advisory_xact_lock` khoá theo `address_hash` (ADR-0021 Quyết định 2). Không có lock này, hai lần chạy đồng thời cùng đọc "chưa có hàng" rồi cùng `INSERT` — schema không chặn được, vì UNIQUE duy nhất trên `email_addresses` chỉ áp cho hàng `verified`. Kết quả là hai `sub` cho cùng địa chỉ, và bước A2 fail-closed không hội tụ được bằng cách chạy lại. Lock tự nhả khi commit/rollback; cùng hình dạng với advisory lock của migration runner.
+- **Idempotency:** chuẩn hoá địa chỉ bằng đúng hàm của luồng OTP, tra `account.email_addresses` theo `address_hash` (SHA-256 hex, không theo địa chỉ trần). Không có hàng nào **còn sống** → sinh `sub` mới (entropy CSPRNG do caller sinh; `createSubject` chỉ nhận entropy và throw khi sai) rồi ghi `account.users` + `account.email_addresses` trong cùng transaction; có đúng một `sub` còn sống với hàng `pending` → trả lại chính `sub` đó, không ghi hàng mới.
+- **Fail-closed, không chọn một hàng:** có hàng `verified` cho địa chỉ, có nhiều hơn một `sub`, `sub` đã `suspended`/`deleted`, Account đó còn địa chỉ `verified`/`is_sign_in` khác, hoặc cùng `sub` có nhiều hơn một hàng `pending` cho `address_hash` — tất cả dừng procedure. Lý do: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ vẫn có thể mang địa chỉ bootstrap ở trạng thái `pending`; nhận `sub` đó là cấp quyền administrator cho người đăng nhập bằng địa chỉ của họ (ADR-0021 Quyết định 2).
+- **Hàng `revoked`:** khoá tự nhiên và mọi kiểm fail-closed chỉ đọc `status IN ('pending','verified')`; hàng `revoked` không giữ địa chỉ và không chứng minh quyền sở hữu. Nhưng nó là dấu hiệu đã có người từng chạm địa chỉ — procedure **dừng và báo**, không tự xoá/revoke hàng nào.
 - **Trạng thái email:** `pending`, `is_sign_in = false`, `verified_at IS NULL`. Procedure **không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên qua đường verify dành cho người chưa có session (ADR-0021 Quyết định 3; đường đó **chưa tồn tại**, là yêu cầu hiện thực của #17).
 - **Đầu ra:** đúng một `sub`. Đây là giá trị duy nhất được truyền sang bước Staff Access; `staff-access` không đọc `db-account`.
-- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, và tham chiếu người thực thi do người vận hành khai báo — bảng này không có cột `correlation_id` và không có principal, ADR-0021 Quyết định 6).
+- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.admins_before`, `metadata.admins_ever`, và `metadata.operator_ref` do người vận hành khai báo — bảng này không có cột `correlation_id` và không có principal, ADR-0021 Quyết định 6). ⚠️ `operator_ref` là **tự khai**, không được xác minh; nó không chứng minh danh tính người giữ credential (ADR-0021 Quyết định 6).
 
 Đọc lại để verify:
 
 ```sql
 SELECT u.sub, e.status, e.verified_at
 FROM account.users u JOIN account.email_addresses e ON e.user_sub = u.sub
-WHERE e.address_hash = <sha256(address)>;
+WHERE e.address_hash = <sha256(address)>
+  AND e.status IN ('pending', 'verified');
 ```
 
 Đạt khi trả đúng một row với `sub` khớp `^sub_[a-z2-7]{32}$`, `status = 'pending'`, và Account không ở trạng thái tombstone. Runbook đầy đủ của procedure (thứ tự bước, retry, recovery) → [`../staff-access/03-operations.md`](../staff-access/03-operations.md).
