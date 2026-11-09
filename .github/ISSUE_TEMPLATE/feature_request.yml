@@ -60,3 +60,16 @@ body:
         - label: Không truy cập database xuyên service; giao tiếp qua API/event contract
         - label: Migration (nếu có) theo expand → compatible rollout → contract
         - label: Không log prompt/response body; không đưa secret vào Git
+
+  - type: textarea
+    id: project-tracking
+    attributes:
+      label: Theo dõi Project
+      description: |
+        Field này chỉ **ghi rationale**; nó không tự gắn label. Điền khi Issue có nhu cầu portfolio visibility
+        hoặc coordination mà Issue/Milestone không biểu đạt đủ, và trả lời cả ba câu: ai hoặc cái gì cần visibility;
+        dependency, decision hoặc coordination nào cần theo dõi ở cấp Project; vì sao Issue hoặc Milestone không đủ.
+        Gắn label `project:track` là thao tác riêng của người tạo Issue, chỉ sau khi tự đánh giá policy và thấy đủ điều kiện.
+        Điều kiện đưa Issue vào Project ở §3.2 và rationale bắt buộc ở §3.3 của `docs/engineering/work-management.md`.
+        Không gắn label chỉ vì Issue có priority cao, thuộc một work kind, thuộc một product hoặc Milestone.
+        Không cần theo dõi thì để trống.

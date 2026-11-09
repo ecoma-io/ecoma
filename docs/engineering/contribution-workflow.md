@@ -141,17 +141,17 @@ Khi `Closes #N` đã đóng Issue tự động, comment reconciliation vẫn b�
 
 ## 3. Ranh giới giữa tài liệu hướng dẫn và ràng buộc repository
 
-| Nội dung                                                            | Nguồn có thẩm quyền                                |
-| ------------------------------------------------------------------- | -------------------------------------------------- |
-| Ý nghĩa work kind, vertical slice, capability state, reconciliation | [`evolution-process.md`](./evolution-process.md)   |
-| Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue       | [`work-management.md`](./work-management.md)       |
-| Issue nào cần label `project:track` và vòng đời label đó            | [`work-management.md`](./work-management.md) §3.3  |
-| Thứ tự hành động, handoff, chọn validation theo scope               | Tài liệu này                                       |
-| Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership    | [`AGENTS.md`](../../AGENTS.md)                     |
-| Commit signing, PR title, merge queue, squash merge                 | [`AGENTS.md`](../../AGENTS.md) `Pull requests`     |
-| Test taxonomy, target names, môi trường test                        | [`06-testing.md`](../architecture/06-testing.md)   |
-| Delivery, release, migration, rollback                              | [`02-delivery.md`](../architecture/02-delivery.md) |
-| Ownership của tài liệu và artifact                                  | [`docs/AGENTS.md`](../AGENTS.md)                   |
+| Nội dung                                                            | Nguồn có thẩm quyền                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------ |
+| Ý nghĩa work kind, vertical slice, capability state, reconciliation | [`evolution-process.md`](./evolution-process.md)       |
+| Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue       | [`work-management.md`](./work-management.md)           |
+| Issue nào cần label `project:track` và vòng đời label đó            | [`work-management.md`](./work-management.md) §3.2–§3.3 |
+| Thứ tự hành động, handoff, chọn validation theo scope               | Tài liệu này                                           |
+| Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership    | [`AGENTS.md`](../../AGENTS.md)                         |
+| Commit signing, PR title, merge queue, squash merge                 | [`AGENTS.md`](../../AGENTS.md) `Pull requests`         |
+| Test taxonomy, target names, môi trường test                        | [`06-testing.md`](../architecture/06-testing.md)       |
+| Delivery, release, migration, rollback                              | [`02-delivery.md`](../architecture/02-delivery.md)     |
+| Ownership của tài liệu và artifact                                  | [`docs/AGENTS.md`](../AGENTS.md)                       |
 
 Tài liệu này **không** lặp lại nội dung của các nguồn trên. Khi hai nguồn mâu thuẫn, dừng và báo — không tự chọn bên thắng.
 
