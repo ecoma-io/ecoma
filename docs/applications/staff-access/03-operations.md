@@ -249,6 +249,6 @@ Bốn câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết
 6. Không xoá Account hợp lệ để "rollback" một bước sau thất bại.
 7. Không credential migrator/owner nào trở thành Worker secret, và credential migrator không rời CI secret store.
 8. Mỗi lần chạy ghi `mode`, `admins_before` và `admins_ever` (số đo, không phải input) cùng `operator_ref`; actor NULL một mình không phải attribution, và `operator_ref` là tự khai chứ không được xác minh.
-9. Chạy lại sau khi đã thu hồi assignment tái tạo quyền — nên bề mặt này không thuộc pipeline deploy của environment thật.
+9. Chạy lại sau khi đã thu hồi assignment **sẽ** tái tạo quyền nếu được phép chạy — guard chặn điều đó ở `mode = 'bootstrap'` bằng `admins_ever`, nên đường tái tạo chỉ còn là `recovery` + hai-phím; vì vậy bề mặt này không thuộc pipeline deploy của environment thật.
 10. Guard "chưa có administrator" là số đo race-safe trong critical section ghi của `staff-access`, dưới advisory lock; `mode` bị đối chiếu với số đo và một lần chạy sai chế độ bị **từ chối**, không ghi dữ liệu (ADR-0022). Guard chỉ chặn — nó không cấp, không sửa, không hồi sinh.
 11. Không credential database nào được dùng trong phiên tương tác của người vận hành; mọi bước ghi chạy qua service CLI/CI job.
