@@ -76,7 +76,7 @@ Quy tắc ranh giới nghiệp vụ:
 - **Restriction độc lập với tenant lifecycle** — restriction không làm tenant mất tồn tại; `llm-seller-governance` phụ thuộc một chiều vào `llm-seller-tenant`, chiều ngược lại bị cấm.
 - **Consumer và Seller không phụ thuộc nhau**; Shared được cả hai tiêu thụ nhưng không phụ thuộc bên nào. Bất biến chiều phụ thuộc → [ADR-0019](./llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md); tách Seller → [ADR-0018](./llm-seller-governance/adr/0018-seller-bounded-context-split.md).
 
-**Không có bounded context `Tenant` dùng chung.** Mỗi context có tenant sở hữu tenant domain, membership, authorization, lifecycle và plan của chính mình; thin shared kernel `libs/tenant-kernel-domain` — thiết kế đã chốt nhưng chưa hiện thực — chỉ được chứa primitive có cùng ngữ nghĩa (owned-tenant fact, membership incarnation, guard collection). Phạm vi và giới hạn → [ADR-0025](./llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md).
+**Không có bounded context `Tenant` dùng chung.** Mỗi context có tenant sở hữu tenant domain, membership, authorization, lifecycle và plan của chính mình; thin shared kernel `libs/tenant-kernel-domain` chỉ được chứa primitive có cùng ngữ nghĩa (owned-tenant fact, membership incarnation, guard collection). Phạm vi và giới hạn → [ADR-0025](./llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md).
 
 ### 2.2 Quy ước ngôn ngữ
 

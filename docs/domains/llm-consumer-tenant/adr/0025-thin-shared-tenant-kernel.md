@@ -46,7 +46,7 @@ Issue #9 ban đầu yêu cầu một chính sách Free/Paid dùng chung (một s
 
 ### 2. Phần được chia sẻ: một kernel mỏng
 
-Kernel là **một Nx project** `libs/tenant-kernel-domain` (`@ecoma-io/tenant-kernel-domain`), chứa đúng ba nhóm sau. ADR này chốt thiết kế, không hiện thực: project chưa tồn tại và việc tạo nó là Issue Delivery riêng.
+Kernel là **một Nx project** `libs/tenant-kernel-domain` (`@ecoma-io/tenant-kernel-domain`), chứa đúng ba nhóm sau. ADR này chốt thiết kế, không hiện thực; việc tạo project là Issue Delivery riêng.
 
 1. **Owned-tenant fact.** Một hình dạng tối thiểu `{ id, owner }` với `owner` là **tham chiếu opaque** tới Account identity (`sub`), cộng guard từ chối record thiếu owner. Kernel **không** định nghĩa aggregate `Tenant`: không `name`, không `createdAt`, không lifecycle, không operation trên tenant. Sản phẩm giữ type `Tenant` của mình và có thể mở rộng fact này. Vì membership của kernel không có trường `owner` hay `role`, bất biến "owner không phải role và không phải grant" được bảo đảm bằng **hình dạng**, không bằng kiểm tra runtime.
 2. **Membership incarnation.** Record `{ id, tenantId, actor, status: 'active' | 'revoked', createdAt, revokedAt }` cùng các hàm: provision tường minh (từ chối `id` trùng trong tenant, từ chối actor đã có membership `active`), revoke terminal (từ chối ghi đè `revokedAt`), kiểm tra `active`, và tra cứu trả về **tập** để authorization tự phát hiện > 1 bản ghi active thay vì làm mịn dữ liệu hỏng.
