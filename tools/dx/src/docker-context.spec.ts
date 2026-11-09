@@ -303,6 +303,14 @@ describe('root .dockerignore: required build inputs are included', () => {
     expect(isExcluded('libs/ui-app-shell/src/index.ts')).toBe(false);
     expect(isExcluded('libs/ui-app-shell/src/styles/app-shell.css')).toBe(false);
     expect(isExcluded('libs/ui-ecoma-logo/src/index.ts')).toBe(false);
+    // Subtree app được mở trọn, nên secret local của developer phải bị chặn bởi
+    // blacklist `**/.env*` / `**/.dev.vars*` đứng SAU dòng `!apps/<app>`
+    // (last-match-wins). `.npmrc` thì **cố ý** vào context: nó là file tracked
+    // chỉ chứa `shamefully-hoist`/`strict-peer-dependencies` mà `pnpm install`
+    // cần đọc — không mang token registry.
+    expect(isExcluded(`apps/${app}/.env`)).toBe(true);
+    expect(isExcluded(`apps/${app}/.env.local`)).toBe(true);
+    expect(isExcluded(`apps/${app}/.dev.vars`)).toBe(true);
   });
 
   it.each(['llm-console', 'llm-seller'])(

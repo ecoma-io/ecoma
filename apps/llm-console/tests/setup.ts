@@ -97,7 +97,13 @@ function installCookieRecorder(): void {
   const write = descriptor?.set;
 
   if (!read || !write) {
-    return;
+    // Ném thay vì im lặng: thiếu accessor nghĩa là mọi phép gán cookie của test
+    // không được ghi nhận, nên `clearRecordedCookies()` không dọn gì và cookie
+    // rò sang test sau — đúng loại false-green mà cả cơ chế này tồn tại để
+    // chặn. Một lỗi môi trường phải hiện ra, không được nuốt.
+    throw new Error(
+      'installCookieRecorder: Document.prototype.cookie has no getter/setter — cookie capture between tests is impossible',
+    );
   }
 
   Object.defineProperty(document, 'cookie', {
