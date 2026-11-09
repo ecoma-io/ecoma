@@ -4,10 +4,11 @@ import { defineConfig, defaultExclude } from 'vitest/config';
  * Config cua target `test` — chi spec colocated voi subject (06-testing.md §4:
  * `test` = colocated unit/component cua project so huu).
  *
- * ⚠️ Suite integration (PostgreSQL that qua testcontainers) thuoc Milestone B
- * (`tests/integrations/` + `tests/databases/` va target `test-integration` voi
- * config rieng) — hien chua ton tai; include ben duoi da phu `tests/**` de
- * suite tuong lai khong phai sua config, nhung hien khong co file nao khop.
+ * ⚠️ Suite integration (PostgreSQL that qua testcontainers) nam o
+ * `tests/integrations/` + `tests/databases/` va chay bang target
+ * `test-integration` voi config rieng (`vitest.integration.config.mts`).
+ * Include `tests/**` o day khong keo chung vao target `test` — config
+ * integration loai tru cac thu muc do khoi target nay.
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,

@@ -10,8 +10,10 @@
  * Secret bảng của unit (P1.4 #428): mật khẩu 2 role PostgreSQL của
  * `db-staff-access` (runtime/migrator) — sinh ngẫu nhiên bằng API mật mã an
  * toàn, xoay mỗi lần up là vô hại vì role được guard-create/ALTER trong cùng
- * lần up đó. KHÔNG có secret chia sẻ cross-stack nào: chưa có consumer nội bộ
- * của Staff Access ở local (wiring BFF thuộc giai đoạn sau).
+ * lần up đó — và `internalHmacSecret`, sinh ở đây và export qua stack output
+ * để `backoffice-deploy` đọc lại thành `AUTH_INTERNAL_SECRET` (xem
+ * `deploys/backoffice-deploy/local.ts`). Chỉ stack này sinh secret; các stack
+ * khác chỉ đọc, nên mỗi lần up lại là một giá trị mới dùng chung cho cả hai.
  */
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // output DUY NHẤT của lifecycle gate (nx:run-commands gộp stdout/stderr).

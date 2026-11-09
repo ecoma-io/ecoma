@@ -206,6 +206,19 @@ const DATA_TABLES = [
 ] as const;
 
 /**
+ * Tuy chon cua {@link startStaffAccessDatabase}.
+ *
+ * `migrate: false` dung mot container da provision role nhung CHUA apply
+ * migration — nua duong cua mot lan deploy that: role/DB ton tai, schema
+ * `staff_access` chua co. Readiness phai bao 503 trong trang thai do; neu
+ * suite chi kiem database da migrate thi "200 chi sau migrate" khong duoc
+ * chung minh o dau ca.
+ */
+export interface StaffAccessDatabaseOptions {
+  readonly migrate?: boolean;
+}
+
+/**
  * Dựng container PostgreSQL, provision hai role theo runbook, apply migration
  * bằng runner production với credential migrator thật, rồi trả về handle.
  *
@@ -218,7 +231,10 @@ const DATA_TABLES = [
  * lỗi mà `provision()` chú ý — migrator thiếu `CREATE` sẽ chết ngay ở
  * `CREATE SCHEMA`, nhưng `SET ROLE` thì không.
  */
-export async function startStaffAccessDatabase(): Promise<StaffAccessDatabase> {
+export async function startStaffAccessDatabase(
+  databaseOptions: StaffAccessDatabaseOptions = {},
+): Promise<StaffAccessDatabase> {
+  const shouldMigrate = databaseOptions.migrate ?? true;
   const container = await startPostgresContainer((c) =>
     c
       .withDatabase(STAFF_ACCESS_DATABASE)
@@ -261,11 +277,13 @@ export async function startStaffAccessDatabase(): Promise<StaffAccessDatabase> {
 
     // Apply bằng credential migrator thật qua runner production — xem JSDoc
     // của hàm này và của `applyAllMigrations`.
-    const migrator = await connectAsMigrator();
-    try {
-      await applyAllMigrations(migrator);
-    } finally {
-      await migrator.end().catch(() => undefined);
+    if (shouldMigrate) {
+      const migrator = await connectAsMigrator();
+      try {
+        await applyAllMigrations(migrator);
+      } finally {
+        await migrator.end().catch(() => undefined);
+      }
     }
 
     const asRole = async (

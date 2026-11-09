@@ -392,12 +392,17 @@ const wic = new docker.Container(
       // dieu kien ma moi route `/api/**` cua backoffice can de khong 503.
       // `/health` chi chung minh worker boot, khong phai bang chung readiness
       // nghiep vu (issue #18).
+      // `r.ok` (2xx) chu khong `< 500` nhu cac unit khac: mot 401/404 tu
+      // `/ready` nghia la route probe hoac mien tru envelope da hoi quy, va
+      // coi no la "healthy" se che dung loi ma issue #18 quan tam. `/ready`
+      // chi tra 200 khi config + DB that su san sang, nen 2xx la tin hieu
+      // duy nhat dung.
       tests: [
         'CMD',
         'node',
         '-e',
         `fetch('http://127.0.0.1:${STAFF_ACCESS_INTERNAL_PORT}/ready')` +
-          `.then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))`,
+          `.then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`,
       ],
       interval: '10s',
       // Probe `/ready` mo mot connection PostgreSQL qua Hyperdrive voi

@@ -255,6 +255,56 @@ describe('shared entry infrastructure', () => {
     ).toBe(false);
   });
 
+  it('staff-access readiness healthcheck probes /ready and accepts only 2xx', () => {
+    // Issue #18: container healthy phải đồng nghĩa "config nạp được + DB trả
+    // lời bằng credential runtime", không phải "worker còn sống". Ghim theo
+    // nguồn: đổi probe về `/health`, hoặc nới predicate thành `< 500` (một
+    // 401/404 từ route probe sẽ được coi là healthy), là đỏ.
+    const source = readFileSync(
+      join(ROOT_DIR, 'deploys', 'staff-access-deploy', 'index.ts'),
+      'utf8',
+    );
+    expect(source).toMatch(
+      /fetch\('http:\/\/127\.0\.0\.1:\$\{STAFF_ACCESS_INTERNAL_PORT\}\/ready'\)/u,
+    );
+    expect(source).toMatch(/process\.exit\(r\.ok \? 0 : 1\)/u);
+    expect(source).not.toMatch(/fetch\('http:\/\/127\.0\.0\.1:\$\{[A-Z_]+\}\/health'\)/u);
+    expect(source).not.toMatch(/r\.status < 500 \? 0 : 1/u);
+  });
+
+  it('staff-access hands its internal HMAC secret to backoffice through stack config', () => {
+    // Issue #18: hai container phải nhận CÙNG một secret, nếu không mọi
+    // envelope backoffice → staff-access sẽ `bad_signature` lúc runtime và
+    // không có test nào khác bắt được (nó chỉ lộ khi chạy cả lane). Ghim theo
+    // nguồn cả bốn mắt: producer sinh, consumer đọc, hai index truyền env, và
+    // thứ tự up do `dependsOn` bảo đảm giá trị đã tồn tại trước khi đọc.
+    const producer = readEntry('staff-access-deploy');
+    expect(producer).toMatch(/\['namespace:internalHmacSecret', generateInternalHmacSecret\(\)\]/u);
+
+    const consumer = readEntry('backoffice-deploy');
+    expect(consumer).toMatch(/'config',\s*'get',\s*'namespace:internalHmacSecret'/u);
+    expect(consumer).toMatch(/'--stack',\s*fullStackRef\('staff-access-deploy'/u);
+    expect(consumer).toMatch(/\['namespace:internalHmacSecret', internalHmacSecret\]/u);
+
+    for (const project of ['staff-access-deploy', 'backoffice-deploy'] as const) {
+      const source = readFileSync(join(ROOT_DIR, 'deploys', project, 'index.ts'), 'utf8');
+      expect(source, `${project} must inject AUTH_INTERNAL_SECRET`).toMatch(
+        /AUTH_INTERNAL_SECRET=\$\{pulumi\.secret\(internalHmacSecret\)\}/u,
+      );
+    }
+
+    const backofficeUp = nxTargets('backoffice-deploy')['local-up'] as {
+      dependsOn?: Array<{ projects?: string[]; target?: string }>;
+    };
+    expect(
+      backofficeUp.dependsOn?.some(
+        (edge) =>
+          edge.target === 'local-up' && (edge.projects ?? []).includes('staff-access-deploy'),
+      ),
+      'backoffice-deploy:local-up must depend on staff-access-deploy:local-up',
+    ).toBe(true);
+  });
+
   it('every E2E suite gate retries the shared cold-start status window (404/502/503/504)', () => {
     // Cửa sổ cold-start của Traefik trả 404/502/503/504 (503 = upstream chưa có,
     // không body JSON). Suite backoffice phân biệt 503 CỦA APP (body Nitro

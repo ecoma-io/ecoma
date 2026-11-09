@@ -70,6 +70,24 @@ describe('readiness against the real database', () => {
     expect(await response.text()).not.toContain('db-staff-access');
   });
 
+  it('returns 503 when the roles exist but the migrations have not run', async () => {
+    // Nua duong cua mot lan deploy that: database + role da provision nhung
+    // schema `staff_access` chua co. `/ready` KHONG duoc 200 — neu probe chi
+    // `SELECT 1` thi mot database chua migrate se bao san sang va moi request
+    // that se 503 o tang route.
+    const unmigrated = await startStaffAccessDatabase({ migrate: false });
+    try {
+      resetCachedConfig();
+      const app = buildApp();
+      const response = await app.request('/ready', {}, runtimeEnv(unmigrated));
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('5');
+      expect(await response.text()).not.toContain('staff_access');
+    } finally {
+      await unmigrated.stop();
+    }
+  }, 180_000);
+
   it('serves a DB-backed read to a validly signed envelope and rejects a missing signature', async () => {
     // Management API + real DB + HMAC: khong co envelope thi 401 (khong cham
     // DB); envelope hop le thi 200 voi du lieu that tu `staff_access.staff`.

@@ -147,6 +147,37 @@ describe('withStaffAccessClient', () => {
     expect(ended).toEqual([true, true]);
     expect(driverCalls).toHaveLength(2);
   });
+
+  it('forwards the readiness connect timeout through to the driver', async () => {
+    // Readiness truyen ngan sach mo connection qua `withStaffAccessClient`;
+    // neu nhanh nay bi go, probe roi ve mac dinh 30s cua driver va mot origin
+    // chet giu request toi het thoi han Worker — test o day giu cho no khong
+    // am tham bien mat.
+    driverCalls.length = 0;
+    queuedFakes.push({
+      end: async () => undefined,
+    } satisfies Record<string, unknown>);
+
+    await withStaffAccessClient(
+      { hyperdrive: BINDING, connectTimeoutSeconds: 3 },
+      async () => undefined,
+    );
+
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options?.['connect_timeout']).toBe(3);
+  });
+
+  it('leaves the driver connect timeout at its default when none is configured', async () => {
+    driverCalls.length = 0;
+    queuedFakes.push({
+      end: async () => undefined,
+    } satisfies Record<string, unknown>);
+
+    await withStaffAccessClient({ hyperdrive: BINDING }, async () => undefined);
+
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options).not.toHaveProperty('connect_timeout');
+  });
 });
 
 describe('StaffAccessClient shape', () => {
