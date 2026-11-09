@@ -1,7 +1,7 @@
 # Staff Access — Vận hành
 
-> Phạm vi: vận hành ứng dụng `staff-access` — bề mặt thực thi, credential, seed/migration và runbook **bootstrap first-administrator** + **emergency recovery**.
-> Thiết kế → [`01-architecture.md`](./01-architecture.md) · yêu cầu → [`02-requirements.md`](./02-requirements.md) · nghiệp vụ → [`../../domains/staff-access/domain-model.md`](../../domains/staff-access/domain-model.md) · quyết định → [ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) · [ADR-0003](../../domains/staff-access/adr/0003-bootstrap-first-admin-recovery.md) · [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md) · hợp đồng bootstrap/seed liên service → [`../../architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2.
+> > Phạm vi: vận hành ứng dụng `staff-access` — bề mặt thực thi, credential, seed/migration và runbook **bootstrap first-administrator**, **bổ nhiệm administrator thường** và **emergency recovery**.
+> > Thiết kế → [`01-architecture.md`](./01-architecture.md) · yêu cầu → [`02-requirements.md`](./02-requirements.md) · nghiệp vụ → [`../../domains/staff-access/domain-model.md`](../../domains/staff-access/domain-model.md) · quyết định → [ADR-0023](../../domains/staff-access/adr/0023-administrator-lifecycle-paths.md) · [ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) · [ADR-0022](../../domains/staff-access/adr/0022-measured-first-admin-guard.md) · [ADR-0003](../../domains/staff-access/adr/0003-bootstrap-first-admin-recovery.md) · [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md) · hợp đồng bootstrap/seed liên service → [`../../architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2.
 
 ## 1. Runtime và credential
 
@@ -21,15 +21,15 @@
 
 ## 2. Bootstrap first-administrator
 
-**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`); nếu một trong hai khác 0 thì chỉ **recovery**, và chỉ với authorization hai-phím của §3. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` (ADR-0022). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
+**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`); nếu một trong hai khác 0 thì chỉ **recovery**, và chỉ với authorization hai-phím của §3.2–§3.3. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
 
 ⚠️ `admins_before` và `admins_ever` là **số đo do procedure tính**, không phải giá trị người chạy truyền vào: chúng đi vào audit dưới dạng kết quả đo, và không được dùng cho bất kỳ quyết định nào khi là input. Hai truy vấn canonical (đếm **administrator**, không đếm assignment) ở Bước 7.
 
-**Approval:** lần bootstrap đầu tiên **không** cần hai-phím (ADR-0020 Quyết định 11, không phải quyết định của ADR-0021). Hai-phím **không** bị bỏ cho emergency recovery — xem §3.
+**Approval:** lần bootstrap đầu tiên **không** cần hai-phím (ADR-0020 Quyết định 11, không phải quyết định của ADR-0021). Hai-phím **không** bị bỏ cho emergency recovery — xem §3.2–§3.3.
 
 **Thứ tự bắt buộc:** A1 → A2 → S1 → S2 → S3. Mỗi bước commit độc lập; không có transaction xuyên database.
 
-⚠️ **Cửa sổ một administrator là cửa sổ rủi ro, và hiện còn hai lý do.** (1) Mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery hiện chưa phủ hết các trường hợp (§3, §4). (2) Role administrator chỉ có bốn quyền **read**, và `apps/staff-access/src/routes.ts` chưa enforce permission nào — nên kể cả khi đã có administrator thứ hai, **chưa có đường cấp quyền qua giao diện**: mọi thay đổi quyền vẫn phải đi qua procedure/recovery cho tới khi có quyết định catalog riêng (ADR-0021 Quyết định 4).
+⚠️ **Cửa sổ một administrator là cửa sổ rủi ro, và hôm nay nó là trạng thái thực tế.** Mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery chưa chạy được (§3.2, §3.3). Administrator thứ hai chỉ tạo được qua bổ nhiệm thường, mà đường đó chưa tồn tại — thiếu permission ghi trong catalog, thiếu enforcement, thiếu đường tạo staff, thiếu đường tạo Account (§3.1, #44, #48). Không được báo cáo "nhiều Superadmin được phép" mà bỏ vế "nhưng chưa có đường tạo" (ADR-0023 Quyết định 8).
 
 ### Bước 1 — Chọn cấu hình môi trường đích
 
@@ -67,7 +67,7 @@ Chạy thao tác create-or-resolve của `account` (ADR-0021 Quyết định 2) 
 - **Fail-closed ở mọi trạng thái khác:** có hàng `verified`; nhiều hơn một `sub`; `sub` đã `suspended`/`deleted`; Account đó còn địa chỉ `verified`/`is_sign_in` khác; hoặc cùng `sub` có nhiều hơn một hàng `pending` cho `address_hash` đó (schema cho phép — UNIQUE chỉ áp cho `verified`). Trường hợp cuối là leo thang quyền thật: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ có thể mang chính `bootstrap_email` ở trạng thái `pending`; nhận `sub` đó là cấp administrator cho người đăng nhập bằng địa chỉ của họ, không phải người kiểm soát hộp thư bootstrap.
 - ⚠️ **Hàng `revoked` không tính là "đã có hàng" và không tính là "đã có chủ".** Khoá tự nhiên và mọi kiểm fail-closed chỉ đọc `status IN ('pending','verified')`. Nhưng một hàng `revoked` cho `bootstrap_email` là dấu hiệu đã có người từng chạm địa chỉ đó (`POST /api/emails` cho họ thêm `pending`, rồi revoke) — **dừng và báo**, không chạy tiếp, vì lần chạy này sẽ tạo Account mới cho cùng địa chỉ. Procedure **không** xoá hay revoke hàng email nào.
 - Email được ghi `status = 'pending'`, `is_sign_in = false`, `verified_at IS NULL`. **Không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên (Bước 10).
-- Audit ghi cùng transaction: `account.security_events` với `subject_sub` = `sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref`, `metadata.admins_before`, `metadata.admins_ever`. Bảng **không có** cột `correlation_id`, nên các trường này nằm trong `metadata`.
+- Audit ghi cùng transaction: `account.security_events` với `subject_sub` = `sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref`. Bảng **không có** cột `correlation_id`, nên các trường này nằm trong `metadata`. **Không** ghi `admins_before`/`admins_ever` ở bước này: hai số đó chỉ được đo trong critical section ghi của `staff-access` (Bước 7), và ghi một giá trị chưa đo được là ghi một con số bịa.
 
 ⚠️ Thao tác create-or-resolve **chưa tồn tại** — nó là yêu cầu hiện thực của #17 (ADR-0021 Quyết định 2). Bước này không chạy được ở thời điểm tài liệu này.
 
@@ -128,10 +128,10 @@ Insert một `staff_access.role_assignments` trỏ staff ở bước 5 và role 
 
 Hai bảng, hai chủ sở hữu, không bảng mới (ADR-0021 Quyết định 6):
 
-| Bảng                               | Ghi ở bước | Nội dung bắt buộc                                                                                                                                                                                                             |
-| ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `account.security_events`          | A1         | `subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref`, `metadata.admins_before`, `metadata.admins_ever` (bảng **không có** cột `correlation_id`) |
-| `staff_access.authorization_audit` | S1, S2     | actor NULL, target `staff.id`/`assignment.id`, action, outcome, `correlation_id`, `context.mode`, `context.operator_ref`, `context.admins_before`, `context.admins_ever`, `context.noop` khi bước hội tụ không ghi dữ liệu    |
+| Bảng                               | Ghi ở bước | Nội dung bắt buộc                                                                                                                                                                                                                          |
+| ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `account.security_events`          | A1         | `subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref` — **không** có hai số đo, vì A1 chạy trước critical section đo (bảng **không có** cột `correlation_id`) |
+| `staff_access.authorization_audit` | S1, S2     | actor NULL, target `staff.id`/`assignment.id`, action, outcome, `correlation_id`, `context.mode`, `context.operator_ref`, `context.admins_before`, `context.admins_ever`, `context.noop` khi bước hội tụ không ghi dữ liệu                 |
 
 - `mode` là `bootstrap` hoặc `recovery`. `admins_before` và `admins_ever` là **số đo do procedure tính** trước khi ghi, bằng hai truy vấn canonical dưới đây — **không** phải input, và `admins_before` không phải `count(*) … WHERE revoked_at IS NULL`:
 
@@ -179,7 +179,7 @@ Chạy bằng credential S, đọc trực tiếp năm câu:
 2. Role canonical: `SELECT id FROM staff_access.roles WHERE kind = 'system' AND name = <định danh canonical> AND status = 'active'` → đúng **một** row. Nhiều hơn một hàng nghĩa là "role administrator" không phải một khái niệm xác định, và mọi kiểm tra phía sau không chứng minh được gì.
 3. `SELECT ra.id, ra.role_id FROM staff_access.role_assignments ra JOIN staff_access.roles r ON r.id = ra.role_id WHERE ra.staff_id = <staff.id> AND r.kind = 'system' AND r.name = <định danh canonical> AND r.status = 'active' AND ra.revoked_at IS NULL AND (ra.effective_from IS NULL OR ra.effective_from <= now()) AND (ra.effective_until IS NULL OR ra.effective_until > now())` → đúng một assignment **còn hiệu lực** trỏ role administrator; không có bản ghi trùng. Câu này dùng cùng predicate với truy vấn `admins_before` ở Bước 7 — khác nhau thì hai kết quả không so sánh được. Bỏ `AND revoked_at IS NULL` sẽ trả cả lịch sử đã thu hồi; chỉ lọc `revoked_at IS NULL` sẽ tính cả assignment đã hết hạn.
 4. `SELECT permission_id FROM staff_access.role_permissions WHERE role_id = <role.id>` → đúng tập permission đã chốt (bốn read). Bảng `role_permissions` chỉ có `role_id`, `permission_id`, `created_at` — **không có cột `id`**.
-5. Audit: có row `authorization_audit` cho **mọi bước** trong lần chạy hiện tại — S1 và S2, kể cả bước hội tụ (`context.noop = true`) — với cùng `correlation_id` của lần chạy này. Đối chiếu chéo: `account.security_events` có row A1 với cùng `correlation_id` trong `metadata`.
+5. Audit: có row `authorization_audit` cho **mọi bước** trong lần chạy hiện tại — S1 và S2, kể cả bước hội tụ (`context.noop = true`) — với cùng `correlation_id` của lần chạy này. Đối chiếu chéo với `account.security_events` (row A1, cùng `correlation_id` trong `metadata`) **chạy bằng credential A của `account`**, không bằng credential S: câu đọc chéo database đó do người thực thi A1 thực hiện, còn bước S3 chỉ đọc `db-staff-access`.
 
 Unit chỉ được coi là hoàn tất khi **cả năm** kiểm đạt. Kiểm tra là truy vấn đọc được, không dựa vào log (ADR-0020 Quyết định 8).
 
@@ -203,6 +203,8 @@ Một lỗi ở bước nào — khi các bước trước đã commit — cũng
 
 **Không xoá Account đã tạo hợp lệ vì một bước sau thất bại.** Account chưa có staff chỉ là một Account chưa có quyền; xoá nó tạo tombstone `sub` vĩnh viễn và đi ngược forward-fix (`architecture/01-architecture.md` §9 invariant 10). Không có compensating step, không có rollback dữ liệu.
 
+⚠️ **Account mồ côi sau A1: có lối thoát, và nó không phải xoá.** A1 đã commit rồi S1/S2 thất bại để lại một Account `pending` không có staff. Trạng thái đó **đã là tiền tố hợp lệ**: chạy lại từ Bước 1 hội tụ trên cùng `sub` ở A1/A2 và đi tiếp S1; bước A2 đọc thấy `sub` cũ, không tạo Account thứ hai. Ba điều kiện để lối thoát đó còn mở: (a) `address_hash` vẫn có đúng một `sub` còn sống mang hàng `pending`; (b) Account đó vẫn `active`; (c) chưa ai khác chiếm địa chỉ. Mất bất kỳ điều kiện nào thì Account mồ côi **không** còn dùng được cho bootstrap và không có đường sửa bằng procedure — nó cần người quyết định, và đó là lý do procedure không tự xoá gì. Một Account mồ côi **không** bị tính là administrator (`admins_ever` đếm assignment, không đếm Account), nên nó không chặn một lần bootstrap hợp lệ sau đó.
+
 ### Bước 10 — Lần đăng nhập đầu tiên và quyền sở hữu Account về sau
 
 Sau procedure, email khởi tạo vẫn `pending` và **chưa đăng nhập được**. Hoàn tất bootstrap chỉ khi người giữ hộp thư thực hiện:
@@ -216,28 +218,64 @@ Sau procedure, email khởi tạo vẫn `pending` và **chưa đăng nhập đư
 
 Từ đây Account thuộc về người dùng: đổi email, MFA/passkey, session đều đi qua `account` như mọi Account khác. Đổi email **không** đổi `sub` và **không** đổi staff identity — ánh xạ `sub` là bất biến.
 
-## 3. Emergency recovery
+## 3. Ba đường thay đổi quyền administrator
 
-Recovery dùng **đúng procedure §2** — cùng bước, cùng thứ tự, cùng idempotency, cùng kiểm tra. Khác biệt **duy nhất** là authorization:
+Ba đường tách biệt, mỗi đường có authorization riêng và **không** đường nào được "nâng cấp" im lặng thành đường khác (ADR-0023 Quyết định 1):
 
-- **Hai-phím của ADR-0003 giữ nguyên hiệu lực:** hai người khác nhau, mỗi người có quyền quản trị danh tính hệ thống, một người là người thực thi, để lại hai identity kèm thời điểm.
-- Bước xác minh danh tính mạnh hơn của ADR-0003 cho recovery giữ nguyên.
-- Không suy approval-free của bootstrap sang recovery: recovery chạy trên hệ thống **đang** có người thứ hai để đối chiếu (ADR-0021 Quyết định 7).
+| Đường                | Tiền đề                                               | Authorization                    | Bề mặt                                                              |
+| -------------------- | ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| Bootstrap            | `admins_before = 0` **và** `admins_ever = 0`          | Không approval                   | §2                                                                  |
+| Bổ nhiệm thường (2+) | Đã có administrator; target là staff `active`         | Permission ghi, qua route thật   | `POST /staff/:id/assignments` — **chưa enforce, chưa có catalog**   |
+| Emergency recovery   | Identity còn sống (`verified`), assignment đã thu hồi | Hai-phím có bằng chứng kiểm được | §3.2 — **chưa hiện thực** (đường) và **chưa cấu hình** (bằng chứng) |
 
-Nếu không đủ hai người có quyền hệ thống, đó là tình huống chưa được quyết — dừng và báo, không tự hạ cấp kiểm soát (xem §4).
+### 3.1 Bổ nhiệm thường — đường hợp lệ duy nhất cho administrator thứ hai
 
-⚠️ **Recovery trên identity đã `verified` chưa chạy được bằng procedure này.** A1 chỉ tạo được hàng `pending`, và A2 đòi `status = 'pending'` — khôi phục một administrator đã verify xong sẽ dừng ở A2. Đây là khoảng trống thuộc câu (2) §4, không phải một biến thể hợp lệ của procedure.
+Gán canonical administrator role cho một staff identity **đã tồn tại**, bởi một actor **đang có** permission ghi; không cần và **không** được dùng hai-phím (ADR-0023 Quyết định 2).
+
+⚠️ **Đường này chưa chạy được, và thiếu ba thứ độc lập:** catalog chưa có permission ghi nào (`role.assign`/`role.revoke` chỉ có trong prototype fixture); `apps/staff-access/src/routes.ts` mở `POST /staff/:id/assignments` nhưng **không** enforce permission, và actor có thể là `null`; không có caller nào gọi `insertStaff`, nên không có đường tạo staff identity cho người thứ hai. Ngoài ra Account cho người thứ hai chưa có đường tạo (#48). Theo dõi ở #44 và #48. Cho tới khi cả ba xong, **cảnh báo vận hành là: hệ thống chạy trong cửa sổ một administrator** — không có đường hợp lệ nào thêm người thứ hai, và mất administrator cuối cùng không khôi phục được.
+
+Điều kiện route phải giữ khi được hiện thực: principal lấy từ credential đã xác thực, không từ body; self-assignment bị từ chối (SR-005); target không `active` bị từ chối; assignment đã còn hiệu lực là no-op có audit, không tạo hàng trùng; audit actor là actor staff thật (SR-013).
+
+### 3.2 Emergency recovery — identity còn sống, chỉ khôi phục authority
+
+Recovery chạy trên **một** database (`db-staff-access`) và **không** có bước ghi nào ở `account` (ADR-0023 Quyết định 3). Thứ tự:
+
+1. **Phân giải `sub` từ `address_hash`** bằng bề mặt **đọc** của `account` — không phải A1, không phải create-or-resolve. Yêu cầu đúng **một** Account `active` và đúng **một** hàng `email_addresses` `status = 'verified'` cho `address_hash` đó.
+2. **Đọc staff row theo `sub`**: đúng một hàng, status `active`.
+3. **Phân giải canonical administrator role**: đúng một hàng `(kind = 'system', name = <định danh canonical>)`; khác một hàng → từ chối `role_identity_ambiguous`.
+4. **Đo guard** dưới advisory lock (Bước 7 của §2) và đối chiếu `mode = 'recovery'`.
+5. **Kiểm bằng chứng hai-phím** (§3.3). Thiếu hoặc không kiểm được → từ chối.
+6. **Phép ghi duy nhất:** trong một transaction của `db-staff-access`, insert **một assignment mới** trỏ canonical role, `granted_by` NULL, rồi ghi audit `success` với số đo.
+
+- **Không hồi sinh hàng đã thu hồi.** `revoked_at` giữ nguyên; assignment mới có `id` mới. Lịch sử thể hiện một lần thu hồi và một lần cấp lại, và trigger `role_assignment_revoke_only` chặn runtime un-revoke.
+- **Assignment còn hiệu lực đã có → từ chối `already_administrator`.** Không tạo hàng trùng, và không dùng recovery như no-op: người đó không mất quyền, nên không có gì để khôi phục. Cấp quyền cho người **khác** là §3.1.
+- **Fail-closed:** Account `suspended`/`deleted`; staff `suspended`/`terminated`; nhiều hơn một Account cho địa chỉ; không có hàng `verified`; role không phân giải được; `mode` không khớp. Mỗi trường hợp dừng, exit khác 0, một audit row `denied`.
+- **Retry:** lỗi trước commit không để lại gì; commit rồi thì chạy lại thấy assignment còn hiệu lực và từ chối. Không có trạng thái nửa vời xuyên database — đây là khác biệt cấu trúc so với bootstrap.
+- **Account bị suspend sau lần đọc không tự thu hồi assignment.** Hai trục độc lập (invariant 8); đảo suspend là thao tác có audit của `account`, không phải một bước của recovery.
+
+⚠️ **Ba trạng thái không khôi phục được, và đây là giới hạn đã biết, không phải sơ suất.** Staff `terminated` (terminal guard + `staff.sub` UNIQUE), Account `deleted` (tombstone, `sub` không tái phát hành, `address_hash` vẫn bị hàng `verified` cũ giữ), và địa chỉ email không còn dùng được đều cần **một identity mới** — tức một quyết định về danh tính canonical của recovery (#47). Cho tới khi có, ba trạng thái đó fail closed và không có nhánh thay thế. Không nới `UNIQUE`, không thêm trigger cho hồi sinh, không sửa trạng thái Account bằng tay.
+
+⚠️ **Recovery chưa chạy được hôm nay**, vì hai lý do độc lập: đường này chưa hiện thực (#46), và **chưa có cơ chế bằng chứng nào được cấu hình** (#45).
+
+### 3.3 Bằng chứng hai-phím
+
+Hai-phím của ADR-0003 (hai người khác nhau, mỗi người có quyền quản trị danh tính hệ thống, một người thực thi, hai identity kèm thời điểm) chỉ có hiệu lực khi bằng chứng **kiểm được**. ADR-0023 Quyết định 5 chốt năm thuộc tính bắt buộc: hai danh tính **độc lập** do hệ thống tin cậy ghi nhận; gắn với **digest của đúng thao tác** (`mode`, `address_hash`, `sub`, `correlation_id`); **không tái dùng**; **kiểm tại thời điểm chạy** (CLI tự truy vấn và tự đối chiếu, không tin chuỗi từ entry point); **có thời hạn**.
+
+- **`operator_ref` không phải bằng chứng.** Nó là metadata attribution tự khai và không thay được bất kỳ thuộc tính nào.
+- **Thiếu bằng chứng → từ chối**, exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `denied` với `approval_missing` (không kiểm được) hoặc `approval_mismatch` (digest sai). Không có chế độ "cảnh báo rồi chạy tiếp", không có flag tắt kiểm.
+- ⚠️ **Chưa cơ chế nào tồn tại.** `gh api repos/ecoma-io/ecoma/environments` trả `{"total_count":0}` và không workflow nào trong `.github/workflows/` khai `environment:` (kiểm 2026-11-10). Ứng viên GH8 (GitHub environment có required reviewers, `04-platform-facts.md` §2.17) vì vậy là **khả năng chưa cấu hình**, không phải kiểm soát đang có. Cơ chế, cấu hình và cách kiểm chứng thuộc #45.
+- **Không đủ hai người có quyền hệ thống?** Đó là tình huống chưa được quyết — dừng và báo, không tự hạ cấp kiểm soát (§4 câu 3).
 
 ## 4. Câu hỏi còn mở
 
-Bốn câu chưa được quyết, ghi lại thay vì tự chọn (ADR-0021 Quyết định 5, 7):
+Ba câu chưa được quyết, ghi lại thay vì tự chọn (ADR-0021 Quyết định 7, ADR-0023 Quyết định 7):
 
 1. "Quá ít administrator" được định nghĩa thế nào — 0, hay dưới một ngưỡng?
-2. Recovery tạo identity **mới** hay khôi phục identity đã có — và nếu tạo mới thì Account mới lấy từ đâu khi không còn ai có quyền xác nhận? Câu này bao gồm trường hợp identity đã `verified`, thứ procedure §2 không phủ.
+2. ~~Recovery tạo identity **mới** hay khôi phục identity đã có~~ — đã chốt một phần: recovery khôi phục authority trên identity **còn sống**, không tạo identity (ADR-0023 Quyết định 3). Phần còn mở: **danh tính thay thế lấy từ đâu** khi identity gốc không còn dùng được (staff `terminated`, Account `deleted`, email không dùng được) — #47.
 3. Ai giữ phím thứ hai khi chính những người giữ phím là người mất quyền?
 4. **Ai được giữ và ai được dùng credential vận hành?** `architecture/03-operations.md` §3.5 chỉ yêu cầu credential lấy lại được từ bản sao offline ngoài VPS; không tài liệu canonical nào chốt custody (một người hay tách đôi). Cho tới khi có, mọi lập luận "credential đã được kiểm soát nên một người là đủ" là suy diễn, không phải quyết định.
 
-Bốn câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết chúng.
+Các câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết chúng.
 
 ## 5. Operational invariants
 
@@ -249,6 +287,7 @@ Bốn câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết
 6. Không xoá Account hợp lệ để "rollback" một bước sau thất bại.
 7. Không credential migrator/owner nào trở thành Worker secret, và credential migrator không rời CI secret store.
 8. Mỗi lần chạy ghi `mode`, `admins_before` và `admins_ever` (số đo, không phải input) cùng `operator_ref`; actor NULL một mình không phải attribution, và `operator_ref` là tự khai chứ không được xác minh.
-9. Chạy lại sau khi đã thu hồi assignment **sẽ** tái tạo quyền nếu được phép chạy — guard chặn điều đó ở `mode = 'bootstrap'` bằng `admins_ever`, nên đường tái tạo chỉ còn là `recovery` + hai-phím; vì vậy bề mặt này không thuộc pipeline deploy của environment thật.
+9. Chạy lại sau khi đã thu hồi assignment **sẽ** tái tạo quyền nếu được phép chạy — guard chặn điều đó ở `mode = 'bootstrap'` bằng `admins_ever`, nên đường tái tạo chỉ còn là `recovery` + hai-phím (§3.2–§3.3); vì vậy bề mặt này không thuộc pipeline deploy của environment thật.
 10. Guard "chưa có administrator" là số đo race-safe trong critical section ghi của `staff-access`, dưới advisory lock; `mode` bị đối chiếu với số đo và một lần chạy sai chế độ bị **từ chối**, không ghi dữ liệu (ADR-0022). Guard chỉ chặn — nó không cấp, không sửa, không hồi sinh.
 11. Không credential database nào được dùng trong phiên tương tác của người vận hành; mọi bước ghi chạy qua service CLI/CI job.
+12. Bổ nhiệm administrator thứ hai **không** đi qua procedure bootstrap và **không** cần hai-phím; recovery **không** tạo identity, staff hay Account. Ba đường không thay thế nhau (ADR-0023 Quyết định 1, 2, 4).

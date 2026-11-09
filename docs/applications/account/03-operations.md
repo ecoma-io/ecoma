@@ -105,7 +105,7 @@ Cơ chế, tần suất, hợp đồng log, hành vi khi hỏng và đường ch
 
 Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `account`, không có route HTTP và không nằm trong Worker (ADR-0021 Quyết định 2). Đây là đường **duy nhất** được phép ghi `account.users`; không có production code path nào khác làm việc đó.
 
-⚠️ **Thao tác này chưa tồn tại.** Không có CLI create-or-resolve trong `apps/account` ở thời điểm tài liệu này; mục này là đặc tả cho #17, không phải mô tả một lệnh chạy được. Đường verify lần đầu (nhắc dưới đây) cũng **chưa tồn tại**.
+⚠️ **Thao tác này chưa tồn tại.** Không có CLI create-or-resolve trong `apps/account` ở thời điểm tài liệu này; mục này là đặc tả cho #17, không phải mô tả một lệnh chạy được. Đường verify lần đầu (nhắc dưới đây) cũng **chưa tồn tại**. Đường này chỉ phục vụ **bootstrap**; đường tạo Account thông thường khác **chưa được quyết** (#48), và recovery không dùng nó — recovery chỉ đọc `sub` đã có (ADR-0023 Quyết định 3).
 
 - **Bề mặt:** CLI offline trong `apps/account`, chạy bằng credential migrator/owner của `db-account` (ADR-0020 Quyết định 3(b)). Không route, không flag, không cron.
 - **Concurrency:** đọc và ghi trong **một** transaction dưới `pg_advisory_xact_lock` khoá theo `address_hash` (ADR-0021 Quyết định 2). Không có lock này, hai lần chạy đồng thời cùng đọc "chưa có hàng" rồi cùng `INSERT` — schema không chặn được, vì UNIQUE duy nhất trên `email_addresses` chỉ áp cho hàng `verified`. Kết quả là hai `sub` cho cùng địa chỉ, và bước A2 fail-closed không hội tụ được bằng cách chạy lại. Lock tự nhả khi commit/rollback; cùng hình dạng với advisory lock của migration runner.
@@ -114,18 +114,18 @@ Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `
 - **Hàng `revoked`:** khoá tự nhiên và mọi kiểm fail-closed chỉ đọc `status IN ('pending','verified')`; hàng `revoked` không giữ địa chỉ và không chứng minh quyền sở hữu. Nhưng nó là dấu hiệu đã có người từng chạm địa chỉ — procedure **dừng và báo**, không tự xoá/revoke hàng nào.
 - **Trạng thái email:** `pending`, `is_sign_in = false`, `verified_at IS NULL`. Procedure **không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên qua đường verify dành cho người chưa có session (ADR-0021 Quyết định 3; đường đó **chưa tồn tại**, là yêu cầu hiện thực của #17).
 - **Đầu ra:** đúng một `sub`. Đây là giá trị duy nhất được truyền sang bước Staff Access; `staff-access` không đọc `db-account`.
-- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.admins_before`, `metadata.admins_ever`, và `metadata.operator_ref` do người vận hành khai báo — bảng này không có cột `correlation_id` và không có principal, ADR-0021 Quyết định 6). ⚠️ `operator_ref` là **tự khai**, không được xác minh; nó không chứng minh danh tính người giữ credential (ADR-0021 Quyết định 6).
+- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, và `metadata.operator_ref` do người vận hành khai báo — bảng này không có cột `correlation_id` và không có principal, ADR-0021 Quyết định 6). Bước này **không** ghi `metadata.admins_before`/`metadata.admins_ever`: hai số đó chỉ được đo trong critical section ghi của `staff-access`, không phải ở `account`. ⚠️ `operator_ref` là **tự khai**, không được xác minh; nó không chứng minh danh tính người giữ credential (ADR-0021 Quyết định 6, ADR-0023 Quyết định 5).
 
 Đọc lại để verify:
 
 ```sql
-SELECT u.sub, e.status, e.verified_at
+SELECT u.sub, u.status AS account_status, e.status, e.verified_at
 FROM account.users u JOIN account.email_addresses e ON e.user_sub = u.sub
 WHERE e.address_hash = <sha256(address)>
   AND e.status IN ('pending', 'verified');
 ```
 
-Đạt khi trả đúng một row với `sub` khớp `^sub_[a-z2-7]{32}$`, `status = 'pending'`, và Account không ở trạng thái tombstone. Runbook đầy đủ của procedure (thứ tự bước, retry, recovery) → [`../staff-access/03-operations.md`](../staff-access/03-operations.md).
+Đạt khi trả đúng một row với `sub` khớp `^sub_[a-z2-7]{32}$`, `account_status = 'active'`, `status = 'pending'`. Cột `account_status` phải có trong câu đọc: "Account không ở trạng thái tombstone" là một điều kiện của pass criteria, nên câu truy vấn phải đọc được nó — kiểm một điều kiện mà truy vấn không trả về là kiểm bằng giả định. Runbook đầy đủ của procedure (thứ tự bước, retry, bổ nhiệm thường, recovery) → [`../staff-access/03-operations.md`](../staff-access/03-operations.md).
 
 ## 4. Environment isolation
 
