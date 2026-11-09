@@ -1,6 +1,6 @@
 # ADR-0022 — Guard "chưa có administrator" đo được và race-safe cho bootstrap
 
-> 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4). ADR này supersede-in-part [ADR-0003](./0003-bootstrap-first-admin-recovery.md) và [ADR-0020](./0020-bootstrap-seed-contract.md) — Quyết định 11 ở chỗ đặt phép kiểm, và Quyết định 6 ở chỗ "chạy lại là cơ chế phục hồi duy nhất". Nó không mở lại quyết định nào khác của hai ADR đó — đường tạo Account đầu tiên, email `pending`, bỏ hai-phím cho lần bootstrap đầu, và hai-phím cho recovery giữ nguyên ([ADR-0021](./0021-first-admin-bootstrap-path.md)).
+> 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4). ADR này supersede-in-part [ADR-0003](./0003-bootstrap-first-admin-recovery.md) và [ADR-0020](./0020-bootstrap-seed-contract.md) — Quyết định 11 ở chỗ đặt phép kiểm, và Quyết định 6 ở chỗ "chạy lại là cơ chế phục hồi duy nhất". Nó không mở lại quyết định nào khác của hai ADR đó — đường tạo Account đầu tiên, email `pending`, bỏ hai-phím cho lần bootstrap đầu, và hai-phím cho recovery giữ nguyên ([ADR-0021](./0021-first-admin-bootstrap-path.md), [ADR-0023](./0023-administrator-lifecycle-paths.md)).
 
 > **Trạng thái:** Accepted · **Ngày:** 2026-11-09 · **Quyết định từ:** [ADR-0003](./0003-bootstrap-first-admin-recovery.md) · [ADR-0020](./0020-bootstrap-seed-contract.md) Quyết định 6 và 11 · [ADR-0021](./0021-first-admin-bootstrap-path.md) Quyết định 7 · **Issue:** #11
 
@@ -36,6 +36,8 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
    - `admins_before > 0` **hoặc** `admins_ever > 0` → chỉ chấp nhận `mode = 'recovery'`, và chỉ khi authorization hai-phím của ADR-0003 đã được chứng minh ngoài hệ thống.
    - Mọi cặp **(`mode` khai, số đo)** không khớp một trong hai dòng trên → **từ chối**: exit khác 0, không ghi dữ liệu nghiệp vụ nào, và ghi **một** audit row `outcome = 'denied'` với lý do `mode_mismatch`. Từ chối phải để lại dấu vết, vì một lần từ chối lặp lại là tín hiệu có người đang thử cấp lại quyền.
 
+     Row `denied` đó ghi vào **`staff_access.authorization_audit`**, không phải `account.security_events`: bảng sau có `outcome CHECK ('success','failure')` và không có cột `correlation_id`, nên không biểu diễn được một quyết định bị từ chối gắn với lần chạy. Đây là tên bảng cho hành vi Quyết định 3 đã chốt, không phải một quyết định mới ([ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 6 ghi cùng tên cho mọi lý do từ chối của ba đường).
+
    ⚠️ **`admins_before` một mình không đủ, và đây là lỗ hổng đã đo được, không phải phòng xa.** `admins_before` đếm assignment **còn hiệu lực**. Sau khi assignment administrator duy nhất bị `revoked_at`, số đó về **0** trong khi quyền vừa bị thu hồi — nên nếu chỉ so `admins_before`, một lần chạy `mode = 'bootstrap'` được **chấp nhận** và insert assignment mới, tức khôi phục đúng quyền vừa thu hồi mà không có hai-phím. Vì vậy guard đo thêm **`admins_ever`**: số assignment hàng của role canonical từng tồn tại, **không** lọc `revoked_at`, cửa sổ hiệu lực hay trạng thái staff. `admins_ever > 0` nghĩa là environment **đã từng** có administrator, nên mọi lần chạy sau đó — kể cả khi hiện không còn ai — là recovery, phải qua hai-phím. Bootstrap chỉ dành cho environment chưa từng có assignment administrator nào. Cái giá phải trả: một environment đã xoá sạch administrator không thể "bootstrap lại"; đó đúng là hành vi mong muốn, vì "bootstrap lại" chính là cấp lại quyền.
 
 4. **Truy vấn đo phải đếm administrator, không đếm assignment.** `revoked_at IS NULL` một mình là sai: nó tính cả role không phải administrator và bỏ qua `effective_from`/`effective_until`, hai cột mà schema ghi rõ là read-time filter. Câu chuẩn:
@@ -64,14 +66,14 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
    WHERE r.kind = 'system' AND r.name = <định danh canonical>;
    ```
 
-   Không join `staff`, không lọc `status`, `revoked_at` hay cửa sổ hiệu lực: mọi lý do khiến một assignment thôi có hiệu lực đều là lý do `admins_before` giảm, và chính những lý do đó không được phép biến environment trở lại trạng thái "chưa từng có administrator". Giá trị này chỉ đi vào quyết định và audit, không thay cho `admins_before`.
+   Không join `staff`, không lọc `status`, `revoked_at` hay cửa sổ hiệu lực: mọi lý do khiến một assignment thôi có hiệu lực đều là lý do `admins_before` giảm, và chính những lý do đó không được phép biến environment trở lại trạng thái "chưa từng có administrator". `count(*)` ở đây đếm **hàng assignment**, không đếm staff: hai assignment của cùng một staff đã từng tồn tại đều chứng minh environment đã từng có administrator, và giá trị này chỉ dùng làm ngưỡng khác 0 chứ không bao giờ được so với `admins_before` hay báo cáo như số administrator. Nó chỉ đi vào quyết định và audit, không thay cho `admins_before`.
 
    ⚠️ **`roles.name` không có UNIQUE, nên phép đo phải fail-closed khi định danh canonical không phân giải được thành đúng một role.** Hai hàng `roles` cùng `(kind = 'system', name = <định danh canonical>)` đều hợp lệ ở mức database, và mỗi hàng có assignment riêng thì phép đếm ở trên trộn hai role khác nhau thành một con số. Vì vậy guard đọc role theo định danh canonical trước; khác đúng một hàng → **từ chối** (`denied`, lý do `role_identity_ambiguous`), không đoán. Seed role và ràng buộc UNIQUE `(kind, name)` là yêu cầu schema của #17 (ADR-0021 Quyết định 4).
 
 5. **Advisory lock bọc cả phép đo lẫn phép ghi.** `pg_advisory_xact_lock` trên một khoá dẫn xuất từ tên database và tên bước, lấy bên trong transaction và tự nhả khi commit/rollback. Hai lần chạy đồng thời tuần tự hoá: lần thứ hai đo được kết quả của lần thứ nhất và bị từ chối theo Quyết định 3. Cùng hình dạng với advisory lock mà migration runner đã dùng, không phải cơ chế mới.
 6. **Guard chỉ từ chối, không bao giờ tạo.** Nó không thay thế, không rút gọn và không nhân bản bước S1/S2. Nhánh "nếu chưa có admin thì tạo" vẫn bị cấm (ADR-0020 Quyết định 2, ADR-0021 Quyết định 9): việc tạo staff và gán role là hai bước cố định, và guard chỉ quyết định chúng có được chạy hay không.
 7. **Entry point giữ một lớp kiểm thứ hai, không phải lớp duy nhất.** Nó vẫn kiểm trước khi gọi bước ghi — để fail nhanh và để không mở transaction khi đã biết sai — nhưng lớp đó **không** thay lớp trong Quyết định 1, và tài liệu không được trình bày nó như lớp bảo vệ chính.
-8. **Ba thao tác vẫn là ba thao tác.** Bootstrap (`admins_before = 0` và `admins_ever = 0`), cấp lại quyền sau thu hồi (`admins_ever > 0`, `mode = 'recovery'` + hai-phím), và khôi phục identity đã `verified` (chưa được procedure phủ — ADR-0021 Quyết định 7) không gộp thành một đường. Guard làm cho việc gộp chúng **không còn im lặng được**, không làm chúng trở nên hợp lệ.
+8. **Ba thao tác vẫn là ba thao tác.** Bootstrap (`admins_before = 0` và `admins_ever = 0`), recovery trên một identity còn sống (`admins_ever > 0`, `mode = 'recovery'` + hai-phím — [ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 3), và bổ nhiệm thường (`admins_before > 0`, qua permission ghi chứ không qua procedure — ADR-0023 Quyết định 2) không gộp thành một đường. Guard làm cho việc gộp chúng **không còn im lặng được**, không làm chúng trở nên hợp lệ.
 9. **Phát hiện:** alert phải bắt `mode = 'bootstrap'` với `admins_before > 0` **hoặc** `admins_ever > 0`. Nếu guard hoạt động, cặp đó không bao giờ ghi được dữ liệu — nó chỉ tồn tại dưới dạng `outcome = 'denied'`; thấy nó là thấy có người đang thử, thấy nó **kèm dữ liệu đã ghi** là thấy guard đã hỏng.
 10. **Transaction phải chạy ở `READ COMMITTED`** (mức mặc định của PostgreSQL). Correctness của Quyết định 5 phụ thuộc việc transaction **sau** khi lấy được lock mới thấy row mà lần chạy thắng đã commit. Ở `REPEATABLE READ` snapshot được chốt ở statement đầu tiên — chính là câu lấy lock — nên lần chạy bị chặn vẫn đọc số cũ sau khi lần thắng commit, và hai lần chạy cùng ghi. Procedure phải đặt mức này tường minh, không dựa vào cấu hình session hay `ALTER DATABASE`.
 
@@ -85,8 +87,8 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
 ## Hệ quả
 
 - **Chưa có gì trong số này tồn tại.** Không có CLI bootstrap, không có guard, không có advisory lock nào cho đường này, và không có alert. Toàn bộ là **yêu cầu hiện thực cho #17**.
-- Guard **không** giải quyết được khoảng trống recovery trên identity đã `verified`: nó chỉ bảo đảm một lần chạy sai chế độ bị từ chối, không tạo ra đường khôi phục còn thiếu (ADR-0021 Quyết định 7, câu (b)).
-- Guard **không** thay bằng chứng về con người: `operator_ref` vẫn là tự khai, và bằng chứng về người giữ credential vẫn chưa có cơ chế được kiểm chứng (ADR-0021 Quyết định 6).
+- Guard **không** giải quyết được khoảng trống recovery trên identity đã `verified`: nó chỉ bảo đảm một lần chạy sai chế độ bị từ chối. Đường recovery đó là [ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 3, hiện thực ở #46.
+- Guard **không** thay bằng chứng về con người: `operator_ref` vẫn là tự khai; hợp đồng bằng chứng cho hai-phím là ADR-0023 Quyết định 5, và **chưa cơ chế nào được cấu hình** (#45).
 - Guard **không** bảo vệ database thứ hai. Advisory lock của `staff-access` không xuyên sang `db-account`; vế Account được tuần tự hoá riêng trong transaction của nó (ADR-0021 Quyết định 2).
 
 ## Cross-reference
@@ -94,5 +96,5 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
 - **SR/T-**: SR-009, SR-016 · T-11 · AC-016 ([`applications/staff-access/02-requirements.md`](../../../applications/staff-access/02-requirements.md)).
 - **Thiết kế:** [`domain-model.md`](../domain-model.md) §6, §8 invariant 6/9, §9 · [`applications/staff-access/03-operations.md`](../../../applications/staff-access/03-operations.md) §2–§3.
 - **System:** [`architecture/02-delivery.md`](../../../architecture/02-delivery.md) §3.2 · [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) invariant 36.
-- **Hiện thực:** #17 (Account đầu tiên + staff đầu tiên).
+- **Hiện thực:** #17 (Account đầu tiên + staff đầu tiên) · #44 (bổ nhiệm thường) · #46 (recovery trên identity đã `verified`).
 - **Index:** [`./README.md`](./README.md).

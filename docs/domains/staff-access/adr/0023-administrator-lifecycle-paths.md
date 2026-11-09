@@ -1,0 +1,137 @@
+# ADR-0023 — Ba đường vòng đời administrator: bổ nhiệm thường, bootstrap và recovery
+
+> 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4). ADR này chốt **ba đường tạo hoặc khôi phục quyền administrator tách biệt**, **điều kiện hợp lệ của từng đường**, và **hợp đồng bằng chứng cho authorization hai-phím**. Nó supersede-in-part [ADR-0021](./0021-first-admin-bootstrap-path.md) Quyết định 7 — phần "emergency recovery dùng đúng procedure đó" và phần "khôi phục identity đã `verified` chưa có đường". Nó không mở lại quyết định nào khác: đường tạo Account đầu tiên, email `pending`, bỏ hai-phím cho lần bootstrap đầu, và guard `admins_ever` giữ nguyên ([ADR-0021](./0021-first-admin-bootstrap-path.md), [ADR-0022](./0022-measured-first-admin-guard.md)).
+
+> **Trạng thái:** Accepted · **Ngày:** 2026-11-10 · **Quyết định từ:** [ADR-0003](./0003-bootstrap-first-admin-recovery.md) · [ADR-0010](./0010-permission-naming-and-read-catalog.md) · [ADR-0020](./0020-bootstrap-seed-contract.md) Quyết định 11 · [ADR-0021](./0021-first-admin-bootstrap-path.md) Quyết định 4, 7 · [ADR-0022](./0022-measured-first-admin-guard.md) · **Issue:** #11
+
+## Bối cảnh
+
+ADR-0021 chốt đường bootstrap và để lại một khoảng trống nó ghi rõ: khôi phục một identity đã `verified` không đi qua được bước A2, nên procedure §2 của [runbook](../../../applications/staff-access/03-operations.md) không phục vụ được trường hợp đó. ADR-0022 chốt guard đo được nhưng chỉ chặn, không tạo đường. Còn lại ba câu chưa có câu trả lời canonical:
+
+1. **Ai tạo administrator thứ hai, và bằng authority nào?** ADR-0020 Quyết định 11 nói "Superadmin thứ hai được tạo bằng role administration thông thường". Kiểm tra code cho thấy **không có** role administration thông thường nào tồn tại: `role.assign` chỉ có trong prototype fixture và bị chính fixture ghi rõ là không thuộc catalog (`apps/backoffice/app/backoffice-data/prototype-fixture.ts`); `apps/staff-access/src/routes.ts` mở `POST /staff/:id/assignments` nhưng **không enforce permission nào**; không có route tạo staff; BFF không có route ghi (non-goal của #25). Câu "được tạo bằng role administration thông thường" vì vậy đang trỏ vào một capability không tồn tại.
+2. **Recovery trên identity đã `verified` chạy thế nào?** A1 chỉ tạo được hàng `pending`, A2 đòi `status = 'pending'`. Mọi administrator đã đăng nhập đều có hàng `verified`, nên họ **không** đi qua được procedure §2 — đúng trường hợp emergency recovery cần nhất.
+3. **Hai-phím được chứng minh bằng gì?** ADR-0021 Quyết định 6 đã hạ "audit truy cập CI secret store" xuống thành cơ chế chưa kiểm chứng, và `operator_ref` là chuỗi người chạy tự khai. Chưa có định nghĩa nào về _bằng chứng_: hai approval phải đến từ đâu, gắn vào thao tác nào, và cái gì từ chối khi thiếu.
+
+Kiểm tra thêm cho thấy hai dữ kiện làm hẹp phạm vi một cách trung thực:
+
+- **Chưa có GitHub environment nào.** `gh api repos/ecoma-io/ecoma/environments` trả `{"total_count":0}` và không workflow nào trong `.github/workflows/` dùng `environment:` (kiểm ngày 2026-11-10). Ứng viên GH8 vì vậy **chưa** phải kiểm soát đang có.
+- **Chưa có đường nào tạo một staff identity thứ hai.** `insertStaff` tồn tại trong `libs/staff-access-infrastructure` nhưng không có caller; không có route create; không có màn hình/route BFF. Nên kể cả khi có role administration, administrator thứ hai vẫn không có staff row để gán role.
+
+## Phương án
+
+| #   | Phương án                                                                                               | Đánh giá                                                                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Ba đường tách biệt, mỗi đường có điều kiện và authorization riêng; recovery chỉ khôi phục authority** | Chấp nhận — mỗi đường có một tiền đề kiểm được; bootstrap không bị dùng lại; recovery không tạo identity nên không mở đường sinh administrator mới; guard của ADR-0022 vẫn là lớp chặn duy nhất cho `mode`.                                                                              |
+| 2   | Dùng lại procedure bootstrap cho mọi trường hợp (kể cả identity đã `verified`)                          | Loại — A1/A2 fail-closed đúng thiết kế khi có hàng `verified`; nới A2 để nhận hàng `verified` là biến một procedure tạo identity thành đường cấp quyền không cần chứng minh kiểm soát email lần nữa, và xoá mất ranh giới giữa "tạo" và "khôi phục".                                     |
+| 3   | Cho recovery tạo Account mới cho một identity đã mất (staff `terminated`, Account bị xoá)               | Loại ở ADR này — đó là "bootstrap lại bằng một danh tính khác", cần quyết định danh tính canonical cho environment và cách một Account không-bootstrap ra đời; gộp nó vào recovery làm recovery thành đường mint identity. Được ghi thành quyết định mở có chủ.                          |
+| 4   | Coi `operator_ref` + hai chuỗi approval do người chạy truyền vào là bằng chứng hai-phím                 | Loại — người giữ credential tự khai cả hai phía; không có gì chứng minh hai người đó tồn tại, khác nhau, đã duyệt, hay đã duyệt đúng thao tác này. Đúng thứ ADR-0021 Quyết định 6 đã ghi là tự khai.                                                                                     |
+| 5   | Chọn sẵn GitHub environment protection rule làm cơ chế bằng chứng                                       | Loại ở ADR này — GH8 là fact đã ghi, nhưng **chưa environment nào tồn tại** và chưa workflow nào dùng nó; chọn một cơ chế chưa cấu hình xong rồi tuyên bố recovery đã được kiểm soát là báo cáo sai trạng thái. Contract chốt **thuộc tính**, cơ chế do Issue sở hữu chọn và kiểm chứng. |
+
+## Quyết định
+
+### 1. Ba đường, ba tiền đề, không đường nào thay đường nào
+
+| Đường                    | Tiền đề đo được                                                                           | Authorization                     | Được tạo ra                                 | Không bao giờ làm                       |
+| ------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------- | --------------------------------------- |
+| **Bootstrap**            | `admins_before = 0` **và** `admins_ever = 0` (ADR-0022)                                   | Không cần approval                | Account + staff + assignment                | Không dùng khi đã từng có administrator |
+| **Bổ nhiệm thường** (2+) | Đã có ít nhất một administrator, actor có permission ghi, target là staff `active`        | Permission-based, qua route thật  | Một assignment mới                          | Không tạo Account, không tạo staff      |
+| **Emergency recovery**   | `admins_before > 0` **hoặc** `admins_ever > 0`; identity target còn sống và đã `verified` | Hai-phím có bằng chứng kiểm chứng | Một assignment mới (không hồi sinh hàng cũ) | Không tạo Account, staff hay role       |
+
+- Ba đường **không** chia sẻ một bề mặt thực thi. Bootstrap là procedure §2 của runbook (hai database, hai service); bổ nhiệm thường là route quản trị trên một hệ thống đang chạy; recovery chỉ ghi `db-staff-access`.
+- Guard của [ADR-0022](./0022-measured-first-admin-guard.md) là lớp chặn chung: nó từ chối một lần chạy khai sai `mode`. Nó **không** làm ba đường trở nên tương đương, và không cấp quyền.
+- Một đường **không** được "nâng cấp" thành đường khác trong im lặng: bootstrap gặp `admins_ever > 0` bị từ chối, không tự chuyển thành recovery; recovery không có bằng chứng hai-phím bị từ chối, không tự chuyển thành bổ nhiệm thường.
+
+### 2. Bổ nhiệm thường là đường duy nhất hợp lệ cho administrator thứ hai — và nó chưa tồn tại
+
+- **Định nghĩa:** bổ nhiệm administrator thứ hai là gán **canonical administrator role** cho một staff identity **đã tồn tại**, bởi một actor **đang có** quyền quản trị role, qua route quản trị thật. Không có đường nào khác: bootstrap bị guard chặn, recovery không tạo staff, và không có "grant admin" ngoài assignment.
+- **Authority:** actor phải giữ một permission **ghi** trong catalog canonical (`staff_access.permissions`). ADR-0010 chốt dạng tên `domain.action`; capability này cần đúng hai hành động ghi — gán và thu hồi — nên tên đúng quy ước là `role.assign` và `role.revoke`. Việc **thêm** hai mục đó vào catalog là seed migration mới (ADR-0010, ADR-0020 Quyết định 10) do Issue sở hữu quyết định, không phải seed nào trong ADR này. Không có permission bao trùm, không có `isAdmin`.
+- **Điều kiện bắt buộc của route gán:** principal lấy từ credential đã xác thực (SR-001, T-10), **không** từ body; permission được enforce **server-side tại `staff-access`** trên từng request (SR-002, SR-003) — hiện tại route `POST /staff/:id/assignments` **không** enforce permission nào, nên trạng thái hiện tại không phải "đã có kiểm soát"; cấm self-assignment và cấp vượt quyền (SR-005); cấm self-revocation của assignment administrator cuối cùng cùng staff; một assignment mới cho mỗi lần bổ nhiệm, `granted_by` = actor staff; audit actor = actor staff (SR-013).
+- **Điều kiện của target:** staff row `active`; Account của `sub` còn `active` (đọc qua bề mặt `account`, không đọc `db-account` từ `staff-access`); nếu target đã có assignment administrator còn hiệu lực thì **không** tạo thêm — đó là no-op có audit, không phải bổ nhiệm lần hai.
+- ⚠️ **Capability này chưa tồn tại, và thiếu nó là thiếu ba thứ độc lập:** (a) hai permission ghi trong catalog; (b) enforcement permission trên route `staff-access`; (c) đường tạo staff identity cho người thứ hai — không có caller nào gọi `insertStaff`, và BFF không có route ghi. Hệ quả phải nói thẳng: **hiện tại không thể bổ nhiệm administrator thứ hai bằng bất kỳ đường nào.** Hệ thống vì vậy đang ở **cửa sổ một administrator**, và mọi thay đổi quyền phải đi qua recovery — với hai-phím. Đây là giới hạn được ghi nhận, không phải trạng thái chấp nhận được lâu dài.
+- **Việc tạo Account cho người thứ hai vẫn chưa được quyết.** Bootstrap chỉ tạo đúng một identity canonical; Issue #11 loại signup/self-service khỏi phạm vi. Cách một Account không-bootstrap ra đời (admin-created, invitation, hay mở signup) là quyết định của `account`, **không** thuộc ADR này và không được tự chọn ở đây. Nó là tiền đề của đường bổ nhiệm thường và có Issue sở hữu riêng (Cross-reference). Cho tới khi nó được quyết, đường bổ nhiệm thường bị chặn ở tiền đề, không phải ở authorization.
+- Bổ nhiệm thường **không** cần và **không** được dùng hai-phím: đây là thao tác quản trị bình thường trên một hệ thống đang có người vận hành, khác hẳn tình huống mất quyền mà hai-phím sinh ra để xử lý.
+
+### 3. Recovery chỉ khôi phục authority trên một identity còn sống
+
+Recovery là **một** đường, chạy trên **một** database, không có bước ghi nào ở `account`:
+
+1. Phân giải `sub` từ `address_hash` của địa chỉ do người vận hành khai, bằng **bề mặt đọc của `account`** (không phải create-or-resolve, không phải A1). Yêu cầu đúng **một** Account, status `active`, và đúng **một** hàng `email_addresses` `status = 'verified'` cho `address_hash` đó.
+2. Đọc staff row theo `sub`: phải tồn tại đúng một hàng, status `active`.
+3. Phân giải canonical administrator role: đúng một hàng `(kind = 'system', name = <định danh canonical>)`; khác một hàng → từ chối `role_identity_ambiguous` (ADR-0022 Quyết định 4).
+4. Đo `admins_before` và `admins_ever` trong critical section ghi của `staff-access` (ADR-0022 Quyết định 4), rồi đối chiếu `mode = 'recovery'` với số đo.
+5. Kiểm bằng chứng hai-phím (Quyết định 5). Thiếu hoặc không kiểm được → từ chối.
+6. Trong **một** transaction của `db-staff-access`, dưới advisory lock: insert **một assignment mới** trỏ canonical role, `granted_by` NULL, rồi ghi audit rows.
+
+- **Không hồi sinh hàng cũ.** Assignment đã `revoked_at` giữ nguyên `revoked_at`; recovery tạo hàng mới với `id` mới. Lý do: sửa `revoked_at` về NULL là un-revoke không có dấu vết, và trigger `role_assignment_revoke_only` đã chặn runtime làm việc đó. Hệ quả kiểm được: lịch sử cho thấy **một lần thu hồi và một lần cấp lại**, không phải một hàng "chưa từng bị thu hồi".
+- **Không tạo identity.** Recovery không INSERT `account.users`, không INSERT `email_addresses`, không INSERT `staff`, không tạo role. Nếu bước 1 hoặc 2 không thoả, recovery **không** có nhánh thay thế.
+- **Target đã có assignment administrator còn hiệu lực → từ chối** (`already_administrator`), không tạo hàng trùng và không được dùng recovery như no-op: người đó không mất quyền, nên không có gì để khôi phục. Việc cấp quyền cho một người **khác** là bổ nhiệm thường (Quyết định 2), không phải recovery.
+- **Fail-closed, không có nhánh khác:** Account `suspended` hoặc `deleted`; staff `suspended` hoặc `terminated`; nhiều hơn một Account cho `address_hash`; không có hàng `verified`; canonical role không phân giải được thành đúng một hàng; `mode` không khớp số đo. Mỗi trường hợp dừng procedure, exit khác 0, và để lại **một** audit row `outcome = 'denied'` với lý do tương ứng.
+- ⚠️ **Recovery không hồi sinh một staff đã `terminated`, và hiện không có đường thay thế.** `staff_identity_and_terminal_guard` chặn `terminated → active`, còn `staff.sub` UNIQUE nghĩa là không tạo được hàng staff mới cho cùng `sub`. Vì vậy trường hợp "administrator cuối cùng bị terminate" **không** khôi phục được bằng đường nào. Nó cần một identity mới, tức một quyết định về danh tính canonical cho recovery — ghi ở Quyết định 7 và có Issue sở hữu. Không được vá bằng cách nới `UNIQUE` hay bằng trigger cho phép hồi sinh.
+- **Cùng lý do, một Account bị suspend hoặc xoá không được recovery sửa.** Suspend/xoá Account là hành động bảo mật có chủ đích của `account`; đảo nó phải là một thao tác có audit riêng của `account`, không phải một bước của recovery. Recovery dừng và báo.
+- **Failure và retry:** recovery chỉ ghi `db-staff-access`, nên không có trạng thái nửa vời xuyên database — đây là khác biệt cấu trúc so với bootstrap. Assignment và audit nằm trong cùng transaction: lỗi trước commit không để lại gì; commit rồi thì chạy lại thấy assignment còn hiệu lực và **từ chối** (`already_administrator`), nên không thể nhân bản quyền bằng cách chạy lại. Một lần bị từ chối không ghi dữ liệu nghiệp vụ, chỉ ghi audit `denied`.
+- **Kiểm Account là đọc, không phải ghi.** Recovery đọc trạng thái Account qua bề mặt của `account` (hoặc `GET /internal/account/status?sub=` khi environment đã có envelope credential — ADR-0021 Quyết định 4) ngay trước transaction. Account bị suspend **sau** lần đọc đó không tự thu hồi assignment: `staff status` và account status là hai trục độc lập (invariant 8). Đây là hành vi đã chốt, không phải một cửa sổ bị bỏ sót.
+
+### 4. Bootstrap không bao giờ là đường cho administrator thứ hai
+
+- Bootstrap chỉ chạy khi `admins_before = 0` **và** `admins_ever = 0`; guard từ chối mọi trường hợp khác, kể cả khi hiện không còn ai (ADR-0022 Quyết định 3).
+- Bootstrap gặp một environment đã từng có administrator **không** được nâng cấp thành recovery: khác `mode`, khác authorization, khác điều kiện hiện thực. Nó bị từ chối và ghi `denied`.
+
+### 5. Hợp đồng bằng chứng hai-phím
+
+Authorization hai-phím của ADR-0003 (hai người khác nhau, mỗi người có quyền quản trị danh tính hệ thống, một trong hai là người thực thi) chỉ có hiệu lực khi **bằng chứng** của nó kiểm được. ADR này chốt hợp đồng đó, không chốt sản phẩm cụ thể:
+
+**Bằng chứng hợp lệ phải có đủ năm thuộc tính:**
+
+| #   | Thuộc tính                  | Nội dung kiểm được                                                                                                                                                                                 |
+| --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Danh tính độc lập**       | Hai danh tính **khác nhau**, mỗi danh tính do một hệ thống tin cậy ghi nhận; **không** giá trị nào do người chạy nhập vào thay cho danh tính                                                       |
+| 2   | **Gắn với đúng thao tác**   | Bằng chứng ràng buộc với digest của chính thao tác: `mode`, `address_hash` của địa chỉ đích, `sub` đích và `correlation_id`. Đổi bất kỳ trường nào thì bằng chứng không còn hợp lệ                 |
+| 3   | **Không tái dùng**          | Một bằng chứng chỉ authorize **một** lần chạy; dùng lại cho lần khác, kể cả cùng tham số, phải bị từ chối                                                                                          |
+| 4   | **Kiểm tại thời điểm chạy** | CLI tự truy vấn hệ thống tin cậy và **tự đối chiếu**; nó không tin một chuỗi do entry point truyền vào. Không kiểm được (mạng lỗi, không đủ quyền đọc) → **từ chối**, không rơi về "chấp nhận tạm" |
+| 5   | **Có thời hạn**             | Bằng chứng gắn với một cửa sổ thời gian; ngoài cửa sổ đó phải bị từ chối kèm lý do, không gia hạn tự động                                                                                          |
+
+- **`operator_ref` không phải bằng chứng.** Nó vẫn được ghi như metadata attribution tự khai (ADR-0021 Quyết định 6), nhưng không thoả thuộc tính 1 và không thay được bất kỳ thuộc tính nào ở trên. Không câu nào trong tài liệu được đọc như thể nó chứng minh danh tính.
+- **Thiếu bằng chứng → từ chối.** Recovery trả exit khác 0, không ghi dữ liệu nghiệp vụ, và ghi **một** audit row `outcome = 'denied'`, lý do `approval_missing` (không kiểm được) hoặc `approval_mismatch` (digest không khớp). Không có chế độ "cảnh báo rồi chạy tiếp", và không có flag tắt kiểm.
+- **Cơ chế được chọn phải kiểm chứng được trước khi dùng.** Ứng viên đang cân nhắc: **GitHub environment protection rule** (GH8, [`architecture/04-platform-facts.md`](../../../architecture/04-platform-facts.md) §2.17) — job thuộc một environment có **required reviewers** chỉ chạy sau khi duyệt, và bí mật của environment chỉ đọc được sau khi rule pass; bằng chứng nằm ở GitHub, không ở database. Ứng viên khác: OIDC-bound job identity; ghi nhận ngoài hệ thống có kiểm soát. ADR này **không** chọn sẵn cơ chế nào.
+- ⚠️ **Trạng thái hôm nay: chưa cơ chế nào tồn tại.** Không environment nào được cấu hình (`gh api …/environments` trả 0), không workflow nào dùng `environment:`, không có OIDC cho mục đích này. Vì vậy **recovery chưa chạy được**, không phải vì thiếu code mà vì thiếu đường kiểm bằng chứng. Đây là phụ thuộc chặn có Issue sở hữu (Cross-reference); bootstrap không bị ảnh hưởng vì nó không cần approval.
+- **Không mở rộng phạm vi:** hợp đồng này chỉ áp cho recovery. ADR-0020 Quyết định 11 bỏ hai-phím cho lần bootstrap đầu là quyết định đã có; ADR này không đổi nó và không dùng bằng chứng làm điều kiện mới cho bootstrap.
+
+### 6. Audit của đường bị từ chối: bảng nào
+
+- Mọi lần từ chối của ba đường — `mode_mismatch`, `role_identity_ambiguous`, `already_administrator`, `approval_missing`, `approval_mismatch`, và các lý do fail-closed ở Quyết định 3 — ghi **một** row trong **`staff_access.authorization_audit`**, không phải `account.security_events`.
+- Lý do là cấu trúc, không phải sở thích: `account.security_events` có `outcome CHECK ('success','failure')` và **không có** cột `correlation_id`, nên nó không biểu diễn được một quyết định `denied` gắn với lần chạy. `staff_access.authorization_audit` có `outcome IN ('success','failure','denied')` và cột `correlation_id`. Mọi lần từ chối mà một trong hai bảng không ghi được là lần từ chối không có dấu vết — đúng thứ SR-018 cấm.
+- Row bị từ chối mang `actor_staff_id`/`actor_sub` = NULL, `outcome = 'denied'`, `reason` là mã ở trên, `correlation_id` của lần chạy, và `context` chứa `mode` người chạy khai cùng hai số đo **nếu** chúng đã được đo (một lần bị từ chối ở bước kiểm bằng chứng trước khi đo thì không bịa số đo).
+- Một lần từ chối **không** ghi dữ liệu nghiệp vụ: không staff, không assignment, không Account, không email. "Không để lại dữ liệu" ở đây nghĩa là không có dữ liệu nghiệp vụ; audit `denied` là dấu vết bắt buộc, không phải dữ liệu nghiệp vụ.
+
+### 7. Quyết định mở: identity thay thế khi identity gốc không còn
+
+Ba trạng thái làm recovery bất khả thi vì **identity** không còn dùng được, không phải vì authorization thiếu: staff `terminated` (terminal + `sub` UNIQUE), Account `deleted` (tombstone; `sub` không tái phát hành, và `address_hash` vẫn bị hàng `verified` cũ giữ nên không tạo được Account mới cho cùng địa chỉ), và địa chỉ email không còn dùng được. Cả ba cần **một identity mới**, tức một Account mới với một địa chỉ khác — một quyết định về danh tính canonical của recovery, không phải một biến thể của Quyết định 3.
+
+Câu hỏi mở, ghi lại chứ không tự quyết: **danh tính của recovery lấy từ đâu, ai cung cấp địa chỉ, và việc đó khác bootstrap ở đâu ngoài authorization?** Cho tới khi có quyết định, các trạng thái này **fail closed** và đường khôi phục tương ứng **bị chặn**. Issue sở hữu ở Cross-reference; đây là phụ thuộc chặn của recovery cho ba trạng thái đó, không phải của bootstrap hay bổ nhiệm thường.
+
+### 8. Hệ quả vận hành: cửa sổ một administrator
+
+- Cho tới khi bổ nhiệm thường được hiện thực, **mọi** thay đổi quyền administrator đi qua recovery — kèm hai-phím và bằng chứng chưa có. Nghĩa là trên thực tế hôm nay **không có** đường hợp lệ nào để thêm administrator thứ hai, và một lần mất administrator cuối cùng không khôi phục được. Đây là giới hạn phải được nêu trong mọi báo cáo trạng thái, không được trình bày như "nhiều Superadmin được phép" mà bỏ vế "nhưng chưa có đường tạo".
+- Alert của ADR-0022 Quyết định 9 vẫn giữ nguyên và bổ sung: một row `denied` với `already_administrator` lặp lại là dấu hiệu có người dùng recovery như đường bổ nhiệm; một row `denied` với `approval_missing` là dấu hiệu có người đang thử chạy recovery ngoài đường được kiểm soát.
+
+## Quan hệ với ADR-0003, ADR-0020, ADR-0021, ADR-0022
+
+- **ADR-0003:** giữ nguyên hiệu lực. ADR này chỉ định nghĩa **bằng chứng** cho hai-phím mà ADR-0003 yêu cầu, và chốt rằng recovery không dùng lại procedure bootstrap. Câu "procedure tạo cùng lúc cả staff entry lẫn role assignment" vẫn đúng cho bootstrap; recovery không tạo staff.
+- **ADR-0020:** giữ nguyên. Bổ nhiệm thường và recovery **không** phải bootstrap/seed, nên không chịu hợp đồng §3.2 của [`architecture/02-delivery.md`](../../../architecture/02-delivery.md); chúng không nằm trong pipeline deploy.
+- **ADR-0021 — supersede-in-part Quyết định 7:** hai câu "emergency recovery dùng **đúng procedure đó**" và "khôi phục identity đã `verified` chưa được procedure phủ" **không còn hiệu lực**. Recovery là một bề mặt riêng, không có bước A1/A2, và trường hợp identity đã `verified` giờ có đường — đường đó chỉ khôi phục authority trên identity còn sống. Phần còn lại của Quyết định 7 — bootstrap không approval, không suy approval-free sang recovery, guard đo được, ba thao tác không gộp, alert, audit no-op — giữ nguyên. Quyết định 2, 3, 4, 5, 6, 8, 9 của ADR-0021 **không** bị ADR này thay đổi.
+- **ADR-0022:** giữ nguyên. ADR này chỉ bổ sung đường đi cho các trạng thái mà guard để lại, và định nghĩa bảng nhận row `denied` (Quyết định 6) — một chi tiết ADR-0022 chưa nói, không phải một quyết định khác.
+
+## Hệ quả
+
+- **Chưa có gì trong số này tồn tại.** Không có đường bổ nhiệm thường, không có recovery, không có bằng chứng hai-phím, không environment nào. Toàn bộ là yêu cầu hiện thực cho các Issue ở Cross-reference; #17 chỉ hiện thực **bootstrap** và các tiền đề schema của nó.
+- `#17` **không bị chặn** bởi ADR này: đường bootstrap vẫn là đường duy nhất #17 phải làm, và ADR-0021 vẫn là hợp đồng của nó. Ba đường còn lại là work item riêng.
+- Trạng thái của hệ thống sau ADR này: bootstrap chạy được (khi #17 xong); thêm administrator thứ hai **không**; recovery **không** (thiếu bằng chứng hai-phím và, cho ba trạng thái identity, thiếu quyết định). Ba khoảng trống đó có chủ, không nằm trong ADR.
+- Không có schema mới, không có bảng audit mới, không có role mới ở ADR này.
+
+## Cross-reference
+
+- **SR/T-**: SR-005, SR-009, SR-013, SR-018 · T-01, T-11, T-18 · AC-016, AC-020 ([`applications/staff-access/02-requirements.md`](../../../applications/staff-access/02-requirements.md)).
+- **Thiết kế:** [`domain-model.md`](../domain-model.md) §6, §8 invariant 6/7/9, §9 · [`applications/staff-access/03-operations.md`](../../../applications/staff-access/03-operations.md) §3–§4.
+- **System:** [`architecture/02-delivery.md`](../../../architecture/02-delivery.md) §3.2 · [`architecture/04-platform-facts.md`](../../../architecture/04-platform-facts.md) §2.17 (GH8).
+- **Hiện thực thuộc:** #17 (bootstrap + schema tiền đề) · #44 (bổ nhiệm thường: permission ghi, enforcement, đường tạo staff) · #45 (bằng chứng hai-phím cho recovery) · #46 (đường recovery trên identity đã `verified`) · #47 (quyết định identity thay thế khi identity gốc không còn) · #48 (quyết định đường tạo Account ngoài bootstrap — tiền đề của #44).
+- **Index:** [`./README.md`](./README.md).
