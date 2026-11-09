@@ -203,6 +203,10 @@ const DATA_TABLES = [
   'authorization_audit',
   'entitlements',
   'entitlement_outbox_events',
+  // Nonce replay duoc ghi boi moi request da xac thuc, va no tich luy qua cac
+  // test. Khong co test nao hien tai assert bang rong, nhung mot test sau nay
+  // lam vay se do vi du lieu cua test truoc — don no cung luot voi phan con lai.
+  'internal_nonces',
 ] as const;
 
 /**

@@ -8,14 +8,18 @@
  * middleware config de loi cau hinh khong lo qua mot route nghiep vu.
  */
 import { Hono } from 'hono';
-import type { ExecutionContext } from 'hono';
+import type { Context, ExecutionContext } from 'hono';
 import {
   INTERNAL_BODY_LIMIT_BYTES,
   NONCE_TTL_BUFFER_SECONDS,
   verifyRequest,
   type VerifyResult,
 } from '@ecoma-io/internal-auth-contracts';
-import { getStaffBySub, withStaffAccessClient } from '@ecoma-io/staff-access-infrastructure';
+import {
+  getStaffBySub,
+  StaffAccessConfigurationError,
+  withStaffAccessClient,
+} from '@ecoma-io/staff-access-infrastructure';
 import type { AppEnv } from './types';
 import {
   loadStaffAccessConfig,
@@ -39,6 +43,26 @@ const READY_PROBE_CONNECT_TIMEOUT_SECONDS = 3;
 
 /** `Retry-After` cua response 503 readiness — co dinh, khong tiet lo chi tiet. */
 const READY_RETRY_AFTER_SECONDS = '5';
+
+/**
+ * Nhan readiness that bai — MOT hinh response duy nhat cho hop dong 503.
+ *
+ * Gop hai nhanh loi (`config_invalid`, `db_unreachable`) vao mot helper de
+ * status, header va shape body khong the lech nhau khi sua mot nhanh; `reason`
+ * van phan biet duoc nguyen nhan trong log ma khong lo ten binding, loi driver
+ * hay connection string ra response.
+ *
+ * ⚠️ `reason` la ma on dinh (`config_invalid` | `db_unreachable`) — khong phai
+ * `error.message`: message cua config error neu TEN bien, message cua driver co
+ * the chua connection string.
+ */
+function readyUnavailable(c: Context<AppEnv>, reason: string): Response {
+  // oxlint-disable-next-line no-console
+  console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason }));
+  return c.json({ error: 'service_unavailable' }, 503, {
+    'Retry-After': READY_RETRY_AFTER_SECONDS,
+  });
+}
 
 /** Route khong credential va khong chay qua envelope HMAC (probe infra). */
 const UNAUTHENTICATED_PATHS: ReadonlySet<string> = new Set(['/health', '/ready']);
@@ -136,23 +160,20 @@ function createApp(): Hono<AppEnv> {
     try {
       config = getConfig(c.env);
     } catch {
-      // Khong noi `error` vao log: message cua config error neu TEN bien.
-      // oxlint-disable-next-line no-console
-      console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason: 'config_invalid' }));
-      return c.json({ error: 'service_unavailable' }, 503, {
-        'Retry-After': READY_RETRY_AFTER_SECONDS,
-      });
+      return readyUnavailable(c, 'config_invalid');
     }
 
     try {
       await probeDatabase(config);
-    } catch {
-      // Khong noi `error` vao log: message driver co the chua connection string.
-      // oxlint-disable-next-line no-console
-      console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason: 'db_unreachable' }));
-      return c.json({ error: 'service_unavailable' }, 503, {
-        'Retry-After': READY_RETRY_AFTER_SECONDS,
-      });
+    } catch (error) {
+      // Probe co the nem loi CAU HINH (hien tai chi tu hang so timeout, nhung
+      // mot lan sua hang so sai se roi vao day). Phan loai dung nguyen nhan
+      // thay vi gan nhan "db_unreachable" cho mot loi khong phai DB — nguoi
+      // van hanh se di kiem tra database trong khi loi o code readiness.
+      return readyUnavailable(
+        c,
+        error instanceof StaffAccessConfigurationError ? 'config_invalid' : 'db_unreachable',
+      );
     }
 
     // oxlint-disable-next-line no-console
@@ -328,10 +349,17 @@ function createApp(): Hono<AppEnv> {
  * readiness kiem khong chi "DB song" ma "DB song voi dung credential ma
  * serving path dung".
  *
- * Truy van re nhat van phai cham DB: `SELECT 1 FROM staff_access.staff LIMIT 1`
- * chung minh schema ton tai VA runtime role doc duoc bang (grant 0002). Bang
- * `staff` nam trong migration `0001` — database chua migrate du **phai** lam
- * probe that bai; database nua schema khong phai "san sang".
+ * ⚠️ `SELECT 1 FROM staff_access.staff LIMIT 1` **không** đủ: PostgreSQL chỉ
+ * đòi QUYỀN trên một cột nào đó của bảng, nên một role chỉ có
+ * `SELECT(sub)` vẫn qua probe trong khi `getStaffBySub` (đọc
+ * `id, sub, display_name, status, created_at, updated_at`) bị
+ * `permission denied`. Probe ở đây đọc **đúng tập cột mà serving path đọc** —
+ * vẫn trả 0 hàng trên bảng rỗng, nhưng đòi đúng grant.
+ *
+ * ⚠️ Bảng `staff` do `0001` tạo, nên một schema thiếu migration sau vẫn qua
+ * được. Request đã xác thực nào cũng claim nonce trong
+ * `staff_access.internal_nonces` (do `0005` tạo, grant trong chính file đó),
+ * nên probe chạm cả hai bảng: database nửa schema **phải** làm probe thất bại.
  *
  * ⚠️ Day la database cua CHINH staff-access, khong phai database khac: probe
  * khong vuot ranh gioi database ownership (invariant 5, 7, 25).
@@ -340,7 +368,10 @@ async function probeDatabase(config: StaffAccessConfig): Promise<void> {
   await withStaffAccessClient(
     { hyperdrive: config.hyperdrive, connectTimeoutSeconds: READY_PROBE_CONNECT_TIMEOUT_SECONDS },
     async (db) => {
-      await db.unsafe('SELECT 1 FROM staff_access.staff LIMIT 1');
+      await db.unsafe(
+        'SELECT id, sub, display_name, status, created_at, updated_at FROM staff_access.staff LIMIT 1',
+      );
+      await db.unsafe('SELECT nonce FROM staff_access.internal_nonces LIMIT 1');
     },
   );
 }

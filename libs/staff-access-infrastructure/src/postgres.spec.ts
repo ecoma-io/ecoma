@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createStaffAccessPostgresClient,
@@ -33,6 +33,16 @@ vi.mock('postgres', () => ({
 
 /** Binding Hyperdrive toi thieu — factory chi doc `connectionString`. */
 const BINDING = { connectionString: 'postgres://hyperdrive.invalid/db-staff-access' };
+
+// Trang thai cua mock la hai mang cap module. Reset TRUOC moi test de mot test
+// khong the doc driver call hay fake cua test truoc — ke ca khi vitest doi thu
+// tu chay hoac chay rieng mot test. Khong reset thi mot `queuedFakes` con sot
+// se lam test sau nhan nham fake (va mot `driverCalls` con sot se lam assertion
+// "dung mot lan goi" xanh tren du lieu cu).
+beforeEach(() => {
+  driverCalls.length = 0;
+  queuedFakes.length = 0;
+});
 
 describe('createStaffAccessPostgresClient', () => {
   it('passes the connection string, not the binding object, to the driver', () => {
@@ -93,6 +103,19 @@ describe('createStaffAccessPostgresClient', () => {
     }
     expect(driverCalls).toHaveLength(0);
   });
+
+  it('reports the binding failure, not the timeout failure, when both are invalid', () => {
+    // Thu tu kiem la contract: binding do Worker runtime cap (nguyen nhan goc
+    // khi config sai), timeout do code readiness dat. Mot thong bao timeout se
+    // che mat su co binding va lam kho chan doan trong production — ca hai van
+    // fail-closed va van khong cham driver.
+    driverCalls.length = 0;
+    expect(() =>
+      // @ts-expect-error -- exercise both invalid inputs at once.
+      createStaffAccessPostgresClient(null, { connectTimeoutSeconds: 0 }),
+    ).toThrow('Hyperdrive binding DB_STAFF_ACCESS has no connectionString');
+    expect(driverCalls).toHaveLength(0);
+  });
 });
 
 describe('withStaffAccessClient', () => {
@@ -111,6 +134,39 @@ describe('withStaffAccessClient', () => {
       }),
     ).rejects.toBe(originalError);
     expect(ended).toEqual([true]);
+  });
+
+  it('stays correct when the failing path runs repeatedly in the same process', async () => {
+    // Duong loi cung phai lap lai duoc: mot request hong khong duoc de lai
+    // state (client da dong, khong ro socket) lam request sau sai theo. Hai
+    // lan goi lien tiep voi hai loi khac nhau, va moi lan phai dong dung MOT
+    // client cua chinh no — neu `end()` bi bo qua o duong loi thi `ended` chi
+    // con mot phan tu.
+    const ended: boolean[] = [];
+    queuedFakes.push({
+      end: async () => {
+        ended.push(true);
+      },
+    } satisfies Record<string, unknown>);
+    queuedFakes.push({
+      end: async () => {
+        ended.push(true);
+      },
+    } satisfies Record<string, unknown>);
+
+    const firstError = new Error('first failure');
+    const secondError = new Error('second failure');
+    await expect(
+      withStaffAccessClient({ hyperdrive: BINDING }, async () => {
+        throw firstError;
+      }),
+    ).rejects.toBe(firstError);
+    await expect(
+      withStaffAccessClient({ hyperdrive: BINDING }, async () => {
+        throw secondError;
+      }),
+    ).rejects.toBe(secondError);
+    expect(ended).toEqual([true, true]);
   });
 
   it('returns the callback result and ends the client on the success path', async () => {

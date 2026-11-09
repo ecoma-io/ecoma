@@ -152,6 +152,31 @@ describe('/ready — readiness with a real dependency probe', () => {
       log.mockRestore();
     }
   });
+
+  it('bypasses authentication for exactly /health and /ready, and no other path', async () => {
+    // Tap bypass la mot `Set` so khop TUYET DOI. Mot ban sua doi sang
+    // `startsWith` hay regex se mo rong bypass sang `/ready/anything` —
+    // test nay ghim ranh gioi do, va ghim rang cac path con lai van 401
+    // (khong phai 503 tu config, vi env du de config nap duoc).
+    resetCachedConfig();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const app = buildApp();
+      const env = {
+        DB_STAFF_ACCESS: { connectionString: 'postgresql://nobody@127.0.0.1:1/db-staff-access' },
+        AUTH_INTERNAL_SECRET: 'internal-secret-test',
+      };
+      expect((await app.request('/health', {}, env)).status).toBe(200);
+      expect((await app.request('/ready', {}, env)).status).not.toBe(401);
+      for (const path of ['/health/', '/ready/extra', '/staff', '/roles', '/']) {
+        expect((await app.request(path, {}, env)).status, `${path} must require an envelope`).toBe(
+          401,
+        );
+      }
+    } finally {
+      log.mockRestore();
+    }
+  });
 });
 
 describe('loadStaffAccessConfig', () => {

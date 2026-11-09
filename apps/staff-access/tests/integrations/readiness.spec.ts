@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { signRequest } from '@ecoma-io/internal-auth-contracts';
@@ -40,7 +42,7 @@ describe('readiness against the real database', () => {
   }, 180_000);
   afterAll(async () => {
     await db?.stop();
-  });
+  }, 60_000);
 
   it('returns 200 only after the migrations have created the schema readable by the runtime role', async () => {
     resetCachedConfig();
@@ -57,18 +59,68 @@ describe('readiness against the real database', () => {
   it('returns 503 instead of 200 when the database is unreachable', async () => {
     resetCachedConfig();
     const app = buildApp();
-    const response = await app.request(
-      '/ready',
-      {},
-      {
-        DB_STAFF_ACCESS: { connectionString: 'postgresql://nobody@127.0.0.1:1/db-staff-access' },
-        AUTH_INTERNAL_SECRET: INTERNAL_SECRET,
-      },
-    );
+    const env = {
+      DB_STAFF_ACCESS: { connectionString: 'postgresql://nobody@127.0.0.1:1/db-staff-access' },
+      AUTH_INTERNAL_SECRET: INTERNAL_SECRET,
+    };
+    const response = await app.request('/ready', {}, env);
     expect(response.status).toBe(503);
     expect(response.headers.get('retry-after')).toBe('5');
     expect(await response.text()).not.toContain('db-staff-access');
+    // /health la liveness: DB chet KHONG duoc lam no do, va no khong duoc
+    // chay qua probe — neu khong, orchestrator restart-loop vo ich.
+    expect((await app.request('/health', {}, env)).status).toBe(200);
   });
+
+  it('returns 503 when the runtime role can read only a subset of the staff columns', async () => {
+    // PostgreSQL chi doi quyen tren MOT cot nao do de `SELECT 1 FROM staff`.
+    // Mot role chi con `SELECT(sub)` van qua probe kieu cu trong khi
+    // `getStaffBySub` (doc id, sub, display_name, status, created_at,
+    // updated_at) bi `permission denied` — readiness 200 gia dung o kieu grant
+    // drift ma no ton tai de bat.
+    const client = await db.connect();
+    try {
+      await client.query('REVOKE SELECT ON staff_access.staff FROM ecoma_staff_access_runtime');
+      await client.query('GRANT SELECT (sub) ON staff_access.staff TO ecoma_staff_access_runtime');
+      resetCachedConfig();
+      const app = buildApp();
+      const response = await app.request('/ready', {}, runtimeEnv(db));
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('5');
+      expect(await response.text()).not.toContain('staff_access');
+    } finally {
+      // Tra grant ve dung hinh `0002` de test sau khong an trang thai nay.
+      await client.query(
+        'REVOKE SELECT (sub) ON staff_access.staff FROM ecoma_staff_access_runtime',
+      );
+      await client.query('GRANT SELECT ON staff_access.staff TO ecoma_staff_access_runtime');
+      await client.end();
+    }
+  });
+
+  it('returns 503 when the database is migrated only up to 0001 (missing internal_nonces)', async () => {
+    // Moi request da xac thuc deu claim nonce trong `staff_access.internal_nonces`
+    // (0005). Mot database dung o 0001 van co bang `staff` — probe kieu cu se
+    // 200 trong khi moi request that 503/500. Dung container RIENG de khong
+    // pha fixture cua cac test khac.
+    const partial = await startStaffAccessDatabase();
+    try {
+      const client = await partial.connect();
+      try {
+        await client.query('DROP TABLE staff_access.internal_nonces');
+      } finally {
+        await client.end();
+      }
+      resetCachedConfig();
+      const app = buildApp();
+      const response = await app.request('/ready', {}, runtimeEnv(partial));
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('5');
+      expect(await response.text()).not.toContain('internal_nonces');
+    } finally {
+      await partial.stop();
+    }
+  }, 180_000);
 
   it('returns 503 when the roles exist but the migrations have not run', async () => {
     // Nua duong cua mot lan deploy that: database + role da provision nhung
@@ -115,7 +167,7 @@ describe('readiness against the real database', () => {
       body: new Uint8Array(),
       secret: INTERNAL_SECRET,
       timestamp: String(Math.floor(Date.now() / 1000)),
-      nonce: `readiness-${crypto.randomUUID()}`,
+      nonce: `readiness-${randomUUID()}`,
     });
     const response = await app.request('/staff', { headers: signed }, env);
     expect(response.status).toBe(200);

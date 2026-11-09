@@ -138,6 +138,24 @@ export function createStaffAccessPostgresClient(
   binding: StaffAccessHyperdriveBinding,
   options?: StaffAccessClientOptions,
 ): StaffAccessClient {
+  // `binding` co the la undefined/null tu duong config fail: truy cap
+  // `connectionString` tren null nem TypeError khong co message config —
+  // kiem truoc de ca nam hinh dang sai deu ra dung loi fail-closed.
+  //
+  // Thu tu kiem co y: binding TRUOC timeout. Khi ca hai cung sai, loi binding
+  // moi la nguyen nhan goc (binding do Worker runtime cap, timeout do code
+  // readiness dat) — bao loi timeout truoc se che mat nguyen nhan quan trong
+  // hon va lam mot su co binding tro thanh kho debug. Ca hai van fail-closed.
+  if (
+    binding === null ||
+    typeof binding !== 'object' ||
+    typeof binding.connectionString !== 'string' ||
+    binding.connectionString === ''
+  ) {
+    throw new StaffAccessConfigurationError(
+      'Hyperdrive binding DB_STAFF_ACCESS has no connectionString; staff-access fails closed',
+    );
+  }
   const connectTimeoutSeconds = options?.connectTimeoutSeconds;
   if (
     connectTimeoutSeconds !== undefined &&
@@ -147,19 +165,6 @@ export function createStaffAccessPostgresClient(
   ) {
     throw new StaffAccessConfigurationError(
       'connectTimeoutSeconds must be a finite positive number of seconds; omit it to keep the driver default',
-    );
-  }
-  // `binding` co the la undefined/null tu duong config fail: truy cap
-  // `connectionString` tren null nem TypeError khong co message config —
-  // kiem truoc de ca nam hinh dang sai deu ra dung loi fail-closed.
-  if (
-    binding === null ||
-    typeof binding !== 'object' ||
-    typeof binding.connectionString !== 'string' ||
-    binding.connectionString === ''
-  ) {
-    throw new StaffAccessConfigurationError(
-      'Hyperdrive binding DB_STAFF_ACCESS has no connectionString; staff-access fails closed',
     );
   }
 
@@ -213,12 +218,12 @@ export async function withStaffAccessClient<T>(
   config: StaffAccessClientConfig,
   fn: (client: StaffAccessClient) => Promise<T>,
 ): Promise<T> {
-  const client =
-    config.connectTimeoutSeconds === undefined
-      ? createStaffAccessPostgresClient(config.hyperdrive)
-      : createStaffAccessPostgresClient(config.hyperdrive, {
-          connectTimeoutSeconds: config.connectTimeoutSeconds,
-        });
+  // Mot loi goi duy nhat: factory da xu ly `undefined` bang cach KHONG them
+  // key `connect_timeout` vao driver options (khong phai dat key = undefined —
+  // key co mat voi gia tri undefined van la mot option duoc truyen).
+  const client = createStaffAccessPostgresClient(config.hyperdrive, {
+    connectTimeoutSeconds: config.connectTimeoutSeconds,
+  });
   let result: T;
   try {
     result = await fn(client);
