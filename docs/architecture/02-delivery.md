@@ -162,7 +162,7 @@ Provision databases
 | 8b  | Bootstrap marketplace entry của offer đó          | `llm-api` (BC `llm-seller-tenant`)   | `db-llm-marketplace`           | Entry marketplace đọc lại được và trỏ đúng offer ở bước 8a                                                                                                                                                                                                                                     |
 | 9   | Seed Consumer tenant `ecoma`                      | `llm-api` (BC `llm-consumer-tenant`) | `db-llm-tenant`                | Tenant + owner membership đọc lại được; nguồn lực ban đầu theo quyết định của #14 có bản ghi tương ứng                                                                                                                                                                                         |
 
-Mỗi dòng là **một service ghi và một database**. Bước 8 tách 8a/8b vì chạm hai database — dù cùng `llm-api` sở hữu — để không dòng nào cấp phép cho một bước ghi hai database.
+Trong các dòng bootstrap/seed (3–9), mỗi dòng là **một service ghi và một database**. Bước 8 tách 8a/8b vì chạm hai database — dù cùng `llm-api` sở hữu — để không dòng nào cấp phép cho một bước ghi hai database. Bước 1 và 2 không phải seed: bước 1 không ghi dữ liệu ứng dụng, bước 2 chạy migration cho từng database bằng credential migrator của chính database đó.
 
 Bước 5a/5b là hai sản phẩm, hai database, không chung transaction: mỗi bên seed tenant `ecoma` của riêng nó. Bước 6 thuộc cùng unit với bước 5a; bước 7 là unit `auth`. Bước 8a/8b chỉ có sau khi quyết định seller nội bộ của #15 được accept — **tên tenant seller và offer cụ thể do #15 chốt**, không phải nội dung của mục này. Bước 9 chỉ có sau #14.
 
