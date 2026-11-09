@@ -2,10 +2,10 @@
 
 Architectural decision record của bounded context **LLM Consumer Tenant**. Mỗi quyết định có **một** canonical location là ADR tương ứng; [`domain-model.md`](../domain-model.md) giữ con trỏ tới đó, không nhân bản nội dung. Đảo một quyết định đã Accepted phải qua ADR mới, không sửa ADR cũ một cách âm thầm.
 
-| #    | Quyết định                                                                                              | Trạng thái | File                                                                                                       |
-| ---- | ------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
-| 0019 | Ba Nx scope `llm-consumer` / `llm-seller` / `llm-shared` và dependency matrix                           | Accepted   | [`0019-llm-scope-ownership-and-dependency-matrix.md`](./0019-llm-scope-ownership-and-dependency-matrix.md) |
-| 0025 | Thin Shared Tenant Kernel: primitive dùng chung cho bốn context có tenant; tenant domain thuộc sản phẩm | Accepted   | [`0025-thin-shared-tenant-kernel.md`](./0025-thin-shared-tenant-kernel.md)                                 |
+| #    | Quyết định                                                                                                                 | Trạng thái | File                                                                                                       |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
+| 0019 | Ba Nx scope `llm-consumer` / `llm-seller` / `llm-shared` và dependency matrix                                              | Accepted   | [`0019-llm-scope-ownership-and-dependency-matrix.md`](./0019-llm-scope-ownership-and-dependency-matrix.md) |
+| 0025 | Thin Shared Tenant Kernel: cái gì không dùng chung giữa bốn context có tenant, và primitive dùng chung cho hai context LLM | Accepted   | [`0025-thin-shared-tenant-kernel.md`](./0025-thin-shared-tenant-kernel.md)                                 |
 
 Quyết định thuộc context khác, không nhân bản tại đây:
 

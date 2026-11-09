@@ -59,4 +59,4 @@ Bounded context `llm-consumer-tenant`: tenant, membership, workspace, permission
 | Document                               | Nội dung                                                                                                                                          |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, authorization, suspension, workspace isolation, auth boundary, data ownership, contract, quyết định chưa chốt, failure/correction |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0019) của bounded context                                                                                                              |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025) của bounded context                                                                                                        |

@@ -175,4 +175,4 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, authorization, suspension, workspace isolation, auth boundary, data ownership, contract, quyết định chưa chốt, failure/correction |
 | [`README.md`](./README.md)             | Tóm tắt trách nhiệm, không sở hữu, ranh giới, quy tắc cốt lõi                                                                                     |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0019) của bounded context                                                                                                              |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025) của bounded context                                                                                                        |

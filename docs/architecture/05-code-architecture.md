@@ -20,7 +20,8 @@
    `libs/tenant-kernel-domain`
    ([ADR-0025](../domains/llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md)). Kernel không phải bounded context, không
    sở hữu dữ liệu, không chứa aggregate, lifecycle hay policy của bất kỳ sản phẩm nào, và không được mở rộng ngoài danh sách
-   primitive mà ADR của nó cho phép.
+   primitive mà ADR của nó cho phép. Kernel cũng không được dùng để che một khác biệt ngữ nghĩa: nếu hai context chỉ _gần_
+   giống nhau, mỗi context giữ implementation của mình.
 6. **Một Bounded Context sở hữu code của chính nó.** Consumer đi qua contract, không import implementation của provider.
 
 ## 2. Canonical Nx structure
@@ -259,7 +260,8 @@ hai tầng nền — đó là vai trò foundation layer, khác hẳn dependency 
 chỉ được phụ thuộc qua `type:contracts` của provider, không bao giờ import implementation của scope khác.
 
 **Thin shared kernel nằm ở `scope:shared`, không có scope riêng.** ADR-0025 chốt `libs/tenant-kernel-domain` (`type:domain` +
-`scope:shared` + `runtime:universal`) là project chứa domain primitive dùng chung cho các context có tenant. Đáy ownership là ràng buộc, không phải hạn chế:
+`scope:shared` + `runtime:universal`) là project chứa domain primitive dùng chung cho các context tiêu thụ nó — hiện là hai
+context LLM, không phải cả bốn context có tenant. Đáy ownership là ràng buộc, không phải hạn chế:
 kernel chỉ phụ thuộc `scope:shared` nên **không** import được contract hay implementation của bất kỳ context nào — kernel không
 thể trở thành cầu nối giữa các context. Mọi scope nghiệp vụ đã được phép phụ thuộc `scope:shared`, nên kernel không cần scope
 mới và không đảo chiều bất biến nào của [ADR-0019](../domains/llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md).
