@@ -2,7 +2,7 @@
 
 > 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4): ADR này chốt quyết định cho nghiệp vụ staff/RBAC khi được tách khỏi `backoffice` (A21–A24). Ngày nay `backoffice` còn sở hữu staff/RBAC.
 
-> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0020](./0020-bootstrap-seed-contract.md) — phạm vi "không có route/flag/code-path nào" đọc lại thành "không có code path nào trên serving path của Worker"; tên database `db-backoffice` đọc là `db-staff-access` theo [ADR-0013](./0013-staff-access-ownership-transfer.md). Hai-phím, audit trail, kiểm `sub` tồn tại, không nút UI vẫn giữ nguyên hiệu lực) · **Ngày:** 2026-10-21 · **Quyết định từ:** [`domain-model.md`](../domain-model.md) §9 (hàng 3), §6 · **Issue:** #87
+> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0020](./0020-bootstrap-seed-contract.md) — phạm vi "không có route/flag/code-path nào" đọc lại thành "không có code path nào trên serving path của Worker"; tên database `db-backoffice` đọc là `db-staff-access` theo [ADR-0013](./0013-staff-access-ownership-transfer.md); **hai-phím rule không áp dụng cho lần bootstrap Superadmin đầu tiên** — trust anchor của lần đó là chứng minh kiểm soát email ở lần đăng nhập đầu, theo ADR-0020 Quyết định 11. Audit trail, kiểm `sub` tồn tại, không nút UI và **hai-phím cho emergency recovery** vẫn giữ nguyên hiệu lực) · **Ngày:** 2026-10-21 · **Quyết định từ:** [`domain-model.md`](../domain-model.md) §9 (hàng 3), §6 · **Issue:** #87
 
 ## Bối cảnh
 

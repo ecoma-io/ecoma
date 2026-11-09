@@ -22,13 +22,15 @@ Secrets không đặt trong PR/CI file — native Worker Secrets qua quy trình 
 
 ## Bootstrap (dogfooding)
 
-Thứ tự bước, database đích, idempotency và kiểm tra sau bước theo hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2 ([ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)). Tên tenant nội bộ canonical là `ecoma-internal`; `local` chỉ là nhãn lane, không phải tên tenant.
+Thứ tự bước, database đích, idempotency và kiểm tra sau bước theo hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2 ([ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)). Tên tenant nội bộ canonical là `ecoma`; `local` chỉ là nhãn environment, không phải tên tenant.
 
 1. Provision DB + role (bước 1 ở trên, tay/admin một lần).
 2. `db:migrate` từ CI runner.
-3. Seed tenant `ecoma-internal` + machine token đầu tiên trên **bề mặt provisioning/CLI**, không phải route hay flag runtime. Token plaintext ổn định theo environment (lấy từ cấu hình, không sinh mới mỗi lần chạy); DB chỉ giữ `SHA-256` hash; operator lưu plaintext ngoài hệ thống.
+3. Seed tenant `ecoma` + machine token đầu tiên trên **bề mặt provisioning/CLI**, không phải route hay flag runtime. Token plaintext ổn định theo environment (lấy từ cấu hình, không sinh mới mỗi lần chạy); DB chỉ giữ `SHA-256` hash; operator lưu plaintext ngoài hệ thống.
 4. Pact CLI publish đầu tiên: `PACT_BROKER_BROKER_BASE_URL` + token → `pact-broker publish ...`.
 5. Kiểm tra: đọc lại tenant `active` + token chưa revoke, rồi publish thật bằng token đó.
+
+⚠️ `apps/pact-broker-api/db/bootstrap-internal-tenant.mts` đã hiện thực bước 3 nhưng **chưa được nối** vào target nào, và consumer entitlement hiện tạo tenant trên đường serving (`ensureTenant` trong queue handler) — vi phạm [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 2. Đưa cả hai về bề mặt này thuộc #21.
 
 Build/test/migrate/bootstrap **không** đòi Account/Auth đang sống.
 

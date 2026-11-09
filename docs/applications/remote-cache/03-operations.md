@@ -193,7 +193,7 @@ Run smoke test (§5)
 
 Phân lớp theo hợp đồng canonical ([`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2, [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)):
 
-- **System-owned** — tenant nội bộ `ecoma-internal` + owner membership của `sub` superadmin. Đây là bước bootstrap, chạy trên bề mặt provisioning/CLI của unit này, không phải route. Tên canonical là `ecoma-internal`; `Ecoma` chỉ là nhãn trong prose.
+- **System-owned** — tenant nội bộ `ecoma` + owner membership của `sub` superadmin. Đây là bước bootstrap, chạy trên bề mặt provisioning/CLI của unit này, không phải route. Tên canonical là `ecoma`; `Ecoma` chỉ là nhãn hiển thị trong prose, và không có tenant song song `ecoma-internal`.
 - **User-owned** — project đầu tiên và API key là dữ liệu do người dùng tạo; chúng đi qua control plane sau khi Worker serving lên, không phải seed. Ghi chú: `remote_cache.tenant_members` chỉ được `SELECT` bởi runtime role (`0002_roles_and_grants.sql`), nên owner membership **không thể** được tạo qua API — đó là lý do bước này buộc phải nằm trên bề mặt migrator/owner.
 
 ---

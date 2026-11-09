@@ -58,7 +58,7 @@ Ngữ nghĩa audit business → [`docs/domains/pact-broker/domain-model.md`](../
 
 ## 4. Default tenant provisioning (race-safe)
 
-`ensureDefaultTenant(name, ownerSub)` là primitive race-safe của tenant repo; **không** có đường HTTP nào tự gọi nó khi account đăng ký hay đăng nhập. Tenant mặc định của một account **không** được tạo tự động từ login — bootstrap tenant `ecoma-internal` và tenant mặc định cho account được thực hiện **tường minh** trên bề mặt provisioning/CLI của service (không có route, không có flag runtime — hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2, [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)).
+`ensureDefaultTenant(name, ownerSub)` là primitive race-safe của tenant repo; **không** có đường HTTP nào tự gọi nó khi account đăng ký hay đăng nhập. Tenant mặc định của một account **không** được tạo tự động từ login — bootstrap tenant `ecoma` và tenant mặc định cho account được thực hiện **tường minh** trên bề mặt provisioning/CLI của service (không có route, không có flag runtime — hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2, [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)).
 
 Khi được gọi (trong bootstrap có kiểm soát), primitive thực hiện:
 
@@ -67,7 +67,7 @@ Khi được gọi (trong bootstrap có kiểm soát), primitive thực hiện:
 3. `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES (...,'owner') ON CONFLICT (tenant_id, sub) DO NOTHING` — idempotent; thành viên có sẵn role cũ thì giữ nguyên.
 4. Race test: hai connection đồng thời cùng sub phải cho đúng một tenant + một membership owner, không lỗi chết.
 
-**Ranh giới bắt buộc:** quyền truy cập sản phẩm từ Staff Access không thay thế authorization bên trong Pact Broker; nhân sự nội bộ provision vào tenant `ecoma-internal` **chỉ bắt đầu với quyền Member** trừ khi có quy trình cấp quyền quản trị rõ ràng; thu hồi entitlement không được vô tình xóa customer membership độc lập hoặc machine credentials không thuộc vòng đời nhân sự đó. `ecoma-internal` phải được bootstrap tường minh và có kiểm soát.
+**Ranh giới bắt buộc:** quyền truy cập sản phẩm từ Staff Access không thay thế authorization bên trong Pact Broker; nhân sự nội bộ provision vào tenant `ecoma` **chỉ bắt đầu với quyền Member** trừ khi có quy trình cấp quyền quản trị rõ ràng; thu hồi entitlement không được vô tình xóa customer membership độc lập hoặc machine credentials không thuộc vòng đời nhân sự đó. `ecoma` phải được bootstrap tường minh và có kiểm soát.
 
 ## 5. Auth model
 

@@ -225,8 +225,9 @@ const migrate = new command.local.Command(
  * vòng migration, không phải một lệnh psql rời. Nội dung system-defined role
  * KHÔNG được seed (docs `domains/staff-access/domain-model.md` §3.4 — quyết định
  * chưa chốt). Sổ staff KHÔNG được seed bởi deploy: first-admin bootstrap đi qua
- * procedure ADR-0003 (manual SQL/CLI offline bằng credential `ecoma_owner`,
- * hai phím, có audit trail). "Deploy unit cấm mọi code path bootstrap" nghĩa là
+ * procedure ADR-0003 (manual SQL/CLI offline bằng credential `ecoma_owner`, có
+ * audit trail); hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
+ * emergency recovery (ADR-0020 Quyết định 11). "Deploy unit cấm mọi code path bootstrap" nghĩa là
  * cấm đường serving (route/flag runtime), không cấm bước provisioning — hợp đồng
  * canonical là `docs/architecture/02-delivery.md` §3.2 + ADR-0020.
  */

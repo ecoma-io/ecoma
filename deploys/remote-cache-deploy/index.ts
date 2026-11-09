@@ -222,7 +222,7 @@ const migrate = new command.local.Command(
  * "Cấm mọi code path bootstrap" nghĩa là cấm đường serving (route/flag runtime),
  * không cấm bước provisioning: hợp đồng canonical cho bước bootstrap/seed là
  * `docs/architecture/02-delivery.md` §3.2 + ADR-0020. Khi #20 thêm bước seed
- * tenant nội bộ `ecoma-internal`, bước đó chạy trên bề mặt provisioning đã chốt,
+ * tenant nội bộ `ecoma`, bước đó chạy trên bề mặt provisioning đã chốt,
  * không phải trong Worker.
  */
 
