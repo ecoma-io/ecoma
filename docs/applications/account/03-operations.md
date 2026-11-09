@@ -101,6 +101,26 @@ Cơ chế, tần suất, hợp đồng log, hành vi khi hỏng và đường ch
 
 Điều kiện an toàn cho prune này đã có sẵn trong thiết kế: rate limit đếm các hàng `otp_challenges` trong cửa sổ 15 phút và 1 giờ, nên bất kỳ job dọn nào chỉ xoá hàng **quá TTL** (600 giây) thì không và không thể làm sai một phép đếm rate limit đang hiệu lực. Ràng buộc duy nhất cần giữ khi hiện thực: predicate prune phải dựa trên `consumed_at`/`expires_at` (vòng đời của bảng). Workflow cron cũ đã bị xoá khỏi `main` trong PR #89 (commit `bf920d3c`), khi nó được thay bằng cron Worker `apps/auth-nonce-prune-job`; trên `main` chỉ còn lại `ci.yaml`, `code-analysis.yml`, `code-review.yml`. Việc hiện thực lại prune cho hai bảng này (nonce và `otp_challenges`) do phần delivery đảm nhiệm và phải dựa trên đặc tả baseline ở [`../auth/03-operations.md`](../auth/03-operations.md) §3.3, không dừng ở trạng thái tài liệu đã drift.
 
+### 3.4 Tạo Account đầu tiên (bootstrap)
+
+Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `account`, không có route HTTP và không nằm trong Worker (ADR-0021 Quyết định 2). Đây là đường **duy nhất** được phép ghi `account.users`; không có production code path nào khác làm việc đó.
+
+- **Bề mặt:** CLI offline trong `apps/account`, chạy bằng credential migrator/owner của `db-account` (ADR-0020 Quyết định 3(b)). Không route, không flag, không cron.
+- **Idempotency:** chuẩn hoá địa chỉ bằng đúng hàm của luồng OTP, tra `account.email_addresses` theo `address_hash` (SHA-256 hex, không theo địa chỉ trần). Có `sub` còn sống → trả lại chính `sub` đó; chưa có → sinh `sub` mới và ghi `account.users` + `account.email_addresses` trong một transaction.
+- **Trạng thái email:** `pending`, `is_sign_in = false`, `verified_at IS NULL`. Procedure **không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên qua đường verify dành cho người chưa có session (ADR-0021 Quyết định 3; đường đó **chưa tồn tại**, là yêu cầu hiện thực của #17).
+- **Đầu ra:** đúng một `sub`. Đây là giá trị duy nhất được truyền sang bước Staff Access; `staff-access` không đọc `db-account`.
+- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `correlation_id` dùng chung với phía staff-access).
+
+Đọc lại để verify:
+
+```sql
+SELECT u.sub, e.status, e.verified_at
+FROM account.users u JOIN account.email_addresses e ON e.user_sub = u.sub
+WHERE e.address_hash = <sha256(address)>;
+```
+
+Đạt khi trả đúng một row với `sub` khớp `^sub_[a-z2-7]{32}$`, `status = 'pending'`, và Account không ở trạng thái tombstone. Runbook đầy đủ của procedure (thứ tự bước, retry, recovery) → [`../staff-access/03-operations.md`](../staff-access/03-operations.md).
+
 ## 4. Environment isolation
 
 | Môi trường | Database                      | Credential                         |
