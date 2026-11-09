@@ -158,6 +158,8 @@ Cột "Phương pháp" phân biệt kiểm thử tự động (`test`), kiểm t
 | AC-022 | Recovery trên identity đã `verified` với assignment đã thu hồi, không có bằng chứng hai-phím                           | Từ chối `approval_missing`; `revoked_at` của hàng cũ không đổi; không có hàng `account`/`staff` mới | test        |
 | AC-023 | Recovery với assignment administrator vẫn còn hiệu lực                                                                 | Từ chối `already_administrator`; không tạo hàng trùng                                               | test        |
 
+> ⚠️ **AC-021…AC-023 không chứng minh đường recovery đã đủ để vận hành.** Hợp đồng bằng chứng hai-phím (SR-023) chưa có hệ thống nào cấp bằng chứng, và #46 sở hữu việc hiện thực phép kiểm đó lẫn bề mặt đọc `address_hash → sub` còn thiếu; #47 và #48 giữ hai quyết định modelling còn mở (danh tính thay thế, đường tạo Account ngoài bootstrap). Các câu hỏi policy vận hành — ai giữ phím thứ hai, ai giữ credential vận hành — nằm ở [`03-operations.md`](./03-operations.md) §4. Khi một trong các Issue đó còn mở, trạng thái tương ứng **fail closed**, không có nhánh thay thế.
+
 ## 6. Non-goals
 
 Đây là ranh giới, không phải backlog: bất kỳ mục nào ở cột "Không làm" nếu được implement trong `staff-access` sẽ vi phạm ownership đã chốt ([`../../architecture/01-architecture.md`](../../architecture/01-architecture.md) §8 A21–A24). Không có mục nào là "nếu có thời gian" — mỗi việc đều có chủ sở hữu khác đang làm.

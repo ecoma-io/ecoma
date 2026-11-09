@@ -21,7 +21,7 @@
 
 ## 2. Bootstrap first-administrator
 
-**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`); nếu một trong hai khác 0 thì chỉ **recovery**, và chỉ với authorization hai-phím của §3.2–§3.3. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
+**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`). Nếu một trong hai khác 0, procedure **từ chối** — nó không có nhánh tự chuyển sang recovery. Recovery là bề mặt khác, ở §3.2, và đòi một identity **đã `verified`**, nên nó **không** phục vụ được trạng thái "email còn `pending` nhưng `admins_ever > 0`": trạng thái đó fail closed cho tới khi người giữ hộp thư hoàn tất lần verify đầu (Bước 10) rồi đi tiếp bằng §3.2. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
 
 ⚠️ `admins_before` và `admins_ever` là **số đo do procedure tính**, không phải giá trị người chạy truyền vào: chúng đi vào audit dưới dạng kết quả đo, và không được dùng cho bất kỳ quyết định nào khi là input. Hai truy vấn canonical ở Bước 7 — chúng đếm hai thứ khác nhau: `admins_before` đếm **administrator còn hiệu lực** (`count(DISTINCT staff_id)`), `admins_ever` đếm **hàng assignment từng tồn tại** của role canonical, nên nó chỉ dùng làm ngưỡng khác 0 và không bao giờ được báo cáo như số administrator (ADR-0022 Quyết định 4).
 
@@ -159,7 +159,7 @@ Hai bảng, hai chủ sở hữu, không bảng mới (ADR-0021 Quyết định 
   WHERE r.kind = 'system' AND r.name = <định danh canonical>;
   ```
 
-  Guard chấp nhận `bootstrap` chỉ khi **cả** `admins_before = 0` **và** `admins_ever = 0`; một trong hai khác 0 chỉ chấp nhận `recovery` + hai-phím; mọi cặp khác bị từ chối. Hệ quả phải nói thẳng: một environment đã từng có administrator **không** bootstrap lại được, kể cả khi hiện không còn ai — đó chính là hành vi mong muốn.
+  Guard chấp nhận `bootstrap` chỉ khi **cả** `admins_before = 0` **và** `admins_ever = 0`; mọi cặp khác bị từ chối. Hệ quả phải nói thẳng: một environment đã từng có administrator **không** bootstrap lại được, kể cả khi hiện không còn ai — đó chính là hành vi mong muốn. Guard chỉ chặn; nó **không** cấp lại quyền. Đường cấp lại là §3.2, và §3.2 chỉ nhận identity **đã `verified`** — nên một email còn `pending` với `admins_ever > 0` không đi được đường nào cho tới khi verify đầu tiên hoàn tất (Bước 10).
 
   **Hai số đo được lấy ngay sau khi lấy advisory lock và trước bất kỳ phép ghi nào của S1/S2** — không phải sau S2, vì khi đó lần chạy vừa tạo đã được tính vào. Cùng giá trị đo được dùng cho cả quyết định của guard lẫn audit row, nên audit không thể ghi một số khác với số đã quyết định.
 
@@ -197,9 +197,9 @@ Một lỗi ở bước nào — khi các bước trước đã commit — cũng
 | 6 (S2)     | Assignment chưa commit                          | Insert-if-absent theo `(staff_id, role_id)` khi chưa có hàng còn hiệu lực      |
 | 8 (S3)     | Dữ liệu đủ, verify sai                          | Không coi là xong; sửa nguyên nhân rồi verify lại                              |
 
-⚠️ **Hai trạng thái ranh giới của retry.** (a) Assignment **hết hạn nhưng chưa `revoked_at`**: lần chạy lại lỗi duplicate key dù quyền hiệu lực bằng 0 — dừng và báo, không tự sửa. (b) Một lần chạy `mode = 'bootstrap'` trên environment đã từng có administrator bị guard **từ chối**: không ghi dữ liệu nghiệp vụ, nhưng **có** ghi đúng một audit row `outcome = 'denied'` — "không để lại dữ liệu" ở đây nghĩa là không có staff/assignment/Account mới, không phải không có dấu vết; chính row đó là thứ alert dựa vào. Chạy lại chỉ đúng khi quay về đúng chế độ (`recovery` + hai-phím).
+⚠️ **Hai trạng thái ranh giới của retry.** (a) Assignment **hết hạn nhưng chưa `revoked_at`**: lần chạy lại lỗi duplicate key dù quyền hiệu lực bằng 0 — dừng và báo, không tự sửa. (b) Một lần chạy `mode = 'bootstrap'` trên environment đã từng có administrator bị guard **từ chối**: không ghi dữ liệu nghiệp vụ, nhưng **có** ghi đúng một audit row `outcome = 'denied'` — "không để lại dữ liệu" ở đây nghĩa là không có staff/assignment/Account mới, không phải không có dấu vết; chính row đó là thứ alert dựa vào. Chạy lại **không** sửa được trạng thái đó: guard đã đo đúng, và cấp lại quyền không phải việc của procedure này — nó là §3.2 (#46).
 
-⚠️ **Chạy lại sau khi assignment đã bị thu hồi chỉ tái tạo quyền dưới `mode = 'recovery'`.** Unique index bộ phận `(staff_id, role_id) WHERE revoked_at IS NULL` không chứa hàng đã `revoked_at`, nên một lần chạy lại S2 với cùng `sub` **sẽ** insert assignment mới đang hiệu lực. Đó chính là lý do guard đo thêm `admins_ever` (ADR-0022 Quyết định 3): sau khi thu hồi, `admins_before` về 0 nhưng `admins_ever` thì không, nên `mode = 'bootstrap'` bị **từ chối** và chỉ `recovery` + hai-phím mới cấp lại được. Hệ quả vận hành: (a) bề mặt này không được nối vào pipeline deploy của environment thật; (b) trên hệ thống đang chạy, cấp lại quyền administrator là **recovery**; (c) thu hồi quyền vì lý do bảo mật phải đi kèm thu hồi credential vận hành hoặc đổi input canonical (ADR-0021 Quyết định 5).
+⚠️ **Chạy lại sau khi assignment đã bị thu hồi chỉ tái tạo quyền qua đường recovery của §3.2, không qua procedure này.** Unique index bộ phận `(staff_id, role_id) WHERE revoked_at IS NULL` không chứa hàng đã `revoked_at`, nên một lần chạy lại S2 với cùng `sub` **sẽ** insert assignment mới đang hiệu lực. Đó chính là lý do guard đo thêm `admins_ever` (ADR-0022 Quyết định 3): sau khi thu hồi, `admins_before` về 0 nhưng `admins_ever` thì không, nên `mode = 'bootstrap'` bị **từ chối**. Hệ quả vận hành: (a) bề mặt này không được nối vào pipeline deploy của environment thật; (b) trên hệ thống đang chạy, cấp lại quyền administrator là §3.2 (ADR-0023 Quyết định 3, #46), không phải một chế độ của procedure này; (c) thu hồi quyền vì lý do bảo mật phải đi kèm thu hồi credential vận hành hoặc đổi input canonical (ADR-0021 Quyết định 5).
 
 **Không xoá Account đã tạo hợp lệ vì một bước sau thất bại.** Account chưa có staff chỉ là một Account chưa có quyền; xoá nó tạo tombstone `sub` vĩnh viễn và đi ngược forward-fix (`architecture/01-architecture.md` §9 invariant 10). Không có compensating step, không có rollback dữ liệu.
 
@@ -268,14 +268,14 @@ Hai-phím của ADR-0003 (hai người khác nhau, mỗi người có quyền qu
 
 ## 4. Câu hỏi còn mở
 
-Ba câu chưa được quyết, ghi lại thay vì tự chọn (ADR-0021 Quyết định 7, ADR-0023 Quyết định 7):
+**Bốn** câu chưa được quyết, ghi lại thay vì tự chọn (ADR-0021 Quyết định 7, ADR-0023 Quyết định 7):
 
 1. "Quá ít administrator" được định nghĩa thế nào — 0, hay dưới một ngưỡng?
-2. ~~Recovery tạo identity **mới** hay khôi phục identity đã có~~ — đã chốt một phần: recovery khôi phục authority trên identity **còn sống**, không tạo identity (ADR-0023 Quyết định 3). Phần còn mở: **danh tính thay thế lấy từ đâu** khi identity gốc không còn dùng được (staff `terminated`, Account `deleted`, email không dùng được) — #47.
+2. ~~Recovery tạo identity **mới** hay khôi phục identity đã có~~ — đã chốt một phần: recovery khôi phục authority trên identity **còn sống**, không tạo identity (ADR-0023 Quyết định 3). Phần còn mở: **danh tính thay thế lấy từ đâu** khi identity gốc không còn dùng được (staff `terminated`, Account `deleted`, email không dùng được) — canonical ở [`domain-model.md`](../../domains/staff-access/domain-model.md) §10, Issue [#47](https://github.com/ecoma-io/ecoma/issues/47).
 3. Ai giữ phím thứ hai khi chính những người giữ phím là người mất quyền?
 4. **Ai được giữ và ai được dùng credential vận hành?** `architecture/03-operations.md` §3.5 chỉ yêu cầu credential lấy lại được từ bản sao offline ngoài VPS; không tài liệu canonical nào chốt custody (một người hay tách đôi). Cho tới khi có, mọi lập luận "credential đã được kiểm soát nên một người là đủ" là suy diễn, không phải quyết định.
 
-Các câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết chúng.
+Các câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết chúng. Hai quyết định modelling còn mở (#47 danh tính thay thế, [#48](https://github.com/ecoma-io/ecoma/issues/48) đường tạo Account ngoài bootstrap) nằm ở [`domain-model.md`](../../domains/staff-access/domain-model.md) §10, không nhân bản ở đây.
 
 ## 5. Operational invariants
 
