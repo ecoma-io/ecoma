@@ -288,6 +288,46 @@ describe('root .dockerignore: required build inputs are included', () => {
     expect(isExcluded('apps/pact-broker-app/vitest.config.mts')).toBe(true);
   });
 
+  it.each(['llm-console', 'llm-seller'])('%s app and its ui closure enter the context', (app) => {
+    expect(isExcluded(`apps/${app}/package.json`)).toBe(false);
+    expect(isExcluded(`apps/${app}/.npmrc`)).toBe(false);
+    expect(isExcluded(`apps/${app}/nuxt.config.ts`)).toBe(false);
+    expect(isExcluded(`apps/${app}/nitro.config.ts`)).toBe(false);
+    expect(isExcluded(`apps/${app}/wrangler.jsonc`)).toBe(false);
+    expect(isExcluded(`apps/${app}/server/routes/health.get.ts`)).toBe(false);
+    expect(isExcluded(`apps/${app}/app/assets/css/styles.css`)).toBe(false);
+    // Closure dừng ở hai lib này: alias tường minh trong `nuxt.config.ts`
+    // trỏ thẳng vào `src/index.ts` của từng lib, và `@import` tương đối
+    // trong `styles.css` trỏ vào CSS entry của shell. Thiếu một trong hai
+    // là `nuxt build` chết, nên cả hai phải nằm trong context của CẢ HAI app.
+    expect(isExcluded('libs/ui-app-shell/src/index.ts')).toBe(false);
+    expect(isExcluded('libs/ui-app-shell/src/styles/app-shell.css')).toBe(false);
+    expect(isExcluded('libs/ui-ecoma-logo/src/index.ts')).toBe(false);
+  });
+
+  it.each(['llm-console', 'llm-seller'])(
+    '%s test sources and test configs never enter the context',
+    (app) => {
+      // Cùng lý do với `apps/pact-broker-app`: spec colocated import harness
+      // `tests/` bị loại, nên vào context là `nuxt build` chết TS2307 lúc
+      // typecheck. Nhánh phủ định (`app.vue`, `server/routes`) ghim rằng dòng
+      // mới KHÔNG dập cả subtree `app/` hay `server/`.
+      expect(isExcluded(`apps/${app}/tests/ready.spec.ts`)).toBe(true);
+      expect(isExcluded(`apps/${app}/vitest.config.mts`)).toBe(true);
+      expect(isExcluded(`apps/${app}/app/pages/index.spec.ts`)).toBe(true);
+      expect(isExcluded(`apps/${app}/app/app.vue`)).toBe(false);
+      expect(isExcluded(`apps/${app}/server/routes/ready.get.ts`)).toBe(false);
+    },
+  );
+
+  it('deploy units of the two LLM apps stay out of every image context', () => {
+    // Dockerfile nằm trong `deploys/<p>/` nhưng được đọc từ đường dẫn tuyệt
+    // đối của `@pulumi/docker-build`, không qua context — `deploys/*` chặn
+    // toàn bộ thư mục là hành vi đúng, không phải thiếu sót.
+    expect(isExcluded('deploys/llm-console-deploy/Dockerfile')).toBe(true);
+    expect(isExcluded('deploys/llm-seller-deploy/index.ts')).toBe(true);
+  });
+
   it('account test sources and test configs never enter the context', () => {
     expect(isExcluded('apps/account/tests/unit/bindings.spec.ts')).toBe(true);
     expect(isExcluded('apps/account/vitest.config.mts')).toBe(true);

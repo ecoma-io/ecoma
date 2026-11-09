@@ -25,7 +25,8 @@
 # `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace:
 # `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`, `patches/`,
 # `tools/dx/package.json`, `apps/home/**`, `apps/backoffice/**`,
-# `apps/account/**`, `apps/pact-broker-app/**`, `libs/ui-ecoma-logo/**`,
+# `apps/account/**`, `apps/pact-broker-app/**`, `apps/llm-console/**`,
+# `apps/llm-seller/**`, `libs/ui-ecoma-logo/**`,
 # `libs/ui-app-shell/**`, `libs/backoffice-domain/**`,
 # `libs/account-contracts/**`, `libs/auth-contracts/**`,
 # `libs/internal-auth-contracts/**`, `tsconfig.base.json`,
@@ -53,6 +54,8 @@ apps/*
 !apps/backoffice
 !apps/account
 !apps/pact-broker-app
+!apps/llm-console
+!apps/llm-seller
 libs/*
 !libs/backoffice-domain
 !libs/backoffice-application
@@ -148,3 +151,13 @@ apps/account/app/**/*.spec.ts
 apps/pact-broker-app/app/**/*.spec.ts
 apps/pact-broker-app/tests
 apps/pact-broker-app/vitest.config.mts
+# `llm-console` và `llm-seller` là composition app không sở hữu DB: subtree
+# `app/**` chứa spec colocated của page/harness, và `tests/` là harness mount
+# import `vue-i18n` + helper. Cùng lý do với các app trên — vào context là
+# `nuxt build` (typecheck bật) chết TS2307 vì helper bị loại.
+apps/llm-console/app/**/*.spec.ts
+apps/llm-console/tests
+apps/llm-console/vitest.config.mts
+apps/llm-seller/app/**/*.spec.ts
+apps/llm-seller/tests
+apps/llm-seller/vitest.config.mts

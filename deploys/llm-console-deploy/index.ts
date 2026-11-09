@@ -104,12 +104,12 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
 });
 
 /**
- * Kind resource của unit này. `DeployResourceKind` ở `libs/deployment` chưa khai
- * `llm-console`/`llm-console-image` (lib ngoài phạm vi unit này); assertion giữ
- * đúng hình dạng tên `ecoma-<ns>-<kind>` và chờ lib bổ sung hai kind đó.
+ * Kind resource của unit này — hai giá trị đã được khai trong `DeployResourceKind`
+ * của `libs/deployment`, nên không cần assertion: thêm/đổi tên kind mà quên lib
+ * là lỗi compile ngay tại đây.
  */
-const consoleKind = 'llm-console' as DeployResourceKind;
-const consoleImageKind = 'llm-console-image' as DeployResourceKind;
+const consoleKind: DeployResourceKind = 'llm-console';
+const consoleImageKind: DeployResourceKind = 'llm-console-image';
 
 /**
  * Image local của `apps/llm-console` — contract build giống
@@ -144,7 +144,7 @@ const llmConsole = new docker.Container(dockerResourceName(ns, consoleKind), {
   // reboot/restart daemon — cùng lý do với traefik/postgres ở `platform-deploy`.
   restart: 'unless-stopped',
   // Readiness resource-owned (`wait: true` — cùng ngữ nghĩa với platform):
-  // Nuxt SSR cold start có thể vượt 30s; Trần chờ = startPeriod 30s +
+  // cold start của Node server (build `node-server`, SPA + BFF) có thể vượt 30s; trần chờ = startPeriod 30s +
   // 12 retries × 10s = 150s; waitTimeout 180s dư.
   wait: true,
   waitTimeout: 180,
@@ -192,7 +192,7 @@ const llmConsole = new docker.Container(dockerResourceName(ns, consoleKind), {
     interval: '10s',
     timeout: '5s',
     retries: 12,
-    // Nuxt SSR cold start có thể vượt 30s trên host chậm; chỉ sau `startPeriod`
+    // Cold start của container có thể vượt 30s trên host chậm; chỉ sau `startPeriod`
     // mới tính `retries`.
     startPeriod: '30s',
   },

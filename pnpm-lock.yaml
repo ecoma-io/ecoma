@@ -790,6 +790,18 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/llm-console-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
+  deploys/llm-seller-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
   deploys/pact-broker-api-deploy:
     dependencies:
       '@ecoma-io/deployment':
