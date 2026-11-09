@@ -86,4 +86,24 @@ describe('/ready — ready outcome', () => {
     // Khong cau nao duoc phep ghi du lieu that: moi cau phai zero-row.
     expect(statements.filter((statement) => !/WHERE false/u.test(statement))).toEqual([]);
   });
+
+  it('bounds the readiness connect timeout to a short budget', async () => {
+    // Xoa `connectTimeoutSeconds` khoi config probe van de moi test khac xanh
+    // (mot origin tu choi ket noi fail nhanh du co timeout hay khong), nhung
+    // mot origin TREO se giu request toi het thoi han Worker — dung ly do
+    // option nay ton tai. Assertion ghim ca su hien dien lan nguong ngan.
+    resetCachedConfig();
+    withClient.probe.mockClear();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await buildApp().request('/ready', {}, ENV);
+    log.mockRestore();
+
+    expect(withClient.probe).toHaveBeenCalledTimes(1);
+    const config = withClient.probe.mock.calls[0]?.[0] as {
+      connectTimeoutSeconds?: number;
+    };
+    expect(typeof config.connectTimeoutSeconds).toBe('number');
+    expect(config.connectTimeoutSeconds).toBeGreaterThan(0);
+    expect(config.connectTimeoutSeconds).toBeLessThanOrEqual(5);
+  });
 });
