@@ -9,6 +9,7 @@ migration là file SQL thuần.
 | `migrations/*.sql`       | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
 | `migrate.ts`             | Hằng số và helper dùng chung cho runner và test harness              |
 | `apply.ts`               | CLI runner, chạy trong CI                                            |
+| `bootstrap.mts`          | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`     |
 | `../tests/integrations/` | Test integration trên PostgreSQL thật (testcontainers)               |
 
 ## Vì sao đây là greenfield provisioning
@@ -172,6 +173,34 @@ UNIQUE trùng lặp sẽ là index thừa không trả lời cho gì. Test `ever
 has exactly the indexes its constraints justify` liệt kê đúng danh sách này; thêm index
 phải sửa cả danh sách trong test.
 
+## Bootstrap first-administrator — A1 và A2
+
+`bootstrap.mts` là bề mặt **offline** tạo-or-đọc-lại Account đầu tiên
+([`03-operations.md` §3.4](../../../docs/applications/account/03-operations.md),
+[ADR-0024](../../../docs/domains/staff-access/adr/0024-trusted-bootstrap-verified-address.md)).
+Không route, không cron, không code path nào trong Worker — bước tuần tự hoá của nó là
+`pg_advisory_xact_lock`, mà Hyperdrive không hỗ trợ (HD6).
+
+```sh
+echo '{"correlation_id":"…","operator_ref":"…"}' \
+  | DATABASE_URL='postgresql://…/db-account' \
+    npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts provision
+DATABASE_URL='postgresql://…/db-account' \
+  npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts verify
+```
+
+| Bước           | Hành vi                                                                                                                                                                                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1 `provision` | Một transaction dưới advisory xact lock toàn cục. Không có hàng canonical + `users` rỗng → tạo `users` (`active`), `email_addresses` (`verified`, `is_sign_in`, `verified_at`), audit. Có hàng `verified` chứng minh được nguồn gốc bootstrap → hội tụ, chỉ ghi audit `converged`. Mọi trạng thái khác → từ chối. |
+| A2 `verify`    | Chỉ đọc. Trả `sub` khi state đúng là trạng thái hội tụ; database trống → `no_bootstrap_account`; mọi trạng thái khác → từ chối.                                                                                                                                                                                   |
+
+Địa chỉ canonical (`superadmin@ecoma.io`) là **hằng trong code**; `ECOMA_BOOTSTRAP_EMAIL`
+chỉ được assert lại giá trị đó và procedure từ chối khi lệch. `DATABASE_URL` và input
+A1 đi qua env/stdin, không bao giờ qua argv. Output là **một** dòng JSON trên stdout khi
+thành công; khi từ chối là một object `{"stage":…,"status":"denied","reason":"<code>"}`
+trên stderr với exit 1. Bootstrap **không** phát session — Superadmin vẫn đăng nhập bằng
+luồng email-OTP hiện có.
+
 ## Test integration
 
 Chạy trên **PostgreSQL thật** qua testcontainers (`postgres:17-alpine`), không mock:
@@ -221,6 +250,7 @@ apps/account/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
 ├── apply.mts             # CLI runner cho CI
+├── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
 └── migrations/
     ├── 0001_identity_core.sql      # users, sessions, handoffs, audit, outbox
     ├── 0002_roles_and_grants.sql   # hai role + grant + chặn chéo
