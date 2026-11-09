@@ -1,0 +1,209 @@
+{
+  "name": "@ecoma-io/llm-console",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@ecoma-io/ui-app-shell": "workspace:*",
+    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+  },
+  "devDependencies": {
+    "@nuxtjs/i18n": "10.6.0"
+  },
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:llm-consumer",
+      "runtime:edge"
+    ],
+    "targets": {
+      "nuxt-prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-console",
+          "command": "npx nuxt prepare"
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^typecheck",
+          "nuxt-prepare"
+        ],
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/tsconfig.base.json",
+          {
+            "externalDependencies": [
+              "vue-tsc"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "apps/llm-console",
+          "command": "npx nuxt typecheck"
+        },
+        "//": [
+          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
+          "mirror đúng cách apps/backoffice và apps/account đã làm: Nuxt sinh",
+          "`.nuxt/tsconfig.*.json` với `noEmit: true`, còn target mặc định chạy",
+          "`tsc --build --emitDeclarationOnly` — hai option xung đột (TS5069), và",
+          "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
+          "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
+        ]
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/llm-console",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "dependsOn": [
+          "nuxt-prepare"
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "build": {
+        "cache": true,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nuxt",
+          "{projectRoot}/.output"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-console",
+          "command": "nuxt build"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "serve": {
+        "continuous": true,
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-console",
+          "command": "nuxt dev"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}
