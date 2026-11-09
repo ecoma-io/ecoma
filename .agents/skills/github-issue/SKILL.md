@@ -151,15 +151,21 @@ criteria here or in an Issue body — link to §3.3.
   never inherits the label from a parent, a Milestone, a product, a work kind
   or a priority.
 - **Apply the label only with a rationale that answers §3.3's three questions:**
-  which workstreams need the visibility, what dependency/decision/coordination
-  is tracked at Project level, and why the Issue or Milestone alone is not
-  enough. Without those three answers the classification is "do not track" or
-  "needs clarification" — never a label.
+  who or what needs the visibility, what dependency/decision/coordination is
+  tracked at Project level, and why the Issue or Milestone alone does not
+  express that need. Without those three answers the classification is "do not
+  track" or "needs clarification" — never a label. Counting workstreams is not
+  a criterion: one workstream is enough when the need is real.
 - Record the reason in the `## Theo dõi Project` section of the body or, when
-  the body must not change, in a comment on the Issue.
-- Do not infer the label's effect. The Project membership it produces is
-  configuration read from GitHub, not something this skill asserts; removing a
-  label does not remove the item, and closing the Issue does not either.
+  the body must not change, in a comment on the Issue. When a form's
+  `Theo dõi Project` field is filled, it only collects the rationale — it never
+  applies the label. Applying the label stays a separate, explicit action taken
+  after evaluating §3.3.
+- Do not infer the label's effect. The label is an admission signal read by the
+  native `Auto-add to project` workflow; it does not manage the rest of the
+  item's lifecycle. Membership state is owned by the Project coordinator.
+  Removing a label does not remove the item, and closing the Issue does not
+  either.
 
 When reviewing Issues rather than creating one, check both directions: an
 Issue that needs tracking but has no label, and an Issue with the label whose

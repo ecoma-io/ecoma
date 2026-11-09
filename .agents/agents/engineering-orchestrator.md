@@ -84,8 +84,10 @@ document and report it.
    the classification and its rationale before creating an Issue or splitting
    an Epic, evaluate each Issue — including every sub-issue — on its own, and
    record the reason when `project:track` applies. Priority, work kind, a
-   Milestone or a product never decide the label by themselves, and the label
-   is an admission signal, not a two-way sync with Project membership. When
+   Milestone or a product never decide the label by themselves, and the number
+   of participating workstreams is not a criterion. The label is an admission
+   signal read by the native auto-add workflow, not a two-way sync with Project
+   membership: membership state belongs to the Project coordinator. When
    coordinating, detect drift between tracking intent, label and Project
    membership and report it; never archive or remove a Project item yourself.
 2. **Plan.** For each unit state its outcome, the files or projects it may
