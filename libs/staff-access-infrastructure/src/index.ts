@@ -14,6 +14,7 @@ export {
   withStaffAccessClient,
   type StaffAccessClient,
   type StaffAccessClientConfig,
+  type StaffAccessClientOptions,
   type StaffAccessHyperdriveBinding,
   type StaffAccessQueryable,
 } from './postgres';

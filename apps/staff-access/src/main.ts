@@ -30,6 +30,19 @@ import { staffAccessRoutes } from './routes';
  * request loi duoc co hoi nap lai khi binding da duoc gan. */
 let cachedConfig: StaffAccessConfig | null = null;
 
+/**
+ * Tran mo connection cua probe readiness (giay) — cung ngan sach voi
+ * `apps/auth/src/main.ts`. Mot origin khong mo duoc connection phai hoa thanh
+ * loi nhanh (`db_unreachable`) thay vi giu probe toi het thoi han Worker.
+ */
+const READY_PROBE_CONNECT_TIMEOUT_SECONDS = 3;
+
+/** `Retry-After` cua response 503 readiness — co dinh, khong tiet lo chi tiet. */
+const READY_RETRY_AFTER_SECONDS = '5';
+
+/** Route khong credential va khong chay qua envelope HMAC (probe infra). */
+const UNAUTHENTICATED_PATHS: ReadonlySet<string> = new Set(['/health', '/ready']);
+
 /** Xoa config cache — chi test dung. Config khong giu socket nen reset an toan. */
 export function resetCachedConfig(): void {
   cachedConfig = null;
@@ -98,6 +111,55 @@ function createApp(): Hono<AppEnv> {
   // /health — khong credential, khong DB (infra probe khong duoc phu thuoc DB).
   app.get('/health', (c) => c.json({ status: 'ok', service: 'staff-access' }));
 
+  // /ready — readiness CO kiem phu thuoc. Phan biet hai route theo cung bang
+  // voi `apps/auth/src/main.ts`:
+  //
+  // | Route     | Hoi gi                                        | Hoi DB khong | Khi hong thi ai hanh xu  |
+  // | --------- | --------------------------------------------- | ------------ | ------------------------ |
+  // | `/health` | Worker con song khong                         | **Khong**    | Orchestrator restart     |
+  // | `/ready`  | Worker phuc vu duoc request that khong        | **Co**       | Orchestrator ngung traffic |
+  //
+  // `/health` khong query DB vi restart-loop vo ich: DB chet thi isolate moi
+  // van gap DB chet, tai database dang chet tang len va nguyen nhan that
+  // (`db-staff-access` hong, khong phai Worker hong) bi che.
+  //
+  // `/ready` fail closed: thieu binding/secret (cung nguyen nhan ma
+  // `loadStaffAccessConfig` nem o request dau) hoac DB khong tra loi duoc thi
+  // management API KHONG phuc vu duoc request nao — backoffice fail-closed
+  // 503 moi route `/api/**` doc staff-access. Mot readiness 200 trong khi
+  // dependency chet la day failure xuong thanh loi rac o tung request that.
+  //
+  // Response khong neu ten binding, loi driver hay connection string: chi ma
+  // on dinh trong log de truy nguon.
+  app.get('/ready', async (c) => {
+    let config: StaffAccessConfig;
+    try {
+      config = getConfig(c.env);
+    } catch {
+      // Khong noi `error` vao log: message cua config error neu TEN bien.
+      // oxlint-disable-next-line no-console
+      console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason: 'config_invalid' }));
+      return c.json({ error: 'service_unavailable' }, 503, {
+        'Retry-After': READY_RETRY_AFTER_SECONDS,
+      });
+    }
+
+    try {
+      await probeDatabase(config);
+    } catch {
+      // Khong noi `error` vao log: message driver co the chua connection string.
+      // oxlint-disable-next-line no-console
+      console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason: 'db_unreachable' }));
+      return c.json({ error: 'service_unavailable' }, 503, {
+        'Retry-After': READY_RETRY_AFTER_SECONDS,
+      });
+    }
+
+    // oxlint-disable-next-line no-console
+    console.log(JSON.stringify({ event: 'ready.ok', status: 200 }));
+    return c.json({ service: 'staff-access', status: 'ready' });
+  });
+
   // Toan bo phan con lai can config. Loi cau hinh -> 503 fail-closed.
   app.use('*', async (c, next) => {
     try {
@@ -113,9 +175,9 @@ function createApp(): Hono<AppEnv> {
   });
 
   // Every management route requires the canonical internal HMAC envelope. The
-  // health probe is deliberately credential-free and was handled above.
+  // two probe routes are deliberately credential-free and were handled above.
   app.use('*', async (c, next) => {
-    if (new URL(c.req.raw.url).pathname === '/health') {
+    if (UNAUTHENTICATED_PATHS.has(new URL(c.req.raw.url).pathname)) {
       await next();
       return;
     }
@@ -258,6 +320,29 @@ function createApp(): Hono<AppEnv> {
   });
 
   return app;
+}
+
+/**
+ * Probe readiness — **qua credential runtime**, cung pool shape ma moi duong
+ * serving dung (`withStaffAccessClient`, `max: 3`, `prepare: false`), nen
+ * readiness kiem khong chi "DB song" ma "DB song voi dung credential ma
+ * serving path dung".
+ *
+ * Truy van re nhat van phai cham DB: `SELECT 1 FROM staff_access.staff LIMIT 1`
+ * chung minh schema ton tai VA runtime role doc duoc bang (grant 0002). Bang
+ * `staff` nam trong migration `0001` — database chua migrate du **phai** lam
+ * probe that bai; database nua schema khong phai "san sang".
+ *
+ * ⚠️ Day la database cua CHINH staff-access, khong phai database khac: probe
+ * khong vuot ranh gioi database ownership (invariant 5, 7, 25).
+ */
+async function probeDatabase(config: StaffAccessConfig): Promise<void> {
+  await withStaffAccessClient(
+    { hyperdrive: config.hyperdrive, connectTimeoutSeconds: READY_PROBE_CONNECT_TIMEOUT_SECONDS },
+    async (db) => {
+      await db.unsafe('SELECT 1 FROM staff_access.staff LIMIT 1');
+    },
+  );
 }
 
 /** App day du — dung boi Worker fetch va boi test (`app.request()`). */

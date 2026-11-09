@@ -108,6 +108,18 @@ export interface StaffAccessClient extends StaffAccessQueryable {
   end(options?: { timeout?: number }): Promise<void>;
 }
 
+/** Tuy chon cua {@link createStaffAccessPostgresClient}. */
+export interface StaffAccessClientOptions {
+  /**
+   * Tran cho pha **mo** connection (giay) — mac dinh cua `postgres.js` la 30s.
+   *
+   * Chi readiness truyen gia tri ngan: mot origin khong mo duoc connection
+   * phai hoa thanh loi nhanh (`db_unreachable`) thay vi giu probe toi het
+   * thoi han Worker. Gia tri phai huu han va duong.
+   */
+  readonly connectTimeoutSeconds?: number;
+}
+
 /**
  * Tao client postgres.js moi tu Hyperdrive binding.
  *
@@ -119,10 +131,24 @@ export interface StaffAccessClient extends StaffAccessQueryable {
  * @throws {StaffAccessConfigurationError} Khi binding thieu `connectionString`
  *   — fail-closed truoc khi mo connection, cung luat message-khong-neu-gia-tri
  *   voi moi config check khac cua repo.
+ * @throws {StaffAccessConfigurationError} Khi `connectTimeoutSeconds` khong
+ *   phai so huu han duong — mot timeout sai am tham lam probe treo vo han.
  */
 export function createStaffAccessPostgresClient(
   binding: StaffAccessHyperdriveBinding,
+  options?: StaffAccessClientOptions,
 ): StaffAccessClient {
+  const connectTimeoutSeconds = options?.connectTimeoutSeconds;
+  if (
+    connectTimeoutSeconds !== undefined &&
+    (typeof connectTimeoutSeconds !== 'number' ||
+      !Number.isFinite(connectTimeoutSeconds) ||
+      connectTimeoutSeconds <= 0)
+  ) {
+    throw new StaffAccessConfigurationError(
+      'connectTimeoutSeconds must be a finite positive number of seconds; omit it to keep the driver default',
+    );
+  }
   // `binding` co the la undefined/null tu duong config fail: truy cap
   // `connectionString` tren null nem TypeError khong co message config —
   // kiem truoc de ca nam hinh dang sai deu ra dung loi fail-closed.
@@ -152,6 +178,7 @@ export function createStaffAccessPostgresClient(
      * (pattern tham chieu, do luong va do ly do tren driver 3.4.9).
      */
     prepare: false,
+    ...(connectTimeoutSeconds === undefined ? {} : { connect_timeout: connectTimeoutSeconds }),
   });
 
   return client as unknown as StaffAccessClient;
@@ -164,6 +191,8 @@ export function createStaffAccessPostgresClient(
 export interface StaffAccessClientConfig {
   /** Hyperdrive binding — truyen thang xuong `createStaffAccessPostgresClient`. */
   readonly hyperdrive: StaffAccessHyperdriveBinding;
+  /** Tran mo connection — chi readiness dung; xem {@link StaffAccessClientOptions}. */
+  readonly connectTimeoutSeconds?: number;
 }
 
 /**
@@ -184,7 +213,12 @@ export async function withStaffAccessClient<T>(
   config: StaffAccessClientConfig,
   fn: (client: StaffAccessClient) => Promise<T>,
 ): Promise<T> {
-  const client = createStaffAccessPostgresClient(config.hyperdrive);
+  const client =
+    config.connectTimeoutSeconds === undefined
+      ? createStaffAccessPostgresClient(config.hyperdrive)
+      : createStaffAccessPostgresClient(config.hyperdrive, {
+          connectTimeoutSeconds: config.connectTimeoutSeconds,
+        });
   let result: T;
   try {
     result = await fn(client);

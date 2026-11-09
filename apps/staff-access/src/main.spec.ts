@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { buildApp, resetCachedConfig } from './main';
 import { StaffAccessAppConfigurationError, loadStaffAccessConfig } from './config';
-
 describe('staff-access worker skeleton', () => {
   it('serves /health without credentials and without touching the binding', async () => {
     const app = buildApp();
@@ -61,6 +60,52 @@ describe('staff-access worker skeleton', () => {
 
     const generated = await app.request('/health');
     expect(generated.headers.get('x-request-id')).toBeTruthy();
+  });
+});
+
+describe('/ready — readiness with a real dependency probe', () => {
+  it('returns 503 config_invalid when the Hyperdrive binding is missing', async () => {
+    // `/ready` KHONG duoc tra 200 khi cau hinh khong nap duoc: mot backend
+    // thieu binding se 503 moi route `/api/**`, nen readiness 200 se la loi noi
+    // doi. Response khong duoc neu ten binding (thong tin cau hinh).
+    resetCachedConfig();
+    const app = buildApp();
+    const response = await app.request('/ready');
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('5');
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toBe('service_unavailable');
+    expect(JSON.stringify(body)).not.toContain('DB_STAFF_ACCESS');
+    expect(JSON.stringify(body)).not.toContain('AUTH_INTERNAL_SECRET');
+  });
+
+  it('returns 503 db_unreachable when the configured database does not answer', async () => {
+    // Binding + secret day du nhung origin khong ton tai: probe phai that bai
+    // (fail-closed) thay vi 200, va cau hinh khong duoc lot vao response.
+    resetCachedConfig();
+    const app = buildApp();
+    const response = await app.request(
+      '/ready',
+      {},
+      {
+        DB_STAFF_ACCESS: { connectionString: 'postgresql://nobody@127.0.0.1:1/db-staff-access' },
+        AUTH_INTERNAL_SECRET: 'internal-secret-test',
+      },
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('5');
+    const body = await response.text();
+    expect(body).not.toContain('127.0.0.1');
+    expect(body).not.toContain('db-staff-access');
+  });
+
+  it('serves /ready without an internal envelope (probe path is credential-free)', async () => {
+    // Khong co header envelope van phai toi duoc readiness — neu khong thi
+    // healthcheck Docker luon 401 va container mai mai `unhealthy`.
+    resetCachedConfig();
+    const app = buildApp();
+    const response = await app.request('/ready');
+    expect(response.status).not.toBe(401);
   });
 });
 

@@ -17,11 +17,15 @@
  *
  * KHÔNG có Traefik router (cùng quyết định với pact-broker-api, issue #238):
  * consumer của API ở local là BFF fetch server-side qua alias DNS nội bộ
- * `ecoma-staff-access`; BFF backoffice chưa wire ở local trong P1.4 (wiring
- * consumer thuộc giai đoạn sau), nên container KHÔNG publish port ra host,
- * KHÔNG mang label `traefik.*`. Readiness là liveness container: Docker
- * healthcheck poll `GET /health` của worker (không chạm DB — thiết kế của
- * app); `/health` 200 không phải bằng chứng readiness nghiệp vụ.
+ * `ecoma-staff-access` (backoffice gọi qua shim `STAFF_ACCESS_SERVICE` của nó,
+ * xem `deploys/backoffice-deploy/local.ts` đọc lại `namespace:internalHmacSecret`
+ * của stack này), nên container KHÔNG publish port ra host, KHÔNG mang label
+ * `traefik.*`. Readiness là readiness NGHIỆP VỤ: Docker healthcheck poll
+ * `GET /ready` của worker — route này nạp config (binding Hyperdrive + secret
+ * HMAC) rồi chạy một truy vấn thật qua **credential runtime**
+ * (`SELECT 1 FROM staff_access.staff LIMIT 1`), nên 200 chứng minh schema đã
+ * migrate và role runtime đọc được DB của chính nó. `/health` (không chạm DB)
+ * giữ vai trò liveness và không được dùng làm bằng chứng readiness.
  *
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-staff-access` + hai role
@@ -240,14 +244,6 @@ const migrate = new command.local.Command(
  * Docker) vì staff-access runtime là `wrangler dev`, không phải process Node
  * đóng gói — image chỉ là "phòng chạy" (pattern auth).
  */
-/**
- * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
- * entrypoint script. KHÔNG build gì bên trong: repo (kèm bundle `dist/` đã
- * build từ target `build` của Nx trên host) được mount lúc runtime, và
- * `wrangler dev` chạy từ mount đó. Khác account image (runtime build trong
- * Docker) vì staff-access runtime là `wrangler dev`, không phải process Node
- * đóng gói — image chỉ là "phòng chạy" (pattern auth).
- */
 const wicImageTag = dockerResourceName(ns, 'staff-access-wic') + ':local';
 const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'staff-access-wic-image'), {
   context: { location: worktreeRoot },
@@ -337,9 +333,10 @@ const wic = new docker.Container(
     image: pulumi.interpolate`${wicImageTag}@${wicImage.digest}`,
     restart: 'unless-stopped',
     // Readiness resource-owned (`wait: true` — cùng ngữ nghĩa với platform):
-    // consumer tương lai của unit đọc qua alias DNS nội bộ, và smoke wiring
-    // sắp tới cần `up` xanh đồng nghĩa healthcheck `/health` đã `healthy`.
-    // Trần chờ = startPeriod 120s + 30 retries × 10s = 420s; waitTimeout 450s dư.
+    // backoffice gọi staff-access qua alias DNS nội bộ ngay sau khi unit này
+    // up xong, nên `up` xanh phải đồng nghĩa healthcheck `/ready` (config nạp
+    // được + DB trả lời bằng credential runtime) đã `healthy`.
+    // Trần chờ = startPeriod 2m + 30 retries × 10s = 420s; waitTimeout 450s dư.
     wait: true,
     waitTimeout: 450,
     // `stop_timeout` 30s khớp bounded-wait 20s của entrypoint: SIGTERM →
@@ -390,24 +387,32 @@ const wic = new docker.Container(
     ],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
     healthcheck: {
-      // `/health` chứ không phải một route nghiệp vụ: probe infra không được
-      // phụ thuộc DB (thiết kế của app — `/health` không credential, không
-      // chạm DB). 200 = worker boot và serve được request; readiness nghiệp
-      // vụ (DB truy vấn được) là việc của smoke ở wiring PR.
+      // `/ready` (khong phai `/health`): probe nay noi config da nap duoc VA
+      // `db-staff-access` tra loi duoc bang credential runtime — dung hai
+      // dieu kien ma moi route `/api/**` cua backoffice can de khong 503.
+      // `/health` chi chung minh worker boot, khong phai bang chung readiness
+      // nghiep vu (issue #18).
       tests: [
         'CMD',
         'node',
         '-e',
-        `fetch('http://127.0.0.1:${STAFF_ACCESS_INTERNAL_PORT}/health')` +
+        `fetch('http://127.0.0.1:${STAFF_ACCESS_INTERNAL_PORT}/ready')` +
           `.then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))`,
       ],
       interval: '10s',
-      timeout: '5s',
-      // Trần cửa sổ boot wrangler (bundle check, registry connect) — cùng
-      // budget auth nhưng retries thấp hơn vì worker duy nhất, không probe
-      // mở pool PostgreSQL như `/ready` của auth.
+      // Probe `/ready` mo mot connection PostgreSQL qua Hyperdrive voi
+      // `connect_timeout` 3s; 15s la tran thoi gian thoai mai cho ca pha mo
+      // lan truy van, cung budget voi WIC auth.
+      timeout: '15s',
+      // Tran cua so boot wrangler (bundle check, registry connect) — cung
+      // budget auth. Container chi `healthy` sau khi migration da chay
+      // (`dependsOn: [migrate, ...]`), nen `/ready` khong do gia trong cua so
+      // chua-migrate.
       retries: 30,
-      startPeriod: '120s',
+      // Chuoi dung dang Go duration Docker chuan hoa khi doc nguoc (`2m0s`,
+      // khong phai `120s`) — lech dang khong doi gia tri nhung bien moi cap
+      // refresh + up thanh diff ao tren healthcheck.
+      startPeriod: '2m0s',
     },
   },
   { dependsOn: [migrate, wicImage, wicStateVolume, wicStateInit] },

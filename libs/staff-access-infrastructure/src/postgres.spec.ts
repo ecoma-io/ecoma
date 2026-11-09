@@ -67,6 +67,32 @@ describe('createStaffAccessPostgresClient', () => {
     // Khong co loi config nao duoc phep cham vao driver.
     expect(driverCalls).toHaveLength(0);
   });
+
+  it('forwards connectTimeoutSeconds as the driver connect_timeout option', () => {
+    driverCalls.length = 0;
+    createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: 3 });
+
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options?.['connect_timeout']).toBe(3);
+  });
+
+  it('omits connect_timeout when no timeout is configured (driver default)', () => {
+    driverCalls.length = 0;
+    createStaffAccessPostgresClient(BINDING);
+
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options).not.toHaveProperty('connect_timeout');
+  });
+
+  it('rejects a non-positive or non-finite connect timeout before touching the driver', () => {
+    driverCalls.length = 0;
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: bad }),
+      ).toThrow('connectTimeoutSeconds must be a finite positive number of seconds');
+    }
+    expect(driverCalls).toHaveLength(0);
+  });
 });
 
 describe('withStaffAccessClient', () => {
