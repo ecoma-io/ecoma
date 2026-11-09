@@ -9,6 +9,7 @@ migration là file SQL thuần.
 | `migrations/*.sql` | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
 | `migrate.mts`      | Hằng số và helper dùng chung cho runner và test harness              |
 | `apply.mts`        | CLI runner, chạy trong CI                                            |
+| `bootstrap.mts`    | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                 |
 
 ## `db-staff-access` là greenfield provisioning
 
@@ -159,18 +160,41 @@ Chạy trên **PostgreSQL thật** qua testcontainers (`postgres:17-alpine`), kh
 pnpm nx run @ecoma-io/staff-access:test-integration
 ```
 
-Suite integration thuộc **Milestone B** (vẫn chưa có) — khi đã có:
+Suite integration chạy bằng `vitest.integration.config.mts`; danh sách file hiện có:
 
-| File (trong `tests/integrations/`) | Phủ cách                                                   |
-| ---------------------------------- | ---------------------------------------------------------- |
-| `migrations.spec.ts`               | Áp từ rỗng, chạy lại là no-op, runtime không DDL           |
-| `roles.spec.ts`                    | Chặn chéo `REVOKE CONNECT`, grant sweep, READ-only catalog |
+| File (trong `tests/`)                       | Phủ cách                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------- |
+| `databases/migrations.spec.ts`              | Áp từ rỗng, chạy lại là no-op, advisory lock, guard `current_database` |
+| `integrations/roles.spec.ts`                | Chặn chéo `REVOKE CONNECT`, grant sweep, catalog chỉ đọc               |
+| `integrations/readiness.spec.ts`            | Readiness 200/503 theo schema và grant                                 |
+| `integrations/bootstrap-superadmin.spec.ts` | S1/S2/S3, guard đo được, audit `denied`, race, CLI wire shape          |
 
-Nếu **không có Docker**, toàn bộ suite **skip** chứ không fail — `probeDocker()` thử
-khởi động một container thật trước, thất bại thì `describe.skipIf`. CI nào bắt buộc
-kiểm chứng thì đừng để runner thiếu Docker.
+Nếu **không có Docker**, `tests/integrations/docker-probe.global-setup.ts` ném và toàn bộ
+lần chạy **đỏ** — không có nhánh skip với exit 0 (06-testing.md §6). Một suite bắt buộc
+chưa chạy được thì phải thấy được, không phải xanh giả.
 
-⚠️ **Đây là fail-open có chủ đích, nên đừng đọc "xanh" là "đã kiểm chứng".**
+## Bootstrap S1/S2/S3
+
+`bootstrap.mts` là bề mặt offline của ADR-0021/0022/0023/0024, chạy bằng credential
+migrator, **không** nằm trong Worker bundle (`pg_advisory_xact_lock` không chạy qua
+Hyperdrive — HD6):
+
+```sh
+echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-provision
+echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-assign
+echo '{"correlation_id":"…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-verify
+```
+
+- Mỗi bước một transaction; S1 và S2 **tự** lấy advisory lock và **tự** đo lại
+  `admins_before`/`admins_ever` — không chia sẻ phép đo.
+- Từ chối: exit 1 và một dòng JSON `{"stage":…,"status":"denied","reason":…}` trên
+  stderr; audit `denied` được commit trong transaction riêng sau khi transaction guard
+  đã rollback, mang số đo nếu phép đo đã chạy.
+- `staff-verify` chỉ đọc. `correlation_id` tuỳ chọn ở tầng hàm; khi có, nó kiểm thêm
+  audit row của S1/S2 cho đúng lần chạy đó.
 
 ## Cấu trúc thư mục
 
@@ -179,8 +203,14 @@ apps/staff-access/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
 ├── apply.mts             # CLI runner cho CI
+├── bootstrap.mts         # CLI bootstrap S1/S2/S3
 └── migrations/
     ├── 0001_staff_access_domain.sql   # schema + tables + triggers
     ├── 0002_roles_and_grants.sql      # ba role + grant + chặn chéo
-    └── 0003_permission_catalog_seed.sql  # 3 permission read (staff.read, role.read, permission.read)
+    ├── 0003_permission_catalog_seed.sql  # 3 permission read (staff.read, role.read, permission.read)
+    ├── 0004_staff_access_entitlement_outbox.sql
+    ├── 0005_internal_nonces.sql
+    ├── 0006_outbox_settle.sql
+    ├── 0007_permission_catalog_audit_read.sql  # audit.read (permission thứ tư)
+    └── 0008_role_identity_and_assignment_uniqueness.sql  # UNIQUE (kind,name), partial unique assignment, seed role canonical
 ```
