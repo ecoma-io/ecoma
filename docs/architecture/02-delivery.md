@@ -162,7 +162,7 @@ Provision databases
 
 Bước 6 và 7 thuộc cùng một unit với bước 5 của sản phẩm tương ứng; bảng tách dòng vì đầu ra và kiểm tra khác nhau. Bước 8 chỉ có sau khi quyết định seller nội bộ của #15 được accept. Bước 9 chỉ có sau #14.
 
-Bước 3 và bước 4 ghi hai database khác nhau và **không** nằm trong một transaction: bước 3 sinh `sub`, bước 4 đọc `sub` đó làm input. Chạy lại bước 3 với cùng email khởi tạo phải trả **cùng** `sub`; cơ chế bảo đảm điều đó thuộc #11 (đường tạo Account đầu tiên và ánh xạ email → `sub`), và cho tới khi #11 chốt thì #17 không hiện thực bước 3.
+Bước 3 và bước 4 ghi hai database khác nhau và **không** nằm trong một transaction: bước 3 sinh `sub`, bước 4 đọc `sub` đó làm input. Chạy lại bước 3 với cùng email khởi tạo phải trả **cùng** `sub`; cơ chế bảo đảm điều đó thuộc #11 (đường tạo Account đầu tiên và ánh xạ email → `sub`), và cho tới khi #11 chốt thì #17 không hiện thực bước 3. Điều kiện "đúng một hàng `pending`" ở bước 3 là ràng buộc của procedure, không phải của schema: UNIQUE trên `account.email_addresses` chỉ áp cho hàng `verified`.
 
 **Quy tắc thi hành:**
 
