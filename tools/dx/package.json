@@ -12,6 +12,17 @@
     "yaml": "^2.9.1"
   },
   "nx": {
+    "//": [
+      "implicitDependencies — project mà spec `deployment/local-platform/local-entry-contract.spec.ts`",
+      "đọc TRỰC TIẾP mã nguồn. Không có cạnh này thì guard chỉ đỏ khi chính `tools/dx` đổi;",
+      "một PR chỉ sửa `deploys/staff-access-deploy/index.ts` (đúng loại thay đổi mà guard #40 canh)",
+      "sẽ lọt qua `nx affected -t test` mà guard không hề chạy. Chỉ khai hai project mà guard của",
+      "#40 đọc — các guard còn lại của file này có cùng khoảng trống, xử lý riêng."
+    ],
+    "implicitDependencies": [
+      "staff-access-deploy",
+      "backoffice-deploy"
+    ],
     "tags": [
       "type:tooling",
       "runtime:native",
@@ -147,6 +158,13 @@
         "inputs": [
           "default",
           "^production",
+          {
+            "//": "Guard `local-entry-contract.spec.ts` đọc mã nguồn `deploys/**` và `system-tests/**` tại runtime; thiếu input này thì Nx trả cache xanh của lần chạy trước dù file được canh vừa đổi (cùng lý do `--skip-nx-cache` ở libs/AGENTS.md §Checks).",
+            "fileset": "{workspaceRoot}/deploys/**/*"
+          },
+          {
+            "fileset": "{workspaceRoot}/system-tests/**/*"
+          },
           {
             "fileset": "{projectRoot}/tsconfig.spec.json",
             "dependencies": true

@@ -17,11 +17,17 @@
  *
  * KHÔNG có Traefik router (cùng quyết định với pact-broker-api, issue #238):
  * consumer của API ở local là BFF fetch server-side qua alias DNS nội bộ
- * `ecoma-staff-access`; BFF backoffice chưa wire ở local trong P1.4 (wiring
- * consumer thuộc giai đoạn sau), nên container KHÔNG publish port ra host,
- * KHÔNG mang label `traefik.*`. Readiness là liveness container: Docker
- * healthcheck poll `GET /health` của worker (không chạm DB — thiết kế của
- * app); `/health` 200 không phải bằng chứng readiness nghiệp vụ.
+ * `ecoma-staff-access` (backoffice gọi qua shim `STAFF_ACCESS_SERVICE` của nó,
+ * xem `deploys/backoffice-deploy/local.ts` đọc lại `namespace:internalHmacSecret`
+ * của stack này), nên container KHÔNG publish port ra host, KHÔNG mang label
+ * `traefik.*`. Readiness là readiness NGHIỆP VỤ: Docker healthcheck poll
+ * `GET /ready` của worker — route này nạp config (binding Hyperdrive + secret
+ * HMAC) rồi chạy BA câu lệnh zero-row đại diện cho ba đường serving thật
+ * (đọc tập cột `staff` của `getStaffBySub`, claim nonce `INSERT`/`DELETE` trên
+ * `internal_nonces` do `0005` tạo, và `UPDATE settled_at` do `0006` tạo) bằng
+ * **credential runtime**, nên 200 chứng minh schema đã migrate đủ và role
+ * runtime có đúng grant. `/health` (không chạm DB) giữ vai trò liveness và
+ * không được dùng làm bằng chứng readiness.
  *
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-staff-access` + hai role
@@ -35,7 +41,7 @@
  * lock). KHÔNG có bước seed dữ liệu riêng: dữ liệu seed duy nhất của context
  * này là permission catalog (3 permission read) và nó nằm trong migration
  * `0003_permission_catalog_seed.sql` — nội dung system-defined role KHÔNG được
- * seed (docs §4.4, quyết định chưa chốt).
+ * seed (docs `domains/staff-access/domain-model.md` §3.4, quyết định chưa chốt).
  */
 
 import * as command from '@pulumi/command';
@@ -43,7 +49,9 @@ import * as docker from '@pulumi/docker';
 import * as dockerBuild from '@pulumi/docker-build';
 import * as pulumi from '@pulumi/pulumi';
 
+import { sha256DistTree } from './bundle-hash.js';
 import {
+  LABEL_PREFIX,
   type PlatformOutputs,
   dockerResourceName,
   normalizeWorktreeRoot,
@@ -75,8 +83,8 @@ const POSTGRES_HOST = 'ecoma-postgres';
  * của `apps/staff-access/wrangler.jsonc`. Bên trong container KHÔNG cần
  * phát hiện xung đột port host (mỗi container có network stack riêng — static
  * port an toàn); nguồn số duy nhất là wrangler.jsonc, Pulumi không cấp port.
- * Alias DNS `ecoma-staff-access` (hằng số) + port này là contract cho wiring
- * BFF tương lai: base URL `http://ecoma-staff-access:4206`.
+ * Alias DNS `ecoma-staff-access` (hằng số) + port này là contract của consumer
+ * đã có: backoffice gọi `http://ecoma-staff-access:4206`.
  *
  * Wrangler đọc `dev.port` khi render URL banner và healthcheck ở dưới poll đúng
  * `STAFF_ACCESS_INTERNAL_PORT` — wrangler đổi port là healthcheck fail ngay (fail
@@ -88,8 +96,8 @@ const STAFF_ACCESS_INTERNAL_PORT = 4206;
  * Alias DNS của WIC container trong platform network — HẰNG SỐ, không theo
  * namespace (khác auth dùng `${AUTH_WIC_ALIAS_PREFIX}${ns}-auth`). Mỗi worktree
  * có platform network RIÊNG (namespace cô lập), nên alias hằng trong một
- * network không xung đột; hằng cho tên ổn định để unit consumer tương lai cấu
- * hình base URL không phụ thuộc namespace.
+ * network không xung đột; hằng để consumer (backoffice) cấu hình base URL
+ * không phụ thuộc namespace.
  */
 const STAFF_ACCESS_ALIAS = 'ecoma-staff-access';
 
@@ -101,6 +109,29 @@ const ns = worktreeNamespace(worktreeRoot);
 // Labels ownership: gắn lên MỌI Docker resource (image + container + volume)
 // để `pnpm dx local-cleanup` phân loại được.
 const labels = ownershipLabels(normalizeWorktreeRoot(worktreeRoot), ns);
+
+/**
+ * Bundle-hash trigger cho container WIC — cùng cơ chế `deploys/auth-deploy`.
+ *
+ * Vì sao cần: `dist/` được build trên host và mount bind vào container, nên nội
+ * dung bundle KHÔNG phải input của Pulumi. Rebuild `dist` mà không đổi gì khác
+ * thì Pulumi thấy container y nguyên và không recreate — container tiếp tục chạy
+ * bundle cũ (entrypoint chỉ copy `dist` một lần lúc boot). Hash của cây `dist`
+ * đổi ⇒ label đổi ⇒ container recreate ⇒ entrypoint copy bundle mới.
+ *
+ * Hàm hash nằm ở `bundle-hash.ts` (không Pulumi) để test được bằng Vitest;
+ * xem JSDoc ở đó cho định dạng hash và lý do fail-fast. `@pulumi/docker` 5.2.0
+ * `Container` KHÔNG có property `triggers` — label là cơ chế ForceNew tương
+ * đương (xem JSDoc đầy đủ ở `deploys/auth-deploy/index.ts`).
+ *
+ * ⚠️ Tính Ở ĐÂY, trước mọi `new …Resource`: Pulumi bắt đầu apply resource ngay
+ * khi chúng được đăng ký, trong lúc chương trình còn đang đánh giá. Hàm này ném
+ * khi cây `dist` không đọc được (fail-fast — xem `bundle-hash.ts`), và một lần
+ * ném sau `provision`/`migrate` có thể để update dừng giữa chừng với database
+ * đã provision. Tính trước để lỗi bundle dừng chương trình trước khi có gì được
+ * đăng ký.
+ */
+const wicBundleHash = pulumi.output(sha256DistTree(worktreeRoot, 'apps/staff-access/dist'));
 
 const platform = new pulumi.StackReference(conf.require('platformStackRef'));
 
@@ -141,31 +172,66 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * lệnh guard-create bằng shell `if`, còn ALTER password idempotent sẵn — chạy
  * cả `create` và `update` để redeploy cũng xoay password.
  *
- * Khác auth (4 role + revoke chéo): bounded context này chỉ có 2 role, không
- * có owner role dùng chung (migrator sở hữu schema `staff_access` sau khi
- * migration `0001` chạy — grant `CREATE` trên database cấp ở đây), không có
- * database nào khác cần revoke chéo.
+ * Khác auth (4 role): bounded context này chỉ có 2 role, không có owner role
+ * dùng chung (migrator sở hữu schema `staff_access` sau khi migration `0001`
+ * chạy — grant `CREATE` trên database cấp ở đây). Chặn chéo chiều ra vẫn phải
+ * làm: hai role này không được CONNECT vào database của service khác
+ * (`apps/staff-access/db/README.md` §"Chặn chéo", migration `0002` §"Cross-
+ * database REVOKE"); provisioning mới là nơi thực thi được vì cần quyền sở hữu
+ * database đích — cùng hình guard `if` với auth/account.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
 const provisionScript = pulumi.interpolate`set -e
 PG=${postgresContainerName}
 PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
+# Moi lan kiem tra ton tai deu gan ket qua vao bien TRUOC khi so sanh: 'set -e'
+# khong ap dung cho dieu kien cua 'if', nen dang 'if ! $PSQL ... | grep -q 1'
+# doc mot lan psql loi thanh "khong ton tai" va chay CREATE (hoac bo qua REVOKE)
+# trong khi command resource van bao thanh cong. Voi phep gan, loi psql lam ca
+# script dung (fail-closed).
 # 1. Hai role của db-staff-access — guard-create khi thiếu.
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_migrator'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_staff_access_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_runtime'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_staff_access_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
+MIGRATOR_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_migrator'")
+if [ "$MIGRATOR_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
+RUNTIME_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_runtime'")
+if [ "$RUNTIME_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
 # 2. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
 #    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
 #    thành một argument của shell (giải thích đầy đủ backoffice-deploy/index.ts).
 $PSQL -c ${migratorPassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_migrator WITH PASSWORD ${sqlQuote(p)};`))}
 $PSQL -c ${runtimePassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_runtime WITH PASSWORD ${sqlQuote(p)};`))}
-# 3. Database — guard-create (bash if), idempotent qua lần chạy sau.
-if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'" | grep -q 1; then $PSQL -c 'CREATE DATABASE "db-staff-access"'; fi
+# 3. Database — guard-create, idempotent qua lần chạy sau.
+DATABASE_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'")
+if [ "$DATABASE_EXISTS" != "1" ]; then $PSQL -c 'CREATE DATABASE "db-staff-access"'; fi
 # 4. Grant: migrator cần CREATE trên database để tạo schema staff_access
 #    (migration 0001 tự cấp USAGE/CREATE trên schema sau khi tạo); runtime chỉ
 #    CONNECT — DML grant theo bảng nằm trong migration 0001.
 $PSQL -c 'REVOKE CONNECT ON DATABASE "db-staff-access" FROM PUBLIC'
 $PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-staff-access" TO ecoma_staff_access_migrator'
 $PSQL -c 'GRANT CONNECT ON DATABASE "db-staff-access" TO ecoma_staff_access_runtime'
+# 4b. Chặn chéo chiều RA: rút CONNECT TRỰC TIẾP của hai role staff-access
+#     trên database của service khác. Điều kiện hoá theo sự tồn tại của
+#     database đích — nó có thể chưa được tạo ở lần up đầu, và REVOKE trên
+#     database không tồn tại là lỗi chứ không phải no-op (cùng hình với
+#     account/auth).
+#     ⚠️ Giới hạn đã đo: thu hồi này chỉ xoá grant TRỰC TIẾP. db-backoffice
+#     hiện vẫn cấp CONNECT cho PUBLIC (datacl giữ "=Tc/...") và unit sở hữu nó
+#     không rút quyền đó, nên has_database_privilege(...) vẫn là true qua
+#     PUBLIC cho tới khi backoffice-deploy tự rút PUBLIC rồi GRANT lại cho
+#     role của chính nó. Việc đó thuộc unit sở hữu database — staff-access
+#     không được cấp/rút quyền thay. db-account/db-auth đã rút PUBLIC nên ở
+#     đó thu hồi này là hiệu lực thật.
+for TARGET in db-account db-auth db-backoffice; do
+  # ⚠️ Gan ket qua vao bien TRUOC roi moi so sanh: 'set -e' khong ap dung cho
+  # dieu kien cua 'if', nen dang 'if $PSQL ... | grep -q 1' thi mot lan psql
+  # loi (database dang restart, socket loi) bi doc thanh "khong ton tai" va
+  # REVOKE bi bo qua trong im lang — command resource van bao thanh cong.
+  # Voi phep gan, lenh substitution loi lam ca script dung (fail-closed).
+  EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$TARGET'")
+  if [ "$EXISTS" = "1" ]; then
+    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_migrator"
+    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_runtime"
+  fi
+done
 # 5. Hardening schema public — chạy bằng owner (ecoma_local) mới thực sự revoke
 #    được; statement tương đương trong migration 0002 là no-op trên PG15+ khi chạy
 #    bằng migrator. Idempotent.
@@ -178,7 +244,17 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
   // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
   // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
   // (trigger được lưu trong state Pulumi).
-  triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+  //
+  // `verifiedNamespace` co mat o day de engine PHAI giai xong StackReference
+  // (va kiem namespace) TRUOC khi chay script: khong co no, provision khong phu
+  // thuoc output nao cua platform, nen mot stack tro nham platform van provision
+  // role/database roi moi bao loi — mot lan apply mot phan tren input sai.
+  triggers: [
+    pulumi.secret(runtimePassword),
+    pulumi.secret(migratorPassword),
+    worktreeRoot,
+    verifiedNamespace,
+  ],
 });
 
 /**
@@ -225,21 +301,15 @@ const migrate = new command.local.Command(
  * vòng migration, không phải một lệnh psql rời. Nội dung system-defined role
  * KHÔNG được seed (docs `domains/staff-access/domain-model.md` §3.4 — quyết định
  * chưa chốt). Sổ staff KHÔNG được seed bởi deploy: first-admin bootstrap đi qua
- * procedure ADR-0003 (manual SQL/CLI offline bằng credential `ecoma_owner`, có
- * audit trail); hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
+ * procedure ADR-0003 — manual SQL/CLI offline bằng credential admin của chính
+ * database này (với `db-staff-access` đó là `ecoma_staff_access_migrator`;
+ * `ecoma_owner` KHÔNG tồn tại cho database này — ADR-0020 Quyết định 11) — có
+ * audit trail; hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
  * emergency recovery (ADR-0020 Quyết định 11). "Deploy unit cấm mọi code path bootstrap" nghĩa là
  * cấm đường serving (route/flag runtime), không cấm bước provisioning — hợp đồng
  * canonical là `docs/architecture/02-delivery.md` §3.2 + ADR-0020.
  */
 
-/**
- * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
- * entrypoint script. KHÔNG build gì bên trong: repo (kèm bundle `dist/` đã
- * build từ target `build` của Nx trên host) được mount lúc runtime, và
- * `wrangler dev` chạy từ mount đó. Khác account image (runtime build trong
- * Docker) vì staff-access runtime là `wrangler dev`, không phải process Node
- * đóng gói — image chỉ là "phòng chạy" (pattern auth).
- */
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
  * entrypoint script. KHÔNG build gì bên trong: repo (kèm bundle `dist/` đã
@@ -337,9 +407,10 @@ const wic = new docker.Container(
     image: pulumi.interpolate`${wicImageTag}@${wicImage.digest}`,
     restart: 'unless-stopped',
     // Readiness resource-owned (`wait: true` — cùng ngữ nghĩa với platform):
-    // consumer tương lai của unit đọc qua alias DNS nội bộ, và smoke wiring
-    // sắp tới cần `up` xanh đồng nghĩa healthcheck `/health` đã `healthy`.
-    // Trần chờ = startPeriod 120s + 30 retries × 10s = 420s; waitTimeout 450s dư.
+    // backoffice gọi staff-access qua alias DNS nội bộ ngay sau khi unit này
+    // up xong, nên `up` xanh phải đồng nghĩa healthcheck `/ready` (config nạp
+    // được + DB trả lời bằng credential runtime) đã `healthy`.
+    // Trần chờ = startPeriod 2m + 30 retries × 10s = 420s; waitTimeout 450s dư.
     wait: true,
     waitTimeout: 450,
     // `stop_timeout` 30s khớp bounded-wait 20s của entrypoint: SIGTERM →
@@ -388,26 +459,45 @@ const wic = new docker.Container(
       pulumi.interpolate`AUTH_INTERNAL_SECRET=${pulumi.secret(internalHmacSecret)}`,
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_STAFF_ACCESS=${pulumi.secret(hyperdriveLocalConnectionString)}`,
     ],
-    labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+    labels: [
+      ...Object.entries(labels).map(([label, value]) => ({ label, value })),
+      // Bundle-hash trigger: ForceNew — rebuild `dist` trên host đổi hash ⇒
+      // container recreate ⇒ entrypoint copy lại bundle (xem JSDoc của
+      // sha256DistTree). Cùng họ `io.ecoma` với ownership labels.
+      { label: `${LABEL_PREFIX}.bundle-hash`, value: wicBundleHash },
+    ],
     healthcheck: {
-      // `/health` chứ không phải một route nghiệp vụ: probe infra không được
-      // phụ thuộc DB (thiết kế của app — `/health` không credential, không
-      // chạm DB). 200 = worker boot và serve được request; readiness nghiệp
-      // vụ (DB truy vấn được) là việc của smoke ở wiring PR.
+      // `/ready` (khong phai `/health`): probe nay noi config da nap duoc VA
+      // `db-staff-access` tra loi duoc bang credential runtime — dung hai
+      // dieu kien ma moi route `/api/**` cua backoffice can de khong 503.
+      // `/health` chi chung minh worker boot, khong phai bang chung readiness
+      // nghiep vu (issue #18).
+      // `r.ok` (2xx) chu khong `< 500` nhu cac unit khac: mot 401/404 tu
+      // `/ready` nghia la route probe hoac mien tru envelope da hoi quy, va
+      // coi no la "healthy" se che dung loi ma issue #18 quan tam. `/ready`
+      // chi tra 200 khi config + DB that su san sang, nen 2xx la tin hieu
+      // duy nhat dung.
       tests: [
         'CMD',
         'node',
         '-e',
-        `fetch('http://127.0.0.1:${STAFF_ACCESS_INTERNAL_PORT}/health')` +
-          `.then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))`,
+        `fetch('http://127.0.0.1:${STAFF_ACCESS_INTERNAL_PORT}/ready')` +
+          `.then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`,
       ],
       interval: '10s',
-      timeout: '5s',
-      // Trần cửa sổ boot wrangler (bundle check, registry connect) — cùng
-      // budget auth nhưng retries thấp hơn vì worker duy nhất, không probe
-      // mở pool PostgreSQL như `/ready` của auth.
+      // Probe `/ready` mo mot connection PostgreSQL qua Hyperdrive voi
+      // `connect_timeout` 3s; 15s la tran thoi gian thoai mai cho ca pha mo
+      // lan truy van, cung budget voi WIC auth.
+      timeout: '15s',
+      // Tran cua so boot wrangler (bundle check, registry connect) — cung
+      // budget auth. Container chi `healthy` sau khi migration da chay
+      // (`dependsOn: [migrate, ...]`), nen `/ready` khong do gia trong cua so
+      // chua-migrate.
       retries: 30,
-      startPeriod: '120s',
+      // Chuoi dung dang Go duration Docker chuan hoa khi doc nguoc (`2m0s`,
+      // khong phai `120s`) — lech dang khong doi gia tri nhung bien moi cap
+      // refresh + up thanh diff ao tren healthcheck.
+      startPeriod: '2m0s',
     },
   },
   { dependsOn: [migrate, wicImage, wicStateVolume, wicStateInit] },
