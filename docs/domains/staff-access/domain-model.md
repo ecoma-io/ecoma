@@ -56,7 +56,7 @@ Enforcement chia đôi: **catalog govern ở Staff Access; backend enforce ở r
 - **Không có unrestricted `isAdmin` bypass role**: mọi role đều là tập permission hữu hạn, và mọi đường đều đi qua enforcement như nhau.
 - **system-defined role** vs **custom role** được phân biệt; custom role administration **không bật** giai đoạn này, chỉ system-defined role (ADR-0004).
 - Role hierarchy (role kế thừa role) **không dùng**; gán phẳng (ADR-0007).
-- Nội dung của từng system-defined role chưa chốt ở đây — nó phải xuất phát từ permission catalog thực tế, không phải từ tài liệu này.
+- Nội dung của từng system-defined role chưa chốt **ở đây** — nó phải xuất phát từ permission catalog thực tế, không phải từ tài liệu này. Nội dung role system administrator (bootstrap Superadmin) đã chốt ở [ADR-0021](./adr/0021-first-admin-bootstrap-path.md) Quyết định 4.
 
 ### 3.5 Staff-role assignment
 
@@ -170,7 +170,7 @@ Cơ chế runtime của bốn ranh giới trên (credential role, kết nối, e
 
 ## 9. Đã chốt qua ADR
 
-Mười bốn quyết định từng "chưa chốt" dưới đây đã được chốt bằng architectural decision record ([ADR](./adr/README.md)) — mỗi quyết định có **một** canonical location là ADR tương ứng; bảng này chỉ giữ **con trỏ** tới đó, không nhân bản quyết định. Thay đổi nội dung một quyết định được chốt phải qua ADR tương ứng (hay một ADR mới thay thế nó), không sửa ô bảng ở đây; điều kiện kích hoạt xem xét lại từng quyết định được ghi trong ADR đó. Danh sách trạng thái tổng của bộ ADR → [`adr/README.md`](./adr/README.md).
+Mười lăm quyết định từng "chưa chốt" dưới đây đã được chốt bằng architectural decision record ([ADR](./adr/README.md)) — mỗi quyết định có **một** canonical location là ADR tương ứng; bảng này chỉ giữ **con trỏ** tới đó, không nhân bản quyết định. Thay đổi nội dung một quyết định được chốt phải qua ADR tương ứng (hay một ADR mới thay thế nó), không sửa ô bảng ở đây; điều kiện kích hoạt xem xét lại từng quyết định được ghi trong ADR đó. Danh sách trạng thái tổng của bộ ADR → [`adr/README.md`](./adr/README.md).
 
 | Quyết định (đã chốt)                                                                                                                               | ADR                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Kích hoạt                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

@@ -105,6 +105,8 @@ Cơ chế, tần suất, hợp đồng log, hành vi khi hỏng và đường ch
 
 Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `account`, không có route HTTP và không nằm trong Worker (ADR-0021 Quyết định 2). Đây là đường **duy nhất** được phép ghi `account.users`; không có production code path nào khác làm việc đó.
 
+⚠️ **Thao tác này chưa tồn tại.** Không có CLI create-or-resolve trong `apps/account` ở thời điểm tài liệu này; mục này là đặc tả cho #17, không phải mô tả một lệnh chạy được. Đường verify lần đầu (nhắc dưới đây) cũng **chưa tồn tại**.
+
 - **Bề mặt:** CLI offline trong `apps/account`, chạy bằng credential migrator/owner của `db-account` (ADR-0020 Quyết định 3(b)). Không route, không flag, không cron.
 - **Idempotency:** chuẩn hoá địa chỉ bằng đúng hàm của luồng OTP, tra `account.email_addresses` theo `address_hash` (SHA-256 hex, không theo địa chỉ trần). Không có hàng nào → sinh `sub` mới và ghi `account.users` + `account.email_addresses` trong một transaction; có đúng một `sub` còn sống với hàng `pending` → trả lại chính `sub` đó.
 - **Fail-closed, không chọn một hàng:** có hàng `verified` cho địa chỉ, có nhiều hơn một `sub`, `sub` đã `suspended`/`deleted`, hoặc Account đó còn địa chỉ `verified`/`is_sign_in` khác — tất cả dừng procedure. Lý do: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ vẫn có thể mang địa chỉ bootstrap ở trạng thái `pending`; nhận `sub` đó là cấp quyền administrator cho người đăng nhập bằng địa chỉ của họ (ADR-0021 Quyết định 2).

@@ -25,7 +25,7 @@ Procedure tạo staff identity đầu tiên và gán system administrator role *
 
 - **Composition:** hai bước do `account` sở hữu (create-or-resolve Account, đọc lại `sub`) chạy trước, rồi ba bước do `staff-access` sở hữu (tạo staff, gán role, đọc lại + audit) — mỗi bước commit độc lập, không transaction xuyên database.
 - **Đầu vào duy nhất xuyên service:** `sub` do bước Account trả ra. `staff-access` không đọc/ghi `db-account`.
-- **Role không do procedure tạo:** role system administrator và `role_permissions` của nó (bốn permission read đã có trong catalog) là dữ liệu sealed trong seed migration; procedure chỉ gán (ADR-0021 Quyết định 4).
+- **Role không do procedure tạo:** role system administrator và `role_permissions` của nó (bốn permission read — `staff.read`, `role.read`, `permission.read` đã seed, cộng `audit.read` thêm bằng seed migration mới) là dữ liệu sealed trong seed migration; procedure chỉ gán (ADR-0021 Quyết định 4 và Quyết định 8).
 - Runbook đầy đủ (cấu hình, validate, từng bước, kiểm tra, retry, recovery) → [`03-operations.md`](./03-operations.md) §2–§3.
 
 ## 3. API/protocol surfaces

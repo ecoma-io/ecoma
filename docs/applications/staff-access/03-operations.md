@@ -5,17 +5,17 @@
 
 ## 1. Runtime và credential
 
-| Hạng mục        | Giá trị                                                                                                                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Database        | `db-staff-access`, schema `staff_access`                                                                                                                                                                      |
-| Role migrator   | `ecoma_staff_access_migrator` — DDL, **chỉ** trong CI secret store ([`../../architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.1, §6 rule 11); **không bao giờ** là Worker secret            |
-| Role runtime    | `ecoma_staff_access_runtime` — DML trên schema ứng dụng; chỉ `SELECT` trên `permissions`, `roles`, `role_permissions`                                                                                         |
-| Role owner      | `ecoma_owner` — **không** tồn tại cho `db-staff-access` (ADR-0020 Quyết định 11); tên này chỉ có nghĩa ở database có provision nó                                                                             |
-| Bề mặt thực thi | Bước provisioning một-lần của deploy unit sở hữu dữ liệu (lane local), hoặc CLI offline trong chính app sở hữu dữ liệu trên admin path CI (environment thật) — ADR-0020 Quyết định 3                          |
-| Entry point     | Repo script trong `tools/`, **không** có entry trong `DEPLOYMENT_MAP`, không giữ credential database nào; nó gọi CLI bootstrap của từng service như tiến trình con, theo thứ tự ở §2 (ADR-0020 Quyết định 12) |
-| Không được dùng | Route HTTP, runtime flag, cron, hay bất kỳ code path nào trong Worker bundle để tạo staff/role/assignment (ADR-0021 Quyết định 9)                                                                             |
+| Hạng mục        | Giá trị                                                                                                                                                                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database        | `db-staff-access`, schema `staff_access`                                                                                                                                                                                                              |
+| Role migrator   | `ecoma_staff_access_migrator` — DDL, **chỉ** trong CI secret store ([`../../architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.1, §6 rule 11); **không bao giờ** là Worker secret                                                    |
+| Role runtime    | `ecoma_staff_access_runtime` — DML trên schema ứng dụng; chỉ `SELECT` trên `permissions`, `roles`, `role_permissions`                                                                                                                                 |
+| Role owner      | `ecoma_owner` — **không** tồn tại cho `db-staff-access` (ADR-0020 Quyết định 11); tên này chỉ có nghĩa ở database có provision nó                                                                                                                     |
+| Bề mặt thực thi | Bước provisioning một-lần của deploy unit sở hữu dữ liệu (lane local), hoặc CLI offline trong chính app sở hữu dữ liệu trên admin path CI (environment thật) — ADR-0020 Quyết định 3                                                                  |
+| Entry point     | Repo script trong `tools/`, **không** có entry trong `DEPLOYMENT_MAP`, không giữ credential database nào; nó gọi CLI bootstrap của từng service như tiến trình con, theo thứ tự ở §2 (ADR-0020 Quyết định 12)                                         |
+| Không được dùng | Route HTTP, runtime flag, cron, hay bất kỳ code path nào trong Worker bundle để **bootstrap** — tạo Account, staff identity, seed role, hay gán role lần đầu (ADR-0021 Quyết định 9). Route gán/thu hồi định kỳ có tồn tại nhưng không phải bootstrap |
 
-`staff-access` **không** có quyền `CONNECT` sang `db-account`, và procedure này không đọc `db-account` ở bất kỳ bước nào. Giá trị duy nhất đi xuyên service là `sub`.
+`staff-access` **không** có quyền `CONNECT` sang `db-account`. Procedure chỉ chạm `db-account` ở bước do `account` sở hữu và thực thi (bước 3–4, surface A1/A2), bằng credential của `account`; không bước nào chạy `SELECT`/`INSERT` trên `db-account` từ một credential của `staff-access`. Giá trị duy nhất đi xuyên service là `sub`.
 
 ⚠️ **Credential migrator không rời CI secret store.** Bước S1–S3 dùng `ecoma_staff_access_migrator` trên admin path của `../../architecture/02-delivery.md` §3.1. Nếu cần chạy procedure ngoài CI, **policy credential phải đổi trước** — không tự tạo bản sao thứ hai của credential, và không cấp credential riêng cho procedure (ADR-0021 Quyết định 5).
 
@@ -27,7 +27,7 @@
 
 **Thứ tự bắt buộc:** A1 → A2 → S1 → S2 → S3. Mỗi bước commit độc lập; không có transaction xuyên database.
 
-⚠️ **Cửa sổ một administrator là cửa sổ rủi ro.** Từ bootstrap tới khi có administrator thứ hai, không ai còn quyền để cấp quyền: mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery hiện chưa phủ hết các trường hợp (§3, §4). Tạo administrator thứ hai là việc tiếp theo sau khi bootstrap hoàn tất, không phải việc tuỳ chọn.
+⚠️ **Cửa sổ một administrator là cửa sổ rủi ro, và hiện còn hai lý do.** (1) Mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery hiện chưa phủ hết các trường hợp (§3, §4). (2) Role administrator chỉ có bốn quyền **read**, và `apps/staff-access/src/routes.ts` chưa enforce permission nào — nên kể cả khi đã có administrator thứ hai, **chưa có đường cấp quyền qua giao diện**: mọi thay đổi quyền vẫn phải đi qua procedure/recovery cho tới khi có quyết định catalog riêng (ADR-0021 Quyết định 4).
 
 ### Bước 1 — Chọn cấu hình môi trường đích
 
@@ -42,14 +42,14 @@ Entry point là một repo script trong `tools/` (ADR-0020 Quyết định 12): 
 
 ### Bước 2 — Validate cấu hình và credential
 
-| Kiểm                                        | Đạt khi                                                                                                                                                                                      |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kết nối `db-account` bằng credential A      | `SELECT 1` thành công; role **không** phải runtime role cho bước ghi                                                                                                                         |
-| Kết nối `db-staff-access` bằng credential S | `SELECT 1` thành công; dùng `ecoma_staff_access_migrator` trên admin path CI, không phải runtime role                                                                                        |
-| Chặn chéo                                   | `SELECT has_database_privilege('ecoma_staff_access_runtime', 'db-account', 'CONNECT')` = `false`                                                                                             |
-| `bootstrap_email` hợp lệ                    | `normalizeEmailAddress` chấp nhận; chuỗi không rỗng và không phải placeholder                                                                                                                |
-| Hộp thư đã được kiểm soát                   | Người vận hành xác nhận **ngoài hệ thống** rằng `bootstrap_email` đã được cấp phát cho tổ chức và có MFA — đây là điều kiện tiên quyết, không phải kiểm tra tự động (ADR-0020 Quyết định 11) |
-| Seed đã chạy                                | `staff_access.permissions` có đủ 4 bản ghi read; role system administrator và `role_permissions` của nó tồn tại                                                                              |
+| Kiểm                                        | Đạt khi                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kết nối `db-account` bằng credential A      | `SELECT 1` thành công; role **không** phải runtime role cho bước ghi                                                                                                                                                                                                                                                            |
+| Kết nối `db-staff-access` bằng credential S | `SELECT 1` thành công; dùng `ecoma_staff_access_migrator` trên admin path CI, không phải runtime role                                                                                                                                                                                                                           |
+| Chặn chéo                                   | `SELECT has_database_privilege('ecoma_staff_access_runtime', 'db-account', 'CONNECT')` = `false`. Chạy **sau** khi `db-account` tồn tại: hàm này lỗi khi database chưa có, nên `false` chỉ có nghĩa khi kiểm được cả hai trạng thái                                                                                             |
+| `bootstrap_email` hợp lệ                    | Khớp kiểm cú pháp của `account` (`/^[^\s@]{1,64}@[^\s@]{1,255}$/u`, `apps/account/server/api/emails/index.post.ts`) — **không** dùng `normalizeEmailAddress` làm kiểm tra: hàm đó chỉ `trim()` + `toLowerCase()` và chấp nhận cả `'not an email'`                                                                               |
+| Hộp thư đã được kiểm soát                   | Người vận hành xác nhận **ngoài hệ thống** rằng `bootstrap_email` đã được cấp phát cho tổ chức và có MFA — đây là điều kiện tiên quyết, không phải kiểm tra tự động (ADR-0020 Quyết định 11)                                                                                                                                    |
+| Seed đã chạy                                | ⚠️ **Chưa đạt được ở hiện tại:** `staff_access.permissions` hiện có **3** bản ghi read (`audit.read` chưa có), và **không** có hàng `roles`/`role_permissions` nào. Đạt khi: 4 permission read, role system administrator, và `role_permissions` của nó tồn tại — cả hai seed mới là yêu cầu của #17 (ADR-0021 Quyết định 4, 8) |
 
 Dừng ở đây nếu bất kỳ kiểm nào sai. Procedure **không** tạo role hay permission: role là dữ liệu sealed từ seed migration (ADR-0021 Quyết định 4, ADR-0020 Quyết định 10).
 
@@ -60,7 +60,7 @@ Chạy thao tác create-or-resolve của `account` (ADR-0021 Quyết định 2) 
 - Địa chỉ được chuẩn hoá bằng đúng hàm của luồng OTP, rồi tra theo `address_hash` (SHA-256 hex), **không** theo địa chỉ trần.
 - Không có hàng nào → sinh `sub` mới và ghi `account.users` + `account.email_addresses` trong một transaction.
 - Có đúng một `sub` còn sống với hàng `pending` → trả lại chính `sub` đó.
-- **Fail-closed ở mọi trạng thái khác:** có hàng `verified`; nhiều hơn một `sub`; `sub` đã `suspended`/`deleted`; hoặc Account đó còn địa chỉ `verified`/`is_sign_in` khác. Trường hợp cuối là leo thang quyền thật: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ có thể mang chính `bootstrap_email` ở trạng thái `pending`; nhận `sub` đó là cấp administrator cho người đăng nhập bằng địa chỉ của họ, không phải người kiểm soát hộp thư bootstrap.
+- **Fail-closed ở mọi trạng thái khác:** có hàng `verified`; nhiều hơn một `sub`; `sub` đã `suspended`/`deleted`; Account đó còn địa chỉ `verified`/`is_sign_in` khác; hoặc cùng `sub` có nhiều hơn một hàng `pending` cho `address_hash` đó (schema cho phép — UNIQUE chỉ áp cho `verified`). Trường hợp cuối là leo thang quyền thật: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ có thể mang chính `bootstrap_email` ở trạng thái `pending`; nhận `sub` đó là cấp administrator cho người đăng nhập bằng địa chỉ của họ, không phải người kiểm soát hộp thư bootstrap.
 - Email được ghi `status = 'pending'`, `is_sign_in = false`, `verified_at IS NULL`. **Không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên (Bước 10).
 - Audit ghi cùng transaction: `account.security_events` với `subject_sub` = `sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref`.
 
@@ -99,7 +99,7 @@ Câu đầu chứng minh Account này chưa có đường đăng nhập nào kh�
 
 Ghi một hàng `staff_access.staff` với `sub` từ bước 4, `display_name` rỗng (hồ sơ canonical ở `account`), status `active`. Bảng **không có cột email** và không được thêm.
 
-`sub` được kiểm hai lớp tại Staff Access: `isSubject` ở tầng ứng dụng, CHECK `^sub_[a-z2-7]{32}$` ở tầng bảng. Procedure chỉ dùng `sub` **do bước 4 trả ra trong cùng lần chạy** (create) hoặc đã được bước đó xác nhận còn sống (recovery). `GET /internal/account/status?sub=` là lớp kiểm bổ sung **khi** environment đã có envelope credential; nó không thay thế bước 4.
+`sub` được kiểm hai lớp tại Staff Access: `isStaffSubFormat` (`libs/staff-access-contracts`) ở tầng ứng dụng, CHECK `^sub_[a-z2-7]{32}$` ở tầng bảng — không dùng `isSubject` của `libs/account-domain`, vì nó mang tag `scope:account` và nằm ngoài phạm vi phụ thuộc của `staff-access`. Procedure chỉ dùng `sub` **do bước 4 trả ra trong cùng lần chạy** (create) hoặc đã được bước đó xác nhận còn sống (recovery). `GET /internal/account/status?sub=` là lớp kiểm bổ sung **khi** environment đã có envelope credential; nó không thay thế bước 4.
 
 Audit `authorization_audit` ghi cùng transaction: `target` = `staff.id`, `actor_staff_id`/`actor_sub` NULL, `outcome = 'success'`, `correlation_id` của lần chạy.
 
@@ -107,7 +107,7 @@ Audit `authorization_audit` ghi cùng transaction: `target` = `staff.id`, `actor
 
 Insert một `staff_access.role_assignments` trỏ staff ở bước 5 và role system administrator đã seed; `granted_by` NULL (bootstrap/migrator-created).
 
-- Procedure **chỉ gán role**, không cấp từng permission: nội dung quyền của role là `role_permissions` sealed, hiện gồm `staff.read`, `role.read`, `permission.read`, `audit.read` (ADR-0021 Quyết định 4, 8).
+- Procedure **chỉ gán role**, không cấp từng permission: nội dung quyền của role là `role_permissions` sealed, **sau seed migration của #17** gồm `staff.read`, `role.read`, `permission.read`, `audit.read` (ADR-0021 Quyết định 4, 8). Hiện tại role chưa tồn tại và catalog mới có ba permission.
 - Insert-if-absent trong cùng transaction với audit row (`target` = `assignment.id`).
 - **Không** tạo assignment trùng: chạy lại phải hội tụ. ⚠️ `role_assignments` hiện chỉ có PK trên `id`; unique index bộ phận `(staff_id, role_id) WHERE revoked_at IS NULL` là yêu cầu schema của #17, chưa có ở thời điểm tài liệu này.
 - Nhiều administrator được phép — không có ràng buộc singleton.
@@ -128,11 +128,11 @@ Hai bảng, hai chủ sở hữu, không bảng mới (ADR-0021 Quyết định 
 
 ### Bước 8 — S3: đọc lại và verify
 
-Chạy bằng credential S, đọc trực tiếp ba câu:
+Chạy bằng credential S, đọc trực tiếp bốn câu:
 
 1. `SELECT id, status FROM staff_access.staff WHERE sub = <sub>` → đúng một row, `active`.
-2. `SELECT role_id, revoked_at FROM staff_access.role_assignments WHERE staff_id = <staff.id>` → đúng một assignment còn hiệu lực trỏ role administrator; không có bản ghi trùng.
-3. `SELECT id FROM staff_access.role_permissions WHERE role_id = <role.id>` → đúng tập permission đã chốt (4 read).
+2. `SELECT role_id, revoked_at FROM staff_access.role_assignments WHERE staff_id = <staff.id> AND revoked_at IS NULL` → đúng một assignment còn hiệu lực trỏ role administrator; không có bản ghi trùng. Bỏ `AND revoked_at IS NULL` sẽ trả cả lịch sử đã thu hồi và không chứng minh được gì.
+3. `SELECT permission_id FROM staff_access.role_permissions WHERE role_id = <role.id>` → đúng tập permission đã chốt (bốn read). Bảng `role_permissions` chỉ có `role_id`, `permission_id`, `created_at` — **không có cột `id`**.
 4. Audit: có row `authorization_audit` cho cả S1 và S2 với cùng `correlation_id`.
 
 Unit chỉ được coi là hoàn tất khi **cả bốn** kiểm đạt. Kiểm tra là truy vấn đọc được, không dựa vào log (ADR-0020 Quyết định 8).
@@ -151,7 +151,7 @@ Lỗi ở bước nào cũng để lại một **tiền tố hợp lệ**, khôn
 
 ⚠️ **Chạy lại sau khi assignment đã bị thu hồi tái tạo quyền.** Unique index bộ phận `(staff_id, role_id) WHERE revoked_at IS NULL` không chứa hàng đã `revoked_at`, nên một lần chạy lại S2 với cùng `sub` **insert assignment mới đang hiệu lực**. Đây là hệ quả có chủ ý của idempotency theo natural key, và là lý do: (a) bề mặt này không được nối vào pipeline deploy của environment thật; (b) trên hệ thống đang chạy, cấp lại quyền administrator là **recovery**, phải qua hai-phím; (c) thu hồi quyền vì lý do bảo mật phải đi kèm thu hồi credential vận hành hoặc đổi input canonical, nếu không lần chạy lại sẽ khôi phục quyền (ADR-0021 Quyết định 5).
 
-**Không xoá Account đã tạo hợp lệ vì một bước sau thất bại.** Account chưa có staff chỉ là một Account chưa có quyền; xoá nó tạo tombstone `sub` vĩnh viễn và đi ngược forward-fix (`architecture/01-architecture.md` invariant 11). Không có compensating step, không có rollback dữ liệu.
+**Không xoá Account đã tạo hợp lệ vì một bước sau thất bại.** Account chưa có staff chỉ là một Account chưa có quyền; xoá nó tạo tombstone `sub` vĩnh viễn và đi ngược forward-fix (`architecture/01-architecture.md` §9 invariant 10). Không có compensating step, không có rollback dữ liệu.
 
 ### Bước 10 — Lần đăng nhập đầu tiên và quyền sở hữu Account về sau
 
@@ -189,8 +189,8 @@ Bốn câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết
 
 ## 5. Operational invariants
 
-1. Không bề mặt serving nào tạo Account, staff, role hay assignment (ADR-0021 Quyết định 9, invariant 36).
-2. Procedure chỉ ghi `db-staff-access`; không `CONNECT`, không đọc, không ghi `db-account` ngoài bước do `account` sở hữu.
+1. Không bề mặt serving nào thực hiện **bootstrap**: tạo Account, tạo staff identity, seed role, hay gán role system administrator lần đầu (ADR-0021 Quyết định 9). Route quản trị định kỳ `POST /staff/:id/assignments` và `POST /assignments/revoke` **có** tồn tại và không phải bootstrap — chúng gán/thu hồi trên một hệ thống đã có administrator, dưới authorization riêng.
+2. Procedure chỉ ghi `db-staff-access`. Bước chạm `db-account` do `account` sở hữu và thực thi; không credential `staff-access` nào chạy `SELECT`/`INSERT` trên `db-account`.
 3. Không transaction xuyên database, không compensating step; chạy lại toàn bộ là phục hồi.
 4. Không đánh dấu email `verified` trong bootstrap.
 5. Role và permission là dữ liệu sealed từ migration/seed; procedure chỉ gán.
