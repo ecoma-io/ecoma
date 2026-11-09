@@ -24,6 +24,8 @@ export const app = defineCommand({
     'semgrep-test-local': () => import('./security/semgrep-test-local.js').then((m) => m.default),
     'semgrep-test-ci': () => import('./security/semgrep-test-ci.js').then((m) => m.default),
     'commit-signing': () => import('./security/commit-signing-command.js').then((m) => m.default),
+    'bootstrap-superadmin': () =>
+      import('./bootstrap/bootstrap-superadmin-command.js').then((m) => m.default),
     'local-status': () =>
       import('./deployment/local-platform/local-status-command.js').then((m) => m.default),
     'local-cleanup': () =>
