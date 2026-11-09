@@ -22,10 +22,11 @@
  * của stack này), nên container KHÔNG publish port ra host, KHÔNG mang label
  * `traefik.*`. Readiness là readiness NGHIỆP VỤ: Docker healthcheck poll
  * `GET /ready` của worker — route này nạp config (binding Hyperdrive + secret
- * HMAC) rồi chạy một truy vấn thật qua **credential runtime**
- * (`SELECT 1 FROM staff_access.staff LIMIT 1`), nên 200 chứng minh schema đã
- * migrate và role runtime đọc được DB của chính nó. `/health` (không chạm DB)
- * giữ vai trò liveness và không được dùng làm bằng chứng readiness.
+ * HMAC) rồi đọc đúng tập cột mà serving path đọc trên `staff_access.staff`
+ * và bảng `staff_access.internal_nonces` (do `0005` tạo) bằng **credential
+ * runtime**, nên 200 chứng minh schema đã migrate và role runtime đọc được DB
+ * của chính nó. `/health` (không chạm DB) giữ vai trò liveness và không được
+ * dùng làm bằng chứng readiness.
  *
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-staff-access` + hai role
@@ -42,15 +43,12 @@
  * seed (docs `domains/staff-access/domain-model.md` §3.4, quyết định chưa chốt).
  */
 
-import * as crypto from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import * as path from 'node:path';
-
 import * as command from '@pulumi/command';
 import * as docker from '@pulumi/docker';
 import * as dockerBuild from '@pulumi/docker-build';
 import * as pulumi from '@pulumi/pulumi';
 
+import { sha256DistTree } from './bundle-hash.js';
 import {
   LABEL_PREFIX,
   type PlatformOutputs,
@@ -110,6 +108,29 @@ const ns = worktreeNamespace(worktreeRoot);
 // Labels ownership: gắn lên MỌI Docker resource (image + container + volume)
 // để `pnpm dx local-cleanup` phân loại được.
 const labels = ownershipLabels(normalizeWorktreeRoot(worktreeRoot), ns);
+
+/**
+ * Bundle-hash trigger cho container WIC — cùng cơ chế `deploys/auth-deploy`.
+ *
+ * Vì sao cần: `dist/` được build trên host và mount bind vào container, nên nội
+ * dung bundle KHÔNG phải input của Pulumi. Rebuild `dist` mà không đổi gì khác
+ * thì Pulumi thấy container y nguyên và không recreate — container tiếp tục chạy
+ * bundle cũ (entrypoint chỉ copy `dist` một lần lúc boot). Hash của cây `dist`
+ * đổi ⇒ label đổi ⇒ container recreate ⇒ entrypoint copy bundle mới.
+ *
+ * Hàm hash nằm ở `bundle-hash.ts` (không Pulumi) để test được bằng Vitest;
+ * xem JSDoc ở đó cho định dạng hash và lý do fail-fast. `@pulumi/docker` 5.2.0
+ * `Container` KHÔNG có property `triggers` — label là cơ chế ForceNew tương
+ * đương (xem JSDoc đầy đủ ở `deploys/auth-deploy/index.ts`).
+ *
+ * ⚠️ Tính Ở ĐÂY, trước mọi `new …Resource`: Pulumi bắt đầu apply resource ngay
+ * khi chúng được đăng ký, trong lúc chương trình còn đang đánh giá. Hàm này ném
+ * khi cây `dist` không đọc được (fail-fast — xem `bundle-hash.ts`), và một lần
+ * ném sau `provision`/`migrate` có thể để update dừng giữa chừng với database
+ * đã provision. Tính trước để lỗi bundle dừng chương trình trước khi có gì được
+ * đăng ký.
+ */
+const wicBundleHash = pulumi.output(sha256DistTree(worktreeRoot, 'apps/staff-access/dist'));
 
 const platform = new pulumi.StackReference(conf.require('platformStackRef'));
 
@@ -191,7 +212,13 @@ $PSQL -c 'GRANT CONNECT ON DATABASE "db-staff-access" TO ecoma_staff_access_runt
 #     không được cấp/rút quyền thay. db-account/db-auth đã rút PUBLIC nên ở
 #     đó thu hồi này là hiệu lực thật.
 for TARGET in db-account db-auth db-backoffice; do
-  if $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$TARGET'" | grep -q 1; then
+  # ⚠️ Gan ket qua vao bien TRUOC roi moi so sanh: 'set -e' khong ap dung cho
+  # dieu kien cua 'if', nen dang 'if $PSQL ... | grep -q 1' thi mot lan psql
+  # loi (database dang restart, socket loi) bi doc thanh "khong ton tai" va
+  # REVOKE bi bo qua trong im lang — command resource van bao thanh cong.
+  # Voi phep gan, lenh substitution loi lam ca script dung (fail-closed).
+  EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$TARGET'")
+  if [ "$EXISTS" = "1" ]; then
     $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_migrator"
     $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_runtime"
   fi
@@ -263,57 +290,6 @@ const migrate = new command.local.Command(
  * cấm đường serving (route/flag runtime), không cấm bước provisioning — hợp đồng
  * canonical là `docs/architecture/02-delivery.md` §3.2 + ADR-0020.
  */
-
-/**
- * Bundle-hash trigger cho container WIC — cùng cơ chế `deploys/auth-deploy`.
- *
- * Vì sao cần: `dist/` được build trên host và mount bind vào container, nên nội
- * dung bundle KHÔNG phải input của Pulumi. Rebuild `dist` mà không đổi gì khác
- * thì Pulumi thấy container y nguyên và không recreate — container tiếp tục chạy
- * bundle cũ (entrypoint chỉ copy `dist` một lần lúc boot). Hash của cây `dist`
- * đổi ⇒ label đổi ⇒ container recreate ⇒ entrypoint copy bundle mới.
- *
- * Cơ chế: SHA-256 tính TRỰC TIẾP trên nội dung cây `dist` bằng code Node trong
- * Pulumi program (hàm thuần sync, chạy mỗi lần đánh giá program — không phụ
- * thuộc trigger nào nhớ trạng thái cũ). Hash bao phủ cả TÊN FILE lẫn nội dung;
- * walk sort theo tên để thứ tự duyệt không đổi kết quả. `@pulumi/docker` 5.2.0
- * `Container` KHÔNG có property `triggers` — label là cơ chế ForceNew tương
- * đương (xem JSDoc đầy đủ ở `deploys/auth-deploy/index.ts`).
- *
- * Dist vắng mặt (chưa build) vẫn hash được (giá trị xác định) — không fail
- * closed ở đây; guard `wic.fatal: dist_missing` của entrypoint là nơi fail
- * tường minh. Hash này chỉ là thay đổi-detector, không phải dữ liệu bảo mật.
- */
-function sha256DistTree(rootDir: string, relDir: string): string {
-  const treeRoot = path.join(rootDir, relDir);
-  const hash = crypto.createHash('sha256');
-  if (!existsSync(treeRoot)) {
-    return hash.digest('hex');
-  }
-  const files: string[] = [];
-  const walk = (dir: string): void => {
-    const entries = [...readdirSync(dir, { withFileTypes: true })];
-    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    for (const entry of entries) {
-      const filePath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(filePath);
-      } else if (entry.isFile()) {
-        files.push(path.relative(treeRoot, filePath).split(path.sep).join('/'));
-      }
-    }
-  };
-  walk(treeRoot);
-  for (const relFile of files) {
-    hash.update(relFile);
-    hash.update('\0');
-    hash.update(readFileSync(path.join(treeRoot, relFile)));
-    hash.update('\0');
-  }
-  return hash.digest('hex');
-}
-
-const wicBundleHash = pulumi.output(sha256DistTree(worktreeRoot, 'apps/staff-access/dist'));
 
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
