@@ -222,11 +222,11 @@ Từ đây Account thuộc về người dùng: đổi email, MFA/passkey, sessi
 
 Ba đường tách biệt, mỗi đường có authorization riêng và **không** đường nào được "nâng cấp" im lặng thành đường khác (ADR-0023 Quyết định 1):
 
-| Đường                | Tiền đề                                               | Authorization                    | Bề mặt                                                              |
-| -------------------- | ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
-| Bootstrap            | `admins_before = 0` **và** `admins_ever = 0`          | Không approval                   | §2                                                                  |
-| Bổ nhiệm thường (2+) | Đã có administrator; target là staff `active`         | Permission ghi, qua route thật   | `POST /staff/:id/assignments` — **chưa enforce, chưa có catalog**   |
-| Emergency recovery   | Identity còn sống (`verified`), assignment đã thu hồi | Hai-phím có bằng chứng kiểm được | §3.2 — **chưa hiện thực** (đường) và **chưa cấu hình** (bằng chứng) |
+| Đường                | Tiền đề                                                                               | Authorization                    | Bề mặt                                                              |
+| -------------------- | ------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| Bootstrap            | `admins_before = 0` **và** `admins_ever = 0`                                          | Không approval                   | §2                                                                  |
+| Bổ nhiệm thường (2+) | Đã có administrator; target là staff `active`                                         | Permission ghi, qua route thật   | `POST /staff/:id/assignments` — **chưa enforce, chưa có catalog**   |
+| Emergency recovery   | Identity còn sống (`verified`) và **đã từng** là administrator; assignment đã thu hồi | Hai-phím có bằng chứng kiểm được | §3.2 — **chưa hiện thực** (đường) và **chưa cấu hình** (bằng chứng) |
 
 ### 3.1 Bổ nhiệm thường — đường hợp lệ duy nhất cho administrator thứ hai
 
@@ -244,11 +244,13 @@ Recovery chạy trên **một** database (`db-staff-access`) và **không** có 
 2. **Đọc staff row theo `sub`**: đúng một hàng, status `active`.
 3. **Phân giải canonical administrator role**: đúng một hàng `(kind = 'system', name = <định danh canonical>)`; khác một hàng → từ chối `role_identity_ambiguous`.
 4. **Đo guard** dưới advisory lock (Bước 7 của §2) và đối chiếu `mode = 'recovery'`.
-5. **Kiểm bằng chứng hai-phím** (§3.3). Thiếu hoặc không kiểm được → từ chối.
-6. **Phép ghi duy nhất:** trong một transaction của `db-staff-access`, insert **một assignment mới** trỏ canonical role, `granted_by` NULL, rồi ghi audit `success` với số đo.
+5. **Kiểm target đã từng là administrator**: có ít nhất một hàng `role_assignments` cho `staff_id` đó trỏ canonical role, **bất kể** `revoked_at` và cửa sổ hiệu lực. Không có → từ chối `not_a_recovery_target`. Điều kiện này độc lập với bước 6: thiếu nó, recovery cấp quyền administrator cho người chưa từng giữ role, tức một đường bổ nhiệm có approval bỏ qua permission ghi.
+6. **Kiểm bằng chứng hai-phím** (§3.3). Thiếu hoặc không kiểm được → từ chối.
+7. **Phép ghi duy nhất:** trong một transaction của `db-staff-access`, insert **một assignment mới** trỏ canonical role, `granted_by` NULL, rồi ghi audit `success` với số đo.
 
 - **Không hồi sinh hàng đã thu hồi.** `revoked_at` giữ nguyên; assignment mới có `id` mới. Lịch sử thể hiện một lần thu hồi và một lần cấp lại, và trigger `role_assignment_revoke_only` chặn runtime un-revoke.
 - **Assignment còn hiệu lực đã có → từ chối `already_administrator`.** Không tạo hàng trùng, và không dùng recovery như no-op: người đó không mất quyền, nên không có gì để khôi phục. Cấp quyền cho người **khác** là §3.1.
+- **Chưa từng giữ canonical administrator role → từ chối `not_a_recovery_target`.** Recovery chỉ khôi phục authority đã từng có, không cấp lần đầu; cấp lần đầu là §3.1, và khi §3.1 chưa chạy được thì fail closed.
 - **Fail-closed:** Account `suspended`/`deleted`; staff `suspended`/`terminated`; nhiều hơn một Account cho địa chỉ; không có hàng `verified`; role không phân giải được; `mode` không khớp. Mỗi trường hợp dừng, exit khác 0, một audit row `denied`.
 - **Retry:** lỗi trước commit không để lại gì; commit rồi thì chạy lại thấy assignment còn hiệu lực và từ chối. Không có trạng thái nửa vời xuyên database — đây là khác biệt cấu trúc so với bootstrap.
 - **Account bị suspend sau lần đọc không tự thu hồi assignment.** Hai trục độc lập (invariant 8); đảo suspend là thao tác có audit của `account`, không phải một bước của recovery.
@@ -290,4 +292,4 @@ Các câu này thuộc policy vận hành/bảo mật; Issue #11 không quyết 
 9. Chạy lại sau khi đã thu hồi assignment **sẽ** tái tạo quyền nếu được phép chạy — guard chặn điều đó ở `mode = 'bootstrap'` bằng `admins_ever`, nên đường tái tạo chỉ còn là `recovery` + hai-phím (§3.2–§3.3); vì vậy bề mặt này không thuộc pipeline deploy của environment thật.
 10. Guard "chưa có administrator" là số đo race-safe trong critical section ghi của `staff-access`, dưới advisory lock; `mode` bị đối chiếu với số đo và một lần chạy sai chế độ bị **từ chối**, không ghi dữ liệu (ADR-0022). Guard chỉ chặn — nó không cấp, không sửa, không hồi sinh.
 11. Không credential database nào được dùng trong phiên tương tác của người vận hành; mọi bước ghi chạy qua service CLI/CI job.
-12. Bổ nhiệm administrator thứ hai **không** đi qua procedure bootstrap và **không** cần hai-phím; recovery **không** tạo identity, staff hay Account. Ba đường không thay thế nhau (ADR-0023 Quyết định 1, 2, 4).
+12. Bổ nhiệm administrator thứ hai **không** đi qua procedure bootstrap và **không** cần hai-phím; recovery **không** tạo identity, staff hay Account, và **không** cấp quyền administrator lần đầu cho bất kỳ ai (`not_a_recovery_target`). Ba đường không thay thế nhau (ADR-0023 Quyết định 1, 2, 4).
