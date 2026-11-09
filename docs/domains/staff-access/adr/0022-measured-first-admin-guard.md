@@ -30,7 +30,7 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
 ## Quyết định
 
 1. **Guard nằm trong critical section ghi của `staff-access`, không ở entry point.** Bước Staff Access mở transaction, lấy advisory lock, **đo** số administrator, rồi mới quyết định ghi hay dừng. Không có cửa sổ giữa phép đọc và phép ghi.
-2. **`admins_before` là số đo, không phải input.** Procedure tự tính bằng truy vấn canonical ở Quyết định 4, và ghi giá trị **nó đo được** vào `authorization_audit.context` và `account.security_events.metadata`. Giá trị do người chạy truyền vào không được dùng cho bất kỳ quyết định nào và không được ghi như thể là số đo.
+2. **`admins_before` là số đo, không phải input.** Procedure tự tính bằng truy vấn canonical ở Quyết định 4, và ghi giá trị **nó đo được** vào `staff_access.authorization_audit.context`. Đó là bảng duy nhất mang được hai số đo: phép đo chạy trong critical section của `staff-access`, và `staff-access` không có `CONNECT` sang `db-account`, nên `account.security_events` không phải đích ghi được của nó — row `security_events` của lần chạy do A1 ghi **trước** khi đo, và không mang hai số đo (ADR-0021 Quyết định 6, runbook §2 Bước 3 và Bước 7). Giá trị do người chạy truyền vào không được dùng cho bất kỳ quyết định nào và không được ghi như thể là số đo.
 3. **`mode` là lời khai của người chạy, và bị đối chiếu với số đo — hai số đo, không phải một.**
    - `admins_before = 0` **và** `admins_ever = 0` → chỉ chấp nhận `mode = 'bootstrap'`.
    - `admins_before > 0` **hoặc** `admins_ever > 0` → chỉ chấp nhận `mode = 'recovery'`, và chỉ khi authorization hai-phím của ADR-0003 đã được chứng minh ngoài hệ thống.

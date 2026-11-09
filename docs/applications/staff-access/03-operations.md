@@ -21,7 +21,7 @@
 
 ## 2. Bootstrap first-administrator
 
-**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`). Nếu một trong hai khác 0, procedure **từ chối** — nó không có nhánh tự chuyển sang recovery. Recovery là bề mặt khác, ở §3.2, và đòi một identity **đã `verified`**, nên nó **không** phục vụ được trạng thái "email còn `pending` nhưng `admins_ever > 0`": trạng thái đó fail closed cho tới khi người giữ hộp thư hoàn tất lần verify đầu (Bước 10) rồi đi tiếp bằng §3.2. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi dữ liệu nghiệp vụ, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). ⚠️ Row `denied` phải được **commit ngoài transaction guard** — `ROLLBACK` của transaction đó cuốn theo nó và lần từ chối mất dấu vết; kiểm bằng `SELECT … WHERE correlation_id = <id>` sau khi exit, đúng một row (ADR-0023 Quyết định 6). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
+**Điều kiện áp dụng:** `admins_before = 0` **và** `admins_ever = 0` cho **bootstrap** (`mode = 'bootstrap'`). Nếu một trong hai khác 0, procedure **từ chối** — nó không có nhánh tự chuyển sang recovery. Recovery là bề mặt khác, ở §3.2, và đòi một identity **đã `verified`**, nên nó **không** phục vụ được trạng thái "email còn `pending` nhưng `admins_ever > 0`": trạng thái đó fail closed cho tới khi người giữ hộp thư hoàn tất lần verify đầu (Bước 10) rồi đi tiếp bằng §3.2. Procedure **tự đo** cả hai con số trong critical section ghi của `staff-access`, dưới advisory lock, rồi **từ chối** khi `mode` không khớp số đo — exit khác 0, không ghi staff và không ghi assignment, một audit row `outcome = 'denied'` với lý do `mode_mismatch` trong `staff_access.authorization_audit` (ADR-0022). Bước A1 đã commit trước đó, nên một lần bị từ chối vẫn để lại Account và hàng email `pending` nếu địa chỉ chưa có chủ (Bước 9). ⚠️ Row `denied` phải được **commit ngoài transaction guard** — `ROLLBACK` của transaction đó cuốn theo nó và lần từ chối mất dấu vết; kiểm bằng `SELECT … WHERE correlation_id = <id>` sau khi exit, đúng một row (ADR-0023 Quyết định 6). Entry point giữ một lớp kiểm trước để fail nhanh, nhưng nó **không** phải lớp bảo vệ chính và không thay lớp trong procedure.
 
 ⚠️ `admins_before` và `admins_ever` là **số đo do procedure tính**, không phải giá trị người chạy truyền vào: chúng đi vào audit dưới dạng kết quả đo, và không được dùng cho bất kỳ quyết định nào khi là input. Hai truy vấn canonical ở Bước 7 — chúng đếm hai thứ khác nhau: `admins_before` đếm **administrator còn hiệu lực** (`count(DISTINCT staff_id)`), `admins_ever` đếm **hàng assignment từng tồn tại** của role canonical, nên nó chỉ dùng làm ngưỡng khác 0 và không bao giờ được báo cáo như số administrator (ADR-0022 Quyết định 4).
 
@@ -133,33 +133,14 @@ Hai bảng, hai chủ sở hữu, không bảng mới (ADR-0021 Quyết định 
 | `account.security_events`          | A1         | `subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, `metadata.operator_ref` — **không** có hai số đo, vì A1 chạy trước critical section đo (bảng **không có** cột `correlation_id`) |
 | `staff_access.authorization_audit` | S1, S2     | actor NULL, target `staff.id`/`assignment.id`, action, outcome, `correlation_id`, `context.mode`, `context.operator_ref`, `context.admins_before`, `context.admins_ever`, `context.noop` khi bước hội tụ không ghi dữ liệu                 |
 
-- `mode` là `bootstrap` hoặc `recovery`. `admins_before` và `admins_ever` là **số đo do procedure tính** trước khi ghi, bằng hai truy vấn canonical dưới đây — **không** phải input, và `admins_before` không phải `count(*) … WHERE revoked_at IS NULL`:
+- `mode` là `bootstrap` hoặc `recovery`. `admins_before` và `admins_ever` là **số đo do procedure tính** trước khi ghi — **không** phải input. Câu SQL canonical của cả hai phép đo nằm ở một chỗ duy nhất: [ADR-0022](../../domains/staff-access/adr/0022-measured-first-admin-guard.md) Quyết định 4; procedure dùng đúng câu ở đó, không dùng bản viết lại.
 
-  ```sql
-  SELECT count(DISTINCT ra.staff_id)
-  FROM staff_access.role_assignments ra
-  JOIN staff_access.roles r ON r.id = ra.role_id
-  JOIN staff_access.staff s ON s.id = ra.staff_id
-  WHERE r.kind = 'system' AND r.name = <định danh canonical>
-    AND r.status = 'active'
-    AND s.status = 'active'
-    AND ra.revoked_at IS NULL
-    AND (ra.effective_from IS NULL OR ra.effective_from <= now())
-    AND (ra.effective_until IS NULL OR ra.effective_until > now());
-  ```
+  Hệ quả vận hành phải giữ, không phải chi tiết của câu truy vấn:
 
-  `revoked_at IS NULL` một mình đếm cả role không phải administrator, bỏ qua cửa sổ hiệu lực, và tính cả staff đã `terminated` — đo ra `admins_before = 1` trong khi không còn administrator hiệu lực nào. `count(DISTINCT staff_id)` chứ không `count(*)`: một staff có hai assignment còn hiệu lực vẫn là **một** administrator (ADR-0022 Quyết định 4).
-
-  **Phép đo thứ hai — `admins_ever` — bắt buộc phải có, không phải thông tin thêm.** `admins_before` đếm assignment **còn hiệu lực**, nên nó về 0 ngay sau khi assignment cuối cùng bị `revoked_at`. Chỉ so `admins_before` thì một lần chạy `mode = 'bootstrap'` sau khi thu hồi quyền administrator cuối cùng sẽ được **chấp nhận** và insert assignment mới — tức khôi phục đúng quyền vừa bị thu hồi mà không có hai-phím. Câu đo thứ hai bỏ mọi bộ lọc trạng thái:
-
-  ```sql
-  SELECT count(*)
-  FROM staff_access.role_assignments ra
-  JOIN staff_access.roles r ON r.id = ra.role_id
-  WHERE r.kind = 'system' AND r.name = <định danh canonical>;
-  ```
-
-  Guard chấp nhận `bootstrap` chỉ khi **cả** `admins_before = 0` **và** `admins_ever = 0`; mọi cặp khác bị từ chối. Hệ quả phải nói thẳng: một environment đã từng có administrator **không** bootstrap lại được, kể cả khi hiện không còn ai — đó chính là hành vi mong muốn. Guard chỉ chặn; nó **không** cấp lại quyền. Đường cấp lại là §3.2, và §3.2 chỉ nhận identity **đã `verified`** — nên một email còn `pending` với `admins_ever > 0` không đi được đường nào cho tới khi verify đầu tiên hoàn tất (Bước 10).
+  - `admins_before` đếm **administrator còn hiệu lực** (`count(DISTINCT staff_id)`), nên `revoked_at IS NULL` một mình là sai: nó tính cả role không phải administrator, bỏ qua cửa sổ hiệu lực, và tính cả staff đã `terminated`. Đếm theo `staff_id` chứ theo số hàng: một staff có hai assignment còn hiệu lực vẫn là **một** administrator.
+  - `admins_ever` **bắt buộc phải có, không phải thông tin thêm.** `admins_before` về 0 ngay sau khi assignment cuối cùng bị `revoked_at`, nên chỉ so nó thì một lần `mode = 'bootstrap'` sau khi thu hồi quyền administrator cuối cùng sẽ được **chấp nhận** và insert assignment mới — tức khôi phục đúng quyền vừa bị thu hồi mà không có hai-phím. `admins_ever` bỏ mọi bộ lọc trạng thái và chỉ dùng làm ngưỡng khác 0.
+  - Guard chấp nhận `bootstrap` chỉ khi **cả** `admins_before = 0` **và** `admins_ever = 0`; mọi cặp khác bị từ chối. Một environment đã từng có administrator **không** bootstrap lại được, kể cả khi hiện không còn ai. Đường cấp lại là §3.2, và §3.2 chỉ nhận identity **đã `verified`** — nên một email còn `pending` với `admins_ever > 0` không đi được đường nào cho tới khi verify đầu tiên hoàn tất (Bước 10).
+  - Guard chỉ chặn; nó **không** cấp lại quyền.
 
   **Hai số đo được lấy ngay sau khi lấy advisory lock và trước bất kỳ phép ghi nào của S1/S2** — không phải sau S2, vì khi đó lần chạy vừa tạo đã được tính vào. Cùng giá trị đo được dùng cho cả quyết định của guard lẫn audit row, nên audit không thể ghi một số khác với số đã quyết định.
 
@@ -197,7 +178,7 @@ Một lỗi ở bước nào — khi các bước trước đã commit — cũng
 | 6 (S2)     | Assignment chưa commit                          | Insert-if-absent theo `(staff_id, role_id)` khi chưa có hàng còn hiệu lực      |
 | 8 (S3)     | Dữ liệu đủ, verify sai                          | Không coi là xong; sửa nguyên nhân rồi verify lại                              |
 
-⚠️ **Hai trạng thái ranh giới của retry.** (a) Assignment **hết hạn nhưng chưa `revoked_at`**: lần chạy lại lỗi duplicate key dù quyền hiệu lực bằng 0 — dừng và báo, không tự sửa. (b) Một lần chạy `mode = 'bootstrap'` trên environment đã từng có administrator bị guard **từ chối**: không ghi dữ liệu nghiệp vụ, nhưng **có** ghi đúng một audit row `outcome = 'denied'` — "không để lại dữ liệu" ở đây nghĩa là không có staff/assignment/Account mới, không phải không có dấu vết; chính row đó là thứ alert dựa vào. Chạy lại **không** sửa được trạng thái đó: guard đã đo đúng, và cấp lại quyền không phải việc của procedure này — nó là §3.2 (#46).
+⚠️ **Hai trạng thái ranh giới của retry.** (a) Assignment **hết hạn nhưng chưa `revoked_at`**: lần chạy lại lỗi duplicate key dù quyền hiệu lực bằng 0 — dừng và báo, không tự sửa. (b) Một lần chạy `mode = 'bootstrap'` trên environment đã từng có administrator bị guard **từ chối**: không ghi staff và không ghi assignment, nhưng **có** ghi đúng một audit row `outcome = 'denied'` — chính row đó là thứ alert dựa vào. ⚠️ **A1 đã commit trước khi guard chạy.** Thứ tự bắt buộc là A1 → A2 → S1 → S2, và phép đo nằm trong critical section ghi của S1/S2, nên một lần bị từ chối **vẫn để lại** một Account mới cùng hàng email `pending` (và một row `security_events` `success` của A1) khi địa chỉ bootstrap chưa có chủ. Đó không phải một lần "không có hệ quả": nó là Account chưa có quyền, giữ lại theo forward-fix (§"Không xoá Account đã tạo hợp lệ"), và là lý do entry point phải kiểm trước (§2, ADR-0022 Quyết định 7) — với gọi thẳng CLI thì không có lớp nào chặn trước A1. Chạy lại **không** sửa được trạng thái đó: guard đã đo đúng, và cấp lại quyền không phải việc của procedure này — nó là §3.2 (#46).
 
 ⚠️ **Chạy lại sau khi assignment đã bị thu hồi chỉ tái tạo quyền qua đường recovery của §3.2, không qua procedure này.** Unique index bộ phận `(staff_id, role_id) WHERE revoked_at IS NULL` không chứa hàng đã `revoked_at`, nên một lần chạy lại S2 với cùng `sub` **sẽ** insert assignment mới đang hiệu lực. Đó chính là lý do guard đo thêm `admins_ever` (ADR-0022 Quyết định 3): sau khi thu hồi, `admins_before` về 0 nhưng `admins_ever` thì không, nên `mode = 'bootstrap'` bị **từ chối**. Hệ quả vận hành: (a) bề mặt này không được nối vào pipeline deploy của environment thật; (b) trên hệ thống đang chạy, cấp lại quyền administrator là §3.2 (ADR-0023 Quyết định 3, #46), không phải một chế độ của procedure này; (c) thu hồi quyền vì lý do bảo mật phải đi kèm thu hồi credential vận hành hoặc đổi input canonical (ADR-0021 Quyết định 5).
 
@@ -232,7 +213,7 @@ Ba đường tách biệt, mỗi đường có authorization riêng và **không
 
 Gán canonical administrator role cho một staff identity **đã tồn tại**, bởi một actor **đang có** permission ghi; không cần và **không** được dùng hai-phím (ADR-0023 Quyết định 2).
 
-⚠️ **Đường này chưa chạy được, và thiếu ba thứ độc lập:** catalog chưa có permission ghi nào (`role.assign`/`role.revoke` chỉ có trong prototype fixture); `apps/staff-access/src/routes.ts` mở `POST /staff/:id/assignments` nhưng **không** enforce permission, và actor có thể là `null`; không có caller nào gọi `insertStaff`, nên không có đường tạo staff identity cho người thứ hai. Ngoài ra Account cho người thứ hai chưa có đường tạo (#48). Theo dõi ở #44 và #48. Cho tới khi cả ba xong, **cảnh báo vận hành là: hệ thống chạy trong cửa sổ một administrator** — không có đường hợp lệ nào thêm người thứ hai, và mất administrator cuối cùng không khôi phục được.
+⚠️ **Đường này chưa chạy được, và thiếu ba thứ độc lập:** catalog chưa có permission ghi nào (`role.assign`/`role.revoke` chỉ có trong prototype fixture); `apps/staff-access/src/routes.ts` mở `POST /staff/:id/assignments` nhưng **không** enforce permission, và actor có thể là `null`; không có caller nào gọi `insertStaff`, nên không có đường tạo staff identity cho người thứ hai. Ngoài ra Account cho người thứ hai chưa có đường tạo (#48). Theo dõi ở #44 và #48. Cho tới khi cả ba xong, **cảnh báo vận hành là: hệ thống chạy trong cửa sổ một administrator** — không có đường hợp lệ nào thêm người thứ hai, và khi identity của administrator cuối cùng không còn dùng được (staff `terminated`, Account `deleted`) thì không khôi phục được — còn assignment bị thu hồi thì khôi phục được qua §3.2 khi #45/#46 xong.
 
 Điều kiện route phải giữ khi được hiện thực: principal lấy từ credential đã xác thực, không từ body; self-assignment bị từ chối (SR-005); target không `active` bị từ chối; assignment đã còn hiệu lực là no-op có audit, không tạo hàng trùng; audit actor là actor staff thật (SR-013).
 
