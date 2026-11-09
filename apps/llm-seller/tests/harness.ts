@@ -1,23 +1,23 @@
 /**
- * Harness mount cho unit test của `pact-broker-app`.
+ * Harness mount cho unit test của `llm-seller`.
  *
  * Ba lối vào:
- * - `mountPactBrokerPage(component, { runtimeConfig, fetchStub })` — mount một
- *   page với bridge state đã cài; dùng cho test trang dữ liệu.
- * - `mountPactBrokerApp({ page, route })` — mount `app.vue` (shell + `<NuxtPage />>`).
- * - `flush()` — `flushPromises` + `nextTick`: `onMounted` của `useAsyncState`
- *   chạy sau lượt render đầu, nên một lần flush sau mount là bắt buộc trước
- *   mọi assertion về dữ liệu.
+ * - `mountLlmSellerPage(component, { runtimeConfig, fetchEndpoints })` — mount
+ *   một page với bridge state đã cài; dùng cho test trang dữ liệu.
+ * - `mountLlmSellerApp({ page, path })` — mount `app.vue` (shell + `<NuxtPage />`).
+ * - `flush()` — `flushPromises` + `nextTick`: hook `onMounted` (nơi một page nạp
+ *   dữ liệu) chạy sau lượt render đầu, nên một lần flush sau mount là bắt buộc
+ *   trước mọi assertion về dữ liệu.
  *
  * ⚠️ Component trong `app/components/` được cấp bằng `import.meta.glob(...,
  * { eager: true })` — **không** liệt kê tay: component mới thêm mà không khai
  * ở đây render thành thẻ rỗng **không** báo lỗi. `eager: true` cố ý vì import
  * động chỉ resolve được sau khi cây đã render.
  *
- * ⚠️ `fetch` được stub qua `vi.stubGlobal('fetch', ...)`: page gọi
- * `fetch('/api/broker/...')` ở browser-relative path, và test cần mô phỏng
- * đúng hợp đồng đó — status + JSON body. Stub theo path prefix để một page
- * gọi nhiều endpoint vẫn hoạt động.
+ * ⚠️ `fetch` được stub qua `vi.stubGlobal('fetch', ...)`: một page tương lai sẽ
+ * gọi `fetch('/api/...')` ở browser-relative path, và test cần mô phỏng đúng hợp
+ * đồng đó — status + JSON body. Stub theo path prefix để một page gọi nhiều
+ * endpoint vẫn hoạt động.
  */
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { vi } from 'vitest';
@@ -35,7 +35,7 @@ import { i18n } from './nuxt-globals';
 const componentModules = import.meta.glob<{ default: Component }>('../app/components/**/*.vue', {
   eager: true,
 });
-const pactBrokerComponents: Record<string, Component> = Object.fromEntries(
+const llmSellerComponents: Record<string, Component> = Object.fromEntries(
   Object.entries(componentModules).map(([path, module]) => {
     const base = path.split('/').pop() ?? path;
     return [base.replace(/\.vue$/u, ''), module.default];
@@ -44,7 +44,7 @@ const pactBrokerComponents: Record<string, Component> = Object.fromEntries(
 
 /** Một stub endpoint: khớp theo prefix path, trả status + JSON. */
 export interface FetchEndpoint {
-  /** Prefix path, ví dụ `/api/broker/pacts`. */
+  /** Prefix path, ví dụ `/api/overview`. */
   readonly path: string;
   readonly status?: number;
   readonly body?: unknown;
@@ -76,14 +76,19 @@ export interface MountPageOptions {
   readonly fetchEndpoints?: readonly FetchEndpoint[];
 }
 
-/** Cấu hình runtime mặc định: BFF "đã cấu hình" với giá trị giả an toàn. */
-export const CONFIGURED_RUNTIME: Record<string, unknown> = {
-  pactBrokerApiBaseUrl: 'https://broker-api.test',
-  pactBrokerApiToken: 'test-token-not-a-secret',
-};
+/**
+ * Runtime config mặc định của test.
+ *
+ * ⚠️ `llm-seller` hiện **không có** runtime config (chưa có BFF route nào cần
+ * cấu hình hay secret — xem `nuxt.config.ts`), nên giá trị đúng là object rỗng.
+ * Khai một key giả ở đây sẽ dạy test rằng app có cấu hình mà production không
+ * có, và một page đọc nhầm key sẽ xanh nhầm. Test nào cần cấu hình thì truyền
+ * `runtimeConfig` tường minh.
+ */
+export const CONFIGURED_RUNTIME: Record<string, unknown> = {};
 
 /** Mount một page component với bridge state + fetch stub. */
-export async function mountPactBrokerPage(
+export async function mountLlmSellerPage(
   component: Component,
   options: MountPageOptions = {},
 ): Promise<VueWrapper> {
@@ -93,7 +98,7 @@ export async function mountPactBrokerPage(
   }
   const wrapper = mount(component, {
     global: {
-      components: { ...pactBrokerComponents, NuxtLink: NuxtLinkStub },
+      components: { ...llmSellerComponents, NuxtLink: NuxtLinkStub },
       plugins: [i18n],
     },
   });
@@ -127,7 +132,7 @@ export async function flush(): Promise<void> {
  * vue-router — test đơn trang không cần router thật, và router thật kéo theo
  * toàn bộ lịch sử điều hướng mà jsdom không có.
  */
-export async function mountPactBrokerApp(options: {
+export async function mountLlmSellerApp(options: {
   readonly page: Component;
   readonly path?: string;
   readonly runtimeConfig?: Record<string, unknown>;
@@ -137,9 +142,9 @@ export async function mountPactBrokerApp(options: {
   if (options.fetchEndpoints !== undefined) {
     vi.stubGlobal('fetch', stubFetch(options.fetchEndpoints));
   }
-  const { pactBrokerStores } = await import('./nuxt-globals');
+  const { llmSellerStores } = await import('./nuxt-globals');
   if (options.path !== undefined) {
-    pactBrokerStores.route.path = options.path;
+    llmSellerStores.route.path = options.path;
   }
   const NuxtPageStub = defineComponent({
     name: 'NuxtPageStub',
@@ -151,7 +156,7 @@ export async function mountPactBrokerApp(options: {
   const wrapper = mount(App, {
     global: {
       plugins: [i18n],
-      components: { ...pactBrokerComponents, NuxtLink: NuxtLinkStub, NuxtPage: NuxtPageStub },
+      components: { ...llmSellerComponents, NuxtLink: NuxtLinkStub, NuxtPage: NuxtPageStub },
       stubs: {
         // Shell dùng teleport cho panel/dialog — jsdom không có target nào đáng
         // tin, stub để giữ cây trong wrapper.

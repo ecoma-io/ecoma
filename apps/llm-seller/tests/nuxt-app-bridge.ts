@@ -1,9 +1,9 @@
 /**
- * Minimal bridge cho `#app` trong unit test của `pact-broker-app`.
+ * Minimal bridge cho `#app` trong unit test của `llm-seller`.
  *
  * Đủ cho những gì app import tường minh từ `#app`: `useNuxtApp`,
  * `useRuntimeConfig` và `useCookie`/`useState` của
- * `composables/use-pact-broker-locale.ts`, cộng kiểu `NuxtApp`. Hàm điều khiển
+ * `composables/use-llm-seller-locale.ts`, cộng kiểu `NuxtApp`. Hàm điều khiển
  * (`setNuxtApp`, `setRuntimeConfig`, `resetNuxtAppBridge`) được tách sang
  * `tests/nuxt-app-state.ts`.
  *

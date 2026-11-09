@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import en from '../app/i18n/locales/en';
 import vi from '../app/i18n/locales/vi';
 import zhCN from '../app/i18n/locales/zh-CN';
-import { PACT_BROKER_LOCALE_DEFINITIONS, type PactBrokerLocale } from '../app/i18n/locale-registry';
+import { LLM_SELLER_LOCALE_DEFINITIONS, type LlmSellerLocale } from '../app/i18n/locale-registry';
 
 function flattenKeys(tree: unknown, prefix = ''): Set<string> {
   if (typeof tree !== 'object' || tree === null) {
@@ -46,17 +46,17 @@ function placeholders(tree: unknown, prefix = ''): Map<string, Set<string>> {
   return found;
 }
 
-const CATALOGS: Readonly<Record<PactBrokerLocale, unknown>> = {
+const CATALOGS: Readonly<Record<LlmSellerLocale, unknown>> = {
   en,
   vi,
   'zh-CN': zhCN,
 };
 
-describe('pact-broker-app catalog parity', () => {
+describe('llm-seller catalog parity', () => {
   const enKeys = flattenKeys(en);
 
   it('declares exactly the three supported locales in the registry', () => {
-    expect(PACT_BROKER_LOCALE_DEFINITIONS.map((definition) => definition.code)).toEqual([
+    expect(LLM_SELLER_LOCALE_DEFINITIONS.map((definition) => definition.code)).toEqual([
       'en',
       'vi',
       'zh-CN',
@@ -107,9 +107,9 @@ describe('pact-broker-app catalog parity', () => {
 
 /**
  * Phép so ba catalog ở trên chỉ kiểm ba catalog **khớp nhau**. Nó mù với một key
- * mà cả ba cùng thiếu: `t('pacts.consumer')` trong page vẫn chạy, vue-i18n
+ * mà cả ba cùng thiếu: `t('overview.title')` trong page vẫn chạy, vue-i18n
  * fallback về chính chuỗi key, và cả ba test parity vẫn xanh trong khi giao diện
- * hiển thị `pacts.consumer`. Đó là lỗi thật đã lọt qua CI một lần ở app khác.
+ * hiển thị `overview.title`. Đó là lỗi thật đã lọt qua CI một lần ở app khác.
  *
  * Khối này đóng lỗ đó: quét source của app và bắt mọi key tĩnh mà app gọi phải
  * tồn tại trong cả ba catalog. Key dựng động (`t(\`...\`)`) không thấy được bằng
@@ -146,14 +146,16 @@ function keysCalledInApp(): Set<string> {
   return keys;
 }
 
-describe('pact-broker-app catalog coverage of app usage', () => {
+describe('llm-seller catalog coverage of app usage', () => {
   const usedKeys = keysCalledInApp();
 
   it('finds the keys the app actually calls', () => {
     // Chống test rỗng: regex hỏng thì `usedKeys` rỗng và mọi khẳng định dưới
     // đây tự động xanh mà không kiểm gì.
-    expect(usedKeys.size).toBeGreaterThanOrEqual(20);
-    expect([...usedKeys]).toContain('pacts.consumer');
+    expect(usedKeys.size).toBeGreaterThanOrEqual(18);
+    expect([...usedKeys]).toContain('overview.title');
+    expect([...usedKeys]).toContain('nav.overview');
+    expect([...usedKeys]).toContain('shell.language.label');
   });
 
   for (const [locale, catalog] of Object.entries(CATALOGS)) {

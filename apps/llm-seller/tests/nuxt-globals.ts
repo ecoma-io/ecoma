@@ -1,5 +1,5 @@
 /**
- * Global Nuxt cho test của `pact-broker-app` — cài khi module này được nạp.
+ * Global Nuxt cho test của `llm-seller` — cài khi module này được nạp.
  *
  * ⚠️ Điều kiện thật mà file này phải giữ là: global có mặt **trước khi bất kỳ
  * component `setup()` nào chạy** — `onMounted` gọi trong thân hàm composable,
@@ -34,13 +34,13 @@ import {
 } from 'vue';
 import { createI18n, useI18n as vueI18nUseI18n } from 'vue-i18n';
 
-import { pactBrokerMessages } from '../app/i18n/catalogs';
-import { DEFAULT_PACT_BROKER_LOCALE } from '../app/i18n/locale-registry';
+import { llmSellerMessages } from '../app/i18n/catalogs';
+import { DEFAULT_LLM_SELLER_LOCALE } from '../app/i18n/locale-registry';
 import { readNuxtApp, readRuntimeConfig } from './nuxt-app-state';
 
 /**
  * Composer `vue-i18n` chạy trên **catalog thật** của app, không phải chuỗi giả.
- * `messages` là chính `pactBrokerMessages` mà `app/i18n/vue-i18n.config.ts` dùng —
+ * `messages` là chính `llmSellerMessages` mà `app/i18n/vue-i18n.config.ts` dùng —
  * cùng một object, không phải bản sao; thêm một locale là thêm một lần ở một chỗ.
  *
  * `missingWarn`/`fallbackWarn` tắt ở đây khác `app/i18n/vue-i18n.config.ts` (nơi cả
@@ -56,11 +56,11 @@ import { readNuxtApp, readRuntimeConfig } from './nuxt-app-state';
 export const i18n = createI18n({
   legacy: false,
   globalInjection: true,
-  locale: DEFAULT_PACT_BROKER_LOCALE,
-  fallbackLocale: DEFAULT_PACT_BROKER_LOCALE,
+  locale: DEFAULT_LLM_SELLER_LOCALE,
+  fallbackLocale: DEFAULT_LLM_SELLER_LOCALE,
   missingWarn: false,
   fallbackWarn: false,
-  messages: pactBrokerMessages,
+  messages: llmSellerMessages,
 });
 
 const store = new Map<string, unknown>();
@@ -230,7 +230,7 @@ const testDefinePageMeta = (): void => undefined;
  * Cài toàn bộ global Nuxt/Vue lên `globalThis` — và mọi phép gán global đều nằm trong
  * hàm này, không rải ở phạm vi module.
  *
- * ⚠️ Gom vào một hàm để `resetPactBrokerGlobals()` **gọi lại được**. Một spec có thể
+ * ⚠️ Gom vào một hàm để `resetLlmSellerGlobals()` **gọi lại được**. Một spec có thể
  * xoá `useRoute`/`useCookie`/`useState` khỏi `globalThis` bằng `Reflect.deleteProperty`
  * trong `finally`, và `vi.unstubAllGlobals()` **không** phục hồi key bị xoá tay — nó
  * chỉ undo `vi.stubGlobal`. Không cài lại thì từ test đó về sau mọi test cùng file đã
@@ -246,7 +246,7 @@ const testDefinePageMeta = (): void => undefined;
  * đúng một bộ hàm, cùng identity — hàm này idempotent. Nhờ đó hai đường vào
  * (`globalThis` và re-export cho `tests/nuxt-app-bridge.ts`) không thể lệch nhau.
  */
-export function installPactBrokerGlobals(): void {
+export function installLlmSellerGlobals(): void {
   container.useI18n = vueI18nUseI18n;
   container.useState = useState;
   container.useCookie = useCookie;
@@ -271,7 +271,7 @@ export function installPactBrokerGlobals(): void {
   }
 }
 
-installPactBrokerGlobals();
+installLlmSellerGlobals();
 
 /**
  * Store của harness — test đọc cookie đã ghi, `head` mà app đặt, route và các lệnh
@@ -281,7 +281,7 @@ installPactBrokerGlobals();
  * lần gọi `useHead` ở thời điểm đọc — xem `documentHead()`. Nguồn thật là
  * `headInputs`.
  */
-export const pactBrokerStores = {
+export const llmSellerStores = {
   store,
   cookies,
   head: {
@@ -305,9 +305,10 @@ export const pactBrokerStores = {
  * ngôn ngữ không điều hướng" (xem `testNavigateTo`) — không có nó thì ngày ai thêm
  * một lệnh điều hướng vào luồng đổi locale, không phép đo nào ghi lại được.
  *
- * ⚠️ Cố ý **không** có `useAsyncData`/`useFetch`. App đọc dữ liệu qua `fetch('/api/
- * broker/...')` trong `useAsyncState`, và một bản giả ở đây sẽ che mất hành vi thật
- * (network, lỗi JSON) đúng ở chỗ mà test nên thất bại rõ ràng nếu page đổi cách nạp.
+ * ⚠️ Cố ý **không** có `useAsyncData`/`useFetch`. App đọc dữ liệu qua
+ * `fetch('/api/...')` ở browser-relative path, và một bản giả ở đây sẽ che mất
+ * hành vi thật (network, lỗi JSON) đúng ở chỗ mà test nên thất bại rõ ràng nếu
+ * page đổi cách nạp.
  */
 export const NUXT_GLOBALS = [
   'useI18n',
@@ -339,18 +340,18 @@ export const VUE_GLOBALS = [
  * ⚠️ Phải **cài lại global** trước khi xoá state, không phải chỉ dọn state:
  * một spec có thể xoá key khỏi `globalThis` bằng `Reflect.deleteProperty`, và
  * `vi.unstubAllGlobals()` không phục hồi key bị xoá tay — xem
- * `installPactBrokerGlobals()`.
+ * `installLlmSellerGlobals()`.
  *
  * ⚠️ Locale của composer phải được đặt lại: `i18n` là singleton cấp module, sống lâu
- * hơn mọi test, còn `usePactBrokerI18n()` ghi `i18n.locale.value` trong `watchEffect`
+ * hơn mọi test, còn `useLlmSellerI18n()` ghi `i18n.locale.value` trong `watchEffect`
  * — một test đổi ngôn ngữ sẽ để lại locale đó cho test sau và làm mọi khẳng định trên
  * catalog `en` phụ thuộc thứ tự chạy.
  */
-export function resetPactBrokerGlobals(): void {
-  installPactBrokerGlobals();
+export function resetLlmSellerGlobals(): void {
+  installLlmSellerGlobals();
   store.clear();
   cookies.clear();
-  // `headInputs` là nguồn thật của `pactBrokerStores.head.value`, nên xoá nó là đủ:
+  // `headInputs` là nguồn thật của `llmSellerStores.head.value`, nên xoá nó là đủ:
   // lần đọc sau trả `{}`, đúng trạng thái "app chưa gọi `useHead` lần nào".
   headInputs.length = 0;
   navigations.length = 0;
@@ -361,5 +362,5 @@ export function resetPactBrokerGlobals(): void {
   for (const key of Object.keys(route.query)) {
     Reflect.deleteProperty(route.query, key);
   }
-  i18n.global.locale.value = DEFAULT_PACT_BROKER_LOCALE;
+  i18n.global.locale.value = DEFAULT_LLM_SELLER_LOCALE;
 }
