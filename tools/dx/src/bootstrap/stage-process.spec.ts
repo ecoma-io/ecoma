@@ -76,6 +76,34 @@ describe('createSpawnStageRunner', () => {
     expect(second.cwd).toContain('apps/staff-access');
   });
 
+  it('never lets a child see the other service credential', () => {
+    // Mỗi tiến trình con chỉ thấy chuỗi kết nối của database nó sở hữu: một
+    // bước `account` cầm được credential của `db-staff-access` là vượt ranh giới
+    // sở hữu dữ liệu, kể cả khi nó không dùng tới.
+    const calls: SpawnArgs[] = [];
+    const accountUrl = 'postgresql://a@host/db-account';
+    const staffUrl = 'postgresql://b@host/db-staff-access';
+    const runner = createSpawnStageRunner({
+      env: { [ACCOUNT_DATABASE_URL_ENV]: accountUrl, [STAFF_ACCESS_DATABASE_URL_ENV]: staffUrl },
+      spawn: ((...args: SpawnArgs) => {
+        calls.push(args);
+        return fakeRun('{"stage":"x","status":"created"}\n');
+      }) as unknown as typeof spawnSync,
+    });
+
+    runner({ service: 'account', action: 'provision', input: {} });
+    runner({ service: 'staff-access', action: 'staff-provision', input: {} });
+
+    const accountCall = calls[0] as SpawnArgs;
+    const staffCall = calls[1] as SpawnArgs;
+    const accountEnv = (accountCall[2] as { env: NodeJS.ProcessEnv }).env;
+    const staffEnv = (staffCall[2] as { env: NodeJS.ProcessEnv }).env;
+    expect(Object.values(accountEnv)).not.toContain(staffUrl);
+    expect(Object.values(staffEnv)).not.toContain(accountUrl);
+    expect(accountEnv[STAFF_ACCESS_DATABASE_URL_ENV]).toBeUndefined();
+    expect(staffEnv[ACCOUNT_DATABASE_URL_ENV]).toBeUndefined();
+  });
+
   it('returns the parsed payload and separates the stage/status envelope', () => {
     const { run } = withSpawn(
       fakeRun('{"stage":"account.verify","status":"verified","sub":"sub_x"}\n'),

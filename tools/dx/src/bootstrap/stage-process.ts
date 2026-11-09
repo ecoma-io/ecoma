@@ -52,7 +52,21 @@ function stageEnv(
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const source = service === 'account' ? ACCOUNT_DATABASE_URL_ENV : STAFF_ACCESS_DATABASE_URL_ENV;
-  return { ...env, DATABASE_URL: env[source] ?? '' };
+
+  // Bỏ **cả hai** biến credential của orchestrator khỏi env của con: một tiến
+  // trình `account` không có lý do gì đọc được chuỗi kết nối `db-staff-access`
+  // (và ngược lại). Chỉ chuỗi của chính service đi vào dưới tên `DATABASE_URL`.
+  const orchestratorKeys = new Set<string>([
+    ACCOUNT_DATABASE_URL_ENV,
+    STAFF_ACCESS_DATABASE_URL_ENV,
+  ]);
+  const childEnv: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (!orchestratorKeys.has(key)) childEnv[key] = value;
+  }
+  childEnv['DATABASE_URL'] = env[source] ?? '';
+
+  return childEnv;
 }
 
 /** Dòng JSON cuối cùng parse được từ một stream — `undefined` khi không có. */
