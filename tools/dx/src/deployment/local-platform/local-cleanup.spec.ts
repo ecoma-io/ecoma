@@ -434,6 +434,44 @@ describe('runLocalCleanup', () => {
     expect(actions).not.toContain('would-remove');
   });
 
+  it('LLM composition app orphan resources (containers, app-first images) are identified and removed', () => {
+    // Hai composition app LLM (ADR-0019) chỉ tạo container + image, KHÔNG có
+    // volume/database. Tag image là app-first (`ecoma-llm-console-<ns>:local`)
+    // chứ không phải namespace-first, nên nó đi qua nhánh prefix riêng của
+    // filter image — thiếu nhánh đó thì `local-cleanup` im lặng bỏ sót image.
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-console`, `ecoma-${ns}-llm-seller`]],
+        ['image', [`ecoma-llm-console-${ns}:local`, `ecoma-llm-seller-${ns}:local`]],
+        ['network', []],
+      ]),
+      labels: new Map([
+        [`container/ecoma-${ns}-llm-console`, ownedLabels(wt)],
+        [`container/ecoma-${ns}-llm-seller`, ownedLabels(wt)],
+        [`image/ecoma-llm-console-${ns}:local`, ownedLabels(wt)],
+        [`image/ecoma-llm-seller-${ns}:local`, ownedLabels(wt)],
+      ]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(new Set(docker.removed)).toEqual(
+      new Set([
+        `container/ecoma-${ns}-llm-console`,
+        `container/ecoma-${ns}-llm-seller`,
+        `image/ecoma-llm-console-${ns}:local`,
+        `image/ecoma-llm-seller-${ns}:local`,
+      ]),
+    );
+    expect(report.errors).toEqual([]);
+  });
+
   it('push WIC orphan resources (container, image, state volume) are identified and removed', () => {
     const wt = tempWorktree();
     const ns = worktreeNamespace(wt);

@@ -83,6 +83,10 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   // không tạo container/volume nào tồn lại sau lệnh.
   'remote-cache-wic',
   'remote-cache-wic-state-init',
+  // Composition app LLM (ADR-0019): container + image, không có volume/state
+  // nào — hai app này không sở hữu database hay runtime state cục bộ.
+  'llm-console',
+  'llm-seller',
   'network',
   'home-image',
   'backoffice-image',
@@ -94,6 +98,10 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'push-wic-image',
   'staff-access-wic-image',
   'remote-cache-wic-image',
+  // Image của hai composition app LLM — tag app-first `ecoma-<app>-<ns>:local`
+  // như home/backoffice/account/pact-app.
+  'llm-console-image',
+  'llm-seller-image',
   'postgres-volume',
   'auth-wic-state',
   'pact-api-wic-state',
@@ -379,7 +387,9 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
               kind === 'mail-wic-image' ||
               kind === 'push-wic-image' ||
               kind === 'staff-access-wic-image' ||
-              kind === 'remote-cache-wic-image'
+              kind === 'remote-cache-wic-image' ||
+              kind === 'llm-console-image' ||
+              kind === 'llm-seller-image'
             ? 'image'
             : 'container';
 
@@ -403,7 +413,8 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
         if (dockerType === 'image') {
           // Hai shape tên image thật (nhìn từ `tags` của từng deploy unit):
           //  - app-first: `ecoma-<app>-<ns>:local` (home/backoffice/account/
-          //    pact-app) — tag literal hard-code trong index.ts của từng unit.
+          //    pact-app/llm-console/llm-seller) — tag literal hard-code trong
+          //    index.ts của từng unit.
           //  - namespace-first: `ecoma-<ns>-auth-wic:local`,
           //    `ecoma-<ns>-pact-api-wic:local`, `ecoma-<ns>-mail-wic:local` —
           //    sinh bởi `dockerResourceName(ns, <wic-kind>)`.
@@ -416,6 +427,8 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
               line.startsWith('ecoma-backoffice-') ||
               line.startsWith('ecoma-account-') ||
               line.startsWith('ecoma-pact-app-') ||
+              line.startsWith('ecoma-llm-console-') ||
+              line.startsWith('ecoma-llm-seller-') ||
               // `ecoma-` + namespace + `-<wic>:local`, namespace đủ độ dài
               // chuẩn (`w` + 12 hex từ `worktreeNamespace`).
               (line.startsWith('ecoma-') &&
