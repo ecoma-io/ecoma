@@ -201,6 +201,37 @@ export interface StaffAccessClientConfig {
 }
 
 /**
+ * SQLSTATE cua nhom "database tra loi nhung cau lenh bi tu choi" — khac hoan
+ * toan voi "khong mo duoc connection".
+ *
+ * Danh sach co y NGAN va chi gom ma ma readiness thuc su co the gap: thieu
+ * grant (`42501`), thieu bang (`42P01`), thieu cot (`42703`). Dung chung mot
+ * nhan `db_unreachable` cho ca nhom nay dan nguoi van hanh di kiem tra ket noi
+ * trong khi su co la migration/grant — dung lop loi ma probe readiness sinh ra
+ * de bat.
+ */
+const SCHEMA_SQLSTATES: ReadonlySet<string> = new Set(['42501', '42P01', '42703']);
+
+/**
+ * `true` khi `error` la mot loi PostgreSQL nghia la **schema/grant khong khop**,
+ * khong phai database khong toi duoc.
+ *
+ * Nhan dang qua `name === 'PostgresError'` — dung thu ma `postgres.js` gan cho
+ * loi server tra ve (`this.name = this.constructor.name` trong
+ * `postgres/src/errors.js`), chu KHONG qua `instanceof`: `postgres` la package
+ * CJS, nen `PostgresError` chi ton tai nhu thuoc tinh cua default export, va
+ * mot `instanceof` vao do vo hinh khi module bi mock hoac bundler doi interop.
+ * Loi tang driver — `ECONNREFUSED`, `ENOTFOUND`, `CONNECT_TIMEOUT` — la `Error`
+ * thuong voi `name` khac, nen khong bao gio khop; mot loi khong nhan dang duoc
+ * van fail-closed theo huong "khong toi duoc".
+ */
+export function isStaffAccessSchemaError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name !== 'PostgresError') return false;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && SCHEMA_SQLSTATES.has(code);
+}
+
+/**
  * Chay `fn` tren MOT client postgres.js moi roi dong client — don vi vong doi
  * cua serving path (issue #289).
  *

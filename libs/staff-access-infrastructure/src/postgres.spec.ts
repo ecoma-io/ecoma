@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createStaffAccessPostgresClient,
+  isStaffAccessSchemaError,
   withStaffAccessClient,
   type StaffAccessClient,
 } from './postgres';
@@ -233,6 +234,45 @@ describe('withStaffAccessClient', () => {
 
     const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
     expect(options).not.toHaveProperty('connect_timeout');
+  });
+});
+
+describe('isStaffAccessSchemaError', () => {
+  it('classifies a missing-grant/missing-object PostgresError as a schema failure', async () => {
+    // Dung class THAT cua driver (khong phai mot object tu che) de test chung
+    // minh phan loai khop dung hinh loi `postgres.js` tao ra: `name` la
+    // 'PostgresError' va `code` la SQLSTATE server tra ve.
+    //
+    // `postgres` la package CJS (`export =`), nen class nam tren chinh
+    // namespace import, khong phai duoi `.default`. Khai bao kieu cua driver
+    // chi nhan `message`, nen `code` duoc gan nhu thuoc tinh — dung hinh ma
+    // driver tao luc runtime (`Object.assign(this, x)`).
+    const actual = await vi.importActual<typeof import('postgres')>('postgres');
+    const PostgresError = actual.PostgresError;
+    for (const code of ['42501', '42P01', '42703']) {
+      const error = new PostgresError('permission denied');
+      Object.assign(error, { code });
+      expect(isStaffAccessSchemaError(error)).toBe(true);
+    }
+  });
+
+  it('does not classify driver-level connect errors as schema failures', () => {
+    // Loi tang driver (`ECONNREFUSED`, `CONNECT_TIMEOUT`) la `Error` thuong,
+    // khong co `name` cua loi server. Gan nhan schema cho chung se day nguoi
+    // van hanh di kiem tra migration khi DB khong toi duoc.
+    for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'CONNECT_TIMEOUT']) {
+      expect(isStaffAccessSchemaError(Object.assign(new Error('connect'), { code }))).toBe(false);
+    }
+    // SQLSTATE KHAC nhom schema cung khong duoc gan nhan schema: day la loi
+    // server that nhung huong xu ly khac (vi du shutdown 57P01).
+    expect(
+      isStaffAccessSchemaError(
+        Object.assign(new Error('server'), { name: 'PostgresError', code: '57P01' }),
+      ),
+    ).toBe(false);
+    expect(isStaffAccessSchemaError(new Error('plain'))).toBe(false);
+    expect(isStaffAccessSchemaError(undefined)).toBe(false);
+    expect(isStaffAccessSchemaError('42501')).toBe(false);
   });
 });
 

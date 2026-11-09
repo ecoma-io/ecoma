@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { signRequest } from '@ecoma-io/internal-auth-contracts';
 import { buildApp, resetCachedConfig } from '../../src/main';
@@ -90,11 +90,21 @@ describe('readiness against the real database', () => {
       expect(await response.text()).not.toContain('staff_access');
     } finally {
       // Tra grant ve dung hinh `0002` de test sau khong an trang thai nay.
-      await client.query(
-        'REVOKE SELECT (sub) ON staff_access.staff FROM ecoma_staff_access_runtime',
-      );
-      await client.query('GRANT SELECT ON staff_access.staff TO ecoma_staff_access_runtime');
-      await client.end();
+      // Hai lenh phai chay doc lap: neu lenh dau that bai, mot `finally` long
+      // nhau van phai chay `GRANT` — fixture `db` chia se giua cac test, va
+      // grant con loi se lam test sau (`getStaffBySub` doc du cot) do
+      // `permission denied`.
+      try {
+        await client.query(
+          'REVOKE SELECT (sub) ON staff_access.staff FROM ecoma_staff_access_runtime',
+        );
+      } finally {
+        try {
+          await client.query('GRANT SELECT ON staff_access.staff TO ecoma_staff_access_runtime');
+        } finally {
+          await client.end();
+        }
+      }
     }
   });
 
@@ -117,6 +127,68 @@ describe('readiness against the real database', () => {
       expect(response.status).toBe(503);
       expect(response.headers.get('retry-after')).toBe('5');
       expect(await response.text()).not.toContain('internal_nonces');
+    } finally {
+      await partial.stop();
+    }
+  }, 180_000);
+
+  it('returns 503 when the runtime role may read the nonce table but not write it', async () => {
+    // Duong serving ghi nonce (`DELETE` han + `INSERT ON CONFLICT`) o MOI
+    // request da xac thuc; mot probe chi `SELECT` se 200 trong khi request
+    // that 503. Revoke INSERT roi tra lai ngay trong finally.
+    const client = await db.connect();
+    try {
+      await client.query(
+        'REVOKE INSERT, DELETE ON staff_access.internal_nonces FROM ecoma_staff_access_runtime',
+      );
+      resetCachedConfig();
+      const app = buildApp();
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const response = await app.request('/ready', {}, runtimeEnv(db));
+        expect(response.status).toBe(503);
+        expect(response.headers.get('retry-after')).toBe('5');
+        expect(await response.text()).not.toContain('internal_nonces');
+        // DB VAN tra loi — su co la grant, nen ma chan doan phai la
+        // `schema_invalid`. `db_unreachable` o day se day nguoi van hanh di
+        // kiem tra ket noi trong khi huong dung la migration/grant.
+        expect(log).toHaveBeenCalledWith(
+          JSON.stringify({ event: 'ready.failed', status: 503, reason: 'schema_invalid' }),
+        );
+      } finally {
+        log.mockRestore();
+      }
+    } finally {
+      try {
+        await client.query(
+          'GRANT SELECT, INSERT, DELETE ON staff_access.internal_nonces TO ecoma_staff_access_runtime',
+        );
+      } finally {
+        await client.end();
+      }
+    }
+  });
+
+  it('returns 503 when the database stops at 0005 (missing settled_at from 0006)', async () => {
+    // `internal_nonces` chi chung minh migration 0005 da chay. `settled_at`
+    // do 0006 them: DB dung o 0005 van qua mot probe chi cham nonce trong khi
+    // `POST /outbox/:id/settle` that bai `column does not exist`.
+    const partial = await startStaffAccessDatabase();
+    try {
+      const client = await partial.connect();
+      try {
+        await client.query(
+          'ALTER TABLE staff_access.entitlement_outbox_events DROP COLUMN settled_at',
+        );
+      } finally {
+        await client.end();
+      }
+      resetCachedConfig();
+      const app = buildApp();
+      const response = await app.request('/ready', {}, runtimeEnv(partial));
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('5');
+      expect(await response.text()).not.toContain('settled_at');
     } finally {
       await partial.stop();
     }
@@ -151,27 +223,33 @@ describe('readiness against the real database', () => {
     expect(anonymous.status).toBe(401);
 
     await db.truncateData();
-    const client = await db.connect();
     try {
-      await client.query(
-        `INSERT INTO staff_access.staff (sub, display_name, status) VALUES ($1, $2, $3)`,
-        [STAFF_SUB, 'Readiness E2E', 'active'],
-      );
-    } finally {
-      await client.end();
-    }
+      const client = await db.connect();
+      try {
+        await client.query(
+          `INSERT INTO staff_access.staff (sub, display_name, status) VALUES ($1, $2, $3)`,
+          [STAFF_SUB, 'Readiness E2E', 'active'],
+        );
+      } finally {
+        await client.end();
+      }
 
-    const signed = await signRequest({
-      method: 'GET',
-      path: '/staff',
-      body: new Uint8Array(),
-      secret: INTERNAL_SECRET,
-      timestamp: String(Math.floor(Date.now() / 1000)),
-      nonce: `readiness-${randomUUID()}`,
-    });
-    const response = await app.request('/staff', { headers: signed }, env);
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { staff: Array<{ sub: string; status: string }> };
-    expect(body.staff.some((row) => row.sub === STAFF_SUB)).toBe(true);
+      const signed = await signRequest({
+        method: 'GET',
+        path: '/staff',
+        body: new Uint8Array(),
+        secret: INTERNAL_SECRET,
+        timestamp: String(Math.floor(Date.now() / 1000)),
+        nonce: `readiness-${randomUUID()}`,
+      });
+      const response = await app.request('/staff', { headers: signed }, env);
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { staff: Array<{ sub: string; status: string }> };
+      expect(body.staff.some((row) => row.sub === STAFF_SUB)).toBe(true);
+    } finally {
+      // Fixture `db` chia se giua cac test: hang nay khong duoc song sot qua
+      // test sau (mot test them sau day co the assert danh sach rong).
+      await db.truncateData();
+    }
   });
 });

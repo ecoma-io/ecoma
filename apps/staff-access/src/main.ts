@@ -17,6 +17,7 @@ import {
 } from '@ecoma-io/internal-auth-contracts';
 import {
   getStaffBySub,
+  isStaffAccessSchemaError,
   StaffAccessConfigurationError,
   withStaffAccessClient,
 } from '@ecoma-io/staff-access-infrastructure';
@@ -45,18 +46,30 @@ const READY_PROBE_CONNECT_TIMEOUT_SECONDS = 3;
 const READY_RETRY_AFTER_SECONDS = '5';
 
 /**
+ * Ma ly do cua readiness that bai — MOT tap dong, khong phai `string`.
+ *
+ * `config_invalid`: cau hinh/binding/secret khong nap duoc, hoac mot hang so
+ * cua chinh probe sai. `schema_invalid`: DB tra loi nhung cau lenh bi tu choi —
+ * thieu grant, thieu bang, thieu cot, tuc la chua migrate hoac grant da troi.
+ * `db_unreachable`: khong mo duoc connection hoac loi khong nhan dang duoc.
+ *
+ * Ba ma nay di thang vao log nen nguoi van hanh phan biet duoc "kiem tra
+ * migration/grant" voi "kiem tra ket noi DB" — gop hai nhom dau thanh mot se
+ * chi sai huong chan doan.
+ */
+type ReadyFailureReason = 'config_invalid' | 'schema_invalid' | 'db_unreachable';
+
+/**
  * Nhan readiness that bai — MOT hinh response duy nhat cho hop dong 503.
  *
- * Gop hai nhanh loi (`config_invalid`, `db_unreachable`) vao mot helper de
- * status, header va shape body khong the lech nhau khi sua mot nhanh; `reason`
- * van phan biet duoc nguyen nhan trong log ma khong lo ten binding, loi driver
- * hay connection string ra response.
+ * Gop ba nhanh loi vao mot helper de status, header va shape body khong the
+ * lech nhau khi sua mot nhanh; `reason` van phan biet duoc nguyen nhan trong log
+ * ma khong lo ten binding, loi driver hay connection string ra response.
  *
- * ⚠️ `reason` la ma on dinh (`config_invalid` | `db_unreachable`) — khong phai
- * `error.message`: message cua config error neu TEN bien, message cua driver co
- * the chua connection string.
+ * ⚠️ `reason` la ma on dinh — khong phai `error.message`: message cua config
+ * error neu TEN bien, message cua driver co the chua connection string.
  */
-function readyUnavailable(c: Context<AppEnv>, reason: string): Response {
+function readyUnavailable(c: Context<AppEnv>, reason: ReadyFailureReason): Response {
   // oxlint-disable-next-line no-console
   console.log(JSON.stringify({ event: 'ready.failed', status: 503, reason }));
   return c.json({ error: 'service_unavailable' }, 503, {
@@ -166,13 +179,18 @@ function createApp(): Hono<AppEnv> {
     try {
       await probeDatabase(config);
     } catch (error) {
-      // Probe co the nem loi CAU HINH (hien tai chi tu hang so timeout, nhung
-      // mot lan sua hang so sai se roi vao day). Phan loai dung nguyen nhan
-      // thay vi gan nhan "db_unreachable" cho mot loi khong phai DB — nguoi
-      // van hanh se di kiem tra database trong khi loi o code readiness.
+      // Ba nguyen nhan khac nhau, ba huong chan doan khac nhau:
+      // - config: hang so/booking cua chinh probe sai (code readiness);
+      // - schema: DB tra loi nhung cau lenh bi tu choi (migration/grant);
+      // - unreachable: khong mo duoc connection.
+      // Gan nhan chung "db_unreachable" cho ca ba se day nguoi van hanh di
+      // kiem tra ket noi DB trong khi su co nam o migration/grant.
+      if (error instanceof StaffAccessConfigurationError) {
+        return readyUnavailable(c, 'config_invalid');
+      }
       return readyUnavailable(
         c,
-        error instanceof StaffAccessConfigurationError ? 'config_invalid' : 'db_unreachable',
+        isStaffAccessSchemaError(error) ? 'schema_invalid' : 'db_unreachable',
       );
     }
 
@@ -349,29 +367,45 @@ function createApp(): Hono<AppEnv> {
  * readiness kiem khong chi "DB song" ma "DB song voi dung credential ma
  * serving path dung".
  *
- * ⚠️ `SELECT 1 FROM staff_access.staff LIMIT 1` **không** đủ: PostgreSQL chỉ
- * đòi QUYỀN trên một cột nào đó của bảng, nên một role chỉ có
- * `SELECT(sub)` vẫn qua probe trong khi `getStaffBySub` (đọc
- * `id, sub, display_name, status, created_at, updated_at`) bị
- * `permission denied`. Probe ở đây đọc **đúng tập cột mà serving path đọc** —
- * vẫn trả 0 hàng trên bảng rỗng, nhưng đòi đúng grant.
+ * Ba cau lenh, moi cau dai dien cho MOT duong serving that va KHONG ghi du
+ * lieu (`WHERE false` — PostgreSQL van kiem quyen o pha phan tich, nhung
+ * khong doc/ghi hang nao):
  *
- * ⚠️ Bảng `staff` do `0001` tạo, nên một schema thiếu migration sau vẫn qua
- * được. Request đã xác thực nào cũng claim nonce trong
- * `staff_access.internal_nonces` (do `0005` tạo, grant trong chính file đó),
- * nên probe chạm cả hai bảng: database nửa schema **phải** làm probe thất bại.
+ * 1. Doc dung tap cot `getStaffBySub` doc. `SELECT 1 FROM staff` khong du:
+ *    PostgreSQL chi doi QUYEN tren mot cot nao do, nen role chi con
+ *    `SELECT(sub)` van qua probe trong khi moi request that bi
+ *    `permission denied`.
+ * 2. Claim nonce dung hinh `DELETE ... ; INSERT ... ON CONFLICT` cua
+ *    middleware envelope. Chi `SELECT` khong du: grant `INSERT`/`DELETE`
+ *    tren `internal_nonces` bi rut thi moi request da xac thuc 503 trong khi
+ *    probe kieu doc van 200.
+ * 3. Settle outbox — `UPDATE ... SET settled_at`. Cot nay do `0006` tao, nen
+ *    mot database dung o `0005` (co `internal_nonces` nhung thieu
+ *    `settled_at`) bi bat o day thay vi o request settle dau tien.
  *
  * ⚠️ Day la database cua CHINH staff-access, khong phai database khac: probe
- * khong vuot ranh gioi database ownership (invariant 5, 7, 25).
+ * khong vuot ranh gioi database ownership (invariant 5, 7, 25). Pham vi probe
+ * la "cac cau lenh serving chinh chay duoc", khong phai "moi bảng của schema
+ * đủ cột" — mot bang khong duoc serving path chinh cham tới khong lam
+ * readiness do.
  */
 async function probeDatabase(config: StaffAccessConfig): Promise<void> {
   await withStaffAccessClient(
     { hyperdrive: config.hyperdrive, connectTimeoutSeconds: READY_PROBE_CONNECT_TIMEOUT_SECONDS },
     async (db) => {
       await db.unsafe(
-        'SELECT id, sub, display_name, status, created_at, updated_at FROM staff_access.staff LIMIT 1',
+        'SELECT id, sub, display_name, status, created_at, updated_at FROM staff_access.staff WHERE false',
       );
-      await db.unsafe('SELECT nonce FROM staff_access.internal_nonces LIMIT 1');
+      await db.unsafe(
+        `WITH pruned AS (
+           DELETE FROM staff_access.internal_nonces WHERE false
+         )
+         INSERT INTO staff_access.internal_nonces (nonce, expires_at)
+         SELECT 'readiness-probe', 0 WHERE false`,
+      );
+      await db.unsafe(
+        'UPDATE staff_access.entitlement_outbox_events SET settled_at = settled_at WHERE false',
+      );
     },
   );
 }

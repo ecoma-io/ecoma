@@ -11,6 +11,7 @@
 export { StaffAccessConfigurationError } from './configuration-error';
 export {
   createStaffAccessPostgresClient,
+  isStaffAccessSchemaError,
   withStaffAccessClient,
   type StaffAccessClient,
   type StaffAccessClientConfig,

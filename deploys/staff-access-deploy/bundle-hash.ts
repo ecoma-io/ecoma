@@ -32,19 +32,32 @@ import * as path from 'node:path';
  *
  * @param rootDir Thư mục gốc (worktree root) — dùng để dựng đường dẫn tuyệt đối.
  * @param relDir Thư mục tương đối cần hash, ví dụ `apps/staff-access/dist`.
- * @throws {Error} Khi cây không đọc được hoặc chứa entry không phải tệp/thư mục
- *   thường. Message chỉ chứa đường dẫn tương đối + hành động; không chứa nội
- *   dung tệp.
+ * @throws {Error} Khi `relDir` không phải đường dẫn tương đối hợp lệ, khi cây
+ *   không đọc được, hoặc khi cây chứa entry không phải tệp/thư mục thường.
+ *   Message chỉ chứa đường dẫn tương đối + hành động; không chứa nội dung tệp
+ *   và không chứa đường dẫn tuyệt đối của worktree.
  */
 export function sha256DistTree(rootDir: string, relDir: string): string {
+  // `relDir` do caller (chinh deploy unit) cung cap, nhung mot gia tri sai —
+  // tuyet doi, co `..`, hoac rong — se hash mot cay NGOAI bundle du dinh va
+  // bien ForceNew thanh tin hieu vo nghia. Kiem truoc khi cham filesystem.
+  if (relDir === '' || path.isAbsolute(relDir) || relDir.split('/').includes('..')) {
+    throw new Error(
+      `bundle hash: invalid relative directory "${relDir}": must be a non-empty path inside the worktree without ".." segments`,
+    );
+  }
   const treeRoot = path.join(rootDir, relDir);
   const hash = crypto.createHash('sha256');
   const files: string[] = [];
 
   const fail = (action: string, relPath: string, cause?: unknown): never => {
-    const detail = cause instanceof Error ? `: ${cause.message}` : '';
+    // Message cua syscall mang duong dan TUYET DOI (`scandir '/…/dist'`).
+    // Thay bang duong dan tuong doi de chan doan van du ma khong dua cau
+    // truc noi bo cua may chay vao log `pulumi up`.
+    const detail =
+      cause instanceof Error ? `: ${cause.message.split(rootDir).join('<worktree>')}` : '';
     throw new Error(
-      `bundle hash: cannot ${action} "${path.posix.join(relDir, relPath)}" under ${rootDir}${detail}. ` +
+      `bundle hash: cannot ${action} "${path.posix.join(relDir, relPath)}"${detail}. ` +
         'Run `pnpm nx run @ecoma-io/staff-access:build` so the mounted dist tree is complete.',
     );
   };

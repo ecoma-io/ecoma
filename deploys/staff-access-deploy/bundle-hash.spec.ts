@@ -131,4 +131,28 @@ describe('sha256DistTree', () => {
     expect(message).toContain('broken.js');
     expect(message).not.toContain('super-secret-bundle-content');
   });
+
+  it('keeps the absolute worktree path out of the diagnostic message', () => {
+    // Message di vao log `pulumi up`/entrypoint. Duong dan tuyet doi cua
+    // worktree la cau truc noi bo cua may chay, khong can cho chan doan —
+    // chi duong dan tuong doi trong bundle la du de tim ra tep hong.
+    rmSync(join(root, REL_DIR), { recursive: true, force: true });
+    let message = '';
+    try {
+      sha256DistTree(root, REL_DIR);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('apps/staff-access/dist');
+    expect(message).not.toContain(root);
+  });
+
+  it('rejects a relative directory that escapes the worktree', () => {
+    // `relDir` do caller cung cap; mot gia tri tuyet doi hoac co `..` se hash
+    // mot cay ngoai bundle — ForceNew se bao "khong doi" trong khi bundle da
+    // doi (hoac nguoc lai). Tu choi truoc khi cham filesystem.
+    for (const bad of ['../outside', '/etc', 'apps/../../outside', '']) {
+      expect(() => sha256DistTree(root, bad)).toThrow(/bundle hash: invalid relative directory/u);
+    }
+  });
 });

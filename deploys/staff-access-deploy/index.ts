@@ -22,11 +22,12 @@
  * của stack này), nên container KHÔNG publish port ra host, KHÔNG mang label
  * `traefik.*`. Readiness là readiness NGHIỆP VỤ: Docker healthcheck poll
  * `GET /ready` của worker — route này nạp config (binding Hyperdrive + secret
- * HMAC) rồi đọc đúng tập cột mà serving path đọc trên `staff_access.staff`
- * và bảng `staff_access.internal_nonces` (do `0005` tạo) bằng **credential
- * runtime**, nên 200 chứng minh schema đã migrate và role runtime đọc được DB
- * của chính nó. `/health` (không chạm DB) giữ vai trò liveness và không được
- * dùng làm bằng chứng readiness.
+ * HMAC) rồi chạy BA câu lệnh zero-row đại diện cho ba đường serving thật
+ * (đọc tập cột `staff` của `getStaffBySub`, claim nonce `INSERT`/`DELETE` trên
+ * `internal_nonces` do `0005` tạo, và `UPDATE settled_at` do `0006` tạo) bằng
+ * **credential runtime**, nên 200 chứng minh schema đã migrate đủ và role
+ * runtime có đúng grant. `/health` (không chạm DB) giữ vai trò liveness và
+ * không được dùng làm bằng chứng readiness.
  *
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-staff-access` + hai role
