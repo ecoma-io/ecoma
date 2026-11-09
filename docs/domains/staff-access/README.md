@@ -38,11 +38,11 @@ Quyền staff/RBAC ban đầu được ghi vào `backoffice` (A21–A24, ADR-000
 - **Chuyển sở hữu sang `staff-access` (đã chốt — ADR-0013):** database staff/RBAC/audit — `db-staff-access` theo ownership mới; ngày nay `apps/backoffice` còn sở hữu `db-backoffice` với migrations `0001–0006` — và mọi API quản trị nhân sự/quyền.
 - **`backoffice` còn lại:** composition/UI + BFF — không sở hữu nghiệp vụ Staff Access (chi tiết → [`docs/applications/backoffice/`](../../applications/backoffice/)).
 
-Việc chuyển này **không** âm thầm sửa quyết định cũ: [ADR-0013](./adr/0013-staff-access-ownership-transfer.md) ghi rõ việc `staff-access` tiếp quản trách nhiệm đã được A21 gán cho `backoffice`, supersede phạm vi tương ứng của A21 và phần tên database/schema của ADR-0001. `apps/staff-access` và `apps/staff-access-relay` đã tồn tại; phần còn thiếu nằm ở các Issue đang mở (#433 đường ghi staff, #434 wire verified principal).
+Việc chuyển này **không** âm thầm sửa quyết định cũ: [ADR-0013](./adr/0013-staff-access-ownership-transfer.md) ghi rõ việc `staff-access` tiếp quản trách nhiệm đã được A21 gán cho `backoffice`, supersede phạm vi tương ứng của A21 và phần tên database/schema của ADR-0001. `apps/staff-access` và `apps/staff-access-relay` đã tồn tại; phần còn thiếu nằm ở các Issue đang mở (#44 đường ghi staff, enforcement permission và wiring BFF của route gán/thu hồi, #46 đường recovery).
 
 ## 5. Tài liệu
 
-| Document                               | Nội dung                                                                        |
-| -------------------------------------- | ------------------------------------------------------------------------------- |
-| [`domain-model.md`](./domain-model.md) | Business model, quy tắc nghiệp vụ, invariant, sự kiện domain và ngữ nghĩa quyền |
-| [`adr/`](./adr/README.md)              | Architectural decision record — mười sáu quyết định (ADR-0001…0014, 0016, 0020) |
+| Document                               | Nội dung                                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`domain-model.md`](./domain-model.md) | Business model, quy tắc nghiệp vụ, invariant, sự kiện domain và ngữ nghĩa quyền       |
+| [`adr/`](./adr/README.md)              | Architectural decision record — mười chín quyết định (ADR-0001…0014, 0016, 0020…0023) |

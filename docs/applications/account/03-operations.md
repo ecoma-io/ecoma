@@ -101,6 +101,32 @@ Cơ chế, tần suất, hợp đồng log, hành vi khi hỏng và đường ch
 
 Điều kiện an toàn cho prune này đã có sẵn trong thiết kế: rate limit đếm các hàng `otp_challenges` trong cửa sổ 15 phút và 1 giờ, nên bất kỳ job dọn nào chỉ xoá hàng **quá TTL** (600 giây) thì không và không thể làm sai một phép đếm rate limit đang hiệu lực. Ràng buộc duy nhất cần giữ khi hiện thực: predicate prune phải dựa trên `consumed_at`/`expires_at` (vòng đời của bảng). Workflow cron cũ đã bị xoá khỏi `main` trong PR #89 (commit `bf920d3c`), khi nó được thay bằng cron Worker `apps/auth-nonce-prune-job`; trên `main` chỉ còn lại `ci.yaml`, `code-analysis.yml`, `code-review.yml`. Việc hiện thực lại prune cho hai bảng này (nonce và `otp_challenges`) do phần delivery đảm nhiệm và phải dựa trên đặc tả baseline ở [`../auth/03-operations.md`](../auth/03-operations.md) §3.3, không dừng ở trạng thái tài liệu đã drift.
 
+### 3.4 Tạo Account đầu tiên (bootstrap)
+
+Account đầu tiên đi qua **create-or-resolve** — thao tác offline của `account`, không có route HTTP và không nằm trong Worker (ADR-0021 Quyết định 2). Đây là đường **duy nhất** được phép ghi `account.users`; không có production code path nào khác làm việc đó.
+
+⚠️ **Thao tác này chưa tồn tại.** Không có CLI create-or-resolve trong `apps/account` ở thời điểm tài liệu này; mục này là đặc tả cho #17, không phải mô tả một lệnh chạy được. Đường verify lần đầu (nhắc dưới đây) cũng **chưa tồn tại**. Đường này chỉ phục vụ **bootstrap**; đường tạo Account thông thường khác **chưa được quyết** (#48), và recovery không dùng nó — recovery chỉ đọc `sub` đã có (ADR-0023 Quyết định 3).
+
+- **Bề mặt:** CLI offline trong `apps/account`, chạy bằng credential migrator/owner của `db-account` (ADR-0020 Quyết định 3(b)). Không route, không flag, không cron.
+- **Concurrency:** đọc và ghi trong **một** transaction dưới `pg_advisory_xact_lock` khoá theo `address_hash` (ADR-0021 Quyết định 2). Không có lock này, hai lần chạy đồng thời cùng đọc "chưa có hàng" rồi cùng `INSERT` — schema không chặn được, vì UNIQUE duy nhất trên `email_addresses` chỉ áp cho hàng `verified`. Kết quả là hai `sub` cho cùng địa chỉ, và bước A2 fail-closed không hội tụ được bằng cách chạy lại. Lock tự nhả khi commit/rollback; cùng hình dạng với advisory lock của migration runner. ⚠️ Vì Hyperdrive **không** hỗ trợ advisory lock (HD6, §5), create-or-resolve chỉ tồn tại được trên bề mặt CLI offline ở trên — không phải trong Worker.
+- **Idempotency:** chuẩn hoá địa chỉ bằng đúng hàm của luồng OTP, tra `account.email_addresses` theo `address_hash` (SHA-256 hex, không theo địa chỉ trần). Không có hàng nào **còn sống** → sinh `sub` mới (entropy CSPRNG do caller sinh; `createSubject` chỉ nhận entropy và throw khi sai) rồi ghi `account.users` + `account.email_addresses` trong cùng transaction; có đúng một `sub` còn sống với hàng `pending` → trả lại chính `sub` đó, không ghi hàng mới.
+- **Fail-closed, không chọn một hàng:** có hàng `verified` cho địa chỉ, có nhiều hơn một `sub`, `sub` đã `suspended`/`deleted`, Account đó còn địa chỉ `verified` **khác**, hoặc cùng `sub` có nhiều hơn một hàng `pending` cho `address_hash` — tất cả dừng procedure. Điều kiện là hàng `verified` khác, **không** phải `is_sign_in`: `is_sign_in` là cờ hiển thị, không có CHECK ràng buộc với `status` (`0005_email_addresses.sql`), và luồng đăng nhập chỉ lọc `status = 'verified'` cộng `users.status = 'active'` (`lookupVerifiedAddress`, `resolveOtpTarget`). Lý do: `POST /api/emails` chỉ chặn địa chỉ đã có **chủ `verified`**, nên một Account bất kỳ vẫn có thể mang địa chỉ bootstrap ở trạng thái `pending`; nhận `sub` đó là cấp quyền administrator cho người đăng nhập bằng địa chỉ của họ (ADR-0021 Quyết định 2).
+- **Hàng `revoked`:** khoá tự nhiên và mọi kiểm fail-closed chỉ đọc `status IN ('pending','verified')`; hàng `revoked` không giữ địa chỉ và không chứng minh quyền sở hữu. Nhưng nó là dấu hiệu đã có người từng chạm địa chỉ — procedure **dừng và báo**, không tự xoá/revoke hàng nào.
+- **Trạng thái email:** `pending`, `is_sign_in = false`, `verified_at IS NULL`. Procedure **không** đánh dấu `verified` — xác minh thuộc lần đăng nhập đầu tiên qua đường verify dành cho người chưa có session (ADR-0021 Quyết định 3; đường đó **chưa tồn tại**, là yêu cầu hiện thực của #17).
+- **Đầu ra:** đúng một `sub`. Đây là giá trị duy nhất được truyền sang bước Staff Access; `staff-access` không đọc `db-account`.
+- **Audit:** `account.security_events` ghi cùng transaction (`subject_sub`, `outcome = 'success'`, `metadata.address_hash`, `metadata.correlation_id`, `metadata.mode`, và `metadata.operator_ref` do người vận hành khai báo — bảng này không có cột `correlation_id` và không có principal, ADR-0021 Quyết định 6). Bước này **không** ghi `metadata.admins_before`/`metadata.admins_ever`: hai số đó chỉ được đo trong critical section ghi của `staff-access`, không phải ở `account`. ⚠️ `operator_ref` là **tự khai**, không được xác minh; nó không chứng minh danh tính người giữ credential (ADR-0021 Quyết định 6, ADR-0023 Quyết định 5).
+
+Đọc lại để verify:
+
+```sql
+SELECT u.sub, u.status AS account_status, e.status, e.verified_at
+FROM account.users u JOIN account.email_addresses e ON e.user_sub = u.sub
+WHERE e.address_hash = <sha256(address)>
+  AND e.status IN ('pending', 'verified');
+```
+
+Đạt khi trả đúng một row với `sub` khớp `^sub_[a-z2-7]{32}$`, `account_status = 'active'`, `status = 'pending'`, `verified_at IS NULL`. Cột `account_status` phải có trong câu đọc: "Account không ở trạng thái tombstone" là một điều kiện của pass criteria, nên câu truy vấn phải đọc được nó — kiểm một điều kiện mà truy vấn không trả về là kiểm bằng giả định. Runbook đầy đủ của procedure (thứ tự bước, retry, bổ nhiệm thường, recovery) → [`../staff-access/03-operations.md`](../staff-access/03-operations.md).
+
 ## 4. Environment isolation
 
 | Môi trường | Database                      | Credential                         |

@@ -287,7 +287,7 @@ mỗi scope, nên tên scope không phải tên context; `messaging` (transactio
 `platform` là scope hạ tầng/chia sẻ, không phải bounded context; `pact-broker` là bounded context mang scope `pact`; và
 `backoffice` là scope của một composition/UI + BFF — bounded context ngày nay theo A21, nhưng việc `staff-access` tiếp quản
 đã được chốt ([ADR-0013](../domains/staff-access/adr/0013-staff-access-ownership-transfer.md)); sau khi phần việc còn lại của
-`staff-access` hoàn tất (#433, #434), `backoffice` chỉ còn composition (catalog → [`domains/README.md`](../domains/README.md) §2/§3).
+`staff-access` hoàn tất (#44 đường ghi staff, enforcement permission và wiring BFF `createStaffAssignment`/`revokeStaffAssignment`; #46 đường recovery), `backoffice` chỉ còn composition (catalog → [`domains/README.md`](../domains/README.md) §2/§3).
 Danh sách scope trong mục này mô tả cấu trúc code — **không** phải một bản catalog thứ hai của bounded context.
 
 **Scope của deployment project là ranh giới provisioning, không phải bounded context.** Một `deploys/<unit>-deploy` mang

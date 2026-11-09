@@ -46,7 +46,7 @@ Staff đăng nhập được vào backoffice và chỉ đọc được những t
 - **Trang `/roles` không hiển thị permission của role** ở chế độ thật: adapter đặt `permissionIds: []`, nên số permission luôn là 0. Ở chế độ realtime, cột entitlement của `/staff` luôn trống vì `mapStaff` đặt `entitlements: []` và không trang nào gọi `listEntitlements`.
 - **Staff Access Worker không tự kiểm tra permission.** Nó chỉ xác thực envelope và kiểm tra actor là staff `active`; kiểm tra permission là việc của BFF.
 - **Projection authorization của Staff Access chưa thể trở thành nguồn sự thật.** Cổng cutover được đọc nhưng không được đặt ở đâu, nên `db-backoffice` legacy vẫn là nguồn quyết định.
-- **Catalog permission ở hai database lệch nhau**: `db-backoffice` có `audit.read`, `db-staff-access` không có.
+- **Catalog permission ở hai database lệch nhau**: `db-backoffice` có `audit.read`, `db-staff-access` không có. Việc đưa `audit.read` vào catalog canonical đã được chấp nhận ([`staff-access` ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 8); migration seed tương ứng chưa tồn tại.
 - Playwright suite app-owned trong `apps/backoffice/e2e/` **không chạy được**: không có target `e2e`, không có CI job. Bằng chứng browser chỉ đến từ system test.
 
 ## 4. Acceptance Scenarios
