@@ -194,8 +194,10 @@ Một lỗi ở bước nào — khi các bước trước đã commit — cũng
 
 Sau procedure, email khởi tạo vẫn `pending` và **chưa đăng nhập được**. Hoàn tất bootstrap chỉ khi người giữ hộp thư thực hiện:
 
-1. Xác minh kiểm soát địa chỉ qua đường verify dành cho người **chưa có session** (purpose OTP `verify_email`, cùng rate limit/anti-enumeration). Đường này **không** phát hành session: nó chỉ chuyển email sang `verified` kèm `verified_at` và `is_sign_in = true` (cùng trạng thái email như `markEmailVerified`, không phải thay đổi quyền), và không đổi `sub`, không tạo staff/role/assignment (ADR-0021 Quyết định 3).
+1. Xác minh kiểm soát địa chỉ qua đường verify dành cho người **chưa có session** (purpose OTP `verify_email`, cùng hình dạng rate limit/anti-enumeration như luồng hiện có; xem ghi chú ngay dưới). Đường này **không** phát hành session: nó chỉ chuyển email sang `verified` kèm `verified_at` và `is_sign_in = true` (cùng trạng thái email như `markEmailVerified`, không phải thay đổi quyền), và không đổi `sub`, không tạo staff/role/assignment (ADR-0021 Quyết định 3).
 2. Đăng nhập bằng luồng hiện có; principal mang `sub`, và Staff Access ánh xạ `sub` → staff (ADR-0012).
+
+⚠️ **Allowance của `verify_email` độc lập với `login`, nhưng dùng chung với self-service của `verify_email`.** `insertVerifyEmailChallenge` đếm cửa sổ theo `purpose = 'verify_email'` với hằng riêng (`VERIFY_EMAIL_*`), nên lần verify đầu **không** tiêu hạn mức đăng nhập của người dùng và ngược lại; đổi lại nó chia sẻ slot active và allowance với luồng self-service, nên hai luồng `verify_email` cộng lại vẫn bị chặn ở 3/15 phút + 10/giờ và cooldown 60 giây. Đây là lý do một lần verify bị chặn vì rate limit **không** phải sự cố vận hành: không có trạng thái nào bị đổi, hàng `pending` còn nguyên, và lần chạy sau vẫn hoàn tất được (ADR-0021 Quyết định 3).
 
 ⚠️ **Phản hồi của bước 1 là đồng nhất, nên nó không phải bằng chứng thành công — phải đọc lại.** Đường verify trả **cùng** một phản hồi cho mọi nhánh, kể cả nhánh từ chối (nhiều hơn một hàng `pending`, Account không `active`, `23505` do một `sub` khác đã `verified` cùng địa chỉ). Vì vậy "bootstrap hoàn tất" chỉ được tuyên bố khi có lần đọc lại bằng credential A của `account`:
 
