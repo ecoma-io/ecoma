@@ -51,7 +51,7 @@ asserting):
 - Work kind is **not** a label. Do not create one; record it in the body or in
   the form field.
 - `project:track` **is** a label, and the only label this skill applies on its
-  own authority — per `work-management.md` §3.3. Every other label, Project
+  own authority — per `work-management.md` §3.2–§3.3. Every other label, Project
   field, Milestone and assignee still follows the verified-value rule below.
 
 ## Decide whether an Issue should exist
