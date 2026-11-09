@@ -97,10 +97,42 @@ describe('createStaffAccessPostgresClient', () => {
 
   it('rejects a non-positive or non-finite connect timeout before touching the driver', () => {
     driverCalls.length = 0;
-    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const bad of [0, -0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
       expect(() =>
         createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: bad }),
-      ).toThrow('connectTimeoutSeconds must be a finite positive number of seconds');
+      ).toThrow('connectTimeoutSeconds must be a finite number of seconds greater than 0');
+    }
+    expect(driverCalls).toHaveLength(0);
+  });
+
+  it('accepts the upper bound and rejects any value above it', () => {
+    driverCalls.length = 0;
+    createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: 300 });
+    expect(driverCalls).toHaveLength(1);
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options?.['connect_timeout']).toBe(300);
+
+    // Mot timeout "ngan" khong co canh tren la mot timeout co the treo request
+    // lau hon thoi han Worker; gia tri chi lon hon bound mot chut van phai tu
+    // choi, khong chi nhung gia tri cuc doan.
+    driverCalls.length = 0;
+    for (const bad of [300.000001, 301, 3600, Number.MAX_VALUE]) {
+      expect(() =>
+        createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: bad }),
+      ).toThrow('at most 300');
+    }
+    expect(driverCalls).toHaveLength(0);
+  });
+
+  it('rejects a non-number connect timeout before touching the driver', () => {
+    driverCalls.length = 0;
+    for (const bad of ['3', null, {}] as unknown[]) {
+      expect(() =>
+        createStaffAccessPostgresClient(BINDING, {
+          // @ts-expect-error -- exercise the runtime guard with a non-number.
+          connectTimeoutSeconds: bad,
+        }),
+      ).toThrow('connectTimeoutSeconds must be a finite number of seconds');
     }
     expect(driverCalls).toHaveLength(0);
   });
@@ -270,6 +302,25 @@ describe('isStaffAccessSchemaError', () => {
     expect(isStaffAccessSchemaError(new Error('plain'))).toBe(false);
     expect(isStaffAccessSchemaError(undefined)).toBe(false);
     expect(isStaffAccessSchemaError('42501')).toBe(false);
+  });
+
+  it('classifies a schema error that lost its Error prototype (cross-realm/structured clone)', () => {
+    // Structured clone / qua realm khac lam mat prototype: `instanceof Error`
+    // thanh false trong khi `name`/`code` van con. Bo qua hinh dang nay bien
+    // mot loi migration/grant thanh `db_unreachable`, dung huong chan doan sai
+    // ma ham nay sinh ra de tranh.
+    expect(isStaffAccessSchemaError({ name: 'PostgresError', code: '42501' })).toBe(true);
+
+    // Nhung hinh dang do KHONG duoc noi long thanh allowlist: mot plain object
+    // mang code cua driver van la "khong toi duoc", va `name` sai van false.
+    expect(isStaffAccessSchemaError({ name: 'PostgresError', code: 'ECONNREFUSED' })).toBe(false);
+    expect(isStaffAccessSchemaError({ code: '42501' })).toBe(false);
+    expect(isStaffAccessSchemaError({ name: 'Error', code: '42501' })).toBe(false);
+    expect(isStaffAccessSchemaError({ name: 'PostgresError', code: 42501 })).toBe(false);
+    expect(isStaffAccessSchemaError(null)).toBe(false);
+    expect(isStaffAccessSchemaError(Object.assign(new Error('connect'), { code: '42501' }))).toBe(
+      false,
+    );
   });
 });
 

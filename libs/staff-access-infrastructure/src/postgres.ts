@@ -108,6 +108,17 @@ export interface StaffAccessClient extends StaffAccessQueryable {
   end(options?: { timeout?: number }): Promise<void>;
 }
 
+/**
+ * Tran tren cua {@link StaffAccessClientOptions.connectTimeoutSeconds}.
+ *
+ * Option nay chi dung cho probe ngan (readiness dat 3s). Mot tran khong co
+ * canh tren bien mot tham so "timeout ngan" thanh mot tham so co the treo
+ * request lau hon thoi han Worker — dung dieu option sinh ra de ngan. 300s la
+ * gioi han rong rai cho moi probe hop ly, van ngan hon thoi han cua mot
+ * request Worker that.
+ */
+const MAX_CONNECT_TIMEOUT_SECONDS = 300;
+
 /** Tuy chon cua {@link createStaffAccessPostgresClient}. */
 export interface StaffAccessClientOptions {
   /**
@@ -115,7 +126,8 @@ export interface StaffAccessClientOptions {
    *
    * Chi readiness truyen gia tri ngan: mot origin khong mo duoc connection
    * phai hoa thanh loi nhanh (`db_unreachable`) thay vi giu probe toi het
-   * thoi han Worker. Gia tri phai huu han va duong.
+   * thoi han Worker. Gia tri phai huu han, duong va khong vuot
+   * {@link MAX_CONNECT_TIMEOUT_SECONDS}; bo qua option de giu mac dinh driver.
    */
   readonly connectTimeoutSeconds?: number;
 }
@@ -132,7 +144,8 @@ export interface StaffAccessClientOptions {
  *   — fail-closed truoc khi mo connection, cung luat message-khong-neu-gia-tri
  *   voi moi config check khac cua repo.
  * @throws {StaffAccessConfigurationError} Khi `connectTimeoutSeconds` khong
- *   phai so huu han duong — mot timeout sai am tham lam probe treo vo han.
+ *   phai so huu han trong khoang `(0, 300]` — mot timeout sai am tham lam
+ *   probe treo vo han, va mot timeout qua lon vo hieu hoa chinh y do ngan.
  */
 export function createStaffAccessPostgresClient(
   binding: StaffAccessHyperdriveBinding,
@@ -161,10 +174,11 @@ export function createStaffAccessPostgresClient(
     connectTimeoutSeconds !== undefined &&
     (typeof connectTimeoutSeconds !== 'number' ||
       !Number.isFinite(connectTimeoutSeconds) ||
-      connectTimeoutSeconds <= 0)
+      connectTimeoutSeconds <= 0 ||
+      connectTimeoutSeconds > MAX_CONNECT_TIMEOUT_SECONDS)
   ) {
     throw new StaffAccessConfigurationError(
-      'connectTimeoutSeconds must be a finite positive number of seconds; omit it to keep the driver default',
+      `connectTimeoutSeconds must be a finite number of seconds greater than 0 and at most ${MAX_CONNECT_TIMEOUT_SECONDS}; omit it to keep the driver default`,
     );
   }
 
@@ -213,22 +227,27 @@ export interface StaffAccessClientConfig {
 const SCHEMA_SQLSTATES: ReadonlySet<string> = new Set(['42501', '42P01', '42703']);
 
 /**
- * `true` khi `error` la mot loi PostgreSQL nghia la **schema/grant khong khop**,
- * khong phai database khong toi duoc.
+ * `true` khi `error` mang **hinh dang** loi PostgreSQL cua `postgres.js` va
+ * SQLSTATE cua no thuoc nhom schema/grant — khong phai database khong toi duoc.
  *
- * Nhan dang qua `name === 'PostgresError'` — dung thu ma `postgres.js` gan cho
- * loi server tra ve (`this.name = this.constructor.name` trong
- * `postgres/src/errors.js`), chu KHONG qua `instanceof`: `postgres` la package
- * CJS, nen `PostgresError` chi ton tai nhu thuoc tinh cua default export, va
- * mot `instanceof` vao do vo hinh khi module bi mock hoac bundler doi interop.
+ * Doc theo **cau truc**, khong theo `instanceof`: `postgres` la package CJS nen
+ * `PostgresError` chi ton tai nhu thuoc tinh cua default export (mot
+ * `instanceof` vao do chi co hieu luc khi mo hinh module cua bundler khop), va
+ * mot `Error` di qua realm khac (structured clone giua isolate, hoac vat mang
+ * sang tu host) khong con nguyen prototype cua `Error` — `instanceof Error`
+ * tra `false` trong khi `name`/`code` van con. Nhan dang hinh dang giu duoc
+ * hai duong do ma van fail-closed: mot gia tri khong phai object, khong co
+ * `name` dung, hoac co `code` ngoai allowlist deu tra `false`.
+ *
  * Loi tang driver — `ECONNREFUSED`, `ENOTFOUND`, `CONNECT_TIMEOUT` — la `Error`
- * thuong voi `name` khac, nen khong bao gio khop; mot loi khong nhan dang duoc
- * van fail-closed theo huong "khong toi duoc".
+ * thuong voi `name` khac (`Error`) va `code` khong phai SQLSTATE, nen khong
+ * bao gio khop du chung co mang `code`. Mot loi khong nhan dang duoc van
+ * fail-closed theo huong "khong toi duoc".
  */
 export function isStaffAccessSchemaError(error: unknown): boolean {
-  if (!(error instanceof Error) || error.name !== 'PostgresError') return false;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' && SCHEMA_SQLSTATES.has(code);
+  if (typeof error !== 'object' || error === null) return false;
+  const { name, code } = error as { name?: unknown; code?: unknown };
+  return name === 'PostgresError' && typeof code === 'string' && SCHEMA_SQLSTATES.has(code);
 }
 
 /**
