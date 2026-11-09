@@ -18,7 +18,7 @@
  */
 
 import * as crypto from 'node:crypto';
-import { readdirSync, readFileSync, type Dirent } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, type Dirent } from 'node:fs';
 import * as path from 'node:path';
 
 /**
@@ -69,6 +69,25 @@ export function sha256DistTree(rootDir: string, relDir: string): string {
       return fail('list directory', relDirPath, error);
     }
   };
+
+  // `readdirSync` di theo symlink cua chinh thu muc goc, trong khi `Dirent` cua
+  // cac entry BEN TRONG khong theo link. Mot `dist` la symlink (tro ra ngoai
+  // bundle, hoac vao mot thu muc khac) se duoc hash nhu the no la bundle that —
+  // dung loai "hash trong hop le tu cay khong phai bundle du dinh" ma module
+  // nay phai chan. `lstatSync` khong theo link, nen no phan biet duoc.
+  //
+  // Thieu thu muc/khong co quyen doc van de `readdirSync` ben duoi bao loi voi
+  // message da on dinh ("cannot list directory"); o day chi chan dung hinh dang
+  // da ton tai nhung khong phai thu muc thuong.
+  let rootStat: ReturnType<typeof lstatSync> | undefined;
+  try {
+    rootStat = lstatSync(treeRoot);
+  } catch {
+    rootStat = undefined;
+  }
+  if (rootStat !== undefined && (rootStat.isSymbolicLink() || !rootStat.isDirectory())) {
+    fail('read bundle directory', '');
+  }
 
   const readFile = (relFile: string): Buffer => {
     try {

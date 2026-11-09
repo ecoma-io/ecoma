@@ -184,16 +184,24 @@ const postgresContainerName = dockerResourceName(ns, 'postgres');
 const provisionScript = pulumi.interpolate`set -e
 PG=${postgresContainerName}
 PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
+# Moi lan kiem tra ton tai deu gan ket qua vao bien TRUOC khi so sanh: 'set -e'
+# khong ap dung cho dieu kien cua 'if', nen dang 'if ! $PSQL ... | grep -q 1'
+# doc mot lan psql loi thanh "khong ton tai" va chay CREATE (hoac bo qua REVOKE)
+# trong khi command resource van bao thanh cong. Voi phep gan, loi psql lam ca
+# script dung (fail-closed).
 # 1. Hai role của db-staff-access — guard-create khi thiếu.
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_migrator'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_staff_access_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_runtime'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_staff_access_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
+MIGRATOR_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_migrator'")
+if [ "$MIGRATOR_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
+RUNTIME_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_runtime'")
+if [ "$RUNTIME_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
 # 2. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
 #    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
 #    thành một argument của shell (giải thích đầy đủ backoffice-deploy/index.ts).
 $PSQL -c ${migratorPassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_migrator WITH PASSWORD ${sqlQuote(p)};`))}
 $PSQL -c ${runtimePassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_runtime WITH PASSWORD ${sqlQuote(p)};`))}
-# 3. Database — guard-create (bash if), idempotent qua lần chạy sau.
-if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'" | grep -q 1; then $PSQL -c 'CREATE DATABASE "db-staff-access"'; fi
+# 3. Database — guard-create, idempotent qua lần chạy sau.
+DATABASE_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'")
+if [ "$DATABASE_EXISTS" != "1" ]; then $PSQL -c 'CREATE DATABASE "db-staff-access"'; fi
 # 4. Grant: migrator cần CREATE trên database để tạo schema staff_access
 #    (migration 0001 tự cấp USAGE/CREATE trên schema sau khi tạo); runtime chỉ
 #    CONNECT — DML grant theo bảng nằm trong migration 0001.
@@ -236,7 +244,17 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
   // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
   // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
   // (trigger được lưu trong state Pulumi).
-  triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+  //
+  // `verifiedNamespace` co mat o day de engine PHAI giai xong StackReference
+  // (va kiem namespace) TRUOC khi chay script: khong co no, provision khong phu
+  // thuoc output nao cua platform, nen mot stack tro nham platform van provision
+  // role/database roi moi bao loi — mot lan apply mot phan tren input sai.
+  triggers: [
+    pulumi.secret(runtimePassword),
+    pulumi.secret(migratorPassword),
+    worktreeRoot,
+    verifiedNamespace,
+  ],
 });
 
 /**

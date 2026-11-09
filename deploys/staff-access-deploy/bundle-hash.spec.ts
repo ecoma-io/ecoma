@@ -96,7 +96,9 @@ describe('sha256DistTree', () => {
   it('fails loudly when the dist path is not a directory', () => {
     rmSync(join(root, REL_DIR), { recursive: true, force: true });
     writeFileSync(join(root, REL_DIR), 'not a directory');
-    expect(() => sha256DistTree(root, REL_DIR)).toThrow(/bundle hash: cannot list directory/u);
+    expect(() => sha256DistTree(root, REL_DIR)).toThrow(
+      /bundle hash: cannot read bundle directory/u,
+    );
   });
 
   it('fails loudly instead of hashing an empty tree', () => {
@@ -114,6 +116,20 @@ describe('sha256DistTree', () => {
     expect(() => sha256DistTree(root, REL_DIR)).toThrow(
       /cannot read regular file "apps\/staff-access\/dist\/linked\.js"/u,
     );
+  });
+
+  it('rejects a symlinked dist root instead of hashing through it', () => {
+    // `readdirSync` theo symlink cua chinh thu muc goc, nen mot `dist` la lien
+    // ket se duoc hash nhu the no la bundle that. Do la cung loai loi "hash
+    // trong hop le tu mot cay khong phai bundle du dinh".
+    rmSync(join(root, REL_DIR), { recursive: true, force: true });
+    mkdirSync(join(root, 'elsewhere'), { recursive: true });
+    writeFileSync(join(root, 'elsewhere', 'main.js'), 'main');
+    symlinkSync(join(root, 'elsewhere'), join(root, REL_DIR));
+    expect(() => sha256DistTree(root, REL_DIR)).toThrow(
+      /bundle hash: cannot read bundle directory/u,
+    );
+    expect(() => sha256DistTree(root, REL_DIR)).toThrow(/apps\/staff-access\/dist/u);
   });
 
   it('does not leak file contents into the error message', () => {
