@@ -6,9 +6,10 @@
 #
 # Copy-adapt từ `deploys/pact-broker-api-deploy/wic-entrypoint.sh` (pattern WIC
 # chung, nguồn gần nhất cùng hình MỘT worker); khác auth ở: MỘT worker thay vì
-# HAI (không có shim bridge, không cần dev registry cross-process), và KHÔNG có
-# readiness container nội bộ — readiness của container do Docker healthcheck
-# đảm nhiệm (probe `GET /health` của worker, không chạm DB — thiết kế của app).
+# HAI (không có shim bridge, không cần dev registry cross-process), và KHÔNG tự
+# probe readiness — readiness của container do Docker healthcheck đảm nhiệm
+# (probe `GET /ready` của worker, route này KIỂM DB bằng credential runtime;
+# `/health` chỉ là liveness không chạm DB — see issue #18).
 #
 # Container chạy trên platform network (02-account-auth.md §Database access):
 #   - Repo mount READ-ONLY tại /repo: bundle `dist/` (build trên host, mount
@@ -156,9 +157,10 @@ trap on_signal TERM INT
 # network (alias `ecoma-staff-access`, không với tới loopback-only) — thiếu
 # flag thì mọi call của consumer là ECONNREFUSED trong khi healthcheck nội bộ
 # (probe 127.0.0.1 trong chính container) vẫn xanh, lỗi vô hình qua health
-# gate. Cùng lý giải với `--ip 0.0.0.0` của mail/push WIC. Consumer BFF cố
-# định của context này (backoffice) chưa wire ở local (P1.4 chỉ dựng unit —
-# wiring BFF thuộc giai đoạn sau), nên alias là contract cho unit tương lai.
+# gate. Cùng lý giải với `--ip 0.0.0.0` của mail/push WIC. Consumer BFF của
+# context này (backoffice) ĐÃ wire ở local: `backoffice-deploy` đọc
+# `namespace:internalHmacSecret` của stack này, truyền `AUTH_INTERNAL_SECRET`
+# cho cả hai container và gọi qua alias `ecoma-staff-access:4206`.
 log '{"event":"wic.starting","worker":"ecoma-staff-access"}'
 (cd "$RUNTIME_TREE/apps/staff-access" && exec "$WRANGLER" dev \
   --config "$RUNTIME_TREE/apps/staff-access/wrangler.jsonc" \

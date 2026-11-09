@@ -305,6 +305,21 @@ describe('shared entry infrastructure', () => {
     ).toBe(true);
   });
 
+  it('staff-access recreates its WIC container when the mounted dist bundle changes', () => {
+    // Issue #18: `apps/staff-access/dist` được mount bind và entrypoint chỉ
+    // copy nó MỘT lần lúc boot. Không có input Pulumi nào khác phản ánh nội
+    // dung bundle, nên thiếu label ForceNew là rebuild `dist` xong container
+    // vẫn chạy bundle cũ — `local-up` xanh nhưng serving code cũ. Ghim theo
+    // nguồn: hash cây dist phải đi vào label `io.ecoma.bundle-hash` của
+    // container (cùng cơ chế auth-deploy).
+    const source = readFileSync(
+      join(ROOT_DIR, 'deploys', 'staff-access-deploy', 'index.ts'),
+      'utf8',
+    );
+    expect(source).toMatch(/sha256DistTree\(worktreeRoot, 'apps\/staff-access\/dist'\)/u);
+    expect(source).toMatch(/label: `\$\{LABEL_PREFIX\}\.bundle-hash`, value: wicBundleHash/u);
+  });
+
   it('every E2E suite gate retries the shared cold-start status window (404/502/503/504)', () => {
     // Cửa sổ cold-start của Traefik trả 404/502/503/504 (503 = upstream chưa có,
     // không body JSON). Suite backoffice phân biệt 503 CỦA APP (body Nitro

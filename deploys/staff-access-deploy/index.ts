@@ -39,8 +39,12 @@
  * lock). KHÔNG có bước seed dữ liệu riêng: dữ liệu seed duy nhất của context
  * này là permission catalog (3 permission read) và nó nằm trong migration
  * `0003_permission_catalog_seed.sql` — nội dung system-defined role KHÔNG được
- * seed (docs §4.4, quyết định chưa chốt).
+ * seed (docs `domains/staff-access/domain-model.md` §3.4, quyết định chưa chốt).
  */
+
+import * as crypto from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import * as path from 'node:path';
 
 import * as command from '@pulumi/command';
 import * as docker from '@pulumi/docker';
@@ -48,6 +52,7 @@ import * as dockerBuild from '@pulumi/docker-build';
 import * as pulumi from '@pulumi/pulumi';
 
 import {
+  LABEL_PREFIX,
   type PlatformOutputs,
   dockerResourceName,
   normalizeWorktreeRoot,
@@ -79,8 +84,8 @@ const POSTGRES_HOST = 'ecoma-postgres';
  * của `apps/staff-access/wrangler.jsonc`. Bên trong container KHÔNG cần
  * phát hiện xung đột port host (mỗi container có network stack riêng — static
  * port an toàn); nguồn số duy nhất là wrangler.jsonc, Pulumi không cấp port.
- * Alias DNS `ecoma-staff-access` (hằng số) + port này là contract cho wiring
- * BFF tương lai: base URL `http://ecoma-staff-access:4206`.
+ * Alias DNS `ecoma-staff-access` (hằng số) + port này là contract của consumer
+ * đã có: backoffice gọi `http://ecoma-staff-access:4206`.
  *
  * Wrangler đọc `dev.port` khi render URL banner và healthcheck ở dưới poll đúng
  * `STAFF_ACCESS_INTERNAL_PORT` — wrangler đổi port là healthcheck fail ngay (fail
@@ -92,8 +97,8 @@ const STAFF_ACCESS_INTERNAL_PORT = 4206;
  * Alias DNS của WIC container trong platform network — HẰNG SỐ, không theo
  * namespace (khác auth dùng `${AUTH_WIC_ALIAS_PREFIX}${ns}-auth`). Mỗi worktree
  * có platform network RIÊNG (namespace cô lập), nên alias hằng trong một
- * network không xung đột; hằng cho tên ổn định để unit consumer tương lai cấu
- * hình base URL không phụ thuộc namespace.
+ * network không xung đột; hằng để consumer (backoffice) cấu hình base URL
+ * không phụ thuộc namespace.
  */
 const STAFF_ACCESS_ALIAS = 'ecoma-staff-access';
 
@@ -145,10 +150,13 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * lệnh guard-create bằng shell `if`, còn ALTER password idempotent sẵn — chạy
  * cả `create` và `update` để redeploy cũng xoay password.
  *
- * Khác auth (4 role + revoke chéo): bounded context này chỉ có 2 role, không
- * có owner role dùng chung (migrator sở hữu schema `staff_access` sau khi
- * migration `0001` chạy — grant `CREATE` trên database cấp ở đây), không có
- * database nào khác cần revoke chéo.
+ * Khác auth (4 role): bounded context này chỉ có 2 role, không có owner role
+ * dùng chung (migrator sở hữu schema `staff_access` sau khi migration `0001`
+ * chạy — grant `CREATE` trên database cấp ở đây). Chặn chéo chiều ra vẫn phải
+ * làm: hai role này không được CONNECT vào database của service khác
+ * (`apps/staff-access/db/README.md` §"Chặn chéo", migration `0002` §"Cross-
+ * database REVOKE"); provisioning mới là nơi thực thi được vì cần quyền sở hữu
+ * database đích — cùng hình guard `if` với auth/account.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
 const provisionScript = pulumi.interpolate`set -e
@@ -170,6 +178,24 @@ if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'" | gr
 $PSQL -c 'REVOKE CONNECT ON DATABASE "db-staff-access" FROM PUBLIC'
 $PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-staff-access" TO ecoma_staff_access_migrator'
 $PSQL -c 'GRANT CONNECT ON DATABASE "db-staff-access" TO ecoma_staff_access_runtime'
+# 4b. Chặn chéo chiều RA: rút CONNECT TRỰC TIẾP của hai role staff-access
+#     trên database của service khác. Điều kiện hoá theo sự tồn tại của
+#     database đích — nó có thể chưa được tạo ở lần up đầu, và REVOKE trên
+#     database không tồn tại là lỗi chứ không phải no-op (cùng hình với
+#     account/auth).
+#     ⚠️ Giới hạn đã đo: thu hồi này chỉ xoá grant TRỰC TIẾP. db-backoffice
+#     hiện vẫn cấp CONNECT cho PUBLIC (datacl giữ "=Tc/...") và unit sở hữu nó
+#     không rút quyền đó, nên has_database_privilege(...) vẫn là true qua
+#     PUBLIC cho tới khi backoffice-deploy tự rút PUBLIC rồi GRANT lại cho
+#     role của chính nó. Việc đó thuộc unit sở hữu database — staff-access
+#     không được cấp/rút quyền thay. db-account/db-auth đã rút PUBLIC nên ở
+#     đó thu hồi này là hiệu lực thật.
+for TARGET in db-account db-auth db-backoffice; do
+  if $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$TARGET'" | grep -q 1; then
+    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_migrator"
+    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_runtime"
+  fi
+done
 # 5. Hardening schema public — chạy bằng owner (ecoma_local) mới thực sự revoke
 #    được; statement tương đương trong migration 0002 là no-op trên PG15+ khi chạy
 #    bằng migrator. Idempotent.
@@ -229,12 +255,65 @@ const migrate = new command.local.Command(
  * vòng migration, không phải một lệnh psql rời. Nội dung system-defined role
  * KHÔNG được seed (docs `domains/staff-access/domain-model.md` §3.4 — quyết định
  * chưa chốt). Sổ staff KHÔNG được seed bởi deploy: first-admin bootstrap đi qua
- * procedure ADR-0003 (manual SQL/CLI offline bằng credential `ecoma_owner`, có
- * audit trail); hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
+ * procedure ADR-0003 — manual SQL/CLI offline bằng credential admin của chính
+ * database này (với `db-staff-access` đó là `ecoma_staff_access_migrator`;
+ * `ecoma_owner` KHÔNG tồn tại cho database này — ADR-0020 Quyết định 11) — có
+ * audit trail; hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
  * emergency recovery (ADR-0020 Quyết định 11). "Deploy unit cấm mọi code path bootstrap" nghĩa là
  * cấm đường serving (route/flag runtime), không cấm bước provisioning — hợp đồng
  * canonical là `docs/architecture/02-delivery.md` §3.2 + ADR-0020.
  */
+
+/**
+ * Bundle-hash trigger cho container WIC — cùng cơ chế `deploys/auth-deploy`.
+ *
+ * Vì sao cần: `dist/` được build trên host và mount bind vào container, nên nội
+ * dung bundle KHÔNG phải input của Pulumi. Rebuild `dist` mà không đổi gì khác
+ * thì Pulumi thấy container y nguyên và không recreate — container tiếp tục chạy
+ * bundle cũ (entrypoint chỉ copy `dist` một lần lúc boot). Hash của cây `dist`
+ * đổi ⇒ label đổi ⇒ container recreate ⇒ entrypoint copy bundle mới.
+ *
+ * Cơ chế: SHA-256 tính TRỰC TIẾP trên nội dung cây `dist` bằng code Node trong
+ * Pulumi program (hàm thuần sync, chạy mỗi lần đánh giá program — không phụ
+ * thuộc trigger nào nhớ trạng thái cũ). Hash bao phủ cả TÊN FILE lẫn nội dung;
+ * walk sort theo tên để thứ tự duyệt không đổi kết quả. `@pulumi/docker` 5.2.0
+ * `Container` KHÔNG có property `triggers` — label là cơ chế ForceNew tương
+ * đương (xem JSDoc đầy đủ ở `deploys/auth-deploy/index.ts`).
+ *
+ * Dist vắng mặt (chưa build) vẫn hash được (giá trị xác định) — không fail
+ * closed ở đây; guard `wic.fatal: dist_missing` của entrypoint là nơi fail
+ * tường minh. Hash này chỉ là thay đổi-detector, không phải dữ liệu bảo mật.
+ */
+function sha256DistTree(rootDir: string, relDir: string): string {
+  const treeRoot = path.join(rootDir, relDir);
+  const hash = crypto.createHash('sha256');
+  if (!existsSync(treeRoot)) {
+    return hash.digest('hex');
+  }
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    const entries = [...readdirSync(dir, { withFileTypes: true })];
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      const filePath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(filePath);
+      } else if (entry.isFile()) {
+        files.push(path.relative(treeRoot, filePath).split(path.sep).join('/'));
+      }
+    }
+  };
+  walk(treeRoot);
+  for (const relFile of files) {
+    hash.update(relFile);
+    hash.update('\0');
+    hash.update(readFileSync(path.join(treeRoot, relFile)));
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
+const wicBundleHash = pulumi.output(sha256DistTree(worktreeRoot, 'apps/staff-access/dist'));
 
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
@@ -385,7 +464,13 @@ const wic = new docker.Container(
       pulumi.interpolate`AUTH_INTERNAL_SECRET=${pulumi.secret(internalHmacSecret)}`,
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_STAFF_ACCESS=${pulumi.secret(hyperdriveLocalConnectionString)}`,
     ],
-    labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+    labels: [
+      ...Object.entries(labels).map(([label, value]) => ({ label, value })),
+      // Bundle-hash trigger: ForceNew — rebuild `dist` trên host đổi hash ⇒
+      // container recreate ⇒ entrypoint copy lại bundle (xem JSDoc của
+      // sha256DistTree). Cùng họ `io.ecoma` với ownership labels.
+      { label: `${LABEL_PREFIX}.bundle-hash`, value: wicBundleHash },
+    ],
     healthcheck: {
       // `/ready` (khong phai `/health`): probe nay noi config da nap duoc VA
       // `db-staff-access` tra loi duoc bang credential runtime — dung hai

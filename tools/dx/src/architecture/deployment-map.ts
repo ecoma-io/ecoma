@@ -62,7 +62,7 @@ export type DeploymentMapEntry = AppDeploymentEntry | PlatformDeploymentEntry;
 /** Khóa bản đồ của entry platform — giữ cùng giá trị với `PLATFORM_DEPLOY_PROJECT`. */
 const PLATFORM_DEPLOY_PROJECT_KEY = 'platform-deploy';
 
-/** Bản đồ canonical: 12 app + 1 entry platform. Không thêm entry nào khác. */
+/** Bản đồ canonical: 14 app entry + 1 entry platform. Không thêm entry nào khác. */
 export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   account: { kind: 'app', owner: 'account-deploy', status: 'implemented' },
   auth: { kind: 'app', owner: 'auth-deploy', status: 'implemented' },
