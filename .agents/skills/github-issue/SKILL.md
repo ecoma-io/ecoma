@@ -136,11 +136,12 @@ placeholders.
 
 ## Decide Project tracking
 
-Read `work-management.md` §3.3 before deciding. That section owns the three
-concepts (tracking intent, admission signal, membership lifecycle), the
-per-work-kind default, the mandatory rationale and the lifecycle; this skill
-only states how to apply it while authoring an Issue. Do not restate the
-criteria here or in an Issue body — link to §3.3.
+Read `work-management.md` §3.2–§3.3 before deciding. §3.2 owns the admission
+criteria; §3.3 owns the three concepts (tracking intent, admission signal,
+membership lifecycle), the per-work-kind default, the mandatory rationale and
+the lifecycle. This skill only states how to apply them while authoring an
+Issue. Do not restate the criteria here or in an Issue body — link to those
+sections.
 
 - **Propose before creating.** When planning, or before decomposing an Epic or
   Milestone into Issues, state the classification — track, do not track, or
@@ -153,9 +154,10 @@ criteria here or in an Issue body — link to §3.3.
 - **Apply the label only with a rationale that answers §3.3's three questions:**
   who or what needs the visibility, what dependency/decision/coordination is
   tracked at Project level, and why the Issue or Milestone alone does not
-  express that need. Without those three answers the classification is "do not
-  track" or "needs clarification" — never a label. Counting workstreams is not
-  a criterion: one workstream is enough when the need is real.
+  express that need. The need must also match one of §3.2's admission
+  criteria. Without both, the classification is "do not track" or "needs
+  clarification" — never a label. Counting workstreams is not a criterion: one
+  workstream is enough when the need is real.
 - Record the reason in the `## Theo dõi Project` section of the body or, when
   the body must not change, in a comment on the Issue. When a form's
   `Theo dõi Project` field is filled, it only collects the rationale — it never
