@@ -45,4 +45,4 @@ Việc chuyển này **không** âm thầm sửa quyết định cũ: [ADR-0013]
 | Document                               | Nội dung                                                                        |
 | -------------------------------------- | ------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, quy tắc nghiệp vụ, invariant, sự kiện domain và ngữ nghĩa quyền |
-| [`adr/`](./adr/README.md)              | Architectural decision record — mười lăm quyết định (ADR-0001…0014, 0016)       |
+| [`adr/`](./adr/README.md)              | Architectural decision record — mười sáu quyết định (ADR-0001…0014, 0016, 0020) |

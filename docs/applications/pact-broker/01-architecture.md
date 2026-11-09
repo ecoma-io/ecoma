@@ -58,7 +58,7 @@ Ngữ nghĩa audit business → [`docs/domains/pact-broker/domain-model.md`](../
 
 ## 4. Default tenant provisioning (race-safe)
 
-`ensureDefaultTenant(name, ownerSub)` là primitive race-safe của tenant repo; **không** có đường HTTP nào tự gọi nó khi account đăng ký hay đăng nhập. Tenant mặc định của một account **không** được tạo tự động từ login — bootstrap tenant `ecoma-internal` và tenant mặc định cho account được thực hiện **tường minh** bởi một **bootstrap script độc lập** (machine token từ migration seed, chỉ trong test/local); deploy pipeline, khi được xây, chỉ là caller tuỳ chọn của script đó — theo nguyên tắc bootstrap independence (§5.3).
+`ensureDefaultTenant(name, ownerSub)` là primitive race-safe của tenant repo; **không** có đường HTTP nào tự gọi nó khi account đăng ký hay đăng nhập. Tenant mặc định của một account **không** được tạo tự động từ login — bootstrap tenant `ecoma-internal` và tenant mặc định cho account được thực hiện **tường minh** trên bề mặt provisioning/CLI của service (không có route, không có flag runtime — hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2, [ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)).
 
 Khi được gọi (trong bootstrap có kiểm soát), primitive thực hiện:
 
@@ -95,7 +95,7 @@ KHÔNG dùng BFF ForwardAuth như một thay thế đã implement cho machine to
 Build/test/migrate/bootstrap của broker **không yêu cầu** Account/Auth production đang sống:
 
 - Unit + integration test dùng testcontainers PostgreSQL (`postgres:17-alpine`) — không Hyperdrive, không dịch vụ ngoài.
-- Machine token cho CLI được tạo qua API có auth riêng trong test (bootstrap token từ migration seed có kiểm soát, chỉ trong môi trường test/local).
+- Machine token cho CLI được tạo qua API có auth riêng trong test; seed credential cho lane local/test chỉ tồn tại trên bề mặt provisioning/CLI, không nằm trong migration ([`02` §3.2](../../architecture/02-delivery.md)).
 - Dashboard không bắt buộc để publish/verify (CLI path độc lập hoàn toàn).
 
 ## 6. `can-i-deploy` — nghĩa vụ của deploy unit

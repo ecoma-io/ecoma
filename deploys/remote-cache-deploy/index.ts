@@ -219,8 +219,11 @@ const migrate = new command.local.Command(
  * KHÔNG có bước seed dữ liệu riêng ở unit này: control plane P4.1 không seed
  * tenant/project nào — dữ liệu tenant/project/membership/api_key do operator
  * cấp qua migration/procedure riêng sau khi bounded context có consumer đầu tiên.
- * Deploy unit cấm mọi code path bootstrap; đường tạo tenant phổ quát là quyết định
- * chưa chốt, phải chốt trước khi có consumer ghi.
+ * "Cấm mọi code path bootstrap" nghĩa là cấm đường serving (route/flag runtime),
+ * không cấm bước provisioning: hợp đồng canonical cho bước bootstrap/seed là
+ * `docs/architecture/02-delivery.md` §3.2 + ADR-0020. Khi #20 thêm bước seed
+ * tenant nội bộ `ecoma-internal`, bước đó chạy trên bề mặt provisioning đã chốt,
+ * không phải trong Worker.
  */
 
 /**

@@ -91,6 +91,16 @@ Câu `REVOKE` không phụ thuộc table nào tồn tại → từ chối đư�
 
 Thứ tự provisioning: infrastructure (database + ba role + `REVOKE` chéo) → expand schema → binding Hyperdrive → compatible rollout → contract.
 
+### 3.2b Bootstrap dữ liệu khởi tạo
+
+`auth` có đúng một bản ghi thuộc lớp bootstrap: OAuth client công khai của backoffice (`ecoma-backoffice-local` trên lane local) cùng redirect URI của nó. Nó **không** nằm trong migration — redirect URI là output của stack nên biến thiên theo environment, và credential/client không thuộc lớp catalog sealed ([ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)).
+
+- Bề mặt: bước provisioning của deploy unit, chạy sau `migrate` và trước container serving; dùng role migrator, không phải runtime role.
+- Idempotent theo natural key `client_id` (`ON CONFLICT … DO UPDATE` chỉ trên `allowed_scopes`; redirect URI `ON CONFLICT DO NOTHING`).
+- Client **không** phải credential bí mật: `client_type = 'public'`, không có `client_secret_hash`.
+- Kiểm tra sau bước: `SELECT 1 FROM auth.oauth_clients WHERE client_id = <id>` cộng redirect URI khớp **exact string** với giá trị dựng từ stack output.
+- Thứ tự bước, bảng bước → database và quy tắc idempotency chung → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2.
+
 ### 3.3 Envelope nội bộ — secret, kho nonce và mã lỗi
 
 Vận hành của envelope HMAC dùng chung với `account`. Giao thức, canonical form và taxonomy lỗi có **một** nguồn sự thật: [`01-architecture.md`](./01-architecture.md) §5.1.8; cài đặt ở `libs/internal-auth-contracts` (`internal-auth.ts`). Mục này chỉ nói phần vận hành.
