@@ -152,7 +152,7 @@ Một Issue cần Project khi có nhu cầu **portfolio visibility hoặc coordi
 - Sắp thứ tự giữa các work item có dependency, kể cả một Issue mà nhiều work item khác chờ.
 - Theo dõi một nhóm work item qua nhiều Milestone.
 
-Ba dạng này là tiêu chí duy nhất; §3.3 áp chúng cho từng Issue và không thêm tiêu chí thứ tư. Số lượng workstream tham gia không phải điều kiện: một Issue có thể cần visibility vì nó là mốc đo của cả nhóm, dù chỉ một workstream trực tiếp làm nó.
+Ba dạng này là tiêu chí duy nhất; §3.3 áp chúng cho từng Issue và không thêm tiêu chí thứ tư. Số lượng workstream tham gia không phải điều kiện: một Issue do đúng một workstream làm vẫn cần track khi nhiều work item khác đang chờ nó hoặc phải xếp thứ tự quanh nó.
 
 Không đưa vào chỉ vì Issue tồn tại. Một Issue đơn lẻ, hoặc một chuỗi Issue trong cùng một Milestone đã đủ rõ, không cần Project.
 
@@ -176,23 +176,23 @@ Ba thứ này không phải một trạng thái đồng bộ hai chiều: label 
 
 **Điều kiện phân loại** theo work kind ([`evolution-process.md`](./evolution-process.md) §4.1):
 
-| Work kind       | Mặc định  | Dấu hiệu đáng xét                                                                                              |
-| --------------- | --------- | -------------------------------------------------------------------------------------------------------------- |
-| **Discovery**   | Selective | Kết quả là đầu vào bắt buộc của công việc khác, hoặc ảnh hưởng quyết định của MVP                              |
-| **Modelling**   | Selective | Quyết định có tác động cross-domain, hoặc một Issue khác đang chờ quyết định đó trước khi tiếp tục             |
-| **Experiment**  | Không     | Chỉ khi kết quả ảnh hưởng một quyết định còn đang mở                                                           |
-| **Delivery**    | Selective | Phân biệt với phần còn lại của outcome: nằm trên critical path, là node nghiệm thu, hoặc là mốc đo của cả nhóm |
-| **Remediation** | Selective | Ảnh hưởng MVP, release, hoặc một thứ tự công việc khác đang chờ                                                |
+| Work kind       | Mặc định  | Dấu hiệu đáng xét                                                                                     |
+| --------------- | --------- | ----------------------------------------------------------------------------------------------------- |
+| **Discovery**   | Selective | Kết quả là đầu vào mà work item khác đang chờ, hoặc một quyết định chưa chốt đang chặn công việc khác |
+| **Modelling**   | Selective | Một Issue khác đang chờ quyết định đó trước khi tiếp tục                                              |
+| **Experiment**  | Không     | Chỉ khi một quyết định chưa chốt đang chặn công việc khác                                             |
+| **Delivery**    | Selective | Nằm trên critical path, là node nghiệm thu, hoặc là mốc mà các work item khác đang chờ                |
+| **Remediation** | Selective | Một thứ tự công việc khác đang chờ, hoặc nằm trên critical path của release                           |
 
 Bảng này chỉ là bộ lọc sơ bộ theo bản chất công việc: mỗi dấu hiệu chỉ có nghĩa khi quy được về một trong ba dạng nhu cầu ở §3.2. Work kind không nằm trong bảng không loại trừ việc track, và work kind "Selective" không phải lý do để gắn label.
 
-Gắn label khi nhu cầu coordination ở cấp portfolio khớp một trong ba dạng ở §3.2. Trắc nghiệm: nêu được _ai hoặc cái gì_ cần visibility mà Issue hoặc Milestone không thể hiện — nhiều work item đang chờ, một thứ tự cần giữ, một mốc đo của cả nhóm, hoặc một nhóm work item theo dõi qua nhiều Milestone. Chỉ một workstream cũng đủ khi điều kiện đó đúng; số workstream không phải tiêu chí.
+Gắn label khi nhu cầu coordination ở cấp portfolio khớp một trong ba dạng ở §3.2. Trắc nghiệm: nêu được _ai hoặc cái gì_ cần visibility mà Issue hoặc Milestone không thể hiện — nhiều work item đang mở cần so sánh để chọn việc tiếp theo, một thứ tự cần giữ giữa các work item có dependency, hoặc một nhóm work item cần theo dõi qua nhiều Milestone. Chỉ một workstream cũng đủ khi điều kiện đó đúng; số workstream không phải tiêu chí.
 
 **Rationale bắt buộc.** Bảng trên chỉ cho biết nhóm nào _có thể_ được track; nó không tự chứng minh một Issue cụ thể cần track. Một quyết định Track chỉ hợp lệ khi trả lời được ba câu, bằng nội dung thực tế của Issue:
 
 1. **Ai hoặc cái gì cần visibility?** Nêu tên work item, workstream, người nhận kết quả, hoặc nhóm đang chờ — không nói chung "cần theo dõi".
-2. **Dependency, decision hoặc coordination nào cần theo dõi ở cấp Project?** Nêu cụ thể thứ tự cần giữ, quyết định cần chung, hoặc mốc đo của cả nhóm — không phải "công việc này quan trọng".
-3. **Vì sao Issue hoặc Milestone không biểu đạt đủ nhu cầu đó?** Ví dụ: kết quả là mốc đo của cả nhóm, hoặc nó nằm trên critical path mà Milestone của nó không thể hiện.
+2. **Dependency, decision hoặc coordination nào cần theo dõi ở cấp Project?** Nêu cụ thể thứ tự cần giữ, work item đang chờ kết quả, hoặc nhóm work item cần theo dõi — không phải "công việc này quan trọng".
+3. **Vì sao Issue hoặc Milestone không biểu đạt đủ nhu cầu đó?** Ví dụ: các work item đang chờ nằm ngoài Milestone của Issue này, hoặc nhóm cần theo dõi trải qua nhiều Milestone.
 
 Không trả lời được cả ba câu nghĩa là chưa đủ căn cứ: giữ ở trạng thái **không track** hoặc **cần làm rõ**, không gắn label.
 
