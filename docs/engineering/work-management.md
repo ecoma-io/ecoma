@@ -172,7 +172,7 @@ Ba thứ này không phải một trạng thái đồng bộ hai chiều: label 
 
 **Mục đích.** Label đánh dấu Issue cần **portfolio visibility** hoặc **coordination ở cấp Project**. Project không phải bản sao của backlog hay Milestone: không phải mọi Issue đều cần xuất hiện trong Project.
 
-**Cơ chế admission.** Project dùng native `Auto-add to project` workflow, lọc theo repository liên kết và label này. Không dùng custom GitHub Action, sync script hay automation hai chiều. Filter và trạng thái thực tế của workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Workflow khác tự thêm item mà không xét `project:track` (ví dụ `Auto-add sub-issues to project`) **vượt policy**: không được coi là hợp lệ, phải tắt hoặc ghi nhận là ngoại lệ có lý do.
+**Cơ chế admission.** Project dùng native `Auto-add to project` workflow, lọc theo repository liên kết và label này. Không dùng custom GitHub Action, sync script hay automation hai chiều. Filter và trạng thái thực tế của workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Workflow khác tự thêm item mà không xét `project:track` (ví dụ workflow tự thêm sub-issue) **vượt policy**: không được coi là hợp lệ, phải tắt hoặc ghi nhận là ngoại lệ có lý do.
 
 **Điều kiện phân loại** theo work kind ([`evolution-process.md`](./evolution-process.md) §4.1):
 
@@ -208,12 +208,12 @@ Một nhu cầu coordination không quy được về một trong ba dạng ở 
 
 **Trách nhiệm phân loại.**
 
-| Vai trò                 | Việc                                                                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Planner (Select & Plan) | Đề xuất classification **và rationale** theo mục "Rationale bắt buộc" **trước khi** Issue được tạo, hoặc trước khi Epic được phân rã thành Issue                                      |
-| Issue creator           | Gắn label khi và chỉ khi rationale đã có và thoả policy; không gắn theo priority, work kind, Milestone hay product                                                                    |
-| Reviewer                | Kiểm tra cả hai chiều: Issue cần track nhưng thiếu label, và Issue có label nhưng rationale không đủ căn cứ                                                                           |
-| Project coordinator     | Sở hữu vòng đời membership: so tracking intent, label và Project membership, quyết định thêm, archive hoặc xoá item với lý do được ghi. Agent chỉ báo lệch, không tự archive/xoá item |
+| Vai trò                 | Việc                                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Planner (Select & Plan) | Đề xuất classification **và rationale** theo mục "Rationale bắt buộc" **trước khi** Issue được tạo, hoặc trước khi Epic được phân rã thành Issue                                                                                            |
+| Issue creator           | Gắn label khi và chỉ khi rationale đã có và thoả policy; không gắn theo priority, work kind, Milestone hay product                                                                                                                          |
+| Reviewer                | Kiểm tra cả hai chiều: Issue cần track nhưng thiếu label, và Issue có label nhưng rationale không đủ căn cứ                                                                                                                                 |
+| Project coordinator     | Sở hữu vòng đời membership: so tracking intent, label và Project membership, quyết định archive hoặc xoá item với lý do được ghi. Không thêm item bằng tay cho Issue chưa có `project:track`. Agent chỉ báo lệch, không tự archive/xoá item |
 
 Khi phân rã một Epic hoặc một Milestone thành nhiều Issue, đánh giá **từng Issue độc lập**: sub-issue không mặc định kế thừa tracking intent từ parent, và parent được track không làm sub-issue đương nhiên được track. Khi review backlog, kết luận cho mỗi Issue là một trong ba giá trị: **track**, **không track**, **cần làm rõ** — không gắn label cho nhóm thứ ba.
 

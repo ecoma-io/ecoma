@@ -151,13 +151,10 @@ sections.
   tracking while its siblings do not; a sub-issue is assessed independently and
   never inherits the label from a parent, a Milestone, a product, a work kind
   or a priority.
-- **Apply the label only with a rationale that answers §3.3's three questions:**
-  who or what needs the visibility, what dependency/decision/coordination is
-  tracked at Project level, and why the Issue or Milestone alone does not
-  express that need. The need must also match one of §3.2's admission
-  criteria. Without both, the classification is "do not track" or "needs
-  clarification" — never a label. Counting workstreams is not a criterion: one
-  workstream is enough when the need is real.
+- **Apply the label only when both conditions hold:** the Issue's need matches
+  one of §3.2's admission criteria and the rationale answers all three
+  questions in §3.3. If either is missing, the classification is "do not
+  track" or "needs clarification" — never a label.
 - Record the reason in the `## Theo dõi Project` section of the body or, when
   the body must not change, in a comment on the Issue. When a form's
   `Theo dõi Project` field is filled, it only collects the rationale — it never
@@ -171,8 +168,9 @@ sections.
 
 When reviewing Issues rather than creating one, check both directions: an
 Issue that needs tracking but has no label, and an Issue with the label whose
-rationale does not answer the three questions. Report; do not relabel another
-unit's Issue without authorization, and never archive or remove a Project item.
+need matches no §3.2 criterion or whose rationale does not answer §3.3's
+questions. Report; do not relabel another unit's Issue without authorization,
+and never archive or remove a Project item.
 
 ## Ground every claim
 
