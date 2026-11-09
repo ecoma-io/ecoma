@@ -90,6 +90,7 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
 - Guard **không** giải quyết được khoảng trống recovery trên identity đã `verified`: nó chỉ bảo đảm một lần chạy sai chế độ bị từ chối. Đường recovery đó là [ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 3, hiện thực ở #46.
 - Guard **không** thay bằng chứng về con người: `operator_ref` vẫn là tự khai; hợp đồng bằng chứng cho hai-phím là ADR-0023 Quyết định 5, và **chưa cơ chế nào được cấu hình** (#45).
 - Guard **không** bảo vệ database thứ hai. Advisory lock của `staff-access` không xuyên sang `db-account`; vế Account được tuần tự hoá riêng trong transaction của nó (ADR-0021 Quyết định 2).
+- ⚠️ **Guard là kiểm soát trong ứng dụng, không phải trong database.** Ai có credential owner/migrator và chạy `INSERT` thô vào `staff_access.role_assignments` sẽ **không** đi qua guard — nó không phải một trigger, và PR này không thêm trigger nào. Đường đó bị chặn bởi custody credential, không bởi ADR này: `AGENTS.md` cấm credential owner/migrator trở thành Worker secret, và runbook §5 invariant 11 cấm dùng credential database trong phiên tương tác (ADR-0021 Quyết định 5). Vì vậy "guard không bypass được" đúng cho **mọi đường chạy được phép** (entry point `tools/`, CLI của service, route quản trị), không đúng cho một người giữ owner credential cố tình ghi tắt — và câu đó không được trình bày rộng hơn thực tế. Trigger chặn ghi tắt cho **riêng** bảng assignment administrator là một lựa chọn chưa được quyết; nó không thuộc phạm vi #11.
 
 ## Cross-reference
 
