@@ -21,11 +21,11 @@
 
 ### 2.1 Bootstrap first-administrator — ngoài serving path
 
-Procedure tạo staff identity đầu tiên và gán system administrator role **không** phải application flow: nó chạy trên bề mặt provisioning một-lần của `deploys/staff-access-deploy`, hoặc CLI offline trong `apps/staff-access`, bằng credential migrator/owner (ADR-0020 Quyết định 3, ADR-0021 Quyết định 9). Không route, không flag, không nhánh "nếu chưa có admin thì tạo" trong bundle Worker.
+Procedure tạo staff identity đầu tiên và gán system administrator role **không** phải application flow: nó chạy trên bề mặt provisioning một-lần của `deploys/staff-access-deploy`, hoặc CLI offline trong `apps/staff-access` trên admin path CI, bằng `ecoma_staff_access_migrator` (ADR-0020 Quyết định 3, 11; ADR-0021 Quyết định 9). Entry point là repo script trong `tools/` không giữ credential và gọi từng CLI như tiến trình con (ADR-0020 Quyết định 12). Không route, không flag, không nhánh "nếu chưa có admin thì tạo" trong bundle Worker.
 
 - **Composition:** hai bước do `account` sở hữu (create-or-resolve Account, đọc lại `sub`) chạy trước, rồi ba bước do `staff-access` sở hữu (tạo staff, gán role, đọc lại + audit) — mỗi bước commit độc lập, không transaction xuyên database.
 - **Đầu vào duy nhất xuyên service:** `sub` do bước Account trả ra. `staff-access` không đọc/ghi `db-account`.
-- **Role không do procedure tạo:** role system administrator và `role_permissions` của nó là dữ liệu sealed trong seed migration; procedure chỉ gán.
+- **Role không do procedure tạo:** role system administrator và `role_permissions` của nó (bốn permission read đã có trong catalog) là dữ liệu sealed trong seed migration; procedure chỉ gán (ADR-0021 Quyết định 4).
 - Runbook đầy đủ (cấu hình, validate, từng bước, kiểm tra, retry, recovery) → [`03-operations.md`](./03-operations.md) §2–§3.
 
 ## 3. API/protocol surfaces
