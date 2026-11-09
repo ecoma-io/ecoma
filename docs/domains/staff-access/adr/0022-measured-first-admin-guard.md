@@ -34,7 +34,7 @@ Yêu cầu đặt ra: sau khi environment đã có administrator, **không** đ�
 3. **`mode` là lời khai của người chạy, và bị đối chiếu với số đo — hai số đo, không phải một.**
    - `admins_before = 0` **và** `admins_ever = 0` → chỉ chấp nhận `mode = 'bootstrap'`.
    - `admins_before > 0` **hoặc** `admins_ever > 0` → chỉ chấp nhận `mode = 'recovery'`, và chỉ khi authorization hai-phím của ADR-0003 đã được chứng minh ngoài hệ thống.
-   - Mọi cặp **(`mode` khai, số đo)** không khớp một trong hai dòng trên → **từ chối**: exit khác 0, không ghi dữ liệu nghiệp vụ nào, và ghi **một** audit row `outcome = 'denied'` với lý do `mode_mismatch`. Từ chối phải để lại dấu vết, vì một lần từ chối lặp lại là tín hiệu có người đang thử cấp lại quyền.
+   - Mọi cặp **(`mode` khai, số đo)** không khớp một trong hai dòng trên → **từ chối**: exit khác 0, không ghi dữ liệu nghiệp vụ nào, và ghi **một** audit row `outcome = 'denied'` với lý do `mode_mismatch`. Từ chối phải để lại dấu vết, vì một lần từ chối lặp lại là tín hiệu có người đang thử cấp lại quyền. ⚠️ Row đó phải được **commit ngoài transaction bị abort** — `ROLLBACK` của transaction guard cuốn theo nó và lần từ chối mất dấu vết; quy tắc đầy đủ ở [ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 6.
 
      Row `denied` đó ghi vào **`staff_access.authorization_audit`**, không phải `account.security_events`: bảng sau có `outcome CHECK ('success','failure')` và không có cột `correlation_id`, nên không biểu diễn được một quyết định bị từ chối gắn với lần chạy. Đây là tên bảng cho hành vi Quyết định 3 đã chốt, không phải một quyết định mới ([ADR-0023](./0023-administrator-lifecycle-paths.md) Quyết định 6 ghi cùng tên cho mọi lý do từ chối của ba đường).
 
