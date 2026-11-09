@@ -73,9 +73,10 @@ const PERMISSIONS: readonly Permission[] = [
  * đó bằng assertion — không phải bằng lời bình.
  *
  * ⚠️ **Không** có role `admin`, `superadmin` hay `owner`. Bootstrap
- * first-administrator là quyết định **chưa chốt** (§10) và phải đi kèm đường
- * documented + audited; một role tên `admin` trong fixture là cách dễ nhất để
- * prototype trông như đã có câu trả lời cho câu hỏi đó.
+ * first-administrator đã chốt ở ADR-0020 (một system-defined administrator role
+ * thuộc catalog của `staff-access`), nhưng fixture này là dữ liệu minh hoạ của
+ * BFF chuyển tiếp; một role tên `admin` ở đây là cách dễ nhất để prototype trông
+ * như đã có câu trả lời cho câu hỏi mà nó không sở hữu.
  */
 const ROLES: readonly SystemRole[] = [
   {

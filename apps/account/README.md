@@ -161,9 +161,10 @@ Phần này liệt kê cái **không** tồn tại, để không ai đoán nhầ
   banner Preview hiển thị).
 - **Data pages vẫn mock.** Profile, emails, sessions, applications, privacy… chưa
   có BFF; adapter thật vẫn là mock cho phần đó.
-- **Đường cấp emailAddresses chưa có.** Bảng `email_addresses` chỉ được test ghi trực
-  tiếp bằng SQL; chưa có route/API nào cho user thêm/verify email của mình — cho tới
-  khi đó, luồng OTP chỉ đăng nhập được địa chỉ được seed thủ công.
+- **UI cấp/xác minh email chưa có.** BFF `POST /api/emails` và
+  `POST /api/emails/:id/verify` đã có, nhưng UI profile chưa có ô nhập địa chỉ và ô
+  nhập mã xác minh; từ góc người dùng, luồng OTP hiện chỉ đăng nhập được địa chỉ đã
+  `verified` sẵn (seed hoặc qua API).
 - **Prune job cho `internal_nonces` chưa có.** Mỗi request internal hợp lệ ghi một
   nonce; TTL (`timestamp của envelope + skew + buffer`) đã được test đảm bảo đúng
   thời lượng, nhưng `wrangler.jsonc` chưa khai `triggers.crons` nào dọn hàng hết

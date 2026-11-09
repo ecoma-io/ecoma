@@ -103,6 +103,10 @@ const PACT_API_ALIAS = 'ecoma-pact-api';
 /**
  * Tên tenant + token machine seed ở local — consumer là `pact-broker-app`.
  * Tên tenant theo format CHECK của `pact.tenants` (`[a-zA-Z0-9._-]`).
+ *
+ * ⚠️ Đây là giá trị lane local còn sót lại, KHÔNG phải tên canonical: tên tenant
+ * nội bộ canonical là `ecoma` ở mọi environment (ADR-0020 Quyết định 9). Đổi hằng
+ * này là thay đổi hành vi, nên thuộc #21 — PR #39 chỉ chốt tên trong tài liệu.
  */
 const LOCAL_TENANT_NAME = 'local';
 const LOCAL_TOKEN_NAME = 'pact-broker-app-bff';

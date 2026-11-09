@@ -313,8 +313,8 @@ COMMENT ON COLUMN backoffice.role_permissions.role_id IS
 --
 -- `created_by_sub` là reference opaque (không FK): actor của việc gán role,
 -- có thể NULL khi assignment được tạo trong seed/bootstrap bằng migrator —
--- bootstrap first-administrator là quyết định chưa chốt (§10), schema này
--- không dựng đường nào cho nó.
+-- đường bootstrap first-administrator đã được chốt ở ADR-0020 và thuộc
+-- `db-staff-access`, không phải schema chuyển tiếp này.
 
 CREATE TABLE IF NOT EXISTS backoffice.role_assignments (
   staff_sub text NOT NULL REFERENCES backoffice.staff (sub),

@@ -221,14 +221,15 @@ const migrate = new command.local.Command(
 /**
  * KHÔNG có bước seed dữ liệu riêng ở unit này: dữ liệu seed duy nhất của
  * context `staff-access` là permission catalog (3 permission read) và nó nằm
- * trong migration `0003_permission_catalog_seed.sql` — seed cùng vòng
- * migration thay vì một lệnh psql rời. Nội dung system-defined role KHÔNG
- * được seed (docs `domains/staff-access/domain-model.md` §3.4 — quyết định chưa
- * chốt). Sổ staff KHÔNG được seed bởi deploy: first-admin bootstrap đi qua
- * procedure ADR-0003 (manual SQL bằng credential `ecoma_owner`, hai phím,
- * có audit trail) — deploy unit cấm mọi code path bootstrap; đường tạo staff
- * phổ quát (permission + actor) là quyết định chưa chốt, phải chốt trước khi
- * có consumer ghi (P5.1 là consumer đầu tiên cần nó).
+ * trong migration `0003_permission_catalog_seed.sql` — catalog sealed đi cùng
+ * vòng migration, không phải một lệnh psql rời. Nội dung system-defined role
+ * KHÔNG được seed (docs `domains/staff-access/domain-model.md` §3.4 — quyết định
+ * chưa chốt). Sổ staff KHÔNG được seed bởi deploy: first-admin bootstrap đi qua
+ * procedure ADR-0003 (manual SQL/CLI offline bằng credential `ecoma_owner`, có
+ * audit trail); hai-phím KHÔNG áp cho lần bootstrap đầu tiên nhưng vẫn áp cho
+ * emergency recovery (ADR-0020 Quyết định 11). "Deploy unit cấm mọi code path bootstrap" nghĩa là
+ * cấm đường serving (route/flag runtime), không cấm bước provisioning — hợp đồng
+ * canonical là `docs/architecture/02-delivery.md` §3.2 + ADR-0020.
  */
 
 /**

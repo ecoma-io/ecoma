@@ -24,17 +24,19 @@
 
 ---
 
-## 0. Ba đường thay đổi, ba chủ sở hữu
+## 0. Bốn đường thay đổi, bốn chủ sở hữu
 
-Ba việc sau **không** phải một việc, và việc lẫn chúng là nguồn hiểu sai phổ biến nhất:
+Bốn việc sau **không** phải một việc, và việc lẫn chúng là nguồn hiểu sai phổ biến nhất:
 
-| Việc                    | Project / công cụ sở hữu        | Tạo ra                                                                        | **Không** làm                                       |
-| ----------------------- | ------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------- |
-| **Provisioning**        | Pulumi project trong `deploys/` | Tài nguyên hạ tầng: Worker identity, binding, D1/KV/R2/Queue, DNS, Hyperdrive | Không build, không version, không phát hành release |
-| **Application release** | `apps/` + Nx Release + Wrangler | Worker version đã build                                                       | Không tạo tài nguyên hạ tầng                        |
-| **Database migration**  | Migration runner (CI job)       | Schema của database                                                           | Không tạo resource, không deploy Worker             |
+| Việc                    | Project / công cụ sở hữu                                                                                                                                     | Tạo ra                                                                        | **Không** làm                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Provisioning**        | Pulumi project trong `deploys/`                                                                                                                              | Tài nguyên hạ tầng: Worker identity, binding, D1/KV/R2/Queue, DNS, Hyperdrive | Không build, không version, không phát hành release |
+| **Database migration**  | Migration runner (CI job)                                                                                                                                    | Schema của database, cộng catalog sealed (§3.2)                               | Không tạo resource, không deploy Worker             |
+| **Bootstrap / seed**    | Bước provisioning của deploy unit sở hữu dữ liệu, hoặc CLI offline của app đó; một script vận hành nội bộ gọi các bước theo thứ tự và không ghi database nào | Dữ liệu khởi tạo do hệ thống sở hữu (§3.2)                                    | Không đổi schema, không chạy trên serving path      |
+| **Application release** | `apps/` + Nx Release + Wrangler                                                                                                                              | Worker version đã build                                                       | Không tạo tài nguyên hạ tầng                        |
 
 - Một application release **không** chạy `pulumi up`; đổi hạ tầng và phát hành ứng dụng là hai workflow tách biệt.
+- Hợp đồng bootstrap/seed, bảng bước → database và danh tính khởi tạo canonical (tenant `ecoma`, Superadmin) → §3.2, chốt bởi [`domains/staff-access/adr/0020-bootstrap-seed-contract.md`](../domains/staff-access/adr/0020-bootstrap-seed-contract.md).
 - Bảng sở hữu từng loại resource (canonical, trả lời "ai tạo/xoá cái gì") → §9.1. Layout project của nhóm deployment và
   ranh giới provisioning ↔ release ở tầng code → `05-code-architecture.md` §2.1.
 
@@ -48,11 +50,12 @@ local (Lefthook)
   → validation (lint · typecheck · test · contract check · security scan)
   → build
   → migration gate (khi storage schema đổi)
+  → bootstrap / seed + verify (khi dữ liệu khởi tạo thay đổi — §3.2)
   → deploy Worker
   → post-deploy verification
 ```
 
-- **Gate bắt buộc trước deploy:** contract check (§3), migration gate (§3), promotion gate của làn production (§7.2). Gate fail → dừng pipeline.
+- **Gate bắt buộc trước deploy:** contract check (§3), migration gate (§3), bootstrap/verify khi có bước bootstrap thuộc unit đó (§3.2), promotion gate của làn production (§7.2). Gate fail → dừng pipeline.
 - `nx affected` quyết định unit nào đi qua pipeline; release một unit không đụng unit khác.
 - Mọi deploy unit là Worker (`01` §1): không image, không registry, không GitOps reconcile. Deploy là lệnh có trả về — bước kế tiếp chạy ngay khi lệnh thành công.
 
@@ -122,6 +125,80 @@ Taxonomy (`apps`/`libs`/`system-tests`) và cấu trúc Nx project → [`05-code
 - Loại trừ mọi đường chạy migration từ trong Worker: Hyperdrive **không hỗ trợ advisory lock** (`04` HD6) nên không giữ được lock chống chạy chồng; `cloudflare:sockets` chỉ plaintext TCP (`04` VP2) — không có TLS cho credential; Worker cron chạy migration nghĩa là migration phụ thuộc application plane.
 - Dọc đường đó, một Worker cron **có thể** chạy DML có chọn lọc qua Hyperdrive — khác loại với migration: không cần advisory lock và không đổi schema. Job hiện tại là `auth-nonce-prune-job` (cron DELETE nonce hết hạn bằng role DML hẹp của từng database — `docs/applications/auth-nonce-prune-job/01-architecture.md`); đường sự vụ này KHÔNG mở cửa cho migration từ Worker, rule loại trừ ở bullet trên vẫn giữ nguyên.
 - Đường vào database này là **admin path** riêng cho CI, không phải application access path (`01` §1.1). Credential `_migrator` chỉ tồn tại trong CI secret store, không bao giờ là Worker secret (§6).
+
+### 3.2 Hợp đồng bootstrap / seed
+
+Quyết định (đường chạy, danh tính khởi tạo canonical, nội dung migration được phép chứa) là một ADR — [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md). Mục này là nội dung vận hành canonical: thứ tự bước, chủ sở hữu, database đích và kiểm tra sau bước.
+
+**Định nghĩa.** Bootstrap/seed là dữ liệu khởi tạo **do hệ thống sở hữu**: bản ghi sản phẩm cần để hoạt động mà không người dùng nào tạo ra. Dữ liệu do người dùng tạo lúc chạy — tenant của khách hàng, project, API key của khách, membership của khách — **không** thuộc lớp này; nó đi qua route/control plane của sản phẩm như trước.
+
+**Danh tính canonical — giống nhau ở mọi environment.** Tenant nội bộ tên là `ecoma` và Account đầu tiên dùng email `superadmin@ecoma.io`. `local`/`staging`/`production` là nhãn environment, **không** phải tên tenant. Environment được đổi **input seed** (endpoint, credential, redirect URI, token plaintext, tên client), **không** được đổi danh tính canonical ([ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 9 và 11).
+
+**Thứ tự bắt buộc**, mỗi bước chỉ chạy sau khi bước trước đã commit:
+
+```text
+Provision databases
+  → Migrate schemas (chỉ schema + catalog sealed)
+  → Bootstrap Account (sub của superadmin, email ở trạng thái pending)
+  → Seed staff + assignment của administrator (dùng sub ở bước trên)
+  → Seed tenant ecoma + membership của từng sản phẩm (dùng sub ở bước trên)
+  → Bootstrap provider / offer đầu tiên của LLM Seller
+  → Verify (đọc lại đúng bản ghi kỳ vọng)
+```
+
+**Một entry point, nhiều cấu hình.** Thứ tự trên do **một** entry point vận hành chạy, nhận cấu hình chọn environment và input seed của environment đó. Entry point đó là **repo script** đặt trong `tools/` — không phải một Nx project sở hữu app nào, nên không phải deploy project (`05-code-architecture.md` §2.1) và không có entry trong `DEPLOYMENT_MAP`. Nó **không giữ credential database nào** và **không ghi trực tiếp database của service nào**: nó chỉ gọi thao tác bootstrap mà từng service tự sở hữu, theo đúng thứ tự, và dừng khi một bước fail. Không có cấu hình nào fallback sang environment khác (§4.1 điều 1).
+
+| #   | Bước                                              | Chủ sở hữu (service ghi)             | Database ghi                   | Kiểm tra sau bước (đọc được, không dựa log)                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------- | ------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Provision databases + role                        | Pulumi project trong `deploys/`      | — (không ghi dữ liệu ứng dụng) | Kết nối được bằng role migrator của từng database; role runtime tồn tại và **không** có quyền DDL                                                                                                                                                                                              |
+| 2   | Migrate schemas                                   | Migration runner (§3, §3.1)          | Database của chính unit        | Migration history của database đó chứa đủ tập file; catalog sealed đọc lại đúng số bản ghi kỳ vọng                                                                                                                                                                                             |
+| 3   | Bootstrap Account đầu tiên                        | `account`                            | `db-account`                   | `SELECT` theo `address_hash` của email khởi tạo: đúng một Account `active` + đúng một hàng `pending` (`verified_at IS NULL`); **không** có hàng `verified` cho địa chỉ đó và không có hàng `pending` của `sub` khác                                                                            |
+| 4   | Seed staff + assignment của administrator         | `staff-access`                       | `db-staff-access`              | Đọc lại: đúng **một** assignment chưa `revoked_at` của `sub`, và đúng **một** role `kind = 'system'` theo định danh canonical — số hàng, không chỉ sự tồn tại; audit trail của lần chạy ghi lại được theo [ADR-0003](../domains/staff-access/adr/0003-bootstrap-first-admin-recovery.md) (#85) |
+| 5a  | Seed tenant `ecoma` + membership owner            | `pact-broker`                        | `db-pact-broker`               | `SELECT id, status FROM pact.tenants WHERE name = 'ecoma'` trả đúng một row `active`; membership owner của `sub` đọc lại được                                                                                                                                                                  |
+| 5b  | Seed tenant `ecoma` + membership owner            | `remote-cache`                       | `db-remote-cache`              | `SELECT id, status FROM remote_cache.tenants WHERE name = 'ecoma'` trả đúng một row `active`; membership owner của `sub` đọc lại được                                                                                                                                                          |
+| 6   | Seed machine credential cho `pact-broker-app`     | `pact-broker`                        | `db-pact-broker`               | Đọc: đúng **một** token còn hiệu lực (`revoked_at IS NULL`) cho `(tenant ecoma, token name)`, không phải một hàng cho hash hiện tại. Gọi thật bằng token không thuộc verify bảng này — đó là smoke sau readiness                                                                               |
+| 7   | Seed OAuth client cho backoffice                  | `auth`                               | `db-auth`                      | `SELECT 1 FROM auth.oauth_clients WHERE client_id = <id>` + đúng tập redirect URI kỳ vọng (URI cũ đã gỡ không còn)                                                                                                                                                                             |
+| 8a  | Bootstrap Seller tenant đầu tiên + provider/offer | `llm-api` (BC `llm-seller-tenant`)   | `db-llm-gateway`               | Provider + offer đọc lại được qua probe của chính `llm-api`; owner membership của `sub` đọc lại được                                                                                                                                                                                           |
+| 8b  | Bootstrap marketplace entry của offer đó          | `llm-api` (BC `llm-seller-tenant`)   | `db-llm-marketplace`           | Entry marketplace đọc lại được và trỏ đúng offer ở bước 8a                                                                                                                                                                                                                                     |
+| 9   | Seed Consumer tenant `ecoma`                      | `llm-api` (BC `llm-consumer-tenant`) | `db-llm-tenant`                | Tenant + owner membership đọc lại được; nguồn lực ban đầu theo quyết định của #14 có bản ghi tương ứng                                                                                                                                                                                         |
+
+Trong các dòng bootstrap/seed (3–9), mỗi dòng là **một service ghi và một database**. Bước 8 tách 8a/8b vì chạm hai database — dù cùng `llm-api` sở hữu — để không dòng nào cấp phép cho một bước ghi hai database. Bước 1 và 2 không phải seed: bước 1 không ghi dữ liệu ứng dụng, bước 2 chạy migration cho từng database bằng credential migrator của chính database đó.
+
+Bước 5a/5b là hai sản phẩm, hai database, không chung transaction: mỗi bên seed tenant `ecoma` của riêng nó. Bước 6 thuộc cùng unit với bước 5a; bước 7 là unit `auth`. Bước 8a/8b chỉ có sau khi quyết định seller nội bộ của #15 được accept — **tên tenant seller và offer cụ thể do #15 chốt**, không phải nội dung của mục này. Bước 9 chỉ có sau #14.
+
+Bước 3 và bước 4 ghi hai database khác nhau và **không** nằm trong một transaction: bước 3 sinh `sub`, bước 4 đọc `sub` đó làm input. Chạy lại bước 3 với cùng email khởi tạo phải trả **cùng** `sub`; cơ chế bảo đảm điều đó thuộc #11 (đường tạo Account đầu tiên và ánh xạ email → `sub`), và cho tới khi #11 chốt thì #17 không hiện thực bước 3. Điều kiện "đúng một hàng `pending`" ở bước 3 là ràng buộc của procedure, không phải của schema: UNIQUE trên `account.email_addresses` chỉ áp cho hàng `verified`. Kiểm tra ở bước 3 vì vậy chứng minh **hàng tồn tại đúng trạng thái**, không chứng minh Superadmin đăng nhập được — đường verify đầu tiên chưa tồn tại cho tới khi #11 chốt (ADR-0020 §"Quyết định hoãn").
+
+**Quy tắc thi hành:**
+
+- **Bề mặt thực thi:** bước một-lần trong provisioning lifecycle của deploy unit sở hữu dữ liệu (chạy sau `migrate`, trước container serving — trim theo `dependsOn`) cho lane local; CLI offline trong chính app đó, dùng credential migrator/owner, cho environment thật và cho bước cần `ecoma_owner`. Cả hai bề mặt chạy trên **admin path** của §3.1, không phải trên máy trạm của operator cầm credential dùng chung. Không route, không flag, không code path nào trong Worker bundle của Worker serving.
+- **"Đầu tiên" do entry point quyết định, không do service quyết định.** Bước 4 không có nhánh "nếu chưa có administrator thì tạo": entry point chạy một lần cho mỗi environment và chỉ chạy khi chưa có assignment nào của administrator role; chạy lại với input khác là ngoài hợp đồng, không phải một biến thể hợp lệ.
+- **Verify, kiểm idempotency và smoke là ba thứ khác nhau.** Cột "Kiểm tra sau bước" chỉ là verify — đọc lại đúng tập bản ghi kỳ vọng. Kiểm idempotency là chạy lại bước rồi so số hàng; smoke sau readiness là gọi thật vào API đã lên. Ba việc không trộn vào cùng một bước và không thay thế nhau.
+- **Đổi plaintext token là revoke hàng cũ, không tạo hàng thứ hai.** Machine token lưu hash; khi cấu hình environment đổi plaintext, bước 6 phải `revoked_at` hàng cũ trước khi ghi hàng mới (forward-fix, không xoá), để verify "đúng một token còn hiệu lực" giữ đúng.
+- **Bootstrap Superadmin không cần phê duyệt hai-phím.** Bước 3 và 4 là bootstrap đầu tiên, chạy trên environment chưa có identity quản trị nào để làm phím thứ hai; trust anchor là chứng minh kiểm soát email `superadmin@ecoma.io` ở lần đăng nhập đầu, cộng audit trail và idempotency. **Emergency recovery vẫn giữ hai-phím rule của [ADR-0003](../domains/staff-access/adr/0003-bootstrap-first-admin-recovery.md)**; ADR-0020 Quyết định 11 chỉ supersede hai-phím cho lần bootstrap đầu tiên.
+- **Bootstrap không tự verify email.** Bước 3 để hàng email ở `pending`. Đường hoàn tất lần xác minh đầu tiên chưa được chốt (ADR-0020 §"Quyết định hoãn") và thuộc #11.
+- **Trạng thái hiện tại:** vì đường verify đầu tiên chưa tồn tại, bước 3 và 4 **bị chặn** cho tới khi #11 chốt trigger đó.
+- **Idempotency bằng natural key:** `sub`, `(schema, tenant name)`, `(tenant_id, sub)`, `client_id`, `sha256(plaintext token)`, permission `id`. Chạy lại là no-op trên bản ghi đã có; không file trạng thái, không bảng marker, không đọc log.
+- **Partial failure — "bước K thất bại sau bước J đã commit":** vì mọi bước là insert-if-absent hoặc update trường không phải danh tính, trạng thái sau lỗi là một **tiền tố hợp lệ** của trạng thái cuối. Chạy lại toàn bộ hợp đồng từ đầu hội tụ về đúng trạng thái của một lần chạy sạch; **không có bước compensating nào** — không có transaction xuyên database và không có rollback dữ liệu (§8, `01` invariant 11).
+- **Fail-closed, không hồi sinh:** tenant đã `suspended`/`deleted` không được seed lại thành `active`; bước verify fail nghĩa là unit đó chưa xong.
+- **Failure isolation:** bootstrap/verify của một unit thất bại chỉ làm unit đó không ready. Unit khác retry độc lập; `sub` từ bước 3 là giá trị đầu ra được truyền vào, không phải ràng buộc giao dịch.
+- **Không đọc/ghi chéo database:** mỗi bước chỉ chạm database của service ghi; không FK xuyên database; `sub` là tham chiếu opaque duy nhất đi xuyên service.
+- **Không credential nào chỉ sống trong một lần chạy:** plaintext của machine token / OAuth client phải tái tạo được từ nguồn cấu hình của environment (§6 — secrets thuộc cấu hình/Worker Secret, không thuộc migration; `03` §3.5 là yêu cầu liên quan nhưng khác: nó nói bản sao offline của credential phải nằm ngoài VPS); seed không sinh giá trị mới mỗi lần chạy, vì làm vậy là drift chứ không phải idempotency.
+- **Permission catalog không do bootstrap định nghĩa.** Catalog canonical là `staff_access.permissions`; thay đổi đi qua seed migration mới, không sửa migration đã apply ([ADR-0010](../domains/staff-access/adr/0010-permission-naming-and-read-catalog.md)). Tập permission và nội dung system-defined administrator role thuộc #11; chênh lệch `audit.read` giữa hai bản seed **không** được chọn tại chỗ.
+
+**Số phận của các seed đang có trong repo — chốt tại đây:**
+
+| Seed hiện có                                                          | Lớp                           | Quyết định                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/backoffice/db/migrations/0003_permission_catalog_seed.sql`      | Catalog sealed                | **Giữ trong migration.** Permission catalog cố định lúc review, không biến thiên theo environment, idempotent (`WHERE NOT EXISTS` + `ON CONFLICT DO NOTHING`). `db-backoffice` là DB chuyển tiếp; catalog canonical là `staff_access`                                                  |
+| `apps/staff-access/db/migrations/0003_permission_catalog_seed.sql`    | Catalog sealed                | **Giữ trong migration**, cùng lý do. Chênh lệch 3-vs-4 permission so với bản `backoffice` không được sửa tại chỗ: `audit.read` đi qua seed migration mới nếu được chấp nhận ([ADR-0010](../domains/staff-access/adr/0010-permission-naming-and-read-catalog.md)); quyết định thuộc #11 |
+| `apps/transactional-mail/migrations/0009_mail_templates_seed.sql`     | Catalog sealed                | **Giữ trong migration.** Template không phải credential, không biến thiên theo environment, `ON CONFLICT (id) DO NOTHING`                                                                                                                                                              |
+| Tenant `local` + machine token trong `deploys/pact-broker-api-deploy` | Bootstrap/seed (system-owned) | **Chuyển sang tenant `ecoma`** trên bề mặt provisioning; token plaintext lấy từ cấu hình environment ổn định thay vì sinh mới (thực hiện ở #21)                                                                                                                                        |
+| OAuth client `ecoma-backoffice-local` trong `deploys/auth-deploy`     | Bootstrap/seed (system-owned) | **Giữ**, phân loại là bootstrap/seed trên bề mặt provisioning; redirect URI là output của stack nên không thể nằm trong migration (thực hiện/kiểm lại ở #25)                                                                                                                           |
+| `apps/pact-broker-api/db/bootstrap-internal-tenant.mts`               | Bootstrap/seed (system-owned) | **Nối vào bề mặt (b)** của `pact-broker` ở #21, hoặc thay bằng entry đã chốt — không để tiếp tục orphan                                                                                                                                                                                |
+
+Không có seed nào khác được thêm vào migration ngoài ba catalog trên.
+
+Việc đổi tenant `local` → `ecoma` không cần migration dữ liệu: bước seed hiện có chỉ chạy trên lane local (`docker exec` vào container PostgreSQL của worktree), và dữ liệu local là dữ liệu dùng một lần (`local-down` xoá volume PostgreSQL — `local-development/03-operations.md`). Sau khi #21 đổi hằng số, một worktree local đang chạy phải được dựng lại bằng `local-up`, không phải bằng cách chạy seed hai lần trên cùng database. Environment thật dựng tenant lần đầu bằng chính bước bootstrap này, nên chưa có hàng cũ nào phải đổi tên ở đó.
 
 ---
 
@@ -886,8 +963,8 @@ release commit với env `production` — không promote xuyên Worker identity)
 (§7.4.1 — **đã bị gỡ khỏi repo**).
 
 Đã chốt **và còn hiện diện trong repo**: layout nhóm deployment `deploys/` với `platform-deploy` là tầng prerequisite; cấu
-hình Nx Release per-project (`nx.json` `release.projects`, `projectsRelationship: independent`); ranh giới ba đường
-thay đổi ở §0.
+hình Nx Release per-project (`nx.json` `release.projects`, `projectsRelationship: independent`); ranh giới bốn đường
+thay đổi ở §0 và hợp đồng bootstrap/seed ở §3.2.
 
 **Chưa chốt và chưa có bằng chứng hiện thực (trên environment thật):** số stack Pulumi và ánh xạ stack → project
 `deploys/` cho staging/production — đường **local** đã chốt và đã hiện thực: một stack `local-<namespace>` mỗi project,
