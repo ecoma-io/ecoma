@@ -154,13 +154,21 @@ Project status **không phải** capability state. `In progress` trên Project k
 
 Không đưa vào chỉ vì Issue tồn tại. Một Issue đơn lẻ, hoặc một chuỗi Issue trong cùng một Milestone đã đủ rõ, không cần Project.
 
-Ý định tracking được biểu đạt bằng label `project:track` (§3.3); Project membership là kết quả quan sát được từ label đó, không phải một quyết định song song.
-
 ### 3.3 Theo dõi Issue bằng label `project:track`
+
+**Ba khái niệm khác nhau.** Policy này nói về ba thứ riêng biệt; gộp chúng lại là nguồn gốc của phần lớn sai lệch tracking:
+
+| Khái niệm                        | Trả lời                                             | Nơi sống                                                        |
+| -------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
+| **Tracking intent**              | Issue này có cần coordination ở cấp portfolio không | Quyết định của Planner/Reviewer, kèm lý do cụ thể               |
+| **Admission signal**             | Dấu hiệu nào khiến Issue được đưa vào Project       | Label `project:track`                                           |
+| **Project membership lifecycle** | Item đã có trong Project thì đi đâu tiếp            | Cấu hình native workflow của GitHub, không phải policy của repo |
+
+Tracking intent là **quyết định**; label là **tín hiệu admission** được chọn để truyền quyết định đó cho workflow; Project membership là **kết quả do GitHub tạo ra**. Ba thứ này không phải một trạng thái đồng bộ hai chiều: label không phải bản sao của membership, và membership không chứng minh tracking intent vẫn còn hiệu lực. Bỏ label **không** rút item khỏi Project; thêm item bằng tay **không** thay cho việc đánh giá intent.
 
 **Mục đích.** Label đánh dấu Issue cần **portfolio visibility** hoặc **coordination ở cấp Project**. Project không phải bản sao của backlog hay Milestone: không phải mọi Issue đều cần xuất hiện trong Project.
 
-**Cơ chế.** Project dùng native `Auto-add to project` workflow, lọc theo repository liên kết và label này. Không dùng custom GitHub Action, sync script hay automation hai chiều. Filter và trạng thái thực tế của workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1).
+**Cơ chế.** Project dùng native `Auto-add to project` workflow, lọc theo repository liên kết và label này. Không dùng custom GitHub Action, sync script hay automation hai chiều. Filter và trạng thái thực tế của workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Workflow khác tự thêm item mà không xét `project:track` (ví dụ `Auto-add sub-issues to project`) **vượt policy**: không được coi là hợp lệ, phải tắt hoặc ghi nhận là ngoại lệ có lý do.
 
 **Điều kiện phân loại** theo work kind ([`evolution-process.md`](./evolution-process.md) §4.1):
 
@@ -174,10 +182,19 @@ Không đưa vào chỉ vì Issue tồn tại. Một Issue đơn lẻ, hoặc m�
 
 Gắn label khi cần theo dõi **dependency, ownership, tiến độ hoặc quyết định** ở cấp portfolio. Trắc nghiệm đơn giản: Issue này có **từ hai workstream trở lên** phải chờ, phải xếp thứ tự, hoặc phải cùng biết không — hoặc nó là mốc mà kết quả của cả nhóm được đo tại đó.
 
+**Rationale bắt buộc.** Bảng trên chỉ cho biết nhóm nào _có thể_ được track; nó không tự chứng minh một Issue cụ thể cần track. Một quyết định Track chỉ hợp lệ khi trả lời được ba câu, bằng nội dung thực tế của Issue:
+
+1. **Workstream nào cần visibility?** Nêu tên các workstream hoặc Issue cụ thể đang chờ, đang xếp thứ tự theo, hoặc cần cùng biết kết quả.
+2. **Dependency, decision hoặc coordination nào cần theo dõi ở cấp Project?** Nêu cụ thể cái gì phải phối hợp — không phải "công việc này quan trọng".
+3. **Vì sao Issue/Milestone thông thường không đủ?** Ví dụ: kết quả là mốc đo của cả nhóm, hoặc nó nằm trên critical path giữa nhiều workstream mà Milestone của nó không thể hiện.
+
+Không trả lời được cả ba câu nghĩa là chưa đủ căn cứ: giữ ở trạng thái **không track** hoặc **cần làm rõ**, không gắn label.
+
 Không gắn label:
 
-- Chỉ vì Issue có priority cao.
+- Chỉ vì Issue có priority cao. Priority là thứ tự thực hiện, không phải nhu cầu coordination.
 - Chỉ vì Issue thuộc một product hoặc một Milestone. **Mọi deliverable của một Milestone đều thuộc Milestone đó**; nếu đó là lý do đủ thì Project chỉ là bản sao của Milestone. Một delivery chỉ đáng track khi nó phân biệt được với các deliverable còn lại của cùng Milestone.
+- Chỉ vì work kind của Issue nằm trong nhóm "Selective" ở bảng trên. Work kind là bộ lọc sơ bộ, không phải quyết định.
 - Mặc định cho bug nhỏ, refactor độc lập, bảo trì tài liệu và task kỹ thuật thông thường.
 - Vì suy ra rằng toàn bộ Issue của một Milestone phải vào Project. Milestone và Project là hai trục khác nhau: Milestone biểu đạt một delivery outcome, `project:track` biểu đạt nhu cầu coordination. Một Issue có thể thuộc cả hai, một trong hai, hoặc không.
 
@@ -185,16 +202,16 @@ Một Issue ngoài các nhóm trên vẫn có thể được track khi có lý d
 
 **Trách nhiệm phân loại.**
 
-| Vai trò                 | Việc                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Planner (Select & Plan) | Đề xuất classification và lý do **trước khi** Issue được tạo, hoặc trước khi Epic được phân rã thành Issue         |
-| Issue creator           | Gắn label khi và chỉ khi policy thoả; ghi lý do theo mục dưới                                                      |
-| Reviewer                | Kiểm tra cả hai chiều: Issue cần track nhưng thiếu label, và Issue có label nhưng không có lý do hợp lệ            |
-| Project coordinator     | Kiểm tra Project membership khớp với label; phát hiện item thiếu hoặc thừa, và báo thay vì tự sửa ngoài thẩm quyền |
+| Vai trò                 | Việc                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Planner (Select & Plan) | Đề xuất classification **và rationale** theo mục "Rationale bắt buộc" **trước khi** Issue được tạo, hoặc trước khi Epic được phân rã thành Issue |
+| Issue creator           | Gắn label khi và chỉ khi rationale đã có và thoả policy; không gắn theo priority, work kind, Milestone hay product                               |
+| Reviewer                | Kiểm tra cả hai chiều: Issue cần track nhưng thiếu label, và Issue có label nhưng rationale không đủ căn cứ                                      |
+| Project coordinator     | So tracking intent, label và Project membership; phát hiện item thiếu hoặc thừa, và báo thay vì tự archive/xoá item                              |
 
-Khi phân rã một Epic hoặc một Milestone thành nhiều Issue, đánh giá **từng Issue độc lập**. Khi review backlog, kết luận cho mỗi Issue là một trong ba giá trị: **track**, **không track**, **cần làm rõ** — không gắn label cho nhóm thứ ba.
+Khi phân rã một Epic hoặc một Milestone thành nhiều Issue, đánh giá **từng Issue độc lập**: sub-issue không mặc định kế thừa tracking intent từ parent, và parent được track không làm sub-issue đương nhiên được track. Khi review backlog, kết luận cho mỗi Issue là một trong ba giá trị: **track**, **không track**, **cần làm rõ** — không gắn label cho nhóm thứ ba.
 
-**Ghi lý do.** Lý do tracking là một câu nêu nhu cầu coordination, ghi ở một trong hai nơi:
+**Ghi lý do.** Lý do tracking là rationale đã nêu ở trên, ghi ở một trong hai nơi:
 
 - Mục `## Theo dõi Project` trong Issue body, cùng chỗ với các metadata khác của Issue.
 - Comment trên Issue, khi body không được sửa (Issue đang có người làm, hoặc thay đổi phải tối thiểu).
@@ -203,11 +220,12 @@ Không tạo thêm label để biểu diễn lý do, và không lưu lý do ch�
 
 **Vòng đời.**
 
-- **Gắn label** → Issue đủ điều kiện; native workflow thêm item vào Project khi Issue được tạo hoặc cập nhật.
-- **Bỏ label** → Issue không còn được theo dõi, nhưng **không** tự động bị xoá khỏi Project. Item ở lại để giữ lịch sử coordination; workflow auto-add không có hành vi xoá.
-- **Xoá hoặc archive item** là quyết định riêng của Project coordinator, cần lý do được ghi. Không suy ra việc xoá từ việc label bị bỏ.
+- **Gắn label** → Issue đủ điều kiện; native workflow thêm item vào Project khi Issue được tạo hoặc cập nhật. Đây là admission, không phải một lần đánh giá intent được lặp lại.
+- **Bỏ label** → Issue không còn được theo dõi, nhưng **không** tự động bị xoá khỏi Project. Item ở lại để giữ lịch sử coordination; workflow auto-add không có hành vi xoá. Item còn lại nhưng không còn label là **membership lịch sử**, không phải một Issue đang được track.
+- **Xoá hoặc archive item** là quyết định riêng của Project coordinator, cần lý do được ghi. Không suy ra việc xoá từ việc label bị bỏ; cũng không suy ra việc giữ từ việc label còn.
 - **Label không phải Project `Status`.** Gắn hay bỏ label không đổi status; `Done` của Project vẫn không phải capability state (§3.1).
 - **Issue đóng không tự xoá item.** Item đóng ở lại Project theo hành vi của GitHub; đó không phải bằng chứng capability và cũng không phải lý do xoá item.
+- **Lệch giữa ba khái niệm là việc của coordinator.** Item không label (membership lịch sử hoặc do thêm tay), label không có item (workflow chưa chạy hoặc bị tắt), và item có nhưng rationale không còn đúng đều phải được ghi nhận và báo; không tự archive, xoá hay thêm label ngoài thẩm quyền.
 
 ### 3.4 Cấu hình tối thiểu
 

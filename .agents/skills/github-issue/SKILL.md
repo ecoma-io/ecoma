@@ -136,27 +136,35 @@ placeholders.
 
 ## Decide Project tracking
 
-Read `work-management.md` §3.3 before deciding. That section owns the policy,
-the per-work-kind default, the criteria and the lifecycle; this skill only
-states how to apply it while authoring an Issue.
+Read `work-management.md` §3.3 before deciding. That section owns the three
+concepts (tracking intent, admission signal, membership lifecycle), the
+per-work-kind default, the mandatory rationale and the lifecycle; this skill
+only states how to apply it while authoring an Issue. Do not restate the
+criteria here or in an Issue body — link to §3.3.
 
-- Decide at Issue level. One Issue in a Milestone or an Epic may need tracking
-  while its siblings do not; never inherit the label from a parent, a
-  Milestone, a product or a priority.
-- Apply the label `project:track` only when the Issue needs portfolio
-  visibility or cross-workstream coordination — a dependency worth ordering, an
-  outcome on the critical path, or a decision several workstreams wait on.
-- State the reason in one sentence: either a `## Theo dõi Project` section in
-  the body or, when the body must not change, a comment on the Issue.
-- A missing coordination reason means no label. "Priority is high" and
-  "belongs to the MVP milestone" are not reasons.
+- **Propose before creating.** When planning, or before decomposing an Epic or
+  Milestone into Issues, state the classification — track, do not track, or
+  needs clarification — with the reason, for each Issue. Do not create the
+  Issue and decide afterwards.
+- **Decide at Issue level.** One Issue in a Milestone or an Epic may need
+  tracking while its siblings do not; a sub-issue is assessed independently and
+  never inherits the label from a parent, a Milestone, a product, a work kind
+  or a priority.
+- **Apply the label only with a rationale that answers §3.3's three questions:**
+  which workstreams need the visibility, what dependency/decision/coordination
+  is tracked at Project level, and why the Issue or Milestone alone is not
+  enough. Without those three answers the classification is "do not track" or
+  "needs clarification" — never a label.
+- Record the reason in the `## Theo dõi Project` section of the body or, when
+  the body must not change, in a comment on the Issue.
 - Do not infer the label's effect. The Project membership it produces is
-  configuration read from GitHub, not something this skill asserts.
+  configuration read from GitHub, not something this skill asserts; removing a
+  label does not remove the item, and closing the Issue does not either.
 
 When reviewing Issues rather than creating one, check both directions: an
-Issue that needs tracking but has no label, and an Issue with the label and no
-valid reason. Report; do not relabel another unit's Issue without
-authorization.
+Issue that needs tracking but has no label, and an Issue with the label whose
+rationale does not answer the three questions. Report; do not relabel another
+unit's Issue without authorization, and never archive or remove a Project item.
 
 ## Ground every claim
 

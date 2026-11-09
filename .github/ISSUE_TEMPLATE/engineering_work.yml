@@ -69,9 +69,11 @@ body:
     attributes:
       label: Theo dõi Project
       description: |
-        Chỉ điền khi Issue cần portfolio visibility hoặc coordination giữa các workstream — một câu nêu lý do.
-        Kèm theo label `project:track`. Điều kiện phân loại ở `docs/engineering/work-management.md` §3.3.
-        Không gắn label chỉ vì Issue thuộc Milestone #1, thuộc một product, hoặc có priority cao.
+        Chỉ điền khi Issue cần portfolio visibility hoặc coordination giữa các workstream, và trả lời cả ba câu:
+        workstream nào cần visibility; dependency, decision hoặc coordination nào cần theo dõi ở cấp Project;
+        vì sao Issue/Milestone thông thường không đủ. Kèm theo label `project:track`.
+        Điều kiện phân loại và lý do bắt buộc ở `docs/engineering/work-management.md` §3.3.
+        Không gắn label chỉ vì Issue có priority cao, thuộc một work kind, thuộc một product hoặc Milestone.
         Không cần theo dõi thì để trống.
 
   - type: textarea
