@@ -124,6 +124,15 @@ describe('createStaffAccessPostgresClient', () => {
     expect(driverCalls).toHaveLength(0);
   });
 
+  it('forwards a fractional sub-second timeout inside the bound', () => {
+    // Gia tri trong (0, 300] la hop le, ke ca so le: probe co the can ngan hon
+    // 1s. Tu choi chung se la mot thu hep khong duoc ghi trong contract.
+    driverCalls.length = 0;
+    createStaffAccessPostgresClient(BINDING, { connectTimeoutSeconds: 0.5 });
+    const options = driverCalls[0]?.options as Record<string, unknown> | undefined;
+    expect(options?.['connect_timeout']).toBe(0.5);
+  });
+
   it('rejects a non-number connect timeout before touching the driver', () => {
     driverCalls.length = 0;
     for (const bad of ['3', null, {}] as unknown[]) {
@@ -293,12 +302,17 @@ describe('isStaffAccessSchemaError', () => {
       expect(isStaffAccessSchemaError(Object.assign(new Error('connect'), { code }))).toBe(false);
     }
     // SQLSTATE KHAC nhom schema cung khong duoc gan nhan schema: day la loi
-    // server that nhung huong xu ly khac (vi du shutdown 57P01).
-    expect(
-      isStaffAccessSchemaError(
-        Object.assign(new Error('server'), { name: 'PostgresError', code: '57P01' }),
-      ),
-    ).toBe(false);
+    // server that nhung huong xu ly khac. `28000` la auth failure cua
+    // PostgreSQL (sai credential role), `3F000` schema khong ton tai,
+    // `57014` query bi huy — ca ba deu khong phai "grant/migration drift" va
+    // phai giu duong chan doan rieng.
+    for (const code of ['57P01', '28000', '3F000', '57014', '22023']) {
+      expect(
+        isStaffAccessSchemaError(
+          Object.assign(new Error('server'), { name: 'PostgresError', code }),
+        ),
+      ).toBe(false);
+    }
     expect(isStaffAccessSchemaError(new Error('plain'))).toBe(false);
     expect(isStaffAccessSchemaError(undefined)).toBe(false);
     expect(isStaffAccessSchemaError('42501')).toBe(false);
@@ -318,6 +332,16 @@ describe('isStaffAccessSchemaError', () => {
     expect(isStaffAccessSchemaError({ name: 'Error', code: '42501' })).toBe(false);
     expect(isStaffAccessSchemaError({ name: 'PostgresError', code: 42501 })).toBe(false);
     expect(isStaffAccessSchemaError(null)).toBe(false);
+    // Prototype null va object dong bang van la object: doc thuoc tinh truc
+    // tiep phai chay, khong nem.
+    const nullPrototype = Object.assign(Object.create(null) as object, {
+      name: 'PostgresError',
+      code: '42P01',
+    });
+    expect(isStaffAccessSchemaError(nullPrototype)).toBe(true);
+    expect(isStaffAccessSchemaError(Object.freeze({ name: 'PostgresError', code: '42703' }))).toBe(
+      true,
+    );
     expect(isStaffAccessSchemaError(Object.assign(new Error('connect'), { code: '42501' }))).toBe(
       false,
     );

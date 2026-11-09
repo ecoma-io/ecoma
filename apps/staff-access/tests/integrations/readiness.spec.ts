@@ -123,10 +123,21 @@ describe('readiness against the real database', () => {
       }
       resetCachedConfig();
       const app = buildApp();
-      const response = await app.request('/ready', {}, runtimeEnv(partial));
-      expect(response.status).toBe(503);
-      expect(response.headers.get('retry-after')).toBe('5');
-      expect(await response.text()).not.toContain('internal_nonces');
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const response = await app.request('/ready', {}, runtimeEnv(partial));
+        expect(response.status).toBe(503);
+        expect(response.headers.get('retry-after')).toBe('5');
+        expect(await response.text()).not.toContain('internal_nonces');
+        // `42P01` (missing table) nam trong allowlist: DB VAN tra loi, su co
+        // la migration, khong phai ket noi. Chi assert 503 se cho phep mot
+        // regression phan loai thanh `db_unreachable` di qua.
+        expect(log).toHaveBeenCalledWith(
+          JSON.stringify({ event: 'ready.failed', status: 503, reason: 'schema_invalid' }),
+        );
+      } finally {
+        log.mockRestore();
+      }
     } finally {
       await partial.stop();
     }
@@ -185,10 +196,19 @@ describe('readiness against the real database', () => {
       }
       resetCachedConfig();
       const app = buildApp();
-      const response = await app.request('/ready', {}, runtimeEnv(partial));
-      expect(response.status).toBe(503);
-      expect(response.headers.get('retry-after')).toBe('5');
-      expect(await response.text()).not.toContain('settled_at');
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      try {
+        const response = await app.request('/ready', {}, runtimeEnv(partial));
+        expect(response.status).toBe(503);
+        expect(response.headers.get('retry-after')).toBe('5');
+        expect(await response.text()).not.toContain('settled_at');
+        // `42703` (missing column) cung la schema, khong phai ket noi.
+        expect(log).toHaveBeenCalledWith(
+          JSON.stringify({ event: 'ready.failed', status: 503, reason: 'schema_invalid' }),
+        );
+      } finally {
+        log.mockRestore();
+      }
     } finally {
       await partial.stop();
     }

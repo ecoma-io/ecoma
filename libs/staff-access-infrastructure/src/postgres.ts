@@ -113,9 +113,12 @@ export interface StaffAccessClient extends StaffAccessQueryable {
  *
  * Option nay chi dung cho probe ngan (readiness dat 3s). Mot tran khong co
  * canh tren bien mot tham so "timeout ngan" thanh mot tham so co the treo
- * request lau hon thoi han Worker — dung dieu option sinh ra de ngan. 300s la
- * gioi han rong rai cho moi probe hop ly, van ngan hon thoi han cua mot
- * request Worker that.
+ * request lau — dung dieu option sinh ra de ngan. 300s la gioi han rong rai
+ * cho moi gia tri hop ly cua mot probe readiness, dong thoi la mot nguong co
+ * the kiem bang so sanh. No KHONG duoc chon theo thoi han request cua Worker:
+ * platform fact WK1 dat proxy read timeout HTTP mac dinh o 125s, nen mot probe
+ * that su giu lau hon nguong do da bi cat truoc khi timeout nay kich hoat —
+ * tran nay chan gia tri vo ly, khong thay the mot ngan sach probe dung.
  */
 const MAX_CONNECT_TIMEOUT_SECONDS = 300;
 
