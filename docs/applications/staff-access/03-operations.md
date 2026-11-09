@@ -185,7 +185,7 @@ Unit chỉ được coi là hoàn tất khi **cả năm** kiểm đạt. Kiểm 
 
 ### Bước 9 — Retry an toàn sau thất bại
 
-Lỗi ở bước nào cũng để lại một **tiền tố hợp lệ**, không phải trạng thái hỏng: chạy lại **toàn bộ** procedure từ bước 1 là cơ chế phục hồi (ADR-0020 Quyết định 6).
+Một lỗi ở bước nào — khi các bước trước đã commit — cũng để lại một **tiền tố hợp lệ**, không phải trạng thái hỏng: chạy lại **toàn bộ** procedure từ bước 1 là cơ chế phục hồi cho tiền tố đó (ADR-0020 Quyết định 6).
 
 ⚠️ **Không phải mọi trạng thái đều hội tụ bằng chạy lại.** Ba trạng thái sau là fail-closed cần can thiệp, và chạy lại sẽ lặp lại đúng lỗi đó: (a) `bootstrap_email` bị một Account khác giữ ở `pending` — do `POST /api/emails` cho phép; (b) assignment administrator đã hết hạn nhưng chưa `revoked_at`; (c) hàng staff theo `sub` không `active`. Gỡ (a) là vòng đời email bình thường của `account`, không phải SQL tay trên `db-account` (ADR-0021 Quyết định 2); (b) và (c) cần người quyết định, không tự sửa.
 
