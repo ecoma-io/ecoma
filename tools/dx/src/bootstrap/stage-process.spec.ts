@@ -209,6 +209,26 @@ describe('createSpawnStageRunner', () => {
     });
   });
 
+  it('separates an output-buffer overflow from a spawn failure', () => {
+    // `ENOBUFS` nghĩa là con đã chạy và in quá `maxBuffer`; không phải nó không
+    // spawn được. Mã lý do phải phân biệt hai trường hợp.
+    const spawn = (() => ({
+      stdout: '',
+      stderr: '',
+      status: null,
+      error: Object.assign(new Error('spawnSync npx ENOBUFS'), { code: 'ENOBUFS' }),
+    })) as unknown as typeof spawnSync;
+    const run = createSpawnStageRunner({ env: {}, spawn });
+
+    const result = run({ service: 'account', action: 'provision', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'account.provision',
+      reason: 'output_limit_exceeded',
+    });
+  });
+
   it('reports a spawn failure by error code only', () => {
     const spawn = (() => ({
       stdout: '',

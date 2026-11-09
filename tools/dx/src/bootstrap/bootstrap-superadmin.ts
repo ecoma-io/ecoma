@@ -130,8 +130,11 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
     stages.push(entry);
   };
 
+  // `failed` là lỗi thực thi, khác `denied` của guard: nhật ký phải giữ đúng
+  // phân biệt đó, nếu không người vận hành đọc log sẽ nhầm một lỗi hạ tầng với
+  // một lần guard từ chối có chủ đích.
   const fail = (stage: string, reason: string): BootstrapRunResult => {
-    log({ stage, outcome: 'denied', detail: reason });
+    log({ stage, outcome: 'failed', detail: reason });
     return { outcome: 'failed', correlationId, failedStage: stage, reason, stages };
   };
 

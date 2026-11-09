@@ -262,6 +262,24 @@ describe('runBootstrapSuperadmin', () => {
     expect(result.reason).toBe('missing_staff_id_in_response');
   });
 
+  it('logs an execution failure as failed, never as a guard denial', () => {
+    // `failed` và `denied` là hai kết luận khác nhau: lỗi chạy bước không được
+    // đọc thành guard từ chối có chủ đích khi người vận hành đọc nhật ký.
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-9',
+      operatorRef: '',
+      runStage: () => ({
+        ok: false,
+        stage: 'account.verify',
+        reason: 'account_database_not_empty',
+      }),
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.stages.map((s) => s.outcome)).toEqual(['failed']);
+    expect(result.stages.map((s) => s.outcome)).not.toContain('denied');
+  });
+
   it('does not leak the input payload into the stage log', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-6',

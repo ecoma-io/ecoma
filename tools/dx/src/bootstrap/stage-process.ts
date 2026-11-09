@@ -135,12 +135,22 @@ export function createSpawnStageRunner(
     );
 
     if (result.error !== undefined) {
-      // Lỗi spawn (thiếu tiến trình) — nêu loại lỗi, không nêu env.
+      // Lỗi spawn (thiếu tiến trình) — nêu loại lỗi, không nêu env. `ENOBUFS` là
+      // mã Node gán khi con in vượt `maxBuffer`; nó không phải "không spawn
+      // được", nên tách thành mã riêng để người vận hành biết nhìn vào output
+      // của con thay vì tìm một binary không tồn tại.
       const rawCode: unknown = (result.error as unknown as { code?: unknown }).code;
       const code = typeof rawCode === 'string' ? rawCode : 'unknown';
+      if (code === 'ENOBUFS') {
+        return {
+          ok: false,
+          stage: EXPECTED_STAGE[request.action],
+          reason: 'output_limit_exceeded',
+        };
+      }
       return {
         ok: false,
-        stage: `${request.service}.${request.action}`,
+        stage: EXPECTED_STAGE[request.action],
         reason: `spawn_failed:${code}`,
       };
     }
