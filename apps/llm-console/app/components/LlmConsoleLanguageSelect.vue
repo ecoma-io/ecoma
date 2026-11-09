@@ -26,7 +26,13 @@ const { t } = useI18n();
 const { preferred, options, chooseLocale } = useLlmConsoleLocale();
 
 function select(event: Event): void {
-  const next = parseLlmConsoleLocale((event.target as HTMLSelectElement).value);
+  // `event.target` là `EventTarget | null` và không đảm bảo là `<select>`: guard
+  // này giữ đúng kiểu thay vì ép rồi đọc `.value` trên `null`.
+  if (!(event.target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const next = parseLlmConsoleLocale(event.target.value);
 
   // Giá trị không nằm trong registry thì **không** làm gì: đổi sang một locale
   // khác thay cho nó sẽ biến "giá trị lạ" thành một lựa chọn hợp lệ mà người

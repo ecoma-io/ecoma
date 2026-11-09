@@ -1,8 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import IndexPage from './index.vue';
 import { mountLlmConsolePage } from '../../tests/harness';
 import { i18n } from '../../tests/nuxt-globals';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  // `i18n` là singleton cấp module: trả locale về mặc định để test sau không
+  // phụ thuộc thứ tự chạy (`tests/setup.ts` cũng làm việc này ở `beforeEach`).
+  i18n.global.locale.value = 'en';
+});
 
 /**
  * Hợp đồng render của trang overview — trang duy nhất của scaffold.

@@ -96,10 +96,13 @@ export function useLlmSellerLocale(): LlmSellerLocaleState {
     chooseLocale: (locale) => {
       // `parseLlmSellerLocale` ở đây là ranh giới: giá trị lạ không được biến
       // thành lựa chọn tường minh, đúng cách chặn ở chiều đọc cookie.
-      explicit.value = parseLlmSellerLocale(locale);
-      // Ghi cookie để lần tải sau giữ lựa chọn. Cookie không phải nguồn sự thật
-      // của phiên này (đó là `explicit`), nên ghi thất bại không đổi hành vi.
-      localeCookie.value = locale;
+      const parsed = parseLlmSellerLocale(locale);
+      explicit.value = parsed;
+      // Ghi cookie bằng giá trị **đã thu hẹp**, cùng cách đọc: cookie là dữ liệu
+      // người dùng sửa được, nên nó không được chứa mã ngoài registry. Cookie
+      // không phải nguồn sự thật của phiên này (đó là `explicit`), nên ghi thất
+      // bại không đổi hành vi.
+      localeCookie.value = parsed;
     },
   };
 }

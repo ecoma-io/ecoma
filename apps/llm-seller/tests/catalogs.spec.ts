@@ -106,7 +106,7 @@ describe('llm-seller catalog parity', () => {
 });
 
 /**
- * Phép so ba catalog ở trên chỉ kiểm ba catalog **khớp nhau**. Nó mù với một key
+ * Phép so sánh ba catalog ở trên chỉ kiểm tra ba catalog **khớp nhau**. Nó mù với một key
  * mà cả ba cùng thiếu: `t('overview.title')` trong page vẫn chạy, vue-i18n
  * fallback về chính chuỗi key, và cả ba test parity vẫn xanh trong khi giao diện
  * hiển thị `overview.title`. Đó là lỗi thật đã lọt qua CI một lần ở app khác.

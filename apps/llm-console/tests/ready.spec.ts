@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import healthRoute from '../server/routes/health.get';
 import readyRoute from '../server/routes/ready.get';
+import { stripComments } from './source-code';
 
 /**
  * Hợp đồng của hai route vận hành của scaffold `llm-console`.
@@ -42,9 +43,12 @@ const FORBIDDEN_EVENT = new Proxy(
 
 const ROUTES_DIR = resolve(import.meta.dirname, '../server/routes');
 
-function codeOf(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/\/\/[^\n]*/gu, '');
-}
+/**
+ * Bỏ comment nhưng **không** đụng vào string literal: `//` trong `'https://…'`
+ * không phải comment, và cắt nhầm ở đó sẽ khiến phép quét chạy trên đoạn mã
+ * hỏng — đúng loại false-green mà spec này tồn tại để chặn.
+ */
+const codeOf = stripComments;
 
 describe('/health — liveness', () => {
   it('returns ok and the service name without reading the event', () => {

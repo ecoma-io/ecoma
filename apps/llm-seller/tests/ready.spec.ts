@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import healthHandler from '../server/routes/health.get';
 import readyHandler from '../server/routes/ready.get';
+import { stripComments } from './source-code';
 
 /**
  * Hợp đồng của hai route vận hành: `/health` là liveness, `/ready` là readiness.
@@ -40,7 +41,7 @@ const READY_SOURCE = readFileSync(resolve(import.meta.dirname, '../server/routes
  * cố ý không phụ thuộc chúng. Quét cả comment sẽ biến tài liệu trung thực thành
  * lỗi, và cách "sửa" duy nhất là xoá giải thích — đúng thứ không nên làm.
  */
-const READY_CODE = READY_SOURCE.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/\/\/[^\n]*/gu, '');
+const READY_CODE = stripComments(READY_SOURCE);
 
 describe('health and ready routes', () => {
   it('GET /health reports liveness without touching any dependency', async () => {
