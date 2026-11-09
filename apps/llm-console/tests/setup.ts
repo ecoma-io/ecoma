@@ -1,5 +1,5 @@
 /**
- * Setup unit test `pact-broker-app`.
+ * Setup unit test `llm-console`.
  *
  * - Import `nuxt-globals` để đảm bảo global của Nuxt có mặt và có thể reset.
  * - Reset bridge state để đảm bảo module `#app` có mặt và có thể reset.
@@ -30,7 +30,7 @@ import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, beforeEach, vi } from 'vitest';
 
 import { installBrowserGlobals } from './browser-globals';
-import { resetPactBrokerGlobals } from './nuxt-globals';
+import { resetLlmConsoleGlobals } from './nuxt-globals';
 import { resetNuxtAppBridge } from './nuxt-app-state';
 
 /** Cookie mà test đã đặt, ghi tại thời điểm đặt: đủ để xoá đúng bản ghi. */
@@ -45,8 +45,8 @@ let recording = true;
 /**
  * Default-path của RFC 6265 §5.1.4: **thư mục** của URL hiện tại, không phải `/`.
  *
- * Đo được: cookie gán khi URL ở `/pacts` mà không khai `path` mang
- * `path=/pacts`, và ở `/` nó thậm chí không xuất hiện trong `document.cookie`.
+ * Đo được: cookie gán khi URL ở `/settings` mà không khai `path` mang
+ * `path=/settings`, và ở `/` nó thậm chí không xuất hiện trong `document.cookie`.
  */
 function cookieDefaultPath(pathname: string): string {
   if (!pathname.startsWith('/')) {
@@ -83,7 +83,7 @@ function recordCookieAssignment(assignment: string): void {
  * Ghi lại mọi cookie test đặt, ngay lúc đặt — thay vì đi tìm tên cookie lúc dọn.
  *
  * Vì sao không quét tên lúc dọn: `document.cookie` chỉ hiển thị cookie khớp
- * path/domain của URL hiện tại. Một cookie `path=/pacts` đặt lúc URL ở `/` không
+ * path/domain của URL hiện tại. Một cookie `path=/settings` đặt lúc URL ở `/` không
  * hiện ở `/`; tên của nó không xuất hiện ở đâu để mà xoá, mà jsdom **không có API
  * liệt kê cookie jar**. Ghi lúc gán là cách duy nhất biết chắc tên + path + domain.
  */
@@ -147,7 +147,7 @@ function resetClientState(): void {
 }
 
 // Gỡ component đã mount **sau** mỗi test, tức trước `beforeEach` của test kế tiếp:
-// `resetPactBrokerGlobals()` thay ref/reactive mà tree cũ đang giữ, và một tree còn
+// `resetLlmConsoleGlobals()` thay ref/reactive mà tree cũ đang giữ, và một tree còn
 // sống thì assertion của test sau có thể đọc dữ liệu của test trước.
 enableAutoUnmount(afterEach);
 
@@ -157,7 +157,7 @@ beforeEach(() => {
   // `resetNuxtAppBridge()` xoá runtime config mà harness gắn vào `nuxtApp`:
   // thiếu nó thì cấu hình của test trước rò sang test sau.
   resetNuxtAppBridge();
-  // `resetPactBrokerGlobals()` xoá store/cookie/head/route và trả locale về mặc định.
-  resetPactBrokerGlobals();
+  // `resetLlmConsoleGlobals()` xoá store/cookie/head/route và trả locale về mặc định.
+  resetLlmConsoleGlobals();
   resetClientState();
 });

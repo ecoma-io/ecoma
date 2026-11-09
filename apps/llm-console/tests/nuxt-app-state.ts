@@ -10,7 +10,7 @@
 /**
  * `NuxtApp` giả, chứa đúng slot mà app này dùng.
  *
- * Dashboard **không** có adapter phía client — mọi dữ liệu đi qua BFF — nên
+ * Console **không** có adapter phía client — mọi dữ liệu đi qua BFF — nên
  * không có slot adapter nào: nếu một ngày app thêm slot, khai ở đây để
  * `setNuxtApp({...})` gõ sai tên là lỗi.
  */

@@ -1,13 +1,13 @@
 /**
- * Minimal bridge cho `#app` trong unit test của `pact-broker-app`.
+ * Minimal bridge cho `#app` trong unit test của `llm-console`.
  *
  * Đủ cho những gì app import tường minh từ `#app`: `useNuxtApp`,
  * `useRuntimeConfig` và `useCookie`/`useState` của
- * `composables/use-pact-broker-locale.ts`, cộng kiểu `NuxtApp`. Hàm điều khiển
+ * `composables/use-llm-console-locale.ts`, cộng kiểu `NuxtApp`. Hàm điều khiển
  * (`setNuxtApp`, `setRuntimeConfig`, `resetNuxtAppBridge`) được tách sang
  * `tests/nuxt-app-state.ts`.
  *
- * Kiểu `NuxtApp` khai đúng slot mà app ghi — dashboard này không có adapter
+ * Kiểu `NuxtApp` khai đúng slot mà app ghi — console này không có adapter
  * phía client (mọi dữ liệu đi qua BFF), nên slot duy nhất là runtime config —
  * thay vì `Record<string, unknown>`, để bề mặt bridge khớp cái app thật sự dùng
  * và gõ nhầm tên slot là lỗi ngay trong editor.
