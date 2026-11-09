@@ -10,7 +10,7 @@ Bốn context đều dùng các từ **tenant**, **membership**, **owner**, như
 
 - Hai context đã ship (`remote-cache`, `pact-broker`) biểu diễn owner bằng **role trên membership**, không có cột owner trên `tenants`, không ràng buộc số owner, membership không có danh tính riêng và không có lịch sử revoke.
 - Hai context LLM (`llm-consumer-tenant`, `llm-seller-tenant`) biểu diễn owner là **thuộc tính của tenant**, đúng một owner, membership là **một lần cấp quyền** có `id` riêng, và grant trỏ `membershipId` để quyền của lần đã revoke không sống lại.
-- Chỉ một context có lifecycle `status` trên tenant; một context cấm hẳn `status`; hai context còn lại để vòng đời pháp lý chưa chốt.
+- Hai context đã ship đặt lifecycle `status` lên tenant (`active`/`suspended`/`deleted`); một context LLM cấm hẳn `status`; context LLM còn lại để vòng đời pháp lý chưa chốt.
 
 Code hiện tại phản ánh sự khác nhau đó bằng **trùng lặp**: hai `shared.ts` LLM khai lại cùng branded ID, `MAX_OPAQUE_ID_LENGTH`, `isEpochMillis`; hai module membership gần như trùng nhau; `libs/backoffice-domain` tự viết lại `AccountId` thay vì import. Duplication có chủ đích, nhưng duplication của **cùng một bất biến** là chi phí không mua được gì.
 
@@ -46,7 +46,7 @@ Issue #9 ban đầu yêu cầu một chính sách Free/Paid dùng chung (một s
 
 ### 2. Phần được chia sẻ: một kernel mỏng
 
-Kernel là **một Nx project** `libs/tenant-kernel-domain` (`@ecoma-io/tenant-kernel-domain`), chứa đúng ba nhóm sau:
+Kernel là **một Nx project** `libs/tenant-kernel-domain` (`@ecoma-io/tenant-kernel-domain`), chứa đúng ba nhóm sau. ADR này chốt thiết kế, không hiện thực: project chưa tồn tại và việc tạo nó là Issue Delivery riêng.
 
 1. **Owned-tenant fact.** Một hình dạng tối thiểu `{ id, owner }` với `owner` là **tham chiếu opaque** tới Account identity (`sub`), cộng guard từ chối record thiếu owner. Kernel **không** định nghĩa aggregate `Tenant`: không `name`, không `createdAt`, không lifecycle, không operation trên tenant. Sản phẩm giữ type `Tenant` của mình và có thể mở rộng fact này. Vì membership của kernel không có trường `owner` hay `role`, bất biến "owner không phải role và không phải grant" được bảo đảm bằng **hình dạng**, không bằng kiểm tra runtime.
 2. **Membership incarnation.** Record `{ id, tenantId, actor, status: 'active' | 'revoked', createdAt, revokedAt }` cùng các hàm: provision tường minh (từ chối `id` trùng trong tenant, từ chối actor đã có membership `active`), revoke terminal (từ chối ghi đè `revokedAt`), kiểm tra `active`, và tra cứu trả về **tập** để authorization tự phát hiện > 1 bản ghi active thay vì làm mịn dữ liệu hỏng.

@@ -9,7 +9,7 @@ Bounded context `llm-consumer-tenant`: tenant, membership, workspace, permission
 ## 1. Trách nhiệm
 
 1. **Tenant** — ranh giới cách ly dữ liệu của một tổ chức/customer trong LLM. Mỗi tenant có **đúng một owner**; tenant ownerless không tồn tại.
-2. **Membership** — quan hệ giữa một account (`sub`) và một tenant. Provision tường minh; signup/login không bao giờ tự tạo membership. Bất biến incarnation và owned-tenant fact dùng chung với `llm-seller-tenant` qua thin shared kernel → [ADR-0025](./adr/0025-thin-shared-tenant-kernel.md); role, grant, workspace, suspension và authorization vẫn thuộc context này.
+2. **Membership** — quan hệ giữa một account (`sub`) và một tenant. Provision tường minh; signup/login không bao giờ tự tạo membership. Bất biến incarnation và owned-tenant fact sẽ dùng chung với `llm-seller-tenant` qua thin shared kernel (ADR-0025, chưa hiện thực) → [ADR-0025](./adr/0025-thin-shared-tenant-kernel.md); role, grant, workspace, suspension và authorization vẫn thuộc context này.
 3. **Workspace** — không gian làm việc trong LLM (workspace, offer, catalog, thống kê) thuộc **đúng một** Consumer tenant; namespace/storage scope derive từ `(tenant_id, workspace_id)`, không từ input client. Chỉ Consumer tenant có workspace; Seller tenant không có.
 4. **Permission grant** — cấp trực tiếp một permission cho một **lần membership**, tại tenant scope hoặc đúng một workspace scope. Không có role entity và không có administration cho custom role.
 5. **Authorization** — quyết định allow/deny trên tài nguyên LLM: owner có toàn quyền trong tenant của mình; member chỉ có đúng permission được cấp. Target đang bị suspension chặn thì deny kể cả owner. Backend sở hữu tài nguyên tự enforce.

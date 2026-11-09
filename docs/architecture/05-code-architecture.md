@@ -16,7 +16,8 @@
 4. **`libs/` giữ flat.** Không có nested directory và không có generic cross-domain layer.
 5. **Không có generic `libs/domain`, `libs/application`, `libs/infrastructure`, `libs/contracts`.** Domain model của một context
    không được dùng chung bởi context khác. Ngoại lệ duy nhất là **thin shared kernel** — một project `scope:shared` chỉ chứa
-   domain primitive có ngữ nghĩa chứng minh được là giống nhau ở các context tiêu thụ; hiện có `libs/tenant-kernel-domain`
+   domain primitive có ngữ nghĩa chứng minh được là giống nhau ở các context tiêu thụ; ADR-0025 chốt project đó là
+   `libs/tenant-kernel-domain`, chưa được hiện thực
    ([ADR-0025](../domains/llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md)). Kernel không phải bounded context, không
    sở hữu dữ liệu, không chứa aggregate, lifecycle hay policy của bất kỳ sản phẩm nào, và không được mở rộng ngoài danh sách
    primitive mà ADR của nó cho phép.
@@ -257,8 +258,9 @@ Bounded context/product scope (`account`, `auth`, `backoffice`, `llm-consumer`, 
 hai tầng nền — đó là vai trò foundation layer, khác hẳn dependency chéo scope nghiệp vụ: giữa các scope nghiệp vụ ngang hàng,
 chỉ được phụ thuộc qua `type:contracts` của provider, không bao giờ import implementation của scope khác.
 
-**Thin shared kernel nằm ở `scope:shared`, không có scope riêng.** `libs/tenant-kernel-domain` (`type:domain` + `scope:shared` +
-`runtime:universal`) chứa domain primitive dùng chung cho các context có tenant. Đáy ownership là ràng buộc, không phải hạn chế:
+**Thin shared kernel nằm ở `scope:shared`, không có scope riêng.** ADR-0025 chốt `libs/tenant-kernel-domain` (`type:domain` +
+`scope:shared` + `runtime:universal`) là project sẽ chứa domain primitive dùng chung cho các context có tenant; project này
+**chưa được hiện thực**, và việc hiện thực nó là Issue riêng. Đáy ownership là ràng buộc, không phải hạn chế:
 kernel chỉ phụ thuộc `scope:shared` nên **không** import được contract hay implementation của bất kỳ context nào — kernel không
 thể trở thành cầu nối giữa các context. Mọi scope nghiệp vụ đã được phép phụ thuộc `scope:shared`, nên kernel không cần scope
 mới và không đảo chiều bất biến nào của [ADR-0019](../domains/llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md).

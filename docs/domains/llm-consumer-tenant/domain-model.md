@@ -20,7 +20,7 @@
 - Membership **không** mang role: quyền của member đến từ grant trực tiếp.
 - Provision tường minh, không tự động khi signup/login. Provision lại một actor đã có membership active bị từ chối; re-provision sau revoke tạo membership **mới với `id` mới**, không restore bản ghi cũ.
 - Grant trỏ tới `membershipId`, không trỏ `sub`: nhờ đó quyền của một lần membership đã revoke không sống lại khi actor được provision lại.
-- Bất biến "đúng một owner là thuộc tính tenant", danh tính membership theo lần cấp quyền và guard nhất quán collection là primitive của thin shared kernel, dùng chung với `llm-seller-tenant` → [ADR-0025](./adr/0025-thin-shared-tenant-kernel.md). Role, grant, workspace, suspension và authorization **không** thuộc kernel.
+- Bất biến "đúng một owner là thuộc tính tenant", danh tính membership theo lần cấp quyền và guard nhất quán collection là primitive của thin shared kernel mà ADR-0025 chốt, sẽ dùng chung với `llm-seller-tenant` khi project đó được hiện thực → [ADR-0025](./adr/0025-thin-shared-tenant-kernel.md). Role, grant, workspace, suspension và authorization **không** thuộc kernel.
 
 ### Workspace
 

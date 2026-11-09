@@ -7,7 +7,7 @@ Bounded context `llm-seller-tenant`: Seller tenant, ownership, membership, permi
 ## 1. Trách nhiệm
 
 1. **Seller tenant và ownership** — ranh giới cách ly dữ liệu của một tổ chức seller; mỗi Seller tenant có **đúng một owner**; owner là **thuộc tính ownership của tenant**, không phải role hay permission. Chuyển owner là domain operation tường minh ([ADR-0001](./adr/0001-seller-tenant-ownership-and-transfer.md)).
-2. **Seller membership** — quan hệ giữa một account (`sub`) và một Seller tenant, có danh tính theo từng lần membership. Provision/revoke tường minh; re-provision tạo membership mới. Bất biến incarnation và owned-tenant fact dùng chung với `llm-consumer-tenant` qua thin shared kernel → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md); phần còn lại của Seller tenant vẫn thuộc context này.
+2. **Seller membership** — quan hệ giữa một account (`sub`) và một Seller tenant, có danh tính theo từng lần membership. Provision/revoke tường minh; re-provision tạo membership mới. Bất biến incarnation và owned-tenant fact sẽ dùng chung với `llm-consumer-tenant` qua thin shared kernel (ADR-0025, chưa hiện thực) → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md); phần còn lại của Seller tenant vẫn thuộc context này.
 3. **Permission grant** — cấp trực tiếp một permission cho một lần membership, có lịch sử cấp/thu hồi. Không có role entity và không có role administration.
 4. **Authorization** — quyết định allow/deny trên tài nguyên Seller: owner có toàn quyền trong tenant của mình **trừ khi bị restriction chặn**; member chỉ có đúng permission được cấp. Backend sở hữu tài nguyên tự enforce.
 5. **Tenant isolation** — mọi dữ liệu Seller gắn tenant; không request nào đọc/ghi lệch tenant.
