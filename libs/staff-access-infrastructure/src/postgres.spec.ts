@@ -238,21 +238,18 @@ describe('withStaffAccessClient', () => {
 });
 
 describe('isStaffAccessSchemaError', () => {
-  it('classifies a missing-grant/missing-object PostgresError as a schema failure', async () => {
-    // Dung class THAT cua driver (khong phai mot object tu che) de test chung
-    // minh phan loai khop dung hinh loi `postgres.js` tao ra: `name` la
-    // 'PostgresError' va `code` la SQLSTATE server tra ve.
-    //
-    // `postgres` la package CJS (`export =`), nen class nam tren chinh
-    // namespace import, khong phai duoi `.default`. Khai bao kieu cua driver
-    // chi nhan `message`, nen `code` duoc gan nhu thuoc tinh — dung hinh ma
-    // driver tao luc runtime (`Object.assign(this, x)`).
-    const actual = await vi.importActual<typeof import('postgres')>('postgres');
-    const PostgresError = actual.PostgresError;
+  it('classifies a missing-grant/missing-object PostgresError as a schema failure', () => {
+    // Hinh loi ma `postgres.js` tao ra: `Object.assign(this, x)` gan `name` =
+    // 'PostgresError' va `code` = SQLSTATE server tra ve len mot `Error`. Dung
+    // dung hinh do (khong import driver that — mot spec unit importing driver
+    // that vao la sai tier, `arch-check` bat) vi ham chi doc hai thuoc tinh
+    // nay, khong doc prototype.
     for (const code of ['42501', '42P01', '42703']) {
-      const error = new PostgresError('permission denied');
-      Object.assign(error, { code });
-      expect(isStaffAccessSchemaError(error)).toBe(true);
+      expect(
+        isStaffAccessSchemaError(
+          Object.assign(new Error('permission denied'), { name: 'PostgresError', code }),
+        ),
+      ).toBe(true);
     }
   });
 
