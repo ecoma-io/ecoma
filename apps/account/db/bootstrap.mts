@@ -616,5 +616,12 @@ async function main(): Promise<void> {
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  await main();
+  try {
+    await main();
+  } catch {
+    // Ngay cả `client.end()` cũng có thể ném; mọi lỗi thoát khỏi `main` vẫn phải
+    // ra ngoài dưới dạng mã máy đọc, không phải message thô của driver.
+    emitDenial(process.argv[2] === 'verify' ? STAGE_VERIFY : STAGE_PROVISION, 'internal_error');
+    process.exitCode = 1;
+  }
 }

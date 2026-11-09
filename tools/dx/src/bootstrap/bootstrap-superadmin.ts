@@ -198,6 +198,9 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
     return fail(staff.stage, staff.reason);
   }
   const staffId = asString(staff.payload['staff_id']);
+  if (staffId === undefined) {
+    return fail(staff.stage, 'missing_staff_id_in_response');
+  }
   log({ stage: staff.stage, outcome: staff.status });
 
   // S2 — assignment của role canonical. Đo lại từ đầu: đây là bước chặn hai
@@ -214,6 +217,9 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
     return fail(assign.stage, assign.reason);
   }
   const assignmentId = asString(assign.payload['assignment_id']);
+  if (assignmentId === undefined) {
+    return fail(assign.stage, 'missing_assignment_id_in_response');
+  }
   log({ stage: assign.stage, outcome: assign.status });
 
   // S3 — chỉ đọc, sau khi đã ghi xong.

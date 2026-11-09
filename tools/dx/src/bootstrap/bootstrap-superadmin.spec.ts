@@ -234,6 +234,34 @@ describe('runBootstrapSuperadmin', () => {
     ]);
   });
 
+  it('fails when a staff step succeeds without returning the ids later steps need', () => {
+    let verifyCalls = 0;
+    const runner: BootstrapStageRunner = (request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls === 1
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'verified', { sub: `sub_${'f'.repeat(32)}` });
+      }
+      if (request.action === 'provision') {
+        return success('account.provision', 'created', { sub: `sub_${'f'.repeat(32)}` });
+      }
+      if (request.action === 'staff-provision') {
+        return success('staff.provision', 'created', {});
+      }
+      return success('staff.assign', 'created', {});
+    };
+
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-8',
+      operatorRef: '',
+      runStage: runner,
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.reason).toBe('missing_staff_id_in_response');
+  });
+
   it('does not leak the input payload into the stage log', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-6',

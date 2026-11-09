@@ -69,20 +69,37 @@ function stageEnv(
   return childEnv;
 }
 
-/** Dòng JSON cuối cùng parse được từ một stream — `undefined` khi không có. */
+/** Stage name mỗi action **phải** in ra — chốt cả service lẫn action. */
+const EXPECTED_STAGE: Readonly<Record<BootstrapStageRequest['action'], string>> = {
+  provision: 'account.provision',
+  verify: 'account.verify',
+  'staff-provision': 'staff.provision',
+  'staff-assign': 'staff.assign',
+  'staff-verify': 'staff.verify',
+};
+
+/** Mã lý do hợp lệ của service: snake_case, không khoảng trắng, không dấu. */
+const REASON_CODE = /^[a-z][a-z0-9_]*$/u;
+
+/**
+ * Dòng JSON cuối cùng của một stream — `undefined` khi dòng cuối không phải
+ * một JSON object.
+ *
+ * Chỉ đọc dòng **cuối cùng** không rỗng: quét ngược tới dòng JSON parse được
+ * đầu tiên sẽ nhận một dòng cũ khi dòng cuối bị cắt cụt, tức đọc một kết quả
+ * cũ thành kết quả của lần chạy này.
+ */
 function lastJsonLine(text: string): Record<string, unknown> | undefined {
-  const lines = text.split('\n');
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const line = lines[i]?.trim();
-    if (line === undefined || !line.startsWith('{')) continue;
-    try {
-      const parsed: unknown = JSON.parse(line);
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Dòng log thường bắt đầu bằng `{` nhưng không phải JSON — bỏ qua.
+  const lines = text.split('\n').filter((line) => line.trim() !== '');
+  const last = lines[lines.length - 1]?.trim();
+  if (last === undefined || !last.startsWith('{')) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(last);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
     }
+  } catch {
+    // Dòng cuối không phải JSON — coi như không có phản hồi.
   }
   return undefined;
 }
@@ -130,22 +147,30 @@ export function createSpawnStageRunner(
 
     const stdout = result.stdout ?? '';
     const stderr = result.stderr ?? '';
-    const payload = lastJsonLine(stdout);
+    const expectedStage = EXPECTED_STAGE[request.action];
 
     if (result.status === 0) {
+      const payload = lastJsonLine(stdout);
       if (payload === undefined) {
         // Exit 0 mà không có JSON: không có bằng chứng bước nào đã chạy.
         return {
           ok: false,
-          stage: `${request.service}.${request.action}`,
+          stage: expectedStage,
           reason: 'missing_json_response',
         };
       }
       const { stage, status, ...rest } = payload;
-      if (typeof stage !== 'string' || typeof status !== 'string') {
+      // `stage` phải đúng bước đã yêu cầu: nhận một stage khác nghĩa là kết quả
+      // này không chứng minh action vừa chạy.
+      if (
+        typeof stage !== 'string' ||
+        typeof status !== 'string' ||
+        stage !== expectedStage ||
+        !REASON_CODE.test(status)
+      ) {
         return {
           ok: false,
-          stage: `${request.service}.${request.action}`,
+          stage: expectedStage,
           reason: 'malformed_json_response',
         };
       }
@@ -153,11 +178,15 @@ export function createSpawnStageRunner(
     }
 
     const denied = lastJsonLine(stderr);
-    const reason = typeof denied?.['reason'] === 'string' ? denied['reason'] : 'service_failed';
-    const stage =
-      typeof denied?.['stage'] === 'string'
+    // Chỉ chấp nhận mã lý do máy đọc; mọi text khác của con bị bỏ, nên một con
+    // lỗi không chèn được địa chỉ, DSN hay nội dung tuỳ ý vào nhật ký vận hành.
+    if (typeof denied?.['reason'] !== 'string' || !REASON_CODE.test(denied['reason'])) {
+      return { ok: false, stage: expectedStage, reason: 'service_failed' };
+    }
+    const deniedStage =
+      typeof denied['stage'] === 'string' && denied['stage'] === expectedStage
         ? denied['stage']
-        : `${request.service}.${request.action}`;
-    return { ok: false, stage, reason };
+        : expectedStage;
+    return { ok: false, stage: deniedStage, reason: denied['reason'] };
   };
 }

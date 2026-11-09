@@ -87,7 +87,10 @@ export type StaffAccessBootstrapDenialReason =
   | 'staff_missing_or_ambiguous'
   | 'administrator_assignment_missing'
   | 'role_permissions_mismatch'
-  | 'audit_trail_missing';
+  | 'audit_trail_missing'
+  | 'invalid_input'
+  | 'database_unreachable'
+  | 'internal_error';
 
 /**
  * Lỗi có mã lý do. CLI map thành `{"stage":...,"status":"denied","reason":...}` trên
@@ -748,8 +751,9 @@ async function main(): Promise<void> {
   try {
     const raw = await readStdin();
     input = raw.trim() === '' ? {} : (JSON.parse(raw) as CliInput);
-  } catch (error) {
-    console.error(`stdin must be a JSON object: ${(error as Error).message}`);
+  } catch {
+    // Không in message của `JSON.parse`: nó trích nguyên đoạn stdin vào stderr.
+    writeDenial(stage, 'invalid_input');
     process.exit(1);
   }
 
@@ -760,8 +764,9 @@ async function main(): Promise<void> {
 
   try {
     await client.connect();
-  } catch (error) {
-    console.error(`Could not connect to the database: ${(error as Error).message}`);
+  } catch {
+    // Cũng không in message của driver — nó có thể mang host/database name.
+    writeDenial(stage, 'database_unreachable');
     process.exit(1);
   }
 
@@ -807,7 +812,9 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    console.error((error as Error).message);
+    // Lỗi ngoài hợp đồng: chỉ in mã máy đọc — message của driver có thể chứa giá
+    // trị cột (pg chèn giá trị vào một số lỗi), nên không bao giờ ra ngoài.
+    writeDenial(stage, 'internal_error');
     process.exitCode = 1;
   } finally {
     await client.end();
@@ -817,5 +824,16 @@ async function main(): Promise<void> {
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  await main();
+  try {
+    await main();
+  } catch {
+    // Cùng lý do như nhánh catch bên trong: không để message thô của driver ra ngoài.
+    const action = process.argv[2];
+    const stage =
+      action === 'staff-provision' || action === 'staff-assign' || action === 'staff-verify'
+        ? CLI_STAGE[action]
+        : 'staff.bootstrap';
+    writeDenial(stage, 'internal_error');
+    process.exitCode = 1;
+  }
 }

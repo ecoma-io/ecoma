@@ -160,6 +160,55 @@ describe('createSpawnStageRunner', () => {
     expect(result.ok === false && result.reason).toBe('malformed_json_response');
   });
 
+  it('fails closed when the child reports a different stage than the one requested', () => {
+    const { run } = withSpawn(
+      fakeRun('{"stage":"staff.verify","status":"verified","staff_id":"s"}\n'),
+    );
+
+    const result = run({ service: 'staff-access', action: 'staff-assign', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'staff.assign',
+      reason: 'malformed_json_response',
+    });
+  });
+
+  it('does not read a previous JSON line when the last line is truncated', () => {
+    // Dòng cuối bị cắt cụt không được phép biến dòng JSON của một lần chạy khác
+    // thành kết quả của lần này.
+    const { run } = withSpawn(
+      fakeRun('{"stage":"account.provision","status":"created","sub":"sub_a"}\n{"stage":"acc'),
+    );
+
+    const result = run({ service: 'account', action: 'provision', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'account.provision',
+      reason: 'missing_json_response',
+    });
+  });
+
+  it('rejects a denial reason that is not a machine-readable code', () => {
+    // Con lỗi không được chèn text tuỳ ý (địa chỉ, DSN) vào nhật ký vận hành.
+    const { run } = withSpawn(
+      fakeRun(
+        '',
+        '{"stage":"staff.assign","status":"denied","reason":"password=hunter2 host=db"}\n',
+        1,
+      ),
+    );
+
+    const result = run({ service: 'staff-access', action: 'staff-assign', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'staff.assign',
+      reason: 'service_failed',
+    });
+  });
+
   it('reports a spawn failure by error code only', () => {
     const spawn = (() => ({
       stdout: '',
