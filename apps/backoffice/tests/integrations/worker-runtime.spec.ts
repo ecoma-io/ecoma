@@ -67,6 +67,13 @@ let harness: TestHarness;
 /** Thư mục stub script của `beforeAll` — outer scope để `afterAll` dọn sạch. */
 let stubDir = '';
 
+// ⚠️ Hai hook dưới đây là hook **tầng file** (đăng ký ngoài mọi `describe`, có
+// hiệu lực cho cả file): `beforeAll` chạy một lần trước test đầu tiên của file,
+// còn `afterAll` chạy một lần SAU test cuối cùng của file — tức sau cả describe
+// thứ hai ở cuối file. Vì vậy `stubDir` còn nguyên khi describe thứ hai dựng
+// harness của mình qua `join(stubDir, ...)`, và chỉ bị xóa khi cả hai describe
+// đã chạy xong. Tách hook ra khỏi describe cũng cố ý: hai harness dùng chung
+// một thư mục stub, không describe nào "sở hữu" nó.
 beforeAll(async () => {
   // Stub script ghi vào tmpdir lúc chạy — không nằm trong repo, vì nội dung của
   // nó không từng được đọc bởi nhánh test nào (xem JSDoc đầu file). Outer scope
@@ -326,6 +333,7 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
   let issuerUrl = '';
   let signingKey: CryptoKeyPair;
   let sessionValue = '';
+  let previousHyperdriveConnectionString: string | undefined;
 
   beforeAll(async () => {
     db = await startBackofficeDatabase();
@@ -381,7 +389,11 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
     // Hyperdrive local của miniflare KHÔNG nhận connection string từ config —
     // nó đọc biến môi trường `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`
     // trước khi dựng binding (cùng cơ chế lane local dùng cho WIC auth). Phải set
-    // TRƯỚC `createTestHarness`.
+    // TRƯỚC `createTestHarness`. Giữ giá trị cũ để `afterAll` khôi phục — biến
+    // môi trường của tiến trình test không được rò rỉ ra ngoài suite này
+    // (connection string trỏ tới PostgreSQL test sẽ bị đóng ở `afterAll`).
+    previousHyperdriveConnectionString =
+      process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
     process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
       `postgres://ecoma_backoffice_runtime:${db.rolePassword}@${db.host}:${db.port}/${BACKOFFICE_DATABASE}`;
     authHarness = wranglerCli.createTestHarness({
@@ -435,6 +447,14 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
       jwksServer.close(() => done());
     });
     await db.stop();
+    // Khôi phục đúng trạng thái biến môi trường trước khi suite chạy (xóa nếu
+    // trước đó chưa tồn tại) — xem chú thích ở `beforeAll`.
+    if (previousHyperdriveConnectionString === undefined) {
+      delete process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
+    } else {
+      process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
+        previousHyperdriveConnectionString;
+    }
   });
 
   /** Ký access token đúng cấu trúc `at+jwt` của `auth` (tiền lệ `authn-middleware.spec.ts`). */
