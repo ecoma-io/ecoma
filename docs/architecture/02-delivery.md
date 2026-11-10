@@ -132,7 +132,7 @@ Quyết định (đường chạy, danh tính khởi tạo canonical, nội dung
 
 **Định nghĩa.** Bootstrap/seed là dữ liệu khởi tạo **do hệ thống sở hữu**: bản ghi sản phẩm cần để hoạt động mà không người dùng nào tạo ra. Dữ liệu do người dùng tạo lúc chạy — tenant của khách hàng, project, API key của khách, membership của khách — **không** thuộc lớp này; nó đi qua route/control plane của sản phẩm như trước.
 
-**Danh tính canonical — giống nhau ở mọi environment, và là hằng trong code.** Tenant nội bộ tên là `ecoma` và Account đầu tiên dùng email `superadmin@ecoma.io`. `local`/`staging`/`production` là nhãn environment, **không** phải tên tenant. Environment được đổi cấu hình hạ tầng và credential (endpoint, credential, redirect URI, token plaintext, tên client), **không** được đổi danh tính canonical: cấu hình chỉ **assert** lại hằng trong code, và procedure **từ chối chạy** khi input khác hằng ([ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 1; [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 9 và 11).
+**Danh tính canonical — giống nhau ở mọi environment, và là hằng trong code.** Tenant nội bộ tên là `ecoma` và Account đầu tiên dùng email `superadmin@ecoma.io` — **ngoại lệ duy nhất**: Seller tenant first-party của `llm-seller-tenant` mang tên riêng theo provider (`dronie` đầu tiên), không có Seller tenant tên `ecoma` ([ADR-0027](../domains/llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §2). `local`/`staging`/`production` là nhãn environment, **không** phải tên tenant. Environment được đổi cấu hình hạ tầng và credential (endpoint, credential, redirect URI, token plaintext, tên client), **không** được đổi danh tính canonical: cấu hình chỉ **assert** lại hằng trong code, và procedure **từ chối chạy** khi input khác hằng ([ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 1; [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 9 và 11).
 
 **Thứ tự bắt buộc**, mỗi bước chỉ chạy sau khi bước trước đã commit:
 
@@ -141,7 +141,8 @@ Provision databases
   → Migrate schemas (chỉ schema + catalog sealed)
   → Bootstrap Account (sub của superadmin, email canonical ở trạng thái verified)
   → Seed staff + assignment của administrator (dùng sub ở bước trên)
-  → Seed tenant ecoma + membership của từng sản phẩm (dùng sub ở bước trên)
+  → Seed tenant nội bộ của từng sản phẩm (dùng sub ở bước trên): ecoma cho
+    remote-cache/pact-broker/llm-consumer-tenant, dronie cho Seller first-party (ADR-0027)
   → Bootstrap provider / offer đầu tiên của LLM Seller
   → Verify (đọc lại đúng bản ghi kỳ vọng)
 ```
