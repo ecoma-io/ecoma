@@ -38,6 +38,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { Client } from 'pg';
+import { isOpaqueId, MAX_OPAQUE_ID_LENGTH } from '@ecoma-io/tenant-kernel-domain';
 
 /** Tenant nội bộ duy nhất mà script này được phép bootstrap. */
 export const INTERNAL_TENANT_NAME = 'ecoma-internal';
@@ -89,6 +90,9 @@ export function parseDatabaseUrl(databaseUrl: string): BootstrapDatabaseTarget {
   return { database };
 }
 
+/** Biến môi trường chứa chủ sở hữu (opaque `sub`) của tenant nội bộ. Bắt buộc. */
+export const INTERNAL_TENANT_OWNER_SUB_ENV = 'INTERNAL_TENANT_OWNER_SUB';
+
 /**
  * Bootstrap tenant nội bộ — core logic dùng chung bởi CLI và integration
  * test (một đường code duy nhất, đúng pattern runner-canonical của
@@ -101,22 +105,37 @@ export function parseDatabaseUrl(databaseUrl: string): BootstrapDatabaseTarget {
  * race). Hai câu DML của một lần bootstrap chạy trong một transaction do
  * caller mở để tenant và audit event cùng tồn tại hoặc cùng không.
  *
+ * `ownerSub` là định danh opaque của chủ sở hữu tenant, được persistence
+ * trên cột `pact.tenants.owner_sub`. `ownerSub` phải vượt qua guard của
+ * kernel (`isOpaqueId`) — thiếu hoặc không hợp lệ thì ném lỗi, KHÔNG fallback
+ * và KHÔNG tạo tenant mà thiếu chủ sở hữu.
+ *
  * Race-safety: `INSERT … ON CONFLICT (name) DO NOTHING RETURNING id` —
  * hai connection chạy đồng thời thì đúng một tenant được tạo, bên thua
  * đọc row của bên thắng rồi đi tiếp nhánh no-op; không lỗi chết, đúng
- * §4 bước 1.
+ * §4 bước 1. owner_sub chỉ được ghi trên lần tạo đầu (bên thua không
+ * ghi đè chủ sở hữu của bên thắng).
  *
  * Fail-closed khi tenant tồn tại với status khác `active`: không tự hồi
  * sinh tenant `suspended`/`deleted` (§4 bước 2) — đó là hành động có chủ
  * đích của owner, không phải của script bootstrap.
  */
-export async function bootstrapInternalTenant(client: Client): Promise<BootstrapTenantResult> {
+export async function bootstrapInternalTenant(
+  client: Client,
+  ownerSub: string,
+): Promise<BootstrapTenantResult> {
+  if (!isOpaqueId(ownerSub)) {
+    throw new Error(
+      `owner_sub is required and must be a non-empty opaque id of at most ${MAX_OPAQUE_ID_LENGTH} characters`,
+    );
+  }
+
   const inserted = await client.query<{ id: string }>(
-    `INSERT INTO pact.tenants (name, status)
-     VALUES ($1, 'active')
+    `INSERT INTO pact.tenants (name, status, owner_sub)
+     VALUES ($1, 'active', $2)
      ON CONFLICT (name) DO NOTHING
      RETURNING id`,
-    [INTERNAL_TENANT_NAME],
+    [INTERNAL_TENANT_NAME, ownerSub],
   );
 
   if (inserted.rows.length === 1) {
@@ -196,6 +215,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const ownerSub = process.env[INTERNAL_TENANT_OWNER_SUB_ENV];
+  if (typeof ownerSub !== 'string' || ownerSub === '') {
+    console.error(
+      `INTERNAL_TENANT_OWNER_SUB is not set. Set it to the opaque 'sub' of the tenant owner (non-empty, max ${MAX_OPAQUE_ID_LENGTH} chars).`,
+    );
+    process.exit(1);
+  }
+
   const client = new Client({
     connectionString: databaseUrl,
     application_name: 'ecoma-pact-broker-bootstrap-internal-tenant',
@@ -210,7 +237,7 @@ async function main(): Promise<void> {
 
   try {
     await client.query('BEGIN');
-    const result = await bootstrapInternalTenant(client);
+    const result = await bootstrapInternalTenant(client, ownerSub);
     await client.query('COMMIT');
     if (result.alreadyExisted) {
       console.log(

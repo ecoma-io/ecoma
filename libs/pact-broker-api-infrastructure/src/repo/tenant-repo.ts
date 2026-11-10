@@ -14,6 +14,7 @@
  */
 import type { Pool } from 'pg';
 import { randomToken, sha256Hex } from '@ecoma-io/pact-broker-api-application';
+import { isOpaqueId, MAX_OPAQUE_ID_LENGTH } from '@ecoma-io/tenant-kernel-domain';
 
 export interface TenantRecord {
   id: string;
@@ -46,6 +47,11 @@ export class PgTenantRepo {
    * deleted (fail-closed — không tự sửa dữ liệu đã xoá mềm).
    */
   async ensureDefaultTenant(name: string, ownerSub: string): Promise<TenantRecord> {
+    if (!isOpaqueId(ownerSub)) {
+      throw new PactBrokerTenantError(
+        `owner_sub is required and must be a non-empty opaque id of at most ${MAX_OPAQUE_ID_LENGTH} characters`,
+      );
+    }
     return this.pool.connect().then(async (client) => {
       try {
         await client.query('BEGIN');
@@ -56,10 +62,10 @@ export class PgTenantRepo {
           name: string;
           status: string;
         }>(
-          `INSERT INTO pact.tenants (name) VALUES ($1)
+          `INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)
            ON CONFLICT (name) DO NOTHING
            RETURNING id, name, status`,
-          [name],
+          [name, ownerSub],
         );
 
         let tenant: { id: string; name: string; status: string };
@@ -86,11 +92,12 @@ export class PgTenantRepo {
           );
         }
 
-        // Bước 4: membership owner — DO NOTHING nếu đã có (không đổi role
-        // thành viên hiện có).
+        // Bước 4: membership ở vai trò thấp nhất ('member') — chủ sở hữu tenant
+        // được lưu trên hàng tenant qua owner_sub, KHÔNG là vai trò membership.
+        // DO NOTHING nếu đã có (không đổi role thành viên hiện có).
         await client.query(
           `INSERT INTO pact.tenant_members (tenant_id, sub, role)
-           VALUES ($1, $2, 'owner')
+           VALUES ($1, $2, 'member')
            ON CONFLICT (tenant_id, sub) DO NOTHING`,
           [tenant.id, ownerSub],
         );
@@ -123,16 +130,21 @@ export class PgTenantRepo {
    * Ném `PactBrokerTenantError` khi tenant tồn tại ở trạng thái deleted
    * (fail-closed — không tự sửa dữ liệu đã xoá mềm).
    */
-  async ensureTenant(name: string): Promise<string> {
+  async ensureTenant(name: string, ownerSub: string): Promise<string> {
+    if (!isOpaqueId(ownerSub)) {
+      throw new PactBrokerTenantError(
+        `owner_sub is required and must be a non-empty opaque id of at most ${MAX_OPAQUE_ID_LENGTH} characters`,
+      );
+    }
     return this.pool.connect().then(async (client) => {
       try {
         await client.query('BEGIN');
 
         const inserted = await client.query<{ id: string; status: string }>(
-          `INSERT INTO pact.tenants (name) VALUES ($1)
+          `INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)
            ON CONFLICT (name) DO NOTHING
            RETURNING id, status`,
-          [name],
+          [name, ownerSub],
         );
 
         let tenant: { id: string; status: string };

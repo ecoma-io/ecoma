@@ -113,7 +113,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const runtime = await db.asRuntime();
     try {
       // DML được: INSERT tenant là hành vi bình thường của Worker.
-      await runtime.query(`INSERT INTO pact.tenants (name) VALUES ('grant-probe')`);
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('grant-probe', 'sub-owner-grant-probe')`,
+      );
 
       // DDL bị từ chối: runtime không sở hữu schema, không có CREATE.
       await expect(
@@ -162,8 +164,12 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
   it('enforces tenant boundary through composite FKs, not code WHEREs', async () => {
     const runtime = await db.asRuntime();
     try {
-      await runtime.query(`INSERT INTO pact.tenants (name) VALUES ('fk-a')`);
-      await runtime.query(`INSERT INTO pact.tenants (name) VALUES ('fk-b')`);
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('fk-a', 'sub-owner-fk-a')`,
+      );
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('fk-b', 'sub-owner-fk-b')`,
+      );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
          SELECT id, 'consumer-a' FROM pact.tenants WHERE name = 'fk-a'`,
@@ -194,7 +200,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
   it('allows one active deployment per version+environment and keeps undeployed history', async () => {
     const runtime = await db.asRuntime();
     try {
-      await runtime.query(`INSERT INTO pact.tenants (name) VALUES ('deploy-probe')`);
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('deploy-probe', 'sub-owner-deploy-probe')`,
+      );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
          SELECT id, 'svc' FROM pact.tenants WHERE name = 'deploy-probe'`,
@@ -248,7 +256,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
   it('rejects a webhook whose url is not https', async () => {
     const runtime = await db.asRuntime();
     try {
-      await runtime.query(`INSERT INTO pact.tenants (name) VALUES ('wh-probe')`);
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('wh-probe', 'sub-owner-wh-probe')`,
+      );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
          SELECT id, 'provider' FROM pact.tenants WHERE name = 'wh-probe'`,
@@ -262,6 +272,31 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
             WHERE t.name = 'wh-probe' AND p.name = 'provider' AND p.tenant_id = t.id`,
         ),
       ).rejects.toThrow(/webhooks_url_https_check/u);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects owner_sub violating tenants_owner_sub_check (empty, spaced, too long)', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // owner_sub rỗng vi phạm length BETWEEN 1 AND 200.
+      await expect(
+        runtime.query(`INSERT INTO pact.tenants (name, owner_sub) VALUES ('owner-sub-empty', '')`),
+      ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
+      // owner_sub có khoảng cách đầu/cuối vi phạm owner_sub = trim(owner_sub).
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, owner_sub) VALUES ('owner-sub-spaced', ' has space ')`,
+        ),
+      ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
+      // owner_sub quá 200 ký tự vi phạm length BETWEEN 1 AND 200.
+      await expect(
+        runtime.query(`INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)`, [
+          'owner-sub-too-long',
+          'x'.repeat(201),
+        ]),
+      ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
     } finally {
       await runtime.end();
     }

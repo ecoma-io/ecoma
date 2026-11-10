@@ -59,8 +59,12 @@ export interface EntitlementSyncRepo {
 
 /** Port đảm bảo tenant + upsert membership. */
 export interface MembershipRepo {
-  /** Bảo đảm tenant `name` tồn tại active, trả id. Idempotent, race-safe. */
-  ensureTenant(name: string): Promise<string>;
+  /**
+   * Bảo đảm tenant `name` tồn tại active, trả id. Idempotent, race-safe.
+   * `ownerSub` là chủ sở hữu tenant, lưu trên hàng tenant qua cột `owner_sub`
+   * (không phải vai trò membership).
+   */
+  ensureTenant(name: string, ownerSub: string): Promise<string>;
   /**
    * Upsert membership `(tenant_id, sub, role)` — DO NOTHING nếu đã có.
    * Provenance entitlement được ghi kèm khi membership do entitlement tạo.
@@ -93,6 +97,7 @@ export interface MembershipRepo {
 export async function provisionEntitlementMembership(
   event: EntitlementEvent,
   deps: { membership: MembershipRepo; sync: EntitlementSyncRepo },
+  ownerSub: string,
 ): Promise<ProvisionEntitlementMembershipResult> {
   // Chỉ quan tâm sản phẩm của chính bounded context này.
   if (event.product !== PRODUCT_PACT_BROKER) {
@@ -119,7 +124,7 @@ export async function provisionEntitlementMembership(
     // Mark projection revoked on the entitlement-sourced membership if present.
     // Customer-managed memberships (source != 'entitlement') are NOT touched.
     try {
-      const tenantId = await deps.membership.ensureTenant('ecoma-internal');
+      const tenantId = await deps.membership.ensureTenant('ecoma-internal', ownerSub);
       await deps.membership.markEntitlementRevoked(
         tenantId,
         event.staff_id,
@@ -135,7 +140,7 @@ export async function provisionEntitlementMembership(
   // `entitlement.granted`: bảo đảm tenant `ecoma-internal` tồn tại, rồi upsert
   // membership role Member với provenance entitlement (staff_id → sub mapping
   // recorded as provenance, KHÔNG coi staff_id là sub theo contract).
-  const tenantId = await deps.membership.ensureTenant('ecoma-internal');
+  const tenantId = await deps.membership.ensureTenant('ecoma-internal', ownerSub);
   const advanced = await deps.sync.writeRevision(event.staff_id, event.product, event.revision, {
     eventId: event.event_id,
     source: 'entitlement',

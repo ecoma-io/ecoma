@@ -583,6 +583,9 @@ importers:
       '@ecoma-io/staff-access-contracts':
         specifier: workspace:*
         version: link:../../libs/staff-access-contracts
+      '@ecoma-io/tenant-kernel-domain':
+        specifier: workspace:*
+        version: link:../../libs/tenant-kernel-domain
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -1014,6 +1017,9 @@ importers:
       '@ecoma-io/pact-broker-api-domain':
         specifier: workspace:*
         version: link:../pact-broker-api-domain
+      '@ecoma-io/tenant-kernel-domain':
+        specifier: workspace:*
+        version: link:../tenant-kernel-domain
       pg:
         specifier: ^8.23.1
         version: 8.23.1

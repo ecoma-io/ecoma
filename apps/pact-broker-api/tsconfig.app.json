@@ -27,6 +27,9 @@
     },
     {
       "path": "../../libs/pact-broker-api-application/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/tenant-kernel-domain/tsconfig.lib.json"
     }
   ]
 }
