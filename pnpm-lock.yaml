@@ -163,7 +163,6 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@nx/js@23.3.0': dc27edb054d03d7231d505ea835349c3e7ae860efe15d8d90bd5cbe4d33b6efc
   nitropack@2.13.4: 2ceb4fce3b187b6b0ba8a6289d05937fc06af9d5de30e51309be9ca2e03061d3
 
 importers:
@@ -13175,7 +13174,7 @@ snapshots:
   '@nx/eslint@23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(@nx/jest@23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(nx@23.3.1)(supports-color@10.2.2)(ts-node@10.9.2(@types/node@24.19.2)(typescript@6.0.3))(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.13.0(jiti@2.7.0)(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)':
     dependencies:
       '@nx/devkit': 23.3.0(nx@23.3.1)
-      '@nx/js': 23.3.0(patch_hash=dc27edb054d03d7231d505ea835349c3e7ae860efe15d8d90bd5cbe4d33b6efc)(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
+      '@nx/js': 23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
       eslint: 10.13.0(jiti@2.7.0)(supports-color@10.2.2)
       semver: 7.8.5
       tslib: 2.8.1
@@ -13217,7 +13216,7 @@ snapshots:
       '@jest/reporters': 30.5.2(supports-color@10.2.2)
       '@jest/test-result': 30.5.2
       '@nx/devkit': 23.3.0(nx@23.3.1)
-      '@nx/js': 23.3.0(patch_hash=dc27edb054d03d7231d505ea835349c3e7ae860efe15d8d90bd5cbe4d33b6efc)(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
+      '@nx/js': 23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
       '@phenomnomnominal/tsquery': 6.2.0(typescript@6.0.3)
       identity-obj-proxy: 3.0.0
       jest-config: 30.5.2(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(supports-color@10.2.2)(ts-node@10.9.2(@types/node@24.19.2)(typescript@6.0.3))
@@ -13245,7 +13244,7 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/js@23.3.0(patch_hash=dc27edb054d03d7231d505ea835349c3e7ae860efe15d8d90bd5cbe4d33b6efc)(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)':
+  '@nx/js@23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)':
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/plugin-proposal-decorators': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
@@ -13327,7 +13326,7 @@ snapshots:
       '@nx/docker': 23.3.0(nx@23.3.1)
       '@nx/eslint': 23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(@nx/jest@23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(nx@23.3.1)(supports-color@10.2.2)(ts-node@10.9.2(@types/node@24.19.2)(typescript@6.0.3))(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.13.0(jiti@2.7.0)(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
       '@nx/jest': 23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(@types/node@24.19.2)(babel-plugin-macros@3.1.0)(nx@23.3.1)(supports-color@10.2.2)(ts-node@10.9.2(@types/node@24.19.2)(typescript@6.0.3))(typescript@6.0.3)
-      '@nx/js': 23.3.0(patch_hash=dc27edb054d03d7231d505ea835349c3e7ae860efe15d8d90bd5cbe4d33b6efc)(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
+      '@nx/js': 23.3.0(@babel/traverse@7.29.10(supports-color@10.2.2))(nx@23.3.1)(supports-color@10.2.2)
       kill-port: 1.6.1
       semver: 7.8.5
       tcp-port-used: 1.0.3(supports-color@10.2.2)
