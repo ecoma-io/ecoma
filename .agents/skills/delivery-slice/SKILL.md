@@ -27,11 +27,16 @@ These documents outrank this skill. Where this skill and a canonical document
 disagree, the document wins.
 
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
-  — §6.4 (Select & Plan), §6.5 (Deliver: smallest change, run the right
-  test layer, record command and result), §6.8 (never implement an
-  unaccepted decision; a blocked slice is not carried as half-done), §7
-  (vertical slice conditions and **Prerequisite work**), §8 (limitation
-  versus deviation).
+  — §5 (the authoritative baseline is canonical documents plus accepted
+  ADRs, never a Change Specification), §6.4 (Select & Plan), §6.5 (Deliver:
+  smallest change, run the right test layer, record command and result; the
+  canonical-promotion obligation of a delivery under an accepted Change
+  Specification), §6.8 (never implement an unaccepted decision; a blocked
+  slice is not carried as half-done), §7 (vertical slice conditions and
+  **Prerequisite work**), §8 (limitation versus deviation).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — horizon
+  promotion versus canonical promotion are independent; the first
+  behaviour-landing delivery carries the canonical-promotion obligation.
 - [`docs/engineering/contribution-workflow.md`](../../../docs/engineering/contribution-workflow.md)
   — §2.5 (branch and draft PR), §2.6 (scope lock), §2.7 (validation by
   change type), §2.8 (review findings), §2.9 (rebase and merge).
@@ -54,7 +59,12 @@ disagree, the document wins.
 - The Issue that owns the outcome, with scope, constraints and verify
   criteria already written.
 - The accepted decision or specification the slice implements. If the
-  decision is open, the slice is blocked — stop here.
+  decision is open, the slice is blocked — stop here. Read the baseline
+  correctly: the authoritative baseline is the canonical documents plus
+  accepted ADRs (`evolution-process.md` §5); an accepted Change Specification
+  is design-ahead input the slice implements, not baseline.
+- Whether an accepted Change Specification in `docs/changes/` covers this
+  behaviour, when one might apply.
 - The owning Nx project or projects of the behaviour, confirmed from the
   resolved configuration rather than from file paths.
 - A configured commit signing key. Without one, stop and report.
@@ -97,7 +107,13 @@ disagree, the document wins.
    existing behaviour unless the Issue changes the contract. Respect the
    invariants in `AGENTS.md` `Non-negotiable architecture` — database
    ownership, contracts over shared access, expand → compatible rollout →
-   contract for schema changes.
+   contract for schema changes. When the slice lands the first behaviour of
+   an accepted Change Specification, the canonical-promotion obligation
+   attaches: update the affected canonical documents in the same logical
+   change, or record the explicit follow-up
+   ([`docs/changes/README.md`](../../../docs/changes/README.md)) —
+   "implemented but not yet promoted" is a tracked transient state, never a
+   permanent one.
 8. **Select validation by change type.** Do not run everything for every PR;
    run the row that matches, and add rows when the change spans them.
 
@@ -148,7 +164,8 @@ disagree, the document wins.
 
 ## Prohibited changes
 
-- Implementing an unaccepted decision, or a decision still open in
+- Implementing an unaccepted decision, an unaccepted proposal or an
+  unaccepted Change Specification, or a decision still open in
   `01-architecture.md` §10 or `docs/domains/open-boundaries.md`.
 - Widening scope to close review findings or to "finish" a discovery made
   mid-slice.
@@ -176,6 +193,9 @@ disagree, the document wins.
 - Any validation that could not run, with the environmental blocker.
 - Migration steps and their rollout order, when schema changed.
 - Commits made, and confirmation that each carries a signature.
+- Whether the slice landed behaviour under an accepted Change Specification,
+  and whether canonical promotion happened in the same logical change or is
+  recorded as an explicit follow-up.
 - The out-of-scope items found, with where each was recorded.
 
 ## Completion criteria
@@ -187,6 +207,9 @@ disagree, the document wins.
   evidence.
 - Every commit is signed and no hook was bypassed.
 - The PR body states what was not done, and links the Issue correctly.
+- When the slice delivered behaviour under an accepted Change Specification,
+  the canonical documents were updated in the same logical change or the
+  pending promotion is recorded as an explicit follow-up.
 - The branch is rebased, CI is green and conversations are resolved before
   ready for review.
 - No Project, Milestone, label or field was created as a side effect.

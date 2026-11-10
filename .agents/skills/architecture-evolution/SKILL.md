@@ -44,8 +44,12 @@ disagree, the document wins.
   §9 artifact lifecycle, §10 ADR governance (trigger, location, numbering,
   index, supersession), §11 proposals and open decisions, §12 deviations.
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
-  — §3 (Architecture view ownership), §4.1 (Modelling), §6.2 (Discover &
-  Model), §6.8 (never implement an unaccepted decision), §8 (deviation).
+  — §3 (Architecture view ownership), §4.1 (Modelling as an Issue Type
+  value), §6.2 (Discover & Model), §6.8 (never implement an unaccepted
+  decision), §8 (deviation).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — when a
+  system-level change needs a Change Specification; the impact classes a
+  material change applies to dependent specs.
 - [`AGENTS.md`](../../../AGENTS.md) — `Non-negotiable architecture`,
   `Change discipline`, `Source of truth`.
 
@@ -108,6 +112,12 @@ disagree, the document wins.
      historical overlaps described in §10 must not grow.
    - System-level pointer → `01-architecture.md` §8 gains or updates the
      `A<n>` row that points at the ADR. Do not restate the ADR's reasoning.
+   - Target change larger than one PR — introducing a bounded context,
+     moving ownership, changing a shared contract or library, retiring part
+     of the system → a Change Specification under `docs/changes/`, with the
+     change type (introduce, evolve, retire) on each Affected scope entry
+     ([`docs/changes/README.md`](../../../docs/changes/README.md)); the
+     canonical documents change at canonical promotion, not in the spec's PR.
    - Undecided → `01-architecture.md` §10 with an explicit trigger, or
      `docs/domains/open-boundaries.md` for a business boundary.
    - Index → the context's `adr/README.md` row, in the same change.
@@ -115,13 +125,22 @@ disagree, the document wins.
    make a historical decision read differently. Write a new ADR, update the
    old status line, and name the exact scope superseded in all three places
    §10 requires.
-10. **Route implementation separately.** Hand the accepted decision to
-    `delivery-slice`. A decision is not implemented here, and an ADR records
-    the decision, not a capability state.
+10. **Route implementation and impact separately.** Hand the accepted
+    decision to `delivery-slice`; a decision is not implemented here, and an
+    ADR records the decision, not a capability state. When the decision is a
+    material change for dependent Change Specifications — it shifts the
+    baseline, supersedes an accepted decision, changes a committed
+    Milestone's scope, or alters a shared contract, library or bounded
+    context — hand the impact assessment to `change-impact`; its verdicts use
+    the impact classes in `docs/changes/README.md`, never the reconciliation
+    classes.
 
 ## Allowed changes
 
 - Canonical architecture documents under `docs/architecture/`.
+- A Change Specification under `docs/changes/` and its index row, when the
+  change introduces, evolves or retires capability or architecture as a
+  design-ahead target rather than a direct canonical edit.
 - A new ADR, the superseded ADR's status line, and its index rows.
 - `docs/domains/open-boundaries.md`, and a context's open section, only when the
   item genuinely is that kind of record.

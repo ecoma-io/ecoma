@@ -23,17 +23,24 @@ something. If the answer is already written down, measured, or visible in
 state somewhere, it is Discovery. Only build an experiment when no existing
 evidence can answer the question.
 
+The two modes are the Issue Type values **Discovery** and **Experiment**
+(`evolution-process.md` §4.1): the mode chosen here is the type the owning
+Issue carries, recorded per `work-management.md` §2.3. Discovery feeding a
+product's future horizon (Feature Discovery) is normal work, not misplaced
+effort — horizons derive from the product's Milestone ladder
+(`work-management.md` §4).
+
 ## Canonical references
 
 These documents outrank this skill. Where this skill and a canonical document
 disagree, the document wins.
 
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
-  — §4.1 (Discovery and Experiment as work kinds; Experiment never enters the
-  production path — it lives on a branch and is not merged), §6.1 (unknowns
-  come out of Understand), §6.2 (Discover & Model: Discovery finds evidence,
-  Modelling changes the spec, Experiment answers a technical question),
-  §6.8 (an open decision stays open until evidence settles it).
+  — §4.1 (Discovery and Experiment as Issue Type values; Experiment never
+  enters the production path — it lives on a branch and is not merged), §6.1
+  (unknowns come out of Understand), §6.2 (Discover & Model: Discovery finds
+  evidence, Modelling changes the spec, Experiment answers a technical
+  question), §6.8 (an open decision stays open until evidence settles it).
 - [`docs/AGENTS.md`](../../../docs/AGENTS.md) — §11 (proposal, accepted
   decision, unresolved boundary and deferred decision; the `Experiments`
   subsection lists the six parts a durable record needs), §9 (artifact
@@ -46,7 +53,12 @@ disagree, the document wins.
 - [`AGENTS.md`](../../../AGENTS.md) — `Source of truth`, `Non-negotiable
   architecture`, `Workflow`.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
-  — whether the unknown needs its own Issue, and how to reuse an existing one.
+  — whether the unknown needs its own Issue, how to reuse an existing one,
+  §2.3 (how the Issue Type is recorded), §4 (the horizon ladder a Discovery
+  may be feeding).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — a conclusion
+  that shifts a target is a material change; impact classes govern what it
+  does to dependent Change Specifications.
 
 ## Required inputs
 
@@ -111,7 +123,11 @@ unknown and the decision it feeds — and never run in the same pass.
 7. **Link the result to the decision it informs**, the follow-up work, and
    the Issue that owns the question. A conclusion that changes the target
    becomes an ADR or a canonical update through `domain-modelling`; the
-   experiment record is linked from it and never substitutes for it.
+   experiment record is linked from it and never substitutes for it. When a
+   Change Specification depends on the result, the shifted target is a
+   material change: classify its effect on the dependent specs with the
+   impact classes in [`docs/changes/README.md`](../../../docs/changes/README.md)
+   (the `change-impact` skill) rather than editing the specs inline.
 
 ## Allowed changes
 

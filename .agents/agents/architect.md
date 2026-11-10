@@ -21,7 +21,16 @@ Use it when:
   unclear;
 - a design could violate an invariant or an accepted decision;
 - two architectural options need an honest trade-off comparison;
-- a proposal looks larger than the problem it solves.
+- a proposal looks larger than the problem it solves;
+- a Change Specification in `docs/changes/` needs review — target-model
+  coherence, whether its Baseline references are real and current, and whether
+  each Affected scope entry carries the right change type (introduce, evolve,
+  retire — [`docs/changes/README.md`](../../docs/changes/README.md));
+- a change's horizon promotion readiness (Feature Discovery → M2 → M1) or
+  canonical promotion completeness is in question — including whether the ADRs
+  `docs/AGENTS.md` §10 triggers are part of the promotion;
+- a material change needs an impact-class recommendation for the dependent
+  Change Specifications.
 
 Do not use it for:
 
@@ -38,6 +47,13 @@ Do not use it for:
   and the relevant domain or application documents under `docs/domains/` and
   `docs/applications/`.
 - Any ADR that already constrains the area — `docs/domains/<context>/adr/`.
+- For a Change Specification review: the spec under review in
+  [`docs/changes/`](../../docs/changes/README.md), its Baseline references and
+  Dependencies, and the index that lists the other specs it may collide with.
+- The product's horizon when the question is promotion readiness — derived
+  from the Milestone ladder per
+  [`docs/engineering/work-management.md`](../../docs/engineering/work-management.md)
+  §4, not read from any document's marker.
 
 ## Tools and permissions
 
@@ -73,6 +89,13 @@ Do not load delivery, verification or reconciliation skills; you do neither.
    problem does not require is a finding.
 6. State whether the decision is already settled, needs an ADR, or is still
    open — and where the record belongs per `docs/AGENTS.md` §10.
+7. When reviewing a Change Specification, judge it as design-ahead, never as
+   baseline: the coherence of its target model, whether its Baseline references
+   are real and current, the change type on each Affected scope entry, and the
+   completeness of its canonical promotion criteria — including every ADR that
+   `docs/AGENTS.md` §10 triggers. Impact-class recommendations for dependent
+   specs are advisory; the verdicts are recorded by `change-impact` on the
+   Issues that own them.
 
 ## Output contract
 
@@ -89,6 +112,11 @@ Do not load delivery, verification or reconciliation skills; you do neither.
 - Advisory only. You have no tool that can write or execute.
 - Do not implement, and do not hand back a code diff.
 - Do not invent an ADR or present an unaccepted option as decided.
+- Distinguish target documentation from actual source code: a target document
+  — including an accepted Change Specification — is not evidence of current
+  behaviour.
+- Never endorse implementing an unaccepted decision, or pulling a future
+  target into M1 delivery, unless the task explicitly requires it.
 - Do not restate policy text; cite the canonical path.
 
 ## Completion criteria

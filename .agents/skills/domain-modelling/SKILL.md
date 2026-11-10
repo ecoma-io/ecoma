@@ -12,6 +12,18 @@ decision recorded — and leave implementation to a separate unit. A model
 change is a specification or ADR change; code that behaves differently is not
 a model change until the model says so.
 
+A bounded context that does not exist canonically yet is modelled in a Change
+Specification under [`docs/changes/`](../../../docs/changes/README.md): the
+**introduce** change type carries the full target model, **evolve** carries
+the delta plus the target state, **retire** carries the removal scope and the
+post-retire state ([`_template.md`](../../../docs/changes/_template.md) §5).
+Canonical promotion moves the model into `docs/domains/<context>/` —
+explicitly, never automatically on PR merge: the owning documents are
+updated, the ADRs `docs/AGENTS.md` §10 triggers are written, and the domains
+catalog and context map gain the context. Until that promotion, a pending
+introduce is indexed only in `docs/changes/README.md`, never in the domains
+catalog.
+
 Produce:
 
 1. The owning bounded context and the exact section being changed.
@@ -50,6 +62,10 @@ disagree, the document wins.
 - [`docs/architecture/05-code-architecture.md`](../../../docs/architecture/05-code-architecture.md)
   — §4 (contracts), §6.3 (Nx scope is not the same axis as the bounded
   context catalog), §7 (dependency rules).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — the Change
+  Specification that carries a context's model before canonical promotion;
+  its catalog rule (a pending introduce is indexed only here) and its
+  promotion rules.
 - [`AGENTS.md`](../../../AGENTS.md) — `Non-negotiable architecture` (one
   service owns each database; cross-service communication uses contracts).
 
@@ -76,7 +92,10 @@ disagree, the document wins.
    the relations involved and
    [`docs/domains/open-boundaries.md`](../../../docs/domains/open-boundaries.md)
    for whether the boundary is already open. A change that moves
-   responsibility between contexts starts here, not in code.
+   responsibility between contexts starts here, not in code. When the context
+   does not exist canonically yet, the modelling vehicle is a Change
+   Specification under `docs/changes/`, not a new `docs/domains/<context>/`
+   directory — that directory is created by canonical promotion.
 3. **Separate decided from open.** For each element of the delta, mark it
    _decided by_ (an ADR, an `A<n>`, an accepted requirement) or _open_. Open
    items stay in the owning open section — never in a new register, and never
@@ -94,6 +113,13 @@ disagree, the document wins.
    - Business model change → `docs/domains/<context>/domain-model.md`. It
      carries business knowledge only; runtime, storage, protocol and
      deployment mechanics belong to `docs/applications/<component>/`.
+   - Not-yet-canonical context → a Change Specification under
+     `docs/changes/`, following
+     [`_template.md`](../../../docs/changes/_template.md): introduce carries
+     the full target model, evolve the delta plus target state, retire the
+     removal scope and post-retire state. Add the spec's index row to
+     `docs/changes/README.md` in the same change; the domains catalog and
+     context map change only at canonical promotion.
    - Decision → a new ADR under `docs/domains/<context>/adr/`, numbered
      above every ADR already in the repository, with the header convention of
      the directory it joins.
@@ -121,6 +147,9 @@ disagree, the document wins.
 - `docs/domains/<context>/domain-model.md` — business knowledge only. Runtime,
   storage, protocol and deployment mechanics belong to
   `docs/applications/<component>/`.
+- A Change Specification under `docs/changes/` and its index row in
+  `docs/changes/README.md`, when the context or model does not exist
+  canonically yet.
 - New ADRs, old ADR status lines for supersession, and ADR index rows.
 - `docs/domains/open-boundaries.md` when the change really is a boundary
   change; `docs/domains/glossary.md` and `docs/domains/context-map.md` for a
@@ -134,6 +163,12 @@ disagree, the document wins.
 - Creating a new bounded context without architecture backing: the catalog
   admits one only when the architecture docs define new business
   responsibility and data ownership.
+- Indexing a pending introduce in the domains catalog or context map before
+  canonical promotion: until then, `docs/changes/README.md` is the only index
+  entry the context has.
+- Treating a merged Change Specification as a completed canonical promotion.
+  Promotion is an explicit later step — it never happens automatically on PR
+  merge.
 - Rewriting or deleting an accepted ADR to change its decision. Supersede it.
 - Putting implementation status, progress, or a "done/not done" column into
   domain documents.
@@ -170,6 +205,10 @@ Deliver when:
   correct; supersession names its exact scope.
 - The context README and any affected index reflect the change in the same
   diff.
+- When the model rode a Change Specification, the promotion state is stated:
+  promoted — owning documents, the ADRs §10 triggers, the catalog and the
+  context map updated — or pending, indexed only in
+  `docs/changes/README.md`, with the explicit follow-up recorded.
 - No implementation status entered a domain document.
 - The implementation handoff is stated: capability target, open parts, and
   the delivery unit that consumes it.
