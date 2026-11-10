@@ -1,0 +1,96 @@
+{
+  // Nuxt/Nitro output cho Cloudflare Workers. Preset `cloudflare_module`
+  // bundle server vào một Worker module; `main` trỏ vào entry mà Nitro emit.
+  //
+  // `assets.directory` là output của `nuxt build`, phục vụ static asset của app.
+  //
+  // Worker identity lâu dài — PR không tạo Worker mới, Preview chạy dưới
+  // identity này. Reference: docs/architecture/02-delivery.md §5.
+  //
+  // `llm-seller` là composition UI seller + BFF (`docs/applications/llm-seller/01-architecture.md`),
+  // KHÔNG sở hữu database và KHÔNG có Hyperdrive binding nào — mọi dữ liệu
+  // nghiệp vụ đi qua contract/API của context owning.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-llm-seller",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-10-05",
+  // Nitro dựa vào một số Node.js API qua shim nội bộ (stream, buffer).
+  // App này là Nuxt app, không phải Worker thuần, nên `nodejs_compat` ở đây là
+  // do Nitro yêu cầu chứ không phải nới lỏng boundary của `runtime:edge`.
+  //
+  // Cloudflare từ `compatibility_date` 2026-08-04 đã bật sẵn `nodejs_compat`
+  // nên flag ở trên là thừa về mặt runtime. Nhưng KHÔNG bỏ: Nitro đọc chính
+  // config này để tự bật `cloudflare.nodeCompat` — bỏ flag ở đây ⇒ Nitro build
+  // thiếu shim ⇒ runtime lỗi, mà `wrangler deploy --dry-run` vẫn báo pass.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    // `none` là khai báo **trung thực**, không phải thiếu sót: asset worker không
+    // được tự bịa fallback.
+    //
+    // App này **non-SSR** (`ssr: false`) và build **không** emit `index.html`
+    // tĩnh — `.output/public` chỉ có `_nuxt`, `_fonts`, `_headers`; shell HTML do
+    // Nitro render ở runtime. `single-page-application` ngụ ý "trả `index.html`
+    // cho path không khớp asset", mà file đó không tồn tại; khai nó sẽ mô tả một
+    // cơ chế không có thật và trở nên sai lệch ngay khi ai đó thêm `index.html`
+    // vào `public/` (asset layer sẽ bắt đầu nuốt navigation trước Worker).
+    //
+    // Đo trên build thật bằng `wrangler dev` (`createTestHarness` của wrangler,
+    // workerd thật): với cả `single-page-application` và `none`, request không
+    // khớp asset đều rơi vào Worker và renderer của Nitro trả shell. Deep link
+    // như `/offers/123` vì thế mở đúng app rồi để client router xử lý — cơ chế
+    // đó do route `/**` của Nitro bảo đảm, không do asset layer.
+    "not_found_handling": "none",
+    // `run_worker_first` liệt kê **đúng** bề mặt do Worker sở hữu: BFF `/api/*`
+    // và hai route vận hành `/health`, `/ready`. Path khớp ở đây bỏ qua asset
+    // worker và đi thẳng vào handler Nitro, nên health check không bao giờ đọc
+    // HTML và `/api/**` không bao giờ bị asset layer xử lý.
+    //
+    // Đo được: bỏ `/api/*` khỏi danh sách **không** đổi kết quả (route `/**` của
+    // Nitro vẫn nhận request), giữ lại để bề mặt sở hữu là tường minh. Thêm path
+    // không thuộc Worker thì ngược lại: asset tĩnh bị đẩy qua Worker vô ích, mất
+    // cache immutable của asset layer.
+    "run_worker_first": ["/api/*", "/health", "/ready"],
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4209,
+  },
+  // --- Staging / Production ---
+  //
+  // Mỗi deploy unit có **hai Worker identity riêng**, đặt tên theo
+  // `{target}-{slug}` đúng quy ước của tầng delivery (`02-delivery.md` §7.2):
+  // staging `stg-ecoma-llm-seller`, production `ecoma-llm-seller`.
+  //
+  // ⚠️ Không có target `deploy` nào trong `package.json`: đường deploy trực
+  // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
+  //
+  // Staging chưa có custom domain: theo §5.4 hostname ưu tiên `workers.dev`.
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-llm-seller",
+      // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
+      // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
+      // deploy unit mà không phải suy đoán từ `account_id` (subdomain
+      // `workers.dev` là cấu hình riêng của Cloudflare account, không suy ra
+      // được từ `account_id`).
+      //
+      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
+      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
+      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
+      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Bề mặt public — xem ghi chú cùng khoá ở `apps/backoffice`.
+      "smokeSurface": {},
+    },
+    "production": {
+      "name": "ecoma-llm-seller",
+      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
+      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      "smokeSurface": {},
+    },
+  },
+}

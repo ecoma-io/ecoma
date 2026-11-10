@@ -17,6 +17,8 @@ const LANE_PROJECTS = [
   'push-notification-deploy',
   'staff-access-deploy',
   'remote-cache-deploy',
+  'llm-console-deploy',
+  'llm-seller-deploy',
 ] as const;
 
 /** Mọi project trong `deploys/` phải thuộc một trong hai loại: lane project (có local lane) hoặc job deploy (chỉ build image). */

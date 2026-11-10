@@ -151,7 +151,15 @@ export type DeployResourceKind =
   /** Container init một-shot chown volume state WIC remote-cache cho uid node. */
   | 'remote-cache-wic-state-init'
   /** Provision/migrate ephemeral của remote-cache-deploy (db-remote-cache, P4.1 #442). */
-  | 'remote-cache';
+  | 'remote-cache'
+  /** Container image `node-server` của app llm-console (composition SPA + BFF). */
+  | 'llm-console'
+  /** Image build từ context repo root của deploy unit `llm-console-deploy`. */
+  | 'llm-console-image'
+  /** Container image `node-server` của app llm-seller (composition SPA + BFF). */
+  | 'llm-seller'
+  /** Image build từ context repo root của deploy unit `llm-seller-deploy`. */
+  | 'llm-seller-image';
 /**
  * Tên Docker resource hợp lệ và nhất quán cho một namespace.
  *

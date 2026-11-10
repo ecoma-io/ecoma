@@ -62,7 +62,7 @@ export type DeploymentMapEntry = AppDeploymentEntry | PlatformDeploymentEntry;
 /** Khóa bản đồ của entry platform — giữ cùng giá trị với `PLATFORM_DEPLOY_PROJECT`. */
 const PLATFORM_DEPLOY_PROJECT_KEY = 'platform-deploy';
 
-/** Bản đồ canonical: 14 app entry + 1 entry platform. Không thêm entry nào khác. */
+/** Bản đồ canonical: 16 app entry + 1 entry platform. Không thêm entry nào khác. */
 export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   account: { kind: 'app', owner: 'account-deploy', status: 'implemented' },
   auth: { kind: 'app', owner: 'auth-deploy', status: 'implemented' },
@@ -76,6 +76,10 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   },
   backoffice: { kind: 'app', owner: 'backoffice-deploy', status: 'implemented' },
   home: { kind: 'app', owner: 'home-deploy', status: 'implemented' },
+  // Hai composition app của LLM (ADR-0019): UI + BFF, không sở hữu database.
+  // Scaffold — shell, i18n và BFF health/ready đã có; nghiệp vụ chưa triển khai.
+  'llm-console': { kind: 'app', owner: 'llm-console-deploy', status: 'scaffold' },
+  'llm-seller': { kind: 'app', owner: 'llm-seller-deploy', status: 'scaffold' },
   'pact-broker-api': { kind: 'app', owner: 'pact-broker-api-deploy', status: 'scaffold' },
   'pact-broker-app': { kind: 'app', owner: 'pact-broker-app-deploy', status: 'scaffold' },
   'push-notification': { kind: 'app', owner: 'push-notification-deploy', status: 'scaffold' },

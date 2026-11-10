@@ -1,0 +1,254 @@
+{
+  "name": "@ecoma-io/llm-seller",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@ecoma-io/ui-app-shell": "workspace:*",
+    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+  },
+  "devDependencies": {
+    "@nuxtjs/i18n": "10.6.0"
+  },
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:llm-seller",
+      "runtime:edge"
+    ],
+    "targets": {
+      "nuxt-prepare": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "npx nuxt prepare"
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "^typecheck",
+          "nuxt-prepare"
+        ],
+        "cache": true,
+        "inputs": [
+          "default",
+          "{workspaceRoot}/tsconfig.base.json",
+          {
+            "externalDependencies": [
+              "vue-tsc"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "npx nuxt typecheck"
+        },
+        "//": [
+          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
+          "mirror đúng cách apps/backoffice và apps/account đã làm: Nuxt sinh",
+          "`.nuxt/tsconfig.*.json` với `noEmit: true`, còn target mặc định chạy",
+          "`tsc --build --emitDeclarationOnly` — hai option xung đột (TS5069), và",
+          "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
+          "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
+        ]
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "dependsOn": [
+          "nuxt-prepare"
+        ]
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          "build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "externalDependencies": [
+              "vitest",
+              "wrangler"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.{js,mjs,css,html,json}",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "//": [
+          "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
+          "`tests/integrations/worker-runtime.spec.ts` khởi động workerd trên",
+          "`wrangler.jsonc` của app, mà `main`/`assets.directory` của nó trỏ vào",
+          "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
+          "ném ngay, đỏ thay vì pass rỗng.",
+          "",
+          "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
+          "suite assert trên asset do build emit, không chỉ trên `.js`.",
+          "",
+          "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
+          "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
+          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "build": {
+        "cache": true,
+        "dependsOn": [
+          "^build"
+        ],
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "outputs": [
+          "{workspaceRoot}/.nuxt",
+          "{projectRoot}/.output"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "nuxt build"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "serve": {
+        "continuous": true,
+        "inputs": [
+          "production",
+          "^production",
+          {
+            "externalDependencies": [
+              "nuxt"
+            ]
+          }
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-seller",
+          "command": "nuxt dev"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

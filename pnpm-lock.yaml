@@ -543,6 +543,32 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
 
+  apps/llm-console:
+    dependencies:
+      '@ecoma-io/ui-app-shell':
+        specifier: workspace:*
+        version: link:../../libs/ui-app-shell
+      '@ecoma-io/ui-ecoma-logo':
+        specifier: workspace:*
+        version: link:../../libs/ui-ecoma-logo
+    devDependencies:
+      '@nuxtjs/i18n':
+        specifier: 10.6.0
+        version: 10.6.0(@nuxt/schema@4.6.2)(db0@0.4.1)(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(ioredis@5.11.1(supports-color@10.2.2))(jiti@2.7.0)(rolldown@1.2.14)(rollup@4.64.9)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.105.2)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+
+  apps/llm-seller:
+    dependencies:
+      '@ecoma-io/ui-app-shell':
+        specifier: workspace:*
+        version: link:../../libs/ui-app-shell
+      '@ecoma-io/ui-ecoma-logo':
+        specifier: workspace:*
+        version: link:../../libs/ui-ecoma-logo
+    devDependencies:
+      '@nuxtjs/i18n':
+        specifier: 10.6.0
+        version: 10.6.0(@nuxt/schema@4.6.2)(db0@0.4.1)(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(ioredis@5.11.1(supports-color@10.2.2))(jiti@2.7.0)(rolldown@1.2.14)(rollup@4.64.9)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.105.2)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+
   apps/pact-broker-api:
     dependencies:
       '@ecoma-io/pact-broker-api-application':
@@ -759,6 +785,18 @@ importers:
         version: link:../../libs/deployment
 
   deploys/home-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
+  deploys/llm-console-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
+  deploys/llm-seller-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*

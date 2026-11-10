@@ -28,6 +28,12 @@
       "path": "./deploys/pact-broker-app-deploy"
     },
     {
+      "path": "./deploys/llm-console-deploy"
+    },
+    {
+      "path": "./deploys/llm-seller-deploy"
+    },
+    {
       "path": "./deploys/backoffice-deploy"
     },
     {

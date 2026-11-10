@@ -1,6 +1,7 @@
 # @ecoma-io/ui-app-shell
 
-Shell dashboard dùng chung cho `apps/backoffice` và `apps/pact-broker-app`, port từ
+Shell dashboard dùng chung cho `apps/backoffice`, `apps/pact-broker-app`, `apps/llm-console` và
+`apps/llm-seller`, port từ
 [dianprata/nuxt-shadcn-dashboard](https://github.com/dianprata/nuxt-shadcn-dashboard)
 (commit `54988681e50feaa4935828882da93faff06cf042`, MIT). Repository nguồn là bản tham chiếu —
 giao diện, bố cục và tương tác của shell gốc được giữ nguyên, chỉ thích nghi với kiến trúc Nx và
@@ -75,8 +76,10 @@ việc phải làm thủ công mỗi lần tích hợp.
 `@source` cũng là đường dẫn tương đối tính từ chính file CSS này; số cấp `..` tuỳ vị trí, phải
 kiểm tra lại khi đổi chỗ stylesheet. Đếm sai một cấp là lỗi **im lặng** của Tailwind (không lỗi
 build, chỉ mất utility), nên mỗi app consumer của library này giữ một test ghim số cấp:
-`apps/backoffice/app/assets/css/styles.spec.ts` (đặt cạnh stylesheet) và
-`apps/pact-broker-app/tests/tailwind-source.spec.ts`.
+`apps/backoffice/app/assets/css/styles.spec.ts` (đặt cạnh stylesheet),
+`apps/pact-broker-app/tests/tailwind-source.spec.ts` và
+`apps/llm-console/tests/tailwind-source.spec.ts` cùng
+`apps/llm-seller/tests/tailwind-source.spec.ts`.
 
 Về `@source`, đo bằng A/B build thật trên `apps/backoffice` (bỏ từng dòng rồi build lại):
 
@@ -227,8 +230,10 @@ PY
 
 Đừng grep một class mà app cũng nhắc tới (kể cả trong comment hay assertion): Tailwind quét cả
 những file đó nên phép kiểm sẽ xanh giả. Các app consumer của library này giữ test ghim số cấp
-của `@source` và của `@import`: `apps/backoffice/app/assets/css/styles.spec.ts` và
-`apps/pact-broker-app/tests/tailwind-source.spec.ts`. (`apps/home` dùng `ui-ecoma-logo`, không
+của `@source` và của `@import`: `apps/backoffice/app/assets/css/styles.spec.ts`,
+`apps/pact-broker-app/tests/tailwind-source.spec.ts`,
+`apps/llm-console/tests/tailwind-source.spec.ts` và
+`apps/llm-seller/tests/tailwind-source.spec.ts`. (`apps/home` dùng `ui-ecoma-logo`, không
 phải consumer của library này; test `apps/home/tests/tailwind-source.spec.ts` ghim riêng thư mục
 nguồn `libs/ui-ecoma-logo/src`.)
 
