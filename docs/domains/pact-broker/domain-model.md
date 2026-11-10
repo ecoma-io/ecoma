@@ -6,13 +6,13 @@ Bounded context `pact-broker`: hợp đồng consumer-driven contract testing (p
 
 `pact-broker` lưu và phân phát **hợp đồng consumer-driven contract** (pact), kết quả verification, và trạng thái deploy (`can-i-deploy`) cho mọi dịch vụ Ecoma. Broker là nguồn sự thật cho tenant membership/role **của riêng broker**: role Owner/Admin/Member/Viewer của một tenant pact broker không suy ra từ role backoffice hay bất kỳ scope nào khác.
 
-| Sở hữu                                                                                                                                                                                                               | Không sở hữu                                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pacticipants · versions · branches/tags · pacts + content SHA · verifications · matrix/can-i-deploy · environments · deployed/undeployed versions · tenant + membership + role của broker · machine token của broker | danh tính người dùng (dùng `sub` từ access token của `auth`, tham chiếu opaque) · quyền nghiệp vụ scope khác · deployment thật (broker chỉ ghi nhận, không thực hiện) |
+| Sở hữu                                                                                                                                                                                                                                                             | Không sở hữu                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pacticipants · versions · branches/tags · pacts + content SHA · verifications · matrix/can-i-deploy · environments · deployed/undeployed versions · tenant + membership + role của broker (owner là thuộc tính tenant, không phải role) · machine token của broker | danh tính người dùng (dùng `sub` từ access token của `auth`, tham chiếu opaque) · quyền nghiệp vụ scope khác · deployment thật (broker chỉ ghi nhận, không thực hiện) |
 
 - `sub` là tham chiếu opaque, **không phải foreign key** xuyên database. `db-pact-broker` không đọc database nào khác, và không database nào khác đọc `db-pact-broker`.
 - Broker **ghi nhận** deployment, **không thực hiện** deployment thật.
-- Không có bounded context `Tenant` dùng chung; broker giữ role/lifecycle/machine token của riêng mình và không áp dụng model membership incarnation → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md).
+- Không có bounded context `Tenant` dùng chung; broker giữ role/lifecycle/machine token của riêng mình, tiêu thụ primitive kernel P1–P5 theo [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md), và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm). Owner là thuộc tính persistence của tenant, không phải role trên membership.
 - Machine token là credential riêng cho Pact CLI/CI, không bao giờ chia sẻ với browser session.
 
 ## 2. Ngữ nghĩa nghiệp vụ
@@ -45,8 +45,8 @@ Matrix trả về đầy đủ consumer/provider/version/verification, kết h�
 
 Tenant là ranh giới cách ly dữ liệu của broker. **Mọi** dữ liệu domain thuộc đúng một tenant; một bản ghi "lệch tenant" là bất hợp lệ ở mức mô hình, không chỉ là lỗi truy vấn.
 
-- **Tenant** — có danh tính ổn định và lifecycle `active`/`suspended`/`deleted`. Tenant mặc định cho một `sub` được provision **tường minh** (deterministic từ `sub`), không tự động khi signup/login; provision lặp lại là idempotent và an toàn khi tranh chấp.
-- **Membership** — quan hệ giữa một `sub` và một tenant, mang role `owner`/`admin`/`member`/`viewer`. Một `sub` chỉ có tối đa một membership trong một tenant.
+- **Tenant** — có danh tính ổn định và lifecycle `active`/`suspended`/`deleted`. Mỗi tenant có đúng một **owner** là tham chiếu `sub` opaque, lưu độc lập trên bản ghi tenant — không phải role hay grant trên membership, không ràng buộc bằng membership, và không tồn tại tenant ownerless. Tenant mặc định cho một `sub` được provision **tường minh** (deterministic từ `sub`), không tự động khi signup/login; provision lặp lại là idempotent và an toàn khi tranh chấp.
+- **Membership** — quan hệ giữa một `sub` và một tenant, mang role `admin`/`member`/`viewer` (role `owner` đã bị loại khỏi từ điển role của membership; quyền sở hữu tenant nằm ở thuộc tính owner của tenant, không phải role). Một `sub` chỉ có tối đa một membership trong một tenant. Role của membership là dữ liệu sản phẩm dùng cho phân quyền nội bộ broker, không phải nguồn quyền sở hữu.
 - **Machine credential** — token dành cho Pact CLI và CI, thuộc đúng một tenant, cấp trước một tập quyền cố định (`read`/`write`/`admin`). Token **không** đại diện cho một người: scope của token ≠ role của người tạo, và người tạo phải có role đủ cao để cấp scope đó.
 
 Quy tắc nghiệp vụ bắt buộc:

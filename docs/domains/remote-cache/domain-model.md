@@ -6,11 +6,11 @@ Bounded context `remote-cache`: dịch vụ remote cache multi-tenant. Context s
 
 `remote-cache` sở hữu **dịch vụ remote cache multi-tenant**: tenant, project, membership, API key machine credential, quota, retention, usage metering và audit. Cache artifact là disposable build state — mất cache thì task chạy lại được, không mất correctness. Cache không phải source of truth, không phải serving dependency của application nào.
 
-| Sở hữu                                                                                                                                                   | Không sở hữu                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| tenant, project, membership, API key (machine credential) scoped theo project, quota/retention/usage metering, audit, domain-level lifecycle enforcement | giao thức cache Nx (adapter), HTTP API, streaming, object storage partitioning, bucket/object key, storage adapters, CDN, runtime, deployment, recovery, operations |
+| Sở hữu                                                                                                                                                                                                                                            | Không sở hữu                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tenant (kèm owner — `sub` opaque, đúng một, thuộc tính persistence độc lập trên bản ghi tenant), project, membership, API key (machine credential) scoped theo project, quota/retention/usage metering, audit, domain-level lifecycle enforcement | giao thức cache Nx (adapter), HTTP API, streaming, object storage partitioning, bucket/object key, storage adapters, CDN, runtime, deployment, recovery, operations |
 
-- Tenant của `remote-cache` ≠ tenant của `pact-broker` — không dùng chung, không suy ra membership từ bên kia, không FK chéo database. Không có bounded context `Tenant` dùng chung; thin shared kernel chỉ chứa primitive có cùng ngữ nghĩa, và `remote-cache` không áp dụng model membership incarnation → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md).
+- Tenant của `remote-cache` ≠ tenant của `pact-broker` — không dùng chung, không suy ra membership từ bên kia, không FK chéo database. Không có bounded context `Tenant` dùng chung; `remote-cache` tiêu thụ primitive kernel P1–P5 theo [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md) và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm).
 - Entitlement Staff Access deferred cho MVP: `remote-cache` dùng API key riêng; khi tích hợp thì chỉ qua entitlement event (không sync-call, không authorization-result contract).
 - Enforcement authorization bên trong `remote-cache` resolve từ principal (API key) và dữ liệu của chính nó — catalog govern / backend enforce giữ nguyên hình dạng chung của hệ thống.
 
@@ -20,6 +20,8 @@ Bounded context `remote-cache`: dịch vụ remote cache multi-tenant. Context s
 
 Tenant là ranh giới cách ly của tổ chức/customer. Mỗi project thuộc đúng một tenant. Tenant có lifecycle state riêng (`active`/`suspended`/`deleted`) với enforcement fail-closed.
 
+Mỗi tenant có đúng một **owner** là tham chiếu `sub` opaque, lưu độc lập trên bản ghi tenant — không phải role hay grant trên membership, không ràng buộc bằng membership, và không tồn tại tenant ownerless. Owner có thể hoặc không có là membership của chính tenant đó; thu hồi membership không ngầm loại bỏ quyền sở hữu.
+
 ### 2.2 Project
 
 Project là đơn vị isolation của cache. Mỗi project thuộc đúng một tenant. Namespace và storage scope derive từ project, không từ input client.
@@ -27,6 +29,8 @@ Project là đơn vị isolation của cache. Mỗi project thuộc đúng một
 ### 2.3 Membership
 
 Membership là quan hệ người dùng ↔ tenant kèm role. Vòng đời độc lập với API key machine credential.
+
+Role của membership là dữ liệu sản phẩm, dùng cho phân quyền nội bộ remote-cache — **không** là nguồn quyền sở hữu tenant. Owner là thuộc tính persistence của tenant (§2.1), và role `owner` đã bị loại khỏi từ điển role của membership; remaining role là `member`. Việc thu hồi membership không làm tenant mất chủ thể vận hành.
 
 ### 2.4 API key
 

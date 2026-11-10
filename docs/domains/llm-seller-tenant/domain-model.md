@@ -43,7 +43,7 @@ Bounded context `llm-seller-tenant`: Seller tenant, ownership, membership, permi
 - Membership **không** mang role: quyền của member đến từ grant trực tiếp.
 - Provision tường minh, không tự động khi signup/login. Re-provision sau revoke tạo membership **mới với `id` mới**, không restore bản ghi cũ.
 - Owner có thể đồng thời là member (khi được provision). Membership của owner không phải nguồn authority — owner authority đến từ thuộc tính ownership của tenant.
-- Danh tính membership theo lần cấp quyền, owned-tenant fact, tenant-scoping của collection và tham chiếu opaque là primitive của thin shared kernel, dùng chung với `llm-consumer-tenant` → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md). Grant, restriction verdict, authorization ladder và ownership transfer **không** thuộc kernel.
+- Danh tính membership theo lần cấp quyền, owned-tenant fact, tenant-scoping của collection và tham chiếu opaque là primitive của thin shared kernel (P1–P5: opaque ID guard, epoch-millis guard, owned-tenant fact, tenant member reference, tenant-scoped collection), dùng chung với `llm-consumer-tenant` → [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md). Grant, restriction verdict, authorization ladder và ownership transfer **không** thuộc kernel.
 
 ### 3.3 Permission
 
