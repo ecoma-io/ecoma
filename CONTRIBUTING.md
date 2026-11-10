@@ -92,7 +92,7 @@ gh issue list --repo ecoma-io/ecoma --label documentation --limit 20
 
 Tiêu đề Issue viết tiếng Anh theo Conventional Commits; scope ở Issue là free-form, không bị giới hạn một Nx project như scope của PR title. Body viết tiếng Việt. Không gắn label, Milestone hay assignee mà bạn chưa thấy tồn tại.
 
-**Issue Type được set khi tạo Issue** — qua UI hoặc `gh issue create --type <name>`. Issue Forms không gán được Issue Type, nên chọn type ở bước tạo issue. Trong giai đoạn chuyển đổi khi org chưa cấu hình năm giá trị, kênh tạm thời là dòng `## Loại công việc` trong Issue body (`work-management.md` §2.3).
+**Issue Type được set khi tạo Issue** — qua UI hoặc `gh issue create --type <name>`. Issue Forms không gán được Issue Type, nên chọn type ở bước tạo issue. Giai đoạn chuyển đổi (`work-management.md` §2.3): khi org chưa cấu hình năm giá trị, dòng `## Loại công việc` trong Issue body là kênh tạm thời có thẩm quyền; sau khi org cấu hình, native Issue Type có thẩm quyền và Issue tạo qua form vẫn ghi bằng dòng body cho tới khi bước dọn dẹp hoàn tất.
 
 ### 3.2 Làm sao xác định Issue Type?
 
@@ -100,7 +100,7 @@ Có đúng năm giá trị: **Discovery**, **Modelling**, **Experiment**, **Deli
 
 Issue Type **khác** nhãn Issue (`bug`, `enhancement`, `documentation`) và khác loại form: nhãn và form nói đây là loại artifact gì; Issue Type nói bản chất thay đổi là gì. Không suy Issue Type từ nhãn hay từ form.
 
-Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — suy ra từ Milestone ladder; xem `work-management.md` §4.
+Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — đọc từ khai báo commitment của Milestone; xem `work-management.md` §4.1.
 
 ### 3.3 Khi nào cần Discovery, Modelling hoặc Experiment trước Delivery?
 
@@ -222,7 +222,7 @@ Trước khi mở PR, tự kiểm những điều kiện không đọc được 
 
 Coding agent làm việc theo cùng quy trình, với các quy tắc bổ sung:
 
-- **Đọc trước khi sửa.** Canonical document và [`AGENTS.md`](AGENTS.md) có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một loại công việc.
+- **Đọc trước khi sửa.** Canonical document và [`AGENTS.md`](AGENTS.md) có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một Issue Type.
 - **Chọn skill theo trigger** trong `description` của skill, trong `.agents/skills/`. Không load toàn bộ skill không liên quan.
 - **Dừng và báo lại** khi thiếu decision cần thiết, khi canonical artifact mâu thuẫn, khi scope thực tế vượt Issue/PR, khi không thu được bằng chứng, hoặc khi có nguy cơ phá invariant hay backward compatibility.
 - **Không tự mở rộng quyền**: không tạo Project/Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.

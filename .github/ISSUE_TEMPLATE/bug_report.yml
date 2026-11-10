@@ -6,6 +6,8 @@ body:
     attributes:
       value: |
         Viết issue bằng tiếng Việt; giữ nguyên file path, error code, technical term.
+        Không phải work item thì đừng dùng form này: xem khác biệt giữa work item, coordination ledger,
+        precondition tracker và experiment record ở `docs/engineering/work-management.md` §2.2.
         Chọn Issue Type khi tạo issue (UI hoặc `gh issue create --type`); form này không gán được Issue Type.
         Quy tắc Issue: `docs/engineering/work-management.md` §2.3.
 
@@ -75,12 +77,9 @@ body:
       label: Môi trường
       description: Local / CI / Preview / Staging / Production; version, URL hoặc commit SHA liên quan.
 
-  - type: textarea
-    id: project-tracking
+  - type: markdown
     attributes:
-      label: Theo dõi Project (root issue)
-      description: |
-        Chỉ dành cho root issue: ghi một dòng vì sao root issue này cần portfolio visibility
-        trong giai đoạn chuyển tiếp. Label `project:track` chỉ áp dụng cho root issue, không
-        bao giờ cho sub-issue, và là ràng buộc chuyển tiếp — xem §3 của
-        `docs/engineering/work-management.md`. Sub-issue hoặc không cần theo dõi thì để trống.
+      value: |
+        Root issue (Issue không có parent) được gắn label `project:track` sau khi tạo, theo §3.2
+        của `docs/engineering/work-management.md`. Form không biết parentage lúc tạo nên không hỏi ở đây.
+        Sub-issue không bao giờ mang label này.
