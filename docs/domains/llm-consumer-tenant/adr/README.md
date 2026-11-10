@@ -2,10 +2,11 @@
 
 Architectural decision record của bounded context **LLM Consumer Tenant**. Mỗi quyết định có **một** canonical location là ADR tương ứng; [`domain-model.md`](../domain-model.md) giữ con trỏ tới đó, không nhân bản nội dung. Đảo một quyết định đã Accepted phải qua ADR mới, không sửa ADR cũ một cách âm thầm.
 
-| #    | Quyết định                                                                                            | Trạng thái | File                                                                                                       |
-| ---- | ----------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
-| 0019 | Ba Nx scope `llm-consumer` / `llm-seller` / `llm-shared` và dependency matrix                         | Accepted   | [`0019-llm-scope-ownership-and-dependency-matrix.md`](./0019-llm-scope-ownership-and-dependency-matrix.md) |
-| 0025 | Thin Shared Tenant Kernel: áp cho và ràng buộc cả bốn domain có tenant; primitive dùng chung là P1–P5 | Accepted   | [`0025-thin-shared-tenant-kernel.md`](./0025-thin-shared-tenant-kernel.md)                                 |
+| #    | Quyết định                                                                                                                                                        | Trạng thái | File                                                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 0019 | Ba Nx scope `llm-consumer` / `llm-seller` / `llm-shared` và dependency matrix                                                                                     | Accepted   | [`0019-llm-scope-ownership-and-dependency-matrix.md`](./0019-llm-scope-ownership-and-dependency-matrix.md)                             |
+| 0025 | Thin Shared Tenant Kernel: áp cho và ràng buộc cả bốn domain có tenant; primitive dùng chung là P1–P5                                                             | Accepted   | [`0025-thin-shared-tenant-kernel.md`](./0025-thin-shared-tenant-kernel.md)                                                             |
+| 0026 | First-party dogfooding và ranh giới chính sách thương mại: phân loại `first_party`/`customer` là quan hệ tổ chức, không phải plan; áp cho cả bốn domain có tenant | Accepted   | [`0026-first-party-dogfooding-and-commercial-policy-boundaries.md`](./0026-first-party-dogfooding-and-commercial-policy-boundaries.md) |
 
 Quyết định thuộc context khác, không nhân bản tại đây:
 

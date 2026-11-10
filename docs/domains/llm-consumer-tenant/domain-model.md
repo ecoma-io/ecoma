@@ -11,6 +11,7 @@
 - `id`, `name`, `owner` (`sub`), `createdAt`.
 - Invariant: **đúng một owner**, luôn có. Không tồn tại tenant ownerless; không có collection owner.
 - Owner là nguồn authority duy nhất của tenant, không phải một grant và không phải membership.
+- **Classification** `first_party` | `customer` là **quan hệ tổ chức** (tenant của Ecoma hay của khách hàng), không phải commercial plan: context này **không có** plan hay Free slot — bất kể classification — và không thêm khái niệm đó ([ADR-0026](./adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)). Classification chỉ được thiết lập qua đường provisioning sản phẩm kiểm soát ([ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)); mặc định khi tạo qua đường customer là `customer`; không suy ra từ owner, Superadmin, email, `name`, environment, plan hay membership role; đường tạo customer không tự gán `first_party`; classification **bất invariant sau khi thiết lập** — không có thao tác đổi nào sau provisioning (ADR-0026 §1).
 - Tenant **không** mang cột lifecycle `status`, `archivedAt` hay `deletedAt` (vòng đời pháp lý chưa chốt).
 
 ### Membership
@@ -159,6 +160,7 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 ## 11. Quy tắc cốt lõi
 
 - **Đúng một owner mỗi tenant.** Owner có toàn quyền trong tenant của mình, kể cả billing. Không có global owner role: cùng một `sub` có thể owner tenant A, member tenant B, và không có quyền gì ở tenant C.
+- **`first_party` không mua gì ngoài miễn trừ thương mại — và Consumer không có hạn mức thương mại.** Classification là quan hệ tổ chức ([ADR-0026](./adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)), không phải plan: tenant `first_party` vẫn bị đo usage, vẫn chịu quota/operational limit (A7 — PostgreSQL là quota authority; quota policy/limits của Consumer → [`open-boundaries.md`](../open-boundaries.md) OB-1), vẫn ghi sổ vào kế toán kép `llm-financial` ([ADR-0004](../llm-financial/adr/0004-uc-ec-ledgers-vnd-double-entry.md) — không âm trần tuỳ ý, không "usage nội bộ miễn phí"; funding → #14), suspension (§3) vẫn chặn kể cả owner, membership và authorization (§2, deny-by-default) giữ nguyên, và staff entitlement ([ADR-0009](../staff-access/adr/0009-no-internal-authorization-result-contract.md)) không tự đến từ classification.
 - **`sub` là opaque và đa membership.** Một `sub` có thể owner nhiều tenant và member nhiều tenant khác. Consumer tenant và Seller tenant độc lập hoàn toàn (ADR-0018); không có ngầm chọn tenant đầu tiên/default/UI state.
 - **Membership tường minh và có danh tính.** Provision vào tenant (kể cả internal) là thao tác riêng; signup/login không tạo membership. Revoke không tự restore — re-provision tạo membership **mới với `id` mới**, nên grant của lần cũ không sống lại.
 - **Grant trực tiếp theo scope, gắn với một lần membership.** Member chỉ có đúng permission được cấp, tại tenant scope hoặc đúng một workspace scope. **Không kế thừa ngầm tenant → workspace**: grant tenant scope không authorize thao tác trên một workspace cụ thể, trừ khi permission đó được khai báo tường minh là quản trị workspace toàn tenant.
@@ -175,4 +177,4 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, authorization, suspension, workspace isolation, auth boundary, data ownership, contract, quyết định chưa chốt, failure/correction |
 | [`README.md`](./README.md)             | Tóm tắt trách nhiệm, không sở hữu, ranh giới, quy tắc cốt lõi                                                                                     |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025) của bounded context                                                                                                        |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025, 0026) của bounded context                                                                                                  |

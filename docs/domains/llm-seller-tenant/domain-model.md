@@ -18,13 +18,14 @@ Bounded context `llm-seller-tenant`: Seller tenant, ownership, membership, permi
 
 ## 2. Ngôn ngữ dùng chung
 
-| Thuật ngữ            | Ý nghĩa                                                                                                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Seller tenant        | Ranh giới cách ly dữ liệu của một tổ chức seller; mỗi tenant có đúng một owner.                                                                                  |
-| Owner                | `sub` sở hữu tenant, là thuộc tính ownership (không phải role hay permission grant).                                                                             |
-| Seller membership    | Quan hệ giữa một account (`sub`) và một Seller tenant, có danh tính theo từng lần membership.                                                                    |
-| Permission grant     | Cấp trực tiếp một permission cho một lần membership, có lịch sử cấp/thu hồi.                                                                                     |
-| Authorization ladder | Quyết định allow/deny trên tài nguyên Seller: owner toàn quyền trong tenant của mình trừ khi target bị restriction chặn; member chỉ có đúng permission được cấp. |
+| Thuật ngữ                                 | Ý nghĩa                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seller tenant                             | Ranh giới cách ly dữ liệu của một tổ chức seller; mỗi tenant có đúng một owner.                                                                                                                                                                                                                                                  |
+| Owner                                     | `sub` sở hữu tenant, là thuộc tính ownership (không phải role hay permission grant).                                                                                                                                                                                                                                             |
+| Seller membership                         | Quan hệ giữa một account (`sub`) và một Seller tenant, có danh tính theo từng lần membership.                                                                                                                                                                                                                                    |
+| Permission grant                          | Cấp trực tiếp một permission cho một lần membership, có lịch sử cấp/thu hồi.                                                                                                                                                                                                                                                     |
+| Authorization ladder                      | Quyết định allow/deny trên tài nguyên Seller: owner toàn quyền trong tenant của mình trừ khi target bị restriction chặn; member chỉ có đúng permission được cấp.                                                                                                                                                                 |
+| Classification (`first_party`/`customer`) | Quan hệ tổ chức của tenant — của Ecoma hay của khách hàng ([ADR-0026](../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)); không phải commercial plan, không phải trục eligibility; chỉ thiết lập qua bootstrap/seed ([ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)). |
 
 ## 3. Business concepts
 
@@ -35,6 +36,7 @@ Bounded context `llm-seller-tenant`: Seller tenant, ownership, membership, permi
 - Owner là một **thuộc tính ownership của tenant**, không phải membership role hay permission grant ([ADR-0001](./adr/0001-seller-tenant-ownership-and-transfer.md)).
 - Tạo tenant là **operational-active ngay**: không có trạng thái `pending`; onboarding approval không phải điều kiện tiên quyết ([ADR-0002](./adr/0002-tenant-existence-separate-from-eligibility.md)).
 - Tenant không mang `status`; operational eligibility, verification và restriction là các trục độc lập, đánh giá bởi `llm-seller-governance`.
+- Classification `first_party` | `customer` là **quan hệ tổ chức**, không phải commercial plan và không phải trục eligibility thứ năm: `first_party` **không** thiết lập operational eligibility — verification, restriction và appeal của `llm-seller-governance` giữ nguyên hiệu lực ([ADR-0002](./adr/0002-tenant-existence-separate-from-eligibility.md), [ADR-0026](../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)). Chỉ thiết lập qua bootstrap/seed ([ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)); đường tạo customer-facing không tự gán `first_party`; classification bất invariant sau khi thiết lập — không có thao tác đổi nào sau provisioning (ADR-0026 §1); Seller tenant không có commercial plan và không có Free slot bất kể classification; không suy ra từ owner, role hay tên tenant.
 
 ### 3.2 SellerMembership
 
@@ -109,6 +111,7 @@ Restriction evaluation là **giá trị khai báo tại biên** của context n�
 5. **Không role.** Không có bảng role, không suy quyền từ tên permission, không wildcard.
 6. **Tenant isolation.** Mọi collection lệch tenant bị từ chối nguyên khối, không lọc rồi allow.
 7. **Determinism.** Không hàm nào đọc clock/random; cùng input ⇒ cùng output.
+8. **`first_party` không bypass ladder.** Classification là quan hệ tổ chức ([ADR-0026](../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)), không phải plan hay eligibility; restriction vẫn đứng trước owner authority, và membership + authorization giữ nguyên cho tenant `first_party`.
 
 ## 6. State transition
 
