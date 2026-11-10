@@ -132,7 +132,7 @@ Quyết định (đường chạy, danh tính khởi tạo canonical, nội dung
 
 **Định nghĩa.** Bootstrap/seed là dữ liệu khởi tạo **do hệ thống sở hữu**: bản ghi sản phẩm cần để hoạt động mà không người dùng nào tạo ra. Dữ liệu do người dùng tạo lúc chạy — tenant của khách hàng, project, API key của khách, membership của khách — **không** thuộc lớp này; nó đi qua route/control plane của sản phẩm như trước.
 
-**Danh tính canonical — giống nhau ở mọi environment, và là hằng trong code.** Tenant nội bộ tên là `ecoma` và Account đầu tiên dùng email `superadmin@ecoma.io`. `local`/`staging`/`production` là nhãn environment, **không** phải tên tenant. Environment được đổi cấu hình hạ tầng và credential (endpoint, credential, redirect URI, token plaintext, tên client), **không** được đổi danh tính canonical: cấu hình chỉ **assert** lại hằng trong code, và procedure **từ chối chạy** khi input khác hằng ([ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 1; [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 9 và 11).
+**Danh tính canonical — giống nhau ở mọi environment, và là hằng trong code.** Tenant nội bộ tên là `ecoma` và Account đầu tiên dùng email `superadmin@ecoma.io` — **ngoại lệ duy nhất**: Seller tenant first-party của `llm-seller-tenant` mang tên riêng theo provider (`dronie` đầu tiên), không có Seller tenant tên `ecoma` ([ADR-0027](../domains/llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §2). `local`/`staging`/`production` là nhãn environment, **không** phải tên tenant. Environment được đổi cấu hình hạ tầng và credential (endpoint, credential, redirect URI, token plaintext, tên client), **không** được đổi danh tính canonical: cấu hình chỉ **assert** lại hằng trong code, và procedure **từ chối chạy** khi input khác hằng ([ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 1; [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md) Quyết định 9 và 11).
 
 **Thứ tự bắt buộc**, mỗi bước chỉ chạy sau khi bước trước đã commit:
 
@@ -141,7 +141,8 @@ Provision databases
   → Migrate schemas (chỉ schema + catalog sealed)
   → Bootstrap Account (sub của superadmin, email canonical ở trạng thái verified)
   → Seed staff + assignment của administrator (dùng sub ở bước trên)
-  → Seed tenant ecoma + membership của từng sản phẩm (dùng sub ở bước trên)
+  → Seed tenant nội bộ của từng sản phẩm (dùng sub ở bước trên): ecoma cho
+    remote-cache/pact-broker/llm-consumer-tenant, dronie cho Seller first-party (ADR-0027)
   → Bootstrap provider / offer đầu tiên của LLM Seller
   → Verify (đọc lại đúng bản ghi kỳ vọng)
 ```
@@ -164,7 +165,7 @@ Provision databases
 
 Trong các dòng bootstrap/seed (3–9), mỗi dòng là **một service ghi và một database**. Bước 8 tách 8a/8b vì chạm hai database — dù cùng `llm-api` sở hữu — để không dòng nào cấp phép cho một bước ghi hai database. Bước 1 và 2 không phải seed: bước 1 không ghi dữ liệu ứng dụng, bước 2 chạy migration cho từng database bằng credential migrator của chính database đó.
 
-Bước 5a/5b là hai sản phẩm, hai database, không chung transaction: mỗi bên seed tenant `ecoma` của riêng nó. Bước 6 thuộc cùng unit với bước 5a; bước 7 là unit `auth`. Bước 8a/8b chỉ có sau khi quyết định seller nội bộ của #15 được accept — **tên tenant seller và offer cụ thể do #15 chốt**, không phải nội dung của mục này. Bước 9 chỉ có sau #14.
+Bước 5a/5b là hai sản phẩm, hai database, không chung transaction: mỗi bên seed tenant `ecoma` của riêng nó. Bước 6 thuộc cùng unit với bước 5a; bước 7 là unit `auth`. Bước 8a/8b chỉ có sau khi quyết định seller nội bộ của #15 được accept — **tên tenant seller và offer cụ thể do #15 chốt** ([ADR-0027](../domains/llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md): Seller tenant first-party `dronie` và offer đầu tiên của nó), không phải nội dung của mục này. Bước 9 chỉ có sau #14.
 
 Bước 3 và bước 4 ghi hai database khác nhau và **không** nằm trong một transaction: bước 3 sinh `sub`, bước 4 đọc `sub` đó làm input. Chạy lại bước 3 với cùng email khởi tạo phải trả **cùng** `sub`; cơ chế bảo đảm điều đó đã chốt ở [ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 2 (create-or-resolve theo `address_hash` dưới advisory lock, fail-closed); phần còn lại là hiện thực ở #17. Điều kiện "đúng một hàng `verified`" ở bước 3 được schema hỗ trợ một phần: partial UNIQUE `(address_hash) WHERE status = 'verified'` bảo đảm tối đa một chủ sở hữu, còn "đúng một Account `active` và hàng đó do bootstrap tạo" là ràng buộc của procedure. Kiểm tra ở bước 3 chứng minh **hàng tồn tại đúng trạng thái**; việc Superadmin đăng nhập được chứng minh ở bước verify OTP thật, vì bootstrap **không** phát session ([ADR-0024](../domains/staff-access/adr/0024-trusted-bootstrap-verified-address.md) Quyết định 2).
 

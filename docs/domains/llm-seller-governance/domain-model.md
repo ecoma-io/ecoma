@@ -1,14 +1,14 @@
 # LLM Seller Governance — Domain Model
 
-Bounded context `llm-seller-governance`: restriction và evaluation, appeal lifecycle, verification/onboarding, legal profile, tax profile, evidence reference và operational eligibility của Seller. Tách từ bounded context `llm-seller` theo [ADR-0018](./adr/0018-seller-bounded-context-split.md).
+Bounded context `llm-seller-governance`: restriction và evaluation, appeal lifecycle, verification/onboarding, legal profile, tax profile, evidence reference, first-party legal principal và association, và operational eligibility của Seller. Tách từ bounded context `llm-seller` theo [ADR-0018](./adr/0018-seller-bounded-context-split.md).
 
 ## 1. Phạm vi và ranh giới
 
-`llm-seller-governance` sở hữu **restriction, appeal, verification case, legal profile, tax profile, evidence reference và operational eligibility** của Seller trong hệ sinh thái LLM. Nó là nguồn sự thật cho trạng thái vận hành và các quyết định platform reviewer về Seller.
+`llm-seller-governance` sở hữu **restriction, appeal, verification case, legal profile, tax profile, evidence reference, first-party legal principal và principal association, và operational eligibility** của Seller trong hệ sinh thái LLM. Nó là nguồn sự thật cho trạng thái vận hành và các quyết định platform reviewer về Seller.
 
-| Sở hữu                                                                                                                                                | Không sở hữu                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Restriction record · restriction evaluation · appeal · verification case · legal profile · tax profile · evidence reference · operational eligibility | Danh tính account/credential/MFA (`account`) · giao thức OAuth (`auth`) · Seller tenant/ownership/membership/grant/authorization ladder (`llm-seller-tenant`) · Consumer tenant/workspace (`llm-consumer-tenant`) · offer/capability/endpoint/pool/provider credential (`llm-marketplace`) · customer pricing (`llm-seller-pricing`) · ledger/charge/payable/settlement/withholding/accounting (`llm-financial`) · payout (`payout`) · fiat payment transaction (`payment`) · nội dung permission catalog và entitlement (`staff-access`) |
+| Sở hữu                                                                                                                                                                                                      | Không sở hữu                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Restriction record · restriction evaluation · appeal · verification case · legal profile · tax profile · evidence reference · first-party legal principal + principal association · operational eligibility | Danh tính account/credential/MFA (`account`) · giao thức OAuth (`auth`) · Seller tenant/ownership/membership/grant/authorization ladder (`llm-seller-tenant`) · Consumer tenant/workspace (`llm-consumer-tenant`) · offer/capability/endpoint/pool/provider credential (`llm-marketplace`) · customer pricing (`llm-seller-pricing`) · ledger/charge/payable/settlement/withholding/accounting (`llm-financial`) · payout (`payout`) · fiat payment transaction (`payment`) · nội dung permission catalog và entitlement (`staff-access`) |
 
 - `sub` là tham chiếu opaque, **không FK** sang `db-account`/`db-auth`.
 - Governance **được phép** phụ thuộc một chiều vào `llm-seller-tenant` để tham chiếu tenant/membership; chiều ngược lại bị cấm ([ADR-0018](./adr/0018-seller-bounded-context-split.md)). Context này **không** import implementation của tenant trong domain library; nó nhận tenant/membership như dữ liệu đầu vào.
@@ -16,14 +16,16 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 
 ## 2. Ngôn ngữ dùng chung
 
-| Thuật ngữ                   | Ý nghĩa                                                                                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Restriction                 | Bản ghi hạn chế độc lập, mỗi record có vòng đời riêng; "đang bị hạn chế" là giá trị suy ra tại thời điểm đánh giá, không phải trạng thái được lưu. |
-| Appeal                      | Khiếu nại của Seller đối với một restriction, có vòng đời và deadline tường minh, do platform reviewer có thẩm quyền quyết định.                   |
-| Verification case           | Verification case cho từng loại yêu cầu, giữ lịch sử submission/rejection/resubmission.                                                            |
-| Legal profile / tax profile | Hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version.                                                       |
-| Evidence reference          | Metadata và tham chiếu bất biến tới tài liệu evidence. Domain không giữ nội dung tài liệu.                                                         |
-| Operational eligibility     | Verdict duy nhất về việc Seller có đủ điều kiện vận hành hay không, suy ra từ restriction + verification + profile version hiệu lực.               |
+| Thuật ngữ                   | Ý nghĩa                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Restriction                 | Bản ghi hạn chế độc lập, mỗi record có vòng đời riêng; "đang bị hạn chế" là giá trị suy ra tại thời điểm đánh giá, không phải trạng thái được lưu.                                                                                                                                                                                                                         |
+| Appeal                      | Khiếu nại của Seller đối với một restriction, có vòng đời và deadline tường minh, do platform reviewer có thẩm quyền quyết định.                                                                                                                                                                                                                                           |
+| Verification case           | Verification case cho từng loại yêu cầu, giữ lịch sử submission/rejection/resubmission.                                                                                                                                                                                                                                                                                    |
+| Legal profile / tax profile | Hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version.                                                                                                                                                                                                                                                                               |
+| Evidence reference          | Metadata và tham chiếu bất biến tới tài liệu evidence. Domain không giữ nội dung tài liệu.                                                                                                                                                                                                                                                                                 |
+| Operational eligibility     | Verdict duy nhất về việc Seller có đủ điều kiện vận hành hay không, suy ra từ restriction + verification + profile version hiệu lực.                                                                                                                                                                                                                                       |
+| Legal principal             | Tổ chức chịu trách nhiệm pháp lý/thuế cho provider first-party — Ecoma-io; được ghi thành bản ghi authoritative trong chính context này (§3.8), không phải pháp nhân của tenant hay bounded context dùng chung → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3.                                                 |
+| FirstPartyLegalPrincipal    | Bản ghi authoritative của principal pháp lý first-party: legal/tax profile versions + `status` (`active` \| `reverification_required` \| `blocked`) + audit; mỗi Seller tenant first-party liên kết qua đúng một association pin accepted revisions (§3.8) → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3, §5. |
 
 ## 3. Business concepts
 
@@ -45,9 +47,10 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 
 ### 3.3 VerificationCase
 
-- `id`, `tenantId`, `type` (định danh mở, ví dụ `legal-identity`, `tax`), `status` (`draft` | `submitted` | `under_review` | `approved` | `rejected` | `expired`), `createdAt`, `submittedAt`, `reviewedAt`, `reviewedBy`, `decidedAt`, `decidedBy`, `expiresAt`, `publicDecisionReason`.
+- `id`, subject (`tenantId` **hoặc** `principalId` — đúng một trong hai; case principal-scoped phục vụ principal pháp lý first-party, §3.8), `type` (định danh mở, ví dụ `legal-identity`, `tax`), `status` (`draft` | `submitted` | `under_review` | `approved` | `rejected` | `expired`), `createdAt`, `submittedAt`, `reviewedAt`, `reviewedBy`, `decidedAt`, `decidedBy`, `expiresAt`, `publicDecisionReason`, `verifiedProfileVersions` (version profile mà approval đã xác minh, theo trục profile tương ứng của `type` — ví dụ `legal-identity` → legal profile version, `tax` → tax profile version; case principal-scoped pin **version profile của principal**, §3.8; ghi tại thời điểm `approved`, type không gắn trục profile nào thì không có và không thuộc coverage rule — §3.6).
 - Mỗi lần submit tạo một **submission record** bất biến kèm evidence reference; resubmit sau reject tạo submission mới trên cùng case, giữ nguyên lịch sử.
 - Verification **không** thay đổi sự tồn tại của Seller tenant; nó chỉ thay đổi kết quả đánh giá operational eligibility.
+- **Tenant first-party** đạt eligibility qua trục principal: hai type bắt buộc tối thiểu `legal-identity` và `tax` được thực thi bằng **case principal-scoped** (subject là principal — hồ sơ pháp lý/thuế thật của Ecoma-io, nguồn authoritative ngoài sản phẩm; §3.8) chứ không phải case per-tenant; `requiredTypes` là cấu hình của đường provisioning, không phải state domain. Mọi `approved` là quyết định review thật qua `decideVerification` kèm attribution reviewer — classification **không bao giờ** tự động `approved` một case nào; review thật **một lần mỗi revision** của principal và được tái sử dụng bởi mọi tenant first-party liên kết qua association. Approval ghi lại đúng version profile (của principal) đã được review; case không còn phủ version hiện hành thì không còn tính (§3.6, §3.8) → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §4.
 
 ### 3.4 SellerLegalProfile và SellerTaxProfile
 
@@ -56,6 +59,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 - Versioned **append-only**: mỗi thay đổi tạo version mới. Không có thao tác update/delete trên version đã ghi.
 - Kỳ hiệu lực của một version là `[effectiveFrom, effectiveFrom của version kế tiếp)`; version cuối cùng mở. Domain không cho phép tạo version có `effectiveFrom` không tăng nghiêm ngặt.
 - Danh mục `legalType`, `taxResidency` là **định danh mở**: domain không hardcode danh mục pháp lý/thuế và không suy diễn rate.
+- **Phân đường theo classification:** hồ sơ tenant-scoped ở trên là đường **customer**. Tenant `first_party` **không** mang legal/tax profile version riêng — danh tính pháp lý/thuế của nó là **profile versions authoritative của `FirstPartyLegalPrincipal`** mà association của tenant trỏ tới (§3.8); evidence reference trên principal trỏ tới bản authoritative ngoài sản phẩm, không có tham chiếu cross-tenant nào được tạo. Trên một tenant `first_party`, dữ liệu profile/case `legal-identity`/`tax` kiểu tenant-scoped là **bất nhất** ⇒ fail-closed (§3.6). Revision mới của principal ⇒ mọi tenant liên kết tự rời khỏi eligibility cho tới khi revision đó được approved và tenant accept (§3.8) → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3, §5.
 
 ### 3.5 EvidenceReference
 
@@ -65,21 +69,22 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 
 ### 3.6 Operational eligibility và verdict contract
 
-`deriveOperationalEligibility` là hàm thuần của `(tenantId, restrictions, cases, requiredTypes, legalProfileVersions, taxProfileVersions, now)`:
+`deriveOperationalEligibility` là hàm thuần của `(tenantId, tenantClassification, restrictions, cases, requiredTypes, legalProfileVersions, taxProfileVersions, principalAssessment, now)` — application layer cung cấp snapshot đánh giá đầy đủ, authoritative; hàm không tự đọc database/network (`principalAssessment` xem §3.8):
 
-- Eligible khi restriction không chặn (`blocked === false`, `unevaluable === false`, đánh giá đúng tenant và cho target `tenant`), onboarding complete, và có legal + tax profile version hiệu lực tại `now`.
-- Kết quả mang danh sách `blockers` (`restriction` | `verification` | `legal_profile` | `tax_profile`) để consumer hiển thị và audit.
-- Không lưu kết quả thành status. Consumer (marketplace, financial, payout) nhận verdict qua contract/projection; caching là quyết định của application và phải có freshness bound.
-- Marketplace, Financial và Routing tiêu thụ eligibility/restriction verdict như **giá trị hợp đồng**; chúng không đọc evidence pháp lý, không tự diễn giải restriction record, và không tự suy ra eligibility từ verification case (ADR-0018 §3).
+- Eligible khi restriction không chặn (`blocked === false`, `unevaluable === false`, đánh giá đúng tenant và cho target `tenant`), onboarding complete, và có legal + tax profile version hiệu lực tại `now` — trên đường customer. Classification chỉ dùng để **chọn đường bắt buộc**: `customer` đi đúng đường trên (`principalAssessment` phải `null` — khác `null` ⇒ ineligible, blocker `verification`, không được bỏ qua); `first_party` đòi **principal-wide rule** (§3.8) — association hợp lệ, principal `active`, approved coverage còn phủ cặp revision hiện hành, accepted revisions của association khớp revision hiện hành — thiếu/lệch/bất nhất/blocked ⇒ ineligible (blocker `verification`), fail-closed. Classification không bao giờ là nguồn exemption; tenant `first_party` mang dữ liệu profile/case `legal-identity`/`tax` tenant-scoped là bất nhất ⇒ ineligible.
+- **Coverage rule:** một case `approved` chỉ được tính cho type bắt buộc khi `verifiedProfileVersions` của nó còn khớp version profile **hiệu lực tại `now`** trên trục tương ứng (case tenant-scoped so với profile tenant; case principal-scoped so với **revision hiện hành của principal** — §3.8); case thiếu pin hoặc pin lệch version không được tính (fail-closed) — không có approved case nào "vẫn giàu hiệu lực" trên facts đã đổi. Rule chỉ áp cho type gắn trục profile; type không gắn trục profile nào không có pin và không thuộc rule — approval còn tính theo trạng thái `approved`, đến `expired` mới mất. Version mới của legal profile chỉ ép re-verification trục `legal-identity`; version mới của tax profile chỉ ép trục `tax` — profile không đổi không gây re-verification không cần thiết.
+- Kết quả mang danh sách `blockers` (`restriction` | `verification` | `legal_profile` | `tax_profile`) để consumer hiển thị và audit; mọi failure trên trục principal (thiếu association, principal không `active`, coverage không phủ revision hiện hành, accepted lệch revision) ánh vào blocker `verification` — không có blocker mới.
+- Không lưu kết quả thành status. Consumer (marketplace, financial, payout) nhận verdict qua contract/projection; caching là quyết định của application và **phải có freshness bound** — mọi quyết định eligibility-gated chỉ dùng verdict còn trong bound; sau khi principal bị invalidate (§3.8, [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §5), mọi derive mới cho tenant liên kết trả `eligible: false`, nên bound là thứ giới hạn thời gian một verdict cũ còn authorize được — verdict assess trước publish nhưng còn trong bound vẫn authorize được cho tới khi hết bound.
+- Marketplace, Financial và Routing tiêu thụ eligibility/restriction verdict như **giá trị hợp đồng**; chúng không đọc evidence pháp lý, không tự diễn giải restriction record, không biết `FirstPartyLegalPrincipal`, và không tự suy ra eligibility từ verification case (ADR-0018 §3).
 
 Giá trị suy ra (không lưu trạng thái):
 
-| Giá trị suy ra                           | Suy từ                                                                                                            |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Restriction đang hiệu lực của một target | tập `RestrictionRecord` + `now` + policy definitions (cửa sổ nửa mở)                                              |
-| Operational eligibility của tenant       | restriction evaluation + verification outcome theo loại yêu cầu + presence của legal/tax profile version hiệu lực |
-| Onboarding hoàn tất                      | operational eligibility đạt **và** các verification case bắt buộc ở `approved`                                    |
-| Owner hiện tại                           | thuộc tính `owner` trên `SellerTenant` (không suy từ grant) — sở hữu bởi `llm-seller-tenant`                      |
+| Giá trị suy ra                           | Suy từ                                                                                                                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Restriction đang hiệu lực của một target | tập `RestrictionRecord` + `now` + policy definitions (cửa sổ nửa mở)                                                                                                                                                                       |
+| Operational eligibility của tenant       | restriction evaluation + verification outcome còn phủ version hiệu lực + presence của legal/tax profile version hiệu lực (đường **customer**); tenant `first_party`: principal-wide rule (§3.8) **thay** đường profile tenant — không cộng |
+| Onboarding hoàn tất                      | operational eligibility đạt **và** các verification case bắt buộc ở `approved` còn phủ version hiệu lực; tenant `first_party`: coverage tính trên revision hiện hành của principal (§3.8)                                                  |
+| Owner hiện tại                           | thuộc tính `owner` trên `SellerTenant` (không suy từ grant) — sở hữu bởi `llm-seller-tenant`                                                                                                                                               |
 
 Không được lưu các giá trị này thành cột trạng thái thứ hai.
 
@@ -94,6 +99,17 @@ Không được lưu các giá trị này thành cột trạng thái thứ hai.
 - **Lift**: lift là domain operation riêng, đặt `liftedAt`; không xoá record. Lift record này không làm yếu record khác.
 - **Financial hold độc lập**: settlement/account hold của `llm-financial` không tạo restriction và không bị tạo bởi restriction; không chặn login/publishing (ADR-0007 của `llm-financial`).
 
+### 3.8 FirstPartyLegalPrincipal và principal association
+
+Nguồn sự thật authoritative cho danh tính pháp lý/thuế của principal pháp lý first-party (Ecoma-io) — nơi phát biểu chính tắc của cơ chế, [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3, §5:
+
+- **`FirstPartyLegalPrincipal`**: `principalId` (opaque, ổn định), legal/tax profile versions authoritative (cùng cơ chế append-only, `effectiveFrom` tăng nghiêm ngặt, kỳ hiệu lực suy ra như §3.4), `status`, evidence reference trỏ tới hồ sơ authoritative ngoài sản phẩm, và audit actor/time cho mọi thao tác. Không sở hữu tenant lifecycle/membership/owner/account/credential/offer; không phải aggregate tổ chức xuyên sản phẩm (ADR-0026 §5 giữ nguyên).
+- **Evidence trên trục principal không gắn một Seller tenant**: evidence của case principal-scoped gắn vào chính `FirstPartyLegalPrincipal` record, trỏ tới hồ sơ authoritative ngoài sản phẩm (§3.4); rule "gắn đúng một tenant" và `assertEvidenceInTenant` của §3.5 áp cho case subject tenant.
+- **Principal association**: `tenantId`, `principalId`, `acceptedLegalProfileVersion`, `acceptedTaxProfileVersion`, actor/time ghi thiết lập và lần accept cuối. Đúng một association cho mỗi tenant `first_party`; tenant `customer` không có association. Thiết lập chỉ qua bề mặt provisioning có kiểm soát (dữ liệu đầu vào của domain, ADR-0020 Quyết định 3); không có operation reassignment hay đổi principal trong model MVP; Seller Tenant Owner authority của `llm-seller-tenant` không chạm governance records.
+- **`status` và transition**: `active | reverification_required | blocked`. Ghi revision mới vào principal (legal hoặc tax) ⇒ `reverification_required`, **đồng bộ trong cùng thao tác publish revision** — không phải job nền; case principal-scoped mới `approved` còn phủ cặp revision hiện hành ⇒ `active`; block bởi quyết định có thẩm quyền (từ `active`/`reverification_required`) ⇒ `blocked`; unblock ⇒ `reverification_required` (không bao giờ `active` trực tiếp). Case principal-scoped `expired` làm mất coverage ⇒ eligibility fail-closed như mọi loss-of-coverage khác.
+- **`principalAssessment` cho derivation (§3.6)**: snapshot do application layer lắp từ durable state — principal (`principalId`, `status`, legal/tax profile versions hiện hành, approved coverage per trục) + association (hoặc `null`). Domain kiểm shape như `RestrictionEvaluation`; lệch shape, thiếu, hoặc không đọc được ⇒ ineligible, blocker `verification`. Hiện diện dữ liệu profile/case `legal-identity`/`tax` tenant-scoped trên tenant `first_party` cũng ⇒ ineligible (bất nhất, single source).
+- **Acceptance**: `acceptPrincipalRevision` chỉ được nhận khi principal `active` và approved coverage phủ **đúng** cặp revision được accept; acceptance không đụng restriction hay dữ liệu tenant khác; audit giữ actor/time.
+
 ## 4. Business operations
 
 Domain library `libs/llm-seller-governance-domain` là pure TypeScript:
@@ -104,35 +120,44 @@ Domain library `libs/llm-seller-governance-domain` là pure TypeScript:
 - Kết quả là `LlmSellerGovernanceResult` (`ok` / `error`); dữ liệu hỏng trả domain error, không ném exception. Chỉ `create*Id` ném `TypeError` khi lập trình sai.
 - Mọi giá trị trả về được `Object.freeze`; input không bị mutate.
 
-| Operation                      | Mục đích                                                                |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `createRestrictionRecord`      | Tạo restriction record frozen.                                          |
-| `isRestrictionEffective`       | Kiểm tra record có hiệu lực tại `now` (cửa sổ nửa mở).                  |
-| `evaluateRestrictions`         | Đánh giá tập record theo target, trả `RestrictionEvaluation`.           |
-| `liftRestriction`              | Đặt `liftedAt` trên record; không xoá record.                           |
-| `submitAppeal`                 | Tạo appeal status `submitted` cho restriction trong đúng tenant.        |
-| `startAppealReview`            | Đặt appeal vào `under_review` bởi reviewer.                             |
-| `decideAppeal`                 | Quyết định `accepted` hoặc `rejected`; không tự thay đổi restriction.   |
-| `withdrawAppeal`               | Rút appeal trước khi có quyết định.                                     |
-| `createVerificationCase`       | Tạo case `draft` cho tenant với `type` hợp lệ.                          |
-| `submitVerificationCase`       | Tạo submission bất biến kèm evidence reference; case `submitted`.       |
-| `startVerificationReview`      | Đặt case vào `under_review`.                                            |
-| `decideVerification`           | Quyết định `approved` hoặc `rejected`.                                  |
-| `expireVerificationCase`       | Đặt case vào `expired` (chỉ từ `approved`).                             |
-| `deriveOnboardingState`        | suy ra `{ complete, pendingTypes, issues }` từ cases.                   |
-| `deriveOperationalEligibility` | suy ra `{ eligible, blockers }`.                                        |
-| `appendLegalProfileVersion`    | Tạo version mới `version = last + 1`; `effectiveFrom` tăng nghiêm ngặt. |
-| `legalProfileVersionAt`        | Lấy version hiệu lực tại thời điểm.                                     |
-| `appendTaxProfileVersion`      | tương tự legal.                                                         |
-| `taxProfileVersionAt`          | lấy version hiệu lực tại thời điểm.                                     |
-| `createEvidenceReference`      | Tạo evidence reference frozen, gắn đúng một tenant.                     |
-| `assertEvidenceInTenant`       | Kiểm tra evidence thuộc đúng tenant.                                    |
+| Operation                                 | Mục đích                                                                                                                                                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createRestrictionRecord`                 | Tạo restriction record frozen.                                                                                                                                                                                  |
+| `isRestrictionEffective`                  | Kiểm tra record có hiệu lực tại `now` (cửa sổ nửa mở).                                                                                                                                                          |
+| `evaluateRestrictions`                    | Đánh giá tập record theo target, trả `RestrictionEvaluation`.                                                                                                                                                   |
+| `liftRestriction`                         | Đặt `liftedAt` trên record; không xoá record.                                                                                                                                                                   |
+| `submitAppeal`                            | Tạo appeal status `submitted` cho restriction trong đúng tenant.                                                                                                                                                |
+| `startAppealReview`                       | Đặt appeal vào `under_review` bởi reviewer.                                                                                                                                                                     |
+| `decideAppeal`                            | Quyết định `accepted` hoặc `rejected`; không tự thay đổi restriction.                                                                                                                                           |
+| `withdrawAppeal`                          | Rút appeal trước khi có quyết định.                                                                                                                                                                             |
+| `createVerificationCase`                  | Tạo case `draft` với subject (`tenantId` **hoặc** `principalId` — đúng một, §3.3) và `type` hợp lệ; case principal-scoped phục vụ principal pháp lý first-party (§3.8).                                         |
+| `submitVerificationCase`                  | Tạo submission bất biến kèm evidence reference; case `submitted`.                                                                                                                                               |
+| `startVerificationReview`                 | Đặt case vào `under_review`.                                                                                                                                                                                    |
+| `decideVerification`                      | Quyết định `approved` hoặc `rejected`; khi `approved` ghi `verifiedProfileVersions` (version hiệu lực tại `decidedAt` theo trục của `type`; case principal-scoped pin revision hiện hành của principal — §3.8). |
+| `expireVerificationCase`                  | Đặt case vào `expired` (chỉ từ `approved`).                                                                                                                                                                     |
+| `deriveOnboardingState`                   | suy ra `{ complete, pendingTypes, issues }` từ cases.                                                                                                                                                           |
+| `deriveOperationalEligibility`            | suy ra `{ eligible, blockers }`.                                                                                                                                                                                |
+| `appendLegalProfileVersion`               | Tạo version mới `version = last + 1`; `effectiveFrom` tăng nghiêm ngặt.                                                                                                                                         |
+| `legalProfileVersionAt`                   | Lấy version hiệu lực tại thời điểm.                                                                                                                                                                             |
+| `appendTaxProfileVersion`                 | tương tự legal.                                                                                                                                                                                                 |
+| `taxProfileVersionAt`                     | lấy version hiệu lực tại thời điểm.                                                                                                                                                                             |
+| `createFirstPartyLegalPrincipal`          | Tạo principal record kèm revision hồ sơ pháp lý/thuế đầu tiên, status `reverification_required` lúc tạo — chưa có approved coverage nào, `active` chỉ đạt sau (§3.8).                                           |
+| `appendPrincipalLegalProfileVersion`      | Ghi revision legal mới của principal ⇒ `reverification_required` đồng bộ trong cùng thao tác (§3.8).                                                                                                            |
+| `principalLegalProfileVersionAt`          | Lấy revision legal hiện hành của principal tại thời điểm.                                                                                                                                                       |
+| `appendPrincipalTaxProfileVersion`        | tương tự legal trên trục tax (§3.8).                                                                                                                                                                            |
+| `principalTaxProfileVersionAt`            | lấy revision tax hiện hành tại thời điểm.                                                                                                                                                                       |
+| `establishFirstPartyPrincipalAssociation` | Thiết lập association tenant `first_party` → principal với accepted revisions được approved coverage phủ; đúng một association cho tenant (§3.8).                                                               |
+| `acceptPrincipalRevision`                 | Cập nhật accepted revisions của association lên cặp revision hiện hành; đòi principal `active` và coverage phủ đúng cặp đó (§3.8).                                                                              |
+| `blockLegalPrincipal`                     | Quyết định có thẩm quyền đặt principal `blocked` ⇒ mọi tenant liên kết ineligible (§3.8).                                                                                                                       |
+| `unblockLegalPrincipal`                   | Đặt principal về `reverification_required`; `active` lại chỉ qua approved coverage của revision hiện hành (§3.8).                                                                                               |
+| `createEvidenceReference`                 | Tạo evidence reference frozen, gắn đúng một tenant.                                                                                                                                                             |
+| `assertEvidenceInTenant`                  | Kiểm tra evidence thuộc đúng tenant.                                                                                                                                                                            |
 
 `evaluateRestrictions` áp dụng record theo target: target tenant chỉ nhận record tenant-scope; target capability nhận record tenant-scope **và** record capability trùng tên. Policy không có trong `policies` ⇒ restrictive **và** `unevaluable = true`.
 
 `submitAppeal` nhận `tenant` và `memberships` như **dữ liệu đầu vào** để kiểm tra actor là owner hoặc member active; context này không import tenant library.
 
-`deriveOnboardingState`: `complete` khi mọi `type` bắt buộc có **ít nhất một** case `approved`; `issues` chỉ báo `type` khi case **mới nhất** (`createdAt` lớn nhất) của type đó đang `rejected` — resubmit sau reject không còn mang issue cũ. `deriveOperationalEligibility`: eligible khi restriction không chặn (`blocked === false`, `unevaluable === false`, đánh giá đúng tenant và cho target `tenant`), onboarding complete, và có legal + tax profile version hiệu lực tại `now`. Không lưu kết quả thành status.
+`deriveOnboardingState`: `complete` khi mọi `type` bắt buộc có **ít nhất một** case `approved` **còn phủ** version profile hiệu lực tại `now` (§3.6 coverage rule; tenant `first_party`: coverage tính trên revision hiện hành của principal qua association — §3.8); `issues` chỉ báo `type` khi case **mới nhất** (`createdAt` lớn nhất) của type đó đang `rejected` — resubmit sau reject không còn mang issue cũ. `deriveOperationalEligibility`: eligible khi restriction không chặn (`blocked === false`, `unevaluable === false`, đánh giá đúng tenant và cho target `tenant`), onboarding complete, và có legal + tax profile version hiệu lực tại `now` (đường customer); tenant `first_party` thay đường profile tenant bằng principal-wide rule §3.8, fail-closed. Không lưu kết quả thành status.
 
 Kỳ hiệu lực suy ra: version `i` hiệu lực trong `[effectiveFrom_i, effectiveFrom_{i+1})`; version cuối không có cận trên. Domain không có thao tác update/delete version.
 
@@ -143,9 +168,12 @@ Kỳ hiệu lực suy ra: version `i` hiệu lực trong `[effectiveFrom_i, effe
 3. **Public/internal tách biệt.** `internalReason` và `decisionReason` không bao giờ xuất hiện trong `PublicRestriction`/`PublicAppeal` hay trong error object.
 4. **Profile append-only.** Không mutation version; `effectiveFrom` tăng nghiêm ngặt; kỳ hiệu lực suy ra, không lưu cờ `current`.
 5. **Verification không tạo tenant.** Verification chỉ đổi trạng thái case; không có operation nào tạo/xoá Seller tenant từ verification.
-6. **Evidence bất biến và cùng tenant.** `storageRef`/`contentHash` không bị sửa; evidence cross tenant bị từ chối.
+6. **Evidence bất biến và cùng tenant.** `storageRef`/`contentHash` không bị sửa; evidence cross tenant bị từ chối (rule cùng tenant áp cho evidence gắn tenant; evidence của `FirstPartyLegalPrincipal` record không gắn tenant — §3.8).
 7. **Eligibility là giá trị suy ra.** Không lưu `eligible`/`onboarding-complete` thành cột trạng thái.
 8. **Determinism.** Không hàm nào đọc clock/random; cùng input ⇒ cùng output.
+9. **Approval còn tính khi còn phủ version.** Case `approved` chỉ được tính cho onboarding/eligibility khi `verifiedProfileVersions` khớp version profile hiệu lực tại `now` trên trục tương ứng (case principal-scoped: revision hiện hành của principal); thiếu pin hoặc pin lệch version ⇒ không tính (fail-closed). Rule không áp cho type không gắn trục profile (không có pin, tính theo trạng thái `approved` đến `expired`). Việc append version không đổi case; nó chỉ đổi việc case có còn được tính hay không.
+10. **Principal-wide fail-closed.** Eligibility của tenant `first_party` đòi principal-wide rule (§3.8): `principalAssessment` đủ và nhất quán, principal `active`, approved coverage phủ cặp revision hiện hành, accepted revisions của association khớp revision hiện hành. Thiếu, stale, blocked hay bất nhất ⇒ ineligible với blocker `verification`; một case/approval cũ của tenant **không bao giờ** thỏa mãn revision mới của principal; việc ghi revision mới và chuyển `reverification_required` là một thao tác đồng bộ — fan-out per-tenant không phải cơ chế bảo đảm.
+11. **Single source trên trục principal.** Tenant `first_party` không mang legal/tax profile version hay case `legal-identity`/`tax` tenant-scoped — dữ liệu kiểu đó ⇒ bất nhất, fail-closed; association đúng một cho tenant, không có operation reassignment trong model MVP, và Seller Tenant Owner authority không chạm governance records.
 
 ## 6. Error taxonomy
 
@@ -159,12 +187,14 @@ Nhóm mã:
 - **Appeal/decision:** `duplicate_appeal_id`, `appeal_deadline_passed`, `appeal_actor_not_eligible`, `invalid_appeal_transition`, `invalid_decision`, `invalid_decision_reason`, `missing_public_decision_reason`.
 - **Verification/evidence:** `duplicate_verification_case_id`, `invalid_verification_case`, `invalid_verification_type`, `invalid_submission_id`, `duplicate_submission_id`, `invalid_verification_transition`, `evidence_missing`, `duplicate_evidence`, `evidence_not_in_tenant`, `duplicate_evidence_reference_id`.
 - **Profile:** `effective_from_not_increasing`.
+- **Principal/association:** `invalid_legal_principal_id`, `duplicate_legal_principal_id`, `invalid_legal_principal`, `invalid_principal_status_transition`, `invalid_principal_association`, `duplicate_principal_association`, `principal_association_not_in_tenant`, `principal_revision_not_verified`, `principal_not_active`.
 
 ## 7. State transition
 
 Restriction: `∅ → scheduled|effective` (tạo; hiệu lực suy ra từ `activatesAt`) · `→ lifted` (đặt `liftedAt`; `lifted` là _giá trị suy ra_, record không có cột status).
 Appeal: `∅ → submitted` · `submitted → under_review` · `under_review → accepted|rejected` · `submitted|under_review → withdrawn`; `accepted|rejected|withdrawn` terminal.
 Verification case: `∅ → draft` · `draft|rejected → submitted` (resubmission giữ submission cũ) · `submitted → under_review` · `under_review → approved|rejected` · `approved → expired`; `expired` terminal, không case nào quay lại `draft`.
+FirstPartyLegalPrincipal status: `∅ → reverification_required` (tạo record kèm revision hồ sơ đầu tiên qua bề mặt provisioning — chưa có approved coverage nào, fail-closed) · `active → reverification_required` (append revision mới — đồng bộ với publish) · `reverification_required → active` (approved coverage mới còn phủ revision hiện hành) · `active|reverification_required → blocked` (quyết định có thẩm quyền) · `blocked → reverification_required` (unblock; không bao giờ `blocked → active` trực tiếp).
 
 Không transition nào khác được phép; mọi transition sai trả `invalid_appeal_transition` / `invalid_verification_transition` (hoặc mã tương ứng của entity).
 
@@ -180,7 +210,7 @@ Danh mục pháp lý/thuế, withholding rate, taxable basis và revenue recogni
 
 ### 8.3 Thẩm quyền reviewer và separation of duties
 
-Catalog reviewer role, yêu cầu bốn-mắt hay escalation **chưa chốt**. Domain chỉ bắt buộc có actor quyết định và giữ audit.
+Catalog reviewer role, yêu cầu bốn-mắt hay escalation **chưa chốt**. Domain chỉ bắt buộc có actor quyết định và giữ audit. Thẩm quyền actor cho các principal operation (`acceptPrincipalRevision`, `blockLegalPrincipal`, `unblockLegalPrincipal`) và cho thiết lập association: **chưa chốt** — [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §4, §5.
 
 ### 8.4 Chính sách restriction và appeal
 
@@ -193,7 +223,7 @@ Domain không hardcode các giá trị này; chúng là input cấu hình của 
 
 ### 8.5 Public seller prefix và định danh công khai
 
-Prefix/định danh công khai của Seller **chưa chốt**; nếu chốt phải xét unique/immutable. Domain không định nghĩa trường này.
+Prefix/định danh công khai của Seller cho **mọi seller** vẫn **chưa chốt**; nếu chốt phải xét unique/immutable. Domain không định nghĩa trường này. Riêng provider first-party, danh tính công khai đã chốt là **tên tenant first-party** của nó (`dronie` đầu tiên), unique và bất biến theo contract tenant name → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §7.
 
 ### 8.6 Evidence retention và storage provider
 
