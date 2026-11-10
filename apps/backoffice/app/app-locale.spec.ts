@@ -13,8 +13,9 @@
  * 3. Đổi ngôn ngữ **không** điều hướng: route và query giữ nguyên.
  * 4. Thứ tự ưu tiên: lựa chọn trong phiên → cookie hợp lệ → mặc định `en`; cookie
  *    không hợp lệ rơi về mặc định, không im lặng thành một locale khác.
- * 5. SSR khởi tạo từ cookie đã localized ngay trong HTML đầu tiên — không dựa vào
- *    client sửa DOM sau hydrate.
+ * 5. Lượt render đầu tiên phía client khởi tạo từ cookie đã localized — app là
+ *    non-SSR SPA (issue #67), không có HTML server nào, nên "lần render đầu" là
+ *    lần mount đầu trên client.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -24,7 +25,7 @@ import zhCN from './i18n/locales/zh-CN';
 import type { BackofficeLocale } from './i18n/locale-registry';
 import StaffPage from './pages/staff.vue';
 import { backofficeStores, headHtmlAttrs, i18n, useCookie } from '../tests/nuxt-globals';
-import { flushPromises, mountBackofficeApp, renderBackofficeAppToHtml } from '../tests/harness';
+import { flushPromises, mountBackofficeApp } from '../tests/harness';
 
 /**
  * Tên cookie locale — viết lại ở đây thay vì import hằng (nó không được export).
@@ -349,39 +350,37 @@ describe('priority order of the locale selection', () => {
   });
 });
 
-describe('SSR initializes from the cookie', () => {
-  it('server HTML is already localized, not waiting for the client to patch the DOM', async () => {
-    // ⚠️ Đây là phép đo **không có client**: `renderToString` chỉ chạy setup + render
-    // một lần trên server, nên văn bản tìm thấy trong chuỗi HTML chỉ có thể đến từ
-    // server. Không có nhánh nào để "client sửa sau hydrate" làm test xanh nhầm.
-    //
-    // ⚠️ Vì sao không khẳng định `<html lang="...">` trên chuỗi HTML: `renderToString`
-    // chỉ render **fragment của app** — đầu ra bắt đầu bằng `<!--[--><div vaul-drawer-wrapper`,
-    // không có `<!DOCTYPE html>` và không có thẻ `<html>` nào (đã đo: `html.includes('<html')`
-    // là `false`; ba lần `lang=` trong chuỗi đều là `<option lang="...">` của chính
-    // `BackofficeLanguageSelect`). Thẻ `<html>` do document template của Nuxt dựng, nằm
-    // ngoài phạm vi một unit test không chạy Nuxt. Nên `htmlAttrs` được khẳng định ở
-    // **đúng tầng `app.vue` kiểm soát** — object nó truyền cho `useHead`, đúng thứ
-    // Nuxt đọc để ghi ra thẻ `<html>` thật.
+describe('the first render initializes from the stored state', () => {
+  // App là **non-SSR SPA** (issue #67): mọi lượt render đầu tiên xảy ra trên
+  // client. Hai test dưới đây mount `app.vue` và khẳng định ngay sau lần mount
+  // **đầu tiên** — không có thao tác người dùng nào — UI đã localized đúng theo
+  // trạng thái đã lưu. Trước đây block này khẳng định "HTML server đã localized";
+  // ở chế độ SPA không còn HTML server, nên phép đo tương đương là lần mount đầu
+  // trên client — `mountBackofficeApp` + `flushPromises` không cho phép bất kỳ
+  // bước "sửa DOM sau hydrate" nào nằm giữa render và assertion.
+  it('the first client render is already localized from the cookie', async () => {
     storeLocaleCookie('vi');
-    // Trước khi render chưa có gì: khẳng định dưới đây vì thế chắc chắn đo giá trị
-    // **do lần render này sinh ra**, không phải state còn sót của test trước.
+    // Trước khi mount chưa có gì: khẳng định dưới đây vì thế chắc chắn đo giá trị
+    // **do lần mount này sinh ra**, không phải state còn sót của test trước.
     expect(headHtmlAttrs()).toEqual({});
-    const html = await renderBackofficeAppToHtml();
+    const { wrapper } = await mountBackofficeApp();
 
-    expect(html).toContain(EXPECTED.pageOverviewTitle.vi);
-    expect(html).toContain(EXPECTED.navStaff.vi);
-    expect(html).toContain(EXPECTED.pageOverviewDescription.vi);
-    // Nội dung tiếng Anh không được lọt vào HTML của một phiên tiếng Việt.
-    expect(html).not.toContain(EXPECTED.pageOverviewDescription.en);
+    expect(pageTitle(wrapper)).toBe(EXPECTED.pageOverviewTitle.vi);
+    expect(wrapper.text()).toContain(EXPECTED.navStaff.vi);
+    expect(wrapper.text()).toContain(EXPECTED.pageOverviewDescription.vi);
+    // Nội dung tiếng Anh không được lọt vào UI của một phiên tiếng Việt.
+    expect(wrapper.text()).not.toContain(EXPECTED.pageOverviewDescription.en);
     // `<html lang>` được quyết định trong cùng lần render đó.
     expect(headHtmlAttrs()['lang']).toBe('vi');
+    // Và không có lệnh điều hướng nào được phát ra khi khởi tạo.
+    expect(backofficeStores.navigations).toEqual([]);
   });
 
-  it('without a cookie the server renders English with lang="en"', async () => {
-    const html = await renderBackofficeAppToHtml();
+  it('without a cookie the first client render defaults to English with lang="en"', async () => {
+    const { wrapper } = await mountBackofficeApp();
 
-    expect(html).toContain(EXPECTED.pageOverviewTitle.en);
+    expect(pageTitle(wrapper)).toBe(EXPECTED.pageOverviewTitle.en);
+    expect(composer.locale.value).toBe('en');
     expect(headHtmlAttrs()['lang']).toBe('en');
   });
 });

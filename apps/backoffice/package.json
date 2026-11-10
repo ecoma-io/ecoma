@@ -139,19 +139,49 @@
       },
       "test-integration": {
         "executor": "nx:run-commands",
+        "cache": true,
         "dependsOn": [
-          "nuxt-prepare"
+          "nuxt-prepare",
+          "build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "externalDependencies": [
+              "vitest",
+              "wrangler"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.{js,mjs,css,html,json}",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
         ],
         "options": {
           "cwd": "apps/backoffice",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
         },
         "//": [
-          "BỎ `build`, GIỮ `nuxt-prepare`: suite integration dựng app h3 thủ công và",
-          "import handler/middleware trực tiếp từ `server/**` (TS nguồn), không spec nào",
-          "đọc `.output/` hay `.nuxt` lúc chạy (vitest không typecheck). `nuxt-prepare`",
-          "vẫn cần vì environment/test stack của app dựa trên việc `.nuxt` tồn tại sau",
-          "khi Nuxt generate (cùng lý do target `test` giữ nó)."
+          "`build` vào `dependsOn` từ issue #67: suite",
+          "`tests/integrations/worker-runtime.spec.ts` khởi động workerd trên",
+          "`wrangler.jsonc` của app, mà `main`/`assets.directory` của nó trỏ vào",
+          "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
+          "ném ngay, đỏ thay vì pass rỗng. Các suite khác vẫn dựng app h3 thủ công",
+          "và import handler/middleware trực tiếp từ `server/**` (TS nguồn).",
+          "`nuxt-prepare` vẫn giữ: environment/test stack của app dựa trên việc",
+          "`.nuxt` tồn tại sau khi Nuxt generate (cùng lý do target `test` giữ nó).",
+          "",
+          "`wrangler` nằm trong `externalDependencies` và inputs đọc cả",
+          "`.css`/`.html`/`.json` của build: nâng cấp wrangler đổi hành vi assets",
+          "layer mà suite worker-runtime đo, nên cache phải mất hiệu lực khi nó đổi",
+          "(cùng cấu hình với target `test-integration` của `apps/llm-console`)."
         ]
       },
       "typecheck-db": {
