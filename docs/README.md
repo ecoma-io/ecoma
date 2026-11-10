@@ -19,6 +19,7 @@ Repository là nguồn canonical của tri thức kỹ thuật, tổ chức thà
 - [`domains/`](./domains/README.md) — business knowledge: [`glossary.md`](./domains/glossary.md), [`context-map.md`](./domains/context-map.md), [`open-boundaries.md`](./domains/open-boundaries.md), catalog bounded context, và `domain-model.md` của từng context.
 - [`applications/`](./applications/README.md) — executable component và composition: UI/BFF, API service, control plane, data plane, background worker, maintenance job. Background job nằm phẳng cạnh API/BFF, không có thư mục con `jobs/`.
 - [`features/`](./features/README.md) — Feature document: vấn đề người dùng, outcome, phạm vi, acceptance scenario, domain/application tham gia và test verify.
+- [`changes/`](./changes/README.md) — Change Specification: đặc tả future target cho một thay đổi introduce/evolve/retire, kèm hai promotion (horizon promotion, canonical promotion) và impact classes — design-ahead, **không** phải baseline.
 
 Ranh giới canonical đầy đủ → [`AGENTS.md`](./AGENTS.md) §3–§4.
 
@@ -54,17 +55,18 @@ Index đầy đủ → [Applications](./applications/README.md) — composition,
 
 ## Ranh giới tài liệu
 
-| Vị trí                              | Chứa                                                                                                                                                       |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `architecture/`                     | Quyết định và policy **của toàn hệ thống**                                                                                                                 |
-| `architecture/local-development/`   | Hạ tầng local dùng chung và đường deploy local — **không** phải Application hay bounded context                                                            |
-| `domains/README.md`                 | Catalog bounded context và ownership rule của Domains view                                                                                                 |
-| `domains/glossary.md`               | Ngôn ngữ domain dùng chung, kèm context sở hữu                                                                                                             |
-| `domains/context-map.md`            | Quan hệ ngữ nghĩa giữa bounded contexts (DDD patterns)                                                                                                     |
-| `domains/open-boundaries.md`        | Ranh giới **nghiệp vụ** thực sự chưa chốt                                                                                                                  |
-| `domains/<context>/domain-model.md` | Business knowledge của một bounded context: khái niệm, lifecycle, policy, invariant, domain event, quyền nghiệp vụ                                         |
-| `domains/<context>/adr/`            | Accepted decision record của context — kể cả quyết định system-wide                                                                                        |
-| `applications/<component>/`         | Thiết kế, requirement kỹ thuật và runbook **của một executable component**; background job nằm phẳng, không trong `jobs/`                                  |
-| `architecture/04-platform-facts.md` | **Fact của nền tảng**, kèm nguồn · ngày · mức tin cậy                                                                                                      |
-| `engineering/`                      | Quá trình kỹ thuật đích: ba lớp, bốn view, loại công việc, vòng đời, trạng thái năng lực và reconciliation — **không** phải tri thức về hệ thống           |
-| `features/`                         | Vấn đề người dùng và product capability **đã có implementation** — kèm acceptance scenario, domain/application tham gia và test verify; không phải backlog |
+| Vị trí                              | Chứa                                                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `architecture/`                     | Quyết định và policy **của toàn hệ thống**                                                                                                                                                 |
+| `architecture/local-development/`   | Hạ tầng local dùng chung và đường deploy local — **không** phải Application hay bounded context                                                                                            |
+| `domains/README.md`                 | Catalog bounded context và ownership rule của Domains view                                                                                                                                 |
+| `domains/glossary.md`               | Ngôn ngữ domain dùng chung, kèm context sở hữu                                                                                                                                             |
+| `domains/context-map.md`            | Quan hệ ngữ nghĩa giữa bounded contexts (DDD patterns)                                                                                                                                     |
+| `domains/open-boundaries.md`        | Ranh giới **nghiệp vụ** thực sự chưa chốt                                                                                                                                                  |
+| `domains/<context>/domain-model.md` | Business knowledge của một bounded context: khái niệm, lifecycle, policy, invariant, domain event, quyền nghiệp vụ                                                                         |
+| `domains/<context>/adr/`            | Accepted decision record của context — kể cả quyết định system-wide                                                                                                                        |
+| `applications/<component>/`         | Thiết kế, requirement kỹ thuật và runbook **của một executable component**; background job nằm phẳng, không trong `jobs/`                                                                  |
+| `architecture/04-platform-facts.md` | **Fact của nền tảng**, kèm nguồn · ngày · mức tin cậy                                                                                                                                      |
+| `engineering/`                      | Quá trình kỹ thuật đích: ba lớp, bốn view, loại công việc, vòng đời, trạng thái năng lực và reconciliation — **không** phải tri thức về hệ thống                                           |
+| `features/`                         | Vấn đề người dùng và product capability **đã có implementation** — kèm acceptance scenario, domain/application tham gia và test verify; không phải backlog                                 |
+| `changes/`                          | Change Specification **future target** (introduce/evolve/retire) cùng hai promotion và impact classes — design-ahead, không phải baseline; **không** phải backlog/roadmap/status dashboard |
