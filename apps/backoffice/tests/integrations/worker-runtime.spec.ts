@@ -1,9 +1,20 @@
 import { createRequire } from 'node:module';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import {
+  SESSION_COOKIE_NAME,
+  createSessionIdentifier,
+  hashSessionIdentifier,
+  insertSession,
+  sessionDeadlines,
+} from '@ecoma-io/backoffice-infrastructure';
+import { BACKOFFICE_DATABASE, type BackofficeDatabase, startBackofficeDatabase } from './harness';
 
 /**
  * Hợp đồng HTTP của `backoffice` ở chế độ **non-SSR SPA** (issue #67) trên
@@ -27,11 +38,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * `wrangler.jsonc` khai hai `services` (`ACCOUNT_SERVICE`,
  * `STAFF_ACCESS_SERVICE`); workerd từ chối boot khi service được trỏ tới không
  * nằm trong harness. Stub ở đây **chỉ tồn tại để runtime lên được** — trả 503
- * cho mọi fetch, và không nhánh test nào gọi tới: môi trường harness không có
- * cấu hình OIDC nên middleware authn fail-closed **trước** khi route nào chạm
- * binding. Env có cấu hình thật và đường đọc DB là việc của
- * `authn-middleware.spec.ts` / `read-routes.spec.ts` (PostgreSQL thật) — suite
- * này chỉ ghim hình dạng routing ở tầng Worker.
+ * cho mọi fetch. Ở harness đầu (không cấu hình OIDC) middleware authn
+ * fail-closed **trước** khi route nào chạm binding; harness thứ hai (cuối file,
+ * cấu hình OIDC đầy đủ) có nhánh gọi binding thật nhưng chỉ `/api/me` chạm nó,
+ * theo hợp đồng "controlled degrade" của route đó (displayName về `null`).
+ * Cấu hình OIDC + DB thật ở mức middleware là việc của
+ * `authn-middleware.spec.ts` (PostgreSQL thật) — suite này ghim hình dạng
+ * routing ở tầng Worker cho cả hai trạng thái cấu hình.
  *
  * ⚠️ Harness được tạo trong `beforeAll`, không ở top level: Vitest import mọi
  * spec file trước khi chạy, nên dựng workerd lúc import sẽ boot runtime kể cả
@@ -51,10 +64,14 @@ type TestHarness = Awaited<ReturnType<typeof wranglerCli.createTestHarness>>;
 
 let harness: TestHarness;
 
+/** Thư mục stub script của `beforeAll` — outer scope để `afterAll` dọn sạch. */
+let stubDir = '';
+
 beforeAll(async () => {
   // Stub script ghi vào tmpdir lúc chạy — không nằm trong repo, vì nội dung của
-  // nó không từng được đọc bởi nhánh test nào (xem JSDoc đầu file).
-  const stubDir = await mkdtemp(join(tmpdir(), 'ecoma-backoffice-worker-stub-'));
+  // nó không từng được đọc bởi nhánh test nào (xem JSDoc đầu file). Outer scope
+  // để `afterAll` xóa được thư mục sau khi `close()`.
+  stubDir = await mkdtemp(join(tmpdir(), 'ecoma-backoffice-worker-stub-'));
   const stubScript = join(stubDir, 'index.mjs');
   await writeFile(
     stubScript,
@@ -88,12 +105,32 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await harness.close();
+  // `rm` sau `close()`: workerd không còn giữ file trong thư mục stub. `force`
+  // để lần chạy sau không đỏ vì rác của lần này — dọn dẹp không được biến thành
+  // một kết quả test mới.
+  if (stubDir !== '') {
+    await rm(stubDir, { recursive: true, force: true });
+  }
 });
 
 interface RouteResponse {
   readonly status: number;
   readonly contentType: string;
+  readonly cacheControl: string;
   readonly body: string;
+}
+
+/**
+ * Parse JSON body với assertion tường minh — body sai định dạng là **failure
+ * của expect** (`not.toThrow`), không phải `SyntaxError` nổ ngoài vòng assertion
+ * và biến test thành crash thay vì báo đỏ đúng chỗ.
+ */
+function expectJson(body: string): unknown {
+  let parsed: unknown;
+  expect(() => {
+    parsed = JSON.parse(body) as unknown;
+  }).not.toThrow();
+  return parsed as unknown;
 }
 
 /**
@@ -114,6 +151,7 @@ async function fetchRoute(
   return {
     status: response.status,
     contentType: response.headers.get('content-type') ?? '',
+    cacheControl: response.headers.get('cache-control') ?? '',
     body: await response.text(),
   };
 }
@@ -152,14 +190,16 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
 
     expect(response.status).toBe(200);
     expect(response.contentType).toContain('application/json');
-    expect(JSON.parse(response.body)).toEqual({ status: 'ok' });
+    expect(expectJson(response.body)).toEqual({ status: 'ok' });
   });
 
   // Middleware authn chạy trước mọi route và fail-closed khi thiếu cấu hình
   // OIDC (503). Đây chính là hành vi "mặc định đóng" cần giữ nguyên sau khi
   // tắt SSR: path lạ dưới `/api/` **không bao giờ** rơi vào shell HTML — nó
   // bị chặn ở middleware trước, với JSON lỗi, kể cả khi không có route nào
-  // khớp. Phân loại 401/503 chi tiết là việc của `authn-middleware.spec.ts`.
+  // khớp. Phân loại 401 chi tiết nằm ở harness có cấu hình OIDC (describe cuối
+  // file); phân loại 401/503 theo trạng thái phiên là việc của
+  // `authn-middleware.spec.ts`.
   it.each(['/api/non-existent', '/api/nested/deep', '/api/'])(
     'never answers %s with the SPA shell — authn fails closed first',
     async (path) => {
@@ -168,7 +208,7 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
       expect(response.status).toBe(503);
       expect(response.contentType).toContain('application/json');
       expect(response.body).not.toContain('<!DOCTYPE html>');
-      expect(JSON.parse(response.body)).toMatchObject({ statusCode: 503 });
+      expect(expectJson(response.body)).toMatchObject({ statusCode: 503 });
     },
   );
 
@@ -182,7 +222,7 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
     expect(response.status).toBe(404);
     expect(response.contentType).toContain('application/json');
     expect(response.body).not.toContain('<!DOCTYPE html>');
-    expect(JSON.parse(response.body)).toEqual({
+    expect(expectJson(response.body)).toEqual({
       statusCode: 404,
       statusMessage: 'Not Found',
     });
@@ -218,6 +258,7 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
 
     expect(response.status).toBe(503);
     expect(response.contentType).toContain('application/json');
+    expect(expectJson(response.body)).toMatchObject({ statusCode: 503 });
     expect(response.body).not.toContain('<!DOCTYPE html>');
   });
 
@@ -243,7 +284,269 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
     expect(sw.body).toContain('precacheAndRoute');
     // NetworkOnly cho `/api/` — một runtimeCaching đổi handler là response có
     // phiên bắt đầu vào cache, vi phạm invariant "API không cache".
-    expect(sw.body).toMatch(/registerRoute\([^)]*NetworkOnly/su);
+    //
+    // ⚠️ Regex cho phép **một mức** ngoặc lồng nhau (`(?:[^()]|\([^()]*\))*`),
+    // không dùng `[^)]*`: Workbox sinh matcher có ngoặc bên trong (ví dụ
+    // `({request}) => ...`), và `[^)]*` dừng ở dấu `)` đầu tiên nên sẽ không
+    // với tới `NetworkOnly` — test đỏ dù SW đúng. Chỉ một mức lồng: đủ cho mọi
+    // hình dạng matcher Workbox sinh, và không cho phép regex chạy xuyên qua
+    // lệnh `registerRoute` kế tiếp (khớp phải nằm trong một lần gọi).
+    expect(sw.body).toMatch(/registerRoute\s*\((?:[^()]|\([^()]*\))*NetworkOnly/su);
     expect(sw.body).toContain('CacheFirst');
+  });
+});
+
+/**
+ * Cùng runtime Worker thật, nhưng **có cấu hình OIDC + PostgreSQL thật** —
+ * nửa còn lại của hợp đồng routing (finding #1 của review PR #70): một path lạ
+ * dưới `/api/` khi **đã xác thực** phải gặp catch-all JSON 404 của `server/api/`
+ * (không phải shell), còn khi **chưa xác thực** phải dừng ở middleware authn
+ * với 401 — và Accept `text/html` không biến path nào ở `/api/**` thành shell
+ * HTTP 200.
+ *
+ * Vì sao không dùng harness đầu: `configPath` không khai `vars`/Hyperdrive nào
+ * ở top-level (chỉ `env.staging` có), nên worker trong harness đầu luôn chạy ở
+ * trạng thái "chưa cấu hình" — đúng cái nửa đầu suite ghim. Worker cấu hình ở
+ * đây dùng config **inline** nhân bản các trường của `wrangler.jsonc` (không
+ * khai lại được `configPath` hai lần trong một harness) và thêm đúng ba thứ
+ * test cần: `vars` OIDC test, binding `DB_BACKOFFICE` mô phỏng local (cùng cơ
+ * chế `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_*` mà lane local dùng) và
+ * cùng hai stub service để boot được.
+ */
+describe('backoffice worker runtime with authn configured (PR #70 finding 1)', () => {
+  const AUDIENCE = 'https://api.test.ecoma.io/backoffice';
+  const CLIENT_ID = 'worker-runtime-authn';
+  const ACCOUNT_ID = `sub_${'b'.repeat(32)}`;
+  const KEY_ID = 'worker-runtime-authn-key';
+  const AUTH_WORKER_NAME = 'ecoma-backoffice-auth';
+
+  let authHarness: TestHarness;
+  let db: BackofficeDatabase;
+  let jwksServer: Server;
+  let issuerUrl = '';
+  let signingKey: CryptoKeyPair;
+  let sessionValue = '';
+
+  beforeAll(async () => {
+    db = await startBackofficeDatabase();
+
+    signingKey = (await generateKeyPair('ES256', { extractable: true })) as CryptoKeyPair;
+    const jwk = {
+      kid: KEY_ID,
+      alg: 'ES256',
+      use: 'sig',
+      ...(await exportJWK(signingKey.publicKey)),
+    };
+
+    jwksServer = createServer((req, res) => {
+      if (req.url === '/jwks.json') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ keys: [jwk] }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((done) => {
+      jwksServer.listen(0, '127.0.0.1', done);
+    });
+    const address = jwksServer.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error('fake auth server did not bind a port');
+    }
+    issuerUrl = `http://127.0.0.1:${address.port}`;
+
+    // Phiên thật trong PostgreSQL thật: cookie giá trị ngẫu nhiên, DB giữ
+    // SHA-256 của nó cùng access token ES256 do chính key ở trên ký — middleware
+    // xác thực đường thật (lookup by hash + JWKS fetch), không có bypass test.
+    const token = await signAccessToken();
+    sessionValue = createSessionIdentifier();
+    const client = await db.connect();
+    try {
+      const deadlines = sessionDeadlines(Date.now());
+      await insertSession(client as never, {
+        idHash: await hashSessionIdentifier(sessionValue),
+        accountSub: ACCOUNT_ID,
+        accessToken: token,
+        refreshToken: null,
+        authTime: null,
+        acr: null,
+        expiresAt: new Date(deadlines.idleExpiresAtMs),
+      });
+    } finally {
+      await client.end();
+    }
+
+    const stubScript = join(stubDir, 'index.mjs');
+    // Hyperdrive local của miniflare KHÔNG nhận connection string từ config —
+    // nó đọc biến môi trường `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`
+    // trước khi dựng binding (cùng cơ chế lane local dùng cho WIC auth). Phải set
+    // TRƯỚC `createTestHarness`.
+    process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
+      `postgres://ecoma_backoffice_runtime:${db.rolePassword}@${db.host}:${db.port}/${BACKOFFICE_DATABASE}`;
+    authHarness = wranglerCli.createTestHarness({
+      root: APP_DIR,
+      workers: [
+        {
+          config: {
+            name: AUTH_WORKER_NAME,
+            main: resolve(APP_DIR, '.output/server/index.mjs'),
+            compatibility_date: '2026-10-05',
+            compatibility_flags: ['nodejs_compat'],
+            services: [
+              { binding: 'ACCOUNT_SERVICE', service: 'ecoma-account-bridge' },
+              { binding: 'STAFF_ACCESS_SERVICE', service: 'ecoma-staff-access' },
+            ],
+            vars: {
+              BACKOFFICE_AUTH_ISSUER: issuerUrl,
+              BACKOFFICE_AUTH_AUDIENCE: AUDIENCE,
+              BACKOFFICE_AUTH_CLIENT_ID: CLIENT_ID,
+            },
+            hyperdrive: [
+              {
+                binding: 'DB_BACKOFFICE',
+                id: '00000000000000000000000000000000',
+              },
+            ],
+          },
+        },
+        {
+          config: {
+            name: 'ecoma-account-bridge',
+            main: stubScript,
+            compatibility_date: '2026-10-05',
+          },
+        },
+        {
+          config: {
+            name: 'ecoma-staff-access',
+            main: stubScript,
+            compatibility_date: '2026-10-05',
+          },
+        },
+      ],
+    });
+    await authHarness.listen();
+  }, 240_000);
+
+  afterAll(async () => {
+    await authHarness.close();
+    await new Promise<void>((done) => {
+      jwksServer.close(() => done());
+    });
+    await db.stop();
+  });
+
+  /** Ký access token đúng cấu trúc `at+jwt` của `auth` (tiền lệ `authn-middleware.spec.ts`). */
+  async function signAccessToken(expSeconds?: number): Promise<string> {
+    return new SignJWT({
+      scope: 'openid offline_access',
+      client_id: CLIENT_ID,
+      jti: 'worker-runtime-authn-jti',
+    })
+      .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
+      .setIssuer(issuerUrl)
+      .setAudience(AUDIENCE)
+      .setSubject(ACCOUNT_ID)
+      .setIssuedAt()
+      .setExpirationTime(expSeconds ?? Math.floor(Date.now() / 1000) + 300)
+      .sign(signingKey.privateKey as CryptoKey);
+  }
+
+  /** Request thẳng vào worker có cấu hình OIDC — `getWorker(name).fetch` của harness. */
+  async function fetchRouteOnAuthWorker(
+    path: string,
+    headers: Record<string, string> = {},
+  ): Promise<RouteResponse> {
+    const worker = authHarness.getWorker(AUTH_WORKER_NAME);
+    const response = await worker.fetch(`http://worker.invalid${path}`, { headers });
+
+    return {
+      status: response.status,
+      contentType: response.headers.get('content-type') ?? '',
+      cacheControl: response.headers.get('cache-control') ?? '',
+      body: await response.text(),
+    };
+  }
+
+  /** Header cookie của phiên đã insert trong `beforeAll`. */
+  function sessionCookie(): string {
+    return `${SESSION_COOKIE_NAME}=${sessionValue}`;
+  }
+
+  // ---- Scenario A — đã cấu hình, CHƯA xác thực: middleware chặn bằng 401 ----
+
+  it.each(['/api/non-existent', '/api/me'])(
+    'answers %s with the authentication 401 in JSON when unauthenticated',
+    async (path) => {
+      const response = await fetchRouteOnAuthWorker(path);
+
+      expect(response.status).toBe(401);
+      expect(response.contentType).toContain('application/json');
+      expect(response.body).not.toContain('<!DOCTYPE html>');
+      expect(expectJson(response.body)).toMatchObject({ statusCode: 401 });
+    },
+  );
+
+  // ---- Scenario B — đã xác thực: catch-all JSON 404, route thật vẫn tới ----
+
+  it('answers an unknown /api route with the catch-all JSON 404 when authenticated', async () => {
+    const response = await fetchRouteOnAuthWorker('/api/non-existent', {
+      cookie: sessionCookie(),
+    });
+
+    // Hình dạng đúng của `server/api/[...path].ts` — bằng chứng request đi
+    // qua middleware (401 nếu không) rồi tới catch-all, không phải shell.
+    expect(response.status).toBe(404);
+    expect(response.contentType).toContain('application/json');
+    expect(response.body).not.toContain('<!DOCTYPE html>');
+    expect(expectJson(response.body)).toEqual({
+      statusCode: 404,
+      statusMessage: 'Not Found',
+    });
+  });
+
+  it('serves /api/me from its real handler when authenticated', async () => {
+    const response = await fetchRouteOnAuthWorker('/api/me', { cookie: sessionCookie() });
+
+    // Route thật nhận request sau middleware — catch-all không che nó. Stub
+    // ACCOUNT_SERVICE trả 503 nên `displayName` suy theo hợp đồng "controlled
+    // degrade" của route: vẫn 200, `displayName: null`.
+    expect(response.status).toBe(200);
+    expect(response.contentType).toContain('application/json');
+    expect(response.cacheControl).toBe('no-store');
+    expect(expectJson(response.body)).toEqual({ sub: ACCOUNT_ID, displayName: null });
+  });
+
+  // ---- Scenario C — Accept text/html: không bao giờ shell 200 cho `/api/**` ----
+
+  it('never answers an unknown /api route with the SPA shell for a browser navigation', async () => {
+    const browserNavigation = {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'sec-fetch-mode': 'navigate',
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+    };
+
+    // Chưa xác thực: 401 — đúng response xác thực, không phải shell 200. Nitro
+    // render 401 dưới dạng trang lỗi HTML cho browser navigation, và trang lỗi
+    // đó cũng chứa root `__nuxt`; dấu vân tay phân biệt ở đây là payload lỗi
+    // nhúng trong trang (`statusMessage` "unauthorized" của middleware).
+    const unauthenticated = await fetchRouteOnAuthWorker('/api/non-existent', browserNavigation);
+    expect(unauthenticated.status).toBe(401);
+    expect(unauthenticated.status).not.toBe(200);
+    expect(unauthenticated.body).toContain('unauthorized');
+
+    // Đã xác thực: catch-all JSON 404 — Accept không đổi hình dạng response.
+    const authenticated = await fetchRouteOnAuthWorker('/api/non-existent', {
+      ...browserNavigation,
+      cookie: sessionCookie(),
+    });
+    expect(authenticated.status).toBe(404);
+    expect(authenticated.contentType).toContain('application/json');
+    expect(authenticated.body).not.toContain('<!DOCTYPE html>');
+    expect(expectJson(authenticated.body)).toEqual({
+      statusCode: 404,
+      statusMessage: 'Not Found',
+    });
   });
 });
