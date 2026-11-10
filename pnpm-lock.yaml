@@ -170,8 +170,8 @@ importers:
   .:
     dependencies:
       jose:
-        specifier: 6.2.16
-        version: 6.2.16
+        specifier: 6.2.17
+        version: 6.2.17
       postgres:
         specifier: 3.4.9
         version: 3.4.9
@@ -495,8 +495,8 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
       jose:
-        specifier: 6.2.16
-        version: 6.2.16
+        specifier: 6.2.17
+        version: 6.2.17
     devDependencies:
       '@nuxtjs/i18n':
         specifier: 10.6.0
@@ -948,8 +948,8 @@ importers:
         specifier: workspace:*
         version: link:../staff-access-contracts
       jose:
-        specifier: 6.2.16
-        version: 6.2.16
+        specifier: 6.2.17
+        version: 6.2.17
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -7771,8 +7771,8 @@ packages:
   jose@6.2.13:
     resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
 
-  jose@6.2.16:
-    resolution: {integrity: sha512-4LSJpbuBuPdGrONCdZUy0xnxtLf8eEz+EY0SMXdHQEBU7bgUHDVblU/JAjryv3wID9/LK7/YuwFwq+AQNfMscQ==}
+  jose@6.2.17:
+    resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
 
   js-beautify@2.0.3:
     resolution: {integrity: sha512-cyFbh3tkPhknnTD/0bLf0T0yy2ZIbqL05mttzbt4y1Zfr7NxqXQZ62dkBLKs3oHH/lpjmDRAnciJiSUyOy8XwQ==}
@@ -17689,7 +17689,7 @@ snapshots:
 
   jose@6.2.13: {}
 
-  jose@6.2.16: {}
+  jose@6.2.17: {}
 
   js-beautify@2.0.3:
     dependencies:
