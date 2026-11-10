@@ -10,7 +10,7 @@
   "labels": ["dependencies"],
   "prConcurrentLimit": 10,
   "rangeStrategy": "replace",
-  "enabledManagers": ["npm", "github-actions", "nodenv", "dockerfile", "regex"],
+  "enabledManagers": ["npm", "github-actions", "nodenv", "dockerfile", "custom.regex"],
   "platformAutomerge": true,
   "automergeStrategy": "squash",
   "lockFileMaintenance": {
@@ -81,7 +81,7 @@
     },
     {
       "description": "5. Gộp gitleaks và semgrep image vào 1 PR, không automerge (cần review bảo mật).",
-      "matchManagers": ["dockerfile", "regex"],
+      "matchManagers": ["dockerfile", "custom.regex"],
       "matchPackageNames": ["zricethezav/gitleaks", "semgrep/semgrep"],
       "matchUpdateTypes": ["major", "minor", "patch", "pin"],
       "groupName": "dx-security-tools",
@@ -89,7 +89,7 @@
     },
     {
       "description": "6. Digest-only của image bảo mật: tag không đổi, chỉ digest đổi — PR riêng vì cùng group với bump tag thì Renovate loại một trong hai (upgrade collision: hai newValue khác nhau cho cùng currentValue). Cũng không automerge: digest mới cho tag cũ là thay đổi engine không kèm phiên bản.",
-      "matchManagers": ["dockerfile", "regex"],
+      "matchManagers": ["dockerfile", "custom.regex"],
       "matchPackageNames": ["zricethezav/gitleaks", "semgrep/semgrep"],
       "matchUpdateTypes": ["digest", "pinDigest"],
       "groupName": "dx-security-tools-digest",
