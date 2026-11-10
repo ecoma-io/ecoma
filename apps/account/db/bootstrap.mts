@@ -133,6 +133,7 @@ export type BootstrapCliFailureReason =
   | BootstrapDenialReason
   | 'bootstrap_email_mismatch'
   | 'invalid_input'
+  | 'operator_ref_invalid'
   | 'database_unreachable'
   | 'internal_error';
 
@@ -170,6 +171,8 @@ export interface BootstrapAccountInput {
    * `operator_ref` tự khai — không chứng minh danh tính người chạy, nhưng **bắt
    * buộc có giá trị**: ADR-0021 Quyết định 6 đòi audit mang một tham chiếu người
    * thực thi, và A1 commit trước S1/S2 nên một lần ghi rỗng không sửa lại được.
+   * Charset: chữ, số, `_` và `-`, bắt đầu bằng chữ hoặc số (không dấu, không ký
+   * hiệu đặc biệt).
    */
   readonly operatorRef: string;
 }
@@ -437,6 +440,11 @@ export async function provisionBootstrapAccount(
   if (typeof input.operatorRef !== 'string' || input.operatorRef.trim() === '') {
     throw new TypeError('bootstrap operatorRef must be a non-empty string');
   }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(input.operatorRef.trim())) {
+    throw new TypeError(
+      'bootstrap operatorRef must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit)',
+    );
+  }
 
   const addressHash = await emailAddressHash(normalizeEmailAddress(BOOTSTRAP_EMAIL));
 
@@ -569,6 +577,11 @@ function parseProvisionInput(raw: string): BootstrapAccountInput {
   if (typeof operatorRef !== 'string' || operatorRef.trim() === '') {
     throw new TypeError('operator_ref must be a non-empty string');
   }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(operatorRef.trim())) {
+    throw new TypeError(
+      'operator_ref must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit)',
+    );
+  }
   return { correlationId, operatorRef };
 }
 
@@ -613,8 +626,12 @@ async function main(): Promise<void> {
   if (command === 'provision') {
     try {
       input = parseProvisionInput(await readStdin());
-    } catch {
-      emitDenial(stage, 'invalid_input');
+    } catch (error) {
+      const reason =
+        error instanceof TypeError && (error as Error).message.startsWith('operator_ref')
+          ? 'operator_ref_invalid'
+          : 'invalid_input';
+      emitDenial(stage, reason);
       process.exitCode = 1;
       return;
     }

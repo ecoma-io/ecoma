@@ -110,8 +110,9 @@ export interface BootstrapRunOptions {
 export const INPUT_STAGE = 'input';
 
 /**
- * `operator_ref` phải có giá trị thực: ADR-0021 Quyết định 6 bắt buộc audit mang
- * một tham chiếu người thực thi.
+ * `operator_ref` phải là định danh ASCII trong tập chữ, số, `_` và `-`, bắt đầu
+ * bằng chữ hoặc số: ADR-0021 Quyết định 6 bắt buộc audit mang một tham chiếu
+ * người thực thi, và charset thu hẹp giữ audit row và stage log sạch.
  *
  * Kiểm **trước** preflight là bắt buộc, không phải thuận tiện: A1 commit trước
  * khi S1/S2 chạy, nên để `staff-access` từ chối `operator_ref_missing` ở S1 nghĩa
@@ -127,9 +128,9 @@ export function assertOperatorRef(raw: string): string {
   }
   // Chỉ mã máy đọc tới được nhật ký và audit row: một chuỗi có khoảng trắng,
   // xuống dòng hay ký tự điều khiển sẽ làm hỏng cả hai bề mặt đó.
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u.test(operatorRef)) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(operatorRef)) {
     throw new Error(
-      'operator-ref must be an ASCII identifier such as a ticket or change id (letters, digits, . _ : / -).',
+      'operator-ref must be an ASCII identifier such as a ticket or change id (letters, digits, _ and - only, starting with a letter or digit).',
     );
   }
   return operatorRef;
@@ -179,7 +180,10 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
   try {
     validatedOperatorRef = assertOperatorRef(operatorRef);
   } catch {
-    return fail(INPUT_STAGE, 'operator_ref_missing');
+    return fail(
+      INPUT_STAGE,
+      operatorRef.trim() === '' ? 'operator_ref_missing' : 'operator_ref_invalid',
+    );
   }
 
   // Preflight — A2 read-only trước A1. Database đã có Account khác thì dừng

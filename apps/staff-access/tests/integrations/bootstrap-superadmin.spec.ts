@@ -679,6 +679,26 @@ describe('bootstrap steps against the canonical seed', () => {
     }
   });
 
+  it('library rejects a malformed operator_ref with operator_ref_invalid and writes nothing', async () => {
+    await resetBusinessRows(db);
+    const input = bootstrapInput({ operatorRef: 'CHG/1' });
+    const client = await db.connectAsMigrator();
+    try {
+      const reason = await expectDenied(provisionBootstrapStaff(client, input));
+      expect(reason).toBe('operator_ref_invalid');
+
+      const staffCount = await countRows(db, 'staff');
+      const assignmentCount = await countRows(db, 'role_assignments');
+      expect(staffCount).toBe(0);
+      expect(assignmentCount).toBe(0);
+
+      const audit = await auditRowsFor(db, input.correlationId);
+      expect(audit).toHaveLength(0);
+    } finally {
+      await client.end();
+    }
+  });
+
   it('S3 verifies the staff of the bootstrapped sub when unrelated non-admin staff already exist', async () => {
     // Runbook Bước 8 kiểm 1 đọc staff theo `sub`, không đếm toàn bảng. Một
     // environment có staff không phải administrator từ trước là trạng thái hợp
@@ -1372,5 +1392,22 @@ describe('CLI wire shapes', () => {
       status: 'denied',
       reason: 'sub_missing',
     });
+  });
+
+  it('rejects a malformed operator_ref on staff-provision with operator_ref_invalid and no audit row', async () => {
+    const result = await runCli('staff-provision', {
+      correlation_id: 'corr_cli_invalid_opref',
+      operator_ref: 'CHG/1',
+      sub: randomSub(),
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr.trim())).toEqual({
+      stage: 'staff.provision',
+      status: 'denied',
+      reason: 'operator_ref_invalid',
+    });
+    // Không có audit row nào cho correlation id này.
+    const audit = await auditRowsFor(db, 'corr_cli_invalid_opref');
+    expect(audit).toHaveLength(0);
   });
 });

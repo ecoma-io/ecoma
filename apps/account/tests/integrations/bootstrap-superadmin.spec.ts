@@ -337,6 +337,68 @@ describe('bootstrap superadmin (A1/A2)', () => {
     expect(verified).toEqual({ status: 'converged', sub: first.sub });
   });
 
+  it('refuses an empty operator_ref before opening a write transaction', async () => {
+    // ADR-0021 Quyết định 6 đòi audit mang tham chiếu người thực thi. A1 commit
+    // trước S1/S2, nên nhận `operator_ref` rỗng ở đây sẽ để lại một Account
+    // không attribution mà không bước nào sau đó sửa được.
+    for (const operatorRef of ['', '   ']) {
+      await expect(provision({ correlationId: 'corr-empty-op', operatorRef })).rejects.toThrow(
+        /operatorRef must be a non-empty string/u,
+      );
+    }
+
+    const client = await db.connect();
+    try {
+      const afterEmptyRun = await client.query<{ users: number; events: number }>(
+        `SELECT (SELECT count(*)::int FROM account.users) AS users,
+                (SELECT count(*)::int FROM account.security_events) AS events`,
+      );
+      expect(afterEmptyRun.rows[0]).toEqual({ users: 0, events: 0 });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('refuses an operator_ref that is only whitespace on a convergence re-run too', async () => {
+    // Nhánh hội tụ cũng ghi audit; nó không được là đường vòng qua cùng ràng buộc.
+    const first = await provision();
+    await expect(
+      provision({ correlationId: 'corr-converge-op', operatorRef: '  ' }),
+    ).rejects.toThrow(/non-empty/u);
+
+    const client = await db.connect();
+    try {
+      const events = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM account.security_events`,
+      );
+      expect(events.rows[0]?.count).toBe(1);
+      const users = await client.query<{ sub: string }>(`SELECT sub FROM account.users`);
+      expect(users.rows.map((row) => row.sub)).toEqual([first.sub]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('library provisionBootstrapAccount rejects a non-empty malformed operator_ref and writes nothing', async () => {
+    const client = await db.connectAsMigrator();
+    try {
+      await expect(
+        provisionBootstrapAccount(client, {
+          correlationId: 'corr-malformed-op',
+          operatorRef: 'CHG/1',
+        }),
+      ).rejects.toThrow(/ASCII identifier/u);
+
+      const rowCounts = await client.query<{ users: number; events: number }>(
+        `SELECT (SELECT count(*)::int FROM account.users) AS users,
+                (SELECT count(*)::int FROM account.security_events) AS events`,
+      );
+      expect(rowCounts.rows[0]).toEqual({ users: 0, events: 0 });
+    } finally {
+      await client.end();
+    }
+  });
+
   it('denies account_database_not_empty when an unrelated account already exists', async () => {
     await seedUser(SUB_OTHER);
 

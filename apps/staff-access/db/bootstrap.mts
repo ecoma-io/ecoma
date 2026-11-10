@@ -69,7 +69,7 @@ export const CANONICAL_ROLE_PERMISSIONS = [
  *
  * Các mã input/hạ tầng dưới đây chỉ ra stderr, **không** có audit row: chúng bị từ
  * chối trước khi có transaction nào để rollback (`invalid_sub`, `sub_missing`,
- * `correlation_id_missing`, `operator_ref_missing`), hoặc vì database không dùng
+ * `correlation_id_missing`, `operator_ref_missing`, `operator_ref_invalid`), hoặc vì database không dùng
  * được (`database_unreachable`, `internal_error`), hoặc vì S3 là bước chỉ đọc
  * (`staff_missing_or_ambiguous`, `administrator_assignment_missing`,
  * `role_permissions_mismatch`, `audit_trail_missing`). Đừng grep `authorization_audit`
@@ -108,6 +108,7 @@ export type StaffAccessBootstrapDenialReason =
   | 'invalid_sub'
   | 'correlation_id_missing'
   | 'operator_ref_missing'
+  | 'operator_ref_invalid'
   | 'sub_missing'
   | 'staff_missing_or_ambiguous'
   | 'administrator_assignment_missing'
@@ -149,6 +150,11 @@ export class BootstrapDeniedError extends Error {
 /** Đầu vào chung của S1 và S2. */
 export interface BootstrapStaffInput {
   readonly correlationId: string;
+  /**
+   * `operator_ref` tự khai — không chứng minh danh tính người chạy, nhưng **bắt
+   * buộc có giá trị**: ADR-0021 Quyết định 6 đòi audit mang một tham chiếu người
+   * thực thi. Charset: chữ, số, `_` và `-`, bắt đầu bằng chữ hoặc số.
+   */
   readonly operatorRef: string;
   readonly sub: string;
 }
@@ -482,6 +488,12 @@ export async function provisionBootstrapStaff(
       'sub must be an Account ID: sub_ prefix + 32 lowercase base32 characters',
     );
   }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(input.operatorRef)) {
+    throw new BootstrapDeniedError(
+      'operator_ref_invalid',
+      'operator_ref must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit)',
+    );
+  }
 
   return runGuardedStep(client, input, 'staff.provision', async (guard, context) => {
     const existing = await client.query<{ id: string; status: string }>(
@@ -557,6 +569,12 @@ export async function assignBootstrapAdministrator(
     throw new BootstrapDeniedError(
       'invalid_sub',
       'sub must be an Account ID: sub_ prefix + 32 lowercase base32 characters',
+    );
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(input.operatorRef)) {
+    throw new BootstrapDeniedError(
+      'operator_ref_invalid',
+      'operator_ref must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit)',
     );
   }
 
@@ -932,6 +950,12 @@ async function main(): Promise<void> {
     }
 
     const operatorRef = requireString(input.operator_ref, 'operator_ref_missing');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(operatorRef)) {
+      throw new BootstrapDeniedError(
+        'operator_ref_invalid',
+        'operator_ref must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit)',
+      );
+    }
     const sub = requireString(input.sub, 'sub_missing');
     const bootstrapInput: BootstrapStaffInput = { correlationId, operatorRef, sub };
 

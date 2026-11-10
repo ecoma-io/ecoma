@@ -96,7 +96,7 @@ describe('runBootstrapSuperadmin', () => {
   it('rejects a blank or unsafe operator ref before any stage runs', () => {
     // A1 commit trước S1/S2: để `staff-access` từ chối `operator_ref_missing` ở
     // S1 nghĩa là đã tạo một Account không có attribution trong audit.
-    for (const operatorRef of ['', '   ', 'CHG 1', 'CHG-1\nINJECTED']) {
+    for (const operatorRef of ['', '   ']) {
       const recorded = recordStages(happyStages);
       const result = runBootstrapSuperadmin({
         correlationId: 'corr-input',
@@ -107,6 +107,23 @@ describe('runBootstrapSuperadmin', () => {
       expect(result.outcome).toBe('failed');
       expect(result.failedStage).toBe(INPUT_STAGE);
       expect(result.reason).toBe('operator_ref_missing');
+      // Không có lần chạm database nào, kể cả preflight.
+      expect(recorded.requests).toHaveLength(0);
+    }
+  });
+
+  it('rejects a non-empty malformed operator ref with operator_ref_invalid before any stage runs', () => {
+    for (const operatorRef of ['CHG 1', 'CHG-1\nINJECTED', 'CHG/1', 'a.b', 'a:b']) {
+      const recorded = recordStages(happyStages);
+      const result = runBootstrapSuperadmin({
+        correlationId: 'corr-input-invalid',
+        operatorRef,
+        runStage: recorded.runStage,
+      });
+
+      expect(result.outcome).toBe('failed');
+      expect(result.failedStage).toBe(INPUT_STAGE);
+      expect(result.reason).toBe('operator_ref_invalid');
       // Không có lần chạm database nào, kể cả preflight.
       expect(recorded.requests).toHaveLength(0);
     }
@@ -421,19 +438,25 @@ describe('runBootstrapSuperadmin', () => {
 describe('assertOperatorRef', () => {
   it('accepts a trimmed change reference', () => {
     expect(assertOperatorRef('CHG-1234')).toBe('CHG-1234');
-    expect(assertOperatorRef('  ops/CHG:1234.5  ')).toBe('ops/CHG:1234.5');
+    expect(assertOperatorRef('ISSUE-17')).toBe('ISSUE-17');
+    expect(assertOperatorRef('OPS_2026')).toBe('OPS_2026');
+    expect(assertOperatorRef('a')).toBe('a');
+  });
+
+  it('rejects a reference outside the strict ASCII identifier charset', () => {
+    // Chấm, gạch chéo, hai chấm, khoảng trắng, xuống dòng và ký tự điều khiển
+    // đều bị từ chối theo charset mới.
+    expect(() => assertOperatorRef('  ops/CHG:1234.5  ')).toThrow(/ASCII identifier/u);
+    expect(() => assertOperatorRef('CHG 1')).toThrow(/ASCII identifier/u);
+    expect(() => assertOperatorRef('CHG-1\nx')).toThrow(/ASCII identifier/u);
+    expect(() => assertOperatorRef('CHG-1;rm -rf /')).toThrow(/ASCII identifier/u);
+    expect(() => assertOperatorRef('a.b')).toThrow(/ASCII identifier/u);
+    expect(() => assertOperatorRef('a:b')).toThrow(/ASCII identifier/u);
   });
 
   it('refuses a blank reference', () => {
     expect(() => assertOperatorRef('')).toThrow(/required/u);
     expect(() => assertOperatorRef('   ')).toThrow(/required/u);
-  });
-
-  it('refuses a reference that is not a printable identifier', () => {
-    // Khoảng trắng và ký tự điều khiển sẽ đi vào stage log và audit metadata.
-    expect(() => assertOperatorRef('CHG 1')).toThrow(/ASCII/u);
-    expect(() => assertOperatorRef('CHG-1\nx')).toThrow(/ASCII/u);
-    expect(() => assertOperatorRef('CHG-1;rm -rf /')).toThrow(/ASCII/u);
   });
 });
 

@@ -12,6 +12,9 @@ import { createSpawnStageRunner } from './stage-process.js';
 /** Định danh ASCII in được — dùng cho cả `operator_ref` lẫn correlation id. */
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u;
 
+/** Định danh ASCII strict cho `operator_ref`: chữ, số, `_` và `-`, bắt đầu bằng chữ hoặc số. */
+const OPERATOR_REF = /^[A-Za-z0-9][A-Za-z0-9_-]*$/u;
+
 /**
  * Entry `pnpm dx bootstrap-superadmin`.
  *
@@ -61,6 +64,14 @@ export default defineCommand({
     if (!IDENTIFIER.test(correlationId)) {
       console.error(
         '[bootstrap-superadmin] --correlation-id must be an ASCII identifier (letters, digits, . _ : / -).',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    if (operatorRef !== '' && !OPERATOR_REF.test(operatorRef)) {
+      console.error(
+        '[bootstrap-superadmin] --operator-ref must be an ASCII identifier (letters, digits, _ and - only, starting with a letter or digit).',
       );
       process.exitCode = 1;
       return;
