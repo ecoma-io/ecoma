@@ -114,17 +114,22 @@ afterAll(async () => {
   // Cleanup chống lỗi setup: Vitest vẫn chạy `afterAll` kể cả khi `beforeAll`
   // ném lỗi (đo được trên vitest 4.x), nhưng khi `beforeAll` ném giữa chừng
   // thì tài nguyên chưa kịp tạo còn là `undefined` — mỗi bước tự kiểm trước
-  // khi dọn để một bước hỏng không đánh rơi các bước còn lại (workerd sống
-  // giữ port sẽ giữ tiến trình vitest không thoát).
-  if (harness !== undefined) {
-    await harness.close();
-  }
-  // `rm` sau `close()`: workerd không còn giữ file trong thư mục stub. `force`
-  // để lần chạy sau không đỏ vì rác của lần này — dọn dẹp không được biến thành
-  // một kết quả test mới.
-  if (stubDir !== '') {
-    await rm(stubDir, { recursive: true, force: true });
-  }
+  // khi dọn, và `disposeAll` cách ly lỗi từng bước.
+  await disposeAll(
+    async () => {
+      if (harness !== undefined) {
+        await harness.close();
+      }
+    },
+    async () => {
+      // `rm` sau `close()`: workerd không còn giữ file trong thư mục stub.
+      // `force` để lần chạy sau không đỏ vì rác của lần này — dọn dẹp không
+      // được biến thành một kết quả test mới.
+      if (stubDir !== '') {
+        await rm(stubDir, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 interface RouteResponse {
@@ -145,6 +150,27 @@ function expectJson(body: string): unknown {
     parsed = JSON.parse(body) as unknown;
   }).not.toThrow();
   return parsed as unknown;
+}
+
+/**
+ * Chạy các bước dọn dẹp tuần tự, **cách ly lỗi từng bước**: mọi bước đều được
+ * chạy dù bước trước ném lỗi, rồi lỗi đầu tiên được ném lại sau cùng. Một bước
+ * dọn hỏng không được phép đánh rơi các bước còn lại (workerd sống giữ port sẽ
+ * giữ tiến trình vitest không thoát), nhưng lỗi thật cũng không được nuốt âm
+ * thầm — dọn dẹp không biến thành một kết quả test mới.
+ */
+async function disposeAll(...steps: Array<() => Promise<void>>): Promise<void> {
+  let firstError: unknown;
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (firstError !== undefined) {
+    throw firstError;
+  }
 }
 
 /**
@@ -455,26 +481,37 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
   afterAll(async () => {
     // Cleanup chống lỗi setup (xem `afterAll` tầng file): tài nguyên được tạo
     // tuần tự trong `beforeAll`, khi setup ném giữa chừng cái chưa kịp tạo là
-    // `undefined` — mỗi bước tự kiểm để dọn được hết những gì đã tạo kịp.
-    if (authHarness !== undefined) {
-      await authHarness.close();
-    }
-    if (jwksServer !== undefined) {
-      await new Promise<void>((done) => {
-        jwksServer.close(() => done());
-      });
-    }
-    if (db !== undefined) {
-      await db.stop();
-    }
-    // Khôi phục đúng trạng thái biến môi trường trước khi suite chạy (xóa nếu
-    // trước đó chưa tồn tại) — xem chú thích ở `beforeAll`.
-    if (previousHyperdriveConnectionString === undefined) {
-      delete process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
-    } else {
-      process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
-        previousHyperdriveConnectionString;
-    }
+    // `undefined` — mỗi bước tự kiểm, và `disposeAll` đảm bảo một bước hỏng
+    // không đánh rơi khôi phục biến môi trường ở bước cuối.
+    await disposeAll(
+      async () => {
+        if (authHarness !== undefined) {
+          await authHarness.close();
+        }
+      },
+      async () => {
+        if (jwksServer !== undefined) {
+          await new Promise<void>((done) => {
+            jwksServer.close(() => done());
+          });
+        }
+      },
+      async () => {
+        if (db !== undefined) {
+          await db.stop();
+        }
+      },
+      async () => {
+        // Khôi phục đúng trạng thái biến môi trường trước khi suite chạy (xóa
+        // nếu trước đó chưa tồn tại) — xem chú thích ở `beforeAll`.
+        if (previousHyperdriveConnectionString === undefined) {
+          delete process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
+        } else {
+          process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
+            previousHyperdriveConnectionString;
+        }
+      },
+    );
   });
 
   /** Ký access token đúng cấu trúc `at+jwt` của `auth` (tiền lệ `authn-middleware.spec.ts`). */
