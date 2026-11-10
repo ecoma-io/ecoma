@@ -85,7 +85,7 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 >
 > **Thẩm quyền khi lệch nguồn (divergence authority):** cho tới khi năm type được xác nhận tồn tại (bước 2), dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền** — các nơi khác ghi lệch thì sửa theo nó. Sau bước 2, native Issue Type có thẩm quyền và dòng body được gỡ bỏ ở bước 3.
 >
-> **Đóng băng:** field dropdown `Loại công việc` trong Issue form và single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3.
+> **Đóng băng:** single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3; còn dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
 >
 > **Missing-type rule (cho work item):** khi một work item cần Issue Type chưa được cấu hình, báo blocker nêu rõ khoảng trống; không tự chế classification thay thế.
 

@@ -54,9 +54,12 @@ asserting):
 - The **Issue Type is native metadata**, not a label, not a Project field,
   not a form field value — see the next section. Do not create any of those
   as a parallel channel.
-- The form's `Loại công việc` dropdown and the Project's `Work kind`
-  single-select predate the current policy and are **frozen**: set no new
-  value in either (`work-management.md` §2.3).
+- The Project's `Work kind` single-select predates the current policy and
+  is **frozen**: set no new value in it (`work-management.md` §2.3, §3.4).
+  The form's `Loại công việc` dropdown is the form-side surface of the
+  interim `## Loại công việc` body channel — it writes that body line and
+  stays usable until transition step 3 removes it (`work-management.md`
+  §2.3).
 - `project:track` **is** a label — the only label this skill applies on its
   own authority, and during the transition only on a **root issue** per
   `work-management.md` §3.2–§3.3. Every other label, Project field, Milestone
@@ -286,7 +289,7 @@ substitute an invented value.
   outcome and a body grounded in inspected evidence.
 - The Issue Type is set in native metadata, or carried by the interim
   `## Loại công việc` body line when the type is not configurable yet — never
-  in a label, Project field or frozen form field.
+  in a label or Project field.
 - Search results and the reuse/link/create decision are accounted for.
 - Project membership follows the root-issue rule; a sub-issue was never
   marked for membership.

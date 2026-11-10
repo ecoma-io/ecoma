@@ -27,8 +27,8 @@ Ranh giới canonical đầy đủ → [`AGENTS.md`](./AGENTS.md) §3–§4.
 
 [`engineering/`](./engineering/README.md) không phải view tri thức thứ năm về hệ thống. Đây là quá trình kỹ thuật đích — cách hiểu hệ thống, tiến hoá mô hình, chọn và hiện thực vertical slice, verify và reconcile:
 
-- [Engineering Evolution Process](./engineering/evolution-process.md) — canonical: ba lớp, bốn view, năm loại công việc, vòng đời bảy bước, bốn trạng thái năng lực (Specified · Implemented · Verified · Released), reconciliation và deviation semantics.
-- [GitHub Work Management](./engineering/work-management.md) — canonical: khi nào một work item cần Issue, Issue khác ledger/precondition tracker/experiment record thế nào, cách ghi năm work kind, điều kiện đóng, Issue nào cần label `project:track`, và trách nhiệm của Project, Milestone, Pull Request.
+- [Engineering Evolution Process](./engineering/evolution-process.md) — canonical: ba lớp, bốn view, năm giá trị Issue Type (Discovery · Modelling · Experiment · Delivery · Remediation), vòng đời bảy bước, bốn trạng thái năng lực (Specified · Implemented · Verified · Released), reconciliation và deviation semantics.
+- [GitHub Work Management](./engineering/work-management.md) — canonical: khi nào một work item cần Issue, Issue khác ledger/precondition tracker/experiment record thế nào, Issue Type native là nguồn classification duy nhất (kèm transition), root-issue Project membership (sub-issue không thuộc Project), horizon M1/M2/Feature Discovery suy ra từ Milestone ladder, điều kiện đóng, và trách nhiệm của Project, Milestone, Pull Request; `project:track` là ràng buộc chuyển tiếp.
 - [Contribution Workflow](./engineering/contribution-workflow.md) — canonical: các hành động và handoff nối vòng đời bảy bước với công việc thực tế, cách chọn validation theo scope, và ranh giới giữa hướng dẫn với ràng buộc repository.
 
 Entry point cho contributor → [`CONTRIBUTING.md`](../CONTRIBUTING.md) ở repository root.
