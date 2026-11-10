@@ -55,7 +55,7 @@ function createApp(): Hono<AppEnv> {
   });
 
   // /health — khong credential, khong DB (infra probe khong duoc phu thuoc DB).
-  app.get('/health', (c) => c.json({ status: 'ok', service: 'remote-cache' }));
+  app.get('/health', (c) => c.json({ status: 'ok', service: 'remote-cache-api' }));
 
   // Toan bo phan con lai can config. Loi cau hinh -> 503 fail-closed.
   app.use('*', async (c, next) => {
@@ -89,7 +89,7 @@ function createApp(): Hono<AppEnv> {
       return c.json(
         {
           status: 'not_ready',
-          service: 'remote-cache',
+          service: 'remote-cache-api',
           database: dbStatus,
           storage: storageStatus,
         },
@@ -98,7 +98,7 @@ function createApp(): Hono<AppEnv> {
     }
     return c.json({
       status: 'ready',
-      service: 'remote-cache',
+      service: 'remote-cache-api',
       database: dbStatus,
       storage: storageStatus,
     });
