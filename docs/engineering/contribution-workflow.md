@@ -40,7 +40,7 @@ Kết thúc khi nêu được: view nào sở hữu capability, ràng buộc nà
 Trước khi mở Issue, xác định bốn thứ:
 
 1. **Issue Type** — dùng đúng năm giá trị canonical ở [`evolution-process.md`](./evolution-process.md) §4.1 và áp dụng thứ tự ưu tiên ở đó — Remediation → Experiment → Modelling → Delivery → Discovery. Nguồn ghi là native Issue Type; trong transition, theo kênh tạm thời ở [`work-management.md`](./work-management.md) §2.3.
-2. **Product và horizon** — product nào (Product ID, khớp chính xác Product Registry — [`work-management.md`](./work-management.md) §4.1) và horizon nào (M1/M2/Feature Discovery, đọc từ khai báo commitment của Milestone — cùng chỗ).
+2. **Product attribution và horizon** — product nào (Product ID khớp chính xác Product Registry), hoặc shared context nào, hoặc các product tham gia khi root issue là cross-product (quy ước product attribution — [`work-management.md`](./work-management.md) §4); horizon nào (M1/M2/Feature Discovery, đọc từ khai báo commitment của Milestone — cùng chỗ, §4.1).
 3. **Baseline** — baseline có thẩm quyền là tài liệu canonical bốn view cùng ADR đã accept, không phải Change Specification ([`evolution-process.md`](./evolution-process.md) §5).
 4. **Change Specification áp dụng** — nếu vùng thay đổi có spec ở [`changes/`](../changes/README.md), đọc nó và ghi dependency; khi delivery unit M1 tiêu thụ accepted target decision của một spec M2, khai báo dependency đó tường minh trong work record ([`../changes/README.md`](../changes/README.md) §4).
 

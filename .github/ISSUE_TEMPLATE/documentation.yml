@@ -79,10 +79,13 @@ body:
     attributes:
       label: Sản phẩm (Product)
       description: |
-        Chọn Product ID theo registry trong `docs/engineering/work-management.md` §4.1. Policy bắt buộc
-        khai báo Product cho Issue gắn với một product cụ thể; chỉ để trống khi công việc thật sự cắt ngang
-        và không có pipeline sản phẩm nào đang lái. Không suy Product từ tên feature directory, bounded
-        context, Nx project hay application (`llm-seller`/`llm-console` là application của `llm-marketplace`).
+        Chọn Product ID theo registry trong `docs/engineering/work-management.md` §4.1. Delivery issue
+        gắn với một product cụ thể: chọn Product ID của pipeline đang lái. Root issue cross-product:
+        để trống ở đây và liệt kê các product tham gia trong Outcome/Phạm vi — root cross-product không
+        mang một Product ID duy nhất. Công việc của shared context (không pipeline sản phẩm nào lái):
+        để trống và nêu tên shared context trong Phạm vi. Không suy Product từ tên feature directory,
+        bounded context, Nx project hay application (`llm-seller`/`llm-console` là application của
+        `llm-marketplace`).
       options:
         - llm-marketplace
         - pact-broker

@@ -81,7 +81,7 @@ The five phases below are the **agent execution loop for one task** — Understa
 
 - Priority: fix bugs first, then feature improvements — unless I ask to prioritise something specific; my call overrides these rules.
 - Work follows five conditional phases — Understand, Plan, Execute, Validate, Deliver — skipped or combined as the task warrants.
-- Before doing work, identify the product, its horizon (read from the Milestone commitment declarations per `work-management.md` §4.1), the Issue Type of the unit, the authoritative baseline, and any applicable Change Specifications (`evolution-process.md` §6.1, [`docs/changes/README.md`](docs/changes/README.md)).
+- Before doing work, identify the product attribution (one product, one shared context, or the participating products of a cross-product root issue — per `work-management.md` §4), its horizon (read from the Milestone commitment declarations per `work-management.md` §4.1), the Issue Type of the unit, the authoritative baseline, and any applicable Change Specifications (`evolution-process.md` §6.1, [`docs/changes/README.md`](docs/changes/README.md)).
 - Never apply a future target to M1 work unless the task explicitly requires it; a Change Specification is design-ahead, never baseline.
 - Never implement a proposal or an unaccepted decision as though it were accepted.
 - For every material change — canonical baseline, accepted decision, committed Milestone scope, or shared contract — evaluate compatibility and impact ([`docs/changes/README.md`](docs/changes/README.md) §4).

@@ -47,9 +47,11 @@ disagree, the document wins.
   reuse one, §2.3 (how the Issue Type is recorded, across the three
   windows: the `## Loại công việc` body channel before org configuration,
   native Issue Type authoritative after it while form-created issues still
-  record through the body channel, native-only after cleanup), §4.1 (the
-  Product Registry that owns product identity, and horizons read from the
-  Milestone commitment declarations).
+  record through the body channel, native-only after cleanup), §4 (product
+  attribution and Milestone delivery commitments — single-product or
+  cross-product), §4.1 (the Product Registry that owns product identity,
+  and horizons read from the Milestone commitment declarations), §4.2
+  (milestone completion, activation and release as independent states).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — Change
   Specification vocabulary: change types, material changes, the two
   promotions, and the index of live specs.
@@ -96,17 +98,24 @@ disagree, the document wins.
    invariant number, an ADR, a dependency rule, or a platform fact. A
    constraint without a source is an assumption, and belongs in step 8.
 6. **Place the work in its context**, when the request has one:
-   - The **product** and its **horizon**. Product identity comes from the
-     Product Registry owned by `work-management.md` §4.1 (stable product
-     IDs) — never from `docs/features/README.md` feature areas, feature
-     directory names, bounded contexts, Nx projects, applications, issue
-     counts or Milestone titles; applications of a product are not products;
-     a product ID stays valid with no implemented Feature document. The
-     horizon is read from the product's Milestone commitment declarations
-     per §4.1 — never from creation order, due dates, names or issue
-     counts, and not from a document marker. Shared or cross-cutting work
-     has no product pipeline of its own: associate it with the driving
-     pipeline's product ID, or leave it unassigned when no pipeline
+   - The **product attribution** and the **horizon**. Product identity comes
+     from the Product Registry owned by `work-management.md` §4.1 (stable
+     product IDs) — never from `docs/features/README.md` feature areas,
+     feature directory names, bounded contexts, Nx projects, applications,
+     issue counts or Milestone titles; applications of a product are not
+     products; a product ID stays valid with no implemented Feature document.
+     Attribute the unit to one product, to one explicitly identified shared
+     context, or — for a cross-product root issue — name the participating
+     products instead of picking one global product (§4). The horizon is
+     read from the product's Milestone commitment declarations per §4.1 —
+     never from creation order, due dates, names or issue counts, and not
+     from a document marker. A Milestone is a product-independent delivery
+     commitment: it may carry one product or several, participating in a
+     cross-product milestone does not merge horizons or release schedules,
+     and milestone completion implies neither activation nor release (§4,
+     §4.2). Shared or cross-cutting work has no product pipeline of its
+     own: associate it with the driving pipeline's product ID, name the
+     shared context explicitly, or leave it unassigned when no pipeline
      genuinely drives it; ambiguity is reported with the evidence read,
      never guessed. Work feeding a product's future horizon (Feature
      Discovery) is normal, not misplanned.
@@ -184,8 +193,10 @@ Deliver the understanding only when:
 - Current behaviour is separated from documented target.
 - The Issue Type is justified against §4.1, including why earlier values did
   not apply, and its recording path follows `work-management.md` §2.3.
-- The context is stated when applicable: product, horizon, authoritative
-  baseline, and the applicable Change Specifications.
+- The context is stated when applicable: product attribution (one product,
+  one shared context, or the participating products of a cross-product root
+  issue), horizon, authoritative baseline, and the applicable Change
+  Specifications.
 - Unknowns have an owner step: `engineering-discovery`, an experiment, or an
   escalation.
 - The next action is named: create/reuse an Issue, plan a delivery slice, or

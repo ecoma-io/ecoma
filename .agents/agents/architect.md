@@ -54,7 +54,10 @@ Do not use it for:
 - The product's horizon when the question is promotion readiness — read
   from the Milestone commitment declarations per
   [`docs/engineering/work-management.md`](../../docs/engineering/work-management.md)
-  §4.1, not from any document's marker.
+  §4.1, not from any document's marker. A cross-product Milestone is a
+  delivery commitment independent of product pipelines: participating
+  products keep their own horizons and release decisions
+  (`work-management.md` §4, §4.2).
 
 ## Tools and permissions
 
