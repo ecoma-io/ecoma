@@ -83,10 +83,13 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   // không tạo container/volume nào tồn lại sau lệnh.
   'remote-cache-api-wic',
   'remote-cache-api-wic-state-init',
-  // Composition app LLM (ADR-0019): container + image, không có volume/state
-  // nào — hai app này không sở hữu database hay runtime state cục bộ.
+  // Composition app không backend/database: container + image, không có
+  // volume/state nào — các app này không sở hữu database hay runtime state
+  // cục bộ (hai app LLM theo ADR-0019 và remote-cache-app — SPA admin của
+  // Remote Cache).
   'llm-console',
   'llm-seller',
+  'remote-cache-app',
   'network',
   'home-image',
   'backoffice-image',
@@ -98,10 +101,12 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'push-wic-image',
   'staff-access-wic-image',
   'remote-cache-api-wic-image',
-  // Image của hai composition app LLM — tag app-first `ecoma-<app>-<ns>:local`
-  // như home/backoffice/account/pact-app.
+  // Image của composition app không backend — hai app LLM theo ADR-0019 và
+  // remote-cache-app — tag app-first `ecoma-<app>-<ns>:local` như
+  // home/backoffice/account/pact-app.
   'llm-console-image',
   'llm-seller-image',
+  'remote-cache-app-image',
   'postgres-volume',
   'auth-wic-state',
   'pact-api-wic-state',
@@ -389,7 +394,8 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
               kind === 'staff-access-wic-image' ||
               kind === 'remote-cache-api-wic-image' ||
               kind === 'llm-console-image' ||
-              kind === 'llm-seller-image'
+              kind === 'llm-seller-image' ||
+              kind === 'remote-cache-app-image'
             ? 'image'
             : 'container';
 
@@ -413,8 +419,8 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
         if (dockerType === 'image') {
           // Hai shape tên image thật (nhìn từ `tags` của từng deploy unit):
           //  - app-first: `ecoma-<app>-<ns>:local` (home/backoffice/account/
-          //    pact-app/llm-console/llm-seller) — tag literal hard-code trong
-          //    index.ts của từng unit.
+          //    pact-app/llm-console/llm-seller/remote-cache-app) — tag literal
+          //    hard-code trong index.ts của từng unit.
           //  - namespace-first: `ecoma-<ns>-auth-wic:local`,
           //    `ecoma-<ns>-pact-api-wic:local`, `ecoma-<ns>-mail-wic:local` —
           //    sinh bởi `dockerResourceName(ns, <wic-kind>)`.
@@ -429,6 +435,7 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
               line.startsWith('ecoma-pact-app-') ||
               line.startsWith('ecoma-llm-console-') ||
               line.startsWith('ecoma-llm-seller-') ||
+              line.startsWith('ecoma-remote-cache-app-') ||
               // `ecoma-` + namespace + `-<wic>:local`, namespace đủ độ dài
               // chuẩn (`w` + 12 hex từ `worktreeNamespace`).
               (line.startsWith('ecoma-') &&

@@ -832,6 +832,12 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/remote-cache-app-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
   deploys/staff-access-deploy:
     dependencies:
       '@ecoma-io/deployment':

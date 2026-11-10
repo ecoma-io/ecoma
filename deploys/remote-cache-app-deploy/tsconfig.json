@@ -1,0 +1,59 @@
+{
+  // Deploy unit import helper dùng chung từ workspace package
+  // `@ecoma-io/deployment` (`libs/deployment`): một nguồn sự thật cho namespace,
+  // labels ownership và contract outputs, thay vì copy hàm vào từng deploy unit
+  // rồi để chúng lệch nhau. Ranh giới là một chiều: deploy → lib, và lib KHÔNG
+  // được import ngược deploy hay `tools/dx` (contract test của lib chặn).
+  //
+  // Pulumi runtime `nodejs` chạy thẳng `index.ts` qua ts-node/esm hooks
+  // (automatic ESM mode: package khai `"type": "module"`, và ts-node hiện đại
+  // được resolve từ peer của `@pulumi/pulumi` — devDependency `ts-node` của repo
+  // root; không có nó, Pulumi rơi về ts-node 7.0.1 vendored, không có ESM loader
+  // và không remap specifier `.js` sang `.ts`) — không có bước build nào chạy
+  // trước để sinh package. Package import vẫn resolve được lúc chạy thật vì pnpm
+  // workspace tạo symlink `node_modules/@ecoma-io/deployment → libs/deployment`
+  // và `exports` của package trỏ thẳng vào TS nguồn (`./src/index.ts`), nên
+  // ts-node transpile luôn cả lib theo tsconfig của deploy unit. Specifier qua
+  // TÊN PACKAGE bắt buộc: đường dẫn tương đối `libs/...` là import xuyên project
+  // bị `@nx/enforce-module-boundaries` chặn, còn package import là đúng kênh
+  // workspace.
+  //
+  // `module: nodenext` vẫn giữ để typecheck theo chuẩn ESM; TypeScript với
+  // `customConditions: ["@ecoma-io/source"]` của `tsconfig.base.json` resolve
+  // cùng file TS qua condition đó. Toàn bộ graph typecheck được khai tường minh
+  // qua `files`: project `composite` bắt buộc mọi file trong graph đều được liệt
+  // kê — `index.ts` và entry colocated `local.ts` (các module riêng khác nếu có).
+  //
+  // Output của `tsc --build` nằm ở `bin/deploys/<p>/`. Pulumi không dùng output
+  // này — runtime `nodejs` chạy thẳng `index.ts`.
+  //
+  // Chương trình chạy qua automatic ESM mode của Pulumi (xem phần comment ở
+  // trên), nên dùng `import.meta.dirname` thay cho `__dirname`.
+  "compilerOptions": {
+    "strict": true,
+    "outDir": "bin",
+    "rootDir": "../..",
+    "target": "es2020",
+    "lib": ["es2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "pretty": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "forceConsistentCasingInFileNames": true,
+    // Project này không `extends` `tsconfig.base.json`, nên không kế thừa
+    // `skipLibCheck` của nó — bật tường minh: typecheck không phải rà `.d.ts`
+    // của `@pulumi/*` và `@node-rs/xxhash`, lỗi type bên thứ ba không làm đỏ
+    // typecheck của repo.
+    "skipLibCheck": true,
+    "composite": true,
+    "declaration": true,
+    // Pulumi program chạy trên Node và import helper của lib đọc
+    // `node:fs`/`node:path`, nên khai ambient types của Node tường minh thay vì
+    // để mặc định "mọi @types trong node_modules".
+    "types": ["node"]
+  },
+  "files": ["index.ts", "local.ts"]
+}

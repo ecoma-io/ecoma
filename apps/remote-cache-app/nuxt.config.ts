@@ -20,7 +20,7 @@ export default defineNuxtConfig({
   devServer: {
     host: '0.0.0.0',
     // 4201 backoffice, 4202 account, 4203 auth, 4204 pact-broker-api,
-    // 4205 pact-broker-app, 4206 staff-access, 4207 remote-cache,
+    // 4205 pact-broker-app, 4206 staff-access, 4207 remote-cache-api,
     // 4208 llm-console, 4209 llm-seller. 4210 là của app này.
     port: 4210,
   },

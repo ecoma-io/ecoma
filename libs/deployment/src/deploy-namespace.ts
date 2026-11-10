@@ -159,7 +159,11 @@ export type DeployResourceKind =
   /** Container image `node-server` của app llm-seller (composition SPA + BFF). */
   | 'llm-seller'
   /** Image build từ context repo root của deploy unit `llm-seller-deploy`. */
-  | 'llm-seller-image';
+  | 'llm-seller-image'
+  /** Container image `node-server` của app remote-cache-app (composition SPA admin của Remote Cache). */
+  | 'remote-cache-app'
+  /** Image build từ context repo root của deploy unit `remote-cache-app-deploy`. */
+  | 'remote-cache-app-image';
 /**
  * Tên Docker resource hợp lệ và nhất quán cho một namespace.
  *

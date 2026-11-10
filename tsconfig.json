@@ -53,6 +53,9 @@
     },
     {
       "path": "./deploys/remote-cache-api-deploy"
+    },
+    {
+      "path": "./deploys/remote-cache-app-deploy"
     }
   ]
 }
