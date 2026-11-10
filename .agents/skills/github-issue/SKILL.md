@@ -116,9 +116,10 @@ Remediation → Experiment → Modelling → Delivery → Discovery.
   `gh issue create --type <name>`. Issue Forms cannot set the native type.
 - Until the five types are org-configured, the interim channel is the
   `## Loại công việc` line in the Issue body — the authoritative channel for
-  the transition (`work-management.md` §2.3). Where another place records a
-  divergent value, fix it to match this line. It is never a parallel custom
-  field, label or form value.
+  the transition (`work-management.md` §2.3); match it by section name,
+  whatever the heading level or the form's `(kênh tạm thời)` suffix — not by
+  literal string. Where another place records a divergent value, fix it to
+  match this line. It is never a parallel custom field, label or form value.
 - **Missing type (work items):** when a work item needs an Issue Type that is
   not configured, report a blocker naming the gap. Do not invent a
   substitute classification (`work-management.md` §2.3).

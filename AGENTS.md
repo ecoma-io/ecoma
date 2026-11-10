@@ -90,7 +90,7 @@ The five phases below are the **agent execution loop for one task** — Understa
 - The orchestrator must detect conflicts between lanes and must never dispatch two agents to edit the same canonical file or contract without an integration plan.
 - When a change affects a Change Specification, dispatch the change-impact workflow or ask its owner to revalidate (`docs/changes/README.md` §4).
 - Target documentation and actual source code are different things: verify current behavior in source.
-- When a required Issue Type or another native GitHub capability is missing (org not configured yet), report a blocker; do not invent substitute classification (`work-management.md` §2.3).
+- Report a blocker only when a work item needs a classification or native GitHub capability that has no documented channel — a value outside the five Issue Types, or a capability with no interim path (`work-management.md` §2.3). While that interim channel exists (org not configured yet), use it instead of blocking; do not invent substitute classification.
 - Every independently trackable unit of implementation work needs a GitHub Issue: search existing Issues and PRs first, and reuse a suitable Issue or create one if none exists. Criteria and the ledger/precondition/experiment distinction → `work-management.md` §2.
 - Well-defined implementation work: identify or create the Issue, then create a branch and open a linked draft PR against the default branch before editing code. Exploratory work with unclear scope: investigate enough to define the work first, then create the Issue and start implementing.
 - No new Issue for standalone explanations, advice, or reviews contained within an existing PR; track independent follow-up work separately.

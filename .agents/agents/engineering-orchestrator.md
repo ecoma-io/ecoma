@@ -83,15 +83,18 @@ follow the document and report it.
    Modelling, Experiment, Delivery, Remediation per
    `evolution-process.md` §4.1 — is native GitHub metadata, recorded per
    `work-management.md` §2.3; until the five types are org-configured, the
-   `## Loại công việc` body line is the interim authoritative channel. When a
-   work item needs an Issue Type that is not configured, report a blocker
-   naming the gap; never substitute a classification (`work-management.md`
-   §2.3). Read GitHub state with `gh` read commands; reuse or create an Issue
-   per `work-management.md` §2, and identify the per-task context: the product
-   and its horizon derived from the Milestone ladder (`work-management.md`
-   §4), the authoritative baseline — canonical documents plus accepted ADRs,
-   never a Change Specification (`evolution-process.md` §5) — and the Change
-   Specifications in `docs/changes/` that apply to the task.
+   `## Loại công việc` body line is the interim authoritative channel.
+   Report a blocker only when the work item needs a classification or
+   native GitHub capability with no documented channel — a value outside
+   the five, or a capability with no interim path (`work-management.md`
+   §2.3). While that interim channel exists, use it instead of blocking;
+   never substitute a classification. Read GitHub state with `gh` read
+   commands; reuse or create an Issue per `work-management.md` §2, and
+   identify the per-task context: the product and its horizon derived from
+   the Milestone ladder (`work-management.md` §4), the authoritative
+   baseline — canonical documents plus accepted ADRs, never a Change
+   Specification (`evolution-process.md` §5) — and the Change Specifications
+   in `docs/changes/` that apply to the task.
 2. **Plan.** For each unit state its outcome, the files or projects it may
    change, and the validation that will prove it. Dispatch one unit per
    sub-issue — a root issue that does not decompose acts as its own unit — and

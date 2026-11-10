@@ -83,7 +83,7 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 > 2. **Bước 2 (work item riêng A):** org cấu hình năm Issue Type Discovery/Modelling/Experiment/Delivery/Remediation. Issue Forms YAML không đặt được native type khi tạo, nên Issue tạo qua form vẫn ghi type bằng kênh tạm thời bên dưới cho tới khi bước 3 hoàn tất.
 > 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, gỡ single-select `Work kind` khỏi Project, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk), audit Project membership cho sub-issue entries, và roll out automation root-aware (§3).
 >
-> **Thẩm quyền khi lệch nguồn (divergence authority):** cho tới khi năm type được xác nhận tồn tại (bước 2), dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền** — các nơi khác ghi lệch thì sửa theo nó. Sau bước 2, native Issue Type có thẩm quyền và dòng body được gỡ bỏ ở bước 3.
+> **Thẩm quyền khi lệch nguồn (divergence authority):** cho tới khi năm type được xác nhận tồn tại (bước 2), dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền** — các nơi khác ghi lệch thì sửa theo nó; kênh này là mục `Loại công việc` trong Issue body bất kể cấp heading hay hậu tố `(kênh tạm thời)` của form — đối chiếu theo tên mục, không theo literal string. Sau bước 2, native Issue Type có thẩm quyền và dòng body được gỡ bỏ ở bước 3.
 >
 > **Đóng băng:** single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3; còn dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
 >
