@@ -28,9 +28,37 @@
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
-    // Không đặt `run_worker_first`: với Nuxt SSR, mọi request đều phải qua
-    // Worker (render + payload). Chỉ khi một path thực sự cần phục vụ HTML
-    // tĩnh mới bật nó cho path đó, để không mất SSR.
+    // `none` là khai báo **trung thực**, không phải thiếu sót: asset worker
+    // không được tự bịa fallback.
+    //
+    // App này **non-SSR SPA** (`ssr: false`, issue #68) và build **không** emit
+    // `index.html` tĩnh — `.output/public` chỉ có `_nuxt`, `_fonts` và asset
+    // do build sinh; shell HTML do route `/**` của Nitro render ở runtime.
+    // `single-page-application` ngụ ý "trả `index.html` cho path không khớp
+    // asset", mà file đó không tồn tại; khai nó sẽ mô tả một cơ chế không có
+    // thật. Deep link (`/pacts`, `/environments`, `/tokens`) mở đúng app nhờ
+    // route `/**` của Nitro trả shell, không nhờ asset layer.
+    //
+    // Đo trên build thật (`wrangler` `createTestHarness`, workerd, preset
+    // `cloudflare-module`, suite `tests/integrations/worker-runtime.spec.ts`):
+    // request không khớp asset nào đều rơi vào Worker và renderer của Nitro
+    // trả shell 200, còn `/_nuxt/**` vẫn do asset layer phục vụ trực tiếp với
+    // MIME đúng.
+    "not_found_handling": "none",
+    // `run_worker_first` liệt kê **đúng** bề mặt do Worker sở hữu: BFF
+    // `/api/broker/**`, mọi path `/api/*` khác (catch-all 404) và hai route
+    // vận hành `/health`, `/ready`. Path khớp ở đây bỏ qua asset worker và đi
+    // thẳng vào handler Nitro, nên health check không bao giờ đọc HTML và
+    // `/api/**` không bao giờ bị asset layer xử lý — kể cả khi một ngày ai đó
+    // thêm file tĩnh vào `public/` đè lên một path API.
+    //
+    // Đo được trên cùng harness: bỏ `/api/*` khỏi danh sách **không** đổi kết
+    // quả ở trạng thái hiện tại (asset layer fallthrough vào Worker vì không
+    // có file nào khớp), giữ lại để bề mặt sở hữu là tường minh và bất biến
+    // với nội dung `public/` tương lai. Thêm path không thuộc Worker thì
+    // ngược lại: asset tĩnh bị đẩy qua Worker vô ích, mất cache immutable của
+    // asset layer.
+    "run_worker_first": ["/api/*", "/health", "/ready"],
   },
   "observability": {
     "enabled": true,
