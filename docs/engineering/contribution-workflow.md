@@ -40,7 +40,7 @@ Kết thúc khi nêu được: view nào sở hữu capability, ràng buộc nà
 Trước khi mở Issue, xác định bốn thứ:
 
 1. **Issue Type** — dùng đúng năm giá trị canonical ở [`evolution-process.md`](./evolution-process.md) §4.1 và áp dụng thứ tự ưu tiên ở đó — Remediation → Experiment → Modelling → Delivery → Discovery. Nguồn ghi là native Issue Type; trong transition, theo kênh tạm thời ở [`work-management.md`](./work-management.md) §2.3.
-2. **Product và horizon** — product area nào và horizon nào (M1/M2/Feature Discovery, suy ra từ Milestone ladder — [`work-management.md`](./work-management.md) §4.1).
+2. **Product và horizon** — product area nào và horizon nào (M1/M2/Feature Discovery, đọc từ khai báo commitment của Milestone — [`work-management.md`](./work-management.md) §4.1).
 3. **Baseline** — baseline có thẩm quyền là tài liệu canonical bốn view cùng ADR đã accept, không phải Change Specification ([`evolution-process.md`](./evolution-process.md) §5).
 4. **Change Specification áp dụng** — nếu vùng thay đổi có spec ở [`changes/`](../changes/README.md), đọc nó và ghi dependency.
 
@@ -165,7 +165,7 @@ Tài liệu này **không** lặp lại nội dung của các nguồn trên. Khi
 
 Agent thực hiện cùng mười hành động trên, với bốn khác biệt:
 
-1. **Đọc trước khi sửa.** Canonical document và repository instructions có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một loại công việc.
+1. **Đọc trước khi sửa.** Canonical document và repository instructions có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một Issue Type.
 2. **Dừng và báo** khi thiếu decision cần thiết, khi canonical artifact mâu thuẫn, khi scope thực tế vượt Issue/PR, khi không thu được bằng chứng, hoặc khi có nguy cơ phá invariant hay backward compatibility.
 3. **Không tự mở rộng quyền.** Agent không tự tạo Project/Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
 4. **Báo cáo trung thực.** Validation chưa chạy được thì nói rõ; không tuyên bố pass, không tuyên bố `Released` khi chưa có deployment evidence.

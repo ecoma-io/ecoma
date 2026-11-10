@@ -50,13 +50,13 @@ Root issue thuộc Project; sub-issue không thuộc — quy tắc membership �
 
 Trách nhiệm của công cụ do [`evolution-process.md`](./evolution-process.md) §4.2 quy định. Mục này **không** thêm một trục phân loại mới; nó chỉ giúp nhận ra năm dạng Issue đang tồn tại khi quyết định lấy cái nào làm việc của mình. Các dạng này cùng sống trong GitHub nhưng **không** thay thế nhau. Cột Issue Type cho biết record đó ghi type nào theo §2.3:
 
-| Loại                     | Trả lời                                              | Issue Type                                   | Điều kiện đóng                                           | Ví dụ dấu hiệu                                               |
-| ------------------------ | ---------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
-| **Work item**            | Outcome nào sẽ đạt, bởi thay đổi nào                 | Của chính nó — một trong năm giá trị (§2.3)  | Outcome đạt và reconciliation xong (§2.6)                | Có mục tiêu, phạm vi, tiêu chí chấp nhận                     |
-| **Coordination ledger**  | Nhiều workstream đang ở đâu trong một nỗ lực dài     | Không có — root issue hợp lệ không mang type | Nỗ lực kết thúc, hoặc ledger được thay bằng Issue cụ thể | Liệt kê workstream, trạng thái từng phần, mở qua nhiều PR    |
-| **Precondition tracker** | Điều kiện bên ngoài nào phải xong trước khi bắt đầu  | Không có — root issue hợp lệ không mang type | Điều kiện đạt hoặc bị loại bỏ                            | Danh sách điều kiện, không có outcome sản phẩm               |
-| **Experiment record**    | Giả thuyết nào đã được xác nhận hay bác bỏ           | Experiment                                   | Kết luận được ghi và decision liên quan đã có            | Hypothesis, tiêu chí đo đặt trước, kết quả                   |
-| **Decision Issue**       | Quyết định nào cần chốt và phương án nào đã cân nhắc | Modelling                                    | Quyết định được ghi vào canonical location hoặc ADR      | Các phương án, tiêu chí chọn; không phải implementation plan |
+| Loại                     | Trả lời                                              | Issue Type                                   | Điều kiện đóng                                                                                                                                                                     | Ví dụ dấu hiệu                                               |
+| ------------------------ | ---------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Work item**            | Outcome nào sẽ đạt, bởi thay đổi nào                 | Của chính nó — một trong năm giá trị (§2.3)  | Outcome đạt và reconciliation xong (§2.6)                                                                                                                                          | Có mục tiêu, phạm vi, tiêu chí chấp nhận                     |
+| **Coordination ledger**  | Nhiều workstream đang ở đâu trong một nỗ lực dài     | Không có — root issue hợp lệ không mang type | Nỗ lực kết thúc, hoặc ledger được thay bằng Issue cụ thể                                                                                                                           | Liệt kê workstream, trạng thái từng phần, mở qua nhiều PR    |
+| **Precondition tracker** | Điều kiện bên ngoài nào phải xong trước khi bắt đầu  | Không có — root issue hợp lệ không mang type | Điều kiện đạt hoặc bị loại bỏ                                                                                                                                                      | Danh sách điều kiện, không có outcome sản phẩm               |
+| **Experiment record**    | Giả thuyết nào đã được xác nhận hay bác bỏ           | Experiment                                   | Kết luận được ghi và decision liên quan đã có                                                                                                                                      | Hypothesis, tiêu chí đo đặt trước, kết quả                   |
+| **Decision Issue**       | Quyết định nào cần chốt và phương án nào đã cân nhắc | Modelling                                    | Quyết định được ghi vào canonical location hoặc ADR, hoặc trong Change Specification đang sở hữu nó (accepted target decision — [`../changes/README.md`](../changes/README.md) §3) | Các phương án, tiêu chí chọn; không phải implementation plan |
 
 Dashboard của công cụ ngoài (ví dụ Renovate Dependency Dashboard) là tool-owned, nằm ngoài taxonomy — không gán Issue Type cho nó.
 
@@ -73,21 +73,21 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 
 **Issue Type là nguồn classification duy nhất.** Bản chất của thay đổi được ghi bằng **Issue Type** — native metadata của GitHub, đặt được ngay khi tạo Issue (UI hoặc `gh issue create --type`). Sau transition, không tồn tại kênh song song nào: không custom Project field, không field trong Issue body, không label. Label không dùng vì hai hệ classification chồng nhau trên cùng một Issue, và vì type có thể đổi khi hiểu biết thay đổi — label đổi liên tục làm mất lịch sử.
 
-**Issue Type khác issue category.** Category trả lời "đây là loại artifact nào" (type Task/Bug/Feature hiện có của org, label `bug`, `enhancement`, `documentation`); Issue Type trả lời "bản chất thay đổi là gì". Hai trục này không map cho nhau: một `bug` thường là Remediation, nhưng một `bug` chưa từng có behaviour cũng có thể là Delivery; một `documentation` issue có thể là Modelling hoặc Delivery. Không suy Issue Type từ category.
+**Issue Type khác issue category.** Category trả lời "đây là loại artifact nào" (label `bug`, `enhancement`, `documentation`); Issue Type trả lời "bản chất thay đổi là gì". Hai trục này không map cho nhau: một `bug` thường là Remediation, nhưng một `bug` chưa từng có behaviour cũng có thể là Delivery; một `documentation` issue có thể là Modelling hoặc Delivery. Không suy Issue Type từ category. GitHub hiện còn cấu hình type mặc định (Task/Bug/Feature) — đó là cấu hình mặc định của GitHub, không phải classification của org, và không được dùng thay cho năm giá trị Issue Type; cấu hình type cấp org là thay đổi cấu hình GitHub (Bước 2 của transition này), không phải policy. Label và issue category không là input của classification: không suy Issue Type từ chúng, và không tạo label hay field có tập giá trị trùng hoặc ánh xạ tới năm giá trị Issue Type.
 
 **PR là carrier duy nhất.** Một PR không có Issue, và là nơi duy nhất mang thông tin về bản chất thay đổi, nêu Issue Type trong PR body với cùng một giá trị canonical. Đây là ngoại lệ hiếm, không phải kênh ghi thứ hai.
 
 > **Transition — policy đích so với thực thi hiện tại (chốt 2026-11-11).**
 >
-> 1. **Bước 1 (thay đổi này):** policy only. Org chưa cấu hình năm Issue Type — hiện chỉ có Task/Bug/Feature; Project và automation chưa thay đổi.
+> 1. **Bước 1 (thay đổi này):** policy only. Org chưa cấu hình năm Issue Type — type của org hiện là cấu hình mặc định của GitHub (Task/Bug/Feature), không phải classification theo policy này; Project và automation chưa thay đổi.
 > 2. **Bước 2 (work item riêng A):** org cấu hình năm Issue Type Discovery/Modelling/Experiment/Delivery/Remediation. Issue Forms YAML không đặt được native type khi tạo, nên Issue tạo qua form vẫn ghi type bằng kênh tạm thời bên dưới cho tới khi bước 3 hoàn tất.
 > 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, gỡ single-select `Work kind` khỏi Project, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk), audit Project membership cho sub-issue entries, và roll out automation root-aware (§3).
 >
-> **Thẩm quyền khi lệch nguồn (divergence authority):** cho tới khi năm type được xác nhận tồn tại (bước 2), dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền** — các nơi khác ghi lệch thì sửa theo nó; kênh này là mục `Loại công việc` trong Issue body bất kể cấp heading hay hậu tố `(kênh tạm thời)` của form — đối chiếu theo tên mục, không theo literal string. Sau bước 2, native Issue Type có thẩm quyền và dòng body được gỡ bỏ ở bước 3.
+> **Thẩm quyền khi lệch nguồn (divergence authority):** theo giai đoạn — (i) **trước Bước 2** (org chưa cấu hình năm Issue Type): dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền**; các nơi khác ghi lệch thì sửa theo nó. (ii) **Sau Bước 2, trước khi Bước 3 hoàn tất:** native Issue Type là kênh có thẩm quyền; Issue tạo qua form không đặt được native type nên vẫn ghi bằng dòng body — đó là kênh ghi hợp lệ của giai đoạn này cho tới khi được migrate opportunistically (Bước 3); khi một Issue có cả hai kênh mà lệch nhau, native thắng và dòng body được sửa theo nó. (iii) **Sau Bước 3:** native Issue Type là nguồn classification duy nhất; kênh body và dropdown bị retire. Kênh body là mục `Loại công việc` trong Issue body bất kể cấp heading hay hậu tố `(kênh tạm thời)` của form — đối chiếu theo tên mục, không theo literal string. Dropdown `Loại công việc` của Issue form là mặt form của kênh body (nó ghi chính dòng body đó): khi dropdown được dùng, giá trị `## Loại công việc` phải trùng dropdown — hai mặt của một kênh không được ghi lệch nhau. Sau Bước 2, không tạo classification trùng lặp: Issue đã có native type không ghi thêm dòng body, và Issue đã migrate thì dòng body được xoá ở lần cập nhật kế tiếp.
 >
 > **Đóng băng:** single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3; còn dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
 >
-> **Missing-type rule (cho work item):** blocker chỉ áp dụng khi work item cần một classification hoặc native GitHub capability không có kênh ghi nào được quy định — giá trị ngoài năm giá trị canonical, hoặc capability không có interim path; trong khi kênh tạm thời còn tồn tại (chưa tới bước 2), dùng kênh đó thay vì block; không tự chế classification thay thế.
+> **Missing-type rule (cho work item):** blocker chỉ áp dụng khi work item cần một classification hoặc native GitHub capability không có kênh ghi nào được quy định — giá trị ngoài năm giá trị canonical, hoặc capability không có interim path; trong khi kênh tạm thời còn tồn tại (chưa tới bước 2), dùng kênh đó thay vì block; không tự chế classification thay thế; cũng không thay năm giá trị bằng type mặc định Task/Bug/Feature của GitHub.
 
 ### 2.4 Nội dung tối thiểu
 
@@ -110,6 +110,8 @@ Nội dung bổ sung theo Issue Type:
 | **Remediation** | Deviation hoặc gap đang được đóng; nguồn gốc; điều kiện coi là đã đóng                                      |
 
 Không đưa vào body: specification dài hạn, bảng trạng thái capability, hay danh sách task không có outcome. Những thứ đó thuộc canonical document hoặc Milestone.
+
+**Root issue sở hữu Change Specification** tham chiếu spec bằng đường dẫn trong body; quy tắc ownership (một owner duy nhất, cách kiểm tra) thuộc [`../changes/README.md`](../changes/README.md) §4.
 
 ### 2.5 Cập nhật khi scope hoặc giả định thay đổi
 
@@ -160,7 +162,7 @@ Project status **không phải** capability state. `In progress` trên Project k
 
 **Policy đích:**
 
-- **Mọi root issue thuộc Project.** Root issue (Issue không có parent) sở hữu một outcome (§2.1) và cần hiển thị ở cấp portfolio.
+- **Mọi root issue thuộc Project — không chọn lọc, không cần lý do.** Tư cách root issue (Issue không có parent) tự động kéo theo membership; sở hữu outcome (§2.1) là vai trò của root issue, không phải điều kiện phải đáp ứng để được theo dõi.
 - **Sub-issue không thuộc Project.** Sub-issue sở hữu một unit công việc; nó được thấy qua root issue của mình nhờ sub-issues progress native, không cần item riêng.
 - **Parent/child là nguồn sự thật của hierarchy.** Tư cách root/sub suy từ parent/child native — không từ label, không từ field, không từ Milestone.
 - **Issue Type lấy từ native metadata**, không lưu lại bằng custom Project field (§2.3).
@@ -172,6 +174,8 @@ Project status **không phải** capability state. `In progress` trên Project k
 
 Project coordinator sở hữu vòng đời membership. Mỗi thay đổi parent/child có thể đổi tư cách root/sub, và membership đổi theo. Agent chỉ **báo** lệch; không tự archive, không tự xoá, không tự thêm item.
 
+**Admission là việc của agent tạo root issue:** gắn `project:track` theo quy tắc root issue ngay khi tạo (transition) — đây là hành động admission, không phải sửa lệch. **Mọi lệch phát sinh sau khi Issue đã tồn tại** (label/membership không khớp parentage, sub-issue nằm trong Project, label không sinh item) chỉ được **báo** coordinator sau khi đọc lại trạng thái; không tự gắn/bỏ label, không tự thêm, xoá hay archive item.
+
 | Tình huống                        | Theo policy đích                        | Hiện tại (transition)                                                  |
 | --------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
 | Issue được tạo không có parent    | Là root issue → thuộc Project           | Gắn `project:track` theo quy tắc root issue; native workflow thêm item |
@@ -182,7 +186,7 @@ Project coordinator sở hữu vòng đời membership. Mỗi thay đổi parent
 
 Quy tắc:
 
-- **Lệch giữa label, membership và policy là việc của coordinator.** Item không label (membership lịch sử), label không có item (workflow chưa chạy hoặc bị tắt), sub-issue nằm trong Project — đều phải được ghi nhận và **báo**, không tự sửa. Hiện nay automation chưa root-aware: không tuyên bố auto-sync theo root đã hoạt động.
+- **Lệch giữa label, membership và policy là việc của coordinator.** Item không label (membership lịch sử), label không có item (workflow chưa chạy hoặc bị tắt), sub-issue nằm trong Project — đều phải được ghi nhận và **báo**, không tự sửa. Hiện nay automation chưa root-aware: không tuyên bố auto-sync theo root đã hoạt động. Label có mà item chưa xuất hiện (workflow chưa chạy hoặc bị tắt): đọc lại Project trước khi báo để loại race; báo kèm bằng chứng đã đọc lại. Việc chạy lại workflow hoặc thêm item thủ công là quyết định của coordinator.
 - **Không auto-archive/xoá item.** Xoá hoặc archive là quyết định riêng của coordinator, cần lý do được ghi; không suy ra việc xoá từ thay đổi hierarchy.
 - **Label không phải Project `Status`.** Gắn hay bỏ label không đổi status; `Done` của Project vẫn không phải capability state (§3.1). Native workflow có thể tự đặt `Status` khi Issue đóng hoặc Pull Request merge — đó là trạng thái của item, không phải capability state. Các field còn lại do coordinator cập nhật theo công việc thực tế; policy này không quy định việc bật hay tắt các workflow đó.
 
@@ -217,25 +221,31 @@ Quy tắc:
 
 - Một Milestone **có thể** chứa nhiều Issue độc lập; đó là mục đích của nó.
 - Không tạo Milestone cho từng Issue, hay để biểu diễn roadmap dài hạn.
-- Milestone không mang số phase hay thứ tự roadmap. Nếu cần đánh số, số đó thuộc Milestone đang tồn tại, không phải di sản của roadmap cũ. Horizon (§4.1) là vị trí quan hệ giữa các Milestone, không phải tên hay số của Milestone.
+- Milestone không mang số phase hay thứ tự roadmap. Nếu cần đánh số, số đó thuộc Milestone đang tồn tại, không phải di sản của roadmap cũ. Horizon (§4.1) là vị trí quan hệ giữa các Milestone, không phải tên hay số của Milestone. Dòng khai báo `Horizon:` trong description là bản ghi commitment (§4.1), không phải số phase hay thứ tự roadmap.
 - Milestone không phải specification kiến trúc và không chứa danh sách task vô hạn.
 - Milestone đóng không chứng minh capability `Released`; đó vẫn là bằng chứng deployment ([`evolution-process.md`](./evolution-process.md) §5.1).
 
 ### 4.1 Horizon
 
-Mỗi product có mục tiêu vận hành theo từng **horizon**. Horizon **suy ra từ trạng thái GitHub** (chuỗi Milestone đã commit và công việc mở của product — Milestone ladder) khi cần dùng; nó không lưu trong tài liệu, không phải Issue Type, không phải tên Milestone:
+Mỗi product có một pipeline theo **horizon**. Horizon đọc từ trạng thái GitHub của các Milestone — không từ tài liệu, không từ Issue Type, không từ tên Milestone:
 
-| Horizon               | Nghĩa                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **M1**                | Delivery hiện tại của product — Milestone mở đã được commit của product đó                                    |
-| **M2**                | Delivery kế tiếp — Milestone commit kế tiếp; chỉ tạo khi scope committable được, không tạo placeholder        |
-| **Feature Discovery** | R&D tương lai — công việc Discovery/Modelling/Experiment còn mở của product đó, chưa commit vào Milestone nào |
+| Horizon               | Nghĩa                                                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M1**                | Delivery hiện tại — Milestone đang mở khai báo `Horizon: M1` của product                                                                                                                                                                          |
+| **M2**                | Delivery kế tiếp — Milestone đang mở khai báo `Horizon: M2` của product; chỉ tạo khi scope committable, không tạo placeholder                                                                                                                     |
+| **Feature Discovery** | Công việc Discovery/Modelling/Experiment còn mở của product, chưa thuộc Milestone nào. Công việc không thuộc product area nào (dùng chung, cắt ngang) không nằm ở horizon riêng — nó theo pipeline đang tiêu thụ, quy tắc shared context dưới đây |
+
+**Khai báo commitment.** Một Milestone là **committed** khi đang mở và description mang đúng hai dòng khóa — đối chiếu theo tên khóa, không theo literal string: `Product: <area>`, với `<area>` là product area đang tồn tại ở [`../features/README.md`](../features/README.md); và `Horizon: M1` hoặc `Horizon: M2`. Dòng khai báo là bản ghi commitment trong description, không phải số phase, và không bao giờ vào tên Milestone (§4). Milestone đóng thì hết tư cách committed; dòng khai báo còn lại chỉ là lịch sử.
+
+**Thẩm quyền commitment.** Tạo Milestone, sửa dòng khai báo và đóng Milestone là thay đổi cấu hình GitHub — work item riêng do người có thẩm quyền quyết định và xác nhận, như cấu hình Project ở §3.4. Agent chỉ đọc và báo lệch; không tự tạo, sửa hay đóng.
 
 Quy tắc:
 
-- **Horizon là mục tiêu, không phải slot bắt buộc.** Một product có thể có M1 mà chưa có M2 sẵn sàng; khoảng trống pipeline được thể hiện trung thực, không tạo Milestone giả để lấp.
-- **Trục product** là các product area của [`features/`](../features/README.md); mỗi product có pipeline riêng.
-- **Shared context không tạo pipeline riêng.** Bounded context và library dùng chung phục vụ nhiều pipeline; một Change Specification của shared context mang horizon của delivery đang lái theo từng consuming pipeline, ghi trong Dependencies của nó ([`changes/README.md`](../changes/README.md)). Không có "shared lane" riêng.
+- **Tính duy nhất theo từng product:** tối đa một Milestone `Horizon: M1` và một `Horizon: M2` đang mở cho mỗi product — không tính trên toàn repository.
+- **M2 cần M1:** `Horizon: M2` chỉ hợp lệ khi product đang có Milestone `Horizon: M1` mở. Khi M1 đóng, trong cùng thay đổi cấu hình: nâng Milestone `Horizon: M2` (nếu có) lên `Horizon: M1`, hoặc để khe M1 trống trung thực khi chưa có M2 committable. Milestone `Horizon: M2` mở mà product không còn M1 mở là **lệch**: báo, không tự sửa. Việc nâng M2 lên M1 là thay đổi cấu hình tường minh, không tự động theo việc đóng M1.
+- **Nguồn suy diễn cấm:** không suy horizon từ thứ tự tạo Milestone, due date, tên Milestone, số Issue hay phán đoán. Không đọc được dòng khai báo, hoặc đọc được nhiều giá trị xung đột cho một product (hai M1, hai M2, M2 không có M1, `Product` không phải area đang tồn tại) → **báo ambiguity kèm bằng chứng đã đọc** (`gh api repos/<owner>/<repo>/milestones`), không chọn giá trị.
+- **Trục product** là các product area của [`../features/README.md`](../features/README.md); mỗi product có pipeline riêng. Shared context không tạo pipeline riêng: Milestone của shared context — nếu có — khai báo product đang lái; Change Specification của shared context ghi pipeline đang lái (product và Milestone) trong Dependencies, **không ghi giá trị horizon** ([`../changes/README.md`](../changes/README.md) §2).
+- **Horizon là mục tiêu, không phải slot bắt buộc.** Khoảng trống pipeline được thể hiện trung thực, không tạo Milestone giả để lấp.
 
 ## 5. Pull Request
 

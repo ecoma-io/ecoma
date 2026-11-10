@@ -58,7 +58,7 @@ Quy tắc:
 
 ### 4.1 Năm loại công việc
 
-Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **Issue Type** — native metadata của GitHub — là nguồn classification duy nhất; không có kênh song song (label, Project field, Issue body) và không được coi là machine-checkable. Cách ghi và giai đoạn transition → [`work-management.md`](./work-management.md) §2.3.
+Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **Issue Type** — native metadata của GitHub — là nguồn classification duy nhất; **sau transition**, không tồn tại kênh song song nào (label, Project field, Issue body). Trong transition, kênh ghi và kênh có thẩm quyền theo từng giai đoạn → [`work-management.md`](./work-management.md) §2.3. Về machine-checkable: native Issue Type là metadata machine-readable và queryable; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. CI/automation chỉ enforcement khi đã được triển khai thật — hiện repository chưa có check nào enforce Issue rules; không tuyên bố enforcement khi chưa có.
 
 | Loại            | Dùng khi                                              | Kết thúc khi                                                       | Artifact                                                      |
 | --------------- | ----------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
@@ -80,12 +80,12 @@ Experiment không đi vào production path. Code thử nằm trên branch riêng
 
 ### 4.2 Trách nhiệm của từng công cụ
 
-| Công cụ              | Sở hữu                                                                                                                                                      | Không sở hữu                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **GitHub Issue**     | Một unit công việc independently trackable: vấn đề, phạm vi, tiêu chí hoàn thành                                                                            | Specification dài hạn; trạng thái capability           |
-| **GitHub Project**   | Portfolio visibility của các root issue, điều phối ở cấp portfolio ([`work-management.md`](./work-management.md) §3)                                        | Nguồn sự thật về trạng thái capability; specification  |
-| **GitHub Milestone** | Delivery commitment có biên, gắn với outcome và thời điểm kết thúc; horizon M1/M2 suy ra từ các Milestone ([`work-management.md`](./work-management.md) §4) | Roadmap dài hạn; spec kiến trúc; danh sách task vô hạn |
-| **Pull Request**     | Thay đổi reviewable và bằng chứng hiện thực của nó                                                                                                          | Bằng chứng deploy hoặc business outcome                |
+| Công cụ              | Sở hữu                                                                                                                                                                         | Không sở hữu                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| **GitHub Issue**     | Một unit công việc independently trackable: vấn đề, phạm vi, tiêu chí hoàn thành                                                                                               | Specification dài hạn; trạng thái capability           |
+| **GitHub Project**   | Portfolio visibility của các root issue, điều phối ở cấp portfolio ([`work-management.md`](./work-management.md) §3)                                                           | Nguồn sự thật về trạng thái capability; specification  |
+| **GitHub Milestone** | Delivery commitment có biên, gắn với outcome và thời điểm kết thúc; horizon M1/M2 đọc từ khai báo commitment của Milestone ([`work-management.md`](./work-management.md) §4.1) | Roadmap dài hạn; spec kiến trúc; danh sách task vô hạn |
+| **Pull Request**     | Thay đổi reviewable và bằng chứng hiện thực của nó                                                                                                                             | Bằng chứng deploy hoặc business outcome                |
 
 Quy tắc:
 
@@ -113,7 +113,7 @@ Chi tiết Issue form, Project field, label và PR template **không** thuộc t
 | **Verified**    | Behavior đã đạt tiêu chí verification áp dụng         | Kết quả chạy của target test đúng tầng — `test`, `test-integration`, `system-test` hoặc contract verification (→ [`06-testing.md`](../architecture/06-testing.md) §4)                                                                                           | Behavior đã deploy      |
 | **Released**    | Behavior đã deploy tới environment dự định            | Deployment record **và** kiểm tra environment sau deploy                                                                                                                                                                                                        | Business outcome đã đạt |
 
-**Baseline có thẩm quyền** khi suy ra các trạng thái này là tài liệu canonical của bốn view (§3) cùng các ADR đã accept. Một Change Specification trong [`changes/`](../changes/README.md) là thiết kế vượt trước, không bao giờ là baseline.
+**Baseline có thẩm quyền** khi suy ra các trạng thái này là tài liệu canonical của bốn view (§3) cùng các ADR đã accept. Một Change Specification trong [`changes/`](../changes/README.md) là thiết kế vượt trước, không bao giờ là baseline, kể cả các quyết định đã chốt trong nó (accepted target decisions — [`changes/README.md`](../changes/README.md) §3).
 
 **"Accept"** ở đây nghĩa là review đã hoàn tất và quyết định được ghi lại — ADR có status `Accepted`, hoặc specification được merge sau review. Repository không có field acceptance riêng cho specification; PR review là bằng chứng. Với ADR bị supersede một phần, claim `Specified` chỉ áp dụng cho phần **chưa** bị supersede: ví dụ ADR-0001 (staff/RBAC storage) vẫn Accepted nhưng phần database/schema đã bị ADR-0013 thay thế.
 
@@ -155,7 +155,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** biết mình đang thay đổi cái gì, ai sở hữu nó, ràng buộc nào áp dụng.
 - **Input:** yêu cầu hoặc vấn đề; tài liệu canonical của các view liên quan; code và cấu hình liên quan.
-- **Hoạt động:** đọc canonical location thay vì suy đoán; phân biệt rõ **đã verify**, **suy luận** và **chưa biết**; xác định invariant và ADR đang ràng buộc; xác định product và horizon (suy ra từ Milestone ladder — [`work-management.md`](./work-management.md) §4.1), Issue Type của unit ([`work-management.md`](./work-management.md) §2.3), baseline có thẩm quyền (§5) và các Change Specification áp dụng ([`changes/README.md`](../changes/README.md)).
+- **Hoạt động:** đọc canonical location thay vì suy đoán; phân biệt rõ **đã verify**, **suy luận** và **chưa biết**; xác định invariant và ADR đang ràng buộc; xác định product và horizon (đọc từ khai báo commitment của Milestone — [`work-management.md`](./work-management.md) §4.1), Issue Type của unit ([`work-management.md`](./work-management.md) §2.3), baseline có thẩm quyền (§5) và các Change Specification áp dụng ([`changes/README.md`](../changes/README.md)).
 - **Output:** hiểu biết có nguồn, kèm danh sách giả định chưa xác minh — ghi trong Issue body hoặc comment của unit công việc.
 - **Hoàn thành khi:** Issue nêu được view sở hữu capability, ràng buộc đang áp dụng (kèm nguồn), danh sách unknown với nguồn bằng chứng của từng mục, và product, horizon, Issue Type đã xác định.
 - **Kế tiếp:** unknown đã biết trở thành công việc Discovery; phần đã rõ đi sang §6.3 để phân loại gap trước khi Select.
@@ -182,7 +182,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** chọn thay đổi tiếp theo theo giá trị, rủi ro, dependency và chi phí.
 - **Input:** danh sách gap/opportunity; ưu tiên hiện hành; dependency giữa các slice.
-- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và quyết định tracking trong Project theo [`work-management.md`](./work-management.md) §3.3 — đánh giá từng Issue độc lập, không suy từ Milestone hay priority.
+- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và Project tracking theo quy tắc root issue ([`work-management.md`](./work-management.md) §3.2): root issue được admission khi tạo (§3.3), sub-issue không bao giờ; membership không suy từ Milestone hay priority.
 - **Output:** Issue có outcome, phạm vi và tiêu chí verify.
 - **Hoàn thành khi:** slice phát biểu được outcome quan sát được, giới hạn phạm vi rõ, tiêu chí verify thuộc đúng tầng, dependency đã biết.
 - **Kế tiếp:** sang Deliver. Slice quá lớn, hoặc thiếu bằng chứng để verify, quay lại §6.2 hoặc §6.3.

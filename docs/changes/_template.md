@@ -53,9 +53,9 @@ Giả định mà spec đang đứng trên. Mỗi giả định nêu điều ki�
 
 Tác động lên backward compatibility, contract đang chạy, dữ liệu và migration — áp dụng hướng expand → compatible rollout → contract khi chạm schema/contract.
 
-## 9. Open decisions
+## 9. Decisions
 
-Quyết định còn mở của thay đổi này — quy tắc single-home ở [`./README.md`](./README.md) §2. Khi một quyết định được chốt, nó rời mục này: chuyển vào ADR ([`../AGENTS.md`](../AGENTS.md) §10) hoặc tài liệu canonical, để lại tối đa một dòng trỏ. Quyết định system-wide chưa chốt thuộc `docs/architecture/01-architecture.md` §10; ranh giới nghiệp vụ chưa chốt thuộc `docs/domains/open-boundaries.md` — cross-link, không copy.
+Quyết định của thay đổi này, tách hai trạng thái ([`./README.md`](./README.md) §3). **Open decisions** — chưa chốt; quy tắc single-home ở [`./README.md`](./README.md) §2; quyết định system-wide chưa chốt thuộc `docs/architecture/01-architecture.md` §10, ranh giới nghiệp vụ thuộc `docs/domains/open-boundaries.md` — cross-link, không copy. **Accepted target decisions** — đã chốt trong phạm vi target của spec, mỗi mục một dòng kèm nơi chốt (PR/ADR); ở lại spec cho tới canonical promotion; chỉ ràng buộc spec này và delivery unit của nó. Quyết định có hiệu lực lên baseline trước promotion được ghi canonical ngay và đối chiếu ở Baseline references.
 
 ## 10. Acceptance & promotion criteria
 
