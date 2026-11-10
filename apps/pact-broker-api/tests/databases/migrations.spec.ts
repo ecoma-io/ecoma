@@ -301,4 +301,39 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
       await runtime.end();
     }
   });
+
+  it('rejects inserting a tenant without owner_sub (not-null)', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // owner_sub là NOT NULL — chèn thiếu cột này phải bị PostgreSQL từ chối
+      // ngay ở catalog, không cần đến CHECK.
+      await expect(
+        runtime.query(`INSERT INTO pact.tenants (name) VALUES ('tenant-no-owner-sub')`),
+      ).rejects.toThrow(/owner_sub|not-null|violates not-null/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects role owner on tenant_members (ownership is not a membership role)', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('tenant-role-owner', 'sub-owner-role-owner')`,
+      );
+      const { rows } = await runtime.query<{ id: string }>(
+        `SELECT id FROM pact.tenants WHERE name = 'tenant-role-owner'`,
+      );
+      const tenantId = rows[0]?.id ?? '';
+      // role 'owner' không nằm trong ('admin','member','viewer') → CHECK từ chối.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES ($1, 'sub-owner-probe', 'owner')`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/tenant_members_role_check|violates check constraint/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
 });

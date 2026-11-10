@@ -97,6 +97,33 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const tenants = await queryTenant(db);
     expect(tenants).toHaveLength(1);
     expect(tenants[0]?.status).toBe('active');
+    // Owner đã được ghi vào tenant row và bootstrap KHÔNG tạo membership.
+    const ownerSub = await (async () => {
+      const counter = await db.connect();
+      try {
+        const { rows } = await counter.query<{ owner_sub: string }>(
+          `SELECT owner_sub FROM pact.tenants WHERE id = $1`,
+          [tenants[0]?.id ?? ''],
+        );
+        return rows[0]?.owner_sub ?? null;
+      } finally {
+        await counter.end();
+      }
+    })();
+    expect(ownerSub).toBe('sub-owner-bootstrap');
+    const memberCount = await (async () => {
+      const counter = await db.connect();
+      try {
+        const { rows } = await counter.query<{ c: string }>(
+          `SELECT count(*)::text AS c FROM pact.tenant_members WHERE tenant_id = $1`,
+          [tenants[0]?.id ?? ''],
+        );
+        return rows[0]?.c ?? '0';
+      } finally {
+        await counter.end();
+      }
+    })();
+    expect(memberCount).toBe('0');
     // Tenant bootstrap xong PHAI rỗng: không membership, không machine token
     // (P3.2 lo membership; script này không seed gì ngoài tenant + audit).
     const counts = await (async () => {
@@ -151,6 +178,49 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
       bootstrap: 'already_existed',
       tenant: INTERNAL_TENANT_NAME,
     });
+  });
+
+  it('never overwrites owner_sub when a second bootstrap passes a different owner', async () => {
+    await db.truncateData();
+
+    let first: Awaited<ReturnType<typeof bootstrapInternalTenant>>;
+    const firstClient = await db.asRuntime();
+    try {
+      await firstClient.query('BEGIN');
+      first = await bootstrapInternalTenant(firstClient, 'sub-owner-bootstrap');
+      await firstClient.query('COMMIT');
+      expect(first.alreadyExisted).toBe(false);
+    } finally {
+      await firstClient.end();
+    }
+
+    const secondClient = await db.asRuntime();
+    try {
+      await secondClient.query('BEGIN');
+      const second = await bootstrapInternalTenant(secondClient, 'sub-owner-second');
+      await secondClient.query('COMMIT');
+      expect(second.alreadyExisted).toBe(true);
+      expect(second.tenantId).toBe(first.tenantId);
+    } finally {
+      await secondClient.end();
+    }
+
+    const counter = await db.connect();
+    try {
+      const { rows } = await counter.query<{ owner_sub: string; id: string }>(
+        `SELECT owner_sub, id FROM pact.tenants WHERE name = $1`,
+        [INTERNAL_TENANT_NAME],
+      );
+      // owner_sub giữ nguyên giá trị lần đầu: bootstrap không ghi đè owner.
+      expect(rows[0]?.owner_sub).toBe('sub-owner-bootstrap');
+      const { rows: memberRows } = await counter.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM pact.tenant_members WHERE tenant_id = $1`,
+        [rows[0]?.id ?? ''],
+      );
+      expect(memberRows[0]?.c).toBe('0');
+    } finally {
+      await counter.end();
+    }
   });
 
   it('converges when two connections bootstrap concurrently', async () => {

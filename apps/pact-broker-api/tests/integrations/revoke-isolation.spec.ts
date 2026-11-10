@@ -110,6 +110,13 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
     expect(await getSyncRevision()).toBe(2);
     // Effective revoke: entitlement_revoked_at IS NOT NULL ⇒ getMemberRole trả null (row vẫn còn).
     expect(await getMembershipRole()).toBeNull(); // Revoke có hiệu lực
+
+    // Revoke KHÔNG chạm owner: owner_sub trên tenant row giữ nguyên.
+    const { rows: ownerRows } = await pool.query<{ owner_sub: string }>(
+      `SELECT owner_sub FROM pact.tenants WHERE id = $1`,
+      [tenantId],
+    );
+    expect(ownerRows[0]?.owner_sub).toBe('sub-owner-internal');
   });
 
   it('entitlement.revoked trước granted → membership vẫn được tạo khi granted sau (P3.3)', async () => {
