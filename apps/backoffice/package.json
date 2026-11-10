@@ -10,7 +10,7 @@
     "@ecoma-io/staff-access-contracts": "workspace:*",
     "@ecoma-io/ui-app-shell": "workspace:*",
     "@ecoma-io/ui-ecoma-logo": "workspace:*",
-    "jose": "6.2.16"
+    "jose": "6.2.17"
   },
   "devDependencies": {
     "@nuxtjs/i18n": "10.6.0",
