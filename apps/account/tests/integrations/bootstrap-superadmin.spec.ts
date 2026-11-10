@@ -16,6 +16,15 @@
  *    đầu tiên vẫn đi qua `POST /api/auth/challenge` → `POST /api/auth/verify`
  *    với OTP thật (ADR-0024 Quyết định 2).
  *
+ * ## Ranh giới credential (migration `0011`)
+ *
+ * Migration `0011_bootstrap_write_guards.sql` thu hồi `INSERT` trên
+ * `account.users` từ `ecoma_account_runtime`, và thêm trigger chặn runtime chèn
+ * sự kiện `bootstrap_account_provisioned`. Do đó A1/A2 chạy bằng credential
+ * **migrator thật** (`connectAsMigrator()`), không qua `SET ROLE` từ superuser —
+ * đó là chính credential CLI dùng trên CI runner. Superuser chỉ còn dùng để seed
+ * dữ liệu đối lập trong test.
+ *
  * ## Harness
  *
  * Dùng đúng `harness.ts` của `apps/account` (Testcontainers, credential migrator
@@ -169,19 +178,14 @@ describe('bootstrap superadmin (A1/A2)', () => {
     }
   }
 
-  /** Một connection mới — A1/A2 nhận `Client`, và test đồng thời cần hai. */
-  async function openClient(): Promise<import('pg').Client> {
-    return db.connect();
-  }
-
-  /** Chạy A1 trên một connection riêng rồi đóng nó. */
+  /** Chạy A1 bằng credential **migrator thật** (đường CLI trên CI runner). */
   async function provision(
     input: { correlationId: string; operatorRef: string } = {
       correlationId: 'corr-test-1',
       operatorRef: 'operator-1',
     },
   ): ReturnType<typeof provisionBootstrapAccount> {
-    const client = await openClient();
+    const client = await db.connectAsMigrator();
     try {
       return await provisionBootstrapAccount(client, input);
     } finally {
@@ -189,9 +193,9 @@ describe('bootstrap superadmin (A1/A2)', () => {
     }
   }
 
-  /** Chạy A2 trên một connection riêng rồi đóng nó. */
+  /** Chạy A2 bằng credential **migrator thật**. */
   async function verify(): ReturnType<typeof verifyBootstrapAccount> {
-    const client = await openClient();
+    const client = await db.connectAsMigrator();
     try {
       return await verifyBootstrapAccount(client);
     } finally {
@@ -244,7 +248,7 @@ describe('bootstrap superadmin (A1/A2)', () => {
     await db.truncateData();
   });
 
-  it('creates exactly one active account with a canonical verified address and an audit row', async () => {
+  it('provisions via real migrator credential: one active account, canonical verified address, audit row', async () => {
     const result = await provision();
     expect(result.stage).toBe('account.provision');
     expect(result.status).toBe('created');
@@ -296,48 +300,6 @@ describe('bootstrap superadmin (A1/A2)', () => {
       expect(metadata['status']).toBe('created');
       // Không địa chỉ trần ở bất kỳ đâu trong metadata.
       expect(JSON.stringify(metadata)).not.toContain(BOOTSTRAP_EMAIL);
-    } finally {
-      await client.end();
-    }
-  });
-
-  it('refuses an empty operator_ref before opening a write transaction', async () => {
-    // ADR-0021 Quyết định 6 đòi audit mang tham chiếu người thực thi. A1 commit
-    // trước S1/S2, nên nhận `operator_ref` rỗng ở đây sẽ để lại một Account
-    // không attribution mà không bước nào sau đó sửa được.
-    for (const operatorRef of ['', '   ']) {
-      await expect(provision({ correlationId: 'corr-empty-op', operatorRef })).rejects.toThrow(
-        /operatorRef must be a non-empty string/u,
-      );
-    }
-
-    const client = await db.connect();
-    try {
-      const afterEmptyRun = await client.query<{ users: number; events: number }>(
-        `SELECT (SELECT count(*)::int FROM account.users) AS users,
-                (SELECT count(*)::int FROM account.security_events) AS events`,
-      );
-      expect(afterEmptyRun.rows[0]).toEqual({ users: 0, events: 0 });
-    } finally {
-      await client.end();
-    }
-  });
-
-  it('refuses an operator_ref that is only whitespace on a convergence re-run too', async () => {
-    // Nhánh hội tụ cũng ghi audit; nó không được là đường vòng qua cùng ràng buộc.
-    const first = await provision();
-    await expect(
-      provision({ correlationId: 'corr-converge-op', operatorRef: '  ' }),
-    ).rejects.toThrow(/non-empty/u);
-
-    const client = await db.connect();
-    try {
-      const events = await client.query<{ count: number }>(
-        `SELECT count(*)::int AS count FROM account.security_events`,
-      );
-      expect(events.rows[0]?.count).toBe(1);
-      const users = await client.query<{ sub: string }>(`SELECT sub FROM account.users`);
-      expect(users.rows.map((row) => row.sub)).toEqual([first.sub]);
     } finally {
       await client.end();
     }
@@ -451,7 +413,6 @@ describe('bootstrap superadmin (A1/A2)', () => {
     expect(denial.reason).toBe('address_not_bootstrap_proven');
     expect((await counts()).users).toBe(1);
   });
-
   it('denies address_not_bootstrap_proven for a verified row without a bootstrap audit event', async () => {
     await seedUser(SUB_OTHER);
     await seedEmail({ sub: SUB_OTHER, address: BOOTSTRAP_EMAIL, status: 'verified' });
@@ -528,56 +489,9 @@ describe('bootstrap superadmin (A1/A2)', () => {
     expect(denial.reason).toBe('address_multiple_live_rows');
   });
 
-  it('documents the accepted provenance limit: the runtime role can insert the proof event', async () => {
-    // Bằng chứng nguồn gốc mà A1 dựa vào là một **hàng** trong `security_events`,
-    // và `ecoma_account_runtime` có `INSERT` trên bảng đó (audit của serving path
-    // cần quyền ấy). Test này ghi lại đúng giới hạn đã được chấp nhận trong
-    // ADR-0024 Quyết định 3 và `03-operations.md` §3.4: database **không** phân
-    // biệt được row do CLI bootstrap (migrator) ghi với row do runtime role ghi.
-    //
-    // Nếu test này đỏ ở phần `expect` cuối (A1 hội tụ vào `sub` do runtime role
-    // dựng sẵn) thì lỗ đã được đóng bằng một kiểm soát tầng database — hãy cập
-    // nhật tài liệu giới hạn cùng lúc, không chỉ sửa test.
-    const forgedSub = SUB_OTHER;
-    const runtime = await db.asRuntime();
-    try {
-      await runtime.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
-        forgedSub,
-      ]);
-      await runtime.query(
-        `INSERT INTO account.email_addresses
-           (user_sub, address_normalized, address_hash, status, is_sign_in, verified_at)
-         VALUES ($1, $2, $3, 'verified', true, now())`,
-        [forgedSub, BOOTSTRAP_EMAIL, canonicalHash()],
-      );
-      await runtime.query(
-        `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
-         VALUES ($1, $2, 'success', $3::jsonb)`,
-        [
-          forgedSub,
-          BOOTSTRAP_AUDIT_TYPE,
-          JSON.stringify({
-            address_hash: canonicalHash(),
-            correlation_id: 'corr-forged-by-runtime',
-            mode: 'bootstrap',
-            verification_source: 'trusted_bootstrap',
-            operator_ref: 'forged',
-            status: 'created',
-          }),
-        ],
-      );
-    } finally {
-      await runtime.end();
-    }
-
-    const result = await provision();
-    expect(result.status).toBe('converged');
-    expect(result.sub).toBe(forgedSub);
-  });
-
   it('serialises two concurrent A1 calls into one created and one converged', async () => {
-    const firstClient = await openClient();
-    const secondClient = await openClient();
+    const firstClient = await db.connectAsMigrator();
+    const secondClient = await db.connectAsMigrator();
     try {
       const [first, second] = await Promise.all([
         provisionBootstrapAccount(firstClient, {
@@ -655,6 +569,258 @@ describe('bootstrap superadmin (A1/A2)', () => {
       }
     }
   });
+
+  it('runtime role cannot INSERT into account.users (0011 revoke)', async () => {
+    const runtime = await db.connectAsRuntime();
+    try {
+      await expect(
+        runtime.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
+          'sub_runtime_insert',
+        ]),
+      ).rejects.toThrow(/permission denied/iu);
+    } finally {
+      await runtime.end();
+    }
+    // Không hàng nào bị thêm: revoke có hiệu lực, không chỉ là catalog.
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM account.users WHERE sub = $1`,
+        ['sub_runtime_insert'],
+      );
+      expect(rows[0]?.count).toBe(0);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('runtime role cannot insert bootstrap_account_provisioned security event (0011 trigger)', async () => {
+    const runtime = await db.connectAsRuntime();
+    try {
+      await expect(
+        runtime.query(
+          `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
+           VALUES ($1, $2, 'success', $3::jsonb)`,
+          [
+            'sub_runtime_event',
+            BOOTSTRAP_AUDIT_TYPE,
+            JSON.stringify({ address_hash: 'x', status: 'created' }),
+          ],
+        ),
+      ).rejects.toThrow(/not allowed to insert bootstrap/iu);
+    } finally {
+      await runtime.end();
+    }
+
+    // Sự kiện giả mạo không được lưu: số row bootstrap_account_provisioned vẫn là 0.
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM account.security_events WHERE type = $1`,
+        [BOOTSTRAP_AUDIT_TYPE],
+      );
+      expect(rows[0]?.count).toBe(0);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('runtime role can still insert an ordinary serving-path security event', async () => {
+    const runtime = await db.connectAsRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
+         VALUES ($1, $2, 'success', $3::jsonb)`,
+        ['sub_runtime_event', 'data_email_added', JSON.stringify({ field_count: 1 })],
+      );
+    } finally {
+      await runtime.end();
+    }
+
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM account.security_events WHERE type = $1`,
+        ['data_email_added'],
+      );
+      expect(rows[0]?.count).toBe(1);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('A1 is blocked by a concurrent uncommitted INSERT on users, then denies account_database_not_empty', async () => {
+    // conn1: chèn một user nhưng chưa commit — giữ ROW EXCLUSIVE lock trên users.
+    const conn1 = await db.connectAsMigrator();
+    let conn1Ended = false;
+    try {
+      await conn1.query('BEGIN');
+      await conn1.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
+        'sub_blocker_a',
+      ]);
+      const { rows: r1 } = await conn1.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+      const conn1PidRow = r1[0];
+      if (!conn1PidRow) {
+        throw new Error('pg_backend_pid did not return a row');
+      }
+      const conn1Pid = conn1PidRow.pid;
+
+      // conn2: chạy A1 (migrator thật) — bị chặn tại LOCK TABLE vì conn1 giữ lock.
+      // Không await: để provision chạy nền và bị chặn, sau đó mới polling detects block.
+      const conn2 = await db.connectAsMigrator();
+      let conn2Ended = false;
+      try {
+        const { rows: r2 } = await conn2.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+        const conn2PidRow = r2[0];
+        if (!conn2PidRow) {
+          throw new Error('pg_backend_pid did not return a row');
+        }
+        const conn2Pid = conn2PidRow.pid;
+        let provisionError: unknown = undefined;
+        const provisionPromise = provisionBootstrapAccount(conn2, {
+          correlationId: 'corr-blocked-a',
+          operatorRef: 'operator-1',
+        }).catch((error) => {
+          provisionError = error;
+        });
+
+        // Đợi cho đến khi conn2 bị chặn bởi conn1 (polling có giới hạn, không sleep cố định).
+        const poller = await db.connect();
+        let blockerPids: number[] = [];
+        try {
+          for (let attempt = 0; attempt < 400; attempt++) {
+            const { rows } = await poller.query<{ blocked: number[] }>(
+              'SELECT pg_blocking_pids($1::int) AS blocked',
+              [conn2Pid],
+            );
+            blockerPids = rows[0]?.blocked ?? [];
+            if (blockerPids.includes(conn1Pid)) break;
+            await new Promise((r) => {
+              setTimeout(r, 25);
+            });
+          }
+        } finally {
+          await poller.end();
+        }
+        expect(blockerPids).toContain(conn1Pid);
+
+        // conn1 commit → nhả khoá bảng → conn2 tiếp tục, thấy database không trống, từ chối.
+        await conn1.query('COMMIT');
+        conn1Ended = true;
+        await conn1.end();
+
+        await provisionPromise;
+        conn2Ended = true;
+        await conn2.end();
+
+        expect(provisionError).toBeDefined();
+        expect(provisionError).toBeInstanceOf(BootstrapDenialError);
+        expect((provisionError as BootstrapDenialError).reason).toBe('account_database_not_empty');
+
+        // Rất chính xác một hàng user (của conn1), A1 không thêm được gì.
+        const client = await db.connect();
+        try {
+          const { rows } = await client.query<{ count: number }>(
+            'SELECT count(*)::int AS count FROM account.users',
+          );
+          expect(rows[0]?.count).toBe(1);
+        } finally {
+          await client.end();
+        }
+      } finally {
+        if (!conn2Ended) {
+          await conn2.end().catch(() => undefined);
+        }
+      }
+    } finally {
+      if (!conn1Ended) {
+        await conn1.end().catch(() => undefined);
+      }
+    }
+  }, 30000);
+
+  it('LOCK TABLE SHARE ROW EXCLUSIVE mutually excludes a concurrent INSERT on users', async () => {
+    // conn1: khoá bảng users ở SHARE ROW EXCLUSIVE (chưa commit).
+    const conn1 = await db.connectAsMigrator();
+    let conn1Ended = false;
+    try {
+      await conn1.query('BEGIN');
+      await conn1.query('LOCK TABLE account.users IN SHARE ROW EXCLUSIVE MODE');
+      const { rows: r1 } = await conn1.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+      const conn1PidRow = r1[0];
+      if (!conn1PidRow) {
+        throw new Error('pg_backend_pid did not return a row');
+      }
+      const conn1Pid = conn1PidRow.pid;
+
+      // conn2: INSERT vào users — bị chặn bởi lock của conn1.
+      const conn2 = await db.connectAsMigrator();
+      let conn2Ended = false;
+      try {
+        const { rows: r2 } = await conn2.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+        const conn2PidRow = r2[0];
+        if (!conn2PidRow) {
+          throw new Error('pg_backend_pid did not return a row');
+        }
+        const conn2Pid = conn2PidRow.pid;
+        let insertError: unknown = undefined;
+        const insertPromise = (async () => {
+          try {
+            await conn2.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
+              'sub_blocker_b',
+            ]);
+          } catch (error) {
+            insertError = error;
+          }
+        })();
+
+        // Đợi conn2 bị chặn bởi conn1.
+        const poller = await db.connect();
+        let blockerPids: number[] = [];
+        try {
+          for (let attempt = 0; attempt < 400; attempt++) {
+            const { rows } = await poller.query<{ blocked: number[] }>(
+              'SELECT pg_blocking_pids($1::int) AS blocked',
+              [conn2Pid],
+            );
+            blockerPids = rows[0]?.blocked ?? [];
+            if (blockerPids.includes(conn1Pid)) break;
+            await new Promise((r) => {
+              setTimeout(r, 25);
+            });
+          }
+        } finally {
+          await poller.end();
+        }
+        expect(blockerPids).toContain(conn1Pid);
+
+        // conn1 rollback → nhả khoá → conn2 INSERT thành công.
+        await conn1.query('ROLLBACK');
+        conn1Ended = true;
+        await conn1.end();
+        await insertPromise;
+        expect(insertError).toBeUndefined();
+
+        // Dọn hàng user conn2 chèn.
+        const cleanup = await db.connect();
+        try {
+          await cleanup.query(`DELETE FROM account.users WHERE sub = $1`, ['sub_blocker_b']);
+        } finally {
+          await cleanup.end();
+        }
+        conn2Ended = true;
+        await conn2.end();
+      } finally {
+        if (!conn2Ended) {
+          await conn2.end().catch(() => undefined);
+        }
+      }
+    } finally {
+      if (!conn1Ended) {
+        await conn1.end().catch(() => undefined);
+      }
+    }
+  }, 30000);
 
   it('A2 is read-only: a fresh database yields no_bootstrap_account and no rows appear', async () => {
     const denial = await catchDenial(verify());

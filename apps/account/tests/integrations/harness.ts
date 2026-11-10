@@ -61,6 +61,12 @@ export interface AccountDatabase {
    */
   connectAsRuntime(): Promise<Client>;
   /**
+   * Mở một client mới bằng **credential thật** của migrator role (không
+   * `SET ROLE`) — chính credential CLI `db/bootstrap.mts` dùng trên CI runner,
+   * và migration `0011` giả định là principal được ghi provenance bootstrap.
+   */
+  connectAsMigrator(): Promise<Client>;
+  /**
    * `pg.Pool` bằng credential thật của runtime role — đúng kiểu mà
    * `server/utils/db.ts` nhận (`selectAccountStatus`, `recordNonce`). Caller
    * tự `end()` pool sau khi dùng.
@@ -381,6 +387,12 @@ export async function startAccountDatabase(): Promise<AccountDatabase> {
       connectAsRuntime: () =>
         open({
           user: 'ecoma_account_runtime',
+          password: ROLE_PASSWORD,
+          database: ACCOUNT_DATABASE,
+        }),
+      connectAsMigrator: () =>
+        open({
+          user: 'ecoma_account_migrator',
           password: ROLE_PASSWORD,
           database: ACCOUNT_DATABASE,
         }),

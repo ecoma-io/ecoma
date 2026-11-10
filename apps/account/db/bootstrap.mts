@@ -22,9 +22,16 @@
  * `BEGIN` → `SET TRANSACTION ISOLATION LEVEL READ COMMITTED` → advisory xact lock
  * trên một khoá **hằng** (`BOOTSTRAP_LOCK_KEY`, không phải khoá theo `address_hash`:
  * chỉ có một địa chỉ canonical nên một khoá toàn cục là đủ và không phụ thuộc dữ
- * liệu đầu vào) → enumerate → quyết định → ghi audit trong **cùng** transaction →
- * `COMMIT`. Mọi nhánh từ chối `ROLLBACK` rồi ném {@link BootstrapDenialError} mang
- * mã lý do ổn định.
+ * liệu đầu vào) → `LOCK TABLE account.users IN SHARE ROW EXCLUSIVE MODE` → enumerate
+ * → quyết định → ghi audit trong **cùng** transaction → `COMMIT`. Mọi nhánh từ chối
+ * `ROLLBACK` rồi ném {@link BootstrapDenialError} mang mã lý do ổn định.
+ *
+ * Khoá advisory xact tuần tự hoá bootstrap-vs-bootstrap. Khoá bảng `account.users`
+ * ở chế độ SHARE ROW EXCLUSIVE thêm về phía đó: nó tuần tự hoá A1 với **mọi**
+ * transaction khác đang chèn vào `account.users` (mỗi INSERT lấy ROW EXCLUSIVE,
+ * và SHARE ROW EXCLUSIVE bằng hợp với ROW EXCLUSIVE). Điều này đóng cửa sổ READ
+ * COMMITTED mà một tác đồng thời có thể commit một user giữa lúc A1 kiểm "trống"
+ * và lúc A1 chèn. Giữ `READ COMMITTED`.
  *
  * ## Không bao giờ suy quyền từ địa chỉ một mình
  *
@@ -35,6 +42,17 @@
  * cùng `subject_sub` với `metadata.address_hash` khớp (ADR-0021 Quyết định 2,
  * ADR-0024 Quyết định 4). Row audit `status = 'converged'` là dấu vết của lần xác
  * nhận lại, không phải bằng chứng nguồn gốc — xem {@link countCreationProofEvents}.
+ *
+ * ## Chống gian lận provenance ở tầng database (migration `0011`)
+ *
+ * Migration `0011_bootstrap_write_guards.sql` thu hồi `INSERT` trên
+ * `account.users` từ `ecoma_account_runtime` (runtime vẫn giữ `SELECT`/`UPDATE`),
+ * và thêm trigger `account.security_events_reserve_bootstrap_type()` chặn
+ * `ecoma_account_runtime` chèn sự kiện loại `bootstrap_account_provisioned`.
+ * Vì vậy runtime không thể tạo user, và không thể nói ra một bằng chứng provenance
+ * bootstrap giả mạo. Chỉ credential migrator/owner (đường CLI này) vẫn được ghi
+ * hợp pháp cả hai. Trigger dùng `current_user` (principal thực thi), không đọc
+ * metadata do caller cung cấp, và không phải SECURITY DEFINER.
  *
  * ## Không log địa chỉ, không log hash
  *
@@ -267,33 +285,27 @@ async function countOtherVerifiedAddresses(
 /**
  * Số bootstrap audit event **chứng minh lần tạo** của hàng email.
  *
- * ⚠️ Lọc `metadata->>'status' = 'created'` là điều kiện để hai yêu cầu của
+ * Bộ kiểm chứng của bằng chứng nguồn gốc bây giờ gồm hai lớp, cả hai đều nằm ở
+ * tầng database:
+ *
+ *  * Migration `0011` thu hồi `INSERT` trên `account.users` từ
+ *    `ecoma_account_runtime`, nên runtime không thể tạo user để mạo danh chủ sở
+ *    hữu địa chỉ canonical.
+ *  * Trigger `account.security_events_reserve_bootstrap_type()` (migration `0011`)
+ *    chặn runtime chèn sự kiện loại `bootstrap_account_provisioned` — chỉ
+ *    migrator/owner mới được ghi provenance này.
+ *
+ * Vì vậy một hàng `verified` trùng địa chỉ mà không có audit event `created`
+ * thuộc về migrator/owner là bằng chứng đường khác đã tạo ra địa chỉ, và A1
+ * fail-closed thay vì "đoán chủ".
+ *
+ * Lọc `metadata->>'status' = 'created'` là điều kiện để hai yêu cầu của
  * ADR-0024 cùng đúng: (a) nhánh hội tụ đòi **đúng một** bootstrap audit event
  * chứng minh nguồn gốc, và (b) hội tụ vẫn ghi audit row của chính nó
  * (`status = 'converged'`). Nếu đếm mọi `type = 'bootstrap_account_provisioned'`
  * thì lần chạy thứ ba — và A2 sau một lần chạy lại — sẽ thấy hai row và từ chối
  * một trạng thái hoàn toàn hợp lệ. Row `created` là bằng chứng "Account này do
  * bootstrap tạo"; row `converged` chỉ là dấu vết của một lần xác nhận lại.
- *
- * ⚠️ **Giới hạn của bằng chứng này (accepted threat model, ADR-0024 Quyết định
- * 3).** `ecoma_account_runtime` có `INSERT` trên `security_events` — nó cần cho
- * audit của serving path — nên nó *có thể* ghi một row `status = 'created'`.
- * Database không phân biệt được row do CLI bootstrap (credential migrator) ghi
- * với row do runtime role ghi: bảng không có cột nguồn ghi và không có trigger
- * chặn theo `type`. Hệ quả chính xác: một người đã chiếm được credential runtime
- * của `account` **trước** lần bootstrap đầu tiên có thể dựng sẵn `users` +
- * `email_addresses` `verified` + row audit này, và một lần bootstrap do người
- * vận hành chạy sau đó sẽ hội tụ vào `sub` do họ chọn. Đó là leo thang từ
- * credential của `account` sang administrator của `staff-access`, nên nó không
- * được bỏ qua khi đọc kết quả.
- *
- * Không có đường nào trong phạm vi Issue #17 đóng được lỗ này mà không thêm một
- * kiểm soát ở tầng database (trigger chặn `type` này cho runtime role, hoặc thu
- * hẹp grant) — một thay đổi làm ADR-0024 Quyết định 3 không còn đúng nguyên văn.
- * Kiểm soát bù hiện tại: custody credential `account` (runtime role chỉ sống
- * trong Worker, không phải credential người vận hành), và sau một lần bootstrap
- * thành công thì `admins_ever > 0` làm nhánh hội tụ không còn đi tới được. Đây
- * là **giả định tin cậy đã ghi nhận**, không phải một bảo đảm của code.
  */
 async function countCreationProofEvents(
   client: Client,
@@ -432,6 +444,10 @@ export async function provisionBootstrapAccount(
   try {
     await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [BOOTSTRAP_LOCK_KEY]);
+    // Khoá bảng thêm về phía advisory lock: tuần tự hoá A1 với mọi transaction khác
+    // đang chèn vào `account.users` (ROW EXCLUSIVE), đóng cửa sổ READ COMMITTED
+    // giữa kiểm "trống" và chèn.
+    await client.query('LOCK TABLE account.users IN SHARE ROW EXCLUSIVE MODE');
 
     const rows = await readAddressRows(client, addressHash);
     if (rows.some((row) => row.status === 'revoked')) {
