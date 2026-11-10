@@ -17,8 +17,11 @@ Produce five things:
 2. The owning knowledge view and its canonical location.
 3. The constraints that apply, each with a source.
 4. The Issue Type, chosen by the nature of the change — plus the unknown list.
-5. The work's context, when applicable: the product, its horizon, the
-   authoritative baseline, and the Change Specifications in force.
+5. The work's context, when applicable: the product attribution (one
+   product, one shared context, or the participating products of a
+   cross-product root issue), any committed `Horizon:` declarations
+   pointing at that product, the authoritative baseline, and the Change
+   Specifications in force.
 
 ## Canonical references
 
