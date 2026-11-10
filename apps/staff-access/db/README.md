@@ -184,7 +184,7 @@ echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
   | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-provision
 echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
   | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-assign
-echo '{"correlation_id":"…"}' \
+echo '{"correlation_id":"…","sub":"sub_…"}' \
   | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-verify
 ```
 
@@ -193,8 +193,12 @@ echo '{"correlation_id":"…"}' \
 - Từ chối: exit 1 và một dòng JSON `{"stage":…,"status":"denied","reason":…}` trên
   stderr; audit `denied` được commit trong transaction riêng sau khi transaction guard
   đã rollback, mang số đo nếu phép đo đã chạy.
-- `staff-verify` chỉ đọc. `correlation_id` tuỳ chọn ở tầng hàm; khi có, nó kiểm thêm
-  audit row của S1/S2 cho đúng lần chạy đó.
+- `operator_ref` bắt buộc với S1/S2 (`operator_ref_missing` khi thiếu) — audit phải có
+  tham chiếu người thực thi, và procedure không được tạo assignment không attribution.
+- `staff-verify` chỉ đọc và **bắt buộc `sub`** (`sub_missing` / `invalid_sub`): staff
+  được kiểm là staff của đúng Account, không phải "hàng staff duy nhất trong database".
+  `correlation_id` tuỳ chọn ở tầng hàm; khi có, nó kiểm thêm audit row của S1/S2 cho
+  đúng lần chạy đó.
 
 ## Cấu trúc thư mục
 

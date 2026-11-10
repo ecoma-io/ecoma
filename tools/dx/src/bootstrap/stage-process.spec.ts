@@ -104,6 +104,48 @@ describe('createSpawnStageRunner', () => {
     expect(staffEnv[ACCOUNT_DATABASE_URL_ENV]).toBeUndefined();
   });
 
+  it('passes only the runtime allowlist, never the rest of the orchestrator environment', () => {
+    // Env của người vận hành có thể mang token CI, credential của dịch vụ khác
+    // hay biến của shell tương tác. Chỉ allowlist tối thiểu của `npx`/`tsx` và
+    // đúng `DATABASE_URL` của service được đi qua.
+    const calls: SpawnArgs[] = [];
+    const runner = createSpawnStageRunner({
+      env: {
+        [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account',
+        PATH: '/usr/local/bin:/usr/bin',
+        HOME: '/home/operator',
+        NODE_OPTIONS: '--max-old-space-size=512',
+        npm_config_registry: 'https://registry.example.test',
+        GITHUB_TOKEN: 'ghs_secret_token',
+        CLOUDFLARE_API_TOKEN: 'cf_secret_token',
+        AWS_SECRET_ACCESS_KEY: 'aws_secret',
+        SOME_FUTURE_SECRET: 'future_secret',
+      },
+      spawn: ((...args: SpawnArgs) => {
+        calls.push(args);
+        return fakeRun('{"stage":"account.provision","status":"created"}\n');
+      }) as unknown as typeof spawnSync,
+    });
+
+    runner({ service: 'account', action: 'provision', input: {} });
+
+    const firstCall = calls[0] as SpawnArgs;
+    const env = (firstCall[2] as { env: NodeJS.ProcessEnv }).env;
+    expect(env['PATH']).toBe('/usr/local/bin:/usr/bin');
+    expect(env['HOME']).toBe('/home/operator');
+    expect(env['NODE_OPTIONS']).toBe('--max-old-space-size=512');
+    expect(env['npm_config_registry']).toBe('https://registry.example.test');
+    expect(env['DATABASE_URL']).toBe('postgresql://a@host/db-account');
+    for (const leaked of ['ghs_secret_token', 'cf_secret_token', 'aws_secret', 'future_secret']) {
+      expect(Object.values(env)).not.toContain(leaked);
+    }
+    expect(env['GITHUB_TOKEN']).toBeUndefined();
+    expect(env['SOME_FUTURE_SECRET']).toBeUndefined();
+    // `NODE_OPTIONS` được phép, nhưng một biến `ECOMA_*` không nằm trong
+    // allowlist thì không.
+    expect(env[STAFF_ACCESS_DATABASE_URL_ENV]).toBeUndefined();
+  });
+
   it('returns the parsed payload and separates the stage/status envelope', () => {
     const { run } = withSpawn(
       fakeRun('{"stage":"account.verify","status":"verified","sub":"sub_x"}\n'),

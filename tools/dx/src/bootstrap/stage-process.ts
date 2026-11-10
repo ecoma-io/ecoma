@@ -46,24 +46,71 @@ const SERVICE_ROOT: Readonly<Record<BootstrapStageRequest['service'], string>> =
 export const ACCOUNT_DATABASE_URL_ENV = 'ECOMA_ACCOUNT_DATABASE_URL';
 export const STAFF_ACCESS_DATABASE_URL_ENV = 'ECOMA_STAFF_ACCESS_DATABASE_URL';
 
-/** Env được truyền cho tiến trình con — `DATABASE_URL` của đúng service. */
+/**
+ * Env **tối thiểu** để `npx tsx` khởi động được, lấy nguyên giá trị từ env của
+ * orchestrator. Đây là allowlist, không phải denylist: biến không nằm trong danh
+ * sách này không bao giờ tới tiến trình con.
+ *
+ * Vì sao allowlist: env của người vận hành có thể chứa credential của dịch vụ
+ * khác, token CI, hay biến của một shell tương tác. Sao chép toàn bộ env rồi bỏ
+ * hai tên credential đã biết là một danh sách chặn — mọi secret khác vẫn đi qua,
+ * và một biến mới xuất hiện sau này cũng mặc định đi qua. Chỉ những gì `node`,
+ * `npx` và `tsx` thật sự cần mới được chuyển.
+ *
+ * `PATH`/`HOME`/`TMPDIR` cần cho việc tìm binary, cache và thư mục tạm của npm.
+ * `NODE_OPTIONS`, `NODE_EXTRA_CA_CERTS`, `NODE_NO_WARNINGS` và `FORCE_COLOR`
+ * điều khiển runtime Node; `npm_config_*` và `NPM_CONFIG_*` điều khiển `npx`.
+ */
+const INHERITED_ENV_PREFIXES = ['npm_config_', 'NPM_CONFIG_'] as const;
+
+const INHERITED_ENV_KEYS = [
+  'PATH',
+  'HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'LANG',
+  'LC_ALL',
+  'NODE_OPTIONS',
+  'NODE_EXTRA_CA_CERTS',
+  'NODE_NO_WARNINGS',
+  'FORCE_COLOR',
+  'NO_COLOR',
+  'CI',
+] as const;
+
+/** Tên credential — chỉ được xuất hiện dưới dạng `DATABASE_URL` của đúng service. */
+const CREDENTIAL_ENV_KEYS: ReadonlySet<string> = new Set([
+  ACCOUNT_DATABASE_URL_ENV,
+  STAFF_ACCESS_DATABASE_URL_ENV,
+]);
+
+/**
+ * Env của tiến trình con: allowlist tối thiểu + `DATABASE_URL` của đúng service.
+ *
+ * Không bao giờ chuyển cả hai credential: một tiến trình `account` cầm được
+ * chuỗi kết nối `db-staff-access` là vượt ranh giới sở hữu dữ liệu, kể cả khi nó
+ * không dùng tới.
+ */
 function stageEnv(
   service: BootstrapStageRequest['service'],
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
-  const source = service === 'account' ? ACCOUNT_DATABASE_URL_ENV : STAFF_ACCESS_DATABASE_URL_ENV;
-
-  // Bỏ **cả hai** biến credential của orchestrator khỏi env của con: một tiến
-  // trình `account` không có lý do gì đọc được chuỗi kết nối `db-staff-access`
-  // (và ngược lại). Chỉ chuỗi của chính service đi vào dưới tên `DATABASE_URL`.
-  const orchestratorKeys = new Set<string>([
-    ACCOUNT_DATABASE_URL_ENV,
-    STAFF_ACCESS_DATABASE_URL_ENV,
-  ]);
   const childEnv: NodeJS.ProcessEnv = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (!orchestratorKeys.has(key)) childEnv[key] = value;
+
+  for (const key of INHERITED_ENV_KEYS) {
+    const value = env[key];
+    if (value !== undefined && !CREDENTIAL_ENV_KEYS.has(key)) childEnv[key] = value;
   }
+  for (const [key, value] of Object.entries(env)) {
+    if (CREDENTIAL_ENV_KEYS.has(key)) continue;
+    if (!INHERITED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+    childEnv[key] = value;
+  }
+
+  const source = service === 'account' ? ACCOUNT_DATABASE_URL_ENV : STAFF_ACCESS_DATABASE_URL_ENV;
+  // Chỉ `DATABASE_URL` của **chính** service. Rỗng nghĩa là chưa cấu hình; CLI
+  // sẽ từ chối bằng `DATABASE_URL is not set` thay vì đoán một database mặc định.
   childEnv['DATABASE_URL'] = env[source] ?? '';
 
   return childEnv;

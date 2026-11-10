@@ -39,7 +39,7 @@ export default defineCommand({
     'operator-ref': {
       type: 'string',
       description:
-        'Self-declared attribution of the operator (change/ticket id) recorded in audit; not a verified identity',
+        'Required self-declared attribution of the operator (change/ticket id) recorded in audit; not a verified identity',
       required: false,
     },
   },

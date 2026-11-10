@@ -40,6 +40,8 @@ Xác nhận đang nhắm đúng môi trường đích, không phải máy cá nh
 
 Entry point là một repo script trong `tools/` (ADR-0020 Quyết định 12), chạy bằng `pnpm dx bootstrap-superadmin`: nó không giữ credential nào, không ghi database nào, và gọi CLI bootstrap của từng service như tiến trình con theo thứ tự dưới đây. Hai chuỗi kết nối đi qua env `ECOMA_ACCOUNT_DATABASE_URL` và `ECOMA_STAFF_ACCESS_DATABASE_URL`; mỗi service chỉ nhận chuỗi của database mình sở hữu. Correlation id dùng chung cho mọi bước và mọi audit row là `--correlation-id` (mặc định một UUID mới), người thực thi là `--operator-ref`. Không truyền cấu hình production vào lane local hoặc Preview.
 
+⚠️ **`--operator-ref` là bắt buộc và được kiểm trước khi chạm database nào.** ADR-0021 Quyết định 6 đòi audit mang tham chiếu người thực thi, và A1 đã commit trước S1/S2, nên một lần chạy thiếu `operator_ref` mà bị phát hiện ở S1 sẽ để lại Account không attribution. Vì vậy entry point từ chối trước preflight (`reason = operator_ref_missing`, không bước nào chạy), `account` cũng từ chối `operator_ref` rỗng, và giá trị phải là một định danh in được (chữ, số, `.`, `_`, `:`, `/`, `-`) vì nó đi thẳng vào audit metadata.
+
 - `bootstrap_email` là **PII**: nằm trong cấu hình của environment, đọc được bởi bất kỳ ai đọc cấu hình đó. Địa chỉ **không** được truyền qua command-line argument (lộ trong lịch sử shell và danh sách tiến trình) và không được gõ vào phiên `psql` có ghi history; nó đi qua stdin/env của tiến trình con. Bước đọc cấu hình **chuẩn hoá** địa chỉ bằng `normalizeEmailAddress` rồi tính `address_hash` — nhưng A1 vẫn nhận **địa chỉ đã chuẩn hoá**, không phải hash: chính A1 định nghĩa cách tra cứu theo `address_hash` (ADR-0021 Quyết định 2), và một hash truyền từ ngoài vào sẽ bỏ qua bước chuẩn hoá thuộc sở hữu của `account`. Kiểm cú pháp ở Bước 2 chạy trên **địa chỉ trần đã chuẩn hoá** trước khi nó được dùng, cùng chỗ đọc cấu hình.
 
 ### Bước 2 — Validate cấu hình và credential
@@ -166,6 +168,8 @@ Chạy bằng credential S, đọc trực tiếp năm câu:
 5. Audit: có row `authorization_audit` cho **mọi bước** trong lần chạy hiện tại — S1 và S2, kể cả bước hội tụ (`context.noop = true`) — với cùng `correlation_id` của lần chạy này. ⚠️ Khi S3 chạy lại **sau** một S2 đã commit (Bước 9), không có lần chạy S1/S2 nào mang `correlation_id` mới: kiểm này đối chiếu `correlation_id` của lần chạy đã tạo dữ liệu, không đòi một lần chạy mới. Đối chiếu chéo với `account.security_events` (row A1, cùng `correlation_id` trong `metadata`) **chạy bằng credential A của `account`**, không bằng credential S: câu đọc chéo database đó do người thực thi A1 thực hiện, còn bước S3 chỉ đọc `db-staff-access`.
 
 Unit chỉ được coi là hoàn tất khi **cả năm** kiểm đạt. Kiểm tra là truy vấn đọc được, không dựa vào log (ADR-0020 Quyết định 8).
+
+⚠️ **Kiểm 1 luôn neo theo `sub`, không đếm toàn bảng.** `staff-verify` của CLI nhận `sub` và từ chối `sub_missing` khi thiếu, `invalid_sub` khi sai định dạng; S3 không bao giờ chọn "hàng staff duy nhất". Một environment có staff không phải administrator từ trước là trạng thái hợp lệ — đếm toàn bảng sẽ từ chối oan một lần bootstrap đúng, hoặc xác nhận nhầm staff của người khác.
 
 ### Bước 9 — Retry an toàn sau thất bại
 

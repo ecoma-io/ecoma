@@ -148,7 +148,11 @@ export class BootstrapConfigurationError extends Error {
 export interface BootstrapAccountInput {
   /** Correlation id của procedure, ghi vào audit cùng `staff-access`. */
   readonly correlationId: string;
-  /** `operator_ref` tự khai (có thể rỗng) — không chứng minh danh tính người chạy. */
+  /**
+   * `operator_ref` tự khai — không chứng minh danh tính người chạy, nhưng **bắt
+   * buộc có giá trị**: ADR-0021 Quyết định 6 đòi audit mang một tham chiếu người
+   * thực thi, và A1 commit trước S1/S2 nên một lần ghi rỗng không sửa lại được.
+   */
   readonly operatorRef: string;
 }
 
@@ -270,6 +274,26 @@ async function countOtherVerifiedAddresses(
  * thì lần chạy thứ ba — và A2 sau một lần chạy lại — sẽ thấy hai row và từ chối
  * một trạng thái hoàn toàn hợp lệ. Row `created` là bằng chứng "Account này do
  * bootstrap tạo"; row `converged` chỉ là dấu vết của một lần xác nhận lại.
+ *
+ * ⚠️ **Giới hạn của bằng chứng này (accepted threat model, ADR-0024 Quyết định
+ * 3).** `ecoma_account_runtime` có `INSERT` trên `security_events` — nó cần cho
+ * audit của serving path — nên nó *có thể* ghi một row `status = 'created'`.
+ * Database không phân biệt được row do CLI bootstrap (credential migrator) ghi
+ * với row do runtime role ghi: bảng không có cột nguồn ghi và không có trigger
+ * chặn theo `type`. Hệ quả chính xác: một người đã chiếm được credential runtime
+ * của `account` **trước** lần bootstrap đầu tiên có thể dựng sẵn `users` +
+ * `email_addresses` `verified` + row audit này, và một lần bootstrap do người
+ * vận hành chạy sau đó sẽ hội tụ vào `sub` do họ chọn. Đó là leo thang từ
+ * credential của `account` sang administrator của `staff-access`, nên nó không
+ * được bỏ qua khi đọc kết quả.
+ *
+ * Không có đường nào trong phạm vi Issue #17 đóng được lỗ này mà không thêm một
+ * kiểm soát ở tầng database (trigger chặn `type` này cho runtime role, hoặc thu
+ * hẹp grant) — một thay đổi làm ADR-0024 Quyết định 3 không còn đúng nguyên văn.
+ * Kiểm soát bù hiện tại: custody credential `account` (runtime role chỉ sống
+ * trong Worker, không phải credential người vận hành), và sau một lần bootstrap
+ * thành công thì `admins_ever > 0` làm nhánh hội tụ không còn đi tới được. Đây
+ * là **giả định tin cậy đã ghi nhận**, không phải một bảo đảm của code.
  */
 async function countCreationProofEvents(
   client: Client,
@@ -398,8 +422,8 @@ export async function provisionBootstrapAccount(
   if (typeof input.correlationId !== 'string' || input.correlationId.length === 0) {
     throw new TypeError('bootstrap correlationId must be a non-empty string');
   }
-  if (typeof input.operatorRef !== 'string') {
-    throw new TypeError('bootstrap operatorRef must be a string');
+  if (typeof input.operatorRef !== 'string' || input.operatorRef.trim() === '') {
+    throw new TypeError('bootstrap operatorRef must be a non-empty string');
   }
 
   const addressHash = await emailAddressHash(normalizeEmailAddress(BOOTSTRAP_EMAIL));
@@ -511,8 +535,10 @@ async function readStdin(): Promise<string> {
 /**
  * Parse input A1 từ stdin JSON: `{"correlation_id":"...","operator_ref":"..."}`.
  *
- * `operator_ref` là attribution tự khai và được phép rỗng; `correlation_id` thì
- * không — nó là neo nối audit giữa hai database.
+ * Cả hai trường đều bắt buộc: `correlation_id` là neo nối audit giữa hai
+ * database, `operator_ref` là tham chiếu người thực thi mà ADR-0021 Quyết định 6
+ * đòi có trong audit. Nhận `operator_ref` rỗng ở đây sẽ tạo một Account mà audit
+ * của nó không có attribution, và A1 đã commit nên không sửa lại được.
  */
 function parseProvisionInput(raw: string): BootstrapAccountInput {
   const value: unknown = JSON.parse(raw);
@@ -524,8 +550,8 @@ function parseProvisionInput(raw: string): BootstrapAccountInput {
   if (typeof correlationId !== 'string' || correlationId.length === 0) {
     throw new TypeError('correlation_id must be a non-empty string');
   }
-  if (typeof operatorRef !== 'string') {
-    throw new TypeError('operator_ref must be a string');
+  if (typeof operatorRef !== 'string' || operatorRef.trim() === '') {
+    throw new TypeError('operator_ref must be a non-empty string');
   }
   return { correlationId, operatorRef };
 }

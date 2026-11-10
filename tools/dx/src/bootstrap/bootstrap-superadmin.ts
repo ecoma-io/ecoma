@@ -101,6 +101,41 @@ export interface BootstrapRunOptions {
 }
 
 /**
+ * Stage tổng hợp cho lỗi input, không phải một bước chạm database.
+ *
+ * Tên riêng để nhật ký không báo `account.verify` cho một lần chạy chưa hề mở
+ * kết nối nào: người vận hành đọc log phải phân biệt được "input sai" với "bước
+ * preflight thất bại".
+ */
+export const INPUT_STAGE = 'input';
+
+/**
+ * `operator_ref` phải có giá trị thực: ADR-0021 Quyết định 6 bắt buộc audit mang
+ * một tham chiếu người thực thi.
+ *
+ * Kiểm **trước** preflight là bắt buộc, không phải thuận tiện: A1 commit trước
+ * khi S1/S2 chạy, nên để `staff-access` từ chối `operator_ref_missing` ở S1 nghĩa
+ * là procedure đã tạo một Account mà không có attribution nào trong audit. Cùng
+ * luật phải đúng ở cả hai phía — `account` cũng từ chối `operator_ref` rỗng.
+ */
+export function assertOperatorRef(raw: string): string {
+  const operatorRef = raw.trim();
+  if (operatorRef === '') {
+    throw new Error(
+      'operator-ref is required: the audit trail must carry an operator reference (ADR-0021 decision 6). Pass --operator-ref <change/ticket id>.',
+    );
+  }
+  // Chỉ mã máy đọc tới được nhật ký và audit row: một chuỗi có khoảng trắng,
+  // xuống dòng hay ký tự điều khiển sẽ làm hỏng cả hai bề mặt đó.
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u.test(operatorRef)) {
+    throw new Error(
+      'operator-ref must be an ASCII identifier such as a ticket or change id (letters, digits, . _ : / -).',
+    );
+  }
+  return operatorRef;
+}
+
+/**
  * Assert địa chỉ bootstrap canonical.
  *
  * Cấu hình environment chỉ được **assert** lại hằng, không bao giờ thay nó
@@ -138,6 +173,15 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
     return { outcome: 'failed', correlationId, failedStage: stage, reason, stages };
   };
 
+  // Input được kiểm trước mọi lần chạm database: A1 commit trước S1/S2, nên một
+  // `operator_ref` rỗng bị phát hiện muộn sẽ để lại Account không attribution.
+  let validatedOperatorRef: string;
+  try {
+    validatedOperatorRef = assertOperatorRef(operatorRef);
+  } catch {
+    return fail(INPUT_STAGE, 'operator_ref_missing');
+  }
+
   // Preflight — A2 read-only trước A1. Database đã có Account khác thì dừng
   // ngay, để không tạo thêm một Account mồ côi rồi mới bị guard từ chối.
   const preflight = runStage({
@@ -165,7 +209,7 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
   const provision = runStage({
     service: 'account',
     action: 'provision',
-    input: { correlation_id: correlationId, operator_ref: operatorRef },
+    input: { correlation_id: correlationId, operator_ref: validatedOperatorRef },
   });
   if (!provision.ok) return fail(provision.stage, provision.reason);
   const provisionedSub = asString(provision.payload['sub']);
@@ -192,7 +236,11 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
   const staff = runStage({
     service: 'staff-access',
     action: 'staff-provision',
-    input: { correlation_id: correlationId, operator_ref: operatorRef, sub: verifiedSub },
+    input: {
+      correlation_id: correlationId,
+      operator_ref: validatedOperatorRef,
+      sub: verifiedSub,
+    },
   });
   if (!staff.ok) {
     if (staff.reason === 'mode_mismatch') {
@@ -211,7 +259,11 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
   const assign = runStage({
     service: 'staff-access',
     action: 'staff-assign',
-    input: { correlation_id: correlationId, operator_ref: operatorRef, sub: verifiedSub },
+    input: {
+      correlation_id: correlationId,
+      operator_ref: validatedOperatorRef,
+      sub: verifiedSub,
+    },
   });
   if (!assign.ok) {
     if (assign.reason === 'mode_mismatch') {
@@ -229,7 +281,7 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
   const verification = runStage({
     service: 'staff-access',
     action: 'staff-verify',
-    input: { correlation_id: correlationId },
+    input: { correlation_id: correlationId, sub: verifiedSub },
   });
   if (!verification.ok) return fail(verification.stage, verification.reason);
   log({ stage: verification.stage, outcome: 'verified' });
@@ -272,7 +324,7 @@ function finishGuardDenied(
   const verification = runStage({
     service: 'staff-access',
     action: 'staff-verify',
-    input: { correlation_id: correlationId },
+    input: { correlation_id: correlationId, sub },
   });
   stages.push(
     verification.ok

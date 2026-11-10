@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   assertCanonicalBootstrapEmail,
+  assertOperatorRef,
   BOOTSTRAP_EMAIL,
+  INPUT_STAGE,
   runBootstrapSuperadmin,
   type BootstrapStageRequest,
   type BootstrapStageResult,
@@ -87,6 +89,38 @@ describe('runBootstrapSuperadmin', () => {
     expect(recordedStages.every((r) => r.input['correlation_id'] === 'corr-1')).toBe(true);
     expect(recordedStages[1]?.input['operator_ref']).toBe('CHG-1');
     expect(recordedStages[3]?.input['sub']).toBe(`sub_${'a'.repeat(32)}`);
+    // S3 xác nhận đúng staff theo `sub` của Account, không đếm toàn bảng staff.
+    expect(recordedStages[5]?.input['sub']).toBe(`sub_${'a'.repeat(32)}`);
+  });
+
+  it('rejects a blank or unsafe operator ref before any stage runs', () => {
+    // A1 commit trước S1/S2: để `staff-access` từ chối `operator_ref_missing` ở
+    // S1 nghĩa là đã tạo một Account không có attribution trong audit.
+    for (const operatorRef of ['', '   ', 'CHG 1', 'CHG-1\nINJECTED']) {
+      const recorded = recordStages(happyStages);
+      const result = runBootstrapSuperadmin({
+        correlationId: 'corr-input',
+        operatorRef,
+        runStage: recorded.runStage,
+      });
+
+      expect(result.outcome).toBe('failed');
+      expect(result.failedStage).toBe(INPUT_STAGE);
+      expect(result.reason).toBe('operator_ref_missing');
+      // Không có lần chạm database nào, kể cả preflight.
+      expect(recorded.requests).toHaveLength(0);
+    }
+  });
+
+  it('trims the operator ref before it reaches the audit payload', () => {
+    const recorded = recordStages(happyStages);
+    runBootstrapSuperadmin({
+      correlationId: 'corr-trim',
+      operatorRef: '  CHG-TRIM  ',
+      runStage: recorded.runStage,
+    });
+
+    expect(recorded.requests[1]?.input['operator_ref']).toBe('CHG-TRIM');
   });
 
   it('stops before A1 when the Account database already holds another account', () => {
@@ -97,7 +131,7 @@ describe('runBootstrapSuperadmin', () => {
     }));
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-2',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: recorded.runStage,
     });
     const recordedStages = recorded.requests;
@@ -129,7 +163,7 @@ describe('runBootstrapSuperadmin', () => {
     const recorded = recordStages(runner);
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-3',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: recorded.runStage,
     });
     const recordedStages = recorded.requests;
@@ -157,7 +191,7 @@ describe('runBootstrapSuperadmin', () => {
 
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-4',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: runner,
     });
 
@@ -185,7 +219,7 @@ describe('runBootstrapSuperadmin', () => {
 
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-5',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: runner,
     });
 
@@ -219,7 +253,7 @@ describe('runBootstrapSuperadmin', () => {
 
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-7',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: runner,
     });
 
@@ -254,7 +288,7 @@ describe('runBootstrapSuperadmin', () => {
 
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-8',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: runner,
     });
 
@@ -262,12 +296,60 @@ describe('runBootstrapSuperadmin', () => {
     expect(result.reason).toBe('missing_staff_id_in_response');
   });
 
+  it('never re-runs or compensates an earlier committed stage when a later stage fails', () => {
+    // A1/S1 đã commit độc lập ở service của chúng. Một bước sau thất bại phải
+    // dừng procedure — không có bước xoá, rollback hay chạy lại bước trước, vì
+    // compensating deletion của một Account hợp lệ đi ngược forward-fix.
+    let verifyCalls = 0;
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls === 1
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'verified', { sub: `sub_${'g'.repeat(32)}` });
+      }
+      switch (request.action) {
+        case 'provision':
+          return success('account.provision', 'created', { sub: `sub_${'g'.repeat(32)}` });
+        case 'staff-provision':
+          return success('staff.provision', 'created', { staff_id: 'staff-1' });
+        case 'staff-assign':
+          return success('staff.assign', 'created', {
+            staff_id: 'staff-1',
+            assignment_id: 'asg-1',
+          });
+        case 'staff-verify':
+          return { ok: false, stage: 'staff.verify', reason: 'audit_trail_missing' };
+      }
+    });
+
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-no-compensate',
+      operatorRef: 'CHG-1',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.failedStage).toBe('staff.verify');
+    // Mỗi bước chạy đúng một lần, theo thứ tự canonical — không lần gọi thứ hai.
+    expect(recorded.requests.map((r) => r.action)).toEqual([
+      'verify',
+      'provision',
+      'verify',
+      'staff-provision',
+      'staff-assign',
+      'staff-verify',
+    ]);
+    // Không có action nào ngoài năm action của procedure (không có "delete"/"rollback").
+    expect(new Set(recorded.requests.map((r) => r.action)).size).toBe(5);
+  });
+
   it('logs an execution failure as failed, never as a guard denial', () => {
     // `failed` và `denied` là hai kết luận khác nhau: lỗi chạy bước không được
     // đọc thành guard từ chối có chủ đích khi người vận hành đọc nhật ký.
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-9',
-      operatorRef: '',
+      operatorRef: 'CHG-TEST',
       runStage: () => ({
         ok: false,
         stage: 'account.verify',
@@ -293,6 +375,25 @@ describe('runBootstrapSuperadmin', () => {
     });
 
     expect(JSON.stringify(result)).not.toContain('CHG-SECRET');
+  });
+});
+
+describe('assertOperatorRef', () => {
+  it('accepts a trimmed change reference', () => {
+    expect(assertOperatorRef('CHG-1234')).toBe('CHG-1234');
+    expect(assertOperatorRef('  ops/CHG:1234.5  ')).toBe('ops/CHG:1234.5');
+  });
+
+  it('refuses a blank reference', () => {
+    expect(() => assertOperatorRef('')).toThrow(/required/u);
+    expect(() => assertOperatorRef('   ')).toThrow(/required/u);
+  });
+
+  it('refuses a reference that is not a printable identifier', () => {
+    // Khoảng trắng và ký tự điều khiển sẽ đi vào stage log và audit metadata.
+    expect(() => assertOperatorRef('CHG 1')).toThrow(/ASCII/u);
+    expect(() => assertOperatorRef('CHG-1\nx')).toThrow(/ASCII/u);
+    expect(() => assertOperatorRef('CHG-1;rm -rf /')).toThrow(/ASCII/u);
   });
 });
 

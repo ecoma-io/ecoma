@@ -301,6 +301,48 @@ describe('bootstrap superadmin (A1/A2)', () => {
     }
   });
 
+  it('refuses an empty operator_ref before opening a write transaction', async () => {
+    // ADR-0021 Quyết định 6 đòi audit mang tham chiếu người thực thi. A1 commit
+    // trước S1/S2, nên nhận `operator_ref` rỗng ở đây sẽ để lại một Account
+    // không attribution mà không bước nào sau đó sửa được.
+    for (const operatorRef of ['', '   ']) {
+      await expect(provision({ correlationId: 'corr-empty-op', operatorRef })).rejects.toThrow(
+        /operatorRef must be a non-empty string/u,
+      );
+    }
+
+    const client = await db.connect();
+    try {
+      const afterEmptyRun = await client.query<{ users: number; events: number }>(
+        `SELECT (SELECT count(*)::int FROM account.users) AS users,
+                (SELECT count(*)::int FROM account.security_events) AS events`,
+      );
+      expect(afterEmptyRun.rows[0]).toEqual({ users: 0, events: 0 });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('refuses an operator_ref that is only whitespace on a convergence re-run too', async () => {
+    // Nhánh hội tụ cũng ghi audit; nó không được là đường vòng qua cùng ràng buộc.
+    const first = await provision();
+    await expect(
+      provision({ correlationId: 'corr-converge-op', operatorRef: '  ' }),
+    ).rejects.toThrow(/non-empty/u);
+
+    const client = await db.connect();
+    try {
+      const events = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM account.security_events`,
+      );
+      expect(events.rows[0]?.count).toBe(1);
+      const users = await client.query<{ sub: string }>(`SELECT sub FROM account.users`);
+      expect(users.rows.map((row) => row.sub)).toEqual([first.sub]);
+    } finally {
+      await client.end();
+    }
+  });
+
   it('converges a re-run to the same sub without adding rows', async () => {
     const first = await provision({
       correlationId: 'corr-first',
@@ -343,6 +385,71 @@ describe('bootstrap superadmin (A1/A2)', () => {
     expect(after.users).toBe(1);
     expect(after.emails).toBe(0);
     expect(after.events).toBe(0);
+  });
+
+  it('denies address_not_bootstrap_proven when the proof audit row belongs to another sub', async () => {
+    // Audit event của `subject_sub` khác không chứng minh nguồn gốc của hàng email
+    // này: A1 không bao giờ nhận một Account từ một audit row không neo đúng
+    // `(sub, address_hash)` của hàng đang xét.
+    await seedUser(SUB_OTHER);
+    await seedEmail({ sub: SUB_OTHER, address: BOOTSTRAP_EMAIL, status: 'verified' });
+    const client = await db.connect();
+    try {
+      await client.query(
+        `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
+         VALUES ($1, $2, 'success', $3::jsonb)`,
+        [
+          SUB_THIRD,
+          BOOTSTRAP_AUDIT_TYPE,
+          JSON.stringify({
+            address_hash: canonicalHash(),
+            correlation_id: 'corr-foreign',
+            mode: 'bootstrap',
+            verification_source: 'trusted_bootstrap',
+            operator_ref: 'operator-foreign',
+            status: 'created',
+          }),
+        ],
+      );
+    } finally {
+      await client.end();
+    }
+
+    const denial = await catchDenial(provision());
+    expect(denial.reason).toBe('address_not_bootstrap_proven');
+    expect((await counts()).users).toBe(1);
+  });
+
+  it('denies address_not_bootstrap_proven when the proof row is only a converged event', async () => {
+    // Chỉ row `status = 'created'` chứng minh Account do bootstrap tạo; một row
+    // `converged` là dấu vết của lần xác nhận lại, không phải nguồn gốc.
+    await seedUser(SUB_OTHER);
+    await seedEmail({ sub: SUB_OTHER, address: BOOTSTRAP_EMAIL, status: 'verified' });
+    const client = await db.connect();
+    try {
+      await client.query(
+        `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
+         VALUES ($1, $2, 'success', $3::jsonb)`,
+        [
+          SUB_OTHER,
+          BOOTSTRAP_AUDIT_TYPE,
+          JSON.stringify({
+            address_hash: canonicalHash(),
+            correlation_id: 'corr-converged-only',
+            mode: 'bootstrap',
+            verification_source: 'trusted_bootstrap',
+            operator_ref: 'operator-other',
+            status: 'converged',
+          }),
+        ],
+      );
+    } finally {
+      await client.end();
+    }
+
+    const denial = await catchDenial(provision());
+    expect(denial.reason).toBe('address_not_bootstrap_proven');
+    expect((await counts()).users).toBe(1);
   });
 
   it('denies address_not_bootstrap_proven for a verified row without a bootstrap audit event', async () => {
@@ -419,6 +526,53 @@ describe('bootstrap superadmin (A1/A2)', () => {
 
     const denial = await catchDenial(provision());
     expect(denial.reason).toBe('address_multiple_live_rows');
+  });
+
+  it('documents the accepted provenance limit: the runtime role can insert the proof event', async () => {
+    // Bằng chứng nguồn gốc mà A1 dựa vào là một **hàng** trong `security_events`,
+    // và `ecoma_account_runtime` có `INSERT` trên bảng đó (audit của serving path
+    // cần quyền ấy). Test này ghi lại đúng giới hạn đã được chấp nhận trong
+    // ADR-0024 Quyết định 3 và `03-operations.md` §3.4: database **không** phân
+    // biệt được row do CLI bootstrap (migrator) ghi với row do runtime role ghi.
+    //
+    // Nếu test này đỏ ở phần `expect` cuối (A1 hội tụ vào `sub` do runtime role
+    // dựng sẵn) thì lỗ đã được đóng bằng một kiểm soát tầng database — hãy cập
+    // nhật tài liệu giới hạn cùng lúc, không chỉ sửa test.
+    const forgedSub = SUB_OTHER;
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
+        forgedSub,
+      ]);
+      await runtime.query(
+        `INSERT INTO account.email_addresses
+           (user_sub, address_normalized, address_hash, status, is_sign_in, verified_at)
+         VALUES ($1, $2, $3, 'verified', true, now())`,
+        [forgedSub, BOOTSTRAP_EMAIL, canonicalHash()],
+      );
+      await runtime.query(
+        `INSERT INTO account.security_events (subject_sub, type, outcome, metadata)
+         VALUES ($1, $2, 'success', $3::jsonb)`,
+        [
+          forgedSub,
+          BOOTSTRAP_AUDIT_TYPE,
+          JSON.stringify({
+            address_hash: canonicalHash(),
+            correlation_id: 'corr-forged-by-runtime',
+            mode: 'bootstrap',
+            verification_source: 'trusted_bootstrap',
+            operator_ref: 'forged',
+            status: 'created',
+          }),
+        ],
+      );
+    } finally {
+      await runtime.end();
+    }
+
+    const result = await provision();
+    expect(result.status).toBe('converged');
+    expect(result.sub).toBe(forgedSub);
   });
 
   it('serialises two concurrent A1 calls into one created and one converged', async () => {

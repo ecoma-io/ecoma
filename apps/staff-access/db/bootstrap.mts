@@ -67,12 +67,13 @@ export const CANONICAL_ROLE_PERMISSIONS = [
  * - `invalid_sub`: `sub` không khớp `isStaffSubFormat` (kiểm trước khi mở transaction).
  * - `correlation_id_missing`: CLI được gọi mà stdin thiếu `correlation_id`.
  * - `operator_ref_missing`: CLI được gọi mà stdin thiếu `operator_ref`.
- * - `sub_missing`: CLI S1/S2 được gọi mà stdin thiếu `sub`.
+ * - `sub_missing`: CLI S1/S2/S3 được gọi mà stdin thiếu `sub`.
  *
  * S3 trả mã riêng cho từng kiểm tra trượt — không dùng chung `mode_mismatch` hay một mã
  * "verification_failed" chung, vì người đọc cần biết **kiểm nào** trượt:
  * `staff_missing_or_ambiguous`, `role_identity_missing`, `role_identity_ambiguous`,
  * `administrator_assignment_missing`, `role_permissions_mismatch`, `audit_trail_missing`.
+ * `invalid_sub` ở S3 nghĩa là `sub` đầu vào thiếu/sai định dạng.
  */
 export type StaffAccessBootstrapDenialReason =
   | 'role_identity_missing'
@@ -160,8 +161,18 @@ export interface BootstrapVerification {
   readonly reasons: readonly StaffAccessBootstrapDenialReason[];
 }
 
-/** Tuy chọn S3 — `correlationId` bỏ trống thì bỏ qua kiểm tra audit row. */
+/**
+ * Tuy chọn S3.
+ *
+ * `sub` là **bắt buộc để kiểm đúng staff**: runbook Bước 8 kiểm 1 đọc `staff`
+ * theo `sub` mà A2 trả ra, chứ không đọc "hàng staff duy nhất trong database" —
+ * một environment có thể đã có staff khác (không phải administrator) trước khi
+ * bootstrap chạy, và bỏ `sub` sẽ biến S3 thành phép đếm toàn bảng.
+ *
+ * `correlationId` bỏ trống thì bỏ kiểm tra audit row.
+ */
 export interface BootstrapVerificationOptions {
+  readonly sub?: string;
   readonly correlationId?: string;
 }
 
@@ -577,9 +588,14 @@ export async function assignBootstrapAdministrator(
 /**
  * S3 — đọc lại, tuyệt đối không ghi.
  *
- * Năm kiểm tra của runbook Bước 8. `correlationId` bỏ trống thì bỏ kiểm tra audit row
- * (đường verify chạy lại sau một S2 đã commit không có correlation id mới). Khi có, S3
- * đòi đúng một row `success` cho mỗi bước S1 và S2 của lần chạy đó.
+ * Năm kiểm tra của runbook Bước 8. `sub` là **đầu vào bắt buộc**: kiểm 1 đọc
+ * `staff` theo `sub` mà A2 trả ra, không đếm toàn bảng — environment có thể đã
+ * có staff không phải administrator. `sub` thiếu/sai định dạng trả `invalid_sub`
+ * trước mọi câu đọc.
+ *
+ * `correlationId` bỏ trống thì bỏ kiểm tra audit row (đường verify chạy lại sau
+ * một S2 đã commit không có correlation id mới). Khi có, S3 đòi đúng một row
+ * `success` cho mỗi bước S1 và S2 của lần chạy đó.
  *
  * Không ném vì kiểm tra trượt: trả `ok = false` cùng danh sách lý do để caller phân loại.
  */
@@ -598,11 +614,24 @@ export async function verifyBootstrapStaff(
     reasons.add(reason);
   };
 
-  // Kiểm 1 — đúng một staff row, và nó phải `active`. S3 không nhận `sub`, nên trạng
-  // thái canonical là "sau một lần bootstrap chỉ có đúng một staff"; nhiều hơn một là
-  // trạng thái cần người xem, không phải một lần verify hợp lệ.
+  // `sub` vắng mặt hoặc sai định dạng thì không có gì để neo kiểm tra — từ chối,
+  // không đoán staff nào là staff của lần chạy. Kiểm trước mọi câu đọc, và trả
+  // `invalid_sub` chứ không phải `staff_missing_or_ambiguous`: đó là lỗi input,
+  // không phải trạng thái database.
+  const staffSub = options.sub;
+  if (!isStaffSubFormat(staffSub)) {
+    fail('staff', 'invalid_sub');
+    return { stage: 'staff.verify', ok: false, checks, reasons: [...reasons] };
+  }
+
+  // Kiểm 1 — đúng một staff row **theo `sub`** và nó phải `active` (runbook Bước 8).
+  //
+  // Không đọc toàn bảng: một environment có staff không phải administrator từ
+  // trước là trạng thái hợp lệ, và đếm "hàng staff duy nhất" ở đó sẽ từ chối một
+  // lần bootstrap hoàn toàn đúng (hoặc, tệ hơn, xác nhận nhầm một staff khác).
   const staff = await client.query<{ id: string; status: string }>(
-    `SELECT id, status FROM staff_access.staff ORDER BY created_at, id`,
+    `SELECT id, status FROM staff_access.staff WHERE sub = $1`,
+    [staffSub],
   );
   const onlyStaff = staff.rows.length === 1 ? staff.rows[0] : undefined;
   const staffId = onlyStaff?.status === 'active' ? onlyStaff.id : undefined;
@@ -774,7 +803,10 @@ async function main(): Promise<void> {
     const correlationId = requireString(input.correlation_id, 'correlation_id_missing');
 
     if (action === 'staff-verify') {
-      const verification = await verifyBootstrapStaff(client, { correlationId });
+      // S3 cần đúng `sub` của Account đã bootstrap: runbook Bước 8 kiểm staff theo
+      // `sub`, không đếm toàn bảng (một environment có thể đã có staff khác).
+      const sub = requireString(input.sub, 'sub_missing');
+      const verification = await verifyBootstrapStaff(client, { sub, correlationId });
       if (!verification.ok) {
         // Mã lý do cụ thể của kiểm tra trượt đầu tiên — không dùng `mode_mismatch` cho S3.
         writeDenial(stage, verification.reasons[0] ?? 'staff_missing_or_ambiguous');

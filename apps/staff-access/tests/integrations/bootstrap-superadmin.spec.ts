@@ -584,6 +584,7 @@ describe('bootstrap steps against the canonical seed', () => {
       );
 
       const verification = await verifyBootstrapStaff(client, {
+        sub: input.sub,
         correlationId: input.correlationId,
       });
       expect(verification.ok).toBe(true);
@@ -598,12 +599,13 @@ describe('bootstrap steps against the canonical seed', () => {
       expect(verification.reasons).toEqual([]);
 
       // Không có correlationId: kiểm tra audit bị bỏ, phần còn lại vẫn đạt.
-      const withoutAudit = await verifyBootstrapStaff(client);
+      const withoutAudit = await verifyBootstrapStaff(client, { sub: input.sub });
       expect(withoutAudit.ok).toBe(true);
       expect(withoutAudit.checks.map((check) => check.check)).not.toContain('audit');
 
       // Sai correlationId: kiểm tra audit trượt với mã riêng, không phải mode_mismatch.
       const wrongCorrelation = await verifyBootstrapStaff(client, {
+        sub: input.sub,
         correlationId: 'corr_missing',
       });
       expect(wrongCorrelation.ok).toBe(false);
@@ -623,6 +625,74 @@ describe('bootstrap steps against the canonical seed', () => {
       expect(snapshotAfter.rows[0]?.snapshot).toEqual(snapshotBefore.rows[0]?.snapshot);
     } finally {
       await superuser.end();
+      await client.end();
+    }
+  });
+
+  it('S3 verifies the staff of the bootstrapped sub when unrelated non-admin staff already exist', async () => {
+    // Runbook Bước 8 kiểm 1 đọc staff theo `sub`, không đếm toàn bảng. Một
+    // environment có staff không phải administrator từ trước là trạng thái hợp
+    // lệ, và một S3 đếm toàn bảng sẽ từ chối oan — hoặc tệ hơn, xác nhận nhầm
+    // staff của người khác là staff vừa bootstrap.
+    await resetBusinessRows(db);
+    const input = bootstrapInput();
+    const unrelated = [randomSub(), randomSub()];
+    const superuser = await db.connect();
+    const client = await db.connectAsMigrator();
+    try {
+      for (const sub of unrelated) {
+        await superuser.query(
+          `INSERT INTO staff_access.staff (sub, display_name, status) VALUES ($1, '', 'active')`,
+          [sub],
+        );
+      }
+
+      await provisionBootstrapStaff(client, input);
+      const assigned = await assignBootstrapAdministrator(client, input);
+
+      const verification = await verifyBootstrapStaff(client, {
+        sub: input.sub,
+        correlationId: input.correlationId,
+      });
+      expect(verification.ok).toBe(true);
+      expect(verification.staffId).toBe(assigned.staffId);
+      expect(verification.reasons).toEqual([]);
+      expect(unrelated).not.toContain(verification.staffId);
+
+      // S3 không được nhận một `sub` khác có staff active: đó là staff của người
+      // khác, dù nó tồn tại và `active`.
+      const otherStaff = await verifyBootstrapStaff(client, { sub: unrelated[0] });
+      expect(otherStaff.ok).toBe(false);
+      expect(otherStaff.reasons).toContain('administrator_assignment_missing');
+
+      // Một `sub` không có staff vẫn fail-closed, không rơi về hàng nào khác.
+      const unknownSub = await verifyBootstrapStaff(client, { sub: randomSub() });
+      expect(unknownSub.ok).toBe(false);
+      expect(unknownSub.reasons).toContain('staff_missing_or_ambiguous');
+      expect(unknownSub.staffId).toBeUndefined();
+    } finally {
+      await client.end();
+      await superuser.end();
+    }
+  });
+
+  it('S3 fails closed when sub is missing or malformed instead of guessing a staff row', async () => {
+    await resetBusinessRows(db);
+    const input = bootstrapInput();
+    const client = await db.connectAsMigrator();
+    try {
+      await provisionBootstrapStaff(client, input);
+      await assignBootstrapAdministrator(client, input);
+
+      for (const sub of [undefined, '', 'not-a-sub']) {
+        const verification = await verifyBootstrapStaff(client, sub === undefined ? {} : { sub });
+        expect(verification.ok).toBe(false);
+        expect(verification.reasons).toEqual(['invalid_sub']);
+        expect(verification.staffId).toBeUndefined();
+        // Chỉ kiểm 1 chạy: không có câu đọc nào được thực hiện trước khi fail.
+        expect(verification.checks).toEqual([{ check: 'staff', ok: false, reason: 'invalid_sub' }]);
+      }
+    } finally {
       await client.end();
     }
   });
@@ -911,7 +981,10 @@ describe('CLI wire shapes', () => {
     });
     expect(assignLine['assignment_id']).toMatch(/^[0-9a-f-]{36}$/u);
 
-    const verify = await runCli('staff-verify', { correlation_id: correlationId });
+    const verify = await runCli('staff-verify', {
+      correlation_id: correlationId,
+      sub,
+    });
     expect(verify.code).toBe(0);
     expect(JSON.parse(verify.stdout.trim())).toEqual({
       stage: 'staff.verify',
@@ -952,6 +1025,22 @@ describe('CLI wire shapes', () => {
       stage: 'staff.provision',
       status: 'denied',
       reason: 'invalid_sub',
+    });
+  });
+
+  it('refuses staff-verify without the sub of the bootstrapped account', async () => {
+    // S3 không có `sub` thì không có gì để neo kiểm tra: CLI từ chối thay vì
+    // đếm toàn bảng staff và xác nhận nhầm một hàng khác.
+    const result = await runCli('staff-verify', {
+      correlation_id: 'corr_cli_no_sub',
+      operator_ref: 'CHG-CLI-4',
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout.trim()).toBe('');
+    expect(JSON.parse(result.stderr.trim())).toEqual({
+      stage: 'staff.verify',
+      status: 'denied',
+      reason: 'sub_missing',
     });
   });
 });
