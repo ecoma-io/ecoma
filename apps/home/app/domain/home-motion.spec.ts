@@ -35,9 +35,17 @@ const RENDER_TIME_SECONDS = 0.5;
  * microtask/module-loader, không chờ playback.
  */
 function waitForContextCall(spy: ReturnType<typeof vi.spyOn>): Promise<void> {
-  return vi.waitFor(() => {
-    expect(spy).toHaveBeenCalled();
-  });
+  // Timeout tường minh 10s: mặc định 1000ms của `vi.waitFor` đã đỏ trên runner
+  // CI 4 vCPU khi `nx affected` chạy song song — dynamic import qua vite chưa
+  // kịp resolve, waiter hết thời gian và ném lại lỗi assert bên trong
+  // ("expected vi.fn() to be called at least once"), trùng y hệt qua flake đã
+  // quan sát trên CI. Interval ngắn để không thêm độ trễ khi khởi nhanh.
+  return vi.waitFor(
+    () => {
+      expect(spy).toHaveBeenCalled();
+    },
+    { timeout: 10_000, interval: 50 },
+  );
 }
 
 function mountWithMotion(): {
@@ -162,9 +170,14 @@ describe('useHomeMotion', () => {
     // hơn 500ms — trên runner CI (4 vCPU, `nx affected` chạy song song 19 test
     // task) rAF bị starve và precondition vượt 1000ms, làm test đỏ ngẫu nhiên
     // dù logic không đổi (Issue #189).
-    await vi.waitFor(() => {
-      expect(observe).toHaveBeenCalled();
-    });
+    // Timeout 10s vì cùng lý do starvation CI đã ghi ở `waitForContextCall` —
+    // lỗi flake thực tế trên CI là waiter này hết 1000ms mặc định.
+    await vi.waitFor(
+      () => {
+        expect(observe).toHaveBeenCalled();
+      },
+      { timeout: 10_000, interval: 50 },
+    );
 
     // Caller bỏ qua giá trị trả về — chỉ unmount.
     wrapper.unmount();
@@ -371,11 +384,15 @@ describe('useHomeMotion', () => {
     const wrapper = mount(FullHero, { attachTo: host });
     const heading = wrapper.get('[data-hero="heading"]');
 
-    await vi.waitFor(() => {
-      // Catch đã chạy: revert hoàn tác inline style của hero — không còn
-      // visibility ẩn nào (thuộc tính style có thể rỗng hoặc bị gỡ hẳn).
-      expect(heading.attributes('style') ?? '').not.toContain('visibility');
-    });
+    // Timeout 10s vì cùng lý do starvation CI đã ghi ở `waitForContextCall`.
+    await vi.waitFor(
+      () => {
+        // Catch đã chạy: revert hoàn tác inline style của hero — không còn
+        // visibility ẩn nào (thuộc tính style có thể rỗng hoặc bị gỡ hẳn).
+        expect(heading.attributes('style') ?? '').not.toContain('visibility');
+      },
+      { timeout: 10_000, interval: 50 },
+    );
     // Lỗi được nuốt có chủ đích trong catch — không rejection nào nổi ra ngoài.
     for (let i = 0; i < 5; i += 1) {
       await new Promise<void>((resolve) => {
@@ -441,9 +458,13 @@ describe('useHomeMotion', () => {
     const inView = wrapper.get('#in-view').element as Element;
     const below = wrapper.get('#below-fold').element as Element;
 
-    await vi.waitFor(() => {
-      expect(observed).toHaveLength(2);
-    });
+    // Timeout 10s vì cùng lý do starvation CI đã ghi ở `waitForContextCall`.
+    await vi.waitFor(
+      () => {
+        expect(observed).toHaveLength(2);
+      },
+      { timeout: 10_000, interval: 50 },
+    );
 
     // Phần tử dưới fold bị ẩn sớm (đã set autoAlpha 0 lúc init) — đó là điều
     // kiện để observer bắn lần đầu sẽ chỉ tăng dần lên, không nhấp nháy.
@@ -565,9 +586,13 @@ describe('useHomeMotion', () => {
     });
     const wrapper = mount(TestComponent, { attachTo: host });
 
-    await vi.waitFor(() => {
-      expect(fromToCalls.length).toBeGreaterThan(0);
-    });
+    // Timeout 10s vì cùng lý do starvation CI đã ghi ở `waitForContextCall`.
+    await vi.waitFor(
+      () => {
+        expect(fromToCalls.length).toBeGreaterThan(0);
+      },
+      { timeout: 10_000, interval: 50 },
+    );
 
     // `gsap.set` chỉ được phép dùng cho phần tử `data-reveal` dưới fold, và
     // phải là mảng Element thật — không được nhắm vào hero. Trước fix, hero bị
