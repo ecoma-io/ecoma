@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { PublicShell, buildPublicPath } from '../../layout/index';
-import type { PublicLocale } from '../../i18n/index';
+import { PublicShell } from '../../layout/index';
 import { parseHomeLocaleRoot } from '~/domain/home-locale';
 import { buildHomeSeo } from '~/domain/home-seo';
 import { HOME_CONTENT } from '~/domain/home-content';
@@ -97,17 +96,6 @@ if (locale === undefined) {
 const content = HOME_CONTENT[locale];
 const seo = buildHomeSeo(locale, content);
 
-/**
- * href cho mọi đích trên trang — dựng qua builder của `app/layout` (không
- * bao giờ concatenation); destination là mount + path thật của public web.
- * `locale` đã được guard 404 ở trên nhưng TS không đưa sự thu hẹp đó vào hàm,
- * nên nhận locale làm tham số.
- */
-function surfaceHref(target: PublicLocale, mount: 'docs' | 'blog' | 'legal', path = ''): string {
-  const built = buildPublicPath({ locale: target, mount, path });
-  return built.kind === 'invalid' ? `/${target}` : built.path;
-}
-
 /* Root `/` không emit SEO metadata — `/` chỉ là locale-resolution entry point,
  * không serve content (`docs/architecture/01-architecture.md` A13), và `<head>`
  * của nó thuộc về redirect 302 tới `/en`, không phải một trang.
@@ -134,18 +122,18 @@ useHomeMotion(motionRoot);
 
 <template>
   <!--
-    `PublicShell` là nguồn duy nhất của header/footer/navigation; Home chỉ đưa
-    pathname hiện tại vào đó (`route.path`, không phải `route.fullPath`) để
-    shell tự parse một lần. `route.path` không chứa query/hash nên luôn có
-    dạng pathname mà `parsePublicLayoutPath` nhận.
+    `PublicShell` là nguồn duy nhất của header/footer; Home chỉ đưa pathname
+    hiện tại vào đó (`route.path`, không phải `route.fullPath`) để shell tự
+    parse một lần. `route.path` không chứa query/hash nên luôn có dạng
+    pathname mà `parsePublicLayoutPath` nhận.
 
     Không truyền `availableLocales`: Home tồn tại ở **mọi** locale của registry,
     nên mặc định của shell (toàn bộ registry) mới là đúng — không resource
     nào của Home bị giới hạn locale.
 
-    Cấu trúc bám mockup tham chiếu (hero → categories → use cases →
-    developers → CTA kết) nhưng mọi đích là route thật của repo và mọi câu
-    nói chỉ mô tả bề mặt đang tồn tại — không số liệu, không placeholder.
+    Cấu trúc bám mockup tham chiếu (hero → intro → platform → developers);
+    mọi câu nói chỉ mô tả bề mặt đang tồn tại — không số liệu, không
+    placeholder, không link tới bề mặt đã bị xoá.
   -->
   <PublicShell :path="route.path">
     <div ref="motionRoot">
@@ -172,18 +160,6 @@ useHomeMotion(motionRoot);
           <p data-hero="description" class="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
             {{ content.description }}
           </p>
-          <div data-hero="actions" class="mt-8 flex flex-wrap items-center gap-3">
-            <a
-              :href="surfaceHref(locale, 'docs')"
-              class="rounded-md bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_28px_rgb(0_106_255/0.25)] hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-              >{{ content.docsCta }}</a
-            >
-            <a
-              :href="surfaceHref(locale, 'blog')"
-              class="rounded-md border border-line px-5 py-2.5 text-sm font-bold text-foam hover:border-brand hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-              >{{ content.blogCta }}</a
-            >
-          </div>
           <ul
             data-hero="proofs"
             class="mt-10 flex flex-wrap gap-x-8 gap-y-2 border-t border-line pt-6 text-sm text-muted"
@@ -194,35 +170,6 @@ useHomeMotion(motionRoot);
             </li>
           </ul>
         </div>
-      </section>
-
-      <!-- Categories -->
-      <section
-        data-reveal
-        class="mx-auto w-full max-w-9xl border-t border-line px-4 py-16 sm:px-6 lg:px-8 wide:px-12 ultrawide:px-16"
-      >
-        <p class="text-xs font-bold uppercase tracking-[0.14em] text-faint">
-          {{ content.categoriesLabel }}
-        </p>
-        <h2 class="mt-3 text-3xl font-bold tracking-tight text-foam sm:text-4xl">
-          {{ content.categoriesHeading }}
-        </h2>
-        <p class="mt-3 max-w-2xl text-muted">{{ content.categoriesDescription }}</p>
-        <ul class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <li v-for="category in content.categories" :key="category.title">
-            <a
-              :href="surfaceHref(locale, category.mount, category.path)"
-              class="group flex h-full flex-col rounded-card border border-line bg-surface p-6 hover:border-brand hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-            >
-              <h3 class="text-lg font-semibold tracking-tight text-foam">
-                {{ category.title }}
-              </h3>
-              <p class="mt-2 text-sm leading-relaxed text-muted">
-                {{ category.description }}
-              </p>
-            </a>
-          </li>
-        </ul>
       </section>
 
       <!-- Intro -->
@@ -248,32 +195,6 @@ useHomeMotion(motionRoot);
             class="rounded-lg border border-line bg-surface p-4 text-sm leading-relaxed text-muted"
           >
             {{ point }}
-          </li>
-        </ul>
-      </section>
-
-      <!-- Use cases -->
-      <section
-        data-reveal
-        class="mx-auto w-full max-w-9xl border-t border-line px-4 py-16 sm:px-6 lg:px-8 wide:px-12 ultrawide:px-16"
-      >
-        <p class="text-xs font-bold uppercase tracking-[0.14em] text-faint">
-          {{ content.useCasesLabel }}
-        </p>
-        <h2 class="mt-3 text-3xl font-bold tracking-tight text-foam sm:text-4xl">
-          {{ content.useCasesHeading }}
-        </h2>
-        <p class="mt-3 max-w-2xl text-muted">{{ content.useCasesDescription }}</p>
-        <ul class="mt-10 grid gap-4 sm:grid-cols-2">
-          <li
-            v-for="useCase in content.useCases"
-            :key="useCase.title"
-            class="rounded-card border border-line bg-surface p-6"
-          >
-            <h3 class="text-lg font-semibold tracking-tight text-foam">
-              {{ useCase.title }}
-            </h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted">{{ useCase.description }}</p>
           </li>
         </ul>
       </section>
@@ -305,11 +226,6 @@ useHomeMotion(motionRoot);
                 {{ point }}
               </li>
             </ul>
-            <a
-              :href="surfaceHref(locale, 'docs', '/getting-started')"
-              class="mt-8 inline-flex rounded-md bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_28px_rgb(0_106_255/0.25)] hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-              >{{ content.developersCta }}</a
-            >
           </div>
           <!-- Code window: giả terminal thuần trình bày, nội dung từ
                HOME_CONTENT (không hardcode), SSR render đầy đủ. -->
@@ -328,31 +244,6 @@ useHomeMotion(motionRoot);
                 {{ line }}
               </p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Closing CTA -->
-      <section
-        data-reveal
-        class="mx-auto w-full max-w-9xl border-t border-line px-4 py-16 sm:px-6 lg:px-8 wide:px-12 ultrawide:px-16"
-      >
-        <div class="rounded-card border border-line bg-surface px-6 py-12 text-center sm:px-12">
-          <h2 class="text-3xl font-bold tracking-tight text-foam sm:text-4xl">
-            {{ content.closingHeading }}
-          </h2>
-          <p class="mx-auto mt-3 max-w-xl text-muted">{{ content.closingDescription }}</p>
-          <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a
-              :href="surfaceHref(locale, 'docs')"
-              class="rounded-md bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_28px_rgb(0_106_255/0.25)] hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-              >{{ content.closingDocsCta }}</a
-            >
-            <a
-              :href="surfaceHref(locale, 'blog')"
-              class="rounded-md border border-line px-5 py-2.5 text-sm font-bold text-foam hover:border-brand hover:text-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-soft motion-safe:transition-colors"
-              >{{ content.closingBlogCta }}</a
-            >
           </div>
         </div>
       </section>

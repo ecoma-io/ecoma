@@ -3,18 +3,19 @@ import { parsePublicLayoutPath } from '../index';
 
 // Các case adversarial của parsePublicLayoutPath: input hỏng, encoding,
 // unicode, ranh giới segment. Contract: không normalize, không decode, không
-// trim, không repair — kế thừa từng byte từ app/i18n, phần thêm riêng chỉ
-// là mount matching cũng exact-match theo segment.
+// trim, không repair — kế thừa từng byte từ app/i18n; phần thêm riêng là
+// phân loại bề mặt, và sau khi gỡ stack content (issue #72) mọi pathname có
+// remainder đều là `unknown_mount` — không segment nào được "sửa giúp" thành
+// URL hợp lệ.
 describe('parsePublicLayoutPath adversarial input', () => {
   describe('structural errors pass through from app/i18n', () => {
     it.each([
       ['empty string', ''],
       ['whitespace only', '   '],
-      ['leading whitespace', ' /en/docs'],
-      ['missing leading slash', 'en/docs'],
-      ['query string', '/en/docs?x=1'],
-      ['hash', '/en/docs#h'],
-      ['no leading slash with locale', 'en'],
+      ['leading whitespace', ' /en'],
+      ['missing leading slash', 'en'],
+      ['query string', '/en?x=1'],
+      ['hash', '/en#h'],
     ])('rejects %s with not_a_pathname', (_label, pathname) => {
       expect(parsePublicLayoutPath(pathname)).toEqual({
         kind: 'invalid',
@@ -33,24 +34,20 @@ describe('parsePublicLayoutPath adversarial input', () => {
       });
     });
 
-    it('reports empty segments before trailing slashes and before mount lookup', () => {
+    it('reports empty segments before trailing slashes and before surface classification', () => {
       expect(parsePublicLayoutPath('/en//docs')).toEqual({
         kind: 'invalid',
         reason: 'empty_segment',
       });
       // Kết thúc bằng '/' nhưng cũng chứa '//' — // thắng, không được gán
       // trailing_slash và càng không được gán unknown_mount.
-      expect(parsePublicLayoutPath('/en/docs//')).toEqual({
+      expect(parsePublicLayoutPath('/en//')).toEqual({
         kind: 'invalid',
         reason: 'empty_segment',
       });
     });
 
     it('never repairs a trailing slash into the canonical path', () => {
-      expect(parsePublicLayoutPath('/en/docs/')).toEqual({
-        kind: 'invalid',
-        reason: 'trailing_slash',
-      });
       expect(parsePublicLayoutPath('/en/')).toEqual({
         kind: 'invalid',
         reason: 'trailing_slash',
@@ -72,39 +69,30 @@ describe('parsePublicLayoutPath adversarial input', () => {
       });
     });
 
-    it('does not decode %2F before matching: not a canonical mount URL', () => {
-      // '/blog%2Ffoo' là MỘT segment — không decode thành '/blog/foo';
-      // canonical URL của resource đó là '/en/blog/foo' với slash thô.
+    it('does not decode %2F before classifying: not a canonical URL', () => {
+      // '/blog%2Ffoo' là MỘT segment — không decode thành '/blog/foo'; URL có
+      // slash thô cũng không được "sửa" thành locale-root.
       expect(parsePublicLayoutPath('/en/blog%2Ffoo')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
       });
     });
 
-    it('keeps percent-encoded resource bytes verbatim under a matched mount', () => {
-      const result = parsePublicLayoutPath('/vi/blog/t%E1%BA%ADm');
-      expect(result).toEqual({
-        kind: 'localized',
-        locale: 'vi',
-        mount: 'blog',
-        path: '/vi/blog/t%E1%BA%ADm',
-        remainder: '/t%E1%BA%ADm',
+    it('classifies encoded remainder as unknown surface, byte-verbatim', () => {
+      expect(parsePublicLayoutPath('/vi/t%E1%BA%ADm')).toEqual({
+        kind: 'invalid',
+        reason: 'unknown_mount',
       });
     });
 
-    it('keeps raw unicode resource bytes verbatim without normalization', () => {
-      const result = parsePublicLayoutPath('/vi/blog/tạm');
-      expect(result).toEqual({
-        kind: 'localized',
-        locale: 'vi',
-        mount: 'blog',
-        path: '/vi/blog/tạm',
-        remainder: '/tạm',
+    it('classifies raw unicode remainder as unknown surface, without normalization', () => {
+      expect(parsePublicLayoutPath('/vi/tạm')).toEqual({
+        kind: 'invalid',
+        reason: 'unknown_mount',
       });
     });
 
-    it('never trims whitespace inside the resource', () => {
-      // Space dính sau segment mount → không khớp '/blog/' prefix → unknown.
+    it('never trims whitespace inside the path', () => {
       expect(parsePublicLayoutPath('/en/blog ')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
@@ -113,14 +101,11 @@ describe('parsePublicLayoutPath adversarial input', () => {
         kind: 'invalid',
         reason: 'unknown_mount',
       });
-      // Space nằm sau mount hợp lệ thì giữ nguyên từng byte.
-      const result = parsePublicLayoutPath('/en/docs/a b');
-      expect(result).toMatchObject({ kind: 'localized', remainder: '/a b' });
     });
   });
 
-  describe('mount matching boundaries', () => {
-    it('never matches a mount on a partial segment', () => {
+  describe('surface classification boundaries', () => {
+    it('never classifies a partial locale segment as a surface', () => {
       expect(parsePublicLayoutPath('/en/blogging')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
@@ -129,42 +114,30 @@ describe('parsePublicLayoutPath adversarial input', () => {
         kind: 'invalid',
         reason: 'unknown_mount',
       });
-      expect(parsePublicLayoutPath('/en/doc')).toEqual({
-        kind: 'invalid',
-        reason: 'unknown_mount',
-      });
-      expect(parsePublicLayoutPath('/en/docsapi')).toEqual({
+      expect(parsePublicLayoutPath('/en/e')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
       });
     });
 
-    it('is case-sensitive: uppercase mount paths are unknown', () => {
+    it('is case-sensitive: uppercase locale paths are unsupported', () => {
+      expect(parsePublicLayoutPath('/EN')).toEqual({
+        kind: 'invalid',
+        reason: 'unsupported_locale',
+      });
       expect(parsePublicLayoutPath('/vi/BLOG')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
       });
-      expect(parsePublicLayoutPath('/vi/Docs')).toEqual({
-        kind: 'invalid',
-        reason: 'unknown_mount',
-      });
-    });
-
-    it('resolves nested mount docs/api before docs on deeper paths', () => {
-      const nested = parsePublicLayoutPath('/en/docs/api/x');
-      expect(nested).toMatchObject({ kind: 'localized', mount: 'docs/api', remainder: '/x' });
     });
 
     it('does not normalize dot segments', () => {
-      // '.'/'..' là segment thường — không có path traversal normalization;
-      // resource dưới mount giữ nguyên từng byte kể cả khi chứa '..'.
-      const withDotDot = parsePublicLayoutPath('/en/docs/../blog');
-      expect(withDotDot).toMatchObject({
-        kind: 'localized',
-        mount: 'docs',
-        remainder: '/../blog',
+      // '.'/'..' là segment thường — không có path traversal normalization.
+      expect(parsePublicLayoutPath('/en/../blog')).toEqual({
+        kind: 'invalid',
+        reason: 'unknown_mount',
       });
-      expect(parsePublicLayoutPath('/en/./docs')).toEqual({
+      expect(parsePublicLayoutPath('/en/.')).toEqual({
         kind: 'invalid',
         reason: 'unknown_mount',
       });
@@ -183,6 +156,17 @@ describe('parsePublicLayoutPath adversarial input', () => {
         kind: 'invalid',
         reason: 'unsupported_locale',
       });
+    });
+
+    it('keeps legacy mount paths rejected after the content-stack removal', () => {
+      // Docs/blog/legal từng là mount — phải tiếp tục bị từ chối với
+      // `unknown_mount` (404 ở runtime), không được tái hợp lệ hoá ngầm.
+      for (const pathname of ['/en/docs', '/en/docs/api', '/en/blog', '/vi/legal/privacy']) {
+        expect(parsePublicLayoutPath(pathname)).toEqual({
+          kind: 'invalid',
+          reason: 'unknown_mount',
+        });
+      }
     });
   });
 });

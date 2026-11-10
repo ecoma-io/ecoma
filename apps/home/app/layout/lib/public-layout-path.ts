@@ -4,12 +4,16 @@
  *
  * Thư viện **không normalize input**: mọi kiểm tra cấu trúc kế thừa từ
  * `parsePublicPath`/`localizePath` của `app/i18n`; phần thêm riêng ở đây
- * là mount matching. Expected invalid input luôn trả `{ kind: 'invalid',
+ * là phân loại bề mặt. Expected invalid input luôn trả `{ kind: 'invalid',
  * reason }` — không bao giờ throw.
+ *
+ * Public Web hiện chỉ có locale-root (`/en`, `/vi`) làm bề mặt nội dung:
+ * registry mount đã bị xoá cùng với stack @nuxt/content (issue #72). Khi
+ * một mount mới ra đời, thêm lại variant `localized` cùng registry lúc đó —
+ * không khôi phục variant sớm "cho dù chưa dùng".
  */
 
 import type { PublicLocale, PublicPathReason } from '../../i18n/index';
-import type { PublicMount } from './mount-registry';
 
 /**
  * Lý do một pathname bị `app/layout` từ chối.
@@ -19,14 +23,9 @@ import type { PublicMount } from './mount-registry';
  *
  * - `not_a_pathname` / `trailing_slash` / `empty_segment` / `unsupported_locale` —
  *   pass-through từ `parsePublicPath` (parse) hoặc `localizePath` (build);
- *   cấu trúc được kiểm tra trước mount, nên `/en//docs`, `/en/docs/` không
- *   bao giờ bị gán nhầm `unknown_mount`.
- * - `unknown_mount` — segment sau locale không khớp mount registry nào
- *   (`/en/unknown`, `/en/blogging`), input build thiếu mount trong khi
- *   `path` khác rỗng (JS caller vi phạm contract type), hoặc input build
- *   ghép lại thành pathname có topology **khác** mount đã yêu cầu
- *   (`{ mount: 'docs', path: '/api' }` thuộc mount `docs/api` — caller
- *   phải dựng `{ mount: 'docs/api' }`, builder không reinterpret).
+ * - `unknown_mount` — segment sau locale khác rỗng mà không có bề mặt nào
+ *   (`/en/unknown`, `/en/docs`) — mọi pathname có remainder đều không còn
+ *   bề mặt phục vụ sau khi stack content bị xoá.
  *
  * `not_localized` và `already_localized` là lý do riêng của `switchLocale`/
  * `localizePath` — hai hàm này không thuộc `app/layout`, nhưng kiểu dùng
@@ -39,14 +38,10 @@ export type PublicLayoutPathReason = PublicPathReason | 'unknown_mount';
  * Kết quả phân biệt (discriminated) của `parsePublicLayoutPath` và
  * `buildPublicPath`.
  *
- * Bốn state:
+ * Ba state:
  * - `root` — đúng `/`: locale-resolution entry point, không serve content,
  *   không phải `en` và không phải invalid;
- * - `locale-root` — `/en`, `/vi`: bề mặt root public, không có mount;
- * - `localized` — pathname có mount: `mount` khớp registry, `remainder` là
- *   phần **sau mount** (`/en/docs/api/guide` → `mount = 'docs/api'`,
- *   `remainder = '/guide'`) — khác với `remainder` sau locale của
- *   `app/i18n`;
+ * - `locale-root` — `/en`, `/vi`: bề mặt nội dung public duy nhất;
  * - `invalid` — kèm typed reason, không throw.
  *
  * `path` trên variant thành công là public path đầy đủ, không bao giờ có
@@ -60,37 +55,14 @@ export type PublicLayoutPathResult =
       readonly locale: PublicLocale;
       readonly path: string;
     }
-  | {
-      readonly kind: 'localized';
-      readonly locale: PublicLocale;
-      readonly mount: PublicMount;
-      readonly path: string;
-      readonly remainder: string;
-    }
   | { readonly kind: 'invalid'; readonly reason: PublicLayoutPathReason };
 
 /**
- * Input của `buildPublicPath`.
- *
- * Hai nhánh, `path` chỉ có ý nghĩa khi `mount` có mặt:
- * - `{ locale }` — bề mặt locale-root (`/en`);
- * - `{ locale, mount, path? }` — mounted surface; `path` là resource path
- *   **dưới mount**, phải bắt đầu bằng `/` hoặc là `''` (mặc định).
- *
- * Contract này được enforce cả ở type (nhánh đầu không nhận `path`) lẫn ở
- * runtime (`unknown_mount` khi JS caller truyền `path` không kèm `mount`).
+ * Input của `buildPublicPath` — chỉ còn nhánh locale-root.
  */
-export type PublicLayoutPathInput =
-  | {
-      readonly locale: PublicLocale;
-      readonly mount?: undefined;
-      readonly path?: undefined;
-    }
-  | {
-      readonly locale: PublicLocale;
-      readonly mount: PublicMount;
-      readonly path?: string;
-    };
+export type PublicLayoutPathInput = {
+  readonly locale: PublicLocale;
+};
 
 /** Variant invalid cho sẵn — mọi early-return dùng đúng một constructor này. */
 export function invalidLayoutPath(reason: PublicLayoutPathReason): PublicLayoutPathResult {

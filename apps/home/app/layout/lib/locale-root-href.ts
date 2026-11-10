@@ -13,7 +13,7 @@ import { buildPublicPath } from './build-public-path';
 import type { PublicLayoutPathResult } from './public-layout-path';
 
 export function localeRootHref(layout: PublicLayoutPathResult): string {
-  if (layout.kind !== 'localized' && layout.kind !== 'locale-root') {
+  if (layout.kind !== 'locale-root') {
     return '/';
   }
   const locale: PublicLocale = layout.locale;

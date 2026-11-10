@@ -1,21 +1,20 @@
 /**
  * `parsePublicLayoutPath` — đọc một public pathname và phân loại theo
- * topology: `root` / `locale-root` / `localized` / `invalid`.
+ * topology: `root` / `locale-root` / `invalid`.
  *
  * Phân tầng parsing (không duplicate parser của `app/i18n`):
  *
  * ```text
  * pathname → parsePublicPath()  → locale + remainder
- *          → (phần này)         → mount  + resource remainder
+ *          → (phần này)         → phân loại bề mặt
  * ```
  *
  * Toàn bộ kiểm tra cấu trúc (`?`/`#`, `//`, trailing slash, so khớp locale
- * chính xác từng byte) thuộc `parsePublicPath`; thư viện này chỉ match mount
+ * chính xác từng byte) thuộc `parsePublicPath`; thư viện này chỉ phân loại
  * trên remainder đã được kiểm chứng, nên không có đường "sửa giúp" input hỏng.
  */
 
 import { parsePublicPath } from '../../i18n/index';
-import { PUBLIC_MOUNTS } from './mount-registry';
 import { invalidLayoutPath, type PublicLayoutPathResult } from './public-layout-path';
 
 /**
@@ -23,21 +22,14 @@ import { invalidLayoutPath, type PublicLayoutPathResult } from './public-layout-
  *
  * 1. `parsePublicPath` trả `root` → `root` (`/` là parse state riêng);
  * 2. `parsePublicPath` trả `invalid` → pass-through typed reason nguyên vẹn;
- * 3. remainder rỗng (`/en`) → `locale-root` — bề mặt root public, không mount;
- * 4. remainder khớp một mount theo **full segment boundary**, deepest-first
- *    → `localized` với `remainder` là phần sau mount (có thể `''`);
- * 5. không khớp mount nào → `invalid` với `unknown_mount`.
+ * 3. remainder rỗng (`/en`) → `locale-root` — bề mặt nội dung public duy nhất;
+ * 4. remainder khác rỗng → `invalid` với `unknown_mount` — mọi bề mặt mounted
+ *    (docs, blog, legal) đã bị xoá cùng stack @nuxt/content (issue #72); URL
+ *    cũ nhận 404 qua validate thay vì còn bề mặt phục vụ.
  *
- * Mount matching không decode, không lowercase: `/en/blog%2Ffoo` (còn nguyên
- * `%2F`) không khớp mount `blog` — canonical URL của resource đó là
- * `/en/blog/foo` với slash thô. `/en/blogging` không bao giờ rơi vào `blog`;
- * `/en/docs/api` resolve `docs/api` trước `docs`.
- *
- * Resource path **sau mount là opaque**: `/en/docs/unknown` là `docs` +
- * `/unknown` hợp lệ — app sở hữu resource đó quyết định 404.
- *
- * Không bao giờ throw, kể cả khi input không phải string (guard runtime của
- * `parsePublicPath` trả `not_a_pathname`).
+ * Không decode, không lowercase: `/en/docs%2Ffoo` không được "sửa giúp" thành
+ * URL hợp lệ nào — nó vẫn là invalid. Không bao giờ throw, kể cả khi input
+ * không phải string (guard runtime của `parsePublicPath` trả `not_a_pathname`).
  */
 export function parsePublicLayoutPath(pathname: string): PublicLayoutPathResult {
   const parsed = parsePublicPath(pathname);
@@ -52,30 +44,6 @@ export function parsePublicLayoutPath(pathname: string): PublicLayoutPathResult 
 
   if (parsed.remainder === '') {
     return { kind: 'locale-root', locale: parsed.locale, path: parsed.path };
-  }
-
-  // PUBLIC_MOUNTS đã sắp deepest-first — thử mount dài trước để mount lồng
-  // nhau thắng mount cha.
-  for (const definition of PUBLIC_MOUNTS) {
-    const mountPrefix = `/${definition.path}`;
-    if (parsed.remainder === mountPrefix) {
-      return {
-        kind: 'localized',
-        locale: parsed.locale,
-        mount: definition.path,
-        path: parsed.path,
-        remainder: '',
-      };
-    }
-    if (parsed.remainder.startsWith(`${mountPrefix}/`)) {
-      return {
-        kind: 'localized',
-        locale: parsed.locale,
-        mount: definition.path,
-        path: parsed.path,
-        remainder: parsed.remainder.slice(mountPrefix.length),
-      };
-    }
   }
 
   return invalidLayoutPath('unknown_mount');

@@ -113,7 +113,7 @@ describe('useHomeMotion', () => {
     // tới subtree đã detach và inline style của GSAP sót lại sau navigate.
     //
     // Dùng GSAP thật (dynamic import của composable không bị vi.doMock chặn)
-    // với đầy đủ 5 hero targets như trang thật: composable chỉ tạo observer
+    // với đầy đủ 4 hero targets như trang thật: composable chỉ tạo observer
     // khi có ít nhất một `[data-reveal]`, nên bỏ hẳn `data-reveal` thì đường
     // dispose không bao giờ chạy và test rỗng. IntersectionObserver được thay
     // bằng fake để đếm `disconnect`.
@@ -142,7 +142,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal>R</section>
       </div>`,
@@ -208,7 +207,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal>R</section>
       </div>`,
@@ -266,7 +264,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal>R</section>
       </div>`,
@@ -367,7 +364,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal>R</section>
       </div>`,
@@ -436,7 +432,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal id="in-view">R1</section>
         <section data-reveal id="below-fold">R2</section>
@@ -491,7 +486,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
       </div>`,
     });
@@ -565,7 +559,6 @@ describe('useHomeMotion', () => {
         <p data-hero="eyebrow">e</p>
         <h1 data-hero="heading">H</h1>
         <p data-hero="description">d</p>
-        <div data-hero="actions">a</div>
         <ul data-hero="proofs">p</ul>
         <section data-reveal>R</section>
       </div>`,
@@ -586,7 +579,7 @@ describe('useHomeMotion', () => {
     // Mọi tween hero phải là `fromTo` với `immediateRender: false` — nếu
     // không, `fromTo` mặc định render trạng thái `from` ngay lúc khởi tạo và
     // tween trễ sau sẽ đè lên tween trước đã chạy.
-    expect(fromToCalls).toHaveLength(5);
+    expect(fromToCalls).toHaveLength(4);
     for (const call of fromToCalls) {
       expect(call.vars['immediateRender']).toBe(false);
     }
