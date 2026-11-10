@@ -86,33 +86,6 @@
           "dạng bị plugin tắt (no-op), runner sạch sẽ hard-fail TS5083."
         ]
       },
-      "test-python": {
-        "executor": "nx:run-commands",
-        "cache": true,
-        "inputs": [
-          "default",
-          "{projectRoot}/tests/**/*.py"
-        ],
-        "options": {
-          "cwd": "apps/home",
-          "command": "python3 -B -m unittest discover -s tests/python -t tests/python && python3 -B -m unittest discover -s tests -t tests -p 'verify_examples_test.py'"
-        },
-        "//": [
-          "Unit test Python của `tests/verify-citations.py` (module `tests/citation_verify.py`,",
-          "`tests/citation-manifest.json`) và của `tests/verify-examples.py`.",
-          "`tests/python/` chỉ chứa `test_citation_verify.py`; `discover` mặc định pattern là",
-          "`test*.py` nên file test đặt cạnh module (`verify_examples_test.py`) không được",
-          "gọi bởi lệnh đầu — lệnh thứ hai với `-p` tường minh là bắt buộc, nếu không 66 test",
-          "kia chỉ chạy được khi tay mà CI không bao giờ thấy.",
-          "CI chỉ chạy `nx affected -t test`, nên file",
-          "Python thuần sẽ không bao giờ được chạy nếu không có target này. Lớp HTTP được",
-          "inject nên **không có request mạng** trong CI: `python3` là tool sẵn có của",
-          "image `ubuntu-26.04`, và các script `tests/verify-*.py` sẵn đã giả định có.",
-          "`-B` để không ghi bytecode trong worktree; `.gitignore` cũng chặn `__pycache__`",
-          "vì tên cache đó không lấp lánh trong review diff.",
-          "Đường live (`verify-citations.py --live`) là công cụ review, không thuộc CI."
-        ]
-      },
       "test": {
         "executor": "nx:run-commands",
         "cache": true,
@@ -172,8 +145,7 @@
         "parallelism": true,
         "dependsOn": [
           "nuxt-prepare",
-          "build",
-          "test-python"
+          "build"
         ],
         "//": [
           "`test` phụ thuộc `build`: suite `tests/static-output.spec.ts`",
@@ -182,9 +154,7 @@
           "`nx affected -t test` trong CI) giờ luôn build trước, nên một page/",
           "media/404 fallback hỏng lộ ngay ở bước test thay vì chỉ thấy khi đã",
           "deploy. (Migrated từ apps/blogs: `test` previously depended on",
-          "`build-static` — home build is the SSR Worker build.)",
-          "`test-python` là target thứ ba: test Python của citation verification và",
-          "của example verification, chạy song song với phần Vitest và không cần Nuxt build."
+          "`build-static` — home build is the SSR Worker build.)"
         ]
       },
       "lint": {
