@@ -9,6 +9,9 @@ import {
 } from './bootstrap-superadmin.js';
 import { createSpawnStageRunner } from './stage-process.js';
 
+/** Định danh ASCII in được — dùng cho cả `operator_ref` lẫn correlation id. */
+const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u;
+
 /**
  * Entry `pnpm dx bootstrap-superadmin`.
  *
@@ -45,11 +48,23 @@ export default defineCommand({
   },
 
   run({ args }) {
+    const rawCorrelationId = args['correlation-id'];
     const correlationId =
-      typeof args['correlation-id'] === 'string' && args['correlation-id'].length > 0
-        ? args['correlation-id']
+      typeof rawCorrelationId === 'string' && rawCorrelationId.length > 0
+        ? rawCorrelationId
         : randomUUID();
     const operatorRef = typeof args['operator-ref'] === 'string' ? args['operator-ref'] : '';
+
+    // Cùng lý do với `operator_ref`: giá trị này được in ra console và đi vào
+    // audit metadata. Một correlation id chứa xuống dòng có thể chèn một dòng
+    // `[bootstrap-superadmin] done: …` giả vào nhật ký của một lần chạy thất bại.
+    if (!IDENTIFIER.test(correlationId)) {
+      console.error(
+        '[bootstrap-superadmin] --correlation-id must be an ASCII identifier (letters, digits, . _ : / -).',
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     try {
       // Cấu hình environment chỉ **assert** danh tính canonical; khác hằng thì
@@ -92,7 +107,7 @@ function printResult(result: BootstrapRunResult): void {
       return;
     case 'guard_denied':
       console.log(
-        '[bootstrap-superadmin] denied by the measured guard: this environment already has an administrator. No writes were performed. This is not a completed bootstrap.',
+        '[bootstrap-superadmin] denied by the measured guard: measured administrators are non-zero, so this step wrote nothing. This is not a completed bootstrap.',
       );
       return;
     case 'failed':

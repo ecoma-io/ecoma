@@ -267,16 +267,34 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
     }
   });
 
-  it('rejects an unknown permission and a missing read permission at seed time (catalog stays sealed)', async () => {
-    const client = await db.connect();
+  it('keeps the permission catalog sealed: the runtime role cannot insert a new permission', async () => {
+    // Tên test trước đây nói "seed từ chối permission lạ" nhưng lại assert một
+    // INSERT **thành công** bằng superuser — nó không chứng minh gì về seal.
+    // Seal thật là: ghi vào catalog chỉ migrator làm được (0008 mục 4).
+    const runtime = await db.asRuntime();
     try {
       await expect(
-        client.query(
+        runtime.query(
           `INSERT INTO staff_access.permissions (id, domain, action, status)
            VALUES ('role.assign', 'role', 'assign', 'active')`,
         ),
-      ).resolves.toBeDefined();
-      await client.query(`DELETE FROM staff_access.permissions WHERE id = 'role.assign'`);
+      ).rejects.toThrow(/permission denied|insufficient privilege/iu);
+    } finally {
+      await runtime.end();
+    }
+
+    // Và catalog vẫn đúng bốn permission sau lần thử đó.
+    const client = await db.connect();
+    try {
+      const permissions = await client.query<{ id: string }>(
+        `SELECT id FROM staff_access.permissions ORDER BY id`,
+      );
+      expect(permissions.rows.map((row) => row.id)).toEqual([
+        'audit.read',
+        'permission.read',
+        'role.read',
+        'staff.read',
+      ]);
     } finally {
       await client.end();
     }
@@ -629,6 +647,36 @@ describe('bootstrap steps against the canonical seed', () => {
     }
   });
 
+  it('S3 requires exactly one success audit row per step, not merely one of each action', async () => {
+    // Audit là append-only (trigger chặn UPDATE/DELETE) nên hàng trùng không dọn
+    // được — dùng một correlation id riêng để phần còn lại của suite không thấy nó.
+    await resetBusinessRows(db);
+    const input = bootstrapInput();
+    const client = await db.connectAsMigrator();
+    const superuser = await db.connect();
+    try {
+      await provisionBootstrapStaff(client, input);
+      const assigned = await assignBootstrapAdministrator(client, input);
+
+      await superuser.query(
+        `INSERT INTO staff_access.authorization_audit
+           (actor_staff_id, actor_sub, target, action, outcome, correlation_id, context)
+         VALUES (NULL, NULL, $1, 'staff.assign', 'success', $2, '{}'::jsonb)`,
+        [assigned.assignmentId, input.correlationId],
+      );
+
+      const duplicated = await verifyBootstrapStaff(client, {
+        sub: input.sub,
+        correlationId: input.correlationId,
+      });
+      expect(duplicated.ok).toBe(false);
+      expect(duplicated.reasons).toEqual(['audit_trail_missing']);
+    } finally {
+      await superuser.end();
+      await client.end();
+    }
+  });
+
   it('S3 verifies the staff of the bootstrapped sub when unrelated non-admin staff already exist', async () => {
     // Runbook Bước 8 kiểm 1 đọc staff theo `sub`, không đếm toàn bảng. Một
     // environment có staff không phải administrator từ trước là trạng thái hợp
@@ -846,11 +894,6 @@ describe('role identity failures', () => {
         `INSERT INTO staff_access.roles (id, kind, name, status)
          VALUES ('11111111-1111-4111-8111-111111111111', 'system', 'system-administrator', 'active')`,
       );
-      await superuser
-        .query(
-          `ALTER TABLE staff_access.roles ADD CONSTRAINT roles_kind_name_unique UNIQUE (kind, name)`,
-        )
-        .catch(() => undefined);
 
       const input = bootstrapInput();
       const client = await db.connectAsMigrator();
@@ -873,9 +916,14 @@ describe('role identity failures', () => {
         await client.end();
       }
     } finally {
-      // Dọn để container không ở trạng thái vi phạm constraint cho test sau.
+      // Dọn để container không ở trạng thái vi phạm constraint cho test sau:
+      // xoá hàng trùng TRƯỚC, rồi mới thêm lại constraint (thêm trước sẽ luôn
+      // fail và bị nuốt, để schema thiếu ràng buộc cho phần còn lại của suite).
       await superuser.query(
         `DELETE FROM staff_access.roles WHERE id = '11111111-1111-4111-8111-111111111111'`,
+      );
+      await superuser.query(
+        `ALTER TABLE staff_access.roles ADD CONSTRAINT roles_kind_name_unique UNIQUE (kind, name)`,
       );
       await superuser.end();
     }

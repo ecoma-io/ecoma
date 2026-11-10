@@ -228,19 +228,24 @@ describe('runBootstrapSuperadmin', () => {
     // Không bước ghi nào được báo thành công sau khi guard từ chối.
     expect(result.staffId).toBeUndefined();
     expect(result.assignmentId).toBeUndefined();
+    // Chi tiết của bước bị từ chối chỉ nói về **bước đó**: A1 đã commit một
+    // Account hợp lệ, nên "no writes were performed" là một câu sai.
+    expect(result.stages.map((s) => s.detail)).not.toContain(expect.stringContaining('No writes'));
+    const deniedEntry = result.stages.find((s) => s.outcome === 'denied');
+    expect(deniedEntry?.detail).toContain('this step wrote nothing');
   });
 
-  it('keeps guard_denied as the outcome when the diagnostic read-back also fails', () => {
-    // Sau khi guard từ chối, S3 chỉ là chẩn đoán. Nó fail vì lần chạy này chưa
-    // từng ghi gì — nhưng lý do dừng vẫn là từ chối của guard, không phải S3:
-    // báo `failed` ở đây sẽ chỉ vào sai bước và che mất `mode_mismatch`.
+  it('keeps guard_denied as the outcome when the diagnostic read-back concludes normally', () => {
+    // Sau khi guard từ chối, S3 chỉ là chẩn đoán. Nó có thể fail vì lần chạy này
+    // chưa từng ghi gì (`staff_missing_or_ambiguous`) — đó là kết luận, không
+    // phải lỗi thực thi — nên kết quả vẫn là `guard_denied` và exit code khác 0.
     let verifyCalls = 0;
     const runner: BootstrapStageRunner = (request) => {
       if (request.action === 'verify') {
         verifyCalls += 1;
         return verifyCalls === 1
           ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
-          : success('account.verify', 'verified', { sub: `sub_${'e'.repeat(32)}` });
+          : success('account.verify', 'converged', { sub: `sub_${'e'.repeat(32)}` });
       }
       if (request.action === 'provision') {
         return success('account.provision', 'created', { sub: `sub_${'e'.repeat(32)}` });
@@ -248,7 +253,7 @@ describe('runBootstrapSuperadmin', () => {
       if (request.action === 'staff-provision') {
         return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
       }
-      return { ok: false, stage: 'staff.verify', reason: 'no_bootstrap_administrator' };
+      return { ok: false, stage: 'staff.verify', reason: 'staff_missing_or_ambiguous' };
     };
 
     const result = runBootstrapSuperadmin({
@@ -265,6 +270,41 @@ describe('runBootstrapSuperadmin', () => {
       'verified',
       'denied',
       'denied',
+    ]);
+  });
+
+  it('logs an infrastructure failure of the diagnostic read-back as failed, not as a denial', () => {
+    // `failed` và `denied` là hai kết luận khác nhau: một `database_unreachable`
+    // ở S3 không phải guard từ chối có chủ đích. Kết luận tổng vẫn là
+    // `guard_denied` (guard mới là lý do dừng), nhưng dòng nhật ký phải đúng.
+    let verifyCalls = 0;
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-7b',
+      operatorRef: 'CHG-TEST',
+      runStage: (request) => {
+        if (request.action === 'verify') {
+          verifyCalls += 1;
+          return verifyCalls === 1
+            ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+            : success('account.verify', 'converged', { sub: `sub_${'h'.repeat(32)}` });
+        }
+        if (request.action === 'provision') {
+          return success('account.provision', 'created', { sub: `sub_${'h'.repeat(32)}` });
+        }
+        if (request.action === 'staff-provision') {
+          return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
+        }
+        return { ok: false, stage: 'staff.verify', reason: 'database_unreachable' };
+      },
+    });
+
+    expect(result.outcome).toBe('guard_denied');
+    expect(result.stages.map((s) => s.outcome)).toEqual([
+      'fresh',
+      'created',
+      'verified',
+      'denied',
+      'failed',
     ]);
   });
 

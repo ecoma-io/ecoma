@@ -198,7 +198,17 @@ echo '{"correlation_id":"…","sub":"sub_…"}' \
 - `staff-verify` chỉ đọc và **bắt buộc `sub`** (`sub_missing` / `invalid_sub`): staff
   được kiểm là staff của đúng Account, không phải "hàng staff duy nhất trong database".
   `correlation_id` tuỳ chọn ở tầng hàm; khi có, nó kiểm thêm audit row của S1/S2 cho
-  đúng lần chạy đó.
+  đúng lần chạy đó — **đúng một** row `success` mỗi bước và `target` phải khớp staff /
+  assignment vừa kiểm.
+- S2 so assignment còn hiệu lực bằng **cùng predicate** với `admins_before` và S3 kiểm 3,
+  nên một hàng `revoked_at IS NULL` nhưng đã hết cửa sổ hiệu lực không bao giờ được báo
+  là `converged`. Với thứ tự guard hiện tại nhánh `assignment_window_expired` không tới
+  được (hàng đó đã làm `admins_ever > 0`), nên nó là phòng thủ cho đường sau này, không
+  phải kết quả đang chạy.
+- Mã từ chối input/hạ tầng (`invalid_sub`, `sub_missing`, `correlation_id_missing`,
+  `operator_ref_missing`, `database_unreachable`, `internal_error`) và mọi mã của S3 chỉ
+  ra stderr, **không** có row trong `authorization_audit`: chúng bị từ chối trước khi có
+  transaction, hoặc ở một bước chỉ đọc. Đừng dùng audit để kết luận "chưa từng có lần chạy".
 
 ## Cấu trúc thư mục
 

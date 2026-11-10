@@ -299,15 +299,18 @@ export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapR
 /**
  * Nhánh "guard từ chối". Guard từ chối (`mode_mismatch`) là hành vi đúng khi
  * environment đã từng có administrator (ADR-0022 Quyết định 3): procedure
- * không có nhánh cấp lại quyền. Lần chạy này không ghi dữ liệu nghiệp vụ, nên
- * nó chạy S3 để trả bằng chứng đọc được rồi báo `guard_denied` — không báo
- * `bootstrapped`, vì không có bước ghi nào đã thành công.
+ * không có nhánh cấp lại quyền. Bước bị từ chối không ghi dữ liệu nghiệp vụ,
+ * nên procedure chạy S3 để trả bằng chứng đọc được rồi báo `guard_denied` —
+ * không báo `bootstrapped`, vì không có bước ghi nào đã thành công.
  *
  * S3 ở đây chỉ là **chẩn đoán**: sau một lần bị từ chối, phép đọc lại có thể
- * thấy trạng thái administrator hiện có, hoặc cũng có thể fail vì lần chạy của
- * chúng ta chưa từng ghi gì. Cả hai trường hợp đều không đổi kết luận — từ chối
- * của guard mới là lý do dừng, và exit code vẫn khác 0 — nên kết quả vẫn là
- * `guard_denied` và kết quả S3 chỉ đi vào nhật ký.
+ * thấy trạng thái administrator hiện có, hoặc cũng có thể fail. Fail vì lần chạy
+ * của chúng ta chưa từng ghi gì là kết quả *bình thường* của nhánh này; fail vì
+ * lỗi thực thi (`database_unreachable`, `stage_timeout`) thì **không** phải một
+ * lần từ chối — nhật ký phải ghi `failed`, nếu không người vận hành đọc log sẽ
+ * nhầm lỗi hạ tầng với kết luận của guard (cùng lý do với `failed` ở trên).
+ * Cả hai trường hợp đều không đổi kết luận `guard_denied`, vì từ chối của guard
+ * mới là lý do dừng.
  */
 function finishGuardDenied(
   stages: BootstrapStageLogEntry[],
@@ -319,19 +322,50 @@ function finishGuardDenied(
   stages.push({
     stage: deniedStage,
     outcome: 'denied',
-    detail: 'mode_mismatch: measured administrators are non-zero; no writes performed',
+    detail: 'mode_mismatch: measured administrators are non-zero; this step wrote nothing',
   });
   const verification = runStage({
     service: 'staff-access',
     action: 'staff-verify',
     input: { correlation_id: correlationId, sub },
   });
-  stages.push(
-    verification.ok
-      ? { stage: verification.stage, outcome: verification.status }
-      : { stage: verification.stage, outcome: 'denied', detail: verification.reason },
-  );
+  if (verification.ok) {
+    stages.push({ stage: verification.stage, outcome: verification.status });
+  } else {
+    // Chẩn đoán chạy được nhưng không xác nhận được trạng thái (ví dụ lần chạy
+    // này chưa từng ghi gì) — đó là quan sát, không phải lỗi thực thi. Tách hai
+    // trường hợp bằng những mã chỉ lỗi hạ tầng mới sinh ra.
+    const infrastructureFailure = isInfrastructureFailure(verification.reason);
+    stages.push({
+      stage: verification.stage,
+      outcome: infrastructureFailure ? 'failed' : 'denied',
+      detail: verification.reason,
+    });
+  }
   return { outcome: 'guard_denied', correlationId, sub, stages };
+}
+
+/**
+ * Mã lý do chỉ xuất hiện khi bước không chạy được, không phải khi bước chạy và
+ * kết luận "không có gì để xác nhận". `database_url_missing`/`spawn_failed` mang
+ * hậu tố nên được so bằng tiền tố.
+ */
+const DIAGNOSTIC_INFRASTRUCTURE_FAILURES: ReadonlySet<string> = new Set([
+  'database_unreachable',
+  'stage_timeout',
+  'output_limit_exceeded',
+  'missing_json_response',
+  'malformed_json_response',
+  'service_failed',
+  'internal_error',
+]);
+
+function isInfrastructureFailure(reason: string): boolean {
+  return (
+    reason.startsWith('spawn_failed') ||
+    reason.startsWith('database_url_missing') ||
+    DIAGNOSTIC_INFRASTRUCTURE_FAILURES.has(reason)
+  );
 }
 
 function asString(value: unknown): string | undefined {

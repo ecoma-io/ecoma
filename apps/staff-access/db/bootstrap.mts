@@ -38,7 +38,15 @@ import { Client } from 'pg';
 export const CANONICAL_ROLE_KIND = 'system';
 export const CANONICAL_ROLE_NAME = 'system-administrator';
 
-/** Khoá advisory dùng chung cho mọi đường ghi canonical role (ADR-0022 Quyết định 5). */
+/**
+ * Khoá advisory mà **đường ghi bootstrap** (S1/S2) lấy trong critical section của nó.
+ *
+ * ADR-0022 Quyết định 5 đòi mọi đường ghi canonical role dùng **cùng một** khoá. Hôm
+ * nay chỉ procedure này lấy nó: route gán assignment của serving path
+ * (`POST /staff/:id/assignments`) chưa lấy khoá và chưa có guard, đã ghi nhận ở runbook
+ * §3.1 và ADR-0023 Quyết định 2. Đường appointment thường (#44) phải lấy đúng khoá này
+ * khi nó được hiện thực — nếu không, ADR-0022 Quyết định 5 không còn đúng.
+ */
 export const ADMINISTRATOR_ASSIGNMENT_LOCK = 'staff_access.administrator_assignment';
 
 /** Chế độ chạy mà procedure chấp nhận; chỉ `bootstrap` được hiện thực ở #17. */
@@ -56,14 +64,26 @@ export const CANONICAL_ROLE_PERMISSIONS = [
 ] as const;
 
 /**
- * Lý do từ chối. Mọi mã ở đây đều xuất hiện trong audit `denied` và trên stderr CLI.
+ * Lý do từ chối. Mọi mã **của guard** (những mã được ném bên trong
+ * `runGuardedStep`) xuất hiện trong audit `denied` và trên stderr CLI.
+ *
+ * Các mã input/hạ tầng dưới đây chỉ ra stderr, **không** có audit row: chúng bị từ
+ * chối trước khi có transaction nào để rollback (`invalid_sub`, `sub_missing`,
+ * `correlation_id_missing`, `operator_ref_missing`), hoặc vì database không dùng
+ * được (`database_unreachable`, `internal_error`), hoặc vì S3 là bước chỉ đọc
+ * (`staff_missing_or_ambiguous`, `administrator_assignment_missing`,
+ * `role_permissions_mismatch`, `audit_trail_missing`). Đừng grep `authorization_audit`
+ * để kết luận "chưa từng có lần chạy".
  *
  * - `role_identity_missing`: không có hàng `roles` canonical.
  * - `role_identity_ambiguous`: nhiều hơn một hàng canonical (guard không được đoán).
  * - `mode_mismatch`: `admins_before`/`admins_ever` không đồng thời bằng 0.
  * - `staff_not_active`: staff theo `sub` tồn tại nhưng `suspended`/`terminated`.
  * - `assignment_window_expired`: assignment còn `revoked_at IS NULL` nhưng đã hết hạn —
- *   duplicate key trên partial unique index, fail-closed, không tự sửa.
+ *   duplicate key trên partial unique index, fail-closed, không tự sửa. Với thứ tự
+ *   guard hiện tại nhánh này **không tới được**: hàng hết hạn đó đã làm `admins_ever`
+ *   khác 0 nên `mode_mismatch` chặn trước. Giữ nhánh làm phòng thủ cho một thay đổi
+ *   sau này (ví dụ đường recovery #46), không phải đường đang chạy.
  * - `invalid_sub`: `sub` không khớp `isStaffSubFormat` (kiểm trước khi mở transaction).
  * - `correlation_id_missing`: CLI được gọi mà stdin thiếu `correlation_id`.
  * - `operator_ref_missing`: CLI được gọi mà stdin thiếu `operator_ref`.
@@ -175,9 +195,6 @@ export interface BootstrapVerificationOptions {
   readonly sub?: string;
   readonly correlationId?: string;
 }
-
-/** Tập lý do tối thiểu cho một lần chạy bootstrap hoàn tất (S1 + S2). */
-const BOOTSTRAP_STEPS = ['staff.provision', 'staff.assign'] as const;
 
 /**
  * Đo `admins_before`: số administrator **còn hiệu lực**. Câu SQL canonical của
@@ -319,8 +336,8 @@ async function insertAudit(
 
 /**
  * Ghi audit `denied` trong một transaction **riêng, đã commit**, sau khi transaction
- * guard đã rollback (ADR-0023 Quyết định 6). Không bao giờ ném vì lỗi audit — lỗi gốc
- * quan trọng hơn; nhưng lần chạy mà audit không ghi được cũng không được báo thành công.
+ * guard đã rollback (ADR-0023 Quyết định 6). Ném khi audit không ghi được, để caller
+ * quyết định: lỗi audit không được nuốt thành một lần chạy "bình thường".
  */
 async function recordDenial(
   client: Client,
@@ -363,7 +380,12 @@ async function recordDenial(
 /**
  * Chạy một bước ghi trong transaction guard, rollback khi bị từ chối, rồi commit audit
  * `denied` ở transaction riêng. `target` khi chưa phân giải được staff là `sub` — giá trị
- * `address_hash`/identity đã dùng để tra, không phải chuỗi rỗng (ADR-0023 Quyết định 6).
+ * đã dùng để tra, không phải chuỗi rỗng.
+ *
+ * ADR-0023 Quyết định 6 nói lần từ chối trước bước phân giải identity mang `address_hash`
+ * đã dùng để tra. Với bootstrap, **chỉ `sub` đi xuyên service** (ADR-0024; runbook §1),
+ * và `address_hash` không bao giờ tới `staff-access`, nên giá trị tra được duy nhất là
+ * `sub`. Đó là mapping đúng cho đường này, không phải một chỗ lệch ADR.
  */
 async function runGuardedStep(
   client: Client,
@@ -523,8 +545,14 @@ export async function assignBootstrapAdministrator(
     const staffId = staffRow.id;
 
     const live = await client.query<{ id: string }>(
+      // Cùng predicate "còn hiệu lực" với `admins_before` và với S3 kiểm 3. Thiếu
+      // cửa sổ hiệu lực ở đây sẽ coi một assignment đã hết hạn nhưng chưa revoke là
+      // hội tụ thành công, trong khi nó không còn cấp quyền administrator nào.
       `SELECT id FROM staff_access.role_assignments
-        WHERE staff_id = $1 AND role_id = $2 AND revoked_at IS NULL`,
+        WHERE staff_id = $1 AND role_id = $2
+          AND revoked_at IS NULL
+          AND (effective_from IS NULL OR effective_from <= now())
+          AND (effective_until IS NULL OR effective_until > now())`,
       [staffId, guard.roleId],
     );
     const liveRow = live.rows[0];
@@ -694,18 +722,38 @@ export async function verifyBootstrapStaff(
   }
 
   // Kiểm 5 — audit row của mọi bước trong lần chạy (chỉ khi có correlationId).
+  //
+  // Đếm **đúng một** row cho mỗi bước và buộc `target` khớp thứ vừa kiểm: chỉ
+  // kiểm "có ít nhất một row" sẽ cho hai row `staff.assign` (một lần chạy lại
+  // dùng correlation id, một lần ghi trùng) đi qua như một lần chạy sạch.
   if (options.correlationId !== undefined && options.correlationId !== '') {
-    const audit = await client.query<{ action: string }>(
-      `SELECT action FROM staff_access.authorization_audit
-        WHERE correlation_id = $1 AND outcome = 'success'`,
-      [options.correlationId],
-    );
-    const actions = new Set(audit.rows.map((row) => row.action));
-    const missing = BOOTSTRAP_STEPS.filter((step) => !actions.has(step));
-    if (missing.length === 0) {
-      checks.push({ check: 'audit', ok: true });
-    } else {
+    if (staffId === undefined || roleId === undefined) {
       fail('audit', 'audit_trail_missing');
+    } else {
+      const audit = await client.query<{ action: string; target: string }>(
+        `SELECT action, target FROM staff_access.authorization_audit
+          WHERE correlation_id = $1 AND outcome = 'success'`,
+        [options.correlationId],
+      );
+      const provisionRows = audit.rows.filter((row) => row.action === 'staff.provision');
+      const assignRows = audit.rows.filter((row) => row.action === 'staff.assign');
+
+      // `target` của `staff.assign` là assignment id — phải là assignment canonical
+      // của chính staff này, không phải một hàng bất kỳ của correlation id đó.
+      const assignment = await client.query<{ id: string }>(
+        `SELECT id FROM staff_access.role_assignments WHERE id = $1 AND staff_id = $2 AND role_id = $3`,
+        [assignRows[0]?.target, staffId, roleId],
+      );
+      const complete =
+        provisionRows.length === 1 &&
+        provisionRows[0]?.target === staffId &&
+        assignRows.length === 1 &&
+        assignment.rows.length === 1;
+      if (complete) {
+        checks.push({ check: 'audit', ok: true });
+      } else {
+        fail('audit', 'audit_trail_missing');
+      }
     }
   }
 

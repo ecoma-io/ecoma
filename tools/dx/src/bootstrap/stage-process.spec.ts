@@ -26,7 +26,18 @@ function withSpawn(result: ReturnType<typeof spawnSync>) {
     calls.push(args);
     return result;
   }) as unknown as typeof spawnSync;
-  return { run: createSpawnStageRunner({ env: {}, spawn }), calls };
+  // Env tối thiểu hợp lệ: runner từ chối chạy trước khi spawn nếu thiếu chuỗi
+  // kết nối của service, nên mọi test về parsing phải có nó.
+  return {
+    run: createSpawnStageRunner({
+      env: {
+        [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account',
+        [STAFF_ACCESS_DATABASE_URL_ENV]: 'postgresql://b@host/db-staff-access',
+      },
+      spawn,
+    }),
+    calls,
+  };
 }
 
 describe('createSpawnStageRunner', () => {
@@ -148,7 +159,7 @@ describe('createSpawnStageRunner', () => {
 
   it('returns the parsed payload and separates the stage/status envelope', () => {
     const { run } = withSpawn(
-      fakeRun('{"stage":"account.verify","status":"verified","sub":"sub_x"}\n'),
+      fakeRun('{"stage":"account.verify","status":"converged","sub":"sub_x"}\n'),
     );
 
     const result = run({ service: 'account', action: 'verify', input: {} });
@@ -156,8 +167,161 @@ describe('createSpawnStageRunner', () => {
     expect(result).toEqual({
       ok: true,
       stage: 'account.verify',
-      status: 'verified',
+      status: 'converged',
       payload: { sub: 'sub_x' },
+    });
+  });
+
+  it('rejects an exit-0 envelope whose status is a denial', () => {
+    // Exit 0 không đủ: một con thoát 0 kèm `status: "denied"` từng được đọc
+    // thành thành công, đúng cái mà exit code phải ngăn.
+    const { run } = withSpawn(
+      fakeRun('{"stage":"staff.verify","status":"denied","reason":"staff_missing_or_ambiguous"}\n'),
+    );
+
+    const result = run({ service: 'staff-access', action: 'staff-verify', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'staff.verify',
+      reason: 'malformed_json_response',
+    });
+  });
+
+  it('rejects a success status that does not belong to the requested action', () => {
+    // `created` là status của bước ghi; A2 (`verify`) không bao giờ trả nó.
+    const { run } = withSpawn(fakeRun('{"stage":"account.verify","status":"created"}\n'));
+
+    const result = run({ service: 'account', action: 'verify', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'account.verify',
+      reason: 'malformed_json_response',
+    });
+  });
+
+  it('finds the denial envelope before a trailing npm warning on stderr', () => {
+    // npm in cảnh báo/notice trên stderr của con và có thể in sau dòng JSON;
+    // đọc mỗi dòng cuối sẽ biến `mode_mismatch` thành `service_failed` và làm
+    // mất đúng lý do bảng quyết định của runbook dựa vào.
+    const { run } = withSpawn(
+      fakeRun(
+        '',
+        '{"stage":"staff.provision","status":"denied","reason":"mode_mismatch"}\n(node:1) MaxListenersExceededWarning: x\n',
+        1,
+      ),
+    );
+
+    const result = run({ service: 'staff-access', action: 'staff-provision', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'staff.provision',
+      reason: 'mode_mismatch',
+    });
+  });
+
+  it('ignores a denial envelope that belongs to a different stage', () => {
+    // Envelope của một bước khác không chứng minh bước này đã chạy.
+    const { run } = withSpawn(
+      fakeRun('', '{"stage":"staff.assign","status":"denied","reason":"mode_mismatch"}\n', 1),
+    );
+
+    const result = run({ service: 'staff-access', action: 'staff-provision', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'staff.provision',
+      reason: 'service_failed',
+    });
+  });
+
+  it('never forwards npm auth tokens or proxy credentials through npm_config_*', () => {
+    // Cả tiền tố `npm_config_*` bao gồm `npm_config__authToken` và
+    // `npm_config_https_proxy`, tức là thêm credential tới tiến trình con.
+    const calls: SpawnArgs[] = [];
+    const run = createSpawnStageRunner({
+      env: {
+        [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account',
+        npm_config_cache: '/tmp/npm-cache',
+        npm_config_registry: 'https://registry.example.test',
+        npm_config__authToken: 'npm_secret_token',
+        npm_config_https_proxy: 'http://user:proxy_password@proxy.internal:3128',
+      },
+      spawn: ((...args: SpawnArgs) => {
+        calls.push(args);
+        return fakeRun('{"stage":"account.provision","status":"created"}\n');
+      }) as unknown as typeof spawnSync,
+    });
+
+    run({ service: 'account', action: 'provision', input: {} });
+
+    const firstCall = calls[0] as SpawnArgs;
+    const env = (firstCall[2] as { env: NodeJS.ProcessEnv }).env;
+    expect(env['npm_config_cache']).toBe('/tmp/npm-cache');
+    expect(env['npm_config_registry']).toBe('https://registry.example.test');
+    expect(env['npm_config__authToken']).toBeUndefined();
+    expect(env['npm_config_https_proxy']).toBeUndefined();
+  });
+
+  it('fails before spawning when the service credential is not configured', () => {
+    // Điều kiện tất định: để con chạy rồi chết vì `DATABASE_URL is not set`
+    // hiện ra thành `service_failed`, không phân biệt được với lỗi spawn.
+    const calls: SpawnArgs[] = [];
+    const run = createSpawnStageRunner({
+      env: {},
+      spawn: ((...args: SpawnArgs) => {
+        calls.push(args);
+        return fakeRun('');
+      }) as unknown as typeof spawnSync,
+    });
+
+    const result = run({ service: 'account', action: 'verify', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'account.verify',
+      reason: `database_url_missing:${ACCOUNT_DATABASE_URL_ENV}`,
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('applies a hard timeout so a stuck stage cannot hang the procedure silently', () => {
+    const calls: SpawnArgs[] = [];
+    const run = createSpawnStageRunner({
+      env: { [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account' },
+      spawn: ((...args: SpawnArgs) => {
+        calls.push(args);
+        return fakeRun('{"stage":"account.verify","status":"converged","sub":"sub_x"}\n');
+      }) as unknown as typeof spawnSync,
+    });
+
+    run({ service: 'account', action: 'verify', input: {} });
+
+    const firstCall = calls[0] as SpawnArgs;
+    const options = firstCall[2] as { timeout?: number };
+    expect(options.timeout).toBeGreaterThan(0);
+  });
+
+  it('reports a timed-out stage by its own reason code', () => {
+    const spawn = (() => ({
+      stdout: '',
+      stderr: '',
+      status: null,
+      error: Object.assign(new Error('spawnSync npx ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+    })) as unknown as typeof spawnSync;
+    const run = createSpawnStageRunner({
+      env: { [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account' },
+      spawn,
+    });
+
+    const result = run({ service: 'account', action: 'verify', input: {} });
+
+    expect(result).toEqual({
+      ok: false,
+      stage: 'account.verify',
+      reason: 'stage_timeout',
     });
   });
 
@@ -260,7 +424,10 @@ describe('createSpawnStageRunner', () => {
       status: null,
       error: Object.assign(new Error('spawnSync npx ENOBUFS'), { code: 'ENOBUFS' }),
     })) as unknown as typeof spawnSync;
-    const run = createSpawnStageRunner({ env: {}, spawn });
+    const run = createSpawnStageRunner({
+      env: { [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account' },
+      spawn,
+    });
 
     const result = run({ service: 'account', action: 'provision', input: {} });
 
@@ -278,7 +445,10 @@ describe('createSpawnStageRunner', () => {
       status: null,
       error: Object.assign(new Error('spawn npx ENOENT'), { code: 'ENOENT' }),
     })) as unknown as typeof spawnSync;
-    const run = createSpawnStageRunner({ env: {}, spawn });
+    const run = createSpawnStageRunner({
+      env: { [ACCOUNT_DATABASE_URL_ENV]: 'postgresql://a@host/db-account' },
+      spawn,
+    });
 
     const result = run({ service: 'account', action: 'provision', input: {} });
 
