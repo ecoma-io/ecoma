@@ -10,6 +10,8 @@
  * repo.
  */
 
+import { MAX_OPAQUE_ID_LENGTH, isOpaqueId, isEpochMillis } from '@ecoma-io/tenant-kernel-domain';
+
 import {
   llmTenantDomainError,
   type LlmTenantDomainError,
@@ -82,17 +84,13 @@ declare const membershipIdBrand: unique symbol;
  */
 export type MembershipId = string & { readonly [membershipIdBrand]?: true };
 
-/** Độ dài tối đa của mọi định danh opaque để chặn payload bất thường từ input. */
-export const MAX_OPAQUE_ID_LENGTH = 200;
-
-function isOpaqueId(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= MAX_OPAQUE_ID_LENGTH &&
-    value.trim() === value
-  );
-}
+/**
+ * `MAX_OPAQUE_ID_LENGTH` và `isOpaqueId` được tái dùng từ kernel tenant
+ * (`@ecoma-io/tenant-kernel-domain`): định danh opaque đã trim, không rỗng,
+ * dài tối đa 200 ký tự. Kernel chỉ thao tác trên chuỗi opaque; mỗi bounded
+ * context giữ kiểu branded của riêng mình.
+ */
+export { MAX_OPAQUE_ID_LENGTH, isEpochMillis };
 
 /** Type guard cho `TenantActorId` — dùng khi đọc `sub` từ token/DB/contract. */
 export function isTenantActorId(value: unknown): value is TenantActorId {
@@ -162,10 +160,11 @@ export function createMembershipId(value: string): MembershipId {
 // Thời gian
 // ---------------------------------------------------------------------------
 
-/** Kiểm tra một giá trị có phải epoch millis hợp lệ (số nguyên an toàn) không. */
-export function isEpochMillis(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value);
-}
+/**
+ * `isEpochMillis` được tái dùng từ kernel tenant: số nguyên an toàn
+ * (`Number.isSafeInteger`), từ chối NaN/Infinity/số lẻ/chuỗi/null/undefined,
+ * không bao giờ ném.
+ */
 
 // ---------------------------------------------------------------------------
 // Permission identifier

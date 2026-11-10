@@ -29,8 +29,8 @@ Schema ứng dụng tên `pact`. Ba nhóm bảng:
 
 ### 3.1 Tenant + membership + machine token (lớp Ecoma, viết mới)
 
-- `tenants`: `id` (uuid), `name` (unique, regex giống `nameSchema` upstream), `status` (`active|suspended|deleted`), timestamps. Default tenant per sub được provision **tường minh** (deterministic từ sub, qua bootstrap script — xem §4; không tự động khi signup/login), **idempotent + race-safe** (INSERT ON CONFLICT).
-- `tenant_members`: `UNIQUE (tenant_id, sub)`; `role` CHECK IN ('owner','admin','member','viewer'). Composite FK về `tenants` và (khi thêm) unique-sub constraint cho phép DB-level enforce "member thuộc đúng tenant".
+- `tenants`: `id` (uuid), `name` (unique, regex giống `nameSchema` upstream), `status` (`active|suspended|deleted`), `owner_sub` (NOT NULL, opaque `sub` của đúng một owner — không phải role membership), timestamps. Default tenant per sub được provision **tường minh** (deterministic từ sub, qua bootstrap script — xem §4; không tự động khi signup/login), **idempotent + race-safe** (INSERT ON CONFLICT).
+- `tenant_members`: `UNIQUE (tenant_id, sub)`; `role` CHECK IN ('admin','member','viewer') — role `owner` đã bị loại, ownership nằm ở `tenants.owner_sub`. Composite FK về `tenants` và (khi thêm) unique-sub constraint cho phép DB-level enforce "member thuộc đúng tenant".
 - `machine_tokens`: chỉ lưu **hash** SHA-256 của token (`token_hash` UNIQUE, là index tra cứu của mọi request; PK là `id` uuid); `tenant_id`, `name`, `scopes` (text CSV hoặc jsonb), `created_by_sub`, `revoked_at` (NULL = active). Không có `last_used_at` — ghi nó đòi UPDATE trên mọi request (observability thành serving-path dependency, trái bất biến); usage tracking khi cần thì đọc từ `audit_events` (append-only, off-path). Plaintext hiện **một lần** trong response của lệnh tạo; không đường nào đọc lại. Revoke = set `revoked_at`, hiệu lực **ngay lập tức** (mỗi request tra hash rồi check `revoked_at IS NULL`).
 - Scopes: `read` (viewer trở lên), `write` (member trở lên: publish pact/verification), `admin` (Admin/Owner: environments, webhooks, membership). Token scope ≠ role của người — token là credential cấp sẵn quyền cố định, người tạo phải có role đủ cao.
 
@@ -62,10 +62,10 @@ Ngữ nghĩa audit business → [`docs/domains/pact-broker/domain-model.md`](../
 
 Khi được gọi (trong bootstrap có kiểm soát), primitive thực hiện:
 
-1. `INSERT INTO pact.tenants (name, ...) VALUES ($defaultName, ...) ON CONFLICT (name) DO NOTHING RETURNING id` — `name` suy deterministic từ sub (vd `tenant-<sub-prefix>`), nên retry/concurrency hội tụ cùng một tên.
+1. `INSERT INTO pact.tenants (name, owner_sub, ...) VALUES ($defaultName, $ownerSub, ...) ON CONFLICT (name) DO NOTHING RETURNING id` — `name` suy deterministic từ sub (vd `tenant-<sub-prefix>`), nên retry/concurrency hội tụ cùng một tên; `owner_sub` chỉ được ghi trên lần tạo đầu, bên thua không ghi đè owner của bên thắng.
 2. Nếu `ON CONFLICT` không trả row → SELECT row hiện có; nếu tenant đó `deleted`/`suspended` → fail-closed (không tự hồi sinh).
-3. `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES (...,'owner') ON CONFLICT (tenant_id, sub) DO NOTHING` — idempotent; thành viên có sẵn role cũ thì giữ nguyên.
-4. Race test: hai connection đồng thời cùng sub phải cho đúng một tenant + một membership owner, không lỗi chết.
+3. `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES (...,'member') ON CONFLICT (tenant_id, sub) DO NOTHING` — idempotent; thành viên có sẵn role cũ thì giữ nguyên. Membership bắt đầu ở role thấp nhất (`member`); owner nằm trên `tenants.owner_sub`, không phải role.
+4. Race test: hai connection đồng thời cùng sub phải cho đúng một tenant + một membership `member`, không lỗi chết.
 
 **Ranh giới bắt buộc:** quyền truy cập sản phẩm từ Staff Access không thay thế authorization bên trong Pact Broker; nhân sự nội bộ provision vào tenant `ecoma` **chỉ bắt đầu với quyền Member** trừ khi có quy trình cấp quyền quản trị rõ ràng; thu hồi entitlement không được vô tình xóa customer membership độc lập hoặc machine credentials không thuộc vòng đời nhân sự đó. `ecoma` phải được bootstrap tường minh và có kiểm soát.
 

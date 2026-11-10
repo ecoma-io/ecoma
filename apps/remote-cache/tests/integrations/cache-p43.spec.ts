@@ -69,7 +69,7 @@ async function seedProjectWithToken(client: import('pg').Client): Promise<{
   const token = 'p43-integration-test-token-' + crypto.randomUUID();
   const tokenHash = await sha256Hex(token);
   const { rows: tenantRows } = await client.query<{ id: string }>(
-    `INSERT INTO remote_cache.tenants (name) VALUES ($1) RETURNING id`,
+    `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
     ['p43-tenant-' + crypto.randomUUID()],
   );
   const tenantId = tenantRows[0]?.id ?? '';

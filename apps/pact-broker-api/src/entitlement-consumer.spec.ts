@@ -28,6 +28,7 @@ vi.mock('@ecoma-io/pact-broker-api-application', async (importOriginal) => {
         (
           event: Parameters<typeof provisionEntitlementMembership>[0],
           deps: Parameters<typeof provisionEntitlementMembership>[1],
+          ownerSub: Parameters<typeof provisionEntitlementMembership>[2],
         ) => Promise<ReturnType<typeof provisionEntitlementMembership>>
       >(),
   };
@@ -86,11 +87,14 @@ const fakePool = {
 
 async function runBatch(
   messages: { id: string; body: unknown; ack(): Promise<void>; retry(): Promise<void> }[],
-  env: { HYPERDRIVE?: { connectionString: string } } = {},
+  env: { HYPERDRIVE?: { connectionString: string }; INTERNAL_TENANT_OWNER_SUB?: string } = {},
 ): Promise<void> {
   mockedCreatePool.mockReturnValue(fakePool as never);
 
-  await entitlementQueueBatch({ queue: 'ecoma-staff-access-entitlement-events', messages }, env);
+  await entitlementQueueBatch(
+    { queue: 'ecoma-staff-access-entitlement-events', messages },
+    { INTERNAL_TENANT_OWNER_SUB: 'sub-owner-test', ...env },
+  );
 }
 
 describe('entitlementQueueBatch', () => {

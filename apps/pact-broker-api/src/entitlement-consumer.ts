@@ -22,6 +22,7 @@ import {
   type EntitlementSyncRepo,
   type MembershipRepo,
 } from '@ecoma-io/pact-broker-api-application';
+import { isOpaqueId } from '@ecoma-io/tenant-kernel-domain';
 import {
   createPool,
   isConnectionTerminatedError,
@@ -60,7 +61,7 @@ function createEntitlementPool(connectionString: string): Pool {
 function membershipRepoAdapter(pool: Pool): MembershipRepo {
   const tenantRepo = new PgTenantRepo(pool);
   return {
-    ensureTenant: (name: string) => tenantRepo.ensureTenant(name),
+    ensureTenant: (name: string, ownerSub: string) => tenantRepo.ensureTenant(name, ownerSub),
     upsertMember: (tenantId: string, sub: string, role: string, provenance?) =>
       tenantRepo.upsertMember(tenantId, sub, role, provenance),
     markEntitlementRevoked: (tenantId: string, sub: string, eventId: string, revision: number) =>
@@ -77,6 +78,7 @@ function eventClassForEvent(event: { type: string }): 'high' | 'normal' {
 async function handleMessage(
   message: { body: unknown; ack(): Promise<void>; retry(): Promise<void> },
   deps: { membership: MembershipRepo; sync: EntitlementSyncRepo },
+  ownerSub: string,
 ): Promise<void> {
   // Parse envelope: không phải event hợp lệ là dữ liệu hỏng → ack (không retry
   // vì payload lỗi sẽ không bao giờ thành công), ghi log-level failure.
@@ -144,7 +146,7 @@ async function handleMessage(
     return;
   }
 
-  const result = await provisionEntitlementMembership(event, deps);
+  const result = await provisionEntitlementMembership(event, deps, ownerSub);
 
   writeLog({
     event: 'entitlement_consumer.message',
@@ -177,7 +179,12 @@ export async function entitlementQueueBatch(
       retry(): Promise<void>;
     }[];
   },
-  env: { ENTITLEMENT_EVENTS_QUEUE?: unknown; HYPERDRIVE?: { connectionString: string } },
+  env: {
+    ENTITLEMENT_EVENTS_QUEUE?: unknown;
+    HYPERDRIVE?: { connectionString: string };
+    /** Chủ sở hữu tenant `ecoma-internal`, dùng khi ensure tenant trên đường cung. */
+    INTERNAL_TENANT_OWNER_SUB?: string;
+  },
 ): Promise<void> {
   void batch.queue; // tên queue đã được runtime đảm bảo khớp binding khai báo
   if (batch.messages.length === 0) return;
@@ -186,6 +193,13 @@ export async function entitlementQueueBatch(
   if (typeof connectionString !== 'string' || connectionString === '') {
     throw new Error(
       'Hyperdrive binding HYPERDRIVE khong co connectionString; entitlement consumer fail-closed',
+    );
+  }
+
+  const ownerSub = env.INTERNAL_TENANT_OWNER_SUB;
+  if (!isOpaqueId(ownerSub)) {
+    throw new Error(
+      'INTERNAL_TENANT_OWNER_SUB binding is missing or invalid; entitlement consumer fail-closed',
     );
   }
   const pool = createEntitlementPool(connectionString);
@@ -201,7 +215,7 @@ export async function entitlementQueueBatch(
     // còn lại (pattern transactional-mailer-job).
     for (const message of batch.messages) {
       try {
-        await handleMessage(message, deps);
+        await handleMessage(message, deps, ownerSub);
       } catch (error) {
         // ⚠️ Không nuốt lỗi im lặng: ghi log-level failure để operator có thể
         // điều tra. `retry()` có thể throw (runtime Cloudflare) — bọc thêm để
