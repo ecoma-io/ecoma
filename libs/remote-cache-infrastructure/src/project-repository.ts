@@ -4,7 +4,7 @@ import type { RemoteCacheQueryable } from './postgres';
  * Repository cua bang `remote_cache.projects` — project con cua tenant,
  * don vi cach ly cua data plane tuong lai (P4.2; ADR-0015).
  *
- * SQL la ban chep cua migration `apps/remote-cache/db/migrations/
+ * SQL la ban chep cua migration `apps/remote-cache-api/db/migrations/
  * 0001_control_plane.sql`; lech ten chi lo ra khi chay voi schema that.
  */
 

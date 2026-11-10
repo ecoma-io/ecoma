@@ -6,7 +6,7 @@ import type { RemoteCacheQueryable } from './postgres';
  *
  * ⚠️ **SQL la ban chep cua schema** (cung nguyen tac voi
  * `staff-access-infrastructure`): ten cot va constraint khop dung migration
- * `apps/remote-cache/db/migrations/0001_control_plane.sql`. Lech ten chi lo ra
+ * `apps/remote-cache-api/db/migrations/0001_control_plane.sql`. Lech ten chi lo ra
  * khi chay voi schema that.
  *
  * ⚠️ **Tenant nay KHAC tenant cua pact-broker** (glossary §2.4, ADR-0015):

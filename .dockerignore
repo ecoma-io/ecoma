@@ -56,6 +56,7 @@ apps/*
 !apps/pact-broker-app
 !apps/llm-console
 !apps/llm-seller
+!apps/remote-cache-app
 libs/*
 !libs/backoffice-domain
 !libs/backoffice-application
@@ -84,7 +85,7 @@ deploys/*
 !deploys/transactional-mail-deploy/wic-entrypoint.sh
 !deploys/push-notification-deploy/wic-entrypoint.sh
 !deploys/staff-access-deploy/wic-entrypoint.sh
-!deploys/remote-cache-deploy/wic-entrypoint.sh
+!deploys/remote-cache-api-deploy/wic-entrypoint.sh
 
 # Blacklist bên trong các subtree đã mở: dependency, kết quả build trung gian
 # và cache dev không bao giờ là input — copy vào context chỉ làm chậm và có
@@ -151,13 +152,16 @@ apps/account/app/**/*.spec.ts
 apps/pact-broker-app/app/**/*.spec.ts
 apps/pact-broker-app/tests
 apps/pact-broker-app/vitest.config.mts
-# `llm-console` và `llm-seller` là composition app không sở hữu DB: subtree
-# `app/**` chứa spec colocated của page/harness, và `tests/` là harness mount
-# import `vue-i18n` + helper. Cùng lý do với các app trên — vào context là
-# `nuxt build` (typecheck bật) chết TS2307 vì helper bị loại.
+# `llm-console`, `llm-seller` và `remote-cache-app` là composition app không
+# sở hữu DB: subtree `app/**` chứa spec colocated của page/harness, và `tests/`
+# là harness mount import `vue-i18n` + helper. Cùng lý do với các app trên —
+# vào context là `nuxt build` (typecheck bật) chết TS2307 vì helper bị loại.
 apps/llm-console/app/**/*.spec.ts
 apps/llm-console/tests
 apps/llm-console/vitest.config.mts
 apps/llm-seller/app/**/*.spec.ts
 apps/llm-seller/tests
 apps/llm-seller/vitest.config.mts
+apps/remote-cache-app/app/**/*.spec.ts
+apps/remote-cache-app/tests
+apps/remote-cache-app/vitest.config.mts

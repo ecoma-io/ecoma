@@ -62,7 +62,7 @@ export type DeploymentMapEntry = AppDeploymentEntry | PlatformDeploymentEntry;
 /** Khóa bản đồ của entry platform — giữ cùng giá trị với `PLATFORM_DEPLOY_PROJECT`. */
 const PLATFORM_DEPLOY_PROJECT_KEY = 'platform-deploy';
 
-/** Bản đồ canonical: 16 app entry + 1 entry platform. Không thêm entry nào khác. */
+/** Bản đồ canonical: 17 app entry + 1 entry platform. Không thêm entry nào khác. */
 export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   account: { kind: 'app', owner: 'account-deploy', status: 'implemented' },
   auth: { kind: 'app', owner: 'auth-deploy', status: 'implemented' },
@@ -85,7 +85,11 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   'push-notification': { kind: 'app', owner: 'push-notification-deploy', status: 'scaffold' },
   // Control plane của bounded context remote-cache (ADR-0015): skeleton P4.1,
   // deploy unit mới dựng cùng milestone (issue #442).
-  'remote-cache': { kind: 'app', owner: 'remote-cache-deploy', status: 'scaffold' },
+  'remote-cache-api': { kind: 'app', owner: 'remote-cache-api-deploy', status: 'scaffold' },
+  // Admin UI composition của cùng bounded context: SPA shell non-SSR, không
+  // sở hữu database; deploy unit độc lập với remote-cache-api-deploy ở giai
+  // đoạn scaffold (chưa có BFF/API integration).
+  'remote-cache-app': { kind: 'app', owner: 'remote-cache-app-deploy', status: 'scaffold' },
   'staff-access': { kind: 'app', owner: 'staff-access-deploy', status: 'implemented' },
   'staff-access-relay': {
     kind: 'app',

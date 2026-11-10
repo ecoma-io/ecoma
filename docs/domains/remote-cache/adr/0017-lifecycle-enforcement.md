@@ -13,7 +13,7 @@
 
 Hai yêu cầu này căng nhau: một cache có TTL ngắn vẫn có cửa sổ stale, và cửa sổ đó chính là thứ yêu cầu 1 cấm. Roadmap cũ để mở, với hai ứng viên: cached configuration TTL ngắn + fail-closed khi stale/unknown, hoặc re-check-at-write-time cho write path.
 
-Hiện thực hiện tại (`apps/remote-cache/src/lifecycle.ts`, #462 và #500):
+Hiện thực hiện tại (`apps/remote-cache-api/src/lifecycle.ts`, #462 và #500):
 
 - `enforceTenantLifecycle` **luôn** đọc trạng thái từ database, trên cả read và write path. Không có đường cache trạng thái tenant nào đang hoạt động: cache sót hạn có thể biến `suspend` thành `allow`, nên bất kỳ lớp cache nào còn trong source đều không được nối vào đường phục vụ request.
 - Trạng thái `suspended`/`deleted`/không tìm thấy được ánh xạ thành domain error, và API trả `409 Conflict` thay vì `500`.
@@ -35,7 +35,7 @@ Như vậy thực tế đã chọn **re-check từ database mỗi request**, kh�
 
 - **Data plane re-check lifecycle state từ `db-remote-cache` mỗi request**, cả read và write. Không cache trạng thái tenant trong isolate.
 - **Fail-closed ở mọi nhánh:** trạng thái không phải `active`, không xác định được, hoặc tra cứu lỗi đều bị từ chối. Không nhánh nào cho phép khi chưa chứng minh được trạng thái.
-- **`TenantLifecycleCache` không nằm trên đường phục vụ request.** Class vẫn còn trong `apps/remote-cache/src/lifecycle.ts` nhưng không có caller nào; `enforceTenantLifecycle` không đọc và không ghi nó. Không dựng lại đường cache trạng thái tenant: một cache như vậy không có cách dùng an toàn trong ràng buộc fail-closed này. Xoá class là việc dọn dẹp, không phải một phần của quyết định.
+- **`TenantLifecycleCache` không nằm trên đường phục vụ request.** Class vẫn còn trong `apps/remote-cache-api/src/lifecycle.ts` nhưng không có caller nào; `enforceTenantLifecycle` không đọc và không ghi nó. Không dựng lại đường cache trạng thái tenant: một cache như vậy không có cách dùng an toàn trong ràng buộc fail-closed này. Xoá class là việc dọn dẹp, không phải một phần của quyết định.
 - **Đánh đổi được chấp nhận và ghi nhận:** yêu cầu "data plane không phụ thuộc database trong hot path" **không còn đúng** ở dạng tuyệt đối. Data plane phụ thuộc `db-remote-cache` cho mỗi request. Đây là đánh đổi có chủ đích: correctness của fail-closed được ưu tiên hơn mục tiêu độc lập DB.
 - **Mở lại khi có bằng chứng khác:** nếu số đo cho thấy chi phí truy vấn lifecycle trên hot path là trở ngại thực, một ADR mới có thể chọn cache + invalidation event, với điều kiện chứng minh được độ trễ invalidation đáp ứng fail-closed.
 

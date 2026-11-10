@@ -114,27 +114,27 @@ Thì  nhận 201 kèm project và token của API key đầu tiên, và token đ
 | Domain / Application             | Vai trò trong Feature                                                                           | Canonical                                                                 |
 | -------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `remote-cache` (bounded context) | Sở hữu tenant, project, API key, cache entry, quota, usage và audit; database `db-remote-cache` | [`domains/remote-cache/`](../../domains/remote-cache/README.md)           |
-| `apps/remote-cache`              | Deploy unit duy nhất phục vụ cả data plane cache và control plane project                       | [`applications/remote-cache/`](../../applications/remote-cache/README.md) |
+| `apps/remote-cache-api`          | Deploy unit duy nhất phục vụ cả data plane cache và control plane project                       | [`applications/remote-cache/`](../../applications/remote-cache/README.md) |
 | `libs/remote-cache-*`            | Domain, application và infrastructure của context — kiểm tra scope, quota, repository           | [`05-code-architecture.md`](../../architecture/05-code-architecture.md)   |
 
 Object storage là dependency ngoài (S3-compatible), không phải domain; khoá lưu object mang cả tenant và project để cách ly.
 
 ## 6. Verification Mapping
 
-Test thật nằm trong `apps/remote-cache/tests/` và chạy qua target `test-integration` (integration app-owned) hoặc `test` (unit colocated). Mọi integration spec dùng PostgreSQL 17 thật qua testcontainers; storage được thay bằng `InMemoryObjectStorage`. **Không có system test** nào cho Feature này.
+Test thật nằm trong `apps/remote-cache-api/tests/` và chạy qua target `test-integration` (integration app-owned) hoặc `test` (unit colocated). Mọi integration spec dùng PostgreSQL 17 thật qua testcontainers; storage được thay bằng `InMemoryObjectStorage`. **Không có system test** nào cho Feature này.
 
-| Scenario                                                                                             | Test file / suite                                                         | Loại test   | Nx target          |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------- | ------------------ |
-| PUT rồi GET trả lại đúng nội dung; GET miss trả 404                                                  | `apps/remote-cache/tests/integrations/cache.spec.ts`                      | integration | `test-integration` |
-| PUT trùng hash trả 409 và giữ nguyên bản gốc                                                         | `cache.spec.ts`, `cache-p45.spec.ts`                                      | integration | `test-integration` |
-| Cách ly theo tenant/project; project cùng tên ở hai tenant là hai tài nguyên                         | `cache-p45.spec.ts`                                                       | integration | `test-integration` |
-| Thiếu scope `read`/`write` trả 403; key thiếu/rỗng/revoked trả 401; key không trusted trả 403        | `cache.spec.ts`, `cache-p45.spec.ts`                                      | integration | `test-integration` |
-| Tenant suspended/deleted trả 409 cho cả GET và PUT                                                   | `cache.spec.ts`                                                           | integration | `test-integration` |
-| Ghi dưới quota thành công, tăng counter, ghi audit `allowed`; vượt quota trả 429 và không ghi object | `apps/remote-cache/tests/integrations/cache-p43.spec.ts`                  | integration | `test-integration` |
-| Entry hết hạn không đọc được                                                                         | `cache-p43.spec.ts`                                                       | integration | `test-integration` |
-| `audit_log` từ chối UPDATE/DELETE từ role runtime; grant chính xác của schema                        | `cache-p43.spec.ts`, `apps/remote-cache/tests/integrations/roles.spec.ts` | integration | `test-integration` |
-| Migration chạy được, idempotent, giữ đúng CHECK constraint                                           | `apps/remote-cache/tests/databases/migrations.spec.ts`                    | database    | `test-integration` |
-| Route cache ở mức unit với repository giả                                                            | `apps/remote-cache/src/cache-routes.spec.ts`, `src/cache-p43.spec.ts`     | unit        | `test`             |
+| Scenario                                                                                             | Test file / suite                                                             | Loại test   | Nx target          |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------- | ------------------ |
+| PUT rồi GET trả lại đúng nội dung; GET miss trả 404                                                  | `apps/remote-cache-api/tests/integrations/cache.spec.ts`                      | integration | `test-integration` |
+| PUT trùng hash trả 409 và giữ nguyên bản gốc                                                         | `cache.spec.ts`, `cache-p45.spec.ts`                                          | integration | `test-integration` |
+| Cách ly theo tenant/project; project cùng tên ở hai tenant là hai tài nguyên                         | `cache-p45.spec.ts`                                                           | integration | `test-integration` |
+| Thiếu scope `read`/`write` trả 403; key thiếu/rỗng/revoked trả 401; key không trusted trả 403        | `cache.spec.ts`, `cache-p45.spec.ts`                                          | integration | `test-integration` |
+| Tenant suspended/deleted trả 409 cho cả GET và PUT                                                   | `cache.spec.ts`                                                               | integration | `test-integration` |
+| Ghi dưới quota thành công, tăng counter, ghi audit `allowed`; vượt quota trả 429 và không ghi object | `apps/remote-cache-api/tests/integrations/cache-p43.spec.ts`                  | integration | `test-integration` |
+| Entry hết hạn không đọc được                                                                         | `cache-p43.spec.ts`                                                           | integration | `test-integration` |
+| `audit_log` từ chối UPDATE/DELETE từ role runtime; grant chính xác của schema                        | `cache-p43.spec.ts`, `apps/remote-cache-api/tests/integrations/roles.spec.ts` | integration | `test-integration` |
+| Migration chạy được, idempotent, giữ đúng CHECK constraint                                           | `apps/remote-cache-api/tests/databases/migrations.spec.ts`                    | database    | `test-integration` |
+| Route cache ở mức unit với repository giả                                                            | `apps/remote-cache-api/src/cache-routes.spec.ts`, `src/cache-p43.spec.ts`     | unit        | `test`             |
 
 **Giới hạn của verification hiện tại:**
 

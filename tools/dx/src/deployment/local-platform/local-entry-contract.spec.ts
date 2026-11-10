@@ -16,7 +16,8 @@ const LANE_PROJECTS = [
   'transactional-mail-deploy',
   'push-notification-deploy',
   'staff-access-deploy',
-  'remote-cache-deploy',
+  'remote-cache-api-deploy',
+  'remote-cache-app-deploy',
   'llm-console-deploy',
   'llm-seller-deploy',
 ] as const;
