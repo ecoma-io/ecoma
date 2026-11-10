@@ -12,9 +12,13 @@ import {
 /**
  * Tên cookie lưu lựa chọn ngôn ngữ.
  *
- * ⚠️ Cookie chứ không phải `localStorage`: nó đi cùng HTTP request nên SSR render
- * ra đúng ngôn ngữ ngay từ đầu — `localStorage` chỉ đọc được sau hydrate và sinh
- * hydration mismatch ở chính những chuỗi render ra `<html lang>` và nav.
+ * ⚠️ Cookie chứ không phải `localStorage`: nó đi cùng HTTP request tới origin,
+ * nên nguồn lựa chọn locale cũng nhìn thấy được ở tầng HTTP, không chỉ trong
+ * JS của app. App là non-SSR SPA (issue #68) — lượt render đầu diễn ra ở
+ * client, nên lý do "SSR render ra đúng ngôn ngữ ngay từ đầu" không còn; kết
+ * luận vẫn giữ: cookie được gửi kèm mọi request (nếu có) và `useCookie` đọc
+ * đồng bộ ngay lần mount đầu, còn `localStorage` không theo bất kỳ request
+ * nào.
  *
  * Cookie này **không** chứa gì nhạy cảm: chỉ một mã locale nằm trong allowlist.
  *
