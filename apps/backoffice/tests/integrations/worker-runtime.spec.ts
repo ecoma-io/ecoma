@@ -111,7 +111,14 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await harness.close();
+  // Cleanup chống lỗi setup: Vitest vẫn chạy `afterAll` kể cả khi `beforeAll`
+  // ném lỗi (đo được trên vitest 4.x), nhưng khi `beforeAll` ném giữa chừng
+  // thì tài nguyên chưa kịp tạo còn là `undefined` — mỗi bước tự kiểm trước
+  // khi dọn để một bước hỏng không đánh rơi các bước còn lại (workerd sống
+  // giữ port sẽ giữ tiến trình vitest không thoát).
+  if (harness !== undefined) {
+    await harness.close();
+  }
   // `rm` sau `close()`: workerd không còn giữ file trong thư mục stub. `force`
   // để lần chạy sau không đỏ vì rác của lần này — dọn dẹp không được biến thành
   // một kết quả test mới.
@@ -336,6 +343,11 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
   let previousHyperdriveConnectionString: string | undefined;
 
   beforeAll(async () => {
+    // Chụp giá trị cũ của biến môi trường ngay đầu `beforeAll` — trước mọi bước
+    // có thể ném lỗi — để `afterAll` luôn khôi phục đúng trạng thái ban đầu,
+    // kể cả khi setup hỏng trước khi biến bị ghi đè.
+    previousHyperdriveConnectionString =
+      process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
     db = await startBackofficeDatabase();
 
     signingKey = (await generateKeyPair('ES256', { extractable: true })) as CryptoKeyPair;
@@ -389,11 +401,10 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
     // Hyperdrive local của miniflare KHÔNG nhận connection string từ config —
     // nó đọc biến môi trường `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`
     // trước khi dựng binding (cùng cơ chế lane local dùng cho WIC auth). Phải set
-    // TRƯỚC `createTestHarness`. Giữ giá trị cũ để `afterAll` khôi phục — biến
-    // môi trường của tiến trình test không được rò rỉ ra ngoài suite này
-    // (connection string trỏ tới PostgreSQL test sẽ bị đóng ở `afterAll`).
-    previousHyperdriveConnectionString =
-      process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'];
+    // TRƯỚC `createTestHarness`. Giá trị cũ đã được chụp ở đầu `beforeAll` để
+    // `afterAll` khôi phục — biến môi trường của tiến trình test không được rò
+    // rỉ ra ngoài suite này (connection string trỏ tới PostgreSQL test sẽ bị
+    // đóng ở `afterAll`).
     process.env['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_BACKOFFICE'] =
       `postgres://ecoma_backoffice_runtime:${db.rolePassword}@${db.host}:${db.port}/${BACKOFFICE_DATABASE}`;
     authHarness = wranglerCli.createTestHarness({
@@ -442,11 +453,20 @@ describe('backoffice worker runtime with authn configured (PR #70 finding 1)', (
   }, 240_000);
 
   afterAll(async () => {
-    await authHarness.close();
-    await new Promise<void>((done) => {
-      jwksServer.close(() => done());
-    });
-    await db.stop();
+    // Cleanup chống lỗi setup (xem `afterAll` tầng file): tài nguyên được tạo
+    // tuần tự trong `beforeAll`, khi setup ném giữa chừng cái chưa kịp tạo là
+    // `undefined` — mỗi bước tự kiểm để dọn được hết những gì đã tạo kịp.
+    if (authHarness !== undefined) {
+      await authHarness.close();
+    }
+    if (jwksServer !== undefined) {
+      await new Promise<void>((done) => {
+        jwksServer.close(() => done());
+      });
+    }
+    if (db !== undefined) {
+      await db.stop();
+    }
     // Khôi phục đúng trạng thái biến môi trường trước khi suite chạy (xóa nếu
     // trước đó chưa tồn tại) — xem chú thích ở `beforeAll`.
     if (previousHyperdriveConnectionString === undefined) {
