@@ -44,6 +44,7 @@ Bounded context `llm-consumer-tenant`: tenant, membership, workspace, permission
 ## 4. Quy tắc cốt lõi
 
 - **Đúng một owner mỗi tenant.** Owner có toàn quyền trong tenant của mình, kể cả billing. Không có global owner role: cùng một `sub` có thể owner tenant A, member tenant B, và không có quyền gì ở tenant C.
+- **`first_party` không mua gì ngoài miễn trừ thương mại — và Consumer không có hạn mức thương mại.** Classification là quan hệ tổ chức ([ADR-0026](./adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)), không phải plan: tenant `first_party` vẫn bị đo usage, vẫn chịu quota/operational limit, vẫn ghi sổ vào kế toán kép `llm-financial`, suspension vẫn chặn kể cả owner, và membership, authorization, staff entitlement giữ nguyên như mọi tenant.
 - **`sub` là opaque và đa membership.** Một `sub` có thể owner nhiều tenant và member nhiều tenant khác. Consumer tenant và Seller tenant độc lập hoàn toàn (ADR-0018); không có ngầm chọn tenant đầu tiên/default/UI state.
 - **Membership tường minh và có danh tính.** Provision vào tenant (kể cả internal) là thao tác riêng; signup/login không tạo membership. Revoke không tự restore — re-provision tạo membership **mới với `id` mới**, nên grant của lần cũ không sống lại.
 - **Grant trực tiếp theo scope, gắn với một lần membership.** Member chỉ có đúng permission được cấp, tại tenant scope hoặc đúng một workspace scope. **Không kế thừa ngầm tenant → workspace**: grant tenant scope không authorize thao tác trên một workspace cụ thể, trừ khi permission đó được khai báo tường minh là quản trị workspace toàn tenant.
@@ -59,4 +60,4 @@ Bounded context `llm-consumer-tenant`: tenant, membership, workspace, permission
 | Document                               | Nội dung                                                                                                                                          |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, authorization, suspension, workspace isolation, auth boundary, data ownership, contract, quyết định chưa chốt, failure/correction |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025) của bounded context                                                                                                        |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025, 0026) của bounded context                                                                                                  |
