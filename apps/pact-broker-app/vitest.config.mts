@@ -2,6 +2,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import { defaultExclude } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 
 /**
@@ -85,6 +86,12 @@ export default defineConfig(() => ({
     // nằm cạnh subject trong owning project). `src`/`server`/`tests` giữ nguyên
     // theo contract của PR-A/#299.
     include: ['{src,app,tests,server}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    // ⚠️ `tests/integrations/` thuộc tier `test-integration` (06-testing.md §4):
+    // nó khởi động workerd thật, thứ mà unit tier không được boot. Không
+    // exclude thì suite chạy HAI lần (cả `test` lẫn `test-integration`) với hai
+    // tầng ngữ nghĩa khác nhau — đúng vi phạm
+    // `integration-dir-in-unit-config` của arch-check.
+    exclude: [...defaultExclude, 'tests/integrations/**'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

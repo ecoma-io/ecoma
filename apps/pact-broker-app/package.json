@@ -113,6 +113,52 @@
           "nuxt-prepare"
         ]
       },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
+          "build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "externalDependencies": [
+              "vitest",
+              "wrangler"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.{js,mjs,css,html,json}",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "options": {
+          "cwd": "apps/pact-broker-app",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "//": [
+          "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
+          "`tests/integrations/worker-runtime.spec.ts` khởi động workerd trên",
+          "`wrangler.jsonc` của app, mà `main`/`assets.directory` của nó trỏ vào",
+          "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
+          "ném ngay, đỏ thay vì pass rỗng (cùng cấu hình với target",
+          "`test-integration` của `apps/llm-console` và `apps/backoffice`).",
+          "",
+          "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
+          "suite assert trên asset do build emit, không chỉ trên `.js`.",
+          "",
+          "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
+          "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
+          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
+        ]
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,
