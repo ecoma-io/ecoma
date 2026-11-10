@@ -99,6 +99,24 @@ describe('ensureTenantScopedMembershipRefs', () => {
     expect((result as { ok: boolean }).ok).toBe(false);
   });
 
+  it('rejects an invalid tenant context with an empty collection', () => {
+    const emptyItems: readonly unknown[] = [];
+    for (const tenantId of ['', '   ', 'a'.repeat(201)]) {
+      const result = ensureTenantScopedMembershipRefs(tenantId, emptyItems);
+      expect(result).toEqual({ ok: false, reason: 'inconsistent_context' });
+      expect('refs' in result).toBe(false);
+    }
+  });
+
+  it('rejects an invalid tenant context even with a non-empty collection', () => {
+    const validRefs = [ALICE, BOB];
+    for (const tenantId of ['', '   ', 'a'.repeat(201)]) {
+      const result = ensureTenantScopedMembershipRefs(tenantId, validRefs as unknown[]);
+      expect(result).toEqual({ ok: false, reason: 'inconsistent_context' });
+      expect('refs' in result).toBe(false);
+    }
+  });
+
   it('rejects a non-array collection without throwing', () => {
     expect(() =>
       ensureTenantScopedMembershipRefs('tnt_acme', null as unknown as never),

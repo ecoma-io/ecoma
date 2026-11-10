@@ -29,10 +29,12 @@ export function isTenantMembershipRef(value: unknown): value is TenantMembership
 
 /**
  * Đảm bảo mọi phần tử của `items` là tham chiếu thành viên nằm trong đúng
- * `tenantId`. Bất kỳ phần tử sai tenant hoặc sai hình dạng (bao gồm null và
- * không phải đối tượng) đều từ chối TOÀN BỘ tập hợp với lý do
- * 'inconsistent_context' — không lọc lặng. `items` không phải mảng cũng bị
- * từ chối tương tự, không ném. Mảng rỗng hợp lệ với danh sách refs trống.
+ * `tenantId`. `tenantId` không qua isOpaqueId khiến toàn bộ tập hợp bị từ chối
+ * với lý do 'inconsistent_context', không ném. Bất kỳ phần tử sai tenant hoặc
+ * sai hình dạng (bao gồm null và không phải đối tượng) cũng từ chối TOÀN BỘ
+ * tập hợp với lý do 'inconsistent_context' — không lọc lặng. `items` không phải
+ * mảng cũng bị từ chối tương tự, không ném. Mảng rỗng hợp lệ với danh sách refs
+ * trống.
  */
 export function ensureTenantScopedMembershipRefs(
   tenantId: string,
@@ -40,6 +42,9 @@ export function ensureTenantScopedMembershipRefs(
 ):
   | { ok: true; refs: readonly TenantMembershipRef[] }
   | { ok: false; reason: 'inconsistent_context' } {
+  if (!isOpaqueId(tenantId)) {
+    return { ok: false, reason: 'inconsistent_context' };
+  }
   if (!Array.isArray(items)) {
     return { ok: false, reason: 'inconsistent_context' };
   }
