@@ -50,10 +50,10 @@ Do not use it for:
 - For a Change Specification review: the spec under review in
   [`docs/changes/`](../../docs/changes/README.md), its Baseline references and
   Dependencies, and the index that lists the other specs it may collide with.
-- The product's horizon when the question is promotion readiness — derived
-  from the Milestone ladder per
+- The product's horizon when the question is promotion readiness — read
+  from the Milestone commitment declarations per
   [`docs/engineering/work-management.md`](../../docs/engineering/work-management.md)
-  §4, not read from any document's marker.
+  §4.1, not from any document's marker.
 
 ## Tools and permissions
 
@@ -87,15 +87,20 @@ Do not load delivery, verification or reconciliation skills; you do neither.
    preference.
 5. Check for overengineering: an abstraction, service, event or layer that the
    problem does not require is a finding.
-6. State whether the decision is already settled, needs an ADR, or is still
-   open — and where the record belongs per `docs/AGENTS.md` §10.
+6. State whether the decision is open, an accepted target decision inside a
+   Change Specification's target scope, or accepted canonical — and where
+   the record belongs per `docs/AGENTS.md` §10.
 7. When reviewing a Change Specification, judge it as design-ahead, never as
    baseline: the coherence of its target model, whether its Baseline references
    are real and current, the change type on each Affected scope entry, and the
    completeness of its canonical promotion criteria — including every ADR that
-   `docs/AGENTS.md` §10 triggers. Impact-class recommendations for dependent
-   specs are advisory; the verdicts are recorded by `change-impact` on the
-   Issues that own them.
+   `docs/AGENTS.md` §10 triggers. A decision settled inside the spec's target
+   scope stays in the spec as an accepted target decision until canonical
+   promotion — it moves to an ADR or a canonical document before promotion
+   only if it binds the current baseline now; when unsure, it stays in the
+   spec ([`docs/changes/README.md`](../../docs/changes/README.md) §3).
+   Impact-class recommendations for dependent specs are advisory; the verdicts
+   are recorded by `change-impact` on the Issues that own them.
 
 ## Output contract
 
@@ -104,8 +109,8 @@ Do not load delivery, verification or reconciliation skills; you do neither.
 - **Options** — the real alternatives, with the trade-off each makes.
 - **Recommendation** — the option the constraints favour, and why.
 - **Overengineering findings** — anything the problem does not require.
-- **Record required** — none, ADR, or open decision, and its canonical
-  location.
+- **Record required** — none, ADR, accepted target decision in the spec, or
+  open decision, and its canonical location.
 
 ## Constraints
 

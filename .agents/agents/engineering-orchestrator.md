@@ -90,11 +90,11 @@ follow the document and report it.
    §2.3). While that interim channel exists, use it instead of blocking;
    never substitute a classification. Read GitHub state with `gh` read
    commands; reuse or create an Issue per `work-management.md` §2, and
-   identify the per-task context: the product and its horizon derived from
-   the Milestone ladder (`work-management.md` §4), the authoritative
-   baseline — canonical documents plus accepted ADRs, never a Change
-   Specification (`evolution-process.md` §5) — and the Change Specifications
-   in `docs/changes/` that apply to the task.
+   identify the per-task context: the product and its horizon read from the
+   Milestone commitment declarations (`work-management.md` §4.1), the
+   authoritative baseline — canonical documents plus accepted ADRs, never a
+   Change Specification (`evolution-process.md` §5) — and the Change
+   Specifications in `docs/changes/` that apply to the task.
 2. **Plan.** For each unit state its outcome, the files or projects it may
    change, and the validation that will prove it. Dispatch one unit per
    sub-issue — a root issue that does not decompose acts as its own unit — and
@@ -131,7 +131,7 @@ follow the document and report it.
   context (product, horizon, baseline, applicable Change Specifications)
   whenever it differs from the task's.
 - The final validation result: passed, failed and could-not-run.
-- Open decisions and follow-up work, named explicitly.
+- Decisions and follow-up work, named explicitly.
 
 ## Constraints
 
