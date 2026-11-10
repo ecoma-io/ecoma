@@ -135,7 +135,9 @@ Remediation → Experiment → Modelling → Delivery → Discovery.
   Issues still recording via the body line and native winning any
   divergence; native-only once the cleanup step retires the body channel —
   from then on an Issue never carries classification on two channels.
-  Issue Forms cannot set the native type.
+  Issue Forms cannot set the native type. In no window are GitHub's default
+  Task/Bug/Feature types substitutes for the five canonical values
+  (`work-management.md` §2.3).
 - **Missing type (work items):** report a blocker only when a work item
   needs a classification or native GitHub capability that has no documented
   channel — a value outside the five Issue Types, or a capability with no
@@ -232,18 +234,33 @@ Mark proposals as proposals; mark established decisions with their source
 ## Create the Issue safely
 
 Write the body to a file so backticks, `$` and Vietnamese text survive intact.
-Today the five Issue Types are not org-configured yet, so carry the value in
-the `## Loại công việc` body line (the form dropdown writes it; the two must
-match) — never in a label or Project field. `--type` is the target-state
-mechanism once the org configures the five types; from then on an Issue
-with a native type carries no body line (`work-management.md` §2.3).
+Two clearly separated cases — never mix them (`work-management.md` §2.3):
+
+**Current stage — before transition step 2 (the five Issue Types are not
+org-configured yet).** Classification is carried by the `## Loại công việc`
+body line (the form dropdown writes it; the two must match) — never in a
+label or Project field. Do **not** pass `--type` here: the only values it
+could carry are GitHub's default Task/Bug/Feature types, which are not the
+five canonical values and must not substitute for them. This command is the
+executable one today:
 
 ```bash
 gh issue create --repo ecoma-io/ecoma \
   --title "fix(dx): ..." \
-  --body-file <path-to-body-file>
-  # target state, once the five types are org-configured:
-  # --type <Discovery|Modelling|Experiment|Delivery|Remediation>
+  --body-file <path-to-body-file>   # body carries ## Loại công việc
+```
+
+**After transition step 2 (the org has configured the five types).** Set the
+native type explicitly with `--type`; an Issue created with a native type
+carries no body line. Form-created issues still record through the body
+line until the cleanup step retires it, with native winning any divergence
+(`work-management.md` §2.3). Do not run this command in the current stage:
+
+```bash
+gh issue create --repo ecoma-io/ecoma \
+  --title "fix(dx): ..." \
+  --body-file <path-to-body-file> \
+  --type <Discovery|Modelling|Experiment|Delivery|Remediation>
 ```
 
 - Set only verified, existing values. Prefer no label over an invented one.

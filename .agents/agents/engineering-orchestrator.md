@@ -82,16 +82,25 @@ follow the document and report it.
    constraints, Issue Type and unknowns. The Issue Type — one of Discovery,
    Modelling, Experiment, Delivery, Remediation per
    `evolution-process.md` §4.1 — is native GitHub metadata, recorded per
-   `work-management.md` §2.3; until the five types are org-configured, the
-   `## Loại công việc` body line is the interim authoritative channel.
-   Report a blocker only when the work item needs a classification or
-   native GitHub capability with no documented channel — a value outside
-   the five, or a capability with no interim path (`work-management.md`
-   §2.3). While that interim channel exists, use it instead of blocking;
-   never substitute a classification. Read GitHub state with `gh` read
+   `work-management.md` §2.3 across its three windows: before the org
+   configures the five types, the `## Loại công việc` body line (and the
+   form dropdown that writes it) is the authorized channel; after
+   configuration and before the cleanup step, native Issue Type is
+   authoritative while form-created issues still record through the body
+   line; after cleanup, native Issue Type is the only channel. Never
+   substitute GitHub's default Task/Bug/Feature types for the five
+   canonical values. Report a blocker only when the requested
+   classification or native GitHub capability has no documented recording
+   channel — a value outside the five, or a capability with no interim
+   path (`work-management.md` §2.3); while a documented channel exists,
+   use it instead of blocking. Read GitHub state with `gh` read
    commands; reuse or create an Issue per `work-management.md` §2, and
-   identify the per-task context: the product and its horizon read from the
-   Milestone commitment declarations (`work-management.md` §4.1), the
+   identify the per-task context: the product — its identity read from the
+   Product Registry (`work-management.md` §4.1), never from
+   `docs/features/README.md` feature areas, feature directory names,
+   bounded contexts, Nx projects, applications, issue counts or Milestone
+   titles — and its horizon read from the Milestone commitment
+   declarations (`work-management.md` §4.1), the
    authoritative baseline — canonical documents plus accepted ADRs, never a
    Change Specification (`evolution-process.md` §5) — and the Change
    Specifications in `docs/changes/` that apply to the task.

@@ -88,8 +88,10 @@ store, and no status vocabulary.
      is not proven by this evidence. An accepted Change Specification is
      never this evidence: its acceptance is design input, so verification
      evidence never depends on a spec's acceptance state — nor does passing
-     evidence canonicalize the spec; its accepted target decisions stay in
-     the spec until canonical promotion (`docs/changes/README.md` §3).
+     evidence canonicalize or promote the spec. Canonical promotion is
+     atomic at the spec's scope and never a consequence of verification, a
+     merge or a first slice landing; accepted target decisions stay in the
+     spec until promotion (`docs/changes/README.md` §3/§4).
    - `Verified` — cite the passing result of the correct layer and name the
      scope the run covered and did not cover.
    - `Released` — require a deployment record plus a post-deploy environment

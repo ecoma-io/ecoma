@@ -30,15 +30,24 @@ disagree, the document wins.
   — §5 (the authoritative baseline is canonical documents plus accepted
   ADRs, never a Change Specification), §6.4 (Select & Plan), §6.5 (Deliver:
   smallest change, run the right test layer, record command and result; the
-  canonical-promotion obligation of a delivery under an accepted Change
-  Specification), §6.8 (never implement an unaccepted decision; a blocked
+  baseline-consistency obligation of a delivery under an accepted Change
+  Specification — [`docs/changes/README.md`](../../../docs/changes/README.md)
+  §4), §6.8 (never implement an unaccepted decision; a blocked
   slice is not carried as half-done), §7 (vertical slice conditions and
   **Prerequisite work**), §8 (limitation versus deviation).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — horizon
-  promotion versus canonical promotion are independent; the first
-  behaviour-landing delivery carries the canonical-promotion obligation;
-  §3 (accepted target decisions stay in the spec until canonical
-  promotion).
+  promotion versus canonical promotion are independent (§3/§4). Canonical
+  promotion of a spec is atomic at that spec's scope: it happens only when
+  the spec's complete scope and acceptance/promotion criteria are met, and
+  never as an automatic consequence of the spec PR merging, a first slice
+  landing, first user-visible behaviour, a delivery entering M1, or one of
+  several dependent delivery units completing. Accepted target decisions
+  stay in the spec until then, bind only that spec and its explicitly
+  related delivery units, and are never the repository-wide baseline;
+  unrelated M1 work keeps using the current canonical baseline. A decision
+  that changes an existing invariant, current behaviour, data ownership or
+  a consumed shared contract must already be recorded in its canonical
+  location — the immediate-baseline exception.
 - [`docs/engineering/contribution-workflow.md`](../../../docs/engineering/contribution-workflow.md)
   — §2.5 (branch and draft PR), §2.6 (scope lock), §2.7 (validation by
   change type), §2.8 (review findings), §2.9 (rebase and merge).
@@ -68,7 +77,10 @@ disagree, the document wins.
   target decisions bind the slice and stay in the spec until canonical
   promotion (`docs/changes/README.md` §3).
 - Whether an accepted Change Specification in `docs/changes/` covers this
-  behaviour, when one might apply.
+  behaviour; when one does, read that spec explicitly — its accepted target
+  decisions bind only that spec and its explicitly related delivery units,
+  and are never a general architectural licence to be applied without
+  reading the spec.
 - The owning Nx project or projects of the behaviour, confirmed from the
   resolved configuration rather than from file paths.
 - A configured commit signing key. Without one, stop and report.
@@ -111,15 +123,21 @@ disagree, the document wins.
    existing behaviour unless the Issue changes the contract. Respect the
    invariants in `AGENTS.md` `Non-negotiable architecture` — database
    ownership, contracts over shared access, expand → compatible rollout →
-   contract for schema changes. When the slice lands the first behaviour of
-   an accepted Change Specification, the canonical-promotion obligation
-   attaches: update the affected canonical documents in the same logical
-   change, or record the explicit follow-up
-   ([`docs/changes/README.md`](../../../docs/changes/README.md)) —
-   "implemented but not yet promoted" is a tracked transient state, never a
-   permanent one. Completing the delivery does not by itself canonicalize
-   any spec decision; the spec's accepted target decisions become canonical
-   at canonical promotion (`docs/changes/README.md` §3).
+   contract for schema changes. Landing a slice never promotes a Change
+   Specification — not even the first slice; canonical promotion is atomic
+   at the spec's scope (`docs/changes/README.md` §3/§4). If the slice
+   changes current baseline behaviour, an invariant, data ownership or a
+   consumed shared contract, the decision it depends on must already be
+   recorded in its canonical location — an ADR when `docs/AGENTS.md` §10
+   requires one — before or in the same logical change (the
+   immediate-baseline exception); do not postpone such a decision behind a
+   future promotion. Any other implementation-versus-target difference is
+   recorded through the existing reconciliation and deviation mechanisms
+   (`evolution-process.md` §8, §6.7) or an explicit follow-up with owner,
+   action, trigger and completion condition — never as a new mutable field
+   in the spec, and never by silently changing the baseline unrelated
+   delivery consumes. The spec's accepted target decisions become canonical
+   only at canonical promotion (`docs/changes/README.md` §3).
 8. **Select validation by change type.** Do not run everything for every PR;
    run the row that matches, and add rows when the change spans them.
 
@@ -173,6 +191,9 @@ disagree, the document wins.
 - Implementing an unaccepted decision, an unaccepted proposal or an
   unaccepted Change Specification, or a decision still open in
   `01-architecture.md` §10 or `docs/domains/open-boundaries.md`.
+- Treating a spec's accepted target decisions as the repository-wide
+  baseline, or relying on them as general architecture instead of reading
+  the applicable Change Specification.
 - Widening scope to close review findings or to "finish" a discovery made
   mid-slice.
 - Claiming a check passed that did not run, or reporting a remembered result
@@ -199,9 +220,11 @@ disagree, the document wins.
 - Any validation that could not run, with the environmental blocker.
 - Migration steps and their rollout order, when schema changed.
 - Commits made, and confirmation that each carries a signature.
-- Whether the slice landed behaviour under an accepted Change Specification,
-  and whether canonical promotion happened in the same logical change or is
-  recorded as an explicit follow-up.
+- Whether the slice implemented behaviour under an accepted Change
+  Specification; whether it required a current-baseline decision recorded
+  under the immediate-baseline exception; and how any remaining
+  implementation-versus-target difference was recorded (reconciliation
+  class, deviation record, or explicit follow-up).
 - The out-of-scope items found, with where each was recorded.
 
 ## Completion criteria
@@ -213,9 +236,11 @@ disagree, the document wins.
   evidence.
 - Every commit is signed and no hook was bypassed.
 - The PR body states what was not done, and links the Issue correctly.
-- When the slice delivered behaviour under an accepted Change Specification,
-  the canonical documents were updated in the same logical change or the
-  pending promotion is recorded as an explicit follow-up.
+- When the slice implemented behaviour under an accepted Change
+  Specification, the slice did not promote the spec: any current-baseline
+  decision it required was recorded under the immediate-baseline exception,
+  and remaining implementation-versus-target differences carry their
+  reconciliation or follow-up record.
 - The branch is rebased, CI is green and conversations are resolved before
   ready for review.
 - No Project, Milestone, label or field was created as a side effect.

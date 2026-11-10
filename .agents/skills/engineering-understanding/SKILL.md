@@ -44,9 +44,12 @@ disagree, the document wins.
   (unresolved architecture).
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
   — when an Issue must exist, what "independently trackable" means, when to
-  reuse one, §2.3 (how the Issue Type is recorded, including the interim
-  `## Loại công việc` body channel), §4.1 (horizons read from the Milestone
-  commitment declarations).
+  reuse one, §2.3 (how the Issue Type is recorded, across the three
+  windows: the `## Loại công việc` body channel before org configuration,
+  native Issue Type authoritative after it while form-created issues still
+  record through the body channel, native-only after cleanup), §4.1 (the
+  Product Registry that owns product identity, and horizons read from the
+  Milestone commitment declarations).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — Change
   Specification vocabulary: change types, material changes, the two
   promotions, and the index of live specs.
@@ -93,10 +96,19 @@ disagree, the document wins.
    invariant number, an ADR, a dependency rule, or a platform fact. A
    constraint without a source is an assumption, and belongs in step 8.
 6. **Place the work in its context**, when the request has one:
-   - The **product** and its **horizon**, read from the product's Milestone
-     commitment declarations per `work-management.md` §4.1 — never from
-     creation order, due dates, names or issue counts, and not from a
-     document marker. Work feeding a product's future horizon (Feature
+   - The **product** and its **horizon**. Product identity comes from the
+     Product Registry owned by `work-management.md` §4.1 (stable product
+     IDs) — never from `docs/features/README.md` feature areas, feature
+     directory names, bounded contexts, Nx projects, applications, issue
+     counts or Milestone titles; applications of a product are not products;
+     a product ID stays valid with no implemented Feature document. The
+     horizon is read from the product's Milestone commitment declarations
+     per §4.1 — never from creation order, due dates, names or issue
+     counts, and not from a document marker. Shared or cross-cutting work
+     has no product pipeline of its own: associate it with the driving
+     pipeline's product ID, or leave it unassigned when no pipeline
+     genuinely drives it; ambiguity is reported with the evidence read,
+     never guessed. Work feeding a product's future horizon (Feature
      Discovery) is normal, not misplanned.
    - The **authoritative baseline** the work stands on: the canonical
      documents of the four views plus accepted ADRs (`evolution-process.md`
@@ -141,8 +153,12 @@ disagree, the document wins.
 - Choosing an Issue Type because it is convenient, or because a later value
   in the priority order sounds more impressive. §4.1 order is the only rule.
 - Inventing a constraint, a label, a milestone, an assignee, a project field
-  or a substitute classification when the Issue Type is not configured —
-  report the blocker per `work-management.md` §2.3 instead.
+  or a substitute classification — including GitHub's default Task/Bug/Feature
+  types as stand-ins for the five canonical values. Before org configuration
+  the `## Loại công việc` body channel is the authorized recording channel;
+  report a blocker only when the requested classification or native GitHub
+  capability has no documented recording channel at all
+  (`work-management.md` §2.3).
 
 ## Evidence to collect
 

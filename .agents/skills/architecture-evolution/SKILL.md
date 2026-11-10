@@ -119,12 +119,22 @@ disagree, the document wins.
      changing a shared contract or library → a Change Specification under
      `docs/changes/`, with the change type (introduce, evolve, retire) on
      each Affected scope entry; the canonical documents change at canonical
-     promotion, not in the spec's PR. Size in PRs is not a trigger: a change
+     promotion, not in the spec's PR. Canonical promotion is atomic at the
+     spec's scope: it happens only when the spec's complete scope and
+     acceptance/promotion criteria are met, never as an automatic
+     consequence of the spec PR merging, a first slice landing, first
+     user-visible behaviour, a delivery entering M1, or one of several
+     dependent delivery units completing (`docs/changes/README.md` §3/§4).
+     Size in PRs is not a trigger: a change
      meeting none of the four is a direct canonical edit or Delivery, and a
      spec written for it is a finding (overengineering). A decision settled
      inside the spec's target scope stays there as an accepted target
-     decision until canonical promotion, unless it binds the current
-     baseline now (`docs/changes/README.md` §3).
+     decision — binding only that spec and its explicitly related delivery
+     units, while unrelated M1 work keeps the current canonical baseline —
+     until canonical promotion, unless it binds the current
+     baseline now, in which case it is recorded canonically before or in the
+     same logical change as the first change depending on it
+     (`docs/changes/README.md` §3).
    - Undecided → `01-architecture.md` §10 with an explicit trigger, or
      `docs/domains/open-boundaries.md` for a business boundary.
    - Index → the context's `adr/README.md` row, in the same change.

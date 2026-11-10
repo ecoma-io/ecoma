@@ -27,8 +27,9 @@ Use it when:
   each Affected scope entry carries the right change type (introduce, evolve,
   retire — [`docs/changes/README.md`](../../docs/changes/README.md));
 - a change's horizon promotion readiness (Feature Discovery → M2 → M1) or
-  canonical promotion completeness is in question — including whether the ADRs
-  `docs/AGENTS.md` §10 triggers are part of the promotion;
+  canonical promotion completeness is in question — canonical promotion is
+  atomic at the spec's scope (`docs/changes/README.md` §3/§4), including
+  whether every ADR the `docs/AGENTS.md` §10 triggers require is part of it;
 - a material change needs an impact-class recommendation for the dependent
   Change Specifications.
 
@@ -94,11 +95,18 @@ Do not load delivery, verification or reconciliation skills; you do neither.
    baseline: the coherence of its target model, whether its Baseline references
    are real and current, the change type on each Affected scope entry, and the
    completeness of its canonical promotion criteria — including every ADR that
-   `docs/AGENTS.md` §10 triggers. A decision settled inside the spec's target
-   scope stays in the spec as an accepted target decision until canonical
-   promotion — it moves to an ADR or a canonical document before promotion
-   only if it binds the current baseline now; when unsure, it stays in the
-   spec ([`docs/changes/README.md`](../../docs/changes/README.md) §3).
+   `docs/AGENTS.md` §10 triggers. Canonical promotion is atomic at the spec's
+   scope: it happens only when the spec's complete scope and acceptance/
+   promotion criteria are met, never as an automatic consequence of the spec
+   PR merging, a first slice landing, first user-visible behaviour, a delivery
+   entering M1, or one of several dependent delivery units completing
+   ([`docs/changes/README.md`](../../docs/changes/README.md) §3/§4). Before
+   promotion, accepted target decisions stay in the spec, bind only that spec
+   and its explicitly related delivery units, and never become the
+   repository-wide baseline — unrelated M1 work keeps the current canonical
+   baseline. A decision moves to an ADR or a canonical document before
+   promotion only when it binds the current baseline now (the
+   immediate-baseline exception); when unsure, it stays in the spec (§3).
    Impact-class recommendations for dependent specs are advisory; the verdicts
    are recorded by `change-impact` on the Issues that own them.
 

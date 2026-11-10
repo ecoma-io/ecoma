@@ -27,7 +27,10 @@ The two modes are the Issue Type values **Discovery** and **Experiment**
 (`evolution-process.md` §4.1): the mode chosen here is the type the owning
 Issue carries, recorded per `work-management.md` §2.3. Discovery feeding a
 product's future horizon (Feature Discovery) is normal work, not misplaced
-effort — horizons are read from the product's Milestone commitment
+effort — the product's identity comes from the Product Registry owned by
+`work-management.md` §4.1, never from `docs/features/README.md` feature
+areas, feature directory names, bounded contexts, Nx projects or
+applications, and horizons are read from the product's Milestone commitment
 declarations (`work-management.md` §4.1).
 
 ## Canonical references

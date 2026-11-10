@@ -37,9 +37,12 @@ backlog.
   closure reasons), §5.2 (linking a PR to an Issue).
 - `docs/engineering/contribution-workflow.md` §2.10 (reconcile after merge).
 - `docs/changes/README.md` — §3 (the three decision states; accepted target
-  decisions become canonical at canonical promotion, not before), canonical
-  promotion and the impact classes a material change applies to dependent
-  Change Specifications. Impact classes
+  decisions become canonical at canonical promotion, not before), §3/§4
+  (canonical promotion is atomic at the spec's scope — never an automatic
+  consequence of a merge, a first slice landing, first user-visible
+  behaviour, a delivery entering M1, or one of several dependent delivery
+  units completing), and the impact classes a material change applies to
+  dependent Change Specifications. Impact classes
   are a different axis from the reconciliation classes of §8.1: one classifies
   the effect on a dependent spec, the other the delta between target and
   reality. Never substitute one for the other.
@@ -101,15 +104,25 @@ backlog.
    gap class, the evidence, the affected canonical location, and a completion
    condition. Link it from the finished unit.
 8. When the unit delivered behaviour under a Change Specification, evaluate
-   the promotion conditions: did canonical promotion complete — the owning
-   canonical documents updated, the ADRs `docs/AGENTS.md` §10 triggers
-   written, the catalog and context map current? If it did not, record the
-   pending promotion as the explicit follow-up on the unit's Issue. Never
-   auto-update canonical documents just because the PR merged; promotion is
-   an explicit act — the point where the spec's accepted target decisions
-   become canonical, which they do not before it
-   (`docs/changes/README.md` §3) — and the same check applies to the unit's
-   dependencies.
+   against atomic promotion (`docs/changes/README.md` §3/§4): promotion
+   happens only when the spec's complete scope and acceptance/promotion
+   criteria are met — a partial delivery, including the first slice, does
+   not promote the spec and is not itself a pending promotion. Check
+   instead that the delivery did not silently change the baseline unrelated
+   work consumes: a slice that changed current-baseline behaviour, an
+   invariant, data ownership or a consumed shared contract must have its
+   decision recorded in the canonical location (an ADR when `docs/AGENTS.md`
+   §10 requires) before or in the same logical change; a temporary
+   implementation-versus-target difference is classified with the §8.1
+   classes above and recorded through the deviation and follow-up
+   mechanisms (`evolution-process.md` §8.2), never as a new mutable field
+   in the spec. When the spec's complete scope and promotion criteria are
+   met, canonical promotion is due in one logical change — owning documents
+   updated in their views, the §10 ADRs written, catalog and context map
+   where applicable, the spec file and its index entry removed, and the
+   owning root issue updated. Never auto-update canonical documents just
+   because the PR merged, and never treat one delivered unit of several
+   dependent ones as promotion.
    When the delivered change is itself material for dependent Change
    Specifications, route the impact assessment to `change-impact` — its
    impact classes are a different axis from the reconciliation classes of
@@ -162,9 +175,13 @@ backlog.
   environment check.
 - Opening new implementation work before the comparison is written down.
 - Auto-updating canonical documents because a PR merged. Canonical promotion
-  under a Change Specification is an explicit act — accepted target decisions
-  become canonical there, not at merge (`docs/changes/README.md` §3); an
-  unfinished one is recorded as the pending follow-up, not papered over.
+  under a Change Specification is an explicit act, atomic at the spec's
+  scope — never triggered by a merge, a first slice landing, first
+  user-visible behaviour, a delivery entering M1, or one delivery unit of
+  several dependent ones completing (`docs/changes/README.md` §3/§4); until
+  then accepted target decisions stay in the spec, and
+  implementation-versus-target differences are recorded through the
+  reconciliation and deviation mechanisms, not papered over.
 - Classifying a dependent Change Specification's fate with the §8.1
   reconciliation classes, or a target-reality delta with the impact classes
   of `docs/changes/README.md` — they are different axes.
@@ -184,8 +201,12 @@ backlog.
 - The declared limitation or deviation, if any, with where it was declared.
 - The class assigned to each part of the scope, and the evidence supporting it.
 - Records created or updated: Issue numbers, ADR numbers, canonical paths.
-- When a Change Specification was involved: whether canonical promotion
-  completed, and where the pending promotion is recorded when it did not.
+- When a Change Specification was involved: whether the spec's complete
+  scope and acceptance/promotion criteria are met; when they are, whether
+  canonical promotion completed in one logical change; when they are not,
+  how each implementation-versus-target difference was recorded
+  (reconciliation class, deviation record, or explicit follow-up) — never a
+  claimed promotion the evidence does not support.
 - The closure reason selected, and the condition from §2.6 that authorises it.
 - Whatever could not be automated or confirmed, and who must confirm it.
 
@@ -201,8 +222,10 @@ backlog.
   comment is still owed, and a failed reconciliation reopens the Issue. The
   reconciliation comment exists on the unit's Issue before closure.
 - The closure reason matches §2.6, and no claim exceeds its evidence.
-- When a Change Specification was involved, the promotion state is recorded:
-  promoted, or pending with its explicit follow-up.
+- When a Change Specification was involved, the promotion state is recorded
+  honestly: promotion due and completed in one logical change, or the spec
+  still open with its differences classified — a partial delivery is never
+  recorded as a promotion.
 - No new status table, second backlog, or invented vocabulary was introduced.
 
 ## Escalation

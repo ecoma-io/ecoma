@@ -15,18 +15,26 @@ a model change until the model says so.
 A capability that does not exist yet is modelled as a Change Specification
 only when the change meets the spec gate — any of the four triggers in
 [`docs/changes/README.md`](../../../docs/changes/README.md) §1, of which
-introducing or retiring a bounded context is one; otherwise it goes straight
-to Delivery with the canonical documents updated in the same logical change.
+introducing or retiring a bounded context is one; otherwise this skill edits
+the owning canonical document directly. That edit is modelling, not
+implementation: this skill never writes code and never executes Delivery —
+the overall workflow hands the updated model to a separate Delivery unit,
+and canonical documentation and implementation remain consistent within the
+same logical change per policy (`docs/changes/README.md` §4).
 Existence alone never decides. When a spec is used: the **introduce** change
 type carries the full target model, **evolve** carries the delta plus the
 target state, **retire** carries the removal scope and the post-retire state
 ([`_template.md`](../../../docs/changes/_template.md) §5).
 Canonical promotion moves the model into `docs/domains/<context>/` —
-explicitly, never automatically on PR merge: the owning documents are
-updated, the ADRs `docs/AGENTS.md` §10 triggers are written, and the domains
-catalog and context map gain the context. Until that promotion, a pending
-introduce is indexed only in `docs/changes/README.md`, never in the domains
-catalog.
+explicitly, and only when the spec's complete scope and acceptance/promotion
+criteria are met (`docs/changes/README.md` §3/§4): never automatically on
+PR merge, a first slice landing, first user-visible behaviour, a delivery
+entering M1, or one of several dependent delivery units completing. The
+promotion updates the owning documents, writes the ADRs `docs/AGENTS.md`
+§10 triggers, and updates the domains catalog and context map only where
+the spec actually introduces, retires or changes a domain relationship.
+Until that promotion, a pending introduce is indexed only in
+`docs/changes/README.md`, never in the domains catalog.
 
 Produce:
 
@@ -128,11 +136,15 @@ disagree, the document wins.
      the full target model, evolve the delta plus target state, retire the
      removal scope and post-retire state. Add the spec's index row to
      `docs/changes/README.md` in the same change; the domains catalog and
-     context map change only at canonical promotion. A decision settled
+     context map change only at canonical promotion, which is atomic at the
+     spec's scope (`docs/changes/README.md` §3/§4). A decision settled
      inside the spec's target scope stays in its `## 9. Decisions` section
      as an accepted target decision until canonical promotion — binding only
-     that spec and its delivery units — unless it binds the current baseline
-     now (`docs/changes/README.md` §3).
+     that spec and its explicitly related delivery units, while unrelated M1
+     work keeps the current canonical baseline — unless it binds the current
+     baseline now, in which case it is recorded canonically before or in the
+     same logical change as the first change that depends on it
+     (`docs/changes/README.md` §3).
    - Decision → a new ADR under `docs/domains/<context>/adr/`, numbered
      above every ADR already in the repository, with the header convention of
      the directory it joins.
@@ -180,10 +192,13 @@ disagree, the document wins.
 - Indexing a pending introduce in the domains catalog or context map before
   canonical promotion: until then, `docs/changes/README.md` is the only index
   entry the context has.
-- Treating a merged Change Specification as a completed canonical promotion.
-  Promotion is an explicit later step — it never happens automatically on PR
-  merge, and completing the modelling does not canonicalize any spec
-  decision (`docs/changes/README.md` §3).
+- Treating a merged Change Specification, a first delivery slice, first
+  user-visible behaviour, a delivery entering M1, or one of several dependent
+  delivery units completing as a canonical promotion. Promotion is atomic at
+  the spec's scope and happens only when the spec's complete scope and
+  acceptance/promotion criteria are met — never automatically, and
+  completing the modelling does not canonicalize any spec decision
+  (`docs/changes/README.md` §3/§4).
 - Rewriting or deleting an accepted ADR to change its decision. Supersede it.
 - Putting implementation status, progress, or a "done/not done" column into
   domain documents.

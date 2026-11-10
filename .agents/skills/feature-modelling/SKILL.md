@@ -52,7 +52,8 @@ disagree, the document wins.
 - [`docs/changes/README.md`](../../../docs/changes/README.md) and
   [`docs/changes/_template.md`](../../../docs/changes/_template.md) — the
   spec gate (§1: when a Change Specification is required at all), the
-  Change Specification lifecycle, the change types (introduce, evolve,
+  Change Specification lifecycle including atomic canonical promotion
+  (§3/§4), the change types (introduce, evolve,
   retire) carried by each Affected scope entry, and the ten required
   sections.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
@@ -93,18 +94,29 @@ disagree, the document wins.
      independent of any context's design — belongs to the Features view under
      `docs/features/`, following
      [`docs/features/_template.md`](../../../docs/features/_template.md).
-   - A **product capability that does not exist yet** is a future target. A
-     Change Specification under `docs/changes/` is required only when the
-     change meets the spec gate
-     ([`docs/changes/README.md`](../../../docs/changes/README.md) §1), with
-     the change type (introduce, evolve, retire) on each Affected scope
-     entry per
-     [`docs/changes/_template.md`](../../../docs/changes/_template.md); a
-     small well-scoped feature needs no spec — the Issue carries the work
-     request and acceptance criteria, and canonical promotion happens after
-     delivery. Either way it becomes a Feature document through canonical
-     promotion and delivery — never by writing it into `docs/features/`
-     ahead of the implementation.
+   - A **product capability that does not exist yet** is a future target.
+     Two clearly separated paths — never mixed:
+     - **With an accepted Change Specification** — required only when the
+       change meets the spec gate
+       ([`docs/changes/README.md`](../../../docs/changes/README.md) §1),
+       with the change type (introduce, evolve, retire) on each Affected
+       scope entry per
+       [`docs/changes/_template.md`](../../../docs/changes/_template.md).
+       The capability then follows the spec promotion lifecycle: the spec
+       is promoted only when its complete scope and acceptance/promotion
+       criteria are met (`docs/changes/README.md` §3/§4). Separately, when
+       the capability — or an independently useful subset of it — actually
+       has implementation evidence, this skill creates or updates the
+       Feature document for what exists, with explicit exclusions for what
+       remains unimplemented. That direct Feature-document authoring is NOT
+       canonical promotion of the spec.
+     - **Without a spec** — a small well-scoped feature: the Issue carries
+       the work request and acceptance criteria, Delivery implements it,
+       and its Feature document is created or updated directly once
+       implementation evidence exists. It never undergoes a Change
+       Specification promotion.
+       Never create a Feature document describing a target with no
+       implementation evidence.
    - A **business rule, invariant or policy** of one bounded context belongs
      in `docs/domains/<context>/domain-model.md`. It is not a product
      requirement and does not go into a Feature document.
@@ -162,10 +174,14 @@ disagree, the document wins.
   one canonical location for the Features view; `docs/changes/` is the one
   location for future targets.
 - Writing an unimplemented capability into `docs/features/` as if it existed.
-  The Features view records implemented capability only
+  The Features view records capability with implementation evidence only
   ([`docs/features/README.md`](../../../docs/features/README.md)); a future
-  target is a Change Specification, and it reaches `docs/features/` through
-  canonical promotion and delivery, not through an early edit.
+  target is a Change Specification, and a Feature document is created or
+  updated only when the capability — or an independently useful subset —
+  actually has implementation evidence, described together with explicit
+  exclusions for the rest. That authoring is not canonical promotion of the
+  spec, and no Feature document is ever created for a target with no
+  implementation evidence.
 - Defining a new knowledge view, status vocabulary, requirement identifier
   scheme, or label taxonomy.
 - Copying the same requirements into an Issue and a document; one owns the
