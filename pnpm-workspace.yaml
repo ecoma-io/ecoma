@@ -49,11 +49,7 @@ allowBuilds:
   # bundle app lẫn test.
   vue-demi: true
 
-# Patch tạm cho @nx/js: getInputs() áp offset cho `include` nhưng bỏ sót cho
-# `exclude`, khiến exclude của .nuxt/tsconfig.*.json (vd `../../../node_modules`)
-# bị tính sai fileset. Gỡ khi upstream fix (nrwl/nx#26521).
 patchedDependencies:
-  '@nx/js@23.3.0': patches/@nx__js@23.3.0.patch
   # Patch tạm cho dev-server của nitropack: tắt redirect trailing-slash của
   # `serve-static` làm 404 `/en` (issue #111). Bản vá theo version: bump
   # nitropack ⇒ pnpm chỉ warn, patch im lặng mất tác dụng mà `pnpm install` vẫn
