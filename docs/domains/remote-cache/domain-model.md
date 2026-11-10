@@ -10,7 +10,7 @@ Bounded context `remote-cache`: dịch vụ remote cache multi-tenant. Context s
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | tenant (kèm owner — `sub` opaque, đúng một, thuộc tính persistence độc lập trên bản ghi tenant), project, membership, API key (machine credential) scoped theo project, quota/retention/usage metering, audit, domain-level lifecycle enforcement | giao thức cache Nx (adapter), HTTP API, streaming, object storage partitioning, bucket/object key, storage adapters, CDN, runtime, deployment, recovery, operations |
 
-- Tenant của `remote-cache` ≠ tenant của `pact-broker` — không dùng chung, không suy ra membership từ bên kia, không FK chéo database. Không có bounded context `Tenant` dùng chung; `remote-cache` tiêu thụ primitive kernel P1–P5 theo [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md) và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm).
+- Tenant của `remote-cache` ≠ tenant của `pact-broker` — không dùng chung, không suy ra membership từ bên kia, không FK chéo database. Không có bounded context `Tenant` dùng chung; `remote-cache` áp bất invariant owner §3 của [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md) tại persistence boundary (`owner_sub` NOT NULL + CHECK — chưa có đường runtime xử lý owner nên chưa import guard kernel nào) và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm).
 - Entitlement Staff Access deferred cho MVP: `remote-cache` dùng API key riêng; khi tích hợp thì chỉ qua entitlement event (không sync-call, không authorization-result contract).
 - Enforcement authorization bên trong `remote-cache` resolve từ principal (API key) và dữ liệu của chính nó — catalog govern / backend enforce giữ nguyên hình dạng chung của hệ thống.
 
@@ -30,7 +30,7 @@ Project là đơn vị isolation của cache. Mỗi project thuộc đúng một
 
 Membership là quan hệ người dùng ↔ tenant kèm role. Vòng đời độc lập với API key machine credential.
 
-Role của membership là dữ liệu sản phẩm, dùng cho phân quyền nội bộ remote-cache — **không** là nguồn quyền sở hữu tenant. Owner là thuộc tính persistence của tenant (§2.1), và role `owner` đã bị loại khỏi từ điển role của membership; remaining role là `member`. Việc thu hồi membership không làm tenant mất chủ thể vận hành.
+Role của membership là dữ liệu sản phẩm, dùng cho phân quyền nội bộ remote-cache — **không** là nguồn quyền sở hữu tenant. Owner là thuộc tính persistence của tenant (§2.1), và role `owner` đã bị loại khỏi từ điển role của membership; role còn lại là `member`. Việc thu hồi membership không làm tenant mất chủ thể vận hành.
 
 ### 2.4 API key
 

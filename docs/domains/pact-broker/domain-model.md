@@ -12,7 +12,7 @@ Bounded context `pact-broker`: hợp đồng consumer-driven contract testing (p
 
 - `sub` là tham chiếu opaque, **không phải foreign key** xuyên database. `db-pact-broker` không đọc database nào khác, và không database nào khác đọc `db-pact-broker`.
 - Broker **ghi nhận** deployment, **không thực hiện** deployment thật.
-- Không có bounded context `Tenant` dùng chung; broker giữ role/lifecycle/machine token của riêng mình, tiêu thụ primitive kernel P1–P5 theo [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md), và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm). Owner là thuộc tính persistence của tenant, không phải role trên membership.
+- Không có bounded context `Tenant` dùng chung; broker giữ role/lifecycle/machine token của riêng mình, tiêu thụ guard opaque ID (P1) của kernel ở persistence/bootstrap boundary và áp bất invariant owner §3 qua cột `owner_sub` NOT NULL + CHECK theo [ADR-0025](../llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md), và không áp dụng model membership incarnation (membership incarnation là của từng sản phẩm). Owner là thuộc tính persistence của tenant, không phải role trên membership.
 - Machine token là credential riêng cho Pact CLI/CI, không bao giờ chia sẻ với browser session.
 
 ## 2. Ngữ nghĩa nghiệp vụ

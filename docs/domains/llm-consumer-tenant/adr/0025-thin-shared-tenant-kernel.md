@@ -35,13 +35,15 @@ Issue #9 ban đầu yêu cầu chính sách Free/Paid dùng chung (một slot Fr
 
 Kernel là **một** Nx project với **một** entry point `"."`, không subpath export. Mỗi primitive được tiêu thụ độc lập: một domain có thể dùng nhóm này mà không dùng nhóm kia, và không nhóm nào import nhóm nào theo hướng buộc sản phẩm phải nhận cả gói. Kernel không phải bounded context: không database, không network, không service, không đọc clock, không random, không phụ thuộc vòng đời sản phẩm nào. Không có hàm "khởi tạo kernel", không aggregate gốc, và không kiểu nào buộc consumer phải nhận cả năm primitive.
 
-| #   | Primitive                                                    | Bất biến                                                                                                               | Tiêu thụ          |
+| #   | Primitive                                                    | Bất biến                                                                                                               | Áp dụng           |
 | --- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | P1  | Opaque ID guard: `isOpaqueId` + `MAX_OPAQUE_ID_LENGTH = 200` | Chuỗi đã trim, không rỗng, dài ≤ 200; biên độ này là một **quyết định**, không phải chi tiết code                      | tất cả bốn domain |
 | P2  | Epoch-millis guard: `isEpochMillis`                          | Số nguyên an toàn (`Number.isSafeInteger`); từ chối `NaN`, số thực, `Infinity`, chuỗi                                  | tất cả bốn domain |
 | P3  | Owned-tenant fact `{ id, owner }` + guard                    | Đúng một owner là `sub` opaque; không tenant ownerless; guard hình dạng chạy **trước** khi so sánh owner               | tất cả bốn domain |
 | P4  | Tenant member reference `{ tenantId, actor }`                | Tham chiếu membership tối thiểu; không incarnation, không status, không timestamp                                      | tất cả bốn domain |
 | P5  | Tenant-scoped collection                                     | Phần tử lệch tenant hoặc sai hình dạng làm **cả collection** bị từ chối; không lọc rồi tiếp tục, không ném `TypeError` | tất cả bốn domain |
+
+Cột "Áp dụng" là phạm vi **quy tắc** — mọi domain chịu bound bởi bất invariant tương ứng — không phải bản đồ import. Tiêu thụ guard trong code là theo từng boundary và không sản phẩm nào bị ép tiêu thụ cả năm: P1 được import bởi hai domain LLM và `pact-broker-api` (+ infrastructure của nó), còn `remote-cache` chưa có đường runtime nào xử lý owner nên enforce cùng biên độ bằng constraint persistence (`owner_sub` NOT NULL + CHECK, §3); P2 được import bởi hai domain LLM; P3 được import bởi `llm-consumer-tenant-domain`, còn Seller giữ bất invariant ở kiểu domain (owner là field bắt buộc của aggregate); P4 và P5 hiện chưa có consumer — vẫn nằm trong danh sách đóng đã chốt ở trên và được tiêu thụ khi một boundary thực sự xử lý giá trị đó.
 
 **Không thuộc kernel (không bao giờ):** role, permission, grant, authorization, lifecycle, plan, quota, limit, deletion, retention, suspension, restriction, workspace, machine credential, entitlement. Thêm một trong những khái niệm này vào kernel phải qua ADR mới, kèm bằng chứng hành vi dùng chung.
 
