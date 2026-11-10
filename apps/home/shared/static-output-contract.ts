@@ -2,56 +2,76 @@
  * Contract static-output giữa **lúc build** và **lúc test** của `apps/home`.
  *
  * Suite `tests/static-output.spec.ts` assert trên artifact production thật
- * (`.output/public`), nhưng một build mà `nuxt-content-assets` nuốt lỗi load
- * config (module bắt lỗi và chỉ `warn` - cảnh báo bị Nx ẩn khi task vẫn pass)
- * vẫn sinh ra HTML prerender hoàn chỉnh, chỉ thiếu thư mục `assets/` - lỗi
- * lúc đó chỉ lộ ở test như "expected 0 to be greater than or equal to 6",
- * không ai nhìn ra nguyên nhân build-side. Hai phía dùng chung các hằng số
- * ở đây để:
+ * (`.output/public`). Sau khi gỡ stack @nuxt/content (issue #72), bề mặt
+ * prerendered (SSG) còn đúng ba file HTML: homepage hai locale và `404.html`
+ * (artifact của route ảo `/en/__not-found`). Một build mà prerender im lặng
+ * bỏ sót route (seed sai, hook `prerender:generate` nuốt nhầm lỗi, page bị
+ * xoá) vẫn kết thúc "thành công" ở bước build — lỗi chỉ lộ ở test, không ai
+ * nhìn ra nguyên nhân build-side. Hai phía dùng chung các hằng số ở đây:
  *
- * - **Build** (hook `nitro:build:public-assets` trong `modules/static-assets-guard.ts`)
- *   fail LÚC BUILD với thông báo có hướng sửa, thay vì để test mòm mèm đỏ sau đó;
- * - **Test** (`static-output.spec.ts`) báo đúng tiền đề khi glob asset rỗng
- *   trong khi HTML prerender có nội dung - phân biệt "build hỏng" với
- *   "assertion sai".
+ * - **Test** (`static-output.spec.ts`) so inventory HTML thực đếm được với
+ *   danh sách mong đợi qua `assessOutputHtmlInventory`, fail-loud với thông
+ *   báo có hướng sửa khi lệch;
+ * - mọi thay đổi bề mặt prerendered (thêm route SSG, xoá `404.html`) phải
+ *   cập nhật `EXPECTED_OUTPUT_HTML_PATHS` **và** các assertion per-file của
+ *   static-output test cùng một lúc — hai nơi nhìn thấy nhau qua file này.
  */
 
 /**
- * Số file `.svg` tối thiểu mà `.output/public/assets` phải có sau một build
- * thành công. Content tree hiện tại khai 30 cover/inline asset; sàn 6 là
- * dưới cùng biên an toàn - đủ bắt một build mất trắng thư mục assets, không
- * đủ thấp đến mức một build đúng nào cũng vi phạm.
+ * Inventory HTML **đầy đủ** mà `.output/public` phải có sau một build thành
+ * công. So sánh là **set equality** (dư hoặc thiếu đều vi phạm) để một route
+ * mới xuất hiện ngoài ý muốn cũng bị bắt, không chỉ route bị mất.
  */
-export const MIN_OUTPUT_SVG_ASSETS = 6;
-
-/** Thư mục assets trong output production, tính từ project root của app. */
-export const OUTPUT_ASSETS_DIR = '.output/public/assets';
+export const EXPECTED_OUTPUT_HTML_PATHS: readonly string[] = Object.freeze([
+  '404.html',
+  'en/index.html',
+  'vi/index.html',
+]);
 
 /**
- * Đánh giá số asset thực đếm được so với sàn tối thiểu.
+ * Đánh giá inventory HTML thực đếm được so với danh sách mong đợi.
  *
- * Hàm thuần (không I/O, không phụ thuộc Nuxt/Nitro) để hook build và unit
- * test cùng gọi - unit test chốt đúng ba nhánh: thiếu nặng, đủ sàn, vượt sàn.
+ * Hàm thuần (không I/O, không phụ thuộc Nuxt/Nitro) để unit test chốt đúng
+ * các nhánh: khớp, thiếu file, thừa file, vừa thiếu vừa thừa.
  *
- * @param actualCount Số file `.svg` đếm được trong thư mục assets output.
- * @returns `null` khi đạt sàn; khi vi phạm, một câu tiếng Anh giải thích
- *   nguyên nhân khả dĩ nhất (module content-assets nuốt lỗi) và cách chẩn
- *   đoán - câu này được throw nguyên văn ở lúc build.
+ * @param actualPaths Đường dẫn tương đối `.output/public` của mọi file
+ *   `.html` đếm được trong artifact (định dạng phần tử giống
+ *   `EXPECTED_OUTPUT_HTML_PATHS`).
+ * @returns `null` khi inventory khớp chính xác; khi lệch, một câu tiếng Anh
+ *   fail-loud nêu rõ thiếu/thừa gì và hướng chẩn đoán build-side.
  */
-export function assessOutputSvgAssets(actualCount: number): string | null {
-  if (actualCount >= MIN_OUTPUT_SVG_ASSETS) {
+export function assessOutputHtmlInventory(actualPaths: readonly string[]): string | null {
+  const expected = EXPECTED_OUTPUT_HTML_PATHS;
+  const actualSet = new Set(actualPaths);
+  const expectedSet = new Set(expected);
+
+  const missing = expected.filter((path) => !actualSet.has(path));
+  const extra = actualPaths.filter((path) => !expectedSet.has(path)).toSorted();
+
+  if (missing.length === 0 && extra.length === 0) {
     return null;
   }
-  return (
-    `Output assets directory ${OUTPUT_ASSETS_DIR} contains ${actualCount} .svg file(s), ` +
-    `but the static-output contract requires at least ${MIN_OUTPUT_SVG_ASSETS}. ` +
-    'The prerendered HTML was produced, so the content pipeline ran; an empty or ' +
-    'missing assets directory means the nuxt-content-assets module contributed ' +
-    'no assets in this build (it swallows content-config load errors with only a ' +
-    "warning: look for '[content-assets] Unable to load content config' in the " +
-    'untruncated build output of this task) or its cache/public directory was ' +
-    'never copied. Re-run the build outside Nx (npx nuxt build in apps/home) to ' +
-    'see module warnings directly, and compare the content.config.ts load path ' +
-    'between the green and red runs.'
-  );
+
+  const parts: string[] = [
+    `Static output contract violation in .output/public: expected exactly ` +
+      `[${expected.join(', ')}] as the complete prerendered HTML inventory.`,
+  ];
+  if (missing.length > 0) {
+    parts.push(
+      `Missing: [${missing.join(', ')}] — the prerender step did not emit these ` +
+        'routes. Check the prerender seeds in nitro.config.ts (prerender.routes) ' +
+        'and the virtual 404 route hook (prerender:routes / prerender:generate); ' +
+        'a validate rejection or a swallowed prerender error leaves the build ' +
+        'green but the artifact incomplete.',
+    );
+  }
+  if (extra.length > 0) {
+    parts.push(
+      `Unexpected: [${extra.join(', ')}] — routes prerendered without being part ` +
+        'of the contract. Add them to EXPECTED_OUTPUT_HTML_PATHS together with ' +
+        'per-file assertions in tests/static-output.spec.ts, or remove the ' +
+        'prerender seed that emitted them.',
+    );
+  }
+  return parts.join(' ');
 }

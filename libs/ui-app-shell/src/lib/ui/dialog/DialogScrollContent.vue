@@ -1,7 +1,7 @@
 <!-- Ported from https://github.com/dianprata/nuxt-shadcn-dashboard (commit 54988681e50feaa4935828882da93faff06cf042), MIT, Copyright (c) 2024 Dian Pratama.
      Xem libs/ui-app-shell/THIRD-PARTY-NOTICES.md. -->
 <script setup lang="ts">
-import type { DialogContentEmits, DialogContentProps } from 'reka-ui';
+import type { DialogContentEmits, DialogContentProps, PointerDownOutsideEvent } from 'reka-ui';
 import type { HTMLAttributes } from 'vue';
 import { X } from '@lucide/vue';
 import {
@@ -35,7 +35,7 @@ const forwarded = useForwardPropsEmits(props, emits);
         "
         v-bind="forwarded"
         @pointer-down-outside="
-          (event) => {
+          (event: PointerDownOutsideEvent) => {
             const originalEvent = event.detail.originalEvent;
             const target = originalEvent.target as HTMLElement;
             if (

@@ -100,13 +100,12 @@ export function useHomeMotion(root: Ref<HTMLElement | undefined>): HomeMotionCle
       // đang chạy, biến đó còn ở TDZ.
       let observer: IntersectionObserver | undefined;
       try {
-        // Hero timeline: eyebrow → heading → description → CTAs → proofs, stagger
+        // Hero timeline: eyebrow → heading → description → proofs, stagger
         // nhẹ theo thứ tự đọc. Chỉ transform + opacity (compositor-friendly).
         const heroTargets = [
           '[data-hero="eyebrow"]',
           '[data-hero="heading"]',
           '[data-hero="description"]',
-          '[data-hero="actions"]',
           '[data-hero="proofs"]',
         ].map((selector) => element.querySelector(selector));
         if (heroTargets.every((target) => target !== null)) {
@@ -145,7 +144,6 @@ export function useHomeMotion(root: Ref<HTMLElement | undefined>): HomeMotionCle
             .add(fadeIn('[data-hero="eyebrow"]', 0.5), 0)
             .add(fadeIn('[data-hero="heading"]', 0.6), '-=0.25')
             .add(fadeIn('[data-hero="description"]', 0.5), '-=0.3')
-            .add(fadeIn('[data-hero="actions"]', 0.5), '-=0.3')
             .add(fadeIn('[data-hero="proofs"]', 0.5), '-=0.3');
         }
 

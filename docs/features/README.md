@@ -46,7 +46,7 @@ Mỗi thư mục con là một **product area**, không phải một Nx project 
 docs/features/
   README.md                  # tài liệu này — mục đích, cách tổ chức, quy tắc
   _template.md               # cấu trúc bắt buộc của một Feature document
-  public-website/            # nội dung public đa ngôn ngữ
+  public-website/            # homepage public đa ngôn ngữ
   identity/                  # đăng nhập và truy cập application qua OIDC
   account/                   # self-service của chủ tài khoản
   internal-access/           # truy cập tài nguyên nội bộ được bảo vệ
@@ -60,7 +60,7 @@ Quy tắc đặt tên: tên file là một cụm động từ + đối tượng 
 
 ### Public website
 
-- [Duyệt nội dung public đa ngôn ngữ](./public-website/browse-localized-public-content.md) — Home, documentation, blog và legal content bằng tiếng Việt và tiếng Anh.
+- [Duyệt homepage public đa ngôn ngữ](./public-website/browse-localized-public-content.md) — homepage public bằng tiếng Việt hoặc tiếng Anh, trên URL locale ổn định `/en`·`/vi` với redirect từ `/`.
 
 ### Identity
 

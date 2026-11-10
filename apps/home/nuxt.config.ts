@@ -22,14 +22,7 @@ export default defineNuxtConfig({
     typeCheck: true,
     tsConfig: {
       extends: '../../../tsconfig.base.json', // Nuxt chép nguyên văn chuỗi này sang `./.nuxt/tsconfig.json`, nên nó phải là đường dẫn tương đối so với thư mục đó
-      include: [
-        '../app/**/*',
-        '../shared/**/*',
-        '../test/**/*',
-        '../modules/**/*.ts',
-        './nuxt.d.ts',
-        '../types/*.d.ts',
-      ],
+      include: ['../app/**/*', '../shared/**/*', '../test/**/*', './nuxt.d.ts', '../types/*.d.ts'],
     },
   },
   imports: {
@@ -54,34 +47,8 @@ export default defineNuxtConfig({
     '@ecoma-io/ui-ecoma-logo': new URL('../../libs/ui-ecoma-logo/src/index.ts', import.meta.url)
       .pathname,
   },
-  modules: [
-    '@nuxt/fonts',
-    'nuxt-content-assets',
-    '@nuxt/content',
-    './modules/prerendered-content-manifest',
-    // Rào chắn fail-loud cho `.output/public/assets` (hook Nuxt
-    // `nitro:build:public-assets`): một build mà `nuxt-content-assets` nuốt
-    // lỗi load content config vẫn prerender đủ HTML nhưng mất trắng thư mục
-    // assets - trước khi có hook này, lỗi đó chỉ lộ ở static-output test sau
-    // khi build đã "xanh", với cảnh báo gốc bị Nx ẩn. Chi tiết trong module.
-    './modules/static-assets-guard',
-  ],
+  modules: ['@nuxt/fonts'],
   css: ['~/assets/css/styles.css'],
-
-  content: {
-    build: {
-      markdown: {
-        // Pipeline math cho content học thuật: remark-math parse `$...$` /
-        // `$$...$$` thành node math, rehype-katex render sang markup + class
-        // KaTeX **lúc build** (cả prerender lẫn payload), nên HTML tĩnh mang
-        // sẵn công thức — không client-only rendering. Hai plugin được
-        // `@nuxt/content` import theo tên package lúc build (đã cài ở root
-        // workspace); plugin tải chậm của katex chỉ chạy trên bài có math.
-        remarkPlugins: { 'remark-math': {} },
-        rehypePlugins: { 'rehype-katex': {} },
-      },
-    },
-  },
 
   vite: {
     resolve: { tsconfigPaths: true },

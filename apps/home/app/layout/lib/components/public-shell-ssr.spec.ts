@@ -7,12 +7,13 @@ import { PublicShell } from '../../index';
 /**
  * SSR/SSG compatibility: render shell trong môi trường **không có DOM**
  * (node). Nếu component phụ thuộc `window`/`document` hay client-only API
- * thì test này throw ngay — đúng bằng chứng cần cho SSG-first public web.
+ * thì test này throw ngay — đúng bằng chứng cần cho SSG-first public web
+ * (homepage được prerender lúc build, xem issue #72).
  */
 describe('PublicShell SSR', () => {
   it('renders the full shell to a string without a DOM', async () => {
     const app = createSSRApp({
-      render: () => h(PublicShell, { path: '/en/docs/api' }, { default: () => 'SSR_CONTENT' }),
+      render: () => h(PublicShell, { path: '/en' }, { default: () => 'SSR_CONTENT' }),
     });
     const html = await renderToString(app);
 
@@ -28,27 +29,32 @@ describe('PublicShell SSR', () => {
     expect(html).toContain('<path');
     expect(html).toContain('class="fill-brand"');
     expect(html).toContain('class="fill-foam"');
-    // Nav và locale switcher là HTML tĩnh, crawlable — không phụ thuộc hydration.
-    expect(html).toContain('href="/en/docs"');
-    expect(html).toContain('href="/vi/docs/api"');
+    // Locale switcher là HTML tĩnh, crawlable — không phụ thuộc hydration.
+    expect(html).toContain('href="/vi"');
     expect(html).toContain('hreflang="vi-VN"');
   });
 
   it('is deterministic: renders are identical even when system time differs', async () => {
     // Hai render ở hai system time khác nhau — bắt code đọc `Date` (mà
     // render thường chỉ vô tình đọc được qua `Date.now`/`getFullYear`).
+    // Prerender lúc build chỉ chạy một lần, nhưng footer/brand không được
+    // ghim thời gian — hai lần prerender (hoặc SSR một request) phải cho
+    // cùng một HTML.
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2001-02-03T04:05:06.000Z'));
-      const first = await renderShell('/vi/blog/hello');
+      const first = await renderShell('/vi');
       vi.setSystemTime(new Date('2049-12-31T23:59:59.000Z'));
-      expect(await renderShell('/vi/blog/hello')).toBe(first);
+      expect(await renderShell('/vi')).toBe(first);
     } finally {
       vi.useRealTimers();
     }
   });
 
   it('renders root and invalid paths without throwing', async () => {
+    // Shell vẫn dựng được khung cho `/` (Worker 302 về /en) và mọi path
+    // không còn mount sau khi xoá stack content (issue #72) — lỗi trang do
+    // validate + error.vue xử lý, không phải shell crash.
     for (const path of ['/', '/en/unknown', 'garbage']) {
       const app = createSSRApp({
         render: () => h(PublicShell, { path }, { default: () => 'X' }),

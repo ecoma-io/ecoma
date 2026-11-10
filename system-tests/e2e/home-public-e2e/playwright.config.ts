@@ -25,7 +25,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * 1. **Node fetch / API assertion** (đa số test): mỗi request qua `node:https`
  *    với `ca` của riêng cert này — cùng pattern với
- *    `tools/dx/src/deployment/local-platform/local-smoke.mjs` (undici `dispatcher`
+ *    `system-tests/local-smoke/src/local-smoke.mjs` (undici `dispatcher`
  *    của global fetch KHÔNG nhận `node:https.Agent`, đã thử thật — và undici
  *    không phải dependency của workspace). Trust store toàn cục của Node và của
  *    HĐH không bị đụng đến.

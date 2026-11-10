@@ -1,32 +1,56 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_OUTPUT_SVG_ASSETS, assessOutputSvgAssets } from './static-output-contract';
+import { EXPECTED_OUTPUT_HTML_PATHS, assessOutputHtmlInventory } from './static-output-contract';
 
 /**
- * Test hàm thuần đánh giá sàn asset output - hợp đồng dùng chung giữa hook
- * build (`modules/static-assets-guard.ts`, throw khi vi phạm) và static-output
- * test (`tests/static-output.spec.ts`, assert cùng hàm). Chốt đúng ba nhánh
- * đánh giá + tính bất biến của thông báo vi phạm (thông báo đó là thứ dev nhìn
- * thấy khi build đỏ, nên phải giữ được hướng chẩn đoán).
+ * Test hàm thuần đánh giá inventory HTML output — hợp đồng dùng chung của
+ * static-output test (`tests/static-output.spec.ts`, assert cùng hàm trên
+ * artifact build thật). Chốt đúng các nhánh đánh giá (khớp, thiếu, thừa,
+ * vừa thiếu vừa thừa) và tính bất biến của thông báo vi phạm (thông báo đó
+ * là thứ dev nhìn thấy khi test đỏ, nên phải giữ được hướng chẩn đoán).
  */
-describe('assessOutputSvgAssets', () => {
-  it('returns null when the count meets the contract floor', () => {
-    expect(assessOutputSvgAssets(MIN_OUTPUT_SVG_ASSETS)).toBeNull();
+describe('assessOutputHtmlInventory', () => {
+  it('returns null when the inventory matches the contract exactly', () => {
+    expect(assessOutputHtmlInventory([...EXPECTED_OUTPUT_HTML_PATHS])).toBeNull();
   });
 
-  it('returns null when the count exceeds the contract floor', () => {
-    expect(assessOutputSvgAssets(MIN_OUTPUT_SVG_ASSETS + 10)).toBeNull();
+  it('returns null when the actual paths are in any order', () => {
+    expect(assessOutputHtmlInventory([...EXPECTED_OUTPUT_HTML_PATHS].toReversed())).toBeNull();
   });
 
-  it('reports a violation with the diagnosis path when the count is below the floor', () => {
-    const violation = assessOutputSvgAssets(MIN_OUTPUT_SVG_ASSETS - 1);
+  it('reports missing prerendered HTML with the build-side diagnosis path', () => {
+    const violation = assessOutputHtmlInventory(['404.html']);
     expect(violation).not.toBeNull();
-    expect(violation).toContain('nuxt-content-assets');
-    expect(violation).toContain('Unable to load content config');
+    expect(violation).toContain('en/index.html');
+    expect(violation).toContain('vi/index.html');
+    expect(violation).toContain('Missing:');
+    expect(violation).toContain('prerender.routes');
   });
 
-  it('reports a violation for an empty assets directory (count 0)', () => {
-    const violation = assessOutputSvgAssets(0);
-    expect(violation).toContain(String(MIN_OUTPUT_SVG_ASSETS));
-    expect(violation).toContain('0 .svg file(s)');
+  it('reports every missing file when the artifact is empty', () => {
+    const violation = assessOutputHtmlInventory([]);
+    expect(violation).toContain(EXPECTED_OUTPUT_HTML_PATHS.join(', '));
+    expect(violation).toContain('expected exactly');
+  });
+
+  it('reports unexpected HTML files as a contract violation', () => {
+    const violation = assessOutputHtmlInventory([
+      ...EXPECTED_OUTPUT_HTML_PATHS,
+      'en/docs/index.html',
+    ]);
+    expect(violation).toContain('Unexpected:');
+    expect(violation).toContain('en/docs/index.html');
+    expect(violation).toContain('EXPECTED_OUTPUT_HTML_PATHS');
+  });
+
+  it('reports both missing and unexpected files in one message', () => {
+    const violation = assessOutputHtmlInventory(['en/index.html', 'vi/index.html', 'old.html']);
+    expect(violation).toContain('Missing:');
+    expect(violation).toContain('404.html');
+    expect(violation).toContain('Unexpected:');
+    expect(violation).toContain('old.html');
+  });
+
+  it('treats duplicate actual entries as one path, not an extra file', () => {
+    expect(assessOutputHtmlInventory([...EXPECTED_OUTPUT_HTML_PATHS, 'en/index.html'])).toBeNull();
   });
 });

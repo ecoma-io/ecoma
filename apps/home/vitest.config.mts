@@ -27,19 +27,6 @@ export default defineConfig(() => ({
       // resolve đường dẫn, không cần runtime module).
       '@ecoma-io/ui-ecoma-logo': new URL('../../libs/ui-ecoma-logo/src/index.ts', import.meta.url)
         .pathname,
-      // Virtual module của Nitro (`modules/prerendered-content-manifest.ts`
-      // đăng ký qua hook `nitro:config`, lấp từ kết quả prerender) — ngoài
-      // Nitro không có hook nào chạy, test dùng manifest rỗng: middleware
-      // gate (`server/middleware/prerendered-content-404.ts`) phải pass
-      // through cho mọi path, đúng như dev server trước prerender đầu.
-      'virtual:prerendered-content-paths': new URL(
-        './shared/test-fixtures/prerendered-content-paths.ts',
-        import.meta.url,
-      ).pathname,
-      // `#components` là auto-import của Nuxt, không tồn tại ngoài runtime;
-      // view dùng `ContentRenderer` chỉ truyền value, nên fixture placeholder
-      // là đủ cho mount test (xem `shared/test-fixtures/nuxt-components.ts`).
-      '#components': new URL('./shared/test-fixtures/nuxt-components.ts', import.meta.url).pathname,
     },
   },
   test: {
@@ -48,8 +35,8 @@ export default defineConfig(() => ({
     globals: true,
     environment: 'jsdom',
     // Nuxt dùng `app/` (pages, domain) và `shared/`, không dùng `src/`;
-    // `tests/` chứa content-contract + static-output (chạy trên output build
-    // thật — xem `package.json` target `test` dependsOn `build`); giữ
+    // `tests/` chứa static-output (chạy trên output build thật — xem
+    // `package.json` target `test` dependsOn `build`) cùng token tests; giữ
     // `src`/`tests` để không phá project được generate.
     //
     // Không còn glob cho `deploy/pipeline/`: pipeline hai làn (overview
