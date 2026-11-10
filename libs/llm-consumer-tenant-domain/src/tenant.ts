@@ -18,13 +18,14 @@
  * này không có operation transfer và không mô phỏng một workflow chưa chốt.
  */
 
+import { isEpochMillis, isTenantOwnedBy } from '@ecoma-io/tenant-kernel-domain';
+
 import {
   llmTenantFailure,
   llmTenantOk,
   type LlmTenantResult,
   type TenantActorId,
   type TenantId,
-  isEpochMillis,
   isTenantActorId,
   isTenantId,
 } from './shared';
@@ -96,7 +97,11 @@ export function createTenant(input: CreateTenantInput): LlmTenantResult<Tenant> 
  * Đây là **nguồn authority duy nhất** của owner: quyền owner không đến từ
  * permission grant, không từ membership, và không có role toàn cục nào thay
  * thế được tenant isolation.
+ *
+ * Bảo vệ hình dạng tenant TRƯỚC khi so sánh owner (invariant P3 của kernel
+ * `isTenantOwnedBy`): input sai hình dạng — kể cả tenant hỏng mà trường owner
+ * trùng actor — trả false, không bao giờ ném.
  */
 export function isTenantOwner(tenant: Tenant, actor: TenantActorId): boolean {
-  return tenant.owner === actor;
+  return isTenantOwnedBy(tenant, actor);
 }

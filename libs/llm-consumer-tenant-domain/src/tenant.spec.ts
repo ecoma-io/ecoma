@@ -108,3 +108,26 @@ describe('identity guards', () => {
     expect(isTenantName(null)).toBe(false);
   });
 });
+
+describe('isTenantOwner — kernel invariant P3: shape guard before owner comparison', () => {
+  it('returns false (never throws) for a malformed tenant even when owner matches', () => {
+    // `tenant.owner === actor` đơn lẻ sẽ trả true cho bản ghi dưới đây, nhưng
+    // invariant P3 của kernel yêu cầu kiểm tra hình dạng trước: id rỗng không
+    // hợp lệ ⇒ không phải owned tenant hợp lệ ⇒ false, không ném.
+    expect(
+      isTenantOwner({ id: '', owner: 'sub_alice' } as Tenant, 'sub_alice' as TenantActorId),
+    ).toBe(false);
+    expect(
+      isTenantOwner({ id: 'tnt_acme', owner: '' } as Tenant, 'sub_alice' as TenantActorId),
+    ).toBe(false);
+    expect(isTenantOwner(null as never, 'sub_alice' as TenantActorId)).toBe(false);
+    expect(isTenantOwner(undefined as never, 'sub_alice' as TenantActorId)).toBe(false);
+    expect(isTenantOwner({} as never, 'sub_alice' as TenantActorId)).toBe(false);
+  });
+
+  it('still compares owner for a well-formed tenant', () => {
+    const created = tenant();
+    expect(isTenantOwner(created, 'sub_alice' as TenantActorId)).toBe(true);
+    expect(isTenantOwner(created, 'sub_mallory' as TenantActorId)).toBe(false);
+  });
+});
