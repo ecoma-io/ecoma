@@ -4,11 +4,11 @@ Bounded context `pact-broker`: hợp đồng consumer-driven contract testing (p
 
 ## 1. Mục đích và ranh giới
 
-`pact-broker` lưu và phân phát **hợp đồng consumer-driven contract** (pact), kết quả verification, và trạng thái deploy (`can-i-deploy`) cho mọi dịch vụ Ecoma. Broker là nguồn sự thật cho tenant membership/role **của riêng broker**: role Owner/Admin/Member/Viewer của một tenant pact broker không suy ra từ role backoffice hay bất kỳ scope nào khác.
+`pact-broker` lưu và phân phát **hợp đồng consumer-driven contract** (pact), kết quả verification, và trạng thái deploy (`can-i-deploy`) cho mọi dịch vụ Ecoma. Broker là nguồn sự thật cho tenant, membership và role **của riêng broker**: role membership `admin`/`member`/`viewer` của broker không suy ra từ role backoffice, Staff Access hay bất kỳ scope nào khác, và owner là thuộc tính của tenant — không phải role (§2.5).
 
-| Sở hữu                                                                                                                                                                                                                                                             | Không sở hữu                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| pacticipants · versions · branches/tags · pacts + content SHA · verifications · matrix/can-i-deploy · environments · deployed/undeployed versions · tenant + membership + role của broker (owner là thuộc tính tenant, không phải role) · machine token của broker | danh tính người dùng (dùng `sub` từ access token của `auth`, tham chiếu opaque) · quyền nghiệp vụ scope khác · deployment thật (broker chỉ ghi nhận, không thực hiện) |
+| Sở hữu                                                                                                                                                                                                                                                                                                   | Không sở hữu                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pacticipants · versions · branches/tags · pacts + content SHA · verifications · matrix/can-i-deploy · environments · deployed/undeployed versions · tenant + membership + role của broker (owner là thuộc tính tenant, không phải role) · plan và chính sách Free slot (§2.6) · machine token của broker | danh tính người dùng (dùng `sub` từ access token của `auth`, tham chiếu opaque) · quyền nghiệp vụ scope khác · deployment thật (broker chỉ ghi nhận, không thực hiện) · subscription/billing (chỉ tiêu thụ tín hiệu subscription, không sở hữu nó) |
 
 - `sub` là tham chiếu opaque, **không phải foreign key** xuyên database. `db-pact-broker` không đọc database nào khác, và không database nào khác đọc `db-pact-broker`.
 - Broker **ghi nhận** deployment, **không thực hiện** deployment thật.
@@ -59,7 +59,27 @@ Quy tắc nghiệp vụ bắt buộc:
 
 Chi tiết schema, kiểu cột và ràng buộc composite → [`docs/applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) §3.
 
-### 2.6 Audit
+### 2.6 Plan và chính sách Free
+
+Mỗi tenant có đúng một **plan**: `free`, `paid` hoặc `internal`, thuộc tính NOT NULL của bản ghi tenant trong broker. Plan không đổi ngữ nghĩa của pact, verification và `can-i-deploy` (§2.1–§2.4).
+
+**Slot Free theo owner.** Chủ thể của slot là `owner_sub` trên bản ghi tenant (§2.5) — không phải membership. Mỗi owner sở hữu tối đa **một** tenant `free` concurrent trong `pact-broker`. Slot là bất invariant của từng sản phẩm: một user có thể cùng lúc sở hữu một tenant Free `pact-broker` và một tenant Free `remote-cache`, vì tenant của hai context không dùng chung. Membership ở tenant khác — bất kể role — không tiêu slot. Tenant `paid` cũng không tiêu slot Free: hạn mức một-free-của-mỗi-owner chỉ tính tenant `free` chưa `deleted`.
+
+**Trạng thái và slot.** Tenant `suspended` vẫn tiêu slot. Chờ xoá không phải trạng thái lifecycle: lifecycle giữ nguyên `active`/`suspended`/`deleted` (§2.5), không có giá trị thứ tư. Tình trạng chờ xoá — yêu cầu xoá đã nhận nhưng logical deletion chưa commit — được biểu diễn bằng state xoá do `pact-broker` sở hữu: một deletion request/metadata tách khỏi `status` (lưu ở cột hay bảng riêng là chi tiết delivery; đường record này chưa hiện diện trong migration hiện có). Trong cửa sổ chờ xoá đó tenant vẫn tiêu slot. Slot chỉ được giải phóng khi logical deletion commit thành công và `status` thành `deleted`; retention/purge physical data sau đó không giữ slot.
+
+**Xoá và thay thế.** Xoá tenant Free cho phép tạo tenant thay thế không giới hạn lần. Mỗi tenant thay thế có tenant ID mới và tên chưa từng dùng — tenant đã xoá không bao giờ được resurrect hay reuse, và tên của nó tiếp tục bị giữ vĩnh viễn dưới semantics unique của `name` hiện có. Tên default deterministic suy từ `sub` (§2.5) chỉ phục vụ provision tenant mặc định lần đầu; nó không cho phép tái sử dụng tên của tenant đã xoá khi provision tenant thay thế.
+
+**Subscription và tenant trả phí.** Mỗi owner có tối đa một tenant `free` đang tồn tại — chưa `deleted` — trong `pact-broker` (**Slot Free theo owner** ở trên). Khi tenant `free` đó còn tồn tại, tenant thêm của cùng owner phải được tạo là tenant `paid` và đòi subscription hợp lệ; khi tenant `free` đã bị logical deletion, việc tạo tenant Free thay thế không bị giới hạn số lần (**Xoá và thay thế** ở trên). Subscription không phải là plan: subscription hết hạn không tự đổi plan của tenant — không có silent downgrade từ `paid` về `free`; quyền truy cập tenant khi subscription hết hạn do chính `pact-broker` enforce, không thuộc kernel hay bounded context dùng chung.
+
+**Owner transfer.** Transfer ownership kiểm tra slot Free của owner mới trong cùng transaction với việc đổi owner: transfer khiến owner mới vượt quá một tenant Free concurrent bị từ chối, trừ khi tenant được convert sang `paid` với subscription hợp lệ. Slot của owner cũ chỉ được giải phóng sau khi transfer commit thành công.
+
+**Tenant nội bộ `ecoma`.** Tên canonical của tenant nội bộ là `ecoma` ([glossary](../glossary.md); [ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)); không có tenant song song `ecoma-internal`. Plan của nó là `internal` — không phải `free` hay `paid` — nên không tham gia bất invariant slot Free. Tenant này được provision duy nhất qua internal bootstrap có kiểm soát (ADR-0020), không qua đường tạo tenant customer; owner của nó là subject Superadmin canonical. System role của Staff Access không tự map thành membership role của broker; membership projection cho nhân sự nội bộ, nếu được tạo, khởi đầu ở role thấp nhất `member`, và ownership là fact riêng không đổi theo membership đó.
+
+**Plan không thay entitlement.** Product entitlement của `staff-access` trả lời tính khả dụng sản phẩm của một nhân sự, không phải plan tenant; hai khái niệm không thay thế nhau. Provenance của membership (`source` ∈ `entitlement`/`bootstrap`/`admin`) giữ nguyên ngữ nghĩa hiện có, và plan không đổi provenance của membership nào: thu hồi entitlement không xoá membership khách hàng tự quản (`source = 'admin'`) hay machine credential.
+
+**Enforcement schema.** Bất invariant slot Free được enforce ở database, không chỉ qua application check. Yêu cầu schema, phát biểu dưới dạng kiểm được — chưa hiện diện trong migration hiện có, triển khai thuộc delivery: cột `plan` NOT NULL trên tenant, và một partial unique index tên `tenants_one_free_per_owner_key` trên cột (`owner_sub`) của bảng tenant với điều kiện `plan = 'free'` AND `status <> 'deleted'` — `UNIQUE(owner_sub) WHERE plan = 'free' AND status <> 'deleted'`; tên index theo quy ước `<table>_<descriptor>_key` của các unique index hiện có. Hai request tạo tenant Free concurrent cùng owner: đúng một commit thành công, request kia bị constraint từ chối — application check đơn thuần không đủ.
+
+### 2.7 Audit
 
 Mọi thay đổi quản trị — tạo/revoke token, thay đổi membership, thay đổi environment — tạo một bản ghi audit **append-only**. Bản ghi audit không bao giờ bị sửa hay xoá bởi đường ứng dụng.
 
@@ -75,6 +95,9 @@ Broker không xử lý payload người dùng cuối nào ngoài nội dung pact
 6. Không log secret, token, credential.
 7. Không down-migration; expand → compatible rollout → contract.
 8. Bootstrap/build/test/migrate không phụ thuộc dịch vụ nào đang sống.
+9. Mỗi owner tối đa một tenant `free` concurrent, enforce ở database bằng partial unique trên `owner_sub` với điều kiện plan và lifecycle (§2.6); suspended và pending-deletion vẫn tiêu slot; slot chỉ giải phóng khi logical deletion commit.
+10. Tenant đã xoá không được resurrect hay reuse: replacement có tenant ID mới và tên mới, tên đã xoá vẫn reserved (§2.6).
+11. Plan không tự đổi theo subscription — không silent downgrade; subscription hết hạn do chính `pact-broker` enforce (§2.6).
 
 ## 4. Quyết định không mang sang từ upstream
 
