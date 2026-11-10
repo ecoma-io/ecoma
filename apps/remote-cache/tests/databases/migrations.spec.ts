@@ -169,6 +169,7 @@ describe('remote-cache migration runner on a real PostgreSQL', () => {
           'projects_name_check',
           'quota_limits_nonnegative',
           'tenants_name_check',
+          'tenants_owner_sub_check',
           'tenants_status_check',
           'tenant_members_role_check',
           'usage_counters_nonnegative',
@@ -179,12 +180,12 @@ describe('remote-cache migration runner on a real PostgreSQL', () => {
       // chết ở CHECK, không phải ở lỗi type hay thứ tự cột.
       await expect(
         client.query(
-          `INSERT INTO remote_cache.tenants (name, status) VALUES ('check-tenant', 'terminated')`,
+          `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ('check-tenant', 'terminated', 'sub-owner-check-tenant')`,
         ),
       ).rejects.toThrow(/tenants_status_check|violates check constraint/iu);
       await expect(
         client.query(
-          `INSERT INTO remote_cache.tenants (name, status) VALUES ('check tenant', 'active')`,
+          `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ('check tenant', 'active', 'sub-owner-check-tenant-2')`,
         ),
       ).rejects.toThrow(/tenants_name_check|violates check constraint/iu);
     } finally {

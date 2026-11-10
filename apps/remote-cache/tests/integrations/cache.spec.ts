@@ -54,7 +54,7 @@ async function seedProjectWithToken(client: import('pg').Client): Promise<{
   const token = 'p42-integration-test-token-' + crypto.randomUUID();
   const tokenHash = await sha256Hex(token);
   const { rows: tenantRows } = await client.query<{ id: string }>(
-    `INSERT INTO remote_cache.tenants (name, status) VALUES ($1, 'active') RETURNING id`,
+    `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ($1, 'active', 'sub-owner-integration') RETURNING id`,
     ['integration-tenant-' + crypto.randomUUID()],
   );
   const tenantId = tenantRows[0]?.id ?? '';
@@ -242,7 +242,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'write-only-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name) VALUES ($1) RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
         ['write-only-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -291,7 +291,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'untrusted-ci-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name) VALUES ($1) RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
         ['untrusted-ci-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -332,7 +332,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'trusted-ci-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name) VALUES ($1) RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
         ['trusted-ci-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -377,7 +377,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'suspended-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, status) VALUES ($1, 'suspended') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ($1, 'suspended', 'sub-owner-integration') RETURNING id`,
         ['suspended-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -410,7 +410,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'deleted-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, status) VALUES ($1, 'deleted') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ($1, 'deleted', 'sub-owner-integration') RETURNING id`,
         ['deleted-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -445,7 +445,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'suspended-put-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, status) VALUES ($1, 'suspended') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ($1, 'suspended', 'sub-owner-integration') RETURNING id`,
         ['suspended-put-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
@@ -488,7 +488,7 @@ describe('data plane cache PUT/GET', () => {
       const tokenRaw = 'deleted-put-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, status) VALUES ($1, 'deleted') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ($1, 'deleted', 'sub-owner-integration') RETURNING id`,
         ['deleted-put-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';
