@@ -58,7 +58,7 @@ Hệ quả: data plane phụ thuộc database; target "không phụ thuộc data
 
 Mỗi tenant có đúng một **plan** là `free` hoặc `paid`, thuộc tính NOT NULL của bản ghi tenant trong `remote-cache`. Plan không đổi ngữ nghĩa của quota (§2.5) và retention (§2.6).
 
-**Slot Free theo owner.** Chủ thể của slot là `owner_sub` trên bản ghi tenant (§2.1) — không phải membership. Mỗi owner sở hữu tối đa **một** tenant `free` concurrent trong `remote-cache`. Slot là bất invariant của từng sản phẩm: một user có thể cùng lúc sở hữu một tenant Free `remote-cache` và một tenant Free `pact-broker`, vì tenant của hai context không dùng chung (§1). Membership ở tenant khác — bất kể role — không tiêu slot.
+**Slot Free theo owner.** Chủ thể của slot là `owner_sub` trên bản ghi tenant (§2.1) — không phải membership. Mỗi owner sở hữu tối đa **một** tenant `free` concurrent trong `remote-cache`. Slot là bất invariant của từng sản phẩm: một user có thể cùng lúc sở hữu một tenant Free `remote-cache` và một tenant Free `pact-broker`, vì tenant của hai context không dùng chung (§1). Membership ở tenant khác — bất kể role — không tiêu slot. Tenant `paid` cũng không tiêu slot Free: hạn mức một-free-của-mỗi-owner chỉ tính tenant `free` chưa `deleted`.
 
 **Trạng thái và slot.** Tenant `suspended` vẫn tiêu slot. Tenant đang chờ xoá — yêu cầu xoá đã nhận nhưng logical deletion chưa commit — vẫn tiêu slot; không có trạng thái lifecycle thứ tư, bộ trạng thái giữ nguyên `active`/`suspended`/`deleted` (§2.1). Slot chỉ được giải phóng khi logical deletion commit thành công (`deleted`); retention/purge physical data sau đó không giữ slot.
 
@@ -68,7 +68,7 @@ Mỗi tenant có đúng một **plan** là `free` hoặc `paid`, thuộc tính N
 
 **Owner transfer.** Transfer ownership kiểm tra slot Free của owner mới trong cùng transaction với việc đổi owner: transfer khiến owner mới vượt quá một tenant Free concurrent bị từ chối, trừ khi tenant được convert sang `paid` với subscription hợp lệ. Slot của owner cũ chỉ được giải phóng sau khi transfer commit thành công.
 
-**Enforcement schema.** Bất invariant slot Free được enforce ở database, không chỉ qua application check. Yêu cầu schema, phát biểu dưới dạng kiểm được (migration thuộc delivery, không trong tài liệu này): cột `plan` NOT NULL trên tenant, và một partial unique index trên (`owner_sub`) với điều kiện `plan = 'free'` AND `status <> 'deleted'` — `UNIQUE(owner_sub) WHERE plan = 'free' AND status <> 'deleted'`. Hai request tạo tenant Free concurrent cùng owner: đúng một commit thành công, request kia bị constraint từ chối — application check đơn thuần không đủ.
+**Enforcement schema.** Bất invariant slot Free được enforce ở database, không chỉ qua application check. Yêu cầu schema, phát biểu dưới dạng kiểm được — chưa hiện diện trong migration hiện có, triển khai thuộc delivery: cột `plan` NOT NULL trên tenant, và một partial unique index trên (`owner_sub`) với điều kiện `plan = 'free'` AND `status <> 'deleted'` — `UNIQUE(owner_sub) WHERE plan = 'free' AND status <> 'deleted'`. Hai request tạo tenant Free concurrent cùng owner: đúng một commit thành công, request kia bị constraint từ chối — application check đơn thuần không đủ.
 
 ## 3. Invariant nghiệp vụ
 
