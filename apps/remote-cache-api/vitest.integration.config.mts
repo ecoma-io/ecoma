@@ -17,7 +17,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,
-  cacheDir: '../../node_modules/.vite/apps/remote-cache',
+  cacheDir: '../../node_modules/.vite/apps/remote-cache-api',
   test: {
     name: '@ecoma-io/remote-cache-integration',
     watch: false,

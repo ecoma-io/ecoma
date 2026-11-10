@@ -383,13 +383,13 @@ describe('root .dockerignore: required build inputs are included', () => {
     expect(isExcluded('deploys/staff-access-deploy/package.json')).toBe(true);
   });
 
-  it('remote-cache WIC entrypoint enters the context while the rest of its deploy stays out', () => {
-    // Image WIC của remote-cache-deploy (P4.1 #442) COPY đúng một file nữa của
+  it('remote-cache-api WIC entrypoint enters the context while the rest of its deploy stays out', () => {
+    // Image WIC của remote-cache-api-deploy (P4.1 #442) COPY đúng một file nữa của
     // `deploys/` — cùng trình tự re-include; thiếu dòng `!` là `docker build`
     // chết ngay ở COPY với lỗi "not found" trong CI.
-    expect(isExcluded('deploys/remote-cache-deploy/wic-entrypoint.sh')).toBe(false);
-    expect(isExcluded('deploys/remote-cache-deploy/index.ts')).toBe(true);
-    expect(isExcluded('deploys/remote-cache-deploy/Dockerfile')).toBe(true);
-    expect(isExcluded('deploys/remote-cache-deploy/package.json')).toBe(true);
+    expect(isExcluded('deploys/remote-cache-api-deploy/wic-entrypoint.sh')).toBe(false);
+    expect(isExcluded('deploys/remote-cache-api-deploy/index.ts')).toBe(true);
+    expect(isExcluded('deploys/remote-cache-api-deploy/Dockerfile')).toBe(true);
+    expect(isExcluded('deploys/remote-cache-api-deploy/package.json')).toBe(true);
   });
 });

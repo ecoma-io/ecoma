@@ -114,7 +114,7 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
-    "path": "apps/remote-cache/src/routes.ts",
+    "path": "apps/remote-cache-api/src/routes.ts",
     "start": 203,
     "end": 203,
     "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san.",
@@ -124,7 +124,7 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
-    "path": "apps/remote-cache/src/routes.ts",
+    "path": "apps/remote-cache-api/src/routes.ts",
     "start": 235,
     "end": 235,
     "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata.",

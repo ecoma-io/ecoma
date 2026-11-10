@@ -142,16 +142,16 @@ export type DeployResourceKind =
   | 'staff-access-wic-state-init'
   /** Provision/migrate ephemeral của staff-access-deploy (db-staff-access, P1.4 #428). */
   | 'staff-access'
-  /** WIC container của remote-cache-deploy (P4.1 #442, không shim). */
-  | 'remote-cache-wic'
+  /** WIC container của remote-cache-api-deploy (P4.1 #442, không shim). */
+  | 'remote-cache-api-wic'
   /** Image của WIC remote-cache container. */
-  | 'remote-cache-wic-image'
+  | 'remote-cache-api-wic-image'
   /** Volume state wrangler của WIC remote-cache (persist dev registry). */
-  | 'remote-cache-wic-state'
+  | 'remote-cache-api-wic-state'
   /** Container init một-shot chown volume state WIC remote-cache cho uid node. */
-  | 'remote-cache-wic-state-init'
-  /** Provision/migrate ephemeral của remote-cache-deploy (db-remote-cache, P4.1 #442). */
-  | 'remote-cache'
+  | 'remote-cache-api-wic-state-init'
+  /** Provision/migrate ephemeral của remote-cache-api-deploy (db-remote-cache, P4.1 #442). */
+  | 'remote-cache-api'
   /** Container image `node-server` của app llm-console (composition SPA + BFF). */
   | 'llm-console'
   /** Image build từ context repo root của deploy unit `llm-console-deploy`. */

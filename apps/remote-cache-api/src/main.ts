@@ -1,5 +1,5 @@
 /**
- * Composition root cua Worker `remote-cache` (P4.1, issue #442, ADR-0015).
+ * Composition root cua Worker `remote-cache-api` (P4.1, issue #442, ADR-0015).
  *
  * Boot fail-closed tu Hyperdrive binding `DB_REMOTE_CACHE`, `/health` khong
  * credential (infra probe khong duoc phu thuoc DB), request-id + security

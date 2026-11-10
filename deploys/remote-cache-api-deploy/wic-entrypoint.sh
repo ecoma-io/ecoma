@@ -1,8 +1,8 @@
 #!/bin/sh
-# Entrypoint của WIC container (remote-cache-deploy) — chạy MỘT worker
+# Entrypoint của WIC container (remote-cache-api-deploy) — chạy MỘT worker
 # `wrangler dev`:
 #
-#   1. ecoma-remote-cache     (apps/remote-cache)     -> HTTP :4207 (dev.port của wrangler.jsonc)
+#   1. ecoma-remote-cache-api     (apps/remote-cache-api)     -> HTTP :4207 (dev.port của wrangler.jsonc)
 #
 # Copy-adapt từ `deploys/pact-broker-api-deploy/wic-entrypoint.sh` (pattern WIC
 # chung, nguồn gần nhất cùng hình MỘT worker); khác auth ở: MỘT worker thay vì
@@ -29,7 +29,7 @@
 set -u
 
 REPO=/repo
-API_DIR=$REPO/apps/remote-cache
+API_DIR=$REPO/apps/remote-cache-api
 WRANGLER=$REPO/node_modules/.bin/wrangler
 PERSIST_DIR=${WIC_PERSIST_DIR:-/state}
 # Cây runtime RW mà wrangler chạy trong đó — mirror cấu trúc per-app của repo
@@ -64,8 +64,8 @@ fi
 # lúc runtime (`ln` trên bind mount RO là EROFS) — đo thật ở auth-deploy.
 #
 # Cấu trúc được mirror: wrangler resolve module bằng chuỗi cha-đi-lên từ cwd —
-# `apps/remote-cache` cần `node_modules` của app (pnpm isolated: `hono`/`pg`
-# nằm ở `apps/remote-cache/node_modules`) RỒI node_modules gốc workspace.
+# `apps/remote-cache-api` cần `node_modules` của app (pnpm isolated: `hono`/`pg`
+# nằm ở `apps/remote-cache-api/node_modules`) RỒI node_modules gốc workspace.
 # Cây mirror tái tạo đúng hai tầng đó bằng symlink vào repo RO (chỉ ĐỌC):
 #
 #   $RUNTIME_TREE/node_modules                       -> /repo/node_modules
@@ -147,21 +147,21 @@ on_signal() {
 
 trap on_signal TERM INT
 
-# --- ecoma-remote-cache -----------------------------------------------------
+# --- ecoma-remote-cache-api -----------------------------------------------------
 # Output: process con kế thừa stdout/stderr của entrypoint (docker logs gộp
 # chung). Wrangler dò port inspector từ 9229 — WIC không cần debugger, ghim
 # sẵn một port riêng bỏ dò port khỏi phương trình (cùng lý do auth-deploy).
 # `--ip 0.0.0.0` (#267): miniflare mặc định bind localhost (127.0.0.1) —
 # loopback-only trong netns của container, mà consumer gọi API này QUA Docker
-# network (alias `ecoma-remote-cache`, không với tới loopback-only) — thiếu
+# network (alias `ecoma-remote-cache-api`, không với tới loopback-only) — thiếu
 # flag thì mọi call của consumer là ECONNREFUSED trong khi healthcheck nội bộ
 # (probe 127.0.0.1 trong chính container) vẫn xanh, lỗi vô hình qua health
 # gate. Cùng lý giải với `--ip 0.0.0.0` của mail/push WIC. Consumer BFF cố
 # định của context này (backoffice) chưa wire ở local (P1.4 chỉ dựng unit —
 # wiring BFF thuộc giai đoạn sau), nên alias là contract cho unit tương lai.
-log '{"event":"wic.starting","worker":"ecoma-remote-cache"}'
-(cd "$RUNTIME_TREE/apps/remote-cache" && exec "$WRANGLER" dev \
-  --config "$RUNTIME_TREE/apps/remote-cache/wrangler.jsonc" \
+log '{"event":"wic.starting","worker":"ecoma-remote-cache-api"}'
+(cd "$RUNTIME_TREE/apps/remote-cache-api" && exec "$WRANGLER" dev \
+  --config "$RUNTIME_TREE/apps/remote-cache-api/wrangler.jsonc" \
   --ip 0.0.0.0 \
   --persist-to "$PERSIST_DIR" \
   --inspector-port 9235 \
@@ -174,7 +174,7 @@ log '{"event":"wic.started","workers":1}'
 # (exit non-zero -> `unless-stopped` restart).
 while [ "$SHUTDOWN" -eq 0 ]; do
   if ! kill -0 "$API_PID" 2>/dev/null; then
-    log '{"event":"wic.worker_exited","worker":"ecoma-remote-cache"}'
+    log '{"event":"wic.worker_exited","worker":"ecoma-remote-cache-api"}'
     exit 1
   fi
   sleep 2

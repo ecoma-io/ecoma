@@ -85,7 +85,7 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   'push-notification': { kind: 'app', owner: 'push-notification-deploy', status: 'scaffold' },
   // Control plane của bounded context remote-cache (ADR-0015): skeleton P4.1,
   // deploy unit mới dựng cùng milestone (issue #442).
-  'remote-cache': { kind: 'app', owner: 'remote-cache-deploy', status: 'scaffold' },
+  'remote-cache-api': { kind: 'app', owner: 'remote-cache-api-deploy', status: 'scaffold' },
   'staff-access': { kind: 'app', owner: 'staff-access-deploy', status: 'implemented' },
   'staff-access-relay': {
     kind: 'app',

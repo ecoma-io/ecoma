@@ -111,7 +111,7 @@ async function main(): Promise<void> {
 
   const client = new Client({
     connectionString: databaseUrl,
-    application_name: 'ecoma-remote-cache-migrate',
+    application_name: 'ecoma-remote-cache-api-migrate',
   });
 
   try {

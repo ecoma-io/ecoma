@@ -240,7 +240,7 @@ export async function startRemoteCacheDatabase(): Promise<RemoteCacheDatabase> {
         port,
         database: REMOTE_CACHE_DATABASE,
         ...options,
-        application_name: 'ecoma-remote-cache-itest',
+        application_name: 'ecoma-remote-cache-api-itest',
       });
       await client.connect();
       return client;

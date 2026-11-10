@@ -1,5 +1,5 @@
 /**
- * Control-plane routes cua Worker `remote-cache` — skeleton P4.1 (issue
+ * Control-plane routes cua Worker `remote-cache-api` — skeleton P4.1 (issue
  * #442, ADR-0015).
  *
  * Pham vi skeleton (KHONG mo rong):

@@ -1,4 +1,4 @@
-name: remote-cache-deploy
+name: remote-cache-api-deploy
 description: A minimal TypeScript Pulumi program
 runtime: nodejs
 config:

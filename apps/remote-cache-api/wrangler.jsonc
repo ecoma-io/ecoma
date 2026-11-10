@@ -1,5 +1,5 @@
 {
-  // Worker của deploy unit `remote-cache` (P4.1) — control plane của bounded
+  // Worker của deploy unit `remote-cache-api` (P4.1) — control plane của bounded
   // context `remote-cache` (ADR-0015): skeleton quản lý project trong tenant
   // qua API key. Data plane (serve cache) KHÔNG thuộc Worker này (P4.2);
   // quota (P4.3) và lifecycle/hardening (P4.4) cũng vậy.
@@ -35,7 +35,7 @@
   // deploy unit thuộc milestone sau, và Wrangler env `staging`/`production`
   // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api`).
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "ecoma-remote-cache",
+  "name": "ecoma-remote-cache-api",
   "main": "dist/main.js",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],

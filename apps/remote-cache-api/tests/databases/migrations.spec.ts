@@ -29,7 +29,7 @@ afterAll(async () => {
   await db?.stop();
 });
 
-describe('remote-cache migration runner on a real PostgreSQL', () => {
+describe('remote-cache-api migration runner on a real PostgreSQL', () => {
   it('applies every migration file from an empty database, leaving the catalog as truth', async () => {
     const migrator = await db.connectAsMigrator();
     try {
@@ -117,7 +117,7 @@ describe('remote-cache migration runner on a real PostgreSQL', () => {
       user: 'ecoma_remote_cache_migrator',
       password: db.rolePassword,
       database: 'postgres',
-      application_name: 'ecoma-remote-cache-itest-wrongdb',
+      application_name: 'ecoma-remote-cache-api-itest-wrongdb',
     });
     await wrongDb.connect();
     try {

@@ -1,9 +1,9 @@
 /**
- * Entry lifecycle local của `remote-cache-deploy` — `up`/`down` trên stack
+ * Entry lifecycle local của `remote-cache-api-deploy` — `up`/`down` trên stack
  * Pulumi của CHÍNH project này; thứ tự toàn cục do Nx suy từ `dependsOn` của
  * package.json (unit phụ thuộc platform:local-up + build bundle app).
  *
- * Chạy qua target Nx: `nx run remote-cache-deploy:local-up -c local` →
+ * Chạy qua target Nx: `nx run remote-cache-api-deploy:local-up -c local` →
  * `npx tsx local.ts up`. Entry KHÔNG lấy khóa lane nào: lifecycle không có
  * khóa toàn cục (quyết định kiến trúc PR #424).
  *
@@ -29,13 +29,13 @@ import {
 async function prepare(foundation: EntryFoundation): Promise<void> {
   // Stack phải tồn tại trước khi `config set` — lần up đầu trên worktree mới,
   // state dir chưa có và mọi lệnh config exit 1 (xem `ensureStackForEntry`).
-  ensureStackForEntry('remote-cache-deploy', foundation);
+  ensureStackForEntry('remote-cache-api-deploy', foundation);
   const secrets: ReadonlyArray<readonly [string, string]> = [
     ['namespace:runtimePassword', generatePostgresPassword()],
     ['namespace:migratorPassword', generatePostgresPassword()],
   ];
   for (const [configKey, configValue] of secrets) {
-    setStackConfig('remote-cache-deploy', configKey, configValue, foundation);
+    setStackConfig('remote-cache-api-deploy', configKey, configValue, foundation);
   }
 }
 
@@ -47,10 +47,10 @@ async function main(command: string): Promise<number> {
     }
     try {
       await prepare(foundation);
-      pulumiUpForEntry('remote-cache-deploy', foundation);
+      pulumiUpForEntry('remote-cache-api-deploy', foundation);
     } catch (error) {
       console.error(
-        `[remote-cache-deploy] up failed: ${error instanceof Error ? error.message : String(error)}`,
+        `[remote-cache-api-deploy] up failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return 1;
     }
@@ -63,21 +63,21 @@ async function main(command: string): Promise<number> {
     const foundation = resolveEntryFoundation(false);
     if (foundation === undefined) {
       console.log(
-        '[remote-cache-deploy] this worktree has never deployed (no .pulumi-local-state) — down is a no-op.',
+        '[remote-cache-api-deploy] this worktree has never deployed (no .pulumi-local-state) — down is a no-op.',
       );
       return 0;
     }
     try {
-      pulumiDestroyForEntry('remote-cache-deploy', foundation);
+      pulumiDestroyForEntry('remote-cache-api-deploy', foundation);
       return 0;
     } catch (error) {
       console.error(
-        `[remote-cache-deploy] down failed: ${error instanceof Error ? error.message : String(error)}`,
+        `[remote-cache-api-deploy] down failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return 1;
     }
   }
-  console.error(`[remote-cache-deploy] unknown command: ${command} (expected: up | down)`);
+  console.error(`[remote-cache-api-deploy] unknown command: ${command} (expected: up | down)`);
   return 1;
 }
 

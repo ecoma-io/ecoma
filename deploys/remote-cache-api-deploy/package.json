@@ -1,5 +1,5 @@
 {
-  "name": "remote-cache-deploy",
+  "name": "remote-cache-api-deploy",
   "private": true,
   "type": "module",
   "main": "index.ts",
@@ -15,7 +15,7 @@
     "implicitDependencies": [
       "platform-deploy",
       "@ecoma-io/deployment",
-      "@ecoma-io/remote-cache"
+      "@ecoma-io/remote-cache-api"
     ],
     "tags": [
       "type:deployment",
@@ -27,7 +27,7 @@
         "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `dist/` mount lúc container start — bundle chưa build là wrangler fail entry-point và container restart loop (#247). Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
-          "cwd": "deploys/remote-cache-deploy",
+          "cwd": "deploys/remote-cache-api-deploy",
           "command": "npx tsx local.ts up"
         },
         "configurations": {
@@ -42,7 +42,7 @@
           },
           {
             "projects": [
-              "@ecoma-io/remote-cache"
+              "@ecoma-io/remote-cache-api"
             ],
             "target": "build"
           }
@@ -52,7 +52,7 @@
         "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
         "executor": "nx:run-commands",
         "options": {
-          "cwd": "deploys/remote-cache-deploy",
+          "cwd": "deploys/remote-cache-api-deploy",
           "command": "npx tsx local.ts down"
         },
         "configurations": {
@@ -123,7 +123,7 @@
         ],
         "outputs": [
           "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
-          "{projectRoot}/bin/deploys/remote-cache-deploy/tsconfig.tsbuildinfo"
+          "{projectRoot}/bin/deploys/remote-cache-api-deploy/tsconfig.tsbuildinfo"
         ],
         "syncGenerators": [
           "@nx/js:typescript-sync"
@@ -144,7 +144,7 @@
         },
         "executor": "nx:run-commands",
         "options": {
-          "cwd": "deploys/remote-cache-deploy",
+          "cwd": "deploys/remote-cache-api-deploy",
           "command": "tsc --build tsconfig.json --emitDeclarationOnly"
         },
         "configurations": {},

@@ -1,4 +1,4 @@
-# Image WIC (worker-in-container) của `apps/remote-cache` ở LAN LOCAL
+# Image WIC (worker-in-container) của `apps/remote-cache-api` ở LAN LOCAL
 # deployment (P1.4, issue #428).
 #
 # Container này KHÔNG build code: nó chạy `wrangler dev` (local mode) từ mount
@@ -34,7 +34,7 @@ WORKDIR /repo
 # Entrypoint giữ PID 1 để nhận SIGTERM và chuyển xuống process wrangler —
 # docker stop phải tắt được worker, không để orphan giữ dev registry + connection
 # pool PostgreSQL.
-COPY deploys/remote-cache-deploy/wic-entrypoint.sh /usr/local/bin/wic-entrypoint.sh
+COPY deploys/remote-cache-api-deploy/wic-entrypoint.sh /usr/local/bin/wic-entrypoint.sh
 RUN chmod +x /usr/local/bin/wic-entrypoint.sh
 
 # Chạy bằng user `node` có sẵn của image — mount repo của developer không bị

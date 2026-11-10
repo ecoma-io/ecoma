@@ -624,7 +624,7 @@ importers:
         specifier: workspace:*
         version: link:../../libs/web-push-notification-job-infrastructure
 
-  apps/remote-cache:
+  apps/remote-cache-api:
     dependencies:
       '@ecoma-io/remote-cache-contracts':
         specifier: workspace:*
@@ -813,7 +813,7 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/remote-cache-deploy:
+  deploys/remote-cache-api-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*

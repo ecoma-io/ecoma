@@ -1,5 +1,5 @@
 /**
- * Data plane routes cua Worker `remote-cache` — P4.2 (issue #454) + P4.3 (issue #461).
+ * Data plane routes cua Worker `remote-cache-api` — P4.2 (issue #454) + P4.3 (issue #461).
  *
  * - `PUT /v1/cache/:hash` — upload artifact (write scope) + quota enforcement (429 non-fatal).
  * - `GET /v1/cache/:hash` — download artifact (read scope) + retention TTL check.

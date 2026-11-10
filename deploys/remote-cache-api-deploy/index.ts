@@ -1,14 +1,14 @@
 /**
- * Chương trình Pulumi của `remote-cache-deploy` — deploy unit của
- * `apps/remote-cache` (service Remote Cache, Hono + postgres.js qua Hyperdrive,
+ * Chương trình Pulumi của `remote-cache-api-deploy` — deploy unit của
+ * `apps/remote-cache-api` (service Remote Cache, Hono + postgres.js qua Hyperdrive,
  * `nodejs_compat`) ở LAN LOCAL deployment (P4.1, issue #442; ADR-0015).
  *
  * Pattern: mirror `deploys/pact-broker-api-deploy/index.ts` (WIC —
  * worker-in-container, nguồn gần nhất cùng hình MỘT worker + provision DB +
  * migration canonical). Image mỏng ghim `node:24-bookworm-slim` +
  * `ca-certificates` (PF2), chứa MỘT process `wrangler dev` theo
- * `wic-entrypoint.sh`: worker `ecoma-remote-cache` (port nội bộ 4207 —
- * `dev.port` của `apps/remote-cache/wrangler.jsonc`). Repo mount READ-ONLY —
+ * `wic-entrypoint.sh`: worker `ecoma-remote-cache-api` (port nội bộ 4207 —
+ * `dev.port` của `apps/remote-cache-api/wrangler.jsonc`). Repo mount READ-ONLY —
  * entrypoint dựng **runtime tree mirror** ghi được dưới `$PERSIST_DIR/runtime`
  * (copy `wrangler.jsonc` + `dist`, symlink `node_modules` hai tầng) và chạy
  * wrangler từ đó. Secrets đi qua `envs` của container (kênh container env —
@@ -17,7 +17,7 @@
  *
  * KHÔNG có Traefik router (cùng quyết định với pact-broker-api, issue #238):
  * consumer của API ở local là BFF fetch server-side qua alias DNS nội bộ
- * `ecoma-remote-cache`; BFF backoffice chưa wire ở local trong P1.4 (wiring
+ * `ecoma-remote-cache-api`; BFF backoffice chưa wire ở local trong P1.4 (wiring
  * consumer thuộc giai đoạn sau), nên container KHÔNG publish port ra host,
  * KHÔNG mang label `traefik.*`. Readiness là liveness container: Docker
  * healthcheck poll `GET /health` của worker (không chạm DB — thiết kế của
@@ -29,7 +29,7 @@
  * `docker exec` vào container PostgreSQL của platform, hai biên escaping
  * `sqlQuote` + `shellQuote`, password do orchestration sinh và truyền qua
  * stack config `--config` (stdin, không argv). Migration chạy **đường
- * canonical** (`apps/remote-cache/db/apply.mts` — advisory lock
+ * canonical** (`apps/remote-cache-api/db/apply.mts` — advisory lock
  * `hashtext('db-remote-cache')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock). KHÔNG có bước seed dữ liệu riêng: dữ liệu seed duy nhất của context
@@ -62,7 +62,7 @@ import {
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
  * là đúng một đường code canonical (`applyAllMigrations` của
- * `apps/remote-cache/db/apply.mts`) — deploy không tự viết lại vòng migration.
+ * `apps/remote-cache-api/db/apply.mts`) — deploy không tự viết lại vòng migration.
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
@@ -71,12 +71,12 @@ const NODE_IMAGE =
 const POSTGRES_HOST = 'ecoma-postgres';
 
 /**
- * Cổng HTTP nội bộ của worker `ecoma-remote-cache` trong WIC — `dev.port`
- * của `apps/remote-cache/wrangler.jsonc`. Bên trong container KHÔNG cần
+ * Cổng HTTP nội bộ của worker `ecoma-remote-cache-api` trong WIC — `dev.port`
+ * của `apps/remote-cache-api/wrangler.jsonc`. Bên trong container KHÔNG cần
  * phát hiện xung đột port host (mỗi container có network stack riêng — static
  * port an toàn); nguồn số duy nhất là wrangler.jsonc, Pulumi không cấp port.
- * Alias DNS `ecoma-remote-cache` (hằng số) + port này là contract cho wiring
- * BFF tương lai: base URL `http://ecoma-remote-cache:4207`.
+ * Alias DNS `ecoma-remote-cache-api` (hằng số) + port này là contract cho wiring
+ * BFF tương lai: base URL `http://ecoma-remote-cache-api:4207`.
  *
  * Wrangler đọc `dev.port` khi render URL banner và healthcheck ở dưới poll đúng
  * `REMOTE_CACHE_INTERNAL_PORT` — wrangler đổi port là healthcheck fail ngay (fail
@@ -91,7 +91,7 @@ const REMOTE_CACHE_INTERNAL_PORT = 4207;
  * network không xung đột; hằng cho tên ổn định để unit consumer tương lai cấu
  * hình base URL không phụ thuộc namespace.
  */
-const REMOTE_CACHE_ALIAS = 'ecoma-remote-cache';
+const REMOTE_CACHE_ALIAS = 'ecoma-remote-cache-api';
 
 const conf = new pulumi.Config('namespace');
 
@@ -169,18 +169,21 @@ $PSQL -c 'GRANT CONNECT ON DATABASE "db-remote-cache" TO ecoma_remote_cache_runt
 docker exec $PG psql -U ecoma_local -d db-remote-cache -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
 `;
 
-const provision = new command.local.Command(dockerResourceName(ns, 'remote-cache') + '-provision', {
-  create: provisionScript,
-  update: provisionScript,
-  // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
-  // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
-  // (trigger được lưu trong state Pulumi).
-  triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
-});
+const provision = new command.local.Command(
+  dockerResourceName(ns, 'remote-cache-api') + '-provision',
+  {
+    create: provisionScript,
+    update: provisionScript,
+    // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
+    // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
+    // (trigger được lưu trong state Pulumi).
+    triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+  },
+);
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx db/apply.mts` của repo (`apps/remote-cache/db/apply.mts` —
+ * chạy đúng `tsx db/apply.mts` của repo (`apps/remote-cache-api/db/apply.mts` —
  * advisory lock `hashtext('db-remote-cache')`, mọi DDL idempotent). Repo mount
  * read-only; password qua `-e` env của container (kênh được chấp nhận), không
  * argv, không log. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
@@ -198,14 +201,14 @@ docker run --rm \\
   --network ${networkName} \\
   -v ${shellQuote(worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/remote-cache \\
+  -w /repo/apps/remote-cache-api \\
   -e DATABASE_URL=postgresql://ecoma_remote_cache_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-remote-cache \\
   ${NODE_IMAGE} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
 `;
 
 const migrate = new command.local.Command(
-  dockerResourceName(ns, 'remote-cache') + '-migrate',
+  dockerResourceName(ns, 'remote-cache-api') + '-migrate',
   {
     create: migrateScript,
     update: migrateScript,
@@ -242,10 +245,10 @@ const migrate = new command.local.Command(
  * Docker) vì remote-cache runtime là `wrangler dev`, không phải process Node
  * đóng gói — image chỉ là "phòng chạy" (pattern auth).
  */
-const wicImageTag = dockerResourceName(ns, 'remote-cache-wic') + ':local';
-const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'remote-cache-wic-image'), {
+const wicImageTag = dockerResourceName(ns, 'remote-cache-api-wic') + ':local';
+const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'remote-cache-api-wic-image'), {
   context: { location: worktreeRoot },
-  dockerfile: { location: `${worktreeRoot}/deploys/remote-cache-deploy/Dockerfile` },
+  dockerfile: { location: `${worktreeRoot}/deploys/remote-cache-api-deploy/Dockerfile` },
   tags: [wicImageTag],
   builder: { name: 'default' },
   load: true,
@@ -268,7 +271,7 @@ const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'remote-cache-wic-
  * hai đường đều đúng.
  *
  * Tên biến: `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_` + TÊN BINDING
- * wrangler (`DB_REMOTE_CACHE` của `apps/remote-cache/wrangler.jsonc` — cùng tên
+ * wrangler (`DB_REMOTE_CACHE` của `apps/remote-cache-api/wrangler.jsonc` — cùng tên
  * mà `src/config.ts` đọc qua `env.DB_REMOTE_CACHE`).
  */
 const runtimePasswordEncoded = runtimePassword.apply((v) => encodeURIComponent(v));
@@ -280,7 +283,7 @@ const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_re
  * runtime liên tục; dữ liệu này là EPHEMERAL theo thiết kế nên volume không
  * `retainOnDelete` và KHÔNG được liệt kê là dữ liệu persistent nào.
  */
-const wicStateVolumeName = dockerResourceName(ns, 'remote-cache-wic-state');
+const wicStateVolumeName = dockerResourceName(ns, 'remote-cache-api-wic-state');
 const wicStateVolume = new docker.Volume(wicStateVolumeName, {
   name: wicStateVolumeName,
   // Ownership labels — `local-cleanup` chỉ xoá resource chứng minh được sở hữu;
@@ -298,9 +301,9 @@ const wicStateVolume = new docker.Volume(wicStateVolumeName, {
  * cảnh bảo mật.
  */
 const wicStateInit = new docker.Container(
-  dockerResourceName(ns, 'remote-cache-wic-state-init'),
+  dockerResourceName(ns, 'remote-cache-api-wic-state-init'),
   {
-    name: dockerResourceName(ns, 'remote-cache-wic-state-init'),
+    name: dockerResourceName(ns, 'remote-cache-api-wic-state-init'),
     image: NODE_IMAGE,
     // `rm` sau khi thoát — container init một-shot không nằm lại `docker ps -a`.
     rm: true,
@@ -337,9 +340,9 @@ const wicStateInit = new docker.Container(
  * no-Traefik với pact-broker-api, issue #238).
  */
 const wic = new docker.Container(
-  dockerResourceName(ns, 'remote-cache-wic'),
+  dockerResourceName(ns, 'remote-cache-api-wic'),
   {
-    name: dockerResourceName(ns, 'remote-cache-wic'),
+    name: dockerResourceName(ns, 'remote-cache-api-wic'),
     image: pulumi.interpolate`${wicImageTag}@${wicImage.digest}`,
     restart: 'unless-stopped',
     // `stop_timeout` 30s khớp bounded-wait 20s của entrypoint: SIGTERM →
@@ -369,8 +372,8 @@ const wic = new docker.Container(
       // host là thay đổi nội dung mount, cùng cơ chế hot-reload mà
       // `wrangler dev` dò được).
       {
-        hostPath: `${worktreeRoot}/apps/remote-cache/dist`,
-        containerPath: '/repo/apps/remote-cache/dist',
+        hostPath: `${worktreeRoot}/apps/remote-cache-api/dist`,
+        containerPath: '/repo/apps/remote-cache-api/dist',
         readOnly: true,
       },
       // KHÔNG mount gì vào `<app>/.wrangler`: Docker không tạo được mountpoint

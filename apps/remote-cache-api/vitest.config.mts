@@ -11,9 +11,9 @@ import { defineConfig, defaultExclude } from 'vitest/config';
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,
-  cacheDir: '../../node_modules/.vite/apps/remote-cache',
+  cacheDir: '../../node_modules/.vite/apps/remote-cache-api',
   test: {
-    name: '@ecoma-io/remote-cache',
+    name: '@ecoma-io/remote-cache-api',
     watch: false,
     globals: true,
     environment: 'node',

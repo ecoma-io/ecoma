@@ -78,11 +78,11 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   // không tạo container/volume nào tồn lại sau lệnh.
   'staff-access-wic',
   'staff-access-wic-state-init',
-  // WIC của remote-cache-deploy (P4.1 #442). Kind `remote-cache` giống kind
+  // WIC của remote-cache-api-deploy (P4.1 #442). Kind `remote-cache-api` giống kind
   // `pact-api`: chỉ đặt tên command.local.Command (provision/migrate) —
   // không tạo container/volume nào tồn lại sau lệnh.
-  'remote-cache-wic',
-  'remote-cache-wic-state-init',
+  'remote-cache-api-wic',
+  'remote-cache-api-wic-state-init',
   // Composition app LLM (ADR-0019): container + image, không có volume/state
   // nào — hai app này không sở hữu database hay runtime state cục bộ.
   'llm-console',
@@ -97,7 +97,7 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'mail-wic-image',
   'push-wic-image',
   'staff-access-wic-image',
-  'remote-cache-wic-image',
+  'remote-cache-api-wic-image',
   // Image của hai composition app LLM — tag app-first `ecoma-<app>-<ns>:local`
   // như home/backoffice/account/pact-app.
   'llm-console-image',
@@ -108,7 +108,7 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'mail-wic-state',
   'push-wic-state',
   'staff-access-wic-state',
-  'remote-cache-wic-state',
+  'remote-cache-api-wic-state',
 ];
 
 export interface CleanupFilter {
@@ -376,7 +376,7 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
             kind === 'mail-wic-state' ||
             kind === 'push-wic-state' ||
             kind === 'staff-access-wic-state' ||
-            kind === 'remote-cache-wic-state'
+            kind === 'remote-cache-api-wic-state'
           ? 'volume'
           : kind === 'home-image' ||
               kind === 'backoffice-image' ||
@@ -387,7 +387,7 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
               kind === 'mail-wic-image' ||
               kind === 'push-wic-image' ||
               kind === 'staff-access-wic-image' ||
-              kind === 'remote-cache-wic-image' ||
+              kind === 'remote-cache-api-wic-image' ||
               kind === 'llm-console-image' ||
               kind === 'llm-seller-image'
             ? 'image'
@@ -438,7 +438,7 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
                   line.endsWith('-mail-wic:local') ||
                   line.endsWith('-push-wic:local') ||
                   line.endsWith('-staff-access-wic:local') ||
-                  line.endsWith('-remote-cache-wic:local'))))
+                  line.endsWith('-remote-cache-api-wic:local'))))
           );
         }
         return line.startsWith('ecoma-') && line.endsWith(`-${kind}`);

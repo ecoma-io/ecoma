@@ -1,5 +1,5 @@
 /**
- * Nap cau hinh cua Worker `remote-cache` tu binding (ADR-0015, P4.1).
+ * Nap cau hinh cua Worker `remote-cache-api` tu binding (ADR-0015, P4.1).
  *
  * Nguyen tac giong `apps/staff-access/src/config.ts`: **thieu cau hinh la
  * loi, khong phai ly do doan**. Moi `require` nem

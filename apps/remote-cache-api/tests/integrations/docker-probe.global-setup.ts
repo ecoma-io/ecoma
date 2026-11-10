@@ -1,5 +1,5 @@
 /**
- * `globalSetup` của Vitest cho `apps/remote-cache` — probe Docker **một lần**
+ * `globalSetup` của Vitest cho `apps/remote-cache-api` — probe Docker **một lần**
  * mỗi lần chạy, trước khi bất kỳ worker/spec file nào khởi động.
  *
  * Vì sao không để từng spec tự probe: mỗi spec file chạy trong worker riêng

@@ -52,7 +52,7 @@
       "path": "./deploys/staff-access-deploy"
     },
     {
-      "path": "./deploys/remote-cache-deploy"
+      "path": "./deploys/remote-cache-api-deploy"
     }
   ]
 }

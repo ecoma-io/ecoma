@@ -1,5 +1,5 @@
 {
-  "name": "@ecoma-io/remote-cache",
+  "name": "@ecoma-io/remote-cache-api",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -36,13 +36,13 @@
         "defaultConfiguration": "production",
         "options": {
           "platform": "neutral",
-          "outputPath": "apps/remote-cache/dist",
+          "outputPath": "apps/remote-cache-api/dist",
           "format": [
             "esm"
           ],
           "bundle": true,
-          "main": "apps/remote-cache/src/main.ts",
-          "tsConfig": "apps/remote-cache/tsconfig.app.json",
+          "main": "apps/remote-cache-api/src/main.ts",
+          "tsConfig": "apps/remote-cache-api/tsconfig.app.json",
           "esbuildOptions": {
             "sourcemap": true,
             "outExtension": {
@@ -88,14 +88,14 @@
         "executor": "nx:run-commands",
         "cache": false,
         "options": {
-          "cwd": "apps/remote-cache",
+          "cwd": "apps/remote-cache-api",
           "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
         }
       },
       "typecheck-db": {
         "executor": "nx:run-commands",
         "options": {
-          "cwd": "apps/remote-cache",
+          "cwd": "apps/remote-cache-api",
           "command": "npx tsc --noEmit -p tsconfig.db.json"
         }
       },
@@ -117,7 +117,7 @@
           }
         },
         "options": {
-          "cwd": "apps/remote-cache",
+          "cwd": "apps/remote-cache-api",
           "command": "npx vitest run -c vitest.config.mts"
         },
         "configurations": {},
@@ -134,7 +134,7 @@
         "executor": "nx:run-commands",
         "dependsOn": [],
         "options": {
-          "cwd": "apps/remote-cache",
+          "cwd": "apps/remote-cache-api",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
         },
         "//": [
@@ -250,7 +250,7 @@
         },
         "executor": "nx:run-commands",
         "options": {
-          "cwd": "apps/remote-cache",
+          "cwd": "apps/remote-cache-api",
           "command": "tsc --build tsconfig.json --emitDeclarationOnly"
         },
         "configurations": {},
