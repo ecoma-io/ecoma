@@ -26,23 +26,31 @@
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
-    // App này **non-SSR** (`ssr: false` trong `nuxt.config.ts`) và build **không**
-    // emit `index.html` tĩnh: `.output/public` chỉ có `_nuxt`, `_fonts`,
-    // `_headers`; shell HTML do Nitro render ở runtime. Fallback này khai báo
-    // rằng path không khớp asset là route của SPA, không phải 404 của asset
-    // worker — điều kiện để deep link như `/offers/123` mở đúng app rồi để
-    // client router xử lý.
+    // `none` là khai báo **trung thực**, không phải thiếu sót: asset worker không
+    // được tự bịa fallback.
     //
-    // Lưu ý đã kiểm bằng `wrangler dev` trên build thật: request không khớp asset
-    // đã rơi vào Worker (`run_worker_first`) và renderer của Nitro trả shell, nên
-    // bật/tắt khoá này cho cùng kết quả. Giữ khai báo để ý định là tường minh và
-    // để asset worker không tự trả 404 nếu sau này có path do asset phục vụ.
-    "not_found_handling": "single-page-application",
-    // `run_worker_first` phải liệt kê **đúng** bề mặt do Worker sở hữu: BFF
-    // `/api/*` và hai route vận hành `/health`, `/ready`. Thiếu một path ở đây
-    // thì request rơi vào asset worker và nhận `index.html` (hoặc 404) thay vì
-    // handler Nitro — health check đọc HTML thay vì JSON. Thêm path không thuộc
-    // Worker thì ngược lại: asset tĩnh bị đẩy qua Worker vô ích.
+    // App này **non-SSR** (`ssr: false`) và build **không** emit `index.html`
+    // tĩnh — `.output/public` chỉ có `_nuxt`, `_fonts`, `_headers`; shell HTML do
+    // Nitro render ở runtime. `single-page-application` ngụ ý "trả `index.html`
+    // cho path không khớp asset", mà file đó không tồn tại; khai nó sẽ mô tả một
+    // cơ chế không có thật và trở nên sai lệch ngay khi ai đó thêm `index.html`
+    // vào `public/` (asset layer sẽ bắt đầu nuốt navigation trước Worker).
+    //
+    // Đo trên build thật bằng `wrangler dev` (`createTestHarness` của wrangler,
+    // workerd thật): với cả `single-page-application` và `none`, request không
+    // khớp asset đều rơi vào Worker và renderer của Nitro trả shell. Deep link
+    // như `/offers/123` vì thế mở đúng app rồi để client router xử lý — cơ chế
+    // đó do route `/**` của Nitro bảo đảm, không do asset layer.
+    "not_found_handling": "none",
+    // `run_worker_first` liệt kê **đúng** bề mặt do Worker sở hữu: BFF `/api/*`
+    // và hai route vận hành `/health`, `/ready`. Path khớp ở đây bỏ qua asset
+    // worker và đi thẳng vào handler Nitro, nên health check không bao giờ đọc
+    // HTML và `/api/**` không bao giờ bị asset layer xử lý.
+    //
+    // Đo được: bỏ `/api/*` khỏi danh sách **không** đổi kết quả (route `/**` của
+    // Nitro vẫn nhận request), giữ lại để bề mặt sở hữu là tường minh. Thêm path
+    // không thuộc Worker thì ngược lại: asset tĩnh bị đẩy qua Worker vô ích, mất
+    // cache immutable của asset layer.
     "run_worker_first": ["/api/*", "/health", "/ready"],
   },
   "observability": {

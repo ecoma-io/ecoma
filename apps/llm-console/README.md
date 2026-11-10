@@ -27,8 +27,9 @@ ranh giới bounded context: [`docs/domains/`](../../docs/domains/).
 ## Chạy
 
 ```bash
-pnpm nx dev @ecoma-io/llm-console        # http://localhost:4208
+pnpm nx serve @ecoma-io/llm-console      # http://localhost:4208
 pnpm nx run @ecoma-io/llm-console:test
+pnpm nx run @ecoma-io/llm-console:test-integration
 pnpm nx run @ecoma-io/llm-console:lint
 pnpm nx run @ecoma-io/llm-console:typecheck
 pnpm nx run @ecoma-io/llm-console:build  # preset Cloudflare, output `.output/`
@@ -59,11 +60,15 @@ rỗng" thay vì fail closed.
 - `/health` — liveness. Trả `{ status: 'ok', service: 'llm-console' }`, không chạm downstream.
 - `/ready` — readiness. Trả `{ status: 'ready' }` vì scaffold chưa có phụ thuộc nào. Khi thêm phụ
   thuộc cấu hình thật, route phải **fail closed** (503 + mã ổn định), không mặc định ready.
-- Các path còn lại — SPA fallback: Nitro trả shell HTML để client router xử lý. Một `/api/*` không
-  có handler cũng rơi vào nhánh này và trả HTML 200, **không** phải 404.
+- Các path còn lại — SPA fallback: Nitro trả shell HTML để client router xử lý.
+- `/api` và `/api/**` không có handler — **404 JSON**, không bao giờ là shell HTML. Route bắt
+  `server/api/[...path].ts` + `server/api/index.ts` khớp sau mọi route cụ thể, nên `/health`,
+  `/ready` và BFF route thêm sau này không bị ảnh hưởng.
 
 `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để hai nhóm này
-tới handler Nitro thay vì asset worker. Đã đo trên build thật bằng `wrangler dev`.
+tới handler Nitro thay vì asset worker. Đã đo trên build thật bằng `wrangler dev`; bỏ
+`/api/*` khỏi danh sách không đổi kết quả vì route `/**` của Nitro vẫn xử lý, nhưng giữ khai báo
+để bề mặt do Worker sở hữu là tường minh.
 
 ## Non-SSR
 
@@ -90,18 +95,31 @@ lỗi **im lặng**, chỉ mất utility trong bản production) và `fonts.defa
 `pnpm nx run @ecoma-io/llm-console:test` chạy Vitest với harness mount component thật (không cần
 browser):
 
-| File                              | Ghim điều gì                                                                            |
-| --------------------------------- | --------------------------------------------------------------------------------------- |
-| `tests/ready.spec.ts`             | `/health` và `/ready` không set status; `/ready` không tham chiếu `llm-api`/`fetch(`/D1 |
-| `app/pages/index.spec.ts`         | Trang Overview render đúng một `<h1>`, không có link chết                               |
-| `tests/tailwind-source.spec.ts`   | Số cấp `@source`, sự tồn tại của base tĩnh, không import CSS qua package                |
-| `tests/catalogs.spec.ts`          | Ba catalog cùng tập key và cùng placeholder; mọi key app gọi đều có                     |
-| `tests/harness.spec.ts`           | Harness mount shell + page, nội dung không phụ thuộc locale mặc định                    |
-| `tests/shell-integration.spec.ts` | App dùng đúng contract của shell (props, emit, slot)                                    |
+| File                               | Ghim điều gì                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `tests/ready.spec.ts`              | `/health` và `/ready` không set status; `/ready` không tham chiếu `llm-api`/`fetch(`/D1 |
+| `app/pages/index.spec.ts`          | Trang Overview render đúng một `<h1>`, không có link chết                               |
+| `tests/tailwind-source.spec.ts`    | Số cấp `@source`, sự tồn tại của base tĩnh, không import CSS qua package                |
+| `tests/catalogs.spec.ts`           | Ba catalog cùng tập key và cùng placeholder; mọi key app gọi đều có                     |
+| `tests/harness.spec.ts`            | Harness mount shell + page, nội dung không phụ thuộc locale mặc định                    |
+| `tests/shell-integration.spec.ts`  | App dùng đúng contract của shell (props, emit, slot)                                    |
+| `server/api/api-not-found.spec.ts` | Route bắt `/api/**` trả JSON 404, không bao giờ là shell HTML                           |
+
+`pnpm nx run @ecoma-io/llm-console:test-integration` chạy suite cần runtime thật:
+
+| File                                        | Ghim điều gì                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/integrations/worker-runtime.spec.ts` | workerd thật trên `wrangler.jsonc`: `/` và `/settings` trả shell, asset tĩnh 200, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404 |
+
+Suite đó khởi động **workerd** qua `createTestHarness` của `wrangler` (in-process, không Docker)
+trên `.output/` của chính app, nên target `test-integration` khai `dependsOn: ["build"]`. Đây là
+tầng duy nhất chứng minh được routing: assertion cấu hình không nhìn thấy việc route `/**` của
+Nitro nuốt `/api/**`.
 
 ## Những gì chưa có
 
-- **Không có BFF nghiệp vụ.** Không route `/api/*`, không proxy tới `llm-api`, không contract
+- **Không có BFF nghiệp vụ.** Không route `/api/*` nào phục vụ dữ liệu (chỉ có route bắt trả 404),
+  không proxy tới `llm-api`, không contract
   tenant/membership/offer/API key/wallet/usage nào được nối.
 - **Không có xác thực.** Không OIDC, không session, không cookie phiên, không authorization. Mọi
   API cần xác thực trong tương lai phải fail closed; không có đường bypass cho demo.
