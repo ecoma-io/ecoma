@@ -11,6 +11,9 @@
       "default": "./src/index.ts"
     }
   },
+  "dependencies": {
+    "@ecoma-io/tenant-kernel-domain": "workspace:*"
+  },
   "nx": {
     "tags": [
       "type:domain",

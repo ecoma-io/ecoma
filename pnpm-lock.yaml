@@ -963,7 +963,11 @@ importers:
 
   libs/llm-consumer-routing-domain: {}
 
-  libs/llm-consumer-tenant-domain: {}
+  libs/llm-consumer-tenant-domain:
+    dependencies:
+      '@ecoma-io/tenant-kernel-domain':
+        specifier: workspace:*
+        version: link:../tenant-kernel-domain
 
   libs/llm-financial-domain: {}
 
@@ -979,7 +983,11 @@ importers:
 
   libs/llm-seller-pricing-domain: {}
 
-  libs/llm-seller-tenant-domain: {}
+  libs/llm-seller-tenant-domain:
+    dependencies:
+      '@ecoma-io/tenant-kernel-domain':
+        specifier: workspace:*
+        version: link:../tenant-kernel-domain
 
   libs/llm-usage-domain: {}
 
@@ -1101,6 +1109,8 @@ importers:
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
+
+  libs/tenant-kernel-domain: {}
 
   libs/transactional-mail-application:
     dependencies:
