@@ -109,9 +109,9 @@ browser):
 
 `pnpm nx run @ecoma-io/llm-seller:test-integration` chạy suite cần runtime thật:
 
-| File                                        | Ghim điều gì                                                                                                                         |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `tests/integrations/worker-runtime.spec.ts` | workerd thật trên `wrangler.jsonc`: `/` và `/settings` trả shell, asset tĩnh 200, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404 |
+| File                                        | Ghim điều gì                                                                                                                                                                                    |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/integrations/worker-runtime.spec.ts` | workerd thật trên `wrangler.jsonc`: `/` và `/settings` trả shell, asset tĩnh 200, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404 — kể cả khi request mang header điều hướng của trình duyệt |
 
 Suite đó khởi động **workerd** qua `createTestHarness` của `wrangler` (in-process, không Docker)
 trên `.output/` của chính app, nên target `test-integration` khai `dependsOn: ["build"]`. Đây là
