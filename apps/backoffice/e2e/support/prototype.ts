@@ -20,9 +20,9 @@ export const PROTOTYPE_ROUTES = [
  * Tín hiệu "trang đã render xong dữ liệu" cho từng route.
  *
  * ⚠️ Cần tín hiệu này thay vì `waitForLoadState('networkidle')`: dữ liệu của trang
- * được nạp trong `onMounted` (xem `use-async-state.ts` — SSR render skeleton, client
- * mới điền), nên "load" xong **không** có nghĩa là bảng đã có dữ liệu. Chờ đúng
- * phần tử mà test sắp assert vừa nhanh hơn vừa không phụ thuộc mạng.
+ * được nạp trong `onMounted` (xem `use-async-state.ts` — lần render đầu vẽ skeleton,
+ * client nạp dữ liệu sau), nên "load" xong **không** có nghĩa là bảng đã có dữ liệu.
+ * Chờ đúng phần tử mà test sắp assert vừa nhanh hơn vừa không phụ thuộc mạng.
  */
 const READY_TEST_IDS: Readonly<Record<string, string>> = {
   '/': 'backoffice-sample-notice',

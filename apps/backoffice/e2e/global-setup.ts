@@ -13,7 +13,7 @@ import { gotoWithReloadRetry } from './support/warm-up';
  * Hai vế là hai cách khác nhau để `nuxt dev` làm đỏ một test vô can:
  *
  * 1. `assertRoutesRespond` — lần GET đầu tiên của mỗi route phải chịu JIT compile
- *    SSR, có thể mất hàng chục giây.
+ *    server bundle, có thể mất hàng chục giây.
  * 2. `warmUpBrowserClient` — Vite pre-bundle dependency **theo lượt tải đầu tiên
  *    của browser**, không theo HTTP request. Khi phát hiện dependency mới lúc
  *    runtime, dev server gửi `full-reload` để client tự tải lại trang; lần reload

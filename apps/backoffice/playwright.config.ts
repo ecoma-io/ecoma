@@ -47,12 +47,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   // ⚠️ Ghim số worker, **không** để mặc định của Playwright (`cpus/2`). Trần thật
-  // của suite này không phải CPU mà là **một** dev server dùng chung: nó SSR trên
-  // một luồng và JIT-compile module theo lượt truy cập đầu tiên. Đo được trên máy
-  // 16 nhân: để mặc định (16 worker) thì mỗi test kéo dài 25-60s và 3 test hết giờ
-  // 60s ở trạng thái "Loading…" — không phải lỗi app mà là đói server; còn 2 worker
-  // thì 40 test xanh trong 1.2 phút, mỗi test 2-4s. Ghim cùng một số ở local và CI
-  // để thứ được kiểm ở đây đúng là thứ chạy trên CI.
+  // của suite này không phải CPU mà là **một** dev server dùng chung: nó phục vụ
+  // request trên một luồng và JIT-compile module theo lượt truy cập đầu tiên.
+  // Đo được trên máy 16 nhân: để mặc định (16 worker) thì mỗi test kéo dài 25-60s
+  // và 3 test hết giờ 60s ở trạng thái "Loading…" — không phải lỗi app mà là đói
+  // server; còn 2 worker thì 40 test xanh trong 1.2 phút, mỗi test 2-4s. Ghim cùng
+  // một số ở local và CI để thứ được kiểm ở đây đúng là thứ chạy trên CI.
   workers: 2,
   // Reporter `github` ghi annotation ngay trên PR (đọc được lỗi mà không phải tải
   // artifact); `html` sinh `playwright-report/` để job CI upload kèm trace/screenshot

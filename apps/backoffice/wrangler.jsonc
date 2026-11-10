@@ -28,9 +28,28 @@
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
-    // Không đặt `run_worker_first`: với Nuxt SSR, mọi request đều phải qua
-    // Worker (render + payload). Chỉ khi một path thực sự cần phục vụ HTML
-    // tĩnh mới bật nó cho path đó, để không mất SSR.
+    // `none` là khai báo **trung thực**, không phải thiếu sót: asset worker
+    // không được tự bịa fallback. App là **non-SSR SPA** (issue #67) và build
+    // **không** emit `index.html` tĩnh — `.output/public` chỉ có `_nuxt`,
+    // `_fonts`, `_headers`, `sw.js`; shell HTML do Nitro render ở runtime.
+    // `single-page-application` ngụ ý "trả `index.html` cho path không khớp
+    // asset", mà file đó không tồn tại; khai nó sẽ mô tả một cơ chế không có
+    // thật. Deep link (`/staff`, `/roles`, …) mở đúng app nhờ route `/**` của
+    // Nitro trả shell, không nhờ asset layer.
+    //
+    // ⚠️ Quyết định `run_worker_first` — **KHÔNG đặt**, đã đo trên build thật
+    // (`wrangler` `createTestHarness`, workerd, preset `cloudflare_module`,
+    // issue #67): request không khớp asset nào đều rơi vào Worker, nên
+    // `/api/me` và mọi path API dưới `/api` tới được Nitro (middleware authn
+    // → route), deep link nhận shell 200, và asset `/_nuxt` vẫn được asset
+    // layer phục vụ trực tiếp với MIME đúng — đúng ma trận routing cần có.
+    // Bật `run_worker_first` (cục bộ cho prefix API hay toàn cục `true`) chỉ
+    // thêm một bước Worker cho những request asset layer đã xử lý đúng, đổi
+    // lấy mất cache immutable của asset layer cho `_nuxt` nếu bật toàn cục.
+    // Ghi lại bằng chứng để lần sau không bật theo suy đoán: nếu một ngày
+    // `public/` chứa file tĩnh đè lên một path API (vd `public/api/x`) thì
+    // đo lại và chỉ khi đó mới bật cho prefix API.
+    "not_found_handling": "none",
   },
   "observability": {
     "enabled": true,

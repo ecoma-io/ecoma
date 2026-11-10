@@ -15,7 +15,7 @@ import {
  * và không link nội bộ nào trỏ vào chỗ chết.
  *
  * ⚠️ Mọi test ở file này đều dùng `page.goto`, tức một lượt load **mới** — cố ý.
- * Một route chỉ hoạt động khi bấm từ sidebar (thiếu SSR, lazy chunk hỏng, điều kiện
+ * Một route chỉ hoạt động khi bấm từ sidebar (lazy chunk hỏng, điều kiện
  * `onMounted` lệch) sẽ vẫn xanh nếu test điều hướng trong app, nên phải có cả hai vế.
  */
 
@@ -119,12 +119,15 @@ test('navigates between prototype routes from the sidebar and follows the active
  * Đối chứng cho test "every internal link ... at a live prototype route".
  *
  * Không có test này, vế 2 ở trên có thể xanh vì lý do sai: nếu môi trường test nuốt
- * mọi URL lạ và trả 200, một link chết sẽ không bao giờ bị bắt. Test này chứng minh
- * một route ngoài prototype **thật sự** trả 404.
+ * mọi URL lạ và trả 200, một link chết sẽ không bao giờ bị bắt.
+ *
+ * ⚠️ App là non-SSR SPA (issue #67): server trả shell 200 cho mọi path không phải
+ * API/asset, và **client router** mới là thứ kết luận 404. Phép đo tương đương với
+ * "trả 404" thời SSR vì thế là: shell tải về, rồi UI render trang lỗi "Page not
+ * found" — một route chết vẫn bị bắt, chỉ khác tầng báo lỗi.
  */
-test('answers 404 for a route outside the prototype surface', async ({ page }) => {
-  const response = await page.goto('/definitely-not-a-prototype-route');
+test('renders 404 for a route outside the prototype surface', async ({ page }) => {
+  await page.goto('/definitely-not-a-prototype-route');
 
-  expect(response?.status()).toBe(404);
   await expect(page.locator('body')).toContainText('Page not found');
 });

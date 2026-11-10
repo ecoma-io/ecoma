@@ -3,11 +3,11 @@
  *
  * - `mountBackofficePage()` — mount **một page** với adapter chỉ định. Dùng cho test
  *   về dữ liệu (loading/ready/empty/error).
- * - `mountBackofficeApp()` / `renderBackofficeAppToHtml()` — mount **`app.vue`**
- *   (shell + `<NuxtPage />`) trên client và trên server. Dùng cho test hành vi
- *   **toàn app**: đổi ngôn ngữ ở runtime, bất biến của `runtime-locale.spec.ts`
- *   nằm ở chính `app.vue` — `useBackofficeI18n()` gọi một lần ở đó, nav và
- *   `useHead` cũng ở đó, `BackofficeLanguageSelect` nằm trong slot `actions`.
+ * - `mountBackofficeApp()` — mount **`app.vue`** (shell + `<NuxtPage />`) trên client.
+ *   Dùng cho test hành vi **toàn app**: đổi ngôn ngữ ở runtime, bất biến của
+ *   `runtime-locale.spec.ts` nằm ở chính `app.vue` — `useBackofficeI18n()` gọi một lần
+ *   ở đó, nav và `useHead` cũng ở đó, `BackofficeLanguageSelect` nằm trong slot
+ *   `actions`. (App là non-SSR SPA từ issue #67, nên không còn lối vào server-render.)
  *
  * ⚠️ Component của app dùng những thứ **không tồn tại ngoài Nuxt runtime**: `useI18n()`
  * qua alias `#i18n`, `useCookie`/`useState` qua alias `#app`, `useRoute()`/`useHead()`
@@ -32,8 +32,7 @@
  * qua nhánh dữ liệu nào.
  */
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { createSSRApp, defineComponent, h, nextTick, type Component } from 'vue';
-import { renderToString } from 'vue/server-renderer';
+import { defineComponent, h, nextTick, type Component } from 'vue';
 
 import App from '../app/app.vue';
 import type { BackofficeDataAdapter } from '../app/backoffice-data/types';
@@ -266,34 +265,4 @@ export async function mountBackofficeApp(
       return current;
     },
   };
-}
-
-/**
- * Render `app.vue` trên **server** và trả HTML đã render.
- *
- * ⚠️ Vì sao cần đường riêng: mount trong jsdom là render phía client — mọi khẳng
- * định trên DOM sau mount đều có thể xanh nhờ client tự sửa sau hydrate, đúng cái
- * bẫy mà test SSR phải tránh. `renderToString` không có client nào cả, nên văn bản
- * tìm thấy trong chuỗi HTML **chỉ** có thể đến từ server.
- *
- * ⚠️ Đầu ra là **fragment của app**, không phải một document: không có
- * `<!DOCTYPE html>` và không có thẻ `<html>` (document template do Nuxt dựng, nằm
- * ngoài phạm vi unit test). Nên `<html lang>` được khẳng định ở tầng `useHead`
- * (`headHtmlAttrs()`), không phải bằng cách grep chuỗi HTML — xem
- * `app-locale.spec.ts` (cùng thư mục `app/`).
- *
- * ⚠️ `renderToString` cần resolve được `vue/server-renderer` — subpath export của
- * chính `vue`, không phải dependency mới.
- */
-export async function renderBackofficeAppToHtml(options: AppMountOptions = {}): Promise<string> {
-  const page = options.page ?? (await import('../app/pages/index.vue')).default;
-
-  applyRoute(options.route);
-  const app = createSSRApp(App);
-  app.use(i18n);
-  for (const [name, component] of Object.entries(appGlobalComponents(page))) {
-    app.component(name, component);
-  }
-
-  return renderToString(app);
 }

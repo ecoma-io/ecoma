@@ -35,7 +35,7 @@ function fakeBinding(body: unknown, status = 200): { fetch: ReturnType<typeof vi
 async function get(options: {
   readonly env?: Record<string, unknown>;
   readonly principal?: { readonly actorSub: string };
-}): Promise<{ status: number; body: unknown }> {
+}): Promise<{ status: number; body: unknown; cacheControl: string | null }> {
   const app = createApp();
   app.use(
     defineEventHandler((event) => {
@@ -56,6 +56,7 @@ async function get(options: {
   return {
     status: response.status,
     body: text.length === 0 ? null : (JSON.parse(text) as unknown),
+    cacheControl: response.headers.get('cache-control'),
   };
 }
 
@@ -76,13 +77,18 @@ describe('GET /api/me', () => {
     const binding = fakeBinding(
       accountProfilesResponse([{ sub: SUB, displayName: 'Nguyễn Văn A' }]),
     );
-    const { status, body } = await get({
+    const { status, body, cacheControl } = await get({
       env: { ...ENV, ACCOUNT_SERVICE: binding },
       principal: { actorSub: SUB },
     });
     expect(status).toBe(200);
     expect(body).toEqual({ sub: SUB, displayName: 'Nguyễn Văn A' });
     expect(binding.fetch).toHaveBeenCalledTimes(1);
+    // `no-store` là một nửa của hợp đồng: response gắn với phiên hiện tại, một
+    // tầng cache giữ `{sub, displayName}` trả nhầm cho phiên khác là rò danh
+    // tính. (Nửa còn lại — service worker không cache `/api/**` — được ghim ở
+    // `tests/integrations/worker-runtime.spec.ts` bằng manifest NetworkOnly.)
+    expect(cacheControl).toBe('no-store');
   });
 
   it('serves a warm cache entry without calling account', async () => {
