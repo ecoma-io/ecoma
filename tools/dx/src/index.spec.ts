@@ -50,6 +50,7 @@ describe('app', () => {
         'pr-check',
         'arch-check',
         'commit-signing',
+        'bootstrap-superadmin',
         'gitleak-ci',
         'gitleaks-scope',
         'gitleak-local',
@@ -112,6 +113,7 @@ describe('dx cli', () => {
     expect(await dx('pr-check', '--help')).toContain('Check a pull request');
     expect(await dx('arch-check', '--help')).toContain('Validate Nx architecture tags');
     expect(await dx('commit-signing', '--help')).toContain('Check commit signing');
+    expect(await dx('bootstrap-superadmin', '--help')).toContain('first-administrator bootstrap');
   });
 
   it('runs sync-agent-config for real from a working directory other than the repository root', async () => {

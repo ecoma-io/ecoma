@@ -79,11 +79,16 @@ describe('db-account migrations on a real PostgreSQL', () => {
   it('leaves the runtime role able to do DML and nothing else', async () => {
     const runtime = await db.asRuntime();
     try {
-      await runtime.query(`INSERT INTO account.users (sub) VALUES ('sub-migrations-smoke')`);
+      // `0011_bootstrap_write_guards.sql` thu hồi INSERT trên `account.users` từ
+      // runtime: runtime không được tạo user. SELECT và UPDATE vẫn giữ.
+      await expect(
+        runtime.query(`INSERT INTO account.users (sub) VALUES ($1)`, ['sub-migrations-smoke']),
+      ).rejects.toThrow(/permission denied/iu);
+
       const { rows } = await runtime.query<{ sub: string }>(
-        `SELECT sub FROM account.users WHERE sub = 'sub-migrations-smoke'`,
+        `SELECT sub FROM account.users LIMIT 1`,
       );
-      expect(rows).toHaveLength(1);
+      expect(rows).toHaveLength(0);
     } finally {
       await runtime.end();
     }
