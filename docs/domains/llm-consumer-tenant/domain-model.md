@@ -11,7 +11,7 @@
 - `id`, `name`, `owner` (`sub`), `createdAt`.
 - Invariant: **đúng một owner**, luôn có. Không tồn tại tenant ownerless; không có collection owner.
 - Owner là nguồn authority duy nhất của tenant, không phải một grant và không phải membership.
-- **Classification** `first_party` | `customer` là **quan hệ tổ chức** (tenant của Ecoma hay của khách hàng), không phải commercial plan: context này **không có** plan hay Free slot và không thêm khái niệm đó ([ADR-0026](./adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)). Classification chỉ được thiết lập qua đường provisioning sản phẩm kiểm soát ([ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)); mặc định khi tạo qua đường customer là `customer`; không suy ra từ owner, Superadmin, email, `name`, environment, plan hay membership role; đường tạo customer không tự gán `first_party`.
+- **Classification** `first_party` | `customer` là **quan hệ tổ chức** (tenant của Ecoma hay của khách hàng), không phải commercial plan: context này **không có** plan hay Free slot — bất kể classification — và không thêm khái niệm đó ([ADR-0026](./adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md)). Classification chỉ được thiết lập qua đường provisioning sản phẩm kiểm soát ([ADR-0020](../staff-access/adr/0020-bootstrap-seed-contract.md)); mặc định khi tạo qua đường customer là `customer`; không suy ra từ owner, Superadmin, email, `name`, environment, plan hay membership role; đường tạo customer không tự gán `first_party`; classification **bất invariant sau khi thiết lập** — không có thao tác đổi nào sau provisioning (ADR-0026 §1).
 - Tenant **không** mang cột lifecycle `status`, `archivedAt` hay `deletedAt` (vòng đời pháp lý chưa chốt).
 
 ### Membership
