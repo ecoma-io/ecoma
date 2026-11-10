@@ -77,6 +77,8 @@ export const CANONICAL_ROLE_PERMISSIONS = [
  *
  * - `role_identity_missing`: không có hàng `roles` canonical.
  * - `role_identity_ambiguous`: nhiều hơn một hàng canonical (guard không được đoán).
+ * - `role_not_active`: đúng một hàng canonical nhưng `status <> 'active'` — đo
+ *   administrator trên một role bị retire là cho phép đo nói dối về catalog.
  * - `mode_mismatch`: `admins_before`/`admins_ever` không đồng thời bằng 0.
  * - `staff_not_active`: staff theo `sub` tồn tại nhưng `suspended`/`terminated`.
  * - `assignment_window_expired`: assignment còn `revoked_at IS NULL` nhưng đã hết hạn —
@@ -92,12 +94,14 @@ export const CANONICAL_ROLE_PERMISSIONS = [
  * S3 trả mã riêng cho từng kiểm tra trượt — không dùng chung `mode_mismatch` hay một mã
  * "verification_failed" chung, vì người đọc cần biết **kiểm nào** trượt:
  * `staff_missing_or_ambiguous`, `role_identity_missing`, `role_identity_ambiguous`,
- * `administrator_assignment_missing`, `role_permissions_mismatch`, `audit_trail_missing`.
+ * `role_not_active`, `administrator_assignment_missing`, `role_permissions_mismatch`,
+ * `audit_trail_missing`.
  * `invalid_sub` ở S3 nghĩa là `sub` đầu vào thiếu/sai định dạng.
  */
 export type StaffAccessBootstrapDenialReason =
   | 'role_identity_missing'
   | 'role_identity_ambiguous'
+  | 'role_not_active'
   | 'mode_mismatch'
   | 'staff_not_active'
   | 'assignment_window_expired'
@@ -244,6 +248,39 @@ interface StepContext {
 }
 
 /**
+ * Assert role canonical **sẵn sàng để đo**: đúng tập bốn permission canonical và
+ * tất cả đều `active`. Một role thiếu permission, thừa permission, hoặc mang
+ * permission đã retire không được làm cơ sở cho phép đo `admins_before`/
+ * `admins_ever` — phép đo đó sẽ hợp lệ hoá một catalog sai.
+ *
+ * Ném {@link BootstrapDeniedError} `role_permissions_mismatch`; trong guard, lỗi
+ * đi qua nhánh audit `denied` như mọi lần từ chối khác.
+ */
+export async function assertCanonicalRoleReady(client: Client, roleId: string): Promise<void> {
+  const permissions = await client.query<{ permission_id: string; status: string }>(
+    `SELECT rp.permission_id, p.status
+       FROM staff_access.role_permissions rp
+       JOIN staff_access.permissions p ON p.id = rp.permission_id
+      WHERE rp.role_id = $1`,
+    [roleId],
+  );
+
+  const actualIds = new Set(permissions.rows.map((row) => row.permission_id));
+  const missing = CANONICAL_ROLE_PERMISSIONS.filter((id) => !actualIds.has(id));
+  const extra = [...actualIds].filter(
+    (id) => !(CANONICAL_ROLE_PERMISSIONS as readonly string[]).includes(id),
+  );
+  const inactive = permissions.rows.find((row) => row.status !== 'active');
+
+  if (missing.length > 0 || extra.length > 0 || inactive !== undefined) {
+    throw new BootstrapDeniedError(
+      'role_permissions_mismatch',
+      `canonical role permission set does not match: missing=${missing.join(',')}, extra=${extra.join(',')}, inactive=${inactive ? inactive.permission_id : 'none'}`,
+    );
+  }
+}
+
+/**
  * Mở transaction guard: `BEGIN`, đặt `READ COMMITTED`, lấy advisory lock, phân giải role,
  * đo hai số. Trả về số đo **của transaction này** — không nhận từ ngoài.
  */
@@ -252,8 +289,8 @@ async function enterGuard(client: Client): Promise<MeasuredGuard> {
   await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [ADMINISTRATOR_ASSIGNMENT_LOCK]);
 
-  const roles = await client.query<{ id: string }>(
-    `SELECT id FROM staff_access.roles WHERE kind = $1 AND name = $2`,
+  const roles = await client.query<{ id: string; status: string }>(
+    `SELECT id, status FROM staff_access.roles WHERE kind = $1 AND name = $2`,
     [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
   );
   if (roles.rows.length === 0) {
@@ -268,10 +305,18 @@ async function enterGuard(client: Client): Promise<MeasuredGuard> {
       `canonical role (kind=${CANONICAL_ROLE_KIND}, name=${CANONICAL_ROLE_NAME}) resolves to ${roles.rows.length} rows; refusing to guess which one is canonical`,
     );
   }
-  const roleId = roles.rows[0]?.id;
-  if (roleId === undefined) {
+  const role = roles.rows[0];
+  const roleId = role?.id;
+  if (roleId === undefined || role === undefined) {
     throw new Error('canonical role lookup returned no id');
   }
+  if (role.status !== 'active') {
+    throw new BootstrapDeniedError(
+      'role_not_active',
+      `canonical role (kind=${CANONICAL_ROLE_KIND}, name=${CANONICAL_ROLE_NAME}) is ${role.status}, not active; refusing to measure administrators against a retired role`,
+    );
+  }
+  await assertCanonicalRoleReady(client, roleId);
 
   const before = await client.query<{ admins: number }>(ADMINS_BEFORE_SQL, [
     CANONICAL_ROLE_KIND,
@@ -669,15 +714,24 @@ export async function verifyBootstrapStaff(
     checks.push({ check: 'staff', ok: true });
   }
 
-  // Kiểm 2 — đúng một canonical role active.
-  const role = await client.query<{ id: string }>(
-    `SELECT id FROM staff_access.roles
-      WHERE kind = $1 AND name = $2 AND status = 'active'`,
+  // Kiểm 2 — đúng một canonical role, và nó phải `active`. Không lọc status trong
+  // SQL: một role canonical bị retire phải báo `role_not_active`, không phải
+  // `role_identity_missing` — hai trạng thái đó cần hành động vận hành khác nhau.
+  const role = await client.query<{ id: string; status: string }>(
+    `SELECT id, status FROM staff_access.roles WHERE kind = $1 AND name = $2`,
     [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
   );
-  const roleId = role.rows.length === 1 ? role.rows[0]?.id : undefined;
+  const roleRow = role.rows.length === 1 ? role.rows[0] : undefined;
+  const roleId = roleRow?.status === 'active' ? roleRow.id : undefined;
   if (roleId === undefined) {
-    fail('role', role.rows.length > 1 ? 'role_identity_ambiguous' : 'role_identity_missing');
+    fail(
+      'role',
+      role.rows.length > 1
+        ? 'role_identity_ambiguous'
+        : roleRow !== undefined
+          ? 'role_not_active'
+          : 'role_identity_missing',
+    );
   } else {
     checks.push({ check: 'role', ok: true });
   }
@@ -702,17 +756,25 @@ export async function verifyBootstrapStaff(
     fail('assignment', 'administrator_assignment_missing');
   }
 
-  // Kiểm 4 — role_permissions đúng tập bốn read permission.
+  // Kiểm 4 — role_permissions đúng tập bốn read permission và tất cả `active`
+  // (cùng ngữ nghĩa với `assertCanonicalRoleReady` của guard, nhưng S3 chỉ đọc
+  // và báo stderr, không ghi audit `denied`).
   if (roleId !== undefined) {
-    const permissions = await client.query<{ permission_id: string }>(
-      `SELECT permission_id FROM staff_access.role_permissions WHERE role_id = $1`,
+    const permissions = await client.query<{ permission_id: string; status: string }>(
+      `SELECT rp.permission_id, p.status
+         FROM staff_access.role_permissions rp
+         JOIN staff_access.permissions p ON p.id = rp.permission_id
+        WHERE rp.role_id = $1`,
       [roleId],
     );
     const actual = permissions.rows
       .map((row) => row.permission_id)
       .toSorted((a, b) => a.localeCompare(b, 'en'));
     const expected = [...CANONICAL_ROLE_PERMISSIONS].toSorted((a, b) => a.localeCompare(b, 'en'));
-    if (actual.length === expected.length && actual.every((id, index) => id === expected[index])) {
+    const hasInactive = permissions.rows.some((row) => row.status !== 'active');
+    const setMatches =
+      actual.length === expected.length && actual.every((id, index) => id === expected[index]);
+    if (setMatches && !hasInactive) {
       checks.push({ check: 'permissions', ok: true });
     } else {
       fail('permissions', 'role_permissions_mismatch');

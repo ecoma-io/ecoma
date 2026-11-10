@@ -23,6 +23,8 @@ import {
   assignBootstrapAdministrator,
   type BootstrapDeniedError,
   type BootstrapStaffInput,
+  CANONICAL_ROLE_KIND,
+  CANONICAL_ROLE_NAME,
   provisionBootstrapStaff,
   verifyBootstrapStaff,
 } from '../../db/bootstrap.mts';
@@ -926,6 +928,286 @@ describe('role identity failures', () => {
         `ALTER TABLE staff_access.roles ADD CONSTRAINT roles_kind_name_unique UNIQUE (kind, name)`,
       );
       await superuser.end();
+    }
+  });
+
+  it('denies role_not_active when the canonical role is no longer active', async () => {
+    const superuser = await db.connect();
+    try {
+      await superuser.query(
+        `UPDATE staff_access.roles SET status = 'retired' WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+
+      const input = bootstrapInput();
+      const client = await db.connectAsMigrator();
+      try {
+        expect(await expectDenied(provisionBootstrapStaff(client, input))).toBe('role_not_active');
+
+        // Không tạo staff nào, và audit `denied` được commit ngoài transaction guard.
+        expect(await countRows(db, 'staff')).toBe(0);
+        const audit = await auditRowsFor(db, input.correlationId);
+        expect(audit).toHaveLength(1);
+        expect(audit[0]).toMatchObject({ outcome: 'denied', reason: 'role_not_active' });
+        // Bị từ chối trước phép đo: không bịa số đo.
+        expect(audit[0]?.context).not.toHaveProperty('admins_before');
+        expect(audit[0]?.context).not.toHaveProperty('admins_ever');
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await superuser.query(
+        `UPDATE staff_access.roles SET status = 'active' WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+      await superuser.end();
+    }
+  });
+
+  it('denies role_permissions_mismatch when a canonical permission is retired', async () => {
+    const input = bootstrapInput();
+    const superuser = await db.connect();
+    try {
+      await superuser.query(
+        `UPDATE staff_access.permissions SET status = 'retired' WHERE id = $1`,
+        ['permission.read'],
+      );
+
+      const client = await db.connectAsMigrator();
+      try {
+        expect(await expectDenied(provisionBootstrapStaff(client, input))).toBe(
+          'role_permissions_mismatch',
+        );
+        expect(await countRows(db, 'staff')).toBe(0);
+        const audit = await auditRowsFor(db, input.correlationId);
+        expect(audit[0]).toMatchObject({
+          outcome: 'denied',
+          reason: 'role_permissions_mismatch',
+        });
+      } finally {
+        await client.end();
+      }
+    } finally {
+      // Trigger `permissions_retired_immutable` chặn UPDATE retired → active, nên
+      // khôi phục bằng xoá rồi chèn lại đúng nội dung seed (superuser).
+      const { rows: roleRows } = await superuser.query<{ id: string }>(
+        `SELECT id FROM staff_access.roles WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+      const roleId = roleRows[0]?.id;
+      if (roleId !== undefined) {
+        await superuser.query(
+          `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'permission.read'`,
+          [roleId],
+        );
+      }
+      await superuser.query(`DELETE FROM staff_access.permissions WHERE id = 'permission.read'`);
+      await superuser.query(
+        `INSERT INTO staff_access.permissions (id, domain, action, status)
+         VALUES ('permission.read', 'permission', 'read', 'active')`,
+      );
+      if (roleId !== undefined) {
+        await superuser.query(
+          `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+           VALUES ($1, 'permission.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+          [roleId],
+        );
+      }
+      await superuser.end();
+    }
+  });
+
+  it('denies role_permissions_mismatch when the role carries an extra permission', async () => {
+    const input = bootstrapInput();
+    const superuser = await db.connect();
+    let roleId: string | undefined;
+    try {
+      const { rows: roleRows } = await superuser.query<{ id: string }>(
+        `SELECT id FROM staff_access.roles WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+      roleId = roleRows[0]?.id;
+      await superuser.query(
+        `INSERT INTO staff_access.permissions (id, domain, action, status)
+         VALUES ('extra.permission', 'extra', 'permission', 'active')
+         ON CONFLICT (id) DO NOTHING`,
+      );
+      if (roleId !== undefined) {
+        await superuser.query(
+          `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+           VALUES ($1, 'extra.permission') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+          [roleId],
+        );
+      }
+
+      const client = await db.connectAsMigrator();
+      try {
+        expect(await expectDenied(provisionBootstrapStaff(client, input))).toBe(
+          'role_permissions_mismatch',
+        );
+        expect(await countRows(db, 'staff')).toBe(0);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      if (roleId !== undefined) {
+        await superuser.query(
+          `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'extra.permission'`,
+          [roleId],
+        );
+      }
+      await superuser.query(`DELETE FROM staff_access.permissions WHERE id = 'extra.permission'`);
+      await superuser.end();
+    }
+  });
+
+  it('denies role_permissions_mismatch when a canonical permission is missing from the role', async () => {
+    const input = bootstrapInput();
+    const superuser = await db.connect();
+    let roleId: string | undefined;
+    try {
+      const { rows: roleRows } = await superuser.query<{ id: string }>(
+        `SELECT id FROM staff_access.roles WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+      roleId = roleRows[0]?.id;
+      if (roleId !== undefined) {
+        await superuser.query(
+          `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'staff.read'`,
+          [roleId],
+        );
+      }
+
+      const client = await db.connectAsMigrator();
+      try {
+        expect(await expectDenied(provisionBootstrapStaff(client, input))).toBe(
+          'role_permissions_mismatch',
+        );
+        expect(await countRows(db, 'staff')).toBe(0);
+        const audit = await auditRowsFor(db, input.correlationId);
+        expect(audit[0]).toMatchObject({
+          outcome: 'denied',
+          reason: 'role_permissions_mismatch',
+        });
+      } finally {
+        await client.end();
+      }
+    } finally {
+      if (roleId !== undefined) {
+        await superuser.query(
+          `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+           VALUES ($1, 'staff.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+          [roleId],
+        );
+      }
+      await superuser.end();
+    }
+  });
+
+  it('denies role_not_active at S2 as well: no assignment is created', async () => {
+    const superuser = await db.connect();
+    try {
+      await superuser.query(
+        `UPDATE staff_access.roles SET status = 'retired' WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+
+      const input = bootstrapInput();
+      const client = await db.connectAsMigrator();
+      try {
+        expect(await expectDenied(assignBootstrapAdministrator(client, input))).toBe(
+          'role_not_active',
+        );
+        expect(await countRows(db, 'role_assignments')).toBe(0);
+        const audit = await auditRowsFor(db, input.correlationId);
+        expect(audit[0]).toMatchObject({ outcome: 'denied', reason: 'role_not_active' });
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await superuser.query(
+        `UPDATE staff_access.roles SET status = 'active' WHERE kind = $1 AND name = $2`,
+        [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+      );
+      await superuser.end();
+    }
+  });
+
+  it('S3 reports role_not_active and role_permissions_mismatch read-only without throwing', async () => {
+    // Bootstrap thật một staff + assignment, rồi làm hỏng catalog; S3 phải trả
+    // từng kiểm trượt với mã riêng, không ném, không ghi gì (kể cả audit).
+    const input = bootstrapInput();
+    const client = await db.connectAsMigrator();
+    try {
+      await provisionBootstrapStaff(client, input);
+      await assignBootstrapAdministrator(client, input);
+
+      const auditCountBefore = await countRows(db, 'authorization_audit');
+
+      const superuser = await db.connect();
+      try {
+        await superuser.query(
+          `UPDATE staff_access.roles SET status = 'retired' WHERE kind = $1 AND name = $2`,
+          [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+        );
+        await superuser.query(
+          `UPDATE staff_access.permissions SET status = 'retired' WHERE id = 'audit.read'`,
+        );
+      } finally {
+        await superuser.end();
+      }
+
+      const verification = await verifyBootstrapStaff(client, {
+        sub: input.sub,
+        correlationId: input.correlationId,
+      });
+      expect(verification.ok).toBe(false);
+      expect(verification.reasons).toContain('role_not_active');
+      expect(verification.reasons).toContain('role_permissions_mismatch');
+      const roleCheck = verification.checks.find((check) => check.check === 'role');
+      expect(roleCheck).toMatchObject({ ok: false, reason: 'role_not_active' });
+
+      // S3 chỉ đọc: không có audit row mới sau khi kiểm trượt.
+      expect(await countRows(db, 'authorization_audit')).toBe(auditCountBefore);
+    } finally {
+      const superuser = await db.connect();
+      try {
+        // Dọn cả staff + assignment của lần bootstrap thật ở trên: describe này
+        // không có beforeEach reset, và hàng assignment còn lại sẽ chặn
+        // `DELETE FROM roles` của test `role_identity_missing` chạy sau (FK).
+        await superuser.query('DELETE FROM staff_access.role_assignments');
+        await superuser.query('DELETE FROM staff_access.staff');
+        await superuser.query(
+          `UPDATE staff_access.roles SET status = 'active' WHERE kind = $1 AND name = $2`,
+          [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+        );
+        const { rows: roleRows } = await superuser.query<{ id: string }>(
+          `SELECT id FROM staff_access.roles WHERE kind = $1 AND name = $2`,
+          [CANONICAL_ROLE_KIND, CANONICAL_ROLE_NAME],
+        );
+        const roleId = roleRows[0]?.id;
+        if (roleId !== undefined) {
+          await superuser.query(
+            `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'audit.read'`,
+            [roleId],
+          );
+        }
+        await superuser.query(`DELETE FROM staff_access.permissions WHERE id = 'audit.read'`);
+        await superuser.query(
+          `INSERT INTO staff_access.permissions (id, domain, action, status)
+           VALUES ('audit.read', 'audit', 'read', 'active')`,
+        );
+        if (roleId !== undefined) {
+          await superuser.query(
+            `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+             VALUES ($1, 'audit.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+            [roleId],
+          );
+        }
+      } finally {
+        await superuser.end();
+        await client.end();
+      }
     }
   });
 

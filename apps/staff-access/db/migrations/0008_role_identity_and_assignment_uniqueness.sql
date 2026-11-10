@@ -87,51 +87,164 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 2. Partial unique index trên role_assignments còn sống
+-- 2. Partial unique index trên role_assignments còn sống — xác thực từ catalog
+--
+-- Chỉ kiểm "index theo tên tồn tại" là chưa đủ: một index trùng tên nhưng sai
+-- bảng, không unique, sai cột, sai predicate hay có expression sẽ đi qua mà vẫn
+-- không bảo vệ được S2. Index đã có thì mọi thuộc tính phải khớp yêu cầu, lấy từ
+-- pg_index/pg_class/pg_namespace/pg_attribute/pg_am/pg_get_expr; lệch thuộc tính
+-- nào → dừng với thông báo nêu rõ thuộc tính và giá trị thật. Không bao giờ DROP
+-- hay thay thế index — thay index là thay đổi quyền, phải qua review.
 -- ---------------------------------------------------------------------------
 
 DO $$
 DECLARE
-  conflict_list text;
+  v_table_oid oid;
+  v_index_oid oid;
+  v_conflict_list text;
+  v_is_unique boolean;
+  v_is_valid boolean;
+  v_is_ready boolean;
+  v_indnkeyatts int;
+  v_indnatts int;
+  v_am_name text;
+  v_predicate text;
+  v_indexprs_is_null boolean;
+  v_key_columns text;
+  v_actual_table text;
+  v_errors text[] := '{}';
 BEGIN
-  IF EXISTS (
-    SELECT 1
-      FROM pg_catalog.pg_index i
-      JOIN pg_catalog.pg_class c ON c.oid = i.indrelid
-      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-     WHERE n.nspname = 'staff_access'
-       AND c.relname = 'role_assignments'
-       AND i.indexrelid = to_regclass('staff_access.role_assignments_active_unique_idx')
-  ) THEN
-    RETURN;
-  END IF;
+  SELECT c.oid INTO v_table_oid
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'staff_access' AND c.relname = 'role_assignments';
 
-  -- `WHERE revoked_at IS NULL` không biểu đạt "còn hiệu lực" (effective_until là
-  -- read-time filter, và now() không dùng được trong index predicate) — đó là lý do
-  -- procedure phải coi assignment hết hạn nhưng chưa revoked_at là fail-closed.
-  SELECT string_agg(
-           format('(staff_id=%s, role_id=%s, rows=%s)', d.staff_id, d.role_id, d.rows),
-           ', '
-         )
-    INTO conflict_list
-    FROM (
-      SELECT staff_id, role_id, count(*) AS rows
-        FROM staff_access.role_assignments
-       WHERE revoked_at IS NULL
-       GROUP BY staff_id, role_id
-      HAVING count(*) > 1
-    ) d;
-
-  IF conflict_list IS NOT NULL THEN
+  IF v_table_oid IS NULL THEN
     RAISE EXCEPTION
-      'role_assignments: cannot add partial unique index (staff_id, role_id) WHERE revoked_at IS NULL; conflicting live rows already exist: %. Resolve them explicitly, this migration never deletes or merges assignments.',
-      conflict_list
+      'role_assignments: table staff_access.role_assignments does not exist; run 0001_staff_access_domain.sql first'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
 
-  CREATE UNIQUE INDEX role_assignments_active_unique_idx
-    ON staff_access.role_assignments (staff_id, role_id)
-    WHERE revoked_at IS NULL;
+  SELECT i.indexrelid INTO v_index_oid
+    FROM pg_catalog.pg_index i
+    JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'staff_access'
+     AND c.relname = 'role_assignments_active_unique_idx';
+
+  IF v_index_oid IS NULL THEN
+    -- `WHERE revoked_at IS NULL` không biểu đạt "còn hiệu lực" (effective_until là
+    -- read-time filter, và now() không dùng được trong index predicate) — đó là lý do
+    -- procedure phải coi assignment hết hạn nhưng chưa revoked_at là fail-closed.
+    SELECT string_agg(
+             format('(staff_id=%s, role_id=%s, rows=%s)', d.staff_id, d.role_id, d.rows),
+             ', '
+           )
+      INTO v_conflict_list
+      FROM (
+        SELECT staff_id, role_id, count(*) AS rows
+          FROM staff_access.role_assignments
+         WHERE revoked_at IS NULL
+         GROUP BY staff_id, role_id
+        HAVING count(*) > 1
+      ) d;
+
+    IF v_conflict_list IS NOT NULL THEN
+      RAISE EXCEPTION
+        'role_assignments: cannot add partial unique index (staff_id, role_id) WHERE revoked_at IS NULL; conflicting live rows already exist: %. Resolve them explicitly, this migration never deletes or merges assignments.',
+        v_conflict_list
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    CREATE UNIQUE INDEX role_assignments_active_unique_idx
+      ON staff_access.role_assignments (staff_id, role_id)
+      WHERE revoked_at IS NULL;
+
+    RETURN;
+  END IF;
+
+  -- Index đã tồn tại: xác thực từng thuộc tính từ catalog, không bao giờ DROP.
+  SELECT i.indisunique, i.indisvalid, i.indisready, i.indnkeyatts, i.indnatts
+    INTO v_is_unique, v_is_valid, v_is_ready, v_indnkeyatts, v_indnatts
+    FROM pg_catalog.pg_index i
+   WHERE i.indexrelid = v_index_oid;
+
+  SELECT am.amname INTO v_am_name
+    FROM pg_catalog.pg_index i
+    JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
+    JOIN pg_catalog.pg_am am ON am.oid = ic.relam
+   WHERE i.indexrelid = v_index_oid;
+
+  -- Predicate: chuẩn hoá (lowercase + gọn khoảng trắng + bỏ ngoặc bọc) rồi so với
+  -- chuỗi canonical. Dùng [[:space:]] vì ERE của PostgreSQL không hỗ trợ \s.
+  SELECT replace(
+           replace(
+             regexp_replace(
+               lower(coalesce(pg_get_expr(i.indpred, i.indrelid), '')),
+               '[[:space:]]+', ' ', 'g'
+             ),
+             '(', ''
+           ),
+           ')', ''
+         )
+    INTO v_predicate
+    FROM pg_catalog.pg_index i
+   WHERE i.indexrelid = v_index_oid;
+
+  SELECT pg_get_expr(i.indexprs, i.indrelid) IS NULL INTO v_indexprs_is_null
+    FROM pg_catalog.pg_index i
+   WHERE i.indexrelid = v_index_oid;
+
+  -- Tên cột khoá theo đúng thứ tự indkey (không suy từ tên index).
+  SELECT array_agg(a.attname::text ORDER BY k.ord)::text INTO v_key_columns
+    FROM unnest((SELECT i.indkey FROM pg_catalog.pg_index i WHERE i.indexrelid = v_index_oid))
+      WITH ORDINALITY AS k(attnum, ord)
+    JOIN pg_catalog.pg_attribute a
+      ON a.attrelid = (SELECT i.indrelid FROM pg_catalog.pg_index i WHERE i.indexrelid = v_index_oid)
+     AND a.attnum = k.attnum;
+
+  SELECT c.relname INTO v_actual_table
+    FROM pg_catalog.pg_index i
+    JOIN pg_catalog.pg_class c ON c.oid = i.indrelid
+   WHERE i.indexrelid = v_index_oid;
+
+  IF v_actual_table <> 'role_assignments' THEN
+    v_errors := array_append(v_errors, format('table = %s, expected role_assignments', v_actual_table));
+  END IF;
+  IF v_am_name <> 'btree' THEN
+    v_errors := array_append(v_errors, format('access method = %s, expected btree', v_am_name));
+  END IF;
+  IF NOT v_is_unique THEN
+    v_errors := array_append(v_errors, 'indisunique = false, expected true');
+  END IF;
+  IF NOT v_is_valid THEN
+    v_errors := array_append(v_errors, 'indisvalid = false, expected true');
+  END IF;
+  IF NOT v_is_ready THEN
+    v_errors := array_append(v_errors, 'indisready = false, expected true');
+  END IF;
+  IF v_indnkeyatts <> 2 THEN
+    v_errors := array_append(v_errors, format('indnkeyatts = %s, expected 2', v_indnkeyatts));
+  END IF;
+  IF v_indnatts <> 2 THEN
+    v_errors := array_append(v_errors, format('indnatts = %s, expected 2', v_indnatts));
+  END IF;
+  IF v_key_columns <> '{staff_id,role_id}' THEN
+    v_errors := array_append(v_errors, format('key columns = %s, expected {staff_id,role_id}', v_key_columns));
+  END IF;
+  IF NOT v_indexprs_is_null THEN
+    v_errors := array_append(v_errors, 'indexprs is not null, expected null (no expressions)');
+  END IF;
+  IF v_predicate <> 'revoked_at is null' THEN
+    v_errors := array_append(v_errors, format('predicate = %s, expected revoked_at is null', v_predicate));
+  END IF;
+
+  IF array_length(v_errors, 1) > 0 THEN
+    RAISE EXCEPTION
+      'role_assignments_active_unique_idx does not match required catalog properties: %; this migration never drops or replaces an index - resolve it explicitly',
+      array_to_string(v_errors, '; ')
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
 END;
 $$;
 
@@ -257,12 +370,36 @@ $$;
 -- Assertion giữ cho một grant lọt vào sau này không đi qua mà không ai thấy.
 
 DO $$
+DECLARE
+  v_table text;
+  v_priv text;
+  v_errors text[] := '{}';
 BEGIN
-  IF has_table_privilege('ecoma_staff_access_runtime', 'staff_access.roles', 'INSERT')
-     OR has_table_privilege('ecoma_staff_access_runtime', 'staff_access.permissions', 'INSERT')
-     OR has_table_privilege('ecoma_staff_access_runtime', 'staff_access.role_permissions', 'INSERT') THEN
+  FOR v_table, v_priv IN (
+    SELECT * FROM (VALUES
+      ('roles', 'INSERT'),
+      ('roles', 'UPDATE'),
+      ('roles', 'DELETE'),
+      ('permissions', 'INSERT'),
+      ('permissions', 'UPDATE'),
+      ('permissions', 'DELETE'),
+      ('role_permissions', 'INSERT'),
+      ('role_permissions', 'UPDATE'),
+      ('role_permissions', 'DELETE')
+    ) AS t(table_name, priv)
+  ) LOOP
+    IF has_table_privilege('ecoma_staff_access_runtime', 'staff_access.' || v_table, v_priv) THEN
+      v_errors := array_append(
+        v_errors,
+        format('runtime has %s on staff_access.%s', v_priv, v_table)
+      );
+    END IF;
+  END LOOP;
+
+  IF array_length(v_errors, 1) > 0 THEN
     RAISE EXCEPTION
-      'catalog: ecoma_staff_access_runtime has INSERT on a sealed catalog table; the permission/role catalog must stay migrator-only'
+      'catalog: ecoma_staff_access_runtime holds write privilege on a sealed catalog table (%); the permission/role catalog must stay migrator-only',
+      array_to_string(v_errors, '; ')
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
 END;
