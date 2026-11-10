@@ -180,6 +180,15 @@ describe('roles and grants on db-remote-cache', () => {
           [tenantId],
         ),
       ).rejects.toThrow(/permission denied/iu);
+      // owner không phải vai trò thành viên: CHECK từ chối ngay cả với migrator
+      // (remote_cache chỉ cho phép role 'member').
+      await expect(
+        migrator.query(
+          `INSERT INTO remote_cache.tenant_members (tenant_id, member_sub, role)
+           VALUES ($1, 'sub-owner-probe', 'owner')`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/tenant_members_role_check|violates check constraint/iu);
     } finally {
       await runtime.end();
       await migrator.end();

@@ -192,4 +192,53 @@ describe('remote-cache migration runner on a real PostgreSQL', () => {
       await client.end();
     }
   });
+
+  it('rejects inserting a tenant without owner_sub (not-null)', async () => {
+    const client = await db.connect();
+    try {
+      // owner_sub là NOT NULL — chèn thiếu cột này phải bị từ chối ngay ở catalog.
+      await expect(
+        client.query(`INSERT INTO remote_cache.tenants (name) VALUES ('no-owner-sub')`),
+      ).rejects.toThrow(/owner_sub|not-null|violates not-null/iu);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('rejects role owner on tenant_members (ownership is not a membership role)', async () => {
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('role-owner-tenant', 'sub-owner-role-owner') RETURNING id`,
+      );
+      const tenantId = rows[0]?.id ?? '';
+      // remote_cache chỉ cho phép role 'member' → 'owner' bị CHECK từ chối.
+      await expect(
+        client.query(
+          `INSERT INTO remote_cache.tenant_members (tenant_id, member_sub, role) VALUES ($1, 'sub-owner-probe', 'owner')`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/tenant_members_role_check|violates check constraint/iu);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('persists owner_sub independently of membership (zero members is valid)', async () => {
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ id: string; owner_sub: string }>(
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('no-members-tenant', 'sub-owner-no-members') RETURNING id, owner_sub`,
+      );
+      expect(rows[0]?.owner_sub).toBe('sub-owner-no-members');
+      const tenantId = rows[0]?.id ?? '';
+      const { rows: memberRows } = await client.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM remote_cache.tenant_members WHERE tenant_id = $1`,
+        [tenantId],
+      );
+      expect(memberRows[0]?.c).toBe('0');
+    } finally {
+      await client.end();
+    }
+  });
 });
