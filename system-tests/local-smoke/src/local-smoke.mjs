@@ -4,10 +4,9 @@
  * Việc cần làm: xác minh chuỗi redirect THẬT của home qua Traefik, không chỉ
  * "server còn sống": (1) TLS bắt tay THÀNH CÔNG với certificate local của repo
  * (không tắt verification — smoke mà bỏ kiểm TLS là smoke nói dối), (2) `GET /`
- * với header `Accept: text/html` trả đúng 302 với `location: /en`, (3) `GET
- * /en` trả 2xx HTML chứa `<title>Ecoma.io`. Không gửi `Accept: text/html` thì
- * app trả 404 cho `/` (middleware prerendered content từ chối negotiator
- * không-HTML) — thiếu header là smoke đo chẳng thấy gì.
+ * trả đúng 302 với `location: /en` (redirect vô điều kiện từ
+ * `apps/home/server/routes/index.get.ts`), (3) `GET
+ * /en` trả 2xx HTML chứa `<title>Ecoma.io`.
  *
  * Certificate trust ở đây là TƯỜNG MINH và scoped: `ca` của riêng agent HTTPS
  * này trỏ vào `deploys/platform-deploy/local-certs/fbi.com.crt` — chỉ request
@@ -44,7 +43,9 @@ const REQUEST_TIMEOUT_MS_DEFAULT = 10_000;
 const BACKOFF_INITIAL_MS = 1_000;
 const BACKOFF_MAX_MS = 5_000;
 
-// Chuỗi header bắt buộc của bước 1: app chỉ 302 `/` khi negotiator nhận HTML.
+// Header của bước 1, giữ đúng shape header mà trình duyệt thật gửi — app 302
+// `/` vô điều kiện nên header không còn là điều kiện, chỉ là tính trung thực
+// với request production.
 const ACCEPT_HTML = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 const ACCEPT_LANGUAGE = 'en-US,en;q=0.9';
 const REDIRECT_PATH = '/en';
@@ -58,10 +59,9 @@ const TITLE_MARKER = '<title>Ecoma.io';
 // 404 cũng là "chưa sẵn sàng" ở một cửa sổ hẹp: khi home container bị RECREATE
 // (image đổi), có khoảng giữa lúc router cũ bị gỡ và router mới đăng ký với
 // Traefik — request đi vào lúc đó không còn router nào khớp `Host(...)` và
-// Traefik trả 404. Trạng thái này tự hết trong ít giây. 404 "app trả thật"
-// (không retry) là kịch bản middleware chả về 404 khi thiếu `Accept: text/html`
-// — smoke luôn gửi header đó, nên 404 giữa chừng gần như chắc chắn là cửa sổ
-// registration; kẹt 404 vĩnh viễn vẫn fail đúng khi hết budget.
+// Traefik trả 404. Trạng thái này tự hết trong ít giây. App không bao giờ trả
+// 404 cho `/` (redirect vô điều kiện), nên 404 giữa chừng gần như chắc chắn là
+// cửa sổ registration; kẹt 404 vĩnh viễn vẫn fail đúng khi hết budget.
 const RETRYABLE_STATUSES = new Set([404, 502, 503, 504]);
 // Lỗi transport "chưa sẵn sàng". CỐ ĐỊNH không thêm chữ ký khác (ví dụ
 // ENOTFOUND): ngoài danh sách này là fail-closed, không đoán thêm.
@@ -208,7 +208,7 @@ function requestStep(pathname) {
           // chỉ chạy qua `--connect`, thiếu dòng này là test không chạm dạng
           // header production gửi.
           Host: `${hostname}:${port}`,
-          // Header bắt buộc: app chỉ 302 `/` khi negotiator nhận HTML.
+          // Header giữ shape request production (browser thật luôn gửi Accept).
           Accept: ACCEPT_HTML,
           'Accept-Language': ACCEPT_LANGUAGE,
         },
