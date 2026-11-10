@@ -1,6 +1,6 @@
 # LLM Seller Governance
 
-Bounded context `llm-seller-governance`: restriction và evaluation, appeal lifecycle, verification/onboarding, legal profile, tax profile, evidence reference và operational eligibility của Seller. Tách từ bounded context `llm-seller` theo [ADR-0018](./adr/0018-seller-bounded-context-split.md).
+Bounded context `llm-seller-governance`: restriction và evaluation, appeal lifecycle, verification/onboarding, legal profile, tax profile, evidence reference, operational eligibility và `FirstPartyLegalPrincipal` (principal pháp lý first-party + association) của Seller. Tách từ bounded context `llm-seller` theo [ADR-0018](./adr/0018-seller-bounded-context-split.md).
 
 > **Phạm vi:** `llm-seller-governance` sở hữu các quyết định **platform reviewer** về một Seller. Seller tenant, ownership, membership và permission grant thuộc [`llm-seller-tenant`](../llm-seller-tenant/README.md). Không nhầm với deploy unit/composition `llm-seller` (UI seller + BFF) — composition không sở hữu domain rules, database hay source of truth chỉ vì tên trùng. Catalog/context map canonical → [`docs/domains/README.md`](../README.md) §2. Account `sub` opaque → [`docs/domains/glossary.md`](../glossary.md). Tách context → [ADR-0018](./adr/0018-seller-bounded-context-split.md); ba scope ownership → [ADR-0019](../llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md).
 
@@ -9,7 +9,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 1. **Restriction** — nhiều record hạn chế độc lập, mỗi record có vòng đời riêng, tách **lý do công khai** khỏi **lý do nội bộ**; "đang bị hạn chế" là **giá trị suy ra** tại thời điểm đánh giá, không phải trạng thái được lưu ([ADR-0003](./adr/0003-restriction-and-appeal-model.md)).
 2. **Appeal** — khiếu nại của Seller đối với một restriction, có vòng đời và deadline tường minh, do platform reviewer có thẩm quyền quyết định ([ADR-0004](./adr/0004-appeal-lifecycle-and-decision-authority.md)).
 3. **Verification và onboarding** — verification case cho từng loại yêu cầu, giữ lịch sử submission/rejection/resubmission; trạng thái onboarding là **giá trị suy ra** từ verification case + profile, không phải lifecycle của tenant ([ADR-0002](../llm-seller-tenant/adr/0002-tenant-existence-separate-from-eligibility.md), [ADR-0006](./adr/0006-verification-and-versioned-profiles.md)).
-4. **Legal profile và tax profile** — hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version ([ADR-0006](./adr/0006-verification-and-versioned-profiles.md)).
+4. **Legal profile và tax profile** — hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version ([ADR-0006](./adr/0006-verification-and-versioned-profiles.md)); tenant `first_party` lấy hồ sơ này từ `FirstPartyLegalPrincipal` record + association ([ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md)).
 5. **Evidence reference** — metadata và tham chiếu bất biến tới tài liệu evidence. Domain không giữ nội dung tài liệu.
 6. **Operational eligibility** — verdict duy nhất về việc Seller có đủ điều kiện vận hành hay không, suy ra từ restriction + verification + profile version hiệu lực; Marketplace, Financial và Payout tiêu thụ verdict như **giá trị hợp đồng** (ADR-0018 §3).
 

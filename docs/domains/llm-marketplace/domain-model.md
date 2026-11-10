@@ -113,6 +113,7 @@ Health cấp offer: `healthy` khi có ít nhất một pool `healthy`; ngược 
 - `eligible: true` ⇒ `blockers` rỗng; `eligible: false` ⇒ `blockers` không rỗng. Verdict vi phạm là không nhất quán và bị từ chối.
 - Verdict lệch `sellerTenantId` của offer bị từ chối nguyên khối (`eligibility_tenant_mismatch`), không "dùng tạm".
 - Verdict có `assessedAt` sớm hơn baseline của offer là **stale** và không đủ cho activation.
+- Verdict phải nằm trong **freshness bound** của application layer — mọi quyết định eligibility-gated chỉ dùng verdict còn trong bound (governance model §3.6). Invalidation principal-wide ([ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §5) đến marketplace chỉ dưới dạng verdict mới `eligible: false` đủ tươi; marketplace không biết legal principal và không suy trạng thái principal từ `blockers` — blockers chỉ hiển thị/audit.
 
 Marketplace **tiêu thụ** verdict, không tính lại (ADR-0018 §3):
 
