@@ -34,13 +34,17 @@ function makeEvent(overrides: Partial<EntitlementEvent> = {}): EntitlementEvent 
   };
 }
 
+/** Chủ sở hữu tenant dùng cho mọi lần gọi provision trong spec này. */
+const OWNER_SUB = 'sub-owner-test';
+
 class FakeMembershipRepo implements MembershipRepo {
   readonly calls: Array<{ tenantId: string; sub: string; role: string }> = [];
   tenants: Record<string, string> = {}; // name → id
   members: Record<string, string> = {}; // `${tenantId}|${sub}` → role
   revoked: Record<string, { eventId: string; revision: number } | undefined> = {};
 
-  async ensureTenant(name: string): Promise<string> {
+  async ensureTenant(name: string, ownerSub: string): Promise<string> {
+    void ownerSub; // fake không phân biệt chủ sở hữu — chỉ cần tenant tồn tại
     if (this.tenants[name] === undefined) {
       this.tenants[name] = `tenant-${name}`;
     }
@@ -99,7 +103,7 @@ function makeDeps(): {
 describe('provisionEntitlementMembership', () => {
   it('granted đầu tiên cho pact-broker → applied, reason first, tạo tenant + membership Member', async () => {
     const deps = makeDeps();
-    const result = await provisionEntitlementMembership(makeEvent(), deps);
+    const result = await provisionEntitlementMembership(makeEvent(), deps, OWNER_SUB);
 
     expect(result.applied).toBe(true);
     expect(result.reason).toBe('first');
@@ -112,7 +116,11 @@ describe('provisionEntitlementMembership', () => {
   it('revision cao hơn → applied, reason newer, ghi revision mới', async () => {
     const deps = makeDeps();
     deps.sync.revisions['staff-0001|pact-broker'] = 3;
-    const result = await provisionEntitlementMembership(makeEvent({ revision: 5 }), deps);
+    const result = await provisionEntitlementMembership(
+      makeEvent({ revision: 5 }),
+      deps,
+      OWNER_SUB,
+    );
 
     expect(result.applied).toBe(true);
     expect(result.reason).toBe('newer');
@@ -122,7 +130,11 @@ describe('provisionEntitlementMembership', () => {
   it('revision trùng → không áp dụng, reason duplicate', async () => {
     const deps = makeDeps();
     deps.sync.revisions['staff-0001|pact-broker'] = 3;
-    const result = await provisionEntitlementMembership(makeEvent({ revision: 3 }), deps);
+    const result = await provisionEntitlementMembership(
+      makeEvent({ revision: 3 }),
+      deps,
+      OWNER_SUB,
+    );
 
     expect(result.applied).toBe(false);
     expect(result.reason).toBe('duplicate');
@@ -133,7 +145,11 @@ describe('provisionEntitlementMembership', () => {
   it('revision thấp hơn → không áp dụng, reason stale', async () => {
     const deps = makeDeps();
     deps.sync.revisions['staff-0001|pact-broker'] = 5;
-    const result = await provisionEntitlementMembership(makeEvent({ revision: 2 }), deps);
+    const result = await provisionEntitlementMembership(
+      makeEvent({ revision: 2 }),
+      deps,
+      OWNER_SUB,
+    );
 
     expect(result.applied).toBe(false);
     expect(result.reason).toBe('stale');
@@ -146,6 +162,7 @@ describe('provisionEntitlementMembership', () => {
     const result = await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
+      OWNER_SUB,
     );
 
     expect(result.applied).toBe(false);
@@ -157,7 +174,7 @@ describe('provisionEntitlementMembership', () => {
   it('entitlement.revoked sau entitlement.granted → membership được tạo trước vẫn còn, không bị xóa (P3.3)', async () => {
     const deps = makeDeps();
     // Granted trước: tạo membership role Member.
-    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps);
+    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps, OWNER_SUB);
     expect(deps.membership.calls).toEqual([
       { tenantId: 'tenant-ecoma-internal', sub: 'staff-0001', role: 'member' },
     ]);
@@ -166,6 +183,7 @@ describe('provisionEntitlementMembership', () => {
     const result = await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
+      OWNER_SUB,
     );
 
     expect(result.applied).toBe(false);
@@ -182,6 +200,7 @@ describe('provisionEntitlementMembership', () => {
     const result = await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 1 }),
       deps,
+      OWNER_SUB,
     );
 
     expect(result.applied).toBe(false);
@@ -193,16 +212,18 @@ describe('provisionEntitlementMembership', () => {
 
   it('hai entitlement.revoked liên tiếp → membership vẫn giữ nguyên, revision tiến lên (P3.3)', async () => {
     const deps = makeDeps();
-    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps);
+    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps, OWNER_SUB);
     expect(deps.membership.members['tenant-ecoma-internal|staff-0001']).toBe('member');
 
     await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
+      OWNER_SUB,
     );
     await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 3 }),
       deps,
+      OWNER_SUB,
     );
 
     expect(deps.sync.revisions['staff-0001|pact-broker']).toBe(3);
@@ -212,7 +233,11 @@ describe('provisionEntitlementMembership', () => {
 
   it('sản phẩm khác pact-broker → bỏ qua, reason not-product', async () => {
     const deps = makeDeps();
-    const result = await provisionEntitlementMembership(makeEvent({ product: 'backoffice' }), deps);
+    const result = await provisionEntitlementMembership(
+      makeEvent({ product: 'backoffice' }),
+      deps,
+      OWNER_SUB,
+    );
 
     expect(result.applied).toBe(false);
     expect(result.reason).toBe('not-product');
@@ -225,6 +250,7 @@ describe('provisionEntitlementMembership', () => {
     const result = await provisionEntitlementMembership(
       { ...makeEvent(), revision: 0 } as EntitlementEvent,
       deps,
+      OWNER_SUB,
     );
 
     expect(result.applied).toBe(false);
@@ -235,8 +261,8 @@ describe('provisionEntitlementMembership', () => {
   it('idempotent: event trùng được gửi hai lần chỉ tạo membership một lần', async () => {
     const deps = makeDeps();
     const event = makeEvent({ revision: 2 });
-    await provisionEntitlementMembership(event, deps);
-    await provisionEntitlementMembership(event, deps);
+    await provisionEntitlementMembership(event, deps, OWNER_SUB);
+    await provisionEntitlementMembership(event, deps, OWNER_SUB);
 
     expect(deps.membership.calls).toHaveLength(1);
     expect(deps.sync.revisions['staff-0001|pact-broker']).toBe(2);
@@ -244,8 +270,16 @@ describe('provisionEntitlementMembership', () => {
 
   it('hai staff khác nhau có revision độc lập', async () => {
     const deps = makeDeps();
-    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-a', revision: 1 }), deps);
-    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-b', revision: 1 }), deps);
+    await provisionEntitlementMembership(
+      makeEvent({ staff_id: 'staff-a', revision: 1 }),
+      deps,
+      OWNER_SUB,
+    );
+    await provisionEntitlementMembership(
+      makeEvent({ staff_id: 'staff-b', revision: 1 }),
+      deps,
+      OWNER_SUB,
+    );
 
     expect(deps.membership.calls).toEqual([
       { tenantId: 'tenant-ecoma-internal', sub: 'staff-a', role: 'member' },
@@ -255,8 +289,8 @@ describe('provisionEntitlementMembership', () => {
 
   it('tenant ecoma-internal chỉ tạo một lần dù nhiều staff', async () => {
     const deps = makeDeps();
-    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-a' }), deps);
-    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-b' }), deps);
+    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-a' }), deps, OWNER_SUB);
+    await provisionEntitlementMembership(makeEvent({ staff_id: 'staff-b' }), deps, OWNER_SUB);
 
     expect(Object.keys(deps.membership.tenants)).toEqual(['ecoma-internal']);
   });

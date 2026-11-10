@@ -16,6 +16,8 @@
  * repo.
  */
 
+import { MAX_OPAQUE_ID_LENGTH, isOpaqueId, isEpochMillis } from '@ecoma-io/tenant-kernel-domain';
+
 import {
   llmSellerDomainError,
   type LlmSellerDomainError,
@@ -91,20 +93,20 @@ declare const permissionIdBrand: unique symbol;
 /** Định danh permission theo hình `domain.action`; catalog thuộc `staff-access`. */
 export type PermissionId = string & { readonly [permissionIdBrand]?: true };
 
-/** Độ dài tối đa của mọi định danh opaque để chặn payload bất thường từ input. */
-export const MAX_OPAQUE_ID_LENGTH = 200;
+/**
+ * `MAX_OPAQUE_ID_LENGTH` và `isOpaqueId` được tái dùng từ kernel tenant
+ * (`@ecoma-io/tenant-kernel-domain`): định danh opaque đã trim, không rỗng,
+ * dài tối đa 200 ký tự. Kernel chỉ thao tác trên chuỗi opaque; mỗi bounded
+ * context giữ kiểu branded của riêng mình.
+ *
+ * `MAX_SELLER_TEXT_LENGTH` vẫn do sản phẩm sở hữu: text tự do (name, reason)
+ * của Seller tenant có giới hạn riêng (500), khác với giới hạn định danh
+ * opaque.
+ */
+export { MAX_OPAQUE_ID_LENGTH, isEpochMillis };
 
 /** Độ dài tối đa của text tự do (name, reason) trong domain tenant. */
 export const MAX_SELLER_TEXT_LENGTH = 500;
-
-function isOpaqueId(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= MAX_OPAQUE_ID_LENGTH &&
-    value.trim() === value
-  );
-}
 
 /** Type guard cho `SellerActorId` — dùng khi đọc `sub` từ token/DB/contract. */
 export function isSellerActorId(value: unknown): value is SellerActorId {
@@ -186,10 +188,11 @@ export function createPermissionId(value: string): PermissionId {
   return value;
 }
 
-/** Timestamp epoch millis hợp lệ: số nguyên an toàn. */
-export function isEpochMillis(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value);
-}
+/**
+ * `isEpochMillis` được tái dùng từ kernel tenant: số nguyên an toàn
+ * (`Number.isSafeInteger`), từ chối NaN/Infinity/số lẻ/chuỗi/null/undefined,
+ * không bao giờ ném.
+ */
 
 /** Text tự do hợp lệ: string đã trim, không rỗng, không quá `MAX_SELLER_TEXT_LENGTH`. */
 export function isSellerText(value: unknown): value is string {

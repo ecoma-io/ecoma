@@ -169,7 +169,7 @@ describe('roles and grants on db-remote-cache', () => {
     const migrator = await db.asMigrator();
     try {
       const { rows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name) VALUES ('member-guard-tenant') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('member-guard-tenant', 'sub-owner-member-guard') RETURNING id`,
       );
       const tenantId = rows[0]?.id ?? '';
 
@@ -180,6 +180,15 @@ describe('roles and grants on db-remote-cache', () => {
           [tenantId],
         ),
       ).rejects.toThrow(/permission denied/iu);
+      // owner không phải vai trò thành viên: CHECK từ chối ngay cả với migrator
+      // (remote_cache chỉ cho phép role 'member').
+      await expect(
+        migrator.query(
+          `INSERT INTO remote_cache.tenant_members (tenant_id, member_sub, role)
+           VALUES ($1, 'sub-owner-probe', 'owner')`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/tenant_members_role_check|violates check constraint/iu);
     } finally {
       await runtime.end();
       await migrator.end();
@@ -304,7 +313,7 @@ async function seedTenantProjectAndKey(
   client: import('pg').Client,
 ): Promise<{ tenantId: string; projectId: string; apiKeyId: string; tokenHash: string }> {
   const { rows: tenantRows } = await client.query<{ id: string }>(
-    `INSERT INTO remote_cache.tenants (name) VALUES ('seed_' || md5(random()::text))
+    `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('seed_' || md5(random()::text), 'sub-owner-seed')
      RETURNING id`,
   );
   const tenantId = tenantRows[0]?.id ?? '';
@@ -479,7 +488,7 @@ describe('database enforcement of control-plane invariants', () => {
 
       // Cùng tên ở tenant khác là hợp lệ — ranh giới theo tenant, không toàn cục.
       const { rows: otherTenant } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name) VALUES ('other_' || md5(random()::text))
+        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('other_' || md5(random()::text), 'sub-owner-other')
          RETURNING id`,
       );
       const otherTenantId = otherTenant[0]?.id ?? '';

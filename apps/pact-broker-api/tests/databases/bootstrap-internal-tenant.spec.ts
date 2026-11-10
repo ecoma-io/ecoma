@@ -86,7 +86,7 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const client = await db.asRuntime();
     try {
       await client.query('BEGIN');
-      const result = await bootstrapInternalTenant(client);
+      const result = await bootstrapInternalTenant(client, 'sub-owner-bootstrap');
       await client.query('COMMIT');
       expect(result.alreadyExisted).toBe(false);
       expect(result.tenantName).toBe(INTERNAL_TENANT_NAME);
@@ -97,6 +97,33 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const tenants = await queryTenant(db);
     expect(tenants).toHaveLength(1);
     expect(tenants[0]?.status).toBe('active');
+    // Owner đã được ghi vào tenant row và bootstrap KHÔNG tạo membership.
+    const ownerSub = await (async () => {
+      const counter = await db.connect();
+      try {
+        const { rows } = await counter.query<{ owner_sub: string }>(
+          `SELECT owner_sub FROM pact.tenants WHERE id = $1`,
+          [tenants[0]?.id ?? ''],
+        );
+        return rows[0]?.owner_sub ?? null;
+      } finally {
+        await counter.end();
+      }
+    })();
+    expect(ownerSub).toBe('sub-owner-bootstrap');
+    const memberCount = await (async () => {
+      const counter = await db.connect();
+      try {
+        const { rows } = await counter.query<{ c: string }>(
+          `SELECT count(*)::text AS c FROM pact.tenant_members WHERE tenant_id = $1`,
+          [tenants[0]?.id ?? ''],
+        );
+        return rows[0]?.c ?? '0';
+      } finally {
+        await counter.end();
+      }
+    })();
+    expect(memberCount).toBe('0');
     // Tenant bootstrap xong PHAI rỗng: không membership, không machine token
     // (P3.2 lo membership; script này không seed gì ngoài tenant + audit).
     const counts = await (async () => {
@@ -128,7 +155,7 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const client = await db.asRuntime();
     try {
       await client.query('BEGIN');
-      const result = await bootstrapInternalTenant(client);
+      const result = await bootstrapInternalTenant(client, 'sub-owner-bootstrap');
       await client.query('COMMIT');
       expect(result.alreadyExisted).toBe(true);
       expect(result.tenantId).toBe(beforeId);
@@ -153,6 +180,49 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     });
   });
 
+  it('never overwrites owner_sub when a second bootstrap passes a different owner', async () => {
+    await db.truncateData();
+
+    let first: Awaited<ReturnType<typeof bootstrapInternalTenant>>;
+    const firstClient = await db.asRuntime();
+    try {
+      await firstClient.query('BEGIN');
+      first = await bootstrapInternalTenant(firstClient, 'sub-owner-bootstrap');
+      await firstClient.query('COMMIT');
+      expect(first.alreadyExisted).toBe(false);
+    } finally {
+      await firstClient.end();
+    }
+
+    const secondClient = await db.asRuntime();
+    try {
+      await secondClient.query('BEGIN');
+      const second = await bootstrapInternalTenant(secondClient, 'sub-owner-second');
+      await secondClient.query('COMMIT');
+      expect(second.alreadyExisted).toBe(true);
+      expect(second.tenantId).toBe(first.tenantId);
+    } finally {
+      await secondClient.end();
+    }
+
+    const counter = await db.connect();
+    try {
+      const { rows } = await counter.query<{ owner_sub: string; id: string }>(
+        `SELECT owner_sub, id FROM pact.tenants WHERE name = $1`,
+        [INTERNAL_TENANT_NAME],
+      );
+      // owner_sub giữ nguyên giá trị lần đầu: bootstrap không ghi đè owner.
+      expect(rows[0]?.owner_sub).toBe('sub-owner-bootstrap');
+      const { rows: memberRows } = await counter.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM pact.tenant_members WHERE tenant_id = $1`,
+        [rows[0]?.id ?? ''],
+      );
+      expect(memberRows[0]?.c).toBe('0');
+    } finally {
+      await counter.end();
+    }
+  });
+
   it('converges when two connections bootstrap concurrently', async () => {
     // Reset để lần này là lần tạo đầu: truncate sạch mọi bảng domain mà không
     // đụng DDL/grant/trigger (harness cung cấp đúng cho mục đích này).
@@ -166,7 +236,7 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const runOne = async (client: Awaited<ReturnType<typeof db.asRuntime>>) => {
       await client.query('BEGIN');
       try {
-        const result = await bootstrapInternalTenant(client);
+        const result = await bootstrapInternalTenant(client, 'sub-owner-bootstrap');
         await client.query('COMMIT');
         return result;
       } catch (error) {
@@ -204,7 +274,7 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     const setup = await db.asRuntime();
     try {
       await setup.query('BEGIN');
-      await bootstrapInternalTenant(setup);
+      await bootstrapInternalTenant(setup, 'sub-owner-bootstrap');
       await setup.query('COMMIT');
     } finally {
       await setup.end();
@@ -225,7 +295,9 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     expect(before[0]?.id).toBeDefined();
     const caller = await db.asRuntime();
     try {
-      await expect(bootstrapInternalTenant(caller)).rejects.toThrow(/refusing to resurrect/u);
+      await expect(bootstrapInternalTenant(caller, 'sub-owner-bootstrap')).rejects.toThrow(
+        /refusing to resurrect/u,
+      );
     } finally {
       await caller.end();
     }
@@ -242,5 +314,16 @@ describe(`${HARNESS_DATABASE} bootstrap of the ${INTERNAL_TENANT_NAME} tenant`, 
     expect(parseDatabaseUrl('postgresql://user:pw@host:5432/other-db?sslmode=require')).toEqual({
       database: 'other-db',
     });
+  });
+
+  it('rejects invalid owner_sub without touching the database', async () => {
+    const fakeClient = { query: async () => ({}) } as unknown as import('pg').Client;
+    await expect(bootstrapInternalTenant(fakeClient, '')).rejects.toThrow(/owner_sub is required/u);
+    await expect(bootstrapInternalTenant(fakeClient, ' has space ')).rejects.toThrow(
+      /owner_sub is required/u,
+    );
+    await expect(bootstrapInternalTenant(fakeClient, 'x'.repeat(201))).rejects.toThrow(
+      /owner_sub is required/u,
+    );
   });
 });

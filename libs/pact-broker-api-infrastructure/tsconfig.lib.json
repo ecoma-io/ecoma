@@ -18,10 +18,13 @@
   "exclude": ["dist", "out-tsc", "src/**/*.test.ts", "src/**/*.spec.ts"],
   "references": [
     {
-      "path": "../pact-broker-api-application/tsconfig.lib.json"
+      "path": "../tenant-kernel-domain/tsconfig.lib.json"
     },
     {
       "path": "../pact-broker-api-domain/tsconfig.lib.json"
+    },
+    {
+      "path": "../pact-broker-api-application/tsconfig.lib.json"
     }
   ]
 }

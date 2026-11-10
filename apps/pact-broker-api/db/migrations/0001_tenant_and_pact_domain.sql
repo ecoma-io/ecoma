@@ -72,10 +72,12 @@ CREATE TABLE IF NOT EXISTS pact.tenants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   status text NOT NULL DEFAULT 'active',
+  owner_sub text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT tenants_name_format_check CHECK (name ~ '^[a-zA-Z0-9._-]{1,255}$'),
-  CONSTRAINT tenants_status_check CHECK (status IN ('active', 'suspended', 'deleted'))
+  CONSTRAINT tenants_status_check CHECK (status IN ('active', 'suspended', 'deleted')),
+  CONSTRAINT tenants_owner_sub_check CHECK (length(owner_sub) BETWEEN 1 AND 200 AND owner_sub = trim(owner_sub))
 );
 
 -- UNIQUE(name) toàn cục như upstream sẽ cho một tenant chặn tên của tenant
@@ -89,6 +91,8 @@ COMMENT ON TABLE pact.tenants IS
   'Ran hoi tenant cua broker. Moi domain data gan tenant_id NOT NULL; composite FK la lop enforce that.';
 COMMENT ON COLUMN pact.tenants.name IS
   'Ten tenant, regex giong nameSchema upstream ([a-zA-Z0-9._-], max 255). Duy nhat toan broker.';
+COMMENT ON COLUMN pact.tenants.owner_sub IS
+  'Opaque subject of the tenant owner; exactly one persisted owner per tenant, not a membership role. No cross-database FK; ownership stays with the account context.';
 
 -- ---------------------------------------------------------------------------
 -- (a) tenant_members — membership + RBAC
@@ -103,12 +107,12 @@ CREATE TABLE IF NOT EXISTS pact.tenant_members (
   role text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT tenant_members_role_check CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+  CONSTRAINT tenant_members_role_check CHECK (role IN ('admin', 'member', 'viewer')),
   CONSTRAINT tenant_members_pk PRIMARY KEY (tenant_id, sub)
 );
 
 COMMENT ON TABLE pact.tenant_members IS
-  'Membership va role cua broker: owner|admin|member|viewer. sub la tham chieu opaque, KHONG FK.';
+  'Membership and role of the broker: admin|member|viewer. sub is an opaque reference, not a FK.';
 COMMENT ON COLUMN pact.tenant_members.sub IS
   'sub cua identity. Khong FK, khong tai su dung phat hanh la viec cua identity.';
 

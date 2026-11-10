@@ -48,11 +48,13 @@ CREATE TABLE IF NOT EXISTS remote_cache.tenants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   status text NOT NULL DEFAULT 'active',
+  owner_sub text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT tenants_name_check CHECK (name ~ '^[a-zA-Z0-9._-]{1,255}$'),
   CONSTRAINT tenants_status_check CHECK (status IN ('active', 'suspended', 'deleted')),
-  CONSTRAINT tenants_name_unique UNIQUE (name)
+  CONSTRAINT tenants_name_unique UNIQUE (name),
+  CONSTRAINT tenants_owner_sub_check CHECK (length(owner_sub) BETWEEN 1 AND 200 AND owner_sub = trim(owner_sub))
 );
 
 COMMENT ON TABLE remote_cache.tenants IS
@@ -63,6 +65,8 @@ COMMENT ON COLUMN remote_cache.tenants.name IS
   'Human-facing tenant label; uniqueness is enforced by tenants_name_unique.';
 COMMENT ON COLUMN remote_cache.tenants.status IS
   'Lifecycle: active | suspended | deleted. Enforcement is fail-closed: credentials of a non-active tenant must be rejected (P4.4 wires the runtime check).';
+COMMENT ON COLUMN remote_cache.tenants.owner_sub IS
+  'Opaque subject of the tenant owner; exactly one persisted owner per tenant, not a membership role. No cross-database FK; ownership stays with the account context.';
 
 -- ---------------------------------------------------------------------------
 -- projects — con của tenant, đơn vị cách ly của data plane (P4.2)
@@ -100,7 +104,7 @@ CREATE TABLE IF NOT EXISTS remote_cache.tenant_members (
   role text NOT NULL DEFAULT 'member',
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, member_sub),
-  CONSTRAINT tenant_members_role_check CHECK (role IN ('owner', 'member'))
+  CONSTRAINT tenant_members_role_check CHECK (role IN ('member'))
 );
 
 COMMENT ON TABLE remote_cache.tenant_members IS
@@ -108,7 +112,7 @@ COMMENT ON TABLE remote_cache.tenant_members IS
 COMMENT ON COLUMN remote_cache.tenant_members.member_sub IS
   'Account identity of the member, opaque; ownership of the identity stays with the account context.';
 COMMENT ON COLUMN remote_cache.tenant_members.role IS
-  'Membership role inside this tenant only: owner | member. No staff-access permission vocabulary (ADR-0015: two vocabularies, never merged).';
+  'Membership role inside this tenant only: member. No staff-access permission vocabulary (ADR-0015: two vocabularies, never merged).';
 
 -- ---------------------------------------------------------------------------
 -- api_keys — machine credential hash-only, show-once, revoke-only

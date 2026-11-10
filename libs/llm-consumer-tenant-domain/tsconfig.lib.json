@@ -13,7 +13,7 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts"],
-  "references": [],
+  "references": [{ "path": "../tenant-kernel-domain/tsconfig.lib.json" }],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
