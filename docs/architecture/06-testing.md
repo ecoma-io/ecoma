@@ -114,7 +114,7 @@ Phân biệt ba khái niệm Nx hay bị lẫn:
 - **Project dependency** — cạnh trên project graph, suy từ import (JS/TS) hoặc `implicitDependencies`; là input của
   `nx affected`.
 - **Task-pipeline `dependsOn`** — thứ tự chạy giữa target của các project (vd `apps/home` khai `test` dependsOn
-  `["nuxt-prepare", "build", "test-python"]`); không đổi tập project được chọn.
+  `["nuxt-prepare", "build"]`); không đổi tập project được chọn.
 - **Task inputs / cache validity** — cái gì khiến một cache entry còn hợp; không đổi thứ tự hay tập project.
 
 Đặt file vào đúng thư mục **không tự làm** `nx affected` chọn đúng — selection chỉ đúng khi project dependency truthful (§5).
