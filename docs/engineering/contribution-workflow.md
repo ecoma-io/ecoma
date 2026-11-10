@@ -46,7 +46,7 @@ Trước khi mở Issue, xác định bốn thứ:
 
 - Không chọn Issue Type theo loại issue form. Form `bug` có thể là Delivery nếu behaviour chưa từng tồn tại.
 - Không đổi Issue Type giữa chừng mà không ghi lý do vào Issue.
-- Issue Type là thông tin định hướng, không phải input của CI.
+- Issue Type là thông tin định hướng cho người và agent, không phải input của CI: native Issue Type là metadata machine-readable và queryable, nhưng repository chưa có check nào enforce quy tắc Issue; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. Chỉ tuyên bố enforcement khi nó đã được triển khai thật.
 
 Cách ghi vào Issue → [`work-management.md`](./work-management.md) §2.3.
 
