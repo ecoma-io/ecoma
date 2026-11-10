@@ -10,6 +10,6 @@ Architectural decision record của bounded context **LLM Consumer Tenant**. M�
 
 Quyết định thuộc context khác, không nhân bản tại đây:
 
-- [`llm-seller-tenant/adr/0027`](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) — danh tính Seller provider first-party và principal pháp lý Ecoma-io; supersede-in-part §6 của ADR-0026.
+- [`llm-seller-tenant/adr/0027`](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) — danh tính Seller provider first-party và principal pháp lý Ecoma-io; supersede-in-part §6 của ADR-0026, đúng phạm vi Seller tenant first-party của `llm-seller-tenant`.
 - [`llm-seller-governance/adr/0018`](../../llm-seller-governance/adr/0018-seller-bounded-context-split.md) — tách `llm-seller` thành tenant và governance; Seller tenant là organization boundary, không có Seller Workspace, active ngay khi tạo.
 - [`llm-financial/adr/0001`](../../llm-financial/adr/0001-independent-seller-console-tenant.md) — Seller tenant và Consumer tenant độc lập.

@@ -46,7 +46,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 
 ### 3.3 VerificationCase
 
-- `id`, `tenantId`, `type` (định danh mở, ví dụ `legal-identity`, `tax`), `status` (`draft` | `submitted` | `under_review` | `approved` | `rejected` | `expired`), `createdAt`, `submittedAt`, `reviewedAt`, `reviewedBy`, `decidedAt`, `decidedBy`, `expiresAt`, `publicDecisionReason`, `verifiedProfileVersions` (version profile mà approval đã xác minh, theo trục profile tương ứng của `type` — ví dụ `legal-identity` → legal profile version, `tax` → tax profile version; ghi tại thời điểm `approved`, type không gắn trục profile nào thì không có).
+- `id`, `tenantId`, `type` (định danh mở, ví dụ `legal-identity`, `tax`), `status` (`draft` | `submitted` | `under_review` | `approved` | `rejected` | `expired`), `createdAt`, `submittedAt`, `reviewedAt`, `reviewedBy`, `decidedAt`, `decidedBy`, `expiresAt`, `publicDecisionReason`, `verifiedProfileVersions` (version profile mà approval đã xác minh, theo trục profile tương ứng của `type` — ví dụ `legal-identity` → legal profile version, `tax` → tax profile version; ghi tại thời điểm `approved`, type không gắn trục profile nào thì không có và không thuộc coverage rule — §3.6).
 - Mỗi lần submit tạo một **submission record** bất biến kèm evidence reference; resubmit sau reject tạo submission mới trên cùng case, giữ nguyên lịch sử.
 - Verification **không** thay đổi sự tồn tại của Seller tenant; nó chỉ thay đổi kết quả đánh giá operational eligibility.
 - **Tenant first-party** đạt eligibility bằng cùng thang này, không exemption: `requiredTypes` tối thiểu là `legal-identity` và `tax` (cấu hình của đường provisioning, không phải state domain); evidence là hồ sơ pháp lý/thuế thật của principal Ecoma-io (nguồn authoritative); mọi `approved` là quyết định review thật qua `decideVerification` kèm attribution reviewer — classification **không bao giờ** tự động `approved` một case nào. Approval ghi lại đúng version profile đã được review; case không còn phủ version hiệu lực thì không còn tính (§3.6, §5.9) → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §4.
@@ -71,7 +71,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 `deriveOperationalEligibility` là hàm thuần của `(tenantId, restrictions, cases, requiredTypes, legalProfileVersions, taxProfileVersions, now)`:
 
 - Eligible khi restriction không chặn (`blocked === false`, `unevaluable === false`, đánh giá đúng tenant và cho target `tenant`), onboarding complete, và có legal + tax profile version hiệu lực tại `now`.
-- **Coverage rule:** một case `approved` chỉ được tính cho type bắt buộc khi `verifiedProfileVersions` của nó còn khớp version profile **hiệu lực tại `now`** trên trục tương ứng; case thiếu pin hoặc pin lệch version không được tính (fail-closed) — không có approved case nào "vẫn giàu hiệu lực" trên facts đã đổi. Version mới của legal profile chỉ ép re-verification trục `legal-identity`; version mới của tax profile chỉ ép trục `tax` — profile không đổi không gây re-verification không cần thiết.
+- **Coverage rule:** một case `approved` chỉ được tính cho type bắt buộc khi `verifiedProfileVersions` của nó còn khớp version profile **hiệu lực tại `now`** trên trục tương ứng; case thiếu pin hoặc pin lệch version không được tính (fail-closed) — không có approved case nào "vẫn giàu hiệu lực" trên facts đã đổi. Rule chỉ áp cho type gắn trục profile; type không gắn trục profile nào không có pin và không thuộc rule — approval còn tính theo trạng thái `approved`, đến `expired` mới mất. Version mới của legal profile chỉ ép re-verification trục `legal-identity`; version mới của tax profile chỉ ép trục `tax` — profile không đổi không gây re-verification không cần thiết.
 - Kết quả mang danh sách `blockers` (`restriction` | `verification` | `legal_profile` | `tax_profile`) để consumer hiển thị và audit.
 - Không lưu kết quả thành status. Consumer (marketplace, financial, payout) nhận verdict qua contract/projection; caching là quyết định của application và phải có freshness bound.
 - Marketplace, Financial và Routing tiêu thụ eligibility/restriction verdict như **giá trị hợp đồng**; chúng không đọc evidence pháp lý, không tự diễn giải restriction record, và không tự suy ra eligibility từ verification case (ADR-0018 §3).
@@ -82,7 +82,7 @@ Giá trị suy ra (không lưu trạng thái):
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Restriction đang hiệu lực của một target | tập `RestrictionRecord` + `now` + policy definitions (cửa sổ nửa mở)                                                     |
 | Operational eligibility của tenant       | restriction evaluation + verification outcome còn phủ version hiệu lực + presence của legal/tax profile version hiệu lực |
-| Onboarding hoàn tất                      | operational eligibility đạt **và** các verification case bắt buộc ở `approved`                                           |
+| Onboarding hoàn tất                      | operational eligibility đạt **và** các verification case bắt buộc ở `approved` còn phủ version hiệu lực                  |
 | Owner hiện tại                           | thuộc tính `owner` trên `SellerTenant` (không suy từ grant) — sở hữu bởi `llm-seller-tenant`                             |
 
 Không được lưu các giá trị này thành cột trạng thái thứ hai.
@@ -150,7 +150,7 @@ Kỳ hiệu lực suy ra: version `i` hiệu lực trong `[effectiveFrom_i, effe
 6. **Evidence bất biến và cùng tenant.** `storageRef`/`contentHash` không bị sửa; evidence cross tenant bị từ chối.
 7. **Eligibility là giá trị suy ra.** Không lưu `eligible`/`onboarding-complete` thành cột trạng thái.
 8. **Determinism.** Không hàm nào đọc clock/random; cùng input ⇒ cùng output.
-9. **Approval còn tính khi còn phủ version.** Case `approved` chỉ được tính cho onboarding/eligibility khi `verifiedProfileVersions` khớp version profile hiệu lực tại `now` trên trục tương ứng; thiếu pin hoặc pin lệch version ⇒ không tính (fail-closed). Việc append version không đổi case; nó chỉ đổi việc case có còn được tính hay không.
+9. **Approval còn tính khi còn phủ version.** Case `approved` chỉ được tính cho onboarding/eligibility khi `verifiedProfileVersions` khớp version profile hiệu lực tại `now` trên trục tương ứng; thiếu pin hoặc pin lệch version ⇒ không tính (fail-closed). Rule không áp cho type không gắn trục profile (không có pin, tính theo trạng thái `approved` đến `expired`). Việc append version không đổi case; nó chỉ đổi việc case có còn được tính hay không.
 
 ## 6. Error taxonomy
 
