@@ -42,16 +42,25 @@ export class PgTenantRepo {
   constructor(private readonly pool: Pool) {}
 
   /**
-   * Bảo đảm tenant `name` tồn tại ACTIVE và `ownerSub` là owner. Idempotent,
-   * race-safe. Ném `PactBrokerTenantError` khi tenant tồn tại ở trạng thái
-   * deleted (fail-closed — không tự sửa dữ liệu đã xoá mềm).
+   * Guard `owner_sub` dùng chung cho `ensureDefaultTenant` và `ensureTenant`:
+   * fail-closed qua isOpaqueId trước khi chạm database, cùng một thông báo lỗi
+   * cho mọi đường ghi owner. Ném `PactBrokerTenantError`.
    */
-  async ensureDefaultTenant(name: string, ownerSub: string): Promise<TenantRecord> {
+  private validateOwnerSub(ownerSub: string): void {
     if (!isOpaqueId(ownerSub)) {
       throw new PactBrokerTenantError(
         `owner_sub is required and must be a non-empty opaque id of at most ${MAX_OPAQUE_ID_LENGTH} characters`,
       );
     }
+  }
+
+  /**
+   * Bảo đảm tenant `name` tồn tại ACTIVE và `ownerSub` là owner. Idempotent,
+   * race-safe. Ném `PactBrokerTenantError` khi tenant tồn tại ở trạng thái
+   * deleted (fail-closed — không tự sửa dữ liệu đã xoá mềm).
+   */
+  async ensureDefaultTenant(name: string, ownerSub: string): Promise<TenantRecord> {
+    this.validateOwnerSub(ownerSub);
     return this.pool.connect().then(async (client) => {
       try {
         await client.query('BEGIN');
@@ -131,11 +140,7 @@ export class PgTenantRepo {
    * (fail-closed — không tự sửa dữ liệu đã xoá mềm).
    */
   async ensureTenant(name: string, ownerSub: string): Promise<string> {
-    if (!isOpaqueId(ownerSub)) {
-      throw new PactBrokerTenantError(
-        `owner_sub is required and must be a non-empty opaque id of at most ${MAX_OPAQUE_ID_LENGTH} characters`,
-      );
-    }
+    this.validateOwnerSub(ownerSub);
     return this.pool.connect().then(async (client) => {
       try {
         await client.query('BEGIN');
