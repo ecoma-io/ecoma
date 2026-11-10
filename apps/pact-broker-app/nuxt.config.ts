@@ -10,6 +10,20 @@ import {
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-05',
   workspaceDir: '../../',
+  // `pact-broker-app` là **non-SSR SPA** (issue #68, convention chung của issue
+  // cha #66): render xảy ra ở client, server chỉ phục vụ static asset và các
+  // route server (BFF `/api/broker/**`, `/health`, `/ready`).
+  //
+  // Khai **tường minh**, không dựa vào default của framework: Nuxt 4.6.2
+  // resolve `ssr` thành `true` khi key vắng mặt (`@nuxt/schema` 4.6.2), nên
+  // "không khai" nghĩa là SSR và một bản nâng cấp framework có thể đổi hành vi
+  // sau lưng. Cùng cách `apps/llm-console` và `apps/backoffice` đã làm.
+  //
+  // Non-SSR **không** bỏ Nitro: preset `cloudflare-module` vẫn emit
+  // `.output/server/index.mjs` (`nitro.config.ts`) và mọi route server vẫn chạy
+  // server-side trên Worker lẫn container local. Đây chỉ là tắt bước render HTML
+  // phía server — shell cho client router do route `/**` của Nitro trả.
+  ssr: false,
   devtools: { enabled: true },
   devServer: {
     host: '0.0.0.0',
