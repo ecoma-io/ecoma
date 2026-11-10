@@ -36,8 +36,10 @@ backlog.
   Types), §2.5 (assumption and scope changes), §2.6 (closure conditions and
   closure reasons), §5.2 (linking a PR to an Issue).
 - `docs/engineering/contribution-workflow.md` §2.10 (reconcile after merge).
-- `docs/changes/README.md` — canonical promotion and the impact classes a
-  material change applies to dependent Change Specifications. Impact classes
+- `docs/changes/README.md` — §3 (the three decision states; accepted target
+  decisions become canonical at canonical promotion, not before), canonical
+  promotion and the impact classes a material change applies to dependent
+  Change Specifications. Impact classes
   are a different axis from the reconciliation classes of §8.1: one classifies
   the effect on a dependent spec, the other the delta between target and
   reality. Never substitute one for the other.
@@ -104,7 +106,10 @@ backlog.
    written, the catalog and context map current? If it did not, record the
    pending promotion as the explicit follow-up on the unit's Issue. Never
    auto-update canonical documents just because the PR merged; promotion is
-   an explicit act, and the same check applies to the unit's dependencies.
+   an explicit act — the point where the spec's accepted target decisions
+   become canonical, which they do not before it
+   (`docs/changes/README.md` §3) — and the same check applies to the unit's
+   dependencies.
    When the delivered change is itself material for dependent Change
    Specifications, route the impact assessment to `change-impact` — its
    impact classes are a different axis from the reconciliation classes of
@@ -157,8 +162,9 @@ backlog.
   environment check.
 - Opening new implementation work before the comparison is written down.
 - Auto-updating canonical documents because a PR merged. Canonical promotion
-  under a Change Specification is an explicit act; an unfinished one is
-  recorded as the pending follow-up, not papered over.
+  under a Change Specification is an explicit act — accepted target decisions
+  become canonical there, not at merge (`docs/changes/README.md` §3); an
+  unfinished one is recorded as the pending follow-up, not papered over.
 - Classifying a dependent Change Specification's fate with the §8.1
   reconciliation classes, or a target-reality delta with the impact classes
   of `docs/changes/README.md` — they are different axes.

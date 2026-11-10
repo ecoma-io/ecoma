@@ -27,8 +27,8 @@ The two modes are the Issue Type values **Discovery** and **Experiment**
 (`evolution-process.md` §4.1): the mode chosen here is the type the owning
 Issue carries, recorded per `work-management.md` §2.3. Discovery feeding a
 product's future horizon (Feature Discovery) is normal work, not misplaced
-effort — horizons derive from the product's Milestone ladder
-(`work-management.md` §4).
+effort — horizons are read from the product's Milestone commitment
+declarations (`work-management.md` §4.1).
 
 ## Canonical references
 
@@ -54,8 +54,8 @@ disagree, the document wins.
   architecture`, `Workflow`.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
   — whether the unknown needs its own Issue, how to reuse an existing one,
-  §2.3 (how the Issue Type is recorded), §4 (the horizon ladder a Discovery
-  may be feeding).
+  §2.3 (how the Issue Type is recorded), §4.1 (the Milestone commitment
+  declarations behind the horizon a Discovery may be feeding).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — a conclusion
   that shifts a target is a material change; impact classes govern what it
   does to dependent Change Specifications.

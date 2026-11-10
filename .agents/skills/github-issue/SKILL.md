@@ -76,6 +76,13 @@ asserting):
 | Work already tracked by an existing Issue or PR                           | Reuse or link it; never create a parallel one.                                                                               |
 | The work is a ledger, precondition tracker, experiment record or decision | Create it as that record kind, and say so — never as a work item (§2.2).                                                     |
 
+Frame the work against Change Specifications before writing the body: does
+it follow an existing spec, need a new one — only when the change meets the
+spec gate in `docs/changes/README.md` §1 — or go straight to Delivery or
+Modelling with the canonical documents updated in the same logical change?
+State the answer in the body: the spec path when one applies, or the
+canonical documents the Issue updates.
+
 Do not create Issues to appear thorough. If the requested outcome cannot be
 established from the request and available evidence, ask one focused question
 or record the unresolved decision; do not implement under an invented scope.
@@ -112,14 +119,23 @@ Experiment, Delivery, Remediation — applying the priority order in
 `docs/engineering/evolution-process.md` §4.1 and stopping at the first match:
 Remediation → Experiment → Modelling → Delivery → Discovery.
 
-- The Issue Type is set from **native metadata at creation**: the UI, or
-  `gh issue create --type <name>`. Issue Forms cannot set the native type.
-- Until the five types are org-configured, the interim channel is the
-  `## Loại công việc` line in the Issue body — the authoritative channel for
-  the transition (`work-management.md` §2.3); match it by section name,
-  whatever the heading level or the form's `(kênh tạm thời)` suffix — not by
-  literal string. Where another place records a divergent value, fix it to
-  match this line. It is never a parallel custom field, label or form value.
+- Today the five Issue Types are **not yet org-configured**, so
+  classification is recorded through the interim channel: the
+  `## Loại công việc` line in the Issue body, which the form's
+  `Loại công việc` dropdown writes — when the dropdown is used, the body
+  line must match it. Match the line by section name, whatever the heading
+  level or the form's `(kênh tạm thời)` suffix — not by literal string
+  (`work-management.md` §2.3). Where another place records a divergent
+  value, fix it to match this line; it is never a parallel custom field,
+  label or form value.
+- Native metadata at creation — the UI, or `gh issue create --type <name>` —
+  is the target-state mechanism once the org configures the five types. The
+  authority runs in three windows (`work-management.md` §2.3): the body line
+  before that configuration; native Issue Type after it, with form-created
+  Issues still recording via the body line and native winning any
+  divergence; native-only once the cleanup step retires the body channel —
+  from then on an Issue never carries classification on two channels.
+  Issue Forms cannot set the native type.
 - **Missing type (work items):** report a blocker only when a work item
   needs a classification or native GitHub capability that has no documented
   channel — a value outside the five Issue Types, or a capability with no
@@ -180,12 +196,20 @@ Milestone carries it (`work-management.md` §2.1, §3.2).
   `project:track`.
 - **Transition:** the native auto-add workflow is not root-aware yet, so the
   `project:track` label — root issues only — remains the admission signal
-  read by that workflow (`work-management.md` §3.2). Applying it is a
-  separate, explicit action after the root-issue rule is checked.
+  read by that workflow (`work-management.md` §3.2). Admission is the
+  creating agent's duty: apply the label to a root issue **at creation**,
+  per the root-issue rule — that is the admission act, not a drift fix
+  (`work-management.md` §3.3).
 - Membership lifecycle belongs to the Project coordinator. When reviewing,
   report drift — a sub-issue inside the Project, a labeled Issue with no
-  item, an item with no label — and never archive, remove or add a Project
-  item yourself (`work-management.md` §3.3).
+  item, an item with no label — only after re-reading the Project state to
+  rule out a workflow race, and never archive, remove or add a Project item
+  yourself (`work-management.md` §3.3).
+- **A root issue that owns a Change Specification references the spec by its
+  path in the body** (the `change-spec` form input writes it); sub-issues
+  may reference a spec but never co-own it. Exactly one open root issue may
+  own a spec — zero is the "no reachable owner" escalation and more than
+  one is drift to report, never a choice (`docs/changes/README.md` §4).
 
 ## Ground every claim
 
@@ -207,16 +231,20 @@ Mark proposals as proposals; mark established decisions with their source
 
 ## Create the Issue safely
 
+Write the body to a file so backticks, `$` and Vietnamese text survive intact.
+Today the five Issue Types are not org-configured yet, so carry the value in
+the `## Loại công việc` body line (the form dropdown writes it; the two must
+match) — never in a label or Project field. `--type` is the target-state
+mechanism once the org configures the five types; from then on an Issue
+with a native type carries no body line (`work-management.md` §2.3).
+
 ```bash
 gh issue create --repo ecoma-io/ecoma \
-  --type <Discovery|Modelling|Experiment|Delivery|Remediation> \
   --title "fix(dx): ..." \
   --body-file <path-to-body-file>
+  # target state, once the five types are org-configured:
+  # --type <Discovery|Modelling|Experiment|Delivery|Remediation>
 ```
-
-Write the body to a file so backticks, `$` and Vietnamese text survive intact.
-If the native type is not configurable yet, carry the value in the
-`## Loại công việc` body line instead — never in a label or Project field.
 
 - Set only verified, existing values. Prefer no label over an invented one.
   Never set a milestone, Project field or assignee that you have not confirmed
@@ -250,8 +278,9 @@ If the native type is not configurable yet, carry the value in the
 3. Can every completion criterion be verified without guessing?
 4. Are verified facts, requirements, inferences and unknowns distinguishable?
 5. Is the Issue Type set in native metadata — or, during the transition, in
-   the `## Loại công việc` body line — and does it match the body rather than
-   the issue category?
+   the `## Loại công việc` body line, matching the dropdown when one was
+   used, with no duplicate channel once native types exist — and does it
+   match the body rather than the issue category?
 6. Does Project membership follow the root-issue rule, with `project:track`
    applied only to a root issue during the transition?
 7. Is this a work item — not accidentally a ledger, tracker or record? And if
@@ -294,7 +323,8 @@ substitute an invented value.
   outcome and a body grounded in inspected evidence.
 - The Issue Type is set in native metadata, or carried by the interim
   `## Loại công việc` body line when the type is not configurable yet — never
-  in a label or Project field.
+  in a label or Project field; the body line matches the dropdown, and after
+  native types exist the Issue carries no duplicate body line.
 - Search results and the reuse/link/create decision are accounted for.
 - Project membership follows the root-issue rule; a sub-issue was never
   marked for membership.

@@ -45,7 +45,8 @@ disagree, the document wins.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
   — when an Issue must exist, what "independently trackable" means, when to
   reuse one, §2.3 (how the Issue Type is recorded, including the interim
-  `## Loại công việc` body channel), §4 (Milestones and the horizon ladder).
+  `## Loại công việc` body channel), §4.1 (horizons read from the Milestone
+  commitment declarations).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — Change
   Specification vocabulary: change types, material changes, the two
   promotions, and the index of live specs.
@@ -92,10 +93,11 @@ disagree, the document wins.
    invariant number, an ADR, a dependency rule, or a platform fact. A
    constraint without a source is an assumption, and belongs in step 8.
 6. **Place the work in its context**, when the request has one:
-   - The **product** and its **horizon**, derived from the product's Milestone
-     ladder per `work-management.md` §4 — not read from a document marker.
-     Work feeding a product's future horizon (Feature Discovery) is normal,
-     not misplanned.
+   - The **product** and its **horizon**, read from the product's Milestone
+     commitment declarations per `work-management.md` §4.1 — never from
+     creation order, due dates, names or issue counts, and not from a
+     document marker. Work feeding a product's future horizon (Feature
+     Discovery) is normal, not misplanned.
    - The **authoritative baseline** the work stands on: the canonical
      documents of the four views plus accepted ADRs (`evolution-process.md`
      §5). A Change Specification is design-ahead, never baseline.

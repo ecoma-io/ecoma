@@ -47,8 +47,9 @@ disagree, the document wins.
   — §3 (Architecture view ownership), §4.1 (Modelling as an Issue Type
   value), §6.2 (Discover & Model), §6.8 (never implement an unaccepted
   decision), §8 (deviation).
-- [`docs/changes/README.md`](../../../docs/changes/README.md) — when a
-  system-level change needs a Change Specification; the impact classes a
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — §1 (the
+  four-trigger gate that decides whether a change needs a Change
+  Specification), §3 (the three decision states), and the impact classes a
   material change applies to dependent specs.
 - [`AGENTS.md`](../../../AGENTS.md) — `Non-negotiable architecture`,
   `Change discipline`, `Source of truth`.
@@ -112,12 +113,18 @@ disagree, the document wins.
      historical overlaps described in §10 must not grow.
    - System-level pointer → `01-architecture.md` §8 gains or updates the
      `A<n>` row that points at the ADR. Do not restate the ADR's reasoning.
-   - Target change larger than one PR — introducing a bounded context,
-     moving ownership, changing a shared contract or library, retiring part
-     of the system → a Change Specification under `docs/changes/`, with the
-     change type (introduce, evolve, retire) on each Affected scope entry
-     ([`docs/changes/README.md`](../../../docs/changes/README.md)); the
-     canonical documents change at canonical promotion, not in the spec's PR.
+   - Change meeting the spec gate — any of the four triggers in
+     [`docs/changes/README.md`](../../../docs/changes/README.md) §1, such as
+     introducing or retiring a bounded context, moving ownership, or
+     changing a shared contract or library → a Change Specification under
+     `docs/changes/`, with the change type (introduce, evolve, retire) on
+     each Affected scope entry; the canonical documents change at canonical
+     promotion, not in the spec's PR. Size in PRs is not a trigger: a change
+     meeting none of the four is a direct canonical edit or Delivery, and a
+     spec written for it is a finding (overengineering). A decision settled
+     inside the spec's target scope stays there as an accepted target
+     decision until canonical promotion, unless it binds the current
+     baseline now (`docs/changes/README.md` §3).
    - Undecided → `01-architecture.md` §10 with an explicit trigger, or
      `docs/domains/open-boundaries.md` for a business boundary.
    - Index → the context's `adr/README.md` row, in the same change.

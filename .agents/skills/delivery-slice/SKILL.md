@@ -36,7 +36,9 @@ disagree, the document wins.
   **Prerequisite work**), §8 (limitation versus deviation).
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — horizon
   promotion versus canonical promotion are independent; the first
-  behaviour-landing delivery carries the canonical-promotion obligation.
+  behaviour-landing delivery carries the canonical-promotion obligation;
+  §3 (accepted target decisions stay in the spec until canonical
+  promotion).
 - [`docs/engineering/contribution-workflow.md`](../../../docs/engineering/contribution-workflow.md)
   — §2.5 (branch and draft PR), §2.6 (scope lock), §2.7 (validation by
   change type), §2.8 (review findings), §2.9 (rebase and merge).
@@ -62,7 +64,9 @@ disagree, the document wins.
   decision is open, the slice is blocked — stop here. Read the baseline
   correctly: the authoritative baseline is the canonical documents plus
   accepted ADRs (`evolution-process.md` §5); an accepted Change Specification
-  is design-ahead input the slice implements, not baseline.
+  is design-ahead input the slice implements, not baseline — its accepted
+  target decisions bind the slice and stay in the spec until canonical
+  promotion (`docs/changes/README.md` §3).
 - Whether an accepted Change Specification in `docs/changes/` covers this
   behaviour, when one might apply.
 - The owning Nx project or projects of the behaviour, confirmed from the
@@ -113,7 +117,9 @@ disagree, the document wins.
    change, or record the explicit follow-up
    ([`docs/changes/README.md`](../../../docs/changes/README.md)) —
    "implemented but not yet promoted" is a tracked transient state, never a
-   permanent one.
+   permanent one. Completing the delivery does not by itself canonicalize
+   any spec decision; the spec's accepted target decisions become canonical
+   at canonical promotion (`docs/changes/README.md` §3).
 8. **Select validation by change type.** Do not run everything for every PR;
    run the row that matches, and add rows when the change spans them.
 

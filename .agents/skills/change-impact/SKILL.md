@@ -17,7 +17,8 @@ introduces no new class, no status field and no revalidation sweep.
 
 - [`docs/changes/README.md`](../../../docs/changes/README.md) — owns the
   impact classes, the material-change triggers, where verdicts are recorded,
-  and the no-cascade rule. This skill restates none of them as its own.
+  the owning-root-issue rule (§4), and the no-cascade rule. This skill
+  restates none of them as its own.
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
   — §8.1 owns the reconciliation classes, a different axis: impact classes
   describe the effect on a dependent spec, reconciliation classes describe
@@ -37,8 +38,11 @@ introduces no new class, no status field and no revalidation sweep.
   be material.
 - The dependent-candidate set: Change Specifications whose Baseline
   references or Dependencies touch the changed artifact.
-- The owning root issue of each candidate spec, or the explicit statement
-  that no owner can be found.
+- The owning root issue of each candidate spec, resolved mechanically per
+  `docs/changes/README.md` §4: enumerate the specs in the §6 index, search
+  the open root issues for each spec path — exactly one match is the owner;
+  zero matches is the "no reachable owner" escalation; more than one match
+  is drift to report.
 - Confirmation that the triggering change itself is accepted. An unaccepted
   trigger is an escalation, not an assessment input.
 
@@ -133,7 +137,9 @@ Stop and report when:
 
 - The baseline a spec claims to stand on is ambiguous — the reference is
   stale, unreadable or points at a superseded record.
-- A dependent spec has no reachable owner.
+- A dependent spec has no reachable owner, or more than one open root issue
+  references its path — both are ownership drift
+  (`docs/changes/README.md` §4), never a choice of one.
 - Two specs claim the same affected scope, or a spec's Dependencies
   contradict the triggering change's own record.
 - The triggering change itself is not accepted — there is nothing to assess

@@ -11,9 +11,10 @@ Turn a vague desire into a framed problem and a set of verifiable
 requirements, and put that text in a place that is allowed to hold it. This
 skill creates **no new document location** — the Features knowledge view is
 canonical at [`docs/features/`](../../../docs/features/README.md), future
-targets live in Change Specifications under
-[`docs/changes/`](../../../docs/changes/README.md), and inventing a third
-place would create a second source of truth.
+targets that meet the spec gate live in Change Specifications under
+[`docs/changes/`](../../../docs/changes/README.md) (a small well-scoped
+feature needs no spec), and inventing a third place would create a second
+source of truth.
 
 Produce four things:
 
@@ -23,7 +24,8 @@ Produce four things:
    verified against them.
 4. The correct record: a Feature document under `docs/features/` for
    capability that is implemented, a Change Specification under
-   `docs/changes/` for a future product target, or the canonical document
+   `docs/changes/` for a future product target that meets the spec gate
+   (`docs/changes/README.md` §1), or the canonical document
    that genuinely owns requirements at that level.
 
 ## Canonical references
@@ -49,6 +51,7 @@ disagree, the document wins.
   status, and is never a backlog.
 - [`docs/changes/README.md`](../../../docs/changes/README.md) and
   [`docs/changes/_template.md`](../../../docs/changes/_template.md) — the
+  spec gate (§1: when a Change Specification is required at all), the
   Change Specification lifecycle, the change types (introduce, evolve,
   retire) carried by each Affected scope entry, and the ten required
   sections.
@@ -90,12 +93,18 @@ disagree, the document wins.
      independent of any context's design — belongs to the Features view under
      `docs/features/`, following
      [`docs/features/_template.md`](../../../docs/features/_template.md).
-   - A **product capability that does not exist yet** is a future target: it
-     is modelled as a Change Specification under `docs/changes/`, with the
-     change type (introduce, evolve, retire) on each Affected scope entry per
-     [`docs/changes/_template.md`](../../../docs/changes/_template.md). It
-     becomes a Feature document through canonical promotion and delivery —
-     never by writing it into `docs/features/` ahead of the implementation.
+   - A **product capability that does not exist yet** is a future target. A
+     Change Specification under `docs/changes/` is required only when the
+     change meets the spec gate
+     ([`docs/changes/README.md`](../../../docs/changes/README.md) §1), with
+     the change type (introduce, evolve, retire) on each Affected scope
+     entry per
+     [`docs/changes/_template.md`](../../../docs/changes/_template.md); a
+     small well-scoped feature needs no spec — the Issue carries the work
+     request and acceptance criteria, and canonical promotion happens after
+     delivery. Either way it becomes a Feature document through canonical
+     promotion and delivery — never by writing it into `docs/features/`
+     ahead of the implementation.
    - A **business rule, invariant or policy** of one bounded context belongs
      in `docs/domains/<context>/domain-model.md`. It is not a product
      requirement and does not go into a Feature document.
@@ -135,7 +144,9 @@ disagree, the document wins.
 - A Change Specification under `docs/changes/`, per
   [`docs/changes/_template.md`](../../../docs/changes/_template.md), with its
   index row in [`docs/changes/README.md`](../../../docs/changes/README.md)
-  added in the same change — for a future product target.
+  added in the same change — for a future product target that meets the
+  spec gate (`docs/changes/README.md` §1); a small well-scoped feature needs
+  no spec.
 - `docs/domains/<context>/domain-model.md`, only as a pointer when a business
   rule is involved; the rule itself is `domain-modelling` work.
 - `docs/applications/<component>/02-requirements.md`, when the requirement is
