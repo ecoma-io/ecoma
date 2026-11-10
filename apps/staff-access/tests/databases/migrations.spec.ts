@@ -149,13 +149,17 @@ describe('staff-access migration runner on a real PostgreSQL', () => {
     }
   });
 
-  it('seeds exactly the three read permissions of the ADR-0010 catalog', async () => {
+  it('seeds exactly the four read permissions of the canonical catalog', async () => {
     const client = await db.connect();
     try {
       const { rows } = await client.query<{ id: string; status: string }>(
         `SELECT id, status FROM staff_access.permissions ORDER BY id`,
       );
+      // Bốn permission read: ba permission của ADR-0010 (`0003`) và `audit.read` của
+      // ADR-0024 Quyết định 5, thêm bởi `0007`. Guard này cố ý chốt **toàn bộ** catalog
+      // để một seed lọt vào mà không qua review làm đỏ suite.
       expect(rows).toEqual([
+        { id: 'audit.read', status: 'active' },
         { id: 'permission.read', status: 'active' },
         { id: 'role.read', status: 'active' },
         { id: 'staff.read', status: 'active' },

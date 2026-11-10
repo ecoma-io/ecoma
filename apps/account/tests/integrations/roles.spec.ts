@@ -195,7 +195,7 @@ describe('roles and grants on db-account', () => {
       // viễn, và DELETE giải phóng PK `sub` — mở lại đường tái phát hành
       // identifier (FR-001, FR-012d). Giữ đúng danh sách mong đợi, không suy ra
       // từ "bảng nào cũng DML đầy đủ".
-      const USERS_PRIVILEGES = ['INSERT', 'SELECT', 'UPDATE'];
+      const USERS_PRIVILEGES = ['SELECT', 'UPDATE'];
       const dml = ['DELETE', 'INSERT', 'SELECT', 'UPDATE'];
       const expected = Object.fromEntries(
         [...DML_TABLES, ...INSERT_ONLY_TABLES, ...NONCE_TABLES, ...PRIVACY_REQUEST_TABLES].map(
@@ -223,6 +223,9 @@ describe('roles and grants on db-account', () => {
       // so khớp ở trên đã bắt điều đó, nhưng một assertion đặt tên giữ tài sản
       // này sống lâu hơn mọi lần refactor danh sách privileges.
       expect(actual['users']).not.toContain('DELETE');
+      // Migration `0011` thu hồi INSERT trên `users`: runtime không được tạo user,
+      // chỉ migrator/owner mới được. Giữ tên của thuộc tính này cho lâu dài.
+      expect(actual['users']).not.toContain('INSERT');
       // Cùng lập luận cho `privacy_requests`: thiếu DELETE là thuộc tính nhóm (3)
       // — bằng chứng request phải sống qua tombstone (FR-013).
       expect(actual['privacy_requests']).not.toContain('DELETE');

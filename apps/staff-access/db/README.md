@@ -9,6 +9,7 @@ migration là file SQL thuần.
 | `migrations/*.sql` | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
 | `migrate.mts`      | Hằng số và helper dùng chung cho runner và test harness              |
 | `apply.mts`        | CLI runner, chạy trong CI                                            |
+| `bootstrap.mts`    | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                 |
 
 ## `db-staff-access` là greenfield provisioning
 
@@ -135,21 +136,22 @@ database kia.
 
 **Không có index "cho chắc".** Mỗi index trả lời cho một truy vấn hoặc một ràng buộc cụ thể:
 
-| Index                                                    | Trả lời cho                                                 |
-| -------------------------------------------------------- | ----------------------------------------------------------- |
-| `staff_pkey (id)`                                        | Tra cứu theo định danh staff do directory sở hữu            |
-| `staff_sub_key (sub)`                                    | UNIQUE `sub` — mapping 1:1 với Account ID opaque            |
-| `staff_sub_idx (sub)`                                    | Tra cứu theo `sub` (đường token → staff, ADR-0012 §4)       |
-| `permissions_pkey (id)`                                  | Tra cứu theo định danh `<domain>.<action>`                  |
-| `permissions_domain_action_key (domain, action)`         | UNIQUE nửa catalog                                          |
-| `roles_pkey (id)`                                        | Tra cứu theo định danh role                                 |
-| `role_permissions_pkey (role_id, permission_id)`         | Tập permission của role — một role không trùng permission   |
-| `role_permissions_role_id_idx (role_id)`                 | Liệt kê permission của một role                             |
-| `role_assignments_pkey (id)`                             | Tra cứu assignment                                          |
-| `role_assignments_staff_idx (staff_id)`                  | Assignment của một staff (đường read của audit và list API) |
-| `authorization_audit_pkey (id)`                          | Idempotency của audit append-only                           |
-| `authorization_audit_actor_idx (actor_sub, occurred_at)` | Truy vấn audit theo actor, bỏ hàng NULL actor               |
-| `entitlements_pkey (staff_id, product)`                  | Tra cứu entitlement theo cặp (staff, product)               |
+| Index                                                                             | Trả lời cho                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `staff_pkey (id)`                                                                 | Tra cứu theo định danh staff do directory sở hữu                                                                                                                                                                                                                                 |
+| `staff_sub_key (sub)`                                                             | UNIQUE `sub` — mapping 1:1 với Account ID opaque                                                                                                                                                                                                                                 |
+| `staff_sub_idx (sub)`                                                             | Tra cứu theo `sub` (đường token → staff, ADR-0012 §4)                                                                                                                                                                                                                            |
+| `permissions_pkey (id)`                                                           | Tra cứu theo định danh `<domain>.<action>`                                                                                                                                                                                                                                       |
+| `permissions_domain_action_key (domain, action)`                                  | UNIQUE nửa catalog                                                                                                                                                                                                                                                               |
+| `roles_pkey (id)`                                                                 | Tra cứu theo định danh role                                                                                                                                                                                                                                                      |
+| `role_permissions_pkey (role_id, permission_id)`                                  | Tập permission của role — một role không trùng permission                                                                                                                                                                                                                        |
+| `role_permissions_role_id_idx (role_id)`                                          | Liệt kê permission của một role                                                                                                                                                                                                                                                  |
+| `role_assignments_pkey (id)`                                                      | Tra cứu assignment                                                                                                                                                                                                                                                               |
+| `role_assignments_staff_idx (staff_id)`                                           | Assignment của một staff (đường read của audit và list API)                                                                                                                                                                                                                      |
+| `role_assignments_active_unique_idx (staff_id, role_id) WHERE revoked_at IS NULL` | UNIQUE assignment còn sống — chống nhân bản khi chạy lại S2; `0008` xác thực toàn bộ thuộc tính của nó từ catalog (bảng, btree, unique/valid/ready, đúng hai cột, không expression, predicate chuẩn hoá) và **không bao giờ** DROP/thay thế index trùng tên nhưng sai thuộc tính |
+| `authorization_audit_pkey (id)`                                                   | Idempotency của audit append-only                                                                                                                                                                                                                                                |
+| `authorization_audit_actor_idx (actor_sub, occurred_at)`                          | Truy vấn audit theo actor, bỏ hàng NULL actor                                                                                                                                                                                                                                    |
+| `entitlements_pkey (staff_id, product)`                                           | Tra cứu entitlement theo cặp (staff, product)                                                                                                                                                                                                                                    |
 
 ## Test integration
 
@@ -159,18 +161,62 @@ Chạy trên **PostgreSQL thật** qua testcontainers (`postgres:17-alpine`), kh
 pnpm nx run @ecoma-io/staff-access:test-integration
 ```
 
-Suite integration thuộc **Milestone B** (vẫn chưa có) — khi đã có:
+Suite integration chạy bằng `vitest.integration.config.mts`; danh sách file hiện có:
 
-| File (trong `tests/integrations/`) | Phủ cách                                                   |
-| ---------------------------------- | ---------------------------------------------------------- |
-| `migrations.spec.ts`               | Áp từ rỗng, chạy lại là no-op, runtime không DDL           |
-| `roles.spec.ts`                    | Chặn chéo `REVOKE CONNECT`, grant sweep, READ-only catalog |
+| File (trong `tests/`)                            | Phủ cách                                                                                                                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `databases/migrations.spec.ts`                   | Áp từ rỗng, chạy lại là no-op, advisory lock, guard `current_database`                                                                                                                     |
+| `integrations/roles.spec.ts`                     | Chặn chéo `REVOKE CONNECT`, grant sweep, catalog chỉ đọc                                                                                                                                   |
+| `integrations/readiness.spec.ts`                 | Readiness 200/503 theo schema và grant                                                                                                                                                     |
+| `integrations/bootstrap-superadmin.spec.ts`      | S1/S2/S3, guard đo được, role readiness (`role_not_active`, `role_permissions_mismatch`), audit `denied`, race, CLI wire shape                                                             |
+| `integrations/migration-0008-validation.spec.ts` | Index `role_assignments_active_unique_idx`: fresh apply, idempotent, và các case index trùng tên bị sai lệch (sai cột, không unique, thiếu/sai predicate, thừa INCLUDE) bị `apply` từ chối |
 
-Nếu **không có Docker**, toàn bộ suite **skip** chứ không fail — `probeDocker()` thử
-khởi động một container thật trước, thất bại thì `describe.skipIf`. CI nào bắt buộc
-kiểm chứng thì đừng để runner thiếu Docker.
+Nếu **không có Docker**, `tests/integrations/docker-probe.global-setup.ts` ném và toàn bộ
+lần chạy **đỏ** — không có nhánh skip với exit 0 (06-testing.md §6). Một suite bắt buộc
+chưa chạy được thì phải thấy được, không phải xanh giả.
 
-⚠️ **Đây là fail-open có chủ đích, nên đừng đọc "xanh" là "đã kiểm chứng".**
+## Bootstrap S1/S2/S3
+
+`bootstrap.mts` là bề mặt offline của ADR-0021/0022/0023/0024, chạy bằng credential
+migrator, **không** nằm trong Worker bundle (`pg_advisory_xact_lock` không chạy qua
+Hyperdrive — HD6):
+
+```sh
+echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-provision
+echo '{"correlation_id":"…","operator_ref":"…","sub":"sub_…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-assign
+echo '{"correlation_id":"…","sub":"sub_…"}' \
+  | DATABASE_URL='postgresql://…' npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts staff-verify
+```
+
+- Mỗi bước một transaction; S1 và S2 **tự** lấy advisory lock và **tự** đo lại
+  `admins_before`/`admins_ever` — không chia sẻ phép đo. Trước phép đo, guard phân giải
+  role canonical kèm trạng thái và assert nó **sẵn sàng**: `role_identity_missing`,
+  `role_identity_ambiguous`, `role_not_active`, rồi `assertCanonicalRoleReady` — đúng tập
+  bốn permission read và tất cả `active` (`role_permissions_mismatch`). Đo administrator
+  trên một role retired hay một catalog sai là cho phép đo nói dối.
+- Từ chối: exit 1 và một dòng JSON `{"stage":…,"status":"denied","reason":…}` trên
+  stderr; audit `denied` được commit trong transaction riêng sau khi transaction guard
+  đã rollback, mang số đo nếu phép đo đã chạy.
+- `operator_ref` bắt buộc với S1/S2 (`operator_ref_missing` khi thiếu) — audit phải có
+  tham chiếu người thực thi, và procedure không được tạo assignment không attribution.
+  Charset bị chặt: `/^[A-Za-z0-9][A-Za-z0-9_-]*$/u`, lệch là `operator_ref_invalid`.
+- `staff-verify` chỉ đọc và **bắt buộc `sub`** (`sub_missing` / `invalid_sub`): staff
+  được kiểm là staff của đúng Account, không phải "hàng staff duy nhất trong database".
+  `correlation_id` tuỳ chọn ở tầng hàm; khi có, nó kiểm thêm audit row của S1/S2 cho
+  đúng lần chạy đó — **đúng một** row `success` mỗi bước và `target` phải khớp staff /
+  assignment vừa kiểm.
+- S2 so assignment còn hiệu lực bằng **cùng predicate** với `admins_before` và S3 kiểm 3,
+  nên một hàng `revoked_at IS NULL` nhưng đã hết cửa sổ hiệu lực không bao giờ được báo
+  là `converged`. Với thứ tự guard hiện tại nhánh `assignment_window_expired` không tới
+  được (hàng đó đã làm `admins_ever > 0`), nên nó là phòng thủ cho đường sau này, không
+  phải kết quả đang chạy.
+- Mã từ chối input/hạ tầng (`invalid_sub`, `sub_missing`, `correlation_id_missing`,
+  `operator_ref_missing`, `operator_ref_invalid`, `database_unreachable`, `internal_error`)
+  và mọi mã của S3 (gồm `role_not_active`, `role_permissions_mismatch`) chỉ
+  ra stderr, **không** có row trong `authorization_audit`: chúng bị từ chối trước khi có
+  transaction, hoặc ở một bước chỉ đọc. Đừng dùng audit để kết luận "chưa từng có lần chạy".
 
 ## Cấu trúc thư mục
 
@@ -179,8 +225,14 @@ apps/staff-access/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
 ├── apply.mts             # CLI runner cho CI
+├── bootstrap.mts         # CLI bootstrap S1/S2/S3
 └── migrations/
     ├── 0001_staff_access_domain.sql   # schema + tables + triggers
     ├── 0002_roles_and_grants.sql      # ba role + grant + chặn chéo
-    └── 0003_permission_catalog_seed.sql  # 3 permission read (staff.read, role.read, permission.read)
+    ├── 0003_permission_catalog_seed.sql  # 3 permission read (staff.read, role.read, permission.read)
+    ├── 0004_staff_access_entitlement_outbox.sql
+    ├── 0005_internal_nonces.sql
+    ├── 0006_outbox_settle.sql
+    ├── 0007_permission_catalog_audit_read.sql  # audit.read (permission thứ tư)
+    └── 0008_role_identity_and_assignment_uniqueness.sql  # UNIQUE (kind,name), partial unique assignment (xác thực từ catalog), seed role canonical
 ```

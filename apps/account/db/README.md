@@ -9,6 +9,7 @@ migration là file SQL thuần.
 | `migrations/*.sql`       | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
 | `migrate.ts`             | Hằng số và helper dùng chung cho runner và test harness              |
 | `apply.ts`               | CLI runner, chạy trong CI                                            |
+| `bootstrap.mts`          | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`     |
 | `../tests/integrations/` | Test integration trên PostgreSQL thật (testcontainers)               |
 
 ## Vì sao đây là greenfield provisioning
@@ -25,11 +26,11 @@ unit sinh ra để tránh.
 
 ## Ba tầng role
 
-| Tầng        | Role                     | Quyền                                                         |
-| ----------- | ------------------------ | ------------------------------------------------------------- |
-| Owner/admin | `ecoma_owner`            | Sở hữu database và object, **không** chạy trong Worker        |
-| Migrator    | `ecoma_account_migrator` | DDL trên schema `account`; **chỉ** chạy ở CI runner           |
-| Runtime     | `ecoma_account_runtime`  | Chỉ DML, **không** DDL; `users` không có `DELETE` (tombstone) |
+| Tầng        | Role                     | Quyền                                                                                                                        |
+| ----------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Owner/admin | `ecoma_owner`            | Sở hữu database và object, **không** chạy trong Worker                                                                       |
+| Migrator    | `ecoma_account_migrator` | DDL trên schema `account`; **chỉ** chạy ở CI runner                                                                          |
+| Runtime     | `ecoma_account_runtime`  | Chỉ DML, **không** DDL; `users` không có `INSERT` (`0011` — tạo user là của migrator/owner) và không có `DELETE` (tombstone) |
 
 `db-auth` có bộ ba role riêng theo cùng hình hình. `ecoma_account_runtime` **không**
 được `CONNECT` tới `db-auth` — xem "Chặn chéo" bên dưới.
@@ -172,6 +173,40 @@ UNIQUE trùng lặp sẽ là index thừa không trả lời cho gì. Test `ever
 has exactly the indexes its constraints justify` liệt kê đúng danh sách này; thêm index
 phải sửa cả danh sách trong test.
 
+## Bootstrap first-administrator — A1 và A2
+
+`bootstrap.mts` là bề mặt **offline** tạo-or-đọc-lại Account đầu tiên
+([`03-operations.md` §3.4](../../../docs/applications/account/03-operations.md),
+[ADR-0024](../../../docs/domains/staff-access/adr/0024-trusted-bootstrap-verified-address.md)).
+Không route, không cron, không code path nào trong Worker — bước tuần tự hoá của nó là
+`pg_advisory_xact_lock`, mà Hyperdrive không hỗ trợ (HD6).
+
+```sh
+echo '{"correlation_id":"…","operator_ref":"…"}' \
+  | DATABASE_URL='postgresql://…/db-account' \
+    npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts provision
+DATABASE_URL='postgresql://…/db-account' \
+  npx tsx --tsconfig tsconfig.db.json db/bootstrap.mts verify
+```
+
+| Bước           | Hành vi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1 `provision` | Một transaction dưới advisory xact lock toàn cục, rồi `LOCK TABLE account.users IN SHARE ROW EXCLUSIVE MODE` — khoá bảng đóng cửa sổ READ COMMITTED giữa kiểm "trống" và chèn (mọi INSERT giữ ROW EXCLUSIVE, và SHARE ROW EXCLUSIVE bằng hợp với nó). Không có hàng canonical + `users` rỗng → tạo `users` (`active`), `email_addresses` (`verified`, `is_sign_in`, `verified_at`), audit. Có hàng `verified` chứng minh được nguồn gốc bootstrap → hội tụ, chỉ ghi audit `converged`. Mọi trạng thái khác → từ chối. |
+| A2 `verify`    | Chỉ đọc. Trả `sub` khi state đúng là trạng thái hội tụ; database trống → `no_bootstrap_account`; mọi trạng thái khác → từ chối.                                                                                                                                                                                                                                                                                                                                                                                       |
+
+Bằng chứng nguồn gốc được **enforce ở tầng database** (`0011_bootstrap_write_guards.sql`):
+`ecoma_account_runtime` mất `INSERT` trên `account.users`, và một trigger trên
+`account.security_events` từ chối `bootstrap_account_provisioned` khi principal thực thi
+(`current_user`) là runtime — audit thường của serving path vẫn ghi bình thường. Chỉ
+credential migrator/owner (đường CLI này) được ghi user đầu tiên và provenance bootstrap.
+
+Địa chỉ canonical (`superadmin@ecoma.io`) là **hằng trong code**; `ECOMA_BOOTSTRAP_EMAIL`
+chỉ được assert lại giá trị đó và procedure từ chối khi lệch. `DATABASE_URL` và input
+A1 đi qua env/stdin, không bao giờ qua argv. Output là **một** dòng JSON trên stdout khi
+thành công; khi từ chối là một object `{"stage":…,"status":"denied","reason":"<code>"}`
+trên stderr với exit 1. Bootstrap **không** phát session — Superadmin vẫn đăng nhập bằng
+luồng email-OTP hiện có.
+
 ## Test integration
 
 Chạy trên **PostgreSQL thật** qua testcontainers (`postgres:17-alpine`), không mock:
@@ -189,24 +224,15 @@ pnpm nx run @ecoma-io/account:test-integration
 | `tombstone.spec.ts`                   | AC-005, FR-012, FR-012e, NFR-001, invariant 6                            |
 | `internal-nonces.spec.ts`             | Replay guard: nonce một lần, TTL lớn hơn skew, không `UPDATE`            |
 
-Nếu **không có Docker**, toàn bộ suite **skip** chứ không fail — `probeDocker()` thử
-khởi động một container thật trước, thất bại thì `describe.skipIf`. CI nào bắt buộc
-kiểm chứng thì đừng để runner thiếu Docker.
+Nếu **không có Docker**, `tests/integrations/docker-probe.global-setup.ts` ném và toàn
+bộ lần chạy **đỏ** — không có nhánh skip với exit 0 (06-testing.md §6). Một suite bắt
+buộc chưa chạy được thì phải thấy được, không phải xanh giả.
 
-⚠️ **Đây là fail-open có chủ đích, nên đừng đọc "xanh" là "đã kiểm chứng".** Một
-runner **có** Docker nhưng không đủ tài nguyên cũng rơi vào cùng nhánh skip: sáu file
-spec chạy song song, mỗi file tự `probeDocker()` **và** `startAccountDatabase()` nên
-tạo tới **mười hai** container. Khi `beforeAll` chạm timeout `180_000`, Vitest bỏ
-suite và lệnh vẫn exit 0.
-
-Đo được trên máy dev: một lần chạy cho 31/53 test skip trong khi lần liền trước và
-sau đều 53/53. Tái hiện lại 2026-10-14 ở kênh `test` (spec chạy song song với unit
-test): `86 passed | 9 skipped`, rồi hai lần chạy liền kế `86 passed`. Nên **luôn đọc
-dòng `Tests`** của Vitest, không chỉ exit code — `pnpm nx run
-@ecoma-io/account:test-integration` phải báo `53 passed` chứ không phải `44 passed |
-9 skipped`. Nếu thấy skip mà Docker có mặt, chạy lại sau khi `docker rm -f $(docker
-ps -aq --filter ancestor=postgres:17-alpine)`; container tồn đọng từ lần chạy bị bỏ dở
-chính là nguyên nhân.
+⚠️ **Luôn đọc dòng `Tests`** của Vitest, không chỉ exit code: một runner có Docker nhưng
+không đủ tài nguyên vẫn có thể để `beforeAll` chạm timeout `180_000` (các file spec chạy
+song song, mỗi file tự `startAccountDatabase()`). Nếu thấy đỏ vì timeout, chạy lại sau
+khi `docker rm -f $(docker ps -aq --filter ancestor=postgres:17-alpine)`; container tồn
+đọng từ lần chạy bị bỏ dở chính là nguyên nhân.
 
 Test `../tests/integrations/handoff.spec.ts` dùng **hai connection thật** với `pg_sleep` làm barrier cho case
 first-binding-wins dưới tải đồng thời (AC-008b2): nếu chỉ chạy tuần tự thì race
@@ -221,6 +247,7 @@ apps/account/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
 ├── apply.mts             # CLI runner cho CI
+├── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
 └── migrations/
     ├── 0001_identity_core.sql      # users, sessions, handoffs, audit, outbox
     ├── 0002_roles_and_grants.sql   # hai role + grant + chặn chéo
@@ -228,5 +255,9 @@ apps/account/db/
     ├── 0004_rename_authn_level_to_acr.sql
     ├── 0005_email_addresses.sql
     ├── 0006_otp_challenges.sql
-    └── 0007_nonce_pruner_role.sql  # role pruner của cron Worker auth-nonce-prune-job
+    ├── 0007_nonce_pruner_role.sql  # role pruner của cron Worker auth-nonce-prune-job
+    ├── 0008_data_domain_v1.sql     # bảng data domain v1
+    ├── 0009_verify_email_purpose.sql  # purpose verify_email của luồng email thường
+    ├── 0010_privacy_requests.sql   # privacy requests + tombstone
+    └── 0011_bootstrap_write_guards.sql  # rút INSERT users khỏi runtime + trigger chặn provenance bootstrap từ runtime
 ```
