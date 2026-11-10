@@ -120,9 +120,12 @@ Remediation → Experiment → Modelling → Delivery → Discovery.
   whatever the heading level or the form's `(kênh tạm thời)` suffix — not by
   literal string. Where another place records a divergent value, fix it to
   match this line. It is never a parallel custom field, label or form value.
-- **Missing type (work items):** when a work item needs an Issue Type that is
-  not configured, report a blocker naming the gap. Do not invent a
-  substitute classification (`work-management.md` §2.3).
+- **Missing type (work items):** report a blocker only when a work item
+  needs a classification or native GitHub capability that has no documented
+  channel — a value outside the five Issue Types, or a capability with no
+  interim path (`work-management.md` §2.3). While that interim channel
+  exists (org not configured yet), use it instead of blocking; do not
+  invent a substitute classification.
 - Do not infer the Issue Type from the issue category — a `bug` is usually
   Remediation, but a defect in behaviour that never existed is Delivery; a
   `documentation` issue is Modelling when the deliverable is the
@@ -266,9 +269,10 @@ If the native type is not configurable yet, carry the value in the
 
 Stop and report instead of guessing when:
 
-- A work item needs an Issue Type that is not configured. Report the blocker
-  naming the gap; do not substitute a classification
-  (`work-management.md` §2.3).
+- A work item needs a classification or native GitHub capability that has
+  no documented channel — a value outside the five Issue Types, or a
+  capability with no interim path. Report the blocker naming the gap; do
+  not substitute a classification (`work-management.md` §2.3).
 - A decision the Issue needs — scope, ownership, acceptance — is missing and
   no canonical document or accepted record supplies it.
 - GitHub state needed to write the Issue cannot be read: token lacks

@@ -87,7 +87,7 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 >
 > **Đóng băng:** single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3; còn dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
 >
-> **Missing-type rule (cho work item):** khi một work item cần Issue Type chưa được cấu hình, báo blocker nêu rõ khoảng trống; không tự chế classification thay thế.
+> **Missing-type rule (cho work item):** blocker chỉ áp dụng khi work item cần một classification hoặc native GitHub capability không có kênh ghi nào được quy định — giá trị ngoài năm giá trị canonical, hoặc capability không có interim path; trong khi kênh tạm thời còn tồn tại (chưa tới bước 2), dùng kênh đó thay vì block; không tự chế classification thay thế.
 
 ### 2.4 Nội dung tối thiểu
 
