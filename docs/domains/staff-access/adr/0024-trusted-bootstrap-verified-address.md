@@ -69,6 +69,7 @@ Bootstrap dựa trên một giả định mà database **không** kiểm chứng
 
 - Phía `account`: một `security_events` row với `type = 'bootstrap_account_provisioned'`, `outcome = 'success'`, `subject_sub` = `sub` vừa tạo, ghi trong **cùng** transaction với `users` + `email_addresses`. Metadata chứa `address_hash` (không bao giờ địa chỉ trần), `correlation_id`, `mode = 'bootstrap'`, `verification_source = 'trusted_bootstrap'`, `operator_ref`.
 - Writer của đường này nhận **transaction client** và **ném** khi insert hỏng; không tái dùng helper best-effort của serving path (`appendSecurityEvent` không nhận transaction và không bao giờ ném).
+- **Bằng chứng nguồn gốc được enforce ở tầng database, không chỉ bằng quy trình.** Runtime role không được có quyền tự ghi thứ chứng minh nguồn gốc: `ecoma_account_runtime` mất `INSERT` trên `account.users` (bootstrap là đường ghi `users` duy nhất), và `type = 'bootstrap_account_provisioned'` bị trigger trên `account.security_events` từ chối khi principal thực thi là runtime — audit thường của serving path vẫn ghi được bình thường. Migrator/owner giữ quyền ghi bằng chứng: đó chính là các **trusted principal** của procedure (Quyết định 1, 3), phân biệt quyền với runtime là một phần của quyết định này.
 - Phía `staff-access`: giữ nguyên ADR-0021 Quyết định 6 — một row cho mỗi bước ghi, cùng transaction với bước đó, cùng `correlation_id`; row `denied` của guard commit ngoài transaction bị abort (ADR-0022 Quyết định 3, ADR-0023 Quyết định 6).
 
 ## Quan hệ supersede
@@ -81,7 +82,7 @@ Bootstrap dựa trên một giả định mà database **không** kiểm chứng
 
 ## Hệ quả
 
-- Không cần migration mới ở `db-account`: `security_events.type` là text tự do, và trạng thái email đã có trong `0005`.
+- `db-account` cần **một** migration forward mới cho enforce trên: rút `INSERT` trên `users` khỏi runtime và thêm trigger chặn `bootstrap_account_provisioned` từ runtime trên `security_events` (Quyết định 6). `security_events.type` vẫn là text tự do cho audit thường, và trạng thái email vẫn nằm trong `0005`.
 - `db-staff-access` cần migration mới: `audit.read` vào catalog, UNIQUE `(kind, name)` trên `roles`, partial unique `(staff_id, role_id) WHERE revoked_at IS NULL` trên `role_assignments`, và seed role canonical cùng `role_permissions`.
 - Một lần chạy lại sau khi S2 đã commit **không** phải no-op: guard từ chối (`mode_mismatch`), ghi một audit `denied`, exit khác 0. Đó là hành vi đúng — bootstrap đã hoàn tất, đường còn lại là đăng nhập OTP.
 - Bootstrap không còn phụ thuộc template mail `verify_email`. Phụ thuộc duy nhất còn lại cho lần đăng nhập đầu là luồng OTP `login` và cấu hình gửi mail của nó — đã tồn tại trong code.
