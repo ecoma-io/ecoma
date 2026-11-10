@@ -13,7 +13,6 @@ body:
         cấu hình năm Issue Type; sau đó chọn Issue Type khi tạo issue (UI hoặc `gh issue create --type`).
         Form không gán được Issue Type, nên Issue tạo qua form vẫn dùng kênh tạm thời cho tới khi work item
         dọn dẹp gỡ bỏ (`docs/engineering/work-management.md` §2.3).
-        Quy tắc Issue: `docs/engineering/work-management.md` §2.3.
 
   - type: dropdown
     id: work-kind
