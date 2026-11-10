@@ -20,6 +20,7 @@
 - Membership **không** mang role: quyền của member đến từ grant trực tiếp.
 - Provision tường minh, không tự động khi signup/login. Provision lại một actor đã có membership active bị từ chối; re-provision sau revoke tạo membership **mới với `id` mới**, không restore bản ghi cũ.
 - Grant trỏ tới `membershipId`, không trỏ `sub`: nhờ đó quyền của một lần membership đã revoke không sống lại khi actor được provision lại.
+- Bất biến "đúng một owner là thuộc tính tenant", danh tính membership theo lần cấp quyền, tenant-scoping của collection và tham chiếu opaque là primitive của thin shared kernel, dùng chung với `llm-seller-tenant` → [ADR-0025](./adr/0025-thin-shared-tenant-kernel.md). Role, grant, workspace, suspension, authorization và tenant lifecycle **không** thuộc kernel.
 
 ### Workspace
 
@@ -174,4 +175,4 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, authorization, suspension, workspace isolation, auth boundary, data ownership, contract, quyết định chưa chốt, failure/correction |
 | [`README.md`](./README.md)             | Tóm tắt trách nhiệm, không sở hữu, ranh giới, quy tắc cốt lõi                                                                                     |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0019) của bounded context                                                                                                              |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0019, 0025) của bounded context                                                                                                        |
