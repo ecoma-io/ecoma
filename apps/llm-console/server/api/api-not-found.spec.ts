@@ -16,9 +16,11 @@ import { apiNotFound } from '../utils/api-not-found';
  * Dựng lại bảng route của Nitro trong unit test chỉ tạo một bản sao có thể lệch
  * khỏi router thật rồi xanh vì lý do sai.
  *
- * ⚠️ Vì sao không `createError`: lỗi của h3 đi qua error renderer của Nuxt và
- * trả trang HTML. Khẳng định `not.toContain('<!DOCTYPE')` làm một refactor sang
- * `createError` đỏ ngay tại đây.
+ * ⚠️ Phạm vi của assertion cuối: h3 trần trả JSON cho `createError`, nên khẳng
+ * định đó **không** bắt được một refactor sang `createError`. Chỉ middleware lỗi
+ * của Nitro/Nuxt mới đổi hình dạng theo `Accept` header (bỏ qua error renderer
+ * khi request trông giống JSON), và điều đó chỉ lộ ra trên runtime thật — suite
+ * workerd phía trên mới là chỗ ghim nó.
  */
 const webHandler = toWebHandler(createApp().use(apiNotFound));
 

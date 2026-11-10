@@ -62,8 +62,11 @@ interface RouteResponse {
  * "runtime không phục vụ được". Hostname `.invalid` là cố ý: request đi thẳng
  * vào Worker, không phụ thuộc DNS hay hostname của môi trường.
  */
-async function fetchRoute(path: string): Promise<RouteResponse> {
-  const response = await harness.fetch(`http://worker.invalid${path}`);
+async function fetchRoute(
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<RouteResponse> {
+  const response = await harness.fetch(`http://worker.invalid${path}`, { headers });
 
   return {
     status: response.status,
@@ -115,6 +118,31 @@ describe('llm-seller worker runtime', () => {
     'answers %s with a JSON 404, never the SPA shell',
     async (path) => {
       const response = await fetchRoute(path);
+
+      expect(response.status).toBe(404);
+      expect(response.contentType).toContain('application/json');
+      expect(response.body).not.toContain('<!DOCTYPE html>');
+      expect(JSON.parse(response.body)).toEqual({
+        statusCode: 404,
+        statusMessage: 'Not Found',
+      });
+    },
+  );
+
+  // ⚠️ Header của một lần điều hướng bằng trình duyệt, không phải của `fetch`.
+  // Middleware lỗi của Nitro chỉ bỏ qua error renderer khi `Accept` **không**
+  // chứa `text/html`, nên nếu handler dùng `createError` thì request này nhận
+  // **trang HTML 404** thay vì JSON — đo được trên workerd trước khi đổi sang
+  // object thuần. Đây là lý do phải gửi header thật: request mặc định của
+  // harness không có `Accept`, nên một mình nó không phân biệt được hai cách cài.
+  it.each(['/api/browser-navigation', '/api'])(
+    'answers %s with JSON even for a browser navigation',
+    async (path) => {
+      const response = await fetchRoute(path, {
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'sec-fetch-mode': 'navigate',
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+      });
 
       expect(response.status).toBe(404);
       expect(response.contentType).toContain('application/json');
