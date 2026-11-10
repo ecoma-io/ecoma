@@ -18,7 +18,7 @@
 
 ## Mô tả
 
-<!-- Thay đổi này làm gì và tại sao cần. Loại công việc (Evolution Process §4.1) nếu hữu ích. -->
+<!-- Thay đổi này làm gì và tại sao cần. Issue Type (Evolution Process §4.1) nếu hữu ích; PR không có Issue thì ghi Issue Type ở body — trong transition, cùng giá trị với kênh tạm thời của Issue (work-management.md §2.3). -->
 
 ## Thay đổi chính
 

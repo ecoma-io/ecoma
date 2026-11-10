@@ -8,11 +8,11 @@ Nó **không** thay thế các tài liệu canonical. Khi bạn cần chi tiết
 
 Repository dùng một quy trình thống nhất cho người và agent: **Engineering Evolution Process**. Quy trình đó có ba tài liệu canonical:
 
-| Tài liệu                                                                                 | Trả lời                                                            |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)         | Vòng đời kỹ thuật, năm loại công việc, ý nghĩa trạng thái năng lực |
-| [`docs/engineering/work-management.md`](docs/engineering/work-management.md)             | Issue, Project, Milestone và Pull Request được dùng thế nào        |
-| [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md) | Từng bước thực hiện và handoff giữa các vai trò                    |
+| Tài liệu                                                                                 | Trả lời                                                        |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)         | Vòng đời kỹ thuật, năm Issue Type, ý nghĩa trạng thái năng lực |
+| [`docs/engineering/work-management.md`](docs/engineering/work-management.md)             | Issue, Project, Milestone và Pull Request được dùng thế nào    |
+| [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md) | Từng bước thực hiện và handoff giữa các vai trò                |
 
 Ràng buộc kỹ thuật của repository — security, Nx, Cloudflare, database ownership, commit signing, merge queue — nằm trong [`AGENTS.md`](AGENTS.md). Đó là nội dung có thẩm quyền cao hơn tài liệu này.
 
@@ -83,7 +83,7 @@ Một **independently trackable work item** là thứ có outcome quan sát đư
 
 Có những Issue **không** phải work item: coordination ledger, precondition tracker, experiment record, decision Issue. Đừng nhận chúng làm việc của mình, và đừng biến chúng thành Issue mới. Bảng phân biệt → [`work-management.md`](docs/engineering/work-management.md) §2.2.
 
-**Tạo Issue** qua form trong giao diện GitHub (tab Issues → New issue) — chọn một trong `.github/ISSUE_TEMPLATE/`: `bug_report.yml`, `feature_request.yml`, `documentation.yml`, hoặc `engineering_work.yml` cho Discovery / Modelling / Experiment và công việc kỹ thuật không thuộc ba loại kia. Hoặc qua CLI:
+**Tạo Issue** qua form trong giao diện GitHub (tab Issues → New issue) — chọn một trong `.github/ISSUE_TEMPLATE/`: `bug_report.yml`, `feature_request.yml`, `documentation.yml`, hoặc `engineering_work.yml` cho các Issue Type Discovery / Modelling / Experiment và công việc kỹ thuật không mô tả được bằng ba form kia. Hoặc qua CLI:
 
 ```bash
 gh issue create --repo ecoma-io/ecoma --title "fix(dx): ..." --body-file <path>
@@ -92,11 +92,15 @@ gh issue list --repo ecoma-io/ecoma --label documentation --limit 20
 
 Tiêu đề Issue viết tiếng Anh theo Conventional Commits; scope ở Issue là free-form, không bị giới hạn một Nx project như scope của PR title. Body viết tiếng Việt. Không gắn label, Milestone hay assignee mà bạn chưa thấy tồn tại.
 
-### 3.2 Làm sao xác định loại công việc?
+**Issue Type được set khi tạo Issue** — qua UI hoặc `gh issue create --type <name>`. Issue Forms không gán được Issue Type, nên chọn type ở bước tạo issue. Trong giai đoạn chuyển đổi khi org chưa cấu hình năm giá trị, kênh tạm thời là dòng `## Loại công việc` trong Issue body (`work-management.md` §2.3).
 
-Có đúng năm loại: **Discovery**, **Modelling**, **Experiment**, **Delivery**, **Remediation**. Chọn theo thứ tự ưu tiên và dừng ở loại khớp đầu tiên — thứ tự, định nghĩa và điều kiện kết thúc của từng loại nằm ở [`evolution-process.md`](docs/engineering/evolution-process.md) §4.1; chép lại ở đây sẽ chỉ tạo bản sao lệch.
+### 3.2 Làm sao xác định Issue Type?
 
-Loại công việc **khác** nhãn Issue (`bug`, `enhancement`, `documentation`). Nhãn nói đây là loại artifact gì; loại công việc nói bản chất thay đổi là gì. Ghi loại công việc trong Issue body hoặc ở field `Loại công việc` của Issue form.
+Có đúng năm giá trị: **Discovery**, **Modelling**, **Experiment**, **Delivery**, **Remediation**. Giá trị được ghi bằng **Issue Type** — native metadata của GitHub và là nguồn classification duy nhất — chọn theo thứ tự ưu tiên và dừng ở loại khớp đầu tiên. Thứ tự, định nghĩa và điều kiện kết thúc nằm ở [`evolution-process.md`](docs/engineering/evolution-process.md) §4.1; cách ghi và giai đoạn transition ở `work-management.md` §2.3 — chép lại ở đây sẽ chỉ tạo bản sao lệch.
+
+Issue Type **khác** nhãn Issue (`bug`, `enhancement`, `documentation`) và khác loại form: nhãn và form nói đây là loại artifact gì; Issue Type nói bản chất thay đổi là gì. Không suy Issue Type từ nhãn hay từ form.
+
+Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — suy ra từ Milestone ladder; xem `work-management.md` §4.
 
 ### 3.3 Khi nào cần Discovery, Modelling hoặc Experiment trước Delivery?
 
@@ -114,7 +118,7 @@ Phân biệt Discovery và Experiment: Discovery tìm bằng chứng **đã tồ
 
 Issue là nơi duy nhất giữ kế hoạch triển khai. Không có file backlog, roadmap hay bảng trạng thái trong `docs/`.
 
-Một work item phải nêu: outcome, phạm vi, ràng buộc, dependency, điều kiện hoàn thành. Nội dung bổ sung theo từng loại công việc → [`work-management.md`](docs/engineering/work-management.md) §2.4.
+Một work item phải nêu: outcome, phạm vi, ràng buộc, dependency, điều kiện hoàn thành. Nội dung bổ sung theo từng Issue Type → [`work-management.md`](docs/engineering/work-management.md) §2.4.
 
 Issue **đóng** chỉ kết thúc unit công việc. Nó không chứng minh capability đã `Implemented`, `Verified` hay `Released` — trạng thái đó cần bằng chứng riêng ([`evolution-process.md`](docs/engineering/evolution-process.md) §5.1).
 
@@ -230,16 +234,16 @@ Skill và định nghĩa subagent là nguồn canonical ở `.agents/`; `.claude
 
 ## 10. Tài liệu canonical
 
-| Cần biết                                              | Đọc                                                                                                            |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Ràng buộc repository, ngôn ngữ, PR policy             | [`AGENTS.md`](AGENTS.md)                                                                                       |
-| Bản đồ tài liệu, ownership từng loại artifact         | [`docs/README.md`](docs/README.md), [`docs/AGENTS.md`](docs/AGENTS.md)                                         |
-| Vòng đời, work kind, capability state, reconciliation | [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)                               |
-| Issue, Project, Milestone, PR semantics               | [`docs/engineering/work-management.md`](docs/engineering/work-management.md)                                   |
-| Từng bước thực hiện và handoff                        | [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md)                       |
-| Kiến trúc hệ thống                                    | [`docs/architecture/01-architecture.md`](docs/architecture/01-architecture.md)                                 |
-| Delivery, CI/CD, migration, release                   | [`docs/architecture/02-delivery.md`](docs/architecture/02-delivery.md)                                         |
-| Cấu trúc Nx, DDD layer, contract                      | [`docs/architecture/05-code-architecture.md`](docs/architecture/05-code-architecture.md)                       |
-| Test taxonomy và Nx test target                       | [`docs/architecture/06-testing.md`](docs/architecture/06-testing.md)                                           |
-| Domain map và bounded context                         | [`docs/domains/README.md`](docs/domains/README.md)                                                             |
-| Chạy local stack và preview                           | [`docs/architecture/local-development/03-operations.md`](docs/architecture/local-development/03-operations.md) |
+| Cần biết                                               | Đọc                                                                                                            |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Ràng buộc repository, ngôn ngữ, PR policy              | [`AGENTS.md`](AGENTS.md)                                                                                       |
+| Bản đồ tài liệu, ownership từng loại artifact          | [`docs/README.md`](docs/README.md), [`docs/AGENTS.md`](docs/AGENTS.md)                                         |
+| Vòng đời, Issue Type, capability state, reconciliation | [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)                               |
+| Issue, Project, Milestone, PR semantics                | [`docs/engineering/work-management.md`](docs/engineering/work-management.md)                                   |
+| Từng bước thực hiện và handoff                         | [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md)                       |
+| Kiến trúc hệ thống                                     | [`docs/architecture/01-architecture.md`](docs/architecture/01-architecture.md)                                 |
+| Delivery, CI/CD, migration, release                    | [`docs/architecture/02-delivery.md`](docs/architecture/02-delivery.md)                                         |
+| Cấu trúc Nx, DDD layer, contract                       | [`docs/architecture/05-code-architecture.md`](docs/architecture/05-code-architecture.md)                       |
+| Test taxonomy và Nx test target                        | [`docs/architecture/06-testing.md`](docs/architecture/06-testing.md)                                           |
+| Domain map và bounded context                          | [`docs/domains/README.md`](docs/domains/README.md)                                                             |
+| Chạy local stack và preview                            | [`docs/architecture/local-development/03-operations.md`](docs/architecture/local-development/03-operations.md) |

@@ -6,22 +6,27 @@ body:
     attributes:
       value: |
         Viết issue bằng tiếng Việt; giữ nguyên file path và technical term.
-        Quy tắc tài liệu: docs/AGENTS.md. Loại công việc và quy tắc Issue: docs/engineering/work-management.md.
+        Quy tắc tài liệu: docs/AGENTS.md.
+        Chọn Issue Type khi tạo issue (UI hoặc `gh issue create --type`); form này không gán được Issue Type.
+        Quy tắc Issue: docs/engineering/work-management.md §2.3.
 
   - type: dropdown
     id: work-kind
     attributes:
-      label: Loại công việc
+      label: Loại công việc (kênh tạm thời)
       description: |
-        Bản chất thay đổi, khác với nhãn issue. Các lựa chọn xếp theo thứ tự ưu tiên ở
-        `docs/engineering/evolution-process.md` §4.1: Remediation → Experiment → Modelling → Delivery → Discovery.
-        Không chắc thì để trống và ghi lý do trong phần chi tiết.
+        Kênh tạm thời trong giai đoạn chuyển đổi cho đến khi org cấu hình năm Issue Type
+        (docs/engineering/work-management.md §2.3); sẽ bị loại bỏ bởi work item dọn dẹp.
+        Chọn theo thứ tự ưu tiên ở docs/engineering/evolution-process.md §4.1:
+        Remediation → Experiment → Modelling → Delivery → Discovery. Không chắc thì để trống.
       options:
-        - Remediation — đóng một deviation đã được chấp nhận, hoặc gap do slice trước để lại hay do target thay đổi
-        - Experiment — đo một giả thuyết, kết quả sẽ bị bỏ hoặc viết lại
+        - Remediation — đóng deviation hoặc gap đã biết
+        - Experiment — đo một giả thuyết kỹ thuật
         - Modelling — sản phẩm chính là specification hoặc ADR
         - Delivery — tạo behaviour mới có giá trị
-        - Discovery — chỉ tạo ra hiểu biết, không tạo behaviour
+        - Discovery — chỉ tạo ra hiểu biết
+    validations:
+      required: false
 
   - type: input
     id: path
@@ -55,12 +60,9 @@ body:
   - type: textarea
     id: project-tracking
     attributes:
-      label: Theo dõi Project
+      label: Theo dõi Project (root issue)
       description: |
-        Field này chỉ **ghi rationale**; nó không tự gắn label. Điền khi Issue có nhu cầu portfolio visibility
-        hoặc coordination mà Issue/Milestone không biểu đạt đủ, và trả lời cả ba câu: ai hoặc cái gì cần visibility;
-        dependency, decision hoặc coordination nào cần theo dõi ở cấp Project; vì sao Issue hoặc Milestone không đủ.
-        Gắn label `project:track` là thao tác riêng của người tạo Issue, chỉ sau khi tự đánh giá policy và thấy đủ điều kiện.
-        Điều kiện đưa Issue vào Project ở §3.2 và rationale bắt buộc ở §3.3 của `docs/engineering/work-management.md`.
-        Không gắn label chỉ vì Issue có priority cao, thuộc một work kind, thuộc một product hoặc Milestone.
-        Không cần theo dõi thì để trống.
+        Chỉ dành cho root issue: ghi một dòng vì sao root issue này cần portfolio visibility
+        trong giai đoạn chuyển tiếp. Label `project:track` chỉ áp dụng cho root issue, không
+        bao giờ cho sub-issue, và là ràng buộc chuyển tiếp — xem §3 của
+        docs/engineering/work-management.md. Sub-issue hoặc không cần theo dõi thì để trống.
