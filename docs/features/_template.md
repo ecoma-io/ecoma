@@ -1,6 +1,6 @@
 # <Tên Feature>
 
-> **Product area:** `<area>/` · **Mô tả một dòng:** outcome ngắn gọn mà capability tạo ra.
+> **Feature area:** `<area>/` · **Mô tả một dòng:** outcome ngắn gọn mà capability tạo ra.
 >
 > Tài liệu này mô tả **product capability**, không mô tả domain rule, API contract hay kế hoạch hiện thực. Quy tắc viết → [`../README.md`](../README.md).
 

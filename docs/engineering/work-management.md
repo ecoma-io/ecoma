@@ -229,13 +229,29 @@ Quy tắc:
 
 Mỗi product có một pipeline theo **horizon**. Horizon đọc từ trạng thái GitHub của các Milestone — không từ tài liệu, không từ Issue Type, không từ tên Milestone:
 
-| Horizon               | Nghĩa                                                                                                                                                                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M1**                | Delivery hiện tại — Milestone đang mở khai báo `Horizon: M1` của product                                                                                                                                                                          |
-| **M2**                | Delivery kế tiếp — Milestone đang mở khai báo `Horizon: M2` của product; chỉ tạo khi scope committable, không tạo placeholder                                                                                                                     |
-| **Feature Discovery** | Công việc Discovery/Modelling/Experiment còn mở của product, chưa thuộc Milestone nào. Công việc không thuộc product area nào (dùng chung, cắt ngang) không nằm ở horizon riêng — nó theo pipeline đang tiêu thụ, quy tắc shared context dưới đây |
+| Horizon               | Nghĩa                                                                                                                                                                                                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M1**                | Delivery hiện tại — Milestone đang mở khai báo `Horizon: M1` của product                                                                                                                                                                                             |
+| **M2**                | Delivery kế tiếp — Milestone đang mở khai báo `Horizon: M2` của product; chỉ tạo khi scope committable, không tạo placeholder                                                                                                                                        |
+| **Feature Discovery** | Công việc Discovery/Modelling/Experiment còn mở của product, chưa thuộc Milestone nào. Công việc không thuộc Product ID nào của Product Registry (dùng chung, cắt ngang) không nằm ở horizon riêng — nó theo pipeline đang tiêu thụ, quy tắc shared context dưới đây |
 
-**Khai báo commitment.** Một Milestone là **committed** khi đang mở và description mang đúng hai dòng khóa — đối chiếu theo tên khóa, không theo literal string: `Product: <area>`, với `<area>` là product area đang tồn tại ở [`../features/README.md`](../features/README.md); và `Horizon: M1` hoặc `Horizon: M2`. Dòng khai báo là bản ghi commitment trong description, không phải số phase, và không bao giờ vào tên Milestone (§4). Milestone đóng thì hết tư cách committed; dòng khai báo còn lại chỉ là lịch sử.
+**Khai báo commitment.** Một Milestone là **committed** khi đang mở và description mang đúng hai dòng khóa — đối chiếu theo tên khóa, không theo literal string: `Product: <product>`, với `<product>` khớp chính xác một Product ID trong Product Registry dưới đây; và `Horizon: M1` hoặc `Horizon: M2`. Dòng khai báo là bản ghi commitment trong description, không phải số phase, và không bao giờ vào tên Milestone (§4). Milestone đóng thì hết tư cách committed; dòng khai báo còn lại chỉ là lịch sử.
+
+**Product Registry.** Danh sách Product ID hợp lệ cho dòng `Product:` — portfolio vocabulary do tài liệu này sở hữu:
+
+| Product ID        | Product         |
+| ----------------- | --------------- |
+| `llm-marketplace` | LLM Marketplace |
+| `pact-broker`     | Pact Broker     |
+| `remote-cache`    | Remote Cache    |
+
+- **Registry là nguồn duy nhất của Product ID.** Đây là vocabulary portfolio, không phải một knowledge view; không suy Product identity từ tên thư mục Feature, tên bounded context, tên Nx project, tên application, tên deploy unit, số Issue hay tên Milestone.
+- **Hợp lệ không phụ thuộc Features view.** Một Product ID vẫn hợp lệ khi [`../features/README.md`](../features/README.md) chưa có Feature document nào đã hiện thực; không thêm Feature document target-only chỉ để làm Product ID hợp lệ.
+- **Không tự chế product.** Không tạo product `shared`, `platform` hay `ecoma-platform`; shared context không là product (khối dưới).
+- **Application không phải pipeline.** `llm-seller` và `llm-console` là application của `llm-marketplace`, không phải Product ID riêng.
+- **Mở rộng tường minh.** Product ID mới yêu cầu cập nhật registry này trước khi dùng trong khai báo Milestone.
+
+**Product và các khái niệm láng giềng.** **Product** là pipeline identity lấy từ registry trên; **driving Milestone** của một work item là Milestone committed đang mở mà khai báo của nó work item đó rơi dưới — hai khái niệm này định nghĩa tại đây. Bốn khái niệm còn lại có canonical home riêng, chỉ link không định nghĩa lại: **feature area** — nhóm thư mục của view Features ([`../features/README.md`](../features/README.md)); **bounded context** — catalog của [`../domains/README.md`](../domains/README.md); **application** — view [`../applications/README.md`](../applications/README.md); **shared context** — ngữ cảnh cắt ngang nhiều pipeline, không có pipeline riêng.
 
 **Thẩm quyền commitment.** Tạo Milestone, sửa dòng khai báo và đóng Milestone là thay đổi cấu hình GitHub — work item riêng do người có thẩm quyền quyết định và xác nhận, như cấu hình Project ở §3.4. Agent chỉ đọc và báo lệch; không tự tạo, sửa hay đóng.
 
@@ -243,8 +259,8 @@ Quy tắc:
 
 - **Tính duy nhất theo từng product:** tối đa một Milestone `Horizon: M1` và một `Horizon: M2` đang mở cho mỗi product — không tính trên toàn repository.
 - **M2 cần M1:** `Horizon: M2` chỉ hợp lệ khi product đang có Milestone `Horizon: M1` mở. Khi M1 đóng, trong cùng thay đổi cấu hình: nâng Milestone `Horizon: M2` (nếu có) lên `Horizon: M1`, hoặc để khe M1 trống trung thực khi chưa có M2 committable. Milestone `Horizon: M2` mở mà product không còn M1 mở là **lệch**: báo, không tự sửa. Việc nâng M2 lên M1 là thay đổi cấu hình tường minh, không tự động theo việc đóng M1.
-- **Nguồn suy diễn cấm:** không suy horizon từ thứ tự tạo Milestone, due date, tên Milestone, số Issue hay phán đoán. Không đọc được dòng khai báo, hoặc đọc được nhiều giá trị xung đột cho một product (hai M1, hai M2, M2 không có M1, `Product` không phải area đang tồn tại) → **báo ambiguity kèm bằng chứng đã đọc** (`gh api repos/<owner>/<repo>/milestones`), không chọn giá trị.
-- **Trục product** là các product area của [`../features/README.md`](../features/README.md); mỗi product có pipeline riêng. Shared context không tạo pipeline riêng: Milestone của shared context — nếu có — khai báo product đang lái; Change Specification của shared context ghi pipeline đang lái (product và Milestone) trong Dependencies, **không ghi giá trị horizon** ([`../changes/README.md`](../changes/README.md) §2).
+- **Nguồn suy diễn cấm:** không suy horizon từ thứ tự tạo Milestone, due date, tên Milestone, số Issue hay phán đoán. Không đọc được dòng khai báo, hoặc đọc được nhiều giá trị xung đột cho một product (hai M1, hai M2, M2 không có M1, `Product` không khớp chính xác Product Registry) → **báo ambiguity kèm bằng chứng đã đọc** (`gh api repos/<owner>/<repo>/milestones`), không chọn giá trị.
+- **Trục product** là các Product ID của Product Registry; mỗi Product ID có đúng một pipeline. Shared context không tạo pipeline riêng: khi một pipeline thật sự lái công việc, gán work item với Product ID của pipeline đó; khi không pipeline nào thật sự lái một work item cắt ngang, để product attribution trống — không bịa commitment M1/M2 để lấp field. Change Specification phục vụ nhiều pipeline ghi từng pipeline chịu tác động (Product ID + Milestone thực tế đang lái) trong Dependencies, **không ghi giá trị horizon** ([`../changes/README.md`](../changes/README.md) §2).
 - **Horizon là mục tiêu, không phải slot bắt buộc.** Khoảng trống pipeline được thể hiện trung thực, không tạo Milestone giả để lấp.
 
 ## 5. Pull Request

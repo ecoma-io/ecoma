@@ -1,6 +1,6 @@
 # Gửi yêu cầu về quyền riêng tư
 
-> **Product area:** `account/` · **Mô tả một dòng:** người dùng gửi và theo dõi yêu cầu về dữ liệu cá nhân của mình — xuất, chỉnh sửa, xoá, hạn chế xử lý hoặc phản đối.
+> **Feature area:** `account/` · **Mô tả một dòng:** người dùng gửi và theo dõi yêu cầu về dữ liệu cá nhân của mình — xuất, chỉnh sửa, xoá, hạn chế xử lý hoặc phản đối.
 >
 > Đặc tả domain → [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

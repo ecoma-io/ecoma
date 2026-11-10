@@ -1,6 +1,6 @@
 # Quản lý session đang hoạt động
 
-> **Product area:** `account/` · **Mô tả một dòng:** người dùng thấy mình đang đăng nhập ở đâu và thu hồi được các session không phải thiết bị hiện tại.
+> **Feature area:** `account/` · **Mô tả một dòng:** người dùng thấy mình đang đăng nhập ở đâu và thu hồi được các session không phải thiết bị hiện tại.
 >
 > Đặc tả domain → [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

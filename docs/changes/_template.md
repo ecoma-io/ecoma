@@ -45,6 +45,8 @@ Không copy nguyên đặc tả canonical; phần không đổi trỏ tới tài
 
 Change Specification khác mà spec này phụ thuộc, và shared context/library theo từng pipeline đang tiêu thụ sẽ chịu tác động thế nào. Mỗi pipeline ghi product và Milestone đang lái — không ghi giá trị horizon ([`../engineering/work-management.md`](../engineering/work-management.md) §4.1).
 
+Mỗi entry Dependencies ghi tên spec được trỏ tới (prerequisite) và spec này đang chờ phần nào của nó — direction là từ spec này tới prerequisite; thứ tự index, tên file và ngày tạo không mang ý nghĩa hướng; đồ thị dependency phải giữ acyclic. Quy tắc dependency đầy đủ → [`./README.md`](./README.md) §4.
+
 ## 7. Assumptions
 
 Giả định mà spec đang đứng trên. Mỗi giả định nêu điều kiện khiến nó sai và hệ quả khi điều đó xảy ra.

@@ -1,6 +1,6 @@
 # Duyệt homepage public đa ngôn ngữ
 
-> **Product area:** `public-website/` · **Mô tả một dòng:** khách truy cập đọc homepage public bằng tiếng Việt hoặc tiếng Anh, trên URL locale ổn định (`/en`, `/vi`) với redirect locale từ `/` và 404 cho mọi đường lạ.
+> **Feature area:** `public-website/` · **Mô tả một dòng:** khách truy cập đọc homepage public bằng tiếng Việt hoặc tiếng Anh, trên URL locale ổn định (`/en`, `/vi`) với redirect locale từ `/` và 404 cho mọi đường lạ.
 >
 > Thiết kế hệ thống → [`architecture/01-architecture.md`](../../architecture/01-architecture.md) §2 · quy tắc viết → [`../README.md`](../README.md).
 

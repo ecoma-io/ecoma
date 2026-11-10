@@ -86,7 +86,7 @@ A document beyond these three roles is allowed only when it owns a distinct subj
 
 Rules:
 
-- **A Feature belongs to the Features view, not to a deploy unit.** The directory groups Features by product area (`identity/`, `account/`, `pact-broker/`, …), never by Nx project. A bounded context, endpoint, worker or library does not become a Feature by existing.
+- **A Feature belongs to the Features view, not to a deploy unit.** The directory groups Features by feature area (`identity/`, `account/`, `pact-broker/`, …), never by Nx project; a feature area is not a Product ID (Product identity → [`engineering/work-management.md`](./engineering/work-management.md) §4.1). A bounded context, endpoint, worker or library does not become a Feature by existing.
 - **Describe capability, not implementation.** A Feature document states the user problem, the outcome, the boundary and the acceptance scenarios. It does not restate domain rules or invariants, the API reference, the storage schema or the delivery plan — link to `domains/`, `applications/` and the machine-readable contract instead (`§4`).
 - **Every capability statement must have evidence.** A behavior is described only when source code, configuration or a contract implements it. Anything that runs on a mock, a prototype or a disabled UI is named as such; anything unimplemented stays in the scope's exclusion list. Distinguish implementation evidence from verification evidence — a test file that exists proves nothing about a passing run.
 - **No mutable state.** No status field, no issue/PR list, no roadmap, no phase, no implementation checklist. Capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5, never stored in a Feature document.

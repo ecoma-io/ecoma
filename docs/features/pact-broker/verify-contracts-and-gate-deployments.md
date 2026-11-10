@@ -1,6 +1,6 @@
 # Verify contract và gate deployment
 
-> **Product area:** `pact-broker/` · **Mô tả một dòng:** provider ghi kết quả verification lên broker, và pipeline hỏi broker một câu trả lời duy nhất trước khi deploy: version này có được phép đi tiếp không.
+> **Feature area:** `pact-broker/` · **Mô tả một dòng:** provider ghi kết quả verification lên broker, và pipeline hỏi broker một câu trả lời duy nhất trước khi deploy: version này có được phép đi tiếp không.
 >
 > Đặc tả domain → [`domains/pact-broker/`](../../domains/pact-broker/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

@@ -1,6 +1,6 @@
 # Quản lý tuỳ chọn cá nhân
 
-> **Product area:** `account/` · **Mô tả một dòng:** người dùng chọn ngôn ngữ và múi giờ của mình, và chọn có nhận email từ sản phẩm hay không.
+> **Feature area:** `account/` · **Mô tả một dòng:** người dùng chọn ngôn ngữ và múi giờ của mình, và chọn có nhận email từ sản phẩm hay không.
 >
 > Đặc tả domain → [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

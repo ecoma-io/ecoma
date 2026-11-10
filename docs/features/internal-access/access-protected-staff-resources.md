@@ -1,6 +1,6 @@
 # Truy cập tài nguyên nội bộ được bảo vệ
 
-> **Product area:** `internal-access/` · **Mô tả một dòng:** staff đăng nhập vào backoffice qua OIDC, và mỗi lần đọc dữ liệu nội bộ đều được kiểm tra permission trên server trước khi trả kết quả.
+> **Feature area:** `internal-access/` · **Mô tả một dòng:** staff đăng nhập vào backoffice qua OIDC, và mỗi lần đọc dữ liệu nội bộ đều được kiểm tra permission trên server trước khi trả kết quả.
 >
 > Đặc tả domain → [`domains/staff-access/`](../../domains/staff-access/README.md) · quy tắc viết → [`../README.md`](../README.md).
 
