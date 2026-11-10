@@ -92,15 +92,15 @@ gh issue list --repo ecoma-io/ecoma --label documentation --limit 20
 
 Tiêu đề Issue viết tiếng Anh theo Conventional Commits; scope ở Issue là free-form, không bị giới hạn một Nx project như scope của PR title. Body viết tiếng Việt. Không gắn label, Milestone hay assignee mà bạn chưa thấy tồn tại.
 
-**Issue Type được set khi tạo Issue** — qua UI hoặc `gh issue create --type <name>`. Issue Forms không gán được Issue Type, nên chọn type ở bước tạo issue. Giai đoạn chuyển đổi (`work-management.md` §2.3): khi org chưa cấu hình năm giá trị, dòng `## Loại công việc` trong Issue body là kênh tạm thời có thẩm quyền; sau khi org cấu hình, native Issue Type có thẩm quyền và Issue tạo qua form vẫn ghi bằng dòng body cho tới khi bước dọn dẹp hoàn tất.
+**Mọi work item phải có Issue Type khi tạo.** Kênh ghi theo ba giai đoạn transition (`work-management.md` §2.3): trước khi org cấu hình năm giá trị, dòng `## Loại công việc` trong Issue body — ghi qua dropdown bắt buộc của Issue form — là kênh tạm thời có thẩm quyền; sau khi org cấu hình, native Issue Type là kênh có thẩm quyền (chọn khi tạo qua UI hoặc `gh issue create --type <name>`), và Issue tạo qua form vẫn ghi bằng dòng body cho tới khi bước dọn dẹp hoàn tất; sau đó chỉ còn native. Không tạo work item thiếu phân loại: không chắc loại nào thì dừng và giải quyết mâu thuẫn trước; không thay năm giá trị bằng type mặc định Task/Bug/Feature của GitHub. Blocker chỉ khi classification hoặc capability cần thiết không còn kênh ghi nào được quy định; trong khi kênh tạm thời còn tồn tại thì dùng nó thay vì block — chi tiết ở `work-management.md` §2.3.
 
 ### 3.2 Làm sao xác định Issue Type?
 
-Có đúng năm giá trị: **Discovery**, **Modelling**, **Experiment**, **Delivery**, **Remediation**. Giá trị được ghi bằng **Issue Type** — native metadata của GitHub và là nguồn classification duy nhất — chọn theo thứ tự ưu tiên và dừng ở loại khớp đầu tiên. Thứ tự, định nghĩa và điều kiện kết thúc nằm ở [`evolution-process.md`](docs/engineering/evolution-process.md) §4.1; cách ghi và giai đoạn transition ở `work-management.md` §2.3 — chép lại ở đây sẽ chỉ tạo bản sao lệch.
+Có đúng năm giá trị: **Discovery**, **Modelling**, **Experiment**, **Delivery**, **Remediation**. Giá trị là nguồn classification duy nhất; kênh ghi — native metadata hay dòng body tạm thời — theo giai đoạn transition. Chọn theo thứ tự ưu tiên và dừng ở loại khớp đầu tiên. Thứ tự, định nghĩa và điều kiện kết thúc nằm ở [`evolution-process.md`](docs/engineering/evolution-process.md) §4.1; cách ghi và ba giai đoạn transition ở `work-management.md` §2.3 — chép lại ở đây sẽ chỉ tạo bản sao lệch.
 
 Issue Type **khác** nhãn Issue (`bug`, `enhancement`, `documentation`) và khác loại form: nhãn và form nói đây là loại artifact gì; Issue Type nói bản chất thay đổi là gì. Không suy Issue Type từ nhãn hay từ form.
 
-Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — đọc từ khai báo commitment của Milestone; xem `work-management.md` §4.1.
+Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — đọc từ khai báo commitment của Milestone: `Product: <product-id>` theo registry trong `work-management.md` §4.1, kèm `Horizon: M1|M2`; chi tiết ở `work-management.md` §4.1.
 
 ### 3.3 Khi nào cần Discovery, Modelling hoặc Experiment trước Delivery?
 
@@ -118,7 +118,7 @@ Phân biệt Discovery và Experiment: Discovery tìm bằng chứng **đã tồ
 
 Issue là nơi duy nhất giữ kế hoạch triển khai. Không có file backlog, roadmap hay bảng trạng thái trong `docs/`.
 
-Một work item phải nêu: outcome, phạm vi, ràng buộc, dependency, điều kiện hoàn thành. Nội dung bổ sung theo từng Issue Type → [`work-management.md`](docs/engineering/work-management.md) §2.4.
+Một work item phải nêu: outcome, phạm vi, ràng buộc, dependency, điều kiện hoàn thành. Nội dung bổ sung theo từng Issue Type → [`work-management.md`](docs/engineering/work-management.md) §2.4. Root issue sở hữu một Change Specification thì tham chiếu spec bằng đường dẫn chính xác qua trường `change-spec` của Issue form (`docs/changes/<name>.md`); quy tắc ownership lookup → [`docs/changes/README.md`](docs/changes/README.md) §4.
 
 Issue **đóng** chỉ kết thúc unit công việc. Nó không chứng minh capability đã `Implemented`, `Verified` hay `Released` — trạng thái đó cần bằng chứng riêng ([`evolution-process.md`](docs/engineering/evolution-process.md) §5.1).
 
