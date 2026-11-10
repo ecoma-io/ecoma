@@ -6,6 +6,7 @@ Self-hosted remote cache cho Nx: tái sử dụng kết quả task để rút ng
 
 - Phục vụ đúng Nx remote cache protocol (`GET`/`PUT /v1/cache/{hash}`) với Bearer API key project-scoped.
 - Stream immutable cache artifact tới object storage durable (S3-compatible; MVP: Backblaze B2).
+- **Hai composition**: API composition (`apps/remote-cache-api`) và admin UI composition (`apps/remote-cache-app` — Nuxt non-SSR SPA shell, truy cập control plane qua private service binding theo R10; giai đoạn scaffold chỉ có app shell, chưa có dashboard/authentication/BFF).
 - Không phải source of truth, không phải serving dependency của application nào (A18, invariant 22 — [`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md)).
 
 ## Documents
