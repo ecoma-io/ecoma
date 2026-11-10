@@ -91,12 +91,14 @@ Health cấp offer: `healthy` khi có ít nhất một pool `healthy`; ngược 
 
 ### 3.7 Entity: ProviderCredential
 
-- `id`, `provider`, `credential_hash` (hash-only), `created_by_sub`, `revoked_at` (NULL=active), timestamps.
+- `id`, `provider`, `seller_tenant_id` (tham chiếu opaque tới Seller tenant **sở hữu** credential), `credential_hash` (hash-only), `created_by_sub`, `revoked_at` (NULL=active), timestamps.
 - Plaintext hiện **một lần** khi tạo; không đường nào đọc lại. Show-once: plaintext chỉ tồn tại trong kết quả của lần tạo, không nằm trong bản ghi lưu và không đi ra bất kỳ read path hay contract/UI nào.
 - `credential_hash` là giá trị opaque do caller tính: in được, không whitespace, ≤ 512 ký tự. Domain không kiểm entropy hay prefix thuật toán. Hash không bao giờ đi ra contract/UI: metadata credential được chiếu từng field sang dạng công bố, không spread bản ghi lưu.
 - Revoke = set `revoked_at`, hiệu lực ngay lập tức và terminal; revoke lần hai là `credential_already_revoked`, không ghi đè dữ liệu audit.
 - Domain không hash và không verify plaintext — thuật toán/salt/so khớp thuộc adapter. Vì vậy không có operation `verifyCredential` ở tầng domain.
-- Kiểm credential thuộc đúng provider là **scope validation**, không phải authentication: credential của provider A không dùng được cho provider B (`credential_provider_mismatch`), credential đã revoke là `credential_revoked`. Kiểm provider trước revoke để không tiết lộ trạng thái revoke của credential thuộc provider khác.
+- **Sở hữu theo Seller tenant:** một credential thuộc đúng **một** Seller tenant qua `seller_tenant_id` — `created_by_sub` chỉ là audit của actor tạo, không phải sở hữu. Hai Seller tenant dùng cùng upstream provider vẫn có hai credential độc lập; cùng `provider` không suy ra gì về việc dùng chung credential.
+- Kiểm credential thuộc đúng provider là **scope validation**, không phải authentication: credential của provider A không dùng được cho provider B (`credential_provider_mismatch`), credential của Seller tenant A không dùng được cho serving path của Seller tenant B (`credential_tenant_mismatch`), credential đã revoke là `credential_revoked`. Kiểm provider trước revoke để không tiết lộ trạng thái revoke của credential thuộc provider khác.
+- **Không có chia sẻ credential xuyên tenant:** model MVP không có field chia sẻ, không có delegation, không có lookup credential theo `provider` xuyên tenant — việc chọn credential cho một request chỉ resolve trong tập credential của Seller tenant sở hữu offer đang phục vụ. Nếu tương lai cần sharing tường minh, đó là một quyết định/ADR mới, không phải extension của model này.
 
 ### 3.8 Value object: Capability
 
@@ -136,24 +138,24 @@ Offer chỉ phục vụ customer (serve traffic) khi ở trạng thái `active` 
 
 Không có operation nào tự sửa scope hay tự chuẩn hoá input lệch: dữ liệu sai bị từ chối thay vì được "đoán" giúp caller.
 
-| Operation                    | Thay đổi                              | Precondition                                                                             |
-| ---------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `createModelOffer`           | tạo offer `draft`                     | id chưa tồn tại; alias (nếu có) hợp lệ                                                   |
-| `assignPublicAlias`          | gán alias                             | offer còn `draft`; alias hợp lệ và chưa được offer khác dùng                             |
-| `replaceCapabilities`        | thay tập capability                   | offer chưa `retired`; tập mới hợp lệ                                                     |
-| `activateModelOffer`         | `draft`/`inactive` → `active`         | verdict eligibility hợp lệ và đúng tenant; ít nhất một pool `healthy` thuộc đúng offer   |
-| `deactivateModelOffer`       | `active` → `inactive`                 | offer đang `active`; từ `draft` là `invalid_offer_transition`                            |
-| `retireModelOffer`           | `*` → `retired`                       | offer chưa `retired`; sau đó mọi transition bị từ chối                                   |
-| `createUpstreamEndpoint`     | tạo endpoint                          | url/protocol/health/weight hợp lệ; endpoint mới mặc định `degraded`                      |
-| `recordEndpointHealth`       | health endpoint                       | trạng thái mới khác trạng thái cũ; thời gian không lùi                                   |
-| `createEndpointPool`         | tạo pool thuộc offer                  | id chưa tồn tại; pool rỗng hợp lệ                                                        |
-| `addEndpointToPool`          | thêm endpoint vào pool                | `endpoint.endpointPoolId === pool.id`; endpoint chưa có trong pool                       |
-| `replaceEndpointInPool`      | thay endpoint bằng bản mới            | endpoint phải đã thuộc pool; không dùng để thêm mới                                      |
-| `removeEndpointFromPool`     | bỏ endpoint khỏi pool                 | endpoint đang thuộc pool; endpoint cuối cùng được phép bỏ                                |
-| `createSellerFallbackConfig` | cấu hình fallback trong offer         | `poolPreference` không rỗng, không trùng, mọi pool thuộc offer; endpoint thuộc đúng pool |
-| `createProviderCredential`   | tạo credential, trả plaintext một lần | provider key, hash và plaintext hợp lệ; id chưa tồn tại                                  |
-| `revokeProviderCredential`   | `active` → `revoked`                  | credential chưa revoke; thời gian không lùi                                              |
-| `assertCredentialProvider`   | không mutation (scope check)          | credential đúng provider và chưa revoke                                                  |
+| Operation                    | Thay đổi                              | Precondition                                                                                |
+| ---------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `createModelOffer`           | tạo offer `draft`                     | id chưa tồn tại; alias (nếu có) hợp lệ                                                      |
+| `assignPublicAlias`          | gán alias                             | offer còn `draft`; alias hợp lệ và chưa được offer khác dùng                                |
+| `replaceCapabilities`        | thay tập capability                   | offer chưa `retired`; tập mới hợp lệ                                                        |
+| `activateModelOffer`         | `draft`/`inactive` → `active`         | verdict eligibility hợp lệ và đúng tenant; ít nhất một pool `healthy` thuộc đúng offer      |
+| `deactivateModelOffer`       | `active` → `inactive`                 | offer đang `active`; từ `draft` là `invalid_offer_transition`                               |
+| `retireModelOffer`           | `*` → `retired`                       | offer chưa `retired`; sau đó mọi transition bị từ chối                                      |
+| `createUpstreamEndpoint`     | tạo endpoint                          | url/protocol/health/weight hợp lệ; endpoint mới mặc định `degraded`                         |
+| `recordEndpointHealth`       | health endpoint                       | trạng thái mới khác trạng thái cũ; thời gian không lùi                                      |
+| `createEndpointPool`         | tạo pool thuộc offer                  | id chưa tồn tại; pool rỗng hợp lệ                                                           |
+| `addEndpointToPool`          | thêm endpoint vào pool                | `endpoint.endpointPoolId === pool.id`; endpoint chưa có trong pool                          |
+| `replaceEndpointInPool`      | thay endpoint bằng bản mới            | endpoint phải đã thuộc pool; không dùng để thêm mới                                         |
+| `removeEndpointFromPool`     | bỏ endpoint khỏi pool                 | endpoint đang thuộc pool; endpoint cuối cùng được phép bỏ                                   |
+| `createSellerFallbackConfig` | cấu hình fallback trong offer         | `poolPreference` không rỗng, không trùng, mọi pool thuộc offer; endpoint thuộc đúng pool    |
+| `createProviderCredential`   | tạo credential, trả plaintext một lần | provider key, hash, owning tenant (`seller_tenant_id`) và plaintext hợp lệ; id chưa tồn tại |
+| `revokeProviderCredential`   | `active` → `revoked`                  | credential chưa revoke; thời gian không lùi                                                 |
+| `assertCredentialProvider`   | không mutation (scope check)          | credential đúng provider, đúng Seller tenant sở hữu và chưa revoke                          |
 
 Các view thuần chỉ đọc, không thay đổi state: `deriveEndpointPoolHealth`, `evaluateOfferEndpointHealth`, `evaluateActivationEligibility`, `assertEligibilityForTenant`, `orderEndpointCandidates`, `isModelOfferServing`, `mapProviderModelToNormalizedIdentity`.
 
@@ -163,9 +165,9 @@ Các view thuần chỉ đọc, không thay đổi state: `deriveEndpointPoolHea
 2. Offer chỉ phục vụ customer khi `status = active` **và** còn endpoint pool phục vụ được.
 3. Activation yêu cầu đồng thời verdict eligibility hợp lệ đúng tenant và pool `healthy`; thiếu một điều kiện là từ chối.
 4. Public alias chỉ đổi khi `draft`; mọi offer khác không được dùng lại alias đã có.
-5. Endpoint thuộc đúng một pool; pool thuộc đúng một offer; không tự sửa scope khi input lệch.
+5. Endpoint thuộc đúng một pool; pool thuộc đúng một offer; offer thuộc đúng một Seller tenant; không tự sửa scope khi input lệch.
 6. Health của endpoint chỉ đổi qua operation tường minh và không lùi thời gian; health pool là giá trị suy ra.
-7. Provider credential hash-only, plaintext show-once, revoke terminal và hiệu lực ngay.
+7. Provider credential hash-only, plaintext show-once, revoke terminal và hiệu lực ngay; credential thuộc đúng một Seller tenant và không dùng được cho serving path của tenant khác — cùng `provider` upstream không tạo quyền dùng chung.
 8. Normalized model identity là nguồn chuẩn cho dedup/group; raw provider model name giữ nguyên spelling.
 9. Verdict eligibility lệch tenant hoặc không nhất quán bị từ chối, không được đọc là eligible.
 10. Mọi timestamp sự kiện không lùi và không vượt quá `updatedAt` của bản ghi.
@@ -184,7 +186,7 @@ Các view thuần chỉ đọc, không thay đổi state: `deriveEndpointPoolHea
 
 ## 8. Integration
 
-- `llm-seller-tenant` / `llm-seller-governance`: `sellerTenantId` trên offer và operational eligibility/verification outcome qua contract/projection; marketplace không sở hữu Seller lifecycle.
+- `llm-seller-tenant` / `llm-seller-governance`: `sellerTenantId` trên offer và trên `ProviderCredential` (tham chiếu opaque), và operational eligibility/verification outcome qua contract/projection; marketplace không sở hữu Seller lifecycle.
 - `llm-consumer-tenant`: consumer workspace/tenant scope cho offer/catalog.
 - `llm-api`: offer/identity cho routing; runtime host của marketplace DB. Quota **authority** (reserve/settle) và usage/reservation/settlement tại gateway → `llm-api`; quota **policy/limits** → `llm-consumer-tenant`; financial monetary state → `llm-financial`.
 - `payment`: gateway/execution adapter cho payment & payout; seller payable/settlement do `llm-financial` sở hữu.
