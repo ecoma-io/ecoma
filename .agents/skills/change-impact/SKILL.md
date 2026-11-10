@@ -42,7 +42,9 @@ introduces no new class, no status field and no revalidation sweep.
   `docs/changes/README.md` §4: enumerate the specs in the §6 index, search
   the open root issues for each spec path — exactly one match is the owner;
   zero matches is the "no reachable owner" escalation; more than one match
-  is drift to report.
+  is ownership drift: report it to the coordinator, do not pick one, and
+  leave restoring ownership (editing the root issue body) to the
+  coordinator or the issue's owner.
 - Confirmation that the triggering change itself is accepted. An unaccepted
   trigger is an escalation, not an assessment input.
 
@@ -138,8 +140,10 @@ Stop and report when:
 - The baseline a spec claims to stand on is ambiguous — the reference is
   stale, unreadable or points at a superseded record.
 - A dependent spec has no reachable owner, or more than one open root issue
-  references its path — both are ownership drift
-  (`docs/changes/README.md` §4), never a choice of one.
+  references its path — both are ownership drift to report to the
+  coordinator (`docs/changes/README.md` §4), never a choice of one;
+  restoring ownership (editing the root issue body) is the coordinator's or
+  issue owner's decision.
 - Two specs claim the same affected scope, or a spec's Dependencies
   contradict the triggering change's own record.
 - The triggering change itself is not accepted — there is nothing to assess

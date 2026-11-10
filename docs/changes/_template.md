@@ -43,7 +43,7 @@ Không copy nguyên đặc tả canonical; phần không đổi trỏ tới tài
 
 ## 6. Dependencies
 
-Change Specification khác mà spec này phụ thuộc, và shared context/library theo từng pipeline đang tiêu thụ sẽ chịu tác động thế nào.
+Change Specification khác mà spec này phụ thuộc, và shared context/library theo từng pipeline đang tiêu thụ sẽ chịu tác động thế nào. Mỗi pipeline ghi product và Milestone đang lái — không ghi giá trị horizon ([`../engineering/work-management.md`](../engineering/work-management.md) §4.1).
 
 ## 7. Assumptions
 
