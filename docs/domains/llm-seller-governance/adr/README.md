@@ -15,6 +15,7 @@ ADR `0003`, `0004`, `0006`, `0008` thuộc context này theo phân chia của [A
 Quyết định thuộc context khác, không nhân bản tại đây:
 
 - [`llm-seller-tenant/adr/`](../../llm-seller-tenant/adr/README.md) — tenant ownership, tenant existence tách khỏi eligibility, membership grant và permission identifier boundary.
+- [`llm-seller-tenant/adr/0027`](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) — con đường eligibility hợp lệ, principal pháp lý và provenance profile của Seller first-party; `requiredTypes` tối thiểu `legal-identity`/`tax`.
 - [`llm-consumer-tenant/adr/0019`](../../llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md) — ba Nx scope `llm-consumer` / `llm-seller` / `llm-shared` và dependency matrix.
 - [`llm-financial/adr/0007`](../../llm-financial/adr/0007-seller-settlement-holds.md) — settlement hold ≠ Seller restriction.
 - [`llm-financial/adr/0008`](../../llm-financial/adr/0008-seller-tax-profile.md) — ownership split seller legal/tax profile vs tax calculation.

@@ -122,6 +122,7 @@ Marketplace **tiêu thụ** verdict, không tính lại (ADR-0018 §3):
 ### 3.10 Public seller prefix (nếu chốt)
 
 - Prefix công khai cho seller/offer — quyết định **chưa chốt**. Nếu chốt: unique, immutable sau activation. Hiện code không mô hình hoá prefix.
+- **Riêng provider first-party**, danh tính công khai đã chốt: là **tên Seller tenant first-party** của offer (`dronie` đầu tiên), unique và bất biến theo contract tên tenant do `llm-seller-tenant` sở hữu; `sellerTenantId` trên offer vẫn là tham chiếu opaque duy nhất mà marketplace cần. Khoá `provider` trên `ProviderModelName`/`ProviderCredential` **không đổi**: nó là upstream API provider, không phải danh tính seller — không ghi danh tính provider first-party vào đó trừ khi tenant first-party thực sự tự vận hành upstream đó → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §7, §8.
 
 ## 4. Lifecycle & state transitions
 
@@ -206,7 +207,7 @@ Các view thuần chỉ đọc, không thay đổi state: `deriveEndpointPoolHea
 
 Các mục sau **không** được chốt trong code; mọi API hiện tại không phụ thuộc câu trả lời:
 
-1. **Public seller prefix** — có prefix công khai cho seller/offer hay không, và nếu có thì format/ownership. Code hiện không mô hình hoá prefix.
+1. **Public seller prefix** — có prefix công khai cho seller/offer hay không, và nếu có thì format/ownership. Code hiện không mô hình hoá prefix. Riêng provider first-party không còn mở: danh tính công khai là tên tenant first-party → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §7.
 2. **Unique public alias xuyên seller** — alias hiện unique trong phạm vi marketplace được kiểm ở biên ghi; việc có cho phép hai seller dùng cùng alias trong namespace khác nhau hay không chưa chốt.
 3. **Retention/xoá credential** — thời hạn giữ credential đã revoke và cách xoá dữ liệu audit liên quan chưa chốt.
 4. **Chiến lược chọn endpoint trong pool** — trọng số đã có trên endpoint nhưng thuật toán chọn (weighted/round-robin/...) và retry thuộc routing, chưa chốt tại marketplace.

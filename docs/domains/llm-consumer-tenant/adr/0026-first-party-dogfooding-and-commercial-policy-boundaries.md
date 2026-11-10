@@ -1,6 +1,6 @@
 # ADR-0026 — First-party dogfooding và ranh giới chính sách thương mại của tenant
 
-**Trạng thái:** Accepted · **Ngày:** 2026-11-11 · **Issue:** #82
+**Trạng thái:** Accepted · **Superseded (in part) by [ADR-0027](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md)** — đúng câu mở đầu §6 "Tên tenant nội bộ canonical vẫn là `ecoma` ở mọi sản phẩm có tenant, mọi environment": câu đó **không còn áp cho Seller tenant first-party của `llm-seller-tenant`** (tenant first-party mang tên riêng theo provider, `dronie` đầu tiên, không có Seller tenant tên `ecoma`); câu hỏi mở về `Dronie` cuối §6 đã được giải bởi ADR-0027 đúng cơ chế §6 chỉ định; toàn bộ phần còn lại của §6 và của ADR này giữ nguyên. · **Ngày:** 2026-11-11 · **Issue:** #82
 
 > ADR này áp cho và ràng buộc **tất cả bốn domain có tenant** — `remote-cache`, `pact-broker`, `llm-consumer-tenant`, `llm-seller-tenant` — cùng kiểu với [ADR-0025](./0025-thin-shared-tenant-kernel.md). Nó tách **sáu trục** của tenancy (quan hệ tổ chức, commercial plan, funding, usage policy/quota, staff entitlement, membership + authorization) và chốt trục còn thiếu: **phân loại tenant `first_party`/`customer`**. Đặt tại đây vì `docs/AGENTS.md` §10 không cho phép một ADR directory toàn cục; `architecture/01-architecture.md` §8 (A26) trỏ về ADR này.
 

@@ -16,14 +16,15 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 
 ## 2. Ngôn ngữ dùng chung
 
-| Thuật ngữ                   | Ý nghĩa                                                                                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Restriction                 | Bản ghi hạn chế độc lập, mỗi record có vòng đời riêng; "đang bị hạn chế" là giá trị suy ra tại thời điểm đánh giá, không phải trạng thái được lưu. |
-| Appeal                      | Khiếu nại của Seller đối với một restriction, có vòng đời và deadline tường minh, do platform reviewer có thẩm quyền quyết định.                   |
-| Verification case           | Verification case cho từng loại yêu cầu, giữ lịch sử submission/rejection/resubmission.                                                            |
-| Legal profile / tax profile | Hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version.                                                       |
-| Evidence reference          | Metadata và tham chiếu bất biến tới tài liệu evidence. Domain không giữ nội dung tài liệu.                                                         |
-| Operational eligibility     | Verdict duy nhất về việc Seller có đủ điều kiện vận hành hay không, suy ra từ restriction + verification + profile version hiệu lực.               |
+| Thuật ngữ                   | Ý nghĩa                                                                                                                                                                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Restriction                 | Bản ghi hạn chế độc lập, mỗi record có vòng đời riêng; "đang bị hạn chế" là giá trị suy ra tại thời điểm đánh giá, không phải trạng thái được lưu.                                                                                             |
+| Appeal                      | Khiếu nại của Seller đối với một restriction, có vòng đời và deadline tường minh, do platform reviewer có thẩm quyền quyết định.                                                                                                               |
+| Verification case           | Verification case cho từng loại yêu cầu, giữ lịch sử submission/rejection/resubmission.                                                                                                                                                        |
+| Legal profile / tax profile | Hồ sơ pháp lý/thuế của Seller, versioned, append-only, kỳ hiệu lực suy ra từ thứ tự version.                                                                                                                                                   |
+| Evidence reference          | Metadata và tham chiếu bất biến tới tài liệu evidence. Domain không giữ nội dung tài liệu.                                                                                                                                                     |
+| Operational eligibility     | Verdict duy nhất về việc Seller có đủ điều kiện vận hành hay không, suy ra từ restriction + verification + profile version hiệu lực.                                                                                                           |
+| Legal principal             | Tổ chức chịu trách nhiệm pháp lý/thuế cho provider first-party — Ecoma-io; không phải pháp nhân của tenant hay một aggregate riêng → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3. |
 
 ## 3. Business concepts
 
@@ -48,6 +49,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 - `id`, `tenantId`, `type` (định danh mở, ví dụ `legal-identity`, `tax`), `status` (`draft` | `submitted` | `under_review` | `approved` | `rejected` | `expired`), `createdAt`, `submittedAt`, `reviewedAt`, `reviewedBy`, `decidedAt`, `decidedBy`, `expiresAt`, `publicDecisionReason`.
 - Mỗi lần submit tạo một **submission record** bất biến kèm evidence reference; resubmit sau reject tạo submission mới trên cùng case, giữ nguyên lịch sử.
 - Verification **không** thay đổi sự tồn tại của Seller tenant; nó chỉ thay đổi kết quả đánh giá operational eligibility.
+- **Tenant first-party** đạt eligibility bằng cùng thang này, không exemption: `requiredTypes` tối thiểu là `legal-identity` và `tax` (cấu hình của đường provisioning, không phải state domain); evidence là hồ sơ pháp lý/thuế thật của principal Ecoma-io (nguồn authoritative); mọi `approved` là quyết định review thật qua `decideVerification` kèm attribution reviewer — classification **không bao giờ** tự động `approved` một case nào → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §4.
 
 ### 3.4 SellerLegalProfile và SellerTaxProfile
 
@@ -56,6 +58,7 @@ Bounded context `llm-seller-governance`: restriction và evaluation, appeal life
 - Versioned **append-only**: mỗi thay đổi tạo version mới. Không có thao tác update/delete trên version đã ghi.
 - Kỳ hiệu lực của một version là `[effectiveFrom, effectiveFrom của version kế tiếp)`; version cuối cùng mở. Domain không cho phép tạo version có `effectiveFrom` không tăng nghiêm ngặt.
 - Danh mục `legalType`, `taxResidency` là **định danh mở**: domain không hardcode danh mục pháp lý/thuế và không suy diễn rate.
+- **Provenance của tenant first-party:** profile của một tenant first-party ghi hồ sơ pháp lý/thuế của principal pháp lý Ecoma-io, kèm evidence reference trỏ tới bản authoritative; các tenant first-party khác nhau ghi bản ghi riêng trỏ về cùng nguồn authoritative — không có tham chiếu cross-tenant. Khi hồ sơ principal thay đổi hoặc mất hiệu lực, **mọi** tenant first-party tham chiếu principal đó cần version mới; thiếu version hiệu lực tại `now` ⇒ blocker `legal_profile`/`tax_profile` như thường lệ → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3, §5.
 
 ### 3.5 EvidenceReference
 
@@ -193,7 +196,7 @@ Domain không hardcode các giá trị này; chúng là input cấu hình của 
 
 ### 8.5 Public seller prefix và định danh công khai
 
-Prefix/định danh công khai của Seller **chưa chốt**; nếu chốt phải xét unique/immutable. Domain không định nghĩa trường này.
+Prefix/định danh công khai của Seller cho **mọi seller** vẫn **chưa chốt**; nếu chốt phải xét unique/immutable. Domain không định nghĩa trường này. Riêng provider first-party, danh tính công khai đã chốt là **tên tenant first-party** của nó (`dronie` đầu tiên), unique và bất biến theo contract tenant name → [ADR-0027](../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §7.
 
 ### 8.6 Evidence retention và storage provider
 
