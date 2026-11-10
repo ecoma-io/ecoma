@@ -72,7 +72,7 @@ The English rule applies to developer-authored content. The following are exempt
 
 **Canonical process lives in `docs/engineering/`; this section defines agent execution rules only.**
 
-- [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md) is the canonical lifecycle, work-kind taxonomy and capability-state semantics.
+- [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md) is the canonical lifecycle, Issue Type taxonomy and capability-state semantics. The five Issue Type values — Discovery, Modelling, Experiment, Delivery, Remediation — are carried by the native GitHub Issue Type (§4.1); recording them, including the current transition, is owned by `work-management.md` §2.3.
 - [`docs/engineering/work-management.md`](docs/engineering/work-management.md) is the canonical GitHub work-management policy.
 - [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md) is the canonical procedure for carrying out work.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) is the contributor entry point.
@@ -81,6 +81,16 @@ The five phases below are the **agent execution loop for one task** — Understa
 
 - Priority: fix bugs first, then feature improvements — unless I ask to prioritise something specific; my call overrides these rules.
 - Work follows five conditional phases — Understand, Plan, Execute, Validate, Deliver — skipped or combined as the task warrants.
+- Before doing work, identify the product, its horizon (read from the Milestone commitment declarations per `work-management.md` §4.1), the Issue Type of the unit, the authoritative baseline, and any applicable Change Specifications (`evolution-process.md` §6.1, [`docs/changes/README.md`](docs/changes/README.md)).
+- Never apply a future target to M1 work unless the task explicitly requires it; a Change Specification is design-ahead, never baseline.
+- Never implement a proposal or an unaccepted decision as though it were accepted.
+- For every material change — canonical baseline, accepted decision, committed Milestone scope, or shared contract — evaluate compatibility and impact ([`docs/changes/README.md`](docs/changes/README.md) §4).
+- An M1 baseline change must trigger review of downstream dependent work (`docs/changes/README.md` §4).
+- Root issues own outcomes and Project membership; sub-issues own work units and never join the Project (`work-management.md` §3).
+- The orchestrator must detect conflicts between lanes and must never dispatch two agents to edit the same canonical file or contract without an integration plan.
+- When a change affects a Change Specification, dispatch the change-impact workflow or ask its owner to revalidate (`docs/changes/README.md` §4).
+- Target documentation and actual source code are different things: verify current behavior in source.
+- Report a blocker only when a work item needs a classification or native GitHub capability that has no documented channel — a value outside the five Issue Types, or a capability with no interim path (`work-management.md` §2.3). While that interim channel exists (org not configured yet), use it instead of blocking; do not invent substitute classification.
 - Every independently trackable unit of implementation work needs a GitHub Issue: search existing Issues and PRs first, and reuse a suitable Issue or create one if none exists. Criteria and the ledger/precondition/experiment distinction → `work-management.md` §2.
 - Well-defined implementation work: identify or create the Issue, then create a branch and open a linked draft PR against the default branch before editing code. Exploratory work with unclear scope: investigate enough to define the work first, then create the Issue and start implementing.
 - No new Issue for standalone explanations, advice, or reviews contained within an existing PR; track independent follow-up work separately.
@@ -98,20 +108,20 @@ The five phases below are the **agent execution loop for one task** — Understa
 
 #### Agent catalog
 
-| Agent                      | Responsibility                                                                                                                           | Boundary                                                                                                |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `engineering-orchestrator` | Classifies work, reads GitHub state, selects skills, decomposes into units, dispatches specialists, integrates and owns final validation | Primary; no `Edit`/`Write`, must not edit product code; `Bash` is granted, so this is instruction-level |
-| `repository-analyst`       | Explores code, configuration, contracts and docs; reports facts with references, blast radius and unknowns                               | Read-only enforced by the tool set: no write tool and no shell                                          |
-| `architect`                | Reviews boundaries, dependency direction, invariants, ADRs and trade-offs; detects overengineering                                       | Read-only enforced by the tool set: no write tool and no shell                                          |
-| `implementer`              | Executes one delivery slice inside an explicit scope lock, writes and runs tests, reports gaps                                           | Writes with `Edit`/`Write`/`Bash`; the scope lock is instruction-level                                  |
-| `verifier`                 | Adversarially re-derives claims and runs the matching validation target                                                                  | No `Edit`/`Write`; `Bash` is granted for validation and must not be used to edit — instruction-level    |
+| Agent                      | Responsibility                                                                                                                                                                   | Boundary                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `engineering-orchestrator` | Classifies work by Issue Type and multi-horizon context, reads GitHub state, selects skills, decomposes into units, dispatches specialists, integrates and owns final validation | Primary; no `Edit`/`Write`, must not edit product code; `Bash` is granted, so this is instruction-level |
+| `repository-analyst`       | Explores code, configuration, contracts and docs; reports facts with references, blast radius and unknowns                                                                       | Read-only enforced by the tool set: no write tool and no shell                                          |
+| `architect`                | Reviews boundaries, dependency direction, invariants, ADRs and trade-offs; detects overengineering                                                                               | Read-only enforced by the tool set: no write tool and no shell                                          |
+| `implementer`              | Executes one delivery slice inside an explicit scope lock, writes and runs tests, reports gaps                                                                                   | Writes with `Edit`/`Write`/`Bash`; the scope lock is instruction-level                                  |
+| `verifier`                 | Adversarially re-derives claims and runs the matching validation target                                                                                                          | No `Edit`/`Write`; `Bash` is granted for validation and must not be used to edit — instruction-level    |
 
 - Delegation contract: only `engineering-orchestrator` dispatches. Each dispatched agent receives an explicit scope lock and never inherits a wider one. Agents that edit the same repository concurrently get separate worktrees where the harness provides them. The orchestrator integrates results and owns final validation. Tool-level enforcement is limited to withholding a tool entirely: an agent without any write tool and without `Bash` cannot modify the repository, but a granted `Bash` can write files regardless of the missing `Edit`/`Write` tool, and no granted tool is path-scoped. Every scope lock and every "read-only" role that holds `Bash` is therefore instruction-level.
 - `CLAUDE.md` is not generated. Claude Code reads `AGENTS.md` as project instructions when no `CLAUDE.md` is present, so `AGENTS.md` is the only source of agent instructions.
 - Use a skill when the request matches its `description` trigger. Read only the skills relevant to the current task — do not load every skill.
 - Canonical documentation and these repository instructions outrank every skill. A skill never redefines policy, never widens the permission this file grants, and never overrides a template or language rule.
 - If a skill contradicts a canonical document, follow the canonical document and report the conflict instead of silently choosing one.
-- `github-issue` governs Issue authoring; `commit-message` governs commit messages; [`docs/AGENTS.md`](docs/AGENTS.md) §2 governs human-facing prose. Task skills for lifecycle steps (`engineering-understanding`, `engineering-discovery`, `domain-modelling`, `architecture-evolution`, `feature-modelling`, `delivery-slice`, `verification`, `reconciliation`) govern how to execute that step, not what the policy is.
+- `github-issue` governs Issue authoring; `commit-message` governs commit messages; [`docs/AGENTS.md`](docs/AGENTS.md) §2 governs human-facing prose. Task skills for lifecycle steps (`engineering-understanding`, `engineering-discovery`, `domain-modelling`, `architecture-evolution`, `feature-modelling`, `delivery-slice`, `verification`, `reconciliation`) govern how to execute that step, not what the policy is; `change-impact` (`.agents/skills/change-impact/SKILL.md`) governs impact assessment on dependent Change Specifications after a material change (`docs/changes/README.md` §4).
 
 ### Stop and report
 

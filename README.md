@@ -14,7 +14,7 @@ Repository của nền tảng Ecoma.io: nhiều bounded context và deploy unit 
 
 Mọi thay đổi kỹ thuật đi qua một quy trình thống nhất cho người và agent; không phải thay đổi nào cũng cần Issue hay Milestone. Năm bước dưới đây là bản rút gọn — vòng đời canonical có bảy bước:
 
-1. Hiểu context và xác định loại công việc — Discovery, Modelling, Experiment, Delivery hoặc Remediation.
+1. Hiểu context và xác định Issue Type — Discovery, Modelling, Experiment, Delivery hoặc Remediation ([`work-management.md`](docs/engineering/work-management.md) §2.3).
 2. Search Issue/PR; tái sử dụng, liên kết hoặc tạo work item mới khi công việc độc lập theo dõi được.
 3. Tạo branch và draft PR khi công việc đã đủ rõ.
 4. Chạy validation phù hợp với loại thay đổi và báo cáo kết quả thật.

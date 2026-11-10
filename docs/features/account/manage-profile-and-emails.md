@@ -1,6 +1,6 @@
 # Quản lý profile và email
 
-> **Product area:** `account/` · **Mô tả một dòng:** chủ tài khoản tự xem và sửa profile của mình, và tự quản lý các địa chỉ email dùng để đăng nhập.
+> **Feature area:** `account/` · **Mô tả một dòng:** chủ tài khoản tự xem và sửa profile của mình, và tự quản lý các địa chỉ email dùng để đăng nhập.
 >
 > Đặc tả domain → [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

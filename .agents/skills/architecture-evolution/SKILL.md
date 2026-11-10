@@ -44,8 +44,13 @@ disagree, the document wins.
   §9 artifact lifecycle, §10 ADR governance (trigger, location, numbering,
   index, supersession), §11 proposals and open decisions, §12 deviations.
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
-  — §3 (Architecture view ownership), §4.1 (Modelling), §6.2 (Discover &
-  Model), §6.8 (never implement an unaccepted decision), §8 (deviation).
+  — §3 (Architecture view ownership), §4.1 (Modelling as an Issue Type
+  value), §6.2 (Discover & Model), §6.8 (never implement an unaccepted
+  decision), §8 (deviation).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — §1 (the
+  four-trigger gate that decides whether a change needs a Change
+  Specification), §3 (the three decision states), and the impact classes a
+  material change applies to dependent specs.
 - [`AGENTS.md`](../../../AGENTS.md) — `Non-negotiable architecture`,
   `Change discipline`, `Source of truth`.
 
@@ -108,6 +113,28 @@ disagree, the document wins.
      historical overlaps described in §10 must not grow.
    - System-level pointer → `01-architecture.md` §8 gains or updates the
      `A<n>` row that points at the ADR. Do not restate the ADR's reasoning.
+   - Change meeting the spec gate — any of the four triggers in
+     [`docs/changes/README.md`](../../../docs/changes/README.md) §1, such as
+     introducing or retiring a bounded context, moving ownership, or
+     changing a shared contract or library → a Change Specification under
+     `docs/changes/`, with the change type (introduce, evolve, retire) on
+     each Affected scope entry; the canonical documents change at canonical
+     promotion, not in the spec's PR. Canonical promotion is atomic at the
+     spec's scope: it happens only when the spec's complete scope and
+     acceptance/promotion criteria are met, never as an automatic
+     consequence of the spec PR merging, a first slice landing, first
+     user-visible behaviour, a delivery entering M1, or one of several
+     dependent delivery units completing (`docs/changes/README.md` §3/§4).
+     Size in PRs is not a trigger: a change
+     meeting none of the four is a direct canonical edit or Delivery, and a
+     spec written for it is a finding (overengineering). A decision settled
+     inside the spec's target scope stays there as an accepted target
+     decision — binding only that spec and its explicitly related delivery
+     units, while unrelated M1 work keeps the current canonical baseline —
+     until canonical promotion, unless it binds the current
+     baseline now, in which case it is recorded canonically before or in the
+     same logical change as the first change depending on it
+     (`docs/changes/README.md` §3).
    - Undecided → `01-architecture.md` §10 with an explicit trigger, or
      `docs/domains/open-boundaries.md` for a business boundary.
    - Index → the context's `adr/README.md` row, in the same change.
@@ -115,13 +142,22 @@ disagree, the document wins.
    make a historical decision read differently. Write a new ADR, update the
    old status line, and name the exact scope superseded in all three places
    §10 requires.
-10. **Route implementation separately.** Hand the accepted decision to
-    `delivery-slice`. A decision is not implemented here, and an ADR records
-    the decision, not a capability state.
+10. **Route implementation and impact separately.** Hand the accepted
+    decision to `delivery-slice`; a decision is not implemented here, and an
+    ADR records the decision, not a capability state. When the decision is a
+    material change for dependent Change Specifications — it shifts the
+    baseline, supersedes an accepted decision, changes a committed
+    Milestone's scope, or alters a shared contract, library or bounded
+    context — hand the impact assessment to `change-impact`; its verdicts use
+    the impact classes in `docs/changes/README.md`, never the reconciliation
+    classes.
 
 ## Allowed changes
 
 - Canonical architecture documents under `docs/architecture/`.
+- A Change Specification under `docs/changes/` and its index row, when the
+  change introduces, evolves or retires capability or architecture as a
+  design-ahead target rather than a direct canonical edit.
 - A new ADR, the superseded ADR's status line, and its index rows.
 - `docs/domains/open-boundaries.md`, and a context's open section, only when the
   item genuinely is that kind of record.

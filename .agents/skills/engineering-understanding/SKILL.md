@@ -1,6 +1,6 @@
 ---
 name: engineering-understanding
-description: Apply at the start of any non-trivial request, before planning or editing — when the task is new, ambiguous, or touches an area you have not yet located in the repository. Establish the owning knowledge view, the constraints in force, what the code actually does today, and the work kind. USE WHEN asked to understand or scope work, when unsure which document owns a capability, when a request could be several work kinds, or before opening an Issue or writing a plan. NOT FOR searching GitHub, writing or filing an Issue (github-issue) — run this skill first when the request is unclear, then hand the Issue itself to `github-issue`; NOT FOR product problem or requirement framing (feature-modelling), gathering evidence or running measurements (engineering-discovery), deciding a domain or architecture design (domain-modelling), implementing a change (delivery-slice), verifying a result (verification), or reconciling after merge (reconciliation).
+description: Apply at the start of any non-trivial request, before planning or editing — when the task is new, ambiguous, or touches an area you have not yet located in the repository. Establish the owning knowledge view, the constraints in force, what the code actually does today, and the Issue Type. USE WHEN asked to understand or scope work, when unsure which document owns a capability, when a request could fit several Issue Type values, or before opening an Issue or writing a plan. NOT FOR searching GitHub, writing or filing an Issue (github-issue) — run this skill first when the request is unclear, then hand the Issue itself to `github-issue`; NOT FOR product problem or requirement framing (feature-modelling), gathering evidence or running measurements (engineering-discovery), deciding a domain or architecture design (domain-modelling), implementing a change (delivery-slice), verifying a result (verification), or reconciling after merge (reconciliation).
 ---
 
 # Engineering Understanding
@@ -11,12 +11,14 @@ Turn a request into a sourced understanding before anyone plans or changes
 anything. The output is not prose for its own sake: it is the input the next
 step consumes — an Issue body, a plan, or a decision to investigate further.
 
-Produce four things:
+Produce five things:
 
 1. The question, stated so it can be answered.
 2. The owning knowledge view and its canonical location.
 3. The constraints that apply, each with a source.
-4. The work kind, chosen by nature of the change — plus the unknown list.
+4. The Issue Type, chosen by the nature of the change — plus the unknown list.
+5. The work's context, when applicable: the product, its horizon, the
+   authoritative baseline, and the Change Specifications in force.
 
 ## Canonical references
 
@@ -24,15 +26,16 @@ These documents outrank this skill. Where this skill and a canonical document
 disagree, the document wins.
 
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
-  — §3 (four knowledge views and what each owns), §4.1 (five work kinds and
-  the priority order for choosing one), §5 (capability states; what evidence
-  each state requires), §6.1 (the Understand step: input, activity, output,
+  — §3 (four knowledge views and what each owns), §4.1 (the five Issue Type
+  values and the priority order for choosing one), §5 (capability states; the
+  authoritative baseline is the canonical documents plus accepted ADRs, never
+  a Change Specification), §6.1 (the Understand step: input, activity, output,
   completion condition), §6.3 (gap classification before selection), §6.8
   (what the loop may and may not do while Delivery runs).
 - [`docs/AGENTS.md`](../../../docs/AGENTS.md) — §2 (documentation principles),
-  §3 (document scope per axis), §4 (canonical source table: exactly one owner
-  per fact or decision), §5 (index maintenance), §11 (proposals, open and
-  deferred decisions).
+  §3 (document scope per axis, including `changes/`), §4 (canonical source
+  table: exactly one owner per fact or decision), §5 (index maintenance), §11
+  (proposals, open and deferred decisions).
 - [`AGENTS.md`](../../../AGENTS.md) — `Source of truth` (code defines current
   behaviour; docs describe target), `Non-negotiable architecture`, `Change
   discipline`, `Workflow`.
@@ -40,8 +43,16 @@ disagree, the document wins.
   — §8 (architectural decisions `A<n>`), §9 (system invariants), §10
   (unresolved architecture).
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
-  — when an Issue must exist, what "independently trackable" means, and when
-  to reuse one.
+  — when an Issue must exist, what "independently trackable" means, when to
+  reuse one, §2.3 (how the Issue Type is recorded, across the three
+  windows: the `## Loại công việc` body channel before org configuration,
+  native Issue Type authoritative after it while form-created issues still
+  record through the body channel, native-only after cleanup), §4.1 (the
+  Product Registry that owns product identity, and horizons read from the
+  Milestone commitment declarations).
+- [`docs/changes/README.md`](../../../docs/changes/README.md) — Change
+  Specification vocabulary: change types, material changes, the two
+  promotions, and the index of live specs.
 - [`docs/engineering/contribution-workflow.md`](../../../docs/engineering/contribution-workflow.md)
   — how an understood unit moves into planning, execution and review.
 
@@ -83,17 +94,40 @@ disagree, the document wins.
 5. **List the constraints with their source.** Each line names the constraint
    and where it comes from: an `AGENTS.md` rule, an `A<n>` decision, an
    invariant number, an ADR, a dependency rule, or a platform fact. A
-   constraint without a source is an assumption, and belongs in step 7.
-6. **Classify the work kind** using the priority order in
+   constraint without a source is an assumption, and belongs in step 8.
+6. **Place the work in its context**, when the request has one:
+   - The **product** and its **horizon**. Product identity comes from the
+     Product Registry owned by `work-management.md` §4.1 (stable product
+     IDs) — never from `docs/features/README.md` feature areas, feature
+     directory names, bounded contexts, Nx projects, applications, issue
+     counts or Milestone titles; applications of a product are not products;
+     a product ID stays valid with no implemented Feature document. The
+     horizon is read from the product's Milestone commitment declarations
+     per §4.1 — never from creation order, due dates, names or issue
+     counts, and not from a document marker. Shared or cross-cutting work
+     has no product pipeline of its own: associate it with the driving
+     pipeline's product ID, or leave it unassigned when no pipeline
+     genuinely drives it; ambiguity is reported with the evidence read,
+     never guessed. Work feeding a product's future horizon (Feature
+     Discovery) is normal, not misplanned.
+   - The **authoritative baseline** the work stands on: the canonical
+     documents of the four views plus accepted ADRs (`evolution-process.md`
+     §5). A Change Specification is design-ahead, never baseline.
+   - The **applicable Change Specifications**, found through the index in
+     `docs/changes/README.md` and read for their Baseline references and
+     Dependencies.
+7. **Classify the Issue Type** using the priority order in
    `evolution-process.md` §4.1, stopping at the first match: Remediation →
    Experiment → Modelling → Delivery → Discovery. State which rule matched
-   and why each earlier kind did not. Classify by the nature of the change,
-   never by size or by who performs it.
-7. **Record the unknowns.** For each: what is unknown, why it blocks a
+   and why each earlier value did not. Classify by the nature of the change,
+   never by size or by who performs it; the classification is recorded as the
+   Issue Type per `work-management.md` §2.3, not in a label or a Project
+   field.
+8. **Record the unknowns.** For each: what is unknown, why it blocks a
    decision, and what evidence would settle it. Separate _unknown_ from
    _inferred_ and from _verified_. Unknowns that need existing evidence, or a
    new measurement, are the input to `engineering-discovery`.
-8. **Produce the output** in the form the next step needs: an Issue body
+9. **Produce the output** in the form the next step needs: an Issue body
    (Vietnamese, per `AGENTS.md` `Language`, using the `github-issue` skill),
    or a short plan linked to the request. Keep the evidence with the claim.
 
@@ -111,13 +145,20 @@ disagree, the document wins.
   migrations. Understanding ends before execution.
 - Creating an Issue without searching existing Issues and PRs first.
 - Treating a document as evidence of current behaviour. `docs/features/`
-  records implemented capability, not a place to park an answer.
+  records implemented capability only, not a place to park an answer; and a
+  Change Specification, even an accepted one, is design-ahead — never evidence
+  that behaviour exists.
 - Resolving an open decision, or presenting an inference or a proposal as a
   verified fact or an accepted decision.
-- Choosing a work kind because it is convenient, or because a later kind in
-  the priority order sounds more impressive. §4.1 order is the only rule.
-- Inventing a constraint, a label, a milestone, an assignee or a project
-  field. Read current state at runtime.
+- Choosing an Issue Type because it is convenient, or because a later value
+  in the priority order sounds more impressive. §4.1 order is the only rule.
+- Inventing a constraint, a label, a milestone, an assignee, a project field
+  or a substitute classification — including GitHub's default Task/Bug/Feature
+  types as stand-ins for the five canonical values. Before org configuration
+  the `## Loại công việc` body channel is the authorized recording channel;
+  report a blocker only when the requested classification or native GitHub
+  capability has no documented recording channel at all
+  (`work-management.md` §2.3).
 
 ## Evidence to collect
 
@@ -127,6 +168,8 @@ disagree, the document wins.
   behaviour: `file:line`, project name, or resolved `nx show project` output.
 - The command and output behind any workspace fact you rely on.
 - The Issue or PR number behind any prior decision you cite.
+- The context when applicable: which Milestones the horizon was derived from,
+  and which Change Specifications apply, by file name.
 - An explicit list of what remains unknown, with the evidence that would
   settle each item.
 
@@ -139,8 +182,10 @@ Deliver the understanding only when:
   as a gap.
 - Every applicable constraint has a source; assumptions are labelled.
 - Current behaviour is separated from documented target.
-- The work kind is justified against §4.1, including why earlier kinds did
-  not apply.
+- The Issue Type is justified against §4.1, including why earlier values did
+  not apply, and its recording path follows `work-management.md` §2.3.
+- The context is stated when applicable: product, horizon, authoritative
+  baseline, and the applicable Change Specifications.
 - Unknowns have an owner step: `engineering-discovery`, an experiment, or an
   escalation.
 - The next action is named: create/reuse an Issue, plan a delivery slice, or

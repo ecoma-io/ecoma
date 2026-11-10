@@ -36,11 +36,12 @@ Repository là nguồn canonical của tri thức kỹ thuật, gồm bốn view
 | **Applications** | Composition, BFF/UI, API runtime, use case/orchestration, adapter, persistence mechanics, queue/outbox, background job execution, retry/lease/concurrency, config/deploy/monitoring/runbook; contract **tiêu thụ và compose** ở ranh giới application | [`applications/`](../applications/README.md) — mỗi executable component có README và `01-architecture.md`/`02-requirements.md`/`03-operations.md`; background job nằm phẳng, không có `jobs/` | Định nghĩa contract (provider-owned); trách nhiệm nghiệp vụ; domain model                                  |
 | **Features**     | Vấn đề người dùng, outcome mong muốn, product capability, requirement cấp sản phẩm                                                                                                                                                                    | [`features/`](../features/README.md)                                                                                                                                                          | Business rule/invariant (domain model); requirement kỹ thuật cấp application; cách hiện thực, backlog task |
 
-Ba điểm dễ nhầm cần phân biệt rõ:
+Bốn điểm dễ nhầm cần phân biệt rõ:
 
 - **"Applications" là tên view, không phải Nx project type.** [`05-code-architecture.md`](../architecture/05-code-architecture.md) §6.1 dùng `type:application` cho DDD layer (use case, orchestration, ports) và `type:composition` cho thứ deploy được. View Applications bao trùm cả hai cùng job/BFF: nó là góc nhìn về ranh giới và composition, không phải một loại project.
 - **"Capability" có ba nghĩa.** (i) _Business capability_ — trách nhiệm nghiệp vụ do một bounded context sở hữu, canonical ở [`domains/README.md`](../domains/README.md) §1.1. (ii) _Product capability_ — outcome sản phẩm do một Feature sở hữu, canonical ở [`features/`](../features/README.md). (iii) _Capability target_ — đơn vị mà §5 đo trạng thái; đó là một phần của (i) hoặc (ii) được phát biểu đủ hẹp để verify. Tài liệu này không định nghĩa lại (i).
 - **Contract do provider sở hữu.** Định nghĩa contract thuộc bounded context cung cấp nó ([`05-code-architecture.md`](../architecture/05-code-architecture.md) §4); schema chính xác là machine-readable contract ([`docs/AGENTS.md`](../AGENTS.md) §4). View Applications chỉ sở hữu việc application tiêu thụ và compose contract đó.
+- **Change Specification không phải view thứ năm.** Thiết kế vượt trước baseline cho một thay đổi tương lai sống trong [`changes/`](../changes/README.md); nó không thuộc bốn view và không bao giờ là baseline (§5).
 
 Quy tắc:
 
@@ -57,7 +58,7 @@ Quy tắc:
 
 ### 4.1 Năm loại công việc
 
-Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **free text** trong Issue hoặc PR body, hoặc bằng field `Loại công việc` (không bắt buộc) của Issue form; không có label riêng, và không được coi là machine-checkable. Cách ghi cụ thể → [`work-management.md`](./work-management.md) §2.3.
+Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **Issue Type** — native metadata của GitHub — là nguồn classification duy nhất; **sau transition**, không tồn tại kênh song song nào (label, Project field, Issue body). Trong transition, kênh ghi và kênh có thẩm quyền theo từng giai đoạn → [`work-management.md`](./work-management.md) §2.3. Về machine-checkable: native Issue Type là metadata machine-readable và queryable; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. CI/automation chỉ enforcement khi đã được triển khai thật — hiện repository chưa có check nào enforce Issue rules; không tuyên bố enforcement khi chưa có.
 
 | Loại            | Dùng khi                                              | Kết thúc khi                                                       | Artifact                                                      |
 | --------------- | ----------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
@@ -79,12 +80,12 @@ Experiment không đi vào production path. Code thử nằm trên branch riêng
 
 ### 4.2 Trách nhiệm của từng công cụ
 
-| Công cụ              | Sở hữu                                                                           | Không sở hữu                                           |
-| -------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **GitHub Issue**     | Một unit công việc independently trackable: vấn đề, phạm vi, tiêu chí hoàn thành | Specification dài hạn; trạng thái capability           |
-| **GitHub Project**   | Portfolio visibility, ưu tiên, điều phối giữa các unit                           | Nguồn sự thật về trạng thái capability; specification  |
-| **GitHub Milestone** | Một tập objective delivery có biên, gắn với outcome và thời điểm kết thúc        | Roadmap dài hạn; spec kiến trúc; danh sách task vô hạn |
-| **Pull Request**     | Thay đổi reviewable và bằng chứng hiện thực của nó                               | Bằng chứng deploy hoặc business outcome                |
+| Công cụ              | Sở hữu                                                                                                                                                                         | Không sở hữu                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| **GitHub Issue**     | Một unit công việc independently trackable: vấn đề, phạm vi, tiêu chí hoàn thành                                                                                               | Specification dài hạn; trạng thái capability           |
+| **GitHub Project**   | Portfolio visibility của các root issue, điều phối ở cấp portfolio ([`work-management.md`](./work-management.md) §3)                                                           | Nguồn sự thật về trạng thái capability; specification  |
+| **GitHub Milestone** | Delivery commitment có biên, gắn với outcome và thời điểm kết thúc; horizon M1/M2 đọc từ khai báo commitment của Milestone ([`work-management.md`](./work-management.md) §4.1) | Roadmap dài hạn; spec kiến trúc; danh sách task vô hạn |
+| **Pull Request**     | Thay đổi reviewable và bằng chứng hiện thực của nó                                                                                                                             | Bằng chứng deploy hoặc business outcome                |
 
 Quy tắc:
 
@@ -111,6 +112,8 @@ Chi tiết Issue form, Project field, label và PR template **không** thuộc t
 | **Implemented** | Behavior có hiện thực trong source code hoặc contract | Source code, schema, API/event contract **hoặc** cấu hình, ở đúng nơi chứa behavior đó                                                                                                                                                                          | Behavior đúng           |
 | **Verified**    | Behavior đã đạt tiêu chí verification áp dụng         | Kết quả chạy của target test đúng tầng — `test`, `test-integration`, `system-test` hoặc contract verification (→ [`06-testing.md`](../architecture/06-testing.md) §4)                                                                                           | Behavior đã deploy      |
 | **Released**    | Behavior đã deploy tới environment dự định            | Deployment record **và** kiểm tra environment sau deploy                                                                                                                                                                                                        | Business outcome đã đạt |
+
+**Baseline có thẩm quyền** khi suy ra các trạng thái này là tài liệu canonical của bốn view (§3) cùng các ADR đã accept. Một Change Specification trong [`changes/`](../changes/README.md) là thiết kế vượt trước, không bao giờ là baseline, kể cả các quyết định đã chốt trong nó (accepted target decisions — [`changes/README.md`](../changes/README.md) §3).
 
 **"Accept"** ở đây nghĩa là review đã hoàn tất và quyết định được ghi lại — ADR có status `Accepted`, hoặc specification được merge sau review. Repository không có field acceptance riêng cho specification; PR review là bằng chứng. Với ADR bị supersede một phần, claim `Specified` chỉ áp dụng cho phần **chưa** bị supersede: ví dụ ADR-0001 (staff/RBAC storage) vẫn Accepted nhưng phần database/schema đã bị ADR-0013 thay thế.
 
@@ -152,9 +155,9 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** biết mình đang thay đổi cái gì, ai sở hữu nó, ràng buộc nào áp dụng.
 - **Input:** yêu cầu hoặc vấn đề; tài liệu canonical của các view liên quan; code và cấu hình liên quan.
-- **Hoạt động:** đọc canonical location thay vì suy đoán; phân biệt rõ **đã verify**, **suy luận** và **chưa biết**; xác định invariant và ADR đang ràng buộc.
+- **Hoạt động:** đọc canonical location thay vì suy đoán; phân biệt rõ **đã verify**, **suy luận** và **chưa biết**; xác định invariant và ADR đang ràng buộc; xác định product và horizon (đọc từ khai báo commitment của Milestone — [`work-management.md`](./work-management.md) §4.1), Issue Type của unit ([`work-management.md`](./work-management.md) §2.3), baseline có thẩm quyền (§5) và các Change Specification áp dụng ([`changes/README.md`](../changes/README.md)).
 - **Output:** hiểu biết có nguồn, kèm danh sách giả định chưa xác minh — ghi trong Issue body hoặc comment của unit công việc.
-- **Hoàn thành khi:** Issue nêu được view sở hữu capability, ràng buộc đang áp dụng (kèm nguồn), và danh sách unknown với nguồn bằng chứng của từng mục.
+- **Hoàn thành khi:** Issue nêu được view sở hữu capability, ràng buộc đang áp dụng (kèm nguồn), danh sách unknown với nguồn bằng chứng của từng mục, và product, horizon, Issue Type đã xác định.
 - **Kế tiếp:** unknown đã biết trở thành công việc Discovery; phần đã rõ đi sang §6.3 để phân loại gap trước khi Select.
 
 ### 6.2 Discover & Model
@@ -179,7 +182,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** chọn thay đổi tiếp theo theo giá trị, rủi ro, dependency và chi phí.
 - **Input:** danh sách gap/opportunity; ưu tiên hiện hành; dependency giữa các slice.
-- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và quyết định tracking trong Project theo [`work-management.md`](./work-management.md) §3.3 — đánh giá từng Issue độc lập, không suy từ Milestone hay priority.
+- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và Project tracking theo quy tắc root issue ([`work-management.md`](./work-management.md) §3.2): root issue được admission khi tạo (§3.3), sub-issue không bao giờ; membership không suy từ Milestone hay priority.
 - **Output:** Issue có outcome, phạm vi và tiêu chí verify.
 - **Hoàn thành khi:** slice phát biểu được outcome quan sát được, giới hạn phạm vi rõ, tiêu chí verify thuộc đúng tầng, dependency đã biết.
 - **Kế tiếp:** sang Deliver. Slice quá lớn, hoặc thiếu bằng chứng để verify, quay lại §6.2 hoặc §6.3.
@@ -188,7 +191,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** hiện thực slice với thay đổi nhỏ nhất tạo ra outcome, và thu bằng chứng test trước khi merge.
 - **Input:** Issue; specification liên quan.
-- **Hoạt động:** làm việc theo [`AGENTS.md`](../../AGENTS.md) `Workflow`; giữ change nhỏ nhất; chạy target test đúng tầng theo [`06-testing.md`](../architecture/06-testing.md) và ghi lại lệnh cùng kết quả. Ràng buộc migration và các điều kiện merge khác giữ nguyên theo [`AGENTS.md`](../../AGENTS.md), không chép lại ở đây.
+- **Hoạt động:** làm việc theo [`AGENTS.md`](../../AGENTS.md) `Workflow`; giữ change nhỏ nhất; chạy target test đúng tầng theo [`06-testing.md`](../architecture/06-testing.md) và ghi lại lệnh cùng kết quả. Nếu slice theo một Change Specification đã accepted: đọc spec áp dụng, không hiện thực quyết định chưa accept, ghi canonical các quyết định hiện hành khi [`changes/README.md`](../changes/README.md) §3 yêu cầu; delivery không tự promotion — canonical promotion là hành vi atomic do [`changes/README.md`](../changes/README.md) §4 sở hữu, kể cả khi slice chỉ hiện thực một phần scope. Ràng buộc migration và các điều kiện merge khác giữ nguyên theo [`AGENTS.md`](../../AGENTS.md), không chép lại ở đây.
 - **Output:** PR reviewable, kèm mô tả change, giới hạn phạm vi, cách verify và kết quả test đã chạy.
 - **Hoàn thành khi:** các điều kiện merge trong [`AGENTS.md`](../../AGENTS.md) đã đạt trên revision cuối, và PR nêu rõ phần chưa làm.
 - **Kế tiếp:** sang Verify & Release; nếu phát hiện giả định sai, quay lại §6.2 thay vì mở rộng phạm vi PR.
@@ -245,6 +248,8 @@ Slice **không** cần: phủ hết requirement của Feature, chờ các contex
 
 Các phân loại dưới đây **không loại trừ lẫn nhau**: chúng trả lời hai câu hỏi khác nhau. `Aligned`, `Partially implemented`, `Not implemented`, `Implemented, not verified` mô tả **mức phủ** của target trong source. `Released` mô tả **mức tới được** của environment. `Accepted deviation` và `Gap requiring work` mô tả **thái độ** với khác biệt. Một capability vừa `Released` vừa `Aligned` là bình thường; hãy nêu cả hai.
 
+Trục khác — tác động của một material change lên các Change Specification phụ thuộc — không dùng bảng này; impact classes nằm ở [`changes/README.md`](../changes/README.md).
+
 | Phân loại                     | Nghĩa                                                  | Bằng chứng để kết luận                                      |
 | ----------------------------- | ------------------------------------------------------ | ----------------------------------------------------------- |
 | **Aligned**                   | Target và thực tế khớp ở phạm vi đang xét              | Implemented + Verified, và không có deviation đã biết       |
@@ -280,7 +285,7 @@ Ví dụ dưới đây là một lượt **giả định** qua vòng đời cho 
 1. **Understand.** Capability "seller công bố model offer" thuộc view Domains, canonical tại `domains/llm-marketplace`; ràng buộc áp dụng: `llm-marketplace` sở hữu offer, `llm-seller-tenant` cùng `llm-seller-governance` sở hữu seller lifecycle, `llm-consumer-routing` sở hữu alias/routing, `llm-seller-pricing` sở hữu giá. Chưa biết: activation cần điều kiện gì để customer gọi được, và phần nào thuộc context khác.
 2. **Discover & Model.** Giả sử Discovery cho thấy context chưa có library hay application nào; capability ở trạng thái **Specified**, không phải Implemented. Modelling chốt rằng slice đầu tiên chỉ cần offer draft + activation với một provider model, không cần endpoint pool hay tích hợp pricing. Quyết định nào chưa chốt được ghi là open, không hoá thành giả định trong code.
 3. **Identify Gaps & Opportunities.** Đối chiếu target với source và contract theo giả thiết trên: không tìm thấy hiện thực nào của context, nên FR-003 đến FR-009 là **Not implemented**, không phải **Implemented, not verified**. Không có deviation cố ý nào cần record.
-4. **Select & Plan.** Chọn vertical slice: "gọi API tạo offer draft rồi activate, và API đọc trả về offer đang active". Giới hạn phạm vi: một provider model, chưa có endpoint pool, chưa có routing và pricing. Tạo một Issue Delivery với outcome và tiêu chí verify.
+4. **Select & Plan.** Chọn vertical slice: "gọi API tạo offer draft rồi activate, và API đọc trả về offer đang active". Giới hạn phạm vi: một provider model, chưa có endpoint pool, chưa có routing và pricing. Tạo một Issue có Issue Type Delivery với outcome và tiêu chí verify.
 5. **Deliver.** Tạo branch và draft PR; thêm domain model cho offer lifecycle, persistence và application module phục vụ hai API trên; migration theo expand → compatible rollout → contract; test unit cho lifecycle và test integration với PostgreSQL thật theo NFR-003 của context. Chạy `test` và `test-integration` local, ghi lệnh và kết quả vào PR. PR nêu rõ phần chưa làm.
 6. **Verify & Release.** Đối chiếu kết quả test với tiêu chí đã đặt → slice đạt **Verified** trong phạm vi đã nêu: hai API behavior đã được verify ở tầng app-owned. Slice **không** đạt **Released** vì không có deployment record tới environment dự định; trạng thái dừng ở Verified chứ không suy ra Released từ việc PR đã merge. Slice cũng **không** verify được hành vi xuyên deploy unit — điều đó cần `system-test` và một stack chạy thật.
 7. **Reconcile.** Sau merge: FR-003 và FR-004 là **Partially implemented** (một provider model, chưa có endpoint pool); FR-005 đến FR-009 vẫn **Not implemented**; activation không có routing và pricing là **limitation tạm thời**, không phải deviation cố ý. Feature chưa hoàn thành dù Issue đã đóng. Vòng tiếp theo chọn slice endpoint pool hoặc tích hợp routing, theo cùng quy trình.
@@ -290,4 +295,5 @@ Ví dụ dưới đây là một lượt **giả định** qua vòng đời cho 
 - Canonical location của quá trình là `docs/engineering/evolution-process.md`; mọi tài liệu khác tham chiếu tới đây thay vì chép lại quy tắc.
 - Thay đổi quy tắc phải sửa file này và cập nhật index liên quan trong cùng thay đổi (→ [`docs/AGENTS.md`](../AGENTS.md) §5).
 - Khi vị trí canonical của một view thay đổi (ví dụ thư mục của view Applications hay vị trí của view Features), cập nhật bảng ở §3 cùng lúc với thay đổi đó.
+- Quy tắc của Change Specification (promotion, impact classes, template) nằm ở [`changes/README.md`](../changes/README.md); thay đổi quy tắc quy trình ở đây ảnh hưởng tài liệu đó thì cập nhật trong cùng thay đổi.
 - Tài liệu này dài hơn mốc ~200 dòng của [`docs/AGENTS.md`](../AGENTS.md) §2. Lý do: ba lớp, bốn view, năm loại công việc và bảy bước tạo thành **một** specification; tách rời sẽ khiến mỗi phần thiếu ngữ cảnh của phần kia và sinh thêm canonical location phải bảo trì. §5 và §8 là hai chủ đề độc lập nhất, nên là ứng viên tách đầu tiên nếu mốc này bị vượt đáng kể.

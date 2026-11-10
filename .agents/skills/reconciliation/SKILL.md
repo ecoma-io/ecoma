@@ -18,7 +18,8 @@ description: Apply when the target model must be compared with what
 ## Objective
 
 Answer one question with evidence: where does the capability actually stand
-against its target, and what must be recorded as a result? Produce the
+against its target, what happened to its dependencies, and — when the slice
+rode a Change Specification — did canonical promotion complete? Produce the
 classification, the records it requires, and an honest Issue closure decision.
 This skill applies the existing reconciliation and deviation vocabulary. It
 introduces no new class, no severity level, no status table, and no second
@@ -28,12 +29,23 @@ backlog.
 
 - `docs/engineering/evolution-process.md` §8.1 (reconciliation classes), §8.2
   (limitation vs deviation), §8.3 (reconciliation rules), §5.1–§5.3 (states
-  and evidence), §6.7 (Reconcile), §7 (prerequisite work is
+  and evidence; the authoritative baseline is never a Change Specification),
+  §6.7 (Reconcile), §7 (prerequisite work is
   `Implemented, not verified`).
-- `docs/engineering/work-management.md` §2.2 (record types), §2.5 (assumption
-  and scope changes), §2.6 (closure conditions and closure reasons), §5.2
-  (linking a PR to an Issue).
+- `docs/engineering/work-management.md` §2.2 (record kinds and their Issue
+  Types), §2.5 (assumption and scope changes), §2.6 (closure conditions and
+  closure reasons), §5.2 (linking a PR to an Issue).
 - `docs/engineering/contribution-workflow.md` §2.10 (reconcile after merge).
+- `docs/changes/README.md` — §3 (the three decision states; accepted target
+  decisions become canonical at canonical promotion, not before), §3/§4
+  (canonical promotion is atomic at the spec's scope — never an automatic
+  consequence of a merge, a first slice landing, first user-visible
+  behaviour, a delivery entering M1, or one of several dependent delivery
+  units completing), and the impact classes a material change applies to
+  dependent Change Specifications. Impact classes
+  are a different axis from the reconciliation classes of §8.1: one classifies
+  the effect on a dependent spec, the other the delta between target and
+  reality. Never substitute one for the other.
 - `docs/AGENTS.md` §9 (artifact lifecycle), §10 (ADR governance, including
   partial supersession), §12 (deviation governance and where each record
   goes).
@@ -81,27 +93,52 @@ backlog.
    - **Wording or a stale supporting statement, target unchanged** — correct
      the owning canonical document in the same change and say why in the Issue
      comment.
-   - **The target itself changes** — a separate Modelling work item;
-     reconciliation records the finding and routes it, it does not make the
-     decision.
+   - **The target itself changes** — a separate work item with Issue Type
+     Modelling; reconciliation records the finding and routes it, it does not
+     make the decision.
    - **An accepted decision no longer holds** — write a superseding ADR; never
      edit the accepted ADR to match the code, including partial supersession
      under `docs/AGENTS.md` §10.
 7. For every material gap, search for an existing Issue before opening one; if
-   none tracks it, open a Remediation Issue with the gap class, the evidence,
-   the affected canonical location, and a completion condition. Link it from
-   the finished unit.
-8. Record the result as a comment on the Issue of the unit just finished. State
+   none tracks it, open a work item with Issue Type Remediation carrying the
+   gap class, the evidence, the affected canonical location, and a completion
+   condition. Link it from the finished unit.
+8. When the unit delivered behaviour under a Change Specification, evaluate
+   against atomic promotion (`docs/changes/README.md` §3/§4): promotion
+   happens only when the spec's complete scope and acceptance/promotion
+   criteria are met — a partial delivery, including the first slice, does
+   not promote the spec and is not itself a pending promotion. Check
+   instead that the delivery did not silently change the baseline unrelated
+   work consumes: a slice that changed current-baseline behaviour, an
+   invariant, data ownership or a consumed shared contract must have its
+   decision recorded in the canonical location (an ADR when `docs/AGENTS.md`
+   §10 requires) before or in the same logical change; a temporary
+   implementation-versus-target difference is classified with the §8.1
+   classes above and recorded through the deviation and follow-up
+   mechanisms (`evolution-process.md` §8.2), never as a new mutable field
+   in the spec. When the spec's complete scope and promotion criteria are
+   met, canonical promotion is due in one logical change — owning documents
+   updated in their views, the §10 ADRs written, catalog and context map
+   where applicable, the spec file and its index entry removed, and the
+   owning root issue updated. Never auto-update canonical documents just
+   because the PR merged, and never treat one delivered unit of several
+   dependent ones as promotion.
+   When the delivered change is itself material for dependent Change
+   Specifications, route the impact assessment to `change-impact` — its
+   impact classes are a different axis from the reconciliation classes of
+   step 3.
+9. Record the result as a comment on the Issue of the unit just finished. State
    the scope reconciled, the class per part with its evidence, the records
-   created or updated, and the remaining limitation. Use clear prose per
+   created or updated, the promotion state when a Change Specification was
+   involved, and the remaining limitation. Use clear prose per
    `docs/AGENTS.md` §2, and write human-facing Issue text in the language `AGENTS.md`
    `Language` requires.
-9. Decide closure against `work-management.md` §2.6. Close as `completed` only
-   when the outcome is met, evidence exists, and this reconciliation comment is
-   present. Use `not planned` with the decision and where it was recorded, or
-   `duplicate` with a link to the retained Issue. When verification failed,
-   leave the Issue open and let the Remediation Issue carry the remainder.
-10. Check that nothing recorded asserts a state above its evidence: a closed
+10. Decide closure against `work-management.md` §2.6. Close as `completed` only
+    when the outcome is met, evidence exists, and this reconciliation comment is
+    present. Use `not planned` with the decision and where it was recorded, or
+    `duplicate` with a link to the retained Issue. When verification failed,
+    leave the Issue open and let the Remediation unit carry the remainder.
+11. Check that nothing recorded asserts a state above its evidence: a closed
     Issue, a merged PR, green CI or a successful deploy are not proof of a
     higher capability state.
 
@@ -109,13 +146,14 @@ backlog.
 
 - Comment on the Issue of the unit just finished, and update its body when a
   recorded assumption or scope changed (`work-management.md` §2.5).
-- Open a Remediation Issue, or reuse an existing one that already tracks the
-  gap.
+- Open a work item with Issue Type Remediation, or reuse an existing one that
+  already tracks the gap.
 - Record in the Issue that evidence changed an assumption. Correcting a stale
   supporting statement whose target is unchanged is allowed in the same
-  change; changing the target is a separate Modelling work item
-  (`work-management.md` §2.5), routed through `domain-modelling` or
-  `architecture-evolution`. Do not settle a decision inside a reconciliation.
+  change; changing the target is a separate work item with Issue Type
+  Modelling (`work-management.md` §2.5), routed through `domain-modelling`
+  or `architecture-evolution`. Do not settle a decision inside a
+  reconciliation.
 - Write a new ADR that supersedes the part of an accepted decision that no
   longer holds, updating the old status line and both index rows.
 - Close the unit's own Issue with the correct closure reason.
@@ -136,7 +174,18 @@ backlog.
 - Claiming `Released` without a deployment record and a post-deploy
   environment check.
 - Opening new implementation work before the comparison is written down.
-- Reclassifying the work kind silently, or reopening or editing another
+- Auto-updating canonical documents because a PR merged. Canonical promotion
+  under a Change Specification is an explicit act, atomic at the spec's
+  scope — never triggered by a merge, a first slice landing, first
+  user-visible behaviour, a delivery entering M1, or one delivery unit of
+  several dependent ones completing (`docs/changes/README.md` §3/§4); until
+  then accepted target decisions stay in the spec, and
+  implementation-versus-target differences are recorded through the
+  reconciliation and deviation mechanisms, not papered over.
+- Classifying a dependent Change Specification's fate with the §8.1
+  reconciliation classes, or a target-reality delta with the impact classes
+  of `docs/changes/README.md` — they are different axes.
+- Reclassifying the Issue Type silently, or reopening or editing another
   session's Issue instead of commenting.
 - Inventing a class, severity, or deviation category outside the canonical
   sets.
@@ -152,6 +201,12 @@ backlog.
 - The declared limitation or deviation, if any, with where it was declared.
 - The class assigned to each part of the scope, and the evidence supporting it.
 - Records created or updated: Issue numbers, ADR numbers, canonical paths.
+- When a Change Specification was involved: whether the spec's complete
+  scope and acceptance/promotion criteria are met; when they are, whether
+  canonical promotion completed in one logical change; when they are not,
+  how each implementation-versus-target difference was recorded
+  (reconciliation class, deviation record, or explicit follow-up) — never a
+  claimed promotion the evidence does not support.
 - The closure reason selected, and the condition from §2.6 that authorises it.
 - Whatever could not be automated or confirmed, and who must confirm it.
 
@@ -167,6 +222,10 @@ backlog.
   comment is still owed, and a failed reconciliation reopens the Issue. The
   reconciliation comment exists on the unit's Issue before closure.
 - The closure reason matches §2.6, and no claim exceeds its evidence.
+- When a Change Specification was involved, the promotion state is recorded
+  honestly: promotion due and completed in one logical change, or the spec
+  still open with its differences classified — a partial delivery is never
+  recorded as a promotion.
 - No new status table, second backlog, or invented vocabulary was introduced.
 
 ## Escalation

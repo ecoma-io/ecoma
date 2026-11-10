@@ -1,6 +1,6 @@
 # Publish và truy xuất contract
 
-> **Product area:** `pact-broker/` · **Mô tả một dòng:** consumer publish pact của mình lên broker, provider và CI đọc lại đúng phiên bản contract cần kiểm chứng.
+> **Feature area:** `pact-broker/` · **Mô tả một dòng:** consumer publish pact của mình lên broker, provider và CI đọc lại đúng phiên bản contract cần kiểm chứng.
 >
 > Đặc tả domain → [`domains/pact-broker/`](../../domains/pact-broker/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

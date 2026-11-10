@@ -16,9 +16,21 @@
 <!-- Closes #N chỉ khi PR hoàn thành toàn bộ Issue. PR chỉ làm một phần dùng Refs #N.
      Không phải PR nào cũng cần Issue — nếu không có, ghi lý do. -->
 
+## Issue Type
+
+<!-- PR có Issue liên kết: Issue là nguồn phân loại duy nhất — ghi số Issue đó ở dòng dưới,
+     không nêu thêm giá trị Issue Type thứ hai do PR tự duy trì.
+     PR không có Issue: xoá số Issue và ghi đúng MỘT giá trị trong năm giá trị canonical
+     (Discovery, Modelling, Experiment, Delivery, Remediation) vào dòng dưới — đây là kênh ghi duy nhất
+     của PR trong trường hợp này; không tạo label hay Project field để phân loại.
+     Định nghĩa và thứ tự ưu tiên: docs/engineering/evolution-process.md §4.1; cách ghi:
+     docs/engineering/work-management.md §2.3. -->
+
+#N
+
 ## Mô tả
 
-<!-- Thay đổi này làm gì và tại sao cần. Loại công việc (Evolution Process §4.1) nếu hữu ích. -->
+<!-- Thay đổi này làm gì và tại sao cần. -->
 
 ## Thay đổi chính
 

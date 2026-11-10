@@ -40,7 +40,7 @@ Ba hệ quả thực hành:
 
 ## 3. Tổ chức thư mục
 
-Mỗi thư mục con là một **product area**, không phải một Nx project hay một bounded context. Một area có thể chạm nhiều domain và nhiều application; một domain có thể xuất hiện trong nhiều area.
+Mỗi thư mục con là một **feature area**, không phải một Nx project hay một bounded context. Một area có thể chạm nhiều domain và nhiều application; một domain có thể xuất hiện trong nhiều area.
 
 ```text
 docs/features/

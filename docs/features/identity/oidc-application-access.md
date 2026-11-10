@@ -1,6 +1,6 @@
 # Truy cập application qua OIDC
 
-> **Product area:** `identity/` · **Mô tả một dòng:** người dùng đăng nhập một lần rồi cấp quyền cho một application, application nhận token để gọi API thay mặt họ.
+> **Feature area:** `identity/` · **Mô tả một dòng:** người dùng đăng nhập một lần rồi cấp quyền cho một application, application nhận token để gọi API thay mặt họ.
 >
 > Đặc tả domain → [`domains/auth/`](../../domains/auth/README.md) · [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

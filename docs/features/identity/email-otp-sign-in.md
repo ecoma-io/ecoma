@@ -1,6 +1,6 @@
 # Đăng nhập bằng email OTP
 
-> **Product area:** `identity/` · **Mô tả một dòng:** người dùng đăng nhập bằng một mã dùng một lần gửi tới email, không cần mật khẩu.
+> **Feature area:** `identity/` · **Mô tả một dòng:** người dùng đăng nhập bằng một mã dùng một lần gửi tới email, không cần mật khẩu.
 >
 > Đặc tả domain → [`domains/account/`](../../domains/account/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

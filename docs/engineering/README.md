@@ -6,11 +6,11 @@
 
 ## Tài liệu
 
-| Document                                                 | Nội dung                                                                                                                                                                                                                                                                          |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`evolution-process.md`](./evolution-process.md)         | Canonical process: ba lớp (Knowledge · Work Management · Reality & Evidence), bốn view tri thức (Architecture · Domains · Applications · Features), năm loại công việc, vòng đời bảy bước, ý nghĩa Vertical Slice, bốn trạng thái năng lực, và reconciliation/deviation semantics |
-| [`work-management.md`](./work-management.md)             | Canonical cho GitHub work management: khi nào tạo/tái dùng Issue, work item so với ledger/precondition tracker/experiment record, cách ghi work kind, nội dung tối thiểu, điều kiện đóng, Issue nào cần label `project:track`; trách nhiệm của Project, Milestone và Pull Request |
-| [`contribution-workflow.md`](./contribution-workflow.md) | Quy trình thực hành cho developer và coding agent: mười hành động từ hiểu yêu cầu tới reconcile, handoff giữa các vai trò, cách chọn validation theo scope, và ranh giới giữa tài liệu hướng dẫn với ràng buộc trong `AGENTS.md`                                                  |
+| Document                                                 | Nội dung                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`evolution-process.md`](./evolution-process.md)         | Canonical process: ba lớp (Knowledge · Work Management · Reality & Evidence), bốn view tri thức (Architecture · Domains · Applications · Features), năm loại công việc ghi bằng Issue Type, vòng đời bảy bước, ý nghĩa Vertical Slice, bốn trạng thái năng lực, và reconciliation/deviation semantics                                                                                                                    |
+| [`work-management.md`](./work-management.md)             | Canonical cho GitHub work management: khi nào tạo/tái dùng Issue, root issue so với sub-issue, work item so với ledger/precondition tracker/experiment record, cách ghi Issue Type (native, kèm khối transition), nội dung tối thiểu, điều kiện đóng theo cấp root/sub, membership Project của root issue và legacy `project:track`, horizon M1/M2/Feature Discovery; trách nhiệm của Project, Milestone và Pull Request |
+| [`contribution-workflow.md`](./contribution-workflow.md) | Quy trình thực hành cho developer và coding agent: mười hành động từ hiểu yêu cầu tới reconcile, handoff giữa các vai trò, cách chọn validation theo scope, và ranh giới giữa tài liệu hướng dẫn với ràng buộc trong `AGENTS.md`                                                                                                                                                                                         |
 
 Entry point cho contributor là [`CONTRIBUTING.md`](../../CONTRIBUTING.md) ở repository root. Nó tổng hợp và dẫn chiếu ba tài liệu trên, không chép lại nội dung.
 
@@ -26,6 +26,8 @@ Repository tổ chức tri thức kỹ thuật thành **bốn view** — Archite
 - [`features/`](../features/README.md) → Features
 
 "Bốn trục" trong [`domains/README.md`](../domains/README.md) §1.1 là khái niệm khác (bounded context / deploy unit / Nx scope / deployment project), không phải bốn view tri thức.
+
+Change Specification — thiết kế vượt trước baseline cho một thay đổi tương lai — nằm ở [`changes/`](../changes/README.md), không phải view tri thức thứ năm và không bao giờ là baseline. Quy tắc promotion và impact classes do [`changes/README.md`](../changes/README.md) sở hữu.
 
 ## Phạm vi hiện tại
 

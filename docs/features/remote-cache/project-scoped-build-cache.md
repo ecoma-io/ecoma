@@ -1,6 +1,6 @@
 # Build cache theo project
 
-> **Product area:** `remote-cache/` · **Mô tả một dòng:** developer và CI chia sẻ artifact build của Nx qua một remote cache tự vận hành, cách ly theo tenant và project.
+> **Feature area:** `remote-cache/` · **Mô tả một dòng:** developer và CI chia sẻ artifact build của Nx qua một remote cache tự vận hành, cách ly theo tenant và project.
 >
 > Đặc tả domain → [`domains/remote-cache/`](../../domains/remote-cache/README.md) · thiết kế deploy unit → [`applications/remote-cache/`](../../applications/remote-cache/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

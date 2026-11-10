@@ -10,8 +10,11 @@ description: Apply when a user problem, desired outcome, product capability or p
 Turn a vague desire into a framed problem and a set of verifiable
 requirements, and put that text in a place that is allowed to hold it. This
 skill creates **no new document location** — the Features knowledge view is
-canonical at [`docs/features/`](../../../docs/features/README.md), and
-inventing a second place would create a second source of truth.
+canonical at [`docs/features/`](../../../docs/features/README.md), future
+targets that meet the spec gate live in Change Specifications under
+[`docs/changes/`](../../../docs/changes/README.md) (a small well-scoped
+feature needs no spec), and inventing a third place would create a second
+source of truth.
 
 Produce four things:
 
@@ -19,8 +22,11 @@ Produce four things:
 2. The desired outcome, as observable behaviour, plus explicit non-goals.
 3. Requirements precise enough that a delivery slice can be scoped and
    verified against them.
-4. The correct record: a Feature document under `docs/features/`, or the
-   canonical document that genuinely owns requirements at that level.
+4. The correct record: a Feature document under `docs/features/` for
+   capability that is implemented, a Change Specification under
+   `docs/changes/` for a future product target that meets the spec gate
+   (`docs/changes/README.md` §1), or the canonical document
+   that genuinely owns requirements at that level.
 
 ## Canonical references
 
@@ -29,18 +35,31 @@ disagree, the document wins.
 
 - [`docs/engineering/evolution-process.md`](../../../docs/engineering/evolution-process.md)
   — §3 (the four knowledge views; the Features view is canonical at
-  `docs/features/`), §4.1 (work kinds; a requirement change with no behaviour
-  change is Modelling), §6.3 (identify gaps), §6.4 (Select & Plan), §7
-  (vertical slice: state what is covered and what is not).
+  `docs/features/`; Change Specifications are not a fifth view and never
+  baseline), §4.1 (the five Issue Type values; a requirement change with no
+  behaviour change is Modelling), §6.3 (identify gaps), §6.4 (Select & Plan),
+  §7 (vertical slice: state what is covered and what is not).
 - [`docs/AGENTS.md`](../../../docs/AGENTS.md) — §3 (`domains/<context>/`
   `domain-model.md` owns business rules and invariants;
   `applications/<component>/` owns application-specific requirements;
-  `features/` owns user problems and product capability; `architecture/` is
-  not a backlog), §4 (canonical source table), §6 (a proposal does not become
-  a decision without the owning record).
+  `features/` owns user problems and product capability — implemented
+  capability only; `changes/` owns future-target specifications;
+  `architecture/` is not a backlog), §4 (canonical source table), §6 (a
+  proposal does not become a decision without the owning record).
+- [`docs/features/README.md`](../../../docs/features/README.md) — the Features
+  view rules: a Feature document describes implemented capability, carries no
+  status, and is never a backlog.
+- [`docs/changes/README.md`](../../../docs/changes/README.md) and
+  [`docs/changes/_template.md`](../../../docs/changes/_template.md) — the
+  spec gate (§1: when a Change Specification is required at all), the
+  Change Specification lifecycle including atomic canonical promotion
+  (§3/§4), the change types (introduce, evolve,
+  retire) carried by each Affected scope entry, and the ten required
+  sections.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
-  — §2.1 (when an Issue must exist), §2.4 (minimum Issue content by work
-  kind), §5.2 (`Closes #N` versus `Refs #N`).
+  — §2.1 (when an Issue must exist), §2.3 (how the Issue Type is recorded),
+  §2.4 (minimum Issue content per Issue Type), §5.2 (`Closes #N` versus
+  `Refs #N`).
 - [`docs/domains/README.md`](../../../docs/domains/README.md) — §1.1 (bounded
   context versus Application and deploy unit), §2 (catalog),
   [`docs/domains/open-boundaries.md`](../../../docs/domains/open-boundaries.md)
@@ -71,9 +90,33 @@ disagree, the document wins.
    they do today, and what that costs. Evidence beats assumption: label
    inferred claims as inferred.
 4. **Fix the level.** Decide which view would own this content:
-   - A **product capability** — what users get, independent of any context's
-     design — belongs to the Features view under `docs/features/`, following
+   - A **product capability that is implemented** — what users get,
+     independent of any context's design — belongs to the Features view under
+     `docs/features/`, following
      [`docs/features/_template.md`](../../../docs/features/_template.md).
+   - A **product capability that does not exist yet** is a future target.
+     Two clearly separated paths — never mixed:
+     - **With an accepted Change Specification** — required only when the
+       change meets the spec gate
+       ([`docs/changes/README.md`](../../../docs/changes/README.md) §1),
+       with the change type (introduce, evolve, retire) on each Affected
+       scope entry per
+       [`docs/changes/_template.md`](../../../docs/changes/_template.md).
+       The capability then follows the spec promotion lifecycle: the spec
+       is promoted only when its complete scope and acceptance/promotion
+       criteria are met (`docs/changes/README.md` §3/§4). Separately, when
+       the capability — or an independently useful subset of it — actually
+       has implementation evidence, this skill creates or updates the
+       Feature document for what exists, with explicit exclusions for what
+       remains unimplemented. That direct Feature-document authoring is NOT
+       canonical promotion of the spec.
+     - **Without a spec** — a small well-scoped feature: the Issue carries
+       the work request and acceptance criteria, Delivery implements it,
+       and its Feature document is created or updated directly once
+       implementation evidence exists. It never undergoes a Change
+       Specification promotion.
+       Never create a Feature document describing a target with no
+       implementation evidence.
    - A **business rule, invariant or policy** of one bounded context belongs
      in `docs/domains/<context>/domain-model.md`. It is not a product
      requirement and does not go into a Feature document.
@@ -95,10 +138,10 @@ disagree, the document wins.
 7. **Mark every open question.** Unresolved product decisions stay open, with
    who or what would settle each one. An open item is not a default value.
 8. **Record the result.** Write the framed problem, outcome, requirements and
-   non-goals into the Feature document chosen in step 4, or into the existing
-   canonical document that owns content at that level. Never both: the other
-   place gets a pointer. An Issue tracks the work; it does not become the
-   long-lived requirements record.
+   non-goals into the record chosen in step 4 — the Feature document, the
+   Change Specification, or the existing canonical document that owns content
+   at that level. Never both: the other place gets a pointer. An Issue tracks
+   the work; it does not become the long-lived requirements record.
 9. **Hand off, do not implement.** Delivery scope selection is
    `delivery-slice`; domain design is `domain-modelling`; architecture
    trade-offs are `architecture-evolution`. State which of those the next
@@ -108,7 +151,14 @@ disagree, the document wins.
 
 - A Feature document under `docs/features/<area>/<feature>.md`, per
   [`docs/features/_template.md`](../../../docs/features/_template.md),
-  written in Vietnamese per `AGENTS.md` `Language`.
+  written in Vietnamese per `AGENTS.md` `Language` — for capability that is
+  implemented.
+- A Change Specification under `docs/changes/`, per
+  [`docs/changes/_template.md`](../../../docs/changes/_template.md), with its
+  index row in [`docs/changes/README.md`](../../../docs/changes/README.md)
+  added in the same change — for a future product target that meets the
+  spec gate (`docs/changes/README.md` §1); a small well-scoped feature needs
+  no spec.
 - `docs/domains/<context>/domain-model.md`, only as a pointer when a business
   rule is involved; the rule itself is `domain-modelling` work.
 - `docs/applications/<component>/02-requirements.md`, when the requirement is
@@ -121,7 +171,17 @@ disagree, the document wins.
 
 - Creating a second location for feature specifications, a parallel
   requirements registry, or a new knowledge view. `docs/features/` is the
-  one canonical location for the Features view.
+  one canonical location for the Features view; `docs/changes/` is the one
+  location for future targets.
+- Writing an unimplemented capability into `docs/features/` as if it existed.
+  The Features view records capability with implementation evidence only
+  ([`docs/features/README.md`](../../../docs/features/README.md)); a future
+  target is a Change Specification, and a Feature document is created or
+  updated only when the capability — or an independently useful subset —
+  actually has implementation evidence, described together with explicit
+  exclusions for the rest. That authoring is not canonical promotion of the
+  spec, and no Feature document is ever created for a target with no
+  implementation evidence.
 - Defining a new knowledge view, status vocabulary, requirement identifier
   scheme, or label taxonomy.
 - Copying the same requirements into an Issue and a document; one owns the
@@ -152,6 +212,9 @@ disagree, the document wins.
 - Non-goals and open questions are explicit.
 - The text lives in exactly one allowed location, and any other reference is
   a pointer.
+- The record matches reality: implemented capability in `docs/features/`,
+  future target in `docs/changes/` as a Change Specification — never a future
+  target written into the Features view.
 - No new canonical location, view, status or taxonomy was created.
 - When a requirement lands in `applications/<component>/02-requirements.md`,
   it states application-specific behaviour and acceptance there only;

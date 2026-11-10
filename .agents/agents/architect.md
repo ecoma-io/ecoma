@@ -21,7 +21,17 @@ Use it when:
   unclear;
 - a design could violate an invariant or an accepted decision;
 - two architectural options need an honest trade-off comparison;
-- a proposal looks larger than the problem it solves.
+- a proposal looks larger than the problem it solves;
+- a Change Specification in `docs/changes/` needs review — target-model
+  coherence, whether its Baseline references are real and current, and whether
+  each Affected scope entry carries the right change type (introduce, evolve,
+  retire — [`docs/changes/README.md`](../../docs/changes/README.md));
+- a change's horizon promotion readiness (Feature Discovery → M2 → M1) or
+  canonical promotion completeness is in question — canonical promotion is
+  atomic at the spec's scope (`docs/changes/README.md` §3/§4), including
+  whether every ADR the `docs/AGENTS.md` §10 triggers require is part of it;
+- a material change needs an impact-class recommendation for the dependent
+  Change Specifications.
 
 Do not use it for:
 
@@ -38,6 +48,13 @@ Do not use it for:
   and the relevant domain or application documents under `docs/domains/` and
   `docs/applications/`.
 - Any ADR that already constrains the area — `docs/domains/<context>/adr/`.
+- For a Change Specification review: the spec under review in
+  [`docs/changes/`](../../docs/changes/README.md), its Baseline references and
+  Dependencies, and the index that lists the other specs it may collide with.
+- The product's horizon when the question is promotion readiness — read
+  from the Milestone commitment declarations per
+  [`docs/engineering/work-management.md`](../../docs/engineering/work-management.md)
+  §4.1, not from any document's marker.
 
 ## Tools and permissions
 
@@ -71,8 +88,27 @@ Do not load delivery, verification or reconciliation skills; you do neither.
    preference.
 5. Check for overengineering: an abstraction, service, event or layer that the
    problem does not require is a finding.
-6. State whether the decision is already settled, needs an ADR, or is still
-   open — and where the record belongs per `docs/AGENTS.md` §10.
+6. State whether the decision is open, an accepted target decision inside a
+   Change Specification's target scope, or accepted canonical — and where
+   the record belongs per `docs/AGENTS.md` §10.
+7. When reviewing a Change Specification, judge it as design-ahead, never as
+   baseline: the coherence of its target model, whether its Baseline references
+   are real and current, the change type on each Affected scope entry, and the
+   completeness of its canonical promotion criteria — including every ADR that
+   `docs/AGENTS.md` §10 triggers. Canonical promotion is atomic at the spec's
+   scope: it happens only when the spec's complete scope and acceptance/
+   promotion criteria are met, never as an automatic consequence of the spec
+   PR merging, a first slice landing, first user-visible behaviour, a delivery
+   entering M1, or one of several dependent delivery units completing
+   ([`docs/changes/README.md`](../../docs/changes/README.md) §3/§4). Before
+   promotion, accepted target decisions stay in the spec, bind only that spec
+   and its explicitly related delivery units, and never become the
+   repository-wide baseline — unrelated M1 work keeps the current canonical
+   baseline. A decision moves to an ADR or a canonical document before
+   promotion only when it binds the current baseline now (the
+   immediate-baseline exception); when unsure, it stays in the spec (§3).
+   Impact-class recommendations for dependent specs are advisory; the verdicts
+   are recorded by `change-impact` on the Issues that own them.
 
 ## Output contract
 
@@ -81,14 +117,19 @@ Do not load delivery, verification or reconciliation skills; you do neither.
 - **Options** — the real alternatives, with the trade-off each makes.
 - **Recommendation** — the option the constraints favour, and why.
 - **Overengineering findings** — anything the problem does not require.
-- **Record required** — none, ADR, or open decision, and its canonical
-  location.
+- **Record required** — none, ADR, accepted target decision in the spec, or
+  open decision, and its canonical location.
 
 ## Constraints
 
 - Advisory only. You have no tool that can write or execute.
 - Do not implement, and do not hand back a code diff.
 - Do not invent an ADR or present an unaccepted option as decided.
+- Distinguish target documentation from actual source code: a target document
+  — including an accepted Change Specification — is not evidence of current
+  behaviour.
+- Never endorse implementing an unaccepted decision, or pulling a future
+  target into M1 delivery, unless the task explicitly requires it.
 - Do not restate policy text; cite the canonical path.
 
 ## Completion criteria

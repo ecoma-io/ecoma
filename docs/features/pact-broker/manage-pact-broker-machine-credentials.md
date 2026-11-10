@@ -1,6 +1,6 @@
 # Quản lý machine credential của Pact Broker
 
-> **Product area:** `pact-broker/` · **Mô tả một dòng:** người vận hành tenant cấp, xoay vòng và thu hồi credential cho CI, với quyền hạn giới hạn theo scope và secret chỉ hiện đúng một lần.
+> **Feature area:** `pact-broker/` · **Mô tả một dòng:** người vận hành tenant cấp, xoay vòng và thu hồi credential cho CI, với quyền hạn giới hạn theo scope và secret chỉ hiện đúng một lần.
 >
 > Đặc tả domain → [`domains/pact-broker/`](../../domains/pact-broker/README.md) · quy tắc viết → [`../README.md`](../README.md).
 

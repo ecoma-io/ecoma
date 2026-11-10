@@ -72,11 +72,11 @@ A document beyond these three roles is allowed only when it owns a distinct subj
 ### `engineering/`
 
 - `README.md`: purpose of the process documentation and its relationship to the four knowledge views.
-- `evolution-process.md`: canonical Engineering Evolution Process — Knowledge / Work Management / Reality & Evidence layers, four knowledge views and their ownership, five work kinds, the continuous lifecycle, Vertical Slice semantics, capability states and reconciliation/deviation semantics. It owns **process**, not system knowledge: architecture, domains and applications stay in their own canonical locations. The Features view is canonical at [`features/`](./features/README.md).
-- `work-management.md`: canonical GitHub work-management policy — when a work item needs an Issue, how an Issue differs from a coordination ledger, precondition tracker, experiment record or decision Issue, how the five work kinds are recorded without adding a parallel label system, minimum Issue content and closure conditions, and the responsibilities of Project, Milestone and Pull Request. It owns **policy**, not the current GitHub configuration: label sets, Milestones, Projects and fields must be read from GitHub before use and never restated here as fact.
+- `evolution-process.md`: canonical Engineering Evolution Process — Knowledge / Work Management / Reality & Evidence layers, four knowledge views and their ownership, the five nature-of-change values (Discovery · Modelling · Experiment · Delivery · Remediation, carried by native Issue Type), the continuous lifecycle, Vertical Slice semantics, capability states and reconciliation/deviation semantics. It owns **process**, not system knowledge: architecture, domains and applications stay in their own canonical locations. The Features view is canonical at [`features/`](./features/README.md).
+- `work-management.md`: canonical GitHub work-management policy — when a work item needs an Issue, how an Issue differs from a coordination ledger, precondition tracker, experiment record or decision Issue, native Issue Type as the single classification carrier (with the documented transition), root-issue Project membership and the `project:track` transition constraint, horizon semantics of Milestone commitments, minimum Issue content and closure conditions, and the responsibilities of Project, Milestone and Pull Request. It owns **policy**, not the current GitHub configuration: label sets, Milestones, Projects and fields must be read from GitHub before use and never restated here as fact.
 - `contribution-workflow.md`: canonical contributor procedure — the actions and handoffs that connect the seven lifecycle steps of `evolution-process.md` to repository constraints, which validation to run for which kind of change, and where guidance ends and `AGENTS.md` constraints begin.
 
-`evolution-process.md` owns lifecycle and work-kind semantics; `work-management.md` owns GitHub tool semantics; `contribution-workflow.md` owns the procedure. Each may name the five work kinds so a reader can orient, but none restates another's definitions, conditions or rules — it links to the owning section. `CONTRIBUTING.md` at the repository root is an entry point that links to all three rather than a fourth copy.
+`evolution-process.md` owns lifecycle and Issue Type taxonomy semantics; `work-management.md` owns GitHub tool semantics; `contribution-workflow.md` owns the procedure. Each may name the five Issue Type values so a reader can orient, but none restates another's definitions, conditions or rules — it links to the owning section. `CONTRIBUTING.md` at the repository root is an entry point that links to all three rather than a fourth copy.
 
 ### `features/`
 
@@ -86,11 +86,24 @@ A document beyond these three roles is allowed only when it owns a distinct subj
 
 Rules:
 
-- **A Feature belongs to the Features view, not to a deploy unit.** The directory groups Features by product area (`identity/`, `account/`, `pact-broker/`, …), never by Nx project. A bounded context, endpoint, worker or library does not become a Feature by existing.
+- **A Feature belongs to the Features view, not to a deploy unit.** The directory groups Features by feature area (`identity/`, `account/`, `pact-broker/`, …), never by Nx project; a feature area is not a Product ID (Product identity → [`engineering/work-management.md`](./engineering/work-management.md) §4.1). A bounded context, endpoint, worker or library does not become a Feature by existing.
 - **Describe capability, not implementation.** A Feature document states the user problem, the outcome, the boundary and the acceptance scenarios. It does not restate domain rules or invariants, the API reference, the storage schema or the delivery plan — link to `domains/`, `applications/` and the machine-readable contract instead (`§4`).
 - **Every capability statement must have evidence.** A behavior is described only when source code, configuration or a contract implements it. Anything that runs on a mock, a prototype or a disabled UI is named as such; anything unimplemented stays in the scope's exclusion list. Distinguish implementation evidence from verification evidence — a test file that exists proves nothing about a passing run.
 - **No mutable state.** No status field, no issue/PR list, no roadmap, no phase, no implementation checklist. Capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5, never stored in a Feature document.
 - **A Feature is not a slice.** A vertical slice delivers part of a Feature; the Feature document describes the capability, not the delivery order.
+
+### `changes/`
+
+- `README.md`: purpose of the Changes area, the Change Specification vocabulary (change type, horizon promotion, canonical promotion, material change, impact classes), the impact and revalidation rules, and the index of Change Specifications.
+- `_template.md`: the required structure of every Change Specification — Problem, Outcome, Baseline references, Affected scope, Target model, Dependencies, Assumptions, Compatibility & impact, Decisions, Acceptance & promotion criteria.
+- `changes/<change>.md`: one Change Specification per future-target change — designing ahead the introduction, evolution or retirement of a bounded context, application, contract or shared library before any of it becomes canonical.
+
+Rules:
+
+- **A Change Specification is design-ahead, never baseline.** The authoritative baseline is the canonical documents of the four views plus accepted ADRs. A merged spec is accepted as design input only; it changes the baseline through canonical promotion — the owning documents are updated, ADRs are written where §10 triggers, and the spec is retired per §6. Horizon promotion (Feature Discovery → M2 → M1) is a separate portfolio commitment whose Milestone mechanics are owned by `engineering/work-management.md` §4; accepted target decisions stay in the spec until canonical promotion.
+- Canonical documents have no 'future'/'planned' sections; a future target lives only in `changes/`, and canonical documents only point at the spec.
+- **Change type and impact classes are attributes, not GitHub fields.** Each Affected scope entry carries exactly one change type — introduce, evolve or retire; a replacement is one spec listing retire on the old target and introduce on the new one. The effect of a material change on a dependent specification is one of the impact classes owned by `changes/README.md` — a different axis from the deviation categories of §12 — and its verdict is recorded on Issues, never inside a spec.
+- **Not a backlog, roadmap or status dashboard.** Planned work lives in GitHub Issues and Milestones; see `engineering/evolution-process.md` §4. A spec carries no lifecycle status, no M1/M2 markers, no progress and no issue lists; the only terminal marker is one supersession/withdrawal line, mirrored in the index row.
 
 ### `domains/README.md` rules
 
@@ -112,6 +125,7 @@ Each fact or decision has exactly **one canonical location**:
 | GitHub work-management policy (Issue/Project/Milestone/PR)    | `engineering/work-management.md`                 |
 | Contributor procedure (actions, handoff, validation by scope) | `engineering/contribution-workflow.md`           |
 | Features view (user problems, product capabilities)           | `features/`                                      |
+| Future target specification (Change Specification)            | `changes/`                                       |
 | Code architecture                                             | `architecture/05-code-architecture.md`           |
 | Testing architecture                                          | `architecture/06-testing.md`                     |
 | Domain language across contexts                               | `domains/glossary.md`                            |
@@ -179,14 +193,15 @@ Do not put recommendations, preferences or architectural decisions in this file.
 
 Each artifact type has its own lifecycle. There is no single lifecycle imposed on all of them, and most artifacts carry **no status field** — writing one would duplicate a state that review already records.
 
-| Artifact      | States                                                                                | Where the state is evidenced                                               | Retired by                                                |
-| ------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Specification | draft → accepted → retired                                                            | Merged into the default branch; no status field in file                    | §6 (move canonical content first)                         |
-| ADR           | proposed → accepted → superseded (in full or in part) / deprecated                    | Status line in the ADR header; index row                                   | A new ADR, never deletion (§10)                           |
-| Open decision | open → decided                                                                        | The owning document's open section; closed by an ADR or a canonical update | Removing the section, leaving a pointer                   |
-| Proposal      | proposed → accepted or dropped                                                        | GitHub Issue or PR; never a status in a docs file                          | Closing the Issue/PR                                      |
-| Experiment    | planned → running → concluded (supported / rejected / inconclusive)                   | The Issue that owns the question, or a dedicated evidence document         | Closing the Issue; the decision record remains            |
-| Deviation     | temporary limitation → remediated; gap → closed by work; accepted deviation → decided | PR/Issue note; an ADR when material (§12)                                  | Remediation, the closing work, or the ADR that accepts it |
+| Artifact             | States                                                                                | Where the state is evidenced                                                                                                                                                                                                        | Retired by                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Specification        | draft → accepted → retired                                                            | Merged into the default branch; no status field in file                                                                                                                                                                             | §6 (move canonical content first)                                           |
+| Change Specification | proposed (PR) → accepted → superseded / withdrawn                                     | Merged PR — acceptance means "accepted as design input", not a baseline change; one terminal marker line plus the index note (the ADR-supersession precedent); accepted target decisions stay in the spec until canonical promotion | Canonical promotion moves content to the owning views (§6), or supersession |
+| ADR                  | proposed → accepted → superseded (in full or in part) / deprecated                    | Status line in the ADR header; index row                                                                                                                                                                                            | A new ADR, never deletion (§10)                                             |
+| Open decision        | open → decided                                                                        | The owning document's open section; closed by an ADR or a canonical update                                                                                                                                                          | Removing the section, leaving a pointer                                     |
+| Proposal             | proposed → accepted or dropped                                                        | GitHub Issue or PR; never a status in a docs file                                                                                                                                                                                   | Closing the Issue/PR                                                        |
+| Experiment           | planned → running → concluded (supported / rejected / inconclusive)                   | The Issue that owns the question, or a dedicated evidence document                                                                                                                                                                  | Closing the Issue; the decision record remains                              |
+| Deviation            | temporary limitation → remediated; gap → closed by work; accepted deviation → decided | PR/Issue note; an ADR when material (§12)                                                                                                                                                                                           | Remediation, the closing work, or the ADR that accepts it                   |
 
 Rules that apply to every type:
 
@@ -248,8 +263,9 @@ These four states are routinely confused. Distinguish them by what evidence exis
 Rules:
 
 - **Reuse the existing sections.** Undecided business boundaries go to `domains/open-boundaries.md`; undecided system-wide architecture goes to `architecture/01-architecture.md` §10; undecided items owned by one context go to that context's `domain-model.md` open section. Do not create a parallel registry, a decision database or a status dashboard.
+- **A change-scoped proposal may live in a Change Specification.** While a Change Specification in `changes/` (§3) is the active design vehicle for a change, the proposal and its still-open decisions are recorded in that spec — one home, not a second register. System-wide undecided architecture and undecided business boundaries keep their canonical open sections, cross-linked with the spec, never duplicated.
 - **A deferred decision is not an open one.** An open item has no trigger; a deferred item names the event that will reopen it and the owner who will decide. An item with neither is an open item, and must be written as such.
-- **When a decision is settled**, move its content to the canonical location and remove the open section, leaving at most one `đã chốt → <link>` pointer. Do not leave the old text describing the question as still open.
+- **When a decision is settled**, move its content to the canonical location and remove the open section, leaving at most one `đã chốt → <link>` pointer — except a decision settled inside a Change Specification's target scope, which stays in the spec as an accepted target decision until canonical promotion (`changes/README.md` §3). Do not leave the old text describing the question as still open.
 - **Do not list the same item in two registers as canonical.** A decision register points at `domains/open-boundaries.md` for boundaries; the boundary text itself lives there only.
 
 ### Experiments
@@ -271,7 +287,7 @@ Where it lives:
 
 ## 12. Deviation Governance
 
-`engineering/evolution-process.md` §8 owns the reconciliation and deviation vocabulary. This section does not redefine it; it records where the record goes.
+`engineering/evolution-process.md` §8 owns the reconciliation and deviation vocabulary. This section does not redefine it; it records where the record goes. Impact assessment on dependent Change Specifications after a material change is a different axis again: it uses the impact classes owned by [`changes/README.md`](./changes/README.md).
 
 Not every difference between target and reality is the same thing. Name it using the process vocabulary, and write the record it prescribes:
 

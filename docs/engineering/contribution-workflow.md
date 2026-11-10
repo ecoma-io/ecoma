@@ -10,15 +10,15 @@ Tài liệu này mô tả **hành động và handoff**, không định nghĩa l
 
 Mỗi bước dưới đây ánh xạ một-một tới [`evolution-process.md`](./evolution-process.md) §6. Bước ghi rõ **ai làm gì**, **kết thúc khi nào**, và **bàn giao gì**. Bước `Discover & Model` ở vòng đời tương ứng với hai hoạt động có thể chạy song song; các bước còn lại giữ nguyên tên.
 
-| Bước (evolution process)         | Việc thực tế                                                                                          | Handoff                                                     |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1. Understand                    | Đọc canonical artifact và code liên quan; ghi rõ đã verify / suy luận / chưa biết; xác định work kind | Issue body hoặc comment với view sở hữu, ràng buộc, unknown |
-| 2. Discover & Model              | Điều tra unknown; sửa specification/ADR ở view sở hữu khi decision đã accept                          | Evidence trong Issue; specification/ADR accepted            |
-| 3. Identify Gaps & Opportunities | So target với thực tế theo §8.1 của evolution process                                                 | Danh sách gap/opportunity có loại và bằng chứng             |
-| 4. Select & Plan                 | Chọn vertical slice; tạo hoặc tái dùng Issue; xác định dependency và thứ tự                           | Issue với outcome, phạm vi, tiêu chí verify                 |
-| 5. Deliver                       | Tạo branch, draft PR, thực hiện thay đổi, chạy validation                                             | PR reviewable kèm bằng chứng                                |
-| 6. Verify & Release              | Đối chiếu bằng chứng với tiêu chí; deploy nếu phạm vi bao gồm                                         | Claim trạng thái kèm nguồn                                  |
-| 7. Reconcile                     | So target với thực tế; ghi deviation; đóng Issue khi đủ điều kiện                                     | Issue comment reconciliation; Remediation Issue nếu có      |
+| Bước (evolution process)         | Việc thực tế                                                                                                               | Handoff                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1. Understand                    | Đọc canonical artifact và code liên quan; ghi rõ đã verify / suy luận / chưa biết; xác định Issue Type, product và horizon | Issue body hoặc comment với view sở hữu, ràng buộc, unknown |
+| 2. Discover & Model              | Điều tra unknown; sửa specification/ADR ở view sở hữu khi decision đã accept                                               | Evidence trong Issue; specification/ADR accepted            |
+| 3. Identify Gaps & Opportunities | So target với thực tế theo §8.1 của evolution process                                                                      | Danh sách gap/opportunity có loại và bằng chứng             |
+| 4. Select & Plan                 | Chọn vertical slice; tạo hoặc tái dùng Issue; xác định dependency và thứ tự                                                | Issue với outcome, phạm vi, tiêu chí verify                 |
+| 5. Deliver                       | Tạo branch, draft PR, thực hiện thay đổi, chạy validation                                                                  | PR reviewable kèm bằng chứng                                |
+| 6. Verify & Release              | Đối chiếu bằng chứng với tiêu chí; deploy nếu phạm vi bao gồm                                                              | Claim trạng thái kèm nguồn                                  |
+| 7. Reconcile                     | So target với thực tế; ghi deviation; đóng Issue khi đủ điều kiện                                                          | Issue comment reconciliation; Remediation Issue nếu có      |
 
 Điều quan trọng hơn bảng này: **các bước không phải một pipeline tuần tự cho cả repository**. Discovery và Modelling chạy song song với Delivery ở các nhánh công việc khác nhau. Một task cụ thể có thể bắt đầu từ bước 4 khi hiểu biết đã đủ.
 
@@ -35,13 +35,18 @@ Trước khi quyết định làm gì:
 
 Kết thúc khi nêu được: view nào sở hữu capability, ràng buộc nào đang áp dụng, và danh sách unknown.
 
-### 2.2 Xác định work kind
+### 2.2 Xác định Issue Type và bối cảnh công việc
 
-Dùng đúng năm giá trị canonical ở [`evolution-process.md`](./evolution-process.md) §4.1 và áp dụng thứ tự ưu tiên ở đó — Remediation → Experiment → Modelling → Delivery → Discovery.
+Trước khi mở Issue, xác định bốn thứ:
 
-- Không chọn work kind theo loại issue form. Form `bug` có thể là Delivery nếu behaviour chưa từng tồn tại.
-- Không đổi work kind giữa chừng mà không ghi lý do vào Issue.
-- Work kind là thông tin định hướng, không phải input của CI.
+1. **Issue Type** — dùng đúng năm giá trị canonical ở [`evolution-process.md`](./evolution-process.md) §4.1 và áp dụng thứ tự ưu tiên ở đó — Remediation → Experiment → Modelling → Delivery → Discovery. Nguồn ghi là native Issue Type; trong transition, theo kênh tạm thời ở [`work-management.md`](./work-management.md) §2.3.
+2. **Product và horizon** — product nào (Product ID, khớp chính xác Product Registry — [`work-management.md`](./work-management.md) §4.1) và horizon nào (M1/M2/Feature Discovery, đọc từ khai báo commitment của Milestone — cùng chỗ).
+3. **Baseline** — baseline có thẩm quyền là tài liệu canonical bốn view cùng ADR đã accept, không phải Change Specification ([`evolution-process.md`](./evolution-process.md) §5).
+4. **Change Specification áp dụng** — nếu vùng thay đổi có spec ở [`changes/`](../changes/README.md), đọc nó và ghi dependency; khi delivery unit M1 tiêu thụ accepted target decision của một spec M2, khai báo dependency đó tường minh trong work record ([`../changes/README.md`](../changes/README.md) §4).
+
+- Không chọn Issue Type theo loại issue form. Form `bug` có thể là Delivery nếu behaviour chưa từng tồn tại.
+- Không đổi Issue Type giữa chừng mà không ghi lý do vào Issue.
+- Issue Type là thông tin định hướng cho người và agent, không phải input của CI: native Issue Type là metadata machine-readable và queryable, nhưng repository chưa có check nào enforce quy tắc Issue; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. Chỉ tuyên bố enforcement khi nó đã được triển khai thật.
 
 Cách ghi vào Issue → [`work-management.md`](./work-management.md) §2.3.
 
@@ -141,17 +146,18 @@ Khi `Closes #N` đã đóng Issue tự động, comment reconciliation vẫn b�
 
 ## 3. Ranh giới giữa tài liệu hướng dẫn và ràng buộc repository
 
-| Nội dung                                                            | Nguồn có thẩm quyền                                    |
-| ------------------------------------------------------------------- | ------------------------------------------------------ |
-| Ý nghĩa work kind, vertical slice, capability state, reconciliation | [`evolution-process.md`](./evolution-process.md)       |
-| Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue       | [`work-management.md`](./work-management.md)           |
-| Issue nào cần label `project:track` và vòng đời label đó            | [`work-management.md`](./work-management.md) §3.2–§3.3 |
-| Thứ tự hành động, handoff, chọn validation theo scope               | Tài liệu này                                           |
-| Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership    | [`AGENTS.md`](../../AGENTS.md)                         |
-| Commit signing, PR title, merge queue, squash merge                 | [`AGENTS.md`](../../AGENTS.md) `Pull requests`         |
-| Test taxonomy, target names, môi trường test                        | [`06-testing.md`](../architecture/06-testing.md)       |
-| Delivery, release, migration, rollback                              | [`02-delivery.md`](../architecture/02-delivery.md)     |
-| Ownership của tài liệu và artifact                                  | [`docs/AGENTS.md`](../AGENTS.md)                       |
+| Nội dung                                                                         | Nguồn có thẩm quyền                                |
+| -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Ý nghĩa năm Issue Type, vertical slice, capability state, reconciliation         | [`evolution-process.md`](./evolution-process.md)   |
+| Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue                    | [`work-management.md`](./work-management.md)       |
+| Root issue/sub-issue, membership Project, legacy `project:track`                 | [`work-management.md`](./work-management.md) §3    |
+| Change Specification: promotion, impact assessment khi material change, template | [`changes/README.md`](../changes/README.md)        |
+| Thứ tự hành động, handoff, chọn validation theo scope                            | Tài liệu này                                       |
+| Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership                 | [`AGENTS.md`](../../AGENTS.md)                     |
+| Commit signing, PR title, merge queue, squash merge                              | [`AGENTS.md`](../../AGENTS.md) `Pull requests`     |
+| Test taxonomy, target names, môi trường test                                     | [`06-testing.md`](../architecture/06-testing.md)   |
+| Delivery, release, migration, rollback                                           | [`02-delivery.md`](../architecture/02-delivery.md) |
+| Ownership của tài liệu và artifact                                               | [`docs/AGENTS.md`](../AGENTS.md)                   |
 
 Tài liệu này **không** lặp lại nội dung của các nguồn trên. Khi hai nguồn mâu thuẫn, dừng và báo — không tự chọn bên thắng.
 
@@ -159,7 +165,7 @@ Tài liệu này **không** lặp lại nội dung của các nguồn trên. Khi
 
 Agent thực hiện cùng mười hành động trên, với bốn khác biệt:
 
-1. **Đọc trước khi sửa.** Canonical document và repository instructions có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một loại công việc.
+1. **Đọc trước khi sửa.** Canonical document và repository instructions có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một Issue Type.
 2. **Dừng và báo** khi thiếu decision cần thiết, khi canonical artifact mâu thuẫn, khi scope thực tế vượt Issue/PR, khi không thu được bằng chứng, hoặc khi có nguy cơ phá invariant hay backward compatibility.
 3. **Không tự mở rộng quyền.** Agent không tự tạo Project/Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
 4. **Báo cáo trung thực.** Validation chưa chạy được thì nói rõ; không tuyên bố pass, không tuyên bố `Released` khi chưa có deployment evidence.

@@ -6,22 +6,31 @@ body:
     attributes:
       value: |
         Viết issue bằng tiếng Việt; giữ nguyên file path, error code, technical term.
-        Loại công việc và quy tắc Issue: `docs/engineering/work-management.md`.
+        Không phải work item thì đừng dùng form này: xem khác biệt giữa work item, coordination ledger,
+        precondition tracker và experiment record ở `docs/engineering/work-management.md` §2.2.
+        Phân loại Issue Type theo ba giai đoạn transition (`docs/engineering/work-management.md` §2.3): trước khi
+        org cấu hình năm Issue Type, dòng `## Loại công việc` trong Issue body và dropdown dưới đây là kênh tạm thời
+        có thẩm quyền; sau khi org cấu hình, native Issue Type là kênh có thẩm quyền và Issue tạo qua form vẫn ghi
+        bằng dòng body cho tới khi được migrate; sau khi work item dọn dẹp gỡ bỏ kênh tạm thời, chỉ còn native
+        Issue Type.
 
   - type: dropdown
     id: work-kind
     attributes:
-      label: Loại công việc
+      label: Loại công việc (kênh tạm thời)
       description: |
-        Bản chất thay đổi, khác với nhãn issue. Các lựa chọn xếp theo thứ tự ưu tiên ở
-        `docs/engineering/evolution-process.md` §4.1: Remediation → Experiment → Modelling → Delivery → Discovery.
-        Không chắc thì để trống và ghi lý do trong phần chi tiết.
+        Bắt buộc — không tạo work item thiếu phân loại. Không xác định được loại nào thì dừng và giải quyết
+        mâu thuẫn phân loại trước, theo thứ tự ưu tiên ở `docs/engineering/evolution-process.md` §4.1;
+        không bỏ trống và không thay bằng giá trị khác, kể cả type mặc định Task/Bug/Feature của GitHub.
+        Dropdown này ghi dòng `## Loại công việc` trong Issue body — ba giai đoạn transition xem ở đầu form.
       options:
-        - Remediation — đóng một deviation đã được chấp nhận, hoặc gap do slice trước để lại hay do target thay đổi
-        - Experiment — đo một giả thuyết, kết quả sẽ bị bỏ hoặc viết lại
+        - Remediation — đóng deviation hoặc gap đã biết
+        - Experiment — đo một giả thuyết kỹ thuật
         - Modelling — sản phẩm chính là specification hoặc ADR
         - Delivery — tạo behaviour mới có giá trị
-        - Discovery — chỉ tạo ra hiểu biết, không tạo behaviour
+        - Discovery — chỉ tạo ra hiểu biết
+    validations:
+      required: true
 
   - type: textarea
     id: what-happened
@@ -71,15 +80,38 @@ body:
       label: Môi trường
       description: Local / CI / Preview / Staging / Production; version, URL hoặc commit SHA liên quan.
 
-  - type: textarea
-    id: project-tracking
+  - type: input
+    id: change-spec
     attributes:
-      label: Theo dõi Project
+      label: Change Specification
       description: |
-        Field này chỉ **ghi rationale**; nó không tự gắn label. Điền khi Issue có nhu cầu portfolio visibility
-        hoặc coordination mà Issue/Milestone không biểu đạt đủ, và trả lời cả ba câu: ai hoặc cái gì cần visibility;
-        dependency, decision hoặc coordination nào cần theo dõi ở cấp Project; vì sao Issue hoặc Milestone không đủ.
-        Gắn label `project:track` là thao tác riêng của người tạo Issue, chỉ sau khi tự đánh giá policy và thấy đủ điều kiện.
-        Điều kiện đưa Issue vào Project ở §3.2 và rationale bắt buộc ở §3.3 của `docs/engineering/work-management.md`.
-        Không gắn label chỉ vì Issue có priority cao, thuộc một work kind, thuộc một product hoặc Milestone.
-        Không cần theo dõi thì để trống.
+        Đường dẫn chính xác trong repository tới Change Specification mà root Issue này sở hữu, dạng
+        `docs/changes/<name>.md`; để trống nếu công việc không thuộc spec nào. Giá trị này dùng cho
+        ownership lookup (`docs/changes/README.md` §4): một spec active có đúng một owning root issue —
+        không root issue nào tham chiếu là escalation `no reachable owner`, nhiều hơn một là ownership
+        drift, báo coordinator.
+      placeholder: 'docs/changes/<name>.md — để trống nếu không có'
+
+  - type: dropdown
+    id: product
+    attributes:
+      label: Sản phẩm (Product)
+      description: |
+        Chọn Product ID theo registry trong `docs/engineering/work-management.md` §4.1. Policy bắt buộc
+        khai báo Product cho Issue gắn với một product cụ thể; chỉ để trống khi công việc thật sự cắt ngang
+        và không có pipeline sản phẩm nào đang lái. Không suy Product từ tên feature directory, bounded
+        context, Nx project hay application (`llm-seller`/`llm-console` là application của `llm-marketplace`).
+      options:
+        - llm-marketplace
+        - pact-broker
+        - remote-cache
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        Root issue (Issue không có parent): trong transition, label `project:track` được gắn ngay khi tạo và
+        chỉ áp dụng cho root issue — hành động admission theo §3.2–§3.3 của `docs/engineering/work-management.md`.
+        Theo policy đích, mọi root issue thuộc Project; sub-issue không thuộc Project và không bao giờ mang
+        label này. Form không biết parentage lúc tạo nên không hỏi ở đây.
