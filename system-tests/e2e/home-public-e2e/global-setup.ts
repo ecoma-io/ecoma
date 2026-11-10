@@ -14,8 +14,10 @@ import { fileURLToPath } from 'node:url';
  * rõ ràng thay vì hàng chục timeout mơ hồ.
  *
  * Probe kiểm đúng hợp đồng của home qua chuỗi DNS/TLS/Traefik/upstream: `GET /`
- * với `Accept: text/html` phải 302 → `/en` (xác nhận trong `local-smoke.mjs` —
- * không gửi header đó thì middleware prerendered content trả 404 cho `/`).
+ * phải 302 → `/en` đúng literal — cùng hợp đồng mà `local-smoke.mjs` của suite
+ * smoke kiểm (app-level `/` luôn 302 qua Nitro route `server/routes/index.get.ts`,
+ * không phụ thuộc header negotiator; header `Accept: text/html` của probe khớp
+ * cách gọi của smoke).
  * TLS verify thật với `ca` scoped của cert local — không tắt verification
  * toàn cục, cùng cách chia sẻ trust với phần còn lại của suite.
  *
@@ -49,8 +51,9 @@ const ACCEPT_HTML = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q
 const EXPECTED_REDIRECT_PATH = '/en';
 
 const RETRYABLE_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
-// 404 hẹp chỉ đúng khi `Accept: text/html` luôn được gửi (probe này luôn gửi) —
-// điều kiện giống hệt `local-smoke.mjs`, đọc comment nguồn ở đó cho chi tiết.
+// 404 hẹp: app-level `/` luôn 302 (Nitro route `server/routes/index.get.ts`),
+// nên 404 chỉ đến từ cửa sổ Traefik registration — điều kiện giống hệt
+// `local-smoke.mjs`, đọc comment nguồn ở đó cho chi tiết.
 const RETRYABLE_STATUSES = new Set([404, 502, 503, 504]);
 // Lỗi TLS/certificate: verification bị vi phạm — không bao giờ retry, không nuốt.
 const TLS_ERROR_CODES = new Set([
