@@ -262,5 +262,67 @@
       "646": "^\\ \\ \\ \\ Array\\.isArray\\(record\\.target_entry_ids\\)$",
       "647": "^\\ \\ \\);$"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/project-management/src/github.ts",
+    "start": 339,
+    "end": 339,
+    "reason": "GitHub GraphQL client của tools/project-management: taint đi `deps.token` vào header `Authorization` của request ĐI RA tới api.github.com, rồi lan qua giá trị trả về của `deps.fetchImpl(...)` (propagation mặc định arg→result của taint engine) → `response.json()` → `data` → `return readShape(data)`. Giá trị trả về là dữ liệu issue/item đã parse, không chứa bit nào của token; file không có HTTP handler, không deploy, không phục vụ request nào. Naming-heuristic FP cùng lớp với entry token-auth.ts.",
+    "lines": {
+      "339": "^      return readShape\\(data\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/project-management/src/github.ts",
+    "start": 564,
+    "end": 565,
+    "reason": "Arrow implicit return của lời gọi `executeGraphQl(deps, ...)`: object `deps` chứa field `token` nên cả object bị coi là nguồn taint, và kết quả lời gọi (trang issue đã parse) kéo theo taint. Cùng FP propagation arg→result như entry github.ts:339; không đường nào từ đây ra wire.",
+    "lines": {
+      "564": "^  const readIssuePage = \\(cursor: string \\| null\\): Promise<PageResult<NormalizedIssue>> =>$",
+      "565": "^    executeGraphQl\\(deps, ISSUES_QUERY, \\{ owner, repo, cursor \\}, readIssuesPage\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/project-management/src/github.ts",
+    "start": 567,
+    "end": 573,
+    "reason": "Cùng FP như github.ts:564 (readIssuePage): arrow implicit return của `executeGraphQl(deps, ...)` cho trang project item; kết quả là danh sách item đã parse, không chứa token.",
+    "lines": {
+      "567": "^  const readItemPage = \\(cursor: string \\| null\\): Promise<PageResult<ProjectItemRecord>> =>$",
+      "568": "^    executeGraphQl\\($",
+      "569": "^      deps,$",
+      "570": "^      PROJECT_ITEMS_QUERY,$",
+      "571": "^      \\{ org: owner, number: projectNumber, cursor \\},$",
+      "572": "^      \\(data\\) => readProjectItemsPage\\(data, captureProjectId\\),$",
+      "573": "^    \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/project-management/src/github.ts",
+    "start": 597,
+    "end": 602,
+    "reason": "`return executeGraphQl(deps, ADD_ITEM_MUTATION, ...)`: cùng FP propagation arg→result — kết quả trả về là itemId mới của project item, không chứa bit nào của token. Token chỉ đi vào header request đi ra bên trong executeGraphQl.",
+    "lines": {
+      "597": "^      return executeGraphQl\\($",
+      "598": "^        deps,$",
+      "599": "^        ADD_ITEM_MUTATION,$",
+      "600": "^        \\{ projectId, contentId: issueNodeId \\},$",
+      "601": "^        readAddedItemId,$",
+      "602": "^      \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-logged",
+    "path": "tools/project-management/src/reconcile-command.ts",
+    "start": 160,
+    "end": 160,
+    "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP.",
+    "lines": {
+      "160": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
+    }
   }
 ]
