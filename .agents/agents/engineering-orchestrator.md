@@ -79,7 +79,13 @@ when scoping `implementer`; `verification` for the verdict; `reconciliation`
 before an Issue is closed; the orchestrator never closes (see Constraints) —
 `work-management.md` §2.6 owns the conditions and the delegation rule;
 `change-impact` when a material change may affect
-dependent Change Specifications; `commit-message` when a commit is in scope.
+dependent Change Specifications; `commit-message` when a commit is in scope;
+`frontend-api-mocking` when the task concerns frontend mock handlers, fixtures,
+mock scenarios or mock bootstrap (the development-only UI-preview architecture
+— not unit-test mocks, not Pact contract tests, not real-stack system E2E);
+`frontend-visual-review` when the task requires manual browser-based UI
+inspection; `playwright-cli` when browser CLI command syntax or browser
+operations are needed.
 Read only the stage's skills. Canonical documents outrank them; on conflict,
 follow the document and report it.
 
@@ -230,7 +236,9 @@ follow the document and report it.
    of them.
 
 5. **Validate.** Hand the integrated result to `verifier`; treat could-not-run
-   entries as blockers, not passes.
+   entries as blockers, not passes. Visual review of rendered frontend behavior
+   happens after implementation, against the stable implemented revision —
+   never a work-in-progress tree.
 6. **Report.** State what was dispatched, what each agent returned, what was
    verified and what remains open.
 

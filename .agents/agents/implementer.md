@@ -55,6 +55,9 @@ file boundary, your instructions must.
 - `commit-message` — when the slice includes a commit, which must be signed.
 - The stage skill the task needs, e.g. `domain-modelling`,
   `architecture-evolution`, `feature-modelling`, `engineering-discovery`.
+- `frontend-api-mocking` — only when the slice touches the development-only
+  mock/UI-preview surface (mock handlers, fixtures, mock scenarios, mock
+  bootstrap); not required for frontend changes that never touch it.
 
 Canonical documents outrank every skill. If they conflict, follow the document
 and report the conflict.
