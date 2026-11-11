@@ -147,12 +147,19 @@ export const reconcileCommand = defineCommand({
       process.exitCode = 1;
       return;
     }
+    // Trần 24h: chống typo khiến verify poll treo job gần như vô hạn (deadline
+    // vẫn phải bounded — hết deadline là tín hiệu chạy audit, không phải chờ).
+    const MAX_VERIFY_DEADLINE_MS = 86_400_000;
     let verifyDeadlineMs: number | undefined;
     if (args.verifyDeadlineMs !== undefined) {
       verifyDeadlineMs = Number(args.verifyDeadlineMs);
-      if (!Number.isInteger(verifyDeadlineMs) || verifyDeadlineMs <= 0) {
+      if (
+        !Number.isInteger(verifyDeadlineMs) ||
+        verifyDeadlineMs <= 0 ||
+        verifyDeadlineMs > MAX_VERIFY_DEADLINE_MS
+      ) {
         console.error(
-          `Invalid --verify-deadline-ms "${args.verifyDeadlineMs}": expected a positive integer.`,
+          `Invalid --verify-deadline-ms "${args.verifyDeadlineMs}": expected a positive integer up to ${String(MAX_VERIFY_DEADLINE_MS)} (24h).`,
         );
         process.exitCode = 1;
         return;

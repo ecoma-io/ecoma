@@ -37,7 +37,7 @@ discover → audit → plan → apply → verify → report
   item không đồng bộ (quan sát thật: 15/15 add ok, refetch đầu thấy 37/40,
   sạch sau 57s), nên verify poll theo bounded exponential backoff 2s → 4s →
   8s → 16s → 30s (kèm jitter, trần interval 30s) trong tổng deadline mặc
-  định 120s (`--verify-deadline-ms` để đổi). Residual chia hai loại: mọi
+  định 120s (`--verify-deadline-ms` để đổi, trần 24h). Residual chia hai loại: mọi
   residual đều là hiệu ứng chưa hiện của mutation **đã thành công** ⇒
   propagation (chờ, hết deadline báo `propagation_pending`); residual có
   khác biệt không giải thích được bằng mutation đã chạy ⇒ drift thật (dừng
