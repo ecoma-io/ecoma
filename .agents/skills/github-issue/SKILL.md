@@ -61,10 +61,11 @@ asserting):
   interim `## Loại công việc` body channel — it writes that body line and
   stays usable until transition step 3 removes it (`work-management.md`
   §2.3).
-- `project:track` **is** a label — the only label this skill applies on its
-  own authority, and during the transition only on a **root issue** per
-  `work-management.md` §3.2–§3.3. Every other label, Project field, Milestone
-  and assignee follows the verified-value rule below.
+- `project:track` is **retired** — never apply it to any issue, new or
+  existing (`work-management.md` §3.2–§3.3). Root-issue Project admission is
+  automatic: the reconciliation pipeline adds every root issue at its next
+  run. Every label, Project field, Milestone and assignee follows the
+  verified-value rule below.
 
 ## Decide whether an Issue should exist
 
@@ -205,11 +206,10 @@ Milestone carries it (`work-management.md` §2.1, §3.2).
   through the root issue's native sub-issues progress. A sub-issue never
   inherits Project membership from its parent, and never carries
   `project:track`.
-- **Transition:** the native auto-add workflow is not root-aware yet, so the
-  `project:track` label — root issues only — remains the admission signal
-  read by that workflow (`work-management.md` §3.2). Admission is the
-  creating agent's duty: apply the label to a root issue **at creation**,
-  per the root-issue rule — that is the admission act, not a drift fix
+- **Admission is automatic:** the reconciliation pipeline derives desired
+  membership from native parent/child and admits every root issue at its
+  next run (`work-management.md` §3.2–§3.3). The creating agent does nothing
+  for admission; `project:track` is retired and is never applied
   (`work-management.md` §3.3).
 - Membership lifecycle belongs to the Project coordinator. When reviewing,
   report drift — a sub-issue inside the Project, a labeled Issue with no
@@ -274,8 +274,8 @@ gh issue create --repo ecoma-io/ecoma \
 
 - Set only verified, existing values. Prefer no label over an invented one.
   Never set a milestone, Project field or assignee that you have not confirmed
-  exists — and never set one as a placeholder. `project:track` is applied only
-  under the root-issue rule above.
+  exists — and never set one as a placeholder. `project:track` is retired —
+  never apply it.
 - Include verified references to related Issues, PRs, documents and evidence
   as exact links (`#N`, paths).
 - If the user asks only for a draft, return the title and body without
@@ -307,8 +307,8 @@ gh issue create --repo ecoma-io/ecoma \
    the `## Loại công việc` body line, matching the dropdown when one was
    used, with no duplicate channel once native types exist — and does it
    match the body rather than the issue category?
-6. Does Project membership follow the root-issue rule, with `project:track`
-   applied only to a root issue during the transition?
+6. Does Project membership follow the root-issue rule (automatic admission,
+   no label, sub-issues never members)?
 7. Is this a work item — not accidentally a ledger, tracker or record? And if
    it is a record, does it carry the Issue Type §2.2 assigns it — or none,
    for a legitimate untyped root issue?

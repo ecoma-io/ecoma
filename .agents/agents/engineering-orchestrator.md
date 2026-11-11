@@ -111,10 +111,10 @@ follow the document and report it.
    sub-issue — a root issue that does not decompose acts as its own unit — and
    keep the root issue open until its outcome is met (`work-management.md`
    §2.6). Root issues belong to the Project and sub-issues never do
-   (`work-management.md` §3.2); during the transition the `project:track`
-   label is applied to root issues only, and membership drift is reported to
-   the Project coordinator — never fixed by archiving or removing an item
-   (`work-management.md` §3.3). Never dispatch two agents to edit the same
+   (`work-management.md` §3.2); admission is automatic via the reconciliation
+   pipeline (`project:track` is retired, never applied), and membership drift
+   is fixed by re-running that pipeline — never by archiving or removing an
+   item by hand (`work-management.md` §3.3). Never dispatch two agents to edit the same
    canonical file or contract without an integration plan: check planned units
    against each other for lane conflicts, including a product-pipeline change
    that collides with a shared-context change (the shared change keeps one

@@ -150,7 +150,7 @@ Khi `Closes #N` đã đóng Issue tự động, comment reconciliation vẫn b�
 | -------------------------------------------------------------------------------- | -------------------------------------------------- |
 | Ý nghĩa năm Issue Type, vertical slice, capability state, reconciliation         | [`evolution-process.md`](./evolution-process.md)   |
 | Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue                    | [`work-management.md`](./work-management.md)       |
-| Root issue/sub-issue, membership Project, legacy `project:track`                 | [`work-management.md`](./work-management.md) §3    |
+| Root issue/sub-issue, membership Project (reconciliation pipeline)               | [`work-management.md`](./work-management.md) §3    |
 | Change Specification: promotion, impact assessment khi material change, template | [`changes/README.md`](../changes/README.md)        |
 | Thứ tự hành động, handoff, chọn validation theo scope                            | Tài liệu này                                       |
 | Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership                 | [`AGENTS.md`](../../AGENTS.md)                     |
