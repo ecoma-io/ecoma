@@ -206,6 +206,13 @@ jobs:
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+      # `llm-api:test-integration` khai `dependsOn: [build]` — harness HTTP contract
+      # build bundle Worker WASM qua worker-build, nên runner của job này cũng cần
+      # binary cargo-install đó trên PATH, giống job `build` bên dưới. Lần chạy đầu
+      # của wasm-bindgen CLI tải về ~/.cache/worker-build (runner có network).
+      - name: Install worker-build
+        if: steps.cargo-projects.outputs.present == 'true'
+        run: cargo install worker-build --version 0.8.7 --locked
       - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
