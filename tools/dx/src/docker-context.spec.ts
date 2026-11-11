@@ -391,4 +391,14 @@ describe('root .dockerignore: required build inputs are included', () => {
     expect(isExcluded('deploys/remote-cache-api-deploy/Dockerfile')).toBe(true);
     expect(isExcluded('deploys/remote-cache-api-deploy/package.json')).toBe(true);
   });
+
+  it('llm-api WIC entrypoint enters the context while the rest of its deploy stays out', () => {
+    // Image WIC của llm-api-deploy (issue #22) COPY đúng một file nữa của
+    // `deploys/` — cùng trình tự re-include; thiếu dòng `!` là `docker build`
+    // chết ngay ở COPY với lỗi "not found" trong CI.
+    expect(isExcluded('deploys/llm-api-deploy/wic-entrypoint.sh')).toBe(false);
+    expect(isExcluded('deploys/llm-api-deploy/index.ts')).toBe(true);
+    expect(isExcluded('deploys/llm-api-deploy/Dockerfile')).toBe(true);
+    expect(isExcluded('deploys/llm-api-deploy/package.json')).toBe(true);
+  });
 });
