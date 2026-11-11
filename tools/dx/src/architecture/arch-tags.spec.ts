@@ -978,6 +978,7 @@ describe('allowlists sync with .oxlintrc.json', () => {
         'llm-consumer',
         'llm-seller',
         'llm-shared',
+        'llm-api',
       ].includes(s),
   );
 
@@ -1040,6 +1041,40 @@ describe('allowlists sync with .oxlintrc.json', () => {
       // Nền tảng dùng chung vẫn đi qua.
       expect(await edgeAllowed([`scope:${source}`], ['scope:shared', 'type:domain'])).toBe(true);
       expect(await edgeAllowed([`scope:${source}`], ['scope:platform', 'type:domain'])).toBe(true);
+    }
+  });
+
+  it('lets the llm-api composition root consume all three LLM scopes and the shared foundation only', async () => {
+    // `llm-api` là composition root của deploy unit LLM (Issue #22): nó soạn cả
+    // ba phía LLM, nên constraint của nó là tổng của ba scope nghiệp vụ + nền
+    // tảng dùng chung — KHÔNG phải chính sách mặc định (không `type:contracts`
+    // chéo scope, không scope nghiệp vụ ngoài LLM). Bất biến ADR-0019 1–3 vẫn
+    // giữ: composition root nằm NGOÀI ba scope đó, không làm chúng nhìn thấy nhau.
+    const allowedTargets: Array<[string, string]> = [
+      ['scope:llm-consumer', 'type:domain'],
+      ['scope:llm-seller', 'type:domain'],
+      ['scope:llm-shared', 'type:domain'],
+      ['scope:shared', 'type:infrastructure'],
+      ['scope:platform', 'type:infrastructure'],
+    ];
+    for (const [targetScope, targetType] of allowedTargets) {
+      expect(
+        await edgeAllowed(['scope:llm-api', 'type:composition'], [targetScope, targetType]),
+        `llm-api -> ${targetScope} ${targetType} must be allowed`,
+      ).toBe(true);
+    }
+    const blockedTargets: Array<[string, string]> = [
+      ['scope:account', 'type:infrastructure'],
+      ['scope:remote-cache', 'type:infrastructure'],
+      ['scope:public', 'type:domain'],
+      ['scope:llm-consumer', 'type:contracts'],
+      ['scope:llm-seller', 'type:contracts'],
+    ];
+    for (const [targetScope, targetType] of blockedTargets) {
+      expect(
+        await edgeAllowed(['scope:llm-api', 'type:composition'], [targetScope, targetType]),
+        `llm-api -> ${targetScope} ${targetType} must be blocked`,
+      ).toBe(false);
     }
   });
 

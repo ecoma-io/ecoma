@@ -436,6 +436,16 @@
             "onlyDependOnLibsWithTags": ["scope:llm-shared", "scope:shared", "scope:platform"]
           },
           {
+            "sourceTag": "scope:llm-api",
+            "onlyDependOnLibsWithTags": [
+              "scope:llm-consumer",
+              "scope:llm-seller",
+              "scope:llm-shared",
+              "scope:shared",
+              "scope:platform"
+            ]
+          },
+          {
             "sourceTag": "scope:pact",
             "onlyDependOnLibsWithTags": [
               "scope:pact",
