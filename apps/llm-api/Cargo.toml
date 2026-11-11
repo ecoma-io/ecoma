@@ -28,10 +28,7 @@ tokio-postgres = { version = "0.7", features = ["js"], default-features = false 
 wasm-bindgen-futures = "0.4"
 # select/join cho race timeout và probe song song ba binding (/ready không
 # được treo — timeout per-binding). Đã có sẵn trong cây dependency của worker.
-futures-util = { version = "0.3", default-features = false, features = [
-  "std",
-  "async-await",
-] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 
 [profile.release]
 # Tối ưu cho kích thước WASM bundle (binary size quan trọng trên Workers).
