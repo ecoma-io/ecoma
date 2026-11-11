@@ -311,6 +311,13 @@ export function buildDockerArgs(options: {
     // sai, thay vì lý do thật.
     [
       `semgrep scan --config ${RULES_DIR} --exclude ${RULES_DIR}`,
+      // `--timeout 60` thay default 5s per file: rule taint trên file domain lớn
+      // (`llm-financial-domain`) nằm sát ngưỡng khi host đang tải cao — bị trượt
+      // ngưỡng là semgrep SKIP file IM LẶNG, finding biến mất khỏi SARIF và gate
+      // fail-closed hai chiều báo entry allowlist "stale" dù code không đổi (đo
+      // trên chính repo này: cùng một lần quét ra 23 rồi 21 finding giữa hai lần
+      // chạy liên tiếp). Timeout dài chỉ làm scan chậm hơn khi có file kẹt thật.
+      '--timeout 60',
       `--sarif --output ${containerReportDir}/semgrep.sarif --quiet`,
       `&& python3 ${FILTER_SCRIPT} gate ${containerReportDir}/semgrep.sarif ${ALLOWLIST_PATH}`,
     ].join(' '),
