@@ -48,11 +48,3 @@ allowBuilds:
   # chưa được ghim. Đây là dependency của library dùng chung nên có mặt ở cả
   # bundle app lẫn test.
   vue-demi: true
-
-patchedDependencies:
-  # Patch tạm cho dev-server của nitropack: tắt redirect trailing-slash của
-  # `serve-static` làm 404 `/en` (issue #111). Bản vá theo version: bump
-  # nitropack ⇒ pnpm chỉ warn, patch im lặng mất tác dụng mà `pnpm install` vẫn
-  # xanh. Renovate có automerge cho patch/minor nên đường này rất dễ bị đi qua
-  # một cách âm thầm. Gỡ khi upstream fix serve-static redirect.
-  nitropack@2.13.4: patches/nitropack@2.13.4.patch

@@ -10,7 +10,7 @@
 #
 # Build context là REPO ROOT (không phải `apps/home`): monorepo pnpm workspace có
 # `libs/ui-ecoma-logo` là workspace dependency của app, và `pnpm-workspace.yaml`
-# + `pnpm-lock.yaml` + `patches/` đều nằm ở root. Dockerfile đặt ở `deploys/
+# + `pnpm-lock.yaml` đều nằm ở root. Dockerfile đặt ở `deploys/
 # home-deploy` — nơi sở hữu việc đóng gói image — nhưng mọi path bên dưới là
 # path tương đối so với context root, KHÔNG so với thư mục chứa Dockerfile.
 #
@@ -37,11 +37,9 @@ RUN corepack enable
 WORKDIR /repo
 
 # Lớp cache đầu chỉ copy manifest: đổi source không làm mất `pnpm install`.
-# `patches/` phải có mặt **trước** install vì `pnpm-workspace.yaml` khai
-# `patchedDependencies` trỏ vào nó — thiếu thì pnpm không apply patch (và với
-# `--frozen-lockfile` còn fail vì config lệch lockfile).
+# (Không cần copy `patches/`: repo không còn `patchedDependencies` nào trong
+# `pnpm-workspace.yaml` kể khi gỡ bản vá nitropack.)
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY patches/ ./patches/
 COPY tools/dx/package.json ./tools/dx/
 COPY apps/home/package.json ./apps/home/
 COPY apps/home/.npmrc ./apps/home/.npmrc

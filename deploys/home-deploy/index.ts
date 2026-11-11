@@ -147,7 +147,7 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * Image local của `apps/home`.
  *
  * Build context là **repo root** chứ không phải thư mục chứa Dockerfile:
- * `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/` và workspace package
+ * `pnpm-lock.yaml`, `pnpm-workspace.yaml` và workspace package
  * `libs/ui-ecoma-logo` đều nằm ở root, và Dockerfile cần chúng để
  * `pnpm install --frozen-lockfile`. Vì vậy mọi path COPY trong Dockerfile
  * (`deploys/home-deploy/Dockerfile`) là path tương đối với context root,
