@@ -26,6 +26,16 @@ Credential sản xuất MUST lưu dạng secret. **Không** commit `B2_APPLICATI
 
 **Phía client (Nx)** — hai biến bắt buộc, xem §4.
 
+### Local lane
+
+- **Biến env (Worker `remote-cache-api`)**: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — đọc từ `apps/remote-cache-api/src/config.ts`; thiếu bất kỳ biến nào → storage `null`, data plane 503 fail-closed. Region cứng `'auto'` (SeaweedFS ký từ credential scope của request — đã xác minh qua experiment).
+- **Endpoint cục bộ**: `http://ecoma-object-store:8333` (plain HTTP trong platform network; không publish host port, không route Traefik — xem [`docs/architecture/local-development/01-platform.md`](./../../architecture/local-development/01-platform.md)).
+- **Bucket**: `remote-cache` — platform provision qua `weed shell` trong container (kênh nội bộ container, không S3 admin credential trên S3 plane).
+- **Luồng credential**: khóa bí mật ở stack config `platform-deploy` (`objectStorage:remoteCacheSecretKey`), entry up của `remote-cache-api-deploy` đọc qua `pulumi config get` cross-stack (mẫu auth←account `internalHmacSecret`), sao chép vào stack config của unit và bọc `pulumi.secret` tiêm vào env container WIC — mã khóa không bao giờ xuất hiện trong stack outputs, `.env`, log hay argv. Access key ID `ecoma-remote-cache-local` là định danh không bí mật, xuất qua platform outputs.
+- **Xác minh**: target `remote-cache-api-deploy:local-smoke` chạy PUT/GET thật qua client `S3ObjectStorage` từ container khác — bằng chứng data plane cục bộ đã cấu hình. Smoke dữ liệu plane xác thực (POST /projects, PUT /v1/cache/:hash với API key thật) thuộc issue #20, ngoài phạm vi slice này.
+- **Hạn chế đã biết**: đổi `objectStorage:remoteCacheSecretKey` rồi up lại cả hai stack là `s3.json` được ghi lại nhưng process `weed` đang chạy vẫn giữ identity cũ trong bộ nhớ — mọi S3 request 403 dù `pulumi up` xanh; `docker restart` container object-store (hoặc down/up platform) là bước phục hồi. Rotation không phải luồng vận hành định sẵn của secret local này; `local-smoke` là gate bắt lỗi.
+- **Từ vựng env khác lane**: cục bộ dùng `S3_*`, sản xuất liệt kê `B2_*` ở trên — config.ts đọc `S3_*` (xem `apps/remote-cache-api/src/config.ts`), không viết lại nội dung B2.
+
 ---
 
 ## 2. Environments
