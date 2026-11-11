@@ -77,12 +77,24 @@ export function renderReportText(report: ReconciliationReport): string {
     }
   }
 
+  const verification = report.verification;
   lines.push(
-    `verification: ${report.verification.status} — ${report.verification.detail}` +
-      (report.verification.residualPlan.length === 0
+    `verification: ${verification.status} — ${verification.detail}` +
+      (verification.residualPlan.length === 0
         ? ''
-        : ` (residual actions: ${String(report.verification.residualPlan.length)})`),
+        : ` (residual actions: ${String(verification.residualPlan.length)})`),
   );
+  if (verification.performed) {
+    const outcomes = verification.attempts
+      .map((attempt) => `#${String(attempt.index)}:${attempt.outcome}`)
+      .join(' ');
+    lines.push(
+      `verification attempts: ${String(verification.attempts.length)}${outcomes === '' ? '' : ` (${outcomes})`}`,
+    );
+    lines.push(
+      `verification polling: waited=${String(verification.waitedMs)}ms deadline=${String(verification.deadlineMs)}ms`,
+    );
+  }
   lines.push(
     `project items: before=${String(report.beforeItems.length)} after=${String(report.afterItems.length)}`,
   );

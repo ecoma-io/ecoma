@@ -15,7 +15,12 @@
  * và kỳ chạy sau dọn qua nhánh duplicate handling của plan.
  */
 
-import type { NormalizedIssue, ProjectItemContentType, ProjectItemRecord } from './types.js';
+import type {
+  NormalizedIssue,
+  ProjectItemContentType,
+  ProjectItemRecord,
+  ProjectItemSnapshot,
+} from './types.js';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
 const RETRYABLE_STATUS = new Set<number>([502, 503, 429]);
@@ -57,8 +62,12 @@ export interface GitHubPort {
   /** Thêm issue vào Project, trả về itemId mới. */
   addItem(issueNodeId: string): Promise<string>;
   removeItem(itemId: string): Promise<void>;
-  /** Đọc lại snapshot item của Project sau mutation — nguồn verify độc lập. */
-  refetchProjectItems(): Promise<ProjectItemRecord[]>;
+  /**
+   * Đọc lại snapshot item của Project sau mutation — nguồn verify độc lập.
+   * Trang đầu lỗi sau retries ⇒ throw (lần đọc fail hoàn toàn); trang giữa
+   * lỗi ⇒ trả phần đã đọc kèm `complete: false` — caller phải fail-closed.
+   */
+  refetchProjectItems(): Promise<ProjectItemSnapshot>;
 }
 
 export interface GitHubPortOptions {
@@ -615,8 +624,28 @@ export function createGitHubPort(options: GitHubPortOptions): GitHubPort {
       await executeGraphQl(deps, REMOVE_ITEM_MUTATION, { projectId, itemId }, readRemovedItemId);
     },
 
-    async refetchProjectItems(): Promise<ProjectItemRecord[]> {
-      return readAllPages(readItemPage);
+    async refetchProjectItems(): Promise<ProjectItemSnapshot> {
+      // Giống readAllPages nhưng phân biệt hai dạng thất bại cho verify:
+      // chưa đọc được trang nào ⇒ throw (API failure); dở dang giữa dòng ⇒
+      // trả phần đã đọc kèm complete: false (inventory_incomplete).
+      const all: ProjectItemRecord[] = [];
+      let cursor: string | null = null;
+      while (true) {
+        let page: PageResult<ProjectItemRecord>;
+        try {
+          page = await readItemPage(cursor);
+        } catch (cause) {
+          if (all.length === 0) {
+            throw cause;
+          }
+          return { items: all, complete: false, error: errorMessage(cause) };
+        }
+        all.push(...page.nodes);
+        if (!page.hasNextPage) {
+          return { items: all, complete: true, error: null };
+        }
+        cursor = page.endCursor;
+      }
     },
   };
 }
