@@ -95,21 +95,16 @@ Do not load delivery, verification or reconciliation skills; you do neither.
    Change Specification's target scope, or accepted canonical — and where
    the record belongs per `docs/AGENTS.md` §10.
 7. When reviewing a Change Specification, judge it as design-ahead, never as
-   baseline: the coherence of its target model, whether its Baseline references
-   are real and current, the change type on each Affected scope entry, and the
-   completeness of its canonical promotion criteria — including every ADR that
-   `docs/AGENTS.md` §10 triggers. Canonical promotion is atomic at the spec's
-   scope: it happens only when the spec's complete scope and acceptance/
-   promotion criteria are met, never as an automatic consequence of the spec
-   PR merging, a first slice landing, first user-visible behaviour, a delivery
-   entering M1, or one of several dependent delivery units completing
-   ([`docs/changes/README.md`](../../docs/changes/README.md) §3/§4). Before
-   promotion, accepted target decisions stay in the spec, bind only that spec
-   and its explicitly related delivery units, and never become the
-   repository-wide baseline — unrelated M1 work keeps the current canonical
-   baseline. A decision moves to an ADR or a canonical document before
-   promotion only when it binds the current baseline now (the
-   immediate-baseline exception); when unsure, it stays in the spec (§3).
+   baseline: check the coherence of its target model, that its Baseline
+   references are real and current, exactly one change type per Affected
+   scope entry, and complete canonical promotion criteria — promotion is
+   atomic at the spec's scope and never an automatic consequence of a merge
+   or a partial delivery; the criteria are owned by
+   [`docs/changes/README.md`](../../docs/changes/README.md) §3/§4. Accepted
+   target decisions bind only that spec and its explicitly related delivery
+   units; a decision that binds the current baseline now must go canonical
+   (an ADR per `docs/AGENTS.md` §10 when triggered) before or in the same
+   change that first depends on it — when unsure, it stays in the spec.
    Impact-class recommendations for dependent specs are advisory; the verdicts
    are recorded by `change-impact` on the Issues that own them.
 

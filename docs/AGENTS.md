@@ -2,9 +2,7 @@
 
 ## 1. Language
 
-- Documentation in `docs/` is written in **Vietnamese**.
-- Keep **technical terms, domain terms, product/service names, framework/library names, protocol names, architecture patterns, identifiers, API names, configuration keys, commands** and other standard terms in English.
-- Do not translate a term when translating it would reduce technical precision.
+Documentation language is owned by the `Language` and `Language exemptions` sections of the root [`AGENTS.md`](../AGENTS.md), which assign `docs/` to Vietnamese prose, keep technical and domain terms in English, and define the closed exception list and term-handling rules.
 
 ## 2. Documentation Principles
 
@@ -41,33 +39,27 @@ Domains own **business knowledge only**: ubiquitous language, bounded context bo
 
 Distinguish **domain state** (business state the system must guarantee) from **execution state** (technical state of a job run, lease, claim, retry or worker execution). Execution state does not become domain state merely because it is persisted in a database. A technical mechanism may enforce a business invariant, but the mechanism still belongs to the Application.
 
-- `README.md`: the Domains view — purpose, catalog of every bounded context (name, short business responsibility, link to its README), and the ownership rules. No deploy-unit, Nx project or Pulumi mapping column; no background-job or non-domain component catalog; no decision register duplicating ADR indexes.
-- `glossary.md`: shared domain language across contexts. Each term carries its Ecoma-specific meaning and the context that owns it; note confusable terms. No runtime, database or implementation terminology unless it carries business meaning.
-- `context-map.md`: semantic relationships between bounded contexts only — upstream/downstream, customer/supplier, ACL, conformist, published language. No service bindings, HTTP, queues, workers or deployment graph; background jobs are never bounded contexts or domain relationships.
-- `open-boundaries.md`: genuinely undecided **business** boundaries only. Each item states the question, involved contexts, what is settled, what is not, and the existing decision source. Decisions already settled by an ADR are removed and replaced by a pointer. No technical implementation uncertainty, deployment blocker or runbook issue.
-- `domains/<context>/`: one bounded context. One context may be implemented by several Applications and deploy units; a deploy unit, Application or job does not create a context. `payment` has a folder but no design document of its own yet; its boundary lives in [`architecture/01-architecture.md`](./architecture/01-architecture.md) §2/§4 and the catalog in [`domains/README.md`](./domains/README.md).
-- `domains/<context>/README.md`: short — what the context is responsible for, what it owns, what it explicitly does not own, which contexts need to know it, which canonical documents exist in the folder, and where the ADR index is. It never restates the domain model.
-- `domains/<context>/domain-model.md`: canonical location for the context's business knowledge — purpose and scope, ubiquitous language, concepts and relations, aggregates/entities/value objects where they apply, business lifecycle and state transitions, policies/rules/invariants, actors/authority/business permissions, domain events and semantic contracts, business exceptions/correction/compensation, and undecided business points. Create it only when there is enough domain knowledge to be worth writing; section count is not forced to be uniform across contexts. It is never a technical architecture document.
-- `domains/<context>/adr/`: architectural decision records of that context, plus an index `README.md`. Rules → §10.
+- `README.md`: the Domains view — catalog of every bounded context and the ownership rules.
+- `glossary.md`: shared domain language across contexts.
+- `context-map.md`: semantic relationships between bounded contexts only.
+- `open-boundaries.md`: genuinely undecided **business** boundaries only.
+- `domains/<context>/`: one bounded context — `README.md` (responsibility, ownership, canonical documents, ADR index), `domain-model.md` (the context's business knowledge) and `adr/` (§10). There is no default `01-architecture.md` / `02-requirements.md` / `03-domain-design.md` triple per context; a separate requirements document survives only for a proven, independent reason that does not duplicate the domain model or a Feature.
 
-There is no default `01-architecture.md` / `02-requirements.md` / `03-domain-design.md` triple per context. A separate requirements document survives only for a proven, independent reason that does not duplicate the domain model or a Feature.
+Detailed per-file rules → [`docs/domains/README.md`](./domains/README.md).
 
 ### `applications/`
 
 Applications own executable software components and their composition: application composition, BFF and UI integration, API service runtime, application use cases and orchestration, HTTP/protocol integration, adapters and provider integration, persistence implementation and schema/migration mechanics, runtime security mechanics, queue/outbox implementation, background job execution, retry/backoff/lease/concurrency/scheduling, and configuration/deployment/monitoring/recovery/runbook.
 
-An Application is **not** a bounded context, an Nx project, a deploy unit or a Pulumi deployment project. One Application may contain several deploy units and host several bounded contexts; one bounded context may be implemented through several Applications. Do not write that an Application owns a domain merely because it hosts that context's implementation or database schema.
+Keep three concepts apart — **domain service** (Domains), **application service/use case** (Applications), **deployable service/Worker/job** (Applications; topology in Architecture) — and never use "service" without saying which one is meant.
 
-Keep three concepts apart, and never use "service" without saying which one is meant: **domain service** (business behaviour, belongs to Domains), **application service/use case** (orchestrates domain operations, belongs to Applications), and **deployable service/Worker/job** (runtime component, belongs to Applications and described in Architecture's system topology).
-
-- `README.md`: index of documented components — name, component type (composition, UI/BFF, API service, control plane, data plane, background job, …), one-line responsibility, bounded contexts it hosts/composes/consumes by contract, and link. It is not a copy of the deploy-unit table in `architecture/01-architecture.md`.
-- `applications/<component>/`: one Application. Background jobs are listed **flat** alongside API/BFF components — there is no `applications/jobs/` directory.
-- `applications/<component>/README.md`: purpose, component type, responsibility and boundary, participating domain contexts, and the documents inside.
-- `applications/<component>/01-architecture.md`: component-specific architecture — composition, runtime/process boundary, application flow and orchestration, API/protocol surfaces, integrations and adapters, persistence implementation, runtime security, execution/failure model, dependency on domain contexts, application-level invariants. Where a section states business semantics owned by a Domain Model, replace it with a pointer.
+- `README.md`: index of documented components — component type, one-line responsibility, bounded contexts hosted/composed/consumed by contract, link.
+- `applications/<component>/README.md`: purpose, component type, responsibility and boundary, participating domain contexts, contained documents.
+- `applications/<component>/01-architecture.md`: component architecture — composition, runtime/process boundary, application flow, API/protocol surfaces, integrations and adapters, persistence implementation, runtime security, execution/failure model.
 - `applications/<component>/02-requirements.md`: application-specific requirements only — protocol compatibility, interface requirements, runtime constraints, performance/scalability, technical security, availability/recovery, technical non-goals. Do not keep business rules merely because they carry FR identifiers from an older file.
-- `applications/<component>/03-operations.md`: deployment, configuration/secrets, database migration operations, monitoring/alerting, failure handling, recovery, runbook. System-wide operational policy stays in `architecture/03-operations.md`.
+- `applications/<component>/03-operations.md`: deployment, configuration/secrets, database migration operations, monitoring/alerting, failure handling, recovery, runbook.
 
-A document beyond these three roles is allowed only when it owns a distinct subject with its own lifecycle — for example a measured spike, an upstream porting map or an E2E evidence record. It must be indexed in the component `README.md` and must not duplicate the three canonical roles.
+An Application is not a bounded context, an Nx project, a deploy unit or a Pulumi deployment project, and background jobs are listed flat alongside API/BFF components; a document beyond these three roles needs its own subject and lifecycle and an entry in the component `README.md`. Detailed rules → [`docs/applications/README.md`](./applications/README.md).
 
 ### `engineering/`
 
@@ -80,39 +72,17 @@ A document beyond these three roles is allowed only when it owns a distinct subj
 
 ### `features/`
 
-- `README.md`: purpose of the Features view, its place among the four knowledge views, directory organisation and the rules that keep a Feature from becoming a domain spec, an API reference or a backlog.
-- `_template.md`: the required structure of every Feature document — Problem, Outcome, Scope, Acceptance Scenarios, Domain & Application Mapping, Verification Mapping. It carries no status field, issue list, roadmap or implementation checklist.
-- `features/<area>/<feature>.md`: one document per product capability — the user problem, the outcome the system produces, what the capability includes and excludes, the acceptance scenarios that matter, which domains and applications take part, and which tests verify it.
+The Features view holds one document per product capability under `features/<area>/<feature>.md` — the user problem, the outcome the system produces, what the capability includes and excludes, the acceptance scenarios that matter, which domains and applications take part, and which tests verify it — structured per [`features/_template.md`](./features/_template.md).
 
-Rules:
-
-- **A Feature belongs to the Features view, not to a deploy unit.** The directory groups Features by feature area (`identity/`, `account/`, `pact-broker/`, …), never by Nx project; a feature area is not a Product ID (Product identity → [`engineering/work-management.md`](./engineering/work-management.md) §4.1). A bounded context, endpoint, worker or library does not become a Feature by existing.
-- **Describe capability, not implementation.** A Feature document states the user problem, the outcome, the boundary and the acceptance scenarios. It does not restate domain rules or invariants, the API reference, the storage schema or the delivery plan — link to `domains/`, `applications/` and the machine-readable contract instead (`§4`).
-- **Every capability statement must have evidence.** A behavior is described only when source code, configuration or a contract implements it. Anything that runs on a mock, a prototype or a disabled UI is named as such; anything unimplemented stays in the scope's exclusion list. Distinguish implementation evidence from verification evidence — a test file that exists proves nothing about a passing run.
-- **No mutable state.** No status field, no issue/PR list, no roadmap, no phase, no implementation checklist. Capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5, never stored in a Feature document.
-- **A Feature is not a slice.** A vertical slice delivers part of a Feature; the Feature document describes the capability, not the delivery order.
+The rules, condensed: a Feature belongs to the Features view, grouped by feature area, never by Nx project or deploy unit; it describes capability, not implementation — link to `domains/`, `applications/` and the machine-readable contract (`§4`) instead of restating them; every capability statement needs implementation evidence, distinguished from verification evidence; it carries no mutable state — capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5; and a Feature is not a slice; a bounded context, endpoint, worker or library does not become a Feature merely by existing. Full rules → [`docs/features/README.md`](./features/README.md).
 
 ### `changes/`
 
-- `README.md`: purpose of the Changes area, the Change Specification vocabulary (change type, horizon promotion, canonical promotion, material change, impact classes), the impact and revalidation rules, and the index of Change Specifications.
-- `_template.md`: the required structure of every Change Specification — Problem, Outcome, Baseline references, Affected scope, Target model, Dependencies, Assumptions, Compatibility & impact, Decisions, Acceptance & promotion criteria.
-- `changes/<change>.md`: one Change Specification per future-target change — designing ahead the introduction, evolution or retirement of a bounded context, application, contract or shared library before any of it becomes canonical.
-
-Rules:
-
-- **A Change Specification is design-ahead, never baseline.** The authoritative baseline is the canonical documents of the four views plus accepted ADRs. A merged spec is accepted as design input only; it changes the baseline through canonical promotion — the owning documents are updated, ADRs are written where §10 triggers, and the spec is retired per §6. Horizon promotion (Feature Discovery → M2 → M1) is a separate portfolio commitment whose Milestone mechanics are owned by `engineering/work-management.md` §4; accepted target decisions stay in the spec until canonical promotion.
-- Canonical documents have no 'future'/'planned' sections; a future target lives only in `changes/`, and canonical documents only point at the spec.
-- **Change type and impact classes are attributes, not GitHub fields.** Each Affected scope entry carries exactly one change type — introduce, evolve or retire; a replacement is one spec listing retire on the old target and introduce on the new one. The effect of a material change on a dependent specification is one of the impact classes owned by `changes/README.md` — a different axis from the deviation categories of §12 — and its verdict is recorded on Issues, never inside a spec.
-- **Not a backlog, roadmap or status dashboard.** Planned work lives in GitHub Issues and Milestones; see `engineering/evolution-process.md` §4. A spec carries no lifecycle status, no M1/M2 markers, no progress and no issue lists; the only terminal marker is one supersession/withdrawal line, mirrored in the index row.
+The Changes area holds one Change Specification per future-target change — designing ahead the introduction, evolution or retirement of a bounded context, application, contract or shared library before any of it becomes canonical. A Change Specification is design-ahead, never baseline; its vocabulary, promotion and impact rules are owned by [`docs/changes/README.md`](./changes/README.md). Canonical documents have no 'future'/'planned' sections; a future target lives only in `changes/`, and canonical documents only point at the spec.
 
 ### `domains/README.md` rules
 
-- The domain map describes the **target architecture**. A bounded context stays in the catalog because the architecture docs define it — missing runtime, database or provisioning never removes one. Never mark catalog entries or context-map relations as implemented/unimplemented.
-- Distinguish "not yet implemented but architected" (stays in the catalog) from "decision not yet made" (goes to `domains/open-boundaries.md` only).
-- Only genuinely undecided items belong in the open-boundaries section. A decision already settled by an ADR or an overview decision must not be re-listed as open; only the explicitly unresolved part of it may be.
-- An Application spec (or a new app/job) does not create a bounded context. A new context enters the catalog only when the architecture docs define new business responsibility and data ownership.
-- Shared infrastructure (`local-development`, `remote-cache` while disposable build state, `janitor`, `deploys/*`, provisioning projects) is never a bounded context.
-- Do not copy the catalog or the context map into other documents; reference [`domains/README.md`](./domains/README.md), [`domains/context-map.md`](./domains/context-map.md) or [`domains/glossary.md`](./domains/glossary.md) instead.
+The catalog and context-map maintenance rules — what may enter or leave the catalog, open-boundary admission and settlement, shared infrastructure never becoming a context, and never copying the catalog into other documents — live in [`docs/domains/README.md`](./domains/README.md) itself.
 
 ## 4. Canonical Source
 
@@ -120,6 +90,7 @@ Each fact or decision has exactly **one canonical location**:
 
 | Content                                                       | Canonical location                               |
 | ------------------------------------------------------------- | ------------------------------------------------ |
+| Repository-wide agent instructions and workflow constraints   | root [`AGENTS.md`](../AGENTS.md)                 |
 | System architecture/policy                                    | `architecture/`                                  |
 | Engineering evolution process                                 | `engineering/evolution-process.md`               |
 | GitHub work-management policy (Issue/Project/Milestone/PR)    | `engineering/work-management.md`                 |
@@ -193,15 +164,15 @@ Do not put recommendations, preferences or architectural decisions in this file.
 
 Each artifact type has its own lifecycle. There is no single lifecycle imposed on all of them, and most artifacts carry **no status field** — writing one would duplicate a state that review already records.
 
-| Artifact             | States                                                                                | Where the state is evidenced                                                                                                                                                                                                        | Retired by                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Specification        | draft → accepted → retired                                                            | Merged into the default branch; no status field in file                                                                                                                                                                             | §6 (move canonical content first)                                           |
-| Change Specification | proposed (PR) → accepted → superseded / withdrawn                                     | Merged PR — acceptance means "accepted as design input", not a baseline change; one terminal marker line plus the index note (the ADR-supersession precedent); accepted target decisions stay in the spec until canonical promotion | Canonical promotion moves content to the owning views (§6), or supersession |
-| ADR                  | proposed → accepted → superseded (in full or in part) / deprecated                    | Status line in the ADR header; index row                                                                                                                                                                                            | A new ADR, never deletion (§10)                                             |
-| Open decision        | open → decided                                                                        | The owning document's open section; closed by an ADR or a canonical update                                                                                                                                                          | Removing the section, leaving a pointer                                     |
-| Proposal             | proposed → accepted or dropped                                                        | GitHub Issue or PR; never a status in a docs file                                                                                                                                                                                   | Closing the Issue/PR                                                        |
-| Experiment           | planned → running → concluded (supported / rejected / inconclusive)                   | The Issue that owns the question, or a dedicated evidence document                                                                                                                                                                  | Closing the Issue; the decision record remains                              |
-| Deviation            | temporary limitation → remediated; gap → closed by work; accepted deviation → decided | PR/Issue note; an ADR when material (§12)                                                                                                                                                                                           | Remediation, the closing work, or the ADR that accepts it                   |
+| Artifact             | States                                                                                | Where the state is evidenced                                                                                                          | Retired by                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Specification        | draft → accepted → retired                                                            | Merged into the default branch; no status field in file                                                                               | §6 (move canonical content first)                                           |
+| Change Specification | proposed (PR) → accepted → superseded / withdrawn                                     | Merged PR — accepted as design input, never a baseline change; spec-specific rules → [`changes/README.md`](./changes/README.md) §2–§3 | Canonical promotion moves content to the owning views (§6), or supersession |
+| ADR                  | proposed → accepted → superseded (in full or in part) / deprecated                    | Status line in the ADR header; index row                                                                                              | A new ADR, never deletion (§10)                                             |
+| Open decision        | open → decided                                                                        | The owning document's open section; closed by an ADR or a canonical update                                                            | Removing the section, leaving a pointer                                     |
+| Proposal             | proposed → accepted or dropped                                                        | GitHub Issue or PR; never a status in a docs file                                                                                     | Closing the Issue/PR                                                        |
+| Experiment           | planned → running → concluded (supported / rejected / inconclusive)                   | The Issue that owns the question, or a dedicated evidence document                                                                    | Closing the Issue; the decision record remains                              |
+| Deviation            | temporary limitation → remediated; gap → closed by work; accepted deviation → decided | PR/Issue note; an ADR when material (§12)                                                                                             | Remediation, the closing work, or the ADR that accepts it                   |
 
 Rules that apply to every type:
 
@@ -224,7 +195,7 @@ An ADR is **not** required for wording, clarification, a non-semantic cross-refe
 Structural rules:
 
 - **Location.** ADRs live under `domains/<context>/adr/`, even when the decision has system-wide scope; `architecture/01-architecture.md` §8 then points at the ADR instead of restating it. There is no ADR directory under `applications/`, and no second global ADR directory. Do not move existing ADRs without a demonstrated ownership problem and an explicit migration plan.
-- **Numbering.** A new ADR takes the next number above every ADR that already exists in the repository, so numbers are unique across the whole repository and are never reused or renumbered. The current state has one range split between two directories because decisions migrated between contexts — `staff-access/adr/` holds `0001`–`0014`, `0016` and `0020`–`0023`, `remote-cache/adr/` holds `0015` and `0017` — and one pre-existing overlap that must not grow: `llm-financial/adr/` predates the rule and holds its own `0001`–`0010`. Because of that overlap, a cross-context citation names the context as well as the number (`llm-financial` ADR-0002 is not `staff-access` ADR-0002).
+- **Numbering.** A new ADR takes the next number above every ADR that already exists in the repository, so new numbers never collide, are never reused and never renumber existing ADRs. Ranges are split across several context directories and pre-existing per-context overlaps exist and must not grow — each `adr/README.md` index is the live listing of what its directory holds. Because of those overlaps, a cross-context citation names the context as well as the number (`llm-financial` ADR-0002 is not `staff-access` ADR-0002).
 - **Index.** Each `adr/README.md` lists its context's ADRs with status. The index is a pointer list; the ADR body is canonical.
 - **Header conventions differ between contexts and are preserved.** The `staff-access` and `remote-cache` sets use a status/date/source/issue line; the `llm-financial` set uses `Status:` with `(… OPEN)` qualifiers. Do not normalise existing history. New ADRs follow the convention of the directory they join.
 
@@ -291,16 +262,15 @@ Where it lives:
 
 Not every difference between target and reality is the same thing. Name it using the process vocabulary, and write the record it prescribes:
 
-| Category                 | Meaning                                                                                       | Record required                                              |
-| ------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| **Temporary limitation** | Not built yet, or built narrower, for ordering, cost or dependency reasons. Target unchanged. | PR/Issue note; reconciled in the next round                  |
-| **Accepted deviation**   | Target deliberately differs, for an architectural or business reason.                         | ADR when material; the target canonical doc updated to match |
-| **Gap requiring work**   | A known defect or missing behaviour that must be fixed; not a choice.                         | Issue with evidence and completion condition                 |
-| **Superseded decision**  | The earlier target no longer applies because a later decision replaced it.                    | The superseding ADR; old record keeps its status line        |
+| Category                 | Record required                                              |
+| ------------------------ | ------------------------------------------------------------ |
+| **Temporary limitation** | PR/Issue note; reconciled in the next round                  |
+| **Accepted deviation**   | ADR when material; the target canonical doc updated to match |
+| **Gap requiring work**   | Issue with evidence and completion condition                 |
+| **Superseded decision**  | The superseding ADR; old record keeps its status line        |
 
 Rules:
 
 - **Material deviation needs a durable decision record.** "Material" means it changes a boundary, an invariant, a contract shape or what another artifact is allowed to assume. Everything else is a note in the PR or Issue.
 - **Canonical documents must not contradict accepted reality.** When a deviation is accepted, update the target document in the same change, or record the contradiction as a remediation gap. Do not leave a canonical doc describing behaviour the system is known not to have, without naming it as a limitation or a gap.
-- **Do not create records for minor differences.** A deviation record is for a change to the target or to a system constraint, not for every small divergence.
 - **Implementation is not a decision.** Code that behaves differently from the target is evidence of a gap or a limitation until an ADR accepts it.
