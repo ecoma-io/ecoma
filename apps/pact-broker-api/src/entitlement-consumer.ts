@@ -190,7 +190,7 @@ export async function entitlementQueueBatch(
   const connectionString = env.HYPERDRIVE?.connectionString;
   if (typeof connectionString !== 'string' || connectionString === '') {
     throw new Error(
-      'Hyperdrive binding HYPERDRIVE khong co connectionString; entitlement consumer fail-closed',
+      'Hyperdrive binding HYPERDRIVE has no connectionString; entitlement consumer fails closed',
     );
   }
 

@@ -162,10 +162,10 @@ describe('entitlementQueueBatch', () => {
     expect(second.retry).not.toHaveBeenCalled();
   });
 
-  it('HYPERDRIVE binding thiếu connectionString → fail-closed throw, không tạo pool', async () => {
+  it('HYPERDRIVE binding missing connectionString fails closed without creating a pool', async () => {
     const message = makeMessage(JSON.stringify(makeEvent()));
     await expect(runBatch([message], {})).rejects.toThrow(
-      /Hyperdrive binding HYPERDRIVE khong co connectionString/u,
+      /Hyperdrive binding HYPERDRIVE has no connectionString/u,
     );
 
     expect(mockedProvision).not.toHaveBeenCalled();
