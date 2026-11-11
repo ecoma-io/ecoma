@@ -1,0 +1,77 @@
+name: Project Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'audit chỉ đọc và báo drift; apply sửa membership (cần secret PROJECT_MANAGEMENT_TOKEN)'
+        type: choice
+        required: false
+        default: audit
+        options:
+          - audit
+          - apply
+      reason:
+        description: 'Lý do chạy thủ công, ghi vào log của run'
+        type: string
+        required: false
+        default: ''
+  schedule:
+    # Audit hằng ngày 05:30 UTC. Schedule PHẢI là audit: apply chỉ được phép
+    # qua workflow_dispatch có người chịu trách nhiệm.
+    - cron: '30 5 * * *'
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: project-management
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: reconcile
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      # Business logic nằm trong tools/project-management; step này chỉ invocation.
+      - name: Reconcile project membership
+        env:
+          # Token PAT/GitHub App có quyền org project read/write; GITHUB_TOKEN
+          # mặc định của repo KHÔNG đủ thao tác organization project.
+          PROJECT_MANAGEMENT_TOKEN: ${{ secrets.PROJECT_MANAGEMENT_TOKEN }}
+          # Schedule bao giờ cũng audit, bất kể input mode còn sót gì.
+          RECONCILE_MODE: ${{ github.event_name == 'schedule' && 'audit' || inputs.mode || 'audit' }}
+          RECONCILE_REASON: ${{ inputs.reason }}
+        run: |
+          if [ -n "$RECONCILE_REASON" ]; then
+            echo "Dispatch reason: $RECONCILE_REASON"
+          fi
+          if [ "$RECONCILE_MODE" = "apply" ] && [ -z "$PROJECT_MANAGEMENT_TOKEN" ]; then
+            echo "::error::apply mode requires the secret PROJECT_MANAGEMENT_TOKEN with org project read/write scope."
+            exit 1
+          fi
+          npx tsx tools/project-management/index.ts reconcile \
+            --mode "$RECONCILE_MODE" \
+            --owner ecoma-io \
+            --repo ecoma-io/ecoma \
+            --project 13 \
+            --policy tools/project-management/config/membership-policy.json \
+            --out tools/project-management/test-output/report.json
+      # Report là bằng chứng duy nhất còn lại sau khi runner bị xoá; upload cả
+      # khi reconcile đỏ (status failed vẫn có report JSON).
+      - name: Upload reconciliation report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: project-management-report
+          path: tools/project-management/test-output/report.json
+          if-no-files-found: ignore
+          retention-days: 7
