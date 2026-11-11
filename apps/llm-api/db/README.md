@@ -4,13 +4,13 @@ Thư mục này là **nguồn sự thật duy nhất** cho migration của ba da
 `llm-api` sở hữu (A2). Không có ORM, không có `drizzle-kit`, không có generate step:
 migration là file SQL thuần, áp dụng bằng runner tự sở hữu của unit.
 
-| Đường dẫn                      | Vai trò                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| `apply.mts`                    | CLI runner — chọn target `gateway` \| `tenant` \| `marketplace`, chạy trong CI |
-| `migrate.mts`                  | Hằng số target → database + thư mục migration, helper dùng chung               |
-| `migrations/gateway/*.sql`     | Migration của `db-llm-gateway` (schema `llm_financial`, `llm_seller`)          |
-| `migrations/tenant/*.sql`      | Migration của `db-llm-tenant` (schema `llm_tenant`)                            |
-| `migrations/marketplace/*.sql` | Migration của `db-llm-marketplace` (chỉ default privileges — bảng thuộc #24)   |
+| Đường dẫn                      | Vai trò                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| `apply.mts`                    | CLI runner — chọn target `gateway` \| `tenant` \| `marketplace`, chạy trong CI         |
+| `migrate.mts`                  | Hằng số target → database + thư mục migration, helper dùng chung                       |
+| `migrations/gateway/*.sql`     | Migration của `db-llm-gateway` (schema `llm_financial`, `llm_seller`)                  |
+| `migrations/tenant/*.sql`      | Migration của `db-llm-tenant` (schema `llm_tenant`)                                    |
+| `migrations/marketplace/*.sql` | Migration của `db-llm-marketplace` (schema `llm_marketplace` + quyền — bảng thuộc #24) |
 
 ## Hợp đồng runner (`02-delivery.md` §3)
 
@@ -39,7 +39,7 @@ DATABASE_URL=<gateway-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- 
 # db-llm-tenant (schema llm_tenant)
 DATABASE_URL=<tenant-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- tenant
 
-# db-llm-marketplace (chỉ default privileges; bảng nghiệp vụ thuộc #24)
+# db-llm-marketplace (schema llm_marketplace; bảng nghiệp vụ thuộc #24)
 DATABASE_URL=<marketplace-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- marketplace
 ```
 
@@ -52,5 +52,8 @@ lặng là đã apply là cách làm một lần migration biến mất.
 [`docs/applications/llm-api/README.md`](../../../docs/applications/llm-api/README.md)
 §Persistence implementation + default privileges `migrator → runtime`
 (`ALTER DEFAULT PRIVILEGES ... GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES`).
-`db-llm-marketplace` chưa có schema nghiệp vụ nào — các bảng marketplace thuộc Issue #24.
-Bảng nghiệp vụ của gateway/tenant thuộc slice sau của #22 (#23/#24).
+Riêng `db-llm-marketplace`: schema `llm_marketplace` được tạo ở `0002` (forward-fix
+sau `0001_privileges`), và `0003` thu hồi default privilege db-wide của `0001` —
+quyền DML `migrator → runtime` chỉ còn theo schema `llm_marketplace` (scope chặt
+đúng schema sở hữu). Các DB này chưa có bảng nghiệp vụ nào — bảng marketplace
+thuộc Issue #24; bảng nghiệp vụ của gateway/tenant thuộc slice sau của #22 (#23/#24).

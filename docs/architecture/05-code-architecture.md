@@ -268,7 +268,7 @@ mới và không đảo chiều bất biến nào của [ADR-0019](../domains/ll
 Dùng `scope:llm-shared` cho kernel là sai: scope đó là nhóm `llm-inference`/`llm-usage`/`llm-financial`. Quyết định và giới hạn
 nội dung kernel → [ADR-0025](../domains/llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md).
 
-Scope dùng: `public`, `shared`, `platform`, `account`, `auth`, `backoffice`, `llm-consumer`, `llm-seller`, `llm-shared`, `payment`, `messaging`, `notifications`,
+Scope dùng: `public`, `shared`, `platform`, `account`, `auth`, `backoffice`, `llm-consumer`, `llm-seller`, `llm-shared`, `llm-api`, `payment`, `messaging`, `notifications`,
 `local`. Scope `account`/`auth` là hai scope của hai bounded context tách biệt — trước issue #324 cả hai cùng nằm trong một
 scope `identity` đã bị xoá. Scope mới thêm vào phải được khai báo trong constraint của `.oxlintrc.json` và `KNOWN_SCOPES` của
 `tools/dx/src/architecture/arch-tags.ts` — hai nguồn này được test ràng buộc đồng bộ hai chiều: scope nào thiếu constraint, constraint
@@ -280,6 +280,11 @@ financial) thay `scope:llm` đã bị xoá. Chúng **loại trừ lẫn nhau ở
 nghiệp vụ: mỗi scope LLM chỉ được phụ thuộc chính nó cùng `scope:shared`/`scope:platform`, **không** có ngoại lệ
 `type:contracts` xuyên phía, vì ADR-0019 cấm Consumer và Seller phụ thuộc nhau kể cả transitively. Quyết định và điều kiện
 đảo ngược → [ADR-0019](../domains/llm-consumer-tenant/adr/0019-llm-scope-ownership-and-dependency-matrix.md).
+
+`scope:llm-api` là scope của deploy unit phục vụ LLM product (`apps/llm-api` và `deploys/llm-api-deploy`) — composition
+serving, không phải một phía ownership thứ tư: nó được phép phụ thuộc cả ba scope LLM cùng `scope:shared`/`scope:platform`
+(constraint trong `.oxlintrc.json`), vì vai trò của nó là nối các phía đó thành một data plane. Scope này không
+đảo chiều phép import cho scope LLM nào — ba phía ownership ở trên vẫn chỉ phụ thuộc chính nó và nền tảng dùng chung.
 
 ⚠️ **Tag không phân biệt bounded context bên trong một scope.** `llm-marketplace-domain` và `llm-seller-governance-domain`
 cùng mang `scope:llm-seller`, nên `onlyDependOnLibsWithTags` cho chúng import lẫn nhau. Ranh giới đó do

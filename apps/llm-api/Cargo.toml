@@ -1,8 +1,8 @@
 # Crate runtime của deploy unit `llm-api` — data plane LLM trên Cloudflare
 # Workers, dịch ra WASM qua `worker-build` (Nx target `build` sinh
 # `build/index.js`). Slice Worker runtime (Issue #22): chỉ có /health,
-# /ready, /v1/models fail-closed; không có business logic hay inference
-# (Issue #23/#24).
+# /ready, /v1/models và /llm/v1/models (cùng handler) fail-closed; không có
+# business logic hay inference (Issue #23/#24).
 [package]
 name = "ecoma-llm-api"
 version = "0.1.0"

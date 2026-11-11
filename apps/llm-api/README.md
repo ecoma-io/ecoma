@@ -37,15 +37,17 @@ npx nx run @ecoma-io/llm-api:lint
 
 ## HTTP contract (đóng băng)
 
-| Route            | Trạng thái | Điều kiện                                                              |
-| ---------------- | ---------- | ---------------------------------------------------------------------- |
-| `GET /health`    | 200        | Luôn — liveness, không chạm database                                   |
-| `GET /ready`     | 200 / 503  | 200 khi cả ba Hyperdrive binding `SELECT 1` thành công; ngược lại 503  |
-| `GET /v1/models` | 200 / 503  | 200 với body `{"object":"list","data":[]}` khi DB ready; ngược lại 503 |
-| Route khác       | 404        | —                                                                      |
+| Route                | Trạng thái | Điều kiện                                                                                                                   |
+| -------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`        | 200        | Luôn — liveness, không chạm database                                                                                        |
+| `GET /ready`         | 200 / 503  | 200 khi cả ba Hyperdrive binding `SELECT 1` thành công; ngược lại 503                                                       |
+| `GET /v1/models`     | 200 / 503  | 200 với body `{"object":"list","data":[]}` (JSON, `application/json`) khi DB ready; ngược lại 503                           |
+| `GET /llm/v1/models` | 200 / 503  | Chính hợp đồng của `/v1/models` — base path `/llm` là public contract, production giữ nguyên tiền tố khi forward vào Worker |
+| Method khác GET      | 405        | Trên một path đã định nghĩa, kèm `Allow: GET`; HEAD cũng 405 (hợp đồng GET-only)                                            |
+| Route khác           | 404        | — bất kể method; `/llm/health`, `/llm/ready` không tồn tại (health/readiness là deployment-internal)                        |
 
 Fail-closed là bất biến: một binding thiếu, lỗi kết nối hay timeout (3s per
-binding) đều đẩy `/ready` và `/v1/models` về 503.
+binding) đều đẩy `/ready` và `/v1/models` (cả hai path) về 503.
 
 ## Hyperdrive bindings
 
