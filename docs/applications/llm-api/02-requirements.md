@@ -8,15 +8,15 @@
 
 - **FR-01:** Xác thực API key trước mọi xử lý; reject không hợp lệ với 401/403.
 - **FR-02:** Resolve tenant/workspace từ authenticated principal, không từ client input.
-- **FR-03:** Reserve quota durable theo `reservation_id` (idempotent) trước dispatch.
-- **FR-04:** Admission fail (auth/quota) trả lỗi ngay, không dispatch, không tạo attempt.
+- **FR-03:** Reserve quota durable theo quota `reservation_id` (idempotent) trước dispatch.
+- **FR-04:** Admission fail (auth/quota/financial) trả lỗi ngay, không dispatch, không tạo attempt; financial admission fail kèm release quota reservation idempotent (ADR-0028 §5).
 
 ### Alias / routing
 
 - **FR-05:** Resolve alias → model/capability trong admission; không thay đổi sau dispatch.
 - **FR-06:** Eligibility gate trước strategy; strategy chỉ chọn trong tập eligible.
 - **FR-07:** No-candidate trả lỗi tường minh (`no_candidate` vs `fallback_exhausted`).
-- **FR-08:** Routing snapshot bind tại admission, immutable cho logical request.
+- **FR-08:** Routing snapshot bind tại admission, immutable cho logical request; pricing snapshot bind theo cặp logical request–offer, fallback đổi offer resolve snapshot mới cho offer thay thế (ADR-0028 §7.4).
 
 ### Dispatch / provider
 
@@ -28,14 +28,14 @@
 ### Usage & settlement
 
 - **FR-13:** Ghi usage request-level và attempt-level (normalized + raw reference).
-- **FR-14:** Settle/release quota một lần per `reservation_id`.
+- **FR-14:** Settle/release quota một lần per quota `reservation_id`; financial settle/capture một lần per financial admission identity; capture ≤ amount admission đã giữ (ADR-0028 §5).
 - **FR-15:** Logical request charged once dù nhiều attempt.
 - **FR-16:** Missing/malformed provider usage ghi durable, không silently coi là 0.
 
 ### Financial
 
-- **FR-17:** Budget escrow/lease admission không gọi DB/coordinator per request.
-- **FR-18:** Financial reservation idempotent theo `reservation_id`.
+- **FR-17:** Financial admission là điều kiện dispatch (lease-local khi budget lease còn cover, durable reserve khi không), giữ amount ước tính tối đa của attempt (usage bound × applicable price); đường lease-local không gọi DB/coordinator per request.
+- **FR-18:** Financial reservation idempotent theo financial `reservation_id` riêng — khác quota `reservation_id`, correlation qua `request_id` (ADR-0028 §5).
 - **FR-19:** Reconciliation định kỳ + on-demand; mismatch alert + audit.
 
 ### Admin / control plane

@@ -10,8 +10,8 @@
 
 **Contexts:** `payment`, `llm-financial`, `llm-usage`, `llm-consumer-tenant`
 
-- **Đã chốt:** phân chia trách nhiệm — `payment` sở hữu payment transaction và payout execution; `llm-consumer-tenant` sở hữu quota policy/limits; `llm-usage` sở hữu usage measurement; `llm-financial` sở hữu LLM monetary state. Cơ chế reserve/settle của gateway là Application concern với PostgreSQL là quota authority (A7).
-- **Chưa chốt:** credit từ `payment` liên quan thế nào tới quota của LLM product (không kết luận có cơ chế cấp quota tự động); ledger credit và quota usage là một đại lượng hay hai; quan hệ giữa credit/seller payout và settlement của gateway (không phát minh refund/chargeback semantics); reconciliation giữa hai nguồn sự thật; có cần direct call giữa hai context hay không và theo hướng nào.
+- **Đã chốt:** phân chia trách nhiệm — `payment` sở hữu payment transaction và payout execution; `llm-consumer-tenant` sở hữu quota policy/limits; `llm-usage` sở hữu usage measurement; `llm-financial` sở hữu LLM monetary state. Cơ chế reserve/settle của gateway là Application concern với PostgreSQL là quota authority (A7). Cấp nguồn lực **nội bộ first-party** đã chốt: sponsor funding qua bút toán kép có authorization và trần, sponsor/billing account/bootstrap tài chính thuộc `llm-financial` ([ADR-0028](./llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md)).
+- **Chưa chốt (phần còn của đường `payment`):** credit từ `payment` liên quan thế nào tới quota của LLM product (không kết luận có cơ chế cấp quota tự động); ledger credit và quota usage là một đại lượng hay hai; quan hệ giữa credit/seller payout và settlement của gateway (không phát minh refund/chargeback semantics); reconciliation giữa hai nguồn sự thật; có cần direct call giữa hai context hay không và theo hướng nào; provisioning billing account cho tenant customer ngoài bootstrap. Phần tài trợ nội bộ first-party **không** còn mở — đã chốt ở ADR-0028.
 - **Vì sao quan trọng:** ngầm giả định "payment tự tạo quota" hoặc "cùng source of truth" sẽ vi phạm A7 và data ownership.
 - **Nguồn:** [`architecture/01-architecture.md`](../architecture/01-architecture.md) §4, A7, invariant 16, [`03`](../architecture/03-operations.md) §3.2b.
 
@@ -25,14 +25,14 @@
 - **Vì sao quan trọng:** ADR-0009 chốt **hình dạng** và ADR-0014 chốt **cơ chế SLA**; deadline phân class là ràng buộc mọi hình thức phải đáp ứng. Âm thầm hạ SLA hoặc biến target ≤5s thành giả định là vi phạm A24. Delivery qua Cloudflare Queues là at-least-once, unordered, batch retry (QU1/QU4) nên Queues đơn thuần không bảo đảm ≤5s.
 - **Nguồn:** `staff-access/adr/0009`, `0002`, `0014`; [`architecture/04-platform-facts.md`](../architecture/04-platform-facts.md) QU1/QU4.
 
-## OB-3. Settlement debt — usage đã phục vụ nhưng chưa ghi bền
+## OB-3. Settlement debt — cơ chế store bền khi PG down
 
 **Contexts:** `llm-usage`, `llm-financial`
 
-- **Đã chốt:** fail closed là chính sách đúng; reservation durable, settle/release idempotent theo `reservation_id` (A7, invariant 16); settlement backlog age là operational signal.
-- **Chưa chốt:** chấp nhận thất thoát hay lưu bền ngoài; RPO của store bền; settle theo lô giữa stream để giảm cửa sổ.
+- **Đã chốt:** fail closed là chính sách đúng; reservation durable, settle/release idempotent theo quota `reservation_id` (A7, invariant 16); settlement backlog age là operational signal. **Không chấp nhận thất thoát** — settlement debt là correctness requirement, kế toán chỉ trễ, không mất ([ADR-0028](./llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §5); attempt record + attribution ghi bền trước dispatch làm khoá capture tái dựng được sau crash (`llm-api/01-architecture.md` §13).
+- **Chưa chốt:** cơ chế store bền cụ thể khi PostgreSQL down và RPO của nó; settle theo lô giữa stream để giảm cửa sổ; tiêu chí đóng cửa sổ debt (reconciliation/SLA).
 - **Vì sao quan trọng:** là correctness requirement, không phải HA feature; ảnh hưởng revenue và quota.
-- **Nguồn:** [`03`](../architecture/03-operations.md) §3.2b, [`01`](../architecture/01-architecture.md) §10.
+- **Nguồn:** [`03`](../architecture/03-operations.md) §3.2b, [`01`](../architecture/01-architecture.md) §10, ADR-0028 §5.
 
 ## OB-4. Cơ chế relay outbox dùng chung
 

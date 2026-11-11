@@ -51,14 +51,23 @@
 - **Ledger (payment domain)** — sổ cái credit do `payment` sở hữu. Khác **LLM financial ledger** (wallet, balance, charge, payable, settlement) do `llm-financial` sở hữu.
 - **Payment transaction** — giao dịch thanh toán do `payment` sở hữu.
 - **Payout** — context sở hữu seller payout request, quote, beneficiary/destination, fiat disbursement, manual payout MVP, execution evidence, payout reconciliation. Monetary liability/settlement (EC, seller payable) thuộc `llm-financial`; `payment` có thể là execution adapter nhưng không sở hữu seller payable/settlement của LLM.
-- **Settlement (quota)** — chốt usage vào quota authority của gateway (A7). Khác **settlement (financial)** — chốt usage vào ledger LLM bởi `llm-financial`. Hai quá trình riêng, cả hai idempotent theo `reservation_id`; không ngầm giả định 1:1.
+- **Settlement (quota)** — chốt usage vào quota authority của gateway (A7), idempotent theo quota `reservation_id`. Khác **settlement (financial)** — chốt usage vào ledger LLM bởi `llm-financial`, idempotent theo định danh settlement tài chính riêng. Hai quá trình riêng, **hai định danh độc lập** (correlation qua `request_id` — ADR-0028 §5); không ngầm giả định 1:1.
+
+## Sponsor / Billing account / Sponsor funding / Subsidy
+
+**Owner:** `llm-financial` ([ADR-0028](./llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md))
+
+- **Sponsor** — bản nhận **trách nhiệm tài chính nội bộ**: ủy quyền và chịu trần cấp funding cho billing account, qua sponsor funding authorization. MVP có đúng một sponsor nội bộ (`sponsor_ecoma_internal`, hằng trong code). **Dễ nhầm:** sponsor ≠ Superadmin (role không cấp quyền gì trong tenant sản phẩm, ADR-0021); ≠ owner `sub` của tenant (`sub` là tham chiếu, không sở hữu tài chính); ≠ Seller tenant first-party (ADR-0027 §9 — không có wallet EC, không payout, không EC→UC); ≠ legal principal (bản ghi governance, không phải khoản mục tài chính). Sponsor và principal **có thể** cùng chỉ tới tổ chức thật Ecoma-io nhưng là hai tham chiếu domain độc lập — không FK, không suy quyền, và cấu hình sponsor **không** được đọc thành tín hiệu classification (ADR-0028 §3.1).
+- **Billing account** — danh tính tài chính của một consumer do `llm-financial` sở hữu, mang `tenant_ref` (beneficiary/workspace Consumer tenant) và `owner_ref` (`sub`, provenance). MVP: mỗi Consumer tenant có đúng **một** billing account. **Dễ nhầm:** billing account ≠ tenant — không suy tenant từ billing account và ngược lại; `owner_ref` không phải khoá sở hữu tài chính.
+- **Sponsor grant / Sponsor funding** — operation kép cấp UC từ nguồn tài trợ nội bộ vào billing account, đối ứng `sponsor_funding_clearing`; lifecycle `pending → credited → reversed`; điều kiện tiên quyết là funding authorization còn `active` với trần sponsor + per-account kiểm tại thời điểm cấp. **Dễ nhầm:** ≠ deposit (nguồn `payment`, đối ứng `funding_clearing`); không có generic funding operation nào khác.
+- **Subsidy** — chênh lệch kinh tế giữa allocated provider cost và giá thu consumer khi giá nội bộ thấp hơn chi phí. **Không** phải bút toán của `llm-financial`: provider cost chưa có owner (OB-7), subsidy không được che giấu (không zero-price, không payable giả) và chưa tổng hợp được cho tới khi OB-7 chốt; quan sát được qua chuỗi tham chiếu usage → offer → pricing snapshot → charge. Không có automatic subsidy cho usage External Seller — shield consumer phải đi qua grant có authorization.
 
 ## Quota / Usage / Reservation / Settlement
 
 - **Quota** — giới hạn tài nguyên (token/request) mà gateway cấp cho một consumer/key; authority nằm ở PostgreSQL (A7, invariant 16). Quota **policy/limits** thuộc `llm-consumer-tenant`; cơ chế reserve/settle thuộc Application.
 - **Usage** — lượng tài nguyên đã thực sự tiêu thụ, do `llm-usage` sở hữu.
-- **Reservation** — bản ghi bền giữ quota tại thời điểm reserve; idempotent theo `reservation_id` (A7).
-- **Settlement** — quá trình chốt usage đã phục vụ vào store bền; idempotent theo `reservation_id`. Settlement debt (usage đã phục vụ nhưng chưa ghi được bền) là correctness requirement chưa chốt → [`open-boundaries.md`](./open-boundaries.md).
+- **Reservation** — bản ghi bền giữ quota tại thời điểm reserve; idempotent theo quota `reservation_id` (A7).
+- **Settlement** — quá trình chốt usage đã phục vụ vào store bền; idempotent theo quota `reservation_id`. Settlement debt — kế toán chỉ trễ, **không mất** là requirement đã chốt ([ADR-0028](./llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §5); cơ chế recovery còn mở → [`open-boundaries.md`](./open-boundaries.md) OB-3.
 
 ## Provider
 
