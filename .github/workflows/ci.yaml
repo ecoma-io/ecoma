@@ -58,6 +58,11 @@ jobs:
         with:
           toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
           components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo
         if: steps.cargo-projects.outputs.present == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -122,6 +127,11 @@ jobs:
         with:
           toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
           components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo
         if: steps.cargo-projects.outputs.present == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -181,6 +191,11 @@ jobs:
         with:
           toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
           components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo
         if: steps.cargo-projects.outputs.present == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
