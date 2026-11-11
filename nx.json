@@ -112,11 +112,11 @@
     "local-smoke": [
       {
         "filter": {
-          "projects": ["platform-deploy"]
+          "projects": ["tag:type:deployment"]
         },
         "cache": false,
         "metadata": {
-          "//": "Xem entry `local-up`: lane local duy nhất, không bao giờ cacheable. `dependsOn` chỉ gồm `home-deploy:local-up` — smoke HTTPS kiểm chuỗi redirect `/` → `/en` của home qua Traefik, nên home là prerequisite THẬT của giá trị smoke; KHÔNG kéo các unit khác vì smoke không đo chúng (cạnh đó sẽ chỉ tạo thứ tự). Là node lá của lane."
+          "//": "Xem entry `local-up`: lane local duy nhất, không bao giờ cacheable. Mỗi smoke chỉ kiểm ĐÚNG unit của nó (platform-deploy smoke HTTPS qua Traefik với dependsOn `home-deploy:local-up`; remote-cache-api-deploy smoke data plane object storage qua alias nội bộ với dependsOn `local-up` của chính nó — #19), nên `dependsOn` là prerequisite THẬT của giá trị smoke của từng unit, KHÔNG cạnh chỉ-tạo-thứ-tự. Là node lá của lane."
         }
       }
     ]
