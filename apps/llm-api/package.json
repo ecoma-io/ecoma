@@ -97,7 +97,9 @@
       },
       "test-integration": {
         "executor": "nx:run-commands",
-        "dependsOn": [],
+        "dependsOn": [
+          "build"
+        ],
         "options": {
           "cwd": "apps/llm-api",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
@@ -106,7 +108,12 @@
           "Suite integration app-owned (PostgreSQL that qua testcontainers):",
           "ranh gioi quyen runtime/migrator, serialization advisory lock,",
           "migration idempotent. Import thang TS nguon (`db/apply.mts`) — khong",
-          "doc artifact build."
+          "doc artifact build.",
+          "`dependsOn: build` cho suite HTTP contract (`tests/integrations/http-",
+          "contract.spec.ts`, review PR #113): suite boot runtime Worker that",
+          "tu artifact `build/index.js` ma target `build` sinh ra qua",
+          "`worker-build` — thieu artifact thi harness `listen()` nem ngay, do",
+          "thay vi pass rong. Cung hinh `test-integration` cua `apps/backoffice`."
         ]
       },
       "lint": {
