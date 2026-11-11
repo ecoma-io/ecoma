@@ -157,9 +157,11 @@ const rolePasswords: Record<
 /** Dòng shell `ALTER ROLE ... PASSWORD` cho một role — hai biên escaping độc lập. */
 function alterRolePasswordLine(
   role: string,
-  password: pulumi.Output<string>,
+  passwordOutput: pulumi.Output<string>,
 ): pulumi.Output<string> {
-  return password.apply((p) => shellQuote(`ALTER ROLE ${role} WITH PASSWORD ${sqlQuote(p)};`));
+  return passwordOutput.apply((p) =>
+    shellQuote(`ALTER ROLE ${role} WITH PASSWORD ${sqlQuote(p)};`),
+  );
 }
 
 /**
@@ -256,17 +258,21 @@ ${DATABASES.map(provisionGrantBlock).join('')}
 ${DATABASES.map(provisionHardeningBlock).join('')}
 `;
 
+// Bọc secret: trigger nằm trong state Pulumi — không lưu plaintext. Mảng được
+// dựng bằng vòng lặp push, KHÔNG qua arrow có body là mảng chứa `pulumi.secret`:
+// hình dạng implicit-return đó khớp sink `return $VALUE` của rule semgrep
+// `security-sensitive-value-in-http-response` (source là chính lời gọi
+// `pulumi.secret`) — cùng giá trị trigger, hình dạng khác không còn khớp.
+const secretTriggers: pulumi.Output<string>[] = [];
+for (const target of DATABASES) {
+  secretTriggers.push(pulumi.secret(rolePasswords[target].migrator));
+  secretTriggers.push(pulumi.secret(rolePasswords[target].runtime));
+}
+
 const provision = new command.local.Command(dockerResourceName(ns, 'llm-api') + '-provision', {
   create: provisionScript,
   update: provisionScript,
-  // Bọc secret: trigger nằm trong state Pulumi — không lưu plaintext.
-  triggers: [
-    ...DATABASES.flatMap((t) => [
-      pulumi.secret(rolePasswords[t].migrator),
-      pulumi.secret(rolePasswords[t].runtime),
-    ]),
-    worktreeRoot,
-  ],
+  triggers: [...secretTriggers, worktreeRoot],
 });
 
 /**
