@@ -270,18 +270,28 @@ const BOOTSTRAP_KEY_SCOPES = 'read write';
  * `local.ts` resolve từ dx runner trước khi up. Trigger bọc
  * `pulumi.secret(tenantOwnerSub)` + `pulumi.secret(ciKeyPlaintext)` —
  * state/diff chỉ thấy `[secret]`; sub hay plaintext đổi là bước chạy lại.
+ *
+ * Hai credential (DATABASE_URL, plaintext key CI) KHÔNG nằm trong script text:
+ * chúng đi qua tuỳ chọn `environment` của `command.local.Command` — script chỉ
+ * ghi TÊN biến (`-e DATABASE_URL` không giá trị → docker pass-through từ env
+ * của shell). Giá trị vì thế không bao giờ vào argv của shell/docker (đọc được
+ * qua `ps`/`/proc/<pid>/cmdline`), không vào script text (nơi failure output
+ * và log có thể echo), và vẫn bị `pulumi.secret` bọc trong state/diff. Đây là
+ * cùng mô hình mà `superadmin-resolver.ts` áp cho lệnh superadmin.
  */
+const bootstrapDatabaseUrl = pulumi.interpolate`postgresql://ecoma_remote_cache_migrator:${migratorPasswordEncoded}@${POSTGRES_HOST}:5432/db-remote-cache`;
+
 const bootstrapTenantScript = pulumi.interpolate`set -e
 docker run --rm \\
   --network ${networkName} \\
   -v ${shellQuote(worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
   -w /repo/apps/remote-cache-api \\
-  -e DATABASE_URL=postgresql://ecoma_remote_cache_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-remote-cache \\
+  -e DATABASE_URL \\
   -e CANONICAL_TENANT_OWNER_SUB=${shellQuote(tenantOwnerSub)} \\
   -e REMOTE_CACHE_BOOTSTRAP_PROJECT_NAME=${BOOTSTRAP_PROJECT_NAME} \\
   -e REMOTE_CACHE_BOOTSTRAP_KEY_SCOPES=${shellQuote(BOOTSTRAP_KEY_SCOPES)} \\
-  -e REMOTE_CACHE_BOOTSTRAP_KEY_PLAINTEXT=${pulumi.secret(ciKeyPlaintext).apply(shellQuote)} \\
+  -e REMOTE_CACHE_BOOTSTRAP_KEY_PLAINTEXT \\
   ${NODE_IMAGE} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
 `;
@@ -291,6 +301,10 @@ const bootstrapTenant = new command.local.Command(
   {
     create: bootstrapTenantScript,
     update: bootstrapTenantScript,
+    environment: {
+      DATABASE_URL: pulumi.secret(bootstrapDatabaseUrl),
+      REMOTE_CACHE_BOOTSTRAP_KEY_PLAINTEXT: pulumi.secret(ciKeyPlaintext),
+    },
     triggers: [pulumi.secret(tenantOwnerSub), pulumi.secret(ciKeyPlaintext), worktreeRoot],
   },
   { dependsOn: [migrate] },
