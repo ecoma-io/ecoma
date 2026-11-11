@@ -21,6 +21,7 @@ import { PgEntitlementSyncRepo, PgTenantRepo } from '@ecoma-io/pact-broker-api-i
 import type { createPool } from '@ecoma-io/pact-broker-api-infrastructure';
 import type { EntitlementEvent } from '@ecoma-io/staff-access-contracts';
 import { type PactBrokerDatabase, PACT_BROKER_DATABASE, startPactBrokerDatabase } from './harness';
+import { bootstrapCanonicalTenant } from '../../db/bootstrap-tenant.mts';
 
 const STAFF_ID = 'staff-p33-0001';
 const PRODUCT = 'pact-broker';
@@ -46,8 +47,21 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
   beforeAll(async () => {
     db = await startPactBrokerDatabase();
     pool = await db.createRuntimePool();
-    const repo = new PgTenantRepo(pool);
-    tenantId = await repo.ensureTenant('ecoma-internal', 'sub-owner-internal');
+    // Serving path chỉ ĐỌC tenant canonical `ecoma`: provision đúng bằng
+    // đường bootstrap thật (tenant first_party + owner membership, cùng code
+    // path với `db/bootstrap-tenant.mts`) — test không tự chế tenant.
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await bootstrapCanonicalTenant(client, 'sub-owner-internal');
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      await client.end();
+    }
+    tenantId = (await new PgTenantRepo(pool).getTenantByName('ecoma'))?.id ?? '';
   }, 180_000);
 
   afterAll(async () => {
@@ -85,16 +99,12 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
 
   it('entitlement.granted tạo membership, entitlement.revoked không xóa nó (P3.3)', async () => {
     const deps: { membership: MembershipRepo; sync: EntitlementSyncRepo } = {
-      membership: new PgTenantRepo(pool) as unknown as MembershipRepo,
+      membership: new PgTenantRepo(pool),
       sync: new PgEntitlementSyncRepo(pool),
     };
 
     // 1. Granted → membership được tạo.
-    const granted = await provisionEntitlementMembership(
-      makeEvent(),
-      deps,
-      'sub-owner-integration',
-    );
+    const granted = await provisionEntitlementMembership(makeEvent(), deps);
     expect(granted.applied).toBe(true);
     expect(granted.reason).toBe('first');
     expect(await getMembershipRole()).toBe('member');
@@ -103,7 +113,6 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
     const revoked = await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
-      'sub-owner-integration',
     );
     expect(revoked.applied).toBe(false);
     expect(revoked.reason).toBe('newer');
@@ -121,7 +130,7 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
 
   it('entitlement.revoked trước granted → membership vẫn được tạo khi granted sau (P3.3)', async () => {
     const deps: { membership: MembershipRepo; sync: EntitlementSyncRepo } = {
-      membership: new PgTenantRepo(pool) as unknown as MembershipRepo,
+      membership: new PgTenantRepo(pool),
       sync: new PgEntitlementSyncRepo(pool),
     };
 
@@ -129,7 +138,6 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
     const revoked = await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 1 }),
       deps,
-      'sub-owner-integration',
     );
     expect(revoked.applied).toBe(false);
     expect(revoked.reason).toBe('first');
@@ -137,11 +145,7 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
     expect(await getMembershipRole()).toBeNull(); // Chưa có membership
 
     // Granted sau revoked (revision cao hơn): tạo membership bình thường.
-    const granted = await provisionEntitlementMembership(
-      makeEvent({ revision: 2 }),
-      deps,
-      'sub-owner-integration',
-    );
+    const granted = await provisionEntitlementMembership(makeEvent({ revision: 2 }), deps);
     expect(granted.applied).toBe(true);
     expect(await getMembershipRole()).toBe('member');
     expect(await getSyncRevision()).toBe(2);
@@ -149,21 +153,20 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
 
   it('revoked không chạm machine_tokens (P3.3 isolation)', async () => {
     const deps: { membership: MembershipRepo; sync: EntitlementSyncRepo } = {
-      membership: new PgTenantRepo(pool) as unknown as MembershipRepo,
+      membership: new PgTenantRepo(pool),
       sync: new PgEntitlementSyncRepo(pool),
     };
 
     const beforeTokens = await countMachineTokens();
 
     // Granted tạo membership.
-    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps, 'sub-owner-integration');
+    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps);
     expect(await getMembershipRole()).toBe('member');
 
     // Revoked: không chạm machine_tokens.
     await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
-      'sub-owner-integration',
     );
 
     const afterTokens = await countMachineTokens();
@@ -174,22 +177,20 @@ describe(`${PACT_BROKER_DATABASE} P3.3 revoke entitlement isolation (real DB)`, 
 
   it('hai revoked liên tiếp → membership giữ nguyên, revision tiến lên (P3.3)', async () => {
     const deps: { membership: MembershipRepo; sync: EntitlementSyncRepo } = {
-      membership: new PgTenantRepo(pool) as unknown as MembershipRepo,
+      membership: new PgTenantRepo(pool),
       sync: new PgEntitlementSyncRepo(pool),
     };
 
-    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps, 'sub-owner-integration');
+    await provisionEntitlementMembership(makeEvent({ revision: 1 }), deps);
     expect(await getMembershipRole()).toBe('member');
 
     await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 2 }),
       deps,
-      'sub-owner-integration',
     );
     await provisionEntitlementMembership(
       makeEvent({ type: 'entitlement.revoked', revision: 3 }),
       deps,
-      'sub-owner-integration',
     );
 
     expect(await getSyncRevision()).toBe(3);

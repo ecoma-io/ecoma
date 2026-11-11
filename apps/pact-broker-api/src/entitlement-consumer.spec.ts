@@ -9,6 +9,8 @@
  *   mỗi message xử lý tuần tự; lỗi port/DB → message.retry() thì continue, không làm
  *   gián đoạn message còn lại
  *   message xử lý xong (áp dụng / bỏ qua duplicate/stale/not-product) → ack
+ *   env không cần INTERNAL_TENANT_OWNER_SUB — serving path chỉ đọc tenant
+ *   canonical `ecoma`, không nhận chủ sở hữu tenant nào từ cấu hình
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -28,7 +30,6 @@ vi.mock('@ecoma-io/pact-broker-api-application', async (importOriginal) => {
         (
           event: Parameters<typeof provisionEntitlementMembership>[0],
           deps: Parameters<typeof provisionEntitlementMembership>[1],
-          ownerSub: Parameters<typeof provisionEntitlementMembership>[2],
         ) => Promise<ReturnType<typeof provisionEntitlementMembership>>
       >(),
   };
@@ -87,14 +88,11 @@ const fakePool = {
 
 async function runBatch(
   messages: { id: string; body: unknown; ack(): Promise<void>; retry(): Promise<void> }[],
-  env: { HYPERDRIVE?: { connectionString: string }; INTERNAL_TENANT_OWNER_SUB?: string } = {},
+  env: { HYPERDRIVE?: { connectionString: string } } = {},
 ): Promise<void> {
   mockedCreatePool.mockReturnValue(fakePool as never);
 
-  await entitlementQueueBatch(
-    { queue: 'ecoma-staff-access-entitlement-events', messages },
-    { INTERNAL_TENANT_OWNER_SUB: 'sub-owner-test', ...env },
-  );
+  await entitlementQueueBatch({ queue: 'ecoma-staff-access-entitlement-events', messages }, env);
 }
 
 describe('entitlementQueueBatch', () => {
@@ -225,5 +223,22 @@ describe('entitlementQueueBatch', () => {
   it('batch rỗng → không gọi provision, không throw', async () => {
     await runBatch([], { HYPERDRIVE: { connectionString: 'postgres://fake/db' } });
     expect(mockedProvision).not.toHaveBeenCalled();
+  });
+
+  it('processes a valid batch with no INTERNAL_TENANT_OWNER_SUB in env (serving path needs no owner subject)', async () => {
+    const message = makeMessage(JSON.stringify(makeEvent()));
+    mockedProvision.mockResolvedValue({ applied: true, reason: 'first' });
+
+    // Env chỉ có HYPERDRIVE — không có biến chủ sở hữu tenant nào. Consumer
+    // read-only trên tenant canonical: không còn fail-closed theo env này.
+    await entitlementQueueBatch(
+      { queue: 'ecoma-staff-access-entitlement-events', messages: [message] },
+      { HYPERDRIVE: { connectionString: 'postgres://fake/db' } },
+    );
+
+    expect(mockedProvision).toHaveBeenCalledTimes(1);
+    expect(mockedProvision.mock.calls[0]).toHaveLength(2); // event + deps, không còn ownerSub
+    expect(message.ack).toHaveBeenCalledTimes(1);
+    expect(message.retry).not.toHaveBeenCalled();
   });
 });
