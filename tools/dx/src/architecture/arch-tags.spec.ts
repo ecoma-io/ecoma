@@ -1054,6 +1054,10 @@ describe('allowlists sync with .oxlintrc.json', () => {
       ['scope:llm-consumer', 'type:domain'],
       ['scope:llm-seller', 'type:domain'],
       ['scope:llm-shared', 'type:domain'],
+      // Khớp tag là OR: scope tag của ba phía LLM đã khớp mọi type, kể cả
+      // `type:contracts` — composition root tiêu thụ chủ đích cả implementation
+      // lẫn contract của ba phía (README của llm-api: các BC composed inside).
+      ['scope:llm-consumer', 'type:contracts'],
       ['scope:shared', 'type:infrastructure'],
       ['scope:platform', 'type:infrastructure'],
     ];
@@ -1067,8 +1071,6 @@ describe('allowlists sync with .oxlintrc.json', () => {
       ['scope:account', 'type:infrastructure'],
       ['scope:remote-cache', 'type:infrastructure'],
       ['scope:public', 'type:domain'],
-      ['scope:llm-consumer', 'type:contracts'],
-      ['scope:llm-seller', 'type:contracts'],
     ];
     for (const [targetScope, targetType] of blockedTargets) {
       expect(
