@@ -189,15 +189,21 @@ export class S3ObjectStorage implements CacheObjectStorage {
     contentType: string | null,
   ): Promise<PutResult> {
     const url = new URL(this.objectUrl(key));
-    const headers: Record<string, string> = {
-      'content-length': String(size),
-    };
+    const headers: Record<string, string> = {};
     if (contentType !== null) {
       headers['content-type'] = contentType;
     }
     // Conditional creation: object must not already exist.
     headers['if-none-match'] = '*';
     const signed = await this.sign('PUT', url, headers, 'UNSIGNED-PAYLOAD');
+    // ⚠️ `content-length` gửi đi mà KHÔNG ký (SigV4 cho phép — AWS SDK mặc
+    // định không ký nó): serving path đưa stream body vào fetch, và workerd
+    // gửi stream dạng chunked và BỎ header content-length đã ký — chữ ký lệch
+    // so với header nhận được là 403 từ gateway (S3 tính chữ ký trên header
+    // nó nhận được). Cùng tập signed headers ở cả Node (smoke) lẫn workerd
+    // (serving) thì signature luôn khớp bất kể transport gửi content-length
+    // hay chunked.
+    signed['content-length'] = String(size);
     const res = await fetch(url.toString(), {
       method: 'PUT',
       headers: signed,
