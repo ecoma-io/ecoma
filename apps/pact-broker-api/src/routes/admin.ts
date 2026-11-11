@@ -1,10 +1,11 @@
 /**
  * Admin routes — quản trị machine token (scope `admin`).
  *
- * KHÔNG có route tạo tenant/membership: bootstrap tenant là việc của deploy
- * pipeline (ensureDefaultTenant qua db:migrate hoặc một bootstrap script một
- * lần), không phải API surface — một endpoint "tạo tenant" không xác thực
- * được ai có quyền tạo tenant sẽ thành backdoor tái diễn.
+ * KHÔNG có route tạo tenant/membership: bootstrap tenant canonical là việc của
+ * deploy pipeline qua script service-owned `db/bootstrap-tenant.mts` (migrations
+ * không chèn tenant nào; ensureDefaultTenant chỉ là primitive cho tenant mặc định
+ * của customer), không phải API surface — một endpoint "tạo tenant" không xác
+ * thực được ai có quyền tạo tenant sẽ thành backdoor tái diễn.
  *
  * Token: show-once — POST trả bản rõ đúng một lần trong response; mọi list
  * sau đó chỉ thấy prefix + metadata. Revoke hiệu lực tức thời.
