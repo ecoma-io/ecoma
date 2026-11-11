@@ -92,6 +92,12 @@ describe('object store config-init source contract', () => {
 
   it('wires the resource stdin input to the secret-wrapped JSON payload', () => {
     expect(commandBlock).toMatch(/stdin:\s*s3ConfigJson/u);
+    // Transport duy nhất là stdin: khoá cứng cả input `environment`/`envs` của
+    // resource command — kênh env nào thêm vào sau đây đều thoát contract này.
+    expect(commandBlock, 'env transport found on the command resource').not.toMatch(/\benvs\s*:/u);
+    expect(commandBlock, 'env transport found on the command resource').not.toMatch(
+      /\benvironment\s*:/u,
+    );
     expect(jsonBuilder).toContain('pulumi.jsonStringify');
     expect(jsonBuilder).toContain('pulumi.secret(objectStorageSecretKey)');
     expect(jsonBuilder).toContain('identities:');
