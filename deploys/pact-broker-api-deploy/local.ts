@@ -35,8 +35,6 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // output DUY NHẤT của lifecycle gate (nx:run-commands gộp stdout/stderr).
 
-import * as pulumi from '@pulumi/pulumi';
-
 import {
   deployProjectDir,
   describeSpawnFailure,
@@ -79,10 +77,6 @@ const ACCOUNT_MIGRATOR_ROLE = 'ecoma_account_migrator';
 const ACCOUNT_DATABASE = 'db-account';
 const STAFF_ACCESS_MIGRATOR_ROLE = 'ecoma_staff_access_migrator';
 const STAFF_ACCESS_DATABASE = 'db-staff-access';
-
-const conf = new pulumi.Config('namespace');
-
-const worktreeRoot = conf.require('worktreeRoot');
 
 /**
  * Đọc một giá trị stack config cross-stack — trả `undefined` khi key chưa có,
@@ -214,6 +208,10 @@ function parseResultEnvelope(stdout: string): Record<string, string> | undefined
  * không có `sub` thì không có `tenantOwnerSub` và `pulumi up` không được chạy.
  */
 function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
+  // worktreeRoot đến từ foundation (resolveEntryFoundation) — KHÔNG đọc stack
+  // config ở đây: entry chạy ngoài `pulumi up`, `namespace:worktreeRoot` chỉ
+  // được truyền bằng `--config` cho chương trình Pulumi bên trong (local-entry).
+  const { worktreeRoot } = foundation.ctx;
   const accountUrl =
     `postgresql://${ACCOUNT_MIGRATOR_ROLE}:${encodeURIComponent(readMigratorPassword(foundation, ACCOUNT_DEPLOY_PROJECT))}` +
     `@${POSTGRES_HOST}:5432/${ACCOUNT_DATABASE}`;
