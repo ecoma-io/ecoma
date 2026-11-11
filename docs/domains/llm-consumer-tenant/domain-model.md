@@ -78,7 +78,7 @@ Bất kỳ bước nào không đánh giá được đều **deny**, kèm lý do
 
 ### Billing
 
-- Billing management (khởi tạo, top up) là một permission riêng, không cấp quyền nào khác và không bao giờ được khai báo là quản trị workspace toàn tenant.
+- Billing management là một permission riêng, không cấp quyền nào khác và không bao giờ được khai báo là quản trị workspace toàn tenant; phạm vi **không bao gồm** tạo billing account (bootstrap-only — [ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §3.2/§6) hay top up (OB-1).
 - Owner có billing authority mà không cần grant; member cần grant tenant scope của permission đó.
 - Domain **chỉ authorize**. Thực thi giao dịch thanh toán, số dư, ledger, reconciliation, funding thuộc `payment`/`llm-financial`; domain không giữ số dư và không gọi ra ngoài.
 
@@ -146,16 +146,17 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 
 ## 10. Ranh giới với các context khác
 
-| Context                | Ranh giới với `llm-consumer-tenant`                                                                                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `account`              | `sub` là tham chiếu opaque; tenant không tự tạo membership khi account signup/login.                                                                                  |
-| `auth`                 | `sub` lấy từ authenticated principal (access token) đã verify; `llm-consumer-tenant` không tự xác minh danh tính.                                                     |
-| `payment`              | Billing account và tenant là hai khái niệm khác nhau; không suy tenant từ billing account và ngược lại.                                                               |
-| `llm-api`              | Tenant/workspace id truyền qua contract; `llm-api` là storage owner duy nhất của `db-llm-tenant`, không có deploy unit riêng cho `llm-consumer-tenant`.               |
-| `llm-marketplace`      | Workspace/tenant là scope cho offer/catalog; marketplace không sở hữu membership/grant.                                                                               |
-| `llm-consumer-routing` | Tiêu thụ tenant/workspace scope khi resolve routing; không sở hữu membership/grant.                                                                                   |
-| `llm-seller-tenant`    | Seller tenant **độc lập**: không dùng `llm-consumer-tenant` thay cho Seller tenant và ngược lại; không có Seller Workspace (ADR-0018).                                |
-| `staff-access`         | Product entitlement cấp khả năng dùng sản phẩm LLM; không thay thế authorization bên trong `llm-consumer-tenant`, và không trả lời allow/deny per-request (ADR-0009). |
+| Context                | Ranh giới với `llm-consumer-tenant`                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`              | `sub` là tham chiếu opaque; tenant không tự tạo membership khi account signup/login.                                                                                                                                                                                                        |
+| `auth`                 | `sub` lấy từ authenticated principal (access token) đã verify; `llm-consumer-tenant` không tự xác minh danh tính.                                                                                                                                                                           |
+| `payment`              | Billing account và tenant là hai khái niệm khác nhau; không suy tenant từ billing account và ngược lại.                                                                                                                                                                                     |
+| `llm-financial`        | Billing account mang `tenant_ref` (beneficiary) + `owner_ref` (provenance), sở hữu bởi `llm-financial` ([ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §3.2); classification/membership vẫn thuộc consumer-tenant — không suy hai chiều. |
+| `llm-api`              | Tenant/workspace id truyền qua contract; `llm-api` là storage owner duy nhất của `db-llm-tenant`, không có deploy unit riêng cho `llm-consumer-tenant`.                                                                                                                                     |
+| `llm-marketplace`      | Workspace/tenant là scope cho offer/catalog; marketplace không sở hữu membership/grant.                                                                                                                                                                                                     |
+| `llm-consumer-routing` | Tiêu thụ tenant/workspace scope khi resolve routing; không sở hữu membership/grant.                                                                                                                                                                                                         |
+| `llm-seller-tenant`    | Seller tenant **độc lập**: không dùng `llm-consumer-tenant` thay cho Seller tenant và ngược lại; không có Seller Workspace (ADR-0018).                                                                                                                                                      |
+| `staff-access`         | Product entitlement cấp khả năng dùng sản phẩm LLM; không thay thế authorization bên trong `llm-consumer-tenant`, và không trả lời allow/deny per-request (ADR-0009).                                                                                                                       |
 
 ## 11. Quy tắc cốt lõi
 
@@ -164,7 +165,7 @@ Domain không liệt kê hay giới hạn reason/policy. Tập reason/policy h�
 - **`sub` là opaque và đa membership.** Một `sub` có thể owner nhiều tenant và member nhiều tenant khác. Consumer tenant và Seller tenant độc lập hoàn toàn (ADR-0018); không có ngầm chọn tenant đầu tiên/default/UI state.
 - **Membership tường minh và có danh tính.** Provision vào tenant (kể cả internal) là thao tác riêng; signup/login không tạo membership. Revoke không tự restore — re-provision tạo membership **mới với `id` mới**, nên grant của lần cũ không sống lại.
 - **Grant trực tiếp theo scope, gắn với một lần membership.** Member chỉ có đúng permission được cấp, tại tenant scope hoặc đúng một workspace scope. **Không kế thừa ngầm tenant → workspace**: grant tenant scope không authorize thao tác trên một workspace cụ thể, trừ khi permission đó được khai báo tường minh là quản trị workspace toàn tenant.
-- **Billing là permission riêng.** Một permission `billing.manage` (khởi tạo/top up) không cấp bất kỳ quyền nào khác. Domain chỉ authorize; thực thi giao dịch, số dư, ledger, reconciliation, funding nằm ngoài.
+- **Billing là permission riêng.** Một permission `billing.manage` không cấp bất kỳ quyền nào khác; phạm vi của nó **không bao gồm** tạo billing account (bootstrap-only — ADR-0028 §3.2/§6) hay top up (cơ chế crediting còn mở — OB-1). Domain chỉ authorize; thực thi giao dịch, số dư, ledger, reconciliation, funding nằm ngoài.
 - **Suspension là suy ra và chặn authorization.** Nhiều record độc lập theo reason/scope/policy; lift hoặc expire record này không làm yếu record khác. Không có cột `status = suspended` thứ hai. Policy không đánh giá được ⇒ restrictive (fail closed), và evaluation `blocked`/`unevaluable` ⇒ deny **kể cả owner**. Suspension không huỷ request đã được admission.
 - **Billing account ≠ tenant.** Billing account là danh tính tài chính do `llm-financial` sở hữu, mang `tenant_ref` (beneficiary) và `owner_ref` (`sub`, provenance); không suy tenant từ billing account và ngược lại. MVP ([ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §3.2): mỗi Consumer tenant có đúng **một** billing account, tạo qua bề mặt provisioning của `llm-financial`; quan hệ crediting/reconciliation giữa `payment` và `llm` vẫn là open boundary (OB-1) — phần còn lại không giả định.
 - **`sub` opaque.** Không FK xuyên database; toàn vẹn là responsibility của contract + reconciliation.

@@ -265,7 +265,7 @@ Domain là **semantic-only**: nó mô tả state hợp lệ và phép chuyển h
 - Không blind retry sau possible execution; không transparent provider switch sau khi stream bytes.
 - `reconciling` là trạng thái không terminal; bất định không bao giờ đọc thành thất bại.
 - Client disconnect là fact, không phải cancellation và không phải bằng chứng provider dừng.
-- Một logical request được settle/charge một lần theo `reservation_id` (A7) — domain không tạo attempt thứ hai sau khi đã có thể thực thi.
+- Một logical request được settle quota một lần theo quota `reservation_id` (A7) và charge một lần theo định danh settlement tài chính của attempt được phục vụ — financial admission identity tất định từ `(request_id, attempt_id)`, hai định danh độc lập, correlation qua `request_id` (ADR-0028 §5) — domain không tạo attempt thứ hai sau khi đã có thể thực thi.
 - Routing sở hữu _which candidate_; inference sở hữu _whether execution continues_.
 
 ## 11. Ranh giới: routing vs inference

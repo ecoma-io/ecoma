@@ -69,8 +69,8 @@ Admin/BFF ──► │       Control Plane          │  (admin API, config, au
 
 `llm-api` duy trì **execution state** riêng của mình, khác domain state:
 
-- **Execution journal**: mỗi logical request và attempt được ghi bền: `request_id`, `reservation_id`, alias, resolved model, routing snapshot version, endpoint, start/end time, evidence, usage, và ba tham chiếu attribution theo attempt `offer_ref`/`seller_tenant_ref`/`pricing_snapshot_ref` (ADR-0028 §8). Journal là nguồn cho reconciliation, correction, và post-incident analysis. Không log prompt/response body.
-- **Durable dispatch intent record**: `request_id`, `tenant_id`, `reservation_id`, snapshots, attempt plan.
+- **Execution journal**: mỗi logical request và attempt được ghi bền: `request_id`, quota `reservation_id` + financial admission identity (hai định danh độc lập, §Request lifecycle), alias, resolved model, routing snapshot version, endpoint, start/end time, evidence, usage, và ba tham chiếu attribution theo attempt `offer_ref`/`seller_tenant_ref`/`pricing_snapshot_ref` (ADR-0028 §8). Journal là nguồn cho reconciliation, correction, và post-incident analysis. Không log prompt/response body.
+- **Durable dispatch intent record**: `request_id`, tenant, quota `reservation_id` + financial admission identity (hai định danh), snapshots, attempt plan — ghi bền **trước dispatch** (ADR-0028 §5).
 - **Attempt record**: `attempt_id`, `request_id`, endpoint, model, start time, evidence.
 - **Routing config durable state** trong `db-llm-gateway`: alias, routing policy, candidate set (runtime view).
 
@@ -86,11 +86,11 @@ Execution state không tự động trở thành domain state chỉ vì được
 
 ## Request lifecycle
 
-Admission → auth API key → resolve alias/model → eligibility + strategy + snapshot → reserve quota durable → financial admission theo giá offer đã resolve (ADR-0028 §5) → create logical request record (snapshot bound) → dispatch provider attempt → streaming → settle/release quota → write usage → logical request completion (completed | failed | cancelled terminal).
+Admission → auth API key → resolve alias/model → eligibility + strategy + snapshot → reserve quota durable → financial admission theo giá offer đã resolve (ADR-0028 §5) → [financial admission fail ⇒ release quota reservation, trả lỗi, không dispatch] → create logical request record (snapshot bound) → dispatch provider attempt → streaming → settle/release quota → financial settle/capture → write usage → logical request completion (completed | failed | cancelled terminal). Trình tự admission canonical → [`01-architecture.md`](./01-architecture.md) §11.
 
 - Reserve durable ngay khi giữ quota (A7). Không fallback KV làm sai quota.
-- Admission fail (auth/quota) → trả lỗi ngay, không dispatch, không tạo attempt.
-- Idempotent theo `reservation_id`.
+- Admission fail (auth/quota/financial) → trả lỗi ngay, không dispatch, không tạo attempt; financial admission fail kèm **release quota reservation idempotent** — quota không giữ mãi sau request không được phục vụ (§11).
+- Idempotency phân loại: quota admission idempotent theo quota `reservation_id`; financial admission idempotent theo financial admission identity `(request_id, attempt_id)` — hai định danh độc lập, correlation qua `request_id`.
 - Logical request charged once, dù nhiều attempt.
 
 ## Retry/fallback classification
@@ -115,7 +115,7 @@ Quyền retry do `llm-inference` quyết định qua một luật duy nhất; ad
 
 ## Quota admission
 
-Reserve durable ngay khi giữ quota (A7). Không fallback KV làm sai quota. Admission fail (auth/quota) → trả lỗi ngay, không dispatch, không tạo attempt. Idempotent theo `reservation_id`.
+Reserve durable ngay khi giữ quota (A7). Không fallback KV làm sai quota. Admission fail (auth/quota/financial) → trả lỗi ngay, không dispatch, không tạo attempt; financial admission fail ⇒ release quota reservation idempotent (canonical sequence → [`01-architecture.md`](./01-architecture.md) §11). Quota admission idempotent theo quota `reservation_id`.
 
 ## Budget reservation & leases (financial)
 
@@ -123,9 +123,11 @@ Theo `llm-financial` domain model:
 
 - **Budget escrow:** tiền earmark cho consumer trong khoảng thời gian.
 - **Budget lease:** cấp consumer/key ngân sách liên tục (amount per window) với `epoch`/`fencing_token`. Admission financial dùng bounded escrow/leases + local atomic admission; **không** gọi DB/coordinator per inference request.
-- **Reservation (financial):** giữ tiền trong wallet (escrow): `available -= amount; held += amount`. Idempotent theo `reservation_id`.
+- **Lease-local là decisioning, không phải kế toán:** kế toán durable xảy ra tại settlement/capture (khoá tất định từ `(lease, request_id, attempt_id)`); crash ⇒ settlement debt; unused lease chỉ hoàn về `available` sau fencing + reconciliation (`llm-financial` §6).
+- **Admission amount:** financial admission giữ amount ước tính tối đa của attempt (usage bound × applicable price) — không amount thì không admission; capture ≤ amount đã giữ; usage vượt estimate ⇒ charge capped + alert (ADR-0028 §5).
+- **Reservation (financial):** giữ tiền trong wallet (escrow): `available -= amount; held += amount`. Idempotent theo financial `reservation_id` riêng — khác quota `reservation_id`, correlation qua `request_id` (ADR-0028 §5).
 - **Phân biệt reservation ID:** quota reservation và financial reservation dùng **hai ID khác nhau** (quota `reservation_id` ≠ financial `reservation_id`); execution journal liên kết cả hai qua `request_id`. Không dùng một ID chung để đánh tráo hai loại reservation.
-- **Capture** khi dùng: `held -= amount; charged += amount`. **Release** khi unused.
+- **Capture** khi dùng: `held -= charge; charged += charge` với `charge ≤ amount admission đã giữ` (phần thừa `held → available`; usage vượt estimate ⇒ charge capped + alert — ADR-0028 §5). **Release** khi unused.
 - Lease expiry không chứng minh gateway cũ dừng tiêu → cần fencing epoch/token + reconciliation trước reallocation.
 - Escrow conservation: `available + held + charged = total` per wallet (total = tổng tiền đã nạp; release trả vào available, capture chuyển held → charged).
 
@@ -142,7 +144,7 @@ Theo `llm-financial` domain model:
 
 - Double-entry ledger: mọi transaction debit = credit.
 - Non-negative balance (trừ overdraft được cấp phép rõ ràng).
-- Settlement idempotent theo `reservation_id`: không duplicate charge.
+- Settlement idempotent theo định danh settlement tài chính: không duplicate charge (`01-architecture.md` §11 — hai định danh reservation độc lập).
 - Customer charge = f(usage, customer price, discount); khác provider cost (chi phí thực) và seller payable.
 - Seller payable ≠ payout (payout có thể delay/adjustment).
 - Reconciliation: đối soát `llm-financial` ledger, `payment` ledger, `llm` usage/reservation, provider invoice. Mismatch → alert + audit, không tự sửa số liệu.
@@ -151,10 +153,17 @@ Theo `llm-financial` domain model:
 ## Failure model
 
 - **PostgreSQL down:** fail closed cho request mới (503 + Retry-After); stream đang chạy hoàn tất → settlement debt. Không circuit-breaker để phục vụ khi settlement không bền.
+- **Financial admission fail sau khi quota reserved:** release quota reservation idempotent, trả lỗi, không dispatch.
+- **Release quota reservation fail sau financial rejection:** reservation giữ active; retry + reconciliation sweep các reservation không admitted (áp cho cả quota reservation lẫn financial reservation thiếu journal linkage — age threshold + đối chiếu journal); không rò rỉ quota.
+- **Fail-closed kết thúc:** logical request terminal `failed`; mọi reservation release theo bằng chứng chưa-executed.
+- **Financial admission commit mà response mất:** replay cùng financial admission identity trả kết quả gốc; abort ⇒ release cùng identity.
+- **Crash sau admission trước dispatch:** journal chứng minh chưa có attempt (`not_sent`) ⇒ release cả hai reservation.
 - **Provider failure:** retry/fallback theo evidence; `may_have_executed` không blind retry.
 - **Client disconnect:** settlement theo provider result.
-- **Missing usage:** không block completion nếu policy cho phép; ghi durable + alert.
+- **Missing usage:** không block completion nếu policy cho phép; capture theo amount đã giữ khi settle + alert; correction hạ khi usage xác định (§16 F5).
 - **No-candidate:** trả lỗi tường minh, không dispatch, release reservation nếu đã reserve.
+
+Bảng kịch bản thất bại đầy đủ (state transitions, kế toán, idempotency, recovery) → [`01-architecture.md`](./01-architecture.md) §16.
 
 ## Observability
 

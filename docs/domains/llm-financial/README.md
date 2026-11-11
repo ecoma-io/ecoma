@@ -9,7 +9,7 @@
 | Document                               | Nội dung                                                                                      |
 | -------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, state machines, invariants, failure behavior, phân biệt các khái niệm tiền tệ |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010, 0028) for LLM Financial decisions                                       |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010, 0028) — các quyết định của `llm-financial`                              |
 
 ## Cross-references
 

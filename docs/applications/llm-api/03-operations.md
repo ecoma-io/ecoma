@@ -41,7 +41,7 @@
 
 ## 6. Settlement debt
 
-Khi PG down, stream hoàn tất và usage phát sinh nhưng settlement không ghi được. Fail closed cho request mới. Settlement backlog age là operational signal. Nhánh A/B chưa chốt (xem system-level §3.2b).
+Khi PG down, stream hoàn tất và usage phát sinh nhưng settlement không ghi được. Fail closed cho request mới. Settlement backlog age là operational signal. Mục tiêu đã chốt: settlement debt phải settle đủ — không mất (ADR-0028 §5, OB-3); nhánh "chấp nhận thất thoát" đã bị loại, chỉ còn mở ở cơ chế recovery (RPO/batching/window) — xem system-level §3.2b.
 
 ## 7. Runbook (short)
 
