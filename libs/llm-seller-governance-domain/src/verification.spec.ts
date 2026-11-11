@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { createSellerActorId, createSellerTenantId } from '@ecoma-io/llm-seller-tenant-domain';
-import { createEvidenceId, createVerificationCaseId } from './shared';
-import { createEvidenceReference, type EvidenceReference } from './evidence';
+import { createEvidenceId, createLegalPrincipalId, createVerificationCaseId } from './shared';
+import {
+  createEvidenceReference,
+  createPrincipalEvidenceReference,
+  type EvidenceReference,
+  type PrincipalEvidenceReference,
+} from './evidence';
+import { appendLegalProfileVersion } from './legal-profile';
 import {
   createVerificationCase,
   decideVerification,
@@ -10,9 +16,13 @@ import {
   deriveOperationalEligibility,
   expireVerificationCase,
   isVerificationCase,
+  isVerificationProfileAxes,
   startVerificationReview,
+  submitPrincipalVerificationCase,
   submitVerificationCase,
+  type DeriveOperationalEligibilityInput,
   type VerificationCase,
+  type VerificationProfileAxes,
 } from './verification';
 import type { RestrictionEvaluation } from './restriction';
 
@@ -37,8 +47,14 @@ const OTHER_TENANT = createSellerTenantId('tenant-2');
 const ACTOR = createSellerActorId('member-1');
 const REVIEWER = createSellerActorId('reviewer-1');
 const AT = 1_700_000_000_000;
+const PRINCIPAL_ID = createLegalPrincipalId('principal-1');
 
 const TENANT_TARGET = Object.freeze({ kind: 'tenant' as const });
+
+const AXES: VerificationProfileAxes = Object.freeze([
+  Object.freeze({ type: 'legal-identity', axis: 'legal' as const }),
+  Object.freeze({ type: 'tax', axis: 'tax' as const }),
+]);
 
 const CLEAR: RestrictionEvaluation = {
   tenantId: TENANT,
@@ -60,6 +76,17 @@ function verificationCase(type = 'business'): VerificationCase {
   );
 }
 
+function principalVerificationCase(type = 'legal-identity'): VerificationCase {
+  return expectOk(
+    createVerificationCase({
+      id: createVerificationCaseId(`pc-${type}`),
+      principalId: PRINCIPAL_ID,
+      type,
+      createdAt: AT,
+    }),
+  );
+}
+
 function evidence(id = 'e-1', tenantId = TENANT): EvidenceReference {
   return expectOk(
     createEvidenceReference({
@@ -68,6 +95,20 @@ function evidence(id = 'e-1', tenantId = TENANT): EvidenceReference {
       kind: 'business_registration',
       storageRef: `blob://evidence/${tenantId}/${id}`,
       contentHash: 'sha256:abc',
+      recordedAt: AT,
+      recordedBy: ACTOR,
+    }),
+  );
+}
+
+function principalEvidence(id = 'pe-1'): PrincipalEvidenceReference {
+  return expectOk(
+    createPrincipalEvidenceReference({
+      id: createEvidenceId(id),
+      principalId: PRINCIPAL_ID,
+      kind: 'business_registration',
+      storageRef: `external://authoritative/${id}`,
+      contentHash: 'sha256:principal',
       recordedAt: AT,
       recordedBy: ACTOR,
     }),
@@ -86,22 +127,26 @@ function submittedCase(type = 'business'): VerificationCase {
   );
 }
 
-function approvedCase(type = 'business'): VerificationCase {
-  const review = expectOk(
+function reviewOf(testCase: VerificationCase): VerificationCase {
+  return expectOk(
     startVerificationReview({
-      verificationCase: submittedCase(type),
+      verificationCase: testCase,
       reviewer: REVIEWER,
       reviewedAt: AT + 20,
     }),
   );
+}
+
+/** Quyết định `approved` cho case tenant-scoped; trả lại case sau quyết định. */
+function approvedCase(type = 'business'): VerificationCase {
   return expectOk(
     decideVerification({
-      verificationCase: review,
+      verificationCase: reviewOf(submittedCase(type)),
       decision: 'approved',
       decidedBy: REVIEWER,
       decidedAt: AT + 30,
     }),
-  );
+  ).verificationCase;
 }
 
 describe('verification does not change tenant creation semantics', () => {
@@ -110,6 +155,51 @@ describe('verification does not change tenant creation semantics', () => {
     expect(created.status).toBe('draft');
     expect(created.submissions).toEqual([]);
     expect(created).not.toHaveProperty('tenantStatus');
+  });
+});
+
+describe('verification case subjects (§3.3)', () => {
+  it('creates a case with exactly one subject — tenant or principal, never both', () => {
+    const tenantCase = verificationCase('business');
+    expect(tenantCase.tenantId).toBe(TENANT);
+    expect(tenantCase.principalId).toBeNull();
+    const principalCase = principalVerificationCase('legal-identity');
+    expect(principalCase.principalId).toBe(PRINCIPAL_ID);
+    expect(principalCase.tenantId).toBeNull();
+    expect(
+      expectRejection(
+        createVerificationCase({
+          id: createVerificationCaseId('vc-both'),
+          tenantId: TENANT,
+          principalId: PRINCIPAL_ID,
+          type: 'business',
+          createdAt: AT,
+        }),
+      ),
+    ).toBe('inconsistent_context');
+    expect(
+      expectRejection(
+        createVerificationCase({
+          id: createVerificationCaseId('vc-neither'),
+          type: 'business',
+          createdAt: AT,
+        }),
+      ),
+    ).toBe('ambiguous_context');
+  });
+
+  it('rejects an existing collection mixing subjects', () => {
+    expect(
+      expectRejection(
+        createVerificationCase({
+          id: createVerificationCaseId('vc-mixed'),
+          tenantId: TENANT,
+          type: 'business',
+          createdAt: AT,
+          existing: [principalVerificationCase()],
+        }),
+      ),
+    ).toBe('inconsistent_context');
   });
 });
 
@@ -165,22 +255,15 @@ describe('submitVerificationCase', () => {
   });
 
   it('rejects a duplicate submission id', () => {
-    const submitted = submittedCase();
     const rejected = expectOk(
       decideVerification({
-        verificationCase: expectOk(
-          startVerificationReview({
-            verificationCase: submitted,
-            reviewer: REVIEWER,
-            reviewedAt: AT + 20,
-          }),
-        ),
+        verificationCase: reviewOf(submittedCase()),
         decision: 'rejected',
         decidedBy: REVIEWER,
         decidedAt: AT + 30,
         publicDecisionReason: 'Document unreadable.',
       }),
-    );
+    ).verificationCase;
     expect(
       expectRejection(
         submitVerificationCase({
@@ -211,19 +294,13 @@ describe('submitVerificationCase', () => {
   it('allows resubmission after rejection and preserves prior submissions', () => {
     const rejected = expectOk(
       decideVerification({
-        verificationCase: expectOk(
-          startVerificationReview({
-            verificationCase: submittedCase(),
-            reviewer: REVIEWER,
-            reviewedAt: AT + 20,
-          }),
-        ),
+        verificationCase: reviewOf(submittedCase()),
         decision: 'rejected',
         decidedBy: REVIEWER,
         decidedAt: AT + 30,
         publicDecisionReason: 'Document unreadable.',
       }),
-    );
+    ).verificationCase;
     const resubmitted = expectOk(
       submitVerificationCase({
         verificationCase: rejected,
@@ -240,6 +317,62 @@ describe('submitVerificationCase', () => {
   });
 });
 
+describe('submitPrincipalVerificationCase (§3.8)', () => {
+  it('appends a submission carrying the principal subject', () => {
+    const submitted = expectOk(
+      submitPrincipalVerificationCase({
+        verificationCase: principalVerificationCase('legal-identity'),
+        submissionId: 's-p-1',
+        evidence: [principalEvidence()],
+        submittedBy: ACTOR,
+        submittedAt: AT + 10,
+      }),
+    );
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.submissions[0]?.principalId).toBe(PRINCIPAL_ID);
+    expect(submitted.submissions[0]?.tenantId).toBeNull();
+  });
+
+  it('rejects a tenant-scoped case on the principal path', () => {
+    expect(
+      expectRejection(
+        submitPrincipalVerificationCase({
+          verificationCase: verificationCase('business'),
+          submissionId: 's-p-x',
+          evidence: [principalEvidence()],
+          submittedBy: ACTOR,
+          submittedAt: AT + 10,
+        }),
+      ),
+    ).toBe('inconsistent_context');
+  });
+
+  it('rejects principal evidence from another principal', () => {
+    const foreignEvidence = expectOk(
+      createPrincipalEvidenceReference({
+        id: createEvidenceId('pe-foreign'),
+        principalId: createLegalPrincipalId('principal-other'),
+        kind: 'business_registration',
+        storageRef: 'external://other',
+        contentHash: 'sha256:other',
+        recordedAt: AT,
+        recordedBy: ACTOR,
+      }),
+    );
+    expect(
+      expectRejection(
+        submitPrincipalVerificationCase({
+          verificationCase: principalVerificationCase(),
+          submissionId: 's-p-foreign',
+          evidence: [foreignEvidence],
+          submittedBy: ACTOR,
+          submittedAt: AT + 10,
+        }),
+      ),
+    ).toBe('inconsistent_context');
+  });
+});
+
 describe('verification decisions', () => {
   it('runs submitted -> under_review -> approved', () => {
     const approved = approvedCase();
@@ -248,17 +381,10 @@ describe('verification decisions', () => {
   });
 
   it('rejects an unknown decision with a dedicated error code', () => {
-    const review = expectOk(
-      startVerificationReview({
-        verificationCase: submittedCase(),
-        reviewer: REVIEWER,
-        reviewedAt: AT + 20,
-      }),
-    );
     expect(
       expectRejection(
         decideVerification({
-          verificationCase: review,
+          verificationCase: reviewOf(submittedCase()),
           decision: 'maybe',
           decidedBy: REVIEWER,
           decidedAt: AT + 30,
@@ -291,17 +417,10 @@ describe('verification decisions', () => {
   });
 
   it('requires a public reason when rejecting', () => {
-    const review = expectOk(
-      startVerificationReview({
-        verificationCase: submittedCase(),
-        reviewer: REVIEWER,
-        reviewedAt: AT + 20,
-      }),
-    );
     expect(
       expectRejection(
         decideVerification({
-          verificationCase: review,
+          verificationCase: reviewOf(submittedCase()),
           decision: 'rejected',
           decidedBy: REVIEWER,
           decidedAt: AT + 30,
@@ -369,6 +488,150 @@ describe('verification decisions', () => {
   });
 });
 
+describe('decideVerification coverage pinning (§3.6)', () => {
+  const legalV1 = [
+    {
+      tenantId: TENANT,
+      version: 1,
+      legalName: 'Acme Ltd',
+      legalType: 'company',
+      jurisdiction: 'VN',
+      registrationReference: 'REG-1',
+      effectiveFrom: AT - 100,
+      recordedAt: AT - 100,
+      recordedBy: ACTOR,
+    },
+  ];
+  const taxV1 = [
+    {
+      tenantId: TENANT,
+      version: 1,
+      taxResidency: 'VN',
+      taxIdentifier: 'TAX-1',
+      declarationReference: 'DECL-1',
+      effectiveFrom: AT - 100,
+      recordedAt: AT - 100,
+      recordedBy: ACTOR,
+    },
+  ];
+
+  it('pins the profile version effective at decidedAt for an axis-bound type', () => {
+    const approved = expectOk(
+      decideVerification({
+        verificationCase: reviewOf(submittedCase('legal-identity')),
+        decision: 'approved',
+        decidedBy: REVIEWER,
+        decidedAt: AT + 30,
+        profileAxes: AXES,
+        legalProfileVersions: legalV1,
+      }),
+    ).verificationCase;
+    expect(approved.verifiedProfileVersions).toEqual([{ axis: 'legal', version: 1 }]);
+    // Type không gắn trục thì không pin.
+    const unbound = approvedCase('business');
+    expect(unbound.verifiedProfileVersions).toEqual([]);
+  });
+
+  it('counts only a pin matching the version effective at now, per axis', () => {
+    const legalApproved = expectOk(
+      decideVerification({
+        verificationCase: reviewOf(submittedCase('legal-identity')),
+        decision: 'approved',
+        decidedBy: REVIEWER,
+        decidedAt: AT + 30,
+        profileAxes: AXES,
+        legalProfileVersions: legalV1,
+      }),
+    ).verificationCase;
+    // Trục legal được phủ; trục tax chưa có case nào ⇒ vẫn pending.
+    const state = expectOk(
+      deriveOnboardingState({
+        tenantId: TENANT,
+        cases: [legalApproved],
+        requiredTypes: ['legal-identity', 'tax'],
+        profileAxes: AXES,
+        legalProfileVersions: legalV1,
+        taxProfileVersions: taxV1,
+        now: AT + 50,
+      }),
+    );
+    expect(state.complete).toBe(false);
+    expect(state.pendingTypes).toEqual(['tax']);
+    // Tenant publish legal v2 hiệu lực sau khi approval ⇒ pin 1 stale,
+    // approval không còn được tính (§3.6 coverage rule).
+    const legalV2 = expectOk(
+      appendLegalProfileVersion(legalV1, {
+        tenantId: TENANT,
+        legalName: 'Acme Ltd II',
+        legalType: 'company',
+        jurisdiction: 'VN',
+        registrationReference: 'REG-2',
+        effectiveFrom: AT + 40,
+        recordedAt: AT + 40,
+        recordedBy: ACTOR,
+      }),
+    );
+    const stale = expectOk(
+      deriveOnboardingState({
+        tenantId: TENANT,
+        cases: [legalApproved],
+        requiredTypes: ['legal-identity', 'tax'],
+        profileAxes: AXES,
+        legalProfileVersions: legalV2,
+        taxProfileVersions: taxV1,
+        now: AT + 50,
+      }),
+    );
+    expect(stale.complete).toBe(false);
+    expect(stale.pendingTypes).toEqual(['legal-identity', 'tax']);
+  });
+
+  it('fails closed when an axis-bound approval has nothing to pin', () => {
+    expect(
+      expectRejection(
+        decideVerification({
+          verificationCase: reviewOf(submittedCase('legal-identity')),
+          decision: 'approved',
+          decidedBy: REVIEWER,
+          decidedAt: AT + 30,
+          profileAxes: AXES,
+          legalProfileVersions: [],
+        }),
+      ),
+    ).toBe('ambiguous_context');
+    expect(
+      expectRejection(
+        decideVerification({
+          verificationCase: reviewOf(submittedCase('legal-identity')),
+          decision: 'approved',
+          decidedBy: REVIEWER,
+          decidedAt: AT + 30,
+          profileAxes: AXES,
+        }),
+      ),
+    ).toBe('ambiguous_context');
+  });
+
+  it('rejects a malformed profileAxes configuration', () => {
+    expect(
+      expectRejection(
+        decideVerification({
+          verificationCase: reviewOf(submittedCase('business')),
+          decision: 'approved',
+          decidedBy: REVIEWER,
+          decidedAt: AT + 30,
+          profileAxes: [
+            { type: 'business', axis: 'legal' },
+            { type: 'business', axis: 'tax' },
+          ],
+        }),
+      ),
+    ).toBe('ambiguous_context');
+    expect(isVerificationProfileAxes(AXES)).toBe(true);
+    expect(isVerificationProfileAxes([{ type: 'legal-identity' }])).toBe(false);
+  });
+});
+
 describe('deriveOnboardingState', () => {
   it('is complete only when every required type has an approved case', () => {
     const state = expectOk(
@@ -376,6 +639,7 @@ describe('deriveOnboardingState', () => {
         tenantId: TENANT,
         cases: [approvedCase('business')],
         requiredTypes: ['business', 'identity'],
+        now: AT + 50,
       }),
     );
     expect(state.complete).toBe(false);
@@ -385,24 +649,19 @@ describe('deriveOnboardingState', () => {
   it('reports a rejected required type as an issue', () => {
     const rejected = expectOk(
       decideVerification({
-        verificationCase: expectOk(
-          startVerificationReview({
-            verificationCase: submittedCase('identity'),
-            reviewer: REVIEWER,
-            reviewedAt: AT + 20,
-          }),
-        ),
+        verificationCase: reviewOf(submittedCase('identity')),
         decision: 'rejected',
         decidedBy: REVIEWER,
         decidedAt: AT + 30,
         publicDecisionReason: 'Expired document.',
       }),
-    );
+    ).verificationCase;
     const state = expectOk(
       deriveOnboardingState({
         tenantId: TENANT,
         cases: [rejected],
         requiredTypes: ['identity'],
+        now: AT + 50,
       }),
     );
     expect(state.issues).toEqual(['identity']);
@@ -419,7 +678,12 @@ describe('deriveOnboardingState', () => {
       }),
     );
     const state = expectOk(
-      deriveOnboardingState({ tenantId: TENANT, cases: [expired], requiredTypes: ['business'] }),
+      deriveOnboardingState({
+        tenantId: TENANT,
+        cases: [expired],
+        requiredTypes: ['business'],
+        now: AT + 50,
+      }),
     );
     expect(state.complete).toBe(false);
     expect(state.pendingTypes).toEqual(['business']);
@@ -428,30 +692,23 @@ describe('deriveOnboardingState', () => {
   it('reports an issue only for the latest case of a type', () => {
     const rejected = expectOk(
       decideVerification({
-        verificationCase: expectOk(
-          startVerificationReview({
-            verificationCase: submittedCase('identity'),
-            reviewer: REVIEWER,
-            reviewedAt: AT + 20,
-          }),
-        ),
+        verificationCase: reviewOf(submittedCase('identity')),
         decision: 'rejected',
         decidedBy: REVIEWER,
         decidedAt: AT + 30,
         publicDecisionReason: 'Expired document.',
       }),
-    );
-    const resubmitted = expectOk(
-      createVerificationCase({
-        id: createVerificationCaseId('vc-identity-2'),
-        tenantId: TENANT,
-        type: 'identity',
-        createdAt: AT + 40,
-      }),
-    );
+    ).verificationCase;
     const resubmittedAndSubmitted = expectOk(
       submitVerificationCase({
-        verificationCase: resubmitted,
+        verificationCase: expectOk(
+          createVerificationCase({
+            id: createVerificationCaseId('vc-identity-2'),
+            tenantId: TENANT,
+            type: 'identity',
+            createdAt: AT + 40,
+          }),
+        ),
         submissionId: 's-identity-2',
         evidence: [evidence('e-2')],
         submittedBy: ACTOR,
@@ -463,6 +720,7 @@ describe('deriveOnboardingState', () => {
         tenantId: TENANT,
         cases: [rejected, resubmittedAndSubmitted],
         requiredTypes: ['identity'],
+        now: AT + 60,
       }),
     );
     expect(state.pendingTypes).toEqual(['identity']);
@@ -477,9 +735,63 @@ describe('deriveOnboardingState', () => {
           tenantId: TENANT,
           cases: [foreign],
           requiredTypes: ['business'],
+          now: AT + 50,
         }),
       ),
     ).toBe('inconsistent_context');
+  });
+
+  it('rejects a principal-scoped case inside a tenant collection (§3.8)', () => {
+    expect(
+      expectRejection(
+        deriveOnboardingState({
+          tenantId: TENANT,
+          cases: [principalVerificationCase()],
+          requiredTypes: ['legal-identity'],
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('inconsistent_context');
+  });
+
+  it('rejects a malformed or missing classification', () => {
+    expect(
+      expectRejection(
+        deriveOnboardingState({
+          tenantId: TENANT,
+          cases: [],
+          requiredTypes: ['business'],
+          tenantClassification: 'enterprise',
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('ambiguous_context');
+  });
+
+  it('requires a well-formed principal assessment on the first_party path', () => {
+    expect(
+      expectRejection(
+        deriveOnboardingState({
+          tenantId: TENANT,
+          cases: [],
+          requiredTypes: ['legal-identity'],
+          tenantClassification: 'first_party',
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('ambiguous_context');
+    expect(
+      expectRejection(
+        deriveOnboardingState({
+          tenantId: TENANT,
+          cases: [],
+          requiredTypes: ['legal-identity'],
+          tenantClassification: 'first_party',
+          principalAssessment: { bad: true },
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('ambiguous_context');
   });
 });
 
@@ -514,6 +826,7 @@ describe('deriveOperationalEligibility', () => {
     const eligibility = expectOk(
       deriveOperationalEligibility({
         tenantId: TENANT,
+        tenantClassification: 'customer',
         restrictions: CLEAR,
         cases: [approvedCase()],
         requiredTypes: ['business'],
@@ -529,6 +842,7 @@ describe('deriveOperationalEligibility', () => {
     const eligibility = expectOk(
       deriveOperationalEligibility({
         tenantId: TENANT,
+        tenantClassification: 'customer',
         restrictions: undefined,
         cases: [approvedCase()],
         requiredTypes: ['business'],
@@ -545,6 +859,7 @@ describe('deriveOperationalEligibility', () => {
       expectOk(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: { ...CLEAR, unevaluable: true },
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -560,6 +875,7 @@ describe('deriveOperationalEligibility', () => {
     const blockers = expectOk(
       deriveOperationalEligibility({
         tenantId: TENANT,
+        tenantClassification: 'customer',
         restrictions: { ...CLEAR, blocked: true },
         cases: [],
         requiredTypes: ['business'],
@@ -577,6 +893,7 @@ describe('deriveOperationalEligibility', () => {
       expectOk(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: CLEAR,
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -593,6 +910,7 @@ describe('deriveOperationalEligibility', () => {
       expectOk(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: { ...CLEAR, tenantId: OTHER_TENANT },
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -613,6 +931,7 @@ describe('deriveOperationalEligibility', () => {
         expectOk(
           deriveOperationalEligibility({
             tenantId: TENANT,
+            tenantClassification: 'customer',
             restrictions,
             cases: [approvedCase()],
             requiredTypes: ['business'],
@@ -630,6 +949,7 @@ describe('deriveOperationalEligibility', () => {
       expectOk(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: { ...CLEAR, target: { kind: 'capability', capability: 'payout' } },
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -646,6 +966,7 @@ describe('deriveOperationalEligibility', () => {
       expectRejection(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: CLEAR,
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -662,6 +983,7 @@ describe('deriveOperationalEligibility', () => {
       expectRejection(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: CLEAR,
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -675,6 +997,7 @@ describe('deriveOperationalEligibility', () => {
       expectRejection(
         deriveOperationalEligibility({
           tenantId: TENANT,
+          tenantClassification: 'customer',
           restrictions: CLEAR,
           cases: [approvedCase()],
           requiredTypes: ['business'],
@@ -684,6 +1007,122 @@ describe('deriveOperationalEligibility', () => {
         }),
       ),
     ).toBe('invalid_profile_version');
+  });
+
+  it('rejects a missing or malformed classification instead of guessing it', () => {
+    const withoutClassification = {
+      tenantId: TENANT,
+      restrictions: CLEAR,
+      cases: [approvedCase()],
+      requiredTypes: ['business'],
+      legalProfileVersions: legal,
+      taxProfileVersions: tax,
+      now: AT + 50,
+    } as unknown as DeriveOperationalEligibilityInput;
+    expect(expectRejection(deriveOperationalEligibility(withoutClassification))).toBe(
+      'ambiguous_context',
+    );
+    expect(
+      expectRejection(
+        deriveOperationalEligibility({
+          tenantId: TENANT,
+          tenantClassification: 'enterprise',
+          restrictions: CLEAR,
+          cases: [approvedCase()],
+          requiredTypes: ['business'],
+          legalProfileVersions: legal,
+          taxProfileVersions: tax,
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('ambiguous_context');
+  });
+
+  it('never lets a principal assessment shortcut the customer path (§3.6)', () => {
+    expect(
+      expectOk(
+        deriveOperationalEligibility({
+          tenantId: TENANT,
+          tenantClassification: 'customer',
+          principalAssessment: { bad: true },
+          restrictions: CLEAR,
+          cases: [approvedCase()],
+          requiredTypes: ['business'],
+          legalProfileVersions: legal,
+          taxProfileVersions: tax,
+          now: AT + 50,
+        }),
+      ).blockers,
+    ).toEqual(['verification']);
+    // `null` mang nghĩa "không có assessment" — không chặn.
+    expect(
+      expectOk(
+        deriveOperationalEligibility({
+          tenantId: TENANT,
+          tenantClassification: 'customer',
+          principalAssessment: null,
+          restrictions: CLEAR,
+          cases: [approvedCase()],
+          requiredTypes: ['business'],
+          legalProfileVersions: legal,
+          taxProfileVersions: tax,
+          now: AT + 50,
+        }),
+      ),
+    ).toEqual({ eligible: true, blockers: [] });
+  });
+
+  it('rejects a principal-scoped case inside a tenant collection (§3.8)', () => {
+    expect(
+      expectRejection(
+        deriveOperationalEligibility({
+          tenantId: TENANT,
+          tenantClassification: 'customer',
+          restrictions: CLEAR,
+          cases: [principalVerificationCase()],
+          requiredTypes: ['business'],
+          legalProfileVersions: legal,
+          taxProfileVersions: tax,
+          now: AT + 50,
+        }),
+      ),
+    ).toBe('inconsistent_context');
+  });
+
+  describe('first_party path (§3.8) — fail-closed, single source', () => {
+    const base = {
+      tenantId: TENANT,
+      tenantClassification: 'first_party' as const,
+      restrictions: CLEAR,
+      cases: [],
+      requiredTypes: ['legal-identity', 'tax'],
+      profileAxes: AXES,
+      now: AT + 50,
+    };
+
+    it('blocks on a missing or malformed principal assessment with only the verification blocker', () => {
+      expect(expectOk(deriveOperationalEligibility(base)).blockers).toEqual(['verification']);
+      expect(
+        expectOk(deriveOperationalEligibility({ ...base, principalAssessment: { bad: true } }))
+          .blockers,
+      ).toEqual(['verification']);
+    });
+
+    it('never derives from tenant-local profiles or tenant-scoped axis cases', () => {
+      // Hồ sơ tenant đầy đủ + case tenant-scoped approved trên trục — trên
+      // đường first_party đây là bất nhất single-source, blocker `verification`
+      // duy nhất, không bao giờ `legal_profile`/`tax_profile`.
+      expect(
+        expectOk(
+          deriveOperationalEligibility({
+            ...base,
+            cases: [approvedCase('legal-identity')],
+            legalProfileVersions: legal,
+            taxProfileVersions: tax,
+          }),
+        ).blockers,
+      ).toEqual(['verification']);
+    });
   });
 });
 
@@ -727,5 +1166,8 @@ describe('isVerificationCase', () => {
     expect(isVerificationCase(good)).toBe(true);
     expect(isVerificationCase({ ...good, status: 'unknown' })).toBe(false);
     expect(isVerificationCase({ ...good, submissions: undefined })).toBe(false);
+    // Subject XOR: cả hai subject hoặc không subject nào đều là dữ liệu hỏng.
+    expect(isVerificationCase({ ...good, principalId: PRINCIPAL_ID })).toBe(false);
+    expect(isVerificationCase({ ...good, tenantId: null })).toBe(false);
   });
 });

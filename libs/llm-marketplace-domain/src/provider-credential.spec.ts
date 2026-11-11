@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import * as marketplaceSurface from './index';
 import {
   MAX_CREDENTIAL_HASH_LENGTH,
   MAX_CREDENTIAL_PLAINTEXT_LENGTH,
@@ -8,6 +9,7 @@ import {
   createProviderCredential,
   createProviderCredentialId,
   createSellerActorId,
+  createSellerTenantId,
   isCredentialHash,
   isCredentialLabel,
   isCredentialPlaintext,
@@ -37,12 +39,15 @@ function expectRejection(result: { ok: true } | { ok: false; error: { code: stri
 
 const AT = 1_700_000_000_000;
 const HASH = 'sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f0';
+const TENANT = createSellerTenantId('tenant-1');
+const OTHER_TENANT = createSellerTenantId('tenant-2');
 
 function credential(overrides: Record<string, unknown> = {}): ProviderCredential {
   return expectOk(
     createProviderCredential({
       id: createProviderCredentialId('cred-1'),
       provider: 'openai',
+      sellerTenantId: TENANT,
       credentialHash: HASH,
       plaintext: 'sk-test-abc',
       createdBy: createSellerActorId('sub-1'),
@@ -82,11 +87,12 @@ describe('isCredentialPlaintext', () => {
 });
 
 describe('createProviderCredential', () => {
-  it('returns the stored record without plaintext plus the plaintext exactly once', () => {
+  it('records the owning Seller tenant and returns the stored record without plaintext plus the plaintext exactly once', () => {
     const created = expectOk(
       createProviderCredential({
         id: createProviderCredentialId('cred-1'),
         provider: 'openai',
+        sellerTenantId: TENANT,
         credentialHash: HASH,
         plaintext: 'sk-test-abc',
         createdBy: createSellerActorId('sub-1'),
@@ -95,6 +101,7 @@ describe('createProviderCredential', () => {
     );
     expect(created.plaintext).toBe('sk-test-abc');
     expect(Object.hasOwn(created.credential, 'plaintext')).toBe(false);
+    expect(created.credential.sellerTenantId).toBe('tenant-1');
     expect(created.credential.credentialHash).toBe(HASH);
     expect(created.credential.revokedAt).toBeNull();
     expect(created.credential.revokedBy).toBeNull();
@@ -106,6 +113,7 @@ describe('createProviderCredential', () => {
   it.each([
     [{ id: '' }, 'invalid_provider_credential_id'],
     [{ provider: 'OpenAI' }, 'invalid_provider_key'],
+    [{ sellerTenantId: '' }, 'invalid_seller_tenant_id'],
     [{ credentialHash: '' }, 'invalid_credential_hash'],
     [{ credentialHash: 'ha sh' }, 'invalid_credential_hash'],
     [{ plaintext: '' }, 'invalid_credential_plaintext'],
@@ -117,6 +125,7 @@ describe('createProviderCredential', () => {
         createProviderCredential({
           id: createProviderCredentialId('cred-1'),
           provider: 'openai',
+          sellerTenantId: TENANT,
           credentialHash: HASH,
           plaintext: 'sk-test-abc',
           createdBy: createSellerActorId('sub-1'),
@@ -133,6 +142,7 @@ describe('createProviderCredential', () => {
         createProviderCredential({
           id: createProviderCredentialId('cred-1'),
           provider: 'openai',
+          sellerTenantId: TENANT,
           credentialHash: HASH,
           plaintext: 'sk-test-abc',
           createdBy: createSellerActorId('sub-1'),
@@ -149,6 +159,7 @@ describe('createProviderCredential', () => {
         createProviderCredential({
           id: createProviderCredentialId('cred-2'),
           provider: 'openai',
+          sellerTenantId: TENANT,
           credentialHash: HASH,
           plaintext: 'sk-test-abc',
           createdBy: createSellerActorId('sub-1'),
@@ -162,6 +173,7 @@ describe('createProviderCredential', () => {
         createProviderCredential({
           id: createProviderCredentialId('cred-2'),
           provider: 'openai',
+          sellerTenantId: TENANT,
           credentialHash: HASH,
           plaintext: 'sk-test-abc',
           createdBy: createSellerActorId('sub-1'),
@@ -258,10 +270,35 @@ describe('isProviderCredentialActive', () => {
   });
 });
 
-describe('assertCredentialProvider', () => {
-  it('accepts a matching active credential and returns the same record', () => {
+describe('assertCredentialProvider — two independent scope axes', () => {
+  it('accepts a matching active credential for its owning tenant and returns the same record', () => {
     const record = credential();
-    expect(expectOk(assertCredentialProvider(record, 'openai'))).toBe(record);
+    expect(expectOk(assertCredentialProvider(record, 'openai', TENANT))).toBe(record);
+  });
+
+  it('rejects a wrong provider (axis a)', () => {
+    expect(expectRejection(assertCredentialProvider(credential(), 'anthropic', TENANT))).toBe(
+      'credential_provider_mismatch',
+    );
+  });
+
+  it('rejects cross-tenant use with credential_tenant_mismatch (axis b)', () => {
+    expect(expectRejection(assertCredentialProvider(credential(), 'openai', OTHER_TENANT))).toBe(
+      'credential_tenant_mismatch',
+    );
+  });
+
+  it('rejects a revoked credential for its own provider and tenant (axis c)', () => {
+    const revoked = expectOk(
+      revokeProviderCredential({
+        credential: credential(),
+        revokedBy: createSellerActorId('sub-2'),
+        revokedAt: AT + 1,
+      }),
+    );
+    expect(expectRejection(assertCredentialProvider(revoked, 'openai', TENANT))).toBe(
+      'credential_revoked',
+    );
   });
 
   it('checks the provider before the revocation state', () => {
@@ -272,12 +309,12 @@ describe('assertCredentialProvider', () => {
         revokedAt: AT + 1,
       }),
     );
-    expect(expectRejection(assertCredentialProvider(revoked, 'anthropic'))).toBe(
+    expect(expectRejection(assertCredentialProvider(revoked, 'anthropic', TENANT))).toBe(
       'credential_provider_mismatch',
     );
   });
 
-  it('rejects reusing a revoked credential for its own provider', () => {
+  it('checks the owning tenant before the revocation state', () => {
     const revoked = expectOk(
       revokeProviderCredential({
         credential: credential(),
@@ -285,17 +322,76 @@ describe('assertCredentialProvider', () => {
         revokedAt: AT + 1,
       }),
     );
-    expect(expectRejection(assertCredentialProvider(revoked, 'openai'))).toBe('credential_revoked');
+    expect(expectRejection(assertCredentialProvider(revoked, 'openai', OTHER_TENANT))).toBe(
+      'credential_tenant_mismatch',
+    );
   });
 
-  it('rejects an invalid credential or provider', () => {
+  it('reports the provider axis first when provider and tenant both mismatch', () => {
+    expect(expectRejection(assertCredentialProvider(credential(), 'anthropic', OTHER_TENANT))).toBe(
+      'credential_provider_mismatch',
+    );
+  });
+
+  it('each axis fails independently of the others', () => {
+    const revoked = expectOk(
+      revokeProviderCredential({
+        credential: credential(),
+        revokedBy: createSellerActorId('sub-2'),
+        revokedAt: AT + 1,
+      }),
+    );
+    const matrix: readonly {
+      readonly provider: string;
+      readonly tenant: typeof TENANT | typeof OTHER_TENANT;
+      readonly code: string;
+    }[] = [
+      { provider: 'anthropic', tenant: OTHER_TENANT, code: 'credential_provider_mismatch' },
+      { provider: 'openai', tenant: OTHER_TENANT, code: 'credential_tenant_mismatch' },
+      { provider: 'openai', tenant: TENANT, code: 'credential_revoked' },
+    ];
+    for (const { provider, tenant, code } of matrix) {
+      expect(expectRejection(assertCredentialProvider(revoked, provider, tenant))).toBe(code);
+    }
+  });
+
+  it('rejects an invalid credential, provider or tenant', () => {
     expect(
       expectRejection(
-        assertCredentialProvider({ bad: true } as unknown as ProviderCredential, 'openai'),
+        assertCredentialProvider({ bad: true } as unknown as ProviderCredential, 'openai', TENANT),
       ),
     ).toBe('invalid_provider_credential');
-    expect(expectRejection(assertCredentialProvider(credential(), 'OpenAI'))).toBe(
+    expect(expectRejection(assertCredentialProvider(credential(), 'OpenAI', TENANT))).toBe(
       'invalid_provider_key',
+    );
+    expect(expectRejection(assertCredentialProvider(credential(), 'openai', ''))).toBe(
+      'invalid_seller_tenant_id',
+    );
+  });
+
+  it('keeps two seller tenants on the same upstream provider independent — no shared credential path', () => {
+    const first = credential();
+    const second = expectOk(
+      createProviderCredential({
+        id: createProviderCredentialId('cred-2'),
+        provider: 'openai',
+        sellerTenantId: OTHER_TENANT,
+        credentialHash: HASH,
+        plaintext: 'sk-test-abc',
+        createdBy: createSellerActorId('sub-9'),
+        createdAt: AT,
+      }),
+    ).credential;
+    expect(first.provider).toBe(second.provider);
+    expect(first.sellerTenantId).not.toBe(second.sellerTenantId);
+    expect(first.id).not.toBe(second.id);
+    expect(expectOk(assertCredentialProvider(first, 'openai', TENANT)).id).toBe('cred-1');
+    expect(expectOk(assertCredentialProvider(second, 'openai', OTHER_TENANT)).id).toBe('cred-2');
+    expect(expectRejection(assertCredentialProvider(first, 'openai', OTHER_TENANT))).toBe(
+      'credential_tenant_mismatch',
+    );
+    expect(expectRejection(assertCredentialProvider(second, 'openai', TENANT))).toBe(
+      'credential_tenant_mismatch',
     );
   });
 });
@@ -324,6 +420,7 @@ describe('isProviderCredential', () => {
     expect(isProviderCredential(null)).toBe(false);
     expect(isProviderCredential({ ...credential(), credentialHash: 'ha sh' })).toBe(false);
     expect(isProviderCredential({ ...credential(), provider: 'OpenAI' })).toBe(false);
+    expect(isProviderCredential({ ...credential(), sellerTenantId: '' })).toBe(false);
     expect(isProviderCredential({ ...credential(), createdAt: 1.2 })).toBe(false);
   });
 });
@@ -368,14 +465,50 @@ describe('isPublicProviderCredentialShape', () => {
     expect(isPublicProviderCredentialShape(null)).toBe(false);
   });
 
-  it('lists exactly the internal fields', () => {
+  it('lists exactly the internal fields, including the owning tenant', () => {
     expect([...PROVIDER_CREDENTIAL_INTERNAL_FIELDS]).toEqual([
       'credentialHash',
+      'sellerTenantId',
       'createdBy',
       'revokedBy',
       'plaintext',
     ]);
     expect(Object.isFrozen(PROVIDER_CREDENTIAL_INTERNAL_FIELDS)).toBe(true);
+  });
+
+  it('projects without hash, owning tenant or actors even after the record gains fields', () => {
+    const publicView = toPublicProviderCredential(credential());
+    expect(Object.hasOwn(publicView, 'credentialHash')).toBe(false);
+    expect(Object.hasOwn(publicView, 'sellerTenantId')).toBe(false);
+    expect(isPublicProviderCredentialShape(publicView)).toBe(true);
+  });
+});
+
+describe('credential public surface', () => {
+  it('exports no lookup-by-provider or cross-tenant credential resolution', () => {
+    // ADR-0027 §8 / marketplace §3.7: chọn credential chỉ resolve trong tập
+    // credential của Seller tenant sở hữu offer — không lookup theo provider
+    // xuyên tenant. Assertion âm trên exported surface, không grep filesystem.
+    const credentialExports = Object.keys(marketplaceSurface)
+      .filter((name) => /credential/iu.test(name))
+      .toSorted();
+    expect(credentialExports).toEqual([
+      'MAX_CREDENTIAL_HASH_LENGTH',
+      'MAX_CREDENTIAL_PLAINTEXT_LENGTH',
+      'PROVIDER_CREDENTIAL_INTERNAL_FIELDS',
+      'assertCredentialProvider',
+      'createProviderCredential',
+      'createProviderCredentialId',
+      'isCredentialHash',
+      'isCredentialLabel',
+      'isCredentialPlaintext',
+      'isProviderCredential',
+      'isProviderCredentialActive',
+      'isProviderCredentialId',
+      'isPublicProviderCredentialShape',
+      'revokeProviderCredential',
+      'toPublicProviderCredential',
+    ]);
   });
 });
 

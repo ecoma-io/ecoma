@@ -34,6 +34,7 @@ describe('LLM_MARKETPLACE_DOMAIN_ERROR_MESSAGES', () => {
         'credential_already_revoked',
         'credential_provider_mismatch',
         'credential_revoked',
+        'credential_tenant_mismatch',
         'duplicate_endpoint_pool_id',
         'duplicate_fallback_entry',
         'duplicate_model_offer_id',

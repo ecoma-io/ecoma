@@ -5,23 +5,28 @@
  * version kế tiếp và cách chọn version hiệu lực tại một thời điểm là giống
  * nhau. Tách ở đây để một thay đổi quy tắc versioning không phải sửa hai nơi.
  *
+ * Cơ chế này phục vụ **cả hai chủ thể** của governance (§3.4, §3.8): profile
+ * tenant-scoped (đường customer) và revision profile của
+ * `FirstPartyLegalPrincipal` (đường first-party). Vì vậy phần khung **không**
+ * mang `tenantId` — chủ thể đượcCaller mô tả qua projection `subjectOf`, còn
+ * field chủ thể (`tenantId` hoặc `principalId`) do guard của từng profile tự
+ * kiểm. Điều đó giữ một cơ chế versioning duy nhất mà không cho principal
+ * mượn shape của tenant.
+ *
  * Module này là chi tiết nội bộ của lib, không xuất hiện trong public surface.
  */
 
 import {
   isEpochMillis,
   isSellerActorId,
-  isSellerTenantId,
   llmGovernanceFailure,
   llmGovernanceOk,
   type LlmGovernanceResult,
   type SellerActorId,
-  type SellerTenantId,
 } from './shared';
 
-/** Field khung mà mọi profile version đều có. */
+/** Field khung mà mọi profile version đều có, bất kể chủ thể. */
 export interface VersionedProfileCommon {
-  readonly tenantId: SellerTenantId;
   /** Số thứ tự do domain cấp, bắt đầu từ 1. */
   readonly version: number;
   readonly effectiveFrom: number;
@@ -32,7 +37,7 @@ export interface VersionedProfileCommon {
 /**
  * Guard cho phần khung của một profile version.
  *
- * Caller bổ sung guard cho field nghiệp vụ của mình.
+ * Caller bổ sung guard cho field nghiệp vụ **và** field chủ thể của mình.
  */
 export function isVersionedProfileCommon(value: unknown): value is VersionedProfileCommon {
   if (typeof value !== 'object' || value === null) {
@@ -40,7 +45,6 @@ export function isVersionedProfileCommon(value: unknown): value is VersionedProf
   }
   const candidate = value as Partial<Record<keyof VersionedProfileCommon, unknown>>;
   return (
-    isSellerTenantId(candidate.tenantId) &&
     typeof candidate.version === 'number' &&
     Number.isSafeInteger(candidate.version) &&
     candidate.version >= 1 &&
@@ -53,14 +57,18 @@ export function isVersionedProfileCommon(value: unknown): value is VersionedProf
 /**
  * Kiểm tra collection version hiện có và tính số version kế tiếp.
  *
+ * `subject` là giá trị chủ thể đã được caller validate (ví dụ `tenantId` hay
+ * `principalId`); `subjectOf` chiếu một version ra giá trị chủ thể của nó.
+ *
  * Trả lỗi khi collection không phải array (`ambiguous_context`), có phần tử
- * sai shape (`invalid_profile_version`), lệch tenant (`inconsistent_context`)
- * hoặc `effectiveFrom` mới không tăng nghiêm ngặt so với version cuối
- * (`effective_from_not_increasing`).
+ * sai shape (`invalid_profile_version`), có version thuộc chủ thể khác
+ * (`inconsistent_context`) hoặc `effectiveFrom` mới không tăng nghiêm ngặt so
+ * với version cuối (`effective_from_not_increasing`).
  */
-export function nextProfileVersion<Version extends VersionedProfileCommon>(
+export function nextProfileVersion<Version extends VersionedProfileCommon, Subject>(
   versions: readonly Version[],
-  tenantId: SellerTenantId,
+  subject: Subject,
+  subjectOf: (version: Version) => Subject,
   effectiveFrom: number,
   isVersion: (value: unknown) => value is Version,
 ): LlmGovernanceResult<number> {
@@ -70,7 +78,7 @@ export function nextProfileVersion<Version extends VersionedProfileCommon>(
   if (!versions.every(isVersion)) {
     return llmGovernanceFailure('invalid_profile_version');
   }
-  if (versions.some((version) => version.tenantId !== tenantId)) {
+  if (versions.some((version) => subjectOf(version) !== subject)) {
     return llmGovernanceFailure('inconsistent_context');
   }
   const lastVersion = versions.reduce<Version | undefined>(

@@ -71,7 +71,8 @@ export type LlmMarketplaceDomainErrorCode =
   // Credential.
   | 'credential_already_revoked'
   | 'credential_revoked'
-  | 'credential_provider_mismatch';
+  | 'credential_provider_mismatch'
+  | 'credential_tenant_mismatch';
 
 /**
  * Message của từng mã — nguồn duy nhất của factory. Message là ENGLISH: runtime
@@ -135,6 +136,7 @@ export const LLM_MARKETPLACE_DOMAIN_ERROR_MESSAGES: Record<LlmMarketplaceDomainE
     credential_already_revoked: 'The provider credential has already been revoked.',
     credential_revoked: 'The provider credential is revoked.',
     credential_provider_mismatch: 'The provider credential is scoped to another provider.',
+    credential_tenant_mismatch: 'The provider credential is owned by another Seller tenant.',
   });
 
 /** Error domain: `code` ổn định + `message` ngắn gọn. */

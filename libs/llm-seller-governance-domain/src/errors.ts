@@ -60,7 +60,17 @@ export type LlmGovernanceDomainErrorCode =
   | 'evidence_not_in_tenant'
   | 'duplicate_evidence_reference_id'
   // Profile.
-  | 'effective_from_not_increasing';
+  | 'effective_from_not_increasing'
+  // Principal và principal association (governance §3.8; ADR-0027).
+  | 'invalid_legal_principal_id'
+  | 'duplicate_legal_principal_id'
+  | 'invalid_legal_principal'
+  | 'invalid_principal_status_transition'
+  | 'invalid_principal_association'
+  | 'duplicate_principal_association'
+  | 'principal_association_not_in_tenant'
+  | 'principal_revision_not_verified'
+  | 'principal_not_active';
 
 /**
  * Message của từng mã — bảng đọc nguồn duy nhất của factory. Message là
@@ -110,6 +120,18 @@ export const LLM_GOVERNANCE_DOMAIN_ERROR_MESSAGES: Record<LlmGovernanceDomainErr
     duplicate_evidence_reference_id: 'The evidence reference ID is duplicated in the tenant.',
     effective_from_not_increasing:
       'The effective time must be strictly later than the previous profile version.',
+    invalid_legal_principal_id: 'Legal principal ID is not valid.',
+    duplicate_legal_principal_id: 'The legal principal ID is duplicated.',
+    invalid_legal_principal: 'The first-party legal principal record is not valid.',
+    invalid_principal_status_transition: 'The legal principal status transition is not allowed.',
+    invalid_principal_association: 'The principal association record is not valid.',
+    duplicate_principal_association:
+      'A principal association already exists for this Seller tenant.',
+    principal_association_not_in_tenant:
+      'The principal association does not belong to the Seller tenant.',
+    principal_revision_not_verified:
+      'The principal revision is not covered by an approved verification case.',
+    principal_not_active: 'The first-party legal principal is not active.',
   });
 
 /** Error domain: `code` ổn định + `message` ngắn gọn. */
