@@ -12,7 +12,9 @@
  * 1. `resolvePostgresPassword` — đọc lại mật khẩu PostgreSQL từ stack config
  *    (canonical), chỉ sinh mới khi stack mới VÀ chưa có volume; fail có
  *    hướng dẫn khi config mất mà volume còn (không bao giờ sinh mật khẩu
- *    không khớp volume đã init).
+ *    không khớp volume đã init). Cạnh đó `resolveObjectStorageSecretKey` đọc
+ *    lại secret key S3 của remote cache (issue #19) từ stack config — không có
+ *    ràng buộc volume, sinh mới khi key chưa có trong config.
  * 2. `pulumi up` — Traefik + PostgreSQL + network; outputs chỉ tồn tại sau
  *    khi up xanh.
  * 3. Đọc outputs (port Traefik thật do Docker cấp) rồi upsert `.env` đúng 3
@@ -50,7 +52,12 @@ import {
   resolveEntryFoundation,
   type EntryFoundation,
 } from '@ecoma-io/deployment';
-import { readPlatformOutputs, resolvePostgresPassword, upsertLocalEnv } from './platform-env.js';
+import {
+  readPlatformOutputs,
+  resolveObjectStorageSecretKey,
+  resolvePostgresPassword,
+  upsertLocalEnv,
+} from './platform-env.js';
 import { runPlatformDown } from './platform-down.js';
 
 /** Root của workspace, suy từ vị trí file này (`deploys/platform-deploy`). */
@@ -75,6 +82,20 @@ async function up(foundation: EntryFoundation): Promise<number> {
     if (resolution.generated) {
       console.log(
         '[platform-deploy] postgres:password generated randomly and stored in the local stack config.',
+      );
+    }
+    // Secret key S3 của remote cache (issue #19): đọc lại từ stack config,
+    // sinh mới khi key chưa có. KHÔNG có ràng buộc volume (s3.json được ghi
+    // lại từ config mỗi lần command config-init chạy lại). Giá trị KHÔNG bao
+    // giờ được log — chỉ báo việc sinh.
+    const objectStorage = resolveObjectStorageSecretKey(foundation.ctx, foundation.env);
+    if (!objectStorage.ok) {
+      console.error(`[platform-deploy] ${objectStorage.error}`);
+      return 1;
+    }
+    if (objectStorage.generated) {
+      console.log(
+        '[platform-deploy] objectStorage:remoteCacheSecretKey generated randomly and stored in the local stack config.',
       );
     }
     pulumiUpForEntry('platform-deploy', foundation);

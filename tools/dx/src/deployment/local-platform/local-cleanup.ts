@@ -90,6 +90,13 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'llm-console',
   'llm-seller',
   'remote-cache-app',
+  // Container object store của platform — SeaweedFS S3 local cho
+  // remote-cache-api (issue #19). Hai resource `command.local.Command` CỐ Ý
+  // không có kind riêng (`dockerResourceName(ns, 'object-store') +
+  // '-config-init'` và `+ '-bucket'`): chúng chỉ chạy `docker run --rm` /
+  // `docker exec`, không tạo container/volume/image/network nào tồn lại sau
+  // lệnh — giống kind `pact-api` ở trên.
+  'object-store',
   'network',
   'home-image',
   'backoffice-image',
@@ -108,6 +115,12 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   'llm-seller-image',
   'remote-cache-app-image',
   'postgres-volume',
+  // Hai volume object store của platform (issue #19): config (chỉ file
+  // `s3.json` tái sinh được) và data (cache artifacts disposable) — platform
+  // KHÔNG `retainOnDelete` cho cả hai (chết cùng destroy, khác volume
+  // PostgreSQL có chủ đích), nên cleanup chỉ xoá khi orphan đủ điều kiện.
+  'object-store-config',
+  'object-store-data',
   'auth-wic-state',
   'pact-api-wic-state',
   'mail-wic-state',
@@ -376,6 +389,10 @@ export function runLocalCleanup(filter: CleanupFilter): CleanupReport {
       kind === 'network'
         ? 'network'
         : kind === POSTGRES_VOLUME_KIND ||
+            // Hai volume object store (issue #19) — cùng nhánh volume với
+            // POSTGRES_VOLUME_KIND và các *-wic-state.
+            kind === 'object-store-config' ||
+            kind === 'object-store-data' ||
             kind === 'auth-wic-state' ||
             kind === 'pact-api-wic-state' ||
             kind === 'mail-wic-state' ||

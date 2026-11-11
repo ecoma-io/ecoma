@@ -53,19 +53,8 @@ import {
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
-/**
- * Image Node pin (theo DIGEST) để chạy migration trong container gắn
- * platform network — cùng digest mà `deploys/auth-deploy/Dockerfile` ghim.
- *
- * Vì sao container mà không chạy runner trên host: platform PostgreSQL KHÔNG
- * publish host port (invariant platform) và host không route được tới IP
- * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
- * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (`applyAllMigrations` của
- * `apps/remote-cache-api/db/apply.mts`) — deploy không tự viết lại vòng migration.
- */
-const NODE_IMAGE =
-  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
+import { NODE_IMAGE } from './node-image.js';
+import { buildObjectStorageEnvs } from './object-storage-env.js';
 
 /** Alias DNS của PostgreSQL platform trong network nội bộ. */
 const POSTGRES_HOST = 'ecoma-postgres';
@@ -119,11 +108,35 @@ function requirePlatformOutput<K extends keyof PlatformOutputs>(
 
 const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
+// Object storage (SeaweedFS, #19) — bốn output NON-SECRET của platform stack
+// (contract `PlatformOutputs`); secret key tương ứng KHÔNG có ở outputs, nó ở
+// stack config của platform và được `local.ts` copy sang stack config của unit
+// này qua stdin.
+const objectStorageHost = requirePlatformOutput('objectStorageHost');
+const objectStoragePort = requirePlatformOutput('objectStoragePort');
+const objectStorageBucket = requirePlatformOutput('objectStorageBucket');
+const objectStorageAccessKeyId = requirePlatformOutput('objectStorageAccessKeyId');
 
 // Mật khẩu hai role của db-remote-cache — do orchestration sinh và truyền qua
 // --config (stdin, không argv).
 const runtimePassword = conf.requireSecret('runtimePassword');
 const migratorPassword = conf.requireSecret('migratorPassword');
+// Secret key object storage — platform sinh và persist khi up SeaweedFS;
+// `local.ts` đọc cross-stack và set vào stack config NÀY (stdin, không argv).
+// `requireSecret` như hai mật khẩu: giá trị chỉ sống dưới dạng secret trong
+// state Pulumi và đi vào container qua kênh `envs` sau khi `pulumi.secret` bọc.
+const objectStorageSecretKey = conf.requireSecret('objectStorageSecretKey');
+
+// Bản đồ env non-secret qua helper thuần (`object-storage-env.ts`) — smoke
+// ngoài host dựng ĐÚNG cùng bộ giá trị từ outputs platform, nên hai đường
+// không thể trôi lệch tên biến hay hình endpoint. Dạng tuple của `pulumi.all`
+// (KHÔNG dạng object): object overload đòi giá trị đồng nhất `Input<T>` còn
+// mix string/number ở đây là suy T thất bại.
+const objectStorageEnvs = pulumi
+  .all([objectStorageHost, objectStoragePort, objectStorageBucket, objectStorageAccessKeyId])
+  .apply(([host, port, bucket, accessKeyId]) =>
+    buildObjectStorageEnvs({ host, port, bucket, accessKeyId }),
+  );
 
 const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) => {
   if (upstreamNs !== ns) {
@@ -297,29 +310,24 @@ const wicStateVolume = new docker.Volume(wicStateVolumeName, {
  * (`USER node`, cùng model auth): node không ghi được vào volume root-owned
  * là wrangler chết ngay lúc boot (`mkdir /state/... EACCES`). Lần chạy sau là
  * no-op (chown idempotent). Volume KHÔNG mang dữ liệu cần bảo vệ trước
- * container (state wrangler ephemeral) nên root của init container không phải
+ * container (state wrangler ephemeral) nên root của lệnh init không phải
  * cảnh bảo mật.
+ *
+ * Kênh thực thi là `command.local.Command` + `docker run --rm` (pattern
+ * auth-deploy), KHÔNG phải resource `docker.Container` với `rm: true`:
+ * provider `@pulumi/docker@5.2.0` inspect container ngay sau khi nó thoát,
+ * mà daemon đã auto-remove container một-shot exit-instant (`chown` trên
+ * volume) → "No such container" mỗi lần up (#19). Command phía host không
+ * còn race đó và không để lại container nào tồn lại.
  */
-const wicStateInit = new docker.Container(
+const wicStateInit = new command.local.Command(
   dockerResourceName(ns, 'remote-cache-api-wic-state-init'),
   {
-    name: dockerResourceName(ns, 'remote-cache-api-wic-state-init'),
-    image: NODE_IMAGE,
-    // `rm` sau khi thoát — container init một-shot không nằm lại `docker ps -a`.
-    rm: true,
-    mustRun: false,
-    mounts: [
-      {
-        source: wicStateVolume.name,
-        target: '/state',
-        type: 'volume',
-      },
-    ],
-    command: ['chown', '1000:1000', '/state'],
-    // Ownership labels — cùng lý do volume phía trên.
-    labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+    create: pulumi.interpolate`docker run --rm -v ${wicStateVolume.name}:/state ${NODE_IMAGE} chown 1000:1000 /state`,
+    update: pulumi.interpolate`docker run --rm -v ${wicStateVolume.name}:/state ${NODE_IMAGE} chown 1000:1000 /state`,
+    triggers: [wicStateVolume.name],
   },
-  { dependsOn: [wicStateVolume], retainOnDelete: true },
+  { dependsOn: [wicStateVolume] },
 );
 
 /**
@@ -335,6 +343,11 @@ const wicStateInit = new docker.Container(
  * - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE` (secret):
  *   wrangler đọc biến này của PROCESS để gán connection string binding
  *   DB_REMOTE_CACHE (PF3). Thiếu biến là wrangler fail boot tường minh (fail-closed).
+ * - `S3_ENDPOINT`/`S3_BUCKET`/`S3_ACCESS_KEY_ID` (non-secret) + `S3_SECRET_ACCESS_KEY`
+ *   (secret): object storage của data plane (#19). Bốn biến là ĐÚNG bộ tên mà
+ *   `apps/remote-cache-api/src/config.ts` đọc; thiếu bất kỳ biến nào là
+ *   `config.storage === null` — `/ready` báo `storage: 'missing'` và data
+ *   plane fail-closed 503 (không default storage).
  * KHÔNG có `ports` và KHÔNG có label `traefik.*`: WIC không publish cổng ra
  * host — consumer là BFF fetch server-side qua alias nội bộ (cùng quyết định
  * no-Traefik với pact-broker-api, issue #238).
@@ -389,6 +402,15 @@ const wic = new docker.Container(
     ],
     envs: [
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE=${pulumi.secret(hyperdriveLocalConnectionString)}`,
+      // Object storage (#19): giá trị non-secret dựng qua helper thuần
+      // (`object-storage-env.ts`) — một nguồn sự thật cho tên biến + hình
+      // endpoint, smoke ngoài host tái dùng đúng bộ này. Secret chỉ đi qua
+      // container env với `pulumi.secret` bọc trước khi interpolate —
+      // không argv, không label, không log.
+      objectStorageEnvs.apply((envs) => `S3_ENDPOINT=${envs.S3_ENDPOINT}`),
+      objectStorageEnvs.apply((envs) => `S3_BUCKET=${envs.S3_BUCKET}`),
+      objectStorageEnvs.apply((envs) => `S3_ACCESS_KEY_ID=${envs.S3_ACCESS_KEY_ID}`),
+      pulumi.interpolate`S3_SECRET_ACCESS_KEY=${pulumi.secret(objectStorageSecretKey)}`,
     ],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
     healthcheck: {

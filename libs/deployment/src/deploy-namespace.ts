@@ -163,7 +163,13 @@ export type DeployResourceKind =
   /** Container image `node-server` của app remote-cache-app (composition SPA admin của Remote Cache). */
   | 'remote-cache-app'
   /** Image build từ context repo root của deploy unit `remote-cache-app-deploy`. */
-  | 'remote-cache-app-image';
+  | 'remote-cache-app-image'
+  /** Container SeaweedFS object store của platform — S3 local cho remote-cache-api (#19). */
+  | 'object-store'
+  /** Volume config của object store — chỉ chứa file `s3.json` tái sinh được mỗi lần up (#19). */
+  | 'object-store-config'
+  /** Volume dữ liệu object của object store — cache artifacts, disposable theo chủ đích (#19). */
+  | 'object-store-data';
 /**
  * Tên Docker resource hợp lệ và nhất quán cho một namespace.
  *

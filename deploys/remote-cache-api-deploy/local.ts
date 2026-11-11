@@ -10,14 +10,22 @@
  * Secret bảng của unit (P4.1 #442): mật khẩu 2 role PostgreSQL của
  * `db-remote-cache` (runtime/migrator) — sinh ngẫu nhiên bằng API mật mã an
  * toàn, xoay mỗi lần up là vô hại vì role được guard-create/ALTER trong cùng
- * lần up đó. KHÔNG có secret chia sẻ cross-stack nào: consumer đầu tiên của
- * Remote Cache chưa tồn tại ở local (control plane skeleton, P4.1).
+ * lần up đó. MỘT secret chia sẻ cross-stack (#19): secret key object storage —
+ * ĐỌC LẠI từ stack config của platform (`objectStorage:remoteCacheSecretKey`,
+ * platform sinh và persist khi up SeaweedFS) rồi COPY vào stack config của
+ * chính unit này (`namespace:objectStorageSecretKey`) qua stdin
+ * (`pulumi config set` không argv), cùng đường secret HMAC auth ← account.
+ * Giá trị sau đó đi vào container qua kênh `envs` — không argv, không label,
+ * không log.
  */
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // output DUY NHẤT của lifecycle gate (nx:run-commands gộp stdout/stderr).
 
 import {
+  deployProjectDir,
   ensureStackForEntry,
+  exec,
+  fullStackRef,
   generatePostgresPassword,
   pulumiDestroyForEntry,
   pulumiUpForEntry,
@@ -26,13 +34,59 @@ import {
   type EntryFoundation,
 } from '@ecoma-io/deployment';
 
+/**
+ * Secret key object storage của remote-cache — ĐỌC LẠI từ stack config của
+ * platform (cross-stack), cùng pattern secret HMAC internal của auth ← account:
+ * platform (chạy trước theo `dependsOn`) SINH và PERSIST giá trị vào stack
+ * config của chính nó khi up SeaweedFS; unit này đọc lại để bucket nhận đúng
+ * MỘT giá trị. KHÔNG bao giờ sinh giá trị mới ở đây: giá trị khác với key thật
+ * của object store là mọi request S3 chết 403 lúc runtime.
+ *
+ * KHÔNG nhúng raw stdout/stderr vào log: stdout của `pulumi config get` khi
+ * exit 0 CHÍNH LÀ secret — nếu CLI đổi hành vi exit-code, raw output trong
+ * error string là đường leak thật. Thông điệp cố định + hướng dẫn tự chạy lệnh.
+ */
+function resolvePlatformObjectStorageSecret(foundation: EntryFoundation): string {
+  const read = exec(
+    'pulumi',
+    [
+      'config',
+      'get',
+      'objectStorage:remoteCacheSecretKey',
+      '--stack',
+      fullStackRef('platform-deploy', foundation.ctx),
+    ],
+    deployProjectDir('platform-deploy'),
+    foundation.env,
+  );
+  if (read.status === 0 && read.stdout.trim().length > 0) {
+    return read.stdout.trim();
+  }
+  console.error(
+    '[remote-cache-api-deploy] up: reading objectStorage:remoteCacheSecretKey from the ' +
+      'platform-deploy stack failed (exit ' +
+      String(read.status) +
+      ') — platform up must run BEFORE remote-cache-api-deploy (dependsOn) and must have ' +
+      'provisioned the object store (#19). Run `pulumi config get ' +
+      'objectStorage:remoteCacheSecretKey --stack <platform-stack-ref>` in ' +
+      'deploys/platform-deploy to see the original stderr — the output of that command is ' +
+      'never logged because it may contain the secret.',
+  );
+  process.exit(1);
+}
+
 async function prepare(foundation: EntryFoundation): Promise<void> {
   // Stack phải tồn tại trước khi `config set` — lần up đầu trên worktree mới,
   // state dir chưa có và mọi lệnh config exit 1 (xem `ensureStackForEntry`).
   ensureStackForEntry('remote-cache-api-deploy', foundation);
+  const objectStorageSecretKey = resolvePlatformObjectStorageSecret(foundation);
   const secrets: ReadonlyArray<readonly [string, string]> = [
     ['namespace:runtimePassword', generatePostgresPassword()],
     ['namespace:migratorPassword', generatePostgresPassword()],
+    // Cross-stack copy: giá trị đọc từ stack config của platform (platform up
+    // chạy trước theo dependsOn nên đã tồn tại) — set qua STDIN của helper
+    // dùng chung, không bao giờ qua argv hay log.
+    ['namespace:objectStorageSecretKey', objectStorageSecretKey],
   ];
   for (const [configKey, configValue] of secrets) {
     setStackConfig('remote-cache-api-deploy', configKey, configValue, foundation);

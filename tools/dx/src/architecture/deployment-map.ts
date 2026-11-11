@@ -83,9 +83,9 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   'pact-broker-api': { kind: 'app', owner: 'pact-broker-api-deploy', status: 'scaffold' },
   'pact-broker-app': { kind: 'app', owner: 'pact-broker-app-deploy', status: 'scaffold' },
   'push-notification': { kind: 'app', owner: 'push-notification-deploy', status: 'scaffold' },
-  // Control plane của bounded context remote-cache (ADR-0015): skeleton P4.1,
-  // deploy unit mới dựng cùng milestone (issue #442).
-  'remote-cache-api': { kind: 'app', owner: 'remote-cache-api-deploy', status: 'scaffold' },
+  // Control plane của bounded context remote-cache (ADR-0015): deploy unit
+  // dựng ở P4.1 (issue #442), object storage local ở issue #19.
+  'remote-cache-api': { kind: 'app', owner: 'remote-cache-api-deploy', status: 'implemented' },
   // Admin UI composition của cùng bounded context: SPA shell non-SSR, không
   // sở hữu database; deploy unit độc lập với remote-cache-api-deploy ở giai
   // đoạn scaffold (chưa có BFF/API integration).

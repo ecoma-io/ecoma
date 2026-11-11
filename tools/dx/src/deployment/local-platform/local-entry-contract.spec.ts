@@ -214,6 +214,42 @@ describe('shared entry infrastructure', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('nx.json targetDefaults keep local-up/local-down/local-smoke non-cacheable for every deployment project', () => {
+    // `cache: false` của lane là CONTRACT (target mutate Docker resource và
+    // Pulumi state thật), đặt qua targetDefaults với filter
+    // `tag:type:deployment`. Filter per-project cụ thể sẽ bỏ sót deploy
+    // project mới — regression thật từ #19: filter của `local-smoke` ghim
+    // `platform-deploy` nên `local-smoke` mới của `remote-cache-api-deploy`
+    // rơi ra ngoài và cacheable theo mặc định của Nx (cache hit là bỏ một lần
+    // xác minh Docker thật).
+    const nxConfig = JSON.parse(readFileSync(join(ROOT_DIR, 'nx.json'), 'utf8')) as {
+      targetDefaults: Record<
+        string,
+        ReadonlyArray<{ filter?: { projects?: readonly string[] }; cache?: boolean }>
+      >;
+    };
+    const violations: string[] = [];
+    for (const target of ['local-up', 'local-down', 'local-smoke'] as const) {
+      const filtered = (nxConfig.targetDefaults[target] ?? []).filter(
+        (entry) => entry.filter?.projects?.length,
+      );
+      if (filtered.length === 0) {
+        violations.push(`${target}: no targetDefaults filter entry`);
+        continue;
+      }
+      for (const entry of filtered) {
+        if (entry.cache !== false) violations.push(`${target}: targetDefaults entry is cacheable`);
+        const projects = entry.filter?.projects ?? [];
+        if (projects.length !== 1 || projects[0] !== 'tag:type:deployment') {
+          violations.push(
+            `${target}: filter must be exactly ["tag:type:deployment"], got ${JSON.stringify(projects)}`,
+          );
+        }
+      }
+    }
+    expect(violations, 'local-* lane cache contract').toEqual([]);
+  });
+
   it('deletes the platform PostgreSQL volume unconditionally on down (no opt-out flag)', () => {
     // Volume deletion là hành vi MẶC ĐỊNH của down — cờ opt-in cũ
     // `--remove-data` đã bị xoá hoàn toàn và không được thay bằng cờ/config

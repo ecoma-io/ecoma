@@ -21,6 +21,7 @@ import {
   dockerResourceName,
   exec,
   fullStackRef,
+  generatePostgresPassword,
   isConfigKeyMissing,
   LOCAL_ENV_OWNED_KEYS,
   pulumiRun,
@@ -33,6 +34,9 @@ const WORKSPACE_ROOT = join(import.meta.dirname, '../..');
 
 /** Key trong Pulumi stack config lưu mật khẩu PostgreSQL local. */
 export const POSTGRES_PASSWORD_CONFIG_KEY = 'postgres:password';
+
+/** Key trong Pulumi stack config lưu secret key S3 của remote cache local (#19). */
+export const OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY = 'objectStorage:remoteCacheSecretKey';
 
 /** Kết quả đọc mật khẩu PostgreSQL từ stack config (nguồn sự thật canonical). */
 export type PostgresPasswordLookup =
@@ -243,6 +247,100 @@ export function resolvePostgresPassword(
     };
   }
   return { ok: true, password, generated: true };
+}
+
+/**
+ * Chuẩn bị secret key S3 của remote cache cho stack local — entry up của
+ * platform gọi (issue #19), MIRROR `resolvePostgresPassword` ở trên nhưng
+ * KHÔNG có bước probe volume.
+ *
+ * Vì sao không probe volume nào: giá trị này không bị "khóa tuổi" với dữ liệu
+ * đã init — file `s3.json` được config-init của platform viết LẠI từ chính
+ * stack config ở lần up hiện tại, không có cơ chế `initdb`-style giữ giá trị
+ * cũ trong volume. Config mất (stack mới) → sinh mới là an toàn tuyệt đối;
+ * config còn → dùng lại nguyên giá trị. Volume chỉ die cùng destroy và được
+ * tái tạo từ config — hai nguồn không bao giờ lệch nhau.
+ *
+ * Hai nhánh:
+ *
+ * 1. **Đã có trong config** (hoặc đọc được, non-empty) → dùng lại nguyên giá trị.
+ * 2. **"Chưa có key"** (`isConfigKeyMissing`) → sinh ngẫu nhiên và ghi vào config.
+ *
+ * **Lỗi thật khi đọc config** (sai passphrase, backend hỏng) → fail KHÔNG sinh
+ * mới: lỗi đó không phải bằng chứng "chưa có secret"; sinh mới đè giá trị đang
+ * dùng bởi object store đang chạy. Raw stdout/stderr KHÔNG được nhúng vào
+ * error — stdout của `config get` khi exit 0 chính là secret, và khi exit != 0
+ * không ai bảo đảm CLI không in giá trị; error đi vào console.error nên chỉ
+ * in thông điệp cố định + hướng dẫn tự chạy lệnh.
+ */
+export function resolveObjectStorageSecretKey(
+  ctx: LocalDeployContext,
+  env: NodeJS.ProcessEnv,
+): { ok: true; secretKey: string; generated: boolean } | { ok: false; error: string } {
+  const platformDir = join(WORKSPACE_ROOT, 'deploys', 'platform-deploy');
+  const result = exec(
+    'pulumi',
+    [
+      'config',
+      'get',
+      OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY,
+      '--stack',
+      fullStackRef('platform-deploy', ctx),
+    ],
+    platformDir,
+    env,
+  );
+
+  if (result.status === 0) {
+    const secretKey = result.stdout.trim();
+    if (secretKey.length > 0) return { ok: true, secretKey, generated: false };
+    // Exit 0 với stdout rỗng: không xảy ra trên CLI 3.270 (`config get` thiếu
+    // key thì exit != 0) — fail-closed coi như "chưa có" và đi xuống nhánh sinh
+    // mới thay vì truyền chuỗi rỗng vào file config của weed.
+  } else if (!isConfigKeyMissing(result)) {
+    return {
+      ok: false,
+      error:
+        `Failed to read ${OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY} from stack config (exit ` +
+        `${String(result.status)}). Run \`pulumi config get ${OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY} ` +
+        "--stack <stack-ref>' manually in deploys/platform-deploy to see the original stderr — " +
+        'the output of this command is not logged because it may contain the secret key. Do not ' +
+        'generate a new secret before confirming the old one is unrecoverable.',
+    };
+  }
+
+  // Sinh secret theo hình credential: `generatePostgresPassword` là generator
+  // chung của repo cho credential 24-byte base64url (chỉ `A-Za-z0-9-_`) — an
+  // toàn qua stdin của `config set`, qua stdin của config-init (không argv) và
+  // file JSON không cần quote. Dùng lại thay vì sinh ra generator thứ hai có
+  // cùng hình — tên hàm là tên gốc, ý nghĩa ở đây là "credential-shaped secret".
+  const secretKey = generatePostgresPassword();
+  // Giá trị đi qua STDIN, không qua argv — cùng lý do `resolvePostgresPassword`
+  // (`/proc/<pid>/cmdline` + `ps` đọc được argv của process cùng user).
+  // `--plaintext` BẮT BUỘC: CLI 3.270 tự chặn giá trị "trông như secret" nếu
+  // thiếu cờ; `--raw` giữ nguyên giá trị (không trim newline).
+  const set = exec(
+    'pulumi',
+    [
+      'config',
+      'set',
+      OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY,
+      '--plaintext',
+      '--raw',
+      '--stack',
+      fullStackRef('platform-deploy', ctx),
+    ],
+    platformDir,
+    env,
+    { input: secretKey },
+  );
+  if (set.status !== 0) {
+    return {
+      ok: false,
+      error: `pulumi config set ${OBJECT_STORAGE_SECRET_KEY_CONFIG_KEY} failed:\n${set.stderr}`,
+    };
+  }
+  return { ok: true, secretKey, generated: true };
 }
 
 /**

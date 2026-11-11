@@ -8,7 +8,7 @@
   },
   "ecoma": {
     "deployment": {
-      "status": "scaffold"
+      "status": "implemented"
     }
   },
   "nx": {
@@ -59,6 +59,22 @@
           "local": {}
         }
       },
+      "local-smoke": {
+        "//": "Smoke real-storage của unit vừa lên (`smoke.ts`): `GET /ready` phải báo `storage: 'configured'`, rồi CLIENT S3 THẬT của app (`S3ObjectStorage`) round-trip trên bucket SeaweedFS của platform. Inner chạy trong container TRÊN repo mount và nằm CÙNG app (`apps/remote-cache-api/smoke/smoke-inner.mts`) để import được class thật — ranh giới module cấm deploy → composition, còn composition tự import chính nó là hợp lệ. `dependsOn` chỉ khai `target` KHÔNG kèm `projects`: với dependency dạng object, Nx mặc định không khai `projects` là CHÍNH project này (self-dependency) — smoke phụ thuộc `local-up` của cùng unit, và `build` của app chạy transitive qua `dependsOn` của `local-up`. Node LÁ trong lane: không target nào phụ thuộc smoke — smoke là cổng kiểm chứng cuối, không phải prerequisite của unit nào. Secret đi QUA STDIN của `docker run -i` (`smoke.ts`), không qua argv/`-e`/label/log. Cache bị tắt ở targetDefaults `nx.json` (đo Docker state thật).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/remote-cache-api-deploy",
+          "command": "npx tsx smoke.ts"
+        },
+        "configurations": {
+          "local": {}
+        },
+        "dependsOn": [
+          {
+            "target": "local-up"
+          }
+        ]
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,
@@ -106,6 +122,7 @@
         "options": {}
       },
       "typecheck": {
+        "//": "Một chương trình typecheck duy nhất: graph Pulumi chính (`tsc --build` composite — các entry + helper). Script smoke inner KHÔNG thuộc project này: nó nằm CÙNG app (`apps/remote-cache-api/smoke/smoke-inner.mts`) để import được class `S3ObjectStorage` thật (ranh giới module cấm deploy → composition) và được typecheck bởi app qua `tsconfig.spec.json` của app.",
         "dependsOn": [
           "^typecheck"
         ],
@@ -146,6 +163,60 @@
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
           "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/remote-cache-api-deploy",
+          "command": "vitest"
         },
         "configurations": {},
         "parallelism": true

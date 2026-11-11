@@ -37,6 +37,20 @@ export interface PlatformOutputs {
   traefikHostPort: number;
   /** Hostname mà Traefik route — consumer (`home-deploy`) đọc để dựng router rule. */
   rootHostname: string;
+  /** Service alias của object store (SeaweedFS, #19) trong network — hostname nội bộ ổn định. */
+  objectStorageHost: string;
+  /** Cổng nội bộ S3 của object store trong network — không phải host port. */
+  objectStoragePort: number;
+  /** Bucket S3 duy nhất mà remote-cache-api sử dụng (#19). */
+  objectStorageBucket: string;
+  /**
+   * Access key ID của object store — định danh non-secret, cùng hạng với
+   * `postgresHost`/username: giá trị hằng số của repo, không phải credential.
+   * Secret key tương ứng KHÔNG nằm ở đây — đi qua stack config
+   * `objectStorage:remoteCacheSecretKey` của platform (cùng đường với mật khẩu
+   * PostgreSQL), đúng nguyên tắc "không secret nào nằm trong outputs" ở trên.
+   */
+  objectStorageAccessKeyId: string;
 }
 
 /** Environment key chứa `fbi.com:<traefik-host-port>` sau khi platform up. */

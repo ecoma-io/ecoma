@@ -85,31 +85,31 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/platform-deploy/platform-env.ts",
-    "start": 77,
-    "end": 77,
-    "reason": "Rehomed from tools/dx local-env.ts:196 (PR #424 ownership split: platform env handling is owned by deploys/platform-deploy): internal CLI helper returns the PostgreSQL password to the caller that writes stack config/.env - deploys/ has no HTTP handler; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "start": 81,
+    "end": 81,
+    "reason": "Rehomed from tools/dx local-env.ts:196 (PR #424 ownership split: platform env handling is owned by deploys/platform-deploy): internal CLI helper returns the PostgreSQL password to the caller that writes stack config/.env - deploys/ has no HTTP handler; naming-heuristic FP. Content unchanged from the accepted entry. Line pin dich +4 khi resolveObjectStorageSecretKey (#19) duoc chen phia tren; code khong doi.",
     "lines": {
-      "77": "^    return \\{ state: 'found', password \\};$"
+      "81": "^\\ \\ \\ \\ return\\ \\{\\ state:\\ 'found',\\ password\\ \\};$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/platform-deploy/platform-env.ts",
-    "start": 172,
-    "end": 172,
-    "reason": "Rehomed from tools/dx local-env.ts:291 (PR #424 ownership split): same internal password lookup result, no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "start": 176,
+    "end": 176,
+    "reason": "Rehomed from tools/dx local-env.ts:291 (PR #424 ownership split): same internal password lookup result, no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry. Line pin dich +4 khi resolveObjectStorageSecretKey (#19) duoc chen phia tren; code khong doi.",
     "lines": {
-      "172": "^    return \\{ ok: true, password: lookup.password, generated: false \\};$"
+      "176": "^\\ \\ \\ \\ return\\ \\{\\ ok:\\ true,\\ password:\\ lookup\\.password,\\ generated:\\ false\\ \\};$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/platform-deploy/platform-env.ts",
-    "start": 245,
-    "end": 245,
-    "reason": "Rehomed from tools/dx local-env.ts:364 (PR #424 ownership split): newly generated PostgreSQL password returned to the .env writer inside the deploy entry tooling; no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry.",
+    "start": 249,
+    "end": 249,
+    "reason": "Rehomed from tools/dx local-env.ts:364 (PR #424 ownership split): newly generated PostgreSQL password returned to the .env writer inside the deploy entry tooling; no HTTP surface; naming-heuristic FP. Content unchanged from the accepted entry. Line pin dich +4 khi resolveObjectStorageSecretKey (#19) duoc chen phia tren; code khong doi.",
     "lines": {
-      "245": "^  return \\{ ok: true, password, generated: true \\};$"
+      "249": "^\\ \\ return\\ \\{\\ ok:\\ true,\\ password,\\ generated:\\ true\\ \\};$"
     }
   },
   {
@@ -323,6 +323,58 @@
     "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP. Pin dịch 7 dòng khi validate `--verify-deadline-ms` thêm trần 24h; nội dung finding không đổi.",
     "lines": {
       "184": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-logged",
+    "path": "deploys/remote-cache-api-deploy/smoke.ts",
+    "start": 193,
+    "end": 193,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Bao loi spawn docker; tham so la result object, khong phai secret.",
+    "lines": {
+      "193": "^\\ \\ \\ \\ console\\.error\\(`\\[\\$\\{PROJECT\\}\\]\\ smoke:\\ docker\\ could\\ not\\ run:\\ \\$\\{describeSpawnFailure\\(result\\)\\}`\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-logged",
+    "path": "deploys/remote-cache-api-deploy/smoke.ts",
+    "start": 198,
+    "end": 200,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout/stderr cua inner khi FAIL de debug; inner khong in secret.",
+    "lines": {
+      "198": "^\\ \\ \\ \\ console\\.error\\($",
+      "199": "^\\ \\ \\ \\ \\ \\ `\\[\\$\\{PROJECT\\}\\]\\ smoke\\ FAILED\\ \\(inner\\ exit\\ \\$\\{String\\(result\\.status\\)\\}\\):\\\\n\\$\\{result\\.stdout\\}\\\\n\\$\\{result\\.stderr\\}`,$",
+      "200": "^\\ \\ \\ \\ \\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/smoke.ts",
+    "start": 201,
+    "end": 201,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Exit code cua inner dua ra process exit; khong phai du lieu.",
+    "lines": {
+      "201": "^\\ \\ \\ \\ return\\ result\\.status;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-logged",
+    "path": "deploys/remote-cache-api-deploy/smoke.ts",
+    "start": 203,
+    "end": 203,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout cua inner khi PASS; inner khong in secret.",
+    "lines": {
+      "203": "^\\ \\ console\\.log\\(result\\.stdout\\.trimEnd\\(\\)\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/smoke.ts",
+    "start": 221,
+    "end": 221,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). secret la tham so stdin cua runInnerSmoke; gia tri tra ve la exit code.",
+    "lines": {
+      "221": "^\\ \\ \\ \\ return\\ runInnerSmoke\\(inputs,\\ secret,\\ foundation\\.ctx\\.worktreeRoot\\);$"
     }
   }
 ]

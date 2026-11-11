@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "//": "Composite de `nx typecheck` (`tsc --build --emitDeclarationOnly`) build duoc solution project nay: TS5069 doi `declaration`/`composite` cho emitDeclarationOnly. `lib` nang len `es2023` (base dat `es2022`) vi `unicorn/no-array-sort` cam `Array#sort` con `toSorted` chi co trong es2023. `allowImportingTsExtensions` cho harness/spec import nhau bang phan mo rong that (.ts) — cung he qua voi `tsconfig.db.json`. `rootDir` la chinh project (spec nhanh `tests/` va `src/`), outDir tach khoi app de .d.ts khong de nhau.",
+  "//": "Composite de `nx typecheck` (`tsc --build --emitDeclarationOnly`) build duoc solution project nay: TS5069 doi `declaration`/`composite` cho emitDeclarationOnly. `lib` nang len `es2023` (base dat `es2022`) vi `unicorn/no-array-sort` cam `Array#sort` con `toSorted` chi co trong es2023; them `dom` de trinh bien dich `smoke/**/*.mts` (va `src/storage.ts` ma no keo vao transitive) — script smoke dung Web Crypto/fetch/stream giong dung app program. `allowImportingTsExtensions` cho harness/spec import nhau bang phan mo rong that (.ts) — cung he qua voi `tsconfig.db.json`. `rootDir` la chinh project (spec nhanh `tests/`, `src/` va `smoke/`), outDir tach khoi app de .d.ts khong de nhau.",
   "compilerOptions": {
     "composite": true,
     "declaration": true,
@@ -9,7 +9,7 @@
     "rootDir": ".",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["es2023"],
+    "lib": ["es2023", "dom"],
     "allowImportingTsExtensions": true,
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
     "resolveJsonModule": true,
@@ -24,7 +24,8 @@
     "tests/**/*.ts",
     "src/main.ts",
     "src/config.ts",
-    "db/**/*.mts"
+    "db/**/*.mts",
+    "smoke/**/*.mts"
   ],
   "references": [
     {

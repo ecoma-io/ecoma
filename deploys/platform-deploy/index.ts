@@ -16,6 +16,7 @@
 
 import * as pulumi from '@pulumi/pulumi';
 import * as docker from '@pulumi/docker';
+import * as command from '@pulumi/command';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -186,6 +187,65 @@ const POSTGRES_HOST_ALIAS = 'ecoma-postgres';
 /** User và database local — hằng số, vì chúng không phải secret. */
 const POSTGRES_USER = 'ecoma_local';
 const POSTGRES_DB = 'ecoma_local';
+
+/**
+ * Image SeaweedFS ghim theo DIGEST — object store S3-compatible của lane local
+ * (issue #19). `weed mini` chạy master + volume + filer + S3 trong MỘT process:
+ * đủ cho remote-cache-api đọc/ghi cache artifacts mà không thêm service nào.
+ * Entrypoint của image tự su-exec sang user `seaweed` (non-root) — command ở
+ * dưới chỉ truyền subcommand + cờ, không gọi binary `weed` trực tiếp.
+ */
+const OBJECT_STORE_IMAGE =
+  'chrislusf/seaweedfs:4.53@sha256:ccad23e18639c8b98cee17e7100b95830a06077b56d8e5b006d6dcf8ec5e94a0';
+
+/**
+ * Image node pin cho bước config-init một-shot — container ephemeral
+ * `docker run --rm` ghi `s3.json` vào volume config rồi chown/chmod. Chỉ cần
+ * `sh` + `chown` chạy được, không cần image SeaweedFS ở phía host path.
+ */
+const OBJECT_STORE_CONFIG_INIT_IMAGE =
+  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
+
+/** Số cổng S3 nội bộ của SeaweedFS trong network — không publish ra host. */
+const OBJECT_STORE_S3_PORT = 8333;
+
+/**
+ * Service alias của object store trong network — endpoint mà remote-cache-api
+ * dùng để nói S3. Tên container mang namespace theo worktree; alias cố định để
+ * contract outputs không phụ thuộc worktree nào đang chạy (cùng mô hình với
+ * `POSTGRES_HOST_ALIAS` ở trên).
+ */
+const OBJECT_STORE_HOST_ALIAS = 'ecoma-object-store';
+
+/** Bucket S3 duy nhất mà remote-cache-api sử dụng (issue #19). */
+const OBJECT_STORE_BUCKET = 'remote-cache';
+
+/**
+ * Access key ID của client S3 — hằng số non-secret, cùng hạng với
+ * `POSTGRES_USER`: định danh client, không phải credential. Secret key tương
+ * ứng đi qua stack config `objectStorage:remoteCacheSecretKey` (đọc ở dưới) và
+ * KHÔNG BAO GIỜ xuất ra stack output (contract `PlatformOutputs`).
+ */
+const OBJECT_STORE_ACCESS_KEY_ID = 'ecoma-remote-cache-local';
+
+/**
+ * Tên identity trong `s3.json` — identity SeaweedFS gắn quyền Read/Write/List
+ * trên đúng bucket của remote cache, không trao quyền admin.
+ */
+const OBJECT_STORE_IDENTITY_NAME = 'remote-cache';
+
+/** Đường dẫn file `s3.json` bên trong container SeaweedFS. */
+const OBJECT_STORE_S3_CONFIG_PATH = '/etc/seaweedfs/s3.json';
+
+/**
+ * Target mount của volume config trong container — THƯ MỤC chứa `s3.json`.
+ * Mount đè lên path cùng tên trong image: file mặc định của image bị che, file
+ * duy nhất còn lại là `s3.json` do config-init ghi (xem resource tương ứng).
+ */
+const OBJECT_STORE_CONFIG_MOUNT_TARGET = '/etc/seaweedfs';
+
+/** Target mount của volume dữ liệu object — nơi `weed mini` ghi cache artifacts. */
+const OBJECT_STORE_DATA_MOUNT_TARGET = '/data';
 
 /**
  * File dynamic config của Traefik — file tĩnh `traefik-dynamic.yml` cạnh
@@ -411,6 +471,22 @@ const traefik = new docker.Container('traefik', {
 const postgresPassword = new pulumi.Config('postgres').require('password');
 
 /**
+ * Secret key S3 của remote cache đến từ Pulumi config dạng plaintext (local-dev
+ * only) — cùng mô hình với `postgres:password` ở trên: sinh một lần bởi entry
+ * up (`local.ts`), lưu plaintext trong stack config local (file `.gitignore`),
+ * được bọc `pulumi.secret(...)` khi truyền vào command để Pulumi redact trong
+ * diff/log. KHÔNG xuất ra stack output — contract `PlatformOutputs` chỉ mang
+ * bốn field non-secret của object store.
+ *
+ * KHÁC `postgres:password` ở một điểm có chủ đích: KHÔNG có ràng buộc tuổi với
+ * volume nào. File `s3.json` chỉ chứa giá trị tái sinh được và được config-init
+ * ghi LẠI mỗi lần command chạy lại (trigger đổi khi secret đổi) — volume config
+ * không giữ trạng thái nào khác file đó, nên mất config chỉ cần up lại là khớp,
+ * không có "volume đã init bằng mật khẩu cũ" như PostgreSQL.
+ */
+const objectStorageSecretKey = new pulumi.Config('objectStorage').require('remoteCacheSecretKey');
+
+/**
  * Volume dữ liệu PostgreSQL, TÁCH khỏi container VÀ tách khỏi vòng đời stack.
  *
  * Tách là bắt buộc chứ không phải sở thích: `destroy` container không được mất
@@ -490,6 +566,174 @@ const postgres = new docker.Container('postgres', {
 });
 
 /**
+ * Volume config của object store — CHỈ chứa file `s3.json` do config-init ghi
+ * (issue #19). CỐ Ý KHÔNG `retainOnDelete` (khác volume PostgreSQL): nội dung
+ * là file tái sinh được — command config-init viết lại từ stack config ở MỌI
+ * lần chạy lại, không có dữ liệu nào cần sống sót qua destroy.
+ */
+const objectStoreConfigVolume = new docker.Volume('object-store-config', {
+  name: dockerResourceName(ns, 'object-store-config'),
+  labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+});
+
+/**
+ * Volume dữ liệu object của object store — nơi `weed mini` ghi cache artifacts
+ * của remote-cache-api (issue #19). CỐ Ý KHÔNG `retainOnDelete`, KHÁC volume
+ * PostgreSQL một cách có chủ đích: dữ liệu cache là disposable theo yêu cầu
+ * của issue #19 — mất cache chỉ là miss, không phải mất dữ liệu có thể tái
+ * tạo; volume chết cùng stack là hành vi đúng, không phải quên.
+ */
+const objectStoreDataVolume = new docker.Volume('object-store-data', {
+  name: dockerResourceName(ns, 'object-store-data'),
+  labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+});
+
+/**
+ * Ghi `s3.json` vào volume config qua container node một-shot (`docker run
+ * --rm` trên host — cùng kênh tin cậy với bước provision `docker exec` psql
+ * của remote-cache-api-deploy). File được viết LẠI ở MỌI lần command chạy lại
+ * (create lẫn update cùng script; trigger đổi khi secret đổi), nên volume chỉ
+ * là nơi chứa, không phải nguồn sự thật — nguồn là stack config.
+ *
+ * Secret KHÔNG nằm trong chuỗi command: chuỗi đó chạy qua argv của shell host
+ * lẫn của `docker run` trong container, mà argv đọc được qua
+ * `ps`/`/proc/<pid>/cmdline` — interpolate secret vào command (heredoc cũ) là
+ * đưa secret ra ngoài mọi liệt kê process dù `pulumi.secret` đã bọc (secret
+ * chỉ redact trong state/diff/log, không biến mất khỏi argv). Transport thay
+ * thế: JSON đi qua input `stdin` của resource — `pulumi.secret(...)` bọc
+ * TRƯỚC khi nối JSON nên state/diff/log của stdin chỉ thấy `[secret]`, còn
+ * runtime provider ghi payload vào stdin của `docker run -i`; pipe của Docker
+ * dẫn thẳng tới `cat > /cfg/s3.json` trong container, nên trên argv chỉ còn
+ * chuỗi command sạch — không secret, không heredoc, không cờ `-e` truyền env.
+ *
+ * `jsonStringify` nối JSON đúng hình cũ mà bỏ ràng buộc ký tự: heredoc không
+ * quote cũ bắt buộc nội dung chỉ chứa `A-Za-z0-9-_` + punctuation JSON
+ * (không có `$`/backtick để shell mở rộng); giờ giá trị `config set` thủ công
+ * chứa ký tự bất kỳ cũng an toàn vì JSON không đi qua parser shell nào.
+ *
+ * Triggers giữ nguyên hành vi rotation: secret đổi là command chạy lại với
+ * stdin mới, file được viết lại bằng credential mới.
+ *
+ * `chown 1000:1000` + `chmod 0600`: file chỉ đọc được bởi uid weed chạy trong
+ * container (image chạy non-root user `seaweed`, uid kỳ vọng 1000 — đã xác
+ * minh tại runtime qua `stat` sau lần boot đầu).
+ */
+const s3ConfigJson = pulumi
+  .all([
+    OBJECT_STORE_IDENTITY_NAME,
+    OBJECT_STORE_ACCESS_KEY_ID,
+    pulumi.secret(objectStorageSecretKey),
+    OBJECT_STORE_BUCKET,
+  ])
+  .apply(([identityName, accessKeyId, secretKey, bucket]) =>
+    pulumi.jsonStringify({
+      identities: [
+        {
+          name: identityName,
+          credentials: [{ accessKey: accessKeyId, secretKey }],
+          actions: [`Read:${bucket}`, `Write:${bucket}`, `List:${bucket}`],
+        },
+      ],
+    }),
+  );
+
+const s3ConfigScript = pulumi.interpolate`set -e
+docker run --rm -i \\
+  -v ${objectStoreConfigVolume.name}:/cfg \\
+  ${OBJECT_STORE_CONFIG_INIT_IMAGE} \\
+  sh -c 'cat > /cfg/s3.json && chown 1000:1000 /cfg/s3.json && chmod 0600 /cfg/s3.json'
+`;
+
+const objectStoreConfigInit = new command.local.Command(
+  dockerResourceName(ns, 'object-store') + '-config-init',
+  {
+    create: s3ConfigScript,
+    update: s3ConfigScript,
+    stdin: s3ConfigJson,
+    triggers: [pulumi.secret(objectStorageSecretKey), worktreeRoot],
+  },
+  { dependsOn: [objectStoreConfigVolume] },
+);
+
+/**
+ * Object store SeaweedFS (`weed mini`) — master + volume + filer + S3 trong
+ * MỘT process (issue #19). KHÔNG khai `ports`: object store không publish cổng
+ * ra host — consumer duy nhất (remote-cache-api) fetch qua alias nội bộ
+ * `OBJECT_STORE_HOST_ALIAS` trong network (cùng mô hình no-Traefik của
+ * postgres ở trên). Mount config ở `/etc/seaweedfs` che file `s3.json` mặc định
+ * của image bằng file do config-init ghi; mount data ở `/data` là nơi weed ghi
+ * objects. Readiness resource-owned (`wait: true` — cùng ngữ nghĩa traefik/
+ * postgres ở trên): `/healthz` trên cổng S3 không cần auth nên healthcheck
+ * `curl` là bằng chứng S3 serving; startPeriod 10s + 12 retries × 5s = trần
+ * ~70s, waitTimeout 120s dư cho lần boot đầu tải image.
+ */
+const objectStore = new docker.Container(
+  'object-store',
+  {
+    name: dockerResourceName(ns, 'object-store'),
+    image: OBJECT_STORE_IMAGE,
+    // Cùng lý do với traefik/postgres: Docker tự start lại sau reboot/restart
+    // daemon, `pulumi up` không có diff nào vì hai bên input đều giống nhau.
+    restart: 'unless-stopped',
+    wait: true,
+    waitTimeout: 120,
+    labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+    // Entrypoint của image tự su-exec sang user `seaweed`; command chỉ truyền
+    // subcommand + cờ (binary `weed` là việc của entrypoint).
+    command: [
+      'mini',
+      '-dir=/data',
+      `-s3.config=${OBJECT_STORE_S3_CONFIG_PATH}`,
+      '-s3.allowDeleteBucketNotEmpty=false',
+    ],
+    mounts: [
+      {
+        source: objectStoreConfigVolume.name,
+        target: OBJECT_STORE_CONFIG_MOUNT_TARGET,
+        type: 'volume',
+      },
+      {
+        source: objectStoreDataVolume.name,
+        target: OBJECT_STORE_DATA_MOUNT_TARGET,
+        type: 'volume',
+      },
+    ],
+    networksAdvanced: [{ name: network.name, aliases: [OBJECT_STORE_HOST_ALIAS] }],
+    healthcheck: {
+      tests: ['CMD', 'curl', '-fsS', `http://127.0.0.1:${OBJECT_STORE_S3_PORT}/healthz`],
+      interval: '5s',
+      timeout: '3s',
+      retries: 12,
+      startPeriod: '10s',
+    },
+  },
+  { dependsOn: [objectStoreConfigVolume, objectStoreDataVolume, objectStoreConfigInit] },
+);
+
+/**
+ * Guard-create bucket `remote-cache` qua container-local shell — kênh là
+ * `docker exec` vào đúng container weed, tương đương mô hình tin cậy với bước
+ * provision `docker exec` psql: không mở cổng nào ra host, không cần credential
+ * host-side ngoài Docker CLI. Idempotent: `s3.bucket.list` đã có bucket thì
+ * skip; create lỗi khi bucket đã tồn tại ("bucket already exists") không bao giờ
+ * đạt được vì guard chặn trước. `grep -qw` khớp token bucket ở dạng nguyên từ
+ * trong output `s3.bucket.list` (dòng dạng `  remote-cache\tsize:...`).
+ */
+const bucketScript = pulumi.interpolate`set -e
+docker exec ${objectStore.name} sh -c 's3.bucket.list 2>/dev/null | grep -qw ${OBJECT_STORE_BUCKET} || echo "s3.bucket.create -name ${OBJECT_STORE_BUCKET}" | weed shell'
+`;
+
+const objectStoreBucket = new command.local.Command(
+  dockerResourceName(ns, 'object-store') + '-bucket',
+  {
+    create: bucketScript,
+    update: bucketScript,
+    triggers: [worktreeRoot],
+  },
+  { dependsOn: [objectStore] },
+);
+
+/**
  * Outputs của platform stack — đây là CONTRACT với `home-deploy`, mô tả ở
  * `platform-outputs-contract` của `@ecoma-io/deployment`. Không secret nào được export.
  */
@@ -497,6 +741,22 @@ export const namespace = ns;
 export const networkName = network.name;
 export const postgresHost = POSTGRES_HOST_ALIAS;
 export const postgresPort = POSTGRES_INTERNAL_PORT;
+export const objectStorageHost = OBJECT_STORE_HOST_ALIAS;
+export const objectStoragePort = OBJECT_STORE_S3_PORT;
+export const objectStorageBucket = OBJECT_STORE_BUCKET;
+// Access key ID là định danh non-secret (hằng số repo) — KHÔNG phải secret key;
+// secret key ở stack config, không bao giờ ở outputs.
+export const objectStorageAccessKeyId = OBJECT_STORE_ACCESS_KEY_ID;
+
+/**
+ * Id hai `command.local.Command` của object store — platform trước đây không
+ * export gì cho command (không tạo Docker resource tồn lại), export để resource
+ * được quan sát trong `pulumi stack output` (cùng pattern
+ * `provisionCommandName`/`migrateCommandName` của remote-cache-api-deploy).
+ * Giá trị không mang secret.
+ */
+export const objectStoreConfigInitCommandName = objectStoreConfigInit.id;
+export const objectStoreBucketCommandName = objectStoreBucket.id;
 
 /**
  * Host port Docker đã cấp cho Traefik HTTPS.
