@@ -230,9 +230,28 @@ jobs:
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
       # `@playwright/test` không có postinstall tải browser, nên runner sạch không
-      # có Chromium; `--with-deps` cài luôn các thư viện hệ thống mà Chromium cần.
+      # có Chromium. Không dùng `--with-deps`: đường apt của nó phụ thuộc DNS
+      # mirror Ubuntu — bước duy nhất của setup system-test từng đỏ hàng loạt khi
+      # mirror không phân giải được (#121, 2026-11-11: hai branch độc lập fail
+      # cùng step, 9/10 check khác xanh). Trên runner ubuntu-26.04 toàn bộ thư
+      # viện Chromium cần đã có sẵn trong image (đo cùng ngày: apt chỉ cài thêm
+      # 9 gói fonts CJK/Thai/Cyrillic — libnss3, libnspr4, libatk*, libgbm1,
+      # xvfb… đều "already the newest"), và fonts đó không nằm trên đường
+      # assertion DOM text của suite. Browser tải từ CDN Playwright — endpoint
+      # khác hệ mirror Ubuntu, vẫn tải bình thường trong sự cố DNS trên.
+      # Browser được cache theo đúng phiên bản @playwright/test trong lockfile:
+      # cache hit thì `playwright install` chỉ verify và thoát, download thật
+      # chỉ xảy ra khi nâng phiên bản Playwright.
+      - name: Detect Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       # Deploy không còn là step riêng: nó nằm TRONG invocation bên dưới qua task
       # graph (mỗi target `system-test` khai `dependsOn` → `local-up` của deploy
       # project nó cần, configuration `local` chọn đúng lane), nên một invocation
