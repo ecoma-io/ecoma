@@ -88,17 +88,22 @@ something the task did not ask about.
      (`apps/backoffice/app/backoffice-data/data-mode.ts`).
    - `account` — `NITRO_PUBLIC_ACCOUNT_DATA_MODE` → `mock` exists ONLY under
      `nuxt dev` (`import.meta.dev`); a built artifact never serves mock, and
-     an unconfigured value falls to `real`
+     an unconfigured value falls to `real` in an artifact (under `nuxt dev`
+     unconfigured resolves to `mock`)
      (`apps/account/app/account-data/data-mode.ts`).
 3. Determine how fixture/mock data is provided: through the app's own
    data-mode mechanism (resolver plus its mock adapter/fixtures), never by
    inventing data and never by faking responses in the browser (§No network
    interception in the default workflow).
-4. Determine how authentication works in the chosen mode. Auth flows are real
-   in every data mode — mock data covers the data domain only
-   (`05-code-architecture.md` §5) — so a successful preview screen is NOT
-   evidence that authentication works. Know how a reviewer obtains a real
-   session in this mode before reviewing authenticated routes.
+4. Determine how authentication works in the chosen mode — from the app's
+   source, not from assumption. The canonical target is real auth flows in
+   every data mode (`05-code-architecture.md` §5), but current apps can
+   deviate: the account app's mock mode serves login/consent through the
+   mock adapter (see the `frontend-data-mocking` skill, section C). Record
+   what actually backs authentication in this mode; a successful preview
+   screen or a mock-backed login is NOT evidence that authentication works.
+   Know how a reviewer obtains a session in this mode before reviewing
+   authenticated routes, and state its real/mock backing in the report.
 5. Determine how to start the server and how to verify readiness: start it
    with the app's documented command, wait for readiness (boot log or the
    app's readiness endpoint), and take the base URL from the actual

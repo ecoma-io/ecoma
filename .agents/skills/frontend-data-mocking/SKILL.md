@@ -108,7 +108,7 @@ The real API/BFF contracts are read to understand semantics so fixture data is p
 
 ## G. Authentication and security
 
-- Mock never expands into authentication/credential flows: no synthetic auth, no fake JWTs, no fake cookies; auth flows (login challenge/verify/handoff, consent) stay on the real BFF path in every mode.
+- Canonical target: mock never expands into authentication/credential flows (no synthetic auth, no fake JWTs, no fake cookies), and auth flows (login challenge/verify/handoff, consent) stay on the real BFF path in every mode. Current deviation (section C): the account app's mock adapter implements credential methods (`verifyLoginCode`, consent), so in account mock mode those flows are synthetic today — never treat a login or consent exercised on mock data as a verified authentication flow.
 - A UI preview on mock data is never evidence of authentication, authorization, or security correctness (A23, ADR-0011); authorization is deny-by-default enforced at the backend; UI visibility is not authorization.
 - Do not read `401` as permission denial or `403` as an auth error (ADR-0011): `401` redirects to login/re-auth, `403` means the authenticated caller lacks the resource right.
 - A failing real adapter must never fall back to the mock adapter: `503` means retry with backoff, and the mock opens only via the exact configured string, never as an error fallback (ADR-0011).
