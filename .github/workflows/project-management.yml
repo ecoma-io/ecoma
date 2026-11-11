@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'audit is read-only and reports drift; apply mutates membership (requires the PROJECT_MANAGEMENT_TOKEN secret)'
+        description: 'audit is read-only and reports drift; apply mutates membership (minted app token needs org project write)'
         type: choice
         required: false
         default: audit
@@ -41,12 +41,27 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+      # Project #13 là org project: GITHUB_TOKEN của repo không thao tác được,
+      # nên mint installation token từ GitHub App của org. Permission xin theo
+      # chế độ chạy (audit → organization-projects: read, apply → write) để
+      # token hôm schedule không mang quyền write. App phải được org admin cấp
+      # Organization projects + Issues read; thiếu quyền thì bước mint fail
+      # kèm lỗi rõ ràng của action.
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.ECOMA_APP_ID }}
+          private-key: ${{ secrets.ECOMA_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-issues: read
+          permission-organization-projects: ${{ (github.event_name == 'schedule' || inputs.mode != 'apply') && 'read' || 'write' }}
       # Business logic nằm trong tools/project-management; step này chỉ invocation.
       - name: Reconcile project membership
         env:
-          # Token PAT/GitHub App có quyền org project read/write; GITHUB_TOKEN
-          # mặc định của repo KHÔNG đủ thao tác organization project.
-          PROJECT_MANAGEMENT_TOKEN: ${{ secrets.PROJECT_MANAGEMENT_TOKEN }}
+          # Installation token của App (mint ở step trên); PAT classic scope
+          # `project` vẫn dùng được cho chạy CLI local.
+          PROJECT_MANAGEMENT_TOKEN: ${{ steps.app-token.outputs.token }}
           # Schedule bao giờ cũng audit, bất kể input mode còn sót gì.
           RECONCILE_MODE: ${{ github.event_name == 'schedule' && 'audit' || inputs.mode || 'audit' }}
           RECONCILE_REASON: ${{ inputs.reason }}
@@ -55,7 +70,7 @@ jobs:
             echo "Dispatch reason: $RECONCILE_REASON"
           fi
           if [ "$RECONCILE_MODE" = "apply" ] && [ -z "$PROJECT_MANAGEMENT_TOKEN" ]; then
-            echo "::error::apply mode requires the secret PROJECT_MANAGEMENT_TOKEN with org project read/write scope."
+            echo "::error::apply mode requires an app token with org project read/write permission."
             exit 1
           fi
           npx tsx tools/project-management/index.ts reconcile \

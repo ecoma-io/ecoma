@@ -97,13 +97,19 @@ Workflow `.github/workflows/project-management.yml`:
 
 ## Quyền token và cấu hình secret
 
-- Token phải thao tác được **organization project**: PAT classic cần scope
-  `read:project` cho audit và `write:project` (hoặc `project` scope cũ) cho
-  apply; GitHub App cần permission Organization projects read/write.
-  `GITHUB_TOKEN` mặc định của repo KHÔNG đủ vì Project nằm ở tổ chức.
-- Secret tên `PROJECT_MANAGEMENT_TOKEN`, cấu hình ở cấp tổ chức (hoặc repo)
-  do **org admin** thực hiện — đây là bước thủ công nằm ngoài repo. Workflow
-  fail kèm thông báo `::error::` rõ ràng nếu `apply` chạy khi secret rỗng.
+- Token phải thao tác được **organization project**: GitHub App cần permission
+  Organization projects read/write; PAT classic cần scope `read:project` cho
+  audit và `write:project` cho apply. `GITHUB_TOKEN` mặc định của repo KHÔNG
+  đủ vì Project nằm ở tổ chức.
+- Trong CI, workflow mint installation token từ GitHub App của org qua
+  `actions/create-github-app-token` dùng `secrets.ECOMA_APP_ID` +
+  `secrets.ECOMA_APP_KEY` (cùng App với `code-review.yml`); App phải được
+  **org admin** cấp Organization projects (read cho audit, write cho apply)
+  và Issues read — cấu hình một lần ở App, không cần PAT secret. Permission
+  xin theo chế độ chạy để run audit định kỳ không mang quyền write; thiếu
+  quyền thì bước mint fail với lỗi rõ ràng của action.
+- Chạy CLI local vẫn dùng PAT: `export PROJECT_MANAGEMENT_TOKEN="$(gh auth
+  token)"` hoặc PAT riêng có scope `project`.
 
 ## Hạn chế đã biết
 
