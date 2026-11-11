@@ -55,9 +55,14 @@ file boundary, your instructions must.
 - `commit-message` — when the slice includes a commit, which must be signed.
 - The stage skill the task needs, e.g. `domain-modelling`,
   `architecture-evolution`, `feature-modelling`, `engineering-discovery`.
-- `frontend-api-mocking` — only when the slice touches the development-only
-  mock/UI-preview surface (mock handlers, fixtures, mock scenarios, mock
-  bootstrap); not required for frontend changes that never touch it.
+- `frontend-data-mocking` — only when the slice touches the development-only
+  UI-preview data surface (in-app mock data adapter, fixtures, data-mode or
+  adapter-selection wiring). Before changing a UI data path, read the app's
+  adapter contract, its mock and real adapters and its data-mode resolver
+  first; deliver mock UI data through the in-app adapter — never through HTTP
+  interception or MSW handlers; keep the real adapter's business semantics,
+  types and error shapes; not required for frontend changes that never touch
+  the data path.
 
 Canonical documents outrank every skill. If they conflict, follow the document
 and report the conflict.

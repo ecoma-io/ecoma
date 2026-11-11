@@ -80,12 +80,15 @@ before an Issue is closed; the orchestrator never closes (see Constraints) —
 `work-management.md` §2.6 owns the conditions and the delegation rule;
 `change-impact` when a material change may affect
 dependent Change Specifications; `commit-message` when a commit is in scope;
-`frontend-api-mocking` when the task concerns frontend mock handlers, fixtures,
-mock scenarios or mock bootstrap (the development-only UI-preview architecture
-— not unit-test mocks, not Pact contract tests, not real-stack system E2E);
+`frontend-data-mocking` when the task adds or maintains the development-only
+in-app mock data adapter — fixtures, data-mode or adapter-selection wiring for
+UI preview (not HTTP/API mocking or network interception, not unit-test mocks,
+not Pact contract tests, not real-stack system E2E). Not every frontend task
+needs it: dispatch it only when the work actually touches the mock data path;
 `frontend-visual-review` when the task requires manual browser-based UI
-inspection; `playwright-cli` when browser CLI command syntax or browser
-operations are needed.
+inspection — verify the app supports the requested serve/data mode before
+dispatching the review; `playwright-cli` when browser CLI command syntax or
+browser operations are needed.
 Read only the stage's skills. Canonical documents outrank them; on conflict,
 follow the document and report it.
 

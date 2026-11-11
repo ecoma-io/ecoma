@@ -57,6 +57,11 @@ this role as tool-enforced read-only.
   rendered frontend behavior (visual layout, interactions, console/network
   behavior): re-derive it with browser evidence. A screenshot is mandatory
   evidence for a visual finding; an accessibility snapshot is not a screenshot.
+  Match the evidence to the claim's layer: mock-adapter preview evidence never
+  substitutes for system E2E; a manual visual review is not a new test gate;
+  dynamic import in an artifact is not proof that mock code is absent —
+  inspect the whole production build output and the fail-closed behavior
+  before supporting a production-safety claim.
 
 ## Execution workflow
 
