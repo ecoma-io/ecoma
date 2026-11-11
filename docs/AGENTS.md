@@ -56,7 +56,7 @@ Keep three concepts apart, and never use "service" without saying which one is m
 - `README.md`: index of documented components — component type, one-line responsibility, bounded contexts hosted/composed/consumed by contract, link.
 - `applications/<component>/README.md`: purpose, component type, responsibility and boundary, participating domain contexts, contained documents.
 - `applications/<component>/01-architecture.md`: component architecture — composition, runtime/process boundary, application flow, API/protocol surfaces, integrations and adapters, persistence implementation, runtime security, execution/failure model.
-- `applications/<component>/02-requirements.md`: application-specific requirements only.
+- `applications/<component>/02-requirements.md`: application-specific requirements only — protocol compatibility, interface requirements, runtime constraints, performance/scalability, technical security, availability/recovery, technical non-goals. Do not keep business rules merely because they carry FR identifiers from an older file.
 - `applications/<component>/03-operations.md`: deployment, configuration/secrets, database migration operations, monitoring/alerting, failure handling, recovery, runbook.
 
 An Application is not a bounded context, an Nx project, a deploy unit or a Pulumi deployment project, and background jobs are listed flat alongside API/BFF components; a document beyond these three roles needs its own subject and lifecycle and an entry in the component `README.md`. Detailed rules → [`docs/applications/README.md`](./applications/README.md).
@@ -78,7 +78,7 @@ The five rules, condensed: a Feature belongs to the Features view, grouped by fe
 
 ### `changes/`
 
-The Changes area holds one Change Specification per future-target change — designing ahead the introduction, evolution or retirement of a bounded context, application, contract or shared library before any of it becomes canonical. A Change Specification is design-ahead, never baseline; its vocabulary, promotion and impact rules are owned by [`docs/changes/README.md`](./changes/README.md).
+The Changes area holds one Change Specification per future-target change — designing ahead the introduction, evolution or retirement of a bounded context, application, contract or shared library before any of it becomes canonical. A Change Specification is design-ahead, never baseline; its vocabulary, promotion and impact rules are owned by [`docs/changes/README.md`](./changes/README.md). Canonical documents have no 'future'/'planned' sections; a future target lives only in `changes/`, and canonical documents only point at the spec.
 
 ### `domains/README.md` rules
 
