@@ -79,7 +79,7 @@
     "vue": "^3.5.13",
     "vue-router": "^5.4.0",
     "vue-tsc": "^2.2.12",
-    "wrangler": "4.159.0"
+    "wrangler": "4.160.0"
   },
   "packageManager": "pnpm@12.18.0"
 }
