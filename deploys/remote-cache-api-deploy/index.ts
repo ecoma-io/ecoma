@@ -32,10 +32,12 @@
  * canonical** (`apps/remote-cache-api/db/apply.mts` — advisory lock
  * `hashtext('db-remote-cache')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
- * lock). KHÔNG có bước seed dữ liệu riêng: dữ liệu seed duy nhất của context
- * này là permission catalog (3 permission read) và nó nằm trong migration
- * `0003_permission_catalog_seed.sql` — nội dung system-defined role KHÔNG được
- * seed (docs §4.4, quyết định chưa chốt).
+ * lock). SAU migration, bootstrap tenant canonical `ecoma` chạy **đường
+ * canonical** (`apps/remote-cache-api/db/bootstrap-tenant.mts` — bề mặt
+ * provisioning của hợp đồng bootstrap/seed, ADR-0020 + `02-delivery.md` §3.2,
+ * KHÔNG bao giờ trên Worker serving path): tenant first_party + membership
+ * owner + host project credential CI + first trusted CI key, idempotent theo
+ * natural key, fail-closed khi trạng thái đã lưu lệch (#20, ADR-0026).
  */
 
 import * as command from '@pulumi/command';
@@ -126,6 +128,14 @@ const migratorPassword = conf.requireSecret('migratorPassword');
 // `requireSecret` như hai mật khẩu: giá trị chỉ sống dưới dạng secret trong
 // state Pulumi và đi vào container qua kênh `envs` sau khi `pulumi.secret` bọc.
 const objectStorageSecretKey = conf.requireSecret('objectStorageSecretKey');
+// Owner (opaque `sub`) của tenant canonical `ecoma` — `local.ts` giải qua dx
+// runner trước khi up. ĐỊNH DANH, không phải credential → non-secret trong
+// stack config; đổi sub là bootstrap chạy lại và membership verify theo sub
+// (fail-closed khi owner hiện tại khác).
+const tenantOwnerSub = conf.require('tenantOwnerSub');
+// Plaintext của first trusted CI key — `local.ts` set-if-absent (một plaintext
+// một environment); bootstrap chỉ lưu SHA-256 hash, plaintext đổi là rotation.
+const ciKeyPlaintext = conf.requireSecret('ciKeyPlaintext');
 
 // Bản đồ env non-secret qua helper thuần (`object-storage-env.ts`) — smoke
 // ngoài host dựng ĐÚNG cùng bộ giá trị từ outputs platform, nên hai đường
@@ -232,15 +242,59 @@ const migrate = new command.local.Command(
 );
 
 /**
- * KHÔNG có bước seed dữ liệu riêng ở unit này: control plane P4.1 không seed
- * tenant/project nào — dữ liệu tenant/project/membership/api_key do operator
- * cấp qua migration/procedure riêng sau khi bounded context có consumer đầu tiên.
- * "Cấm mọi code path bootstrap" nghĩa là cấm đường serving (route/flag runtime),
- * không cấm bước provisioning: hợp đồng canonical cho bước bootstrap/seed là
- * `docs/architecture/02-delivery.md` §3.2 + ADR-0020. Khi #20 thêm bước seed
- * tenant nội bộ `ecoma`, bước đó chạy trên bề mặt provisioning đã chốt,
- * không phải trong Worker.
+ * Tên host project của credential CI và scopes của key — hằng số của môi
+ * trường local. Project là "nhà" của đúng credential mà bootstrap quản lý
+ * (`api_keys.project_id` NOT NULL), không phải project nghiệp vụ của consumer
+ * nào; passes `projects_name_check` (lowercase DNS-like label). ⚠️ Scopes có
+ * khoảng trắng — tại use site PHẢI bọc `shellQuote`, nếu không shell tách
+ * `write` thành argv kế tiếp và docker hiểu nhầm là tên image.
  */
+const BOOTSTRAP_PROJECT_NAME = 'ecoma-ci';
+const BOOTSTRAP_KEY_SCOPES = 'read write';
+
+/**
+ * Bootstrap tenant canonical `ecoma` qua **script service-owned**
+ * (`db/bootstrap-tenant.mts`) — container ephemeral trên platform network chạy
+ * đúng entry của repo, KHÔNG tự viết vòng provisioning. Hợp đồng ADR-0020 §3.2
+ * (bề mặt provisioning, KHÔNG bao giờ trên Worker serving path — Quyết định 2)
+ * + ADR-0026 (classification `first_party` chỉ set được qua đường này): tenant
+ * + membership owner + host project + first trusted CI key trong MỘT
+ * transaction, idempotent theo natural key; trạng thái đã lưu lệch (owner
+ * khác, suspended/deleted, classification khác) là fail-closed, không đè.
+ * Re-run cùng plaintext key là no-op verify; plaintext đổi là rotation
+ * (revoke hàng active cũ trước khi chèn).
+ *
+ * DATABASE_URL dùng role **migrator** (khác pact dùng runtime): runtime role
+ * không có INSERT trên `tenant_members` (grant trong `0002`), và bootstrap là
+ * đường duy nhất ghi membership. `CANONICAL_TENANT_OWNER_SUB` qua env: sub do
+ * `local.ts` resolve từ dx runner trước khi up. Trigger bọc
+ * `pulumi.secret(tenantOwnerSub)` + `pulumi.secret(ciKeyPlaintext)` —
+ * state/diff chỉ thấy `[secret]`; sub hay plaintext đổi là bước chạy lại.
+ */
+const bootstrapTenantScript = pulumi.interpolate`set -e
+docker run --rm \\
+  --network ${networkName} \\
+  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
+  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
+  -w /repo/apps/remote-cache-api \\
+  -e DATABASE_URL=postgresql://ecoma_remote_cache_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-remote-cache \\
+  -e CANONICAL_TENANT_OWNER_SUB=${shellQuote(tenantOwnerSub)} \\
+  -e REMOTE_CACHE_BOOTSTRAP_PROJECT_NAME=${BOOTSTRAP_PROJECT_NAME} \\
+  -e REMOTE_CACHE_BOOTSTRAP_KEY_SCOPES=${shellQuote(BOOTSTRAP_KEY_SCOPES)} \\
+  -e REMOTE_CACHE_BOOTSTRAP_KEY_PLAINTEXT=${pulumi.secret(ciKeyPlaintext).apply(shellQuote)} \\
+  ${NODE_IMAGE} \\
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
+`;
+
+const bootstrapTenant = new command.local.Command(
+  dockerResourceName(ns, 'remote-cache-api') + '-bootstrap-tenant',
+  {
+    create: bootstrapTenantScript,
+    update: bootstrapTenantScript,
+    triggers: [pulumi.secret(tenantOwnerSub), pulumi.secret(ciKeyPlaintext), worktreeRoot],
+  },
+  { dependsOn: [migrate] },
+);
 
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
@@ -334,10 +388,10 @@ const wicStateInit = new command.local.Command(
  * Container WIC — MỘT worker `wrangler dev` (remote-cache) qua
  * `wic-entrypoint.sh`, plain HTTP trên platform network.
  *
- * Thứ tự phụ thuộc: provision → migrate → image → volume → container —
- * container chỉ lên sau khi schema sẵn sàng (permission catalog nằm trong
- * migration), để request đầu tiên của consumer không rơi vào cửa sổ chưa-
- * migrate.
+ * Thứ tự phụ thuộc: provision → migrate → bootstrap tenant → image → volume →
+ * container — container chỉ lên sau khi schema VÀ tenant canonical sẵn sàng
+ * (key CI tạo project qua POST /projects ở request đầu tiên không rơi vào cửa
+ * sổ chưa-bootstrap).
  *
  * Env:
  * - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE` (secret):
@@ -440,11 +494,12 @@ const wic = new docker.Container(
     wait: true,
     waitTimeout: 450,
   },
-  { dependsOn: [migrate, wicImage, wicStateVolume, wicStateInit] },
+  { dependsOn: [migrate, bootstrapTenant, wicImage, wicStateVolume, wicStateInit] },
 );
 
 export const provisionCommandName = provision.id;
 export const migrateCommandName = migrate.id;
+export const bootstrapTenantCommandName = bootstrapTenant.id;
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
 export const containerId = wic.id;

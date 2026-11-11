@@ -13,7 +13,7 @@
  * bằng `npx tsx` trong image Node pin (cùng digest với WIC — `node-image.ts` của
  * deploy unit) qua `deploys/remote-cache-api-deploy/smoke.ts`.
  *
- * Hai mắt kiểm chứng:
+ * Hai mắt kiểm chứng storage + hai mắt control-plane (#20):
  * 1. `GET /ready` của worker qua alias DNS `ecoma-remote-cache-api` (dev.port
  *    4207 của `wrangler.jsonc`) phải báo `database: 'ok'` VÀ
  *    `storage: 'configured'` — bốn biến env `S3_*` + secret đã đến tay worker
@@ -21,15 +21,21 @@
  * 2. Round-trip object THẬT trên bucket SeaweedFS của platform (issue #19) qua
  *    chính client của app: `putIfAbsent` → `'created'`; `get` byte-equal;
  *    `putIfAbsent` trùng → `'exists'`; `get` key chưa viết → `null`.
- * 3. Cleanup KHÔNG thêm op delete vào port của app: script tự ký MỘT request
- *    S3 DELETE SigV4 dưới đây (minimal, body rỗng — dạng ký mà `storage.ts`
+ * 3. Control-plane + data-plane E2E qua HTTP thật của worker (#20): tenant
+ *    canonical `ecoma` đã bootstrap (GET /projects bằng first trusted CI key
+ *    thấy project `ecoma-ci`), POST /projects bằng key đó → 201 + token
+ *    show-once, PUT /v1/cache/:hash → 201, GET → 200 byte-equal, PUT trùng
+ *    hash → 409 (immutability).
+ * 4. Cleanup KHÔNG thêm op delete vào port của app: script tự ký request S3
+ *    DELETE SigV4 dưới đây (minimal, body rỗng — dạng ký mà `storage.ts`
  *    chứng minh: service `s3`, region từ options, URL path-style,
- *    `x-amz-content-sha256` của payload rỗng), assert 2xx, rồi `get` lại →
- *    `null`.
+ *    `x-amz-content-sha256` của payload rỗng) cho object smoke VÀ cho object
+ *    cache E2E, assert 2xx, rồi `get` lại → `null`.
  *
- * Secret đọc từ fd 0 (stdin) — giá trị đến từ outer qua `docker run -i`, không
- * qua argv/-e/label/log. Script không bao giờ in giá trị secret và không bao giờ
- * in header `authorization` ký đầy đủ.
+ * Secret đọc từ fd 0 (stdin) dạng MỘT envelope JSON
+ * `{"objectStorageSecretKey":"…","ciKeyPlaintext":"…"}` — giá trị đến từ outer
+ * qua `docker run -i`, không qua argv/-e/label/log. Script không bao giờ in giá
+ * trị secret và không bao giờ in header `authorization` ký đầy đủ.
  *
  * Lưu ý lint: block override `apps/remote-cache-api/smoke/` trong root
  * `.oxlintrc.json` tắt `no-console`/cấm Node builtin CHO RIÊNG thư mục này —
@@ -222,9 +228,26 @@ async function main(): Promise<void> {
     );
   }
 
-  // 2. Secret từ fd 0 + ba env non-secret của container.
-  const secret = await readAllStdin();
-  check(secret.length > 0, 'object storage secret received on stdin');
+  // 2. Secrets từ fd 0 — envelope JSON với HAI secret, parse fail-closed.
+  const envelopeRaw = await readAllStdin();
+  let objectStorageSecret = '';
+  let ciKeyPlaintext = '';
+  try {
+    const parsed: unknown = JSON.parse(envelopeRaw);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      if (typeof record['objectStorageSecretKey'] === 'string') {
+        objectStorageSecret = record['objectStorageSecretKey'];
+      }
+      if (typeof record['ciKeyPlaintext'] === 'string') {
+        ciKeyPlaintext = record['ciKeyPlaintext'];
+      }
+    }
+  } catch {
+    // Envelope không phải JSON — fail bên dưới với message cố định, không in raw.
+  }
+  check(objectStorageSecret.length > 0, 'object storage secret received on stdin');
+  check(ciKeyPlaintext.length > 0, 'CI key plaintext received on stdin');
 
   const endpoint = process.env.S3_ENDPOINT;
   const bucket = process.env.S3_BUCKET;
@@ -241,7 +264,7 @@ async function main(): Promise<void> {
 
   if (
     failures.length > 0 ||
-    secret.length === 0 ||
+    objectStorageSecret.length === 0 ||
     typeof endpoint !== 'string' ||
     typeof bucket !== 'string' ||
     typeof accessKeyId !== 'string'
@@ -259,7 +282,7 @@ async function main(): Promise<void> {
     endpoint,
     bucket,
     accessKeyId,
-    secretAccessKey: secret,
+    secretAccessKey: objectStorageSecret,
     region: 'auto',
   });
 
@@ -294,9 +317,113 @@ async function main(): Promise<void> {
   const miss = await storage.get(`smoke/never-written-${randomBytes(8).toString('hex')}`);
   check(miss === null, 'get of a never-written key returns null');
 
-  // 4. Cleanup KHÔNG qua port của app: một DELETE SigV4 của chính smoke, rồi xác nhận mất.
+  // 3b. Control-plane + data-plane E2E (#20) — đường HTTP thật của worker, bằng
+  // first trusted CI key mà bootstrap đã cấp (plaintext từ envelope stdin).
+  const baseUrl = 'http://ecoma-remote-cache-api:4207';
+  const bootstrapAuth = { authorization: `Bearer ${ciKeyPlaintext}` };
+
+  const listRes = await fetch(`${baseUrl}/projects`, { headers: bootstrapAuth });
+  check(
+    listRes.status === 200,
+    `GET /projects with the bootstrap CI key returns 200 (got ${String(listRes.status)})`,
+  );
+  const listBody = (await listRes.json().catch(() => undefined)) as
+    | { projects?: Array<{ name?: unknown }> }
+    | undefined;
+  check(
+    Array.isArray(listBody?.projects) &&
+      listBody.projects.some((p) => (p as { name?: unknown } | null)?.name === 'ecoma-ci'),
+    'GET /projects shows the bootstrap host project ecoma-ci (tenant canonical exists)',
+  );
+
+  const projectName = `smoke-e2e-${Date.now()}`;
+  const createRes = await fetch(`${baseUrl}/projects`, {
+    method: 'POST',
+    headers: { ...bootstrapAuth, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: projectName,
+      api_key_scopes: ['read', 'write'],
+      trusted_ci: true,
+    }),
+  });
+  check(
+    createRes.status === 201,
+    `POST /projects returns 201 with a show-once token (got ${String(createRes.status)})`,
+  );
+  const createBody = (await createRes.json().catch(() => undefined)) as
+    | { project?: { id?: unknown; tenant_id?: unknown }; api_key?: { token?: unknown } }
+    | undefined;
+  const createdToken = createBody?.api_key?.token;
+  const createdProjectId = typeof createBody?.project?.id === 'string' ? createBody.project.id : '';
+  const createdTenantId =
+    typeof createBody?.project?.tenant_id === 'string' ? createBody.project.tenant_id : '';
+  check(
+    typeof createdToken === 'string' && createdToken.length > 0,
+    'POST /projects response carries a non-empty show-once api_key token',
+  );
+
+  // Round-trip cache chỉ chạy khi token show-once có thật; trước đó fail-loud.
+  if (typeof createdToken !== 'string' || createdToken.length === 0) {
+    console.error(
+      `SMOKE FAILED: ${failures.length} assertion(s) failed before the cache round trip.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const cacheAuth = { authorization: `Bearer ${createdToken}` };
+  const cachePayload = new TextEncoder().encode(
+    `ecoma remote-cache control-plane smoke ${projectName}`,
+  );
+  // Hash nhận dạng — chuỗi safe theo regex route (`^[A-Za-z0-9._-]+$`); SHA-256
+  // hex của tên project là giá trị ổn định, thỏa ràng buộc hình dạng.
+  const cacheHash = await sha256Hex(projectName);
+
+  const putRes = await fetch(`${baseUrl}/v1/cache/${cacheHash}`, {
+    method: 'PUT',
+    headers: {
+      ...cacheAuth,
+      'content-type': 'application/octet-stream',
+      'content-length': String(cachePayload.byteLength),
+    },
+    body: cachePayload,
+  });
+  check(
+    putRes.status === 201,
+    `PUT /v1/cache on a fresh hash returns 201 (got ${String(putRes.status)})`,
+  );
+
+  const cacheGetRes = await fetch(`${baseUrl}/v1/cache/${cacheHash}`, { headers: cacheAuth });
+  check(
+    cacheGetRes.status === 200,
+    `GET /v1/cache after PUT returns 200 (got ${String(cacheGetRes.status)})`,
+  );
+  if (cacheGetRes.status === 200 && cacheGetRes.body !== null) {
+    const cacheGotBytes = await drainBody(cacheGetRes.body);
+    check(
+      Buffer.from(cacheGotBytes).equals(Buffer.from(cachePayload)),
+      `GET /v1/cache body is byte-equal to the PUT payload (${cacheGotBytes.byteLength} vs ${cachePayload.byteLength} bytes)`,
+    );
+  }
+
+  const dupRes = await fetch(`${baseUrl}/v1/cache/${cacheHash}`, {
+    method: 'PUT',
+    headers: {
+      ...cacheAuth,
+      'content-type': 'application/octet-stream',
+      'content-length': String(cachePayload.byteLength),
+    },
+    body: cachePayload,
+  });
+  check(
+    dupRes.status === 409,
+    `re-PUT of the same hash returns 409 (got ${String(dupRes.status)})`,
+  );
+
+  // 4. Cleanup KHÔNG qua port của app: DELETE SigV4 của chính smoke cho object
+  // storage smoke VÀ object cache E2E, rồi xác nhận mất.
   const deleteStatus = await signDeleteAndDispatch(
-    { endpoint, bucket, accessKeyId, secretAccessKey: secret, region: 'auto' },
+    { endpoint, bucket, accessKeyId, secretAccessKey: objectStorageSecret, region: 'auto' },
     key,
   );
   check(
@@ -306,12 +433,24 @@ async function main(): Promise<void> {
   const afterDelete = await storage.get(key);
   check(afterDelete === null, 'get after DELETE returns null (object removed)');
 
+  if (createdTenantId !== '' && createdProjectId !== '') {
+    const cacheObjectKey = `${createdTenantId}/${createdProjectId}/${cacheHash}`;
+    const cacheDeleteStatus = await signDeleteAndDispatch(
+      { endpoint, bucket, accessKeyId, secretAccessKey: objectStorageSecret, region: 'auto' },
+      cacheObjectKey,
+    );
+    check(
+      cacheDeleteStatus >= 200 && cacheDeleteStatus < 300,
+      `raw signed S3 DELETE removes the smoke cache object (got ${String(cacheDeleteStatus)})`,
+    );
+  }
+
   if (failures.length > 0) {
     console.error(`SMOKE FAILED: ${failures.length} assertion(s) failed`);
     process.exitCode = 1;
     return;
   }
-  console.log('SMOKE PASSED: every real-storage assertion held');
+  console.log('SMOKE PASSED: every real-storage and control-plane assertion held');
 }
 
 void main();

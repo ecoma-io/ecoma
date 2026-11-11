@@ -1,12 +1,13 @@
 /**
- * Smoke real-storage của `remote-cache-api-deploy` — outer (host).
+ * Smoke real-storage + control-plane E2E của `remote-cache-api-deploy` — outer (host).
  *
  * Chạy qua target Nx: `nx run remote-cache-api-deploy:local-smoke -c local` →
  * `npx tsx smoke.ts`. Prerequisite duy nhất là `local-up` của CHÍNH unit này
  * (platform đã lên trước theo `dependsOn` của `local-up`); smoke là node LÁ —
  * không unit nào phụ thuộc nó.
  *
- * Mục đích: chứng minh ĐƯỜNG STORAGE THẬT sau khi `local-up`, qua BỐN mắt:
+ * Mục đích: chứng minh ĐƯỜNG STORAGE THẬT và ĐƯỜNG CONTROL-PLANE/DATA-PLANE
+ * THẬT sau khi `local-up`, qua các mắt:
  * 1. `GET /ready` của worker phải báo `database: 'ok'` VÀ
  *    `storage: 'configured'` — bốn biến env `S3_*` đã đến tay worker qua
  *    kênh `envs` của WIC và `config.ts` của app nạp được bộ config đó (con
@@ -19,16 +20,21 @@
  *    (`apps/remote-cache-api/smoke/smoke-inner.mts`) để import được class thật:
  *    ranh giới module cấm `deploy → composition`, còn composition tự import
  *    chính nó là hợp lệ (quyết định coordinator, follow-up của slice này).
- * 3. Cleanup KHÔNG thêm op delete vào port của app: smoke tự ký MỘT request
+ * 3. Control-plane + data-plane E2E (#20): tenant canonical `ecoma` đã được
+ *    bootstrap (GET /projects bằng first trusted CI key trả project
+ *    `ecoma-ci`), POST /projects bằng key đó → 201 + token show-once, PUT
+ *    /v1/cache/:hash → 201, GET → 200 byte-equal, PUT trùng hash → 409.
+ * 4. Cleanup KHÔNG thêm op delete vào port của app: smoke tự ký MỘT request
  *    S3 DELETE SigV4 (inner), assert 2xx, rồi `get` lại → `null`.
- * 4. Exit 0 CHỈ khi mọi assertion giữ; dòng log PASS/FAIL là tiếng Anh, giữ
+ * 5. Exit 0 CHỈ khi mọi assertion giữ; dòng log PASS/FAIL là tiếng Anh, giữ
  *    nguyên cho evidence.
  *
- * Secret đi QUA STDIN: outer đọc `namespace:objectStorageSecretKey` từ stack
- * config của chính unit (đã được `local.ts` copy từ platform khi up) rồi
- * truyền cho inner qua fd 0 của `docker run -i` — KHÔNG qua argv, KHÔNG qua
- * `-e` (giá trị `-e` của docker nằm trong `ps` của host), KHÔNG qua label/log.
- * Inner đọc stdin tới EOF và không bao giờ in giá trị; outer chỉ in captured
+ * Secret đi QUA STDIN: outer đọc HAI secret từ stack config của chính unit —
+ * `namespace:objectStorageSecretKey` VÀ `namespace:ciKeyPlaintext` (plaintext
+ * key CI đã được `local.ts` set-if-absent) — rồi truyền cho inner qua fd 0 của
+ * `docker run -i` dạng MỘT envelope JSON. KHÔNG qua argv, KHÔNG qua `-e` (giá
+ * trị `-e` của docker nằm trong `ps` của host), KHÔNG qua label/log. Inner đọc
+ * stdin tới EOF, parse JSON và không bao giờ in giá trị; outer chỉ in captured
  * stdout/stderr của inner — vốn không chứa secret.
  */
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
@@ -54,6 +60,9 @@ const PLATFORM_PROJECT = 'platform-deploy';
 
 /** Key stack config của CHÍNH unit chứa secret key object storage. */
 const OWN_SECRET_CONFIG_KEY = 'namespace:objectStorageSecretKey';
+
+/** Key stack config của CHÍNH unit chứa plaintext của first trusted CI key. */
+const OWN_CI_KEY_CONFIG_KEY = 'namespace:ciKeyPlaintext';
 
 /** Root của workspace, suy từ vị trí file này (`deploys/remote-cache-api-deploy`). */
 const WORKSPACE_ROOT = join(import.meta.dirname, '../..');
@@ -128,17 +137,17 @@ function readPlatformSmokeInputs(foundation: EntryFoundation): SmokeInputs {
 }
 
 /**
- * Đọc lại secret key object storage từ stack config của CHÍNH unit — outer
- * smoke KHÔNG đọc cross-stack (giá trị đã được `local.ts` copy khi up, cùng
- * pattern persist của các secret khác).
+ * Đọc lại MỘT secret từ stack config của CHÍNH unit — outer smoke KHÔNG đọc
+ * cross-stack (giá trị đã được `local.ts` set khi up, cùng pattern persist của
+ * các secret khác).
  *
  * KHÔNG nhúng raw stdout/stderr vào log: stdout của `pulumi config get` khi
  * exit 0 CHÍNH LÀ secret. Thông điệp cố định + hướng dẫn tự chạy lệnh.
  */
-function readOwnObjectStorageSecret(foundation: EntryFoundation): string {
+function readOwnSecret(foundation: EntryFoundation, configKey: string): string {
   const read = exec(
     'pulumi',
-    ['config', 'get', OWN_SECRET_CONFIG_KEY, '--stack', fullStackRef(PROJECT, foundation.ctx)],
+    ['config', 'get', configKey, '--stack', fullStackRef(PROJECT, foundation.ctx)],
     deployProjectDir(PROJECT),
     foundation.env,
   );
@@ -146,10 +155,10 @@ function readOwnObjectStorageSecret(foundation: EntryFoundation): string {
     return read.stdout.trim();
   }
   console.error(
-    `[${PROJECT}] smoke: reading ${OWN_SECRET_CONFIG_KEY} from the own stack failed (exit ` +
+    `[${PROJECT}] smoke: reading ${configKey} from the own stack failed (exit ` +
       String(read.status) +
       ') — local-up must run BEFORE local-smoke (dependsOn). Run `pulumi config get ' +
-      OWN_SECRET_CONFIG_KEY +
+      configKey +
       ' --stack <stack-ref>` in deploys/' +
       PROJECT +
       ' to see the original stderr — the output of that command is never logged because it may contain ' +
@@ -158,15 +167,21 @@ function readOwnObjectStorageSecret(foundation: EntryFoundation): string {
   process.exit(1);
 }
 
+/** Hai secret mà inner cần — đi qua stdin dạng MỘT envelope JSON, không ở nơi khác. */
+interface SmokeSecrets {
+  readonly objectStorageSecretKey: string;
+  readonly ciKeyPlaintext: string;
+}
+
 /**
  * Spawn container smoke: ephemeral, gắn platform network, repo mount READ-ONLY,
  * image Node pin CÙNG digest với WIC/migration (`node-image.ts`). Ba env
  * non-secret qua `-e` (giá trị nằm trong argv của host — chấp nhận được vì
- * chúng là outputs non-secret); secret đi QUA STDIN (`input` của exec) —
- * docker argv của host (`ps`) thấy được mọi `-e` value, nên secret KHÔNG BAO
- * GIỜ đi qua đó. Inner đọc fd 0 tới EOF.
+ * chúng là outputs non-secret); HAI secret đi QUA STDIN (`input` của exec) dạng
+ * envelope JSON — docker argv của host (`ps`) thấy được mọi `-e` value, nên
+ * secret KHÔNG BAO GIỜ đi qua đó. Inner đọc fd 0 tới EOF rồi parse JSON.
  */
-function runInnerSmoke(inputs: SmokeInputs, secret: string, worktreeRoot: string): number {
+function runInnerSmoke(inputs: SmokeInputs, secrets: SmokeSecrets, worktreeRoot: string): number {
   const args = [
     'run',
     '--rm',
@@ -188,7 +203,11 @@ function runInnerSmoke(inputs: SmokeInputs, secret: string, worktreeRoot: string
     'tsx',
     INNER_SCRIPT,
   ];
-  const result = exec('docker', args, WORKSPACE_ROOT, process.env, { input: secret });
+  const envelope = `${JSON.stringify({
+    objectStorageSecretKey: secrets.objectStorageSecretKey,
+    ciKeyPlaintext: secrets.ciKeyPlaintext,
+  })}\n`;
+  const result = exec('docker', args, WORKSPACE_ROOT, process.env, { input: envelope });
   if (result.status === null) {
     console.error(`[${PROJECT}] smoke: docker could not run: ${describeSpawnFailure(result)}`);
     return 1;
@@ -217,8 +236,11 @@ async function main(): Promise<number> {
   }
   try {
     const inputs = readPlatformSmokeInputs(foundation);
-    const secret = readOwnObjectStorageSecret(foundation);
-    return runInnerSmoke(inputs, secret, foundation.ctx.worktreeRoot);
+    const secrets: SmokeSecrets = {
+      objectStorageSecretKey: readOwnSecret(foundation, OWN_SECRET_CONFIG_KEY),
+      ciKeyPlaintext: readOwnSecret(foundation, OWN_CI_KEY_CONFIG_KEY),
+    };
+    return runInnerSmoke(inputs, secrets, foundation.ctx.worktreeRoot);
   } catch (error) {
     console.error(
       `[${PROJECT}] smoke failed: ${error instanceof Error ? error.message : String(error)}`,

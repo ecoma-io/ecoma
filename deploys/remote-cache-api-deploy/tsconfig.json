@@ -62,5 +62,12 @@
   // `deploy → composition`) và được typecheck bởi chương trình spec của app.
   // Composite bắt buộc liệt kê TẤT CẢ file trong graph — các helper được
   // `index.ts`/`smoke.ts` import phải nằm trong danh sách.
-  "files": ["index.ts", "local.ts", "smoke.ts", "node-image.ts", "object-storage-env.ts"]
+  "files": [
+    "index.ts",
+    "local.ts",
+    "smoke.ts",
+    "node-image.ts",
+    "object-storage-env.ts",
+    "superadmin-resolver.ts"
+  ]
 }
