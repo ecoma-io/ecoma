@@ -95,11 +95,21 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/pact-broker-api-deploy/local.ts",
-    "start": 124,
-    "end": 124,
-    "reason": "Same FP shape as the platform-env.ts:77 entry: readMigratorPassword returns the cross-stack migrator password to the local-lane entry that passes it as container env to the superadmin resolver - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Introduced by #21 (resolve-or-bootstrap step).",
+    "start": 115,
+    "end": 115,
+    "reason": "Same FP shape as the platform-env.ts:77 entry: readMigratorPassword returns the cross-stack migrator password to the local-lane entry that passes it as container env to the superadmin resolver - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Introduced by #21 (resolve-or-bootstrap step). Re-pin -9 lines when the superadmin docker invocation constants were extracted into superadmin-resolver.ts (credential-argv fix, #21 review) - content unchanged.",
     "lines": {
-      "124": "^  return password;$"
+      "115": "^  return password;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/superadmin-resolver.ts",
+    "start": 53,
+    "end": 53,
+    "reason": "Pure builder extracted from local.ts by the credential-argv fix (#21 review): buildMigratorDatabaseUrl percent-encodes the cross-stack migrator password into the DATABASE_URL handed to the caller, which passes it as the docker child process env - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Same accepted shape as the local.ts and platform-env.ts entries.",
+    "lines": {
+      "53": "^  return \\`postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}\\`;$"
     }
   },
   {
