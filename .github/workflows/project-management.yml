@@ -88,7 +88,11 @@ jobs:
           # Schedule bao giờ cũng audit; sự kiện issue lấy mode từ
           # EVENT_RECONCILE_MODE; dispatch lấy từ input.
           RECONCILE_MODE: ${{ github.event_name == 'schedule' && 'audit' || github.event_name == 'issues' && env.EVENT_RECONCILE_MODE || inputs.mode || 'audit' }}
-          RECONCILE_REASON: ${{ github.event_name == 'issues' && format('issues.{0} #{1}', github.event.action, github.event.issue.number) || inputs.reason }}
+          # Biểu thức phải nằm trong block scalar (>--) để khoảng trắng trước
+          # `#{1}` không bị YAML đọc thành điểm bắt đầu comment và cắt cụt
+          # chuỗi giữa biểu thức ${{ }}.
+          RECONCILE_REASON: >-
+            ${{ github.event_name == 'issues' && format('issues.{0} #{1}', github.event.action, github.event.issue.number) || inputs.reason }}
         run: |
           if [ -n "$RECONCILE_REASON" ]; then
             echo "Dispatch reason: $RECONCILE_REASON"
