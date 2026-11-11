@@ -4,7 +4,8 @@
  * không có token là exit 1 ngay từ đầu, không thử gọi API thiếu credential.
  */
 
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { defineCommand } from 'citty';
@@ -30,6 +31,33 @@ interface ReconcileArgs {
   project: string | undefined;
   policy: string | undefined;
   out: string | undefined;
+}
+
+type ResolvedRepo = { ok: true; repo: string } | { ok: false; error: string };
+
+/**
+ * `--repo` chấp nhận tên đầy đủ `owner/name` (khớp workflow, vd
+ * `ecoma-io/ecoma`) hoặc tên trần `name`. GraphQL `repository(owner:, name:)`
+ * cần tên trần, nên chuỗi đầy đủ phải tách và phần owner phải khớp `--owner`.
+ */
+export function resolveRepoName(owner: string, repoArg: string): ResolvedRepo {
+  const parts = repoArg.split('/');
+  if (parts.length === 1) {
+    return { ok: true, repo: parts[0] };
+  }
+  if (parts.length !== 2 || parts[1] === '') {
+    return {
+      ok: false,
+      error: `Invalid --repo "${repoArg}": expected a bare name (ecoma) or a full name (ecoma-io/ecoma).`,
+    };
+  }
+  if (parts[0] !== owner) {
+    return {
+      ok: false,
+      error: `Repository full name "${repoArg}" does not match --owner "${owner}".`,
+    };
+  }
+  return { ok: true, repo: parts[1] };
 }
 
 export const reconcileCommand = defineCommand({
@@ -88,12 +116,19 @@ export const reconcileCommand = defineCommand({
       return;
     }
     const owner = args.owner;
-    const repo = args.repo;
-    if (owner === undefined || owner === '' || repo === undefined || repo === '') {
+    const repoArg = args.repo;
+    if (owner === undefined || owner === '' || repoArg === undefined || repoArg === '') {
       console.error('Missing required arguments --owner and --repo.');
       process.exitCode = 1;
       return;
     }
+    const resolvedRepo = resolveRepoName(owner, repoArg);
+    if (!resolvedRepo.ok) {
+      console.error(resolvedRepo.error);
+      process.exitCode = 1;
+      return;
+    }
+    const repo = resolvedRepo.repo;
     const policyPath = args.policy ?? DEFAULT_POLICY_PATH;
     let policy;
     try {
@@ -128,6 +163,9 @@ export const reconcileCommand = defineCommand({
     const outPath = args.out;
     if (outPath !== undefined) {
       try {
+        // Thư mục cha có thể chưa tồn tại trên checkout mới (vd test-output
+        // trong workflow) — mkdir recursive trước khi ghi để không ENOENT.
+        await mkdir(dirname(outPath), { recursive: true });
         await writeFile(outPath, `${renderReportJson(report)}\n`, 'utf8');
         console.log(`JSON report written to ${outPath}`);
       } catch (cause) {
