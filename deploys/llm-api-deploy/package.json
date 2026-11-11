@@ -1,0 +1,217 @@
+{
+  "name": "llm-api-deploy",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {
+    "@ecoma-io/deployment": "workspace:*"
+  },
+  "ecoma": {
+    "deployment": {
+      "status": "implemented"
+    }
+  },
+  "nx": {
+    "implicitDependencies": [
+      "platform-deploy",
+      "@ecoma-io/deployment",
+      "@ecoma-io/llm-api"
+    ],
+    "tags": [
+      "type:deployment",
+      "scope:llm-api",
+      "runtime:native"
+    ],
+    "targets": {
+      "local-up": {
+        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `build/` (worker-build: `build/index.js` + `build/index.wasm`) mount lúc container start — bundle chưa build là entrypoint fail `bundle_missing` và container restart loop. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "npx tsx local.ts up"
+        },
+        "configurations": {
+          "local": {}
+        },
+        "dependsOn": [
+          {
+            "projects": [
+              "platform-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "@ecoma-io/llm-api"
+            ],
+            "target": "build"
+          }
+        ]
+      },
+      "local-down": {
+        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Ba database + bảy role nằm trong volume PostgreSQL của platform (convention chung) và sống tới khi `platform-deploy:local-down` xoá volume. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "npx tsx local.ts down"
+        },
+        "configurations": {
+          "local": {}
+        }
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "vitest"
+        },
+        "//": [
+          "Target `test` = unit/component colocated của project (06-testing.md",
+          "§4): `scripts.spec.ts` — bất biến tĩnh của script text (không Docker).",
+          "Suite integration chạy Docker + PostgreSQL thật ở target riêng."
+        ],
+        "configurations": {},
+        "parallelism": true
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [],
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "//": [
+          "Suite integration app-owned (06-testing.md §2/§4): argv-hygiene —",
+          "chạy đúng script provision/migrate mà index.ts render, với sentinel",
+          "credentials, shim docker ghi argv và sweep /proc/*/cmdline; assert",
+          "không secret nào vào argv/log/output/script text, đồng thời trạng",
+          "thái database sau provision + migration vẫn đúng. Bắt buộc Docker:",
+          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip. Target",
+          "luôn không cacheable vì mutate Docker/database thật.",
+          "Không `dependsOn` build bundle WIC: suite không chạy wrangler worker.",
+          "Import thẳng `scripts.ts` nguồn — đúng text mà Pulumi chạy."
+        ],
+        "configurations": {}
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/deploys/.eslintignore",
+          "{workspaceRoot}/deploys/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "production",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/bin/deploys/llm-api-deploy/tsconfig.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}

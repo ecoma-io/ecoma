@@ -85,6 +85,7 @@ deploys/*
 !deploys/push-notification-deploy/wic-entrypoint.sh
 !deploys/staff-access-deploy/wic-entrypoint.sh
 !deploys/remote-cache-api-deploy/wic-entrypoint.sh
+!deploys/llm-api-deploy/wic-entrypoint.sh
 
 # Blacklist bên trong các subtree đã mở: dependency, kết quả build trung gian
 # và cache dev không bao giờ là input — copy vào context chỉ làm chậm và có

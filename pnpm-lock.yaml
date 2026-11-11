@@ -523,6 +523,22 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
 
+  apps/llm-api:
+    dependencies:
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(supports-color@10.2.2)
+
   apps/llm-console:
     dependencies:
       '@ecoma-io/ui-app-shell':
@@ -781,6 +797,12 @@ importers:
         version: link:../../libs/deployment
 
   deploys/home-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
+  deploys/llm-api-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*

@@ -168,7 +168,58 @@ rules:
           - metavariable-regex:
               metavariable: $SENSITIVE
               regex: '^(?i:(?:prompt|prompts|prompt_?body|response_?body|authorization|cookies?|tokens?|secrets?|api_?keys?|access_?tokens?|refresh_?tokens?|id_?tokens?|client_?secrets?|session_?tokens?|passwords?|credentials?))([_.\-]|$)'
+      # ⚠️ `pattern-not: pulumi.secret` loại CALLEE `pulumi.secret` khỏi nhánh này
+      # — đo trên 1.185.0 (image CI ghim), thành viên `pulumi.secret` TỰ khớp
+      # `$OWNER.$SENSITIVE` ($OWNER = `pulumi`, $SENSITIVE = `secret` trúng
+      # `secrets?`), và taint từ callee chảy vào KẾT QUẢ lời gọi (probe: cả
+      # `const s = pulumi.secret(x)` lẫn alias `const f = pulumi.secret;
+      # const s = f(x)` đều mang taint tới sink). Nhánh nguồn trần không cứu được
+      # gì: nó không khớp tên property trong member expression (đo — sau khi loại
+      # callee, không nhánh nguồn nào còn tạo taint trên các hình dạng dưới đây).
+      #
+      # Hệ quả đo được trước khi có exclusion: mảng trigger chính thức của
+      # `deploys/*-deploy` — `DATABASES.flatMap((target) => [pulumi.secret(a),
+      # pulumi.secret(b)])` — arrow implicit-return được chuẩn hoá thành
+      # `return [...]` nên trúng sink `return $VALUE`, CHỈ VÌ TÊN callee; trong
+      # khi hình dạng thay thế bằng vòng lặp `.push()` thì sạch kể cả khi
+      # `return` nguyên mảng (taint không đi qua `.push()` — đo bằng probe).
+      # Chính vì vậy `deploys/llm-api-deploy/index.ts` dựng mảng trigger bằng
+      # vòng lặp push và ghi rõ đó là cách né rule — scanner evasion, không phải
+      # sửa FP. Tên hàm không phải dữ liệu, nên đây là nguồn giả: exclusion chỉ
+      # loại callee khỏi vai trò nguồn.
+      #
+      # ⚠️ Vì sao KHÔNG phải sanitizer `pulumi.secret(...)` — cả hai thiết kế
+      # đều đo trên 1.185.0: `pulumi.secret` KHÔNG phải biến đổi một chiều —
+      # plaintext lấy lại được trong process (`pulumi.unsecret`, `apply`), và
+      # redaction của Pulumi chỉ phủ state/log do Pulumi ghi, KHÔNG phủ HTTP
+      # response mà chính program gửi ra — nên nó không đạt chuẩn sanitizer của
+      # rule này (kết quả không được phép khôi phục đầu vào, xem `crypto.subtle`
+      # phía dưới). Đo được sanitizer cắt cả taint THẬT đi vào qua THAM SỐ:
+      # `json({ token: pulumi.secret(token) })` (tham số mang taint thật) VẪN
+      # được báo dưới pattern-not — taint tham số → kết quả của lời gọi không
+      # tên vẫn chảy — nhưng IM LẶT dưới sanitizer; một object local trùng tên
+      # `pulumi` với method `secret` pass-through cũng im lặng dưới sanitizer —
+      # đúng lớp lỗ `leakThroughShadowedSigner` mà rule từ chối. Pattern-not hẹp
+      # hơn: không tạo ranh giới taint mới, mọi đường thật qua tham số vẫn cháy.
+      #
+      # Ghim bằng fixture (security.sensitive-value-response.test.ts):
+      #   * `ok:` `secretTriggersFromFlatMap` — gỡ exclusion này thì ca đỏ
+      #     (đo: `incorrect lines: [162]` khi rule chưa có pattern-not).
+      #   * `ruleid:` `leakAlongsideWrappedTrigger` + `leakWrappedRealToken` —
+      #     chứng minh ranh giới chỉ cắt đúng qua callee, không qua tham số.
+      # Quy trình bắt buộc đã chạy đủ hai chiều trên 1.185.0: CÓ pattern-not ⇒
+      # `semgrep --test` xanh 10/10, scan repo KHÔNG mất finding nào (23 → 23,
+      # SARIF so từng dòng); KHÔNG có pattern-not ⇒ ca `ok:` trên đỏ + scan repo
+      # không thêm finding nào (hình dạng flatMap chưa tồn tại trong tree thật,
+      # nó được ghim ở fixture).
+      #
+      # Rule `security-sensitive-value-logged` CỐ Ý không nhận exclusion này:
+      # callee `pulumi.secret` vẫn là nguồn của nó (probe console cháy 3/3 trên
+      # 1.185.0) nhưng không có code nào trong repo log giá trị bọc
+      # `pulumi.secret` (scan toàn repo: 0 finding dạng này) — chỉ làm giống hệt
+      # khi hình dạng đó xuất hiện thật kèm bằng chứng misfire.
       - patterns:
+          - pattern-not: pulumi.secret
           - pattern: $OWNER.$SENSITIVE
           - metavariable-regex:
               metavariable: $SENSITIVE

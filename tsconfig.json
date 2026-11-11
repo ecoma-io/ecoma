@@ -28,6 +28,9 @@
       "path": "./deploys/pact-broker-app-deploy"
     },
     {
+      "path": "./deploys/llm-api-deploy"
+    },
+    {
       "path": "./deploys/llm-console-deploy"
     },
     {

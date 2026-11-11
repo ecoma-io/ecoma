@@ -1,0 +1,55 @@
+{
+  // Worker của deploy unit `llm-api` (slice Worker runtime, Issue #22) — data
+  // plane LLM trên Cloudflare Workers, runtime Rust dịch ra WASM qua
+  // `worker-build` (entry `build/index.js`).
+  //
+  // KHÔNG có `nodejs_compat`: runtime không dùng Node API — kết nối Hyperdrive
+  // đi qua Socket API của workers-rs (plain TCP với `sslmode=disable`, platform
+  // facts PF3/PF4), khác với các Worker TS driver Node.
+  //
+  // Ba Hyperdrive binding theo pattern "id chuỗi rỗng" của `apps/staff-access`
+  // và `apps/pact-broker-api`: database chưa được provision (provisioning là
+  // việc của deploy unit khi được dựng), nên không có `id` thật nào được ghim.
+  // Connection string thật của local chạy qua biến
+  // `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>` (platform facts
+  // PF3/PF4); thiếu biến lúc `wrangler dev` là lỗi boot tường minh
+  // (fail-closed), và deploy thiếu binding thật vẫn fail-closed ở `/ready` +
+  // `/v1/models` (503).
+  //
+  // Query cache của Hyperdrive config này PHẢI OFF khi provision (cache không
+  // invalidate khi ghi — dữ liệu quota/settlement; một lượt ghi trừ quota mà
+  // cache trả về trạng thái cũ là sai số tiền).
+  //
+  // Migration KHÔNG chạy qua binding này (HD6: Hyperdrive không hỗ trợ advisory
+  // lock) — chạy từ CI runner bằng credential migrator của từng DB
+  // (db-llm-gateway / db-llm-tenant / db-llm-marketplace).
+  "hyperdrive": [
+    {
+      "binding": "DB_LLM_GATEWAY",
+      "id": "",
+    },
+    {
+      "binding": "DB_LLM_TENANT",
+      "id": "",
+    },
+    {
+      "binding": "DB_LLM_MARKETPLACE",
+      "id": "",
+    },
+  ],
+  //
+  // KHÔNG có deploy target/staging/production env ở đây: provisioning của
+  // deploy unit thuộc milestone sau, và Wrangler env `staging`/`production`
+  // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api` và
+  // `apps/remote-cache-api`). Custom domain cũng khai báo khi provision.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ecoma-llm-api",
+  "main": "build/index.js",
+  "compatibility_date": "2026-10-05",
+  "observability": {
+    "enabled": true,
+  },
+  "dev": {
+    "port": 4211,
+  },
+}

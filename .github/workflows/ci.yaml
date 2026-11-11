@@ -41,6 +41,38 @@ jobs:
       - name: Format check
         if: github.event_name == 'pull_request'
         run: npx oxfmt --check .
+      # Rust toolchain chỉ cài khi workspace có Cargo project — `lint` của
+      # `apps/llm-api` chạy `cargo fmt --check` + `cargo clippy`.
+      - name: Detect Cargo projects
+        id: cargo-projects
+        run: |
+          if find . -name 'Cargo.toml' -not -path '*/node_modules/*' -not -path './.nx/*' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "toolchain=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - name: Setup Rust toolchain
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
+          components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
+      - name: Cache Cargo
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
       - name: Architecture tag validation
         run: pnpm dx arch-check
       # `force` chỉ tồn tại với workflow_dispatch; mọi trigger khác để nó rỗng và
@@ -95,6 +127,11 @@ jobs:
         with:
           toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
           components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo
         if: steps.cargo-projects.outputs.present == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -154,6 +191,11 @@ jobs:
         with:
           toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
           components: clippy, rustfmt
+          # Preinstall cả target khai trong rust-toolchain.toml: nếu thiếu,
+          # rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu tiên — lần tải
+          # đó từng flake (rename race trong ~/.rustup/downloads) và đỏ cả lane
+          # lint/test dù code đúng. Cài sẵn = task không còn network dependency.
+          targets: wasm32-unknown-unknown
       - name: Cache Cargo
         if: steps.cargo-projects.outputs.present == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -164,6 +206,13 @@ jobs:
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+      # `llm-api:test-integration` khai `dependsOn: [build]` — harness HTTP contract
+      # build bundle Worker WASM qua worker-build, nên runner của job này cũng cần
+      # binary cargo-install đó trên PATH, giống job `build` bên dưới. Lần chạy đầu
+      # của wasm-bindgen CLI tải về ~/.cache/worker-build (runner có network).
+      - name: Install worker-build
+        if: steps.cargo-projects.outputs.present == 'true'
+        run: cargo install worker-build --version 0.8.7 --locked
       - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
@@ -184,6 +233,42 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+      # Rust toolchain chỉ cài khi workspace có Cargo project — mọi PR JS thuần
+      # không trả phí cài đặt. `targets: wasm32-unknown-unknown` cần cho build
+      # Worker WASM của `apps/llm-api` (workers-rs qua worker-build 0.8.7).
+      - name: Detect Cargo projects
+        id: cargo-projects
+        run: |
+          if find . -name 'Cargo.toml' -not -path '*/node_modules/*' -not -path './.nx/*' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "toolchain=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - name: Setup Rust toolchain
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: ${{ steps.cargo-projects.outputs.toolchain }}
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+      - name: Cache Cargo
+        if: steps.cargo-projects.outputs.present == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+      # worker-build là binary cargo-install (không phải npm package) —
+      # prerequisite được pin trong README của apps/llm-api; build Worker WASM
+      # (`worker-build --release`) cần nó trên PATH. Lần build đầu của
+      # wasm-bindgen CLI tải về ~/.cache/worker-build (runner có network).
+      - name: Install worker-build
+        if: steps.cargo-projects.outputs.present == 'true'
+        run: cargo install worker-build --version 0.8.7 --locked
       - name: Build
         uses: ./.github/actions/run-nx-target
         with:

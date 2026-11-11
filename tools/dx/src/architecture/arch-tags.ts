@@ -115,6 +115,7 @@ export const KNOWN_SCOPES: readonly string[] = [
   'llm-consumer',
   'llm-seller',
   'llm-shared',
+  'llm-api',
   'pact',
   'payment',
   'messaging',
