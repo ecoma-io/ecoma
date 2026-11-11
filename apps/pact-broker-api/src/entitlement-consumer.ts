@@ -7,9 +7,11 @@
  * envelope `EntitlementEvent` đã được Staff Access-relay publish (P2.2).
  *
  * Mỗi message xử lý tuần tự: parse envelope → `shouldApplyEntitlementEvent`
- * (compare-and-drop theo revision) → nếu áp dụng được, ensure tenant
- * `ecoma-internal` + upsert membership role `Member` (sub = event.staff_id)
- * → ghi revision đã áp dụng. Ném lỗi khi port vi phạm hợp đồng để Queue
+ * (compare-and-drop theo revision) → nếu áp dụng được, tra cứu READ ONLY
+ * tenant canonical `ecoma` (provision sẵn first_party bởi đường bootstrap;
+ * serving path KHÔNG bao giờ tạo tenant) + upsert membership role `Member`
+ * (sub = event.staff_id) → ghi revision đã áp dụng. Ném lỗi khi port vi phạm
+ * hợp đồng (DB lỗi, tenant canonical thiếu/không active lúc grant) để Queue
  * retry theo `max_retries` + DLQ (không nuốt thành ack).
  *
  * ⚠️ Không log envelope đầy đủ — chỉ tổng kết một dòng JSON mỗi batch.
@@ -22,7 +24,6 @@ import {
   type EntitlementSyncRepo,
   type MembershipRepo,
 } from '@ecoma-io/pact-broker-api-application';
-import { isOpaqueId } from '@ecoma-io/tenant-kernel-domain';
 import {
   createPool,
   isConnectionTerminatedError,
@@ -57,11 +58,11 @@ function createEntitlementPool(connectionString: string): Pool {
   return pool;
 }
 
-/** Adapter repo Membership: delegate PgTenantRepo + ensureTenant. */
+/** Adapter repo Membership: delegate PgTenantRepo (tra cứu read-only + membership). */
 function membershipRepoAdapter(pool: Pool): MembershipRepo {
   const tenantRepo = new PgTenantRepo(pool);
   return {
-    ensureTenant: (name: string, ownerSub: string) => tenantRepo.ensureTenant(name, ownerSub),
+    getTenantByName: (name: string) => tenantRepo.getTenantByName(name),
     upsertMember: (tenantId: string, sub: string, role: string, provenance?) =>
       tenantRepo.upsertMember(tenantId, sub, role, provenance),
     markEntitlementRevoked: (tenantId: string, sub: string, eventId: string, revision: number) =>
@@ -78,7 +79,6 @@ function eventClassForEvent(event: { type: string }): 'high' | 'normal' {
 async function handleMessage(
   message: { body: unknown; ack(): Promise<void>; retry(): Promise<void> },
   deps: { membership: MembershipRepo; sync: EntitlementSyncRepo },
-  ownerSub: string,
 ): Promise<void> {
   // Parse envelope: không phải event hợp lệ là dữ liệu hỏng → ack (không retry
   // vì payload lỗi sẽ không bao giờ thành công), ghi log-level failure.
@@ -146,7 +146,7 @@ async function handleMessage(
     return;
   }
 
-  const result = await provisionEntitlementMembership(event, deps, ownerSub);
+  const result = await provisionEntitlementMembership(event, deps);
 
   writeLog({
     event: 'entitlement_consumer.message',
@@ -182,8 +182,6 @@ export async function entitlementQueueBatch(
   env: {
     ENTITLEMENT_EVENTS_QUEUE?: unknown;
     HYPERDRIVE?: { connectionString: string };
-    /** Chủ sở hữu tenant `ecoma-internal`, dùng khi ensure tenant trên đường cung. */
-    INTERNAL_TENANT_OWNER_SUB?: string;
   },
 ): Promise<void> {
   void batch.queue; // tên queue đã được runtime đảm bảo khớp binding khai báo
@@ -196,12 +194,6 @@ export async function entitlementQueueBatch(
     );
   }
 
-  const ownerSub = env.INTERNAL_TENANT_OWNER_SUB;
-  if (!isOpaqueId(ownerSub)) {
-    throw new Error(
-      'INTERNAL_TENANT_OWNER_SUB binding is missing or invalid; entitlement consumer fail-closed',
-    );
-  }
   const pool = createEntitlementPool(connectionString);
   try {
     const deps = {
@@ -215,7 +207,7 @@ export async function entitlementQueueBatch(
     // còn lại (pattern transactional-mailer-job).
     for (const message of batch.messages) {
       try {
-        await handleMessage(message, deps, ownerSub);
+        await handleMessage(message, deps);
       } catch (error) {
         // ⚠️ Không nuốt lỗi im lặng: ghi log-level failure để operator có thể
         // điều tra. `retry()` có thể throw (runtime Cloudflare) — bọc thêm để
