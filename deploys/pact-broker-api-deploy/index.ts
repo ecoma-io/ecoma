@@ -35,15 +35,23 @@
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock — `docs/applications/pact-broker/03-operations.md` §2).
  *
- * Seed machine token (issue #238): `db/migrations/` không seed token nào, mà
- * consumer chính ở local (`pact-broker-app`, unit song song) cần token máy
- * trong DB để gọi API. Command `-seed` INSERT guard idempotent MỘT tenant
- * `local` + MỘT machine token — DB chỉ lưu SHA-256 hex (không phải secret;
- * plaintext do orchestration sinh, giữ ở stack config `namespace:machineToken`
- * của stack này cho unit pact-app đọc qua cross-stack `pulumi config get`).
+ * Cấp phép máy (issue #21): `db/migrations/` không seed token nào, mà consumer
+ * chính ở local (`pact-broker-app`, unit song song) cần token máy trong DB
+ * để gọi API. Token máy được cấp bằng script service-owned
+ * (`db/provision-machine-token.mts`) chạy SAU migration và provision tenant
+ * `ecoma` — DB chỉ lưu SHA-256 hex (không phải secret; plaintext do
+ * orchestration sinh, giữ ở stack config `namespace:machineToken` của stack
+ * này cho unit pact-app đọc qua cross-stack `pulumi config get`). Plaintext
+ * là ổn định theo environment (set-if-absent của `local.ts`); rotation là
+ * hành động của người vận hành, không phải đầu ra của provision idempotent.
+ *
+ * Hai bước provisioning chạy dưới dạng container ephemeral trên platform
+ * network (giống migration, không tự viết vòng provisioning): `bootstrapTenant`
+ * (gán `ecoma` cho chủ thể đã resolve qua `local.ts`) và `machineTokenProvision`
+ * (cấp token máy theo NAME/SCOPES/PLAINTEXT đã cấu hình). Mỗi bước đúng MỘT
+ * lần Pulumi: re-run với cùng đầu vào là no-op, plaintext mới xoay phép token
+ * cũ (revoke trước khi chèn, đúng một active token sau khi xong).
  */
-
-import { createHash } from 'node:crypto';
 
 import * as command from '@pulumi/command';
 import * as docker from '@pulumi/docker';
@@ -61,8 +69,8 @@ import {
 } from '@ecoma-io/deployment';
 
 /**
- * Image Node pin (theo DIGEST) để chạy migration + seed trong container gắn
- * platform network — cùng digest mà `deploys/auth-deploy/Dockerfile` ghim.
+ * Image Node pin (theo DIGEST) để chạy migration + hai bước provisioning trong
+ * container gắn platform network — cùng digest mà `deploys/auth-deploy/Dockerfile` ghim.
  *
  * Vì sao container mà không chạy runner trên host: platform PostgreSQL KHÔNG
  * publish host port (invariant platform) và host không route được tới IP
@@ -101,15 +109,15 @@ const PACT_API_INTERNAL_PORT = 4204;
 const PACT_API_ALIAS = 'ecoma-pact-api';
 
 /**
- * Tên tenant + token machine seed ở local — consumer là `pact-broker-app`.
- * Tên tenant theo format CHECK của `pact.tenants` (`[a-zA-Z0-9._-]`).
- *
- * ⚠️ Đây là giá trị lane local còn sót lại, KHÔNG phải tên canonical: tên tenant
- * nội bộ canonical là `ecoma` ở mọi environment (ADR-0020 Quyết định 9). Đổi hằng
- * này là thay đổi hành vi, nên thuộc #21 — PR #39 chỉ chốt tên trong tài liệu.
+ * Tên + scopes của token máy consumer local (`pact-broker-app`) — consumer
+ * chính gọi API ở local. Tên token là natural key cùng với tenant; scopes
+ * `admin` vì BFF local cần toàn quyền gọi bộ endpoint. Bản thân token máy
+ * KHÔNG phải danh tính tenant: tenant canonical là `ecoma` ở mọi environment
+ * (ADR-0020 Quyết định 9), chủ thể sở hữu được giải quyết qua
+ * `namespace:tenantOwnerSub` của stack này (xem `local.ts`).
  */
-const LOCAL_TENANT_NAME = 'local';
-const LOCAL_TOKEN_NAME = 'pact-broker-app-bff';
+const MACHINE_TOKEN_NAME = 'pact-broker-app-bff';
+const MACHINE_TOKEN_SCOPES = 'admin';
 
 const conf = new pulumi.Config('namespace');
 
@@ -145,11 +153,22 @@ const migratorPassword = conf.require('migratorPassword');
 
 /**
  * Machine token plaintext của consumer local (`pact-broker-app`) — orchestration
- * sinh và set qua stack config (kênh stdin). Giá trị KHÔNG bao giờ vào log:
- * đi vào SQL seed chỉ dưới dạng SHA-256 hex (hash một chiều, không phải
- * secret), còn plaintext nằm trong stack config cho unit pact-app đọc.
+ * sinh SET-IF-ABSENT ở `local.ts` (ổn định theo environment) và unit pact-app
+ * đọc lại qua cross-stack `config get`. Giá trị KHÔNG bao giờ vào log: đi vào
+ * DB chỉ dưới dạng SHA-256 hex do script `db/provision-machine-token.mts`
+ * tự tính (hash một chiều, không phải secret); plaintext đi vào container
+ * provisioning qua env, được bọc `pulumi.secret` ở trigger.
  */
 const machineToken = conf.require('machineToken');
+
+/**
+ * `sub` chủ thể sở hữu tenant `ecoma` — do `local.ts` giải quyết qua dx runner
+ * trước khi `pulumi up` (read-only trên môi trường đã bootstrapped, fail-closed
+ * nếu không). `sub` là ĐỊNH DANH (id của Account service), không phải
+ * credential → giữ non-secret trong stack config; trigger của bước provision
+ * tenant vẫn bọc `pulumi.secret` để diff/state redact sạch.
+ */
+const tenantOwnerSub = conf.require('tenantOwnerSub');
 
 const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) => {
   if (upstreamNs !== ns) {
@@ -242,59 +261,83 @@ const migrate = new command.local.Command(
 );
 
 /**
- * SHA-256 hex của machine token — định dạng của cột `pact.machine_tokens.
- * token_hash` (UNIQUE, tra bởi `requireMachineToken`). Hash là một chiều:
- * giá trị này KHÔNG phải secret, được phép nằm trong diff/log của Pulumi.
- * Kết quả phải khớp byte-for-byte với `hashToken` của app
- * (`apps/pact-broker-api/src/auth/hashing.ts` — SHA-256 hex lowercase của
- * chuỗi UTF-8), cùng bảng chữ cái nên `node:crypto` và WebCrypto cho cùng
- * digest.
+ * Percent-encode mật khẩu runtime trước khi ghép vào userinfo của DATABASE_URL
+ * — cùng lý do với `migratorPasswordEncoded` phía trên (finding security OCR).
+ * Encode trên plaintext; kết quả được bọc `pulumi.secret` trong template. Biến
+ * kết quả KHÔNG mang tên khớp regex nguồn nhạy cảm (`password`...) nên không
+ * bị taint-source của rule `security-sensitive-value-in-http-response` đánh dấu
+ * (source là identifier bắt đầu bằng token/password/secret...). Dùng chung bởi
+ * provision tenant, provision token máy và connection string Hyperdrive.
  */
-const machineTokenHash = createHash('sha256').update(machineToken).digest('hex');
+const runtimePasswordEncoded = encodeURIComponent(runtimePassword);
 
 /**
- * Seed dữ liệu local: MỘT tenant + MỘT machine token cho `pact-broker-app`.
+ * Provision tenant canonical `ecoma` qua **script service-owned**
+ * (`db/bootstrap-tenant.mts`) — container ephemeral trên platform network chạy
+ * đúng entry của repo (target Nx `db:bootstrap`), KHÔNG tự viết vòng
+ * provisioning. Idempotent theo ADR-0020: tenant đã hội tụ là no-op verify
+ * (không đè owner, không đè classification/plan), trạng thái lệch thì
+ * fail-closed. Repo mount read-only; password runtime qua `-e` env của
+ * container (kênh được chấp nhận), không argv, không log.
  *
- * Chạy SAU migrate (cần bảng `pact.tenants`/`pact.machine_tokens`), qua
- * `docker exec` psql vào container PostgreSQL (trust local trong container —
- * cùng đường với migration của backoffice-deploy). MỘT câu SQL: CTE insert
- * tenant (idempotent) rồi INSERT token với id vừa trả.
- *
- * - Tenant: `ON CONFLICT (name) DO UPDATE` thay vì `DO NOTHING` chỉ để
- *   `RETURNING id` luôn trả row khi đã tồn tại (DO NOTHING bỏ mất row);
- *   refresh `updated_at` là vô hại ở local. Tenant là dữ liệu bền — token
- *   phải trỏ về CÙNG tenant qua các lần up.
- * - Token: DB chỉ nhận HASH SHA-256 (không phải secret — giá trị trong
- *   diff/log là digest một chiều). `ON CONFLICT (token_hash) DO NOTHING` làm
- *   re-run với CÙNG hash là no-op (idempotent — orchestration giữ nguyên
- *   config giữa các lần up là trường hợp chính), còn hash MỚI (orchestration
- *   sinh token khác) thì INSERT row mới; row cũ vẫn hiệu lực tới khi bị
- *   revoke. Đây là drift chấp nhận được ở local (cùng tính chất với password
- *   role được ALTER mỗi lần up); revoke token cũ là việc vận hành thủ công,
- *   không phải việc của provision idempotent.
+ * `CANONICAL_TENANT_OWNER_SUB` qua env: sub do `local.ts` resolve từ dx runner
+ * trước khi up. Trigger bọc `pulumi.secret(tenantOwnerSub)` — state/diff chỉ
+ * thấy `[secret]`; sub đổi là bước chạy lại (membership verify theo sub).
  */
-const seedScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-docker exec "$PG" psql -U ecoma_pact_broker_migrator -d db-pact-broker -v ON_ERROR_STOP=1 -c ${shellQuote(`WITH tenant AS (
-  INSERT INTO pact.tenants (name) VALUES (${sqlQuote(LOCAL_TENANT_NAME)})
-  ON CONFLICT (name) DO UPDATE SET updated_at = now()
-  RETURNING id
-)
-INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, scopes)
-SELECT ${sqlQuote(machineTokenHash)}, tenant.id, ${sqlQuote(LOCAL_TOKEN_NAME)}, 'admin' FROM tenant
-ON CONFLICT (token_hash) DO NOTHING;`)}
+const bootstrapTenantScript = pulumi.interpolate`set -e
+docker run --rm \\
+  --network ${networkName} \\
+  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
+  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
+  -w /repo/apps/pact-broker-api \\
+  -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
+  -e CANONICAL_TENANT_OWNER_SUB=${tenantOwnerSub} \\
+  ${NODE_IMAGE} \\
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
 `;
 
-const seed = new command.local.Command(
-  dockerResourceName(ns, 'pact-api') + '-seed',
+const bootstrapTenant = new command.local.Command(
+  dockerResourceName(ns, 'pact-api') + '-bootstrap-tenant',
   {
-    create: seedScript,
-    update: seedScript,
-    // Trigger chỉ token (hash của nó) — tenant name + token name là hằng số
-    // compile-time; migratorPassword đổi thì migrate đã chạy lại trước.
-    triggers: [machineTokenHash],
+    create: bootstrapTenantScript,
+    update: bootstrapTenantScript,
+    triggers: [pulumi.secret(tenantOwnerSub), worktreeRoot],
   },
   { dependsOn: [migrate] },
+);
+
+/**
+ * Cấp token máy của consumer local qua **script service-owned**
+ * (`db/provision-machine-token.mts`) — chạy SAU provision tenant (token phải
+ * trỏ về tenant `ecoma` đã tồn tại). Hợp đồng 02-delivery.md §3.2: đúng MỘT
+ * token active cho (tenant `ecoma`, name `pact-broker-app-bff`); plaintext
+ * đổi = rotation (revoke row cũ trước khi chèn); re-run cùng plaintext =
+ * no-op; token bị revoke thủ công KHÔNG được hồi sinh. DB chỉ nhận SHA-256
+ * hex — plaintext đi qua env của container, bọc `pulumi.secret` ở trigger và
+ * trong template.
+ */
+const machineTokenProvisionScript = pulumi.interpolate`set -e
+docker run --rm \\
+  --network ${networkName} \\
+  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
+  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
+  -w /repo/apps/pact-broker-api \\
+  -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
+  -e PACT_MACHINE_TOKEN_NAME=${MACHINE_TOKEN_NAME} \\
+  -e PACT_MACHINE_TOKEN_SCOPES=${MACHINE_TOKEN_SCOPES} \\
+  -e PACT_MACHINE_TOKEN_PLAINTEXT=${pulumi.secret(machineToken)} \\
+  ${NODE_IMAGE} \\
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts
+`;
+
+const machineTokenProvision = new command.local.Command(
+  dockerResourceName(ns, 'pact-api') + '-machine-token',
+  {
+    create: machineTokenProvisionScript,
+    update: machineTokenProvisionScript,
+    triggers: [pulumi.secret(machineToken), worktreeRoot],
+  },
+  { dependsOn: [bootstrapTenant] },
 );
 
 /**
@@ -323,18 +366,13 @@ const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'pact-api-wic-imag
  * TRƯỚC interpolate (redact trong diff/log); giá trị đi vào container qua kênh
  * `envs` — không argv, không label, không log.
  *
- * Mật khẩu được percent-encode (`encodeURIComponent`) trước khi ghép vào
- * userinfo của URL: bất biến `generatePostgresPassword` (base64url, chỉ
- * `A-Za-z0-9-_`) hiện không chứa ký tự dành riêng của URL, nhưng encode là
- * vệ tinh an toàn khi ai đó `pulumi config set` giá trị thủ công chứa
- * `@ : / ? #` — parser `pg`/workerd giải mã percent-encoding đúng chuẩn, nên
- * hai đường đều đúng.
+ * Mật khẩu đã percent-encode trong `runtimePasswordEncoded` dùng chung phía
+ * trên (cùng lý do encode — đúng chuẩn cho parser `pg`/workerd).
  *
  * Tên biến: `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_` + TÊN BINDING
  * wrangler (`HYPERDRIVE` của `apps/pact-broker-api/wrangler.jsonc` — cùng tên
  * mà `src/config.ts` đọc qua `env.HYPERDRIVE`).
  */
-const runtimePasswordEncoded = encodeURIComponent(runtimePassword);
 const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker?sslmode=disable`;
 
 /**
@@ -386,10 +424,10 @@ const wicStateInit = new docker.Container(
  * Container WIC — MỘT worker `wrangler dev` (pact-broker-api) qua
  * `wic-entrypoint.sh`, plain HTTP trên platform network.
  *
- * Thứ tự phụ thuộc: provision → migrate → seed → image → volume → container —
- * container chỉ lên sau khi schema + dữ liệu seed sẵn sàng, để request đầu
- * tiên của consumer (login BFF lấy token tra DB) không rơi vào cửa sổ
- * chưa-seed.
+ * Thứ tự phụ thuộc: provision → migrate → bootstrap-tenant → machine-token →
+ * image → volume → container — container chỉ lên sau khi schema + tenant
+ * canonical + token máy sẵn sàng, để request đầu tiên của consumer (login BFF
+ * lấy token tra DB) không rơi vào cửa sổ chưa-cấp token.
  *
  * Env:
  * - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` (secret):
@@ -466,7 +504,7 @@ const wic = new docker.Container(
       // `/health` chứ không phải một route nghiệp vụ: probe infra không được
       // phụ thuộc DB (thiết kế của app — `/health` không credential, không
       // chạm DB). 200 = worker boot và serve được request; readiness nghiệp
-      // vụ (DB + token seed) là việc của smoke ở wiring PR.
+      // vụ (DB + token máy đã cấp) là việc của smoke ở wiring PR.
       tests: [
         'CMD',
         'node',
@@ -486,12 +524,13 @@ const wic = new docker.Container(
       startPeriod: '2m0s',
     },
   },
-  { dependsOn: [seed, wicImage, wicStateVolume, wicStateInit] },
+  { dependsOn: [machineTokenProvision, wicImage, wicStateVolume, wicStateInit] },
 );
 
 export const provisionCommandName = provision.id;
 export const migrateCommandName = migrate.id;
-export const seedCommandName = seed.id;
+export const bootstrapTenantCommandName = bootstrapTenant.id;
+export const machineTokenProvisionCommandName = machineTokenProvision.id;
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
 export const containerId = wic.id;
