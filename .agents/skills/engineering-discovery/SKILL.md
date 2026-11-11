@@ -31,7 +31,11 @@ effort — the product's identity comes from the Product Registry owned by
 `work-management.md` §4.1, never from `docs/features/README.md` feature
 areas, feature directory names, bounded contexts, Nx projects or
 applications, and horizons are read from the product's Milestone commitment
-declarations (`work-management.md` §4.1).
+declarations (`work-management.md` §4.1). Cross-cutting Discovery follows
+the driving pipeline's product ID, names the shared context explicitly, or
+stays unattributed when no pipeline genuinely drives it (`work-management.md`
+§4) — a cross-product root issue names the participating products instead of
+one global product.
 
 ## Canonical references
 

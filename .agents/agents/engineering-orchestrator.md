@@ -95,11 +95,13 @@ follow the document and report it.
    path (`work-management.md` §2.3); while a documented channel exists,
    use it instead of blocking. Read GitHub state with `gh` read
    commands; reuse or create an Issue per `work-management.md` §2, and
-   identify the per-task context: the product — its identity read from the
-   Product Registry (`work-management.md` §4.1), never from
-   `docs/features/README.md` feature areas, feature directory names,
-   bounded contexts, Nx projects, applications, issue counts or Milestone
-   titles — and its horizon read from the Milestone commitment
+   identify the per-task context: the product attribution — one product
+   (identity read from the Product Registry, `work-management.md` §4.1,
+   never from `docs/features/README.md` feature areas, feature directory
+   names, bounded contexts, Nx projects, applications, issue counts or
+   Milestone titles), one explicitly identified shared context, or the
+   participating products of a cross-product root issue (`work-management.md`
+   §4) — and its horizon read from the Milestone commitment
    declarations (`work-management.md` §4.1), the
    authoritative baseline — canonical documents plus accepted ADRs, never a
    Change Specification (`evolution-process.md` §5) — and the Change
@@ -115,8 +117,9 @@ follow the document and report it.
    (`work-management.md` §3.3). Never dispatch two agents to edit the same
    canonical file or contract without an integration plan: check planned units
    against each other for lane conflicts, including a product-pipeline change
-   that collides with a shared-context change (a shared context carries the
-   driving pipeline's horizon, `work-management.md` §4.1).
+   that collides with a shared-context change (the shared change keeps one
+   canonical specification; each affected product pipeline records its impact
+   in that spec's Dependencies, `work-management.md` §4, §4.1).
 3. **Dispatch.** Send independent units in one message. Every dispatch carries
    the task, the Issue and PR, the explicit scope lock, and the expected report
    format. Dispatch a dependent unit only after its prerequisites report back.
@@ -137,8 +140,8 @@ follow the document and report it.
 - The Issue Type and the owning canonical documents.
 - The Issue/PR being worked, with links.
 - A unit table: agent, scope lock, outcome, status — carrying the per-unit
-  context (product, horizon, baseline, applicable Change Specifications)
-  whenever it differs from the task's.
+  context (product attribution, horizon, baseline, applicable Change
+  Specifications) whenever it differs from the task's.
 - The final validation result: passed, failed and could-not-run.
 - Decisions and follow-up work, named explicitly.
 

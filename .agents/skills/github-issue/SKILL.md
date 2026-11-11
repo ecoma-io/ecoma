@@ -16,7 +16,8 @@ and write the title and body. This skill introduces no competing process.
 
 Sources of truth, in order of authority: `docs/engineering/work-management.md`
 (policy — §2.2 record kinds and their Issue Types, §2.3 how the Issue Type is
-recorded, §3 Project membership, §4 Milestones and horizons),
+recorded, §3 Project membership, §4 product attribution, Milestone delivery
+commitments and horizons, §4.2 completion/activation/release independence),
 `docs/engineering/evolution-process.md` §4.1 (the five Issue Type values and
 the priority order), `AGENTS.md` (workflow, language), `docs/AGENTS.md` §2
 (writing quality), and the forms in `.github/ISSUE_TEMPLATE/` (structure).
@@ -165,6 +166,11 @@ Minimum content for a work item, per `work-management.md` §2.4:
 
 - **Outcome** — observable result, not a task list.
 - **Phạm vi** — what may change, and the non-goals.
+- **Product attribution** — the Product ID of the driving pipeline, an
+  explicitly named shared context, or the participating products for a
+  cross-product root issue (`work-management.md` §2.4, §4). A cross-product
+  root issue never carries one global product ID or one global horizon; its
+  child issues each belong to one product or one shared context.
 - **Ràng buộc** — invariants, contracts, accepted decisions, with links.
 - **Dependency** — work or decisions that must land first.
 - **Điều kiện hoàn thành** — how to verify.
@@ -191,7 +197,10 @@ Milestone carries it (`work-management.md` §2.1, §3.2).
 - **Root issues own outcomes and belong to the Project.** A root issue that
   needs decomposition takes sub-issues; one that does not acts as its own
   unit. It closes when its outcome is met and reconciled
-  (`work-management.md` §2.6).
+  (`work-management.md` §2.6). A root issue may be product-specific or
+  cross-product: a cross-product root describes the overall outcome and each
+  participating product's scope, with no single global product ID or horizon
+  (`work-management.md` §4).
 - **Sub-issues own work units and never join the Project.** They are visible
   through the root issue's native sub-issues progress. A sub-issue never
   inherits Project membership from its parent, and never carries

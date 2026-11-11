@@ -100,7 +100,7 @@ Có đúng năm giá trị: **Discovery**, **Modelling**, **Experiment**, **Deli
 
 Issue Type **khác** nhãn Issue (`bug`, `enhancement`, `documentation`) và khác loại form: nhãn và form nói đây là loại artifact gì; Issue Type nói bản chất thay đổi là gì. Không suy Issue Type từ nhãn hay từ form.
 
-Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc đang mở chưa commit vào Milestone nào) — đọc từ khai báo commitment của Milestone: `Product: <product-id>` theo registry trong `work-management.md` §4.1, kèm `Horizon: M1|M2`; chi tiết ở `work-management.md` §4.1.
+Mỗi product có pipeline riêng theo horizon — **M1** (delivery hiện tại), **M2** (delivery kế tiếp), **Feature Discovery** (công việc Discovery/Modelling/Experiment đang mở chưa nằm dưới khai báo `Horizon:` nào trỏ product đó) — đọc từ khai báo commitment của Milestone: dòng `Product: <product-id>` hoặc `Participating products: <id1>, <id2>` theo registry trong `work-management.md` §4.1, kèm không hoặc nhiều dòng `Horizon: M1|M2`. Milestone là delivery commitment độc lập với product — một milestone có thể chứa công việc của một hoặc nhiều product, và product tham gia không vì thế phải cùng horizon hay cùng lịch release; chi tiết ở `work-management.md` §4.
 
 ### 3.3 Khi nào cần Discovery, Modelling hoặc Experiment trước Delivery?
 
