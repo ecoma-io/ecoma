@@ -14,8 +14,8 @@ browser console output and network behavior, then writes a report.
 This skill defines ONLY the review procedure. It introduces no test category,
 no Nx target, and no test suite. Manual visual review is a serve-mode UI-preview
 activity — not automated regression — per [`docs/architecture/02-delivery.md`](../../../docs/architecture/02-delivery.md)
-§10 and [`docs/architecture/06-testing.md`](../../../docs/architecture/06-testing.md) §1 ("the runner does not decide
-the test category"). Command syntax belongs to the `playwright-cli` skill;
+§10 and [`docs/architecture/06-testing.md`](../../../docs/architecture/06-testing.md) §1 (the runner does not decide
+the test category). Command syntax belongs to the `playwright-cli` skill;
 this skill references it by name and never duplicates its command reference.
 
 Canonical documents outrank this skill. Where they disagree, the document wins.
