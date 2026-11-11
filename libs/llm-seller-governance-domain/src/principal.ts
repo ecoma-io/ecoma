@@ -277,10 +277,15 @@ export function appendPrincipalLegalProfileVersion(
           recordedBy: input.recordedBy,
         }),
       ]),
-      // Append chính là thao tác gây transition sang `reverification_required`
-      // (§3.8 đồng bộ), nên audit trạng thái ghi actor/time của lần publish này.
-      statusChangedAt: input.recordedAt,
-      statusChangedBy: input.recordedBy,
+      // Append từ `active` chính là transition sang `reverification_required`
+      // (§3.8 đồng bộ), nên audit trạng thái ghi actor/time của lần publish
+      // này. Append khi ĐÃ ở `reverification_required` không phải transition
+      // mới — giữ nguyên audit của transition đầu tiên, không ghi đè dấu vết
+      // forensic (cùng convention với approve: không đổi audit khi không có
+      // transition).
+      ...(input.principal.status === 'reverification_required'
+        ? {}
+        : { statusChangedAt: input.recordedAt, statusChangedBy: input.recordedBy }),
     }),
   );
 }
@@ -352,10 +357,15 @@ export function appendPrincipalTaxProfileVersion(
           recordedBy: input.recordedBy,
         }),
       ]),
-      // Append chính là thao tác gây transition sang `reverification_required`
-      // (§3.8 đồng bộ), nên audit trạng thái ghi actor/time của lần publish này.
-      statusChangedAt: input.recordedAt,
-      statusChangedBy: input.recordedBy,
+      // Append từ `active` chính là transition sang `reverification_required`
+      // (§3.8 đồng bộ), nên audit trạng thái ghi actor/time của lần publish
+      // này. Append khi ĐÃ ở `reverification_required` không phải transition
+      // mới — giữ nguyên audit của transition đầu tiên, không ghi đè dấu vết
+      // forensic (cùng convention với approve: không đổi audit khi không có
+      // transition).
+      ...(input.principal.status === 'reverification_required'
+        ? {}
+        : { statusChangedAt: input.recordedAt, statusChangedBy: input.recordedBy }),
     }),
   );
 }

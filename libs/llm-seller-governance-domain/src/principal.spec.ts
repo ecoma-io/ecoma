@@ -328,6 +328,41 @@ describe('principal revisions — append-only, reverification_required in the sa
     expect(second.status).toBe('reverification_required');
     expect(second.legalProfileVersions).toHaveLength(2);
     expect(second.taxProfileVersions).toHaveLength(2);
+    // Không phải transition mới — audit trạng thái không bị ghi đè.
+    expect(second.statusChangedAt).toBeNull();
+    expect(second.statusChangedBy).toBeNull();
+  });
+
+  it('keeps the first transition audit when appending repeatedly at reverification_required', () => {
+    // Forensic: active → `reverification_required` là transition duy nhất mà
+    // append gây ra; các append sau đó không được xoá dấu vết của transition đó.
+    const appended = expectOk(
+      appendPrincipalLegalProfileVersion({
+        principal: activePrincipal(),
+        legalName: 'Ecoma-io II',
+        legalType: 'company',
+        jurisdiction: 'VN',
+        registrationReference: 'REG-ECOMA-2',
+        effectiveFrom: AT + 100,
+        recordedAt: AT + 100,
+        recordedBy: ACTOR,
+      }),
+    );
+    expect(appended.statusChangedAt).toBe(AT + 100);
+    const again = expectOk(
+      appendPrincipalTaxProfileVersion({
+        principal: appended,
+        taxResidency: 'SG',
+        taxIdentifier: 'TAX-ECOMA-SG',
+        declarationReference: 'DECL-ECOMA-SG',
+        effectiveFrom: AT + 200,
+        recordedAt: AT + 200,
+        recordedBy: ACTOR,
+      }),
+    );
+    expect(again.status).toBe('reverification_required');
+    expect(again.statusChangedAt).toBe(AT + 100);
+    expect(again.statusChangedBy).toBe(ACTOR);
   });
 
   it('rejects a non-increasing effectiveFrom', () => {
