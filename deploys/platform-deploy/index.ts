@@ -595,23 +595,53 @@ const objectStoreDataVolume = new docker.Volume('object-store-data', {
  * (create lẫn update cùng script; trigger đổi khi secret đổi), nên volume chỉ
  * là nơi chứa, không phải nguồn sự thật — nguồn là stack config.
  *
- * Secret đi qua `pulumi.secret(...)` bọc TRƯỚC khi interpolate: script là
- * Output bí mật, state/diff chỉ thấy `[secret]` (cùng pattern migrate của
- * remote-cache-api-deploy). `chown 1000:1000` + `chmod 0600`: file chỉ đọc
- * được bởi uid weed chạy trong container (image chạy non-root user `seaweed`,
- * uid kỳ vọng 1000 — đã xác minh tại runtime qua `stat` sau lần boot đầu).
- * Heredoc delimiter không quote an toàn vì nội dung JSON chỉ chứa ký tự
- * `A-Za-z0-9-_` của base64url + punctuation JSON — không có `$`/backtick
- * để shell mở rộng.
+ * Secret KHÔNG nằm trong chuỗi command: chuỗi đó chạy qua argv của shell host
+ * lẫn của `docker run` trong container, mà argv đọc được qua
+ * `ps`/`/proc/<pid>/cmdline` — interpolate secret vào command (heredoc cũ) là
+ * đưa secret ra ngoài mọi liệt kê process dù `pulumi.secret` đã bọc (secret
+ * chỉ redact trong state/diff/log, không biến mất khỏi argv). Transport thay
+ * thế: JSON đi qua input `stdin` của resource — `pulumi.secret(...)` bọc
+ * TRƯỚC khi nối JSON nên state/diff/log của stdin chỉ thấy `[secret]`, còn
+ * runtime provider ghi payload vào stdin của `docker run -i`; pipe của Docker
+ * dẫn thẳng tới `cat > /cfg/s3.json` trong container, nên trên argv chỉ còn
+ * chuỗi command sạch — không secret, không heredoc, không cờ `-e` truyền env.
+ *
+ * `jsonStringify` nối JSON đúng hình cũ mà bỏ ràng buộc ký tự: heredoc không
+ * quote cũ bắt buộc nội dung chỉ chứa `A-Za-z0-9-_` + punctuation JSON
+ * (không có `$`/backtick để shell mở rộng); giờ giá trị `config set` thủ công
+ * chứa ký tự bất kỳ cũng an toàn vì JSON không đi qua parser shell nào.
+ *
+ * Triggers giữ nguyên hành vi rotation: secret đổi là command chạy lại với
+ * stdin mới, file được viết lại bằng credential mới.
+ *
+ * `chown 1000:1000` + `chmod 0600`: file chỉ đọc được bởi uid weed chạy trong
+ * container (image chạy non-root user `seaweed`, uid kỳ vọng 1000 — đã xác
+ * minh tại runtime qua `stat` sau lần boot đầu).
  */
+const s3ConfigJson = pulumi
+  .all([
+    OBJECT_STORE_IDENTITY_NAME,
+    OBJECT_STORE_ACCESS_KEY_ID,
+    pulumi.secret(objectStorageSecretKey),
+    OBJECT_STORE_BUCKET,
+  ])
+  .apply(([identityName, accessKeyId, secretKey, bucket]) =>
+    pulumi.jsonStringify({
+      identities: [
+        {
+          name: identityName,
+          credentials: [{ accessKey: accessKeyId, secretKey }],
+          actions: [`Read:${bucket}`, `Write:${bucket}`, `List:${bucket}`],
+        },
+      ],
+    }),
+  );
+
 const s3ConfigScript = pulumi.interpolate`set -e
-docker run --rm \\
+docker run --rm -i \\
   -v ${objectStoreConfigVolume.name}:/cfg \\
   ${OBJECT_STORE_CONFIG_INIT_IMAGE} \\
-  sh -c 'cat > /cfg/s3.json <<S3CONFIG
-{"identities":[{"name":"${OBJECT_STORE_IDENTITY_NAME}","credentials":[{"accessKey":"${OBJECT_STORE_ACCESS_KEY_ID}","secretKey":"${pulumi.secret(objectStorageSecretKey)}"}],"actions":["Read:${OBJECT_STORE_BUCKET}","Write:${OBJECT_STORE_BUCKET}","List:${OBJECT_STORE_BUCKET}"]}]}
-S3CONFIG
-chown 1000:1000 /cfg/s3.json && chmod 0600 /cfg/s3.json'
+  sh -c 'cat > /cfg/s3.json && chown 1000:1000 /cfg/s3.json && chmod 0600 /cfg/s3.json'
 `;
 
 const objectStoreConfigInit = new command.local.Command(
@@ -619,6 +649,7 @@ const objectStoreConfigInit = new command.local.Command(
   {
     create: s3ConfigScript,
     update: s3ConfigScript,
+    stdin: s3ConfigJson,
     triggers: [pulumi.secret(objectStorageSecretKey), worktreeRoot],
   },
   { dependsOn: [objectStoreConfigVolume] },

@@ -311,7 +311,7 @@ export function resolveObjectStorageSecretKey(
 
   // Sinh secret theo hình credential: `generatePostgresPassword` là generator
   // chung của repo cho credential 24-byte base64url (chỉ `A-Za-z0-9-_`) — an
-  // toàn qua stdin của `config set`, qua heredoc shell của config-init và trong
+  // toàn qua stdin của `config set`, qua stdin của config-init (không argv) và
   // file JSON không cần quote. Dùng lại thay vì sinh ra generator thứ hai có
   // cùng hình — tên hàm là tên gốc, ý nghĩa ở đây là "credential-shaped secret".
   const secretKey = generatePostgresPassword();
