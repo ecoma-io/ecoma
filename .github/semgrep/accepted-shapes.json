@@ -318,11 +318,11 @@
   {
     "rule": "security-sensitive-value-logged",
     "path": "tools/project-management/src/reconcile-command.ts",
-    "start": 177,
-    "end": 177,
-    "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP. Pin dịch 5 dòng khi nhánh dead-code của token check bị gỡ; nội dung finding không đổi.",
+    "start": 184,
+    "end": 184,
+    "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP. Pin dịch 7 dòng khi validate `--verify-deadline-ms` thêm trần 24h; nội dung finding không đổi.",
     "lines": {
-      "177": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
+      "184": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
     }
   }
 ]
