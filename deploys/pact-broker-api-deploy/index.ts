@@ -291,7 +291,7 @@ docker run --rm \\
   -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
   -w /repo/apps/pact-broker-api \\
   -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
-  -e CANONICAL_TENANT_OWNER_SUB=${tenantOwnerSub} \\
+  -e CANONICAL_TENANT_OWNER_SUB=${shellQuote(tenantOwnerSub)} \\
   ${NODE_IMAGE} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
 `;
@@ -325,7 +325,7 @@ docker run --rm \\
   -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
   -e PACT_MACHINE_TOKEN_NAME=${MACHINE_TOKEN_NAME} \\
   -e PACT_MACHINE_TOKEN_SCOPES=${MACHINE_TOKEN_SCOPES} \\
-  -e PACT_MACHINE_TOKEN_PLAINTEXT=${pulumi.secret(machineToken)} \\
+  -e PACT_MACHINE_TOKEN_PLAINTEXT=${pulumi.secret(machineToken).apply(shellQuote)} \\
   ${NODE_IMAGE} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts
 `;
@@ -407,7 +407,10 @@ const wicStateInit = new docker.Container(
     // container trước khi provider kịp inspect sau create — "No such container"
     // làm fail toàn bộ create (race flaky, đã gặp trên máy thật). `mustRun:
     // false` đủ để chấp nhận container đã exit; container exited nằm lại
-    // `docker ps -a` và bị dọn bởi destroy hoặc lần up sau cùng tên.
+    // `docker ps -a` tới khi destroy xoá nó đúng nghĩa. KHÔNG dùng
+    // `retainOnDelete`: container one-shot không có dữ liệu gì để giữ — giữ
+    // retain sẽ khiến destroy chỉ xoá state mà không xoá container thật, và
+    // lần up sau bị Docker từ chối vì trùng tên container.
     mustRun: false,
     mounts: [
       {
@@ -420,7 +423,7 @@ const wicStateInit = new docker.Container(
     // Ownership labels — cùng lý do volume phía trên.
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
   },
-  { dependsOn: [wicStateVolume], retainOnDelete: true },
+  { dependsOn: [wicStateVolume] },
 );
 
 /**
