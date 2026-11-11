@@ -55,5 +55,12 @@
     // để mặc định "mọi @types trong node_modules".
     "types": ["node"]
   },
-  "files": ["index.ts", "local.ts"]
+  // `smoke.ts` là entry host của target `local-smoke` — cùng lib es2022 vì nó
+  // chỉ spawn docker và gọi helper của lib. Script smoke INNER không thuộc
+  // project này: nó nằm CÙNG app (`apps/remote-cache-api/smoke/smoke-inner.mts`)
+  // để import được class `S3ObjectStorage` thật (ranh giới module cấm
+  // `deploy → composition`) và được typecheck bởi chương trình spec của app.
+  // Composite bắt buộc liệt kê TẤT CẢ file trong graph — các helper được
+  // `index.ts`/`smoke.ts` import phải nằm trong danh sách.
+  "files": ["index.ts", "local.ts", "smoke.ts", "node-image.ts", "object-storage-env.ts"]
 }

@@ -211,6 +211,7 @@
           "{projectRoot}/src/main.ts",
           "{projectRoot}/src/config.ts",
           "{projectRoot}/db/**/*.mts",
+          "{projectRoot}/smoke/**/*.mts",
           "!{projectRoot}/out-tsc/**/*",
           "!{projectRoot}/dist/**/*",
           {

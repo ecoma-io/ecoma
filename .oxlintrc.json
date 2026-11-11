@@ -738,6 +738,26 @@
       }
     },
     {
+      // Smoke real-storage của remote-cache (file `smoke/smoke-inner.mts` của
+      // app): script chạy TRÊN NODE RUNNER trong container gắn platform network
+      // (npx tsx, image Node pin của deploy unit) — không được bundle vào Worker
+      // edge (wrangler chỉ bundle từ `src/main.ts`, file không được reference từ
+      // nguồn nào của app). Nó import `node:crypto` (randomBytes cho key smoke),
+      // in PASS/FAIL qua console, và import class `S3ObjectStorage` thật của app
+      // (`../src/storage`) — colocate là quyết định của coordinator: ranh giới
+      // module cấm `deploy → composition`, còn composition tự import chính nó
+      // là hợp lệ. Cùng tính chất với block `apps/*/db/**` phía trên; glob HẸP
+      // theo một app + thư mục `smoke/` — Worker code của app vẫn chịu ràng buộc
+      // `runtime:edge`. Block này đứng SAU override `apps/**` nên exemption có
+      // hiệu lực.
+      "files": ["apps/remote-cache-api/smoke/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "rules": {
+        "no-console": "off",
+        "no-restricted-imports": "off",
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
       // Spec chạy ở test time trên Node runner, không được bundle vào Worker
       // edge — nên được phép đọc file thật (`node:fs`) để assert trên artifact
       // đã build (`.output`) thay vì chỉ assert trên source. Đây là lý do duy
