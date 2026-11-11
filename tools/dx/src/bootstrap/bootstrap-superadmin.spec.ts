@@ -483,7 +483,11 @@ describe('runBootstrapSuperadmin in resolve-or-bootstrap mode', () => {
     ]);
     // Lần xác thực chỉ đúng chủ thể preflight đã đọc.
     expect(recorded.requests[1]?.input['sub']).toBe(`sub_${'r'.repeat(32)}`);
-    expect(recorded.requests[1]?.input['correlation_id']).toBe('corr-resolve-ok');
+    // KHÔNG có correlation_id: kiểm 5 của staff.verify đòi audit row của lần
+    // chạy mang correlation id đó — một lần resolve không có lần ghi nào, nên
+    // correlation id mới luôn fail `audit_trail_missing` trên môi trường đã
+    // hội tụ. Vắng nó, service bỏ kiểm 5 (xác thực kiểm 1–4 là đủ).
+    expect(recorded.requests[1]?.input['correlation_id']).toBeUndefined();
   });
 
   it('never invokes a writing stage and fails closed when the read-only verification fails', () => {

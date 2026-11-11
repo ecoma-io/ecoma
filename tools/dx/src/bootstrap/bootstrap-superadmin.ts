@@ -254,13 +254,19 @@ function runResolveOrBootstrap(options: BootstrapRunOptions): BootstrapRunResult
       detail: 'bootstrap account present',
     });
 
-    // Bằng chứng chỉ đọc, cùng hình dạng với S3 của procedure: đúng chủ thể
-    // này, xác thực qua staff-access. Không có provision/assign trên nhánh
-    // này — một môi trường đã hội tụ không bao giờ được cấp lại.
+    // Bằng chứng chỉ đọc, cùng hình dạng với S3 của procedure trừ audit-row:
+    // đúng chủ thể này, xác thực qua staff-access. KHÔNG truyền `correlation_id`:
+    // kiểm 5 của `staff.verify` đòi audit row `staff.provision`/`staff.assign`
+    // của chính lần chạy mang correlation id đó — một lần resolve không có lần
+    // ghi nào của mình, nên correlation id mới luôn thiếu audit row và mọi môi
+    // trường đã hội tụ sẽ fail `audit_trail_missing` vĩnh viễn. Vắng
+    // `correlation_id`, S3 bỏ kiểm 5 theo hợp đồng của service và vẫn xác thực
+    // staff/assignment/role/permissions (kiểm 1–4). Không có provision/assign
+    // trên nhánh này — một môi trường đã hội tụ không bao giờ được cấp lại.
     const verification = runStage({
       service: 'staff-access',
       action: 'staff-verify',
-      input: { correlation_id: correlationId, sub },
+      input: { sub },
     });
     if (!verification.ok) return fail(verification.stage, verification.reason);
     stages.push({ stage: verification.stage, outcome: 'verified' });
