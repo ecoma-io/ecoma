@@ -8,8 +8,8 @@ logic nằm trọn trong TypeScript của package này, YAML workflow chỉ lo t
 permission, setup và upload artifact.
 
 Ví chứng Issue gốc: ecoma-io/ecoma#95. Ràng buộc policy:
-`docs/engineering/work-management.md` §3 (membership) và §3.3 (label
-`project:track` là admission tạm thời).
+`docs/engineering/work-management.md` §3 (membership) và §3.3 (vòng đời
+membership; label `project:track` đã retire).
 
 ## Pipeline
 

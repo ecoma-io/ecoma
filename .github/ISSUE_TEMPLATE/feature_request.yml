@@ -104,7 +104,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Root issue (Issue không có parent): trong transition, label `project:track` được gắn ngay khi tạo và
-        chỉ áp dụng cho root issue — hành động admission theo §3.2–§3.3 của `docs/engineering/work-management.md`.
-        Theo policy đích, mọi root issue thuộc Project; sub-issue không thuộc Project và không bao giờ mang
-        label này. Form không biết parentage lúc tạo nên không hỏi ở đây.
+        Root issue (Issue không có parent): mọi root issue thuộc Project — membership do reconciliation
+        pipeline duy trì tự động theo §3.2–§3.3 của `docs/engineering/work-management.md`, không cần gắn
+        label hay thao tác nào khi tạo (label `project:track` đã retire). Sub-issue không thuộc Project.
+        Form không biết parentage lúc tạo nên không hỏi ở đây.

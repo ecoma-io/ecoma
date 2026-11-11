@@ -6,7 +6,7 @@
 >
 > Tài liệu này quy định **policy**, không phải ảnh chụp cấu hình GitHub. Cấu hình hiện tại phải đọc từ GitHub trước khi dùng (`gh label list`, `gh api repos/<owner>/<repo>/milestones`); một giá trị không đọc được thì không được đoán.
 >
-> **Transition:** §2.3 và §3 có khối _transition_ ghi rõ policy đích so với thực thi hiện tại (chốt 2026-11-11); đọc khối đó trước khi áp dụng các mục liên quan.
+> **Transition:** §2.3 còn khối _transition_ cho Issue Type (chốt 2026-11-11); đọc khối đó trước khi áp dụng các mục liên quan. Membership Project (§3) đã chuyển đổi xong: không còn ràng buộc chuyển tiếp nào.
 
 ## 1. Nguyên tắc
 
@@ -81,7 +81,7 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 >
 > 1. **Bước 1 (thay đổi này):** policy only. Org chưa cấu hình năm Issue Type — type của org hiện là cấu hình mặc định của GitHub (Task/Bug/Feature), không phải classification theo policy này; Project và automation chưa thay đổi.
 > 2. **Bước 2 (work item riêng A):** org cấu hình năm Issue Type Discovery/Modelling/Experiment/Delivery/Remediation. Issue Forms YAML không đặt được native type khi tạo, nên Issue tạo qua form vẫn ghi type bằng kênh tạm thời bên dưới cho tới khi bước 3 hoàn tất.
-> 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, gỡ single-select `Work kind` khỏi Project, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk), audit Project membership cho sub-issue entries, và roll out automation root-aware (§3).
+> 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, gỡ single-select `Work kind` khỏi Project, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk), audit Project membership cho sub-issue entries. (Automation root-aware đã ship 2026-11-11 — pipeline `project-management`, xem §3.2.)
 >
 > **Thẩm quyền khi lệch nguồn (divergence authority):** theo giai đoạn — (i) **trước Bước 2** (org chưa cấu hình năm Issue Type): dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền**; các nơi khác ghi lệch thì sửa theo nó. (ii) **Sau Bước 2, trước khi Bước 3 hoàn tất:** native Issue Type là kênh có thẩm quyền; Issue tạo qua form không đặt được native type nên vẫn ghi bằng dòng body — đó là kênh ghi hợp lệ của giai đoạn này cho tới khi được migrate opportunistically (Bước 3); khi một Issue có cả hai kênh mà lệch nhau, native thắng và dòng body được sửa theo nó. (iii) **Sau Bước 3:** native Issue Type là nguồn classification duy nhất; kênh body và dropdown bị retire. Kênh body là mục `Loại công việc` trong Issue body bất kể cấp heading hay hậu tố `(kênh tạm thời)` của form — đối chiếu theo tên mục, không theo literal string. Dropdown `Loại công việc` của Issue form là mặt form của kênh body (nó ghi chính dòng body đó): khi dropdown được dùng, giá trị `## Loại công việc` phải trùng dropdown — hai mặt của một kênh không được ghi lệch nhau. Sau Bước 2, không tạo classification trùng lặp: Issue đã có native type không ghi thêm dòng body, và Issue đã migrate thì dòng body được xoá ở lần cập nhật kế tiếp.
 >
@@ -169,27 +169,29 @@ Project status **không phải** capability state. `In progress` trên Project k
 - **Issue Type lấy từ native metadata**, không lưu lại bằng custom Project field (§2.3).
 - **Milestone chỉ là delivery commitment** (§4); thuộc Milestone nào không đổi tư cách thành viên Project.
 
-**Hiện tại (transition):** admission vẫn chạy qua label `project:track` và native `Auto-add to project` workflow, vì workflow đó chưa lọc được parentage và automation root-aware chưa tồn tại. Trong transition, label `project:track` chỉ áp dụng cho **root issue**, không bao giờ cho sub-issue. Đây là ràng buộc của quá trình chuyển đổi, không phải policy dài hạn: đích là automation root-aware đưa mọi root issue vào Project; việc roll out là work item riêng trong khối transition ở §2.3. Filter và trạng thái workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Tìm thấy sub-issue nằm trong Project là **lệch**: báo coordinator (§3.3), không tự xoá.
+**Thực thi (đã chuyển đổi 2026-11-11):** membership được duy trì bởi reconciliation workflow của repository — pipeline `project-management` (Nx `@ecoma-io/project-management`) chạy audit theo lịch hằng ngày và apply qua workflow dispatch. Pipeline suy desired membership từ parent/child native cộng các exclusion tường minh khai báo trong policy config colocated với pipeline, so với thực tế Project, rồi thêm/xoá item theo plan đã audit (§3.3). Label `project:track` đã retire: không gắn cho issue mới và đã bỏ khỏi issue đang mở; label object giữ lại vì issue đóng vẫn mang nó trong lịch sử. Filter của native `Auto-add to project` và trạng thái workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Tìm thấy sub-issue nằm trong Project là **lệch**: pipeline báo trong report; không xoá tay.
 
 ### 3.3 Vòng đời membership
 
-Project coordinator sở hữu vòng đời membership. Mỗi thay đổi parent/child có thể đổi tư cách root/sub, và membership đổi theo. Agent chỉ **báo** lệch; không tự archive, không tự xoá, không tự thêm item.
+Membership được duy trì tự động bởi reconciliation workflow (§3.2): root issue mới vào Project ở kỳ reconcile kế tiếp (lịch hằng ngày hoặc dispatch apply); issue hết tư cách root rời Project theo plan của pipeline sau khi audit. Mỗi thay đổi parent/child có thể đổi tư cách root/sub, và membership đổi theo — bởi pipeline, không phải bằng tay.
 
-**Admission là việc của agent tạo root issue:** gắn `project:track` theo quy tắc root issue ngay khi tạo (transition) — đây là hành động admission, không phải sửa lệch. **Mọi lệch phát sinh sau khi Issue đã tồn tại** (label/membership không khớp parentage, sub-issue nằm trong Project, label không sinh item) chỉ được **báo** coordinator sau khi đọc lại trạng thái; không tự gắn/bỏ label, không tự thêm, xoá hay archive item.
+Agent **không tự quản item**: không tự archive, không tự xoá, không tự thêm item, không gắn/bỏ label `project:track` (retired). **Mọi lệch** (sub-issue nằm trong Project, item trùng, item của issue không còn desired, item lạ không định danh được) xuất hiện trong report của pipeline; kênh sửa lệch là chạy lại pipeline (audit để xem, apply để sửa), không phải thao tác tay trên UI. Chỉnh sửa tay chỉ khi pipeline không chạy được, và phải ghi lại lý do.
 
-| Tình huống                        | Theo policy đích                        | Hiện tại (transition)                                                  |
-| --------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
-| Issue được tạo không có parent    | Là root issue → thuộc Project           | Gắn `project:track` theo quy tắc root issue; native workflow thêm item |
-| Root issue được gắn parent        | Không còn là root → rời portfolio       | Báo coordinator; không tự xoá item                                     |
-| Sub-issue bị tách parent          | Trở thành root → thuộc Project          | Coordinator đánh giá rồi áp quy tắc root issue (gắn label)             |
-| Sub-issue chuyển sang parent khác | Vẫn là sub-issue → membership không đổi | Không có hành động                                                     |
-| Issue đóng                        | Item ở lại Project; membership lịch sử  | Giữ nguyên item                                                        |
+| Tình huống                        | Hành vi của pipeline                                           |
+| --------------------------------- | -------------------------------------------------------------- |
+| Root issue được tạo               | Kỳ reconcile kế tiếp thêm item (Status do native workflow đặt) |
+| Root issue được gắn parent        | Không còn là root → item bị remove ở kỳ apply kế tiếp          |
+| Sub-issue bị tách parent          | Trở thành root → được thêm ở kỳ apply kế tiếp                  |
+| Sub-issue chuyển sang parent khác | Vẫn là sub-issue → membership không đổi                        |
+| Issue đóng                        | Item ở lại Project; membership lịch sử                         |
+| Item trùng của cùng issue         | Giữ đúng một item, remove phần thừa                            |
+| Item PR/draft trong Project       | Không bao giờ tự remove — chỉ báo trong report                 |
 
 Quy tắc:
 
-- **Lệch giữa label, membership và policy là việc của coordinator.** Item không label (membership lịch sử), label không có item (workflow chưa chạy hoặc bị tắt), sub-issue nằm trong Project — đều phải được ghi nhận và **báo**, không tự sửa. Hiện nay automation chưa root-aware: không tuyên bố auto-sync theo root đã hoạt động. Label có mà item chưa xuất hiện (workflow chưa chạy hoặc bị tắt): đọc lại Project trước khi báo để loại race; báo kèm bằng chứng đã đọc lại. Việc chạy lại workflow hoặc thêm item thủ công là quyết định của coordinator.
-- **Không auto-archive/xoá item.** Xoá hoặc archive là quyết định riêng của coordinator, cần lý do được ghi; không suy ra việc xoá từ thay đổi hierarchy.
-- **Label không phải Project `Status`.** Gắn hay bỏ label không đổi status; `Done` của Project vẫn không phải capability state (§3.1). Native workflow có thể tự đặt `Status` khi Issue đóng hoặc Pull Request merge — đó là trạng thái của item, không phải capability state. Các field còn lại do coordinator cập nhật theo công việc thực tế; policy này không quy định việc bật hay tắt các workflow đó.
+- **Sửa lệch qua pipeline, không qua tay.** Report audit là bằng chứng lệch; apply là cách sửa. Không kết luận lệch từ một lần đọc duy nhất nếu pipeline vừa chạy xong — GitHub Projects cần thời gian truyền bá item mới (đọc lại hoặc đợi kỳ audit sau).
+- **Xoá item chỉ theo plan đã audit của pipeline; archive là quyết định riêng của coordinator**, cần lý do được ghi; không suy ra việc archive từ thay đổi hierarchy.
+- **Membership không phải Project `Status`.** `Done` của Project vẫn không phải capability state (§3.1). Native workflow có thể tự đặt `Status` khi item được thêm, Issue đóng hoặc Pull Request merge — đó là trạng thái của item, không phải capability state. Các field còn lại do coordinator cập nhật theo công việc thực tế; policy này không quy định việc bật hay tắt các workflow đó.
 
 ### 3.4 Cấu hình tối thiểu
 
@@ -207,7 +209,7 @@ Chỉ thêm field khác khi có semantics rõ và có người dùng thật:
 - Field ngày chỉ khi dùng để trả lời một câu hỏi cụ thể (ví dụ "việc gì đang trễ").
 - Không thêm field chỉ để Project trông đầy đủ. Field không ai cập nhật là nhiễu, không phải cấu trúc.
 
-Cấu hình Project là **work item riêng**, cần outcome được người có thẩm quyền xác nhận. PR đổi policy không tự tạo Project. Điều này áp dụng cả cho việc bật hoặc sửa `Auto-add to project` workflow và cho automation root-aware tương lai (§3.2): thay đổi filter là thay đổi cấu hình GitHub, không phải thay đổi policy.
+Cấu hình Project là **work item riêng**, cần outcome được người có thẩm quyền xác nhận. PR đổi policy không tự tạo Project. Điều này áp dụng cả cho việc bật hoặc sửa `Auto-add to project` workflow và cho reconciliation pipeline đang chạy (§3.2): đổi policy config của pipeline hoặc filter của native workflow là thay đổi cấu hình, không phải thay đổi policy.
 
 ## 4. GitHub Milestone
 
