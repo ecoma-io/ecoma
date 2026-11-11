@@ -1359,7 +1359,19 @@ describe('CLI wire shapes', () => {
     const provisionLine = JSON.parse(provision.stdout.trim()) as Record<string, string>;
     expect((await runCli('staff-assign', writeInput)).code).toBe(0);
 
-    const verify = await runCli('staff-verify', { sub });
+    // Ba lượt còn lại độc lập nhau, chạy đồng thời để độ sâu tuần tự chỉ còn
+    // ba lượt spawn (provision → assign → nhóm dưới) thay vì năm: hai lượt
+    // resolve-mode là hai read trên cùng trạng thái đã commit, còn denial
+    // `correlation_id_missing` bị từ chối trước khi mở transaction nên không
+    // đụng DB. Mỗi lượt nạp tsx + mở kết nối PostgreSQL mất ~1.0–1.4s dưới tải
+    // CI (các test 3 lượt cùng describe đo được 3.2–3.8s), nên chạy tuần tự cả
+    // năm lượt từng vượt default testTimeout 5s của vitest trên runner bận.
+    const [verify, verifyEmpty, provisionNoCorr] = await Promise.all([
+      runCli('staff-verify', { sub }),
+      runCli('staff-verify', { correlation_id: '', sub }),
+      // Các bước GHI vẫn bắt buộc correlation_id — attribution không thể thiếu.
+      runCli('staff-provision', { operator_ref: 'CHG-CLI-RESOLVE', sub: randomSub() }),
+    ]);
     expect(verify.code).toBe(0);
     expect(JSON.parse(verify.stdout.trim())).toEqual({
       stage: 'staff.verify',
@@ -1369,18 +1381,14 @@ describe('CLI wire shapes', () => {
 
     // Một correlation id rỗng cũng được đối xử như vắng mặt (bỏ kiểm 5),
     // không phải `correlation_id_missing`.
-    const verifyEmpty = await runCli('staff-verify', { correlation_id: '', sub });
     expect(verifyEmpty.code).toBe(0);
     expect(JSON.parse(verifyEmpty.stdout.trim())['status']).toBe('verified');
 
-    // Các bước GHI vẫn bắt buộc correlation_id — attribution không thể thiếu.
-    const provisionNoCorr = await runCli('staff-provision', {
-      operator_ref: 'CHG-CLI-RESOLVE',
-      sub: randomSub(),
-    });
     expect(provisionNoCorr.code).toBe(1);
     expect(JSON.parse(provisionNoCorr.stderr.trim())['reason']).toBe('correlation_id_missing');
-  });
+    // Trần 10s vẫn là biên an toàn cho runner bận (3 lượt × ~1.4s + khởi động
+    // vitest), không phải chỗ che test chậm.
+  }, 10_000);
 
   it('emits the exact stderr envelope and exit code 1 on a guard denial', async () => {
     const sub = randomSub();
