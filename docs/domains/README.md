@@ -110,7 +110,7 @@ Các thành phần sau **không** phải bounded context nghiệp vụ và **kh�
 4. Một mục vào `open-boundaries.md` chỉ khi thật sự chưa có đáp án; đã chốt bằng ADR thì không viết lại như open.
 5. Deploy unit, Application hay job mới không tự động tạo bounded context.
 6. Shared infra (`local-development`, `janitor`, `deploys/*`) không bao giờ là bounded context. `remote-cache` từng là disposable build state (A18) và trở thành SaaS bounded context theo [ADR-0015](./remote-cache/adr/0015-remote-cache-bounded-context.md).
-7. Khi một open boundary được giải quyết, chuyển nội dung sang tài liệu canonical tương ứng và xoá khỏi `open-boundaries.md`, để lại nhiều nhất một pointer `đã chốt → <link>`.
+7. Khi một open boundary được giải quyết, chuyển nội dung sang tài liệu canonical tương ứng và xoá khỏi `open-boundaries.md`, để lại nhiều nhất một pointer `đã chốt → <link>`; riêng ranh giới chốt bên trong target scope của một Change Specification, pointer trỏ về spec cho tới canonical promotion (→ [`docs/AGENTS.md`](../AGENTS.md) §11, [`../changes/README.md`](../changes/README.md) §3).
 
 ---
 
