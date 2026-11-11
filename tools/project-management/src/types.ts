@@ -45,6 +45,18 @@ export interface ProjectItemRecord {
   isArchived: boolean;
 }
 
+/**
+ * Kết quả refetch snapshot item của Project. `complete: false` nghĩa là phân
+ * trang dở dang (trang giữa lỗi sau retries, dữ liệu trả về chỉ là phần đã
+ * đọc) — snapshot đó KHÔNG được dùng để kết luận clean/drift.
+ */
+export interface ProjectItemSnapshot {
+  items: ProjectItemRecord[];
+  complete: boolean;
+  /** Nguyên nhân đọc dở dang khi `complete: false`, ngược lại `null`. */
+  error: string | null;
+}
+
 /** Nhóm rule loại trừ: issue vi phạm nhóm nào thì không được là member. */
 export interface PolicyExclusions {
   issueNumbers: number[];

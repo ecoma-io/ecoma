@@ -33,7 +33,19 @@ discover → audit → plan → apply → verify → report
   vào report; một mutation lỗi không dừng các mutation còn lại.
 - **verify** — sau apply luôn refetch snapshot item và re-derive drift còn
   lại. Kết quả mutation KHÔNG được tin mù quáng: mutation "thành công" nhưng
-  refetch không thấy item ⇒ verification báo drift, report không `clean`.
+  refetch không thấy item ⇒ không bao giờ `clean`. GitHub Projects truyền bá
+  item không đồng bộ (quan sát thật: 15/15 add ok, refetch đầu thấy 37/40,
+  sạch sau 57s), nên verify poll theo bounded exponential backoff 2s → 4s →
+  8s → 16s → 30s (kèm jitter, trần interval 30s) trong tổng deadline mặc
+  định 120s (`--verify-deadline-ms` để đổi, trần 24h). Residual chia hai loại: mọi
+  residual đều là hiệu ứng chưa hiện của mutation **đã thành công** ⇒
+  propagation (chờ, hết deadline báo `propagation_pending`); residual có
+  khác biệt không giải thích được bằng mutation đã chạy ⇒ drift thật (dừng
+  poll sớm, báo `drift`). Trạng thái của verify trong report:
+  `not_applicable` (audit) · `clean` · `propagation_pending` · `drift` ·
+  `verification_failed` (API lỗi hết deadline) · `inventory_incomplete`
+  (snapshot dở dang hết deadline — không bao giờ kết luận trên inventory một
+  phần). Verify không bao giờ mutation thêm (no auto re-apply).
 - **report** — text cho người đọc ra stdout, JSON qua `--out` cho artifact.
 
 Idempotency được chứng minh ngay trong lần chạy đầu: pipeline áp plan lên
@@ -124,12 +136,16 @@ Workflow `.github/workflows/project-management.yml`:
 - Item PR/draft và item ISSUE trỏ số không có trong repo được báo qua audit
   (`invalid_reference`) nhưng **không được tự xoá** — pipeline chỉ mutation
   thứ mà nó định danh được là issue.
-- `apply` còn drift sau verify (vd mutation bị lỗi) kết thúc với exit 0 nhưng
-  `status: drift` trong report/artifact — người vận hành đọc report, không chỉ
-  nhìn exit code.
+- `apply` còn residual sau verify kết thúc với exit 0 nhưng `status: drift`
+  trong report/artifact — phân biệt qua `verification.status`:
+  `propagation_pending` (chờ kỳ audit kế tiếp xác nhận), `drift` (lệch thật),
+  `verification_failed`/`inventory_incomplete` (report `status: failed`,
+  exit 1). Người vận hành đọc report, không chỉ nhìn exit code.
 - Chờ theo rate-limit header bị ghim tối đa 60s mỗi lần thử để không treo job
   CI; primary rate limit dài hơn sẽ cạn retry và fail-closed thay vì chờ tới
-  khi reset.
+  khi reset. Verify propagation polling cũng bounded: hết deadline
+  (`--verify-deadline-ms`, mặc định 120s) thì chốt theo loại residual, không
+  retry vô hạn.
 
 ## Kiểm tra
 

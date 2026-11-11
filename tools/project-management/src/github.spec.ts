@@ -370,6 +370,65 @@ it('rejects refetchProjectItems when the items read keeps failing', async () => 
   await expect(port.refetchProjectItems()).rejects.toBeInstanceOf(GitHubPortError);
 });
 
+it('returns a partial snapshot with complete=false when a later items page keeps failing', async () => {
+  // Trang đầu đọc ok, trang hai 503 hết retries: refetch không throw nữa mà
+  // trả phần đã đọc kèm complete: false — verify thấy inventory_incomplete
+  // thay vì fail toàn bộ lần đọc.
+  const { fetchImpl } = createFakeFetch({
+    items: ({ variables, attempt }) => {
+      const cursor = variables['cursor'];
+      if (cursor === null || cursor === undefined) {
+        return jsonResponse(
+          200,
+          itemsPayload({
+            nodes: [rawItem('item_p1', 'ISSUE', { __typename: 'Issue', number: 1 })],
+            hasNextPage: true,
+            endCursor: 'c1',
+          }),
+        );
+      }
+      void attempt;
+      return statusResponse(503);
+    },
+  });
+  const { port } = makePort({ fetchImpl });
+  const snapshot = await port.refetchProjectItems();
+  expect(snapshot.complete).toBe(false);
+  expect(snapshot.items.map((item) => item.itemId)).toEqual(['item_p1']);
+  expect(snapshot.error).toContain('503');
+});
+
+it('returns a complete snapshot when every items page reads through', async () => {
+  const { fetchImpl } = createFakeFetch({
+    items: ({ variables }) => {
+      const cursor = variables['cursor'];
+      if (cursor === null || cursor === undefined) {
+        return jsonResponse(
+          200,
+          itemsPayload({
+            nodes: [rawItem('item_p1', 'ISSUE', { __typename: 'Issue', number: 1 })],
+            hasNextPage: true,
+            endCursor: 'c1',
+          }),
+        );
+      }
+      return jsonResponse(
+        200,
+        itemsPayload({
+          nodes: [rawItem('item_p2', 'ISSUE', { __typename: 'Issue', number: 2 })],
+          hasNextPage: false,
+          endCursor: null,
+        }),
+      );
+    },
+  });
+  const { port } = makePort({ fetchImpl });
+  const snapshot = await port.refetchProjectItems();
+  expect(snapshot.complete).toBe(true);
+  expect(snapshot.error).toBeNull();
+  expect(snapshot.items).toHaveLength(2);
+});
+
 it('adds and removes items through mutations using the discovered project id', async () => {
   const { fetchImpl, calls } = createFakeFetch({
     issues: singleIssuePage([rawIssue(5)]),

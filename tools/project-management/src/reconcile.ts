@@ -5,7 +5,8 @@
  *
  * Fail-closed: discovery một phần ⇒ status 'failed', không audit/apply gì nữa.
  * Verify không tin mutation thành công: sau apply luôn refetch snapshot item
- * và re-derive drift còn lại từ dữ liệu thật.
+ * và re-derive drift còn lại từ dữ liệu thật, với bounded polling chống độ trễ
+ * truyền bá item của GitHub Projects (`verify.ts`).
  */
 
 import { auditState, type AuditFinding } from './audit.js';
@@ -13,6 +14,13 @@ import { classifyIssues } from './classify.js';
 import { computeIdempotencyCheck, type IdempotencyCheck } from './diff.js';
 import { buildPlan, type PlanAction } from './plan.js';
 import type { GitHubPort } from './github.js';
+import {
+  notApplicableResult,
+  verifyAfterApply,
+  type AppliedMutation,
+  type VerificationResult,
+  type VerifyPollingOptions,
+} from './verify.js';
 import type {
   NormalizedIssue,
   PolicyConfig,
@@ -21,26 +29,6 @@ import type {
 } from './types.js';
 
 export type ReconciliationStatus = 'clean' | 'drift' | 'failed';
-
-/** Một mutation đã thực thi trong mode apply, kèm kết quả thật của nó. */
-export interface AppliedMutation {
-  action: 'add' | 'remove';
-  issueNumber: number | null;
-  /** itemId trả về (add) hoặc itemId đích (remove); null khi mutation lỗi. */
-  itemId: string | null;
-  ok: boolean;
-  detail: string;
-}
-
-export interface VerificationResult {
-  /** false cho mode audit: audit không mutation nên không có gì để verify. */
-  performed: boolean;
-  status: 'not_applicable' | 'converged' | 'drift' | 'unavailable';
-  residualFindings: AuditFinding[];
-  /** Chỉ chứa action mutation còn sót lại sau khi verify. */
-  residualPlan: PlanAction[];
-  detail: string;
-}
 
 export interface ReportCounts {
   issues: number;
@@ -76,6 +64,8 @@ export interface RunReconciliationInput {
   mode: ReconciliationMode;
   /** Đồng hồ cho `generatedAt` — inject để test deterministic. */
   now?: () => Date;
+  /** Ghi đè cấu hình poll của bước verify (deadline, backoff, sleep, clock). */
+  verify?: Partial<VerifyPollingOptions>;
 }
 
 const MUTATING_ACTIONS = new Set<PlanAction['action']>(['add', 'remove']);
@@ -113,6 +103,7 @@ export async function runReconciliation({
   policy,
   mode,
   now = () => new Date(),
+  verify,
 }: RunReconciliationInput): Promise<ReconciliationReport> {
   const discovery = await port.discoverAll();
   if (!discovery.complete) {
@@ -134,13 +125,7 @@ export async function runReconciliation({
       plan: [],
       idempotency: null,
       appliedMutations: [],
-      verification: {
-        performed: false,
-        status: 'not_applicable',
-        residualFindings: [],
-        residualPlan: [],
-        detail: 'verification skipped because discovery failed',
-      },
+      verification: notApplicableResult('verification skipped because discovery failed'),
       beforeItems: [],
       afterItems: [],
       error:
@@ -166,13 +151,7 @@ export async function runReconciliation({
       plan,
       idempotency,
       appliedMutations: [],
-      verification: {
-        performed: false,
-        status: 'not_applicable',
-        residualFindings: [],
-        residualPlan: [],
-        detail: 'audit mode never mutates; nothing to verify',
-      },
+      verification: notApplicableResult('audit mode never mutates; nothing to verify'),
       beforeItems,
       afterItems: beforeItems,
       error: null,
@@ -248,39 +227,26 @@ export async function runReconciliation({
     }
   }
 
-  let afterItems: ProjectItemRecord[];
-  let verification: VerificationResult;
+  // Verify bằng refetch có poll bounded (xem verify.ts): mutation thành công
+  // không được tin mù quáng; residual giải thích được bằng mutation ok thì
+  // chờ propagation, khác biệt thật thì báo drift ngay.
+  const { verification, afterItems } = await verifyAfterApply({
+    port,
+    issues,
+    classifications,
+    appliedMutations,
+    options: verify,
+  });
+
   let error: string | null = null;
-  try {
-    afterItems = await port.refetchProjectItems();
-    const residualFindings = auditState(issues, afterItems, classifications);
-    const residualPlan = buildPlan(classifications, afterItems).filter((action) =>
-      MUTATING_ACTIONS.has(action.action),
-    );
-    const converged = residualPlan.length === 0;
-    verification = {
-      performed: true,
-      status: converged ? 'converged' : 'drift',
-      residualFindings,
-      residualPlan,
-      detail: converged
-        ? 'refetched project items match the desired membership'
-        : `${String(residualPlan.length)} mutation(s) still required after apply`,
-    };
-  } catch (cause) {
-    afterItems = [];
-    verification = {
-      performed: true,
-      status: 'unavailable',
-      residualFindings: [],
-      residualPlan: [],
-      detail: `verification failed: refetchProjectItems errored after retries (${errorMessage(cause)})`,
-    };
+  if (verification.status === 'verification_failed') {
     error = 'verification could not refetch the project items after apply';
+  } else if (verification.status === 'inventory_incomplete') {
+    error = 'verification could not read a complete project item snapshot after apply';
   }
 
   const status: ReconciliationStatus =
-    error !== null ? 'failed' : verification.status === 'converged' ? 'clean' : 'drift';
+    error !== null ? 'failed' : verification.status === 'clean' ? 'clean' : 'drift';
 
   return {
     status,

@@ -31,6 +31,7 @@ interface ReconcileArgs {
   project: string | undefined;
   policy: string | undefined;
   out: string | undefined;
+  verifyDeadlineMs: string | undefined;
 }
 
 type ResolvedRepo = { ok: true; repo: string } | { ok: false; error: string };
@@ -94,6 +95,11 @@ export const reconcileCommand = defineCommand({
       type: 'string',
       description: 'Write the JSON report to this file',
     },
+    verifyDeadlineMs: {
+      type: 'string',
+      description:
+        'Total budget for post-apply verification polling in ms (default 120000; propagation-pending residuals poll with bounded backoff until this deadline)',
+    },
   },
   run: async ({ args }: { args: ReconcileArgs }): Promise<void> => {
     const token = process.env['PROJECT_MANAGEMENT_TOKEN'] ?? process.env['GITHUB_TOKEN'];
@@ -141,11 +147,34 @@ export const reconcileCommand = defineCommand({
       process.exitCode = 1;
       return;
     }
+    // Trần 24h: chống typo khiến verify poll treo job gần như vô hạn (deadline
+    // vẫn phải bounded — hết deadline là tín hiệu chạy audit, không phải chờ).
+    const MAX_VERIFY_DEADLINE_MS = 86_400_000;
+    let verifyDeadlineMs: number | undefined;
+    if (args.verifyDeadlineMs !== undefined) {
+      verifyDeadlineMs = Number(args.verifyDeadlineMs);
+      if (
+        !Number.isInteger(verifyDeadlineMs) ||
+        verifyDeadlineMs <= 0 ||
+        verifyDeadlineMs > MAX_VERIFY_DEADLINE_MS
+      ) {
+        console.error(
+          `Invalid --verify-deadline-ms "${args.verifyDeadlineMs}": expected a positive integer up to ${String(MAX_VERIFY_DEADLINE_MS)} (24h).`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+    }
 
     const port = createGitHubPort({ token, owner, repo, projectNumber });
     let report;
     try {
-      report = await runReconciliation({ port, policy, mode });
+      report = await runReconciliation({
+        port,
+        policy,
+        mode,
+        ...(verifyDeadlineMs === undefined ? {} : { verify: { deadlineMs: verifyDeadlineMs } }),
+      });
     } catch (cause) {
       console.error(`Reconciliation crashed: ${errorMessage(cause)}`);
       process.exitCode = 1;

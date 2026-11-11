@@ -266,63 +266,63 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/project-management/src/github.ts",
-    "start": 342,
-    "end": 342,
+    "start": 351,
+    "end": 351,
     "reason": "GitHub GraphQL client của tools/project-management: taint đi `deps.token` vào header `Authorization` của request ĐI RA tới api.github.com, rồi lan qua giá trị trả về của `deps.fetchImpl(...)` (propagation mặc định arg→result của taint engine) → `response.json()` → `data` → `return readShape(data)`. Giá trị trả về là dữ liệu issue/item đã parse, không chứa bit nào của token; file không có HTTP handler, không deploy, không phục vụ request nào. Naming-heuristic FP cùng lớp với entry token-auth.ts. Pin dịch 3 dòng khi comment đầu file được viết lại cho đúng chính sách retry; nội dung finding không đổi.",
     "lines": {
-      "342": "^      return readShape\\(data\\);$"
+      "351": "^      return readShape\\(data\\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/project-management/src/github.ts",
-    "start": 567,
-    "end": 568,
+    "start": 576,
+    "end": 577,
     "reason": "Arrow implicit return của lời gọi `executeGraphQl(deps, ...)`: object `deps` chứa field `token` nên cả object bị coi là nguồn taint, và kết quả lời gọi (trang issue đã parse) kéo theo taint. Cùng FP propagation arg→result như entry github.ts:342; không đường nào từ đây ra wire.",
     "lines": {
-      "567": "^  const readIssuePage = \\(cursor: string \\| null\\): Promise<PageResult<NormalizedIssue>> =>$",
-      "568": "^    executeGraphQl\\(deps, ISSUES_QUERY, \\{ owner, repo, cursor \\}, readIssuesPage\\);$"
+      "576": "^  const readIssuePage = \\(cursor: string \\| null\\): Promise<PageResult<NormalizedIssue>> =>$",
+      "577": "^    executeGraphQl\\(deps, ISSUES_QUERY, \\{ owner, repo, cursor \\}, readIssuesPage\\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/project-management/src/github.ts",
-    "start": 570,
-    "end": 576,
+    "start": 579,
+    "end": 585,
     "reason": "Cùng FP như github.ts:567 (readIssuePage): arrow implicit return của `executeGraphQl(deps, ...)` cho trang project item; kết quả là danh sách item đã parse, không chứa token.",
     "lines": {
-      "570": "^  const readItemPage = \\(cursor: string \\| null\\): Promise<PageResult<ProjectItemRecord>> =>$",
-      "571": "^    executeGraphQl\\($",
-      "572": "^      deps,$",
-      "573": "^      PROJECT_ITEMS_QUERY,$",
-      "574": "^      \\{ org: owner, number: projectNumber, cursor \\},$",
-      "575": "^      \\(data\\) => readProjectItemsPage\\(data, captureProjectId\\),$",
-      "576": "^    \\);$"
+      "579": "^  const readItemPage = \\(cursor: string \\| null\\): Promise<PageResult<ProjectItemRecord>> =>$",
+      "580": "^    executeGraphQl\\($",
+      "581": "^      deps,$",
+      "582": "^      PROJECT_ITEMS_QUERY,$",
+      "583": "^      \\{ org: owner, number: projectNumber, cursor \\},$",
+      "584": "^      \\(data\\) => readProjectItemsPage\\(data, captureProjectId\\),$",
+      "585": "^    \\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/project-management/src/github.ts",
-    "start": 600,
-    "end": 605,
+    "start": 609,
+    "end": 614,
     "reason": "`return executeGraphQl(deps, ADD_ITEM_MUTATION, ...)`: cùng FP propagation arg→result — kết quả trả về là itemId mới của project item, không chứa bit nào của token. Token chỉ đi vào header request đi ra bên trong executeGraphQl.",
     "lines": {
-      "600": "^      return executeGraphQl\\($",
-      "601": "^        deps,$",
-      "602": "^        ADD_ITEM_MUTATION,$",
-      "603": "^        \\{ projectId, contentId: issueNodeId \\},$",
-      "604": "^        readAddedItemId,$",
-      "605": "^      \\);$"
+      "609": "^      return executeGraphQl\\($",
+      "610": "^        deps,$",
+      "611": "^        ADD_ITEM_MUTATION,$",
+      "612": "^        \\{ projectId, contentId: issueNodeId \\},$",
+      "613": "^        readAddedItemId,$",
+      "614": "^      \\);$"
     }
   },
   {
     "rule": "security-sensitive-value-logged",
     "path": "tools/project-management/src/reconcile-command.ts",
-    "start": 155,
-    "end": 155,
-    "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP. Pin dịch 5 dòng khi nhánh dead-code của token check bị gỡ; nội dung finding không đổi.",
+    "start": 184,
+    "end": 184,
+    "reason": "Báo cáo reconciliation in ra stdout: taint khởi phát từ biến `token` (đọc từ env) lan qua `createGitHubPort({token, ...})` → `port` → `runReconciliation({port, ...})` → `report` do propagation mặc định arg→result. Nội dung report chỉ chứa số issue, tiêu đề, itemId và thông báo trạng thái — trường nào không mang token (renderReportText không đọc token; token chỉ vào header request đi ra của port). CLI tool của `tools/**`, không phải serving path. Naming-heuristic FP. Pin dịch 7 dòng khi validate `--verify-deadline-ms` thêm trần 24h; nội dung finding không đổi.",
     "lines": {
-      "155": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
+      "184": "^    process\\.stdout\\.write\\(renderReportText\\(report\\)\\);$"
     }
   }
 ]

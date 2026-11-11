@@ -74,4 +74,51 @@ describe('cli execution', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toContain('No GitHub token available');
     expect(process.exitCode).toBe(1);
   });
+
+  it('rejects a --verify-deadline-ms above the 24h ceiling before any GitHub call', async () => {
+    // Trần 24h chống typo treo job: 2^31-1 ms ≈ 24 ngày — phải dừng ở preflight.
+    process.env['PROJECT_MANAGEMENT_TOKEN'] = 'test-token';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      // Nuốt stderr của CLI trong test.
+    });
+    await runCommand(app, {
+      rawArgs: [
+        'reconcile',
+        '--owner',
+        'ecoma-io',
+        '--repo',
+        'ecoma-io/ecoma',
+        '--verify-deadline-ms',
+        '2147483647',
+      ],
+    });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
+      'expected a positive integer up to 86400000 (24h)',
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('rejects a non-positive --verify-deadline-ms at preflight', async () => {
+    process.env['PROJECT_MANAGEMENT_TOKEN'] = 'test-token';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+      // Nuốt stderr của CLI trong test.
+    });
+    await runCommand(app, {
+      rawArgs: [
+        'reconcile',
+        '--owner',
+        'ecoma-io',
+        '--repo',
+        'ecoma-io/ecoma',
+        '--verify-deadline-ms',
+        '0',
+      ],
+    });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
+      'expected a positive integer up to 86400000 (24h)',
+    );
+    expect(process.exitCode).toBe(1);
+  });
 });
