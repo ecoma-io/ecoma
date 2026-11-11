@@ -1,0 +1,198 @@
+{
+  "name": "@ecoma-io/llm-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "^8.15.6",
+    "testcontainers": "12.2.1"
+  },
+  "//": [
+    "Deploy unit `llm-api` — data plane LLM tren Cloudflare Workers, soan boi",
+    "runtime Rust (workers-rs) dich ra WASM. `pg` nam o dependencies cho",
+    "`db/apply.mts` — migration runner chay o CI runner (Node), khong thuoc",
+    "bundle Worker (HD6: Hyperdrive khong ho tro advisory lock).",
+    "Runtime Worker khong co dependency TS nao: HTTP, routing va ket noi",
+    "Hyperdrive dien ra trong crate Rust (apps/llm-api/src, Cargo.toml).",
+    "`testcontainers` chi phuc vu suite integration app-owned duoi `tests/`."
+  ],
+  "nx": {
+    "tags": [
+      "type:composition",
+      "scope:llm-api",
+      "runtime:edge"
+    ],
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/Cargo.toml",
+          "{projectRoot}/Cargo.lock",
+          "{projectRoot}/rust-toolchain.toml",
+          "{projectRoot}/src/**/*.rs",
+          "{projectRoot}/.gitignore",
+          {
+            "runtime": "cargo --version"
+          },
+          {
+            "runtime": "worker-build --version"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/build"
+        ],
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "worker-build --release"
+        },
+        "//": [
+          "`worker-build` goi cargo build cho target wasm32-unknown-unknown va",
+          "sinh `build/index.js` + `build/index.wasm` (entry ma `wrangler.jsonc`",
+          "main tro vao). Toolchain pin bang `rust-toolchain.toml` (1.98.1 +",
+          "target wasm32); cargo toolchain khac tren may se bi override.",
+          "`worker-build` phai duoc cargo install truoc (prerequisite duoc",
+          "ghi tai README cua project)."
+        ]
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        },
+        "//": [
+          "Runner migration canonical (02-delivery.md §3): chay o CI runner voi",
+          "credential migrator cua tung DB (db-llm-gateway / db-llm-tenant /",
+          "db-llm-marketplace). Target luon khong cacheable vi no mutate DB that."
+        ]
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "npx tsc --noEmit -p tsconfig.db.json"
+        }
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "cargo test"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "dependsOn": [],
+        "//": [
+          "Target `test` = unit test colocated cua project (06-testing.md §4).",
+          "Voi runtime Rust, day la `cargo test` tren host toolchain (spec nam",
+          "trong src/). Suite integration (PostgreSQL that qua testcontainers)",
+          "nam o target `test-integration` voi config rieng.",
+          "Khong `build` trong dependsOn: cargo test tu build phan can thiet."
+        ]
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "dependsOn": [],
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+        },
+        "//": [
+          "Suite integration app-owned (PostgreSQL that qua testcontainers):",
+          "ranh gioi quyen runtime/migrator, serialization advisory lock,",
+          "migration idempotent. Import thang TS nguon (`db/apply.mts`) — khong",
+          "doc artifact build."
+        ]
+      },
+      "lint": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"
+          },
+          "{projectRoot}/package.json",
+          "{projectRoot}/Cargo.toml",
+          "{projectRoot}/Cargo.lock",
+          "{projectRoot}/rust-toolchain.toml",
+          "{projectRoot}/src/**/*.rs",
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          },
+          {
+            "runtime": "cargo --version"
+          }
+        ],
+        "options": {
+          "cwd": "apps/llm-api",
+          "commands": [
+            "npx oxlint .",
+            "cargo fmt --all -- --check",
+            "cargo clippy --all-targets -- -D warnings"
+          ]
+        },
+        "//": [
+          "Lint hai mat TS (oxlint cho db/, tests/, config) va Rust (rustfmt",
+          "check + clippy deny warnings) — theo §9 cua 05-code-architecture.md:",
+          "per-project nx:run-commands boc cargo, khong @monodon/rust."
+        ]
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/tsconfig.spec.json",
+          "{projectRoot}/vitest.config.mts",
+          "{projectRoot}/vitest.integration.config.mts",
+          "{projectRoot}/tests/**/*.test.ts",
+          "{projectRoot}/tests/**/*.spec.ts",
+          "{projectRoot}/tests/**/*.ts",
+          "{projectRoot}/db/**/*.mts",
+          "!{projectRoot}/out-tsc/**/*",
+          "!{projectRoot}/build/**/*",
+          "!{projectRoot}/target/**/*",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/tsconfig.tsbuildinfo",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/out-tsc/tsconfig.spec.tsbuildinfo"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "//": [
+          "Mat TS cua project chi con `db/` + `tests/` (runtime la Rust, khong",
+          "co TS app) nen khong co tsconfig.app.json — solution chi reference",
+          "tsconfig.spec.json."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "types": ["node"],
+    // `toSorted` can vat `es2023`; base dat `es2022` vi app chay edge va khong
+    // can no. Thu muc `db/` chay o CI runner nen khong ke thua rang buoc do.
+    "lib": ["es2023"],
+    // Runner va spec import nhau bang phan mo rong that (`.mts`, `.ts`):
+    // Vitest va `tsx` deu can no, va day la dieu kien de `import.meta.dirname`
+    // duoc type dung.
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["db/**/*.mts"]
+}

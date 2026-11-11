@@ -1,0 +1,10 @@
+[package]
+name = "ecoma-llm-api"
+version = "0.1.0"
+edition = "2021"
+# Skeleton vị trí: crate thật (workers-rs + Hyperdrive) thuộc delivery slice
+# Worker runtime (Issue #22). Stub này chỉ để lane `lint` / `test` / `typecheck`
+# của project xanh ngay từ scaffold.
+
+[lib]
+crate-type = ["cdylib"]

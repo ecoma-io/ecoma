@@ -1,0 +1,8 @@
+# Pin toolchain Rust cho deploy unit `llm-api` (workers-rs → WASM):
+# rustup override theo thu muc, nên mọi lệnh cargo trong project này dùng đúng
+# phiên bản + target dưới bất kể default toolchain của máy. CI cài đặt cùng
+# phiên bản qua `dtolnay/rust-toolchain` (xem §9 của
+# docs/architecture/05-code-architecture.md).
+[toolchain]
+channel = "1.98.1"
+targets = ["wasm32-unknown-unknown"]
