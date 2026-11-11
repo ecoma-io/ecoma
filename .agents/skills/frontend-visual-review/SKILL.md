@@ -1,13 +1,14 @@
 ---
 name: frontend-visual-review
-description: Manually review frontend UI in an isolated development/mock-serve environment using Playwright CLI. Inspect screenshots, responsive layouts, interactions, browser console and network behavior. Not for authoring automated Playwright Test suites or real-stack system E2E.
+description: Manually review frontend UI against an isolated development server running the app's configured serve/data mode (UI preview), using Playwright CLI. Inspect screenshots, responsive layouts, interactions, browser console and network behavior. Not for authoring automated Playwright Test suites or real-stack system E2E.
 ---
 
 # Frontend Visual Review
 
 A manual browser-based UI review procedure for a frontend application, run
 with the repo-local Playwright CLI (`pnpm exec playwright-cli`) against an
-isolated development/mock-serve instance of one app, in a uniquely named
+isolated development instance of one app in its configured serve/data mode,
+in a uniquely named
 Playwright CLI session owned by this review alone. The reviewer (human or
 agent) drives the browser, inspects screenshots, responsive layouts,
 interactions, browser console output and network behavior, then writes a
@@ -43,7 +44,8 @@ Canonical documents outrank this skill. Where they disagree, the document wins.
 Three review kinds, never mixed:
 
 1. **Manual visual review (this skill).** A human/agent drives a browser
-   against one app served in development or mock-serve mode; evidence is
+   against one app served in its configured development serve/data mode;
+   evidence is
    screenshots, accessibility snapshots, console and network output, captured
    into a text report. Nothing is committed except the report text.
 2. **App-owned browser regression.** Automated Playwright suites owned by one
@@ -158,8 +160,9 @@ browser:
 
 If a separate task genuinely tests interception itself, that is a separate,
 explicitly-scoped experiment — not part of this skill's standard procedure.
-Development-only mock authoring (in-app adapters, fixtures, scenarios,
-mock-serve bootstrap) is owned by the `frontend-api-mocking` skill and the
+Development-only mock authoring (in-app mock data adapters, deterministic
+fixtures, data-mode and adapter-selection wiring) is owned by the
+`frontend-data-mocking` skill and the
 app's data-mode seam, not by the review procedure.
 
 ## Review procedure
