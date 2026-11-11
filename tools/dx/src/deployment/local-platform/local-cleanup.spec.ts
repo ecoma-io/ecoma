@@ -288,7 +288,16 @@ describe('runLocalCleanup', () => {
       ]),
       labels: new Map(
         [...CLEANUP_KINDS].map((k) => [
-          `${k === 'network' ? 'network' : k === 'postgres-volume' ? 'volume' : 'container'}/ecoma-${ns}-${k}`,
+          `${
+            k === 'network'
+              ? 'network'
+              : // Volume kinds phải được classify đúng dockerType — sai một kind là
+                // labels rơi vào nhãn nhầm loại và coverage của test này bị giảm
+                // im lặng (cleanup liệt kê volume theo `docker volume ls`).
+                k === 'postgres-volume' || k === 'object-store-config' || k === 'object-store-data'
+                ? 'volume'
+                : 'container'
+          }/ecoma-${ns}-${k}`,
           ownedLabels(wt),
         ]),
       ),
@@ -639,6 +648,77 @@ describe('runLocalCleanup', () => {
     });
     expect(report.entries[0]?.action).toBe('removed');
     expect(docker.removed).toEqual([`volume/ecoma-${ns}-postgres-volume`]);
+  });
+
+  it('orphan object-store resources (container + config/data volumes) are identified and removed', () => {
+    // Object store của platform (issue #19): container SeaweedFS + hai volume
+    // không `retainOnDelete` (config chỉ s3.json tái sinh được, data cache
+    // disposable) — orphan đủ điều kiện thì cả ba bị xoá, cùng chính sách với
+    // postgres-volume ở trên. Hai command của cùng unit không tạo Docker
+    // resource tồn lại nên không có gì thêm phải xoá.
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-object-store`]],
+        ['network', []],
+        ['volume', [`ecoma-${ns}-object-store-config`, `ecoma-${ns}-object-store-data`]],
+      ]),
+      labels: new Map([
+        [`container/ecoma-${ns}-object-store`, ownedLabels(wt)],
+        [`volume/ecoma-${ns}-object-store-config`, ownedLabels(wt)],
+        [`volume/ecoma-${ns}-object-store-data`, ownedLabels(wt)],
+      ]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(new Set(docker.removed)).toEqual(
+      new Set([
+        `container/ecoma-${ns}-object-store`,
+        `volume/ecoma-${ns}-object-store-config`,
+        `volume/ecoma-${ns}-object-store-data`,
+      ]),
+    );
+    const dataEntry = report.entries.find((e) => e.kind === 'object-store-data');
+    expect(dataEntry?.action).toBe('removed');
+    const configEntry = report.entries.find((e) => e.kind === 'object-store-config');
+    expect(configEntry?.action).toBe('removed');
+  });
+
+  it('object-store resources of a live worktree are kept', () => {
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-object-store`]],
+        ['network', []],
+        ['volume', [`ecoma-${ns}-object-store-config`, `ecoma-${ns}-object-store-data`]],
+      ]),
+      labels: new Map([
+        [`container/ecoma-${ns}-object-store`, ownedLabels(wt)],
+        [`volume/ecoma-${ns}-object-store-config`, ownedLabels(wt)],
+        [`volume/ecoma-${ns}-object-store-data`, ownedLabels(wt)],
+      ]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: (p) => (p === wt ? 'present' : 'absent'),
+    });
+    expect(docker.removed).toHaveLength(0);
+    for (const kind of ['object-store', 'object-store-config', 'object-store-data']) {
+      const entry = report.entries.find((e) => e.kind === kind);
+      expect(entry?.action).toBe('kept');
+    }
+    expect(report.entries.some((e) => e.action === 'removed')).toBe(false);
+    expect(report.entries.some((e) => e.action === 'would-remove')).toBe(false);
   });
 
   it('docker ls failure reported accurately without pretending success', () => {
