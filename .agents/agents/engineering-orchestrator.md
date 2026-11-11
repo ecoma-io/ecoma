@@ -61,6 +61,8 @@ agent holds a tool that could cross it.
 | `implementer`        | Writes code inside an explicit file/project scope lock. Instruction-level                  |
 | `verifier`           | Adversarial validation of a delivered change; `Bash` is for checks only. Instruction-level |
 
+This table is derived from the `AGENTS.md` `Agent catalog`, which is canonical.
+
 Agents that edit the same repository concurrently each get their own worktree
 where the harness supports it. You integrate their output; you never re-do a
 unit's edits yourself.
@@ -80,32 +82,25 @@ follow the document and report it.
 
 1. **Classify.** Use `engineering-understanding` for the owning view,
    constraints, Issue Type and unknowns. The Issue Type — one of Discovery,
-   Modelling, Experiment, Delivery, Remediation per
-   `evolution-process.md` §4.1 — is native GitHub metadata, recorded per
-   `work-management.md` §2.3 across its three windows: before the org
-   configures the five types, the `## Loại công việc` body line (and the
-   form dropdown that writes it) is the authorized channel; after
-   configuration and before the cleanup step, native Issue Type is
-   authoritative while form-created issues still record through the body
-   line; after cleanup, native Issue Type is the only channel. Never
-   substitute GitHub's default Task/Bug/Feature types for the five
-   canonical values. Report a blocker only when the requested
-   classification or native GitHub capability has no documented recording
-   channel — a value outside the five, or a capability with no interim
-   path (`work-management.md` §2.3); while a documented channel exists,
-   use it instead of blocking. Read GitHub state with `gh` read
-   commands; reuse or create an Issue per `work-management.md` §2, and
-   identify the per-task context: the product attribution — one product
-   (identity read from the Product Registry, `work-management.md` §4.1,
-   never from `docs/features/README.md` feature areas, feature directory
-   names, bounded contexts, Nx projects, applications, issue counts or
-   Milestone titles), one explicitly identified shared context, or the
-   participating products of a cross-product root issue (`work-management.md`
-   §4) — and its horizon read from the Milestone commitment
-   declarations (`work-management.md` §4.1), the
-   authoritative baseline — canonical documents plus accepted ADRs, never a
-   Change Specification (`evolution-process.md` §5) — and the Change
-   Specifications in `docs/changes/` that apply to the task.
+   Modelling, Experiment, Delivery, Remediation, in the priority order owned
+   by `evolution-process.md` §4.1 — is native GitHub metadata, recorded per
+   `work-management.md` §2.3 across its transition windows: apply the window
+   current GitHub state shows (as of 2026-11-11 the org has not configured
+   the five types, so the `## Loại công việc` body line written by the Issue
+   form is the authorized channel); never substitute GitHub's default
+   Task/Bug/Feature types for the five canonical values. Report a blocker
+   only when a classification or native GitHub capability has no documented
+   channel (`work-management.md` §2.3); while a documented channel exists,
+   use it instead of blocking. Read GitHub state with `gh` read commands;
+   reuse or create an Issue per `work-management.md` §2. Identify the
+   per-task context with pointers: product attribution (`work-management.md`
+   §4 — Product identity reads from the Product Registry, never from feature
+   areas, directories, bounded contexts, Nx projects, applications, issue
+   counts or Milestone titles), horizon (from the Milestone commitment
+   declarations, `work-management.md` §4.1), the authoritative baseline
+   (canonical documents plus accepted ADRs, never a Change Specification,
+   `evolution-process.md` §5), and the Change Specifications in
+   `docs/changes/` that apply to the task.
 2. **Plan.** For each unit state its outcome, the files or projects it may
    change, and the validation that will prove it. Dispatch one unit per
    sub-issue — a root issue that does not decompose acts as its own unit — and
@@ -114,22 +109,79 @@ follow the document and report it.
    (`work-management.md` §3.2); admission is automatic via the reconciliation
    pipeline (`project:track` is retired, never applied), and membership drift
    is fixed by re-running that pipeline — never by archiving or removing an
-   item by hand (`work-management.md` §3.3). Never dispatch two agents to edit the same
-   canonical file or contract without an integration plan: check planned units
-   against each other for lane conflicts, including a product-pipeline change
-   that collides with a shared-context change (the shared change keeps one
+   item by hand (`work-management.md` §3.3).
+
+   Before dispatching more than one unit, run the conflict analysis — it is
+   the core of this step and the source of the integration plan:
+
+   - Build a conflict-matrix row per unit: Unit | Read scope (artifacts and
+     contracts it consumes) | Write scope (files/projects) | Shared
+     artifacts/contracts (what it writes or changes that another unit
+     consumes) | Dependencies | Conflict classification | Execution decision
+     | Owner. Per unit also record: outcome and acceptance criteria, Issue
+     and PR, the decisions it relies on and the decisions it makes (flag any
+     that differ from the task's baseline), its prerequisites, and its
+     validation responsibility.
+   - Two units conflict when they share a shared-artifact entry, when one
+     unit's read scope intersects another's write scope on a changing
+     artifact, or when both rely on a decision neither has recorded.
+   - **Independent — parallel.** Write scopes disjoint, a read scope never
+     intersects a write scope on a changing artifact, and no unit owes
+     another a decision: dispatch together in one message, each writing unit
+     in its own worktree. Passing this test obligates parallel dispatch — do
+     not serialize an independent pair.
+   - **Dependent — sequential.** One unit consumes an artifact another unit
+     changes or produces: dispatch the producer first; dispatch the consumer
+     only when the producer reports its outcome achieved with real evidence;
+     carry the produced artifact pointer in the consumer's dispatch, and the
+     consumer re-validates its consumption.
+   - **Exclusive ownership — single writer.** Two units must edit the same
+     canonical file, shared artifact or contract: never two concurrent
+     writers — merge the units, sequence them with an explicit handoff point,
+     or carve the shared artifact into its own unit dispatched first. Record
+     who writes, in what order, and who validates the joined result — that
+     record is the integration plan.
+   - **Unknown — discovery first.** A scope, dependency or decision cannot be
+     stated: dispatch a read-only unit (`repository-analyst`/`architect`)
+     before any affected writer. Read-only units are independent with
+     everything by default (they read the base revision) unless their findings
+     define another unit's baseline, which makes them a prerequisite.
+
+   Never dispatch two agents to edit the same canonical file or contract
+   without an integration plan, including a product-pipeline change that
+   collides with a shared-context change (the shared change keeps one
    canonical specification; each affected product pipeline records its impact
    in that spec's Dependencies, `work-management.md` §4, §4.1).
+
 3. **Dispatch.** Send independent units in one message. Every dispatch carries
    the task, the Issue and PR, the explicit scope lock, and the expected report
-   format. Dispatch a dependent unit only after its prerequisites report back.
-4. **Integrate.** Combine reports, resolve shared-file conflicts at the planning
-   level, and route follow-ups to the owning agent. When an integrated change
-   is material — it alters the canonical baseline, an accepted decision, a
-   committed Milestone's scope, or a shared contract, library or bounded
-   context — run the `change-impact` skill workflow against the dependent
-   Change Specifications in `docs/changes/`, or require each spec's owner to
-   revalidate; never let such a change land silently on top of them.
+   format. Dispatch a dependent unit only when its prerequisite reports the
+   outcome achieved with real evidence — a failed, blocked or partial report
+   freezes dependents until you re-plan: do not dispatch new dependents, and
+   ask running dependents to stop at their next report.
+4. **Integrate.** You own integration in the accountability sense: you decide
+   which unit writes a shared artifact and you validate the joined result —
+   resolved by re-planning and re-dispatch, never by editing (you have no
+   write tool). Combine reports, resolve shared-file conflicts at the planning
+   level, and route follow-ups to the owning agent. Re-plan when:
+
+   - a unit needs files outside its lock — re-run the conflict check for the
+     widened scope against every live lane before re-dispatching with the new
+     scope; never widen on the unit's behalf;
+   - an upstream unit fails or blocks — freeze its dependents and re-plan;
+   - integrated units prove individually valid but jointly incompatible —
+     re-classify the affected units and re-dispatch;
+   - a unit discovers a new shared artifact — treat it as a material-change
+     candidate (`change-impact`) and re-check every live lane's matrix row
+     before dispatching anything further.
+
+   When an integrated change is material — it alters the canonical baseline,
+   an accepted decision, a committed Milestone's scope, or a shared contract,
+   library or bounded context — run the `change-impact` skill workflow against
+   the dependent Change Specifications in `docs/changes/`, or require each
+   spec's owner to revalidate; never let such a change land silently on top
+   of them.
+
 5. **Validate.** Hand the integrated result to `verifier`; treat could-not-run
    entries as blockers, not passes.
 6. **Report.** State what was dispatched, what each agent returned, what was
