@@ -57,7 +57,7 @@ async function seedProjectWithToken(client: import('pg').Client): Promise<{
   const token = 'p45-integration-test-token-' + crypto.randomUUID();
   const tokenHash = await sha256Hex(token);
   const { rows: tenantRows } = await client.query<{ id: string }>(
-    `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
+    `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub) VALUES ($1, 'customer', 'paid', 'sub-owner-integration') RETURNING id`,
     ['p45-tenant-' + crypto.randomUUID()],
   );
   const tenantId = tenantRows[0]?.id ?? '';
@@ -279,7 +279,7 @@ describe('P4.5: write protection (fork/PR)', () => {
       const tokenRaw = 'p45-read-only-token-' + crypto.randomUUID();
       const tokenHash = await sha256Hex(tokenRaw);
       const { rows: tenantRows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ($1, 'sub-owner-integration') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub) VALUES ($1, 'customer', 'paid', 'sub-owner-integration') RETURNING id`,
         ['p45-read-only-tenant-' + crypto.randomUUID()],
       );
       const tenantId = tenantRows[0]?.id ?? '';

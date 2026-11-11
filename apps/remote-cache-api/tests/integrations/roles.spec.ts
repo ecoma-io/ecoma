@@ -25,12 +25,18 @@ const RUNTIME = 'ecoma_remote_cache_runtime';
  * Grant kỳ vọng của runtime, theo đúng `0002_roles_and_grants.sql`, theo từng
  * bảng — giữ danh sách tường minh, không suy ra từ quy tắc chung:
  *
- * - `tenants`: SELECT + INSERT + UPDATE — skeleton P4.1 có đường seed tenant;
- *   lifecycle change (suspend/delete) là UPDATE status hợp lệ.
+ * - `tenants`: SELECT + INSERT; UPDATE **chỉ ở cấp cột** `status` (migration
+ *   `0007`, defense in depth của #20): lifecycle change (suspend/delete) là
+ *   UPDATE status hợp lệ, còn classification/plan/owner_sub không bao giờ bị
+ *   runtime đụng tới — classification là bất biến sau provisioning (ADR-0026),
+ *   owner không bao giờ bị ghi đè (ADR-0020), plan thuộc đường provisioning.
+ *   has_table_privilege bất khả tri cấp cột, sweep tính bằng table-level ACL —
+ *   UPDATE cột khác được test riêng dưới đây.
  * - `projects`: SELECT + INSERT — skeleton chỉ tạo và đọc project; UPDATE
  *   không nằm trong vòng đời P4.1.
  * - `tenant_members`: chỉ SELECT — membership administration chưa thuộc
- *   skeleton (ADR-0015 §vẫn mở).
+ *   skeleton (ADR-0015 §vẫn mở); INSERT chỉ thuộc đường bootstrap (#20,
+ *   credential migrator).
  * - `api_keys`: SELECT + INSERT; UPDATE **chỉ ở cấp cột** `revoked_at`.
  *   has_table_privilege bất khả tri cấp cột, sweep tính bằng table-level ACL —
  *   UPDATE cột khác được test riêng dưới đây.
@@ -52,7 +58,7 @@ const EXPECTED_PRIVILEGES: Record<string, readonly string[]> = {
   projects: ['INSERT', 'SELECT'],
   quota_limits: ['SELECT'],
   tenant_members: ['SELECT'],
-  tenants: ['INSERT', 'SELECT', 'UPDATE'],
+  tenants: ['INSERT', 'SELECT'],
   usage_counters: ['INSERT', 'SELECT', 'UPDATE'],
 };
 
@@ -130,6 +136,30 @@ describe('roles and grants on db-remote-cache', () => {
       expect(colRows[0]?.can_scopes).toBe(false);
       expect(colRows[0]?.can_project_id).toBe(false);
 
+      // tenants: UPDATE cấp cột `status` (migration `0007` — #20): lifecycle
+      // path được phép đổi status, còn classification/plan (bất biến sau
+      // provisioning, ADR-0026) và owner_sub (sở hữu không bị ghi đè, ADR-0020)
+      // phải âm ở tầng grant.
+      const { rows: tenantColRows } = await client.query<{
+        can_status: boolean;
+        can_classification: boolean;
+        can_plan: boolean;
+        can_owner_sub: boolean;
+        can_name: boolean;
+      }>(
+        `SELECT has_column_privilege($1, 'remote_cache.tenants', 'status', 'UPDATE') AS can_status,
+                has_column_privilege($1, 'remote_cache.tenants', 'classification', 'UPDATE') AS can_classification,
+                has_column_privilege($1, 'remote_cache.tenants', 'plan', 'UPDATE') AS can_plan,
+                has_column_privilege($1, 'remote_cache.tenants', 'owner_sub', 'UPDATE') AS can_owner_sub,
+                has_column_privilege($1, 'remote_cache.tenants', 'name', 'UPDATE') AS can_name`,
+        [RUNTIME],
+      );
+      expect(tenantColRows[0]?.can_status).toBe(true);
+      expect(tenantColRows[0]?.can_classification).toBe(false);
+      expect(tenantColRows[0]?.can_plan).toBe(false);
+      expect(tenantColRows[0]?.can_owner_sub).toBe(false);
+      expect(tenantColRows[0]?.can_name).toBe(false);
+
       // cache_entries: `insertCacheEntry` dung `ON CONFLICT DO UPDATE SET
       // expires_at` -> can UPDATE cot expires_at (cap cot, bang-level chi
       // SELECT + INSERT).
@@ -169,7 +199,8 @@ describe('roles and grants on db-remote-cache', () => {
     const migrator = await db.asMigrator();
     try {
       const { rows } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('member-guard-tenant', 'sub-owner-member-guard') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+         VALUES ('member-guard-tenant', 'customer', 'paid', 'sub-owner-member-guard') RETURNING id`,
       );
       const tenantId = rows[0]?.id ?? '';
 
@@ -313,7 +344,8 @@ async function seedTenantProjectAndKey(
   client: import('pg').Client,
 ): Promise<{ tenantId: string; projectId: string; apiKeyId: string; tokenHash: string }> {
   const { rows: tenantRows } = await client.query<{ id: string }>(
-    `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('seed_' || md5(random()::text), 'sub-owner-seed')
+    `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+     VALUES ('seed_' || md5(random()::text), 'customer', 'paid', 'sub-owner-seed')
      RETURNING id`,
   );
   const tenantId = tenantRows[0]?.id ?? '';
@@ -410,6 +442,53 @@ describe('database enforcement of control-plane invariants', () => {
     }
   });
 
+  it('runtime UPDATE on tenants is column-level status only — classification, plan and owner_sub die at the grant', async () => {
+    // Hai lớp của #20, độc lập với nhau: grant `UPDATE (status)` (migration
+    // `0007`) nghĩa là UPDATE cột khác bị PostgreSQL từ chối ngay ở tầng grant —
+    // classification là bất biến sau provisioning (ADR-0026 §1), owner_sub là
+    // sở hữu không bao giờ bị ghi đè (ADR-0020), plan chỉ thuộc đường
+    // provisioning. Lớp catalog (has_column_privilege) nằm ở sweep phía trên.
+    const migrator = await db.asMigrator();
+    let tenantId = '';
+    try {
+      const { rows } = await migrator.query<{ id: string }>(
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+         VALUES ('tenant-update-probe', 'customer', 'paid', 'sub-owner-tenant-update')
+         RETURNING id`,
+      );
+      tenantId = rows[0]?.id ?? '';
+    } finally {
+      await migrator.end();
+    }
+    const runtime = await db.connectAsRuntime();
+    try {
+      // UPDATE status là đúng vòng đời (suspend) — phải thành công và nhìn thấy được.
+      const suspended = await runtime.query(
+        `UPDATE remote_cache.tenants SET status = 'suspended' WHERE id = $1`,
+        [tenantId],
+      );
+      expect(suspended.rowCount).toBe(1);
+      // Mọi cột khác của tenants: permission denied ở tầng grant.
+      await expect(
+        runtime.query(
+          `UPDATE remote_cache.tenants SET classification = 'first_party' WHERE id = $1`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/permission denied/iu);
+      await expect(
+        runtime.query(`UPDATE remote_cache.tenants SET plan = 'free' WHERE id = $1`, [tenantId]),
+      ).rejects.toThrow(/permission denied/iu);
+      await expect(
+        runtime.query(
+          `UPDATE remote_cache.tenants SET owner_sub = 'sub-owner-hijack' WHERE id = $1`,
+          [tenantId],
+        ),
+      ).rejects.toThrow(/permission denied/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
   it('api_keys: CHECK shapes — scopes vocabulary and revoked_at after created_at', async () => {
     // Trigger exempt ai đó cho đúng nghĩa "migrator giữ full power", nhưng CHECK
     // là hình dạng dữ liệu — áp cho mọi role. Kiểm bằng migrator để tách hai
@@ -488,7 +567,8 @@ describe('database enforcement of control-plane invariants', () => {
 
       // Cùng tên ở tenant khác là hợp lệ — ranh giới theo tenant, không toàn cục.
       const { rows: otherTenant } = await migrator.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('other_' || md5(random()::text), 'sub-owner-other')
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+         VALUES ('other_' || md5(random()::text), 'customer', 'paid', 'sub-owner-other')
          RETURNING id`,
       );
       const otherTenantId = otherTenant[0]?.id ?? '';
