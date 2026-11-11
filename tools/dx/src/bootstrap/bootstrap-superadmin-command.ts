@@ -48,6 +48,18 @@ export default defineCommand({
         'Required self-declared attribution of the operator (change/ticket id) recorded in audit; not a verified identity',
       required: false,
     },
+    'resolve-if-bootstrapped': {
+      type: 'boolean',
+      description:
+        'Resolve an already-bootstrapped environment read-only (outcome "resolved"); run the full guarded bootstrap only on a fresh environment',
+      required: false,
+    },
+    json: {
+      type: 'boolean',
+      description:
+        'Machine-readable output: print a single-line JSON result envelope as the last stdout line; stage progress goes to stderr',
+      required: false,
+    },
   },
 
   run({ args }) {
@@ -57,6 +69,8 @@ export default defineCommand({
         ? rawCorrelationId
         : randomUUID();
     const operatorRef = typeof args['operator-ref'] === 'string' ? args['operator-ref'] : '';
+    const resolveIfBootstrapped = args['resolve-if-bootstrapped'] === true;
+    const jsonOutput = args['json'] === true;
 
     // Cùng lý do với `operator_ref`: giá trị này được in ra console và đi vào
     // audit metadata. Một correlation id chứa xuống dòng có thể chèn một dòng
@@ -89,18 +103,61 @@ export default defineCommand({
       return;
     }
 
-    console.log(`[bootstrap-superadmin] correlation id: ${correlationId}`);
+    // Ở chế độ --json stdout chỉ mang envelope cuối cùng: người đọc máy đọc
+    // dòng cuối cùng của stdout, nên mọi dòng dành cho con người (id tương quan
+    // và bảng stage) dịch sang stderr. Chưa có stage nào chạy lúc này, nên dòng
+    // id tương quan chỉ là đầu ra tiến trình.
+    if (jsonOutput) {
+      console.error(`[bootstrap-superadmin] correlation id: ${correlationId}`);
+    } else {
+      console.log(`[bootstrap-superadmin] correlation id: ${correlationId}`);
+    }
 
     const result = runBootstrapSuperadmin({
       correlationId,
       operatorRef,
       runStage: createSpawnStageRunner(),
+      mode: resolveIfBootstrapped ? 'resolve-or-bootstrap' : 'bootstrap',
     });
 
-    printResult(result);
-    process.exitCode = result.outcome === 'bootstrapped' ? 0 : 1;
+    if (jsonOutput) {
+      // Human-readable stage progress stays available on stderr; stdout is
+      // reserved for the single-line envelope the deploy lane parses.
+      for (const entry of result.stages) {
+        const detail = entry.detail === undefined ? '' : ` (${entry.detail})`;
+        console.error(`  ${entry.stage.padEnd(24)} ${entry.outcome}${detail}`);
+      }
+      console.log(JSON.stringify(resultEnvelope(result)));
+    } else {
+      printResult(result);
+    }
+    // `resolved` là lần chạy hoàn tất đối với người tiêu dùng mã thoát: môi
+    // trường đã hội tụ và không có gì cần ghi.
+    process.exitCode = result.outcome === 'bootstrapped' || result.outcome === 'resolved' ? 0 : 1;
   },
 });
+
+/**
+ * Bản chiếu cho máy đọc của một lần chạy — hợp đồng của `--json`.
+ *
+ * Thứ tự khóa cố định (`outcome` trước, rồi `correlationId`), trường tùy chọn
+ * bị bỏ qua khi không có: người tiêu dùng (bước giải quyết trong
+ * `deploys/pact-broker-api-deploy/local.ts`) đọc `outcome` để quyết định thành
+ * công và `sub` làm chủ thể sở hữu tenant. Không có payload stage, không có
+ * biến môi trường, không có credential nào từng đi vào đối tượng này.
+ */
+function resultEnvelope(result: BootstrapRunResult): Record<string, string> {
+  const envelope: Record<string, string> = {
+    outcome: result.outcome,
+    correlationId: result.correlationId,
+  };
+  if (result.sub !== undefined) envelope['sub'] = result.sub;
+  if (result.staffId !== undefined) envelope['staffId'] = result.staffId;
+  if (result.assignmentId !== undefined) envelope['assignmentId'] = result.assignmentId;
+  if (result.failedStage !== undefined) envelope['failedStage'] = result.failedStage;
+  if (result.reason !== undefined) envelope['reason'] = result.reason;
+  return envelope;
+}
 
 /** In kết quả từng bước — không in payload, không in env, không in stderr thô. */
 function printResult(result: BootstrapRunResult): void {
@@ -114,6 +171,12 @@ function printResult(result: BootstrapRunResult): void {
       console.log(`[bootstrap-superadmin] done: sub ${result.sub ?? '<unknown>'}`);
       console.log(
         '[bootstrap-superadmin] no session was issued. The Superadmin must sign in through the normal passwordless OTP flow.',
+      );
+      return;
+    case 'resolved':
+      console.log(`[bootstrap-superadmin] resolved: sub ${result.sub ?? '<unknown>'}`);
+      console.log(
+        '[bootstrap-superadmin] the environment was already bootstrapped; this run verified the existing administrator read-only and performed no write.',
       );
       return;
     case 'guard_denied':
