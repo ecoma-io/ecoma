@@ -169,7 +169,17 @@ export type DeployResourceKind =
   /** Volume config của object store — chỉ chứa file `s3.json` tái sinh được mỗi lần up (#19). */
   | 'object-store-config'
   /** Volume dữ liệu object của object store — cache artifacts, disposable theo chủ đích (#19). */
-  | 'object-store-data';
+  | 'object-store-data'
+  /** Provision/migrate ephemeral của llm-api-deploy (ba DB LLM, issue #22). */
+  | 'llm-api'
+  /** WIC container của llm-api-deploy (bundle Rust workers-rs, issue #22, không shim). */
+  | 'llm-api-wic'
+  /** Image của WIC llm-api container. */
+  | 'llm-api-wic-image'
+  /** Volume state wrangler của WIC llm-api (persist dev registry). */
+  | 'llm-api-wic-state'
+  /** Container init một-shot chown volume state WIC llm-api cho uid node. */
+  | 'llm-api-wic-state-init';
 /**
  * Tên Docker resource hợp lệ và nhất quán cho một namespace.
  *
