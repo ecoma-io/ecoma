@@ -20,7 +20,13 @@ export type { PactStructuralDecision } from './publish-pact';
 
 export { randomToken, sha256Hex } from './hashing';
 export {
+  CANONICAL_TENANT_NAME,
+  CanonicalTenantUnavailableError,
   provisionEntitlementMembership,
   type ProvisionEntitlementMembershipResult,
 } from './provision-entitlement-membership';
-export type { EntitlementSyncRepo, MembershipRepo } from './provision-entitlement-membership';
+export type {
+  EntitlementSyncRepo,
+  MembershipRepo,
+  TenantLookup,
+} from './provision-entitlement-membership';

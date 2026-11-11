@@ -2,11 +2,15 @@
  * Tenant repo — ensureDefaultTenant race-safe + membership/RBAC + machine
  * token management (Phase 2).
  *
- * ensureDefaultTenant — 4 bước (docs/applications/pact-broker/01-architecture.md
- * §4): INSERT ON CONFLICT DO NOTHING RETURNING → select lại nếu RETURNING
- * rỗng → fail-closed nếu tenant ở trạng thái deleted/suspended → DO NOTHING
- * cho membership owner. Race giữa hai bootstrap đồng thời chỉ cho một INSERT
- * thắng; bên thua đọc hàng của bên thắng.
+ * ensureDefaultTenant — INSERT ON CONFLICT DO NOTHING RETURNING → nếu
+ * RETURNING rỗng: select lại và xác minh hàng trùng tên TRƯỚC KHI đụng
+ * membership (đúng owner_sub, classification 'customer', plan 'free',
+ * status 'active' — sai khớp nào cũng fail-closed, hàng của chủ khác không
+ * bao giờ được nhận vào làm tenant của caller) → fail-closed nếu tenant
+ * không active → DO NOTHING cho membership owner
+ * (docs/applications/pact-broker/01-architecture.md §4). Race giữa hai
+ * bootstrap đồng thời chỉ cho một INSERT thắng; bên thua đọc và xác minh
+ * hàng của bên thắng.
  *
  * Token: 32 byte entropy, base64url; chỉ hash SHA-256 nằm DB. Token bản rõ
  * trả đúng MỘT lần lúc tạo (show-once); revoke = set revoked_at, hiệu lực tức
@@ -42,7 +46,7 @@ export class PgTenantRepo {
   constructor(private readonly pool: Pool) {}
 
   /**
-   * Guard `owner_sub` dùng chung cho `ensureDefaultTenant` và `ensureTenant`:
+   * Guard `owner_sub` của `ensureDefaultTenant` (đường tạo tenant customer):
    * fail-closed qua isOpaqueId trước khi chạm database, cùng một thông báo lỗi
    * cho mọi đường ghi owner. Ném `PactBrokerTenantError`.
    */
@@ -55,9 +59,18 @@ export class PgTenantRepo {
   }
 
   /**
-   * Bảo đảm tenant `name` tồn tại ACTIVE và `ownerSub` là owner. Idempotent,
-   * race-safe. Ném `PactBrokerTenantError` khi tenant tồn tại ở trạng thái
-   * deleted (fail-closed — không tự sửa dữ liệu đã xoá mềm).
+   * Bảo đảm tenant customer `name` tồn tại ACTIVE và `ownerSub` là owner.
+   * Idempotent, race-safe. Đây là đường tạo tenant customer duy nhất của
+   * service: INSERT ghi `classification = 'customer'`, `plan = 'free'` tường
+   * minh (migration 0004 bắt classification NOT NULL và plan chỉ tồn tại khi
+   * classification là customer — không bao giờ dựa vào default ngầm). Trên
+   * đường conflict (tên đã có), hàng hiện có được xác minh TOÀN BỘ trước khi
+   * ghi membership nào: đúng `ownerSub`, `classification = 'customer'`,
+   * `plan = 'free'`, `status = 'active'`. Sai khớp nào cũng ném
+   * `PactBrokerTenantError` kèm tên tenant và phần sai khớp → transaction
+   * rollback: không gắn caller vào tenant của người khác, không ghi đè
+   * owner/classification/plan, không hồi sinh tenant đã xoá mềm (fail-closed
+   * — không tự sửa dữ liệu đã xoá mềm).
    */
   async ensureDefaultTenant(name: string, ownerSub: string): Promise<TenantRecord> {
     this.validateOwnerSub(ownerSub);
@@ -71,7 +84,8 @@ export class PgTenantRepo {
           name: string;
           status: string;
         }>(
-          `INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)
+          `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+           VALUES ($1, 'customer', 'free', $2)
            ON CONFLICT (name) DO NOTHING
            RETURNING id, name, status`,
           [name, ownerSub],
@@ -81,16 +95,49 @@ export class PgTenantRepo {
         if (inserted.rows[0]) {
           tenant = inserted.rows[0];
         } else {
-          // Bước 2: select lại hàng của bên thắng race.
+          // Bước 2: select lại hàng của bên thắng race (hoặc hàng có sẵn trước
+          // đó) và XÁC MINH toàn bộ trước khi đụng membership. Một hàng chỉ
+          // trùng tên có thể là tenant của chủ khác, của canonical first_party,
+          // hoặc ở plan khác — không trạng thái nào trong số đó được nhận vào
+          // làm tenant mặc định của caller. Mỗi sai khớp là một lỗi riêng,
+          // kèm tên tenant, ném trước câu INSERT membership đầu tiên.
           const existing = await client.query<{
             id: string;
             name: string;
             status: string;
-          }>(`SELECT id, name, status FROM pact.tenants WHERE name = $1`, [name]);
-          if (existing.rows[0] === undefined) {
+            classification: string;
+            plan: string | null;
+            owner_sub: string;
+          }>(
+            `SELECT id, name, status, classification, plan, owner_sub
+               FROM pact.tenants WHERE name = $1`,
+            [name],
+          );
+          const row = existing.rows[0];
+          if (row === undefined) {
             throw new PactBrokerTenantError(`tenant ${name} vanished during bootstrap`);
           }
-          tenant = existing.rows[0];
+          if (row.owner_sub !== ownerSub) {
+            throw new PactBrokerTenantError(
+              `tenant ${name} already exists under a different owner; ownership is never overwritten and the requested owner is not attached as a member`,
+            );
+          }
+          if (row.classification !== 'customer') {
+            throw new PactBrokerTenantError(
+              `tenant ${name} already exists with classification ${row.classification}; expected 'customer' — classification is never overwritten by bootstrap`,
+            );
+          }
+          if (row.plan !== 'free') {
+            throw new PactBrokerTenantError(
+              `tenant ${name} already exists with plan ${row.plan ?? 'NULL'}; expected 'free' — the default customer tenant is never moved off the free plan by bootstrap`,
+            );
+          }
+          if (row.status !== 'active') {
+            throw new PactBrokerTenantError(
+              `tenant ${name} already exists with status ${row.status}; refusing to bootstrap a non-active tenant`,
+            );
+          }
+          tenant = { id: row.id, name: row.name, status: row.status };
         }
 
         // Bước 3: fail-closed nếu tenant đã xoá/tạm dừng — bootstrap không
@@ -129,56 +176,6 @@ export class PgTenantRepo {
       status: 'active' | 'suspended' | 'deleted';
     }>(`SELECT id, name, status FROM pact.tenants WHERE name = $1`, [name]);
     return rows[0] ?? null;
-  }
-
-  /**
-   * Bảo đảm tenant `name` tồn tại ACTIVE, idempotent, race-safe. Không tạo
-   * membership — chỉ đảm bảo hàng tenant. Dùng bởi consumer entitlement (P3.2)
-   * trước khi upsert membership theo event.
-   *
-   * Ném `PactBrokerTenantError` khi tenant tồn tại ở trạng thái deleted
-   * (fail-closed — không tự sửa dữ liệu đã xoá mềm).
-   */
-  async ensureTenant(name: string, ownerSub: string): Promise<string> {
-    this.validateOwnerSub(ownerSub);
-    return this.pool.connect().then(async (client) => {
-      try {
-        await client.query('BEGIN');
-
-        const inserted = await client.query<{ id: string; status: string }>(
-          `INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)
-           ON CONFLICT (name) DO NOTHING
-           RETURNING id, status`,
-          [name, ownerSub],
-        );
-
-        let tenant: { id: string; status: string };
-        if (inserted.rows[0]) {
-          tenant = inserted.rows[0];
-        } else {
-          const existing = await client.query<{ id: string; status: string }>(
-            `SELECT id, status FROM pact.tenants WHERE name = $1`,
-            [name],
-          );
-          if (existing.rows[0] === undefined) {
-            throw new PactBrokerTenantError(`tenant ${name} vanished during bootstrap`);
-          }
-          tenant = existing.rows[0];
-        }
-
-        if (tenant.status !== 'active') {
-          throw new PactBrokerTenantError(`tenant ${name} is ${tenant.status}; refusing to use`);
-        }
-
-        await client.query('COMMIT');
-        return tenant.id;
-      } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined);
-        throw error;
-      } finally {
-        client.release();
-      }
-    });
   }
 
   /** Upsert membership `(tenant_id, sub, role)` — DO NOTHING nếu đã có. Provenance entitlement ghi kèm khi có. */

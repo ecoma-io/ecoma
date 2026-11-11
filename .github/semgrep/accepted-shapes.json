@@ -2,24 +2,24 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-api/src/routes/admin.ts",
-    "start": 102,
-    "end": 115,
-    "reason": "Show-once machine token creation: POST /admin/machine-tokens tra token ban ro DUNG MOT LAN trong response 201 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Line pin doi theo khoang cach import khi tach repo layer (#335) - noi dung response khong doi.",
+    "start": 103,
+    "end": 116,
+    "reason": "Show-once machine token creation: POST /admin/machine-tokens tra token ban ro DUNG MOT LAN trong response 201 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Line pin doi theo khoang cach import khi tach repo layer (#335) - noi dung response khong doi. Re-pin +1 dong khi sua comment header admin.ts (#21) - code tai pin khong doi.",
     "lines": {
-      "102": "^    return c\\.json\\($",
-      "103": "^      \\{$",
-      "104": "^        token: \\{$",
-      "105": "^          id: record\\.id,$",
-      "106": "^          name: parsed\\.data\\.name,$",
-      "107": "^          scopes: parsed\\.data\\.scopes,$",
-      "108": "^          createdAt: record\\.createdAt,$",
-      "109": "^          revokedAt: null,$",
-      "110": "^        \\},$",
-      "111": "^        // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
-      "112": "^        secret: token,$",
-      "113": "^      \\},$",
-      "114": "^      201,$",
-      "115": "^    \\);$"
+      "103": "^    return c\\.json\\($",
+      "104": "^      \\{$",
+      "105": "^        token: \\{$",
+      "106": "^          id: record\\.id,$",
+      "107": "^          name: parsed\\.data\\.name,$",
+      "108": "^          scopes: parsed\\.data\\.scopes,$",
+      "109": "^          createdAt: record\\.createdAt,$",
+      "110": "^          revokedAt: null,$",
+      "111": "^        \\},$",
+      "112": "^        // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
+      "113": "^        secret: token,$",
+      "114": "^      \\},$",
+      "115": "^      201,$",
+      "116": "^    \\);$"
     }
   },
   {
@@ -94,6 +94,26 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/local.ts",
+    "start": 115,
+    "end": 115,
+    "reason": "Same FP shape as the platform-env.ts:77 entry: readMigratorPassword returns the cross-stack migrator password to the local-lane entry that passes it as container env to the superadmin resolver - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Introduced by #21 (resolve-or-bootstrap step). Re-pin -9 lines when the superadmin docker invocation constants were extracted into superadmin-resolver.ts (credential-argv fix, #21 review) - content unchanged.",
+    "lines": {
+      "115": "^  return password;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/superadmin-resolver.ts",
+    "start": 53,
+    "end": 53,
+    "reason": "Pure builder extracted from local.ts by the credential-argv fix (#21 review): buildMigratorDatabaseUrl percent-encodes the cross-stack migrator password into the DATABASE_URL handed to the caller, which passes it as the docker child process env - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Same accepted shape as the local.ts and platform-env.ts entries.",
+    "lines": {
+      "53": "^  return \\`postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}\\`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/platform-deploy/platform-env.ts",
     "start": 176,
     "end": 176,
@@ -135,24 +155,24 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-api/src/routes/admin.ts",
-    "start": 150,
-    "end": 163,
-    "reason": "Show-once machine token rotation: POST /admin/machine-tokens/:id/rotate tra token ban ro DUNG MOT LAN trong response 200 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Xoay thay token_hash cu, token cu mat hieu luc luc lan sau. Xoay + ghi audit cung transaction tren mot pg client (fail-closed) - doi vi tri block response vi xoay chuyen vao trong try/catch/COMMIT.",
+    "start": 151,
+    "end": 164,
+    "reason": "Show-once machine token rotation: POST /admin/machine-tokens/:id/rotate tra token ban ro DUNG MOT LAN trong response 200 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Xoay thay token_hash cu, token cu mat hieu luc luc lan sau. Xoay + ghi audit cung transaction tren mot pg client (fail-closed) - doi vi tri block response vi xoay chuyen vao trong try/catch/COMMIT. Re-pin +1 dong khi sua comment header admin.ts (#21) - code tai pin khong doi.",
     "lines": {
-      "150": "^      return c\\.json\\($",
-      "151": "^        \\{$",
-      "152": "^          token: \\{$",
-      "153": "^            id: rotated\\.record\\.id,$",
-      "154": "^            name: rotated\\.record\\.name,$",
-      "155": "^            scopes: rotated\\.record\\.scopes\\.split\\(' '\\)\\.filter\\(\\(s\\) => s !== ''\\),$",
-      "156": "^            createdAt: rotated\\.record\\.createdAt,$",
-      "157": "^            revokedAt: null,$",
-      "158": "^          \\},$",
-      "159": "^          // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
-      "160": "^          secret: rotated\\.token,$",
-      "161": "^        \\},$",
-      "162": "^        200,$",
-      "163": "^      \\);$"
+      "151": "^      return c\\.json\\($",
+      "152": "^        \\{$",
+      "153": "^          token: \\{$",
+      "154": "^            id: rotated\\.record\\.id,$",
+      "155": "^            name: rotated\\.record\\.name,$",
+      "156": "^            scopes: rotated\\.record\\.scopes\\.split\\(' '\\)\\.filter\\(\\(s\\) => s !== ''\\),$",
+      "157": "^            createdAt: rotated\\.record\\.createdAt,$",
+      "158": "^            revokedAt: null,$",
+      "159": "^          \\},$",
+      "160": "^          // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
+      "161": "^          secret: rotated\\.token,$",
+      "162": "^        \\},$",
+      "163": "^        200,$",
+      "164": "^      \\);$"
     }
   },
   {

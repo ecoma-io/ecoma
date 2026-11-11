@@ -56,6 +56,18 @@ const happyStages: BootstrapStageRunner = (request) => {
   }
 };
 
+/** Runner trên môi trường đã hội tụ: chỉ đọc, từ chối bất cứ gì khác. */
+const convergedStages: BootstrapStageRunner = (request) => {
+  switch (request.action) {
+    case 'verify':
+      return success('account.verify', 'converged', { sub: `sub_${'r'.repeat(32)}` });
+    case 'staff-verify':
+      return success('staff.verify', 'verified', { staff_id: 'staff-1' });
+    default:
+      return { ok: false, stage: 'unexpected', reason: 'unexpected_stage_in_resolve_mode' };
+  }
+};
+
 describe('runBootstrapSuperadmin', () => {
   it('runs preflight, both Account steps, both Staff Access steps and the read-only verification in order', () => {
     // Lần `verify` đầu là preflight (chưa có `sub`), lần thứ hai là A2.
@@ -72,6 +84,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-1',
       operatorRef: 'CHG-1',
+      mode: 'bootstrap',
       runStage: recorded.runStage,
     });
     const recordedStages = recorded.requests;
@@ -101,6 +114,7 @@ describe('runBootstrapSuperadmin', () => {
       const result = runBootstrapSuperadmin({
         correlationId: 'corr-input',
         operatorRef,
+        mode: 'bootstrap',
         runStage: recorded.runStage,
       });
 
@@ -118,6 +132,7 @@ describe('runBootstrapSuperadmin', () => {
       const result = runBootstrapSuperadmin({
         correlationId: 'corr-input-invalid',
         operatorRef,
+        mode: 'bootstrap',
         runStage: recorded.runStage,
       });
 
@@ -134,6 +149,7 @@ describe('runBootstrapSuperadmin', () => {
     runBootstrapSuperadmin({
       correlationId: 'corr-trim',
       operatorRef: '  CHG-TRIM  ',
+      mode: 'bootstrap',
       runStage: recorded.runStage,
     });
 
@@ -149,6 +165,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-2',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: recorded.runStage,
     });
     const recordedStages = recorded.requests;
@@ -181,6 +198,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-3',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: recorded.runStage,
     });
     const recordedStages = recorded.requests;
@@ -209,6 +227,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-4',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: runner,
     });
 
@@ -237,6 +256,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-5',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: runner,
     });
 
@@ -276,6 +296,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-7',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: runner,
     });
 
@@ -298,6 +319,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-7b',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: (request) => {
         if (request.action === 'verify') {
           verifyCalls += 1;
@@ -346,6 +368,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-8',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: runner,
     });
 
@@ -383,6 +406,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-no-compensate',
       operatorRef: 'CHG-1',
+      mode: 'bootstrap',
       runStage: recorded.runStage,
     });
 
@@ -407,6 +431,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-9',
       operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
       runStage: () => ({
         ok: false,
         stage: 'account.verify',
@@ -423,6 +448,7 @@ describe('runBootstrapSuperadmin', () => {
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-6',
       operatorRef: 'CHG-SECRET',
+      mode: 'bootstrap',
       runStage: (request) => {
         if (request.action === 'verify') {
           return { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' };
@@ -432,6 +458,185 @@ describe('runBootstrapSuperadmin', () => {
     });
 
     expect(JSON.stringify(result)).not.toContain('CHG-SECRET');
+  });
+});
+
+describe('runBootstrapSuperadmin in resolve-or-bootstrap mode', () => {
+  it('resolves through the read-only staff verification when the bootstrap account is present', () => {
+    const recorded = recordStages(convergedStages);
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-ok',
+      operatorRef: '',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('resolved');
+    expect(result.sub).toBe(`sub_${'r'.repeat(32)}`);
+    expect(result.staffId).toBe('staff-1');
+    expect(result.correlationId).toBe('corr-resolve-ok');
+    // Đúng hai lần đọc, đúng thứ tự — KHÔNG bao giờ provision/staff-provision/
+    // staff-assign: một môi trường đã hội tụ không được cấp lại bởi lần chạy lane.
+    expect(recorded.requests.map((r) => `${r.service}:${r.action}`)).toEqual([
+      'account:verify',
+      'staff-access:staff-verify',
+    ]);
+    // Lần xác thực chỉ đúng chủ thể preflight đã đọc.
+    expect(recorded.requests[1]?.input['sub']).toBe(`sub_${'r'.repeat(32)}`);
+    // KHÔNG có correlation_id: kiểm 5 của staff.verify đòi audit row của lần
+    // chạy mang correlation id đó — một lần resolve không có lần ghi nào, nên
+    // correlation id mới luôn fail `audit_trail_missing` trên môi trường đã
+    // hội tụ. Vắng nó, service bỏ kiểm 5 (xác thực kiểm 1–4 là đủ).
+    expect(recorded.requests[1]?.input['correlation_id']).toBeUndefined();
+  });
+
+  it('never invokes a writing stage and fails closed when the read-only verification fails', () => {
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        return success('account.verify', 'converged', { sub: `sub_${'s'.repeat(32)}` });
+      }
+      return { ok: false, stage: 'staff.verify', reason: 'staff_missing_or_ambiguous' };
+    });
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-fail',
+      operatorRef: '',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    // Fail-closed: không bồi thường, không ghi, không rơi sang bootstrap.
+    expect(result.outcome).toBe('failed');
+    expect(result.failedStage).toBe('staff.verify');
+    expect(result.reason).toBe('staff_missing_or_ambiguous');
+    expect(recorded.requests.map((r) => `${r.service}:${r.action}`)).toEqual([
+      'account:verify',
+      'staff-access:staff-verify',
+    ]);
+  });
+
+  it('runs the full guarded bootstrap, unchanged, when the environment is fresh', () => {
+    // Hai lần preflight mới: nhánh giải quyết đọc trước, sau đó ủy quyền procedure
+    // không đổi, chạy preflight của chính nó trước khi ghi.
+    let verifyCalls = 0;
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls <= 2
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'verified', { sub: `sub_${'t'.repeat(32)}` });
+      }
+      if (request.action === 'provision') {
+        // A1 phải hội tụ trên chủ thể mà lần đọc lại (A2) xác nhận.
+        return success('account.provision', 'created', { sub: `sub_${'t'.repeat(32)}` });
+      }
+      return happyStages(request);
+    });
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-fresh',
+      operatorRef: 'CHG-1',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('bootstrapped');
+    expect(result.sub).toBe(`sub_${'t'.repeat(32)}`);
+    expect(recorded.requests.map((r) => `${r.service}:${r.action}`)).toEqual([
+      'account:verify',
+      'account:verify',
+      'account:provision',
+      'account:verify',
+      'staff-access:staff-provision',
+      'staff-access:staff-assign',
+      'staff-access:staff-verify',
+    ]);
+  });
+
+  it('keeps the measured guard intact on the fresh path (mode_mismatch still denies)', () => {
+    let verifyCalls = 0;
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-guard',
+      operatorRef: 'CHG-TEST',
+      mode: 'resolve-or-bootstrap',
+      runStage: (request) => {
+        if (request.action === 'verify') {
+          verifyCalls += 1;
+          return verifyCalls <= 2
+            ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+            : success('account.verify', 'converged', { sub: `sub_${'u'.repeat(32)}` });
+        }
+        if (request.action === 'provision') {
+          return success('account.provision', 'created', { sub: `sub_${'u'.repeat(32)}` });
+        }
+        if (request.action === 'staff-provision') {
+          return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
+        }
+        return success('staff.verify', 'verified', { staff_id: 'staff-1' });
+      },
+    });
+
+    // Chế độ giải quyết KHÔNG thêm lối tắt qua guard: môi trường mới vẫn đi qua
+    // bộ điều khiển đã đo lường, và một sự từ chối vẫn là từ chối (#17/#22).
+    expect(result.outcome).toBe('guard_denied');
+    expect(result.staffId).toBeUndefined();
+    expect(result.assignmentId).toBeUndefined();
+  });
+
+  it('demands the operator reference only when the fresh path needs to write', () => {
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        return { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' };
+      }
+      return { ok: false, stage: 'unexpected', reason: 'unexpected_stage_in_resolve_mode' };
+    });
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-opref',
+      operatorRef: '',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    // Một lần chạy đã giải quyết không bao giờ cần attribution (không có gì
+    // được ghi), nhưng một lần chạy mới ủy quyền cho procedure, fail ở stage
+    // input TRƯỚC preflight của chính nó — quy tắc attribution trước A1.
+    expect(result.outcome).toBe('failed');
+    expect(result.failedStage).toBe(INPUT_STAGE);
+    expect(result.reason).toBe('operator_ref_missing');
+    expect(recorded.requests).toHaveLength(1);
+  });
+
+  it('fails closed when the preflight verify succeeds without a subject', () => {
+    const recorded = recordStages(() => success('account.verify', 'converged', {}));
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-nosub',
+      operatorRef: '',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.failedStage).toBe('account.verify');
+    expect(result.reason).toBe('missing_sub_in_response');
+    // Không xác thực staff nếu không có chủ thể để xác thực.
+    expect(recorded.requests).toHaveLength(1);
+  });
+
+  it('fails closed when the preflight fails with a reason other than fresh', () => {
+    const recorded = recordStages(() => ({
+      ok: false,
+      stage: 'account.verify',
+      reason: 'account_database_not_empty',
+    }));
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-resolve-notempty',
+      operatorRef: 'CHG-TEST',
+      mode: 'resolve-or-bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('failed');
+    expect(result.reason).toBe('account_database_not_empty');
+    // Một lần đọc, không ghi, không stage chẩn đoán trên nhánh này.
+    expect(recorded.requests).toHaveLength(1);
   });
 });
 

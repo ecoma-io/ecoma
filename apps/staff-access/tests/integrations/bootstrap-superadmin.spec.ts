@@ -1343,6 +1343,45 @@ describe('CLI wire shapes', () => {
     });
   });
 
+  it('verifies a bootstrap committed by a previous run without a correlation id (resolve mode)', async () => {
+    // Đường resolve-or-bootstrap của lane local: lần chạy này KHÔNG có lần ghi
+    // nào, nên không thể có audit row mang correlation id của nó — CLI phải
+    // chấp nhận stdin vắng `correlation_id`, bỏ kiểm 5 và vẫn xác thực qua
+    // kiểm 1–4 thay vì từ chối `audit_trail_missing` vĩnh viễn.
+    const sub = randomSub();
+    const writeInput = {
+      correlation_id: `corr_${randomBytes(8).toString('hex')}`,
+      operator_ref: 'CHG-CLI-RESOLVE',
+      sub,
+    };
+    const provision = await runCli('staff-provision', writeInput);
+    expect(provision.code).toBe(0);
+    const provisionLine = JSON.parse(provision.stdout.trim()) as Record<string, string>;
+    expect((await runCli('staff-assign', writeInput)).code).toBe(0);
+
+    const verify = await runCli('staff-verify', { sub });
+    expect(verify.code).toBe(0);
+    expect(JSON.parse(verify.stdout.trim())).toEqual({
+      stage: 'staff.verify',
+      status: 'verified',
+      staff_id: provisionLine['staff_id'],
+    });
+
+    // Một correlation id rỗng cũng được đối xử như vắng mặt (bỏ kiểm 5),
+    // không phải `correlation_id_missing`.
+    const verifyEmpty = await runCli('staff-verify', { correlation_id: '', sub });
+    expect(verifyEmpty.code).toBe(0);
+    expect(JSON.parse(verifyEmpty.stdout.trim())['status']).toBe('verified');
+
+    // Các bước GHI vẫn bắt buộc correlation_id — attribution không thể thiếu.
+    const provisionNoCorr = await runCli('staff-provision', {
+      operator_ref: 'CHG-CLI-RESOLVE',
+      sub: randomSub(),
+    });
+    expect(provisionNoCorr.code).toBe(1);
+    expect(JSON.parse(provisionNoCorr.stderr.trim())['reason']).toBe('correlation_id_missing');
+  });
+
   it('emits the exact stderr envelope and exit code 1 on a guard denial', async () => {
     const sub = randomSub();
     const correlationId = `corr_${randomBytes(8).toString('hex')}`;

@@ -163,14 +163,16 @@ describe('validateDeploymentMap — owner-null invariant per status', () => {
   });
 
   it('reports a scaffold entry that lost its owner', () => {
-    const entry = DEPLOYMENT_MAP['pact-broker-api'] as { owner: string | null };
+    // Entry scaffold còn tồn tại trong map thật — pact-broker-api đã lên
+    // implemented (issue #21), nên ca scaffold lấy entry scaffold kế tiếp.
+    const entry = DEPLOYMENT_MAP['push-notification'] as { owner: string | null };
     const original = entry.owner;
     entry.owner = null;
     try {
       const violations = validateDeploymentMap(goodState());
       expect(kinds(violations)).toEqual(['invalid-map-owner']);
       expect(violations).toHaveLength(1);
-      expect(violations[0].project).toBe('pact-broker-api');
+      expect(violations[0].project).toBe('push-notification');
       expect(violations[0].detail).toContain("'scaffold'");
     } finally {
       entry.owner = original;

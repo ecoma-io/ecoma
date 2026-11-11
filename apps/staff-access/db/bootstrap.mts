@@ -87,7 +87,9 @@ export const CANONICAL_ROLE_PERMISSIONS = [
  *   khác 0 nên `mode_mismatch` chặn trước. Giữ nhánh làm phòng thủ cho một thay đổi
  *   sau này (ví dụ đường recovery #46), không phải đường đang chạy.
  * - `invalid_sub`: `sub` không khớp `isStaffSubFormat` (kiểm trước khi mở transaction).
- * - `correlation_id_missing`: CLI được gọi mà stdin thiếu `correlation_id`.
+ * - `correlation_id_missing`: CLI được gọi mà stdin thiếu `correlation_id` — chỉ
+ *   áp dụng cho các bước GHI (S1/S2); S3 chấp nhận thiếu để verify lại một
+ *   bootstrap đã commit từ lần chạy khác.
  * - `operator_ref_missing`: CLI được gọi mà stdin thiếu `operator_ref`.
  * - `sub_missing`: CLI S1/S2/S3 được gọi mà stdin thiếu `sub`.
  *
@@ -928,9 +930,17 @@ async function main(): Promise<void> {
   }
 
   try {
-    const correlationId = requireString(input.correlation_id, 'correlation_id_missing');
-
     if (action === 'staff-verify') {
+      // Hành động chỉ đọc — `correlation_id` TUỲ CHỌN: đường verify chạy lại sau
+      // khi S1/S2 đã commit từ lần chạy khác (resolve-or-bootstrap của lane local)
+      // không có lần ghi nào của chính nó để đối chiếu audit. Khi có, kiểm 5 đòi
+      // đúng audit row của lần chạy đó (S3); khi vắng, kiểm 5 được bỏ qua theo
+      // hợp đồng của `verifyBootstrapStaff`. Các bước GHI (provision/assign)
+      // vẫn bắt buộc `correlation_id` bên dưới — attribution không thể thiếu.
+      const correlationId =
+        input.correlation_id === undefined || input.correlation_id === ''
+          ? undefined
+          : requireString(input.correlation_id, 'correlation_id_missing');
       // S3 cần đúng `sub` của Account đã bootstrap: runbook Bước 8 kiểm staff theo
       // `sub`, không đếm toàn bảng (một environment có thể đã có staff khác).
       const sub = requireString(input.sub, 'sub_missing');
@@ -949,6 +959,7 @@ async function main(): Promise<void> {
       return;
     }
 
+    const correlationId = requireString(input.correlation_id, 'correlation_id_missing');
     const operatorRef = requireString(input.operator_ref, 'operator_ref_missing');
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(operatorRef)) {
       throw new BootstrapDeniedError(

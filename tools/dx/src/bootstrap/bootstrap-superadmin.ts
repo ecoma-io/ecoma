@@ -16,6 +16,18 @@
  * định 7 — nhưng nó **không** thay lớp bảo vệ chính: phép đo `admins_before`/
  * `admins_ever` nằm trong critical section ghi của `staff-access`, nên gọi
  * thẳng CLI vẫn đi qua guard.
+ *
+ * ## Chế độ resolve-or-bootstrap
+ *
+ * Vòng lặp cục bộ của một môi trường đã bootstrapped (lane triển khai local,
+ * ADR-0020 Quyết định 12 bề mặt (a)) không được gọi lại các bước ghi:
+ * `mode: 'resolve-or-bootstrap'` chạy preflight chỉ đọc đầu tiên, và khi tài
+ * khoản bootstrap đã có, tiếp tục với stage chỉ đọc `staff-verify` duy nhất —
+ * kết quả `resolved`, không có lần ghi nào trên nhánh này, bất kỳ thất bại
+ * nào fail-closed. Môi trường mới (`no_bootstrap_account`) ủy quyền cho toàn
+ * bộ procedure dưới đây, không đổi: A1 → A2 → S1 → S2 → S3 với bộ điều khiển
+ * đã đo lường giữ nguyên, `mode_mismatch` vẫn kết thúc bằng `guard_denied`.
+ * `mode: 'bootstrap'` là procedure được ghi lại ở đây, từng byte một.
  */
 
 /** Email canonical của Superadmin — hằng trong code, không phải cấu hình. */
@@ -70,9 +82,16 @@ export type BootstrapStageRunner = (request: BootstrapStageRequest) => Bootstrap
  * `admins_before`/`admins_ever` khác 0 nên procedure từ chối ghi. Nó **không**
  * chứng minh bootstrap đã hoàn tất — một administrator do đường khác tạo cũng
  * cho cùng phép đo — nên kết quả không được đọc là "đã xong".
+ *
+ * `resolved` (chỉ có trong chế độ resolve-or-bootstrap) có nghĩa là tài khoản
+ * bootstrap đã tồn tại và stage chỉ đọc `staff-verify` đã xác nhận quản trị
+ * viên của chủ thể đó: môi trường đã hội tụ và lần chạy này không ghi gì.
+ * Không giống `guard_denied`, đây là trạng thái hoàn tất — nó dựa trên bằng
+ * chứng chỉ đọc như S3 của procedure dùng, gắn với `sub` của chính tài khoản
+ * bootstrap.
  */
 export interface BootstrapRunResult {
-  readonly outcome: 'bootstrapped' | 'guard_denied' | 'failed';
+  readonly outcome: 'bootstrapped' | 'resolved' | 'guard_denied' | 'failed';
   readonly correlationId: string;
   readonly sub?: string;
   readonly staffId?: string;
@@ -92,12 +111,32 @@ export interface BootstrapStageLogEntry {
   readonly detail?: string;
 }
 
+/**
+ * Chế độ của một lần chạy — quyết định giữa viết bootstrap mới và giải quyết
+ * một môi trường đã có.
+ *
+ * - `'bootstrap'` — toàn bộ procedure, không đổi (có ghi xảy ra).
+ * - `'resolve-or-bootstrap'` — giải quyết môi trường đã hội tụ chỉ đọc khi
+ *   tài khoản bootstrap tồn tại; chỉ fallback sang toàn bộ procedure khi môi
+ *   trường mới. Mọi ghi vẫn phải qua bộ điều khiển đã đo lường.
+ */
+export type BootstrapRunMode = 'bootstrap' | 'resolve-or-bootstrap';
+
 /** Đầu vào của một lần chạy. */
 export interface BootstrapRunOptions {
   readonly correlationId: string;
   /** Tham chiếu người thực thi (ticket/change id) — attribution tự khai. */
   readonly operatorRef: string;
   readonly runStage: BootstrapStageRunner;
+  /**
+   * Chế độ chạy rõ ràng — bắt buộc, không được suy luận từ môi trường, để caller
+   * không vô tình trôi vào procedure ghi.
+   *
+   * Chỉ nhánh mới của `'resolve-or-bootstrap'` cần `operatorRef` (các bước ghi
+   * mang nó vào audit); một lần chạy đã giải quyết không ghi gì và không bao
+   * giờ bị từ chối vì thiếu tham chiếu.
+   */
+  readonly mode: BootstrapRunMode;
 }
 
 /**
@@ -158,8 +197,107 @@ export function assertCanonicalBootstrapEmail(raw: string | undefined): void {
 /**
  * Chạy procedure theo đúng thứ tự, truyền `sub` giữa các bước và dừng ở bước
  * fail. Không có nhánh sửa chữa, xoá hay cấp lại quyền.
+ *
+ * Giao theo chế độ chạy rõ ràng: `'resolve-or-bootstrap'` nhận lần giải quyết
+ * chỉ đọc trước (xem {@link runResolveOrBootstrap}); `'bootstrap'` chạy
+ * {@link runBootstrapProcedure} — phần body lịch sử giữ nguyên từng byte một,
+ * nên hợp đồng guard đã đo lường (#17/#22) không thể trôi qua refactor này.
  */
 export function runBootstrapSuperadmin(options: BootstrapRunOptions): BootstrapRunResult {
+  if (options.mode === 'resolve-or-bootstrap') {
+    return runResolveOrBootstrap(options);
+  }
+  return runBootstrapProcedure(options);
+}
+
+/**
+ * Chế độ resolve-or-bootstrap: một lần preflight chỉ đọc quyết định nhánh.
+ *
+ * - Tài khoản bootstrap CÓ MẶT (`account.verify` ok với `sub`): chỉ chạy stage
+ *   `staff-verify` chỉ đọc duy nhất của chủ thể đó. Xác thực → `'resolved'`.
+ *   Bất kỳ thất bại nào của lần đọc → `'failed'`, fail-closed — nhánh này
+ *   không chứa bước ghi nào, thậm chí cả khi thất bại.
+ * - Mới (`no_bootstrap_account`): ủy quyền cho {@link runBootstrapProcedure}
+ *   không đổi — bao gồm cả preflight đọc lại của chính nó, nên đường ghi có
+ *   guard là đúng cùng đoạn mã với chế độ `'bootstrap'` (lần preflight thêm
+ *   vào chỉ đọc và idempotent). Procedure được ủy quyền tự xác thực
+ *   `operatorRef` trước khi chạm bất cứ gì: một môi trường mới không được
+ *   bootstrap nếu thiếu tham chiếu ghi nhận (ADR-0021 Quyết định 6).
+ * - Bất kỳ thất bại preflight khác (`account_database_not_empty`, lỗi hạ
+ *   tầng): `'failed'`, một bước đã chạm.
+ */
+function runResolveOrBootstrap(options: BootstrapRunOptions): BootstrapRunResult {
+  const { correlationId, runStage } = options;
+  const stages: BootstrapStageLogEntry[] = [];
+
+  const fail = (stage: string, reason: string): BootstrapRunResult => {
+    stages.push({ stage, outcome: 'failed', detail: reason });
+    return { outcome: 'failed', correlationId, failedStage: stage, reason, stages };
+  };
+
+  const preflight = runStage({
+    service: 'account',
+    action: 'verify',
+    input: { correlation_id: correlationId },
+  });
+
+  if (preflight.ok) {
+    const sub = asString(preflight.payload['sub']);
+    if (sub === undefined) {
+      // Verify ok mà không có chủ thể là vi phạm hợp đồng của CLI service,
+      // không phải trạng thái giải quyết được: fail-closed mà không ghi.
+      return fail(preflight.stage, 'missing_sub_in_response');
+    }
+    stages.push({
+      stage: preflight.stage,
+      outcome: 'converged',
+      detail: 'bootstrap account present',
+    });
+
+    // Bằng chứng chỉ đọc, cùng hình dạng với S3 của procedure trừ audit-row:
+    // đúng chủ thể này, xác thực qua staff-access. KHÔNG truyền `correlation_id`:
+    // kiểm 5 của `staff.verify` đòi audit row `staff.provision`/`staff.assign`
+    // của chính lần chạy mang correlation id đó — một lần resolve không có lần
+    // ghi nào của mình, nên correlation id mới luôn thiếu audit row và mọi môi
+    // trường đã hội tụ sẽ fail `audit_trail_missing` vĩnh viễn. Vắng
+    // `correlation_id`, S3 bỏ kiểm 5 theo hợp đồng của service và vẫn xác thực
+    // staff/assignment/role/permissions (kiểm 1–4). Không có provision/assign
+    // trên nhánh này — một môi trường đã hội tụ không bao giờ được cấp lại.
+    const verification = runStage({
+      service: 'staff-access',
+      action: 'staff-verify',
+      input: { sub },
+    });
+    if (!verification.ok) return fail(verification.stage, verification.reason);
+    stages.push({ stage: verification.stage, outcome: 'verified' });
+
+    const staffId = asString(verification.payload['staff_id']);
+    return {
+      outcome: 'resolved',
+      correlationId,
+      sub,
+      ...(staffId === undefined ? {} : { staffId }),
+      stages,
+    };
+  }
+
+  if (preflight.reason !== 'no_bootstrap_account') {
+    // Fail-fast giống preflight của chế độ bootstrap: một tài khoản khác hoặc
+    // lỗi hạ tầng dừng lần chạy trước khi có ghi nào.
+    return fail(preflight.stage, preflight.reason);
+  }
+
+  stages.push({ stage: preflight.stage, outcome: 'fresh', detail: 'no bootstrap account yet' });
+  return runBootstrapProcedure(options);
+}
+
+/**
+ * Toàn bộ procedure bootstrap — phần body lịch sử của
+ * {@link runBootstrapSuperadmin}, không đổi, được dùng chung bởi chế độ
+ * `'bootstrap'` và nhánh mới của `'resolve-or-bootstrap'` nên bộ điều khiển đã
+ * đo lường (ADR-0022) chỉ có một cách triển khai.
+ */
+function runBootstrapProcedure(options: BootstrapRunOptions): BootstrapRunResult {
   const { correlationId, operatorRef, runStage } = options;
   const stages: BootstrapStageLogEntry[] = [];
   const log = (entry: BootstrapStageLogEntry): void => {

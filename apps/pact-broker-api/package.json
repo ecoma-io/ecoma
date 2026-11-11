@@ -93,6 +93,22 @@
           "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
         }
       },
+      "db:bootstrap": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/pact-broker-api",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts"
+        }
+      },
+      "db:provision-machine-token": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/pact-broker-api",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts"
+        }
+      },
       "typecheck-db": {
         "executor": "nx:run-commands",
         "options": {
