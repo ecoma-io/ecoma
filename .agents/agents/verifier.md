@@ -40,8 +40,9 @@ Do not use it for:
 - Read, Grep, Glob — re-derive every claim from the source, tests and
   configuration.
 - Bash — run the matching validation target and inspect its real output.
-- Skill — load `verification`, and `reconciliation` only when asked to
-  reconcile after merge.
+- Skill — load `verification`, plus the skills listed under Applicable skills
+  when a claim requires them, and `reconciliation` only when asked to reconcile
+  after merge.
 
 You have no `Edit` or `Write` tool: you cannot change the source through a file
 edit. That is not a full write barrier — `Bash` can still modify files. Use it
@@ -52,6 +53,15 @@ this role as tool-enforced read-only.
 
 - `verification` — choose the layer, run the target, record the outcome.
 - `reconciliation` — only when the task is the post-merge comparison.
+- `frontend-visual-review` and `playwright-cli` — when a claim concerns
+  rendered frontend behavior (visual layout, interactions, console/network
+  behavior): re-derive it with browser evidence. A screenshot is mandatory
+  evidence for a visual finding; an accessibility snapshot is not a screenshot.
+  Match the evidence to the claim's layer: mock-adapter preview evidence never
+  substitutes for system E2E; a manual visual review is not a new test gate;
+  dynamic import in an artifact is not proof that mock code is absent —
+  inspect the whole production build output and the fail-closed behavior
+  before supporting a production-safety claim.
 
 ## Execution workflow
 

@@ -11,6 +11,7 @@ import {
   renderOpencodeAgent,
   type AgentSource,
 } from './agent-frontmatter.js';
+import { parseSkillSource } from './skill-frontmatter.js';
 import { gitEnv, ROOT_DIR } from '../utils.js';
 
 const execFileAsync = promisify(execFile);
@@ -382,10 +383,72 @@ async function mirror(
 }
 
 /**
+ * Validate contract tối thiểu của mọi skill directory trực tiếp dưới nguồn.
+ *
+ * Mirror copy nguyên văn, nên một skill hỏng — thiếu `SKILL.md`, thiếu
+ * frontmatter, `name` lệch thư mục — từng được copy y nguyên và thành một skill
+ * mà loader của Claude Code bỏ qua im lặng: đích sinh ra trông đầy đủ nhưng
+ * thiếu skill thật. Đó là lý do lỗi phải huỷ cả lần đồng bộ thay vì bỏ qua một
+ * skill, và lý do hàm này phải chạy trước khi đích bị đụng tới.
+ *
+ * Contract chỉ bao `SKILL.md` ở đỉnh mỗi skill directory; file lồng sâu hơn
+ * (`references/**`...) là dữ liệu tuỳ ý của skill. Entry không phải thư mục
+ * thật (file rời, symlink) giữ nguyên hành vi mirror cũ: file được copy,
+ * symlink bị bỏ qua kèm thông báo.
+ */
+async function validateSkills(sourceDir: string, repoRoot: string): Promise<void> {
+  for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+    const skillDir = join(sourceDir, entry.name);
+
+    if (await isIgnored(skillDir, repoRoot)) {
+      continue;
+    }
+
+    // `readdir({ withFileTypes: true })` dùng ngữ nghĩa `lstat`: một symlink
+    // trỏ vào thư mục có `isDirectory() === false`, nên điều kiện này lọc cả
+    // symlink — thứ mirror cũng bỏ qua, thay vì đi theo nó.
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const label = `${SKILLS_SOURCE_LABEL}/${entry.name}`;
+    const skillMdLabel = `${label}/SKILL.md`;
+    const skillMdPath = join(skillDir, 'SKILL.md');
+    const skillMdStat = await lstatOrNull(skillMdPath);
+
+    if (skillMdStat === null) {
+      throw new Error(`${skillMdLabel} is missing; every skill directory must provide SKILL.md`);
+    }
+
+    if (skillMdStat.isSymbolicLink()) {
+      // Mirror sẽ bỏ qua symlink này và sinh ra một skill không có `SKILL.md`;
+      // lỗi nguồn phải nổi ra thay vì được dịch thành output thiếu file.
+      throw new Error(`${skillMdLabel} must be a regular file, not a symbolic link`);
+    }
+
+    if (!skillMdStat.isFile()) {
+      throw new Error(`${skillMdLabel} must be a regular file`);
+    }
+
+    const skill = parseSkillSource(await readFile(skillMdPath, 'utf8'), skillMdLabel);
+
+    // `name` là danh tính skill mà cả hai loader đọc; lệch tên thư mục thì đích
+    // chứa một skill mang tên khác với nơi nó nằm.
+    if (skill.name !== entry.name) {
+      throw new Error(
+        `${label}: "name" must match the directory name ("${entry.name}"), got "${skill.name}"`,
+      );
+    }
+  }
+}
+
+/**
  * Đồng bộ `.agents/skills` sang `destLabel`.
  *
  * Nguồn thiếu thì bỏ qua kèm thông báo và để nguyên đích — không tạo, không xoá.
- * Nguồn tồn tại (kể cả rỗng) thì đích được đồng bộ thành bản sao đúng của nguồn.
+ * Nguồn tồn tại (kể cả rỗng) thì đích được đồng bộ thành bản sao đúng của nguồn,
+ * sau khi mọi skill directory đã được validate: một nguồn hỏng huỷ cả lần đồng
+ * bộ cho đích này thay vì để mirror sinh output một nửa.
  */
 async function syncSkills(dir: string, repoRoot: string, destLabel: string): Promise<void> {
   const source = await assertNoSymlinkPath(dir, ['.agents', 'skills']);
@@ -401,6 +464,10 @@ async function syncSkills(dir: string, repoRoot: string, destLabel: string): Pro
   if (!sourceStat.isDirectory()) {
     throw new Error(`${SKILLS_SOURCE_LABEL} is not a directory: ${source}`);
   }
+
+  // Validate trước khi đích bị đụng tới: một skill hỏng phải huỷ cả lần đồng bộ
+  // cho đích này thay vì để mirror chạy được một nửa rồi mới chết.
+  await validateSkills(source, repoRoot);
 
   const [destParent, destName] = destLabel.split('/');
   const dest = await assertNoSymlinkPath(dir, [destParent, destName]);
