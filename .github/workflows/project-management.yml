@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'audit chỉ đọc và báo drift; apply sửa membership (cần secret PROJECT_MANAGEMENT_TOKEN)'
+        description: 'audit is read-only and reports drift; apply mutates membership (requires the PROJECT_MANAGEMENT_TOKEN secret)'
         type: choice
         required: false
         default: audit
@@ -12,7 +12,7 @@ on:
           - audit
           - apply
       reason:
-        description: 'Lý do chạy thủ công, ghi vào log của run'
+        description: 'Reason for the manual run, echoed into the run log'
         type: string
         required: false
         default: ''

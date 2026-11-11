@@ -8,8 +8,11 @@
  * sau khi cạn retry, lần đọc đó fail → `discoverAll` trả `complete: false`
  * (fail-closed, pipeline không audit/apply trên inventory một phần).
  *
- * Mutation (add/remove item) được retry an toàn: addProjectV2ItemById là
- * idempotent với cùng content, removeProjectV2ItemById bỏ qua item vắng.
+ * Mutation retry: removeProjectV2ItemById bỏ qua item vắng nên retry an toàn.
+ * addProjectV2ItemById KHÔNG đảm bảo idempotent — GitHub cho phép cùng content
+ * xuất hiện nhiều item, nên retry sau 502 mất phản hồi có thể tạo item trùng.
+ * Lưới an toàn là verify-by-refetch: drift còn sót (kể cả item trùng) được báo
+ * và kỳ chạy sau dọn qua nhánh duplicate handling của plan.
  */
 
 import type { NormalizedIssue, ProjectItemContentType, ProjectItemRecord } from './types.js';

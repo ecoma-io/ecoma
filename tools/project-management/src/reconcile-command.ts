@@ -110,11 +110,6 @@ export const reconcileCommand = defineCommand({
       process.exitCode = 1;
       return;
     }
-    if (mode === 'apply' && token === '') {
-      console.error('apply mode requires a non-empty PROJECT_MANAGEMENT_TOKEN.');
-      process.exitCode = 1;
-      return;
-    }
     const owner = args.owner;
     const repoArg = args.repo;
     if (owner === undefined || owner === '' || repoArg === undefined || repoArg === '') {

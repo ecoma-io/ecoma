@@ -89,6 +89,10 @@ export function buildPlan(
           reason: `desired root issue #${number} is missing from the project`,
         });
       } else {
+        // Giữ item có itemId nhỏ nhất, KHÔNG xét isArchived: một cặp trùng
+        // (một archived + một live) sẽ giữ bản archived — chủ đích vì pipeline
+        // không bao giờ archive/unarchive; audit vẫn báo `archived_item` để
+        // người xử lý thủ công.
         const kept = items[0];
         actions.push({
           action: 'keep',
