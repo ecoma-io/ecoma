@@ -124,7 +124,7 @@ describe('parseSkillSource', () => {
 
   it('rejects a name that is not a string', () => {
     expect(() => parseSkillSource(sourceWith('name: 42\ndescription: Demo skill'), LABEL)).toThrow(
-      /requires a non-empty "name"/u,
+      /^\.agents\/skills\/demo\/SKILL\.md: frontmatter "name" must be a string, got number$/u,
     );
   });
 
@@ -153,6 +153,12 @@ describe('parseSkillSource', () => {
       parseSkillSource(sourceWith(`name: demo\ndescription: ${description}`), LABEL),
     ).toThrow(
       /^\.agents\/skills\/demo\/SKILL\.md: "description" must be at most 1024 characters, got 1025$/u,
+    );
+  });
+
+  it('rejects a description that is not a string', () => {
+    expect(() => parseSkillSource(sourceWith('name: demo\ndescription: 42'), LABEL)).toThrow(
+      /^\.agents\/skills\/demo\/SKILL\.md: frontmatter "description" must be a string, got number$/u,
     );
   });
 

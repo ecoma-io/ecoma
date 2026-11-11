@@ -76,7 +76,19 @@ export function parseSkillSource(contents: string, label: string): SkillSource {
 
   const { name, description } = frontmatter;
 
-  if (typeof name !== 'string' || name.trim() === '') {
+  // undefined là thiếu key chứ không phải giá trị sai kiểu: thông báo
+  // "non-empty" vốn mô tả đúng trường hợp này nên được giữ nguyên.
+  if (name === undefined) {
+    throw new Error(`${label}: frontmatter requires a non-empty "name"`);
+  }
+
+  // Giá trị không phải string (ví dụ `name: 42`) là lỗi kiểu, không phải lỗi
+  // rỗng, nên thông báo phải nêu yêu cầu kiểu kèm kiểu nhận được.
+  if (typeof name !== 'string') {
+    throw new Error(`${label}: frontmatter "name" must be a string, got ${typeof name}`);
+  }
+
+  if (name.trim() === '') {
     throw new Error(`${label}: frontmatter requires a non-empty "name"`);
   }
 
@@ -92,7 +104,18 @@ export function parseSkillSource(contents: string, label: string): SkillSource {
     );
   }
 
-  if (typeof description !== 'string' || description.trim() === '') {
+  // "description" tách kiểu như "name", kể cả case undefined.
+  if (description === undefined) {
+    throw new Error(`${label}: frontmatter requires a non-empty "description"`);
+  }
+
+  if (typeof description !== 'string') {
+    throw new Error(
+      `${label}: frontmatter "description" must be a string, got ${typeof description}`,
+    );
+  }
+
+  if (description.trim() === '') {
     throw new Error(`${label}: frontmatter requires a non-empty "description"`);
   }
 
