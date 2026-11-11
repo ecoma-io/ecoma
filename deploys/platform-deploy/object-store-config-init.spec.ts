@@ -15,10 +15,14 @@
  * `pulumi.secret(...)` bọc; create/update dùng chung một template; triggers
  * rotation nguyên vẹn; hằng số non-secret không trôi.
  *
- * Ghim nguồn KHÔNG chứng minh được: "secret không xuất hiện trên argv lúc
+ * Ghim nguồn KHÔNG chứng minh được: "secret không xuất hiện trên argv/env lúc
  * runtime" là thuộc tính vận hành của provider `@pulumi/command` + stdin pipe
- * của Docker — được chứng minh riêng bằng stack-export probe, không phải bởi
- * spec này. Spec chỉ chặn việc transport qua argv quay lại ở tầng source.
+ * của Docker — được chứng minh bằng quan sát process sống (`/proc/<pid>/cmdline`
+ * + `/proc/<pid>/environ`) trong lúc `pulumi up` thật chạy config-init trên một
+ * stack riêng (canary secret), KHÔNG phải bởi spec này và cũng không thay thế
+ * được bằng stack export/scan state (redaction của Pulumi chỉ thuộc về state
+ * và log, không phải argv/env). Spec chỉ chặn việc transport qua argv quay lại
+ * ở tầng source.
  */
 
 import { readFileSync } from 'node:fs';
@@ -63,6 +67,10 @@ describe('object store config-init source contract', () => {
     );
     expect(script, 'env passthrough flag found on the docker run line').not.toMatch(
       /docker run[^\n]*\s-e[\s\\]/u,
+    );
+    expect(script, 'env passthrough flag --env found in the command string').not.toContain('--env');
+    expect(script, 'env passthrough flag --env-file found in the command string').not.toContain(
+      '--env-file',
     );
   });
 
