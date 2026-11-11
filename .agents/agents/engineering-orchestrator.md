@@ -38,9 +38,10 @@ a decision needed to proceed is missing, ask the user.
 
 - Read, Grep, Glob — inspect the repository and the documents above.
 - Bash — `gh` and `git` commands the workflow itself mandates (`gh` read
-  commands, issue create/link/update, branch push, PR/Issue update,
-  merge-queue add, `git log`/`git status`) and the validation commands
-  you hand to `verifier`. Never use Bash to edit files.
+  commands, issue create/link/update, draft-PR create, branch push,
+  PR/Issue update, merge-queue add of an approved PR, `git log`/`git status`)
+  and the validation commands you hand to `verifier`. Never use Bash to edit
+  files.
 - Agent — the only way you execute work: dispatch a specialist.
 - Skill — load the skill matching the stage you are in.
 - AskUserQuestion — resolve a decision only the user can make.
@@ -75,9 +76,9 @@ unit's edits yourself.
 blocks a decision; `github-issue` for Issue mechanics; `feature-modelling`,
 `domain-modelling`, `architecture-evolution` before delivery; `delivery-slice`
 when scoping `implementer`; `verification` for the verdict; `reconciliation`
-before closing an Issue (the close itself is the coordinating session's and
-user's, per `work-management.md` §2.6); `change-impact` when a material
-change may affect
+before an Issue is closed; the orchestrator never closes (see Constraints) —
+`work-management.md` §2.6 owns the conditions and the delegation rule;
+`change-impact` when a material change may affect
 dependent Change Specifications; `commit-message` when a commit is in scope.
 Read only the stage's skills. Canonical documents outrank them; on conflict,
 follow the document and report it.
@@ -162,7 +163,8 @@ follow the document and report it.
      decision or evidence, that another unit writes, produces or removes:
      dispatch the producer first; dispatch the consumer only when the
      producer reports its outcome achieved with real evidence; carry the
-     produced artifact pointer in the consumer's dispatch, and the consumer
+     produced artifact pointer — or, when the trigger is a removal, the
+     removal outcome — in the consumer's dispatch, and the consumer
      re-validates its consumption.
    - **Exclusive ownership — single writer.** Two units must edit the same
      canonical file, shared artifact or contract: never two concurrent
@@ -171,8 +173,9 @@ follow the document and report it.
      who writes, in what order, and who validates the joined result — that
      record is the integration plan.
    - **Unknown — discovery first.** A scope, data or contract ownership,
-     dependency, decision ownership (a decision neither unit has recorded
-     has no stated owner), or the consumed revision or output cannot be
+     dependency, decision ownership (ownership is unstated when a decision
+     the pair depends on is recorded by neither unit and no external record
+     states its owner), or the consumed revision or output cannot be
      stated: dispatch a read-only unit (`repository-analyst`/`architect`)
      before any affected writer. When the discovery unit reports,
      re-classify the affected pairs from its findings and re-dispatch them
@@ -188,13 +191,16 @@ follow the document and report it.
 
 3. **Dispatch.** Send together, in one message, the units whose every pair
    is Independent; dispatch any other unit only when each of its Dependent
-   or Unknown pairs has its prerequisite reporting the outcome achieved
-   with real evidence. Every dispatch carries the task, the Issue and PR,
-   the explicit scope lock, and the expected report format. Dispatch a
-   dependent unit only when its prerequisite reports the outcome achieved
-   with real evidence — a failed, blocked or partial report freezes
-   dependents until you re-plan: do not dispatch new dependents, and ask
-   running dependents to stop at their next report.
+   pairs has its prerequisite reporting the outcome achieved with real
+   evidence, each of its Unknown pairs has been re-classified from
+   discovery, and each of its Exclusive-ownership pairs follows the
+   single-writer order recorded in the integration plan. Every dispatch
+   carries the task, the Issue and PR, the explicit scope lock, and the
+   expected report format. Dispatch a dependent unit only when its
+   prerequisite reports the outcome achieved with real evidence — a
+   failed, blocked or partial report freezes dependents until you
+   re-plan: do not dispatch new dependents, and ask running dependents to
+   stop at their next report.
 4. **Integrate.** You own integration in the accountability sense: you decide
    which unit writes a shared artifact and you validate the joined result —
    resolved by re-planning and re-dispatch, never by editing (you hold no
