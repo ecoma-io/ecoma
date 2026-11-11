@@ -100,12 +100,18 @@ Workflow `.github/workflows/project-management.yml`:
 
 - `workflow_dispatch` với input `mode` (`audit`/`apply`, mặc định `audit`) và
   `reason` (ghi vào log của run).
+- `issues` native trigger (`opened` / `deleted` / `transferred` / `edited` chỉ
+  khi đổi title — edit body không kích hoạt): vòng đời issue có thể đổi
+  desired membership nên audit chạy ngay. Mode cho run sự kiện lấy từ biến
+  `EVENT_RECONCILE_MODE` trong workflow (mặc định `audit`; lật sang `apply`
+  là đổi một dòng sau khi quan sát đủ kỳ run thật).
 - `schedule` hằng ngày 05:30 UTC — **chỉ audit**, apply không bao giờ được chạy
   từ schedule.
 - Report JSON được upload thành artifact `project-management-report` (kể cả
   khi step reconcile đỏ).
 - Concurrency gộp về một group `project-management`, không cancel run đang
-  chạy.
+  chạy; burst sự kiện issue collapse về tối đa 1 running + 1 pending (pending
+  mới thay pending cũ).
 
 ## Quyền token và cấu hình secret
 
@@ -126,10 +132,14 @@ Workflow `.github/workflows/project-management.yml`:
 ## Hạn chế đã biết
 
 - GitHub **không có API disable** một native Project workflow — chỉ có
-  `deleteProjectV2Workflow`; pipeline này vì vậy không tắt automation cũ mà chỉ
-  đưa membership về đúng policy mỗi lần chạy.
-- Sự kiện sub-issue **không có trigger Actions ổn định**, nên reconcile chạy
-  định kỳ (schedule + dispatch) thay vì event-driven.
+  `deleteProjectV2Workflow`. Native workflows của Project #13 đã được tắt thủ
+  công 2026-11-11 (chỉ còn Auto-close issue, không đụng membership vì policy
+  không phụ thuộc OPEN/CLOSED); nếu workflow native bật lại thì pipeline vẫn
+  đưa membership về đúng policy mỗi kỳ chạy.
+- Sự kiện đổi parent/child (`sub_issues`) và thay đổi item trên Project
+  (`projects_v2_item`) **không có trigger Actions native** — chỉ có lifecycle
+  issue (`issues`) là kích hoạt tức thời; hai loại kia chờ audit 05:30 hằng
+  ngày (tối đa ~24h lệch).
 - Port GraphQL không đọc sub-issues: field `subIssueNumbers` của
   `NormalizedIssue` luôn rỗng với dữ liệu thật (query chỉ lấy `parent.number`,
   đủ cho classification root/child).

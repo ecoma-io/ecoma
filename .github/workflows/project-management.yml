@@ -20,6 +20,17 @@ on:
     # Audit hằng ngày 05:30 UTC. Schedule PHẢI là audit: apply chỉ được phép
     # qua workflow_dispatch có người chịu trách nhiệm.
     - cron: '30 5 * * *'
+  # Membership policy suy từ issue (root/sub, title prefix exclusion), nên sự
+  # kiện vòng đời issue có thể đổi desired membership. GitHub Actions không có
+  # trigger native cho `sub_issues` hay `projects_v2_item` — hai loại đó chờ
+  # audit hằng ngày (04-platform-facts §2.20).
+  issues:
+    types: [opened, edited, deleted, transferred]
+
+# Mode cho run kích hoạt bởi sự kiện issue; lật sang `apply` là đổi đúng giá
+# trị này (sau khi quan sát đủ kỳ run audit từ sự kiện thật).
+env:
+  EVENT_RECONCILE_MODE: audit
 
 permissions:
   contents: read
@@ -32,6 +43,14 @@ concurrency:
 jobs:
   reconcile:
     name: reconcile
+    # Chỉ sự kiện membership-relevant mới chạy: opened/deleted/transferred,
+    # hoặc edited đổi title (exclusion prefix phụ thuộc title). Edit body
+    # không đổi membership. Burst sự kiện collapse về 1 pending nhờ
+    # concurrency group (cancel-in-progress: false).
+    if: >-
+      github.event_name != 'issues' ||
+      contains(fromJSON('["opened", "deleted", "transferred"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.title != null)
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -55,16 +74,21 @@ jobs:
           private-key: ${{ secrets.ECOMA_APP_KEY }}
           owner: ${{ github.repository_owner }}
           permission-issues: read
-          permission-organization-projects: ${{ (github.event_name == 'schedule' || inputs.mode != 'apply') && 'read' || 'write' }}
+          # Xin quyền theo mode đã resolve, fail-closed về read cho mọi giá
+          # trị không tường minh là apply.
+          permission-organization-projects: >-
+            ${{ ((github.event_name == 'workflow_dispatch' && inputs.mode == 'apply') ||
+            (github.event_name == 'issues' && env.EVENT_RECONCILE_MODE == 'apply')) && 'write' || 'read' }}
       # Business logic nằm trong tools/project-management; step này chỉ invocation.
       - name: Reconcile project membership
         env:
           # Installation token của App (mint ở step trên); PAT classic scope
           # `project` vẫn dùng được cho chạy CLI local.
           PROJECT_MANAGEMENT_TOKEN: ${{ steps.app-token.outputs.token }}
-          # Schedule bao giờ cũng audit, bất kể input mode còn sót gì.
-          RECONCILE_MODE: ${{ github.event_name == 'schedule' && 'audit' || inputs.mode || 'audit' }}
-          RECONCILE_REASON: ${{ inputs.reason }}
+          # Schedule bao giờ cũng audit; sự kiện issue lấy mode từ
+          # EVENT_RECONCILE_MODE; dispatch lấy từ input.
+          RECONCILE_MODE: ${{ github.event_name == 'schedule' && 'audit' || github.event_name == 'issues' && env.EVENT_RECONCILE_MODE || inputs.mode || 'audit' }}
+          RECONCILE_REASON: ${{ github.event_name == 'issues' && format('issues.{0} #{1}', github.event.action, github.event.issue.number) || inputs.reason }}
         run: |
           if [ -n "$RECONCILE_REASON" ]; then
             echo "Dispatch reason: $RECONCILE_REASON"
