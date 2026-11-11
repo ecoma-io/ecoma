@@ -16,7 +16,7 @@ Pricing **chỉ** sở hữu pricing schedule, version, price resolution và pri
 - Seller-configured price **là** customer price. Provider cost là đại lượng độc lập, không được dùng để suy ra customer price; ownership/source của nó còn chưa chốt ([`docs/domains/open-boundaries.md`](../open-boundaries.md) OB-7).
 - Pricing không giả định một markup, discount hay margin mặc định. Discount/fee trên customer charge là quyết định của `llm-financial`; nó áp dụng **trên** customer price, không làm thay đổi giá đã cấu hình.
 - Per-request và per-token (input/output) là dimension **bắt buộc**; cached tokens là subset của input, reasoning tokens là subset của output — không double-count.
-- Pricing là **versioned snapshot**: một logical request bind với một pricing snapshot tại admission; pricing change sau đó **không** alter giá đã admit.
+- Pricing là **versioned snapshot**: snapshot bind theo cặp **(logical request, offer)** tại admission; pricing change sau đó **không** alter giá đã admit (§6 — carve-out cho attempt thay thế trong fallback).
 - Tính tiền dùng **fixed-point** (số nguyên), **không** dùng floating point ở bất kỳ bước nào.
 - Pricing snapshot persist cùng logical request record để audit/replay.
 
@@ -92,7 +92,8 @@ Toàn bộ phép nhân/cộng chạy trên số nguyên fixed-point.
   - admission timestamp.
 - Snapshot **đủ để tái lập quyết định giá** mà không cần đọc schedule hiện hành: mọi giá trị cần cho phép tính đã nằm trong snapshot, không còn tham chiếu nào tới version đang sống.
 - Snapshot bind vào logical request record cùng routing snapshot ([`domains/llm-inference/`](../llm-inference/domain-model.md) §3).
-- **Pricing change sau admission không alter giá đã admit:** request đã admit giữ snapshot cũ cho mọi attempt, settlement, charge và adjustment.
+- **Pricing change sau admission không alter giá đã admit:** request đã admit giữ snapshot cũ cho mọi attempt phục vụ bằng offer đã snapshot, cùng settlement, charge và adjustment của attempt đó; chỉ attempt thay thế do fallback đổi offer resolve snapshot riêng cho chính nó (carve-out dưới).
+- **Carve-out — fallback đổi offer ([ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §7.4):** bullet trên bind snapshot theo cặp **(logical request, offer)**. Khi fallback chuyển sang offer khác, attempt thay thế resolve một snapshot **mới** cho offer đó tại thời điểm fallback, theo cùng luật resolve `(offer, timestamp)` ở trên, timestamp là thời điểm fallback; mọi attempt đã chạy giữ snapshot cũ của chính nó. Thay đổi schedule vẫn không bao giờ alter giá đã admit — carve-out chỉ mở đường re-resolve cho offer thay thế, không cho phép giá của attempt đã admit bị đổi.
 - Snapshot persist cùng logical request record để audit/replay; reconciliation đọc snapshot, không đọc schedule hiện hành.
 
 ## 7. Fixed-point arithmetic và rounding
@@ -114,8 +115,8 @@ Toàn bộ phép nhân/cộng chạy trên số nguyên fixed-point.
 4. Cached tokens là subset của input, reasoning tokens là subset của output; không token nào bị tính hai lần.
 5. Mọi tính tiền dùng số nguyên fixed-point; không floating point.
 6. Chỉ có một điểm làm tròn, theo rounding rule đã ghi trong snapshot.
-7. Pricing snapshot bind tại admission và bất biến cho logical request.
-8. Pricing change sau admission không alter giá đã admit.
+7. Pricing snapshot bind tại admission và bất biến cho cặp logical request–offer; fallback đổi offer resolve snapshot mới cho offer thay thế (ADR-0028 §7.4).
+8. Pricing change sau admission không alter giá đã admit; chỉ attempt thay thế do fallback đổi offer resolve snapshot riêng cho chính nó (§6).
 9. Version monotonic trong cùng offer; version cũ bất biến, không downgrade/skip.
 10. Peak/off-peak được quyết định tại admission theo IANA timezone của schedule và ghi vào snapshot.
 11. Snapshot đủ để tái lập quyết định giá mà không cần schedule hiện hành.
@@ -137,3 +138,4 @@ Hai quyết định dưới đây **chưa** được chốt bởi tài liệu hi
 - Logical request lifecycle / charged once → [`domains/llm-inference/`](../llm-inference/domain-model.md).
 - Offer, normalized model identity → [`domains/llm-marketplace/`](../llm-marketplace/domain-model.md).
 - Quota/settlement authority → [`architecture/01-architecture.md`](../../architecture/01-architecture.md) A7, invariant 16.
+- Sponsor funding, điều kiện payable và hợp đồng fallback tài chính → [ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) (`llm-financial`).

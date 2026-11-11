@@ -1,31 +1,35 @@
 # Bounded context `llm-financial` — Domain Model
 
-`llm-financial` là bounded context phụ trách **tính đúng đắn tiền tệ của đường LLM**: billing account, wallet, credit/deposit, available balance, double-entry ledger, reservation, budget escrow, budget lease, customer charge, seller payable, settlement, refund/adjustment, reconciliation và financial audit.
+`llm-financial` là bounded context phụ trách **tính đúng đắn tiền tệ của đường LLM**: billing account, wallet, credit/deposit, sponsor funding, available balance, double-entry ledger, reservation, budget escrow, budget lease, customer charge, seller payable, settlement, refund/adjustment, reconciliation và financial audit.
 
 > Phạm vi: monetary correctness của LLM product. Không thay thế `payment` (payment transaction và payout execution canonical). `llm-financial` sở hữu monetary state; `llm-inference` sở hữu logical request lifecycle; `llm-usage` sở hữu usage measurement. Quan hệ với `payment` vẫn là open boundary ([`open-boundaries.md`](../open-boundaries.md) OB-1). Tài liệu này mô tả business knowledge, không phải technical architecture.
 
 ## 1. Phân biệt các khái niệm (bắt buộc)
 
-| Khái niệm                 | Ý nghĩa                                                                                                | Khác biệt cốt lõi                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Budget lease**          | Quyền tiêu liên tục trong một cửa sổ thời gian cho một consumer/key, cấp bởi financial admission local | Khác **quota lease** (giới hạn tài nguyên token/request của `llm`, A7); lease tài chính không cấp quota                                  |
-| **Quota lease**           | Giới hạn tài nguyên do `llm-api` cấp (A7)                                                              | Authority PostgreSQL `db-llm-gateway`; không phải tiền                                                                                   |
-| **Reservation**           | Bản ghi bền giữ quota tại thời điểm reserve, idempotent theo `reservation_id` (A7)                     | Giữ **tài nguyên**, không giữ **tiền**; không đồng nghĩa với customer charge                                                             |
-| **Actual charge**         | Khoản tiền thực sự thu từ customer sau settlement                                                      | Khác reservation (chỉ giữ chỗ) và khác escrow (chỉ giữ tiền chờ)                                                                         |
-| **Escrow**                | Tiền giữ chờ sử dụng, chưa tiêu; có thể release khi không dùng                                         | Khác **outstanding liability** (nghĩa vụ chưa thanh toán với seller/provider)                                                            |
-| **Outstanding liability** | Nghĩa vụ phải trả (seller payable, provider cost) chưa settle                                          | Không phải tiền giữ; provider cost là đại lượng độc lập, ownership/source chưa chốt ([`open-boundaries.md`](../open-boundaries.md) OB-7) |
-| **Provider cost**         | Chi phí thực tế phải trả cho provider LLM                                                              | Khác **customer charge** (giá bán); ownership/source còn chưa chốt ([`open-boundaries.md`](../open-boundaries.md) OB-7)                  |
-| **Customer charge**       | Số tiền thu từ customer cho usage đã phục vụ                                                           | Tính từ customer price (seller-configured, `llm-seller-pricing`) trừ discount/fee; khác provider cost                                    |
-| **Seller payable**        | Số tiền phải trả cho seller (offer/catalog)                                                            | Khác **actual seller payout** (tiền đã thực trả)                                                                                         |
-| **Actual seller payout**  | Tiền đã thực sự chi trả cho seller                                                                     | Sau settlement/payout, không phải lúc phát sinh payable                                                                                  |
-| **Payment transaction**   | Giao dịch thanh toán do `payment` sở hữu                                                               | Khác **LLM credit** (đơn vị giá trị trong ledger của `payment`/financial)                                                                |
-| **LLM credit**            | Đơn vị giá trị lưu trong ledger                                                                        | Không đồng nhất với quota usage                                                                                                          |
+| Khái niệm                         | Ý nghĩa                                                                                                     | Khác biệt cốt lõi                                                                                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Budget lease**                  | Quyền tiêu liên tục trong một cửa sổ thời gian cho một consumer/key, cấp bởi financial admission local      | Khác **quota lease** (giới hạn tài nguyên token/request của `llm`, A7); lease tài chính không cấp quota                                                           |
+| **Quota lease**                   | Giới hạn tài nguyên do `llm-api` cấp (A7)                                                                   | Authority PostgreSQL `db-llm-gateway`; không phải tiền                                                                                                            |
+| **Reservation**                   | Bản ghi bền giữ quota tại thời điểm reserve, idempotent theo `reservation_id` (A7)                          | Giữ **tài nguyên**, không giữ **tiền**; không đồng nghĩa với customer charge                                                                                      |
+| **Actual charge**                 | Khoản tiền thực sự thu từ customer sau settlement                                                           | Khác reservation (chỉ giữ chỗ) và khác escrow (chỉ giữ tiền chờ)                                                                                                  |
+| **Escrow**                        | Tiền giữ chờ sử dụng, chưa tiêu; có thể release khi không dùng                                              | Khác **outstanding liability** (nghĩa vụ chưa thanh toán với seller/provider)                                                                                     |
+| **Outstanding liability**         | Nghĩa vụ phải trả (seller payable, provider cost) chưa settle                                               | Không phải tiền giữ; provider cost là đại lượng độc lập, ownership/source chưa chốt ([`open-boundaries.md`](../open-boundaries.md) OB-7)                          |
+| **Provider cost**                 | Chi phí thực tế phải trả cho provider LLM                                                                   | Khác **customer charge** (giá bán); ownership/source còn chưa chốt ([`open-boundaries.md`](../open-boundaries.md) OB-7)                                           |
+| **Customer charge**               | Số tiền thu từ customer cho usage đã phục vụ                                                                | Tính từ customer price (seller-configured, `llm-seller-pricing`) trừ discount/fee; khác provider cost                                                             |
+| **Seller payable**                | Số tiền phải trả cho seller (offer/catalog)                                                                 | Khác **actual seller payout** (tiền đã thực trả)                                                                                                                  |
+| **Actual seller payout**          | Tiền đã thực sự chi trả cho seller                                                                          | Sau settlement/payout, không phải lúc phát sinh payable                                                                                                           |
+| **Payment transaction**           | Giao dịch thanh toán do `payment` sở hữu                                                                    | Khác **LLM credit** (đơn vị giá trị trong ledger của `payment`/financial)                                                                                         |
+| **LLM credit**                    | Đơn vị giá trị lưu trong ledger                                                                             | Không đồng nhất với quota usage                                                                                                                                   |
+| **Sponsor**                       | Bản nhận **trách nhiệm tài chính nội bộ**: ủy quyền và chịu trần cấp funding cho billing account (ADR-0028) | Không phải Superadmin, owner `sub`, Seller tenant hay legal principal; có thể cùng chỉ tới tổ chức thật nhưng là tham chiếu domain riêng                          |
+| **Sponsor funding authorization** | Ủy quyền durable cho sponsor cấp tiền vào một billing account, kèm trần per-account và `evidence_ref`       | Không phải bút toán; là điều kiện tiên quyết của mọi sponsor grant                                                                                                |
+| **Sponsor grant**                 | Bút toán kép cấp UC từ nguồn tài trợ nội bộ vào billing account                                             | Đối ứng `sponsor_funding_clearing`; khác **deposit** (nguồn `payment`, đối ứng `funding_clearing`)                                                                |
+| **Subsidy**                       | Chênh lệch kinh tế giữa allocated provider cost và giá thu consumer khi giá nội bộ thấp hơn cost            | Không phải bút toán của `llm-financial` (OB-7 mở); không được che giấu — chỉ quan sát được qua chuỗi tham chiếu usage → offer → snapshot → charge (ADR-0028 §7.3) |
 
 ## 2. Billing account & wallet
 
 ### Billing account
 
-Danh tính tài chính của một consumer (workspace/customer). Liên kết tới account `sub` bằng tham chiếu opaque (không FK xuyên DB). Seller tenant là **tham chiếu riêng** do `llm-seller-tenant` sở hữu — billing account không thay thế Seller identity.
+Danh tính tài chính của một consumer (workspace/customer). Mang **hai tham chiếu opaque** (không FK xuyên DB): `tenant_ref` — beneficiary/workspace Consumer tenant, khoá attribution kế toán; và `owner_ref` — tham chiếu `sub` cho provenance/actor (A21), **không** phải khoá sở hữu tài chính. Seller tenant là **tham chiếu riêng** do `llm-seller-tenant` sở hữu — billing account không thay thế Seller identity. MVP ([ADR-0028](./adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §3.2): mỗi Consumer tenant có đúng **một** billing account, tạo qua bề mặt provisioning của `llm-financial`; topology nhiều-account hay chung-account là quyết định tương lai tường minh.
 
 ### Wallet
 
@@ -58,15 +62,29 @@ Số dư có thể sử dụng ngay, sau khi trừ holds và reserved.
 
 Không state nào là source of truth ngoài owner đã chỉ rõ; projection/cache không thay thế ledger.
 
-## 3. Credit / deposit
+## 3. Credit / deposit / sponsor funding
 
 **Credit** tăng available balance (top-up, refund credit, adjustment credit). **Deposit** là tiền nhận vào từ payment: state `pending` → `credited` → (có thể) `reversed`, và pending **không phải** tiền trong ví cho tới khi payment settle. `reversed` là transaction đối ứng, không phải xoá: `total` giảm đúng bằng số đã credit và conservation (§14) vẫn giữ. Luồng tiền (theo ledger account ở §4):
 
-| Operation         | Tiền tệ                        | Ghi chú                                                     |
-| ----------------- | ------------------------------ | ----------------------------------------------------------- |
-| `registerDeposit` | không post                     | Tạo deposit `pending`; pending **không phải** tiền trong ví |
-| `creditDeposit`   | `funding_clearing → available` | Operation **duy nhất** làm tăng `total` của wallet          |
-| `reverseDeposit`  | `available → funding_clearing` | Compensating entry; từ chối nếu available không đủ để đảo   |
+| Operation         | Tiền tệ                        | Ghi chú                                                                                                                               |
+| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `registerDeposit` | không post                     | Tạo deposit `pending`; pending **không phải** tiền trong ví                                                                           |
+| `creditDeposit`   | `funding_clearing → available` | Operation tạo **giá trị mới** vào wallet (cùng `creditGrant`); conversion EC→UC chỉ chuyển giá trị đã có giữa hai denomination domain |
+| `reverseDeposit`  | `available → funding_clearing` | Compensating entry; từ chối nếu available không đủ để đảo                                                                             |
+
+### Sponsor funding ([ADR-0028](./adr/0028-internal-sponsorship-funding-first-party-financial-model.md))
+
+Cấp UC từ **nguồn tài trợ nội bộ** — operation riêng, không tái dùng deposit: deposit ngữ nghĩa gắn với fiat payment đã confirm (ADR-0003, ADR-0009) và đối ứng `funding_clearing`; sponsor grant đối ứng `sponsor_funding_clearing` với nguồn kinh tế là authorization của sponsor (`evidence_ref` trỏ ra quyết định ngân sách authoritative ngoài sản phẩm). Lifecycle đối xứng deposit:
+
+| Operation       | Bút toán                               | Ghi chú                                                                                                                                                                                |
+| --------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registerGrant` | không post                             | Tạo grant `pending` với provenance bất biến (`grant_id`, `authorization_ref`, `amount`, `actor_ref`); pending không phải tiền trong ví                                                 |
+| `creditGrant`   | `sponsor_funding_clearing → available` | Cấp UC; kiểm authorization `active` + trần trong **cùng persistence transaction**; lỗi: `funding_authorization_required`, `sponsor_ceiling_exceeded`, `authorization_ceiling_exceeded` |
+| `reverseGrant`  | `available → sponsor_funding_clearing` | Compensating entry (clawback); từ chối nếu available không đủ (`insufficient_available_balance`); không phải "hoàn tiền cho consumer"                                                  |
+
+- Idempotency suy ra tất định: transaction `sponsor_grant:<grant_id>:credit` / `sponsor_grant:<grant_id>:reverse`; idempotency key `idem:sponsor_grant:<grant_id>:credit` / `idem:sponsor_grant:<grant_id>:reverse` (pattern §4).
+- Trần: **sponsor ceiling** (tổng net credited của sponsor) và **authorization ceiling per billing account** — bounds liability của nguồn tài trợ, không phải second ledger; usage bị chặn bởi `available` như mọi wallet (ADR-0028 §5).
+- MVP không có expiry: UC được cấp giữ nguyên `available` cho tới khi tiêu hoặc bị reverse. Không có generic funding operation ngoài ba operation trên.
 
 ## 4. Double-entry ledger
 
@@ -76,18 +94,19 @@ Mọi thay đổi balance phải là bút toán kép: debit = credit trong cùng
 
 Mỗi account chỉ có một nghĩa; không có account nào đại diện chi phí provider (§17).
 
-| Account               | Dùng cho                            |
-| --------------------- | ----------------------------------- |
-| `wallet_available`    | Balance khả dụng                    |
-| `wallet_held`         | Tiền đang giữ (reservation, escrow) |
-| `wallet_charged`      | Tiền đã thu (customer charge)       |
-| `funding_clearing`    | Đối ứng deposit / reversal          |
-| `earnings_clearing`   | Đối ứng credit earnings của seller  |
-| `conversion_clearing` | Đối ứng leg conversion EC→UC        |
+| Account                    | Dùng cho                                    |
+| -------------------------- | ------------------------------------------- |
+| `wallet_available`         | Balance khả dụng                            |
+| `wallet_held`              | Tiền đang giữ (reservation, escrow)         |
+| `wallet_charged`           | Tiền đã thu (customer charge)               |
+| `funding_clearing`         | Đối ứng deposit / reversal                  |
+| `sponsor_funding_clearing` | Đối ứng sponsor grant / reversal (ADR-0028) |
+| `earnings_clearing`        | Đối ứng credit earnings của seller          |
+| `conversion_clearing`      | Đối ứng leg conversion EC→UC                |
 
 ### Reference type (vocabulary đóng)
 
-`reference` mô tả nguồn bút toán, không phải một field tự do: `credit`, `credit_reversal`, `reservation`, `reservation_capture`, `reservation_release`, `settlement`, `refund`, `charge_adjustment`, `conversion`, `escrow`, `escrow_release`, `earning`.
+`reference` mô tả nguồn bút toán, không phải một field tự do: `credit`, `credit_reversal`, `reservation`, `reservation_capture`, `reservation_release`, `settlement`, `refund`, `charge_adjustment`, `conversion`, `escrow`, `escrow_release`, `earning`, `sponsor_grant`, `sponsor_grant_reversal` (ADR-0028).
 
 ### Điểm duy nhất đổi balance
 
@@ -174,7 +193,7 @@ Refund trả tiền cho customer bằng ledger entry ngược; adjustment sửa 
 
 ## 12. Financial audit
 
-Append-only log của mọi thay đổi tài chính: actor, action, target, amount, reference, correlation ID, timestamp, fencing token. Không chứa secret/token. Vocabulary hành động là đóng; audit **không** có idempotency key vì audit là log, không phải mutation: hai lần ghi cùng action và correlation ID là hai sự kiện, gộp chúng sẽ che mất một lần gọi thật.
+Append-only log của mọi thay đổi tài chính: actor, action, target, amount, reference, correlation ID, timestamp, fencing token. Không chứa secret/token. Vocabulary hành động là đóng; audit **không** có idempotency key vì audit là log, không phải mutation: hai lần ghi cùng action và correlation ID là hai sự kiện, gộp chúng sẽ che mất một lần gọi thật. Vocabulary mở rộng cho sponsor: `sponsor_registered`, `sponsor_funding_authorized`, `sponsor_funding_authorization_revoked`, `sponsor_grant_registered`, `sponsor_grant_credited`, `sponsor_grant_reversed`, `sponsor_ceiling_updated` (ADR-0028 §4).
 
 ## 13. State machines
 
@@ -184,6 +203,7 @@ Append-only log của mọi thay đổi tài chính: actor, action, target, amou
 - **Budget escrow**: suy ra từ `released_at` (`open | released`) — không lưu state riêng.
 - **Seller payable**: `accrued → settled → paid` (chỉ khi có payout evidence, terminal) | `adjusted` từ `accrued` hoặc `settled`.
 - **Customer charge**: `pending` (giá trị khởi tạo) `→ posted → refunded | adjusted`. `settle` tạo thẳng `posted`; charge `pending` bị từ chối refund/adjust.
+- **Sponsor grant**: `pending → credited → reversed` — đối xứng deposit; `reversed` là compensating entry, không phải xoá (ADR-0028 §4).
 
 ## 14. Invariants
 
@@ -199,6 +219,10 @@ Append-only log của mọi thay đổi tài chính: actor, action, target, amou
 10. **Reservation (quota) ≠ charge (money)**: không đồng nhất.
 11. **Budget lease ≠ quota lease**: không đồng nhất.
 12. **Unused escrow ≠ outstanding liability**: không đồng nhất.
+13. **Sponsor ceiling**: tổng net credited của một sponsor không vượt ceiling của nó; kiểm trong cùng persistence transaction với bút toán — không có cửa sổ check-then-act (ADR-0028 §5).
+14. **Funding authorization required**: mọi sponsor grant trỏ đúng một authorization còn `active`; không có grant vô nguồn (ADR-0028 §3.2).
+15. **Payable entitlement**: payable chỉ accrue cho seller có nghĩa vụ settle thật — seller **không** liên kết tới `FirstPartyLegalPrincipal` Ecoma-io (bất kể trạng thái principal — trạng thái chỉ điều khiển serving eligibility, ADR-0027 §5); classification boolean một mình không bao giờ là tiêu chí (ADR-0028 §7.1).
+16. **Financial admission là điều kiện dispatch**: mọi attempt được phục vụ phải qua financial admission theo giá của **chính offer phục vụ attempt đó** — lease-local khi budget lease còn cover, durable reserve khi không; offer thay thế trong fallback không kế thừa giá offer gốc; thiếu coverage ⇒ fail closed, không dispatch (ADR-0028 §7.4).
 
 ## 15. Failure behavior
 
@@ -219,6 +243,9 @@ Hệ thống chọn: **bounded financial safety + coordinator-independent availa
 - **Tax calculation / withholding** — rate và legal category OPEN (ADR-0008); không có hàm tính thuế, không có state `tax withheld`.
 - **Customer price / pricing policy** — `llm-seller-pricing` sở hữu; `settle` nhận `chargeAmount` và seller share do caller cấp.
 - **Usage measurement** và **quota authority** — `llm-usage` và `llm-api` (A7).
+- **Legal principal / association status** — `llm-seller-governance` sở hữu (ADR-0027 §3); settlement nhận trạng thái association làm input có freshness bound, không đọc governance storage (ADR-0028 §7.1).
+- **Tenant classification** — `llm-consumer-tenant` sở hữu; sponsor configuration không thể đọc, ghi hay suy ra nó (khác DB, khác bề mặt — ADR-0028 §3.1).
+- **Định danh permission cho thao tác sponsor/ceiling** — thuộc catalog `staff-access`/backoffice chưa chốt; không phát minh tại đây (ADR-0028 §13.5).
 
 ## 18. Quyết định còn OPEN
 
@@ -226,20 +253,24 @@ Hệ thống chọn: **bounded financial safety + coordinator-independent availa
 2. **Provider cost ownership** ([`open-boundaries.md`](../open-boundaries.md) OB-7): chưa gán cho context nào.
 3. **Tax withholding rate** (ADR-0008): chưa có rate/legal category.
 4. **Overdraft**: ADR-0004 loại trừ âm balance; không có cờ overdraft, mở lại quyết định này là thay đổi contract.
+5. **Chuyển đổi currency của pricing schedule sang denomination VND**: chưa có hợp đồng; cho tới khi có, financial admission fail closed với schedule không express được giá ở VND — fallback đổi currency giữa các offer chưa được phép (ADR-0028 §13.4).
+6. **Provisioning billing account cho tenant customer ngoài bootstrap**: thuộc cơ chế crediting `payment`↔`llm` còn mở (OB-1) (ADR-0028 §6).
 
 **Quy tắc:** không một quyết định nào ở trên được âm thầm chốt trong code.
 
 ## 19. Ranh giới với các context khác
 
-| Context              | Ranh giới với `llm-financial`                                                                                                                                                                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `payment`            | `payment` sở hữu fiat payment transaction, deposit initiation/confirmation, payment methods/providers, webhook verification, payment reconciliation, evidence of fiat received. `llm-financial` không đọc/ghi `db-payment` trực tiếp; mọi liên hệ đi qua contract/event. |
-| `payout`             | `payout` sở hữu seller payout request, quote, beneficiary/destination, fiat disbursement, manual payout MVP, execution evidence, payout reconciliation.                                                                                                                  |
-| `llm-inference`      | `llm-inference` sở hữu logical request lifecycle và provider attempts; `llm-financial` không là quota authority và không sở hữu usage measurement.                                                                                                                       |
-| `llm-usage`          | `llm-usage` sở hữu usage measurement. Usage ≠ financial charge.                                                                                                                                                                                                          |
-| `llm-seller-pricing` | Customer price/pricing policy thuộc `llm-seller-pricing`; `llm-financial` nhận giá bán làm input.                                                                                                                                                                        |
-| `account`            | `sub` opaque; không FK xuyên DB.                                                                                                                                                                                                                                         |
-| `staff-access`       | `staff-access` sở hữu staff identity/permission semantics; `llm-financial` không định nghĩa payout entitlement.                                                                                                                                                          |
+| Context                 | Ranh giới với `llm-financial`                                                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `payment`               | `payment` sở hữu fiat payment transaction, deposit initiation/confirmation, payment methods/providers, webhook verification, payment reconciliation, evidence of fiat received. `llm-financial` không đọc/ghi `db-payment` trực tiếp; mọi liên hệ đi qua contract/event. |
+| `payout`                | `payout` sở hữu seller payout request, quote, beneficiary/destination, fiat disbursement, manual payout MVP, execution evidence, payout reconciliation.                                                                                                                  |
+| `llm-inference`         | `llm-inference` sở hữu logical request lifecycle và provider attempts; `llm-financial` không là quota authority và không sở hữu usage measurement.                                                                                                                       |
+| `llm-usage`             | `llm-usage` sở hữu usage measurement. Usage ≠ financial charge.                                                                                                                                                                                                          |
+| `llm-seller-pricing`    | Customer price/pricing policy thuộc `llm-seller-pricing`; `llm-financial` nhận giá bán làm input.                                                                                                                                                                        |
+| `account`               | `sub` opaque; không FK xuyên DB.                                                                                                                                                                                                                                         |
+| `staff-access`          | `staff-access` sở hữu staff identity/permission semantics; `llm-financial` không định nghĩa payout entitlement.                                                                                                                                                          |
+| `llm-consumer-tenant`   | Billing account mang `tenant_ref` tham chiếu beneficiary opaque (R19); classification, membership và authorization thuộc consumer-tenant; sponsor configuration không đụng dữ liệu tenant (khác DB, khác bề mặt provisioning) (ADR-0028 §3).                             |
+| `llm-seller-governance` | Trạng thái association `FirstPartyLegalPrincipal` là dữ liệu governance; `llm-financial` tiêu thụ trạng thái đó qua Application (freshness bound) để quyết định entitlement payable, không sở hữu và không đọc storage governance (ADR-0028 §7.1).                       |
 
 ## 20. Tài liệu
 
@@ -247,4 +278,4 @@ Hệ thống chọn: **bounded financial safety + coordinator-independent availa
 | -------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, state machines, invariants, failure behavior, phân biệt các khái niệm tiền tệ |
 | [`README.md`](./README.md)             | Tóm tắt phạm vi, không sở hữu, documents                                                      |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010) của bounded context                                                     |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010, 0028) của bounded context                                               |

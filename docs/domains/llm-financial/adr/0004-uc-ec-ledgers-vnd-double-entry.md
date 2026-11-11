@@ -1,6 +1,6 @@
 # ADR-0004 — UC/EC ledgers, VND denomination, double-entry invariants
 
-Status: Accepted.
+Status: Accepted. Superseded (in part) by [ADR-0028](./0028-internal-sponsorship-funding-first-party-financial-model.md) — đúng phạm vi **nguồn hình thành UC**: UC không chỉ "purchased" bởi consumer mà có thể được cấp qua sponsor funding nội bộ có authorization. Toàn bộ phần còn lại giữ nguyên hiệu lực: double-entry, VND denomination, non-transferable, correction qua reversal/adjustment, idempotency keys cho mọi mutation, immutable references, reconciliation/audit, không negative balance.
 
 Context: Cần các loại credit khác biệt và monetary correctness nghiêm ngặt.
 

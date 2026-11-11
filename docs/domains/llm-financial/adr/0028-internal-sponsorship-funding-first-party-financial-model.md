@@ -1,0 +1,223 @@
+# ADR-0028 — Tài trợ nội bộ cho Consumer tenant first-party, mô hình tài chính Seller first-party và kiểm soát chi tiêu
+
+Status: Accepted.
+
+Ngày: 2026-11-11 · Issue: #14 · **Supersede (in part)** [ADR-0004](./0004-uc-ec-ledgers-vnd-double-entry.md) — đúng phạm vi nguồn hình thành UC (§12) · **Supersede (in part)** [ADR-0020](../../staff-access/adr/0020-bootstrap-seed-contract.md) — đúng Quyết định 7 (giá trị đầu ra xuyên unit thứ hai) và hàng khởi tạo tài chính của Quyết định 13 (§6).
+
+> ADR này sở hữu và ràng buộc `llm-financial`; ràng buộc `llm-consumer-tenant`, `llm-seller-pricing`, `llm-usage` và Application `llm-api` ở phần liên quan. Nó chốt trục **funding** mà bảng sáu trục trong phần Bối cảnh của [ADR-0026](../../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md) đã gán cho `llm-financial` với quyết định thuộc #14, và thi hành ràng buộc tài chính §9 của [ADR-0027](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md). Đặt tại đây vì mọi bút toán, vocabulary và bản ghi durable mới đều thuộc `llm-financial`; `architecture/01-architecture.md` §8 (A28) trỏ về ADR này.
+
+## 1. Bối cảnh
+
+Usage của Consumer tenant first-party phải đi qua metering và kế toán kép như mọi tenant ([ADR-0026](../../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md) §4 — "usage nội bộ miễn phí" không tồn tại), nhưng trục funding chưa có cơ chế nào: đường cấp tiền vào wallet duy nhất hiện có là `registerDeposit`/`creditDeposit` với `payment_reference` — ngữ nghĩa thuộc `payment` ([ADR-0003](./0003-financial-ownership.md), [ADR-0009](./0009-payment-payout-integration.md)); không có operation cấp credit từ nguồn nội bộ, không có khái niệm sponsor, không có cơ chế kiểm soát chi tiêu bắt buộc cho usage first-party. #24 (inference cho tenant `ecoma`) bị chặn vì thiếu chính xác quyết định này.
+
+Bốn khoảng trống nữa đi kèm:
+
+- **Ranh giới khái niệm**: sponsor dễ bị đồng nhất với Superadmin, owner tenant, Seller tenant hay legal principal — ADR-0027 đã chốt principal là bản ghi governance (`FirstPartyLegalPrincipal`), không phải ví; glossary đã chốt `sub` là tham chiếu, không phải quan hệ sở hữu (A21).
+- **Đa số lượng billing account ↔ tenant**: tài liệu hiện tại không giả định một-hay-nhiều (`llm-consumer-tenant` §11) — cần một quyết định MVP để bootstrap làm được việc.
+- **Fallback tài chính**: hợp đồng pricing freeze snapshot theo logical request cho **mọi** attempt (`llm-seller-pricing` §6), `decideFallback` không có input tài chính, và không có field nào gắn attempt với offer/seller đã phục vụ — một fallback đổi offer hôm nay vừa không có hợp đồng giá cho offer thay thế, vừa không tái dựng được obligation theo attempt.
+- **Điều kiện accrue payable**: payable accrual là tuỳ chọn với seller share do caller cấp; chưa có invariant nào chặn payable cho seller không có nghĩa vụ settle thật (Seller first-party, ADR-0027 §9).
+
+## 2. Phương án bị loại
+
+| #   | Phương án                                                                                                 | Vì sao loại                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Zero-price settlement cho usage first-party** — charge 0, không trừ tiền                                | Phá bảng "Bắt buộc giữ" của ADR-0026 §4 (accounting/audit) và đọc thành "usage nội bộ miễn phí"; che subsidy thay vì làm nó quan sát được; bất invariant 8 của `llm-financial` (provider cost ≠ customer charge) không cho phép "giá 0 vì chi phí 0" — chi phí chưa từng được chốt là 0 (OB-7 mở)                                                                                  |
+| 2   | **Wallet âm trần / credit vô hạn cho tenant nội bộ**                                                      | ADR-0004 cấm negative balance nếu không có policy cấp phép rõ ràng; ADR-0026 non-goal 4 cấm abstraction wallet/credit vô hạn; subsidy không bounded là liability không kiểm soát                                                                                                                                                                                                   |
+| 3   | **Sponsor là Superadmin / owner `sub` của tenant**                                                        | `sub` là tham chiếu đăng nhập, không phải quan hệ sở hữu tài chính (glossary, A21); owner transfer đổi `sub` mà trách nhiệm tài chính của tổ chức không đổi; system-administrator role không cấp quyền gì trong tenant sản phẩm (ADR-0021) — gán sponsor theo `sub` biến một vai trò vận hành thành nguồn tiền                                                                     |
+| 4   | **Sponsor là Seller tenant first-party, hoặc dùng `FirstPartyLegalPrincipal` làm ví/khoản mục tài chính** | ADR-0027 §9 cấm tường minh: Seller first-party không có wallet EC, không có entitlement payout hay EC→UC; principal là bản ghi governance chịu trách nhiệm pháp lý/thuế, không phải khoản mục kế toán; provider identity ≠ chủ thể tài trợ. Sponsor và principal **có thể** cùng chỉ tới tổ chức thật Ecoma-io nhưng là hai tham chiếu domain khác nhau, không FK, không suy quyền |
+| 5   | **Dùng lại `registerDeposit`/`creditDeposit` với `payment_reference` nội bộ**                             | Deposit ngữ nghĩa gắn với fiat payment đã confirm và đối ứng `funding_clearing` "tiền vào từ external source" (ADR-0009); reconciliation với ledger `payment` sẽ thấy tham chiếu lạ; một tham chiếu riêng một mình không định nghĩa được đối ứng kế toán và nguồn kinh tế của tiền — đúng cảnh báo của issue #14. Cần operation, counter-account và reference type riêng (§4)      |
+| 6   | **Một billing account dùng chung cho nhiều Consumer tenant**                                              | Attribution theo beneficiary mất độ phân giải; isolation và reconciliation per-tenant yếu; ceiling per-account không còn nghĩa là trần của một workspace. MVP chọn một-account-per-tenant (§3); topology khác là quyết định tương lai tường minh                                                                                                                                   |
+| 7   | **Tạo seller payable / đường EC→UC "giả lập" cho Seller first-party để tiền nội bộ "chuyển động đầy đủ"** | ADR-0027 §9 cấm số dư seller giả và payable tưởng tượng; kế toán đối ứng đã đầy đủ qua bút toán kép với `sponsor_funding_clearing` — không cần phát minh nghĩa vụ không tồn tại                                                                                                                                                                                                    |
+| 8   | **Funding operation tổng quát không authorization, không trần**                                           | Tạo đường liability không bounded; mọi grant phải trỏ đúng một authorization còn hiệu lực với trần kiểm tại thời điểm credit (§4)                                                                                                                                                                                                                                                  |
+
+## 3. Quyết định — danh tính và ranh giới khái niệm
+
+### 3.1 Sponsor là một aggregate thuộc `llm-financial`
+
+**Sponsor** là bản nhận **trách nhiệm tài chính nội bộ**: nó ủy quyền và chịu trần cấp funding cho billing account. Sponsor là khái niệm tài chính — không phải tenant, không phải account (`sub`), không phải role, không phải Seller tenant, không phải legal principal. Sponsor và `FirstPartyLegalPrincipal` **có thể** cùng chỉ tới tổ chức thật Ecoma-io; hai bản ghi vẫn là hai tham chiếu domain độc lập, không FK, không suy quyền (cùng pattern "cùng chuỗi tên là hai entity khác nhau" của ADR-0026 §5).
+
+Fields: `sponsor_id` (opaque), `owner_ref` (tham chiếu `sub` của actor chịu trách nhiệm vận hành sponsor — **chỉ mang nghĩa provenance/audit**, không phải khoá sở hữu tài chính và không suy ra gì khác), `ceiling` (trần cấp funding lũy kế, VND minor units, số nguyên ≥ 0), `status` (`active | suspended` — `suspended` chặn grant mới, không đổi số dư đã cấp), audit actor/time.
+
+MVP có đúng một sponsor nội bộ, seed qua bề mặt bootstrap (§6), danh tính là **hằng trong code**: `sponsor_id = "sponsor_ecoma_internal"`; cấu hình environment chỉ assert lại đúng giá trị đó (pattern Quyết định 12 của ADR-0020). Sponsor ngoài tổ chức (một công ty tài trợ tenant cho nhân viên của nó) là extension tương lai — model không cấm, provisioning MVP không tạo.
+
+**Không được suy ra từ sponsor:** classification tenant, entitlement, membership, quyền authorization. Danh sách tín hiệu cấm của ADR-0026 §1 **giữ nguyên không sửa** (§12); ràng buộc bổ sung **của ADR này** (không nằm trong §1): cấu hình sponsor là một tín hiệu cấm suy classification riêng. Sponsor config nằm ở `db-llm-gateway`; classification nằm ở `db-llm-tenant` — hai database, hai bề mặt provisioning riêng.
+
+### 3.2 Billing account per Consumer tenant; sponsor cấp nhiều billing account
+
+Billing account là danh tính tài chính do `llm-financial` sở hữu, mang **hai tham chiếu opaque** với vai trò khác nhau:
+
+| Tham chiếu   | Nghĩa                                                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant_ref` | **Beneficiary/workspace** — khoá attribution kế toán: usage, charge và funding của account này gắn với đúng một Consumer tenant. Không FK xuyên DB.                     |
+| `owner_ref`  | Tham chiếu `sub` — provenance/actor như hiện hành. **Không** silently trở thành khoá sở hữu tài chính; ownership tài chính của account thuộc aggregate `llm-financial`. |
+
+MVP: **một Consumer tenant có đúng một billing account** (natural key `tenant_ref`), tạo qua bề mặt provisioning của `llm-financial` (§6). Câu "một tenant có thể có nhiều billing account hoặc một billing account phục vụ nhiều tenant" của `llm-consumer-tenant` (§11 trước thay đổi; bản MVP mới nằm ở §7 và §11 của tài liệu đó) được thay bằng quyết định MVP này; topology nhiều-account-per-tenant hay chung-account là quyết định tương lai tường minh, không phải extension ngầm.
+
+**Một sponsor cấp được nhiều billing account** qua **sponsor funding authorization** — bản ghi durable `(authorization_id, sponsor_id, billing_account_id, ceiling (nullable — trần per-account), status active | revoked, evidence_ref, audit)`. `evidence_ref` là tham chiếu opaque tới quyết định ngân sách có thật của tổ chức bên ngoài database sản phẩm (pattern bằng chứng thật của ADR-0027 §3) — sản phẩm không sinh ra và không thay thế nguồn đó. Authorization là điều kiện tiên quyết của mọi grant: không authorization còn `active` ⇒ không grant (`funding_authorization_required`). `revoked` chặn grant mới, không đụng số dư đã cấp.
+
+### 3.3 Vai trò của từng định danh
+
+| Định danh                         | Vai trò trong mô hình tài chính                                           |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| Consumer tenant ID (`tenant_ref`) | Beneficiary — attribution kế toán và isolation.                           |
+| Billing account ID                | Ranh giới account tài chính: wallet, ceiling per-account, funding target. |
+| Owner `sub`                       | Provenance/actor — không phải khoá sở hữu tài chính (A21).                |
+| Sponsor ID                        | Chủ thể chịu trách nhiệm funding và trần tổng.                            |
+
+## 4. Quyết định — cơ chế funding: `sponsor_grant`, đối ứng riêng
+
+Chọn **operation mới**, không tái dùng deposit (Phương án 5 bị loại). Ba bản ghi durable mới trong schema `llm_financial` (`db-llm-gateway`): `llm_financial.sponsors`, `llm_financial.sponsor_funding_authorizations`, `llm_financial.sponsor_grants`; billing account mở rộng `tenant_ref` trên `llm_financial.billing_accounts`.
+
+Lifecycle grant đối xứng với deposit: `pending → credited → reversed`.
+
+| Operation       | Bút toán                               | Ý nghĩa                                                                                                                                                                                                                                                    |
+| --------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registerGrant` | không post                             | Tạo grant `pending` với provenance bất biến: `grant_id`, `authorization_ref` (kèm `sponsor_id`), `amount` (VND minor units, số nguyên > 0), `actor_ref`. Pending không phải tiền trong ví.                                                                 |
+| `creditGrant`   | `sponsor_funding_clearing → available` | Cấp UC vào wallet của billing account; cùng `creditDeposit` là hai operation đưa **giá trị mới** vào hệ thống (conversion EC→UC chỉ chuyển giá trị đã có giữa hai denomination domain). Kiểm authorization + trần trong cùng persistence transaction (§5). |
+| `reverseGrant`  | `available → sponsor_funding_clearing` | Compensating entry — clawback nguồn nội bộ; từ chối nếu available không đủ (`insufficient_available_balance`), như `reverseDeposit`. Correction instrument, không phải "hoàn tiền cho consumer".                                                           |
+
+Vocabulary đóng mở rộng đúng ba nơi: ledger account thêm **`sponsor_funding_clearing`** (ngữ nghĩa: đối ứng cấp/hoàn nguồn tài trợ nội bộ — `funding_clearing` giữ nguyên nghĩa deposit từ `payment`); reference type thêm **`sponsor_grant`** và **`sponsor_grant_reversal`**; audit action thêm **`sponsor_registered`**, **`sponsor_funding_authorized`**, **`sponsor_funding_authorization_revoked`**, **`sponsor_grant_registered`**, **`sponsor_grant_credited`**, **`sponsor_grant_reversed`**, **`sponsor_ceiling_updated`**. Các tập đóng khác của domain lib (error-code taxonomy, aggregate `FinancialBook`, vocabulary trạng thái grant) mở rộng tương ứng ở Delivery (§14), không phải tại đây.
+
+Idempotency suy ra tất định từ entity id (pattern hiện có của `book.ts`): transaction id **`sponsor_grant:<grant_id>:credit`** / **`sponsor_grant:<grant_id>:reverse`**; idempotency key **`idem:sponsor_grant:<grant_id>:credit`** / **`idem:sponsor_grant:<grant_id>:reverse`**. Replay cùng payload trả kết quả gốc; khác payload là `idempotency_conflict` và ledger không đổi. Audit là append-only, **không** idempotency key — hai lần ghi cùng action là hai sự kiện (§12 `llm-financial`).
+
+**Nguồn kinh tế của tiền**: authorization của một sponsor nội bộ — tức ngân sách vận hành có thật của tổ chức, được trỏ bằng `evidence_ref` ra bản authoritative ngoài sản phẩm. Không có fiat nào vào database; bút toán kép đảm bảo mọi UC được cấp luôn có đối ứng trên `sponsor_funding_clearing`, và tổng net cấp của một sponsor luôn tái dựng được từ `sponsor_grants` + ledger. Không có generic funding operation nào ngoài cặp operation trên — thêm nguồn funding mới (ví dụ ngân sách chương trình) là quyết định tương lai.
+
+**Hết hạn/roll-over**: MVP không có expiry — UC được cấp giữ nguyên available cho tới khi tiêu hoặc bị reverse. Không có policy hết hạn nào được suy ngầm.
+
+## 5. Quyết định — kiểm soát chi tiêu bắt buộc (không phải tuỳ chọn)
+
+Hai trần độc lập, cả hai thuộc `llm-financial`, cả hai kiểm **tại thời điểm cấp** (creditGrant), trong **cùng persistence transaction** với bút toán — không có cửa sổ check-then-act:
+
+1. **Sponsor ceiling** (`sponsor_ceiling`): Σ(amount các grant `credited`) − Σ(amount các grant `reversed`) của sponsor + amount lần này ≤ `ceiling`, nếu không `sponsor_ceiling_exceeded`. Bounds tổng liability của nguồn tài trợ.
+2. **Authorization ceiling per billing account** (khi authorization mang `ceiling`): cùng công thức theo cặp (authorization, billing account), nếu không `authorization_ceiling_exceeded`. Bounds concentration theo beneficiary.
+
+Usage first-party sau đó bị chặn bởi cơ chế hiện hành: financial admission tiêu chỉ phần **đã cover** — budget lease còn cover ⇒ local atomic admission, không gọi DB per request; không cover (ví dụ fallback sang offer đắt hơn) ⇒ durable `reserve` trên wallet (`reserve` từ chối `insufficient_available_balance`); không có overdraft, không có bypass cho tenant `first_party` (bảng ADR-0026 §4; escrow/lease giữ nguyên §6 `llm-financial`). Trần không nhân bản ledger hay tạo wallet thứ hai — số dư khả dụng chính là limit chi tiêu; trần chỉ bounds **cấp phát**. Cấu hình trần: thiết lập ban đầu qua bề mặt bootstrap (§6); thay đổi về sau là operation có kiểm của `llm-financial` với audit `sponsor_ceiling_updated`; định danh permission cho thao tác đó **không được phát minh tại đây** (pattern ADR-0027 §4) — thuộc catalog permission của `staff-access`/backoffice, quyết định tương lai riêng.
+
+Đồng thời (concurrency): hai grant song song cho cùng sponsor được tuần tự hoá bởi persistence transaction trên bản ghi sponsor; hai reserve song song trên cùng wallet được tuần tự hoá bởi check `available` hiện hành — cả hai là yêu cầu cho delivery, đúng mô hình "commitTransaction là điểm duy nhất đổi balance" §4 `llm-financial`.
+
+## 6. Quyết định — bootstrap và provisioning (ADR-0020 giữ nguyên hình dạng)
+
+Bốn bước seed mới, mỗi bước ghi đúng **một** database (`db-llm-gateway`, schema `llm_financial`), thực thi trên bề mặt (a)/(b) của ADR-0020 Quyết định 3, idempotent theo natural key, không cross-database transaction, fail-closed không hồi sinh:
+
+| Bước | Bản ghi                                                                    | Natural key                        | Input                                                                                                                       |
+| ---- | -------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| F1   | Sponsor `sponsor_ecoma_internal` (`llm_financial.sponsors`)                | `sponsor_id`                       | — (hằng trong code; config assert)                                                                                          |
+| F2   | Billing account chính của tenant `ecoma` (`billing_accounts`)              | `tenant_ref`                       | **`tenant_id`** — giá trị đầu ra của bước seed Consumer tenant                                                              |
+| F3   | Funding authorization (`sponsor_funding_authorizations`)                   | `(sponsor_id, billing_account_id)` | — ; `ceiling` + `evidence_ref` là input cấu hình environment                                                                |
+| F4   | Grant khởi tạo `grant_ecoma_initial` (`sponsor_grants`), register + credit | `grant_id`                         | `amount` là input cấu hình environment (số nguyên > 0, VND minor units — `registerGrant` từ chối ≤ 0 như `registerDeposit`) |
+
+Đây là **giá trị đầu ra xuyên unit thứ hai** sau `sub` — cùng cơ chế "một giá trị đầu ra, không phải ràng buộc giao dịch" của ADR-0020 Quyết định 7, và là phạm vi duy nhất ADR này supersede-in-part ADR-0020 (§12). Bảng Quyết định 13 của ADR-0020 đọc thêm hàng khởi tạo tài chính do `llm-api` (BC `llm-financial`) ghi vào `db-llm-gateway`. Re-run toàn bộ hội tụ: F1–F4 là insert-if-absent; F4 đã `credited` thì replay là no-op; F4 `pending` thì credit retry bằng đúng `grant_ecoma_initial` hội tụ không double-credit. Thứ tự: Consumer tenant seed → F2–F4; financial seed thất bại không chặn unit khác (failure isolation ADR-0020 Quyết định 7 giữ nguyên). Không bước nào trong F1–F4 đọc hay ghi classification, membership hay dữ liệu tenant — sponsor configuration **không thể** đổi hay suy ra classification (ADR-0026 §1 giữ nguyên).
+
+Provisioning billing account cho **tenant customer** (ngoài bootstrap) không thuộc quyết định này — nó thuộc cơ chế crediting `payment`↔`llm` còn mở của OB-1.
+
+## 7. Quyết định — Seller settlement, giá nội bộ, fallback
+
+### 7.1 Điều kiện accrue payable: nghĩa vụ thật, không phải classification
+
+Payable chỉ accrue cho seller có **nghĩa vụ settle thật**: seller tenant **không** liên kết tới `FirstPartyLegalPrincipal` Ecoma-io — **bất kể trạng thái của principal**; có liên kết ⇒ không bao giờ accrue. Trạng thái của principal chỉ điều khiển serving eligibility (ADR-0027 §5), không điều khiển entitlement payable — tách hai trục này tránh cửa sổ freshness giữa eligibility verdict và settle tạo payable cho seller nội bộ. Trạng thái association là dữ liệu governance ([ADR-0027](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) §3) mà Application cung cấp cho `settle` cùng freshness bound như verdict eligibility đã chốt; `llm-financial` không đọc governance storage. Hệ quả: Seller first-party (Ecoma-io-associated) **không bao giờ** accrue payable, không có EC, không có payout, không có EC→UC (ADR-0027 §9 giữ nguyên); seller `customer` accrue bình thường và không bị sponsorship của consumer đụng tới — entitlement của External Seller không bị giảm hay underfund. Classification boolean một mình **không bao giờ** là tiêu chí: nếu một provider tương lai được vận hành bởi pháp nhân khác mà vẫn `first_party` (kịch bản tương lai — hiện mọi tenant `first_party` phải liên kết principal Ecoma-io theo ADR-0027 §3/§4), nghĩa vụ settle đi theo test association trên, không bị suppress vì nhãn. Bản ghi payable đã accrue/settled/paid là lịch sử — đổi quan hệ pháp lý chỉ ảnh hưởng accrual tương lai, không rewrite giao dịch cũ.
+
+### 7.2 Giá nội bộ là chính sách thương mại, không phải cost-plus
+
+Giá bán nội bộ của usage first-party **là** customer price do seller first-party cấu hình trên offer của mình qua `llm-seller-pricing` — không có khái niệm giá nội bộ thứ hai. Ecoma-io tự cấu hình giá offer của mình (thấp hơn thị trường, cao hơn, hay đổi theo thời gian) như mọi seller; cost-plus bị loại: provider cost không phải input của price resolution (invariant 1–2 `llm-seller-pricing`, OB-7 mở). `charge = f(usage, price, discount)` và mọi idempotency settlement hiện hành giữ nguyên — sponsored usage đi cùng đường reserve → capture → settle → charge như customer, khác duy nhất ở nguồn funding của wallet.
+
+### 7.3 Subsidy: quan sát được, không bị che, chưa tổng hợp được
+
+Khi giá nội bộ thấp hơn allocated provider cost, chênh lệch là **subsidy/loss kinh tế**. Trạng thái hiện tại: provider cost chưa có owner và không có đại lượng nào trong `llm-financial` đại diện nó (OB-7 mở, invariant 8) — vì vậy subsidy **không** được ghi thành bút toán, **không** được né tránh bằng zero cost hay payable giả, và **chưa tổng hợp được** cho tới khi OB-7 chốt. Điều #14 chốt là **chuỗi tham chiếu tối thiểu** để tương quan sau này: usage ở cấp attempt mang `offer_ref`, `seller_tenant_ref`, `pricing_snapshot_ref` (§8) — từ usage đến pricing decision, provider identity, financial capture và (nếu có) seller obligation đều tái dựng được từ durable state. Subsidy không có budget record riêng trong MVP: tổng exposure của sponsor bị chặn bởi ceiling (§5); một chương trình subsidy có budget/tường minh riêng là quyết định tương lai.
+
+### 7.4 Fallback không được tạo obligation không được cấp tiền
+
+Hợp đồng bắt buộc cho mọi fallback **đổi offer**:
+
+1. Giá áp dụng và đủ tiền phải xác định **trước khi dispatch** attempt thay thế: resolve snapshot mới cho offer thay thế tại thời điểm fallback (cùng luật resolve `(offer, timestamp)` của `llm-seller-pricing` §6, với timestamp là thời điểm fallback), rồi financial admission theo giá đó — lease-local khi lease còn cover, durable reserve khi không (§5).
+2. Offer thay thế **không kế thừa** giá offer gốc — mỗi attempt mang snapshot của chính nó (carve-out trong `llm-seller-pricing` §6: freeze bind theo cặp request–offer; attempt đã chạy giữ snapshot cũ; schedule change vẫn không bao giờ alter giá đã admit).
+3. Không đủ UC để reserve theo giá offer thay thế ⇒ **fail closed**: không dispatch, không attempt, không payable — không có nhánh nào tạo obligation vượt coverage.
+4. Subsidy tự động cho usage External Seller **không tồn tại**: nếu muốn shield consumer khỏi giá fallback cao hơn, sponsor cấp thêm UC qua grant có authorization — liêm tính kế toán giữ nguyên vì charge vẫn phản ánh giá offer thật đã phục vụ.
+5. Sau khi stream đã emit bytes: không transparent switch (routing/inference giữ nguyên); usage và financial attribution theo provider thật đã phục vụ, settle một lần per `reservation_id`.
+6. Không đổi luật routing hay inference: `decideFallback` vẫn trả lời "còn candidate" (điều kiện cần, §routing hiện hành); financial admissibility là điều kiện bổ sung do Application kiểm trước dispatch — attempt không qua admission không được dispatch, evidence còn `not_sent`.
+
+## 8. Quyết định — attribution theo attempt
+
+`Provenance` của `llm-usage` ở cấp attempt bổ sung ba tham chiếu opaque: `offer_ref`, `seller_tenant_ref`, `pricing_snapshot_ref` — offer/seller/snapshot của **chính attempt đó**. Execution journal của `llm-api` ghi cùng bộ cho mỗi attempt (thay vì chỉ endpoint). Đây là điều kiện bắt buộc để: payable per-attempt tái dựng được khi một logical request trải qua nhiều offer (§7.4), chuỗi usage → giá → capture → obligation kiểm được (invariant §10.15), và subsidy/cost tương quan được sau khi OB-7 chốt (§7.3). Provider/model giữ nguyên ngữ nghĩa hiện hành.
+
+## 9. Quyết định — bảng sở hữu
+
+| Concern                                    | Owner                                                                       |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| Commercial plan / eligibility thương mại   | Không tồn tại ở hai sản phẩm LLM (ADR-0026 §3); per-product ở sản phẩm khác |
+| Usage quota policy/limits                  | `llm-consumer-tenant` (PostgreSQL quota authority, A7; OB-1)                |
+| UC balance + financial spending limits     | `llm-financial`                                                             |
+| Sponsor funding + financial responsibility | `llm-financial`                                                             |
+| Provider rate/capacity limits              | Provider/API ownership hiện hành (`llm-api`, marketplace pools)             |
+| Admission orchestration                    | `llm-api` — coordinator, không phải policy owner của domain nào             |
+| Usage measurement                          | `llm-usage`                                                                 |
+| Provider operating cost                    | **OPEN** (OB-7) — không gán trong ADR này                                   |
+
+## 10. Bất invariant bắt buộc giữ
+
+1. Double-entry: mọi transaction debit = credit; bút toán sponsor grant đối ứng `sponsor_funding_clearing` — luôn cân.
+2. Không âm balance — grant và usage đều không tạo số dư âm.
+3. Không duplicate credit trên retry — idempotency `sponsor_grant:<grant_id>:credit`.
+4. Không duplicate charge — settlement idempotent theo `settlement_id`, một reservation capture một lần.
+5. Không duplicate payable — payable là projection versioned; accrue một lần per settlement.
+6. External Seller entitlement không mất — payable accrue đầy đủ cho seller có nghĩa vụ, bất kể consumer có được sponsor hay không.
+7. Không payable giả cho provider nội bộ không có nghĩa vụ — §7.1.
+8. Không provider cost bị unrecorded "vì first-party" — cost là đại lượng chưa có owner (OB-7); model ghi đủ tham chiếu để nó được gắn vào sau mà không cần rewrite (§7.3).
+9. Không spending ngoài authorization — mọi grant trỏ authorization `active` (§4, §5).
+10. Không dùng sponsored balance xuyên tenant — balance thuộc billing account của đúng một `tenant_ref`; wallet không chuyển nhượng (UC non-transferable giữ nguyên).
+11. Usage metering không bị bypass cho internal tenant — cùng đường đo (ADR-0026 §4).
+12. Financial reservation không bị bypass cho internal usage — admission tài chính áp cho mọi request được phép phục vụ (§5).
+13. Reversal/adjustment chỉ bằng entry mới — append-only, correction qua `reverseGrant`/`refundCharge`/`adjustCharge`/`adjustPayable`.
+14. Durable provenance từ funding source đến billing account — `evidence_ref` → authorization → grant → ledger entry → wallet, tất cả reconstructible.
+15. Traceability từ usage record đến pricing decision, provider identity, financial capture và seller obligation (khi có) — §8.
+16. Phân biệt ba cơ chế idempotency: **financial mutation** idempotent theo khoá tất định; **usage event** idempotent theo `reservation_id`; **audit event** append-only, không dedup — hai bản ghi cùng correlation là hai sự kiện.
+
+## 11. Ma trận kịch bản
+
+| #   | Kịch bản                                           | Actor & beneficiary                         | Điều kiện trước                                                                              | Hiệu ứng tài chính                                                                                                    | Usage & attribution                                                     | Audit, thất bại & retry                                                        |
+| --- | -------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| S1  | Sponsored Consumer gọi Seller first-party          | Consumer tenant `ecoma`; sponsor đứng sau   | Authorization active; UC đủ cho giá offer nội bộ                                             | Giá nội bộ của offer first-party; reserve → settle → charge bình thường; **không payable**; không cost record (OB-7)  | Metered như customer; provenance mang offer/seller/snapshot của attempt | Audit: `reserved`/`settled`; failure: admission fail-closed khi thiếu UC       |
+| S2  | Sponsored Consumer gọi External Seller             | Như S1; seller `customer` hưởng entitlement | Authorization active; UC đủ cho giá offer external                                           | Giá external đầy đủ; payable accrue đầy đủ cho seller — sponsorship không giảm entitlement                            | Metered; attribution per attempt                                        | Payable lifecycle hiện hành; failure: thiếu UC ⇒ fail closed, không obligation |
+| S3  | Fallback đổi offer (pre-stream, evidence cho phép) | Như S1; offer thay thế có thể external      | Attempt gốc `not_sent`/`confirmed_not_executed`; còn attempt budget                          | Snapshot mới cho offer thay thế; financial re-admission theo giá mới; không kế thừa giá gốc; fail closed nếu thiếu UC | Attempt thay thế mang attribution của chính nó                          | Snapshot cũ giữ cho attempt đã chạy; không dispatch khi admission fail         |
+| S4  | Consumer hết UC                                    | Như S1                                      | `available` < giá applicable                                                                 | Không reserve; không charge; không âm                                                                                 | Không attempt được tạo                                                  | 4xx fail closed; top-up qua grant/deposit mới theo đúng cơ chế                 |
+| S5  | Sponsor chạm trần                                  | Sponsor; các billing account của nó         | Σ net credited + amount > ceiling                                                            | `creditGrant` từ chối `sponsor_ceiling_exceeded`; usage hiện có chạy tiếp tới khi cạn balance                         | Không đổi                                                               | Audit grant bị từ chối; không nhánh vượt kể cả concurrent (tuần tự hoá §5)     |
+| S6  | Một sponsor cấp nhiều billing account              | Sponsor; hai tenant beneficiary             | Hai authorization riêng                                                                      | Trần per-account độc lập; trần tổng của sponsor bind cả hai; wallet/isolation per-account                             | Attribution theo `tenant_ref` không lẫn                                 | Clawback một account không đụng account khác                                   |
+| S7  | Provider cost > giá nội bộ                         | — (OB-7)                                    | Usage đã settle                                                                              | Không cost record, không payable giả; subsidy **hiện chưa tổng hợp được** nhưng chuỗi tham chiếu đầy đủ               | Chuỗi usage → offer → snapshot → charge tái dựng được                   | Khi OB-7 chốt, cost gắn được mà không rewrite lịch sử                          |
+| S8  | Provider first-party do pháp nhân khác vận hành    | Seller tenant; pháp nhân ngoài              | Nhánh tương lai — hiện unreachable: mọi tenant `first_party` phải associate (ADR-0027 §3/§4) | Payable accrue **bình thường** — test là association, không phải classification                                       | Như S2                                                                  | Đổi quan hệ pháp lý chỉ ảnh hưởng accrual tương lai; lịch sử immutable         |
+| S9  | Cố đổi classification qua sponsor config           | Operator                                    | —                                                                                            | Sponsor operation không đụng classification (khác DB, khác bề mặt)                                                    | Không đổi                                                               | Bị chặn bởi tách bề mặt; classification bất invariant (ADR-0026)               |
+| S10 | Seller tenant bị dùng làm sponsor                  | —                                           | —                                                                                            | Không có đường nào: authorization chỉ bind aggregate Sponsor của `llm-financial`                                      | —                                                                       | Model không phát sinh quan hệ; gắn sponsor = seller là Phương án 4 bị loại     |
+| S11 | Funding retry sau partial failure                  | Operator/bootstrap                          | F4 register xong, credit fail                                                                | Replay `creditGrant(grant_ecoma_initial)` hội tụ; không double credit; provenance nguyên vẹn                          | —                                                                       | Idempotency key tất định; `idempotency_conflict` nếu payload khác              |
+| S12 | Capture/settle retry                               | `llm-api`                                   | Settlement đã commit                                                                         | Replay cùng `settlement_id` trả kết quả gốc; payload khác ⇒ `idempotency_conflict`                                    | Usage idempotent theo `reservation_id`                                  | Không duplicate charge/payable                                                 |
+| S13 | External Seller fail trước output                  | `llm-api`                                   | `not_sent`/`confirmed_not_executed`                                                          | Reservation được release theo luật hiện hành; fallback theo S3                                                        | Không usage `known` cho attempt hụt                                     | Evidence gate; không tự release vì timeout                                     |
+| S14 | External Seller fail giữa stream                   | `llm-api`                                   | Bytes đã tới client                                                                          | Không switch; settle usage thật một lần; payable (nếu external) theo usage thật                                       | Attribution provider thật; không transparent failover                   | Không attempt mới sau commit (absorbing)                                       |
+| S15 | Principal Ecoma-io publish revision mới / bị block | Governance operator                         | Association đang active                                                                      | Seller liên kết **không bao giờ** accrue payable — bất kể principal active hay không                                  | Serving eligibility fail-closed đúng ADR-0027 §5                        | Bút toán đã accrue/settled/paid giữ nguyên; không rewrite                      |
+| S16 | Hai grant concurrent cùng sponsor                  | Operator                                    | Còn headroom dưới ceiling                                                                    | Persistence transaction tuần tự hoá; tổng net không bao giờ vượt ceiling                                              | —                                                                       | Một grant thành công, grant kia `sponsor_ceiling_exceeded` nếu hết headroom    |
+
+## 12. Phạm vi supersede và quyết định giữ nguyên
+
+**Supersede-in-part ADR-0004**: vế "**purchased**/prepaid cho LLM consumption" của UC không còn đúng tuyệt đối — UC được hình thành từ **hai nguồn**: deposit từ `payment` (hiện hành) và `sponsor_grant` từ authorization nội bộ (§4). Giữ nguyên hiệu lực toàn bộ phần còn lại: double-entry, VND denomination, non-transferable, correction qua reversal/adjustment, idempotency keys cho mọi mutation, immutable references, reconciliation/audit, không negative balance.
+
+**Supersede-in-part ADR-0020**: Quyết định 7 — bên cạnh `sub`, thêm **`tenant_id`** làm giá trị đầu ra xuyên unit duy nhất mới (F2–F4); Quyết định 13 — bảng phân chia sở hữu đọc thêm hàng khởi tạo tài chính (Sponsor, billing account, authorization, grant ban đầu) do `llm-api`/BC `llm-financial` ghi vào `db-llm-gateway`. Giữ nguyên toàn bộ Quyết định 1–6, 8–14 (bề mặt thực thi, natural-key idempotency, fail-closed, `ecoma` canonical cho `llm-consumer-tenant`; Quyết định 12 đọc mở rộng: runner truyền thêm `tenant_id` — §6).
+
+**Giữ nguyên, không amend**: ADR-0026 toàn vẹn (§3 trích đúng bảng miễn trừ; classification không đụng; tín hiệu cấm "cấu hình sponsor" là ràng buộc riêng của ADR này, §3.1); ADR-0027 toàn vẹn (§9 được **thi hành** tại đây chứ không sửa — enforcement owner mà §9 chỉ định chính là quyết định này); ADR-0003/0005/0007/0008/0009/0010 không đổi; `llm-seller-pricing` nhận một carve-out tường minh tại §6/§8 (§7.4.2), không mất invariant nào; OB-7, OB-8, OB-3 giữ nguyên trạng thái mở.
+
+## 13. Vẫn mở — không được âm thầm chốt
+
+1. **Provider cost ownership/source** (OB-7) — §7.3 chỉ chốt chuỗi tham chiếu tương quan, không chốt owner.
+2. **Pricing granularity** (OB-8) — không đổi.
+3. **Cơ chế crediting `payment` ↔ `llm` cho tenant customer** (OB-1 phần còn) — bao gồm provisioning billing account ngoài bootstrap.
+4. **Chuyển đổi currency của pricing schedule sang denomination wallet (VND)** — chưa có hợp đồng; cho tới khi có, financial admission fail closed với schedule không express được giá ở denomination VND (fallback đổi currency giữa các offer chưa được phép).
+5. **Định danh permission cho thao tác sponsor/ceiling** — catalog permission của `staff-access`/backoffice, quyết định tương lai riêng.
+6. **Sponsor ngoài tổ chức, principal pháp lý khác cho provider first-party, expiry/roll-over của UC tài trợ, chương trình subsidy có budget record riêng** — extension tương lai, mỗi cái cần quyết định tường minh.
+
+## 14. Hệ quả
+
+- `llm-financial/domain-model.md` mở rộng: aggregate Sponsor, lifecycle grant, `sponsor_funding_clearing`, reference/audit vocabulary, invariant 13–16, ranh giới mới — trong cùng thay đổi.
+- `llm-consumer-tenant`, `llm-seller-pricing`, `llm-usage` nhận delta tối thiểu (§3.2, §7.4, §8); `llm-api/01-architecture.md` chốt vị trí financial admission và hợp đồng fallback (§7.4); `architecture/02-delivery.md` §3.2 bổ sung các bước tài chính vào bảng bootstrap; `context-map.md` thêm quan hệ `llm-financial` → `llm-consumer-tenant` (R19); glossary thêm Sponsor/Billing account/Sponsor grant/Subsidy; OB-1 thu hẹp đúng phần #14 sở hữu.
+- **Hiện thực thuộc Delivery, không thuộc ADR này**: #22 (đứng up `db-llm-gateway`/schema), #24 (bootstrap F1–F4 + admission/fallback theo hợp đồng §7.4), #27 (nghiệm thu accounting end-to-end). Lib `libs/llm-financial-domain` mở rộng theo §4–§5 khi delivery bắt đầu.
+- Không có thay đổi code, migration, route hay flag trong quyết định này; các tài liệu được cập nhật là bản ghi canonical duy nhất.
+
+## 15. Liên quan
+
+- Issue #14 — quyết định này; #82/[ADR-0026](../../llm-consumer-tenant/adr/0026-first-party-dogfooding-and-commercial-policy-boundaries.md) — trục funding được mở khoá; #15/[ADR-0027](../../llm-seller-tenant/adr/0027-first-party-seller-provider-identity-and-legal-principal.md) — §9 được thi hành; #10/[ADR-0020](../../staff-access/adr/0020-bootstrap-seed-contract.md) — bootstrap được mở rộng đúng §12; #24 — blocked-by được giải; #27 — nghiệm thu.
+- [ADR-0003](./0003-financial-ownership.md) — ownership `llm-financial` giữ nguyên; [ADR-0004](./0004-uc-ec-ledgers-vnd-double-entry.md) — supersede-in-part đúng §12; [ADR-0009](./0009-payment-payout-integration.md) — đường deposit `payment` không đổi; [ADR-0005](./0005-ec-to-uc-conversion.md) — EC→UC không phải đường sponsor, giữ nguyên.
+- [Glossary](../../glossary.md) — Sponsor, Billing account, Sponsor grant, Subsidy; [`open-boundaries.md`](../../open-boundaries.md) — OB-1 (thu hẹp một phần), OB-7 (giữ nguyên).

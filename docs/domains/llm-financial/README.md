@@ -1,6 +1,6 @@
 # LLM Financial
 
-`llm-financial` là bounded context phụ trách **tính đúng đắn tiền tệ của đường LLM**: billing account, wallet, credit/deposit, available balance, double-entry ledger, reservation, budget escrow, budget lease, customer charge, seller payable, settlement, refund/adjustment, reconciliation và financial audit.
+`llm-financial` là bounded context phụ trách **tính đúng đắn tiền tệ của đường LLM**: billing account, wallet, credit/deposit, sponsor funding, available balance, double-entry ledger, reservation, budget escrow, budget lease, customer charge, seller payable, settlement, refund/adjustment, reconciliation và financial audit.
 
 > **Phạm vi:** monetary correctness của LLM product. Không thay thế `payment` (payment transaction và payout execution canonical). `llm-financial` sở hữu monetary state; `llm-inference` sở hữu logical request lifecycle; `llm-usage` sở hữu usage measurement. Quan hệ với `payment` vẫn là open boundary → [`open-boundaries.md`](../open-boundaries.md) OB-1. Tài liệu này là business knowledge, không phải technical architecture.
 
@@ -9,7 +9,7 @@
 | Document                               | Nội dung                                                                                      |
 | -------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Business model, state machines, invariants, failure behavior, phân biệt các khái niệm tiền tệ |
-| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010) for LLM Financial decisions                                             |
+| [`adr/README.md`](./adr/README.md)     | ADR index (0001–0010, 0028) for LLM Financial decisions                                       |
 
 ## Cross-references
 

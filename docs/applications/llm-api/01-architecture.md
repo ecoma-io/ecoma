@@ -78,6 +78,8 @@ sequenceDiagram
   DP->>DP: resolve alias/model + eligibility + strategy (routing snapshot)
   DP->>PG: reserve quota (durable, idempotent reservation_id)
   PG-->>DP: reservation OK
+  DP->>PG: financial admission theo giá offer đã resolve (local khi lease cover, durable reserve khi không)
+  PG-->>DP: financial admission OK
   DP->>DP: create logical request record (snapshot bound)
   DP->>PA: dispatch attempt (endpoint selected)
   PA->>P: HTTP request
@@ -135,6 +137,7 @@ flowchart TD
 
 - **Endpoint fallback** (cấp 1) và **Offer fallback** (cấp 2). Thứ tự: endpoint trước, rồi offer.
 - Fallback chỉ khi routing còn candidate **và** `llm-inference` cho phép execution tiếp tục; `may_have_executed` → không retry tự động.
+- **Financial re-admission khi fallback đổi offer (ADR-0028 §7.4):** attempt thay thế resolve snapshot giá mới cho chính offer đó rồi financial admission lại; offer thay thế **không kế thừa** giá offer gốc; thiếu UC cho giá mới ⇒ fail closed — không dispatch, không tạo attempt thay thế; evidence của attempt gốc giữ nguyên giá trị đã ghi.
 - Không transparent provider switch sau khi đã stream bytes.
 
 ---
@@ -143,6 +146,7 @@ flowchart TD
 
 - Pricing là versioned snapshot bound tại admission.
 - Pricing change sau admission không alter admitted request price.
+- Snapshot bind theo cặp request–offer: fallback đổi offer resolve snapshot mới cho offer thay thế (ADR-0028 §7.4); schedule change vẫn không alter giá đã admit.
 - Customer price dùng cho strategy "lowest customer price" và charge calculation.
 - Pricing snapshot persist cùng logical request record (audit/replay).
 
@@ -184,12 +188,14 @@ flowchart TD
   RS --> EL[Eligibility + strategy + snapshot]
   EL --> Q[Reserve quota durable]
   Q -->|insufficient| E2[429 quota exceeded]
-  Q -->|ok| LR[Create logical request + bind snapshot]
+  Q -->|ok| FA[Financial admission - reserve theo giá offer]
+  FA -->|insufficient| E3[402 insufficient UC]
+  FA -->|ok| LR[Create logical request + bind snapshot]
   LR --> D[Dispatch]
 ```
 
 - Reserve durable ngay khi giữ quota (A7). Không fallback KV làm sai quota.
-- Admission fail (auth/quota) → trả lỗi ngay, không dispatch, không tạo attempt.
+- **Financial admission (ADR-0028 §5):** sau khi snapshot giá đã resolve, trước dispatch; kiểm coverage theo applicable price của offer sẽ phục vụ — budget lease còn cover ⇒ local atomic admission (không DB call per request, §12), không cover (ví dụ fallback sang offer đắt hơn) ⇒ durable financial reserve; financial reservation id riêng, liên kết quota reservation qua `request_id`. Admission fail ở bước nào → trả lỗi ngay, không dispatch, không tạo attempt.
 - Idempotent theo `reservation_id`.
 
 ---
@@ -201,6 +207,7 @@ Theo `llm-financial` domain model:
 - **Budget escrow:** tiền earmark cho consumer trong khoảng thời gian.
 - **Budget lease:** cấp consumer/key ngân sách liên tục (amount per window) với `epoch`/`fencing_token`. Admission financial dùng bounded escrow/leases + local atomic admission; **không** gọi DB/coordinator per inference request.
 - **Reservation (financial):** giữ tiền trong wallet (escrow): `available -= amount; held += amount`. Idempotent theo `reservation_id`.
+- **Nguồn funding wallet:** deposit từ `payment` hoặc sponsor grant có funding authorization với trần sponsor + per-billing-account — kiểm tại thời điểm cấp trong `llm-financial` (ADR-0028 §4–§5); admission chỉ tiêu số dư `available`, không có bypass cho tenant `first_party`.
 - **Phân biệt reservation ID:** quota reservation và financial reservation dùng **hai ID khác nhau** (quota `reservation_id` ≠ financial `reservation_id`); execution journal liên kết cả hai qua `request_id`. Không dùng một ID chung để đánh tráo hai loại reservation.
 - **Capture** khi dùng: `held -= amount; charged += amount`. **Release** khi unused.
 - Lease expiry không chứng minh gateway cũ dừng tiêu → cần fencing epoch/token + reconciliation trước reallocation.
@@ -211,6 +218,7 @@ Theo `llm-financial` domain model:
 ## 13. Execution journal
 
 - Mỗi logical request và attempt được ghi bền: `request_id`, `reservation_id`, alias, resolved model, routing snapshot version, endpoint, start/end time, evidence, usage.
+- Mỗi attempt ghi thêm `offer_ref`, `seller_tenant_ref`, `pricing_snapshot_ref` của chính attempt đó (ADR-0028 §8) — điều kiện tái dựng giá và seller obligation per-attempt khi một logical request đi qua nhiều offer.
 - Attempt-level usage phục vụ audit/reconciliation; không nhân lên charge.
 - Journal là nguồn cho reconciliation, correction, và post-incident analysis.
 - Không log prompt/response body.
@@ -235,6 +243,7 @@ Theo `llm-financial` domain model:
 - Settlement idempotent theo `reservation_id`: không duplicate charge.
 - Customer charge = f(usage, customer price, discount); khác provider cost (chi phí thực) và seller payable.
 - Seller payable ≠ payout (payout có thể delay/adjustment).
+- Seller payable chỉ accrue cho seller có nghĩa vụ settle thật — seller **không** liên kết `FirstPartyLegalPrincipal` Ecoma-io (bất kể trạng thái principal — trạng thái chỉ điều khiển serving eligibility, ADR-0027 §5); seller first-party không accrue payable, không EC, không payout (ADR-0028 §7.1).
 - Reconciliation: đối soát `llm-financial` ledger, `payment` ledger, `llm` usage/reservation, provider invoice. Mismatch → alert + audit, không tự sửa số liệu.
 - Customer charge tính từ customer price (seller-configured, `llm-seller-pricing`) trừ discount/fee; provider cost là đại lượng độc lập, ownership/source chưa chốt (`docs/domains/open-boundaries.md` OB-7).
 

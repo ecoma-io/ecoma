@@ -69,7 +69,7 @@ Admin/BFF ──► │       Control Plane          │  (admin API, config, au
 
 `llm-api` duy trì **execution state** riêng của mình, khác domain state:
 
-- **Execution journal**: mỗi logical request và attempt được ghi bền: `request_id`, `reservation_id`, alias, resolved model, routing snapshot version, endpoint, start/end time, evidence, usage. Journal là nguồn cho reconciliation, correction, và post-incident analysis. Không log prompt/response body.
+- **Execution journal**: mỗi logical request và attempt được ghi bền: `request_id`, `reservation_id`, alias, resolved model, routing snapshot version, endpoint, start/end time, evidence, usage, và ba tham chiếu attribution theo attempt `offer_ref`/`seller_tenant_ref`/`pricing_snapshot_ref` (ADR-0028 §8). Journal là nguồn cho reconciliation, correction, và post-incident analysis. Không log prompt/response body.
 - **Durable dispatch intent record**: `request_id`, `tenant_id`, `reservation_id`, snapshots, attempt plan.
 - **Attempt record**: `attempt_id`, `request_id`, endpoint, model, start time, evidence.
 - **Routing config durable state** trong `db-llm-gateway`: alias, routing policy, candidate set (runtime view).
@@ -86,7 +86,7 @@ Execution state không tự động trở thành domain state chỉ vì được
 
 ## Request lifecycle
 
-Admission → auth API key → resolve alias/model → eligibility + strategy + snapshot → reserve quota durable → create logical request record (snapshot bound) → dispatch provider attempt → streaming → settle/release quota → write usage → logical request completion (completed | failed | cancelled terminal).
+Admission → auth API key → resolve alias/model → eligibility + strategy + snapshot → reserve quota durable → financial admission theo giá offer đã resolve (ADR-0028 §5) → create logical request record (snapshot bound) → dispatch provider attempt → streaming → settle/release quota → write usage → logical request completion (completed | failed | cancelled terminal).
 
 - Reserve durable ngay khi giữ quota (A7). Không fallback KV làm sai quota.
 - Admission fail (auth/quota) → trả lỗi ngay, không dispatch, không tạo attempt.

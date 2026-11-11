@@ -75,6 +75,9 @@ RequestUsage {
 Provenance {
   provider: string,
   model: string,
+  offer_ref: string,            // offer đã phục vụ attempt này (tham chiếu opaque)
+  seller_tenant_ref: string,    // seller tenant của offer đó
+  pricing_snapshot_ref: string, // snapshot giá đã resolve cho attempt này
   attempt_id: string,
   request_id: string,
   normalizer_version: string,
@@ -82,6 +85,8 @@ Provenance {
   timestamp: string,   // ISO 8601 UTC, do caller truyền vào
 }
 ```
+
+Ba tham chiếu offer/seller/snapshot mang nghĩa **attribution theo attempt** ([ADR-0028](../llm-financial/adr/0028-internal-sponsorship-funding-first-party-financial-model.md) §8): khi một logical request đi qua nhiều offer trong fallback, mỗi attempt mang bộ tham chiếu của chính nó — điều kiện bắt buộc để tái dựng giá, charge và (nếu có) seller obligation per-attempt, và để tương quan subsidy/cost sau khi OB-7 chốt. Provider/model giữ nguyên ngữ nghĩa hiện hành.
 
 ### Normalizer version
 
@@ -198,6 +203,7 @@ Mỗi normalized usage record mang provenance:
 
 - `provider`: tên provider.
 - `model`: model đã dùng.
+- `offer_ref` / `seller_tenant_ref` / `pricing_snapshot_ref`: tham chiếu attribution theo attempt (ADR-0028 §8) — offer đã phục vụ attempt, seller tenant của offer đó, snapshot giá đã resolve cho attempt.
 - `attempt_id`: định danh attempt.
 - `request_id`: định danh logical request.
 - `normalizer_version`: phiên bản normalizer.
