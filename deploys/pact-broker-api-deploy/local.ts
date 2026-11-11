@@ -50,20 +50,17 @@ import {
   type EntryFoundation,
 } from '@ecoma-io/deployment';
 
-/**
- * Image Node pin (theo DIGEST) để chạy dx runner trong container gắn platform
- * network — bản sao chữ-số-chữ của `NODE_IMAGE` trong `index.ts`. KHÔNG import
- * index.ts để dùng chung: file đó là chương trình Pulumi, import là đánh giá
- * toàn bộ resource graph tại thời điểm load.
- */
-const NODE_IMAGE =
-  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
-
-/** Alias DNS của PostgreSQL platform trong network nội bộ (giống index.ts). */
-const POSTGRES_HOST = 'ecoma-postgres';
-
-/** Tham chiếu tự khai của lane local cho bước superadmin (ADR-0021 Quyết định 6). */
-const LANE_OPERATOR_REF = 'local-lane';
+// Module thuần túy dựng lời gọi Docker — hằng + argv/env của bước superadmin
+// sống ở đó để spec colocated chấm được contract "credential KHÔNG nằm trong
+// argv" mà không import entry này (entry tự chạy `main()` lúc load).
+import {
+  ACCOUNT_DATABASE,
+  ACCOUNT_MIGRATOR_ROLE,
+  buildMigratorDatabaseUrl,
+  buildSuperadminResolverInvocation,
+  STAFF_ACCESS_DATABASE,
+  STAFF_ACCESS_MIGRATOR_ROLE,
+} from './superadmin-resolver.js';
 
 /** Stack account + staff-access — credential migrator được đọc cross-stack. */
 const ACCOUNT_DEPLOY_PROJECT = 'account-deploy';
@@ -71,12 +68,6 @@ const STAFF_ACCESS_DEPLOY_PROJECT = 'staff-access-deploy';
 
 /** Tên config chứa migrator password (mỗi stack sinh và set ở lần up của chính nó). */
 const MIGRATOR_PASSWORD_CONFIG_KEY = 'namespace:migratorPassword';
-
-/** Database + role migrator của hai service mà bước superadmin chạm tới. */
-const ACCOUNT_MIGRATOR_ROLE = 'ecoma_account_migrator';
-const ACCOUNT_DATABASE = 'db-account';
-const STAFF_ACCESS_MIGRATOR_ROLE = 'ecoma_staff_access_migrator';
-const STAFF_ACCESS_DATABASE = 'db-staff-access';
 
 /**
  * Đọc một giá trị stack config cross-stack — trả `undefined` khi key chưa có,
@@ -199,8 +190,13 @@ function parseResultEnvelope(stdout: string): Record<string, string> | undefined
  *
  * Container mounts: repo READ-ONLY (`/repo`) + `node_modules` gốc của repo
  * (`/repo/node_modules`) — đúng pattern migrate của index.ts, tsx binary và
- * `pg` resolve từ node_modules của repo. Hai credential đi qua `-e` env của
- * container (kênh được chấp nhận), percent-encoded, KHÔNG argv, KHÔNG log.
+ * `pg` resolve từ node_modules của repo. Hai credential (DATABASE_URL đã
+ * percent-encoded) sống CHỈ trong env của process docker — argv Docker mang
+ * TÊN biến dạng `-e TÊN` (pass-through env của Docker), KHÔNG mang giá trị:
+ * argv đọc được qua `/proc/<pid>/cmdline` và `ps`; env của process hẹp hơn nhiều
+ * (chỉ đọc được qua `/proc/<pid>/environ` của process đang sống, cùng user —
+ * không tương đương kênh stdin của `pulumi config set`, nhưng là cơ chế
+ * pass-through `-e TÊN` chuẩn của Docker). KHÔNG log giá trị.
  *
  * `--resolve-if-bootstrapped`: môi trường đã có administrator → chỉ đọc
  * (outcome `resolved`, không ghi gì); môi trường mới → procedure bootstrap
@@ -208,46 +204,24 @@ function parseResultEnvelope(stdout: string): Record<string, string> | undefined
  * không có `sub` thì không có `tenantOwnerSub` và `pulumi up` không được chạy.
  */
 function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
-  // worktreeRoot đến từ foundation (resolveEntryFoundation) — KHÔNG đọc stack
-  // config ở đây: entry chạy ngoài `pulumi up`, `namespace:worktreeRoot` chỉ
-  // được truyền bằng `--config` cho chương trình Pulumi bên trong (local-entry).
-  const { worktreeRoot } = foundation.ctx;
-  const accountUrl =
-    `postgresql://${ACCOUNT_MIGRATOR_ROLE}:${encodeURIComponent(readMigratorPassword(foundation, ACCOUNT_DEPLOY_PROJECT))}` +
-    `@${POSTGRES_HOST}:5432/${ACCOUNT_DATABASE}`;
-  const staffUrl =
-    `postgresql://${STAFF_ACCESS_MIGRATOR_ROLE}:${encodeURIComponent(readMigratorPassword(foundation, STAFF_ACCESS_DEPLOY_PROJECT))}` +
-    `@${POSTGRES_HOST}:5432/${STAFF_ACCESS_DATABASE}`;
-
-  const result = exec(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--network',
-      readPlatformNetwork(foundation),
-      '-v',
-      `${worktreeRoot}:/repo:ro`,
-      '-v',
-      `${worktreeRoot}/node_modules:/repo/node_modules`,
-      '-w',
-      '/repo',
-      '-e',
-      `ECOMA_ACCOUNT_DATABASE_URL=${accountUrl}`,
-      '-e',
-      `ECOMA_STAFF_ACCESS_DATABASE_URL=${staffUrl}`,
-      NODE_IMAGE,
-      '/repo/node_modules/.bin/tsx',
-      '/repo/tools/dx/index.ts',
-      'bootstrap-superadmin',
-      '--resolve-if-bootstrapped',
-      '--json',
-      '--operator-ref',
-      LANE_OPERATOR_REF,
-    ],
-    worktreeRoot,
-    foundation.env,
+  const accountUrl = buildMigratorDatabaseUrl(
+    ACCOUNT_MIGRATOR_ROLE,
+    readMigratorPassword(foundation, ACCOUNT_DEPLOY_PROJECT),
+    ACCOUNT_DATABASE,
   );
+  const staffUrl = buildMigratorDatabaseUrl(
+    STAFF_ACCESS_MIGRATOR_ROLE,
+    readMigratorPassword(foundation, STAFF_ACCESS_DEPLOY_PROJECT),
+    STAFF_ACCESS_DATABASE,
+  );
+
+  const invocation = buildSuperadminResolverInvocation(
+    foundation,
+    readPlatformNetwork(foundation),
+    accountUrl,
+    staffUrl,
+  );
+  const result = exec('docker', invocation.args, invocation.cwd, invocation.env);
 
   if (result.error !== undefined) {
     throw new Error(

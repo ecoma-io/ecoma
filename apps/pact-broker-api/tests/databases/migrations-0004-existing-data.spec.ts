@@ -3,6 +3,14 @@
  * các writer pre-0004 (ADR-0020 quyết định 9: mọi ecoma-internal còn lại được
  * đọc là ecoma).
  *
+ * Phạm vi hành vi được test: chuyển đổi danh tính canonical là chuyển đổi
+ * một-lần, gated trên tên legacy 'ecoma-internal' (đổi tên + phân loại
+ * first_party trong cùng một UPDATE); một hàng 'ecoma' có từ trước với nguồn
+ * gốc không xác định fail-closed (tên 'ecoma' thôi không phải bằng chứng
+ * first_party, không đường nào phân loại theo tên); replay không bắn lại
+ * chuyển đổi và không đụng tới classification/plan của dữ liệu customer sinh
+ * sau `0004`.
+ *
  * ⚠️ Các case này không chạy được trên database harness dùng chung: container
  * đó áp mọi migration ngay từ đầu, và sau `0004` chính schema chặn hàng chưa
  * phân loại, nên không thể dựng trạng thái pre-0004 ở đó. Vì vậy mỗi test tự
@@ -227,25 +235,33 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
     },
   );
 
-  it('backfills a pre-existing ecoma row as first_party', { timeout: 180_000 }, async () => {
-    const db = await startLegacyDatabase();
-    try {
-      await insertLegacyTenant(db, 'ecoma', 'sub-owner-canonical');
+  it(
+    'fails closed on a pre-existing ecoma row of unknown provenance, naming it and the recovery',
+    { timeout: 180_000 },
+    async () => {
+      const db = await startLegacyDatabase();
+      try {
+        await insertLegacyTenant(db, 'ecoma', 'sub-owner-canonical');
 
-      await db.applyMigrationFile(MIGRATION_0004.name);
+        // Tên 'ecoma' thôi không phải bằng chứng nguồn gốc first_party:
+        // chuyển đổi chỉ gate trên tên legacy 'ecoma-internal', nên hàng này
+        // vẫn NULL và guard fail-closed chặn migration, nêu tên hàng.
+        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(
+          /migration 0004.*ecoma.*local-down.*local-up/su,
+        );
 
-      const tenants = await queryAllTenants(db);
-      expect(tenants).toHaveLength(1);
-      expect(tenants[0]?.name).toBe('ecoma');
-      expect(tenants[0]?.owner_sub).toBe('sub-owner-canonical');
-      expect(await queryTenantClassification(db, 'ecoma')).toEqual({
-        classification: 'first_party',
-        plan: null,
-      });
-    } finally {
-      await db.stop();
-    }
-  });
+        // Migration lỗi rollback hoàn toàn: không tồn tại cột classification
+        // và hàng 'ecoma' không bị phân loại hay đụng tới.
+        expect(await classificationColumnExists(db)).toBe(false);
+        const tenants = await queryAllTenants(db);
+        expect(tenants).toHaveLength(1);
+        expect(tenants[0]?.name).toBe('ecoma');
+        expect(tenants[0]?.owner_sub).toBe('sub-owner-canonical');
+      } finally {
+        await db.stop();
+      }
+    },
+  );
 
   it(
     'fails closed when a legacy row has no classification, naming it and the recovery',
@@ -288,6 +304,57 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
           'ecoma',
           'ecoma-internal',
         ]);
+      } finally {
+        await db.stop();
+      }
+    },
+  );
+
+  it(
+    'replay keeps the canonical row and post-migration customer data untouched',
+    { timeout: 180_000 },
+    async () => {
+      const db = await startLegacyDatabase();
+      try {
+        await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
+        await db.applyMigrationFile(MIGRATION_0004.name);
+
+        // Hàng customer hợp lệ sinh SAU `0004`: classification và plan được
+        // writer customer ghi tường minh theo schema mới.
+        const client = await db.connect();
+        try {
+          await client.query(
+            `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+             VALUES ('acme', 'customer', 'free', 'sub-owner-cust')`,
+          );
+        } finally {
+          await client.end();
+        }
+
+        const tenantsBefore = await queryAllTenants(db);
+        expect(await queryTenantClassification(db, 'ecoma')).toEqual({
+          classification: 'first_party',
+          plan: null,
+        });
+        expect(await queryTenantClassification(db, 'acme')).toEqual({
+          classification: 'customer',
+          plan: 'free',
+        });
+
+        // Replay (runner thật chạy lại mọi file) khi dữ liệu customer đã tồn
+        // tại: không đường nào dựa trên tên được bắn lại — classification,
+        // plan, name và owner của cả hai hàng bất đổi.
+        await db.applyMigrationFile(MIGRATION_0004.name);
+
+        expect(await queryAllTenants(db)).toEqual(tenantsBefore);
+        expect(await queryTenantClassification(db, 'ecoma')).toEqual({
+          classification: 'first_party',
+          plan: null,
+        });
+        expect(await queryTenantClassification(db, 'acme')).toEqual({
+          classification: 'customer',
+          plan: 'free',
+        });
       } finally {
         await db.stop();
       }

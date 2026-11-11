@@ -146,6 +146,10 @@ describe(`bootstrap of the canonical ${CANONICAL_TENANT_NAME} tenant on ${HARNES
   });
 
   it('creates the first_party tenant, owner membership and one audit event together on the first run', async () => {
+    // Tự lập trạng thái đầu vào: truncate để không dựa vào dữ liệu còn sót
+    // trong harness — test này phải tự đứng vững cả khi chạy đơn lẻ.
+    await db.truncateData();
+
     expect(await queryTenant(db)).toEqual([]);
 
     const runtimeUrl = `postgres://ecoma_pact_broker_runtime:ecoma_test_role_pw@${db.host}:${db.port}/${HARNESS_DATABASE}`;
@@ -199,10 +203,27 @@ describe(`bootstrap of the canonical ${CANONICAL_TENANT_NAME} tenant on ${HARNES
   });
 
   it('is a safe no-op on the second run and preserves existing state', async () => {
+    // Tự lập trạng thái đầu vào — không dựa vào test trước (chạy đơn lẻ bằng
+    // `-t` phải tự đứng vững): truncate rồi chạy bootstrap LẦN ĐẦU để có
+    // tenant canonical, sau đó kiểm chứng lần chạy THỨ HAI là no-op an toàn.
+    await db.truncateData();
+    const first = await runBootstrapped(db, 'sub-owner-bootstrap');
+    expect(first.alreadyExisted).toBe(false);
+
+    // Chụp trạng thái sau lần tạo để đối chiếu với trạng thái sau lần no-op.
     const before = await queryTenant(db);
     expect(before).toHaveLength(1);
     const beforeId = before[0]?.id ?? '';
     const beforeCreatedAt = before[0]?.created_at;
+    const beforeMemberships = await queryMemberships(db);
+    const beforeAudit = await queryBootstrapAuditEvents(db);
+    expect(beforeAudit).toHaveLength(1);
+    expect(beforeAudit[0]?.tenant_id).toBe(beforeId);
+    expect(beforeAudit[0]?.detail).toEqual({
+      bootstrap: 'created',
+      tenant: CANONICAL_TENANT_NAME,
+      membership: 'created',
+    });
 
     const result = await runBootstrapped(db, 'sub-owner-bootstrap');
     expect(result.alreadyExisted).toBe(true);
@@ -218,11 +239,16 @@ describe(`bootstrap of the canonical ${CANONICAL_TENANT_NAME} tenant on ${HARNES
     // created_at không đổi: no-op không cập nhật hàng đã có.
     expect(after[0]?.created_at.getTime()).toBe(beforeCreatedAt?.getTime());
 
-    // Membership vẫn đúng một hàng với shape bootstrap.
+    // Membership vẫn đúng một hàng với shape bootstrap, không đổi so với
+    // trước lần no-op.
     const memberships = await queryMemberships(db);
     expect(memberships).toHaveLength(1);
+    expect(memberships[0]?.tenant_id).toBe(beforeId);
+    expect(memberships[0]?.sub).toBe('sub-owner-bootstrap');
     expect(memberships[0]?.role).toBe('member');
     expect(memberships[0]?.source).toBe('bootstrap');
+    expect(memberships[0]?.staff_id).toBeNull();
+    expect(memberships).toEqual(beforeMemberships);
 
     // Lần chạy no-op ghi audit event của riêng nó: created + already_existed.
     const audit = await queryBootstrapAuditEvents(db);

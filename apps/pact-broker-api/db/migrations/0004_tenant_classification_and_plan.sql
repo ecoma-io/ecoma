@@ -15,18 +15,25 @@
 -- writer internal của service này ghi — bootstrap helper
 -- (db/bootstrap-tenant.mts trước khi đổi tên, khi đó mang tên
 -- 'ecoma-internal') hoặc đường ensureTenant của entitlement; không đường nào
--- dành cho customer có thể sinh ra tên đó. Vì vậy việc đổi tên thành 'ecoma'
--- là sửa lỗi xác định theo nguồn gốc (origin-established), không phải đoán,
--- và hàng canonical được phân loại 'first_party' không có plan. Việc đổi tên
--- fail-closed khi cả 'ecoma' và 'ecoma-internal' cùng tồn tại: khi đó hàng
--- nào là canonical là mơ hồ và phải được operator giải quyết trước khi chạy
--- lại migration.
+-- dành cho customer có thể sinh ra tên đó. Vì vậy việc sửa lỗi là xác định
+-- theo nguồn gốc (origin-established), không phải đoán: trong cùng một UPDATE
+-- có điều kiện, hàng mang tên legacy đó được đổi tên thành 'ecoma',
+-- phân loại 'first_party' và plan NULL. Phân loại CHỈ áp cho hàng mang tên
+-- legacy này: tên 'ecoma' thôi không phải bằng chứng nguồn gốc first_party,
+-- nên một hàng 'ecoma' có từ trước với nguồn gốc không xác định KHÔNG được
+-- phân loại ở đây mà rơi vào guard fail-closed bên dưới. Chuyển đổi được gate
+-- trên việc tên legacy còn tồn tại, nên replay không bao giờ bắn lại chuyển
+-- đổi một-lần này, và nó không bao giờ chạm vào một hàng 'ecoma' đến từ nguồn
+-- khác. Fail-closed khi cả 'ecoma' và 'ecoma-internal' cùng tồn tại: khi đó
+-- hàng nào là canonical là mơ hồ và phải được operator giải quyết trước khi
+-- chạy lại migration.
 --
--- Những hàng vẫn chưa có classification sau backfill first_party (ví dụ một
--- hàng seed 'local' cũ) làm migration fail-closed kèm tên các hàng vi phạm:
--- dữ liệu local lane là disposable và được dựng lại bằng local-up sau
--- local-down; database nào khác cần quyết định tường minh của operator cho
--- từng hàng. Không có phép đoán classification ngầm nào ở đây.
+-- Những hàng vẫn chưa có classification sau chuyển đổi trên (ví dụ một hàng
+-- seed 'local' cũ, hay một hàng 'ecoma' nguồn gốc không xác định) làm
+-- migration fail-closed kèm tên các hàng vi phạm: dữ liệu local lane là
+-- disposable và được dựng lại bằng local-up sau local-down; database nào
+-- khác cần quyết định tường minh của operator cho từng hàng. Không có phép
+-- đoán classification ngầm nào ở đây — kể cả theo tên 'ecoma'.
 --
 -- Additive và forward-only; mọi câu lệnh chạy lại được (guard IF NOT EXISTS /
 -- DO-block, như 0003), nên runner có thể replay mọi file. KHÔNG chèn hàng
@@ -36,13 +43,16 @@
 BEGIN;
 
 -- Các cột mới được thêm nullable: NOT NULL trên classification chỉ được đặt
--- sau backfill fail-closed bên dưới, để hàng legacy được nêu tên trong lỗi
+-- sau guard fail-closed bên dưới, để hàng legacy được nêu tên trong lỗi
 -- thay vì vi phạm constraint mà không có lời giải thích.
 ALTER TABLE pact.tenants
   ADD COLUMN IF NOT EXISTS classification text,
   ADD COLUMN IF NOT EXISTS plan text;
 
--- Sửa danh tính canonical (ADR-0020 quyết định 9).
+-- Sửa danh tính canonical (ADR-0020 quyết định 9): chuyển đổi một-lần gated
+-- trên tên legacy. Chỉ hàng 'ecoma-internal' — provenance origin-established
+-- — được đổi tên VÀ phân loại trong cùng một UPDATE; khi tên legacy không
+-- còn tồn tại (đã chuyển đổi, hoặc chưa từng có) nhánh này không bắn lại.
 DO $$
 DECLARE
   legacy_count integer;
@@ -57,17 +67,14 @@ BEGIN
   END IF;
 
   IF legacy_count > 0 THEN
-    UPDATE pact.tenants SET name = 'ecoma' WHERE name = 'ecoma-internal';
+    UPDATE pact.tenants
+       SET name = 'ecoma',
+           classification = 'first_party',
+           plan = NULL
+     WHERE name = 'ecoma-internal';
   END IF;
 END
 $$;
-
--- Backfill: tenant internal canonical là first_party không có plan (domain
--- model §2.6). Idempotent: chạy lại ghi lại đúng các giá trị đó.
-UPDATE pact.tenants
-   SET classification = 'first_party',
-       plan = NULL
- WHERE name = 'ecoma';
 
 -- Fail-closed khi còn hàng nào thiếu classification: nếu không, NOT NULL bên
 -- dưới sẽ biến một hàng legacy không thể phân loại thành lỗi constraint
@@ -82,7 +89,7 @@ BEGIN
 
   IF unclassified IS NOT NULL THEN
     RAISE EXCEPTION
-      'migration 0004: tenant row(s) still without a classification after the first_party backfill: %. Classification is NOT NULL as of this migration and is never guessed. Local lane data is disposable: rebuild it with "pnpm nx run-many -t local-down -c local" followed by "pnpm nx run-many -t local-up -c local". For any other database, decide each named row explicitly (first_party via the internal bootstrap path, customer via the customer provisioning path) and re-run this migration',
+      'migration 0004: tenant row(s) still without a classification after the legacy internal rename: %. Classification is NOT NULL as of this migration and is never guessed. Local lane data is disposable: rebuild it with "pnpm nx run-many -t local-down -c local" followed by "pnpm nx run-many -t local-up -c local". For any other database, decide each named row explicitly (first_party via the internal bootstrap path, customer via the customer provisioning path) and re-run this migration',
       unclassified;
   END IF;
 END
