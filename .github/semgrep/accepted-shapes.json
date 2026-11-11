@@ -94,6 +94,16 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/local.ts",
+    "start": 124,
+    "end": 124,
+    "reason": "Same FP shape as the platform-env.ts:77 entry: readMigratorPassword returns the cross-stack migrator password to the local-lane entry that passes it as container env to the superadmin resolver - deploys/ has no HTTP handler, value never reaches a response; naming-heuristic FP. Introduced by #21 (resolve-or-bootstrap step).",
+    "lines": {
+      "124": "^  return password;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/platform-deploy/platform-env.ts",
     "start": 172,
     "end": 172,
