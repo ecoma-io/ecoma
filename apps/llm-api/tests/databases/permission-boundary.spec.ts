@@ -23,6 +23,20 @@ import {
 
 const ALL_KEYS: readonly LlmDatabaseKey[] = ['gateway', 'tenant', 'marketplace'];
 
+/**
+ * SQLSTATE của một query bị từ chối — `pg` mang `code` (SQLSTATE) trên lỗi thật;
+ * query thành công trả `undefined` và làm expect đỏ. Assert SQLSTATE thay vì
+ * chữ trong message: `ALTER TABLE` của non-owner ném "must be owner of table"
+ * (kiểm tra ownership), cùng lớp 42501 insufficient_privilege với "permission
+ * denied" — lỗi class là điều cần đóng băng, không phải wording.
+ */
+async function deniedSqlState(run: () => Promise<unknown>): Promise<string | undefined> {
+  return run().then(
+    () => undefined,
+    (error: { code?: string }) => error.code,
+  );
+}
+
 describe('runtime/migrator permission boundary on the llm-api databases', () => {
   let db: LlmApiDatabase;
 
@@ -90,6 +104,110 @@ describe('runtime/migrator permission boundary on the llm-api databases', () => 
       } finally {
         await cleanup.end();
       }
+    }
+  });
+
+  it('denies the marketplace runtime role creating or altering schema objects in llm_marketplace', async () => {
+    // Bảng fixture migrator tạo trước để test ALTER — dọn ngay trong finally:
+    // fixture không trở thành schema ứng dụng.
+    const migrator = await db.connectAsMigrator('marketplace');
+    try {
+      await migrator.query('CREATE TABLE llm_marketplace.alter_probe (id int)');
+    } finally {
+      await migrator.end();
+    }
+
+    const runtime = await db.connectAsRuntime('marketplace');
+    try {
+      // Runtime chỉ có USAGE trên llm_marketplace (0002); CREATE là quyền schema
+      // của migrator (owner), ALTER là quyền bảng của owner — tất cả cùng lớp
+      // lỗi SQLSTATE 42501 (insufficient_privilege).
+      expect(
+        await deniedSqlState(() =>
+          runtime.query('CREATE TABLE llm_marketplace.runtime_probe (id int)'),
+        ),
+      ).toBe('42501');
+      expect(await deniedSqlState(() => runtime.query('CREATE SCHEMA llm_runtime_probe'))).toBe(
+        '42501',
+      );
+      expect(
+        await deniedSqlState(() =>
+          runtime.query('ALTER TABLE llm_marketplace.alter_probe ADD COLUMN note text'),
+        ),
+      ).toBe('42501');
+    } finally {
+      await runtime.end();
+      const cleanup = await db.connectAsMigrator('marketplace');
+      try {
+        await cleanup.query('DROP TABLE IF EXISTS llm_marketplace.alter_probe');
+      } finally {
+        await cleanup.end();
+      }
+    }
+  });
+
+  it('lets the marketplace runtime role run full DML on a migrator-created table in llm_marketplace (default privileges)', async () => {
+    // Hợp đồng `ALTER DEFAULT PRIVILEGES FOR ROLE ecoma_llm_marketplace_migrator
+    // IN SCHEMA llm_marketplace`: bảng migrator tạo sau 0002 tự mang grant
+    // SELECT/INSERT/UPDATE/DELETE cho runtime; USAGE đến từ 0002. Fixture dùng
+    // giá trị literal, KHÔNG serial/sequence — ADP cấp ON TABLES thôi, sequence
+    // là mối quan tâm của slice sau (#24).
+    const migrator = await db.connectAsMigrator('marketplace');
+    try {
+      await migrator.query('CREATE TABLE llm_marketplace.dml_fixture (id int, note text)');
+    } finally {
+      await migrator.end();
+    }
+
+    const runtime = await db.connectAsRuntime('marketplace');
+    try {
+      const { rows: usage } = await runtime.query<{ usage: boolean }>(
+        `SELECT has_schema_privilege(current_user, 'llm_marketplace', 'USAGE') AS usage`,
+      );
+      expect(usage[0]?.usage).toBe(true);
+
+      await runtime.query(
+        `INSERT INTO llm_marketplace.dml_fixture (id, note) VALUES (1, 'runtime-writes')`,
+      );
+      const { rows: selected } = await runtime.query<{ id: number; note: string }>(
+        `SELECT id, note FROM llm_marketplace.dml_fixture WHERE id = 1`,
+      );
+      expect(selected[0]?.note).toBe('runtime-writes');
+      await runtime.query(
+        `UPDATE llm_marketplace.dml_fixture SET note = 'runtime-updates' WHERE id = 1`,
+      );
+      const { rows: updated } = await runtime.query<{ note: string }>(
+        `SELECT note FROM llm_marketplace.dml_fixture WHERE id = 1`,
+      );
+      expect(updated[0]?.note).toBe('runtime-updates');
+      await runtime.query(`DELETE FROM llm_marketplace.dml_fixture WHERE id = 1`);
+      const { rows: afterDelete } = await runtime.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM llm_marketplace.dml_fixture`,
+      );
+      expect(afterDelete[0]?.count).toBe('0');
+    } finally {
+      await runtime.end();
+      const cleanup = await db.connectAsMigrator('marketplace');
+      try {
+        await cleanup.query('DROP TABLE IF EXISTS llm_marketplace.dml_fixture');
+      } finally {
+        await cleanup.end();
+      }
+    }
+  });
+
+  it('denies the marketplace runtime credential a connection to the other two databases of the unit', async () => {
+    // Mặt chéo-DB cho marketplace: runtime chỉ CONNECT trên db-llm-marketplace;
+    // db-llm-gateway và db-llm-tenant phải chặn ở tầng kết nối (credential thật,
+    // không SET ROLE).
+    for (const other of ['gateway', 'tenant'] as const) {
+      await expect(
+        db.openWithCredentials({
+          user: runtimeRole('marketplace'),
+          password: db.rolePassword,
+          database: databaseName(other),
+        }),
+      ).rejects.toThrow(/permission denied/iu);
     }
   });
 

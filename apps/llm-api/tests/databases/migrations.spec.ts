@@ -9,8 +9,9 @@
  * `02-delivery.md` §3). Tất cả invocation đều đi qua credential migrator thật
  * (proxy `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
  *
- * Suite này chạy MỘT migration hiện tại (`0001`) trên ba database, nên không
- * có bảng nghiệp vụ nào sau khi apply xong: catalog PostgreSQL là nguồn sự thật.
+ * Suite này chạy migration hiện tại trên ba database — gateway/tenant có `0001`,
+ * marketplace có `0001` + `0002` (schema `llm_marketplace`) — nên không có bảng
+ * nghiệp vụ nào sau khi apply xong: catalog PostgreSQL là nguồn sự thật.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -125,7 +126,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     expect(await countUserTables('gateway')).toBe(0);
   });
 
-  it('leaves no user table on any of the three databases after 0001 (namespace only)', async () => {
+  it('leaves no user table on any of the three databases (namespace only)', async () => {
     for (const key of ALL_KEYS) {
       expect(await countUserTables(key)).toBe(0);
     }
@@ -140,10 +141,28 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     expect(await schemaExists('tenant', 'llm_tenant')).toBe(true);
   });
 
-  it('leaves db-llm-marketplace without a user schema (privileges only)', async () => {
-    expect(await schemaExists('marketplace', 'llm_marketplace')).toBe(false);
-    // Không schema do service tạo: chỉ pg_catalog, information_schema, public.
-    expect(await listNonSystemSchemas('marketplace')).toEqual([]);
+  it('creates the named schema llm_marketplace on db-llm-marketplace (migrator-owned, English comment)', async () => {
+    // `0002` forward-fix tạo schema sau `0001` (privileges-only): owner là migrator
+    // (credential chạy CREATE SCHEMA), comment tiếng Anh theo policy `AGENTS.md`.
+    expect(await schemaExists('marketplace', 'llm_marketplace')).toBe(true);
+    // Schema duy nhất do service tạo: chỉ llm_marketplace ngoài các schema hệ thống.
+    expect(await listNonSystemSchemas('marketplace')).toEqual(['llm_marketplace']);
+
+    const client = await db.connect('marketplace');
+    try {
+      const { rows } = await client.query<{ owner: string; comment: string | null }>(
+        `SELECT r.rolname AS owner, d.description AS comment
+           FROM pg_namespace n
+           JOIN pg_roles r ON r.oid = n.nspowner
+           LEFT JOIN pg_description d ON d.objoid = n.oid
+                                     AND d.classoid = 'pg_namespace'::regclass
+          WHERE n.nspname = 'llm_marketplace'`,
+      );
+      expect(rows[0]?.owner).toBe('ecoma_llm_marketplace_migrator');
+      expect(rows[0]?.comment).toContain('Owning domain: llm-marketplace');
+    } finally {
+      await client.end();
+    }
   });
 
   it('keeps the per-database advisory lock distinct from other databases', async () => {
