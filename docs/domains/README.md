@@ -111,3 +111,11 @@ Các thành phần sau **không** phải bounded context nghiệp vụ và **kh�
 5. Deploy unit, Application hay job mới không tự động tạo bounded context.
 6. Shared infra (`local-development`, `janitor`, `deploys/*`) không bao giờ là bounded context. `remote-cache` từng là disposable build state (A18) và trở thành SaaS bounded context theo [ADR-0015](./remote-cache/adr/0015-remote-cache-bounded-context.md).
 7. Khi một open boundary được giải quyết, chuyển nội dung sang tài liệu canonical tương ứng và xoá khỏi `open-boundaries.md`, để lại nhiều nhất một pointer `đã chốt → <link>`.
+
+---
+
+## 5. Quy tắc tài liệu theo tệp
+
+- `domains/<context>/README.md`: ngắn gọn — context chịu trách nhiệm gì, sở hữu gì, không sở hữu gì, những context nào cần biết nó, các canonical documents trong thư mục, vị trí ADR index. Không bao giờ restatement nội dung của `domain-model.md`.
+- `domains/<context>/domain-model.md`: canonical location của business knowledge. Các phần chuẩn: purpose and scope, ubiquitous language, concepts and relations, aggregates/entities/value objects (nơi áp dụng), business lifecycle và state transitions, policies/rules/invariants, actors/authority/business permissions, domain events và semantic contracts, business exceptions/correction/compensation, undecided business points. Chỉ tạo khi có đủ domain knowledge đáng để viết; số section không bắt buộc đồng nhất giữa các context; không bao giờ là technical architecture document.
+- Ràng buộc catalog: không có cột deploy-unit/Nx-project/Pulumi mapping; không có decision register sao chép ADR index. Thành phần không phải bounded context đã thuộc §3 — không lặp.

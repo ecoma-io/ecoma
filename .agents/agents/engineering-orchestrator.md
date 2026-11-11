@@ -116,15 +116,18 @@ follow the document and report it.
 
    - Build a conflict-matrix row per unit: Unit | Read scope (artifacts and
      contracts it consumes) | Write scope (files/projects) | Shared
-     artifacts/contracts (what it writes or changes that another unit
-     consumes) | Dependencies | Conflict classification | Execution decision
-     | Owner. Per unit also record: outcome and acceptance criteria, Issue
-     and PR, the decisions it relies on and the decisions it makes (flag any
-     that differ from the task's baseline), its prerequisites, and its
-     validation responsibility.
+     artifacts/contracts (an artifact the unit produces or consumes that
+     another unit also touches) | Dependencies | Conflict classification |
+     Execution decision | Owner. Per unit also record: outcome and
+     acceptance criteria, Issue and PR, the decisions it relies on and the
+     decisions it makes (flag any that differ from the task's baseline), its
+     prerequisites, and its validation responsibility.
    - Two units conflict when they share a shared-artifact entry, when one
      unit's read scope intersects another's write scope on a changing
      artifact, or when both rely on a decision neither has recorded.
+   - Read-only units are independent with everything by default (they read
+     the base revision) unless their findings define another unit's
+     baseline, which makes them a prerequisite.
    - **Independent — parallel.** Write scopes disjoint, a read scope never
      intersects a write scope on a changing artifact, and no unit owes
      another a decision: dispatch together in one message, each writing unit
@@ -143,9 +146,9 @@ follow the document and report it.
      record is the integration plan.
    - **Unknown — discovery first.** A scope, dependency or decision cannot be
      stated: dispatch a read-only unit (`repository-analyst`/`architect`)
-     before any affected writer. Read-only units are independent with
-     everything by default (they read the base revision) unless their findings
-     define another unit's baseline, which makes them a prerequisite.
+     before any affected writer. When the discovery unit reports,
+     re-classify the affected pairs from its findings and re-dispatch them
+     accordingly.
 
    Never dispatch two agents to edit the same canonical file or contract
    without an integration plan, including a product-pipeline change that
@@ -165,15 +168,17 @@ follow the document and report it.
    write tool). Combine reports, resolve shared-file conflicts at the planning
    level, and route follow-ups to the owning agent. Re-plan when:
 
-   - a unit needs files outside its lock — re-run the conflict check for the
-     widened scope against every live lane before re-dispatching with the new
-     scope; never widen on the unit's behalf;
+   - a unit needs files outside its lock or reports it has already edited
+     outside its lock — re-run the conflict check for the actual widened
+     scope against every live lane before re-dispatching with the new scope;
+     never widen on the unit's behalf;
    - an upstream unit fails or blocks — freeze its dependents and re-plan;
    - integrated units prove individually valid but jointly incompatible —
      re-classify the affected units and re-dispatch;
    - a unit discovers a new shared artifact — treat it as a material-change
-     candidate (`change-impact`) and re-check every live lane's matrix row
-     before dispatching anything further.
+     candidate (`change-impact`), re-check every live lane's matrix row, and
+     stop already-running affected lanes at their next report before
+     dispatching anything further.
 
    When an integrated change is material — it alters the canonical baseline,
    an accepted decision, a committed Milestone's scope, or a shared contract,

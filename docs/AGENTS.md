@@ -2,7 +2,7 @@
 
 ## 1. Language
 
-Documentation language is owned by the `Language` section of the root [`AGENTS.md`](../AGENTS.md), which assigns `docs/` to Vietnamese prose, keeps technical and domain terms in English, and defines the closed exception list and term-handling rules.
+Documentation language is owned by the `Language` and `Language exemptions` sections of the root [`AGENTS.md`](../AGENTS.md), which assign `docs/` to Vietnamese prose, keep technical and domain terms in English, and define the closed exception list and term-handling rules.
 
 ## 2. Documentation Principles
 
@@ -51,7 +51,7 @@ Detailed per-file rules → [`docs/domains/README.md`](./domains/README.md).
 
 Applications own executable software components and their composition: application composition, BFF and UI integration, API service runtime, application use cases and orchestration, HTTP/protocol integration, adapters and provider integration, persistence implementation and schema/migration mechanics, runtime security mechanics, queue/outbox implementation, background job execution, retry/backoff/lease/concurrency/scheduling, and configuration/deployment/monitoring/recovery/runbook.
 
-Keep three concepts apart, and never use "service" without saying which one is meant: **domain service** (business behaviour, belongs to Domains), **application service/use case** (orchestrates domain operations, belongs to Applications), and **deployable service/Worker/job** (runtime component, belongs to Applications and described in Architecture's system topology).
+Keep three concepts apart — **domain service** (Domains), **application service/use case** (Applications), **deployable service/Worker/job** (Applications; topology in Architecture) — and never use "service" without saying which one is meant.
 
 - `README.md`: index of documented components — component type, one-line responsibility, bounded contexts hosted/composed/consumed by contract, link.
 - `applications/<component>/README.md`: purpose, component type, responsibility and boundary, participating domain contexts, contained documents.
@@ -74,7 +74,7 @@ An Application is not a bounded context, an Nx project, a deploy unit or a Pulum
 
 The Features view holds one document per product capability under `features/<area>/<feature>.md` — the user problem, the outcome the system produces, what the capability includes and excludes, the acceptance scenarios that matter, which domains and applications take part, and which tests verify it — structured per [`features/_template.md`](./features/_template.md).
 
-The five rules, condensed: a Feature belongs to the Features view, grouped by feature area, never by Nx project or deploy unit; it describes capability, not implementation — link to `domains/`, `applications/` and the machine-readable contract (`§4`) instead of restating them; every capability statement needs implementation evidence, distinguished from verification evidence; it carries no mutable state — capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5; and a Feature is not a slice. Full rules → [`docs/features/README.md`](./features/README.md).
+The five rules, condensed: a Feature belongs to the Features view, grouped by feature area, never by Nx project or deploy unit; it describes capability, not implementation — link to `domains/`, `applications/` and the machine-readable contract (`§4`) instead of restating them; every capability statement needs implementation evidence, distinguished from verification evidence; it carries no mutable state — capability state is derived per [`engineering/evolution-process.md`](./engineering/evolution-process.md) §5; and a Feature is not a slice; a bounded context, endpoint, worker or library does not become a Feature merely by existing. Full rules → [`docs/features/README.md`](./features/README.md).
 
 ### `changes/`
 
