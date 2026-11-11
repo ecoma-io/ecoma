@@ -802,6 +802,12 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/llm-api-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
   deploys/llm-console-deploy:
     dependencies:
       '@ecoma-io/deployment':
