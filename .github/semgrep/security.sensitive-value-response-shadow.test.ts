@@ -1,10 +1,16 @@
 // Fixture cho rule `security-sensitive-value-in-http-response`: phần chứng minh ranh
 // giới sanitizer khớp theo HÌNH DẠNG envelope, không theo tên trần.
 //
-// Tách khỏi `sensitive-value-response.test.ts` có chủ đích: ở đó có khai báo
+// Tách khỏi `security.sensitive-value-response.test.ts` có chủ đích: ở đó có khai báo
 // `signRequest`/`signInternalRequest` phạm vi module, nên một hàm cục bộ trùng tên sẽ
 // vi phạm `no-shadow` của oxlint. File này KHÔNG khai báo bản module-scope nào, nên
 // hàm cục bộ ở đây là cái duy nhất trong file và không shadow ai.
+//
+// ⚠️ Tên file PHẢI bắt đầu bằng stem của file rule (`security.`): đo trên
+// semgrep 1.185.0 (`semgrep/test.py: relatively_eq`), `--test` ghép fixture theo
+// tên file — so `filename.split('.', 1)[0]` với stem của rule file. Tên cũ
+// `sensitive-value-response-shadow.test.ts` không ghép với `security.yml`, nên
+// `--test` không bao giờ đọc file này; đổi tên đưa nó trở lại harness.
 //
 // Mỗi hàm cục bộ cố ý đọc một biến của scope cha (`salt`) để không vướng
 // `unicorn/consistent-function-scoping` — việc đó không đổi điều cần chứng minh: hàm
