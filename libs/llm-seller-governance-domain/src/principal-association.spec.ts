@@ -28,6 +28,7 @@ import type { RestrictionEvaluation } from './restriction';
 import {
   createVerificationCase,
   decideVerification,
+  deriveOnboardingState,
   deriveOperationalEligibility,
   startVerificationReview,
   submitPrincipalVerificationCase,
@@ -877,5 +878,86 @@ describe('§5 invariant 10 — principal-wide fail-closed derivation', () => {
         }),
       ).blockers,
     ).toEqual(['verification']);
+  });
+
+  it('fails closed when profileAxes is omitted — a stale tenant-scoped approval cannot derive eligible', () => {
+    const principal = activePrincipal();
+    const association = establish(TENANT_A, principal);
+    // Case tenant-scoped trên trục `legal-identity`, approved theo trạng thái
+    // (không có pin) — nếu caller bỏ `profileAxes`, đường first_party không
+    // thể phân biệt case trục principal với case tenant và case cũ này sẽ bị
+    // tính thay cho coverage của principal. Bị từ chối nguyên đường.
+    const tenantDraft = expectOk(
+      createVerificationCase({
+        id: createVerificationCaseId('vc-stale-legal'),
+        tenantId: TENANT_A,
+        type: 'legal-identity',
+        createdAt: AT,
+      }),
+    );
+    const tenantSubmitted = expectOk(
+      submitVerificationCase({
+        verificationCase: tenantDraft,
+        submissionId: 's-stale-legal',
+        evidence: [tenantEvidence('e-stale-legal')],
+        submittedBy: ACTOR,
+        submittedAt: AT + 10,
+      }),
+    );
+    const staleTenantCase = expectOk(
+      decideVerification({
+        verificationCase: expectOk(
+          startVerificationReview({
+            verificationCase: tenantSubmitted,
+            reviewer: REVIEWER,
+            reviewedAt: AT + 20,
+          }),
+        ),
+        decision: 'approved',
+        decidedBy: REVIEWER,
+        decidedAt: AT + 30,
+      }),
+    ).verificationCase;
+    expect(staleTenantCase.verifiedProfileVersions).toEqual([]);
+    expect(
+      expectOk(
+        deriveOperationalEligibility({
+          tenantId: TENANT_A,
+          tenantClassification: 'first_party',
+          principalAssessment: assessment(principal, association, FIRST_COVERAGE),
+          restrictions: tenantRestriction(TENANT_A),
+          cases: [staleTenantCase],
+          requiredTypes: ['legal-identity', 'tax'],
+          // profileAxes bị bỏ — cấu hình thiếu phải fail closed.
+          now: AT + 60,
+        }),
+      ),
+    ).toEqual({ eligible: false, blockers: ['verification'] });
+  });
+
+  it('deriveOnboardingState is association-blind on first_party — completeness is display, eligibility enforces', () => {
+    const principal = activePrincipal();
+    // Tenant chưa liên kết (association null) nhưng approvedCoverage phủ đủ
+    // cặp revision hiện hành: derivation onboarding chỉ đọc principal +
+    // coverage nên vẫn báo "complete" — đó là hiển thị, không phải phán quyết.
+    const unlinked = expectOk(
+      deriveOnboardingState({
+        tenantId: TENANT_A,
+        cases: [],
+        requiredTypes: ['legal-identity', 'tax'],
+        tenantClassification: 'first_party',
+        principalAssessment: assessment(principal, null, FIRST_COVERAGE),
+        profileAxes: AXES,
+        now: AT + 60,
+      }),
+    );
+    expect(unlinked.complete).toBe(true);
+    expect(unlinked.pendingTypes).toEqual([]);
+    // Cùng snapshot trên eligibility: vẫn ineligible — enforcement là
+    // `deriveOperationalEligibility`, không phải onboarding state.
+    expect(deriveFirstParty(TENANT_A, assessment(principal, null, FIRST_COVERAGE))).toEqual({
+      eligible: false,
+      blockers: ['verification'],
+    });
   });
 });

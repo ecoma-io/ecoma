@@ -729,6 +729,14 @@ export function deriveOperationalEligibility(
   }
 
   if (input.tenantClassification === 'first_party') {
+    if (axisBinding === undefined) {
+      // Thiếu ánh xạ `type → trục` trên đường first_party: không thể phân biệt
+      // case trục principal với case tenant-scoped, nên case tenant cũ từng
+      // `approved` sẽ bị tính theo trạng thái thay vì theo coverage. Fail
+      // closed — caller phải cấp `profileAxes` thì mới derive được.
+      blockers.push('verification');
+      return eligibilityResult(blockers);
+    }
     // Single source (§3.4, §5 invariant 11): dữ liệu profile/case tenant-scoped
     // trên trục legal/tax là bất nhất ⇒ ineligible, không bao giờ derive từ nó.
     if (profiles.value.legal.length > 0 || profiles.value.tax.length > 0) {
