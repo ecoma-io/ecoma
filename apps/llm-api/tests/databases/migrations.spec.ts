@@ -10,8 +10,9 @@
  * (proxy `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
  *
  * Suite này chạy migration hiện tại trên ba database — gateway/tenant có `0001`,
- * marketplace có `0001` + `0002` (schema `llm_marketplace`) — nên không có bảng
- * nghiệp vụ nào sau khi apply xong: catalog PostgreSQL là nguồn sự thật.
+ * marketplace có `0001`–`0003` (schema `llm_marketplace`, thu hẹp default
+ * privileges toàn database) — nên không có bảng nghiệp vụ nào sau khi apply xong:
+ * catalog PostgreSQL là nguồn sự thật.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -160,6 +161,54 @@ describe('llm-api migration runner on real PostgreSQL', () => {
       );
       expect(rows[0]?.owner).toBe('ecoma_llm_marketplace_migrator');
       expect(rows[0]?.comment).toContain('Owning domain: llm-marketplace');
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('narrows db-wide default privileges: no global tuple grants runtime table privileges, schema-scoped entry remains', async () => {
+    // `0003` thu hồi default privileges toàn database mà `0001` cấp (runtime DML
+    // trên MỌI bảng migrator tạo, bất kể schema). REVOKE không `IN SCHEMA` chỉ đụng
+    // tuple toàn cục trong `pg_default_acl` (`defaclnamespace = 0`) — entry theo
+    // schema `llm_marketplace` của `0002` phải còn nguyên với đủ bốn quyền DML.
+    // Assert trên catalog, không phải hành vi: hành vi DML runtime trên bảng
+    // migrator tạo đã có ở permission-boundary.spec.ts.
+    const client = await db.connect('marketplace');
+    try {
+      // Không tuple toàn cục nào (migrator, defaclnamespace = 0, loại bảng) còn
+      // cấp gì cho runtime — PostgreSQL xóa entry khi ACL rỗng sau REVOKE.
+      const { rows: globalRows } = await client.query<{ acl: string }>(
+        `SELECT array_to_string(d.defaclacl, ',') AS acl
+           FROM pg_default_acl d
+           JOIN pg_roles r ON r.oid = d.defaclrole
+          WHERE r.rolname = 'ecoma_llm_marketplace_migrator'
+            AND d.defaclnamespace = 0
+            AND d.defaclobjtype = 'r'`,
+      );
+      const globalGrantsToRuntime = globalRows
+        .flatMap((row) => row.acl.split(','))
+        .filter((entry) => entry.startsWith('ecoma_llm_marketplace_runtime='));
+      expect(globalGrantsToRuntime).toEqual([]);
+
+      // Entry theo schema còn đúng một tuple, mang đủ SELECT/INSERT/UPDATE/DELETE
+      // cho runtime (acl letter r/a/w/d — so từng chữ, không phụ thuộc thứ tự).
+      const { rows: scopedRows } = await client.query<{ acl: string }>(
+        `SELECT array_to_string(d.defaclacl, ',') AS acl
+           FROM pg_default_acl d
+           JOIN pg_roles r ON r.oid = d.defaclrole
+          WHERE r.rolname = 'ecoma_llm_marketplace_migrator'
+            AND d.defaclnamespace = 'llm_marketplace'::regnamespace
+            AND d.defaclobjtype = 'r'`,
+      );
+      expect(scopedRows).toHaveLength(1);
+      const scopedEntry = scopedRows[0]?.acl
+        .split(',')
+        .find((entry) => entry.startsWith('ecoma_llm_marketplace_runtime='));
+      expect(scopedEntry).toBeDefined();
+      const privileges = scopedEntry.split('=')[1].split('/')[0];
+      for (const letter of ['r', 'a', 'w', 'd']) {
+        expect(privileges).toContain(letter);
+      }
     } finally {
       await client.end();
     }
