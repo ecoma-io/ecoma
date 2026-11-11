@@ -204,11 +204,10 @@ describe('root .dockerignore: sensitive paths are excluded', () => {
 });
 
 describe('root .dockerignore: required build inputs are included', () => {
-  it('workspace manifests, lockfile and patches enter the context', () => {
+  it('workspace manifests and lockfile enter the context', () => {
     expect(isExcluded('pnpm-workspace.yaml')).toBe(false);
     expect(isExcluded('package.json')).toBe(false);
     expect(isExcluded('pnpm-lock.yaml')).toBe(false);
-    expect(isExcluded('patches/@nx__js@23.3.0.patch')).toBe(false);
   });
 
   it('home app, ui-ecoma-logo and dx manifest enter the context', () => {

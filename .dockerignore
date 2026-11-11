@@ -23,7 +23,7 @@
 # `deploys/pact-broker-app-deploy/Dockerfile`,
 # `deploys/pact-broker-api-deploy/Dockerfile`,
 # `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace:
-# `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`, `patches/`,
+# `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`,
 # `tools/dx/package.json`, `apps/home/**`, `apps/backoffice/**`,
 # `apps/account/**`, `apps/pact-broker-app/**`, `apps/llm-console/**`,
 # `apps/llm-seller/**`, `libs/ui-ecoma-logo/**`,
@@ -41,7 +41,6 @@
 !pnpm-workspace.yaml
 !package.json
 !pnpm-lock.yaml
-!patches
 !tools
 !apps
 !libs

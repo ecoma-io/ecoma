@@ -14,7 +14,6 @@ RUN corepack enable
 WORKDIR /repo
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY patches/ ./patches/
 COPY tools/dx/package.json ./tools/dx/
 COPY apps/account/package.json ./apps/account/
 COPY apps/account/.npmrc ./apps/account/.npmrc

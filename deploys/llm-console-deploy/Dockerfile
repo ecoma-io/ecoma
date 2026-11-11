@@ -9,7 +9,7 @@
 #
 # Build context là REPO ROOT (không phải thư mục chứa Dockerfile): monorepo
 # pnpm workspace có `libs/ui-app-shell` và `libs/ui-ecoma-logo` là workspace
-# dependency của app, và `pnpm-workspace.yaml` + `pnpm-lock.yaml` + `patches/`
+# dependency của app, và `pnpm-workspace.yaml` + `pnpm-lock.yaml`
 # đều nằm ở root. `deploys/llm-console-deploy` sở hữu việc đóng gói image nhưng
 # mọi path COPY bên dưới là path tương đối với context root.
 #
@@ -41,11 +41,9 @@ RUN corepack enable
 WORKDIR /repo
 
 # Lớp cache đầu chỉ copy manifest: đổi source không làm mất `pnpm install`.
-# `patches/` phải có mặt TRƯỚC install vì `pnpm-workspace.yaml` khai
-# `patchedDependencies` trỏ vào nó — thiếu thì `pnpm install --frozen-lockfile`
-# fail vì config lệch lockfile.
+# (Không cần copy `patches/`: repo không còn `patchedDependencies` nào trong
+# `pnpm-workspace.yaml` kể khi gỡ bản vá nitropack.)
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY patches/ ./patches/
 COPY tools/dx/package.json ./tools/dx/
 COPY apps/llm-console/package.json ./apps/llm-console/
 COPY apps/llm-console/.npmrc ./apps/llm-console/.npmrc
