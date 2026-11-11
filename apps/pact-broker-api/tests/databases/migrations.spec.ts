@@ -71,9 +71,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const migrator = await db.connectAsMigrator();
     try {
       const first = await applyAllMigrations(migrator);
-      expect(first.applied).toBe(3);
+      expect(first.applied).toBe(4);
       const second = await applyAllMigrations(migrator);
-      expect(second.applied).toBe(3);
+      expect(second.applied).toBe(4);
     } finally {
       await migrator.end();
     }
@@ -91,14 +91,14 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     { timeout: 180_000 },
     async () => {
       // `applied` đếm file chạy trong lần gọi: lần đầu trên database trống phải
-      // là 2 (hai file), chứng minh counter không phải luôn 0 — nếu counter hỏng
-      // thì CLI in "0 file(s) applied" trong khi schema có mặt.
+      // là số file migration, chứng minh counter không phải luôn 0 — nếu counter
+      // hỏng thì CLI in "0 file(s) applied" trong khi schema có mặt.
       const fresh = await startPactBrokerDatabase();
       try {
         const migrator = await fresh.connectAsMigrator();
         try {
           const result = await applyAllMigrations(migrator);
-          expect(result.applied).toBe(3);
+          expect(result.applied).toBe(4);
           expect(result.tablesInPactSchema).toBe(EXPECTED_TABLES.length);
         } finally {
           await migrator.end();
@@ -112,9 +112,11 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
   it('leaves the runtime role able to do DML and nothing else', async () => {
     const runtime = await db.asRuntime();
     try {
-      // DML được: INSERT tenant là hành vi bình thường của Worker.
+      // DML được: INSERT tenant là hành vi bình thường của Worker
+      // (classification NOT NULL + customer ⇒ plan kể từ migration `0004`).
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('grant-probe', 'sub-owner-grant-probe')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('grant-probe', 'customer', 'free', 'sub-owner-grant-probe')`,
       );
 
       // DDL bị từ chối: runtime không sở hữu schema, không có CREATE.
@@ -165,10 +167,12 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const runtime = await db.asRuntime();
     try {
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('fk-a', 'sub-owner-fk-a')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('fk-a', 'customer', 'free', 'sub-owner-fk-a')`,
       );
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('fk-b', 'sub-owner-fk-b')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('fk-b', 'customer', 'free', 'sub-owner-fk-b')`,
       );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
@@ -201,7 +205,8 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const runtime = await db.asRuntime();
     try {
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('deploy-probe', 'sub-owner-deploy-probe')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('deploy-probe', 'customer', 'free', 'sub-owner-deploy-probe')`,
       );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
@@ -257,7 +262,8 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const runtime = await db.asRuntime();
     try {
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('wh-probe', 'sub-owner-wh-probe')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('wh-probe', 'customer', 'free', 'sub-owner-wh-probe')`,
       );
       await runtime.query(
         `INSERT INTO pact.pacticipants (tenant_id, name)
@@ -282,20 +288,24 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     try {
       // owner_sub rỗng vi phạm length BETWEEN 1 AND 200.
       await expect(
-        runtime.query(`INSERT INTO pact.tenants (name, owner_sub) VALUES ('owner-sub-empty', '')`),
+        runtime.query(
+          `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+           VALUES ('owner-sub-empty', 'customer', 'free', '')`,
+        ),
       ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
       // owner_sub có khoảng cách đầu/cuối vi phạm owner_sub = trim(owner_sub).
       await expect(
         runtime.query(
-          `INSERT INTO pact.tenants (name, owner_sub) VALUES ('owner-sub-spaced', ' has space ')`,
+          `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+           VALUES ('owner-sub-spaced', 'customer', 'free', ' has space ')`,
         ),
       ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
       // owner_sub quá 200 ký tự vi phạm length BETWEEN 1 AND 200.
       await expect(
-        runtime.query(`INSERT INTO pact.tenants (name, owner_sub) VALUES ($1, $2)`, [
-          'owner-sub-too-long',
-          'x'.repeat(201),
-        ]),
+        runtime.query(
+          `INSERT INTO pact.tenants (name, classification, plan, owner_sub) VALUES ($1, $2, $3, $4)`,
+          ['owner-sub-too-long', 'customer', 'free', 'x'.repeat(201)],
+        ),
       ).rejects.toThrow(/tenants_owner_sub_check|violates check constraint/iu);
     } finally {
       await runtime.end();
@@ -319,7 +329,8 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const runtime = await db.asRuntime();
     try {
       await runtime.query(
-        `INSERT INTO pact.tenants (name, owner_sub) VALUES ('tenant-role-owner', 'sub-owner-role-owner')`,
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('tenant-role-owner', 'customer', 'free', 'sub-owner-role-owner')`,
       );
       const { rows } = await runtime.query<{ id: string }>(
         `SELECT id FROM pact.tenants WHERE name = 'tenant-role-owner'`,
@@ -332,6 +343,195 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
           [tenantId],
         ),
       ).rejects.toThrow(/tenant_members_role_check|violates check constraint/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // classification + plan + Free slot (migration `0004`, domain-model §2.6).
+  // -------------------------------------------------------------------------
+
+  it('accepts customer tenants with a free or paid plan', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('plan-free', 'active', 'customer', 'free', 'sub-owner-plan-free')`,
+      );
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('plan-paid', 'active', 'customer', 'paid', 'sub-owner-plan-paid')`,
+      );
+      const { rows } = await runtime.query<{ name: string; plan: string | null }>(
+        `SELECT name, plan FROM pact.tenants WHERE name IN ('plan-free', 'plan-paid') ORDER BY name`,
+      );
+      expect(rows.map((row) => row.plan)).toEqual(['free', 'paid']);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('accepts a first_party tenant with no plan', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('plan-first-party', 'active', 'first_party', NULL, 'sub-owner-plan-first-party')`,
+      );
+      const { rows } = await runtime.query<{ classification: string; plan: string | null }>(
+        `SELECT classification, plan FROM pact.tenants WHERE name = 'plan-first-party'`,
+      );
+      expect(rows[0]?.classification).toBe('first_party');
+      // first_party không có plan: NULL là "không có giá trị", không phải giá
+      // trị thứ ba của enum.
+      expect(rows[0]?.plan).toBeNull();
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects a first_party tenant that carries a plan', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // plan chỉ tồn tại khi classification là customer → CHECK từ chối.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('plan-first-party-with-plan', 'active', 'first_party', 'free', 'sub-owner-fp-plan')`,
+        ),
+      ).rejects.toThrow(/tenants_plan_only_when_customer_check|violates check constraint/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects a customer tenant without a plan or with a plan outside free/paid', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // customer mà thiếu plan vi phạm tenants_customer_plan_values_check.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('plan-customer-null', 'active', 'customer', NULL, 'sub-owner-cust-null')`,
+        ),
+      ).rejects.toThrow(/tenants_customer_plan_values_check|violates check constraint/iu);
+      // customer với plan ngoài enum ('free','paid') vi phạm cùng CHECK đó.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('plan-customer-invalid', 'active', 'customer', 'enterprise', 'sub-owner-cust-invalid')`,
+        ),
+      ).rejects.toThrow(/tenants_customer_plan_values_check|violates check constraint/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects a tenant row without classification (not-null since 0004)', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // classification NOT NULL kể từ `0004` — thiếu cột này bị catalog từ chối,
+      // không cần đến CHECK.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, owner_sub)
+           VALUES ('tenant-no-classification', 'sub-owner-no-classification')`,
+        ),
+      ).rejects.toThrow(/classification|not-null/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects a second non-deleted free tenant for the same owner (free slot)', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-first', 'active', 'customer', 'free', 'sub-owner-slot')`,
+      );
+      // Partial unique `tenants_one_free_per_owner_key` chặn tenant free thứ
+      // hai của cùng owner ngay ở database — application check đơn thuần không đủ.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('slot-second', 'active', 'customer', 'free', 'sub-owner-slot')`,
+        ),
+      ).rejects.toThrow(/tenants_one_free_per_owner_key|duplicate key/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('releases the free slot only after logical deletion commits', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-deleted', 'active', 'customer', 'free', 'sub-owner-slot-deleted')`,
+      );
+      await runtime.query(`UPDATE pact.tenants SET status = 'deleted' WHERE name = 'slot-deleted'`);
+      // status = 'deleted' thoả predicate → slot được nhả, tenant thay thế được nhận.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('slot-replacement', 'active', 'customer', 'free', 'sub-owner-slot-deleted')`,
+        ),
+      ).resolves.toBeTruthy();
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('keeps the free slot consumed by a suspended tenant', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-suspended', 'active', 'customer', 'free', 'sub-owner-slot-suspended')`,
+      );
+      await runtime.query(
+        `UPDATE pact.tenants SET status = 'suspended' WHERE name = 'slot-suspended'`,
+      );
+      // suspended vẫn tiêu slot: predicate chỉ loại trừ status = 'deleted'.
+      await expect(
+        runtime.query(
+          `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('slot-suspended-second', 'active', 'customer', 'free', 'sub-owner-slot-suspended')`,
+        ),
+      ).rejects.toThrow(/tenants_one_free_per_owner_key|duplicate key/iu);
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('keeps free slots independent across owners and ignores first_party tenants', async () => {
+    const runtime = await db.asRuntime();
+    try {
+      // Owner khác nhau: mỗi owner tự có một slot free, không xung đột.
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-owner-a', 'active', 'customer', 'free', 'sub-owner-slot-a')`,
+      );
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-owner-b', 'active', 'customer', 'free', 'sub-owner-slot-b')`,
+      );
+      // first_party không có plan nên không bao giờ khớp predicate free slot:
+      // owner của nó vẫn sở hữu thêm một tenant free customer.
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-first-party', 'active', 'first_party', NULL, 'sub-owner-slot-fp')`,
+      );
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, status, classification, plan, owner_sub)
+         VALUES ('slot-fp-customer', 'active', 'customer', 'free', 'sub-owner-slot-fp')`,
+      );
+      const { rows } = await runtime.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM pact.tenants WHERE owner_sub = 'sub-owner-slot-fp'`,
+      );
+      expect(rows[0]?.c).toBe('2');
     } finally {
       await runtime.end();
     }
