@@ -1,10 +1,38 @@
+# Crate runtime của deploy unit `llm-api` — data plane LLM trên Cloudflare
+# Workers, dịch ra WASM qua `worker-build` (Nx target `build` sinh
+# `build/index.js`). Slice Worker runtime (Issue #22): chỉ có /health,
+# /ready, /v1/models fail-closed; không có business logic hay inference
+# (Issue #23/#24).
 [package]
 name = "ecoma-llm-api"
 version = "0.1.0"
 edition = "2021"
-# Skeleton vị trí: crate thật (workers-rs + Hyperdrive) thuộc delivery slice
-# Worker runtime (Issue #22). Stub này chỉ để lane `lint` / `test` / `typecheck`
-# của project xanh ngay từ scaffold.
 
 [lib]
+# `cdylib` duy nhất: worker-build gọi cargo build cho target
+# wasm32-unknown-unknown và đóng gói kết quả thành Worker bundle.
 crate-type = ["cdylib"]
+
+[dependencies]
+# Pin chính xác 0.8.7 — phiên bản đã được thí nghiệm xác nhận trên local lane
+# (experiment criteria 1-4 của Issue #22): feature `tokio-postgres` mở Socket
+# API + PassthroughTls cho connect_raw qua Hyperdrive.
+worker = { version = "=0.8.7", features = ["tokio-postgres"] }
+# Feature `js` + tắt default features: chạy trên WASM (workerd), không kéo
+# tokio runtime kiểu node-local.
+tokio-postgres = { version = "0.7", features = ["js"], default-features = false }
+# Pin dải 0.4 (chỉ 0.4.x): phiên bản 0.2 là hệ sinh thái cũ, vỡ js-sys.
+# worker 0.8.7 đã phụ thuộc wasm-bindgen-futures 0.4 — pin này giữ dải phiên
+# bản ở mức manifest để lane sau (driver connection cho inference, Issue #23)
+# không làm trôi dependency.
+wasm-bindgen-futures = "0.4"
+# select/join cho race timeout và probe song song ba binding (/ready không
+# được treo — timeout per-binding). Đã có sẵn trong cây dependency của worker.
+futures-util = { version = "0.3", default-features = false, features = [
+  "std",
+  "async-await",
+] }
+
+[profile.release]
+# Tối ưu cho kích thước WASM bundle (binary size quan trọng trên Workers).
+opt-level = "s"
