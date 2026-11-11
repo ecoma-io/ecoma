@@ -80,8 +80,8 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   // Scaffold — shell, i18n và BFF health/ready đã có; nghiệp vụ chưa triển khai.
   'llm-console': { kind: 'app', owner: 'llm-console-deploy', status: 'scaffold' },
   'llm-seller': { kind: 'app', owner: 'llm-seller-deploy', status: 'scaffold' },
-  'pact-broker-api': { kind: 'app', owner: 'pact-broker-api-deploy', status: 'scaffold' },
-  'pact-broker-app': { kind: 'app', owner: 'pact-broker-app-deploy', status: 'scaffold' },
+  'pact-broker-api': { kind: 'app', owner: 'pact-broker-api-deploy', status: 'implemented' },
+  'pact-broker-app': { kind: 'app', owner: 'pact-broker-app-deploy', status: 'implemented' },
   'push-notification': { kind: 'app', owner: 'push-notification-deploy', status: 'scaffold' },
   // Control plane của bounded context remote-cache (ADR-0015): skeleton P4.1,
   // deploy unit mới dựng cùng milestone (issue #442).

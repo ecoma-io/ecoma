@@ -8,7 +8,7 @@
   },
   "ecoma": {
     "deployment": {
-      "status": "scaffold"
+      "status": "implemented"
     }
   },
   "nx": {
@@ -45,6 +45,18 @@
               "@ecoma-io/pact-broker-api"
             ],
             "target": "build"
+          },
+          {
+            "projects": [
+              "account-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "staff-access-deploy"
+            ],
+            "target": "local-up"
           }
         ]
       },
