@@ -280,8 +280,12 @@ const provision = new command.local.Command(dockerResourceName(ns, 'llm-api') + 
  * ephemeral trên platform network chạy đúng `npx tsx --tsconfig tsconfig.db.json
  * db/apply.mts <target>` của repo (advisory lock `hashtext('db-llm-<target>')`,
  * verify `current_database()` khớp DB đích — chống chạy nhầm credential). Repo
- * mount read-only; password qua `-e` env của container (kênh được chấp nhận),
- * không argv, không log. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ * mount read-only; password qua `-e` env của container (kênh được chấp nhận) —
+ * chỉ đúng nghĩa "không log": giá trị `pulumi.secret` nên redact trong log/state
+ * của Pulumi, còn chuỗi `-e VAR=...` về mặt kỹ thuật là một argv của `docker run`
+ * trên host (đọc được bởi process cùng user trong lúc lệnh chạy) — đây là mẫu
+ * chung của baseline đã merge (auth-deploy `-e DATABASE_URL=...`), không phải
+ * kênh mới của unit này. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
  *
  * Password percent-encode trước khi ghép vào userinfo của DATABASE_URL — an toàn
  * khi mật khẩu chứa `@ : / ? #` (encode trên plaintext, kết quả được bọc
