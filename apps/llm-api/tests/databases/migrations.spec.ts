@@ -205,7 +205,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
         .split(',')
         .find((entry) => entry.startsWith('ecoma_llm_marketplace_runtime='));
       expect(scopedEntry).toBeDefined();
-      const privileges = scopedEntry.split('=')[1].split('/')[0];
+      const privileges = scopedEntry?.split('=')[1]?.split('/')[0] ?? '';
       for (const letter of ['r', 'a', 'w', 'd']) {
         expect(privileges).toContain(letter);
       }
