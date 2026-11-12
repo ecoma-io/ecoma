@@ -9,7 +9,12 @@
     "@ecoma-io/deployment": "workspace:*",
     "@node-rs/xxhash": "1.7.8",
     "citty": "^0.2.2",
+    "github-slugger": "^2.0.0",
+    "mdast-util-from-markdown": "^2.1.0",
     "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/mdast": "^4.0.4"
   },
   "nx": {
     "//": [
