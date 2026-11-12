@@ -32,7 +32,7 @@ pnpm nx run @ecoma-io/staff-access-relay-infrastructure:typecheck
 
 ## Testing
 
-Project có target `test` với `passWithNoTests: true` và hiện không có spec colocated — hành vi repository trên PostgreSQL thật được verify ở suite integration app-owned `apps/staff-access-relay/tests/integrations/relay.spec.ts`, nơi composition root chạy adapter với database thật.
+Project không có spec colocated; target `test` chạy vitest với `passWithNoTests: true`. Hành vi repository trên PostgreSQL thật được verify ở suite integration app-owned `apps/staff-access-relay/tests/integrations/relay.spec.ts`, nơi composition root chạy adapter với database thật.
 
 ## Related Documentation
 

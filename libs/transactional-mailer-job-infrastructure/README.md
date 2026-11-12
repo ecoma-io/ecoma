@@ -12,7 +12,7 @@ Nx project `@ecoma-io/transactional-mailer-job-infrastructure`, tags `type:infra
 ## Responsibilities
 
 - **Provider adapters**, đều cài `MailProviderPort`:
-  - `cloudflare-mail-provider.ts` — Cloudflare Email Sending qua binding `send_email`: `send()` của binding **throw** thay vì trả status nên mọi outcome được bắt và phân loại thành kết quả resolve; `error.code` là dữ liệu untrusted, chỉ tập mã đã liệt kê được map, mã lạ rơi về `retryable` fail-closed; binding không có idempotency API nên mọi lần gọi được coi là có thể trùng.
+  - `cloudflare-mail-provider.ts` — Cloudflare Email Sending qua binding khai trong `wrangler.jsonc` bằng block `send_email` với tên runtime `SEND_EMAIL` (composition root đọc `env.SEND_EMAIL`): `send()` của binding **throw** thay vì trả status nên mọi outcome được bắt và phân loại thành kết quả resolve; `error.code` là dữ liệu untrusted, chỉ tập mã đã liệt kê được map, mã lạ rơi về `retryable` fail-closed; binding không có idempotency API nên mọi lần gọi được coi là có thể trùng.
   - `resend-mail-provider.ts` — HTTP relay với endpoint + credential là Worker Secret của chính worker.
   - `fake-mail-provider.ts` — chỉ cho test/dev, không phải lựa chọn production.
   - Composition root chọn theo `provider.kind` của config (`cloudflare` / `resend` / `fake`).

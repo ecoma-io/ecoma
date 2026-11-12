@@ -39,7 +39,7 @@ Thêm bảng hay cột đồng nghĩa với thêm migration trong `apps/transact
 pnpm nx run @ecoma-io/transactional-mail-infrastructure:test    # vitest, environment node
 ```
 
-Project có target `test` với `passWithNoTests: true` và hiện không có spec colocated — hành vi trên D1 thật được verify ở các suite integration app-owned của `apps/transactional-mail/tests/integrations/` (`mail-d1.spec.ts`, `store-semantics.spec.ts`).
+Target `test` chạy vitest với `passWithNoTests: true`; hành vi trên D1 thật được verify ở các suite integration app-owned của `apps/transactional-mail/tests/integrations/` (`mail-d1.spec.ts`, `store-semantics.spec.ts`).
 
 ## Related Documentation
 

@@ -21,7 +21,7 @@ Năm nhóm primitive, một entry công khai duy nhất `src/index.ts` (không s
 
 Mọi hàm guard **không ném**; tham số thời gian do caller truyền vào; module không đọc clock, không sinh số ngẫu nhiên, không đọc biến môi trường.
 
-Consumer hiện tại (theo import thật trong source): `libs/llm-consumer-tenant-domain` (P1, P2, `isTenantOwnedBy`), `libs/llm-seller-tenant-domain` (P1, P2), `apps/pact-broker-api` (`db/bootstrap-tenant.mts`) và `libs/pact-broker-api-infrastructure` (P1). P4 và P5 được export nhưng chưa có import site nào — vẫn thuộc danh sách đóng đã chốt, được tiêu thụ khi một boundary thực sự xử lý giá trị đó.
+Consumer theo import thật trong source: `libs/llm-consumer-tenant-domain` (P1, P2, `isTenantOwnedBy`), `libs/llm-seller-tenant-domain` (P1, P2), `apps/pact-broker-api` (`db/bootstrap-tenant.mts`, P1) và `libs/pact-broker-api-infrastructure` (P1).
 
 ## Boundaries
 

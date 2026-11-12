@@ -20,7 +20,7 @@ Nx project `@ecoma-io/transactional-mail-contracts`, tags `type:contracts`, `sco
 ## Boundaries
 
 - Không chứa business logic hay domain implementation: validator chỉ kiểm kiểu và field được phép, không áp đặt toàn bộ quy tắc nghiệp vụ vận hành.
-- Không hard-code quyết định đang mở: ID strategy (tiền tố `dlv_`/`msg_`) là mục chưa chốt ở `docs/architecture/01-architecture.md` §10, nên guard định danh không kiểm tiền tố.
+- Guard định danh chỉ kiểm non-empty string sau trim: mẫu `delivery_id` (`dlv_`) là khai báo schema ở `docs/applications/transactional-mail/01-architecture.md` §4.2, còn ID strategy vẫn là mục chưa chốt ở `docs/architecture/01-architecture.md` §10 — vì vậy guard không hard-code tiền tố và không kiểm nó.
 - Không phải shared domain model: nhiều consumer cùng phụ thuộc là bình thường, nhưng contract vẫn thuộc provider và không trở thành model dùng chung giữa các bounded context.
 - Nội dung và tooling của contract delivery → `docs/architecture/02-delivery.md` §3.
 
