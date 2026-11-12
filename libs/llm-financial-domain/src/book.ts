@@ -2,9 +2,10 @@
  * `FinancialBook` — aggregate root của tầng domain `llm-financial`.
  *
  * Book giữ **toàn bộ** state mà lib này sở hữu (billing account + wallet, ledger,
- * deposit, reservation, customer charge, seller payable, conversion) và là nơi
- * duy nhất biến một operation thành bút toán. Mọi operation công khai nhận book,
- * trả book mới; không operation nào mutate book nhận vào.
+ * deposit, reservation, customer charge, seller payable, conversion, sponsor
+ * funding — ADR-0028 §3–§4) và là nơi duy nhất biến một operation thành bút
+ * toán. Mọi operation công khai nhận book, trả book mới; không operation nào
+ * mutate book nhận vào.
  *
  * Vì sao balance là **projection của ledger** chứ không phải state tự do: nếu
  * balance và ledger là hai nguồn có thể lệch, invariant 5 (`available + held +
@@ -57,6 +58,7 @@ import type {
   Reservation,
   SellerPayable,
 } from './records';
+import type { Sponsor, SponsorFundingAuthorization, SponsorGrant } from './sponsor';
 
 /** Một leg do operation yêu cầu; entry id do book suy ra. */
 export interface RequestedLeg {
@@ -101,6 +103,9 @@ export interface FinancialBook {
   readonly holds: readonly FinancialHold[];
   readonly escrows: readonly BudgetEscrow[];
   readonly conversions: readonly Conversion[];
+  readonly sponsors: readonly Sponsor[];
+  readonly fundingAuthorizations: readonly SponsorFundingAuthorization[];
+  readonly grants: readonly SponsorGrant[];
   readonly audit: readonly FinancialAuditEntry[];
 }
 
@@ -118,6 +123,9 @@ export function openFinancialBook(): FinancialBook {
     holds: freezeArray<FinancialHold>([]),
     escrows: freezeArray<BudgetEscrow>([]),
     conversions: freezeArray<Conversion>([]),
+    sponsors: freezeArray<Sponsor>([]),
+    fundingAuthorizations: freezeArray<SponsorFundingAuthorization>([]),
+    grants: freezeArray<SponsorGrant>([]),
     audit: freezeArray<FinancialAuditEntry>([]),
   });
 }

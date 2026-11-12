@@ -64,7 +64,14 @@ export type LlmFinancialDomainErrorCode =
   | 'conversion_authorization_mismatch'
   | 'conversion_not_exact'
   | 'conversion_source_unavailable'
-  | 'invalid_reconciliation';
+  | 'invalid_reconciliation'
+  | 'sponsor_not_found'
+  | 'funding_authorization_not_found'
+  | 'funding_authorization_required'
+  | 'sponsor_ceiling_exceeded'
+  | 'authorization_ceiling_exceeded'
+  | 'grant_not_found'
+  | 'invalid_grant_transition';
 
 /**
  * Bảng message canonical — nguồn duy nhất của factory.
@@ -129,6 +136,15 @@ export const LLM_FINANCIAL_DOMAIN_ERROR_MESSAGES: Record<LlmFinancialDomainError
     conversion_not_exact: 'Conversion ratio does not produce an exact integer amount.',
     conversion_source_unavailable: 'Source EC is held, reserved, or insufficient for conversion.',
     invalid_reconciliation: 'Reconciliation input is not valid.',
+    sponsor_not_found: 'Sponsor was not found in the book.',
+    funding_authorization_not_found: 'Sponsor funding authorization was not found in the book.',
+    funding_authorization_required:
+      'Sponsor funding requires an active sponsor and an active funding authorization.',
+    sponsor_ceiling_exceeded: 'Sponsor grant exceeds the sponsor funding ceiling.',
+    authorization_ceiling_exceeded:
+      'Sponsor grant exceeds the funding authorization ceiling for this billing account.',
+    grant_not_found: 'Sponsor grant was not found in the book.',
+    invalid_grant_transition: 'Sponsor grant state transition is not allowed.',
   });
 
 /** Error domain: `code` ổn định + `message` tiếng Anh ngắn gọn. */
