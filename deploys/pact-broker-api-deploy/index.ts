@@ -27,9 +27,12 @@
  * provision `db-pact-broker` + hai role (`ecoma_pact_broker_migrator`,
  * `ecoma_pact_broker_runtime`) qua `docker exec` vào container PostgreSQL của
  * platform (platform không publish host port nên host không kết nối được
- * container bằng TCP — invariant platform), hai biên escaping
- * `sqlQuote` + `shellQuote`, password do orchestration sinh và truyền qua
- * stack config `--config` (stdin, không argv). Migration chạy **đường
+ * container bằng TCP — invariant platform). Password do orchestration sinh và
+ * truyền qua stack config `--config` (stdin, không argv), rồi đi vào script qua
+ * kênh `environment` của `command.local.Command` — `ALTER ROLE ... PASSWORD`
+ * được dựng trong shell và nạp psql qua STDIN (`docker exec -i`), nên không
+ * process nào giữ giá trị trong argv (chi tiết kênh ở `scripts.ts`). Migration
+ * chạy **đường
  * canonical** (`apps/pact-broker-api/db/apply.mts` — advisory lock
  * `hashtext('db-pact-broker')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
@@ -63,10 +66,21 @@ import {
   dockerResourceName,
   normalizeWorktreeRoot,
   ownershipLabels,
-  shellQuote,
-  sqlQuote,
   worktreeNamespace,
 } from '@ecoma-io/deployment';
+
+import {
+  MACHINE_TOKEN_PLAINTEXT_ENV_VAR,
+  MIGRATOR_PASSWORD_ENV_VAR,
+  POSTGRES_HOST,
+  RUNTIME_PASSWORD_ENV_VAR,
+  buildBootstrapTenantScript,
+  buildMachineTokenProvisionScript,
+  buildMigrateScript,
+  buildMigratorConnectionUrl,
+  buildProvisionScript,
+  buildRuntimeConnectionUrl,
+} from './scripts.js';
 
 /**
  * Image Node pin (theo DIGEST) để chạy migration + hai bước provisioning trong
@@ -81,9 +95,6 @@ import {
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
-
-/** Alias DNS của PostgreSQL platform trong network nội bộ. */
-const POSTGRES_HOST = 'ecoma-postgres';
 
 /**
  * Cổng HTTP nội bộ của worker `ecoma-pact-broker-api` trong WIC — `dev.port`
@@ -147,19 +158,24 @@ const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
 
 // Mật khẩu hai role của db-pact-broker — do orchestration sinh và truyền qua
-// --config (stdin, không argv).
-const runtimePassword = conf.require('runtimePassword');
-const migratorPassword = conf.require('migratorPassword');
+// --config (stdin, không argv). `requireSecret` như remote-cache/staff-access:
+// đánh dấu output là secret bất kể stack config lưu plaintext (quy ước local-dev
+// của `setStackConfig`), nên state Pulumi mã hoá giá trị ở mọi lần dùng.
+const runtimePassword = conf.requireSecret('runtimePassword');
+const migratorPassword = conf.requireSecret('migratorPassword');
 
 /**
  * Machine token plaintext của consumer local (`pact-broker-app`) — orchestration
  * sinh SET-IF-ABSENT ở `local.ts` (ổn định theo environment) và unit pact-app
- * đọc lại qua cross-stack `config get`. Giá trị KHÔNG bao giờ vào log: đi vào
- * DB chỉ dưới dạng SHA-256 hex do script `db/provision-machine-token.mts`
- * tự tính (hash một chiều, không phải secret); plaintext đi vào container
- * provisioning qua env, được bọc `pulumi.secret` ở trigger.
+ * đọc lại qua cross-stack `config get`. DB chỉ nhận SHA-256 hex do script
+ * `db/provision-machine-token.mts` tự tính (hash một chiều). Plaintext đi vào
+ * container provisioning qua map `environment` của `command.local.Command` và
+ * được bọc secret ở mọi lần dùng — không nằm trong command text, không trong
+ * argv của process nào. Đó là biên đã chấp nhận ở local: giá trị KHÔNG cam kết
+ * chống mọi hình truy cập host (env của process đang sống vẫn đọc được qua
+ * `/proc/<pid>/environ` bởi cùng user), chỉ cam kết không rò qua log/state/argv.
  */
-const machineToken = conf.require('machineToken');
+const machineToken = conf.requireSecret('machineToken');
 
 /**
  * `sub` chủ thể sở hữu tenant `ecoma` — do `local.ts` giải quyết qua dx runner
@@ -191,28 +207,29 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * nào khác cần revoke chéo.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
-# 1. Hai role của db-pact-broker — guard-create khi thiếu.
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_pact_broker_migrator'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_pact_broker_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_pact_broker_runtime'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_pact_broker_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-# 2. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
-#    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
-#    thành một argument của shell (giải thích đầy đủ backoffice-deploy/index.ts).
-$PSQL -c ${shellQuote(`ALTER ROLE ecoma_pact_broker_migrator WITH PASSWORD ${sqlQuote(migratorPassword)};`)}
-$PSQL -c ${shellQuote(`ALTER ROLE ecoma_pact_broker_runtime WITH PASSWORD ${sqlQuote(runtimePassword)};`)}
-# 3. Database — guard-create (bash if), idempotent qua lần chạy sau.
-if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-pact-broker'" | grep -q 1; then $PSQL -c 'CREATE DATABASE "db-pact-broker"'; fi
-# 4. Grant: migrator cần CREATE trên database để tạo schema pact (migration 0001
-#    tự cấp USAGE/CREATE trên schema sau khi tạo); runtime chỉ CONNECT —
-#    DML grant theo bảng nằm trong migration 0001.
-$PSQL -c 'REVOKE CONNECT ON DATABASE "db-pact-broker" FROM PUBLIC'
-$PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-pact-broker" TO ecoma_pact_broker_migrator'
-$PSQL -c 'GRANT CONNECT ON DATABASE "db-pact-broker" TO ecoma_pact_broker_runtime'
-# 5. Hardening schema public — ecoma_local mới revoke được; migration statement là no-op trên PG15+.
-docker exec $PG psql -U ecoma_local -d db-pact-broker -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-`;
+
+/**
+ * Script text là ĐẦU RA của hàm thuần `buildProvisionScript` (`scripts.ts`) và
+ * KHÔNG chứa giá trị secret nào: mật khẩu hai role đi vào tiến trình shell qua
+ * map `environment` của `command.local.Command` (dưới), script chỉ đọc TÊN
+ * biến, dựng SQL `ALTER ROLE ... PASSWORD` trong shell và nạp psql qua STDIN
+ * (`docker exec -i`) — giá trị không nằm trong argv của `sh -c`, của
+ * `docker exec`, của `psql`, cũng như trong `create`/`update` (plain input)
+ * mà Pulumi lưu trong state. Đổi hàm build hay đổi kênh truyền phải qua test
+ * argv-hygiene (`tests/integrations/`) — nó chạy đúng script text này.
+ */
+const provisionScript = buildProvisionScript({ postgresContainerName });
+
+/**
+ * Map `environment` của provision — kênh truyền mật khẩu DUY NHẤT: provider
+ * đặt từng giá trị vào environ của tiến trình chạy script (không argv). Giá
+ * trị là output đã bọc secret từ `requireSecret` ở trên, nên state Pulumi mã
+ * hoá.
+ */
+const provisionEnvironment: Record<string, pulumi.Output<string>> = {
+  [MIGRATOR_PASSWORD_ENV_VAR]: migratorPassword,
+  [RUNTIME_PASSWORD_ENV_VAR]: runtimePassword,
+};
 
 const provision = new command.local.Command(dockerResourceName(ns, 'pact-api') + '-provision', {
   create: provisionScript,
@@ -221,33 +238,43 @@ const provision = new command.local.Command(dockerResourceName(ns, 'pact-api') +
   // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
   // (trigger được lưu trong state Pulumi).
   triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+  environment: provisionEnvironment,
 });
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
  * chạy đúng `tsx db/apply.mts` của repo (`apps/pact-broker-api/db/apply.mts` —
  * advisory lock `hashtext('db-pact-broker')`, mọi DDL idempotent). Repo mount
- * read-only; password qua `-e` env của container (kênh được chấp nhận), không
- * argv, không log. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ *
+ * Kênh `DATABASE_URL`: giá trị (password percent-encode trước khi ghép vào
+ * userinfo — an toàn khi mật khẩu chứa `@ : / ? #`; kết quả bọc `pulumi.secret`)
+ * đi vào environ của tiến trình shell qua map `environment` của provider; script
+ * chạy `docker run -e DATABASE_URL` với CHỈ TÊN biến, docker CLI đọc giá trị từ
+ * environ của chính nó và chuyển vào container env. Không có `-e VAR=giá trị`
+ * nào trong argv của `docker run`, nên URL không lộ qua argv của `sh -c` hay
+ * `docker run`; script text là đầu ra của hàm thuần `buildMigrateScript`
+ * (`scripts.ts`), không chứa giá trị secret nào.
  */
 // Percent-encode mật khẩu trước khi ghép vào userinfo của DATABASE_URL — an toàn
 // khi orchestration set mật khẩu chứa `@ : / ? #` (xem finding security OCR).
-// Encode trên plaintext; kết quả được bọc `pulumi.secret` trong template. Biến
-// kết quả KHÔNG mang tên khớp regex nguồn nhạy cảm (`password`...) nên không
-// bị taint-source của rule `security-sensitive-value-in-http-response` đánh dấu
-// (source là identifier bắt đầu bằng token/password/secret...).
-const migratorPasswordEncoded = encodeURIComponent(migratorPassword);
+// Encode là việc của hàm dựng URL (`buildMigratorConnectionUrl`, một nguồn sự
+// thật với spec unit) — wiring chỉ truyền mật khẩu thô qua `.apply`; URL hoàn
+// chỉnh được bọc `pulumi.secret` ngay dưới. Biến kết quả KHÔNG mang tên khớp
+// regex nguồn nhạy cảm (`password`...) nên không bị taint-source của rule
+// `security-sensitive-value-in-http-response` đánh dấu (source là identifier
+// bắt đầu bằng token/password/secret...).
+const migratorConnectionUrl = pulumi.secret(
+  migratorPassword.apply((raw) => buildMigratorConnectionUrl({ password: raw })),
+);
 
-const migrateScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/pact-broker-api \\
-  -e DATABASE_URL=postgresql://ecoma_pact_broker_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
-`;
+const migrateScript = networkName.apply((net) =>
+  buildMigrateScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+  }),
+);
 
 const migrate = new command.local.Command(
   dockerResourceName(ns, 'pact-api') + '-migrate',
@@ -256,20 +283,22 @@ const migrate = new command.local.Command(
     update: migrateScript,
     // Bọc secret: trigger nằm trong state Pulumi — không lưu plaintext.
     triggers: [pulumi.secret(migratorPassword), worktreeRoot],
+    // Giá trị bọc secret: provider đặt vào environ của tiến trình script.
+    environment: { DATABASE_URL: migratorConnectionUrl },
   },
   { dependsOn: [provision] },
 );
 
 /**
- * Percent-encode mật khẩu runtime trước khi ghép vào userinfo của DATABASE_URL
- * — cùng lý do với `migratorPasswordEncoded` phía trên (finding security OCR).
- * Encode trên plaintext; kết quả được bọc `pulumi.secret` trong template. Biến
- * kết quả KHÔNG mang tên khớp regex nguồn nhạy cảm (`password`...) nên không
- * bị taint-source của rule `security-sensitive-value-in-http-response` đánh dấu
- * (source là identifier bắt đầu bằng token/password/secret...). Dùng chung bởi
- * provision tenant, provision token máy và connection string Hyperdrive.
+ * URL runtime hoàn chỉnh — bọc `pulumi.secret` trước khi vào map `environment`:
+ * state Pulumi mã hoá chứ không lưu plaintext. Percent-encode là việc của hàm
+ * dựng URL (`buildRuntimeConnectionUrl`, một nguồn sự thật với spec unit).
+ * Dùng chung bởi provision tenant và provision token máy qua map `environment`
+ * của từng command.
  */
-const runtimePasswordEncoded = encodeURIComponent(runtimePassword);
+const runtimeConnectionUrl = pulumi.secret(
+  runtimePassword.apply((raw) => buildRuntimeConnectionUrl({ password: raw })),
+);
 
 /**
  * Provision tenant canonical `ecoma` qua **script service-owned**
@@ -277,31 +306,40 @@ const runtimePasswordEncoded = encodeURIComponent(runtimePassword);
  * đúng entry của repo (target Nx `db:bootstrap`), KHÔNG tự viết vòng
  * provisioning. Idempotent theo ADR-0020: tenant đã hội tụ là no-op verify
  * (không đè owner, không đè classification/plan), trạng thái lệch thì
- * fail-closed. Repo mount read-only; password runtime qua `-e` env của
- * container (kênh được chấp nhận), không argv, không log.
+ * fail-closed. Repo mount read-only.
+ *
+ * Kênh `DATABASE_URL`: giá trị (password percent-encode, bọc `pulumi.secret`)
+ * đi vào environ của tiến trình shell qua map `environment` của provider;
+ * script chạy `docker run -e DATABASE_URL` với CHỈ TÊN biến — URL không nằm
+ * trong argv của `sh -c` hay `docker run`, cũng không trong script text (nơi
+ * failure output và log có thể echo). Đây là cùng mô hình mà
+ * `superadmin-resolver.ts` áp cho lệnh superadmin và remote-cache áp cho
+ * bootstrap tenant của nó.
  *
  * `CANONICAL_TENANT_OWNER_SUB` qua env: sub do `local.ts` resolve từ dx runner
- * trước khi up. Trigger bọc `pulumi.secret(tenantOwnerSub)` — state/diff chỉ
- * thấy `[secret]`; sub đổi là bước chạy lại (membership verify theo sub).
+ * trước khi up. Trigger gồm sub + mật khẩu runtime (cả hai bọc `pulumi.secret`
+ * — state/diff chỉ thấy `[secret]`): sub đổi là bước chạy lại (membership
+ * verify theo sub); mật khẩu đổi là chạy lại với URL mới (trước đây việc
+ * re-run dựa trên URL inline đổi trong command text, giờ do trigger + input
+ * `environment` bảo đảm).
  */
-const bootstrapTenantScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/pact-broker-api \\
-  -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
-  -e CANONICAL_TENANT_OWNER_SUB=${shellQuote(tenantOwnerSub)} \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
-`;
+const bootstrapTenantScript = networkName.apply((net) =>
+  buildBootstrapTenantScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+    tenantOwnerSub,
+  }),
+);
 
 const bootstrapTenant = new command.local.Command(
   dockerResourceName(ns, 'pact-api') + '-bootstrap-tenant',
   {
     create: bootstrapTenantScript,
     update: bootstrapTenantScript,
-    triggers: [pulumi.secret(tenantOwnerSub), worktreeRoot],
+    triggers: [pulumi.secret(tenantOwnerSub), pulumi.secret(runtimePassword), worktreeRoot],
+    // Giá trị bọc secret: provider đặt vào environ của tiến trình script.
+    environment: { DATABASE_URL: runtimeConnectionUrl },
   },
   { dependsOn: [migrate] },
 );
@@ -313,29 +351,34 @@ const bootstrapTenant = new command.local.Command(
  * token active cho (tenant `ecoma`, name `pact-broker-app-bff`); plaintext
  * đổi = rotation (revoke row cũ trước khi chèn); re-run cùng plaintext =
  * no-op; token bị revoke thủ công KHÔNG được hồi sinh. DB chỉ nhận SHA-256
- * hex — plaintext đi qua env của container, bọc `pulumi.secret` ở trigger và
- * trong template.
+ * hex.
+ *
+ * Kênh giá trị: `DATABASE_URL` và plaintext token chỉ mang TÊN biến trong argv
+ * (`docker run -e VAR` không `=giá trị`); giá trị đi qua map `environment` của
+ * provider, bọc `pulumi.secret` — không vào command text, không vào argv của
+ * process nào. Trigger gồm plaintext + mật khẩu runtime (cả hai bọc secret):
+ * plaintext đổi là xoay token, mật khẩu đổi là chạy lại với URL mới.
  */
-const machineTokenProvisionScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/pact-broker-api \\
-  -e DATABASE_URL=postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker \\
-  -e PACT_MACHINE_TOKEN_NAME=${MACHINE_TOKEN_NAME} \\
-  -e PACT_MACHINE_TOKEN_SCOPES=${MACHINE_TOKEN_SCOPES} \\
-  -e PACT_MACHINE_TOKEN_PLAINTEXT=${pulumi.secret(machineToken).apply(shellQuote)} \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts
-`;
+const machineTokenProvisionScript = networkName.apply((net) =>
+  buildMachineTokenProvisionScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+    tokenName: MACHINE_TOKEN_NAME,
+    tokenScopes: MACHINE_TOKEN_SCOPES,
+  }),
+);
 
 const machineTokenProvision = new command.local.Command(
   dockerResourceName(ns, 'pact-api') + '-machine-token',
   {
     create: machineTokenProvisionScript,
     update: machineTokenProvisionScript,
-    triggers: [pulumi.secret(machineToken), worktreeRoot],
+    triggers: [pulumi.secret(machineToken), pulumi.secret(runtimePassword), worktreeRoot],
+    environment: {
+      DATABASE_URL: runtimeConnectionUrl,
+      [MACHINE_TOKEN_PLAINTEXT_ENV_VAR]: pulumi.secret(machineToken),
+    },
   },
   { dependsOn: [bootstrapTenant] },
 );
@@ -366,13 +409,19 @@ const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'pact-api-wic-imag
  * TRƯỚC interpolate (redact trong diff/log); giá trị đi vào container qua kênh
  * `envs` — không argv, không label, không log.
  *
- * Mật khẩu đã percent-encode trong `runtimePasswordEncoded` dùng chung phía
- * trên (cùng lý do encode — đúng chuẩn cho parser `pg`/workerd).
+ * Mật khẩu được percent-encode (`encodeURIComponent`) trước khi ghép vào
+ * userinfo của URL — bất biến `generatePostgresPassword` (base64url, chỉ
+ * `A-Za-z0-9-_`) hiện không chứa ký tự dành riêng của URL, nhưng encode là vệ
+ * tinh an toàn khi ai đó `pulumi config set` giá trị thủ công chứa `@ : / ? #`
+ * (cùng lý do encode ở URL runtime phía trên; đúng chuẩn cho parser
+ * `pg`/workerd). Biến encode KHÔNG bắt đầu bằng token nhạy cảm, không thành
+ * taint-source của rule `security-sensitive-value-in-http-response`.
  *
  * Tên biến: `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_` + TÊN BINDING
  * wrangler (`HYPERDRIVE` của `apps/pact-broker-api/wrangler.jsonc` — cùng tên
  * mà `src/config.ts` đọc qua `env.HYPERDRIVE`).
  */
+const runtimePasswordEncoded = runtimePassword.apply((v) => encodeURIComponent(v));
 const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_pact_broker_runtime:${pulumi.secret(runtimePasswordEncoded)}@${POSTGRES_HOST}:5432/db-pact-broker?sslmode=disable`;
 
 /**
