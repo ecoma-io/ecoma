@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -53,6 +53,34 @@ function kinds(violations: { kind: string }[]): string[] {
   const list = [...new Set(violations.map((v) => v.kind))];
   list.sort(); // mảng copy riêng — sort tại chỗ (target es2022 chưa có toSorted)
   return list;
+}
+
+/**
+ * Ghi đè file NGUYÊN TỬ đối với độc giả song song: ghi vào file tạm cùng
+ * thư mục rồi `rename` đè lên đích (POSIX rename là nguyên tử). Hai test ở
+ * dưới đột biến file thật `deploys/home-deploy/package.json`; nếu ghi trực
+ * tiếp bằng `writeFileSync` (open-truncate + write) thì trong khoảng nội dung
+ * file đang rỗng/lệch, một vitest worker song song khác — ví dụ pr-check
+ * spawn commitlint thật, mà commitlint build Nx project graph đọc toàn bộ
+ * `package.json` của workspace — đọc phải JSON hỏng và làm đỏ cả chuỗi test
+ * không liên quan (`ValueExpected ... at 1:1` → `WorkspaceValidityError`).
+ * Giữ mode gốc để restore không đổi metadata; dọn temp file nếu rename fail.
+ */
+function overwriteFileAtomic(path: string, content: string): void {
+  const { mode } = statSync(path);
+  const tempPath = `${path}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    writeFileSync(tempPath, content, { mode });
+    renameSync(tempPath, path);
+  } catch (error) {
+    try {
+      // best-effort dọn temp file nếu rename fail.
+      rmSync(tempPath, { force: true });
+    } catch {
+      // ignore
+    }
+    throw error;
+  }
 }
 
 describe('validateDeploymentMap — map coverage', () => {
@@ -273,7 +301,9 @@ describe('validateDeploymentMap — status markers', () => {
     // 'scaffold' là đúng hình "marker lệch map" của acceptance criteria.
     const path = join(ROOT_DIR, 'deploys', 'home-deploy', 'package.json');
     const original = readFileSync(path, 'utf8');
-    writeFileSync(path, original.replace('"status": "implemented"', '"status": "scaffold"'));
+    // Ghi nguyên tử (xem overwriteFileAtomic): không để worker song song đọc
+    // phải file truncate giữa chừng.
+    overwriteFileAtomic(path, original.replace('"status": "implemented"', '"status": "scaffold"'));
     try {
       const violations = validateDeploymentMap(goodState());
       expect(violations).toHaveLength(1);
@@ -283,7 +313,7 @@ describe('validateDeploymentMap — status markers', () => {
       });
       expect(violations[0].detail).toContain('implemented');
     } finally {
-      writeFileSync(path, original);
+      overwriteFileAtomic(path, original);
     }
   });
 
@@ -294,7 +324,7 @@ describe('validateDeploymentMap — status markers', () => {
     const original = readFileSync(path, 'utf8');
     const parsed = JSON.parse(original) as { ecoma?: unknown };
     delete parsed.ecoma;
-    writeFileSync(path, JSON.stringify(parsed, null, 2) + '\n');
+    overwriteFileAtomic(path, JSON.stringify(parsed, null, 2) + '\n');
     try {
       const violations = validateDeploymentMap(goodState());
       expect(violations).toHaveLength(1);
@@ -304,7 +334,7 @@ describe('validateDeploymentMap — status markers', () => {
       });
       expect(violations[0].detail).toContain('missing');
     } finally {
-      writeFileSync(path, original);
+      overwriteFileAtomic(path, original);
     }
   });
 
