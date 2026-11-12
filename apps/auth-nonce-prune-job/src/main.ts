@@ -64,7 +64,10 @@ function retryLogger(service: string): (what: string, attempt: number) => void {
  * Pool `pg` của MỘT Hyperdrive binding — pattern `apps/account/server/utils/db.ts`
  * (buildPoolOptions + attachPoolErrorHandler + createPool), nhưng **không import code
  * của account**: job này là một deploy unit riêng, import app→app là vi phạm ranh giới
- * mà tag Nx cấm (`type:composition` chỉ depend lib, không depend app).
+ * mà tag Nx cấm (`type:composition` chỉ depend lib, không depend app). Giữ trọn cả hai
+ * nửa của pattern account, gồm nửa cleanup: pool sống đúng MỘT invocation và `end()`
+ * trong `finally` khi invocation kết thúc (issue #289/#118 — socket driver gắn với
+ * invocation context tạo ra nó, pool không `end()` là socket rò sang invocation kế).
  *
  * Con số (i)-(iii) giữ nguyên mốc mà account đã ghim — cùng một Hyperdrive, cùng một
  * driver, không có ngờ nào để hai app chạy hai chế độ pooling khác nhau; nếu một mốc
@@ -170,35 +173,49 @@ export async function runOnce(
 
   // `Promise.allSettled` — một kho throw không cản kho kia chạy, và cả hai kết quả đều
   // được log (kho đỏ cũng có dòng log riêng).
-  const [authResult, accountResult] = await Promise.allSettled([
-    pruneTarget(authTarget, {
-      startedAtMs,
-      logRetry: retryLogger('auth'),
-      sleep: (ms) =>
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, ms);
-        }),
-    }),
-    pruneTarget(accountTarget, {
-      startedAtMs,
-      logRetry: retryLogger('account'),
-      sleep: (ms) =>
-        new Promise<void>((resolve) => {
-          setTimeout(resolve, ms);
-        }),
-    }),
-  ]);
-  logTargetRun(authResult);
-  logTargetRun(accountResult);
+  try {
+    const [authResult, accountResult] = await Promise.allSettled([
+      pruneTarget(authTarget, {
+        startedAtMs,
+        logRetry: retryLogger('auth'),
+        sleep: (ms) =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, ms);
+          }),
+      }),
+      pruneTarget(accountTarget, {
+        startedAtMs,
+        logRetry: retryLogger('account'),
+        sleep: (ms) =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, ms);
+          }),
+      }),
+    ]);
+    logTargetRun(authResult);
+    logTargetRun(accountResult);
 
-  // Ném lại lỗi của bất kỳ kho nào — theo thứ tự khai: một kho đỏ với đúng lỗi của kho
-  // đó (message throw giữ nguyên shape có `service=…`). **Không** nuốt và **không** gộp
-  // thành "outcome tổng" — Cron Past events đỏ với nguyên nhân thật, và hai kho của
-  // workflow cũ cũng là hai failure unit độc lập, không job gate gộp nào che.
-  for (const rejected of [authResult, accountResult]) {
-    if (rejected.status === 'rejected') {
-      throw rejected.reason;
+    // Ném lại lỗi của bất kỳ kho nào — theo thứ tự khai: một kho đỏ với đúng lỗi của kho
+    // đó (message throw giữ nguyên shape có `service=…`). **Không** nuốt và **không** gộp
+    // thành "outcome tổng" — Cron Past events đỏ với nguyên nhân thật, và hai kho của
+    // workflow cũ cũng là hai failure unit độc lập, không job gate gộp nào che.
+    for (const rejected of [authResult, accountResult]) {
+      if (rejected.status === 'rejected') {
+        throw rejected.reason;
+      }
     }
+  } finally {
+    // Cleanup pool của invocation (issue #289/#118): chạy trên mọi đường — thành công,
+    // một kho đỏ, hay re-throw — trước khi handler trả về. Lỗi `end()` không được che
+    // lỗi nghiệp vụ gốc (re-throw trong `finally` sẽ thay lỗi của kho): nuốt, chỉ log
+    // mã sự kiện cố định.
+    await Promise.allSettled(
+      [authTarget, accountTarget].map((target) =>
+        target.pool.end().catch(() => {
+          writeLog({ event: 'db_pool.end_error', service: target.service });
+        }),
+      ),
+    );
   }
 }
 

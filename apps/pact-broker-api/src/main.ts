@@ -18,18 +18,13 @@
  */
 import { Hono } from 'hono';
 import type { ExecutionContext, MiddlewareHandler } from 'hono';
-import type { Pool } from 'pg';
 import type { AppEnv } from './types';
 import {
   loadPactBrokerConfig,
   PactBrokerConfigurationError,
   type PactBrokerConfig,
 } from './config';
-import {
-  PgTokenRepo,
-  createPool,
-  isConnectionTerminatedError,
-} from '@ecoma-io/pact-broker-api-infrastructure';
+import { PgTokenRepo, createPool } from '@ecoma-io/pact-broker-api-infrastructure';
 import { requireMachineToken } from './auth/token-auth';
 import type { TokenRepo } from '@ecoma-io/pact-broker-api-application';
 import { indexRoutes } from './routes';
@@ -77,24 +72,15 @@ function authBinder(required: 'read' | 'write' | 'admin'): () => MiddlewareHandl
 }
 
 /**
- * Config + Pool cached theo isolate: load một lần, KHÔNG cache lỗi — isolate
- * sau request lỗi được cơ hội nạp lại khi binding đã được gán (cùng luật với
- * auth: `cachedConfigPromise`).
+ * Config cached theo isolate — config là dữ liệu thuần (parse env, không giữ
+ * socket hay timer nào), nên cache module-scope là an toàn và được giữ lại.
+ * KHÔNG cache lỗi — isolate sau request lỗi được cơ hội nạp lại khi binding
+ * đã được gán. Pool thì KHÁC: bị cấm ở module scope (issue #118) — socket mà
+ * `pg` mở qua `cloudflare:sockets` gắn với request context tạo ra nó, tái sử
+ * dụng xuyên request là treo vĩnh viễn; pool vì thế sống đúng một request
+ * (middleware config bên dưới).
  */
 let cachedConfig: PactBrokerConfig | null = null;
-let cachedPool: Pool | null = null;
-
-/**
- * Đóng Pool cache — chỉ test dùng (trước khi testcontainer dừng, để pg không
- * ném unhandled 'terminating connection due to administrator command'). Worker
- * thật không bao giờ gọi: isolate chết thì socket chết cùng, đó là thiết kế.
- */
-export async function closeCachedPool(): Promise<void> {
-  if (cachedPool !== null) {
-    await cachedPool.end();
-    cachedPool = null;
-  }
-}
 
 /**
  * Xoá config cache — chỉ test dùng, để một test có thể nạp env khác (ví dụ
@@ -229,33 +215,38 @@ function createApp(): Hono<AppEnv> {
       throw error;
     }
 
-    // Một Pool mỗi isolate (module-level var sống cùng isolate, không phải
-    // cùng request — Hono per-request `c.set` sẽ tạo Pool mới mỗi request).
-    // PERF-06: wrap `createPool` trong try để không cache trạng thái hỏng;
-    // connection-terminated error reset `cachedPool = null` (lazy re-create).
-    if (cachedPool === null) {
+    // Pool theo request (issue #118, controlled experiment 2026-11-13): workerd
+    // gắn socket mà driver mở qua `cloudflare:sockets` vào request context tạo
+    // ra nó — Pool cache module-scope tái sử dụng socket chết xuyên request,
+    // và các timer nội bộ của pool (idle reap, connect timeout) tạo ở context
+    // cũ không bao giờ chạy lại, nên pool không tự phục hồi mà kẹt dần đến
+    // cứng. Pool vì thế được tạo TRONG request này và `end()` sau khi toàn bộ
+    // processing (auth, route, transaction) hoàn tất — kể cả khi route hay
+    // middleware ném lỗi (finally). Hyperdrive đã pooling phía upstream, nên
+    // pool-per-request không mất hiệu năng pooling thật. Không giảm `max`,
+    // không cache lại ở module scope vì bất kỳ lý do nào.
+    const pool = createPool(config.hyperdrive.connectionString);
+    c.set('pool', pool);
+    try {
+      await next();
+      return undefined;
+    } finally {
+      // Lỗi dọn dẹp không được che lỗi nghiệp vụ gốc: nuốt, chỉ log mã sự kiện
+      // cố định (không log message của driver — có thể chứa connection string).
+      // `next()` ném thì lỗi của `next()` luôn là lỗi được ném ra ngoài.
       try {
-        const pool = createPool(config.hyperdrive.connectionString);
-        // Reset lazy khi connection bị chấm dứt — listener riêng, không đụng
-        // listener log của `createPool`.
-        pool.on('error', (error: unknown) => {
-          if (isConnectionTerminatedError(error)) {
-            cachedPool = null;
-            // oxlint-disable-next-line promise/no-promise-in-callback
-            void pool.end().catch(() => undefined);
-          }
-        });
-        cachedPool = pool;
-      } catch (error) {
-        cachedPool = null;
-        throw error;
+        await pool.end();
+      } catch {
+        // oxlint-disable-next-line no-console
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            code: 'pool_end_error',
+            requestId: c.get('requestId') ?? 'unknown',
+          }),
+        );
       }
     }
-    c.set('pool', cachedPool);
-
-    c.set('config', config);
-    await next();
-    return undefined;
   });
 
   return app;

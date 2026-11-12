@@ -14,10 +14,12 @@
  *   - một kho hỏng KHÔNG cản kho kia chạy, và cả hai kết quả đều được log;
  *   - bất kỳ kho nào throw → handler cuối cùng vẫn `throw` (cron đỏ đúng nguyên nhân);
  *   - thiếu Hyperdrive binding → log `outcome=not_configured` + rethrow;
- *   - đường chính KHÔNG đi qua `ctx.waitUntil`.
+ *   - đường chính KHÔNG đi qua `ctx.waitUntil`;
+ *   - pool của run được `end()` đúng một lần mỗi pool trên mọi đường (issue #289/#118),
+ *     và lỗi `end()` không che lỗi nghiệp vụ gốc.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pruneTarget, type PruneTargetRun } from '@ecoma-io/auth-nonce-prune-job-application';
 
@@ -28,6 +30,39 @@ import {
   type PruneJobEnv,
 } from './config';
 import workerDefault, { runOnce } from './main';
+
+/**
+ * Registry các pool `pg` được dựng trong run — `pg` bị mock toàn module vì
+ * `pg-pool` bind `end` thành own property TRONG constructor
+ * (`this.end = this.end.bind(this)`), nên spyOn lên prototype không bao giờ
+ * thấy lời gọi. Fake pool thay vào đó ghi chính nó vào registry qua
+ * `vi.hoisted` (phải hoisted vì `vi.mock` được kéo lên đầu file).
+ */
+const pgRegistry = vi.hoisted(() => ({
+  created: [] as {
+    on: (event: string, listener: () => void) => unknown;
+    end: () => Promise<void>;
+  }[],
+  /** Khi khác null: `end()` của mọi pool trong run sẽ reject với lỗi này. */
+  endError: null as Error | null,
+}));
+
+vi.mock('pg', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('pg')>();
+  class FakePool {
+    on = vi.fn<(event: string, listener: () => void) => void>();
+    end = vi.fn<() => Promise<void>>(async () => {
+      if (pgRegistry.endError !== null) {
+        throw pgRegistry.endError;
+      }
+    });
+    constructor(_options: unknown) {
+      void _options;
+      pgRegistry.created.push(this);
+    }
+  }
+  return { ...actual, Pool: FakePool };
+});
 
 vi.mock('@ecoma-io/auth-nonce-prune-job-application', async (importOriginal) => {
   const actual =
@@ -213,6 +248,69 @@ describe('runOnce — two-target orchestration', () => {
       { service: 'auth', what: 'identity_check', attempt: 2 },
       { service: 'account', what: 'identity_check', attempt: 2 },
     ]);
+  });
+});
+
+describe('runOnce — pool lifecycle (issue #289/#118)', () => {
+  // Reset mock + registry TRƯỚC mỗi test (không phải trong từng test): các describe
+  // phía trên cũng dựng pool, để lại state — mỗi assertion ở đây phải well-defined
+  // bất kể thứ tự và cả khi có test mới chèn vào trước.
+  beforeEach(() => {
+    pruneMock.mockReset();
+    pgRegistry.created.length = 0;
+    pgRegistry.endError = null;
+  });
+
+  it('ends both pools once each when both targets succeed', async () => {
+    // Pool sống đúng MỘT run: cả hai pool phải `end()` trước khi `runOnce` trả về —
+    // socket không được rò sang invocation cron kế (issue #289).
+    pruneMock.mockImplementation((target) => Promise.resolve(okRun(target.service)));
+    await runOnce(makeEnv({}) as PruneJobEnv, 0);
+    expect(pgRegistry.created).toHaveLength(2);
+    expect(pgRegistry.created.map((p) => vi.mocked(p.end).mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it('ends both pools when a target rejects and still rethrows the original error', async () => {
+    // Đường lỗi: cleanup chạy trong `finally` trên cả hai pool, và lỗi re-throw là
+    // NGUYÊN văn lỗi của kho — không phải lỗi dọn dẹp.
+    const rejection = new Error(
+      'service=auth outcome=identity_mismatch connected_as=x expected=y pruned=0 batches=0 duration_s=0 retries=0',
+    );
+    pruneMock.mockImplementation((target) => {
+      if (target.service === 'auth') {
+        return Promise.reject(rejection);
+      }
+      return Promise.resolve(okRun('account'));
+    });
+    const caught = await runOnce(makeEnv({}) as PruneJobEnv, 0).catch((e: unknown) => e);
+    expect(caught).toBe(rejection);
+    expect(pgRegistry.created.map((p) => vi.mocked(p.end).mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it('does not let a pool.end() failure mask the target error', async () => {
+    // `end()` hỏng chỉ được log (`db_pool.end_error`, mã sự kiện cố định) — throw nó
+    // trong `finally` là thay lỗi của kho bằng lỗi dọn dẹp, mất nguyên nhân thật.
+    const rejection = new Error(
+      'service=auth outcome=db_unreachable pruned=0 batches=0 duration_s=0 retries=0',
+    );
+    pruneMock.mockImplementation((target) => {
+      if (target.service === 'auth') {
+        return Promise.reject(rejection);
+      }
+      return Promise.resolve(okRun('account'));
+    });
+    pgRegistry.endError = new Error('end failed');
+    const capture = captureConsoleLog();
+    let caught: unknown;
+    try {
+      caught = await runOnce(makeEnv({}) as PruneJobEnv, 0).catch((e: unknown) => e);
+    } finally {
+      capture.restore();
+    }
+    expect(caught).toBe(rejection);
+    const endErrorLines = capture.lines.filter((l) => l['event'] === 'db_pool.end_error');
+    expect(endErrorLines).toHaveLength(2);
+    expect(JSON.stringify(capture.lines)).not.toContain('end failed');
   });
 });
 

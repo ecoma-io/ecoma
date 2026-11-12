@@ -2,9 +2,12 @@
  * Kết nối PostgreSQL của runtime TypeScript `llm-api` — MỘT `pg.Client` MỖI
  * PHÉP GỌI SQL (admission → connect → query → end), KHÔNG pool.
  *
- * ⚠️ Lệch có chủ đích so với pattern cached-Pool per isolate của
- * `pact-broker-api` (PERF-06): pg Pool tái dùng client idle qua workerd bị
- * vỡ ở tầng platform — đo trực tiếp trên một worker thí nghiệm tối giản
+ * ⚠️ Cùng ràng buộc lifecycle với toàn bộ Worker của repo (issue #118):
+ * socket mà `pg` mở qua `cloudflare:sockets` gắn với request context tạo ra
+ * nó — resource giữ socket không được sống qua invocation. `pact-broker-api`
+ * từng chạy cached-Pool per isolate (PERF-06) và đã chuyển sang pool-per-request
+ * theo cùng nghiệm; llm-api đi xa hơn một bậc — client-per-operation. Bằng chứng
+ * gốc, đo trực tiếp trên một worker thí nghiệm tối giản
  * (chỉ `new Pool` + `pool.query('SELECT 1')`, không code app, không deadline
  * race): request đầu OK ~11ms, request kế tiếp bị workerd giết vì "code had
  * hung and would never generate a response", mô hình lặp lại xen kẽ rồi pool

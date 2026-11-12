@@ -1,7 +1,17 @@
 /**
- * PostgreSQL client factory — mỗi isolate một Pool từ Hyperdrive connection
- * string. Không node-local state nào khác: Pool sống theo isolate, có thể mất
- * bất cứ lúc nào, mọi truy vấn tự chịu retry phía caller.
+ * PostgreSQL client factory — mỗi request MỘT Pool, lifecycle do caller sở
+ * hữu. Không node-local state nào khác: Pool có thể mất bất cứ lúc nào, mọi
+ * truy vấn tự chịu retry phía caller.
+ *
+ * ⚠️ Pool KHÔNG được cache ở module scope trong Worker: socket mà `pg` mở qua
+ * `cloudflare:sockets` gắn với request context tạo ra nó — Pool cache xuyên
+ * request tái sử dụng socket chết và treo vĩnh viễn, còn các timer nội bộ của
+ * pool (idle reap, connect timeout) tạo ở context cũ không bao giờ chạy lại
+ * (issue #118, controlled experiment 2026-11-13; Cloudflare cũng cảnh báo
+ * trực tiếp: "Do not create database clients or connection pools in the
+ * global scope"). Caller chuẩn: tạo pool khi bắt đầu request/batch, `end()`
+ * trong `finally` khi invocation kết thúc. Hyperdrive đã pooling phía upstream
+ * nên pool-per-request không mất hiệu năng pooling thật.
  *
  * ⚠️ Migration KHÔNG đi qua client này (Hyperdrive không hỗ trợ advisory
  * lock); migration chạy từ CI runner bằng `db/apply.mts` với chuỗi kết nối
@@ -32,7 +42,9 @@ const CONNECTION_TERMINATED_CODES = new Set([
 
 /**
  * Kiểm tra một lỗi có phải lỗi "connection đã bị chấm dứt" hay không — dùng
- * để quyết định reset `cachedPool` (lazy re-create) thay vì giữ pool hỏng.
+ * để caller phân loại lỗi connection-chết khi log/phản ứng (vd consumer ghi
+ * log idle-client error). Với pool-per-request thì không còn "reset cache"
+ * nào ở đây: pool chết theo invocation của nó.
  */
 export function isConnectionTerminatedError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
@@ -53,26 +65,28 @@ export function isConnectionTerminatedError(error: unknown): boolean {
 }
 
 /**
- * Tạo Pool cho một isolate. Worker mỗi lần cold start gọi một lần; binding
- * Hyperdrive đổi connection string theo deploy.
+ * Tạo Pool cho MỘT invocation (một request `fetch` hoặc một batch `queue`).
+ * Caller gọi trong lifecycle của invocation mình sở hữu và `end()` trong
+ * `finally`; connection string đến từ binding Hyperdrive, đổi theo deploy.
  */
 export function createPool(connectionString: string): Pool {
   const pool = new Pool({
     connectionString,
-    // Workers không có timer dài hạn: socket idle bị đóng là chuyện bình
-    // thường, pg tự mở lại khi query kế tiếp. Max 5 kết nối/isolate là đủ cho
-    // broker (mọi query đều ngắn).
+    // Max 5 kết nối mỗi pool là đủ cho broker (mọi query đều ngắn); nhiều
+    // pool đồng thời (nhiều request chạy song song) vẫn nằm dưới trần origin
+    // connection của Hyperdrive (HD9, soft limit).
     max: 5,
     // Hyperdrive khuyến nghị tắt keepalive dài hạn trên Workers.
     keepAlive: false,
-    // statement_timeout chặn query treo làm isolate kẹt. 15s dư cho mọi query
+    // statement_timeout chặn query treo làm request kẹt. 15s dư cho mọi query
     // broker (đều là index lookup/insert nhỏ).
     statement_timeout: 15_000,
     // PERF-05: không để `pg-pool` chờ connection vô hạn (default 0). Khi pool
     // cạn (5 concurrent) phải fail nhanh ~5s thay vì deadlock vô hạn.
     connectionTimeoutMillis: 5_000,
-    // PERF-05: đóng connection idle sau 10s để pool tự phục hồi khi Hyperdrive
-    // đóng idle connection (HD10) — tránh giữ connection đã chết.
+    // PERF-05: giới hạn 10s thời gian giữ connection idle trong đời pool —
+    // một pool sống đúng một invocation, mốc này chỉ rút ngắn thời gian giữ
+    // socket rác trong cùng invocation thay vì giữ đến khi `end()`.
     idleTimeoutMillis: 10_000,
   });
 

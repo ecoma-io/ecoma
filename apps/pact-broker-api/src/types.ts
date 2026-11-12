@@ -21,7 +21,7 @@ export interface AppVariables {
   scopes?: string[];
   /** ID của machine token đang gọi (auth middleware gắn vào). */
   tokenId?: string;
-  /** Pool mỗi isolate — middleware config gắn vào. */
+  /** Pool của request — middleware config tạo mới mỗi request và `end()` sau khi request hoàn tất (issue #118). */
   pool: import('pg').Pool;
   /** Config đã kiểm — middleware config gắn vào. */
   config: import('./config').PactBrokerConfig;

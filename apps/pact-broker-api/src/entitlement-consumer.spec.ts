@@ -103,6 +103,20 @@ describe('entitlementQueueBatch', () => {
     vi.mocked(fakePool.end).mockResolvedValue(undefined);
   });
 
+  it('ends the batch pool exactly once per batch (pool-per-batch lifecycle, issue #118)', async () => {
+    // Pool sống đúng MỘT batch: tạo một lần ở đầu batch, `end()` đúng một lần
+    // trong `finally` khi batch kết thúc — kể cả khi mọi message đều được ack.
+    const event = makeEvent();
+    mockedProvision.mockResolvedValue({ applied: true, reason: 'first' });
+
+    await runBatch([makeMessage(JSON.stringify(event))], {
+      HYPERDRIVE: { connectionString: 'postgres://fake/db' },
+    });
+
+    expect(mockedCreatePool).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fakePool.end).mock.calls).toHaveLength(1);
+  });
+
   it('envelope string hợp lệ được parse rồi validate → applied, ack', async () => {
     const event = makeEvent();
     const message = makeMessage(JSON.stringify(event));
