@@ -2,17 +2,17 @@
 
 Pulumi deployment project được khai cho worker `web-push-notification-job` (delivery plane của context `push-notification`) trong Nx graph: `tools/dx` đối chiếu ownership qua deployment map với `web-push-notification-job` → `web-push-notification-job-deploy`. Program `index.ts` khởi tạo Pulumi runtime và ghi một dòng log; không resource, không stack output, không entry `local.ts`.
 
-Nx project `web-push-notification-job-deploy`, tags `type:deployment`, `scope:notifications`, `runtime:native`; trạng thái `ecoma.deployment.status: "scaffold"` trong `package.json`.
+Nx project `web-push-notification-job-deploy`, tags `type:deployment`, `scope:notifications`, `runtime:native`.
 
 ## Purpose
 
-- Giữ identity Nx của deploy unit worker trong deployment map mà arch-check đối chiếu (marker `ecoma.deployment.status` khớp entry map của app).
+- Giữ identity Nx của deploy unit worker: deployment map trong `tools/dx` ghi app `web-push-notification-job` với owner là project này, và arch-check đối chiếu map đó với repo.
 - Trên lane local, worker `ecoma-web-push-notification-job` chạy trong WIC container của `push-notification-deploy` — bundle `apps/web-push-notification-job/dist` được mount và consumer được entrypoint spawn cùng control plane; project này không đóng góp resource nào cho lane.
 
 ## Responsibilities
 
 - Khai Pulumi program tối thiểu (`index.ts`) và hai target tĩnh `lint` (oxlint), `typecheck` (tsc build) — hai target duy nhất trong project graph, đã xác nhận qua `pnpm nx show project web-push-notification-job-deploy --json`.
-- `package.json` khai `implicitDependencies: [platform-deploy]` và marker `ecoma.deployment.status` — dữ liệu mà arch-check và deployment map check đọc.
+- `package.json` khai `implicitDependencies: [platform-deploy]` — cạnh platform trong Nx project graph.
 
 ## Boundaries
 

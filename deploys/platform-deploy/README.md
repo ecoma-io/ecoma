@@ -2,7 +2,7 @@
 
 Pulumi deployment project provision **nền tảng local dùng chung cho mọi deploy unit của một worktree**: Docker network, Traefik (entrypoint HTTPS duy nhất), PostgreSQL với volume persistent, và object store SeaweedFS dành cho remote-cache. Đây là deploy project (`type:deployment`), không phải application hay bounded context — local platform là tài nguyên sở hữu của Architecture. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, dynamic TLS config tĩnh ở `traefik-dynamic.yml`, certificate tự ký ở `local-certs/`.
 
-Nx project `platform-deploy`, tags `type:deployment`, `scope:platform`, `runtime:native`; trạng thái `ecoma.deployment.status: "implemented"` trong `package.json`. Cả ba target lifecycle chỉ có configuration `local` — đây là lane duy nhất của chương trình.
+Nx project `platform-deploy`, tags `type:deployment`, `scope:platform`, `runtime:native`. Cả ba target lifecycle chỉ có configuration `local` — đây là lane duy nhất của chương trình.
 
 ## Purpose
 

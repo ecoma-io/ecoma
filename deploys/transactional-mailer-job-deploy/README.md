@@ -2,17 +2,17 @@
 
 Pulumi deployment project được khai cho worker `transactional-mailer-job` (delivery plane của context `transactional-mail`) trong Nx graph: `tools/dx` đối chiếu ownership qua deployment map với `transactional-mailer-job` → `transactional-mailer-job-deploy`. Program `index.ts` khởi tạo Pulumi runtime và ghi một dòng log; không resource, không stack output, không entry `local.ts`.
 
-Nx project `transactional-mailer-job-deploy`, tags `type:deployment`, `scope:messaging`, `runtime:native`; trạng thái `ecoma.deployment.status: "scaffold"` trong `package.json`.
+Nx project `transactional-mailer-job-deploy`, tags `type:deployment`, `scope:messaging`, `runtime:native`.
 
 ## Purpose
 
-- Giữ identity Nx của deploy unit worker trong deployment map mà arch-check đối chiếu (marker `ecoma.deployment.status` khớp entry map của app).
+- Giữ identity Nx của deploy unit worker: deployment map trong `tools/dx` ghi app `transactional-mailer-job` với owner là project này, và arch-check đối chiếu map đó với repo.
 - Trên lane local, worker `ecoma-transactional-mailer-job` chạy trong WIC container của `transactional-mail-deploy` — bundle `apps/transactional-mailer-job/dist` được mount và consumer được entrypoint spawn cùng control plane; project này không đóng góp resource nào cho lane.
 
 ## Responsibilities
 
 - Khai Pulumi program tối thiểu (`index.ts`) và hai target tĩnh `lint` (oxlint), `typecheck` (tsc build) — hai target duy nhất trong project graph, đã xác nhận qua `pnpm nx show project transactional-mailer-job-deploy --json`.
-- `package.json` khai `implicitDependencies: [platform-deploy]` và marker `ecoma.deployment.status` — dữ liệu mà arch-check và deployment map check đọc.
+- `package.json` khai `implicitDependencies: [platform-deploy]` — cạnh platform trong Nx project graph.
 
 ## Boundaries
 

@@ -2,7 +2,7 @@
 
 Pulumi deployment project đưa **cặp worker `transactional-mail` (control plane) + `transactional-mailer-job` (queue consumer)** lên lane local trong MỘT WIC container. Image mỏng (`Dockerfile`) ghim `node:24-bookworm-slim` + `ca-certificates` và chứa hai process `wrangler dev` theo `wic-entrypoint.sh`; chương trình Pulumi ở `index.ts`, entry lifecycle ở `local.ts`.
 
-Nx project `transactional-mail-deploy`, tags `type:deployment`, `scope:messaging`, `runtime:native`; trạng thái `ecoma.deployment.status: "scaffold"` trong `package.json`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
+Nx project `transactional-mail-deploy`, tags `type:deployment`, `scope:messaging`, `runtime:native`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
 
 ## Purpose
 

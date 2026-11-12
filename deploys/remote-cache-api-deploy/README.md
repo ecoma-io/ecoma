@@ -2,7 +2,7 @@
 
 Pulumi deployment project của `apps/remote-cache-api` — service Remote Cache (API cache protocol + control plane tenant/project/API key) — trên lane local, dạng WIC container một worker. Provision database `db-remote-cache` + hai role PostgreSQL, migration và bootstrap tenant đi đúng đường canonical của app. Chương trình Pulumi ở `index.ts`, entry lifecycle ở `local.ts`, smoke ở `smoke.ts`.
 
-Nx project `remote-cache-api-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`; trạng thái `ecoma.deployment.status: "implemented"` trong `package.json`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
+Nx project `remote-cache-api-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
 
 ## Purpose
 

@@ -2,7 +2,7 @@
 
 Pulumi deployment project của `apps/remote-cache-app` — SPA admin shell của Remote Cache — trên lane local: container Nitro preset `node-server` phía sau Traefik với router `Host(remote-cache-app.<rootHostname>)`. App composition này không có business backend — không database, không role, không migration, không binding nào. Chương trình Pulumi ở `index.ts`, entry lifecycle ở `local.ts`, image ở `Dockerfile`.
 
-Nx project `remote-cache-app-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`; trạng thái `ecoma.deployment.status: "scaffold"` trong `package.json`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
+Nx project `remote-cache-app-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
 
 ## Purpose
 

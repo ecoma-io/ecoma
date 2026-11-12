@@ -2,7 +2,7 @@
 
 Pulumi deployment project của `apps/staff-access` — service Staff Access (staff directory, role/permission catalog, entitlement, authorization audit API) — trên lane local, dạng WIC container một worker kèm provision `db-staff-access` + hai role PostgreSQL; migration đi đúng đường canonical của app. Chương trình Pulumi ở `index.ts`, entry lifecycle ở `local.ts`, bundle-hash trigger ở `bundle-hash.ts`.
 
-Nx project `staff-access-deploy`, tags `type:deployment`, `scope:staff-access`, `runtime:native`; trạng thái `ecoma.deployment.status: "implemented"` trong `package.json`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
+Nx project `staff-access-deploy`, tags `type:deployment`, `scope:staff-access`, `runtime:native`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
 
 ## Purpose
 
