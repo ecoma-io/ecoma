@@ -60,3 +60,13 @@ paths = [
   # thư mục history, phần khác của state vẫn giữ độ phủ scan.
   '''^(\.claude/worktrees/[^/]+/)?\.pulumi-local-state/\.pulumi/history/''',
 ]
+# Sentinel của integration suite remediation #42: giá trị detect của
+# `generic-api-key` trên hai spec `tests/integrations/argv-hygiene.spec.ts`
+# (pact-broker-api-deploy:223, remote-cache-api-deploy:197 — đo được, chặn
+# push thật) là IDENTIFIER `SENTINELS.*` trong object literal
+# `buildMigratorConnectionUrl({ password: SENTINELS.<x> })`, không phải một
+# secret: sentinel thật được sinh trong fixture lúc chạy, không bao giờ nằm
+# trong repo. Neo đúng token identifier để usages sau này của convention
+# `password: SENTINELS.*` trong suite vẫn im lặng; secret look-alike khác
+# vẫn bị chặn như thường.
+regexes = ['''SENTINELS\.[A-Za-z0-9_]+''']
