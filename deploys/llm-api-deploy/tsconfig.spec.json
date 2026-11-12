@@ -23,6 +23,7 @@
     "vitest.integration.config.mts",
     "scripts.ts",
     "scripts.spec.ts",
+    "wic-state-init.spec.ts",
     "tests/**/*.ts"
   ]
 }

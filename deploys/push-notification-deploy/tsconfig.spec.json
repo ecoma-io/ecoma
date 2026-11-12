@@ -16,7 +16,8 @@
     "vite.config.mts",
     "vitest.config.ts",
     "vitest.config.mts",
-    "local-env.spec.ts"
+    "local-env.spec.ts",
+    "wic-state-init.spec.ts"
   ],
   "references": [
     {

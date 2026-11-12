@@ -174,7 +174,14 @@ const wicStateInit = new docker.Container(
   {
     name: dockerResourceName(ns, 'push-wic-state-init'),
     image: NODE_IMAGE,
-    rm: true,
+    // KHÔNG dùng `rm: true`: chown thoát trong vài mili-giây và AutoRemove xoá
+    // container trước khi provider kịp inspect sau create — "No such container"
+    // làm fail toàn bộ create (race flaky, đã gặp trên máy thật). `mustRun:
+    // false` đủ để chấp nhận container đã exit; container exited nằm lại
+    // `docker ps -a` tới khi destroy xoá nó đúng nghĩa. KHÔNG dùng
+    // `retainOnDelete`: container one-shot không có dữ liệu gì để giữ — giữ
+    // retain sẽ khiến destroy chỉ xoá state mà không xoá container thật, và
+    // lần up sau bị Docker từ chối vì trùng tên container.
     mustRun: false,
     mounts: [
       {
@@ -186,7 +193,7 @@ const wicStateInit = new docker.Container(
     command: ['chown', '1000:1000', '/state'],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
   },
-  { dependsOn: [wicStateVolume], retainOnDelete: true },
+  { dependsOn: [wicStateVolume] },
 );
 
 /**
