@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@ecoma-io/llm-consumer-tenant-domain": "workspace:*",
+    "@ecoma-io/llm-financial-domain": "workspace:*",
     "@ecoma-io/llm-marketplace-domain": "workspace:*",
     "@ecoma-io/llm-seller-governance-domain": "workspace:*",
     "@ecoma-io/llm-seller-tenant-domain": "workspace:*",
@@ -25,10 +26,10 @@
     "mot pg.Client moi cho moi phep goi SQL duoi `src/connections.ts`",
     "(nodejs_compat bat o wrangler.jsonc; pg Pool co cache client idle qua",
     "workerd bi v o tang platform — xem ho tinh connections.ts).",
-    "Bon domain lib `@ecoma-io/llm-*-domain` chi phuc vu bootstrap runner",
-    "8a/8b va buoc 9 duoi `db/` (chay tren Node qua tsx, khong thuoc bundle",
-    "Worker): domain op la duong code duy nhat de seed, khong co SQL ghi",
-    "du lieu tu do.",
+    "Nam domain lib `@ecoma-io/llm-*-domain` chi phuc vu bootstrap runner",
+    "8a/8b, buoc 9 va buoc 10 duoi `db/` (chay tren Node qua tsx, khong thuoc",
+    "bundle Worker): domain op la duong code duy nhat de seed, khong co SQL",
+    "ghi du lieu tu do.",
     "`hono` la runtime HTTP cua Worker (src/index.ts).",
     "`testcontainers` chi phuc vu suite integration app-owned duoi `tests/`."
   ],
@@ -134,6 +135,28 @@
           "key chi in DUNG MOT lan tren stdout (dong ECOMA_CONSUMER_API_KEY=)",
           "o run tao key; rerun la no-op khong in plaintext. Target luon khong",
           "cacheable vi no mutate DB that."
+        ]
+      },
+      "db:bootstrap-financial": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/llm-api",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/bootstrap-financial.mts"
+        },
+        "//": [
+          "Bootstrap runner buoc 10 (02-delivery.md §3.2, ADR-0028 §6 B1-B4):",
+          "seed sponsor + billing account + funding authorization + grant khoi",
+          "tao tren db-llm-gateway, schema llm_financial; credit chay qua domain",
+          "op creditGrant (kiem ca hai tran trong cung phep goi). Env bat buoc:",
+          "ECOMA_GATEWAY_DATABASE_URL (migrator db-llm-gateway),",
+          "ECOMA_CONSUMER_TENANT_ID (tu CONSUMER_TENANT_RESULT cua buoc 9),",
+          "ECOMA_CONSUMER_TENANT_OWNER_SUB, ECOMA_SPONSOR_ID (assert khop hang",
+          "code), ECOMA_SPONSOR_CEILING, ECOMA_SPONSOR_AUTHORIZATION_CEILING",
+          "(so nguyen >= 0 hoac chu null),",
+          "ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF, ECOMA_SPONSOR_GRANT_AMOUNT,",
+          "ECOMA_GOVERNANCE_ACTOR. Dong cuoi stdout: FINANCIAL_RESULT=<json>.",
+          "Target luon khong cacheable vi no mutate DB that."
         ]
       },
       "typecheck-db": {

@@ -1,8 +1,9 @@
 /**
  * Reset toàn bộ trạng thái business của các database mà chuỗi kịch bản
- * bootstrap 8a/8b/bước-9 ghi (`db-llm-gateway` schema `llm_seller` +
- * `llm_gateway`, `db-llm-marketplace` schema `llm_marketplace`,
- * `db-llm-tenant` schema `llm_tenant`) về trạng thái "chưa seed" — dùng bởi
+ * bootstrap 8a/8b/bước-9/bước-10 ghi (`db-llm-gateway` schema `llm_seller` +
+ * `llm_gateway` + `llm_financial`, `db-llm-marketplace` schema
+ * `llm_marketplace`, `db-llm-tenant` schema `llm_tenant`) về trạng thái "chưa
+ * seed" — dùng bởi
  * `afterEach`/`afterAll` của các spec bootstrap và có thể dùng lại cho nhóm
  * kịch bản cần seed fresh.
  *
@@ -54,6 +55,15 @@ const TENANT_TABLES: readonly string[] = ['tenants', 'memberships', 'bootstrap_a
 /** Bảng runtime `llm_gateway` (db-llm-gateway) — migration `gateway/0003`. */
 const GATEWAY_RUNTIME_TABLES: readonly string[] = ['api_keys', 'bootstrap_audit'];
 
+/** Bảng nghiệp vụ `llm_financial` (db-llm-gateway) — migration `gateway/0004`. */
+const FINANCIAL_TABLES: readonly string[] = [
+  'sponsor_grants',
+  'sponsor_funding_authorizations',
+  'billing_accounts',
+  'sponsors',
+  'bootstrap_audit',
+];
+
 /**
  * `TRUNCATE` một tập bảng đã đóng gói identifier, `RESTART IDENTITY` để cột
  * identity trở về 1 — assertion về thứ tự audit không phụ thuộc số lần chạy.
@@ -93,4 +103,13 @@ export function resetMarketplace(db: LlmApiDatabase): Promise<void> {
 export async function resetConsumerTenant(db: LlmApiDatabase): Promise<void> {
   await truncate(db, 'tenant', 'llm_tenant', TENANT_TABLES);
   await truncate(db, 'gateway', 'llm_gateway', GATEWAY_RUNTIME_TABLES);
+}
+
+/**
+ * Đưa trạng thái bước 10 về "chưa seed": `llm_financial` của `db-llm-gateway`.
+ * FK nội schema được liệt kê theo thứ tự con → cha cho tường minh; `CASCADE`
+ * bảo đảm mọi referencing table đều nằm trong tập đã liệt kê.
+ */
+export function resetFinancial(db: LlmApiDatabase): Promise<void> {
+  return truncate(db, 'gateway', 'llm_financial', FINANCIAL_TABLES);
 }

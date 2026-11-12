@@ -27,6 +27,9 @@
       "path": "../../libs/llm-marketplace-domain/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/llm-financial-domain/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/llm-consumer-tenant-domain/tsconfig.lib.json"
     }
   ]

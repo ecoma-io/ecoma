@@ -80,6 +80,53 @@ export const CONSUMER_TENANT_DATABASE_URL_ENV = 'ECOMA_TENANT_DATABASE_URL';
 /** Env chứa chuỗi kết nối migrator của `db-llm-gateway` cho bước 9 (API key). */
 export const CONSUMER_GATEWAY_DATABASE_URL_ENV = 'ECOMA_GATEWAY_DATABASE_URL';
 
+// ---------------------------------------------------------------------------
+// Bước 10 — Sponsor funding bootstrap (`llm-financial`, ADR-0028 §6, Issue #24)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sponsor id hằng trong code (ADR-0020 Quyết định 12 pattern): env chỉ
+ * **assert** khớp hằng này, không bao giờ định danh sponsor qua env — giá trị
+ * khác là divergence fail-closed.
+ */
+export const SPONSOR_ID = 'sponsor_ecoma_internal';
+
+/** Billing account id hằng số của tenant consumer (natural key là `tenant_ref`). */
+export const CONSUMER_BILLING_ACCOUNT_ID = 'billing-account-ecoma';
+
+/** Funding authorization id hằng số (natural key là cặp sponsor + billing account). */
+export const SPONSOR_FUNDING_AUTHORIZATION_ID = 'sponsor-auth-ecoma-consumer';
+
+/** Id grant khởi tạo — đúng tên ADR-0028 §6 B4 (`grant_ecoma_initial`). */
+export const SPONSOR_GRANT_ID = 'grant_ecoma_initial';
+
+/**
+ * Denomination duy nhất của funding bootstrap (ADR-0028 §2: grant UC vào ví
+ * consumer). Cố định trong code — amount env là số minor units trong miền này.
+ */
+export const SPONSOR_FUNDING_DENOMINATION = 'UC' as const;
+
+/** Env assert định danh sponsor (giá trị phải khớp `SPONSOR_ID`). */
+export const SPONSOR_ID_ENV = 'ECOMA_SPONSOR_ID';
+
+/** Env trần sponsor — bắt buộc, số nguyên ≥ 0, minor units, không có mặc định. */
+export const SPONSOR_CEILING_ENV = 'ECOMA_SPONSOR_CEILING';
+
+/**
+ * Env trần per-account của authorization — bắt buộc, số nguyên ≥ 0 HOẶC chữ
+ * `null` nghĩa là explicit không trần per-account (ADR-0028 §6 B3).
+ */
+export const SPONSOR_AUTHORIZATION_CEILING_ENV = 'ECOMA_SPONSOR_AUTHORIZATION_CEILING';
+
+/** Env evidence_ref của authorization — bắt buộc, opaque. */
+export const SPONSOR_AUTHORIZATION_EVIDENCE_REF_ENV = 'ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF';
+
+/** Env amount grant khởi tạo — bắt buộc, số nguyên > 0, minor units. */
+export const SPONSOR_GRANT_AMOUNT_ENV = 'ECOMA_SPONSOR_GRANT_AMOUNT';
+
+/** Env `tenant_id` do bước 9 xuất ra (deploy wiring đọc từ `CONSUMER_TENANT_RESULT`). */
+export const CONSUMER_TENANT_ID_ENV = 'ECOMA_CONSUMER_TENANT_ID';
+
 /** Kết quả máy đọc của một run bootstrap, in ra stdout dòng cuối. */
 export interface BootstrapRunResult {
   readonly outcome: 'created' | 'no-op' | 'created-draft-unhealthy';
