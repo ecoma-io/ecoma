@@ -426,5 +426,25 @@
     "lines": {
       "62": "\\ \\ return\\ `postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}`;"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/llm-api-deploy/local.ts",
+    "start": 129,
+    "end": 129,
+    "reason": "Deploy-unit nội bộ: password là secret migrator đọc từ stack config Pulumi của chính unit, truyền tiếp trong cùng process vào env của container bootstrap; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts và deploys/remote-cache-api-deploy/local.ts (bootstrap seller #23).",
+    "lines": {
+      "129": "\\ \\ return\\ password;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/llm-api-deploy/superadmin-resolver.ts",
+    "start": 53,
+    "end": 53,
+    "reason": "URL PostgreSQL nội bộ dựng cho lệnh docker của superadmin resolver trong local lane; password percent-encoded, chỉ sống trong env một lần chạy của container. Không có HTTP response — cùng lớp FP với deploys/pact-broker-api-deploy/superadmin-resolver.ts đã accept (bản sao verbatim cho seller bootstrap #23).",
+    "lines": {
+      "53": "\\ \\ return\\ `postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}`;"
+    }
   }
 ]
