@@ -15,15 +15,17 @@ import {
 /**
  * Hợp đồng HTTP của deploy unit `llm-api` (Issue #22; hai finding review PR
  * #113) đo trên **runtime Worker thật** — workerd khởi động từ artifact
- * `build/index.js` mà `worker-build` sinh ra, qua `createTestHarness` của
- * wrangler, cùng mô hình `apps/backoffice/tests/integrations/worker-runtime.spec.ts`.
+ * `build/index.js` mà Nx target `build` (esbuild) sinh ra, qua
+ * `createTestHarness` của wrangler, cùng mô hình
+ * `apps/backoffice/tests/integrations/worker-runtime.spec.ts`.
  *
- * Vì sao suite này tồn tại: cả hai finding đều chỉ thấy được khi gọi HTTP thật.
- * `/llm/v1/models` trả 404 dù base path `/llm` là public contract
- * (docs/architecture/01, bảng domain; A13 ranh giới routing), và `Response::ok`
- * ghim cứng `Content-Type: text/plain; charset=utf-8` (response.rs worker
- * 0.8.7) thay vì `application/json` — không assertion nào đọc source nhìn thấy
- * được hai hành vi đó.
+ * Vì sao suite này tồn tại: các finding hợp đồng đều chỉ thấy được khi gọi
+ * HTTP thật. `/llm/v1/models` trả 404 dù base path `/llm` là public contract
+ * (docs/architecture/01, bảng domain; A13 ranh giới routing), và runtime Rust
+ * ghim cứng `Content-Type: text/plain; charset=utf-8` cho response thành công
+ * (`Response::ok`, worker 0.8.7) thay vì `application/json` — không assertion
+ * nào đọc source nhìn thấy được các hành vi đó; suite này là bảng ground
+ * truth byte-level được ghim trên artifact Rust trước khi port TypeScript.
  *
  * Hyperdrive local emulation (miniflare/workerd) KHÔNG nhận connection string
  * từ config — nó đọc biến môi trường

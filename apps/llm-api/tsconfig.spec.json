@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "//": "Composite de `nx typecheck` (`tsc --build --emitDeclarationOnly`) build duoc solution project nay: TS5069 doi `declaration`/`composite` cho emitDeclarationOnly. `lib` nang len `es2023` (base dat `es2022`) vi `unicorn/no-array-sort` cam `Array#sort` con `toSorted` chi co trong es2023. `allowImportingTsExtensions` cho harness/spec import nhau bang phan mo rong that (.ts). `rootDir` la chinh project (spec nam nhanh `tests/` va `db/`), outDir tach khoi app de .d.ts khong de nhau. Khong co tsconfig.app.json: mat TS cua project chi la `db/` + `tests/` (runtime Worker la Rust/WASM).",
+  "//": "Composite de `nx typecheck` (`tsc --build --emitDeclarationOnly`) build duoc solution project nay: TS5069 doi `declaration`/`composite` cho emitDeclarationOnly. `lib` nang len `es2023` (base dat `es2022`) vi `unicorn/no-array-sort` cam `Array#sort` con `toSorted` chi co trong es2023. `allowImportingTsExtensions` cho harness/spec import nhau bang phan mo rong that (.ts). `rootDir` la chinh project (spec nam nhanh `tests/`, `db/` va `src/`), outDir tach khoi app de .d.ts khong de nhau. Unit spec colocated import file nguon `src/*.ts` bang duong dan tuong doi — file nguon phai nam trong file list (composite + files cung) hoac tsc TS6307/TS2307.",
   "compilerOptions": {
     "composite": true,
     "declaration": true,
@@ -18,9 +18,16 @@
   "include": [
     "vitest.config.mts",
     "vitest.integration.config.mts",
-    "db/**/*.mts",
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
     "tests/**/*.test.ts",
     "tests/**/*.spec.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "src/models.ts",
+    "src/readiness.ts",
+    "src/connections.ts",
+    "src/env.ts",
+    "src/index.ts",
+    "db/**/*.mts"
   ]
 }
