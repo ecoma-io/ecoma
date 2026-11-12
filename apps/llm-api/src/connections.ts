@@ -71,6 +71,9 @@ export async function withClient<T>(
   // trong isolate. Lỗi của PHÉP GỌI đã đi qua rejection của `run` (fail-closed
   // đúng hợp đồng); listener chỉ giữ isolate không chết vì sự kiện lẻ.
   client.on('error', () => undefined);
+  // `connect()` nằm NGOÀI try/`end()`: khi connect timeout/lỗi, pg tự hủy
+  // stream của nó (timer connect-timeout trong client.js của pg) — không cần
+  // `end()` trên đường này, không leak connection.
   await client.connect();
   try {
     return await run(client);
