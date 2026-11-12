@@ -1,6 +1,6 @@
 # llm-api — Application
 
-`llm-api` là **deploy unit public** `api.ecoma.io/llm` — gateway suy luận LLM, sở hữu `db-llm-gateway` (PostgreSQL) và là **quota authority + settlement authority** (A7, invariant 16). Runtime: Cloudflare Worker, data plane hiệu năng cao (Rust/WASM) và control plane có thể Rust hoặc TypeScript.
+`llm-api` là **deploy unit public** `api.ecoma.io/llm` — gateway suy luận LLM, sở hữu `db-llm-gateway` (PostgreSQL) và là **quota authority + settlement authority** (A7, invariant 16). Runtime: Cloudflare Worker — data plane chạy TypeScript (Hono + `pg` qua Hyperdrive, bundle esbuild); control plane (chưa dựng) vẫn mở phương án ngôn ngữ runtime.
 
 > `llm-api` **không sở hữu** bất kỳ bounded context nào. Nó host implementation của một số context bên trong deploy unit, tiêu thụ một số context khác qua contract, và triển khai persistence riêng. Domain ownership luôn thuộc `docs/domains/*/domain-model.md`; `llm-api` chỉ pointer tới đó.
 
@@ -48,7 +48,7 @@ Hai plane trong cùng deploy unit:
 ```text
                     ┌─────────────────────────────┐
 Client ──► public ──► │       Data Plane           │  (hot path, /llm/v1/...)
-                    │  Rust high-perf runtime     │
+                    │  TS  high-perf runtime      │
                     └──────────────┬──────────────┘
                                    │ internal call
                     ┌──────────────▼──────────────┐
@@ -172,7 +172,7 @@ Bảng kịch bản thất bại đầy đủ (state transitions, kế toán, id
 
 ## Runtime/deployment boundary
 
-- **Runtime:** Rust high-performance (WASM/Worker) cho data plane; control plane có thể Rust hoặc TypeScript. PostgreSQL authoritative; Hyperdrive cho Worker (query cache OFF).
+- **Runtime:** TypeScript (Hono + `pg` qua Hyperdrive) cho data plane; control plane khi dựng sau vẫn mở phương án ngôn ngữ. PostgreSQL authoritative; Hyperdrive cho Worker (query cache OFF).
 - **Database:** `db-llm-gateway`, PostgreSQL, TimescaleDB nếu cần cho usage time-series. Migration expand → compatible rollout → contract.
 - **Secrets:** native Worker Secrets theo env; không vào Git/PR/Preview.
 - Một Cloudflare account mọi env; secrets use native Worker Secrets and deployment environment mechanisms.

@@ -2,19 +2,18 @@
 # (issue #22 — deploy unit data plane LLM).
 #
 # Container này KHÔNG build code: nó chạy `wrangler dev` (local mode) từ mount
-# read-only của repo — bundle WASM đã được `worker-build --release` build trên
-# host bởi target `build` của Nx (`build/index.js` + `build/index.wasm`), và
-# `wrangler dev` chỉ boot bundle đó trong workerd. 02-account-auth.md
-# §Database access: image phái sinh từ Node pin của repo + `ca-certificates`
-# (PF2 — workerd fail khởi động service `internet` khi thiếu CA hệ thống).
+# read-only của repo — bundle đã được build trên host bởi target `build` của Nx
+# (esbuild: `build/index.js`), và `wrangler dev` chỉ boot bundle đó trong
+# workerd. 02-account-auth.md §Database access: image phái sinh từ Node pin
+# của repo + `ca-certificates` (PF2 — workerd fail khởi động service
+# `internet` khi thiếu CA hệ thống).
 #
 # Copy-adapt từ `deploys/auth-deploy/Dockerfile` (pattern WIC chung). Vì sao
 # image "mỏng" khác `account-deploy/Dockerfile`: account là image runtime
 # (artifact build đi vào image); llm-api là image môi trường chạy (repo sống
-# ngoài image qua mount). Khác auth/remote-cache ở BUNDLE: runtime của llm-api
-# là Rust (workers-rs) dich ra WASM nên bundle nằm ở `build/` (không phải
-# `dist/` của worker TS) — lệch này chỉ chạm entrypoint + volume mount, image
-# vẫn là "phòng chạy" trung tính với ngôn ngữ runtime.
+# ngoài image qua mount). Bundle nằm ở `build/` (không phải `dist/` của worker
+# TS khác) — lệch này chỉ chạm entrypoint + volume mount, image vẫn là "phòng
+# chạy" trung tính với ngôn ngữ runtime.
 
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 FROM ${NODE_IMAGE}
