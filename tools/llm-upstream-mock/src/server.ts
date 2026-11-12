@@ -82,12 +82,11 @@ function checkAuthorization(
   const raw = req.headers['authorization'];
   const header = Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
   const headerDigest = createHash('sha256').update(header).digest();
-  const matched = config.expectedAuthorization.some((expected) => {
-    if (expected.length !== header.length) {
-      return false;
-    }
-    return timingSafeEqual(createHash('sha256').update(expected).digest(), headerDigest);
-  });
+  const matched = config.expectedAuthorization.some((expected) =>
+    // Cả hai digest đều dài cố định 32 byte — `timingSafeEqual` luôn hợp lệ và
+    // so sánh timing-flat; không cần pre-check độ dài như trên plaintext.
+    timingSafeEqual(createHash('sha256').update(expected).digest(), headerDigest),
+  );
   return matched ? 'ok' : 'rejected';
 }
 
@@ -344,8 +343,10 @@ async function handleRequest(
       return;
     }
 
-    // Auth gate đứng trước route dispatch — đúng thứ tự một upstream thật
-    // (chặn trước khi parse body) và phủ cả control path khi bật.
+    // Auth gate đứng sau kiểm tra scenario (400 của mock control contract báo
+    // ngay tên scenario sai cho test) nhưng trước route dispatch — chặn trước
+    // khi parse body và phủ cả control path khi bật, đúng vai trò auth của một
+    // upstream thật.
     ctx.auth = checkAuthorization(req, config);
     if (ctx.auth === 'rejected') {
       sendJson(
