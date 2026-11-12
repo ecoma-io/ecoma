@@ -1,127 +1,58 @@
-# `@ecoma-io/remote-cache-app`
+# Remote Cache App
 
-Composition ứng dụng quản trị của Remote Cache: **SPA non-SSR + BFF** trên Cloudflare Workers, dựng UI trên
-`@ecoma-io/ui-app-shell`. Deploy unit này **không sở hữu database**, không có Hyperdrive, D1, R2,
-KV hay Queue — mọi dữ liệu nghiệp vụ đi qua API của context owning, và tới nay **chưa có** đường nào như vậy được nối.
+Component admin UI của Remote Cache — Cloudflare Worker (Nuxt 4 + Nitro preset `cloudflare-module`, non-SSR SPA shell), dựng trên `@ecoma-io/ui-app-shell`. Component này là admin UI composition của bounded context `remote-cache`; đây là composition riêng cạnh API composition `apps/remote-cache-api`. Thiết kế chung của cả hai được mô tả trong `docs/applications/remote-cache/`.
 
-Đây là scaffold. Nội dung dưới đây mô tả đúng những gì tồn tại, và mục "Những gì chưa có" liệt kê
-cụ thể phần không tồn tại để không ai đoán nhầm từ tên file.
+Nx project `@ecoma-io/remote-cache-app`, tags `type:composition`, `scope:remote-cache`, `runtime:edge`.
 
-Reference kiến trúc: [`docs/applications/remote-cache/01-architecture.md`](../../docs/applications/remote-cache/01-architecture.md);
-ranh giới bounded context: [`docs/domains/`](../../docs/domains/).
+## Purpose
 
-## Phạm vi app
+- Worker `ecoma-remote-cache-app` (`wrangler.jsonc`, entry `.output/server/index.mjs`): static asset qua binding `ASSETS`, phần server phục vụ route SPA và route bắt `/api/**`.
+- Bề mặt HTTP thật: `GET /health`, `GET /ready`, trang SPA `/`, và route bắt `server/api/[...path].ts` trả 404 JSON cho `/api/**` không có handler — `/api/**` không bao giờ trả shell HTML.
+- `nuxt.config.ts` khai `ssr: false` tường minh: shell HTML do Nitro render lúc runtime, build không emit `index.html` tĩnh.
+- Vai trò admin UI và đường truy cập control plane là nội dung canonical của `docs/applications/remote-cache/01-architecture.md`.
 
-| Phần                             | Trạng thái                                                                       |
-| -------------------------------- | -------------------------------------------------------------------------------- |
-| Shell dashboard (sidebar, nav)   | có — `AppShell` của `@ecoma-io/ui-app-shell`, một mục nav trỏ `/`                |
-| Đa ngôn ngữ (en, vi, zh-CN)      | có — registry locale, language selector, cookie lựa chọn                         |
-| Tuỳ chọn shell (màu, chiều)      | có — cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()`   |
-| Trang Overview `/`               | có — nói đúng phần đã sẵn sàng và phần chưa có; **không** metric hay dữ liệu mẫu |
-| `GET /health`                    | có — liveness, không phụ thuộc dịch vụ nào                                       |
-| `GET /ready`                     | có — readiness của scaffold, không phụ thuộc downstream                          |
-| Component empty/loading/error    | có — primitive có sẵn cho trang nghiệp vụ sau này                                |
-| API key, routing, usage, billing | **chưa có** — chưa có BFF route, chưa có contract nào được nối                   |
+## Responsibilities
 
-## Chạy
+- **Shell dashboard**: sidebar/nav từ `AppShell` của `@ecoma-io/ui-app-shell`, trang Overview `/` (`app/pages/index.vue`), component empty/loading/error (`app/components/`).
+- **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`.
+- **Tuỳ chọn shell** (màu, chiều): cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()` của shell lib.
+- **Health/readiness**: `/health` liveness không phụ thuộc dịch vụ nào; `/ready` trả `{ status: 'ready' }`, và `nuxt.config.ts` không khai `runtimeConfig` — khi một phụ thuộc cấu hình thật được đưa vào, route phải fail closed với 503 + mã ổn định.
+- `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để các nhóm này tới handler Nitro thay vì asset worker.
+
+## Boundaries
+
+- Không có binding Hyperdrive/D1/R2/KV/Queue nào trong `wrangler.jsonc`, không có Service Binding, không có `runtimeConfig`: bề mặt server chỉ gồm static asset, `/health`, `/ready`, trang SPA và route bắt `/api/**` — mọi dữ liệu control plane của Remote Cache nằm phía `apps/remote-cache-api`.
+- Không có OIDC client id/secret, session signing key hay credential nào trong repo này; không có đường bypass xác thực cho demo.
+- Không sở hữu nghiệp vụ `remote-cache` — tenant, project, API key, quota, metering, audit là domain state tại `docs/domains/remote-cache/domain-model.md`; admin UI chỉ là composition.
+- Route bắt `/api/**` khớp sau mọi route cụ thể, nên BFF route thêm vào `server/api/` không bị nuốt.
+
+## Development
 
 ```bash
-pnpm nx serve @ecoma-io/remote-cache-app      # http://localhost:4210
-pnpm nx run @ecoma-io/remote-cache-app:test
-pnpm nx run @ecoma-io/remote-cache-app:test-integration
+pnpm nx run @ecoma-io/remote-cache-app:serve          # nuxt dev — http://localhost:4210
+pnpm nx run @ecoma-io/remote-cache-app:build          # nuxt build — preset cloudflare-module, output `.output/`
 pnpm nx run @ecoma-io/remote-cache-app:lint
-pnpm nx run @ecoma-io/remote-cache-app:typecheck
-pnpm nx run @ecoma-io/remote-cache-app:build  # preset Cloudflare, output `.output/`
+pnpm nx run @ecoma-io/remote-cache-app:typecheck      # nuxt typecheck (vue-tsc)
 ```
 
-## Cấu hình
+- Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4210); tên Worker và env `staging`/`production` khai trong `wrangler.jsonc`.
+- Alias `@ecoma-io/ui-app-shell` và `@ecoma-io/ui-ecoma-logo` khai tường minh trong `nuxt.config.ts` — `tsconfig.base.json` có `paths` rỗng nên không có alias thì import trong `server/` chỉ lỗi ở request đầu tiên.
 
-`nuxt.config.ts` **cố ý không** khai `runtimeConfig`: app chưa có BFF route nào cần cấu hình hay
-secret. Khi BFF thật xuất hiện, khai key tường minh và cho từng env trong `wrangler.jsonc` — không
-default một giá trị đoán được, vì default rỗng biến "chưa cấu hình" thành "chạy được với giá trị
-rỗng" thay vì fail closed.
+## Testing
 
-**Không có** OIDC client id/secret, session signing key hay bất kỳ credential nào trong app này.
+```bash
+pnpm nx run @ecoma-io/remote-cache-app:test             # vitest — component/catalog/spec colocated
+pnpm nx run @ecoma-io/remote-cache-app:test-integration # tests/integrations — workerd thật qua createTestHarness của wrangler
+```
 
-## Route và hành vi
+- `test` chạy Vitest với harness mount component thật (`tests/harness.ts`); `tests/tailwind-source.spec.ts` ghim số cấp `@source` của stylesheet shell và `fonts.defaults.weights` đủ sáu weight.
+- `test-integration` dependsOn `build`: suite boot workerd thật trên `.output/` của chính app, khẳng định `/` trả shell, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404.
+- Phân loại test và canonical target theo `docs/architecture/06-testing.md`.
 
-- `/` — trang Overview duy nhất. Chỉ **một** `<h1>`; không link tới route chưa tồn tại.
-- `/health` — liveness. Trả `{ status: 'ok', service: 'remote-cache-app' }`, không chạm downstream.
-- `/ready` — readiness. Trả `{ status: 'ready' }` vì scaffold chưa có phụ thuộc nào. Khi thêm phụ
-  thuộc cấu hình thật, route phải **fail closed** (503 + mã ổn định), không mặc định ready.
-- Các path còn lại — SPA fallback: Nitro trả shell HTML để client router xử lý.
-- `/api` và `/api/**` không có handler — **404 JSON**, không bao giờ là shell HTML. Route bắt
-  `server/api/[...path].ts` + `server/api/index.ts` khớp sau mọi route cụ thể, nên `/health`,
-  `/ready` và BFF route thêm sau này không bị ảnh hưởng.
+## Related Documentation
 
-`wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để hai nhóm này
-tới handler Nitro thay vì asset worker. Đã đo trên build thật bằng `wrangler dev`; bỏ
-`/api/*` khỏi danh sách không đổi kết quả vì route `/**` của Nitro vẫn xử lý, nhưng giữ khai báo
-để bề mặt do Worker sở hữu là tường minh.
-
-## Non-SSR
-
-`nuxt.config.ts` khai `ssr: false` tường minh (không dựa vào default của framework): server không
-render HTML cho route của client, chỉ phục vụ asset + BFF route. Hệ quả cần nhớ:
-
-- Build **không** emit `index.html` tĩnh; shell HTML do Nitro render ở runtime.
-- Không có `useHead` phía server cho nội dung trang — mọi head do app set ở client.
-- Không được dùng Node built-in trong code chạy ở client; `runtime:edge` chặn Node-only dependency.
-
-## CSS và Tailwind v4
-
-`app/assets/css/styles.css` import `tailwindcss`, `@import` **tương đối** stylesheet của shell
-(`libs/ui-app-shell/src/styles/app-shell.css`) và khai `@source` cho cả hai lib UI. Không dùng
-specifier package cho `@import`: alias của app áp cho cả resolver stylesheet của Tailwind và build
-đỏ `ENOTDIR` — lỗi này chỉ lộ ở `nuxt build`.
-
-Hai chi tiết dễ mất mà `tests/tailwind-source.spec.ts` ghim: số cấp `..` của `@source` (đếm sai là
-lỗi **im lặng**, chỉ mất utility trong bản production) và `fonts.defaults.weights` đủ sáu weight
-(shell đặt `font-synthesis-weight: none`, nên face thiếu weight không được tải).
-
-## Kiểm thử
-
-`pnpm nx run @ecoma-io/remote-cache-app:test` chạy Vitest với harness mount component thật (không cần
-browser):
-
-| File                               | Ghim điều gì                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------- |
-| `tests/ready.spec.ts`              | `/health` và `/ready` không set status; `/ready` không tham chiếu downstream gì |
-| `app/pages/index.spec.ts`          | Trang Overview render đúng một `<h1>`, không có link chết                       |
-| `tests/tailwind-source.spec.ts`    | Số cấp `@source`, sự tồn tại của base tĩnh, không import CSS qua package        |
-| `tests/catalogs.spec.ts`           | Ba catalog cùng tập key và cùng placeholder; mọi key app gọi đều có             |
-| `tests/harness.spec.ts`            | Harness mount shell + page, nội dung không phụ thuộc locale mặc định            |
-| `tests/shell-integration.spec.ts`  | App dùng đúng contract của shell (props, emit, slot)                            |
-| `server/api/api-not-found.spec.ts` | Route bắt `/api/**` trả JSON 404, không bao giờ là shell HTML                   |
-
-`pnpm nx run @ecoma-io/remote-cache-app:test-integration` chạy suite cần runtime thật:
-
-| File                                        | Ghim điều gì                                                                                                                                                                                    |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/integrations/worker-runtime.spec.ts` | workerd thật trên `wrangler.jsonc`: `/` và `/settings` trả shell, asset tĩnh 200, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404 — kể cả khi request mang header điều hướng của trình duyệt |
-
-Suite đó khởi động **workerd** qua `createTestHarness` của `wrangler` (in-process, không Docker)
-trên `.output/` của chính app, nên target `test-integration` khai `dependsOn: ["build"]`. Đây là
-tầng duy nhất chứng minh được routing: assertion cấu hình không nhìn thấy việc route `/**` của
-Nitro nuốt `/api/**`.
-
-## Những gì chưa có
-
-- **Không có BFF nghiệp vụ.** Không route `/api/*` nào phục vụ dữ liệu (chỉ có route bắt trả 404),
-  không proxy tới control plane của Remote Cache, không contract tenant/membership/API key/wallet/usage nào được nối.
-- **Không có xác thực.** Không OIDC, không session, không cookie phiên, không authorization. Mọi
-  API cần xác thực trong tương lai phải fail closed; không có đường bypass cho demo.
-- **Không có dữ liệu.** Không mock API, không metric giả, không fixture nghiệp vụ. Trang Overview
-  cố ý không hiển thị con số nào.
-- **Không có `devOrigin` thật.** Hai env trong `wrangler.jsonc` giữ placeholder
-  `https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev`; pipeline sẽ fail closed tới khi điền subdomain
-  thật của account Cloudflare.
-- **Không có target deploy.** `package.json` không khai target `deploy` nào — staging/production
-  chưa được nối trong repo này.
-
-## Ghi chú
-
-- Nx tags: `type:composition`, `scope:remote-cache`, `runtime:edge`. App này không được import
-  implementation của service khác; dependency chỉ được đi qua contract/API.
-- `nuxt.config.ts` phát warning `MODULE_TYPELESS_PACKAGE_JSON` (không có `"type": "module"` trong
-  `package.json`) — vô hại, cùng hình dạng với các app Nuxt khác trong repo.
+- [`docs/applications/remote-cache/README.md`](../../docs/applications/remote-cache/README.md) — component doc pair; [`01-architecture.md`](../../docs/applications/remote-cache/01-architecture.md) (hai composition, admin UI, đường truy cập control plane), [`02-requirements.md`](../../docs/applications/remote-cache/02-requirements.md), [`03-operations.md`](../../docs/applications/remote-cache/03-operations.md).
+- [`docs/domains/remote-cache/README.md`](../../docs/domains/remote-cache/README.md) — bounded context `remote-cache`; [`domain-model.md`](../../docs/domains/remote-cache/domain-model.md).
+- [`apps/remote-cache-api/README.md`](../remote-cache-api/README.md) — API composition của cùng component.
+- [`libs/ui-app-shell/README.md`](../../libs/ui-app-shell/README.md) — shell UI mà app dựng trên đó.
+- [`docs/architecture/01-architecture.md`](../../docs/architecture/01-architecture.md) — topology deploy và vị trí cache trong hệ thống.

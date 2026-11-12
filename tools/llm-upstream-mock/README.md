@@ -1,63 +1,51 @@
-# llm-upstream-mock
+# LLM Upstream Mock
 
-Mock upstream OpenAI-compatible **chỉ phục vụ testing** — mô phỏng đúng subset bề mặt upstream mà `llm-api` tiêu thụ: `POST /v1/chat/completions` (nhận diện stream/non-stream) và `GET /v1/models`, kèm ma trận lỗi inject được (Issue #132).
+Mock upstream OpenAI-compatible **chỉ phục vụ testing** (`@ecoma-io/llm-upstream-mock`): mô phỏng đúng subset bề mặt upstream mà `llm-api` tiêu thụ — `POST /v1/chat/completions` (stream/non-stream) và `GET /v1/models` — kèm ma trận lỗi inject được qua env hoặc header per-request. Server Node thuần (`node:http`), listen `127.0.0.1` (`src/main.ts:16`), không dependency runtime nào trong `package.json`.
 
-Không dùng ngoài testing, không nằm trong production topology, và **không phục vụ unit test** của project khác — chỉ tầng integration và system test (quyết định owner ghi tại Issue #132).
+Nx project `@ecoma-io/llm-upstream-mock`, tags `type:tooling`, `runtime:native`, `scope:local`.
 
-## Chạy
+## Purpose
 
-```bash
-# Từ repo root, port mặc định 8787:
-pnpm exec tsx tools/llm-upstream-mock/src/main.ts
+- Cấp upstream giả có hành vi lỗi thật (`401`/`429`/`500`/timeout/malformed) cho tầng integration và system test của `llm-api` và `deploys/llm-api-deploy`, thay vì gọi upstream thật trong test.
+- Ghim contract phản hồi theo nguồn chân lý `docs/applications/llm-api/README.md` và `apps/llm-api/tests/integrations/http-contract.spec.ts` — khi API thật đổi shape, spec của mock fail trước (`src/contract.spec.ts`).
 
-# Ví dụ với config riêng:
-MOCK_UPSTREAM_PORT=9091 MOCK_UPSTREAM_SCENARIO=rate_limited \
-  pnpm exec tsx tools/llm-upstream-mock/src/main.ts
-```
+## Responsibilities
 
-Server chỉ listen trên `127.0.0.1`. Dừng bằng SIGINT/SIGTERM (Ctrl-C).
+- Hai route: `POST /v1/chat/completions` (nhận diện `"stream": true` → SSE 3 chunk `chat.completion.chunk` + sentinel `data: [DONE]`; non-stream → JSON `chat.completion`) và `GET /v1/models` (`src/server.ts`).
+- Sáu scenario (`SCENARIOS` trong `src/config.ts:11`): `ok`, `unauthorized` (401 `invalid_api_key`), `rate_limited` (429 + `retry-after: 1`), `server_error` (500 `api_error`), `timeout` (giữ socket đến `MOCK_UPSTREAM_TIMEOUT_MS` rồi destroy), `malformed` (200 nhưng thiếu `choices`/`usage`).
+- Scenario mặc định qua env `MOCK_UPSTREAM_SCENARIO`; override per-request bằng header `x-mock-scenario` (`SCENARIO_HEADER`) — sai tên scenario → `400`, không fallback âm thầm.
+- Config toàn env, tùy chọn, fail-fast khi boot (`src/config.ts`): `MOCK_UPSTREAM_PORT` (mặc định 8787), `MOCK_UPSTREAM_MODELS`, `MOCK_UPSTREAM_CONTENT`, `MOCK_UPSTREAM_TIMEOUT_MS`.
+- Response cấu trúc không chịu scenario: route lạ → `404`, sai method → `405` + header `Allow`, body JSON hỏng → `400` — dùng chung phong bì lỗi OpenAI.
 
-## Config contract
+## Boundaries
 
-Toàn bộ config qua biến môi trường, đều tùy chọn; sai giá trị fail-fast khi boot:
+- Không dùng ngoài testing: không nằm trong production topology, không auth thật (401 chỉ đến từ scenario `unauthorized`), không kiểm `Authorization` ở scenario `ok`.
+- Không phải SSE fidelity đầy đủ: nhánh stream chỉ đủ để client phân biệt stream thành công — embeddings, legacy completions, tool calls không có trong surface.
+- Không wiring container vào lane local platform; mock chạy bằng process `tsx` trên host.
+- Non-goal phát sinh surface mới khi chưa có consumer thật — quyết định phạm vi owner ghi tại Issue #132.
 
-| Biến                       | Mặc định                        | Ý nghĩa                                                         |
-| -------------------------- | ------------------------------- | --------------------------------------------------------------- |
-| `MOCK_UPSTREAM_PORT`       | `8787`                          | Port listen (`0` = chọn port ephemeral)                         |
-| `MOCK_UPSTREAM_SCENARIO`   | `ok`                            | Scenario mặc định cho mọi request                               |
-| `MOCK_UPSTREAM_MODELS`     | `["mock-chat-model"]`           | Mảng JSON các model id trả ra cho `GET /v1/models` (không rỗng) |
-| `MOCK_UPSTREAM_CONTENT`    | `Hello from llm-upstream-mock.` | Content của message assistant trong response thành công         |
-| `MOCK_UPSTREAM_TIMEOUT_MS` | `30000`                         | Độ trễ trước khi destroy socket ở scenario `timeout`            |
-
-**Override per-request:** header `x-mock-scenario: <tên scenario>` trên bất kỳ request nào ghi đè scenario mặc định cho đúng request đó — stateless, song song được trong test. Giá trị sai tên scenario → `400`, không âm thầm fallback.
-
-## Ma trận scenario
-
-| Scenario       | `POST /v1/chat/completions`                                                                                                              | `GET /v1/models`        |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `ok`           | `200` JSON shape `chat.completion` (hoặc SSE minimal nếu `"stream": true`)                                                               | `200` shape list OpenAI |
-| `unauthorized` | `401` — phong bì lỗi OpenAI, `code: invalid_api_key`                                                                                     | `401`                   |
-| `rate_limited` | `429` — `code: rate_limit_exceeded`, header `retry-after: 1`                                                                             | `429`                   |
-| `server_error` | `500` — `type: api_error`                                                                                                                | `500`                   |
-| `timeout`      | Không phản hồi — socket giữ đến `MOCK_UPSTREAM_TIMEOUT_MS` rồi destroy                                                                   | `timeout`               |
-| `malformed`    | `200` với JSON hợp lệ nhưng **vi phạm shape OpenAI** (thiếu `choices`/`usage` — input cho nhánh `usage_status = malformed` của consumer) | `200` malformed         |
-
-Nhánh stream: body có `"stream": true` → `text/event-stream` với 3 chunk `chat.completion.chunk` (role → content → `finish_reason: stop`) rồi sentinel `data: [DONE]` — **đủ để client phân biệt stream thành công, không phải SSE fidelity đầy đủ** (non-goal, Issue #132, known limitation #28).
-
-Các response cấu trúc không chịu scenario: route lạ → `404`, sai method → `405` + header `Allow`, body JSON hỏng → `400` — tất cả dùng chung phong bì lỗi OpenAI `{ "error": { "message", "type", "param", "code" } }`.
-
-## Test
+## Development
 
 ```bash
-pnpm nx run llm-upstream-mock:test --skip-nx-cache
+pnpm exec tsx tools/llm-upstream-mock/src/main.ts                 # chạy server, port mặc định 8787
+MOCK_UPSTREAM_SCENARIO=rate_limited pnpm exec tsx tools/llm-upstream-mock/src/main.ts
+pnpm nx run @ecoma-io/llm-upstream-mock:lint
+pnpm nx run @ecoma-io/llm-upstream-mock:typecheck
 ```
 
-- `src/contract.spec.ts` — ghim **đúng tập key** của từng shape (completion, chunk, model list, error envelope) theo nguồn chân lý `docs/applications/llm-api/README.md` và `apps/llm-api/tests/integrations/http-contract.spec.ts` — hàng rào chống drift khỏi API thật.
-- `src/server.spec.ts` — hành vi HTTP thật qua `fetch`: từng scenario, header override, control path, và fence "log không chứa prompt/response body".
-- `src/config.spec.ts` — parse env: default, giá trị biên, fail-fast.
+Dừng bằng SIGINT/SIGTERM; server chỉ listen loopback.
 
-## Giới hạn đã biết
+## Testing
 
-- Không auth thật: scenario `ok` không kiểm `Authorization` — `401` chỉ đến từ scenario `unauthorized`.
-- Non-goal: embeddings, legacy completions, tool calls, SSE fidelity đầy đủ — chỉ dựng khi có consumer thật.
-- Chỉ HTTP trên loopback; wiring container vào lane local là follow-up riêng (precedent SeaweedFS #117).
+```bash
+pnpm nx run @ecoma-io/llm-upstream-mock:test
+```
+
+Spec colocated trong `src/`: `contract.spec.ts` ghim tập key của từng shape (completion, chunk, model list, error envelope); `server.spec.ts` chạy hành vi HTTP thật qua `fetch` cho từng scenario, header override, control path và fence "log không chứa prompt/response body"; `config.spec.ts` phủ parse env, giá trị biên, fail-fast.
+
+## Related Documentation
+
+- [`docs/applications/llm-api/README.md`](../../docs/applications/llm-api/README.md) — nguồn chân lý contract HTTP mà mock ghim.
+- [`apps/llm-api/README.md`](../../apps/llm-api/README.md) — consumer chính và bề mặt upstream thật.
+- [`deploys/llm-api-deploy/README.md`](../../deploys/llm-api-deploy/README.md) — deploy unit tiêu thụ mock trên lane local.
+- [`docs/architecture/06-testing.md`](../../docs/architecture/06-testing.md) — phân loại tầng test và target canonical.

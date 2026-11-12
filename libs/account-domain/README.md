@@ -1,6 +1,6 @@
 # Account Domain
 
-Thư viện domain của bounded context `account` (`@ecoma-io/account-domain`): value object, invariant vòng đời và policy thuần. Thư viện **không import Nx project khác, không SQL, không Node builtin, không I/O** — mọi tham số thời gian và entropy do caller truyền vào (`src/index.ts`); `package.json` không có runtime dependency nào.
+Thư viện domain của bounded context `account` (`@ecoma-io/account-domain`): value object, invariant vòng đời và policy thuần. Thư viện **không import Nx project khác, không SQL, không Node builtin, không I/O** — tham số thời gian do caller truyền vào, entropy thì caller truyền hoặc để mặc định lấy từ Web Crypto (`src/index.ts`); `package.json` không có runtime dependency nào.
 
 Ngữ nghĩa nghiệp vụ canonical của context nằm ở `docs/domains/account/` — thư viện này hiện thực một phần tri thức đó bằng code, không định nghĩa lại ranh giới context.
 
@@ -22,7 +22,7 @@ Exports công khai (từ `src/index.ts`):
 - **OTP/MFA primitives**: base32 codec (`base32.ts`), TOTP sinh/verify/otpauth URI với tham số step/drift tường minh (`totp.ts`), recovery codes sinh/format/hash/verify (`recovery-codes.ts`).
 - **Domain errors**: `DomainError`, `DomainErrorCode`, catalog message (`errors.ts`).
 
-Consumer hiện tại: `apps/account` — đang dùng `ACR`, `isSubject`, `isAccountStatus` (`server/lib/session.ts`, `server/routes/internal/account/`); nhóm TOTP và recovery codes được export nhưng chưa có composition nào import.
+Consumer hiện tại: `apps/account` — dùng `ACR`, `isSubject`, `isAccountStatus` (`server/lib/session.ts`, `server/routes/internal/account/`).
 
 ## Boundaries
 
