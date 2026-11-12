@@ -7,7 +7,7 @@ Nx project `account-deploy`, tags `type:deployment`, `scope:account`, `runtime:n
 ## Purpose
 
 - Đưa `apps/account` lên local platform với đủ vòng đời theo `docs/architecture/local-development/02-account-auth-topology.md`: provision database → migration → image → container → readiness.
-- Chỉ có lane local (`configurations: local`); identity Worker staging/production của app khai trong `apps/account/wrangler.jsonc` và thuộc delivery lane — không nằm trong chương trình này.
+- Chỉ có lane local (`configurations: local`); Worker staging/production của app `account` khai trong `apps/account/wrangler.jsonc` và thuộc delivery lane — không nằm trong chương trình này.
 
 ## Responsibilities
 

@@ -22,7 +22,7 @@ Exports công khai (từ `src/index.ts`):
 - **OTP/MFA primitives**: base32 codec (`base32.ts`), TOTP sinh/verify/otpauth URI với tham số step/drift tường minh (`totp.ts`), recovery codes sinh/format/hash/verify (`recovery-codes.ts`).
 - **Domain errors**: `DomainError`, `DomainErrorCode`, catalog message (`errors.ts`).
 
-Consumer hiện tại: `apps/account` — đang dùng `ACR`, `isSubject`, `isAccountStatus` (`server/lib/session.ts`, `server/routes/internal/account/`); nhóm TOTP và recovery codes được export nhưng chưa có composition nào import.
+Consumer hiện tại: `apps/account` — dùng `ACR`, `isSubject`, `isAccountStatus` (`server/lib/session.ts`, `server/routes/internal/account/`).
 
 ## Boundaries
 
