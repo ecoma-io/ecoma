@@ -40,12 +40,13 @@ const SENTINEL = `${SENTINEL_CORE}-P@ss'Quo"te\\$B4th;\`tick\``;
 /**
  * Provider escape `"` → `\"`, `\` → `\\`, `` ` `` → `` \` `` khi nhúng command
  * text vào message Diagnostics, nên kiểm tra rò rỉ phải chạy trên cả haystack
- * thô lẫn haystack đã bỏ backslash — nếu chỉ so khớp sentinel thô thì một giá
- * trị bị escape sẽ lọt qua mắt absence assertion.
+ * thô lẫn cặp đã bỏ backslash **cả hai phía** — sentinel vốn chứa `\` của
+ * riêng nó, nên bỏ backslash chỉ ở haystack thì escaped form không bao giờ
+ * khớp sentinel gốc (nhận xét review của PR #157).
  */
 const deBackslash = (s: string): string => s.replaceAll('\\', '');
 const sentinelLeaked = (haystack: string): boolean =>
-  haystack.includes(SENTINEL) || deBackslash(haystack).includes(SENTINEL);
+  haystack.includes(SENTINEL) || deBackslash(haystack).includes(deBackslash(SENTINEL));
 
 /** Toàn bộ kênh text thu được từ một lần `up` thất bại hoặc thành công. */
 type Captured = { out: string; errText: string; exitCode: number | null };
@@ -157,6 +158,13 @@ describe('local.Command failure-path hygiene (real @pulumi/command engine)', () 
     expect(
       haystack.includes(SENTINEL_CORE),
       'control stack did NOT surface an interpolated sentinel — harness sensitivity broken',
+    ).toBe(true);
+    // Provider echo ở dạng escaped — chính logic `sentinelLeaked` mà assertion
+    // absence dùng phải nhận ra haystack NÀY là leak, nếu không absence check
+    // có thể bỏ sót leak thật (tự-chứng minh độ nhạy của chuẩn so khớp).
+    expect(
+      sentinelLeaked(haystack),
+      'sentinelLeaked() did NOT flag the escaped echo — absence-check logic broken',
     ).toBe(true);
   }, 300_000);
 
