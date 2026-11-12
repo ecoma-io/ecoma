@@ -41,8 +41,6 @@ jobs:
       - name: Format check
         if: github.event_name == 'pull_request'
         run: npx oxfmt --check .
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
       - name: Architecture tag validation
         run: pnpm dx arch-check
       # `force` chỉ tồn tại với workflow_dispatch; mọi trigger khác để nó rỗng và
@@ -79,8 +77,6 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
       - name: Unit test
         uses: ./.github/actions/run-nx-target
         with:
@@ -110,14 +106,6 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-      # `llm-api:test-integration` khai `dependsOn: [build]` — harness HTTP contract
-      # build bundle Worker WASM qua worker-build, nên runner của job này cũng cần
-      # binary cargo-install đó trên PATH, giống job `build` bên dưới. Lần chạy đầu
-      # của wasm-bindgen CLI tải về ~/.cache/worker-build (runner có network).
-      - name: Install worker-build
-        run: cargo install worker-build --version 0.8.7 --locked
       - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
@@ -138,14 +126,6 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-      # worker-build là binary cargo-install (không phải npm package) —
-      # prerequisite được pin trong README của apps/llm-api; build Worker WASM
-      # (`worker-build --release`) cần nó trên PATH. Lần build đầu của
-      # wasm-bindgen CLI tải về ~/.cache/worker-build (runner có network).
-      - name: Install worker-build
-        run: cargo install worker-build --version 0.8.7 --locked
       - name: Build
         uses: ./.github/actions/run-nx-target
         with:
@@ -175,11 +155,12 @@ jobs:
   system-test:
     name: system-test
     runs-on: ubuntu-26.04
-    # Deploy lane 9 unit build image home/account/auth/pact/mail/push khi cache
-    # Docker của runner lạnh; tests bổ sung gate retry + chromium thật. 60 phút
-    # là trần đo từ budget 15 phút deploy + 4 suite chạy tuần tự (mỗi suite
-    # ~1 phút đo thực tế), không phải mục tiêu: job xanh điển hình kết thúc
-    # sớm hơn nhiều, và PR docs-only kết thúc gần như ngay lập tức (0 task).
+    # Deploy lane 7 unit build image home/account/auth/backoffice/platform/
+    # staff-access/transactional-mail khi cache Docker của runner lạnh; tests
+    # bổ sung gate retry + chromium thật. 60 phút là trần đo từ budget 15 phút
+    # deploy + 4 suite chạy tuần tự (mỗi suite ~1 phút đo thực tế), không phải
+    # mục tiêu: job xanh điển hình kết thúc sớm hơn nhiều, và PR docs-only
+    # kết thúc gần như ngay lập tức (0 task).
     timeout-minutes: 60
     steps:
       - name: Start runner resource monitoring
