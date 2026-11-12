@@ -25,7 +25,7 @@
 # `deploys/platform-deploy/index.ts`: tag trôi biến thay đổi toolchain thành
 # thay đổi hạ tầng ngoài ý muốn, build không tái lập được. ARG để một nơi duy
 # nhất cho cả hai stage. Digest này là tag `24-bookworm-slim` tại thời điểm ghim.
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
 FROM ${NODE_IMAGE} AS build
 
 # pnpm là package manager của repo (field `packageManager` trong package.json
