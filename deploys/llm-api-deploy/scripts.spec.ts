@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DATABASES,
   BOOTSTRAP_CONSUMER_TENANT_ENV_VARS,
+  BOOTSTRAP_FINANCIAL_ENV_VARS,
   BOOTSTRAP_GOVERNANCE_ENV_VARS,
   BOOTSTRAP_MARKETPLACE_ENV_VARS,
   bootstrapScriptName,
@@ -21,6 +22,7 @@ import {
   buildMigrateScript,
   buildProvisionScript,
   dbName,
+  extractConsumerTenantId,
   extractEligibilityVerdict,
   migratorRole,
   passwordEnvVar,
@@ -224,6 +226,30 @@ describe('buildBootstrapScript', () => {
     );
   });
 
+  it('emits the step-10 gateway URL name instead of DATABASE_URL, by NAME only', () => {
+    // Bước 10 chỉ kết nối db-llm-gateway: script pass-through đúng MỘT biến URL
+    // ECOMA_* và KHÔNG còn `-e DATABASE_URL`. Mọi `-e` vẫn chỉ mang TÊN biến.
+    const step10 = buildBootstrapScript({
+      networkName: 'ecoma-x-network',
+      worktreeRoot: '/repo/worktrees/x',
+      step: 'financial',
+      nodeImage: NODE_IMAGE,
+      envVarNames: [...BOOTSTRAP_FINANCIAL_ENV_VARS],
+      databaseUrlEnvNames: ['ECOMA_GATEWAY_DATABASE_URL'],
+    });
+    expect(step10).toContain('-e ECOMA_GATEWAY_DATABASE_URL \\');
+    expect(step10).not.toContain('-e DATABASE_URL \\');
+    for (const name of BOOTSTRAP_FINANCIAL_ENV_VARS) {
+      expect(step10).toContain(`-e ${name} \\`);
+    }
+    expect(step10).not.toMatch(/-e \w+=/u);
+    expect(step10).not.toContain(SENTINEL);
+    expect(step10).toContain(
+      `npx tsx --tsconfig tsconfig.db.json ${bootstrapScriptName('financial')}`,
+    );
+    expect(bootstrapScriptName('financial')).toBe('db/bootstrap-financial.mts');
+  });
+
   it('declares the exact env var surface each runner reads (index wiring cannot drift)', () => {
     expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).toContain('ECOMA_SELLER_TENANT_OWNER_SUB');
     expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).not.toContain('SELLER_ELIGIBILITY_VERDICT');
@@ -239,6 +265,21 @@ describe('buildBootstrapScript', () => {
       'ECOMA_GOVERNANCE_ACTOR',
       'ECOMA_CONSUMER_TENANT_OWNER_SUB',
     ]);
+    // Bước 10: đúng tám biến — actor + tenant id (từ stdout bước 9) + owner
+    // sub + định danh sponsor (chỉ assert) + hai trần tiền + evidence_ref +
+    // amount; không biến nào mang giá trị tiền cụ thể, và URL gateway không
+    // nằm ở đây (đi qua `databaseUrlEnvNames`).
+    expect(BOOTSTRAP_FINANCIAL_ENV_VARS).toEqual([
+      'ECOMA_GOVERNANCE_ACTOR',
+      'ECOMA_CONSUMER_TENANT_ID',
+      'ECOMA_CONSUMER_TENANT_OWNER_SUB',
+      'ECOMA_SPONSOR_ID',
+      'ECOMA_SPONSOR_CEILING',
+      'ECOMA_SPONSOR_AUTHORIZATION_CEILING',
+      'ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF',
+      'ECOMA_SPONSOR_GRANT_AMOUNT',
+    ]);
+    expect(new Set(BOOTSTRAP_FINANCIAL_ENV_VARS).size).toBe(BOOTSTRAP_FINANCIAL_ENV_VARS.length);
   });
 });
 
@@ -255,5 +296,28 @@ describe('extractEligibilityVerdict', () => {
     expect(() => extractEligibilityVerdict('[bootstrap] done\n')).toThrow(
       /SELLER_ELIGIBILITY_VERDICT/u,
     );
+  });
+});
+
+describe('extractConsumerTenantId', () => {
+  it('returns detail.tenantId of the CONSUMER_TENANT_RESULT machine line', () => {
+    const stdout =
+      'CONSUMER_TENANT_RESULT={"outcome":"created","detail":{"tenantId":"tenant_ecoma_consumer","tenant":"created","membership":"created","apiKey":"created"}}\n';
+    expect(extractConsumerTenantId(stdout)).toBe('tenant_ecoma_consumer');
+  });
+
+  it('fails loudly when the stdout carries no CONSUMER_TENANT_RESULT line', () => {
+    expect(() => extractConsumerTenantId('[bootstrap] done\n')).toThrow(
+      /no CONSUMER_TENANT_RESULT line/u,
+    );
+  });
+
+  it('fails loudly when the result line is not valid JSON', () => {
+    expect(() => extractConsumerTenantId('CONSUMER_TENANT_RESULT=not-json\n')).toThrow(Error);
+  });
+
+  it('fails loudly when the result JSON carries no detail.tenantId string', () => {
+    const stdout = 'CONSUMER_TENANT_RESULT={"outcome":"created","detail":{"tenant":"created"}}\n';
+    expect(() => extractConsumerTenantId(stdout)).toThrow(/no detail\.tenantId/u);
   });
 });

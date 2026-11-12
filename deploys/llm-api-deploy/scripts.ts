@@ -209,11 +209,13 @@ docker run --rm \\
 
 /**
  * Bước bootstrap của chuỗi seed (ADR-0020 Quyết định 13): hai sub-bước của
- * Issue #23 (8a `seller-governance`, 8b `marketplace`) cộng bước 9 của Issue
- * #24 (`consumer-tenant` — seed tenant `ecoma` + owner membership + API key
- * đầu tiên; runner này ghi hai database trong một lần chạy).
+ * Issue #23 (8a `seller-governance`, 8b `marketplace`) cộng hai bước của Issue
+ * #24 — bước 9 (`consumer-tenant` — seed tenant `ecoma` + owner membership +
+ * API key đầu tiên; runner này ghi hai database trong một lần chạy) và bước 10
+ * (`financial` — seed funding ADR-0028 trên `db-llm-gateway`; tenant id của
+ * bước 9 đi qua env, runner chỉ assert).
  */
-export type BootstrapStep = 'seller-governance' | 'marketplace' | 'consumer-tenant';
+export type BootstrapStep = 'seller-governance' | 'marketplace' | 'consumer-tenant' | 'financial';
 
 /** Đường dẫn script runner của một bước bootstrap (relative tới `apps/llm-api`). */
 export function bootstrapScriptName(step: BootstrapStep): string {
@@ -221,7 +223,9 @@ export function bootstrapScriptName(step: BootstrapStep): string {
     ? 'db/bootstrap-seller-governance.mts'
     : step === 'marketplace'
       ? 'db/bootstrap-marketplace.mts'
-      : 'db/bootstrap-consumer-tenant.mts';
+      : step === 'consumer-tenant'
+        ? 'db/bootstrap-consumer-tenant.mts'
+        : 'db/bootstrap-financial.mts';
 }
 
 /**
@@ -276,6 +280,27 @@ export const BOOTSTRAP_MARKETPLACE_ENV_VARS = [
 export const BOOTSTRAP_CONSUMER_TENANT_ENV_VARS = [
   'ECOMA_GOVERNANCE_ACTOR',
   'ECOMA_CONSUMER_TENANT_OWNER_SUB',
+] as const;
+
+/**
+ * TÊN các biến môi trường mà runner bước 10 (`bootstrap-financial.mts`) đọc
+ * (không tính `ECOMA_GATEWAY_DATABASE_URL` — URL duy nhất của runner này đi
+ * qua `databaseUrlEnvNames` của {@link buildBootstrapScript}, kênh env như
+ * bước 9). `ECOMA_SPONSOR_ID` chỉ ASSERT định danh sponsor nằm trong code
+ * (ADR-0020 Quyết định 12), hai trần tiền + `evidence_ref` + amount là cấu
+ * hình bắt buộc KHÔNG default — thiếu hoặc lệch là runner fail-closed.
+ * `ECOMA_CONSUMER_TENANT_ID` đến từ stdout bước 9 qua
+ * {@link extractConsumerTenantId} — wiring không hard-code tenant id.
+ */
+export const BOOTSTRAP_FINANCIAL_ENV_VARS = [
+  'ECOMA_GOVERNANCE_ACTOR',
+  'ECOMA_CONSUMER_TENANT_ID',
+  'ECOMA_CONSUMER_TENANT_OWNER_SUB',
+  'ECOMA_SPONSOR_ID',
+  'ECOMA_SPONSOR_CEILING',
+  'ECOMA_SPONSOR_AUTHORIZATION_CEILING',
+  'ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF',
+  'ECOMA_SPONSOR_GRANT_AMOUNT',
 ] as const;
 
 /** Input của {@link buildBootstrapScript}. */
@@ -340,5 +365,39 @@ export function extractEligibilityVerdict(runnerStdout: string): string {
   }
   throw new Error(
     'runner 8a stdout carries no SELLER_ELIGIBILITY_VERDICT line; the stdout/stderr contract between the bootstrap sub-steps is broken',
+  );
+}
+
+/**
+ * Trích tenant id consumer từ stdout của runner bước 9 — dòng máy đọc
+ * `CONSUMER_TENANT_RESULT=<json>` với `detail.tenantId` (chuẩn stdout của các
+ * runner bootstrap: CHỈ chứa dòng máy đọc, log người đọc đi stderr). Giá trị
+ * này nạp `ECOMA_CONSUMER_TENANT_ID` cho runner bước 10 — wiring không hard-code
+ * tenant id, chuỗi kết nối bước 9 → bước 10 đi qua stdout máy đọc. Hàm thuần,
+ * throw to khi stdout lệch hợp đồng (thiếu dòng, JSON sai, thiếu tenantId) —
+ * wiring không đoán giá trị.
+ */
+export function extractConsumerTenantId(runnerStdout: string): string {
+  for (const line of runnerStdout.split('\n')) {
+    if (line.startsWith('CONSUMER_TENANT_RESULT=')) {
+      const parsed: unknown = JSON.parse(line.slice('CONSUMER_TENANT_RESULT='.length));
+      const detail =
+        typeof parsed === 'object' && parsed !== null
+          ? (parsed as { detail?: unknown }).detail
+          : undefined;
+      const tenantId =
+        typeof detail === 'object' && detail !== null
+          ? (detail as { tenantId?: unknown }).tenantId
+          : undefined;
+      if (typeof tenantId !== 'string' || tenantId === '') {
+        throw new Error(
+          'runner step-9 CONSUMER_TENANT_RESULT carries no detail.tenantId string; the stdout contract between the bootstrap steps is broken',
+        );
+      }
+      return tenantId;
+    }
+  }
+  throw new Error(
+    'runner step-9 stdout carries no CONSUMER_TENANT_RESULT line; the stdout/stderr contract between the bootstrap steps is broken',
   );
 }

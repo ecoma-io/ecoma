@@ -49,12 +49,14 @@ import {
   DATABASES,
   type Database,
   BOOTSTRAP_CONSUMER_TENANT_ENV_VARS,
+  BOOTSTRAP_FINANCIAL_ENV_VARS,
   BOOTSTRAP_GOVERNANCE_ENV_VARS,
   BOOTSTRAP_MARKETPLACE_ENV_VARS,
   buildBootstrapScript,
   buildMigrateScript,
   buildProvisionScript,
   dbName,
+  extractConsumerTenantId,
   extractEligibilityVerdict,
   migratorRole,
   passwordEnvVar,
@@ -297,8 +299,11 @@ for (const target of DATABASES) {
  *
  * Cấu hình nguồn (stack config, đặt bởi `local.ts`): `tenantOwnerSub` (sub
  * superadmin canonical — giải quyết qua dx runner trước khi up), các fact
- * pháp lý/thuế của principal first_party, con trỏ evidence authoritative, và
- * bộ `llmUpstream*` cho upstream thật. Runner fail-closed khi thiếu bất kỳ
+ * pháp lý/thuế của principal first_party, con trỏ evidence authoritative, bộ
+ * `llmUpstream*` cho upstream thật, và bộ funding của sponsor (bước 10 —
+ * `sponsorId` chỉ assert định danh nằm trong code, hai trần tiền +
+ * `sponsorAuthorizationEvidenceRef` + `sponsorGrantAmount` là cấu hình bắt
+ * buộc không default). Runner fail-closed khi thiếu bất kỳ
  * env bắt buộc nào (ADR-0020 Quyết định 12).
  */
 const bootstrapActor = conf.require('bootstrapActor');
@@ -432,6 +437,68 @@ const bootstrapConsumerTenant = new command.local.Command(
     dependsOn: [migrateCommands.tenant, bootstrapMarketplace],
     // stdout run tạo key mang plaintext ĐÚNG MỘT LẦN (show-once): đánh dấu
     // secret output (resource option) để state Pulumi mã hoá thay vì lưu trần.
+    additionalSecretOutputs: ['stdout', 'stderr'],
+  },
+);
+
+/**
+ * Bước 10 (Issue #24) — seed funding ADR-0028 trên db-llm-gateway: sponsor
+ * `sponsor_ecoma_internal` (env chỉ ASSERT định danh — nó nằm trong code,
+ * cấu hình lệch là runner từ chối), billing account của tenant consumer,
+ * funding authorization (trần per-account nullable — chuỗi `null` là explicit
+ * vô trần) và grant khởi tạo kết thúc `credited` qua đúng phép kiểm trần duy
+ * nhất `creditGrant`. Chạy sau migrate gateway + bước 9: tenant id đi qua
+ * stdout máy đọc của bước 9 (`extractConsumerTenantId` — cùng hợp đồng
+ * stdout/stderr với verdict 8a→8b), wiring không hard-code; các URL database
+ * không dùng `DATABASE_URL` chung (runner đọc `ECOMA_GATEWAY_DATABASE_URL`).
+ * Trần tiền + evidence_ref + amount là cấu hình bắt buộc không default; trần
+ * cấu hình thấp hơn grant là exit khác 0 với grant giữ `pending` bền — rerun
+ * sau khi sửa cấu hình hội tụ (ADR-0028 §6). State Pulumi không chứa giá trị
+ * credential nào của bước này; stdout/stderr vẫn đánh dấu secret output cùng
+ * cơ chế với bước 9.
+ */
+const bootstrapFinancialEnvironment: Record<string, pulumi.Output<string> | string> = {
+  ECOMA_GATEWAY_DATABASE_URL: migratorUrls.gateway,
+  ECOMA_GOVERNANCE_ACTOR: bootstrapActor,
+  // Tenant id từ stdout bước 9 — chuỗi kết nối hai bước đi qua hợp đồng máy
+  // đọc, runner bước 10 tự assert với hằng của nó.
+  ECOMA_CONSUMER_TENANT_ID: bootstrapConsumerTenant.stdout.apply(extractConsumerTenantId),
+  ECOMA_CONSUMER_TENANT_OWNER_SUB: tenantOwnerSub,
+  ECOMA_SPONSOR_ID: conf.require('sponsorId'),
+  ECOMA_SPONSOR_CEILING: conf.require('sponsorCeiling'),
+  ECOMA_SPONSOR_AUTHORIZATION_CEILING: conf.require('sponsorAuthorizationCeiling'),
+  ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF: conf.require('sponsorAuthorizationEvidenceRef'),
+  ECOMA_SPONSOR_GRANT_AMOUNT: conf.require('sponsorGrantAmount'),
+};
+
+const bootstrapFinancialScript = networkName.apply((net) =>
+  buildBootstrapScript({
+    networkName: net,
+    worktreeRoot,
+    step: 'financial',
+    nodeImage: NODE_IMAGE,
+    envVarNames: BOOTSTRAP_FINANCIAL_ENV_VARS,
+    databaseUrlEnvNames: ['ECOMA_GATEWAY_DATABASE_URL'],
+  }),
+);
+
+const bootstrapFinancial = new command.local.Command(
+  dockerResourceName(ns, 'llm-api') + '-bootstrap-financial',
+  {
+    create: bootstrapFinancialScript,
+    update: bootstrapFinancialScript,
+    // Trigger trên worktreeRoot + mọi entry environment (k=v): URL gateway là
+    // output bọc secret nên state mã hoá entry đó — cùng cơ chế 8a/8b/bước 9.
+    triggers: [
+      worktreeRoot,
+      ...Object.entries(bootstrapFinancialEnvironment).map(([k, v]) => `${k}=${v}`),
+    ],
+    environment: bootstrapFinancialEnvironment,
+  },
+  {
+    dependsOn: [migrateCommands.gateway, bootstrapConsumerTenant],
+    // Result line của runner là dữ liệu cấu hình, không credential — nhưng
+    // vẫn đánh dấu secret output cùng cơ chế với bước 9 (state mã hoá).
     additionalSecretOutputs: ['stdout', 'stderr'],
   },
 );
@@ -636,6 +703,7 @@ const wic = new docker.Container(
       bootstrapGovernance,
       bootstrapMarketplace,
       bootstrapConsumerTenant,
+      bootstrapFinancial,
       wicImage,
       wicStateVolume,
       wicStateInit,
@@ -653,6 +721,7 @@ export const bootstrapCommandNames = [
   bootstrapGovernance.id,
   bootstrapMarketplace.id,
   bootstrapConsumerTenant.id,
+  bootstrapFinancial.id,
 ];
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
