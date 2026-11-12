@@ -1,142 +1,57 @@
-# `@ecoma-io/llm-seller`
+# LLM Seller
 
-Composition app của LLM Seller portal: **SPA non-SSR + BFF** trên Cloudflare Workers, dựng UI trên
-`@ecoma-io/ui-app-shell`. Deploy unit này **không sở hữu database**, không có Hyperdrive, D1, R2,
-KV hay Queue — mọi dữ liệu nghiệp vụ đi qua API của context owning (`llm-api`,
-`llm-marketplace`, `llm-financial`, `payout`, `payment`), và tới nay **chưa có** đường nào như vậy
-được nối.
+Component `llm-seller` — composition UI seller + BFF trên Cloudflare Workers, dựng trên `@ecoma-io/ui-app-shell`: SPA non-SSR, server chỉ phục vụ static asset và route BFF. Component không sở hữu database nghiệp vụ; dữ liệu nghiệp vụ đi qua API của context owning theo composition mapping trong `docs/applications/llm-seller/`.
 
-Đây là scaffold. Nội dung dưới đây mô tả đúng những gì tồn tại, và mục "Những gì chưa có" liệt kê
-cụ thể phần không tồn tại để không ai đoán nhầm từ tên file.
+Nx project `@ecoma-io/llm-seller`, tags `type:composition`, `scope:llm-seller`, `runtime:edge`.
 
-Reference kiến trúc: [`docs/applications/llm-seller/01-architecture.md`](../../docs/applications/llm-seller/01-architecture.md);
-ranh giới bounded context: [`docs/domains/`](../../docs/domains/).
+## Purpose
 
-## Phạm vi app
+- Worker `ecoma-llm-seller` (`wrangler.jsonc`, entry `.output/server/index.mjs` của Nitro, preset `cloudflare-module`): static asset qua binding `ASSETS`, phần server xử lý request qua Nitro.
+- Bề mặt HTTP thật: `GET /health`, `GET /ready`, trang SPA `/`, và route bắt `server/api/[...path].ts` trả 404 JSON cho mọi `/api/**` không có handler — `/api/**` không bao giờ trả shell HTML.
+- `nuxt.config.ts` khai `ssr: false` tường minh: shell HTML do Nitro render lúc runtime, build không emit `index.html` tĩnh.
+- Thiết kế composition (seller profile, offer, pricing, earnings, settlement) là nội dung canonical của `docs/applications/llm-seller/`.
 
-| Phần                                 | Trạng thái                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| Shell dashboard (sidebar, nav)       | có — `AppShell` của `@ecoma-io/ui-app-shell`, một mục nav trỏ `/`                |
-| Đa ngôn ngữ (en, vi, zh-CN)          | có — registry locale, language selector, cookie lựa chọn                         |
-| Tuỳ chọn shell (màu, chiều)          | có — cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()`   |
-| Trang Overview `/`                   | có — nói đúng phần đã sẵn sàng và phần chưa có; **không** metric hay dữ liệu mẫu |
-| `GET /health`                        | có — liveness, không phụ thuộc dịch vụ nào                                       |
-| `GET /ready`                         | có — readiness của scaffold, không phụ thuộc downstream                          |
-| Component empty/loading/error        | có — primitive có sẵn cho trang nghiệp vụ sau này                                |
-| Onboarding, offer, pricing, earnings | **chưa có** — chưa có BFF route, chưa có contract nào được nối                   |
+## Responsibilities
 
-## Chạy
+- **Shell dashboard**: sidebar/nav từ `AppShell` của `@ecoma-io/ui-app-shell`, trang Overview `/` (`app/pages/index.vue`), component empty/loading/error (`app/components/`).
+- **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`.
+- **Tuỳ chọn shell** (màu, chiều): cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()` của shell lib.
+- **Health/readiness**: `/health` liveness không phụ thuộc dịch vụ nào; `/ready` trả `{ status: 'ready' }`, và `nuxt.config.ts` không khai `runtimeConfig` — khi một phụ thuộc cấu hình thật được đưa vào, route phải fail closed với 503 + mã ổn định.
+- `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để các nhóm này tới handler Nitro thay vì asset worker.
+
+## Boundaries
+
+- Không có binding Hyperdrive/D1/R2/KV/Queue nào trong `wrangler.jsonc`, không có Service Binding, không có `runtimeConfig` — mọi dữ liệu nghiệp vụ chỉ có thể đi qua API của context owning (composition mapping → `docs/applications/llm-seller/README.md`).
+- Không có OIDC client id/secret, session signing key, provider credential hay credential nào khác trong repo này; không có đường bypass xác thực cho demo.
+- Component không sở hữu bounded context nào — Seller tenant, governance, pricing và marketplace là context riêng với domain model tại `docs/domains/<context>/`.
+- Route bắt `/api/**` khớp sau mọi route cụ thể, nên BFF route thêm vào `server/api/` không bị nuốt.
+
+## Development
 
 ```bash
-pnpm nx serve @ecoma-io/llm-seller       # http://localhost:4209
-pnpm nx run @ecoma-io/llm-seller:test
-pnpm nx run @ecoma-io/llm-seller:test-integration
+pnpm nx run @ecoma-io/llm-seller:serve          # nuxt dev — http://localhost:4209
+pnpm nx run @ecoma-io/llm-seller:build          # nuxt build — preset cloudflare-module, output `.output/`
 pnpm nx run @ecoma-io/llm-seller:lint
-pnpm nx run @ecoma-io/llm-seller:typecheck
-pnpm nx run @ecoma-io/llm-seller:build   # preset Cloudflare, output `.output/`
+pnpm nx run @ecoma-io/llm-seller:typecheck      # nuxt typecheck (vue-tsc)
 ```
 
-Triển khai local (Docker + Traefik, song song với các app khác trong worktree):
+- Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4209); tên Worker và env `staging`/`production` khai trong `wrangler.jsonc`.
+- Alias `@ecoma-io/ui-app-shell` và `@ecoma-io/ui-ecoma-logo` khai tường minh trong `nuxt.config.ts` — `tsconfig.base.json` có `paths` rỗng nên không có alias thì import trong `server/` chỉ lỗi ở request đầu tiên.
+
+## Testing
 
 ```bash
-pnpm nx run llm-seller-deploy:local-up -c local    # cần platform-deploy:local-up trước
-pnpm nx run llm-seller-deploy:local-down -c local
+pnpm nx run @ecoma-io/llm-seller:test             # vitest — component/catalog/spec colocated
+pnpm nx run @ecoma-io/llm-seller:test-integration # tests/integrations — workerd thật qua createTestHarness của wrangler
 ```
 
-Hostname local là `llm-seller.<ROOT_HOST>` — đọc `ROOT_HOST` từ `.env` của worktree (platform ghi
-sau lần up đầu), không đoán port.
+- `test` chạy Vitest với harness mount component thật (`tests/harness.ts`); `tests/tailwind-source.spec.ts` ghim số cấp `@source` của stylesheet shell và `fonts.defaults.weights` đủ sáu weight.
+- `test-integration` dependsOn `build`: suite boot workerd thật trên `.output/` của chính app, khẳng định `/` trả shell, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404.
+- Phân loại test và canonical target theo `docs/architecture/06-testing.md`.
 
-## Cấu hình
+## Related Documentation
 
-`nuxt.config.ts` **cố ý không** khai `runtimeConfig`: app chưa có BFF route nào cần cấu hình hay
-secret. Khi BFF thật xuất hiện, khai key tường minh và cho từng env trong `wrangler.jsonc` — không
-default một giá trị đoán được, vì default rỗng biến "chưa cấu hình" thành "chạy được với giá trị
-rỗng" thay vì fail closed.
-
-**Không có** OIDC client id/secret, session signing key, provider credential hay bất kỳ credential
-nào trong app này.
-
-## Route và hành vi
-
-- `/` — trang Overview duy nhất. Chỉ **một** `<h1>`; không link tới route chưa tồn tại.
-- `/health` — liveness. Trả `{ status: 'ok', service: 'llm-seller' }`, không chạm downstream.
-- `/ready` — readiness. Trả `{ status: 'ready' }` vì scaffold chưa có phụ thuộc nào. Khi thêm phụ
-  thuộc cấu hình thật, route phải **fail closed** (503 + mã ổn định), không mặc định ready.
-- Các path còn lại — SPA fallback: Nitro trả shell HTML để client router xử lý.
-- `/api` và `/api/**` không có handler — **404 JSON**, không bao giờ là shell HTML. Route bắt
-  `server/api/[...path].ts` + `server/api/index.ts` khớp sau mọi route cụ thể, nên `/health`,
-  `/ready` và BFF route thêm sau này không bị ảnh hưởng.
-
-`wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để hai nhóm này
-tới handler Nitro thay vì asset worker. Đã đo trên build thật bằng `wrangler dev`; bỏ
-`/api/*` khỏi danh sách không đổi kết quả vì route `/**` của Nitro vẫn xử lý, nhưng giữ khai báo
-để bề mặt do Worker sở hữu là tường minh.
-
-## Non-SSR
-
-`nuxt.config.ts` khai `ssr: false` tường minh (không dựa vào default của framework): server không
-render HTML cho route của client, chỉ phục vụ asset + BFF route. Hệ quả cần nhớ:
-
-- Build **không** emit `index.html` tĩnh; shell HTML do Nitro render ở runtime.
-- Không có `useHead` phía server cho nội dung trang — mọi head do app set ở client.
-- Không được dùng Node built-in trong code chạy ở client; `runtime:edge` chặn Node-only dependency.
-
-## CSS và Tailwind v4
-
-`app/assets/css/styles.css` import `tailwindcss`, `@import` **tương đối** stylesheet của shell
-(`libs/ui-app-shell/src/styles/app-shell.css`) và khai `@source` cho cả hai lib UI. Không dùng
-specifier package cho `@import`: alias của app áp cho cả resolver stylesheet của Tailwind và build
-đỏ `ENOTDIR` — lỗi này chỉ lộ ở `nuxt build`.
-
-Hai chi tiết dễ mất mà `tests/tailwind-source.spec.ts` ghim: số cấp `..` của `@source` (đếm sai là
-lỗi **im lặng**, chỉ mất utility trong bản production) và `fonts.defaults.weights` đủ sáu weight
-(shell đặt `font-synthesis-weight: none`, nên face thiếu weight không được tải).
-
-## Kiểm thử
-
-`pnpm nx run @ecoma-io/llm-seller:test` chạy Vitest với harness mount component thật (không cần
-browser):
-
-| File                               | Ghim điều gì                                                                            |
-| ---------------------------------- | --------------------------------------------------------------------------------------- |
-| `tests/ready.spec.ts`              | `/health` và `/ready` không set status; `/ready` không tham chiếu `llm-api`/`fetch(`/D1 |
-| `app/pages/index.spec.ts`          | Trang Overview render đúng một `<h1>`, không có link chết                               |
-| `tests/tailwind-source.spec.ts`    | Số cấp `@source`, sự tồn tại của base tĩnh, không import CSS qua package                |
-| `tests/catalogs.spec.ts`           | Ba catalog cùng tập key và cùng placeholder; mọi key app gọi đều có                     |
-| `tests/harness.spec.ts`            | Harness mount shell + page, nội dung không phụ thuộc locale mặc định                    |
-| `tests/shell-integration.spec.ts`  | App dùng đúng contract của shell (props, emit, slot)                                    |
-| `server/api/api-not-found.spec.ts` | Route bắt `/api/**` trả JSON 404, không bao giờ là shell HTML                           |
-
-`pnpm nx run @ecoma-io/llm-seller:test-integration` chạy suite cần runtime thật:
-
-| File                                        | Ghim điều gì                                                                                                                                                                                    |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/integrations/worker-runtime.spec.ts` | workerd thật trên `wrangler.jsonc`: `/` và `/settings` trả shell, asset tĩnh 200, `/health` và `/ready` JSON 2xx, `/api/**` JSON 404 — kể cả khi request mang header điều hướng của trình duyệt |
-
-Suite đó khởi động **workerd** qua `createTestHarness` của `wrangler` (in-process, không Docker)
-trên `.output/` của chính app, nên target `test-integration` khai `dependsOn: ["build"]`. Đây là
-tầng duy nhất chứng minh được routing: assertion cấu hình không nhìn thấy việc route `/**` của
-Nitro nuốt `/api/**`.
-
-## Những gì chưa có
-
-- **Không có BFF nghiệp vụ.** Không route `/api/*` nào phục vụ dữ liệu (chỉ có route bắt trả 404),
-  không proxy tới `llm-api`/`llm-marketplace`/
-  `llm-financial`, không contract seller tenant, onboarding, KYC/eligibility, provider credential,
-  offer, pricing, earnings hay settlement nào được nối.
-- **Không có xác thực.** Không OIDC, không session, không cookie phiên, không authorization. Mọi
-  API cần xác thực trong tương lai phải fail closed; không có đường bypass cho demo.
-- **Không có dữ liệu.** Không mock API, không metric giả, không fixture nghiệp vụ. Trang Overview
-  cố ý không hiển thị con số nào.
-- **Không có `devOrigin` thật.** Hai env trong `wrangler.jsonc` giữ placeholder
-  `https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev`; pipeline sẽ fail closed tới khi điền subdomain
-  thật của account Cloudflare.
-- **Không có target deploy.** `package.json` không khai target `deploy` nào — staging/production
-  chưa được nối trong repo này.
-
-## Ghi chú
-
-- Nx tags: `type:composition`, `scope:llm-seller`, `runtime:edge`. App này không được import
-  implementation của Consumer hay của `llm-api`; dependency chỉ được đi qua contract/API.
-- `nuxt.config.ts` phát warning `MODULE_TYPELESS_PACKAGE_JSON` (không có `"type": "module"` trong
-  `package.json`) — vô hại, cùng hình dạng với các app Nuxt khác trong repo.
+- [`docs/applications/llm-seller/README.md`](../../docs/applications/llm-seller/README.md) — component doc; [`01-architecture.md`](../../docs/applications/llm-seller/01-architecture.md) (composition, ranh giới ownership), [`02-requirements.md`](../../docs/applications/llm-seller/02-requirements.md), [`03-operations.md`](../../docs/applications/llm-seller/03-operations.md).
+- Bounded context tiêu thụ theo composition (catalog → [`docs/domains/README.md`](../../docs/domains/README.md) §2): [`llm-seller-tenant`](../../docs/domains/llm-seller-tenant/README.md), [`llm-seller-governance`](../../docs/domains/llm-seller-governance/README.md), [`llm-seller-pricing`](../../docs/domains/llm-seller-pricing/README.md), [`llm-marketplace`](../../docs/domains/llm-marketplace/README.md).
+- [`libs/ui-app-shell/README.md`](../../libs/ui-app-shell/README.md) — shell UI mà app dựng trên đó.
+- [`docs/architecture/01-architecture.md`](../../docs/architecture/01-architecture.md) — topology deploy và ranh giới hệ thống.
