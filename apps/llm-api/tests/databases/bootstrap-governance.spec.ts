@@ -129,7 +129,7 @@ function runGovernance(env: Record<string, string>) {
   });
 }
 
-/** Trích dòng máy đọc `KEY=value` cuối cùng từ stdout. */
+/** Trích dòng máy đọc `KEY=value` từ stdout (mỗi key in đúng một dòng). */
 function stdoutLine(stdout: string, key: string): string {
   const line = stdout.split('\n').find((candidate) => candidate.startsWith(`${key}=`));
   if (line === undefined) {
@@ -636,18 +636,70 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     ).rejects.toThrow(/owner differs/u);
   });
 
-  it('blocks reseeding when the owner membership row is removed out-of-band', async () => {
+  it('re-provisions the owner membership when the seeded gateway predates the membership contract (converge on empty membership state)', async () => {
     const teardown = await db.connectAsMigrator('gateway');
     try {
+      // Mô phỏng DB được seed bởi runner 8a cũ (trước hợp đồng membership):
+      // tenant + governance state còn nguyên, bảng membership rỗng. Trạng thái
+      // này không phân biệt được với "row bị xoá ngoài bề mặt" ở mức data —
+      // runner converge về hợp đồng bằng cách provision lại.
       await teardown.query('DELETE FROM llm_seller.seller_memberships WHERE tenant_id = $1', [
         SELLER_TENANT_ID,
       ]);
     } finally {
       await teardown.end();
     }
-    // Membership bị xoá ngoài bề mặt provisioning: bootstrap fail-closed thay vì
-    // resurrect — đúng ranh giới "không hồi sinh" của mọi surface bootstrap.
-    await expect(runGovernance(governanceEnv())).rejects.toThrow(/owner membership is gone/u);
+
+    const result = await runGovernance(governanceEnv());
+    const summary = stdoutLine(result.stdout, 'SELLER_GOVERNANCE_RESULT');
+    expect(summary).toContain('"outcome":"created"');
+    expect(summary).toContain('"ownerMembership":"created"');
+
+    const client = await db.connectAsMigrator('gateway');
+    try {
+      const memberships = await client.query<{ id: string; actor: string; status: string }>(
+        'SELECT id, actor, status FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toEqual([
+        { id: SELLER_OWNER_MEMBERSHIP_ID, actor: OWNER_SUB, status: 'active' },
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('fails closed when membership rows exist but none is canonical and the owner has no active membership', async () => {
+    const teardown = await db.connectAsMigrator('gateway');
+    try {
+      // Row canonical bị thay bằng row lạ của actor khác: đây là thay đổi ngoài
+      // bề mặt provisioning thật sự (bootstrap không bao giờ ghi row kiểu này)
+      // — fail-closed, không converge qua row lạ.
+      await teardown.query('DELETE FROM llm_seller.seller_memberships WHERE tenant_id = $1', [
+        SELLER_TENANT_ID,
+      ]);
+      await teardown.query(
+        `INSERT INTO llm_seller.seller_memberships (tenant_id, id, actor, status, created_at, revoked_at, revoked_by)
+         VALUES ($1, 'seller-membership-stray', 'actor-out-of-band', 'active', $2, NULL, NULL)`,
+        [SELLER_TENANT_ID, Date.now()],
+      );
+    } finally {
+      await teardown.end();
+    }
+    await expect(runGovernance(governanceEnv())).rejects.toThrow(
+      /membership state was changed outside the provisioning surface/u,
+    );
+    const client = await db.connectAsMigrator('gateway');
+    try {
+      // Fail-closed để nguyên durable state: row lạ vẫn là row duy nhất.
+      const memberships = await client.query<{ id: string }>(
+        'SELECT id FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toEqual([{ id: 'seller-membership-stray' }]);
+    } finally {
+      await client.end();
+    }
   });
 
   it('flips eligibility to false under a new restriction and never exempts the first_party classification', async () => {

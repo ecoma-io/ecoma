@@ -267,11 +267,18 @@ async function upsertOwnerMembership(
   if (ownerHasActive) {
     return 'existing';
   }
-  if (tenantOutcome === 'existing') {
+  if (tenantOutcome === 'existing' && memberships.length > 0) {
+    // Có membership rows nhưng không row canonical nào và owner không còn
+    // active: state bị thay đổi ngoài bề mặt provisioning (bootstrap cũ hơn
+    // hợp đồng membership không bao giờ ghi row vào bảng này) — fail-closed.
     fail(
-      'canonical tenant is seeded but its owner membership is gone; membership was removed outside the provisioning surface and bootstrap never reseeds it — restore through the seller membership surface',
+      'the tenant holds membership rows but none is the canonical owner membership and the owner has no active membership; membership state was changed outside the provisioning surface — restore the canonical row manually, bootstrap never mutates existing membership rows',
     );
   }
+  // Còn lại (tenant vừa tạo, HOẶC tenant đã seed nhưng bảng membership rỗng —
+  // DB được seed bởi runner 8a cũ hơn hợp đồng membership): converge về hợp
+  // đồng bằng cách provision lần đầu. Hai trạng thái này không phân biệt được
+  // ở mức row data và trạng thái rỗng không mang audit trail để "hồi sinh".
   // Domain op là đường code duy nhất: aggregate được dựng qua
   // `provisionMembership` rồi mới ghi bền vững, kèm đọc lại (read-back) theo
   // tiêu chí kiểm của bước 8a.
@@ -300,8 +307,13 @@ async function upsertOwnerMembership(
     ],
   );
   const readBack = inserted.rows[0];
+  if (readBack === undefined) {
+    // ON CONFLICT DO NOTHING nuốt insert: row canonical xuất hiện giữa SELECT
+    // và INSERT — một bootstrap chạy đồng thời đã ghi trước. Rerun sẽ thấy row
+    // đó qua đường read làm 'existing' — không phải trạng thái divergent.
+    fail('canonical owner membership row appeared during a concurrent bootstrap; rerun the step');
+  }
   if (
-    readBack === undefined ||
     readBack.id !== provisioned.value.id ||
     readBack.actor !== provisioned.value.actor ||
     readBack.status !== provisioned.value.status
