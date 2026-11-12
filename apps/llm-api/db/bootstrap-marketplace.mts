@@ -69,9 +69,17 @@ interface MarketplaceSeedInput {
   readonly verdict: SellerOperationalEligibility | undefined;
 }
 
-/** Smoke probe GET {base}/v1/models — trả true khi HTTP 2xx. */
+/**
+ * Smoke probe GET {base}/v1/models — trả true khi HTTP 2xx.
+ *
+ * Base URL chấp nhận cả hai quy ước của upstream OpenAI-compatible: gốc
+ * (`https://host`) và có sẵn suffix `/v1` (`https://host/v1`) — suffix `/v1`
+ * bị strip trước khi ghép `v1/models`, không nhân đôi thành `/v1/v1/models`.
+ */
 async function probeUpstream(baseUrl: string, credentialPlaintext: string): Promise<boolean> {
-  const modelsUrl = new URL('v1/models', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+  const withoutV1Suffix = baseUrl.replace(/\/v1\/?$/u, '/');
+  const root = withoutV1Suffix.endsWith('/') ? withoutV1Suffix : `${withoutV1Suffix}/`;
+  const modelsUrl = new URL('v1/models', root);
   try {
     const response = await fetch(modelsUrl, {
       method: 'GET',
@@ -365,6 +373,14 @@ async function upsertCredential(
     if (sameHash.id !== credentialId) {
       fail(
         `credential hash already stored under another id ("${sameHash.id}"); credential identity is derived from the hash and must stay deterministic`,
+      );
+    }
+    // Hash trùng một credential đã revoke: rotation là một chiều (revoke cũ +
+    // tạo mới, không resurrect). Converge về cấu hình bằng cách "quay lại" key
+    // đã thu hồi sẽ âm thầm làm DB lệch config — fail-closed và yêu cầu key mới.
+    if (sameHash.revoked_at !== null) {
+      fail(
+        'the configured credential matches a credential that was already revoked; rotation is one-way and a revoked credential is never reactivated — configure a new credential plaintext',
       );
     }
     return { created: false, rotatedFrom: null };
