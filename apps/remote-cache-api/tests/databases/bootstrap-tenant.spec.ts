@@ -164,6 +164,11 @@ function expectedAuditDetailsSorted(): string[] {
   ].toSorted((a, b) => a.localeCompare(b));
 }
 
+/** Type guard cho kết quả `Promise.allSettled` — tránh cast lặp ở test concurrency. */
+function isFulfilled<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
+  return result.status === 'fulfilled';
+}
+
 /**
  * Một lần bootstrap bọc trong đúng transaction mà CLI thực hiện
  * (BEGIN → bootstrap → COMMIT, ROLLBACK khi lỗi), trên credential migrator
@@ -591,11 +596,28 @@ describe(`bootstrap of the canonical ${CANONICAL_TENANT_NAME} tenant on ${HARNES
     expect(auditDetailsSorted(audit)).toEqual(expectedAuditDetailsSorted());
   });
 
-  it('loses loudly when two concurrent runs rotate with different plaintexts (no silent double-active)', async () => {
-    // KHÔNG tuyên bố race-freedom cho rotation: với READ COMMITTED, bên thua
-    // trong hai lần chạy đồng thời với plaintext KHÁC nhau sẽ bị verify
-    // single-active từ chối (fail-loud, rollback toàn bộ) — hành vi đúng của
-    // hợp đồng, và test này ghim đúng hành vi đó.
+  it('keeps exactly one active key when two concurrent runs rotate with different plaintexts (failures are loud)', async () => {
+    // Hai transaction race trên cùng host project với hai plaintext khác nhau.
+    // Hợp đồng thật của `ensureFirstTrustedCiKey` (rotate-then-insert + verify
+    // fail-closed) chỉ bảo đảm KHÔNG BAO GIỜ hai key active và lần chạy thua
+    // phải fail-loud — không bảo đảm "đúng một rejection với message cụ thể".
+    // Dưới READ COMMITTED có BA kết cục hợp lệ, tất cả đều thoả hợp đồng:
+    // 1. Cả hai fulfilled — bên sau rotate key của bên trước một cách tuần tự
+    //    hoá (UPDATE revoke của bên sau thấy hàng đã commit của bên trước);
+    //    key active cuối cùng là của rotation CUỐI, key của rotation trước đã
+    //    bị revoke bởi lần chạy còn lại.
+    // 2. Một bên bị guard denial `expected exactly one active` — UPDATE revoke
+    //    của bên sau chặn trên lock của bên trước, không thấy được hàng mới
+    //    chèn, nên lúc verify thấy hai hàng active → fail-closed, rollback
+    //    toàn bộ.
+    // 3. Một bên bị CHECK `api_key_revoked_at_after_created_check` từ chối —
+    //    `revoked_at = now()` (mốc đầu transaction) của bên bắt đầu transaction
+    //    sớm hơn có thể <= `created_at` (DEFAULT now()) của hàng bên kia chèn;
+    //    DB vẫn giữ bất biến `revoked_at > created_at`, message khác hẳn nhưng
+    //    hành vi đúng.
+    // Không hợp lệ: 0 fulfilled (mỗi verify luôn thấy đúng hàng key của chính
+    // nó nên ít nhất một bên phải pass), rejection với message ngoài hai dạng
+    // trên, hay hai key active trong trạng thái cuối.
     await db.truncateData();
     await runBootstrapped(db, bootstrapInput(PLAINTEXT_1));
 
@@ -612,32 +634,61 @@ describe(`bootstrap of the canonical ${CANONICAL_TENANT_NAME} tenant on ${HARNES
       await clientB.end();
     }
 
-    const fulfilled = results.filter((r) => r.status === 'fulfilled');
-    const rejected = results.filter((r) => r.status === 'rejected');
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    const reason = (rejected[0] as PromiseRejectedResult).reason as Error;
-    expect(reason.message).toMatch(/expected exactly one active/u);
+    const fulfilled = results.filter(isFulfilled);
+    const rejectedReasons = results
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => r.reason);
 
-    // Trạng thái cuối: đúng MỘT key active (của bên thắng); hàng P1 revoked;
-    // hàng của bên thua đã rollback — tổng cộng 2 hàng.
+    // Mọi rejection (nếu có) phải là một trong hai hình thức từ chối có chủ
+    // đích của hợp đồng; lỗi khác (network, lập trình, undefined) làm test đỏ
+    // ngay tại đây — không nuốt.
+    for (const reason of rejectedReasons) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      expect(message).toMatch(
+        /expected exactly one active|api_key_revoked_at_after_created_check/u,
+      );
+    }
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+
+    // Kiểm authoritative bằng truy vấn DB — không suy từ số Promise rejection:
+    // đúng MỘT key active, thuộc một trong hai plaintext race (không bao giờ
+    // là plaintext P1 đã revoke ở bước setup).
     const keys = await queryKeys(db);
-    expect(keys).toHaveLength(2);
     const active = keys.filter((k) => k.revoked_at === null);
     expect(active).toHaveLength(1);
-    const winnerFulfilled = fulfilled[0] as PromiseFulfilledResult<
-      Awaited<ReturnType<typeof bootstrapCanonicalTenant>>
-    >;
-    expect(winnerFulfilled.value.key.result).toBe('rotated');
-    expect(active[0]?.id).toBe(winnerFulfilled.value.key.keyId);
-    // Bên thắng là P2 hay P3 tùy lịch thiếu — hash active phải thuộc tập hai
-    // plaintext đó, không bao giờ là plaintext đã revoke.
-    expect([hashApiKey(PLAINTEXT_2), hashApiKey(PLAINTEXT_3)]).toContain(active[0]?.token_hash);
+    const activeRow = active[0];
+    expect([hashApiKey(PLAINTEXT_2), hashApiKey(PLAINTEXT_3)]).toContain(activeRow?.token_hash);
+    const p1Row = keys.find((k) => k.token_hash === hashApiKey(PLAINTEXT_1));
+    expect(p1Row).toBeDefined();
+    expect(p1Row?.revoked_at).not.toBeNull();
 
-    // Audit: đúng event của lần setup + event của bên thắng; bên thua không
-    // kịp ghi audit (throw trước câu INSERT audit).
+    // Mỗi lần chạy fulfilled đều là rotation: bên vào lock trước revoke P1,
+    // bên vào sau revoke key đã commit của bên trước — đúng ở cả ba kết cục.
+    for (const run of fulfilled) {
+      expect(run.value.key.result).toBe('rotated');
+    }
+
+    // Key active phải là key của một trong hai lần chạy race. Kết cục 2/3
+    // (đúng một bên thắng): điều này tức là key active đúng bằng key của bên
+    // thắng, hàng của bên thua đã rollback. Kết cục 1 (cả hai fulfilled): bên
+    // thắng là rotation CUỐI.
+    const racedKeyIds = fulfilled.map((run) => run.value.key.keyId);
+    expect(racedKeyIds).toContain(activeRow?.id);
+
+    // Key của các lần chạy race không nắm trạng thái active: kết cục 1 — hàng
+    // tồn tại và đã bị revoke bởi lần chạy thắng (last rotation wins); kết cục
+    // 2/3 — hàng của bên thua đã rollback nên không còn hàng nào ngoài danh
+    // sách này. Cả hai đều đúng hợp đồng "không bao giờ hai key active".
+    const supersededIds = racedKeyIds.filter((id) => id !== activeRow?.id);
+    expect(keys.filter((k) => supersededIds.includes(k.id) && k.revoked_at !== null).length).toBe(
+      supersededIds.length,
+    );
+
+    // Audit: event của lần setup + đúng một event cho mỗi lần chạy fulfilled;
+    // lần chạy bị từ chối chưa kịp INSERT audit (throw tại verify hoặc trước
+    // đó do constraint) và ROLLBACK xoá mọi ghi của nó.
     const audit = await queryBootstrapAuditEvents(db);
-    expect(audit).toHaveLength(2);
+    expect(audit).toHaveLength(1 + fulfilled.length);
   });
 
   it('rejects invalid owner_sub without touching the database', async () => {
