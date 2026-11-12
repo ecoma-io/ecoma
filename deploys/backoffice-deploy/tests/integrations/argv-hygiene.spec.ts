@@ -201,7 +201,11 @@ printf '%s\\n' "ALTER ROLE argv_hygiene_missing_role WITH PASSWORD '$quoted';" |
     // --- 3. Canary: chứng minh sweep /proc THẬT SỰ bắt được argv. ------------
     // argv `sh -c` chứa canary trong comment — watcher phải thấy ít nhất một
     // hit (assert ở `it` riêng: thiếu hit là harness hỏng, không phải pass).
-    await created.runScript(`sleep 0.4 # ${canary}`);
+    // Window 8s: một vòng quét /proc toàn máy (một readFile mỗi pid) dưới tải
+    // CI — nhiều suite chạy song song — có thể vượt xa 0.4s, canary sống ngắn
+    // thì thoát khỏi mọi vòng quét (đo được: run 43294456886 đỏ ở 3 package,
+    // cùng cơ chế). Window phải trội hơn chu kỳ quét xấu nhất — không tối ưu xuống.
+    await created.runScript(`sleep 8 # ${canary}`);
 
     // --- 4. Thu dữ liệu catalog (qua shim — argv của những call này cũng bị
     //    ghi vào log và bị quét; SQL không chứa secret nào). Query catalog hỏng
