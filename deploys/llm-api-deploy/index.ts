@@ -1,6 +1,6 @@
 /**
  * Chương trình Pulumi của `llm-api-deploy` — deploy unit của `apps/llm-api`
- * (data plane LLM, Rust workers-rs/WASM qua Hyperdrive) ở LAN LOCAL deployment
+ * (data plane LLM, TypeScript qua Hyperdrive) ở LAN LOCAL deployment
  * (issue #22).
  *
  * Pattern: mirror `deploys/remote-cache-api-deploy/index.ts` (WIC — MỘT worker
@@ -381,8 +381,8 @@ const bootstrapMarketplace = new command.local.Command(
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
  * entrypoint script. KHÔNG build gì bên trong: repo (kèm bundle `build/` đã
- * build từ target `build` của Nx trên host — worker-build sinh `build/index.js`
- * + `build/index.wasm`) được mount lúc runtime, và `wrangler dev` chạy từ mount
+ * build từ target `build` của Nx trên host — esbuild sinh `build/index.js`)
+ * được mount lúc runtime, và `wrangler dev` chạy từ mount
  * đó. Image chỉ là "phòng chạy" (pattern auth/remote-cache).
  */
 const wicImageTag = dockerResourceName(ns, 'llm-api-wic') + ':local';
@@ -512,7 +512,7 @@ const wic = new docker.Container(
         containerPath: '/repo',
         readOnly: true,
       },
-      // Bundle `build/` của app (worker-build: `index.js` + `index.wasm`): repo
+      // Bundle `build/` của app (`index.js` do target `build` của Nx sinh): repo
       // mount read-only không chứa bundle (build trên host bởi target `build`
       // của Nx), mount bind trực tiếp thư mục build đã build (ro: workerd chỉ
       // ĐỌC bundle; build lại bundle trên host là thay đổi nội dung mount).
