@@ -16,9 +16,10 @@
  * `authenticated=false` → lựa chọn đi vào cookie app, không đụng preference của
  * tài khoản.
  *
- * Banner preview cũng có ở đây, với lý do giống: adapter thật chưa có, và cả ba
- * trang đều đang nói chuyện với dữ liệu preview. Không có nó thì `/consent` trông
- * như một màn hình uỷ quyền thật.
+ * Banner preview cũng có ở đây, nhưng chỉ nói về **dữ liệu**: dưới `nuxt dev`
+ * mode `mock`, adapter preview ghép fixtures dữ liệu lên auth thật — ba trang
+ * này phải nói rõ rằng số liệu hiển thị là preview, nếu không `/consent` trông
+ * như một màn hình uỷ quyền thật đang vận hành dữ liệu thật.
  *
  * Nền tối hơn layout tài khoản là chủ ý: các trang này là "cửa", và độ tương phản
  * với trang đích khiến người dùng hiểu mình đang ở đâu.

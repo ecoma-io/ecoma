@@ -24,13 +24,17 @@
  * - `/consent` context → `POST /api/consent/context`.
  * - `/consent` decide → `POST /api/consent/decide`.
  *
- * ## Các luồng chưa có đường server — từ chối, không giả
+ * ## Security — chưa có đường backend, từ chối tường minh
  *
- * Các thao tác dữ liệu tài khoản (profile, emails, sessions, applications…) và
- * các route còn lại của mock **chưa có BFF thật**: adapter này vẫn là mock cho
- * phần đó và `isPreview` vẫn `true`. Đây là một sự thật phải nói lên được ở UI
- * (banner Preview data) chứ không phải một "fake success": chỉ các luồng đã
- * nối ở trên mới là đường thật.
+ * Passkey, TOTP và mã khôi phục **chưa có route BFF**: `securityCapabilities`
+ * trả `false` cho cả ba, và bốn phương thức của `AccountSecurityPort` từ chối
+ * tường minh (đọc ném lỗi có message ổn định, ghi trả `Result` lỗi) thay vì
+ * trả dữ liệu minh hoạ. UI đọc capabilities trước để render trạng thái "chưa
+ * khả dụng" — không có hành động nào chỉ thành công được qua dữ liệu giả.
+ *
+ * ⚠️ Adapter này **không import `mock-adapter.ts`**: ở mode preview (`nuxt dev`)
+ * dữ liệu mock được ghép lên adapter thật ở `preview-adapter.ts`, nên artifact
+ * production không chứa đường mock nào cho data domain của account.
  *
  * ⚠️ **Không giữ dữ liệu nhạy cảm qua trang**: giá trị cookie đọc b indirectly
  * qua `$fetch` với `credentials: 'include'` (browser tự gắn) và CSRF token
@@ -47,12 +51,15 @@ import type {
   ConsentContext,
   LoginChallenge,
   NotificationPreferences,
+  Passkey,
   PrivacyRequest,
   PrivacyRequestKind,
+  RecoveryCodesState,
   Result,
+  SecurityCapabilities,
+  TotpState,
 } from './types';
 import { isAccountLocale } from '../i18n/locale-registry';
-import { createMockAccountAdapter, type MockAdapterOptions } from './mock-adapter';
 
 /**
  * Nhãn hiển thị cho phiên khi server không có dữ liệu client (v1 của
@@ -133,6 +140,18 @@ function requestFailed(operation: string, status: number): string {
   return `${operation} failed with ${status}`;
 }
 
+/**
+ * Lỗi transport của thao tác **ghi** khi fetch bị từ chối (mạng đứt, BFF chết).
+ * Ghi trả `Result` — hợp đồng port nói `Result` là kênh thất bại duy nhất của
+ * ghi (mục đích của chính `Result`: "nhánh hỏng không bị bỏ qua") — nên một
+ * rejection không được phép thoát ra ngoài handler của trang: handler ghi chỉ
+ * bắt `Result`, một throw lọt qua là unhandled rejection không trạng thái nào.
+ * Message giữ đúng hình dạng `requestFailed`.
+ */
+function writeTransportFailed(operation: string): string {
+  return `${operation} failed with network error`;
+}
+
 /** Đọc JSON body của một response, `undefined` khi body không phải JSON. */
 async function readJsonBody(response: Response): Promise<unknown> {
   return response.json().catch(() => undefined);
@@ -142,35 +161,45 @@ async function readJsonBody(response: Response): Promise<unknown> {
 const OTP_TTL_UI_SECONDS = 600;
 
 /**
- * Adapter thật cho các luồng đã nối, mock cho phần còn lại.
+ * Adapter thật — mọi phương thức của cả ba port đều nối BFF thật hoặc từ chối
+ * tường minh, không mượn gì từ mock.
  *
- * ⚠️ **Cùng một `MockAdapterOptions`** với `createMockAccountAdapter` — các
- * test/UI preview dựng mock tùy chỉnh được, real adapter chỉ thay các luồng
- * đã nối bên trên lớp đó.
- *
- * @param options Tuỳ chỉnh của lớp mock bên dưới (test/UI preview).
- * @param preview `isPreview` **dẫn xuất** — do điểm chọn adapter truyền từ mode
- *                + domain coverage, không phải cờ hardcode. Ở mode `real` hôm
- *                nay mọi domain dữ liệu vẫn mock bên trong nên cờ là `true`;
- *                PR4 wire từng domain sẽ chuyển slice đó sang đường thật và cờ
- *                tự đúng theo — banner tắt đúng khi domain cuối cùng hết mock,
- *                không cần đụng UI.
+ * Dữ liệu tài khoản và auth đi qua các route BFF đã liệt kê ở đầu file; security
+ * chưa có route nên từ chối rõ ràng (xem phần "Security"). Không có tham số
+ * tuỳ chỉnh: một adapter thật không có "chế độ mock bên trong" — dữ liệu preview
+ * được ghép ở {@link createPreviewAccountAdapter}, không ở đây.
  */
-export function createServerAccountAdapter(
-  options: MockAdapterOptions = {},
-  preview = true,
-): AccountAdapter {
-  const mock = createMockAccountAdapter(options);
+export function createServerAccountAdapter(): AccountAdapter {
+  /**
+   * Email đang chờ verify của phiên — holder nội bộ, không storage. Khai báo
+   * trong closure của factory (không module-level): trên SSR factory chạy
+   * **mỗi request một lần**, trên client mỗi tab một instance — phạm vi của
+   * biến đúng bằng phạm vi sống của một "phiên adapter". Ở module-level, hai
+   * request SSR đồng thời sẽ dùng chung biến — rò email/handle giữa hai
+   * người dùng, đúng thứ invariant 12 cấm.
+   *
+   * Không `useState`, không `localStorage` — chạm storage là đường "lưu thông
+   * tin xác thực" mà `01-architecture.md` §4 của app account không cho (chỉ
+   * lưu hash session ở server).
+   */
+  let pendingLoginEmail: string | undefined;
+
+  /**
+   * Continuation handle đang chờ verify của phiên — cùng lớp giữ với
+   * `pendingLoginEmail` (closure, không storage): `challenge` nhớ nó khi UI
+   * gửi vào, `verify` forward cho BFF để server so binding và dựng
+   * `confirmUrl`. Không giữ ở đây thì BFF không bao giờ thấy handle ⇒ verify
+   * luôn rơi nhánh `no_continuation` dù issuer đã cấu hình đúng.
+   */
+  let pendingContinuationHandle: string | undefined;
 
   return {
-    ...mock,
-
     /**
-     * Dẫn xuất từ mode + domain coverage (tham số {@link preview}) — xem JSDoc
-     * của factory. Không hardcode ở đây: hardcode làm banner nói dối ngay khi
-     * một domain đầu tiên chuyển sang đường thật.
+     * `false` literal — mọi thứ adapter này trả về đến từ BFF thật hoặc là một
+     * refusal tường minh. Banner "preview data" chỉ dành cho dữ liệu mock của
+     * `preview-adapter.ts`, vốn ghép fixtures lên adapter này dưới `nuxt dev`.
      */
-    isPreview: preview,
+    isPreview: false,
 
     /**
      * Luồng challenge làm một request thật; response luôn `204` bất kể kết quả
@@ -372,6 +401,45 @@ export function createServerAccountAdapter(
     },
 
     /**
+     * Security port — chưa có route BFF cho passkey/TOTP/mã khôi phục, nên cả
+     * ba năng lực là `false` và bốn phương thức **từ chối tường minh**:
+     *
+     * - Đọc (`listPasskeys`, `getTotpState`, `getRecoveryCodesState`) ném lỗi
+     *   có message ổn định — UI bắt nó và hiển thị trạng thái unavailable;
+     *   message là chữ ký contract, không đổi tuỳ ý.
+     * - Ghi (`removePasskey`) trả `Result` lỗi — không bao giờ `ok: true` mà
+     *   không có một thao tác backend thật đứng sau (no fake success,
+     *   `05-code-architecture.md` §5).
+     *
+     * Khi BFF có route cho một năng lực, bật nó nghĩa là đổi capability thành
+     * `true` **và** hiện thực method bằng đường thật — một trong hai đổi một
+     * mình là regression (bảng điều khiển bật hành động không có backend, hoặc
+     * capability nói dối về năng lực).
+     */
+    securityCapabilities: {
+      passkeys: false,
+      totp: false,
+      'recovery-codes': false,
+    } satisfies SecurityCapabilities,
+
+    listPasskeys: async (): Promise<readonly Passkey[]> => {
+      throw new Error('passkeys unavailable: no backend capability');
+    },
+
+    removePasskey: async (): Promise<Result<void>> => ({
+      ok: false,
+      reason: 'passkeys unavailable: no backend capability',
+    }),
+
+    getTotpState: async (): Promise<TotpState> => {
+      throw new Error('totp unavailable: no backend capability');
+    },
+
+    getRecoveryCodesState: async (): Promise<RecoveryCodesState> => {
+      throw new Error('recovery codes unavailable: no backend capability');
+    },
+
+    /**
      * Đọc profile thật (`GET /api/profile`). `profile: null` → profile rỗng
      * ("chưa nhập lần nào" là trạng thái hợp lệ, không phải lỗi); 401 → ném
      * (UI phải đưa về luồng login; cùng hợp đồng với mọi method đọc).
@@ -381,9 +449,13 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('profile read', response.status));
       }
-      const body = (await readJsonBody(response)) as {
-        profile?: { displayName?: unknown; avatarUrl?: unknown } | null;
-      };
+      const body = (await readJsonBody(response)) as
+        | { profile?: { displayName?: unknown; avatarUrl?: unknown } | null }
+        | undefined;
+      if (body === undefined) {
+        // 200 không đọc được body là lỗi đọc, không phải profile rỗng.
+        throw new Error(requestFailed('profile read', response.status));
+      }
       const profile = body.profile;
       // `avatarUrl: null` của server ↔ `undefined` của hợp đồng UI ("không có").
       return {
@@ -397,16 +469,26 @@ export function createServerAccountAdapter(
      * hình dạng là lỗi nghiệp vụ caller tự sửa được, không phải exception.
      */
     updateProfile: async (input): Promise<Result<AccountProfile>> => {
-      const response = await patchJson('/api/profile', {
-        displayName: input.displayName,
-        ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl }),
-      });
+      let response: Response;
+      try {
+        response = await patchJson('/api/profile', {
+          displayName: input.displayName,
+          ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl }),
+        });
+      } catch {
+        return { ok: false, reason: writeTransportFailed('profile update') };
+      }
       if (!response.ok) {
         return { ok: false, reason: requestFailed('profile update', response.status) };
       }
-      const body = (await readJsonBody(response)) as {
-        profile?: { displayName?: unknown; avatarUrl?: unknown } | null;
-      };
+      const body = (await readJsonBody(response)) as
+        | { profile?: { displayName?: unknown; avatarUrl?: unknown } | null }
+        | undefined;
+      if (body === undefined) {
+        // 200 với body không đọc được là lỗi, không phải "profile rỗng" — chỉ
+        // `profile: null` của JSON hợp lệ mới là trạng thái chưa-có-dữ-liệu.
+        return { ok: false, reason: requestFailed('profile update', response.status) };
+      }
       return {
         ok: true,
         value: {
@@ -424,8 +506,8 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('email list', response.status));
       }
-      const body = (await readJsonBody(response)) as { emails?: unknown };
-      if (!Array.isArray(body.emails)) {
+      const body = (await readJsonBody(response)) as { emails?: unknown } | undefined;
+      if (body === undefined || !Array.isArray(body.emails)) {
         throw new Error(requestFailed('email list', response.status));
       }
       // `AccountEmailView` của server có `isSignIn` (không phải
@@ -462,11 +544,22 @@ export function createServerAccountAdapter(
 
     /** Thêm email (`POST /api/emails`) — anti-enumeration: mọi nhánh là 200. */
     addEmail: async (address): Promise<Result<AccountEmail>> => {
-      const response = await postJson('/api/emails', { email: address });
+      let response: Response;
+      try {
+        response = await postJson('/api/emails', { email: address });
+      } catch {
+        return { ok: false, reason: writeTransportFailed('email add') };
+      }
       if (!response.ok) {
         return { ok: false, reason: requestFailed('email add', response.status) };
       }
-      const body = (await readJsonBody(response)) as { email?: unknown };
+      const body = (await readJsonBody(response)) as { email?: unknown } | undefined;
+      if (body === undefined) {
+        // 200 không đọc được body **khác** với nhánh im lặng `email: null` của
+        // route (anti-enumeration — đã tồn tại/suppressed): JSON rỗng/không đọc
+        // được thì không có gì để dựng placeholder, trả lỗi thay vì bịa hàng.
+        return { ok: false, reason: requestFailed('email add', response.status) };
+      }
       const row =
         typeof body.email === 'object' && body.email !== null
           ? (body.email as {
@@ -503,7 +596,12 @@ export function createServerAccountAdapter(
 
     /** Cấp lại mã verify (`POST /api/emails/:id/resend`) — im lặng 200 mọi nhánh. */
     resendVerification: async (id): Promise<Result<void>> => {
-      const response = await postJson(`/api/emails/${encodeURIComponent(id)}/resend`, {});
+      let response: Response;
+      try {
+        response = await postJson(`/api/emails/${encodeURIComponent(id)}/resend`, {});
+      } catch {
+        return { ok: false, reason: writeTransportFailed('email resend') };
+      }
       if (!response.ok) {
         return { ok: false, reason: requestFailed('email resend', response.status) };
       }
@@ -516,7 +614,12 @@ export function createServerAccountAdapter(
      * mọi 400 khác là sai hình dạng id — không xảy ra với id lấy từ list.
      */
     removeEmail: async (id): Promise<Result<void>> => {
-      const response = await deleteJson(`/api/emails/${encodeURIComponent(id)}`);
+      let response: Response;
+      try {
+        response = await deleteJson(`/api/emails/${encodeURIComponent(id)}`);
+      } catch {
+        return { ok: false, reason: writeTransportFailed('email remove') };
+      }
       if (response.status === 400) {
         const detail = (await readJsonBody(response)) as { statusMessage?: unknown } | undefined;
         if (detail?.statusMessage === 'last_verified_email') {
@@ -543,8 +646,8 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('session list', response.status));
       }
-      const body = (await readJsonBody(response)) as { sessions?: unknown };
-      if (!Array.isArray(body.sessions)) {
+      const body = (await readJsonBody(response)) as { sessions?: unknown } | undefined;
+      if (body === undefined || !Array.isArray(body.sessions)) {
         throw new Error(requestFailed('session list', response.status));
       }
       const mapped: AccountSession[] = [];
@@ -586,7 +689,12 @@ export function createServerAccountAdapter(
      * muốn đã đạt, cùng tinh thần với revokeApplication.
      */
     revokeSession: async (id): Promise<Result<void>> => {
-      const response = await deleteJson(`/api/sessions/${encodeURIComponent(id)}`);
+      let response: Response;
+      try {
+        response = await deleteJson(`/api/sessions/${encodeURIComponent(id)}`);
+      } catch {
+        return { ok: false, reason: writeTransportFailed('session revoke') };
+      }
       if (response.status === 404) {
         return { ok: true, value: undefined };
       }
@@ -607,8 +715,8 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('application list', response.status));
       }
-      const body = (await readJsonBody(response)) as { applications?: unknown };
-      if (!Array.isArray(body.applications)) {
+      const body = (await readJsonBody(response)) as { applications?: unknown } | undefined;
+      if (body === undefined || !Array.isArray(body.applications)) {
         throw new Error(requestFailed('application list', response.status));
       }
       const mapped: ConnectedApplication[] = [];
@@ -644,7 +752,12 @@ export function createServerAccountAdapter(
 
     /** Thu hồi ứng dụng (`DELETE /api/applications/:id`) — proxy qua auth. */
     revokeApplication: async (id): Promise<Result<void>> => {
-      const response = await deleteJson(`/api/applications/${encodeURIComponent(id)}`);
+      let response: Response;
+      try {
+        response = await deleteJson(`/api/applications/${encodeURIComponent(id)}`);
+      } catch {
+        return { ok: false, reason: writeTransportFailed('application revoke') };
+      }
       if (response.status === 404) {
         // Đã revoked hoặc không còn — trạng thái cuối client muốn đã đạt.
         return { ok: true, value: undefined };
@@ -668,7 +781,10 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('preferences read', response.status));
       }
-      const body = (await readJsonBody(response)) as { preferences?: unknown };
+      const body = (await readJsonBody(response)) as { preferences?: unknown } | undefined;
+      if (body === undefined) {
+        throw new Error(requestFailed('preferences read', response.status));
+      }
       const row =
         typeof body.preferences === 'object' && body.preferences !== null
           ? (body.preferences as { locale?: unknown; timezone?: unknown; colorMode?: unknown })
@@ -693,12 +809,20 @@ export function createServerAccountAdapter(
 
     /** Partial update preference (`PATCH /api/preferences`). */
     updatePreferences: async (patch): Promise<Result<AccountPreferences>> => {
-      const response = await patchJson('/api/preferences', patch);
+      let response: Response;
+      try {
+        response = await patchJson('/api/preferences', patch);
+      } catch {
+        return { ok: false, reason: writeTransportFailed('preferences update') };
+      }
       if (!response.ok) {
         return { ok: false, reason: requestFailed('preferences update', response.status) };
       }
       // Route trả hàng sau ghi — parse bằng cùng luật đọc ở trên.
-      const body = (await readJsonBody(response)) as { preferences?: unknown };
+      const body = (await readJsonBody(response)) as { preferences?: unknown } | undefined;
+      if (body === undefined) {
+        return { ok: false, reason: requestFailed('preferences update', response.status) };
+      }
       const row =
         typeof body.preferences === 'object' && body.preferences !== null
           ? (body.preferences as { locale?: unknown; timezone?: unknown; colorMode?: unknown })
@@ -722,7 +846,10 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('notification preferences read', response.status));
       }
-      const body = (await readJsonBody(response)) as { notifications?: unknown };
+      const body = (await readJsonBody(response)) as { notifications?: unknown } | undefined;
+      if (body === undefined) {
+        throw new Error(requestFailed('notification preferences read', response.status));
+      }
       const row = body.notifications as
         | {
             serviceEmail?: unknown;
@@ -739,7 +866,15 @@ export function createServerAccountAdapter(
 
     /** Ghi ý định nhận thông báo (`PATCH /api/notifications`, partial). */
     updateNotificationPreferences: async (patch): Promise<Result<NotificationPreferences>> => {
-      const response = await patchJson('/api/notifications', patch);
+      // Chỉ bọc lệnh PATCH: nếu PATCH thành công mà reload GET sau đó hỏng,
+      // ghi đã xảy ra — ok:false sẽ nói dối về thao tác, throw (mà trang bắt)
+      // là trung thực hơn: UI hiện lỗi rồi reload thấy state đã lưu.
+      let response: Response;
+      try {
+        response = await patchJson('/api/notifications', patch);
+      } catch {
+        return { ok: false, reason: writeTransportFailed('notification preferences update') };
+      }
       if (!response.ok) {
         return {
           ok: false,
@@ -752,7 +887,10 @@ export function createServerAccountAdapter(
       if (!response2.ok) {
         throw new Error(requestFailed('notification preferences read', response2.status));
       }
-      const body = (await readJsonBody(response2)) as { notifications?: unknown };
+      const body = (await readJsonBody(response2)) as { notifications?: unknown } | undefined;
+      if (body === undefined) {
+        throw new Error(requestFailed('notification preferences read', response2.status));
+      }
       const row = body.notifications as
         | { serviceEmail?: unknown; productUpdates?: unknown; marketing?: unknown }
         | undefined;
@@ -777,8 +915,8 @@ export function createServerAccountAdapter(
       if (!response.ok) {
         throw new Error(requestFailed('privacy request list', response.status));
       }
-      const body = (await readJsonBody(response)) as { requests?: unknown };
-      if (!Array.isArray(body.requests)) {
+      const body = (await readJsonBody(response)) as { requests?: unknown } | undefined;
+      if (body === undefined || !Array.isArray(body.requests)) {
         throw new Error(requestFailed('privacy request list', response.status));
       }
       const mapped: PrivacyRequest[] = [];
@@ -813,7 +951,12 @@ export function createServerAccountAdapter(
 
     /** Nộp privacy request (`POST /api/privacy-requests`). */
     submitPrivacyRequest: async (kind): Promise<Result<PrivacyRequest>> => {
-      const response = await postJson('/api/privacy-requests', { kind });
+      let response: Response;
+      try {
+        response = await postJson('/api/privacy-requests', { kind });
+      } catch {
+        return { ok: false, reason: writeTransportFailed('privacy request submit') };
+      }
       if (response.status === 429) {
         return { ok: false, reason: 'too many requests' };
       }
@@ -846,24 +989,3 @@ export function createServerAccountAdapter(
     },
   };
 }
-
-/**
- * Email đang chờ verify của phiên — holder nội bộ, không storage.
- *
- * ⚠️ Module-local ở client là biến theo tab (mỗi tab một copy, không chia sẻ
- * qua request hay giữa các tab). Không `useState`, không `localStorage` —
- * chạm storage là đường "lưu thông tin xác thực" mà `01-architecture.md` §4
- * của app account không cho (chỉ lưu hash session ở server).
- * Khai báo ở mức module nhưng định nghĩa trước khi factory dùng; một `let`
- * module được hoist an toàn cho closure đọc sau này.
- */
-let pendingLoginEmail: string | undefined;
-
-/**
- * Continuation handle đang chờ verify của phiên — cùng lớp giữ với
- * `pendingLoginEmail` (module-local theo tab, không storage): `challenge` nhớ
- * nó khi UI gửi vào, `verify` forward cho BFF để server so binding và dựng
- * `confirmUrl`. Không giữ ở đây thì BFF không bao giờ thấy handle ⇒ verify
- * luôn rơi nhánh `no_continuation` dù issuer đã cấu hình đúng.
- */
-let pendingContinuationHandle: string | undefined;

@@ -109,6 +109,7 @@ const messages: AccountMessages = {
     recoveryCodesRegenerate: '生成新代码',
     recoveryCodesReveal: '显示代码',
     recoveryCodesWarning: '这些代码只显示一次。关闭前请妥善保存。',
+    capabilityUnavailable: '暂不可用——后端尚未提供此功能。',
   },
 
   sessions: {

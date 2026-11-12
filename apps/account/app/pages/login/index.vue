@@ -12,8 +12,9 @@
  *
  * ⚠️ **Bước nhập mã chỉ render khi adapter nói `'code'`.** Tài liệu chưa chốt cơ
  * chế challenge (`01-architecture.md` §10), nên UI không đoán: `LoginChallenge.mode`
- * là đầu vào, và mặc định của bản mock là `email-link` — chế độ không có bước nhập
- * mã. `login-flow.spec.ts` chạy cả hai chế độ để chứng minh điều đó.
+ * là đầu vào. BFF thật trả `mode: 'code'` cho mọi challenge; mode `'email-link'`
+ * chỉ còn là kịch bản của adapter test — `login-flow.spec.ts` chạy cả hai chế độ
+ * để chứng minh UI không tự đoán mode.
  *
  * ⚠️ **Continuation handle không bị đụng.** `?handle=X` do `auth` đưa tới và được
  * chuyển tiếp nguyên vẹn trong `requestLoginChallenge`, không đọc, không diễn
@@ -149,9 +150,11 @@ async function submitCode(): Promise<void> {
       confirmUrl = verified.value.confirmUrl;
     }
   } catch {
-    // Lỗi ném (network/transport) cũng là verify thất bại — không để unhandled
-    // rejection; người dùng phải thấy trạng thái lỗi để có thể retry.
-    codeFailed.value = true;
+    // Lỗi ném (network/transport) **không phải** "mã sai": hiện "mã không đúng"
+    // sẽ mời người dùng thử đi thử lại với một backend đang chết. Dùng khối
+    // lỗi chung (`requestFailed`) — cùng khối với `requestChallenge` — để người
+    // dùng thấy lỗi hệ thống và retry được; mã chưa tiêu thụ, retry vẫn hợp lệ.
+    requestFailed.value = true;
     codeAccepted.value = false;
   } finally {
     submitting.value = false;

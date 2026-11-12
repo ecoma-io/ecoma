@@ -16,16 +16,26 @@
  * ⚠️ MFA **không** được trình bày là bắt buộc: trạng thái TOTP chỉ cho biết đang
  * bật hay tắt, và câu mô tả không hứa bảo vệ bắt buộc.
  *
- * ⚠️ Bật TOTP và sinh mã khôi phục **không có** trong adapter hiện tại: chúng cần
- * một challenge ngoài dải thiết bị để hoàn tất enrolment, và adapter chưa có
- * phương thức đó. Hai control ở đây bị vô hiệu hoạt động **kèm lý do hiển thị**,
- * thay vì giả vờ bấm được. Khi contract có, chỗ gắn là sẵn.
+ * ⚠️ **Năng lực security là bản đồ năng lực thật của backend, không phải cờ UI.**
+ * `adapter.securityCapabilities` nói năng lực nào có đường BFF hôm nay; phần
+ * tử `false` được render là trạng thái "chưa khả dụng" — không có danh sách,
+ * không có control — thay vì bày một hành động chỉ thành công được qua dữ liệu
+ * giả. Các loader bên dưới vẫn được tạo (hook không gọi có điều kiện được) nhưng
+ * trả giá trị giữ chỗ khi năng lực vắng mặt; giá trị đó **không bao giờ được
+ * render** vì nhánh unavailable chặn trước nó trong template.
  */
 const i18n = useI18n();
 const adapter = useAccountAdapter();
 const { formatDateTime, formatCount } = useAccountFormat();
 
-const { state: passkeys, reload: reloadPasskeys } = useAsyncState(() => adapter.listPasskeys());
+const capabilities = adapter.securityCapabilities;
+
+const { state: passkeys, reload: reloadPasskeys } = useAsyncState(() =>
+  capabilities.passkeys
+    ? adapter.listPasskeys()
+    : // Giữ chỗ, không bao giờ render — xem chú thích capabilities ở trên.
+      Promise.resolve([]),
+);
 
 /**
  * Ba khối còn lại là **một** object, không phải danh sách.
@@ -40,11 +50,19 @@ const { state: passkeys, reload: reloadPasskeys } = useAsyncState(() => adapter.
 const NEVER_EMPTY = (): false => false;
 
 const { state: totp, reload: reloadTotp } = useAsyncState(
-  () => adapter.getTotpState(),
+  () =>
+    capabilities.totp
+      ? adapter.getTotpState()
+      : // Giữ chỗ, không bao giờ render — xem chú thích capabilities ở trên.
+        Promise.resolve({ enabled: false, confirmedAt: undefined }),
   NEVER_EMPTY,
 );
 const { state: recovery, reload: reloadRecovery } = useAsyncState(
-  () => adapter.getRecoveryCodesState(),
+  () =>
+    capabilities['recovery-codes']
+      ? adapter.getRecoveryCodesState()
+      : // Giữ chỗ, không bao giờ render — xem chú thích capabilities ở trên.
+        Promise.resolve({ remaining: undefined }),
   NEVER_EMPTY,
 );
 
@@ -98,9 +116,22 @@ function requestRemovePasskey(id: string): void {
     </p>
 
     <h2 class="mb-2 text-base font-semibold">{{ i18n.t('security.passkeys') }}</h2>
-    <p class="mb-3 text-sm text-muted">{{ i18n.t('security.passkeyHint') }}</p>
+    <p v-if="capabilities.passkeys" class="mb-3 text-sm text-muted">
+      {{ i18n.t('security.passkeyHint') }}
+    </p>
 
-    <AccountLoadingState v-if="passkeys.kind === 'loading'" :label="i18n.t('common.loading')" />
+    <!-- Năng lực vắng mặt: nói rõ trạng thái thay vì bày danh sách hay control. -->
+    <p
+      v-if="!capabilities.passkeys"
+      class="mb-3 text-sm text-muted"
+      data-testid="passkeys-unavailable"
+    >
+      {{ i18n.t('security.capabilityUnavailable') }}
+    </p>
+    <AccountLoadingState
+      v-else-if="passkeys.kind === 'loading'"
+      :label="i18n.t('common.loading')"
+    />
     <AccountErrorState
       v-else-if="passkeys.kind === 'error'"
       :title="i18n.t('states.errorTitle')"
@@ -137,7 +168,7 @@ function requestRemovePasskey(id: string): void {
 
     <AccountStatusMessage v-if="result" :tone="result.tone" :message="result.message" />
 
-    <div class="mt-3">
+    <div v-if="capabilities.passkeys" class="mt-3">
       <button
         type="button"
         class="account-button-secondary"
@@ -150,63 +181,83 @@ function requestRemovePasskey(id: string): void {
 
     <div class="mt-8 border-t border-line pt-6">
       <h2 class="mb-2 text-base font-semibold">{{ i18n.t('security.totp') }}</h2>
-      <p class="mb-3 text-sm text-muted">{{ i18n.t('security.totpHint') }}</p>
-      <AccountLoadingState v-if="totp.kind === 'loading'" :label="i18n.t('common.loading')" />
-      <AccountErrorState
-        v-else-if="totp.kind === 'error'"
-        :title="i18n.t('states.errorTitle')"
-        :body="i18n.t('states.errorBody')"
-        :detail="totp.message"
-        :retry-label="i18n.t('common.retry')"
-        :on-retry="reloadTotp"
-      />
-      <div v-else class="flex flex-wrap items-center gap-3">
-        <p class="text-sm text-muted" data-testid="totp-state">
-          {{ totp.value.enabled ? i18n.t('emails.statusVerified') : i18n.t('common.unavailable') }}
-        </p>
-        <button
-          type="button"
-          class="account-button-secondary"
-          disabled
-          data-testid="totp-toggle-disabled"
-        >
-          {{ totp.value.enabled ? i18n.t('security.totpDisable') : i18n.t('security.totpEnroll') }}
-        </button>
-      </div>
+      <!-- Năng lực vắng mặt: nói rõ trạng thái thay vì bày control. -->
+      <p v-if="!capabilities.totp" class="mb-3 text-sm text-muted" data-testid="totp-unavailable">
+        {{ i18n.t('security.capabilityUnavailable') }}
+      </p>
+      <template v-else>
+        <p class="mb-3 text-sm text-muted">{{ i18n.t('security.totpHint') }}</p>
+        <AccountLoadingState v-if="totp.kind === 'loading'" :label="i18n.t('common.loading')" />
+        <AccountErrorState
+          v-else-if="totp.kind === 'error'"
+          :title="i18n.t('states.errorTitle')"
+          :body="i18n.t('states.errorBody')"
+          :detail="totp.message"
+          :retry-label="i18n.t('common.retry')"
+          :on-retry="reloadTotp"
+        />
+        <div v-else class="flex flex-wrap items-center gap-3">
+          <p class="text-sm text-muted" data-testid="totp-state">
+            {{
+              totp.value.enabled ? i18n.t('emails.statusVerified') : i18n.t('common.unavailable')
+            }}
+          </p>
+          <button
+            type="button"
+            class="account-button-secondary"
+            disabled
+            data-testid="totp-toggle-disabled"
+          >
+            {{
+              totp.value.enabled ? i18n.t('security.totpDisable') : i18n.t('security.totpEnroll')
+            }}
+          </button>
+        </div>
+      </template>
     </div>
 
     <div class="mt-8 border-t border-line pt-6">
       <h2 class="mb-2 text-base font-semibold">{{ i18n.t('security.recoveryCodes') }}</h2>
-      <p class="mb-3 text-sm text-muted">{{ i18n.t('security.recoveryCodesHint') }}</p>
-      <AccountLoadingState v-if="recovery.kind === 'loading'" :label="i18n.t('common.loading')" />
-      <AccountErrorState
-        v-else-if="recovery.kind === 'error'"
-        :title="i18n.t('states.errorTitle')"
-        :body="i18n.t('states.errorBody')"
-        :detail="recovery.message"
-        :retry-label="i18n.t('common.retry')"
-        :on-retry="reloadRecovery"
-      />
-      <div v-else class="space-y-3">
-        <p class="text-sm text-muted" data-testid="recovery-codes-state">
-          {{
-            recovery.value.remaining === undefined
-              ? i18n.t('common.unavailable')
-              : i18n.t('security.recoveryCodesRemaining', {
-                  count: formatCount(recovery.value.remaining),
-                })
-          }}
-        </p>
-        <p class="text-xs text-muted">{{ i18n.t('security.recoveryCodesWarning') }}</p>
-        <button
-          type="button"
-          class="account-button-secondary"
-          disabled
-          data-testid="recovery-codes-regenerate-disabled"
-        >
-          {{ i18n.t('security.recoveryCodesRegenerate') }}
-        </button>
-      </div>
+      <!-- Năng lực vắng mặt: nói rõ trạng thái thay vì bày control. -->
+      <p
+        v-if="!capabilities['recovery-codes']"
+        class="mb-3 text-sm text-muted"
+        data-testid="recovery-codes-unavailable"
+      >
+        {{ i18n.t('security.capabilityUnavailable') }}
+      </p>
+      <template v-else>
+        <p class="mb-3 text-sm text-muted">{{ i18n.t('security.recoveryCodesHint') }}</p>
+        <AccountLoadingState v-if="recovery.kind === 'loading'" :label="i18n.t('common.loading')" />
+        <AccountErrorState
+          v-else-if="recovery.kind === 'error'"
+          :title="i18n.t('states.errorTitle')"
+          :body="i18n.t('states.errorBody')"
+          :detail="recovery.message"
+          :retry-label="i18n.t('common.retry')"
+          :on-retry="reloadRecovery"
+        />
+        <div v-else class="space-y-3">
+          <p class="text-sm text-muted" data-testid="recovery-codes-state">
+            {{
+              recovery.value.remaining === undefined
+                ? i18n.t('common.unavailable')
+                : i18n.t('security.recoveryCodesRemaining', {
+                    count: formatCount(recovery.value.remaining),
+                  })
+            }}
+          </p>
+          <p class="text-xs text-muted">{{ i18n.t('security.recoveryCodesWarning') }}</p>
+          <button
+            type="button"
+            class="account-button-secondary"
+            disabled
+            data-testid="recovery-codes-regenerate-disabled"
+          >
+            {{ i18n.t('security.recoveryCodesRegenerate') }}
+          </button>
+        </div>
+      </template>
     </div>
 
     <AccountConfirmDialog

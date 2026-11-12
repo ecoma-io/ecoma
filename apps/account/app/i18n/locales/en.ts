@@ -118,6 +118,7 @@ export default {
     recoveryCodesRegenerate: 'Generate new codes',
     recoveryCodesReveal: 'Show codes',
     recoveryCodesWarning: 'These codes are shown once. Store them somewhere safe before closing.',
+    capabilityUnavailable: 'Not available yet — the backend does not provide this capability.',
   },
 
   sessions: {

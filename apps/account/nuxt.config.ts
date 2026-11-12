@@ -1,6 +1,38 @@
 import { defineNuxtConfig } from 'nuxt/config';
+import type { Nuxt } from 'nuxt/schema';
 import tailwindcss from '@tailwindcss/vite';
 import { ACCOUNT_LOCALE_DEFINITIONS, DEFAULT_ACCOUNT_LOCALE } from './app/i18n/locale-registry';
+
+/**
+ * Module inline đăng ký plugin adapter preview của data domain — **chỉ dưới
+ * `nuxt dev`**.
+ *
+ * Đây là đường **loại trừ ở build graph**, không phải guard runtime với dynamic
+ * import: skill `frontend-data-mocking` §H cấm dùng `import()` làm bằng chứng
+ * vắng mặt vì lazy chunk vẫn ship trong artifact. Ở đây plugin (và theo đó
+ * `preview-adapter.ts`, `mock-adapter.ts`) được push vào `nuxt.options.plugins`
+ * **trước khi graph được dựng** khi và chỉ khi `nuxt.options.dev`, nên một
+ * artifact đã build không chứa chữ nào của đường mock trong output — điều kiện
+ * chấp nhận của Issue #123, được kiểm bởi
+ * `tests/integrations/artifact-no-mock.spec.ts`.
+ *
+ * Plugin tự kiểm mode runtime (`resolveAccountDataMode`) trước khi gắn adapter,
+ * nên dev server chạy với `NITRO_PUBLIC_ACCOUNT_DATA_MODE=real` vẫn dùng đường
+ * thật; và kể cả khi plugin bị đăng ký nhầm ở artifact, resolver thấy
+ * `import.meta.dev = false` và no-op — hai lớp guard độc lập.
+ *
+ * Cờ này **không** đụng auth: plugin chỉ gắn dữ liệu preview lên slot
+ * `$accountAdapter`; `/login` và `/consent` đi BFF thật ở mọi mode.
+ */
+const registerPreviewDataAdapter = (_options: unknown, nuxt: Nuxt): void => {
+  if (!nuxt.options.dev) {
+    return;
+  }
+  nuxt.options.plugins.push({
+    src: new URL('./app/account-data/preview-adapter-plugin', import.meta.url).pathname,
+    mode: 'all',
+  });
+};
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -29,7 +61,7 @@ export default defineNuxtConfig({
     autoImport: true,
   },
   css: ['~/assets/css/styles.css'],
-  modules: ['@nuxt/fonts', '@nuxtjs/i18n'],
+  modules: ['@nuxt/fonts', '@nuxtjs/i18n', registerPreviewDataAdapter],
 
   i18n: {
     // Không tiền tố locale trong URL: `/emails` là `/emails` ở cả ba ngôn ngữ.
