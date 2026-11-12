@@ -1,11 +1,14 @@
 {
   // Worker của deploy unit `llm-api` (slice Worker runtime, Issue #22) — data
-  // plane LLM trên Cloudflare Workers, runtime Rust dịch ra WASM qua
-  // `worker-build` (entry `build/index.js`).
+  // plane LLM trên Cloudflare Workers, runtime TypeScript (Hono + `pg` qua
+  // Hyperdrive), bundle esbuild từ `src/index.ts` ra `build/index.js` (entry
+  // mà `main` trỏ vào; Nx target `build`).
   //
-  // KHÔNG có `nodejs_compat`: runtime không dùng Node API — kết nối Hyperdrive
-  // đi qua Socket API của workers-rs (plain TCP với `sslmode=disable`, platform
-  // facts PF3/PF4), khác với các Worker TS driver Node.
+  // `nodejs_compat` khai báo TƯỜNG MINH: driver PostgreSQL (`pg`) cần
+  // `node:buffer`, `node:events`, `node:stream` khi chạy qua Hyperdrive —
+  // cùng bộ externals với `apps/pact-broker-api`. Ranh giới `runtime:edge`
+  // giữ nguyên: không filesystem, không process, không API ngoài những gì
+  // Workers cung cấp.
   //
   // Ba Hyperdrive binding theo pattern "id chuỗi rỗng" của `apps/staff-access`
   // và `apps/pact-broker-api`: database chưa được provision (provisioning là
@@ -46,6 +49,7 @@
   "name": "ecoma-llm-api",
   "main": "build/index.js",
   "compatibility_date": "2026-10-05",
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
   },

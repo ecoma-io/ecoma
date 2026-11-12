@@ -43,7 +43,7 @@ Hai plane trong cùng deploy unit:
 ```text
                     ┌─────────────────────────────┐
 Client ──► public ──► │       Data Plane           │  (hot path, /llm/v1/...)
-                    │  Rust high-perf runtime     │
+                    │  TS  high-perf runtime      │
                     └──────────────┬──────────────┘
                                    │ internal call
                     ┌──────────────▼──────────────┐
@@ -316,7 +316,7 @@ Theo `llm-financial` domain model:
 
 ## 18. Runtime/deployment boundary
 
-- **Runtime:** Rust high-performance (WASM/Worker) cho data plane; control plane có thể Rust hoặc TypeScript. PostgreSQL authoritative; Hyperdrive cho Worker (query cache OFF).
+- **Runtime:** TypeScript (Hono + pg qua Hyperdrive) cho data plane; control plane chưa dựng, có thể Rust hoặc TypeScript. PostgreSQL authoritative; Hyperdrive cho Worker (query cache OFF).
 - **VPS runtime (nếu có):** direct connection approved topology cho runtime ngoài Worker (không bắt buộc Hyperdrive); nhưng Worker path bắt buộc Hyperdrive. Một Cloudflare account mọi env.
 - **Database:** `db-llm-gateway`, PostgreSQL, TimescaleDB nếu cần cho usage time-series. Migration expand → compatible rollout → contract.
 - **Secrets:** native Worker Secrets theo env; không vào Git/PR/Preview.

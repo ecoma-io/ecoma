@@ -5,7 +5,7 @@
 ## 1. Deployment
 
 - Deploy unit: Cloudflare Worker `llm-api` tại `api.ecoma.io/llm`.
-- Runtime: Rust high-perf data plane + control plane; Worker binding Hyperdrive tới `db-llm-gateway`.
+- Runtime: TypeScript high-perf data plane (control plane chưa dựng); Worker binding Hyperdrive tới `db-llm-gateway`.
 - Migration: expand → compatible rollout → contract; migration runner từ CI, không từ Worker.
 - Rollback = rollback Worker version đã publish; không rollback DB.
 
@@ -31,6 +31,8 @@
 | Missing usage       | Ghi durable + alert; không block completion nếu policy cho phép                          |
 | No-candidate        | Lỗi tường minh; release reservation nếu đã reserve                                       |
 | Hyperdrive pool cạn | 503 + Retry-After; load shedding, không queue chờ                                        |
+
+⚠️ Deviation ghi nhận được (M1): dòng trên là policy vận hành đích của control plane chưa xây. Data plane M1 hiện chạy admission per-binding trong từng isolate — limit hữu hạn + queue bounded + deadline operation — nên quá tải luôn kết thúc xác định bằng 503 (queue đầy → fail-fast ngay; deadline → timeout), không bao giờ queue vô hạn. Deviation nằm trong source (`src/connections.ts`) và được thay khi control plane xây xong.
 
 ## 5. Recovery
 

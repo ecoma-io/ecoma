@@ -172,7 +172,7 @@ export type DeployResourceKind =
   | 'object-store-data'
   /** Provision/migrate ephemeral của llm-api-deploy (ba DB LLM, issue #22). */
   | 'llm-api'
-  /** WIC container của llm-api-deploy (bundle Rust workers-rs, issue #22, không shim). */
+  /** WIC container của llm-api-deploy (bundle TypeScript từ target `build` của Nx, issue #22, không shim). */
   | 'llm-api-wic'
   /** Image của WIC llm-api container. */
   | 'llm-api-wic-image'

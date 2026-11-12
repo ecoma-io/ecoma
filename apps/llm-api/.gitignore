@@ -1,5 +1,2 @@
-# Rust: artifact build cua cargo (unit test + wasm32 build).
-/target/
-
-# Worker bundle sinh boi `worker-build` (entry ma wrangler.jsonc `main` tro vao).
+# Artifact build cua Worker bundle (entry ma wrangler.jsonc `main` tro vao).
 /build/

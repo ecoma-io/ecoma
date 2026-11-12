@@ -47,7 +47,7 @@ const POSTGRES_PORT = 5_432;
 const SUPERUSER = 'ecoma_test_superuser';
 const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 /** Mật khẩu chung cho các role test — secret giả, database ném đi sau mỗi run. */
-const ROLE_PASSWORD = 'ecoma_test_role_pw';
+export const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
 /** Owner chung của cả ba database — pattern `auth-deploy`: một stack sở hữu password. */
 const OWNER_ROLE = 'ecoma_owner';
@@ -346,6 +346,18 @@ async function provision(superuser: Client): Promise<void> {
 }
 
 /**
+ * Tùy chọn dựng database test. Cổng host được Docker cấp **ngẫu nhiên** mặc
+ * định; `pinnedPort` ghim cổng host tường minh cho suite cần stop/start lại
+ * container: dưới rootless Docker, RootlessKit chỉ giữ/re-bind đúng cổng
+ * ghim tường minh khi container start lại — cổng ngẫu nhiên bị mất vĩnh viễn
+ * (đo: `NetworkSettings.Ports` sau restart đổi sang cổng khác, cổng cũ refused
+ * mãi; đo đạc của suite resilience, 2026-11).
+ */
+export interface LlmApiDatabaseOptions {
+  readonly pinnedPort?: number;
+}
+
+/**
  * Dựng container PostgreSQL, provision ba database + role matrix theo pattern
  * ba role, rồi apply migration **ba target** bằng runner production qua tsx
  * với credential migrator thật của từng DB.
@@ -358,7 +370,18 @@ async function provision(superuser: Client): Promise<void> {
  * phải `SET ROLE` từ superuser): `SET ROLE` không kiểm chứng quyền **kết nối
  * thật**; chạy qua CLI còn kiểm chứng đúng đường code mà `db:migrate` chạy.
  */
-export async function startLlmApiDatabase(): Promise<LlmApiDatabase> {
+export async function startLlmApiDatabase(
+  databaseOptions: LlmApiDatabaseOptions = {},
+): Promise<LlmApiDatabase> {
+  const pinnedPort = databaseOptions.pinnedPort;
+  if (
+    pinnedPort !== undefined &&
+    (!Number.isInteger(pinnedPort) || pinnedPort < 1 || pinnedPort > 65_535)
+  ) {
+    throw new Error(
+      `pinnedPort must be an integer within 1-65535, received: ${String(pinnedPort)}`,
+    );
+  }
   const container = await startPostgresContainer((c) =>
     c
       // `postgres` là DB built-in của image: testcontainers không tự tạo DB nào
@@ -367,12 +390,14 @@ export async function startLlmApiDatabase(): Promise<LlmApiDatabase> {
       .withDatabase('postgres')
       .withUsername(SUPERUSER)
       .withPassword(SUPERUSER_PASSWORD)
-      .withExposedPorts(POSTGRES_PORT),
+      .withExposedPorts(
+        pinnedPort === undefined ? POSTGRES_PORT : { container: POSTGRES_PORT, host: pinnedPort },
+      ),
   );
 
   try {
     const host = container.getHost();
-    const port = container.getMappedPort(POSTGRES_PORT);
+    const port = pinnedPort ?? container.getMappedPort(POSTGRES_PORT);
 
     const openWithCredentials = async (options: {
       user: string;
@@ -389,6 +414,18 @@ export async function startLlmApiDatabase(): Promise<LlmApiDatabase> {
         user: options.user,
         password: options.password,
         application_name: 'ecoma-llm-api-itest',
+      });
+      // Client giữ mở cả đời suite (ít nhất superuser ở dưới) phải có listener
+      // `error`: container bị stop giữa chừng (suite resilience) gửi FATAL
+      // 57P01 rồi socket đứt — không listener là uncaught exception giết tiến
+      // trình vitest. Lỗi của query vẫn đi qua rejection của promise như thường.
+      // Ghi log message lỗi (KHÔNG object đầy đủ — tránh rò credential qua
+      // serialization) để container chết giữa chừng không câm lặng khi debug.
+      client.on('error', (error) => {
+        console.error(
+          '[llm-api-test-harness] pg client error:',
+          error instanceof Error ? error.message : String(error),
+        );
       });
       await client.connect();
       return client;

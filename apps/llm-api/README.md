@@ -1,23 +1,23 @@
 # LLM API
 
-Component `llm-api` — API inference LLM phục vụ dưới base path `/llm`, chạy trên Cloudflare Workers với runtime Rust (workers-rs) dịch ra WASM qua `worker-build`. Component này host implementation và persistence của một số bounded context LLM; ownership domain luôn thuộc `docs/domains/` — mapping host/consume được ghi canonical trong `docs/applications/llm-api/`.
+Component `llm-api` — API inference LLM phục vụ dưới base path `/llm`, chạy trên Cloudflare Workers với runtime TypeScript (Hono + driver `pg` qua Hyperdrive), bundle esbuild ra `build/index.js`. Component này host implementation và persistence của một số bounded context LLM; ownership domain luôn thuộc `docs/domains/` — mapping host/consume được ghi canonical trong `docs/applications/llm-api/`.
 
 Nx project `@ecoma-io/llm-api`, tags `type:composition`, `scope:llm-api`, `runtime:edge`.
 
 ## Purpose
 
-- Đưa lên Edge một Worker `ecoma-llm-api` (`wrangler.jsonc`, entry `build/index.js` sinh bởi `worker-build --release` từ crate `src/`) với HTTP contract đóng băng: `GET /health`, `GET /ready`, `GET /v1/models`, `GET /llm/v1/models`; path khác → 404 bất kể method; method không GET trên một path đã định nghĩa → 405 kèm `Allow: GET` (HEAD cũng 405).
-- Readiness fail-closed: `/ready` và `/v1/models` chỉ trả 200 khi cả ba Hyperdrive binding probe `SELECT 1` thành công (timeout 3s per binding, `src/readiness.rs`); một binding thiếu, lỗi hay timeout đều đưa về 503.
+- Đưa lên Edge một Worker `ecoma-llm-api` (`wrangler.jsonc`, entry `build/index.js` sinh bởi Nx target `build` — esbuild bundle từ `src/index.ts`) với HTTP contract đóng băng: `GET /health`, `GET /ready`, `GET /v1/models`, `GET /llm/v1/models`; path khác → 404 bất kể method; method không GET trên một path đã định nghĩa → 405 kèm `Allow: GET` (HEAD cũng 405).
+- Readiness fail-closed: `/ready` và `/v1/models` chỉ trả 200 khi cả ba Hyperdrive binding probe `SELECT 1` thành công (timeout 3s per binding, `src/readiness.ts`); một binding thiếu, lỗi hay timeout đều đưa về 503.
 - Thiết kế component — hai plane, execution state, persistence ba database — là nội dung canonical của `docs/applications/llm-api/`; README này chỉ định vị phần tử trong Nx project.
 
 ## Responsibilities
 
 - **Liveness** `GET /health` — không chạm database, trả lời cả khi mọi binding xuống.
-- **Readiness** `GET /ready` — probe cả ba Hyperdrive binding; kết quả per-binding nằm trong `src/readiness.rs`.
-- **Catalog endpoint** `GET /v1/models` và `GET /llm/v1/models` — cùng handler; 200 với body chính xác `{"object":"list","data":[]}` kiểu `application/json` khi DB ready, 503 khi không.
+- **Readiness** `GET /ready` — probe cả ba Hyperdrive binding; kết quả per-binding nằm trong `src/readiness.ts`.
+- **Catalog endpoint** `GET /v1/models` và `GET /llm/v1/models` — cùng handler; 200 `application/json` với catalogue model `active` thật từ marketplace, owner là tên tenant ánh xạ từ gateway (Issue #23; danh sách rỗng `{"object":"list","data":[]}` là hợp lệ khi chưa có offer nào `active`), 503 fail-closed khi DB chưa ready, catalogue lỗi hay một offer không ánh xạ được owner.
 - **Persistence**: `db/` là nguồn sự thật migration của ba database mà deploy unit sở hữu — `db-llm-gateway` (schema `llm_financial`, `llm_seller`), `db-llm-tenant` (schema `llm_tenant`), `db-llm-marketplace` (schema `llm_marketplace`); runner `db/apply.mts` chọn đúng một target mỗi lần gọi.
 - Ba Hyperdrive binding khai trong `wrangler.jsonc` với id chuỗi rỗng: `DB_LLM_GATEWAY`, `DB_LLM_TENANT`, `DB_LLM_MARKETPLACE`; connection string local đi qua biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`, thiếu biến lúc `wrangler dev` là lỗi boot tường minh.
-- Runtime không dùng Node API (`nodejs_compat` không khai): HTTP, routing và kết nối Hyperdrive diễn ra trong crate Rust, kết nối qua Socket API của workers-rs.
+- Runtime TypeScript khai `nodejs_compat` (driver `pg` cần `node:buffer`, `node:events`, `node:stream`). Mỗi phép gọi SQL mở một `pg.Client` mới rồi đóng (`src/connections.ts`) — không pool: pg Pool tái dùng client idle qua workerd không ổn định (đo trực tiếp), còn runtime Rust bị thay thế cũng mở một socket mới cho mỗi câu SQL, nên lifecycle per-operation là bản port trung thực.
 - Log chỉ cấu trúc tối thiểu; không bao giờ log prompt/response body, connection string hay credential.
 
 ## Boundaries
@@ -30,20 +30,20 @@ Nx project `@ecoma-io/llm-api`, tags `type:composition`, `scope:llm-api`, `runti
 ## Development
 
 ```bash
-pnpm nx run @ecoma-io/llm-api:build          # worker-build --release → build/index.js + build/index.wasm
-pnpm nx run @ecoma-io/llm-api:lint           # oxlint (phần TS) + cargo fmt --check + cargo clippy -D warnings
-pnpm nx run @ecoma-io/llm-api:typecheck      # tsc --build cho phần TS (db/, tests/)
+pnpm nx run @ecoma-io/llm-api:build          # esbuild bundle → build/index.js
+pnpm nx run @ecoma-io/llm-api:lint           # oxlint
+pnpm nx run @ecoma-io/llm-api:typecheck      # tsc --build cho solution (app src/ + spec)
 pnpm nx run @ecoma-io/llm-api:typecheck-db   # tsc --noEmit -p tsconfig.db.json
 pnpm nx run @ecoma-io/llm-api:db:migrate -- gateway   # hoặc tenant | marketplace, cần DATABASE_URL migrator của DB đó
 ```
 
-- Toolchain pin qua `rust-toolchain.toml` (1.98.1 + target `wasm32-unknown-unknown`); `build` đòi binary `worker-build` (0.8.7) đã cài sẵn trong môi trường.
+- Artifact `build/index.js` là entry mà `wrangler.jsonc` `main` trỏ vào; bundle external `node:buffer`, `node:events`, `node:stream` (do `nodejs_compat` cấp khi chạy).
 - `db:migrate` mutate database thật và luôn không cacheable; target chạy ở runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
 
 ## Testing
 
 ```bash
-pnpm nx run @ecoma-io/llm-api:test             # cargo test — unit test colocated trong src/
+pnpm nx run @ecoma-io/llm-api:test             # vitest — unit test colocated trong src/ (port của 9 unit test Rust cũ)
 pnpm nx run @ecoma-io/llm-api:test-integration # tests/integrations + tests/databases — PostgreSQL thật (testcontainers)
 ```
 
