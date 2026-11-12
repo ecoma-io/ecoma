@@ -5,7 +5,7 @@
 ## 1. Deployment
 
 - Deploy unit: Cloudflare Worker `llm-api` tại `api.ecoma.io/llm`.
-- Runtime: Rust high-perf data plane + control plane; Worker binding Hyperdrive tới `db-llm-gateway`.
+- Runtime: TypeScript high-perf data plane (control plane chưa dựng); Worker binding Hyperdrive tới `db-llm-gateway`.
 - Migration: expand → compatible rollout → contract; migration runner từ CI, không từ Worker.
 - Rollback = rollback Worker version đã publish; không rollback DB.
 

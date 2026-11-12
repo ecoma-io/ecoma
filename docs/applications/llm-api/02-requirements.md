@@ -45,7 +45,7 @@
 
 ## 2. Non-functional requirements
 
-- **NFR-01 (Performance):** Data plane Rust high-perf; streaming end-to-end không full-buffer.
+- **NFR-01 (Performance):** Data plane TypeScript high-perf; streaming end-to-end không full-buffer.
 - **NFR-02 (Availability):** Fail closed khi PG down; stream đang chạy hoàn tất.
 - **NFR-03 (Consistency):** Quota conservation: `settled + active_reservation ≤ grant`.
 - **NFR-04 (Privacy):** Không log prompt/response body.

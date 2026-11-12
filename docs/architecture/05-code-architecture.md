@@ -379,19 +379,3 @@ cấm import một _project native_ thì phải đọc tag trên graph.
 | `pnpm dx arch-check` (CI, unconditional) | Tag schema ba dimension, runtime compatibility transitive trên graph                |
 
 `arch-check` chạy trên **toàn workspace** chứ không theo `nx affected`: một tag sai ở project không đổi file nào vẫn phải đỏ.
-
-## 9. Rust toolchain
-
-- Toolchain pin ở `rust-toolchain.toml` (workspace root) — rustup áp theo directory, dùng chung local và CI; convention
-  cùng họ với `.node-version`. Target riêng của từng crate (`wasm32-unknown-unknown` cho `llm-api`) khai trong
-  `rust-toolchain.toml` cạnh crate đó, cùng cơ chế directory override.
-- Crate đầu tiên của workspace là deploy unit `llm-api` (`apps/llm-api`) — runtime Rust (workers-rs) dịch ra WASM qua
-  `worker-build`. Target per-project đăng ký bằng executor `nx:run-commands` gọi `cargo fmt --check` / `cargo clippy` /
-  `cargo test` / `cargo build`, cache inputs gồm `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` và sources;
-  `target-dir` riêng per-project khi cần tránh cache artifact đè nhau.
-- **Không dùng `@monodon/rust`:** phiên bản hiện (3.0.0) khai báo dependency cứng `@nx/devkit ^22.0.0` trong khi workspace
-  chạy Nx 23.3.0; các bản 2.x cũng chỉ hỗ trợ tới Nx < 21. Plugin còn yêu cầu `cargo metadata` chạy lúc build graph.
-  Đánh giá lại khi Nx và plugin tương thích, hoặc khi số crate đủ nhiều để explicit targets thành gánh nặng.
-- CI cài Rust toolchain và cache Cargo qua composite action dùng chung `.github/actions/setup-rust`, chạy ở mọi job cần
-  Rust. Không còn bước dò Cargo project: workspace đã có crate thật, nên điều kiện đó chỉ từng trì hoãn việc cài
-  toolchain mà không bảo vệ được lane nào.
