@@ -203,7 +203,9 @@ async function disposeAll(...steps: Array<() => Promise<void>>): Promise<void> {
 }
 
 describe('llm-api worker HTTP contract (all Hyperdrive bindings ready)', () => {
-  it('serves the frozen empty model list as JSON on the public base path /llm/v1/models', async () => {
+  // Marketplace trống ⇒ `data: []` — đúng body hợp đồng khi chưa có offer
+  // nào `active` (Issue #23 thay hợp đồng body đóng băng rỗng của #22).
+  it('serves an empty model list as JSON on the public base path /llm/v1/models while no offer is active', async () => {
     const response = await fetchRouteOn(harness, '/llm/v1/models');
 
     expect(response.status).toBe(200);
@@ -211,12 +213,50 @@ describe('llm-api worker HTTP contract (all Hyperdrive bindings ready)', () => {
     expect(expectJson(response.body)).toEqual({ object: 'list', data: [] });
   });
 
-  it('serves the same frozen model contract on the unprefixed /v1/models', async () => {
+  it('serves the same empty list on the unprefixed /v1/models', async () => {
     const response = await fetchRouteOn(harness, '/v1/models');
 
     expect(response.status).toBe(200);
     expect(response.contentType).toContain('application/json');
     expect(expectJson(response.body)).toEqual({ object: 'list', data: [] });
+  });
+
+  // Issue #23: catalogue thật — offer `active` của marketplace được liệt kê
+  // với owner là tên Seller tenant ánh xạ từ gateway (đọc hai binding).
+  it('lists an active model offer with its owning tenant name on /v1/models', async () => {
+    const gateway = await db.connect('gateway');
+    const marketplace = await db.connect('marketplace');
+    try {
+      await gateway.query(
+        `INSERT INTO llm_seller.seller_tenants (id, name, classification, owner_sub, created_at)
+         VALUES ('seller-tenant-dronie', 'dronie', 'first_party', 'bootstrap-superadmin-sub', 1760000000000)
+         ON CONFLICT (id) DO NOTHING`,
+      );
+      await marketplace.query(
+        `INSERT INTO llm_marketplace.model_offers
+           (id, seller_tenant_id, normalized_model_id, status, public_alias, capabilities, created_at, updated_at, activated_at, deactivated_at, retired_at)
+         VALUES ('model-offer-integration-test', 'seller-tenant-dronie', 'dronie-flash', 'active', NULL, '["chat"]'::jsonb,
+                 1760000000000, 1760000000000, 1760000000000, NULL, NULL)
+         ON CONFLICT (id) DO NOTHING`,
+      );
+
+      const response = await fetchRouteOn(harness, '/v1/models');
+
+      expect(response.status).toBe(200);
+      expect(expectJson(response.body)).toEqual({
+        object: 'list',
+        data: [{ id: 'dronie-flash', object: 'model', created: 1760000000, owned_by: 'dronie' }],
+      });
+    } finally {
+      await marketplace.query(
+        `DELETE FROM llm_marketplace.model_offers WHERE id = 'model-offer-integration-test'`,
+      );
+      await gateway.query(
+        `DELETE FROM llm_seller.seller_tenants WHERE id = 'seller-tenant-dronie'`,
+      );
+      await marketplace.end();
+      await gateway.end();
+    }
   });
 
   it('answers GET /health with 200 liveness', async () => {

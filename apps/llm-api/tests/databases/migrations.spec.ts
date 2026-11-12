@@ -9,10 +9,11 @@
  * `02-delivery.md` §3). Tất cả invocation đều đi qua credential migrator thật
  * (proxy `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
  *
- * Suite này chạy migration hiện tại trên ba database — gateway/tenant có `0001`,
- * marketplace có `0001`–`0003` (schema `llm_marketplace`, thu hẹp default
- * privileges toàn database) — nên không có bảng nghiệp vụ nào sau khi apply xong:
- * catalog PostgreSQL là nguồn sự thật.
+ * Suite này chạy migration hiện tại trên ba database — gateway có `0001`–`0002`
+ * (schema namespace + bảng nghiệp vụ `llm_seller` của bootstrap Issue #23),
+ * tenant có `0001` (namespace-only, slice #24), marketplace có `0001`–`0004`
+ * (schema `llm_marketplace`, thu hẹp default privileges, bảng nghiệp vụ
+ * offering của Issue #23) — catalog PostgreSQL là nguồn sự thật.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -25,7 +26,29 @@ import {
   startLlmApiDatabase,
 } from '../integrations/harness.ts';
 
-const ALL_KEYS: readonly LlmDatabaseKey[] = ['gateway', 'tenant', 'marketplace'];
+/** Tập bảng nghiệp vụ `llm_seller` của bootstrap Issue #23 trên db-llm-gateway. */
+const GATEWAY_TABLES: readonly string[] = [
+  'seller_tenants',
+  'seller_memberships',
+  'legal_principals',
+  'principal_legal_profiles',
+  'principal_tax_profiles',
+  'principal_evidence',
+  'verification_cases',
+  'verification_submissions',
+  'restriction_records',
+  'principal_associations',
+  'bootstrap_audit',
+];
+
+/** Tập bảng offering của Issue #23 trên db-llm-marketplace. */
+const MARKETPLACE_TABLES: readonly string[] = [
+  'model_offers',
+  'endpoint_pools',
+  'upstream_endpoints',
+  'provider_credentials',
+  'bootstrap_audit',
+];
 
 let db: LlmApiDatabase;
 
@@ -73,6 +96,22 @@ async function listNonSystemSchemas(key: LlmDatabaseKey): Promise<string[]> {
   }
 }
 
+/** Tên mọi bảng user (mọi schema service) của một DB, đã sort. */
+async function listUserTables(key: LlmDatabaseKey): Promise<string[]> {
+  const client = await db.connect(key);
+  try {
+    const { rows } = await client.query<{ table_name: string }>(
+      `SELECT table_name
+         FROM information_schema.tables
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY table_name`,
+    );
+    return rows.map((row) => row.table_name);
+  } finally {
+    await client.end();
+  }
+}
+
 /** Schema có tồn tại trên DB của khóa này không — `pg_namespace` cũng per-database. */
 async function schemaExists(key: LlmDatabaseKey, name: string): Promise<boolean> {
   const client = await db.connect(key);
@@ -101,36 +140,38 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     );
   });
 
-  it('applies 0001 again as a no-op (idempotent DDL, no ledger)', async () => {
+  it('applies the gateway set again as a no-op (idempotent DDL, no ledger)', async () => {
     // Runner không có ledger — nó chạy LẠI mỗi file. Tính idempotent của DDL
-    // (`IF NOT EXISTS`, `CREATE SCHEMA IF NOT EXISTS`) là thứ làm lần chạy thứ
-    // hai thành công mà không đổi catalog: snapshot `information_schema.tables`
-    // trước và sau phải bằng nhau.
+    // (`IF NOT EXISTS`) là thứ làm lần chạy thứ hai thành công mà không đổi
+    // catalog: snapshot `information_schema.tables` trước và sau phải bằng nhau.
     const before = await countUserTables('gateway');
     const result = await runApplyCli('gateway', migratorUrl('gateway', db.host, db.port));
-    expect(result.stdout).toContain('done     1 file(s) applied');
+    expect(result.stdout).toContain('done     2 file(s) applied');
     const after = await countUserTables('gateway');
     expect(after).toBe(before);
   });
 
   it('serializes two concurrent apply runs on the advisory lock (both exit 0)', async () => {
     // Cùng advisory lock `hashtext('db-llm-gateway')` — hai tiến trình chồng
-    // nhau phải hoàn thành mà không deadlock; mỗi run vẫn là 1 file apply,
+    // nhau phải hoàn thành mà không deadlock; mỗi run vẫn là đủ file apply,
     // catalog không đổi.
     const url = migratorUrl('gateway', db.host, db.port);
     const [first, second] = await Promise.all([
       runApplyCli('gateway', url),
       runApplyCli('gateway', url),
     ]);
-    expect(first.stdout).toContain('done     1 file(s) applied');
-    expect(second.stdout).toContain('done     1 file(s) applied');
-    expect(await countUserTables('gateway')).toBe(0);
+    expect(first.stdout).toContain('done     2 file(s) applied');
+    expect(second.stdout).toContain('done     2 file(s) applied');
+    expect(await countUserTables('gateway')).toBe(GATEWAY_TABLES.length);
   });
 
-  it('leaves no user table on any of the three databases (namespace only)', async () => {
-    for (const key of ALL_KEYS) {
-      expect(await countUserTables(key)).toBe(0);
-    }
+  it('creates exactly the business tables of each domain slice (gateway 11 seller, tenant 0, marketplace 5 offering)', async () => {
+    // Gateway: đúng tập bảng `llm_seller` của Issue #23 — không bảng lạ.
+    expect(await listUserTables('gateway')).toEqual([...GATEWAY_TABLES].toSorted());
+    // Tenant: namespace-only (slice consumer #24 chưa có bảng nào).
+    expect(await countUserTables('tenant')).toBe(0);
+    // Marketplace: đúng tập bảng offering của Issue #23.
+    expect(await listUserTables('marketplace')).toEqual([...MARKETPLACE_TABLES].toSorted());
   });
 
   it('creates the named schemas llm_financial and llm_seller on db-llm-gateway', async () => {
@@ -161,6 +202,50 @@ describe('llm-api migration runner on real PostgreSQL', () => {
       );
       expect(rows[0]?.owner).toBe('ecoma_llm_marketplace_migrator');
       expect(rows[0]?.comment).toContain('Owning domain: llm-marketplace');
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('keeps the provider credential surface hash-only and tenant-scoped (no plaintext column, no provider-only index)', async () => {
+    // ADR-0027 §8: credential chỉ lưu hash (show-once/hash-only), hai trục
+    // scope là `provider` + `seller_tenant_id`; không tồn tại đường lookup
+    // theo `provider` một mình — kiểm trên catalog: cột, constraint, index.
+    const client = await db.connect('marketplace');
+    try {
+      const { rows: columns } = await client.query<{ column_name: string }>(
+        `SELECT column_name
+           FROM information_schema.columns
+          WHERE table_schema = 'llm_marketplace' AND table_name = 'provider_credentials'
+          ORDER BY column_name`,
+      );
+      const names = columns.map((row) => row.column_name);
+      expect(names).toContain('credential_hash');
+      expect(names).toContain('seller_tenant_id');
+      expect(names).not.toContain('credential_plaintext');
+      expect(names).not.toContain('plaintext');
+      expect(names).not.toContain('credential_value');
+
+      // Natural key của rotation: (seller_tenant_id, credential_hash) —
+      // không có unique nào trên `provider` một mình.
+      const { rows: indexes } = await client.query<{ indexdef: string }>(
+        `SELECT indexdef
+           FROM pg_indexes
+          WHERE schemaname = 'llm_marketplace' AND tablename = 'provider_credentials'`,
+      );
+      const definitions = indexes.map((row) => row.indexdef);
+      expect(
+        definitions.some((definition) =>
+          definition.includes('(seller_tenant_id, credential_hash)'),
+        ),
+      ).toBe(true);
+      expect(
+        definitions.some((definition) => /UNIQUE INDEX [^(]*\(\s*provider\s*\)/u.test(definition)),
+      ).toBe(false);
+      // Index truy vấn chính của serving path cũng mang tenant trước provider.
+      expect(
+        definitions.some((definition) => definition.includes('(seller_tenant_id, provider)')),
+      ).toBe(true);
     } finally {
       await client.end();
     }

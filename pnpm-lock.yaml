@@ -525,6 +525,15 @@ importers:
 
   apps/llm-api:
     dependencies:
+      '@ecoma-io/llm-marketplace-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-marketplace-domain
+      '@ecoma-io/llm-seller-governance-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-seller-governance-domain
+      '@ecoma-io/llm-seller-tenant-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-seller-tenant-domain
       pg:
         specifier: ^8.23.1
         version: 8.23.1

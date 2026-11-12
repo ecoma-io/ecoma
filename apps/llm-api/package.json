@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@ecoma-io/llm-marketplace-domain": "workspace:*",
+    "@ecoma-io/llm-seller-governance-domain": "workspace:*",
+    "@ecoma-io/llm-seller-tenant-domain": "workspace:*",
     "pg": "^8.23.1"
   },
   "devDependencies": {
@@ -15,6 +18,9 @@
     "runtime Rust (workers-rs) dich ra WASM. `pg` nam o dependencies cho",
     "`db/apply.mts` — migration runner chay o CI runner (Node), khong thuoc",
     "bundle Worker (HD6: Hyperdrive khong ho tro advisory lock).",
+    "Ba domain lib `@ecoma-io/llm-*-domain` chi phuc vu bootstrap runner 8a/8b",
+    "duoi `db/` (chay tren Node qua tsx, khong thuoc bundle Worker): domain op",
+    "la duong code duy nhat de seed, khong co SQL ghi du lieu tu do.",
     "Runtime Worker khong co dependency TS nao: HTTP, routing va ket noi",
     "Hyperdrive dien ra trong crate Rust (apps/llm-api/src, Cargo.toml).",
     "`testcontainers` chi phuc vu suite integration app-owned duoi `tests/`."
