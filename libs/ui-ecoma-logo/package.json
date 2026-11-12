@@ -180,66 +180,6 @@
         },
         "configurations": {},
         "parallelism": true
-      },
-      "build": {
-        "dependsOn": [
-          "^build"
-        ],
-        "cache": true,
-        "inputs": [
-          "{projectRoot}/package.json",
-          "{projectRoot}/tsconfig.json",
-          "{workspaceRoot}/tsconfig.base.json",
-          "{projectRoot}/tsconfig.lib.json",
-          "{projectRoot}/src/**/*.ts",
-          "{projectRoot}/src/**/*.vue",
-          "!{projectRoot}/vite.config.ts",
-          "!{projectRoot}/vite.config.mts",
-          "!{projectRoot}/vitest.config.ts",
-          "!{projectRoot}/vitest.config.mts",
-          "!{projectRoot}/src/**/*.test.ts",
-          "!{projectRoot}/src/**/*.spec.ts",
-          "!{projectRoot}/src/**/*.test.tsx",
-          "!{projectRoot}/src/**/*.spec.tsx",
-          "!{projectRoot}/src/**/*.test.js",
-          "!{projectRoot}/src/**/*.spec.js",
-          "!{projectRoot}/src/**/*.test.jsx",
-          "!{projectRoot}/src/**/*.spec.jsx",
-          {
-            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
-            "transitive": true
-          },
-          {
-            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
-            "dependencies": true
-          }
-        ],
-        "outputs": [
-          "{workspaceRoot}/dist/out-tsc/ui-ecoma-logo/**/*.{js,cjs,mjs,jsx,d.ts,d.cts,d.mts}{,.map}",
-          "{workspaceRoot}/dist/out-tsc/ui-ecoma-logo/tsconfig.lib.tsbuildinfo"
-        ],
-        "syncGenerators": [
-          "@nx/js:typescript-sync"
-        ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Builds the project with `tsc`.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
-        "executor": "nx:run-commands",
-        "options": {
-          "cwd": "{projectRoot}",
-          "command": "tsc --build tsconfig.lib.json"
-        }
       }
     }
   }
