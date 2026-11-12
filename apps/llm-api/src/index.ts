@@ -24,6 +24,7 @@
 import { Hono } from 'hono';
 import type { Context, ExecutionContext } from 'hono';
 import type { LlmApiEnv } from './env';
+import { createBindingLimiters } from './connections';
 import { BINDING_STATUS_LABELS, failures, isReady, probeReadiness } from './readiness';
 import { modelsListBody, servingCatalogue } from './models';
 
@@ -86,6 +87,11 @@ function getOnly(
 /** App đầy đủ — dùng bởi Worker fetch và bởi test (`app.request()`). */
 export function buildApp(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+  // Bộ limiter admission per-binding sống trong closure app (không phải
+  // module-level): test gọi `buildApp()` được bộ mới sạch; production mỗi
+  // isolate một bộ, best-effort — bound deployment-wide là Hyperdrive
+  // `origin-connection-limit` (xem header `connections.ts`).
+  const limiters = createBindingLimiters();
 
   // Liveness thuần: không probe database — route này phải trả lời cả khi mọi
   // binding xuống, để orchestrator phân biệt được "process sống" với "phụ thuộc
@@ -96,7 +102,7 @@ export function buildApp(): Hono<AppEnv> {
   // per-binding 3s nằm ở `readiness`). Nhãn per-binding chỉ đi vào log,
   // không bao giờ vào body.
   getOnly(app, '/ready', async (c): Promise<Response> => {
-    const report = await probeReadiness(c.env);
+    const report = await probeReadiness(c.env, limiters);
     if (isReady(report)) {
       log('/ready ok');
       return okText('ready');
@@ -113,13 +119,13 @@ export function buildApp(): Hono<AppEnv> {
   // Fail-closed: DB chưa ready, catalogue lỗi hay owner không ánh xạ được đều
   // là 503 — không bao giờ trả danh sách rỗng giả tạo hay model mù chủ sở hữu.
   const modelsHandler = async (c: Context<AppEnv>): Promise<Response> => {
-    const report = await probeReadiness(c.env);
+    const report = await probeReadiness(c.env, limiters);
     if (!isReady(report)) {
       log('/v1/models not ready: db bindings failing');
       return errorText('service unavailable', 503);
     }
     try {
-      const catalogue = await servingCatalogue(c.env);
+      const catalogue = await servingCatalogue(c.env, limiters);
       log(`/v1/models ok: ${catalogue.length} model(s)`);
       return new Response(bytes(modelsListBody(catalogue)), {
         status: 200,

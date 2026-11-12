@@ -29,6 +29,18 @@ export default defineConfig(() => ({
     exclude: [...defaultExclude, 'tests/integrations/**', 'tests/databases/**'],
     passWithNoTests: false,
     reporters: ['default'],
+    // `pg` phải đi qua dependency optimizer thì `vi.mock('pg')` mới có hiệu
+    // lực (Vitest 4 externalize node_modules mặc định — mock bị bỏ qua, unit
+    // test của `src/connections.ts` sẽ chạy nhầm client thật và thử kết nối
+    // mạng). Chỉ ảnh hưởng unit target; suite integration chạy worker thật,
+    // không mock pg.
+    deps: {
+      optimizer: {
+        ssr: {
+          include: ['pg'],
+        },
+      },
+    },
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,

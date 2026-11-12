@@ -16,9 +16,21 @@
  * Bất biến platform: KHÔNG BAO GIỜ log connection string, credential hay body.
  * Log chỉ cấu trúc tối thiểu.
  */
-import type { LlmApiEnv } from './env';
+import type { BindingName, LlmApiEnv } from './env';
 import { BINDING_GATEWAY, BINDING_MARKETPLACE, readBinding } from './env';
-import { withClient } from './connections';
+import { withClient, type BindingLimiter } from './connections';
+
+/**
+ * Deadline operation của mỗi query catalogue (một trong năm knob, xem
+ * `connections.ts`). Cùng trầm 3s < 5s < 15s như readiness nhưng là KNOB RIÊNG:
+ * ý nghĩa khác nhau (trần mỗi query catalogue thay vì trần probe readiness)
+ * và catalogue không có deadline trước khi review P2 — knob mới này buộc
+ * worst-case `/v1/models` tính được (2 query tuần tự × 3s + gate) thay vì
+ * ~43s không bound (connect 5s + statement 15s mỗi query, review P1/P2 của
+ * PR #152). Hết deadline query → `CatalogueError` → 503 fail-closed như mọi
+ * lỗi catalogue khác.
+ */
+export const CATALOGUE_DEADLINE_MS = 3_000;
 
 /** Một model đang phục vụ trong catalogue công khai. */
 export interface ServingModel {
@@ -109,20 +121,25 @@ export function modelsListBody(models: readonly ServingModel[]): string {
 
 /**
  * Chạy một câu lệnh đọc qua binding tương ứng (client pg mới cho mỗi phép
- * gọi — xem `connections.ts`); mọi lỗi (binding thiếu, query lỗi) đều ném
- * `CatalogueError` — chi tiết lỗi không bao giờ đi vào log.
+ * gọi — xem `connections.ts`); mọi lỗi (binding thiếu, query lỗi, deadline,
+ * queue admission đầy) đều ném `CatalogueError` — chi tiết lỗi không bao giờ
+ * đi vào log.
  */
 async function queryBinding(
   env: LlmApiEnv,
-  binding: string,
+  binding: BindingName,
   sql: string,
+  limiter: BindingLimiter,
 ): Promise<Record<string, unknown>[]> {
   const hyperdrive = readBinding(env, binding);
   if (hyperdrive === null) {
     throw new CatalogueError();
   }
   try {
-    const result = await withClient(hyperdrive.connectionString, (client) => client.query(sql));
+    const result = await withClient(hyperdrive.connectionString, (client) => client.query(sql), {
+      limiter,
+      deadlineMs: CATALOGUE_DEADLINE_MS,
+    });
     return result.rows as Record<string, unknown>[];
   } catch {
     throw new CatalogueError();
@@ -130,8 +147,16 @@ async function queryBinding(
 }
 
 /** Đọc các offer `active` từ binding marketplace. */
-async function fetchActiveOffers(env: LlmApiEnv): Promise<ActiveOffer[]> {
-  const rows = await queryBinding(env, BINDING_MARKETPLACE, ACTIVE_OFFERS_SQL);
+async function fetchActiveOffers(
+  env: LlmApiEnv,
+  limiters: Readonly<Record<BindingName, BindingLimiter>>,
+): Promise<ActiveOffer[]> {
+  const rows = await queryBinding(
+    env,
+    BINDING_MARKETPLACE,
+    ACTIVE_OFFERS_SQL,
+    limiters[BINDING_MARKETPLACE],
+  );
   return rows.map((row) => {
     const id = row.normalized_model_id;
     const createdAt = row.created_at;
@@ -151,8 +176,16 @@ async function fetchActiveOffers(env: LlmApiEnv): Promise<ActiveOffer[]> {
 }
 
 /** Đọc ánh xạ `tenant id → tên tenant công khai` từ binding gateway. */
-async function fetchTenantNames(env: LlmApiEnv): Promise<Map<string, string>> {
-  const rows = await queryBinding(env, BINDING_GATEWAY, TENANT_NAMES_SQL);
+async function fetchTenantNames(
+  env: LlmApiEnv,
+  limiters: Readonly<Record<BindingName, BindingLimiter>>,
+): Promise<Map<string, string>> {
+  const rows = await queryBinding(
+    env,
+    BINDING_GATEWAY,
+    TENANT_NAMES_SQL,
+    limiters[BINDING_GATEWAY],
+  );
   const tenants = new Map<string, string>();
   for (const row of rows) {
     const id = row.id;
@@ -171,12 +204,15 @@ async function fetchTenantNames(env: LlmApiEnv): Promise<Map<string, string>> {
  * không ánh xạ được) đều ném `CatalogueError` — route quyết định fail-closed.
  * Catalogue rỗng là kết quả HỢP LỆ (200 `data: []`), không phải lỗi.
  */
-export async function servingCatalogue(env: LlmApiEnv): Promise<ServingModel[]> {
-  const offers = await fetchActiveOffers(env);
+export async function servingCatalogue(
+  env: LlmApiEnv,
+  limiters: Readonly<Record<BindingName, BindingLimiter>>,
+): Promise<ServingModel[]> {
+  const offers = await fetchActiveOffers(env, limiters);
   if (offers.length === 0) {
     return [];
   }
-  const tenants = await fetchTenantNames(env);
+  const tenants = await fetchTenantNames(env, limiters);
   return offers.map((offer) => {
     const ownedBy = tenants.get(offer.sellerTenantId);
     if (ownedBy === undefined) {

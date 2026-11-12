@@ -47,7 +47,7 @@ const POSTGRES_PORT = 5_432;
 const SUPERUSER = 'ecoma_test_superuser';
 const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 /** Mật khẩu chung cho các role test — secret giả, database ném đi sau mỗi run. */
-const ROLE_PASSWORD = 'ecoma_test_role_pw';
+export const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
 /** Owner chung của cả ba database — pattern `auth-deploy`: một stack sở hữu password. */
 const OWNER_ROLE = 'ecoma_owner';
@@ -374,6 +374,14 @@ export async function startLlmApiDatabase(
   databaseOptions: LlmApiDatabaseOptions = {},
 ): Promise<LlmApiDatabase> {
   const pinnedPort = databaseOptions.pinnedPort;
+  if (
+    pinnedPort !== undefined &&
+    (!Number.isInteger(pinnedPort) || pinnedPort < 1 || pinnedPort > 65_535)
+  ) {
+    throw new Error(
+      `pinnedPort must be an integer within 1-65535, received: ${String(pinnedPort)}`,
+    );
+  }
   const container = await startPostgresContainer((c) =>
     c
       // `postgres` là DB built-in của image: testcontainers không tự tạo DB nào
@@ -411,7 +419,14 @@ export async function startLlmApiDatabase(
       // `error`: container bị stop giữa chừng (suite resilience) gửi FATAL
       // 57P01 rồi socket đứt — không listener là uncaught exception giết tiến
       // trình vitest. Lỗi của query vẫn đi qua rejection của promise như thường.
-      client.on('error', () => undefined);
+      // Ghi log message lỗi (KHÔNG object đầy đủ — tránh rò credential qua
+      // serialization) để container chết giữa chừng không câm lặng khi debug.
+      client.on('error', (error) => {
+        console.error(
+          '[llm-api-test-harness] pg client error:',
+          error instanceof Error ? error.message : String(error),
+        );
+      });
       await client.connect();
       return client;
     };

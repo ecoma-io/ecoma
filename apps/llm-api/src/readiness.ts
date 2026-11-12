@@ -18,12 +18,14 @@ import {
   BINDING_TENANT,
   readBinding,
 } from './env';
-import { withClient } from './connections';
+import { OperationDeadlineError, withClient, type BindingLimiter } from './connections';
 
 /**
- * Deadline per-binding của probe readiness (per-operation deadline — một trong
- * ba knob timeout, xem `connections.ts`). Đủ ngắn để `/ready` không treo, đủ dài cho
- * connection thật qua Hyperdrive local emulation.
+ * Deadline operation per-binding của probe readiness (một trong năm knob,
+ * xem `connections.ts`). Deadline bao trùm admission + connect + query — hết
+ * deadline là operation bị terminate thật (review P1 của PR #152), không
+ * chỉ thời gian trả HTTP response. Đủ ngắn để `/ready` không treo, đủ dài
+ * cho connection thật qua Hyperdrive local emulation.
  */
 export const READINESS_DEADLINE_MS = 3_000;
 
@@ -78,59 +80,42 @@ export function failures(report: ReadinessReport): Array<[string, BindingStatus]
 }
 
 /**
- * Kết quả một probe có deadline: `timedOut` phân biệt deadline tự bắn với lỗi
- * thật của connection (hai trạng thái khác nhau của hợp đồng readiness).
+ * Probe song song cả ba binding, mỗi probe có deadline operation riêng 3s
+ * (admission + connect + query trong cùng một budget). Binding thiếu trong
+ * env là `missing` — fail-closed, không bao giờ suy đoán. `limiters` là bộ
+ * limiter per-binding tạo một lần trong `buildApp()` — mọi probe đi qua
+ * admission control, không có đường tạo client nào ngoài limiter.
  */
-interface ProbeOutcome {
-  readonly timedOut: boolean;
-  readonly ok: boolean;
-}
-
-const DEADLINE_HIT: ProbeOutcome = { timedOut: true, ok: false };
-
-/**
- * Probe song song cả ba binding, mỗi probe có deadline riêng 3s. Binding thiếu
- * trong env là `missing` — fail-closed, không bao giờ suy đoán.
- */
-export async function probeReadiness(env: LlmApiEnv): Promise<ReadinessReport> {
+export async function probeReadiness(
+  env: LlmApiEnv,
+  limiters: Readonly<Record<BindingName, BindingLimiter>>,
+): Promise<ReadinessReport> {
   const [gateway, tenant, marketplace] = await Promise.all(
-    BINDING_NAMES.map(async (binding) => probeBinding(env, binding)),
+    BINDING_NAMES.map(async (binding) => probeBinding(env, binding, limiters[binding])),
   );
   return { gateway, tenant, marketplace };
 }
 
-async function probeBinding(env: LlmApiEnv, binding: string): Promise<BindingStatus> {
+async function probeBinding(
+  env: LlmApiEnv,
+  binding: BindingName,
+  limiter: BindingLimiter,
+): Promise<BindingStatus> {
   const hyperdrive = readBinding(env, binding);
   if (hyperdrive === null) {
     return 'missing';
   }
-  const outcome = await withDeadline(
-    withClient(hyperdrive.connectionString, (client) => client.query('SELECT 1')),
-  );
-  if (outcome.timedOut) {
-    return 'timeout';
-  }
-  return outcome.ok ? 'ready' : 'unavailable';
-}
-
-/**
- * Đua một query với deadline của nó: deadline thắng là `DEADLINE_HIT` (probe
- * kết luận `timeout`), query thắng là kết quả thật. `Promise.race` gắn handler
- * vào cả hai promise nên rejection "thua cuộc" đến muộn không thành
- * unhandled rejection.
- */
-async function withDeadline(query: Promise<unknown>): Promise<ProbeOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<ProbeOutcome>((resolve) => {
-    timer = setTimeout(() => resolve(DEADLINE_HIT), READINESS_DEADLINE_MS);
-  });
   try {
-    return await Promise.race([query.then(() => ({ timedOut: false, ok: true })), deadline]);
-  } catch {
-    return { timedOut: false, ok: false };
-  } finally {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
+    await withClient(hyperdrive.connectionString, (client) => client.query('SELECT 1'), {
+      limiter,
+      deadlineMs: READINESS_DEADLINE_MS,
+    });
+    return 'ready';
+  } catch (error) {
+    // Hai nhãn khác nhau của hợp đồng readiness (đúng semantics Rust):
+    // deadline hết → `timeout` (operation đã bị terminate thật — review P1
+    // của PR #152); mọi lỗi khác (connection lỗi, queue admission đầy) →
+    // `unavailable`. HTTP body không đổi: một binding chưa ready là 503.
+    return error instanceof OperationDeadlineError ? 'timeout' : 'unavailable';
   }
 }

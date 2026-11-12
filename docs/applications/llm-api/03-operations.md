@@ -32,6 +32,8 @@
 | No-candidate        | Lỗi tường minh; release reservation nếu đã reserve                                       |
 | Hyperdrive pool cạn | 503 + Retry-After; load shedding, không queue chờ                                        |
 
+⚠️ Deviation ghi nhận được (M1): dòng trên là policy vận hành đích của control plane chưa xây. Data plane M1 hiện chạy admission per-binding trong từng isolate — limit hữu hạn + queue bounded + deadline operation — nên quá tải luôn kết thúc xác định bằng 503 (queue đầy → fail-fast ngay; deadline → timeout), không bao giờ queue vô hạn. Deviation nằm trong source (`src/connections.ts`) và được thay khi control plane xây xong.
+
 ## 5. Recovery
 
 - Restore DB theo system-level runbook (base backup + WAL → R2, PITR).

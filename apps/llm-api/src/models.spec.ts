@@ -5,7 +5,7 @@
  */
 import { type Mock, describe, expect, it, vi } from 'vitest';
 
-import { withClient } from './connections';
+import { createBindingLimiters, OperationDeadlineError, withClient } from './connections';
 import type { LlmApiEnv } from './env';
 import {
   CatalogueError,
@@ -73,7 +73,19 @@ function hyperdriveEnv(): LlmApiEnv {
 describe('servingCatalogue fail-closed branches', () => {
   it('a failing catalogue query throws CatalogueError instead of an empty list', async () => {
     withClientMock.mockRejectedValueOnce(new Error('connection refused'));
-    await expect(servingCatalogue(hyperdriveEnv())).rejects.toBeInstanceOf(CatalogueError);
+    await expect(servingCatalogue(hyperdriveEnv(), createBindingLimiters())).rejects.toBeInstanceOf(
+      CatalogueError,
+    );
+  });
+
+  it('a catalogue query that misses its deadline throws CatalogueError (fail-closed)', async () => {
+    // Deadline operation là một trong các lỗi fail-closed của catalogue —
+    // review P1/P2 của PR #152: hết deadline (operation bị terminate) phải
+    // cho đúng 503 path, không rò result muộn thành 200.
+    withClientMock.mockRejectedValueOnce(new OperationDeadlineError());
+    await expect(servingCatalogue(hyperdriveEnv(), createBindingLimiters())).rejects.toBeInstanceOf(
+      CatalogueError,
+    );
   });
 
   it('an unmapped seller tenant throws CatalogueError instead of an empty list', async () => {
@@ -91,6 +103,8 @@ describe('servingCatalogue fail-closed branches', () => {
         ],
       })
       .mockResolvedValueOnce({ rows: [{ id: 'tenant-a', name: 'Tenant A' }] });
-    await expect(servingCatalogue(hyperdriveEnv())).rejects.toBeInstanceOf(CatalogueError);
+    await expect(servingCatalogue(hyperdriveEnv(), createBindingLimiters())).rejects.toBeInstanceOf(
+      CatalogueError,
+    );
   });
 });
