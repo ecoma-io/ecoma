@@ -35,6 +35,11 @@ const TSX_BIN = resolve(APP_ROOT, '../../node_modules/.bin/tsx');
 
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
+// Placeholder vô hại cho một biến `reject` chưa đến lượt gán: giữ ở module
+// scope để không tạo arrow mới mỗi lần `spawnCli` chạy (oxlint
+// consistent-function-scoping).
+const noopReject: (reason?: unknown) => void = () => undefined;
+
 /** `sub` hợp lệ: `sub_` + 32 ký tự base32 thường (khớp `isStaffSubFormat`). */
 function randomSub(): string {
   const bytes = randomBytes(32);
@@ -1276,33 +1281,87 @@ describe('CLI wire shapes', () => {
     await db?.stop();
   });
 
+  // Spawn process CLI nhưng CHƯA feed stdin. Process đứng chờ ở `readStdin()`
+  // của `db/bootstrap.mts`: mọi tham số nghiệp vụ đều đến từ stdin, nên process
+  // chưa được feed thì chưa mở kết nối PostgreSQL và chưa đụng DB. Nhờ vậy
+  // pre-spawn nhiều lượt để chồng phần đắt nhất (boot tsx + khởi động process,
+  // ~1.0–1.4s dưới tải CI) mà vẫn gate được thứ tự ghi DB qua thứ tự feed stdin.
+  function spawnCli(action: 'staff-provision' | 'staff-assign' | 'staff-verify'): {
+    feed: (input: Record<string, string>) => void;
+    done: Promise<{ code: number; stdout: string; stderr: string }>;
+    kill: () => void;
+  } {
+    const databaseUrl = `postgresql://ecoma_staff_access_migrator:${db.rolePassword}@${db.host}:${db.port}/db-staff-access`;
+    const child = spawn(TSX_BIN, ['--tsconfig', 'tsconfig.db.json', 'db/bootstrap.mts', action], {
+      cwd: APP_ROOT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    // Khi feed đến muộn (sau khi process đã chết vì lỗi boot), write vào stdin
+    // có thể phát EPIPE — một stream không có listener 'error' làm vỡ worker
+    // vitest. Kết quả thật của lượt CLI vẫn được báo qua `done` (exit code từ
+    // 'close'), nên nuốt lỗi stdin ở đây là an toàn.
+    child.stdin.on('error', () => undefined);
+    let rejectDone: (reason?: unknown) => void = noopReject;
+    const done = new Promise<{ code: number; stdout: string; stderr: string }>(
+      (resolvePromise, reject) => {
+        rejectDone = reject;
+        child.on('error', reject);
+        child.on('close', (code) => {
+          resolvePromise({ code: code ?? 1, stdout, stderr });
+        });
+      },
+    );
+    // Handler no-op vĩnh viễn trên `done`: một handle bị kill khi chưa từng
+    // được await (đường dọn dẹp khi test fail giữa chừng) phải không bao giờ
+    // thành unhandled rejection làm vỡ worker vitest. Việc await thông thường
+    // ở các caller không bị ảnh hưởng — promise nhận thêm handler vẫn hoạt
+    // động như cũ.
+    done.catch(() => undefined);
+    return {
+      feed: (input: Record<string, string>) => {
+        // `end()` có thể throw ĐỒNG BỘ (ERR_STREAM_DESTROYED) nếu stdin đã bị
+        // hủy trước khi feed — process chết vì lỗi boot tsx là đường hợp lệ
+        // của pre-spawn. Listener 'error' phía trên chỉ bắt lỗi bất đồng bộ,
+        // không bắt được throw này. Đẩy throw vào `done` để lượt CLI chết
+        // sớm được báo qua kết quả thật; nếu `done` đã settle thì reject là
+        // no-op.
+        try {
+          child.stdin.end(JSON.stringify(input));
+        } catch (error) {
+          rejectDone(error);
+        }
+      },
+      done,
+      kill: () => {
+        // Dọn dẹp chống rò rỉ process: handle đã spawn nhưng chưa được feed
+        // treo vĩnh viễn ở `readStdin()` — không ai feed, không ai await,
+        // process mồ côi giữ worker vitest và có thể treo CI khi test đỏ.
+        // Kill là no-op với process đã exit.
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill('SIGKILL');
+        }
+      },
+    };
+  }
+
   async function runCli(
     action: 'staff-provision' | 'staff-assign' | 'staff-verify',
     stdin: Record<string, string>,
   ): Promise<{ code: number; stdout: string; stderr: string }> {
-    const databaseUrl = `postgresql://ecoma_staff_access_migrator:${db.rolePassword}@${db.host}:${db.port}/db-staff-access`;
-    return new Promise((resolvePromise, reject) => {
-      const child = spawn(TSX_BIN, ['--tsconfig', 'tsconfig.db.json', 'db/bootstrap.mts', action], {
-        cwd: APP_ROOT,
-        env: { ...process.env, DATABASE_URL: databaseUrl },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (chunk: string) => {
-        stdout += chunk;
-      });
-      child.stderr.on('data', (chunk: string) => {
-        stderr += chunk;
-      });
-      child.on('error', reject);
-      child.on('close', (code) => {
-        resolvePromise({ code: code ?? 1, stdout, stderr });
-      });
-      child.stdin.end(JSON.stringify(stdin));
-    });
+    const cli = spawnCli(action);
+    cli.feed(stdin);
+    return cli.done;
   }
 
   it('emits the exact stdout envelope for provision, assign and verify', async () => {
@@ -1310,37 +1369,58 @@ describe('CLI wire shapes', () => {
     const correlationId = `corr_${randomBytes(8).toString('hex')}`;
     const base = { correlation_id: correlationId, operator_ref: 'CHG-CLI-1', sub };
 
-    const provision = await runCli('staff-provision', base);
-    expect(provision.code).toBe(0);
-    const provisionLine = JSON.parse(provision.stdout.trim()) as Record<string, string>;
-    expect(provisionLine).toEqual({
-      stage: 'staff.provision',
-      status: 'created',
-      staff_id: provisionLine['staff_id'],
-    });
-    expect(provisionLine['staff_id']).toMatch(/^[0-9a-f-]{36}$/u);
+    // Pre-spawn cả ba lượt CLI: phần đắt nhất của mỗi lượt là boot tsx + khởi
+    // động process, nên chồng boot của ba lượt giúp wall time không còn cộng
+    // dồn 3× và test giữ default testTimeout 5s của vitest trên runner bận.
+    // Ba lượt KHÔNG phụ thuộc nhau ở tầng input: assign/verify dùng đúng object
+    // `base` khai sẵn, `staff_id` chỉ được assert khớp chứ không được truyền
+    // vào input. Dependency duy nhất là thứ tự ghi DB, được bảo toàn bằng cách
+    // gate stdin — `db/bootstrap.mts` đọc stdin trong `main()` TRƯỚC khi mở PG
+    // client, và process chưa được feed thì đứng chờ ở `readStdin()` chưa đụng
+    // DB. Nếu sau này `bootstrap.mts` đụng DB trước khi đọc stdin, giả định
+    // này vỡ và ba process pre-spawn có thể ghi DB cạnh nhau không theo thứ tự.
+    const provisionCli = spawnCli('staff-provision');
+    const assignCli = spawnCli('staff-assign');
+    const verifyCli = spawnCli('staff-verify');
+    try {
+      provisionCli.feed(base);
+      const provision = await provisionCli.done;
+      expect(provision.code).toBe(0);
+      const provisionLine = JSON.parse(provision.stdout.trim()) as Record<string, string>;
+      expect(provisionLine).toEqual({
+        stage: 'staff.provision',
+        status: 'created',
+        staff_id: provisionLine['staff_id'],
+      });
+      expect(provisionLine['staff_id']).toMatch(/^[0-9a-f-]{36}$/u);
 
-    const assign = await runCli('staff-assign', base);
-    expect(assign.code).toBe(0);
-    const assignLine = JSON.parse(assign.stdout.trim()) as Record<string, string>;
-    expect(assignLine).toEqual({
-      stage: 'staff.assign',
-      status: 'created',
-      staff_id: provisionLine['staff_id'],
-      assignment_id: assignLine['assignment_id'],
-    });
-    expect(assignLine['assignment_id']).toMatch(/^[0-9a-f-]{36}$/u);
+      assignCli.feed(base);
+      const assign = await assignCli.done;
+      expect(assign.code).toBe(0);
+      const assignLine = JSON.parse(assign.stdout.trim()) as Record<string, string>;
+      expect(assignLine).toEqual({
+        stage: 'staff.assign',
+        status: 'created',
+        staff_id: provisionLine['staff_id'],
+        assignment_id: assignLine['assignment_id'],
+      });
+      expect(assignLine['assignment_id']).toMatch(/^[0-9a-f-]{36}$/u);
 
-    const verify = await runCli('staff-verify', {
-      correlation_id: correlationId,
-      sub,
-    });
-    expect(verify.code).toBe(0);
-    expect(JSON.parse(verify.stdout.trim())).toEqual({
-      stage: 'staff.verify',
-      status: 'verified',
-      staff_id: provisionLine['staff_id'],
-    });
+      verifyCli.feed({ correlation_id: correlationId, sub });
+      const verify = await verifyCli.done;
+      expect(verify.code).toBe(0);
+      expect(JSON.parse(verify.stdout.trim())).toEqual({
+        stage: 'staff.verify',
+        status: 'verified',
+        staff_id: provisionLine['staff_id'],
+      });
+    } finally {
+      // Chống rò rỉ process khi test fail giữa chừng (một expect ném, hoặc
+      // test timeout): handle chưa kịp được feed còn đứng chờ ở `readStdin()`
+      // mãi mãi — không ai feed, không ai await. Kill mọi process chưa exit;
+      // với happy path, cả ba đã đóng sẵn nên kill là no-op.
+      for (const cli of [provisionCli, assignCli, verifyCli]) cli.kill();
+    }
   });
 
   it('verifies a bootstrap committed by a previous run without a correlation id (resolve mode)', async () => {
