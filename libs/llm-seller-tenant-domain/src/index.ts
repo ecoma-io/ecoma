@@ -69,6 +69,7 @@ export {
   createPermissionId,
   createSellerActorId,
   createSellerTenantId,
+  isFirstPartySellerTenantNameKey,
   isEpochMillis,
   isGrantId,
   isMembershipId,

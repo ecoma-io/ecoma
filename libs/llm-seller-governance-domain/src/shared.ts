@@ -107,6 +107,17 @@ declare const evidenceIdBrand: unique symbol;
 /** Định danh một evidence reference. */
 export type EvidenceId = string & { readonly [evidenceIdBrand]?: true };
 
+declare const legalPrincipalIdBrand: unique symbol;
+
+/**
+ * Định danh một `FirstPartyLegalPrincipal` (ADR-0027 §3; governance §3.8).
+ *
+ * Opaque và ổn định như mọi định danh khác; domain không suy ra ý nghĩa từ giá
+ * trị. Principal không phải tenant: brand riêng để không thể nhầm một
+ * `principalId` với `SellerTenantId` ở call site có kiểu chặt.
+ */
+export type LegalPrincipalId = string & { readonly [legalPrincipalIdBrand]?: true };
+
 function isOpaqueId(value: unknown): value is string {
   return (
     typeof value === 'string' &&
@@ -133,6 +144,11 @@ export function isVerificationCaseId(value: unknown): value is VerificationCaseI
 
 /** Type guard cho `EvidenceId`. */
 export function isEvidenceId(value: unknown): value is EvidenceId {
+  return isOpaqueId(value);
+}
+
+/** Type guard cho `LegalPrincipalId`. */
+export function isLegalPrincipalId(value: unknown): value is LegalPrincipalId {
   return isOpaqueId(value);
 }
 
@@ -164,6 +180,14 @@ export function createVerificationCaseId(value: string): VerificationCaseId {
 export function createEvidenceId(value: string): EvidenceId {
   if (!isEvidenceId(value)) {
     throw new TypeError('Evidence ID is not valid.');
+  }
+  return value;
+}
+
+/** Dựng `LegalPrincipalId`. @throws TypeError khi giá trị không hợp lệ. */
+export function createLegalPrincipalId(value: string): LegalPrincipalId {
+  if (!isLegalPrincipalId(value)) {
+    throw new TypeError('Legal principal ID is not valid.');
   }
   return value;
 }

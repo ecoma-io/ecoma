@@ -3,7 +3,8 @@
  *
  * Library này là nửa **governance** của bounded context LLM Seller (ADR-0018):
  * restriction record + evaluation, appeal lifecycle, verification/onboarding,
- * legal/tax profile, evidence reference và operational eligibility suy ra.
+ * legal/tax profile, evidence reference, `FirstPartyLegalPrincipal` + principal
+ * association (ADR-0027) và operational eligibility suy ra.
  *
  * ## Ranh giới
  *
@@ -48,11 +49,13 @@ export {
   MAX_SELLER_TEXT_LENGTH,
   createAppealId,
   createEvidenceId,
+  createLegalPrincipalId,
   createRestrictionId,
   createVerificationCaseId,
   isAppealId,
   isEpochMillis,
   isEvidenceId,
+  isLegalPrincipalId,
   isMembershipId,
   isOpaqueLabel,
   isRestrictionId,
@@ -64,6 +67,7 @@ export {
   llmGovernanceOk,
   type AppealId,
   type EvidenceId,
+  type LegalPrincipalId,
   type LlmGovernanceFailure,
   type LlmGovernanceOk,
   type LlmGovernanceResult,
@@ -119,7 +123,9 @@ export {
   deriveOperationalEligibility,
   expireVerificationCase,
   isVerificationCase,
+  isVerificationProfileAxes,
   startVerificationReview,
+  submitPrincipalVerificationCase,
   submitVerificationCase,
   type CreateVerificationCaseInput,
   type DecideVerificationInput,
@@ -129,11 +135,18 @@ export {
   type ExpireVerificationCaseInput,
   type OnboardingState,
   type OperationalEligibility,
+  type PrincipalCoverageSnapshot,
   type StartVerificationReviewInput,
+  type SubmitPrincipalVerificationCaseInput,
   type SubmitVerificationCaseInput,
+  type TenantClassification,
   type VerificationCase,
+  type VerificationDecision,
+  type VerificationProfileAxisBinding,
+  type VerificationProfileAxes,
   type VerificationStatus,
   type VerificationSubmission,
+  type VerifiedProfileVersionPin,
 } from './verification';
 
 export {
@@ -165,4 +178,46 @@ export {
   isEvidenceReference,
   type CreateEvidenceReferenceInput,
   type EvidenceReference,
+} from './evidence';
+
+export {
+  appendPrincipalLegalProfileVersion,
+  appendPrincipalTaxProfileVersion,
+  blockLegalPrincipal,
+  createFirstPartyLegalPrincipal,
+  isFirstPartyLegalPrincipal,
+  isPrincipalLegalProfileVersion,
+  isPrincipalTaxProfileVersion,
+  principalLegalProfileVersionAt,
+  principalTaxProfileVersionAt,
+  unblockLegalPrincipal,
+  type AppendPrincipalProfileVersionInput,
+  type AppendPrincipalTaxProfileVersionInput,
+  type BlockLegalPrincipalInput,
+  type CreateFirstPartyLegalPrincipalInput,
+  type FirstPartyLegalPrincipal,
+  type LegalPrincipalStatus,
+  type PrincipalLegalProfileVersion,
+  type PrincipalTaxProfileVersion,
+  type UnblockLegalPrincipalInput,
+} from './principal';
+
+export {
+  acceptPrincipalRevision,
+  establishFirstPartyPrincipalAssociation,
+  isPrincipalAssessment,
+  isPrincipalAssociation,
+  type AcceptPrincipalRevisionInput,
+  type EstablishFirstPartyPrincipalAssociationInput,
+  type PrincipalApprovedCoverage,
+  type PrincipalAssessment,
+  type PrincipalAssociation,
+} from './principal-association';
+
+export {
+  assertEvidenceInPrincipal,
+  createPrincipalEvidenceReference,
+  isPrincipalEvidenceReference,
+  type CreatePrincipalEvidenceReferenceInput,
+  type PrincipalEvidenceReference,
 } from './evidence';

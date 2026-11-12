@@ -47,6 +47,7 @@ function expectOk<Value>(
 
 const AT = 1_700_000_000_000;
 const TENANT = createSellerTenantId('tenant-1');
+const OTHER_TENANT = createSellerTenantId('tenant-2');
 const OFFER_ID = createModelOfferId('offer-1');
 const POOL_ID = createEndpointPoolId('pool-1');
 
@@ -204,13 +205,16 @@ describe('cross-operation lifecycle (regression)', () => {
       createProviderCredential({
         id: createProviderCredentialId('cred-1'),
         provider: 'openai',
+        sellerTenantId: TENANT,
         credentialHash: 'sha256:deadbeef',
         plaintext: 'sk-once',
         createdBy: createSellerActorId('sub-1'),
         createdAt: AT,
       }),
     );
-    expect(expectOk(assertCredentialProvider(created.credential, 'openai')).id).toBe('cred-1');
+    expect(expectOk(assertCredentialProvider(created.credential, 'openai', TENANT)).id).toBe(
+      'cred-1',
+    );
     expect(toPublicProviderCredential(created.credential)).not.toHaveProperty('credentialHash');
 
     const revoked = expectOk(
@@ -220,11 +224,31 @@ describe('cross-operation lifecycle (regression)', () => {
         revokedAt: AT + 1,
       }),
     );
-    const reuse = assertCredentialProvider(revoked, 'openai');
+    const reuse = assertCredentialProvider(revoked, 'openai', TENANT);
     expect(reuse.ok).toBe(false);
     if (reuse.ok) {
       throw new Error('expected a failure branch');
     }
     expect(reuse.error.code).toBe('credential_revoked');
+  });
+
+  it('a credential of another Seller tenant is rejected on cross-tenant use', () => {
+    const created = expectOk(
+      createProviderCredential({
+        id: createProviderCredentialId('cred-1'),
+        provider: 'openai',
+        sellerTenantId: TENANT,
+        credentialHash: 'sha256:deadbeef',
+        plaintext: 'sk-once',
+        createdBy: createSellerActorId('sub-1'),
+        createdAt: AT,
+      }),
+    );
+    const foreign = assertCredentialProvider(created.credential, 'openai', OTHER_TENANT);
+    expect(foreign.ok).toBe(false);
+    if (foreign.ok) {
+      throw new Error('expected a failure branch');
+    }
+    expect(foreign.error.code).toBe('credential_tenant_mismatch');
   });
 });

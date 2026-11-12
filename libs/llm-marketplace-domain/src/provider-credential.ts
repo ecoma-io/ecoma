@@ -17,6 +17,15 @@
  *   object **không được lưu** và chỉ trả về đúng một lần từ `createProviderCredential`.
  * - Revoke là terminal và hiệu lực ngay: mọi operation dùng credential sau
  *   revoke trả `credential_revoked`.
+ *
+ * Hai trục scope tách biệt (ADR-0027 §8):
+ * - **Trục upstream** — `provider` là khoá upstream API provider; credential của
+ *   provider A không dùng được cho endpoint của provider B.
+ * - **Trục sở hữu** — `sellerTenantId` là Seller tenant **sở hữu** credential;
+ *   chỉ serving path của đúng tenant đó được dùng nó. Hai Seller tenant dùng
+ *   cùng upstream provider vẫn có hai credential độc lập — cùng `provider`
+ *   không tạo quyền dùng chung, và không có lookup credential theo `provider`
+ *   xuyên tenant (không API nào như vậy ở public surface).
  */
 
 import {
@@ -24,6 +33,7 @@ import {
   isOpaqueLabel,
   isProviderCredentialId,
   isSellerActorId,
+  isSellerTenantId,
   llmMarketplaceFailure,
   llmMarketplaceOk,
   MAX_CREDENTIAL_HASH_LENGTH,
@@ -31,6 +41,7 @@ import {
   type LlmMarketplaceResult,
   type ProviderCredentialId,
   type SellerActorId,
+  type SellerTenantId,
 } from './shared';
 import { isProviderKey } from './model-identity';
 
@@ -73,6 +84,11 @@ export function isCredentialPlaintext(value: unknown): value is string {
 export interface ProviderCredential {
   readonly id: ProviderCredentialId;
   readonly provider: string;
+  /**
+   * Seller tenant **sở hữu** credential (ADR-0027 §8; marketplace §3.7).
+   * `createdBy` chỉ là audit của actor tạo, không phải sở hữu.
+   */
+  readonly sellerTenantId: SellerTenantId;
   /** Hash opaque do caller cấp. Domain không hash và không so khớp. */
   readonly credentialHash: string;
   readonly createdBy: SellerActorId;
@@ -99,6 +115,8 @@ export interface CreatedProviderCredential {
 export interface CreateProviderCredentialInput {
   readonly id: unknown;
   readonly provider: unknown;
+  /** Seller tenant sở hữu credential — bắt buộc, ADR-0027 §8. */
+  readonly sellerTenantId: unknown;
   readonly credentialHash: unknown;
   readonly plaintext: unknown;
   readonly createdBy: unknown;
@@ -111,13 +129,14 @@ export interface CreateProviderCredentialInput {
  * Tạo provider credential.
  *
  * Guard:
- * - `id`, `provider`, `createdBy`, `createdAt` hợp lệ.
+ * - `id`, `provider`, `sellerTenantId`, `createdBy`, `createdAt` hợp lệ.
  * - `credentialHash` qua `isCredentialHash`.
  * - `plaintext` qua `isCredentialPlaintext` — plaintext rỗng là lỗi lập trình ở
  *   caller, không được tạo credential không có secret.
  * - `existing` (nếu cấp) mọi phần tử hợp lệ, không trùng `id`.
  *
- * Trả `CreatedProviderCredential`: bản ghi lưu cộng plaintext một lần.
+ * Trả `CreatedProviderCredential`: bản ghi lưu cộng plaintext một lần. Seed ghi
+ * owning tenant (`sellerTenantId`) cùng lúc với việc tạo credential (ADR-0027 §8).
  */
 export function createProviderCredential(
   input: CreateProviderCredentialInput,
@@ -127,6 +146,9 @@ export function createProviderCredential(
   }
   if (!isProviderKey(input.provider)) {
     return llmMarketplaceFailure('invalid_provider_key');
+  }
+  if (!isSellerTenantId(input.sellerTenantId)) {
+    return llmMarketplaceFailure('invalid_seller_tenant_id');
   }
   if (!isCredentialHash(input.credentialHash)) {
     return llmMarketplaceFailure('invalid_credential_hash');
@@ -153,6 +175,7 @@ export function createProviderCredential(
   const credential: ProviderCredential = Object.freeze({
     id: input.id,
     provider: input.provider,
+    sellerTenantId: input.sellerTenantId,
     credentialHash: input.credentialHash,
     createdBy: input.createdBy,
     createdAt: input.createdAt,
@@ -218,17 +241,26 @@ export function isProviderCredentialActive(credential: ProviderCredential): bool
 }
 
 /**
- * Khẳng định credential thuộc đúng provider được yêu cầu.
+ * Khẳng định credential dùng được cho đúng provider **và** đúng Seller tenant
+ * sở hữu, ở trạng thái chưa revoke.
  *
- * Đây là **scope validation**, không phải authentication: credential của
- * provider A không được dùng cho endpoint của provider B, kể cả khi caller gửi
- * `id` hợp lệ. Lệch provider trả `credential_provider_mismatch`; credential đã
- * revoke trả `credential_revoked`. Kiểm provider trước revoke để không tiết lộ
- * trạng thái revoke của credential thuộc provider khác.
+ * Đây là **scope validation**, không phải authentication, với hai trục độc lập
+ * fail-closed (ADR-0027 §8; marketplace §3.7):
+ * - Trục upstream: credential của provider A không dùng được cho provider B
+ *   (`credential_provider_mismatch`).
+ * - Trục sở hữu: credential của Seller tenant A không dùng được cho serving
+ *   path của Seller tenant B (`credential_tenant_mismatch`) — tenant đối chiếu
+ *   là `sellerTenantId` của offer đang phục vụ, không phải input client.
+ *
+ * Thứ tự kiểm cố định để không tiết lộ trạng thái của credential không thuộc
+ * phạm vi caller: provider trước, sở hữu sau, revoke cuối cùng — lệch provider
+ * và lệch tenant đều che trạng thái revoke (đã revoke hay chưa là dữ liệu nội
+ * bộ của credential mà caller sai scope không được đọc).
  */
 export function assertCredentialProvider(
   credential: ProviderCredential,
   provider: unknown,
+  sellerTenantId: unknown,
 ): LlmMarketplaceResult<ProviderCredential> {
   if (!isProviderCredential(credential)) {
     return llmMarketplaceFailure('invalid_provider_credential');
@@ -236,8 +268,14 @@ export function assertCredentialProvider(
   if (!isProviderKey(provider)) {
     return llmMarketplaceFailure('invalid_provider_key');
   }
+  if (!isSellerTenantId(sellerTenantId)) {
+    return llmMarketplaceFailure('invalid_seller_tenant_id');
+  }
   if (credential.provider !== provider) {
     return llmMarketplaceFailure('credential_provider_mismatch');
+  }
+  if (credential.sellerTenantId !== sellerTenantId) {
+    return llmMarketplaceFailure('credential_tenant_mismatch');
   }
   if (!isProviderCredentialActive(credential)) {
     return llmMarketplaceFailure('credential_revoked');
@@ -260,6 +298,7 @@ export function isProviderCredential(value: unknown): value is ProviderCredentia
   if (
     !isProviderCredentialId(candidate.id) ||
     !isProviderKey(candidate.provider) ||
+    !isSellerTenantId(candidate.sellerTenantId) ||
     !isCredentialHash(candidate.credentialHash) ||
     !isSellerActorId(candidate.createdBy) ||
     !isEpochMillis(candidate.createdAt)
@@ -310,6 +349,7 @@ export function toPublicProviderCredential(
 /** Tên field nội bộ không được có mặt trong projection công bố. */
 export const PROVIDER_CREDENTIAL_INTERNAL_FIELDS: readonly string[] = Object.freeze([
   'credentialHash',
+  'sellerTenantId',
   'createdBy',
   'revokedBy',
   'plaintext',

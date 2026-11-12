@@ -89,6 +89,7 @@ export function appendTaxProfileVersion(
   const nextVersion = nextProfileVersion(
     versions,
     tenantId,
+    (version) => version.tenantId,
     input.effectiveFrom,
     isTaxProfileVersion,
   );
@@ -131,6 +132,7 @@ export function isTaxProfileVersion(value: unknown): value is TaxProfileVersion 
   }
   const candidate = value as Partial<Record<keyof TaxProfileVersion, unknown>>;
   return (
+    isSellerTenantId(candidate.tenantId) &&
     isOpaqueLabel(candidate.taxResidency) &&
     isSellerText(candidate.taxIdentifier) &&
     isSellerText(candidate.declarationReference)

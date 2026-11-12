@@ -178,61 +178,61 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
-    "start": 150,
-    "end": 150,
-    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "start": 172,
+    "end": 172,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire. Re-pin khi them sellerTenantId vao ProviderCredential (ADR-0027) - code tai pin khong doi.",
     "lines": {
-      "150": "^\\ \\ if\\ \\(existing\\.some\\(\\(credential\\)\\ =>\\ credential\\.id\\ ===\\ input\\.id\\)\\)\\ \\{$"
+      "172": "^\\ \\ if\\ \\(existing\\.some\\(\\(credential\\)\\ =>\\ credential\\.id\\ ===\\ input\\.id\\)\\)\\ \\{$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
-    "start": 162,
-    "end": 162,
-    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "start": 185,
+    "end": 185,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire. Re-pin khi them sellerTenantId vao ProviderCredential (ADR-0027) - code tai pin khong doi.",
     "lines": {
-      "162": "^\\ \\ return\\ llmMarketplaceOk\\(Object\\.freeze\\(\\{\\ credential,\\ plaintext:\\ input\\.plaintext\\ \\}\\)\\);$"
+      "185": "^\\ \\ return\\ llmMarketplaceOk\\(Object\\.freeze\\(\\{\\ credential,\\ plaintext:\\ input\\.plaintext\\ \\}\\)\\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
-    "start": 202,
-    "end": 208,
-    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "start": 225,
+    "end": 231,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire. Re-pin khi them sellerTenantId vao ProviderCredential (ADR-0027) - code tai pin khong doi.",
     "lines": {
-      "202": "^\\ \\ return\\ llmMarketplaceOk\\($",
-      "203": "^\\ \\ \\ \\ Object\\.freeze\\(\\{$",
-      "204": "^\\ \\ \\ \\ \\ \\ \\.\\.\\.input\\.credential,$",
-      "205": "^\\ \\ \\ \\ \\ \\ revokedAt:\\ input\\.revokedAt,$",
-      "206": "^\\ \\ \\ \\ \\ \\ revokedBy:\\ input\\.revokedBy,$",
-      "207": "^\\ \\ \\ \\ \\}\\),$",
-      "208": "^\\ \\ \\);$"
+      "225": "^\\ \\ return\\ llmMarketplaceOk\\($",
+      "226": "^\\ \\ \\ \\ Object\\.freeze\\(\\{$",
+      "227": "^\\ \\ \\ \\ \\ \\ \\.\\.\\.input\\.credential,$",
+      "228": "^\\ \\ \\ \\ \\ \\ revokedAt:\\ input\\.revokedAt,$",
+      "229": "^\\ \\ \\ \\ \\ \\ revokedBy:\\ input\\.revokedBy,$",
+      "230": "^\\ \\ \\ \\ \\}\\),$",
+      "231": "^\\ \\ \\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
-    "start": 213,
-    "end": 217,
-    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "start": 236,
+    "end": 240,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire. Re-pin khi them sellerTenantId vao ProviderCredential (ADR-0027) - code tai pin khong doi.",
     "lines": {
-      "213": "^\\ \\ return\\ \\($",
-      "214": "^\\ \\ \\ \\ isProviderCredential\\(credential\\)\\ \\&\\&$",
-      "215": "^\\ \\ \\ \\ credential\\.revokedAt\\ ===\\ null\\ \\&\\&$",
-      "216": "^\\ \\ \\ \\ credential\\.revokedBy\\ ===\\ null$",
-      "217": "^\\ \\ \\);$"
+      "236": "^\\ \\ return\\ \\($",
+      "237": "^\\ \\ \\ \\ isProviderCredential\\(credential\\)\\ \\&\\&$",
+      "238": "^\\ \\ \\ \\ credential\\.revokedAt\\ ===\\ null\\ \\&\\&$",
+      "239": "^\\ \\ \\ \\ credential\\.revokedBy\\ ===\\ null$",
+      "240": "^\\ \\ \\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "libs/llm-marketplace-domain/src/provider-credential.ts",
-    "start": 245,
-    "end": 245,
-    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire.",
+    "start": 283,
+    "end": 283,
+    "reason": "Domain library thuần: các `return` ở đây trả kết quả hàm domain cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ tên tham số `credential` (heuristic đặt tên của rule). `ProviderCredential` là bản ghi hash-only, không có plaintext; plaintext chỉ tồn tại trong `CreatedProviderCredential` theo hợp đồng show-once tại docs/domains/llm-marketplace/domain-model.md §3.7. Dòng này khớp hình dạng rule bắt (return object chứa giá trị tên nhạy cảm), nhưng không có đường nào từ file này ra wire. Re-pin khi them sellerTenantId vao ProviderCredential (ADR-0027) - code tai pin khong doi.",
     "lines": {
-      "245": "^\\ \\ return\\ llmMarketplaceOk\\(credential\\);$"
+      "283": "^\\ \\ return\\ llmMarketplaceOk\\(credential\\);$"
     }
   },
   {

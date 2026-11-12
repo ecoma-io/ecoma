@@ -128,6 +128,38 @@ export function isGrantId(value: unknown): value is GrantId {
   return isOpaqueId(value);
 }
 
+/**
+ * Hình dạng khoá định danh của tên Seller tenant first-party (ADR-0027 §2c):
+ * chữ thường, bắt đầu bằng chữ cái, chỉ chứa `a-z0-9` và `-`, tối đa 64 ký tự.
+ *
+ * Tên này là natural key idempotency của bootstrap `(schema, tenant name)`
+ * (ADR-0020 Quyết định 5), bất biến sau khi tạo, và đồng thời là **danh tính
+ * provider công khai** của provider first-party (ADR-0027 §7) — `dronie` là
+ * tên đầu tiên.
+ *
+ * **Intended consumer:** bước seed bootstrap của `apps/llm-api` (Delivery
+ * follow-up bị chặn bởi Issue #22) — ADR-0027 (Hệ quả, dòng 127) gán khoảng
+ * trống lib này cho Issue #23, nên guard được delivered ở lib trước bước seed.
+ * Đường tạo tenant customer-facing (`createSellerTenant`) **không** bị siết
+ * bởi guard này: contract tên của nó giữ nguyên `isSellerText`.
+ *
+ * Không thuộc guard: tên không bao giờ là nhãn environment/lane
+ * (`local`/`staging`/`production`) và không phải bằng chứng classification
+ * (ADR-0027 §2d; ADR-0026 §6 — classification không suy từ tên). Hai điều đó
+ * không phải hình dạng chuỗi và thuộc trách nhiệm kiểm của bước bootstrap.
+ */
+const FIRST_PARTY_SELLER_TENANT_NAME_KEY_PATTERN = /^[a-z][a-z0-9-]{0,63}$/u;
+
+/**
+ * Type guard cho khoá tên Seller tenant first-party (ADR-0027 §2c).
+ *
+ * Chỉ kiểm **hình dạng** chuỗi; tính duy nhất trong database và tính bất biến
+ * được enforce ở biên ghi của bước bootstrap, không phải ở đây.
+ */
+export function isFirstPartySellerTenantNameKey(value: unknown): value is string {
+  return typeof value === 'string' && FIRST_PARTY_SELLER_TENANT_NAME_KEY_PATTERN.test(value);
+}
+
 const PERMISSION_ID_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/u;
 
 /**

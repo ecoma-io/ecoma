@@ -100,6 +100,7 @@ export function appendLegalProfileVersion(
   const nextVersion = nextProfileVersion(
     versions,
     tenantId,
+    (version) => version.tenantId,
     input.effectiveFrom,
     isLegalProfileVersion,
   );
@@ -141,7 +142,9 @@ export function legalProfileVersionAt(
 /**
  * Shape guard cho legal profile version đọc từ storage.
  *
- * Adapter phải gọi trước khi dùng version cho eligibility/authorization.
+ * Adapter phải gọi trước khi dùng version cho eligibility/authorization. Phần
+ * khung không mang chủ thể (`versioned-profile`), nên guard này tự kiểm
+ * `tenantId` — profile tenant-scoped chỉ tồn tại trên đường customer (§3.4).
  */
 export function isLegalProfileVersion(value: unknown): value is LegalProfileVersion {
   if (!isVersionedProfileCommon(value)) {
@@ -149,6 +152,7 @@ export function isLegalProfileVersion(value: unknown): value is LegalProfileVers
   }
   const candidate = value as Partial<Record<keyof LegalProfileVersion, unknown>>;
   return (
+    isSellerTenantId(candidate.tenantId) &&
     isSellerText(candidate.legalName) &&
     isOpaqueLabel(candidate.legalType) &&
     isSellerText(candidate.jurisdiction) &&
