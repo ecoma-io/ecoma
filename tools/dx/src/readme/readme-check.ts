@@ -9,7 +9,7 @@ import { formatFinding } from './findings.js';
  *
  * Exit code: `0` khi mọi project đạt contract; `1` khi có finding; `2` khi
  * chính checker không chạy được (graph Nx không đọc được — fail-closed, một
- * CI gate không được phép báo xanh khi chưa kiểm được gì). caddy `run()` chỉ
+ * CI gate không được phép báo xanh khi chưa kiểm được gì). citty `run()` chỉ
  * đặt `process.exitCode` thay vì `process.exit()` để stdout kịp flush — cùng
  * lý do arch-check và pr-check làm vậy.
  */
