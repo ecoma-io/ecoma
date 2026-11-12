@@ -433,8 +433,8 @@ importers:
         specifier: ^6.2.12
         version: 6.2.13
       oidc-provider:
-        specifier: 9.13.3
-        version: 9.13.3(supports-color@10.2.2)
+        specifier: 9.14.0
+        version: 9.14.0(supports-color@10.2.2)
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -8817,8 +8817,8 @@ packages:
   ohash@2.0.12:
     resolution: {integrity: sha512-65S/5gk9YSsaRjcyf7Nfa6h/d3E8/1gslpXfI4W7Dxn/oap8IKRuNT5VXkLQ1YFKIEg4apRY4Pj6aiwFzrDdmw==}
 
-  oidc-provider@9.13.3:
-    resolution: {integrity: sha512-WmNDX9dLeItBmIqGqspmX5u6Cc7VVMrKUw2InX2T16+bwUJ8m/N5rJ3Ed+YKxE5aZqLp4YqwEi6kMJx4Ui5ffw==}
+  oidc-provider@9.14.0:
+    resolution: {integrity: sha512-rfdRcKIq9HK0hRXCxLj3Pm8ctyHXTOMMPgjM/Q2JINWbED6Mq9QszjerCiePbKZdsr6/DUnttx/d1qlRKDl4KA==}
 
   on-change@6.0.2:
     resolution: {integrity: sha512-08+12qcOVEA0fS9g/VxKS27HaT94nRutUT77J2dr8zv/unzXopvhBuF8tNLWsoLQ5IgrQ6eptGeGqUYat82U1w==}
@@ -19864,7 +19864,7 @@ snapshots:
 
   ohash@2.0.12: {}
 
-  oidc-provider@9.13.3(supports-color@10.2.2):
+  oidc-provider@9.14.0(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       jose: 6.2.13

@@ -9,7 +9,7 @@
     "@ecoma-io/auth-domain": "workspace:*",
     "@ecoma-io/auth-infrastructure": "workspace:*",
     "jose": "^6.2.12",
-    "oidc-provider": "9.13.3",
+    "oidc-provider": "9.14.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {
