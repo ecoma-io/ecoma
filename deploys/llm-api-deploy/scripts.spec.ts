@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DATABASES,
+  BOOTSTRAP_CONSUMER_TENANT_ENV_VARS,
   BOOTSTRAP_GOVERNANCE_ENV_VARS,
   BOOTSTRAP_MARKETPLACE_ENV_VARS,
   bootstrapScriptName,
@@ -183,6 +184,7 @@ describe('buildBootstrapScript', () => {
       `npx tsx --tsconfig tsconfig.db.json ${bootstrapScriptName('seller-governance')}`,
     );
     expect(bootstrapScriptName('marketplace')).toBe('db/bootstrap-marketplace.mts');
+    expect(bootstrapScriptName('consumer-tenant')).toBe('db/bootstrap-consumer-tenant.mts');
   });
 
   it('is deterministic for the same inputs', () => {
@@ -197,6 +199,31 @@ describe('buildBootstrapScript', () => {
     ).toBe(script);
   });
 
+  it('emits the two step-9 database URL names instead of DATABASE_URL, by NAME only', () => {
+    // Bước 9 kết nối hai database trong một lần chạy: script phải pass-through
+    // đúng hai biến URL ECOMA_* và KHÔNG còn `-e DATABASE_URL` (runner bước 9
+    // không đọc biến đó). Mọi `-e` vẫn chỉ mang TÊN biến, không `=giá trị`.
+    const step9 = buildBootstrapScript({
+      networkName: 'ecoma-x-network',
+      worktreeRoot: '/repo/worktrees/x',
+      step: 'consumer-tenant',
+      nodeImage: NODE_IMAGE,
+      envVarNames: [...BOOTSTRAP_CONSUMER_TENANT_ENV_VARS],
+      databaseUrlEnvNames: ['ECOMA_TENANT_DATABASE_URL', 'ECOMA_GATEWAY_DATABASE_URL'],
+    });
+    expect(step9).toContain('-e ECOMA_TENANT_DATABASE_URL \\');
+    expect(step9).toContain('-e ECOMA_GATEWAY_DATABASE_URL \\');
+    expect(step9).not.toContain('-e DATABASE_URL \\');
+    for (const name of BOOTSTRAP_CONSUMER_TENANT_ENV_VARS) {
+      expect(step9).toContain(`-e ${name} \\`);
+    }
+    expect(step9).not.toMatch(/-e \w+=/u);
+    expect(step9).not.toContain(SENTINEL);
+    expect(step9).toContain(
+      `npx tsx --tsconfig tsconfig.db.json ${bootstrapScriptName('consumer-tenant')}`,
+    );
+  });
+
   it('declares the exact env var surface each runner reads (index wiring cannot drift)', () => {
     expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).toContain('ECOMA_SELLER_TENANT_OWNER_SUB');
     expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).not.toContain('SELLER_ELIGIBILITY_VERDICT');
@@ -206,6 +233,12 @@ describe('buildBootstrapScript', () => {
       BOOTSTRAP_MARKETPLACE_ENV_VARS.length,
     );
     expect(new Set(BOOTSTRAP_GOVERNANCE_ENV_VARS).size).toBe(BOOTSTRAP_GOVERNANCE_ENV_VARS.length);
+    // Bước 9: đúng hai biến — actor + owner sub; các URL database không nằm
+    // ở đây (chúng đi qua `databaseUrlEnvNames` của buildBootstrapScript).
+    expect(BOOTSTRAP_CONSUMER_TENANT_ENV_VARS).toEqual([
+      'ECOMA_GOVERNANCE_ACTOR',
+      'ECOMA_CONSUMER_TENANT_OWNER_SUB',
+    ]);
   });
 });
 

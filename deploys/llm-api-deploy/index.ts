@@ -48,6 +48,7 @@ import {
 import {
   DATABASES,
   type Database,
+  BOOTSTRAP_CONSUMER_TENANT_ENV_VARS,
   BOOTSTRAP_GOVERNANCE_ENV_VARS,
   BOOTSTRAP_MARKETPLACE_ENV_VARS,
   buildBootstrapScript,
@@ -273,20 +274,26 @@ for (const target of DATABASES) {
 }
 
 /**
- * Bootstrap Issue #23 (ADR-0020 Quyết định 13) — hai sub-bước chạy ĐÚNG runner
+ * Bootstrap chuỗi seed (ADR-0020 Quyết định 13) — các sub-bước chạy ĐÚNG runner
  * của repo (`apps/llm-api/db/bootstrap-*.mts`) bằng cùng container ephemeral
  * pattern với migrate. Thứ tự: migrate gateway → **8a seller-governance**
  * (seed tenant `dronie` + principal + approvals thật + association; in verdict
  * eligibility ra stdout) → migrate marketplace → **8b marketplace** (tiêu thụ
  * verdict từ stdout 8a; seed offer/pool/credential; smoke probe upstream;
- * activate khi probe sống). WIC chỉ lên sau CẢ HAI bootstrap để request đầu
- * tiên không rơi vào cửa sổ chưa-seed.
+ * activate khi probe sống) → migrate tenant đã chạy trước đó trong vòng migrate
+ * → **bước 9 consumer-tenant** (seed tenant `ecoma` + owner membership trên
+ * db-llm-tenant và API key đầu tiên trên db-llm-gateway — hai database, hai
+ * transaction trong MỘT runner). WIC chỉ lên sau TOÀN BỘ bootstrap để request
+ * đầu tiên không rơi vào cửa sổ chưa-seed.
  *
  * Kênh giá trị: mọi env của runner đi bằng `environment` của provider → argv
  * `docker run` chỉ mang `-e TÊN` (dựng bằng hằng `BOOTSTRAP_*_ENV_VARS` trong
  * `scripts.ts` — hai phía không thể lệch tên). Secret
- * (`LLM_UPSTREAM_CREDENTIAL_PLAINTEXT`, `DATABASE_URL`) bọc `pulumi.secret`;
- * verdict là máy đọc, không secret nhưng vẫn đi env.
+ * (`LLM_UPSTREAM_CREDENTIAL_PLAINTEXT`, `DATABASE_URL` và hai URL bước 9) bọc
+ * `pulumi.secret`; verdict là máy đọc, không secret nhưng vẫn đi env. Plaintext
+ * API key bước 9 chỉ tồn tại trên stdout của runner đúng một lần (show-once),
+ * nên `stdout`/`stderr` của command đó được đánh dấu secret output — state
+ * Pulumi mã hoá, không lưu plaintext trần.
  *
  * Cấu hình nguồn (stack config, đặt bởi `local.ts`): `tenantOwnerSub` (sub
  * superadmin canonical — giải quyết qua dx runner trước khi up), các fact
@@ -376,6 +383,57 @@ const bootstrapMarketplace = new command.local.Command(
     environment: bootstrapMarketplaceEnvironment,
   },
   { dependsOn: [migrateCommands.marketplace, bootstrapGovernance] },
+);
+
+/**
+ * Bước 9 (Issue #24) — seed Consumer tenant `ecoma`: tenant `first_party` +
+ * owner membership (db-llm-tenant, migration `tenant/0002`) và API key đầu
+ * tiên hash-only (db-llm-gateway, migration `gateway/0003`). Một runner ghi
+ * hai database nên không có `DATABASE_URL` chung: wiring truyền hai URL
+ * migrator qua hai biến riêng, đúng hằng `BOOTSTRAP_CONSUMER_TENANT_ENV_VARS` +
+ * `databaseUrlEnvNames` trong `scripts.ts`. Chạy sau 8b (đúng thứ tự bước của
+ * `02-delivery.md` §3.2) và sau migrate tenant; owner sub từ `tenantOwnerSub`
+ * đã lưu ở stack config. Plaintext key in đúng một lần trên stdout run tạo —
+ * rerun (triggers không đổi) là no-op và không in lại plaintext.
+ */
+const bootstrapConsumerTenantEnvironment: Record<string, pulumi.Output<string> | string> = {
+  ECOMA_TENANT_DATABASE_URL: migratorUrls.tenant,
+  ECOMA_GATEWAY_DATABASE_URL: migratorUrls.gateway,
+  ECOMA_GOVERNANCE_ACTOR: bootstrapActor,
+  ECOMA_CONSUMER_TENANT_OWNER_SUB: tenantOwnerSub,
+};
+
+const bootstrapConsumerTenantScript = networkName.apply((net) =>
+  buildBootstrapScript({
+    networkName: net,
+    worktreeRoot,
+    step: 'consumer-tenant',
+    nodeImage: NODE_IMAGE,
+    envVarNames: BOOTSTRAP_CONSUMER_TENANT_ENV_VARS,
+    databaseUrlEnvNames: ['ECOMA_TENANT_DATABASE_URL', 'ECOMA_GATEWAY_DATABASE_URL'],
+  }),
+);
+
+const bootstrapConsumerTenant = new command.local.Command(
+  dockerResourceName(ns, 'llm-api') + '-bootstrap-consumer-tenant',
+  {
+    create: bootstrapConsumerTenantScript,
+    update: bootstrapConsumerTenantScript,
+    // Trigger trên worktreeRoot + mọi entry environment (k=v): hai URL là
+    // output bọc secret (interpolate của password secret) nên state mã hoá
+    // entry đó — cùng cơ chế với 8a/8b.
+    triggers: [
+      worktreeRoot,
+      ...Object.entries(bootstrapConsumerTenantEnvironment).map(([k, v]) => `${k}=${v}`),
+    ],
+    environment: bootstrapConsumerTenantEnvironment,
+  },
+  {
+    dependsOn: [migrateCommands.tenant, bootstrapMarketplace],
+    // stdout run tạo key mang plaintext ĐÚNG MỘT LẦN (show-once): đánh dấu
+    // secret output (resource option) để state Pulumi mã hoá thay vì lưu trần.
+    additionalSecretOutputs: ['stdout', 'stderr'],
+  },
 );
 
 /**
@@ -577,6 +635,7 @@ const wic = new docker.Container(
       migrateCommands.marketplace,
       bootstrapGovernance,
       bootstrapMarketplace,
+      bootstrapConsumerTenant,
       wicImage,
       wicStateVolume,
       wicStateInit,
@@ -590,7 +649,11 @@ export const migrateCommandNames = [
   migrateCommands.tenant.id,
   migrateCommands.marketplace.id,
 ];
-export const bootstrapCommandNames = [bootstrapGovernance.id, bootstrapMarketplace.id];
+export const bootstrapCommandNames = [
+  bootstrapGovernance.id,
+  bootstrapMarketplace.id,
+  bootstrapConsumerTenant.id,
+];
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
 export const containerId = wic.id;

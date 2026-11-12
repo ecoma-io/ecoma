@@ -207,14 +207,21 @@ docker run --rm \\
 `;
 }
 
-/** Bước bootstrap Issue #23 của ADR-0020 Quyết định 13 — hai sub-bước. */
-export type BootstrapStep = 'seller-governance' | 'marketplace';
+/**
+ * Bước bootstrap của chuỗi seed (ADR-0020 Quyết định 13): hai sub-bước của
+ * Issue #23 (8a `seller-governance`, 8b `marketplace`) cộng bước 9 của Issue
+ * #24 (`consumer-tenant` — seed tenant `ecoma` + owner membership + API key
+ * đầu tiên; runner này ghi hai database trong một lần chạy).
+ */
+export type BootstrapStep = 'seller-governance' | 'marketplace' | 'consumer-tenant';
 
 /** Đường dẫn script runner của một bước bootstrap (relative tới `apps/llm-api`). */
 export function bootstrapScriptName(step: BootstrapStep): string {
   return step === 'seller-governance'
     ? 'db/bootstrap-seller-governance.mts'
-    : 'db/bootstrap-marketplace.mts';
+    : step === 'marketplace'
+      ? 'db/bootstrap-marketplace.mts'
+      : 'db/bootstrap-consumer-tenant.mts';
 }
 
 /**
@@ -256,6 +263,21 @@ export const BOOTSTRAP_MARKETPLACE_ENV_VARS = [
   'SELLER_ELIGIBILITY_VERDICT',
 ] as const;
 
+/**
+ * TÊN các biến môi trường mà runner bước 9 (`bootstrap-consumer-tenant.mts`)
+ * đọc. Runner này KHÔNG đọc `DATABASE_URL`: nó kết nối hai database
+ * (`db-llm-tenant` + `db-llm-gateway`) trong một lần chạy, mỗi DB một URL
+ * riêng — wiring truyền đúng hai tên đó qua `databaseUrlEnvNames` của
+ * {@link buildBootstrapScript}. `ECOMA_CONSUMER_TENANT_OWNER_SUB` là sub
+ * Superadmin của owner tenant (kênh giống 8a: đã lưu sẵn ở namespace).
+ * Plaintext API key của bước 9 chỉ in ĐÚNG MỘT LẦN trên stdout của runner
+ * (dòng `ECOMA_CONSUMER_API_KEY=`), không bao giờ qua argv hay script text.
+ */
+export const BOOTSTRAP_CONSUMER_TENANT_ENV_VARS = [
+  'ECOMA_GOVERNANCE_ACTOR',
+  'ECOMA_CONSUMER_TENANT_OWNER_SUB',
+] as const;
+
 /** Input của {@link buildBootstrapScript}. */
 export interface BootstrapScriptInputs {
   /** Tên Docker network của platform mà container bootstrap gia nhập. */
@@ -272,6 +294,13 @@ export interface BootstrapScriptInputs {
    * process shell qua kênh `environment` của `command.local.Command`.
    */
   readonly envVarNames: readonly string[];
+  /**
+   * TÊN biến môi trường chứa chuỗi kết nối database — mặc định
+   * `['DATABASE_URL']` cho 8a/8b; bước 9 truyền hai biến riêng
+   * (`ECOMA_TENANT_DATABASE_URL`, `ECOMA_GATEWAY_DATABASE_URL`) vì runner của
+   * nó kết nối hai database trong một lần chạy. Vẫn chỉ TÊN biến trong argv.
+   */
+  readonly databaseUrlEnvNames?: readonly string[];
 }
 
 /**
@@ -282,7 +311,7 @@ export interface BootstrapScriptInputs {
  * mang TÊN trong argv `-e TÊN`; docker CLI đọc giá trị từ environ của chính nó.
  */
 export function buildBootstrapScript(inputs: BootstrapScriptInputs): string {
-  const envArgs = ['DATABASE_URL', ...inputs.envVarNames]
+  const envArgs = [...(inputs.databaseUrlEnvNames ?? ['DATABASE_URL']), ...inputs.envVarNames]
     .map((name) => `  -e ${name} \\`)
     .join('\n');
   return `set -e
