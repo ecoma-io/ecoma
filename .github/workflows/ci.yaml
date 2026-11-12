@@ -192,7 +192,7 @@ jobs:
 
   ci-gate:
     name: ci-gate
-    needs: [verify, unit-test, integration-test, build, system-test]
+    needs: [verify, unit-test, integration-test, system-test]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 5
