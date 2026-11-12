@@ -3,10 +3,12 @@
  * thật, qua **runner production** chạy bằng `tsx` — đúng lệnh mà bootstrap
  * command chạy trên lane local (ADR-0020 Quyết định 12, Issue #23).
  *
- * Phủ các điều kiện hoàn thành của Issue #23: seed tenant `dronie` + principal
+ * Phủ các điều kiện hoàn thành của Issue #23: seed tenant `dronie` + owner
+ * membership của `sub` (cùng bước seed, ADR-0027 §2) + principal
  * Ecoma-io + hai case `approved` thật (chuỗi domain đầy đủ, có reviewer
  * attribution), association, evidence provenance; re-run là no-op; divergence
- * owner là fail-closed; seed lại sau xoá bị chặn (tên vẫn reserved); restriction
+ * owner là fail-closed; xoá membership ngoài bề mặt provisioning bị chặn;
+ * seed lại sau xoá bị chặn (tên vẫn reserved); restriction
  * mới đẩy eligibility về `false` (không exemption cho `first_party`); các điều
  * kiện eligibility `false` → `true` được kiểm chứng qua `deriveOperationalEligibility`
  * trên chính durable state (ADR-0027 §4–§5).
@@ -16,7 +18,7 @@
  * thật của Ecoma-io, tài liệu thật nằm ngoài repository.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   migratorUrl,
@@ -25,11 +27,13 @@ import {
   type ApplyCliResult,
   type LlmApiDatabase,
 } from '../integrations/harness.ts';
+import { resetSellerGovernance } from './bootstrap-database-reset.ts';
 import {
   BOOTSTRAP_PROFILE_AXES,
   BOOTSTRAP_REQUIRED_TYPES,
   CANONICAL_SELLER_TENANT_NAME,
   LEGAL_PRINCIPAL_ID,
+  SELLER_OWNER_MEMBERSHIP_ID,
   SELLER_TENANT_ID,
 } from '../../db/bootstrap-shared.mts';
 import {
@@ -125,7 +129,7 @@ function runGovernance(env: Record<string, string>) {
   });
 }
 
-/** Trích dòng máy đọc `KEY=value` cuối cùng từ stdout. */
+/** Trích dòng máy đọc `KEY=value` từ stdout (mỗi key in đúng một dòng). */
 function stdoutLine(stdout: string, key: string): string {
   const line = stdout.split('\n').find((candidate) => candidate.startsWith(`${key}=`));
   if (line === undefined) {
@@ -454,17 +458,29 @@ async function approveCaseOnAxis(options: {
 }
 
 describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
-  // Run 8a đầu tiên là seed dùng chung cho cả chuỗi kịch bản: chạy nó trong
-  // beforeAll để run hỏng thì mọi test trong describe báo cùng một lỗi gốc,
-  // thay vì các test sau báo assertion divergence gây nhiễu.
-  let seededRun: ApplyCliResult;
+  // Mỗi test tự seed lại từ trạng thái rỗng: chuỗi kịch bản 8a cố ý đột biến
+  // durable state (restriction, revision principal, xoá tenant), nên một state
+  // chia sẻ làm test sau phụ thuộc ngầm vào test trước và báo sai nguyên nhân
+  // khi test trước đỏ giữa chừng. Reset ở hook chạy ngay cả khi test trước fail,
+  // và một seed run hỏng làm CẢ describe báo cùng một lỗi gốc trong beforeEach —
+  // không còn false-negative lan truyền.
+  let seededRun: ApplyCliResult | undefined;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    await resetSellerGovernance(db);
     seededRun = await runGovernance(governanceEnv());
   }, 180_000);
 
+  /** Kết quả seed run của chính test này — chưa seed là lỗi hook, không phải undefined. */
+  function seedRun(): ApplyCliResult {
+    if (seededRun === undefined) {
+      throw new Error('the shared 8a seed run must have completed in beforeEach');
+    }
+    return seededRun;
+  }
+
   it('seeds the canonical tenant, principal, real approvals and association with an eligible verdict', async () => {
-    const result = seededRun;
+    const result = seedRun();
     const verdict = JSON.parse(stdoutLine(result.stdout, 'SELLER_ELIGIBILITY_VERDICT')) as {
       tenantId: string;
       eligible: boolean;
@@ -493,6 +509,26 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
         'ecoma',
       ]);
       expect(ecoma.rows).toHaveLength(0);
+
+      // Owner membership được provision trong cùng bước seed (ADR-0027 §2;
+      // 02-delivery §3.2 bước 8a: "owner membership của sub đọc lại được").
+      // Grant gắn vào membership chứ không vào owner fact.
+      const memberships = await client.query<{
+        id: string;
+        actor: string;
+        status: string;
+        revoked_at: string | null;
+      }>(
+        'SELECT id, actor, status, revoked_at FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toHaveLength(1);
+      expect(memberships.rows[0]).toMatchObject({
+        id: SELLER_OWNER_MEMBERSHIP_ID,
+        actor: OWNER_SUB,
+        status: 'active',
+        revoked_at: null,
+      });
 
       // Principal active với audit của quyết định kích hoạt.
       const principals = await client.query<{ status: string; status_changed_by: string | null }>(
@@ -579,6 +615,12 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
         'SELECT decided_at FROM llm_seller.verification_cases ORDER BY id',
       );
       expect(decidedAfter.rows).toEqual(decidedBefore.rows);
+      // Owner membership không bị đụng bởi re-run: vẫn đúng một row active.
+      const memberships = await client.query<{ id: string; status: string }>(
+        'SELECT id, status FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toEqual([{ id: SELLER_OWNER_MEMBERSHIP_ID, status: 'active' }]);
       const audit = await client.query<{ outcome: string }>(
         'SELECT outcome FROM llm_seller.bootstrap_audit ORDER BY id',
       );
@@ -592,6 +634,72 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     await expect(
       runGovernance(governanceEnv({ ECOMA_SELLER_TENANT_OWNER_SUB: 'bootstrap-someone-else' })),
     ).rejects.toThrow(/owner differs/u);
+  });
+
+  it('re-provisions the owner membership when the seeded gateway predates the membership contract (converge on empty membership state)', async () => {
+    const teardown = await db.connectAsMigrator('gateway');
+    try {
+      // Mô phỏng DB được seed bởi runner 8a cũ (trước hợp đồng membership):
+      // tenant + governance state còn nguyên, bảng membership rỗng. Trạng thái
+      // này không phân biệt được với "row bị xoá ngoài bề mặt" ở mức data —
+      // runner converge về hợp đồng bằng cách provision lại.
+      await teardown.query('DELETE FROM llm_seller.seller_memberships WHERE tenant_id = $1', [
+        SELLER_TENANT_ID,
+      ]);
+    } finally {
+      await teardown.end();
+    }
+
+    const result = await runGovernance(governanceEnv());
+    const summary = stdoutLine(result.stdout, 'SELLER_GOVERNANCE_RESULT');
+    expect(summary).toContain('"outcome":"created"');
+    expect(summary).toContain('"ownerMembership":"created"');
+
+    const client = await db.connectAsMigrator('gateway');
+    try {
+      const memberships = await client.query<{ id: string; actor: string; status: string }>(
+        'SELECT id, actor, status FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toEqual([
+        { id: SELLER_OWNER_MEMBERSHIP_ID, actor: OWNER_SUB, status: 'active' },
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('fails closed when membership rows exist but none is canonical and the owner has no active membership', async () => {
+    const teardown = await db.connectAsMigrator('gateway');
+    try {
+      // Row canonical bị thay bằng row lạ của actor khác: đây là thay đổi ngoài
+      // bề mặt provisioning thật sự (bootstrap không bao giờ ghi row kiểu này)
+      // — fail-closed, không converge qua row lạ.
+      await teardown.query('DELETE FROM llm_seller.seller_memberships WHERE tenant_id = $1', [
+        SELLER_TENANT_ID,
+      ]);
+      await teardown.query(
+        `INSERT INTO llm_seller.seller_memberships (tenant_id, id, actor, status, created_at, revoked_at, revoked_by)
+         VALUES ($1, 'seller-membership-stray', 'actor-out-of-band', 'active', $2, NULL, NULL)`,
+        [SELLER_TENANT_ID, Date.now()],
+      );
+    } finally {
+      await teardown.end();
+    }
+    await expect(runGovernance(governanceEnv())).rejects.toThrow(
+      /membership state was changed outside the provisioning surface/u,
+    );
+    const client = await db.connectAsMigrator('gateway');
+    try {
+      // Fail-closed để nguyên durable state: row lạ vẫn là row duy nhất.
+      const memberships = await client.query<{ id: string }>(
+        'SELECT id FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+        [SELLER_TENANT_ID],
+      );
+      expect(memberships.rows).toEqual([{ id: 'seller-membership-stray' }]);
+    } finally {
+      await client.end();
+    }
   });
 
   it('flips eligibility to false under a new restriction and never exempts the first_party classification', async () => {
@@ -791,11 +899,16 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     expect(recoveredVerdict.blockers).toEqual([]);
   });
 
-  it('blocks reseeding after the tenant row is removed while its association remains (name stays reserved)', async () => {
-    // Đặt cuối file: xoá tenant + association nhưng GIỮ principal/cases/evidence —
+  it('blocks reseeding after the tenant row is removed while its principal governance state remains (name stays reserved)', async () => {
+    // Xoá memberships + association + tenant nhưng GIỮ principal/cases/evidence —
     // đúng kịch bản "xoá rồi seed lại": bootstrap phải chặn, không resurrect.
+    // beforeEach đã reset + seed lại state, nên test này không phụ thuộc vị trí
+    // trong file. (Memberships phải xoá trước tenant vì FK tenant_id.)
     const teardown = await db.connectAsMigrator('gateway');
     try {
+      await teardown.query('DELETE FROM llm_seller.seller_memberships WHERE tenant_id = $1', [
+        SELLER_TENANT_ID,
+      ]);
       await teardown.query('DELETE FROM llm_seller.principal_associations WHERE tenant_id = $1', [
         SELLER_TENANT_ID,
       ]);

@@ -29,6 +29,12 @@ export interface MockConfig {
   readonly models: readonly string[];
   readonly content: string;
   readonly timeoutMs: number;
+  /**
+   * Giá trị `Authorization` header được chấp nhận (test-only, mặc định tắt).
+   * Nhiều giá trị phục vụ nhóm kịch bản rotation: endpoint URL của consumer
+   * là immutable nên một mock instance phải chấp nhận cả credential cũ và mới.
+   */
+  readonly expectedAuthorization?: readonly string[];
 }
 
 /** Lỗi cấu hình — ném lúc boot, message tiếng Anh vì là runtime output. */
@@ -88,6 +94,42 @@ function parseModels(env: Record<string, string | undefined>): readonly string[]
   return parsed;
 }
 
+/**
+ * Parse `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION`: unset/rỗng → tắt kiểm (hợp đồng
+ * PR #137 giữ nguyên); giá trị thường → một giá trị được chấp nhận; JSON array
+ * mở đầu bằng `[` → nhiều giá trị (rotation). Parse lỗi là ConfigError vì một
+ * mock kiểm auth bằng giá trị sai cho test xanh giả.
+ */
+function parseExpectedAuthorization(
+  env: Record<string, string | undefined>,
+): readonly string[] | undefined {
+  const raw = env['MOCK_UPSTREAM_EXPECTED_AUTHORIZATION'];
+  if (raw === undefined || raw === '') {
+    return undefined;
+  }
+  if (!raw.startsWith('[')) {
+    return [raw];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    throw new ConfigError(
+      'MOCK_UPSTREAM_EXPECTED_AUTHORIZATION looks like a JSON array but does not parse',
+    );
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length === 0 ||
+    !parsed.every((item): item is string => typeof item === 'string' && item.length > 0)
+  ) {
+    throw new ConfigError(
+      'MOCK_UPSTREAM_EXPECTED_AUTHORIZATION must be a non-empty JSON array of strings',
+    );
+  }
+  return parsed;
+}
+
 /** Parse toàn bộ config từ một map env-like (inject được để unit test). */
 export function parseConfig(env: Record<string, string | undefined>): MockConfig {
   const rawScenario = env['MOCK_UPSTREAM_SCENARIO'];
@@ -111,5 +153,6 @@ export function parseConfig(env: Record<string, string | undefined>): MockConfig
         ? DEFAULT_CONTENT
         : env['MOCK_UPSTREAM_CONTENT'],
     timeoutMs: parsePositiveInt(env, 'MOCK_UPSTREAM_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 600_000),
+    expectedAuthorization: parseExpectedAuthorization(env),
   };
 }
