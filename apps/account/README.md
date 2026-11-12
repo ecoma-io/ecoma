@@ -7,7 +7,7 @@ Nx project `@ecoma-io/account`, tags `type:composition`, `scope:account`, `runti
 ## Purpose
 
 - Cung cấp Account UI và BFF trong cùng một deploy unit: trên Cloudflare Workers chạy như Worker `ecoma-account` (`wrangler.jsonc`), trên local platform chạy như container Node do `deploys/account-deploy` provision.
-- Nói với `db-account` qua Hyperdrive binding `DB_ACCOUNT`, và với `auth` qua Service Binding `AUTH_SERVICE` cho back-channel.
+- Nói với `db-account` qua Hyperdrive binding `DB_ACCOUNT`; gọi ngược `auth` qua Service Binding `AUTH_SERVICE` cho back-channel — trên Workers binding thật, trên lane local binding do `server/plugins/auth-service-shim.ts` mount từ `NUXT_AUTH_SERVICE_URL`.
 - Thiết kế component và ngữ nghĩa nghiệp vụ là nội dung canonical của `docs/applications/account/` và `docs/domains/account/` — README này chỉ định vị các phần tử trong project.
 
 ## Responsibilities

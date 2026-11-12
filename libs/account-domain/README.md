@@ -1,6 +1,6 @@
 # Account Domain
 
-Thư viện domain của bounded context `account` (`@ecoma-io/account-domain`): value object, invariant vòng đời và policy thuần. Thư viện **không import Nx project khác, không SQL, không Node builtin, không I/O** — mọi tham số thời gian và entropy do caller truyền vào (`src/index.ts`); `package.json` không có runtime dependency nào.
+Thư viện domain của bounded context `account` (`@ecoma-io/account-domain`): value object, invariant vòng đời và policy thuần. Thư viện **không import Nx project khác, không SQL, không Node builtin, không I/O** — tham số thời gian do caller truyền vào, entropy thì caller truyền hoặc để mặc định lấy từ Web Crypto (`src/index.ts`); `package.json` không có runtime dependency nào.
 
 Ngữ nghĩa nghiệp vụ canonical của context nằm ở `docs/domains/account/` — thư viện này hiện thực một phần tri thức đó bằng code, không định nghĩa lại ranh giới context.
 
