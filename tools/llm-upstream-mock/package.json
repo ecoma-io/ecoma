@@ -1,0 +1,199 @@
+{
+  "name": "@ecoma-io/llm-upstream-mock",
+  "private": true,
+  "type": "module",
+  "dependencies": {},
+  "nx": {
+    "//": [
+      "Tags theo schema kiến trúc bắt buộc của `tools/dx arch-tags` (chạy trong `pnpm dx arch-check`,",
+      "CI chạy unconditional). Bộ tag này là precedent đúng của project tooling Node trong repo",
+      "(tools/dx, tools/project-management dùng cùng bộ).",
+      "",
+      "Project này là mock upstream CHỈ phục vụ tầng integration/system test (quyết định owner,",
+      "Issue #132): không project unit test nào được phụ thuộc nó, và nó không bao giờ nằm trong",
+      "production topology — vì vậy `scope:local` (tooling cục bộ) chứ không phải scope LLM product."
+    ],
+    "tags": [
+      "type:tooling",
+      "runtime:native",
+      "scope:local"
+    ],
+    "namedInputs": {
+      "default": [
+        "{projectRoot}/**/*",
+        "sharedGlobals"
+      ]
+    },
+    "targets": {
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/tools/.eslintignore",
+          "{workspaceRoot}/tools/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/package.json",
+          "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/tsconfig.lib.json",
+          "{projectRoot}/tsconfig.spec.json",
+          "{projectRoot}/src/**/*.ts",
+          "{projectRoot}/index.ts",
+          "{projectRoot}/vite.config.ts",
+          "{projectRoot}/vite.config.mts",
+          "{projectRoot}/vitest.config.ts",
+          "{projectRoot}/vitest.config.mts",
+          "{projectRoot}/src/**/*.test.ts",
+          "{projectRoot}/src/**/*.spec.ts",
+          "{projectRoot}/src/**/*.test.tsx",
+          "{projectRoot}/src/**/*.spec.tsx",
+          "{projectRoot}/src/**/*.test.js",
+          "{projectRoot}/src/**/*.spec.js",
+          "{projectRoot}/src/**/*.test.jsx",
+          "{projectRoot}/src/**/*.spec.jsx",
+          "{projectRoot}/src/**/*.d.ts",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          },
+          "^{projectRoot}/tsconfig.lib.json"
+        ],
+        "outputs": [
+          "{projectRoot}/tsconfig.tsbuildinfo",
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/dist/**/*.{d.ts,d.cts,d.mts}.map",
+          "{projectRoot}/dist/tsconfig.lib.tsbuildinfo",
+          "{projectRoot}/out-tsc/vitest/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/out-tsc/vitest/tsconfig.spec.tsbuildinfo"
+        ],
+        "syncGenerators": [
+          "@nx/js:typescript-sync"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "tools/llm-upstream-mock",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "tools/llm-upstream-mock",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      }
+    }
+  }
+}
