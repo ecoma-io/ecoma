@@ -11,6 +11,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { shellQuote } from '@ecoma-io/deployment';
+
 import {
   DATABASE_NAME,
   MACHINE_TOKEN_PLAINTEXT_ENV_VAR,
@@ -226,9 +228,28 @@ describe('buildMachineTokenProvisionScript', () => {
     expect(script).not.toContain(TOKEN_SENTINEL);
   });
 
-  it('keeps token name and scopes inline as non-secret values', () => {
-    expect(script).toContain('-e PACT_MACHINE_TOKEN_NAME=pact-broker-app-bff');
-    expect(script).toContain('-e PACT_MACHINE_TOKEN_SCOPES=admin');
+  it('keeps token name and scopes inline as quoted non-secret values', () => {
+    expect(script).toContain(`-e PACT_MACHINE_TOKEN_NAME=${shellQuote('pact-broker-app-bff')}`);
+    expect(script).toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${shellQuote('admin')}`);
+  });
+
+  it('shell-quotes hostile token name and scopes inside the builder', () => {
+    // Giá trị chứa nháy đơn/semicolon/space phải ở dưới dạng đã shellQuote:
+    // shell parse ra nguyên giá trị gốc thành MỘT argument env — không tách
+    // từ, không chạy lệnh. Nội suy trần (lỗi bị ghim ở đây) không được quay lại.
+    const hostileName = `pact"tok'en;x y`;
+    const hostileScopes = `admin 'extra;scope`;
+    const hostile = buildMachineTokenProvisionScript({
+      networkName: 'ecoma-x-network',
+      worktreeRoot: '/repo/worktrees/x',
+      nodeImage: NODE_IMAGE,
+      tokenName: hostileName,
+      tokenScopes: hostileScopes,
+    });
+    expect(hostile).toContain(`-e PACT_MACHINE_TOKEN_NAME=${shellQuote(hostileName)}`);
+    expect(hostile).toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${shellQuote(hostileScopes)}`);
+    expect(hostile).not.toContain(`-e PACT_MACHINE_TOKEN_NAME=${hostileName}`);
+    expect(hostile).not.toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${hostileScopes}`);
   });
 
   it('keeps the canonical runner invocation, mounts and network', () => {

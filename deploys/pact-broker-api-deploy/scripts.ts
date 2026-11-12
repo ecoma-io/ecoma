@@ -237,8 +237,9 @@ export interface MachineTokenProvisionScriptInputs {
  * `db/provision-machine-token.mts` của repo. Hai giá trị secret (`DATABASE_URL`
  * chứa mật khẩu runtime, `PACT_MACHINE_TOKEN_PLAINTEXT` là plaintext token)
  * CHỈ mang TÊN biến trong argv; giá trị đi qua kênh `environment` của provider.
- * Tên và scopes token là non-secret nên vẫn nội suy giá trị (scopes có khoảng
- * trắng thì caller phải bọc `shellQuote` trước khi truyền vào).
+ * Tên và scopes token là non-secret nên vẫn nội suy giá trị, nhưng builder TỰ
+ * bọc `shellQuote` — an toàn theo cấu trúc với mọi input caller truyền vào
+ * (nháy đơn/semicolon/space không thể phá shell hay tách từ của `docker run`).
  */
 export function buildMachineTokenProvisionScript(
   inputs: MachineTokenProvisionScriptInputs,
@@ -250,8 +251,8 @@ docker run --rm \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
   -w /repo/apps/pact-broker-api \\
   -e DATABASE_URL \\
-  -e PACT_MACHINE_TOKEN_NAME=${inputs.tokenName} \\
-  -e PACT_MACHINE_TOKEN_SCOPES=${inputs.tokenScopes} \\
+  -e PACT_MACHINE_TOKEN_NAME=${shellQuote(inputs.tokenName)} \\
+  -e PACT_MACHINE_TOKEN_SCOPES=${shellQuote(inputs.tokenScopes)} \\
   -e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR} \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts
