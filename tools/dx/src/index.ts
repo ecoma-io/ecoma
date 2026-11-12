@@ -16,6 +16,7 @@ export const app = defineCommand({
     'sync-agent-config': () => import('./repository/sync-agent-config.js').then((m) => m.default),
     'pr-check': () => import('./pull-request/pr-check.js').then((m) => m.default),
     'arch-check': () => import('./architecture/arch-check.js').then((m) => m.default),
+    'readme-check': () => import('./readme/readme-check.js').then((m) => m.default),
     'gitleak-ci': () => import('./security/gitleak-ci.js').then((m) => m.default),
     'gitleaks-scope': () => import('./security/gitleaks-scope.js').then((m) => m.default),
     'gitleak-local': () => import('./security/gitleak-local.js').then((m) => m.default),

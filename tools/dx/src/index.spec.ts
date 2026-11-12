@@ -40,7 +40,7 @@ describe('app', () => {
     expect(meta.description).toBe('Devtools for ecoma-io repository');
   });
 
-  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, commit-signing, gitleaks-scope, the four semgrep modes, the local platform commands and the local worker runtime commands', () => {
+  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, readme-check, commit-signing, gitleaks-scope, the four semgrep modes, the local platform commands and the local worker runtime commands', () => {
     // Set thay cho mảng sort: cùng đẳng thức tập hợp, không mutation và không
     // cần `toSorted` (lib của repository hiện là es2022).
     expect(new Set(Object.keys(app.subCommands ?? {}))).toEqual(
@@ -49,6 +49,7 @@ describe('app', () => {
         'sync-agent-config',
         'pr-check',
         'arch-check',
+        'readme-check',
         'commit-signing',
         'bootstrap-superadmin',
         'gitleak-ci',
@@ -104,6 +105,7 @@ describe('dx cli', () => {
     expect(output).toContain('sync-agent-config');
     expect(output).toContain('pr-check');
     expect(output).toContain('arch-check');
+    expect(output).toContain('readme-check');
     expect(output).toContain('commit-signing');
   });
 
@@ -112,6 +114,7 @@ describe('dx cli', () => {
     expect(await dx('sync-agent-config', '--help')).toContain('Sync agent configuration');
     expect(await dx('pr-check', '--help')).toContain('Check a pull request');
     expect(await dx('arch-check', '--help')).toContain('Validate Nx architecture tags');
+    expect(await dx('readme-check', '--help')).toContain('Validate every Nx project README.md');
     expect(await dx('commit-signing', '--help')).toContain('Check commit signing');
     expect(await dx('bootstrap-superadmin', '--help')).toContain('first-administrator bootstrap');
   });
