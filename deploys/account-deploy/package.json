@@ -53,6 +53,69 @@
           "local": {}
         }
       },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "options": {
+          "cwd": "deploys/account-deploy",
+          "command": "vitest"
+        },
+        "//": [
+          "Target `test` = unit/component colocated của project (06-testing.md",
+          "§4): `scripts.spec.ts` — bất biến tĩnh của script text + escaping qua",
+          "/bin/sh thật (không Docker).",
+          "Suite integration chạy Docker + PostgreSQL thật ở target riêng."
+        ],
+        "configurations": {},
+        "parallelism": true
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [],
+        "options": {
+          "cwd": "deploys/account-deploy",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "//": [
+          "Suite integration app-owned (06-testing.md §2/§4): argv-hygiene —",
+          "chạy đúng script provision/migrate mà index.ts render, với sentinel",
+          "credentials, shim docker ghi argv và sweep /proc/*/cmdline; assert",
+          "không secret nào vào argv/log/output/script text, đồng thời trạng",
+          "thái database sau provision + migration vẫn đúng. Bắt buộc Docker:",
+          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip. Target",
+          "luôn không cacheable vì mutate Docker/database thật.",
+          "Không `dependsOn` build bundle WIC: suite không chạy wrangler worker.",
+          "Import thẳng `scripts.ts` nguồn — đúng text mà Pulumi chạy."
+        ],
+        "configurations": {}
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,

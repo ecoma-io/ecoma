@@ -19,13 +19,16 @@ import * as dockerBuild from '@pulumi/docker-build';
 import * as pulumi from '@pulumi/pulumi';
 
 import {
+  MIGRATOR_PASSWORD_ENV_VAR,
+  RUNTIME_PASSWORD_ENV_VAR,
+  buildProvisionScript,
+} from './scripts.js';
+import {
   LOCAL_BACKOFFICE_CLIENT_ID,
   type PlatformOutputs,
   dockerResourceName,
   normalizeWorktreeRoot,
   ownershipLabels,
-  shellQuote,
-  sqlQuote,
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
@@ -89,9 +92,11 @@ const traefikHostPort = requirePlatformOutput('traefikHostPort');
 // client fail-closed 503 mọi `/api/staff`/`/api/roles`/`/api/permissions`.
 const internalHmacSecret = conf.require('internalHmacSecret');
 
-// Mật khẩu hai role local — do orchestration sinh và truyền qua --config.
-const runtimePassword = conf.require('runtimePassword');
-const migratorPassword = conf.require('migratorPassword');
+// Mật khẩu hai role local — do orchestration sinh và truyền qua --config
+// (stdin, không argv); `requireSecret` để giá trị luôn là Output được đánh dấu
+// secret, bọc `pulumi.secret` lần nữa ở nơi tiêu thụ (trigger/environment).
+const runtimePassword = conf.requireSecret('runtimePassword');
+const migratorPassword = conf.requireSecret('migratorPassword');
 
 // Connection string runtime (role ecoma_backoffice_runtime) qua network nội bộ.
 const backofficeDatabaseUrl = pulumi.interpolate`postgresql://ecoma_backoffice_runtime:${pulumi.secret(runtimePassword)}@ecoma-postgres:5432/db-backoffice`;
@@ -123,39 +128,34 @@ const image = new dockerBuild.Image(dockerResourceName(ns, 'backoffice-image'), 
  *
  * Idempotent: mỗi câu SQL guard bằng `IF NOT EXISTS`/`\gexec`. Chạy cả
  * `create` và `update` để redeploy cũng áp migration mới.
+ *
+ * Kênh credential: script do `scripts.ts` dựng (hàm thuần, test được tĩnh) —
+ * mật khẩu hai role đi vào tiến trình shell qua map `environment` của command
+ * resource (giá trị bọc `pulumi.secret`), script chỉ đọc bằng TÊN biến
+ * (`BACKOFFICE_PW_*`); SQL mật khẩu nạp vào psql qua STDIN của `docker exec -i`.
+ * Command text và argv không chứa credential nào. Phạm vi: kênh `environment`
+ * chỉ cách ly argv của process host — KHÔNG bảo vệ trước việc xem process
+ * environment ở tầng host.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-# 1. Tạo database nếu chưa có (idempotent qua shell guard).
-if ! docker exec "$PG" psql -U ecoma_local -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='db-backoffice'" | grep -q 1; then docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE "db-backoffice"'; fi
-# 2. Tạo hai role nếu chưa có.
-if ! docker exec "$PG" psql -U ecoma_local -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_backoffice_migrator'" | grep -q 1; then docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE ecoma_backoffice_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;"; fi
-if ! docker exec "$PG" psql -U ecoma_local -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_backoffice_runtime'" | grep -q 1; then docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE ecoma_backoffice_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;"; fi
-# 3. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
-#    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
-#    thành một argument của shell. Không thể chỉ bọc câu SQL bằng single quote
-#    tay: nháy đơn của sqlQuote đóng quote shell trước nó, phần giá trị lại
-#    nằm ngoài quote và shell vẫn mở rộng command substitution (đo thật trên
-#    sh trước khi sửa). shellQuote tắt MỌI mở rộng ở biên shell; nội dung psql
-#    nhận vẫn là câu SQL có literal đã qua sqlQuote.
-docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c ${shellQuote(`ALTER ROLE ecoma_backoffice_migrator WITH PASSWORD ${sqlQuote(migratorPassword)};`)}
-docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c ${shellQuote(`ALTER ROLE ecoma_backoffice_runtime WITH PASSWORD ${sqlQuote(runtimePassword)};`)}
-# 4. Grant migrator.
-docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-backoffice" TO ecoma_backoffice_migrator;'
-# Hardening schema public — chạy bằng owner mới revoke được; migration statement là no-op trên PG15+.
-docker exec "$PG" psql -U ecoma_local -d db-backoffice -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-# 5. Migration qua socket trong container (trust local) — dùng runner SQL thật.
-#    worktreeRoot do người dùng truyền — shellQuote, không nối trần vào script.
-{ echo "SELECT pg_advisory_lock(hashtext('db-backoffice'));"; cat ${shellQuote(worktreeRoot)}/apps/backoffice/db/migrations/*.sql; echo "SELECT pg_advisory_unlock(hashtext('db-backoffice'));"; } | docker exec -i "$PG" psql -U ecoma_backoffice_migrator -d db-backoffice -v ON_ERROR_STOP=1
-`;
+const provisionScript = buildProvisionScript({ postgresContainerName, worktreeRoot });
+// Map môi trường của provision — MỌI giá trị secret được bọc `pulumi.secret`:
+// state/diff chỉ thấy `[secret]`, và key khớp đúng TÊN biến mà script đọc.
+const provisionEnvironment = {
+  [MIGRATOR_PASSWORD_ENV_VAR]: pulumi.secret(migratorPassword),
+  [RUNTIME_PASSWORD_ENV_VAR]: pulumi.secret(runtimePassword),
+};
 
 const provision = new command.local.Command(
   dockerResourceName(ns, 'backoffice') + '-provision',
   {
     create: provisionScript,
     update: provisionScript,
-    triggers: [runtimePassword, migratorPassword, worktreeRoot],
+    // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
+    // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
+    // (trigger được lưu trong state Pulumi).
+    triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+    environment: provisionEnvironment,
   },
   { dependsOn: [image] },
 );

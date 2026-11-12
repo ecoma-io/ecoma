@@ -446,5 +446,35 @@
     "lines": {
       "53": "\\ \\ return\\ `postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}`;"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/scripts.ts",
+    "start": 136,
+    "end": 136,
+    "reason": "[Role migrator] Builder thuần của remediation #42: password được percent-encode rồi ghép vào userinfo của URL kết nối, và wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret` (kênh duy nhất được #42 chấp nhận); script chạy bên trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. FP cùng lớp naming/taint với pin đã accept tại deploys/remote-cache-api-deploy/local.ts:130.",
+    "lines": {
+      "136": "^\\ \\ return\\ `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/pact-broker-api-deploy/scripts.ts",
+    "start": 145,
+    "end": 145,
+    "reason": "[Role runtime] Builder thuần của remediation #42: password được percent-encode rồi ghép vào userinfo của URL kết nối, và wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret` (kênh duy nhất được #42 chấp nhận); script chạy bên trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. FP cùng lớp naming/taint với pin đã accept tại deploys/remote-cache-api-deploy/local.ts:130.",
+    "lines": {
+      "145": "^\\ \\ return\\ `postgresql://\\$\\{RUNTIME_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/scripts.ts",
+    "start": 127,
+    "end": 127,
+    "reason": "[Role migrator] Builder thuần của remediation #42: password được percent-encode rồi ghép vào userinfo của URL kết nối, và wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret` (kênh duy nhất được #42 chấp nhận); script chạy bên trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. FP cùng lớp naming/taint với pin đã accept tại deploys/remote-cache-api-deploy/local.ts:130.",
+    "lines": {
+      "127": "^\\ \\ return\\ `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
   }
 ]

@@ -66,6 +66,14 @@ import {
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
+import {
+  MIGRATOR_PASSWORD_ENV_VAR,
+  PRUNER_PASSWORD_ENV_VAR,
+  RUNTIME_PASSWORD_ENV_VAR,
+  buildMigrateScript,
+  buildProvisionScript,
+} from './scripts.js';
+
 /**
  * Image Node pin (theo DIGEST) để chạy migration runner trong container gắn
  * platform network — cùng digest mà `deploys/home-deploy/Dockerfile` ghim.
@@ -167,69 +175,82 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * `docker exec` vào container PostgreSQL của platform. Idempotent như
  * account-deploy; khác ở: guard-create `ecoma_owner` khi thiếu (không ALTER),
  * và chiều revoke chéo ngắm vào `db-account`.
+ *
+ * Kênh mật khẩu: script text là ĐẦU RA của hàm thuần `buildProvisionScript`
+ * (`scripts.ts`) và KHÔNG chứa giá trị secret nào. Mật khẩu ba role đi vào
+ * tiến trình shell qua map `environment` của `command.local.Command` (dưới —
+ * giá trị bọc `pulumi.secret`), script chỉ đọc TÊN biến môi trường, dựng SQL
+ * `ALTER ROLE ... PASSWORD` trong shell và nạp psql qua **STDIN** của
+ * `docker exec -i` (không `-c`): giá trị không nằm trong argv của `sh -c`, của
+ * `docker exec`, của `psql`, cũng như trong `create`/`update` (plain input)
+ * mà Pulumi lưu trong state. Kênh `environment` chỉ cô lập argv — KHÔNG claim
+ * bảo vệ trước việc xem process environment ở tầng host. Đổi hàm build hay
+ * đổi kênh truyền phải qua test argv-hygiene (`tests/integrations/`) — nó chạy
+ * đúng script text này.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
-# 1. Owner role dùng chung — CHỈ tạo khi thiếu; KHÔNG ALTER password (account
-#    stack sở hữu password của ecoma_owner; ALTER ở hai nơi là race xoá nhau).
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_owner'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_owner LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-# 2. Ba role của db-auth.
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_auth_migrator'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_auth_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_auth_runtime'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_auth_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_auth_nonce_pruner'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_auth_nonce_pruner LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-$PSQL -c ${shellQuote(`ALTER ROLE ecoma_auth_migrator WITH PASSWORD ${sqlQuote(migratorPassword)};`)}
-$PSQL -c ${shellQuote(`ALTER ROLE ecoma_auth_runtime WITH PASSWORD ${sqlQuote(runtimePassword)};`)}
-$PSQL -c ${shellQuote(`ALTER ROLE ecoma_auth_nonce_pruner WITH PASSWORD ${sqlQuote(prunerPassword)};`)}
-# 3. Database + owner. CREATE là lệnh guard (bash if), ALTER idempotent sẵn.
-if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-auth'" | grep -q 1; then $PSQL -c 'CREATE DATABASE "db-auth"'; fi
-$PSQL -c 'ALTER DATABASE "db-auth" OWNER TO ecoma_owner'
-# 4. Chặn chéo chiều ngược: điều kiện hoá theo db-account — account stack có
-#    thể up sau auth (thứ tự orchestration là account trước auth, nhưng một
-#    pulumi up riêng lẻ của stack này không được chết vì database kia vắng).
-if $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-account'" | grep -q 1; then $PSQL -c 'REVOKE CONNECT ON DATABASE "db-account" FROM PUBLIC'; fi
-if $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-account'" | grep -q 1; then $PSQL -c 'REVOKE CONNECT ON DATABASE "db-account" FROM ecoma_auth_runtime'; fi
-# 5. Thu CONNECT của PUBLIC trước, rồi grant per-role.
-$PSQL -c 'REVOKE CONNECT ON DATABASE "db-auth" FROM PUBLIC'
-$PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-auth" TO ecoma_auth_migrator'
-$PSQL -c 'GRANT CONNECT ON DATABASE "db-auth" TO ecoma_auth_runtime'
-$PSQL -c 'GRANT CONNECT ON DATABASE "db-auth" TO ecoma_auth_nonce_pruner'
-# 6. Hardening schema public — ecoma_local (owner/superuser) mới revoke được;
-#    migration statement là no-op trên PG15+ khi chạy bằng migrator.
-docker exec $PG psql -U ecoma_local -d db-auth -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-`;
+const provisionScript = buildProvisionScript({ postgresContainerName });
+
+/**
+ * Map `environment` của provision — kênh truyền mật khẩu DUY NHẤT: provider
+ * đặt từng giá trị vào environ của tiến trình chạy script (không argv). Mỗi
+ * giá trị bọc `pulumi.secret` nên state Pulumi mã hoá chứ không lưu plaintext;
+ * trigger đổi giá trị nằm ở `triggers` dưới (cùng bọc secret).
+ */
+const provisionEnvironment: Record<string, pulumi.Output<string>> = {
+  [MIGRATOR_PASSWORD_ENV_VAR]: pulumi.secret(migratorPassword),
+  [RUNTIME_PASSWORD_ENV_VAR]: pulumi.secret(runtimePassword),
+  [PRUNER_PASSWORD_ENV_VAR]: pulumi.secret(prunerPassword),
+};
 
 const provision = new command.local.Command(dockerResourceName(ns, 'auth') + '-provision', {
   create: provisionScript,
   update: provisionScript,
-  triggers: [runtimePassword, migratorPassword, prunerPassword, worktreeRoot],
+  // Trigger gồm CẢ BA mật khẩu (bọc pulumi.secret — trigger nằm trong state
+  // Pulumi, không plaintext): đổi bất kỳ mật khẩu nào là provision chạy lại
+  // và áp lại toàn bộ.
+  triggers: [
+    pulumi.secret(runtimePassword),
+    pulumi.secret(migratorPassword),
+    pulumi.secret(prunerPassword),
+    worktreeRoot,
+  ],
+  environment: provisionEnvironment,
 });
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
  * chạy đúng `tsx db/apply.mts` của repo (`apps/auth/db/apply.mts` — advisory
  * lock `hashtext('db-auth')`, history `auth.schema_migrations`, checksum
- * drift-abort, thứ tự tên file). Repo mount read-only; password qua `-e` env
- * của container (kênh được chấp nhận), không argv, không log.
+ * drift-abort, thứ tự tên file). Repo mount read-only.
+ *
+ * Kênh `DATABASE_URL`: script text là ĐẦU RA của hàm thuần `buildMigrateScript`
+ * (`scripts.ts`) và chỉ mang `-e DATABASE_URL` — CHỈ TÊN biến, không
+ * `=giá trị` — nên URL (chứa password) không nằm trong argv của `sh -c`, của
+ * `docker run`, của tsx bên trong container, hay trong script text nào. Giá trị
+ * đi vào environ của tiến trình shell qua map `environment` của provider (dưới
+ * — bọc `pulumi.secret`), rồi docker CLI đọc từ environ của chính nó và chuyển
+ * vào container env. Trigger gồm password migrator + worktreeRoot (cùng bọc
+ * secret): đổi mật khẩu là chạy lại migration với credential mới.
  */
-const migrateScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/auth \\
-  -e DATABASE_URL=postgresql://ecoma_auth_migrator:${pulumi.secret(migratorPassword)}@${POSTGRES_HOST}:5432/db-auth \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
-`;
+const migratorDatabaseUrl = pulumi.interpolate`postgresql://ecoma_auth_migrator:${pulumi.secret(migratorPassword)}@${POSTGRES_HOST}:5432/db-auth`;
+
+const migrateScript = networkName.apply((net) =>
+  buildMigrateScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+  }),
+);
 
 const migrate = new command.local.Command(
   dockerResourceName(ns, 'auth') + '-migrate',
   {
     create: migrateScript,
     update: migrateScript,
-    triggers: [migratorPassword, worktreeRoot],
+    triggers: [pulumi.secret(migratorPassword), worktreeRoot],
+    // Giá trị bọc secret: provider đặt vào environ của tiến trình script.
+    environment: { DATABASE_URL: migratorDatabaseUrl },
   },
   { dependsOn: [provision] },
 );

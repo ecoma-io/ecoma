@@ -233,25 +233,35 @@ describe('shellQuote + sqlQuote together (the backoffice-deploy ALTER ROLE bound
 describe('wiring', () => {
   const CALLER = join(REPO_ROOT, 'deploys/backoffice-deploy/index.ts');
 
-  it('pins the backoffice provision SQL to the two-boundary shellQuote composition', () => {
+  it('pins the backoffice provision wiring to the environment channel with STDIN password', () => {
     // Test tổ hợp phía trên chỉ chứng minh module `shell-quote` ĐÚNG — nó
-    // không nhìn thấy caller. Nếu ai revert `index.ts` về nối SQL vào double
-    // quotes của shell (`-c "... ${sqlQuote(pw)} ..."`), mọi test module vẫn
-    // xanh trong khi lỗ hổng quay lại (đã đo: shell mở rộng `$(...)` trước
-    // psql). Assert này đọc chính file caller và yêu cầu mật khẩu đi qua
-    // `-c ${shellQuote(...)}` — cùng mẫu wiring mà `namedInputs` của
-    // `@ecoma-io/deployment` đảm bảo CHẠY THẬT khi file này đổi: spec đọc
-    // caller nên caller đổi là input `production` của lib đổi (xem
+    // không nhìn thấy caller. Lịch sử: caller từng nối SQL mật khẩu vào argv
+    // của psql qua `-c ${shellQuote(...)}`; số đo thực nghiệm của Issue #42
+    // (`@pulumi/command` 1.2.1) cho thấy command text/argv bị echo ra stdout
+    // lẫn Diagnostics, nên wiring đúng giờ đây là: mật khẩu CHỈ đi qua map
+    // `environment` (bọc `pulumi.secret`), SQL `WITH PASSWORD` nằm trong
+    // builder của package và được nạp qua STDIN của `docker exec -i psql`.
+    // Assert này đọc chính file caller và chặn đúng mutation revert:
+    // (a) quay lại nội suy `WITH PASSWORD` ở bất kỳ đâu trong caller, hoặc
+    // (b) nối mật khẩu vào double quotes của shell (`-c "... ${sqlQuote(...)}"`,
+    // đo được: shell mở rộng `$(...)` trước psql). `namedInputs` của
+    // `@ecoma-io/deployment` đảm bảo spec này CHẠY THẬT khi caller đổi:
+    // spec đọc caller nên caller đổi là input `production` của lib đổi (xem
     // `namedInputs` trong package.json của project).
     const source = readFileSync(CALLER, 'utf8');
 
-    for (const role of ['ecoma_backoffice_migrator', 'ecoma_backoffice_runtime']) {
-      const pattern = new RegExp(
-        `psql [^\\n]*-c \\$\\{shellQuote\\(\`ALTER ROLE ${role} WITH PASSWORD \\$\\{sqlQuote\\([^}]+\\)\\};\`\\)\\}`,
-        'u',
-      );
+    // Caller không được tự ghép SQL chứa mật khẩu — câu ALTER ROLE sống trong
+    // builder `scripts.ts` và chỉ đến psql qua STDIN.
+    expect(source).not.toMatch(/WITH PASSWORD/u);
+
+    // Hai role phải được đưa vào tiến trình qua TÊN biến môi trường, giá trị
+    // bọc `pulumi.secret` — cùng mẫu wiring mà script builder đọc lại bằng
+    // đúng key này.
+    for (const envVar of ['MIGRATOR_PASSWORD_ENV_VAR', 'RUNTIME_PASSWORD_ENV_VAR']) {
+      const pattern = new RegExp(`\\[${envVar}\\]: pulumi\\.secret\\(`, 'u');
       expect(source).toMatch(pattern);
     }
+
     // Không còn đường nối password vào double quotes của shell: câu ALTER ROLE
     // nằm trong `"..."` kèm `${sqlQuote(` là chính revert mutation cần chặn.
     const doubleQuotedPassword = /-c "[^"\n]*PASSWORD \$\{sqlQuote\(/u;

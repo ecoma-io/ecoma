@@ -59,6 +59,86 @@
           "local": {}
         }
       },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/tsconfig.storybook.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/backoffice-deploy",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [],
+        "options": {
+          "cwd": "deploys/backoffice-deploy",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "//": [
+          "Suite integration app-owned (06-testing.md §2/§4): argv-hygiene —",
+          "chạy đúng script provision (bao gồm pipe migration) mà index.ts",
+          "render, với sentinel credentials, shim docker ghi argv và sweep",
+          "/proc/*/cmdline; assert không secret nào vào argv/log/output/script",
+          "text, đồng thời trạng thái database sau provision + migration vẫn",
+          "đúng. Bắt buộc Docker: vắng Docker là suite ĐỎ (globalSetup probe",
+          "ném), không skip. Target luôn không cacheable vì mutate",
+          "Docker/database thật.",
+          "Không `dependsOn` target nào: suite import thẳng `scripts.ts` nguồn —",
+          "đúng text mà Pulumi chạy."
+        ],
+        "configurations": {}
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,
