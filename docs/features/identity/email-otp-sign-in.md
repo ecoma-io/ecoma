@@ -37,7 +37,7 @@ Người dùng nhập địa chỉ email, nhận một mã dùng một lần, nh
 ### Không bao gồm
 
 - **Gửi email thật chưa được kiểm chứng.** Ở môi trường local và trong system test, `transactional-mailer-job` chạy với provider giả (`MAIL_PROVIDER_KIND=fake`) và test đọc mã từ D1 sink. Không test nào trong repository chứng minh thư tới hộp thư thật.
-- **Passkey, TOTP và recovery code chưa hiện thực.** Trang bảo mật render các mục này qua adapter, nhưng nút thêm passkey và các điều khiển TOTP/recovery code đang `disabled`; adapter thật vẫn uỷ thác phần này cho mock adapter. Không mô tả chúng như capability đã có.
+- **Passkey, TOTP và recovery code chưa hiện thực.** Trang bảo mật render các mục này ở trạng thái "chưa khả dụng" theo `securityCapabilities` (hiện đều `false`) — không có điều khiển thao tác nào, và không có đường mock nào thay thế. Không mô tả chúng như capability đã có.
 - **Không có mật khẩu và không có luồng đặt lại mật khẩu.**
 - **Không có đăng ký tài khoản trong phạm vi này.** Tài khoản được tạo ngoài luồng đăng nhập; địa chỉ phải đã được xác minh trước khi nhận được mã.
 - **Không có xác thực hai yếu tố ở bước đăng nhập.**

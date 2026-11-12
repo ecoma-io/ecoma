@@ -78,11 +78,11 @@ Canonical target (accepted):
 
 Current implementation (observed in source; deviations are current behavior, not accepted design — do not treat them as licence or as a pattern to copy):
 
-- Account app (`apps/account/`): `app/composables/use-account-adapter.ts` statically imports `createMockAccountAdapter`; the mock adapter implements credential methods (`verifyLoginCode`, consent handling); the real adapter factory spreads the mock adapter then overrides some methods, so credential paths can pass through mock implementations.
+- Account app (`apps/account/`): conforms to the canonical target since Issue #123 — the mock adapter implements the data port only (`AccountDataPort`); authentication and security are separate ports (`AuthenticationPort`, `AccountSecurityPort`) the mock's return type (`PreviewAccountAdapter`) cannot provide, so a credential path routed through mock cannot type-check, let alone run. The real adapter (`app/account-data/real-adapter.ts`) implements every operation explicitly — unsupported security operations report unavailable (section G) — and never spreads the mock. The only mock/real composition point is `app/account-data/preview-adapter.ts` (`{ ...real, ...data, isPreview: true }` — real auth base, mock data overlay), imported solely by a plugin registered by an inline Nuxt module guarded on `nuxt.options.dev`; the built artifact contains no mock module at all (build-graph exclusion, verified by an artifact-scan spec in `tests/integrations/`).
 - Backoffice app (`apps/backoffice/`): data modes are `prototype` / `realtime` / `disabled`, fail-closed to `unavailable`; the prototype adapter is dynamic-imported via `import()` in the `'prototype'` branch only; the real adapter calls app-owned BFF endpoints.
 - Mode strings are per-app (`mock` plus `nuxt dev` for the account data domain; `prototype` for backoffice; resolved fail-closed to `unavailable`): never normalize or rename an app's data-mode values, never assume a universal mode name, and never assume every app supports the same serve modes.
 
-Do not "align" one app's resolver to the other; read each app's own resolver. Any change to the deviations above needs its own accepted decision.
+Do not "align" one app's resolver to the other; read each app's own resolver. Any deviation from the target above needs its own accepted decision.
 
 ## D. Fixture design
 
@@ -108,7 +108,7 @@ The real API/BFF contracts are read to understand semantics so fixture data is p
 
 ## G. Authentication and security
 
-- Canonical target: mock never expands into authentication/credential flows (no synthetic auth, no fake JWTs, no fake cookies), and auth flows (login challenge/verify/handoff, consent) stay on the real BFF path in every mode. Current deviation (section C): the account app's mock adapter implements credential methods (`verifyLoginCode`, consent), so in account mock mode those flows are synthetic today — never treat a login or consent exercised on mock data as a verified authentication flow.
+- Canonical target: mock never expands into authentication/credential flows (no synthetic auth, no fake JWTs, no fake cookies), and auth flows (login challenge/verify/handoff, consent) stay on the real BFF path in every mode. This holds in both apps today: the account mock is data-port-only (section C), and its preview adapter composes real auth under mock data — a login or consent exercised on preview data goes through the real BFF and fails honestly when the auth stack is unavailable. A UI preview is still never verification evidence (below).
 - A UI preview on mock data is never evidence of authentication, authorization, or security correctness (A23, ADR-0011); authorization is deny-by-default enforced at the backend; UI visibility is not authorization.
 - Do not read `401` as permission denial or `403` as an auth error (ADR-0011): `401` redirects to login/re-auth, `403` means the authenticated caller lacks the resource right.
 - A failing real adapter must never fall back to the mock adapter: `503` means retry with backoff, and the mock opens only via the exact configured string, never as an error fallback (ADR-0011).
