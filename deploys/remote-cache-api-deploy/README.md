@@ -39,7 +39,9 @@ pnpm nx run remote-cache-api-deploy:local-down -c local # destroy của riêng p
 
 ## Testing
 
-Target `test` chạy Vitest trên hai spec colocated: `object-storage-env.spec.ts` (đúng bộ tên biến `S3_*` mà `apps/remote-cache-api/src/config.ts` đọc; secret key không nằm trong map non-secret) và `superadmin-resolver.spec.ts` (credential chỉ trong env của process, không argv; password percent-encode trong DATABASE_URL).
+Target `test` chạy Vitest trên ba spec colocated: `object-storage-env.spec.ts` (đúng bộ tên biến `S3_*` mà `apps/remote-cache-api/src/config.ts` đọc; secret key không nằm trong map non-secret), `superadmin-resolver.spec.ts` (credential chỉ trong env của process, không argv; password percent-encode trong DATABASE_URL) và `scripts.spec.ts` (bất biến tĩnh của script text do `scripts.ts` dựng — không giá trị secret nào vào command text, password chỉ đọc qua TÊN biến môi trường, `ALTER ROLE ... PASSWORD` nạp vào psql qua STDIN).
+
+Target `test-integration` (argv-hygiene, `tests/integrations/`) là kiểm thật bắt buộc Docker: chạy đúng script provision/migrate mà `index.ts` render với sentinel credentials — shim `docker` ghi argv của mọi lời gọi và watcher quét `/proc/<pid>/cmdline` suốt luồng; assert không sentinel nào vào argv/output/script text, đồng thời trạng thái database vẫn đúng (idempotency, xoay password được verify thật qua scram, migrate nối đúng database). Vắng Docker là suite ĐỎ, không skip.
 
 `local-smoke` (dependsOn `local-up` của cùng project) là kiểm thật: `GET /ready` phải báo `storage: 'configured'`, rồi client S3 thật của app round-trip trên bucket SeaweedFS — secret đi qua stdin của `docker run -i`. Không e2e suite nào khai unit này làm prerequisite.
 

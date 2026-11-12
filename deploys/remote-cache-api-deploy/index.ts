@@ -26,9 +26,12 @@
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-remote-cache` + hai role
  * (`ecoma_remote_cache_migrator`, `ecoma_remote_cache_runtime`) qua
- * `docker exec` vào container PostgreSQL của platform, hai biên escaping
- * `sqlQuote` + `shellQuote`, password do orchestration sinh và truyền qua
- * stack config `--config` (stdin, không argv). Migration chạy **đường
+ * `docker exec` vào container PostgreSQL của platform. Password do orchestration
+ * sinh và truyền qua stack config `--config` (stdin, không argv), rồi đi vào
+ * script qua kênh `environment` của `command.local.Command` — `ALTER ROLE ...
+ * PASSWORD` được dựng trong shell và nạp psql qua STDIN (`docker exec -i`), nên
+ * không process nào giữ giá trị trong argv (chi tiết kênh ở `scripts.ts`).
+ * Migration chạy **đường
  * canonical** (`apps/remote-cache-api/db/apply.mts` — advisory lock
  * `hashtext('db-remote-cache')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
@@ -51,15 +54,19 @@ import {
   normalizeWorktreeRoot,
   ownershipLabels,
   shellQuote,
-  sqlQuote,
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
 import { NODE_IMAGE } from './node-image.js';
 import { buildObjectStorageEnvs } from './object-storage-env.js';
-
-/** Alias DNS của PostgreSQL platform trong network nội bộ. */
-const POSTGRES_HOST = 'ecoma-postgres';
+import {
+  MIGRATOR_PASSWORD_ENV_VAR,
+  RUNTIME_PASSWORD_ENV_VAR,
+  POSTGRES_HOST,
+  buildMigrateScript,
+  buildMigratorConnectionUrl,
+  buildProvisionScript,
+} from './scripts.js';
 
 /**
  * Cổng HTTP nội bộ của worker `ecoma-remote-cache-api` trong WIC — `dev.port`
@@ -169,28 +176,33 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * database nào khác cần revoke chéo.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
-# 1. Hai role của db-remote-cache — guard-create khi thiếu.
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_remote_cache_migrator'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_remote_cache_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_remote_cache_runtime'" | grep -q 1; then $PSQL -c "CREATE ROLE ecoma_remote_cache_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-# 2. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
-#    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
-#    thành một argument của shell (giải thích đầy đủ backoffice-deploy/index.ts).
-$PSQL -c ${migratorPassword.apply((p) => shellQuote(`ALTER ROLE ecoma_remote_cache_migrator WITH PASSWORD ${sqlQuote(p)};`))}
-$PSQL -c ${runtimePassword.apply((p) => shellQuote(`ALTER ROLE ecoma_remote_cache_runtime WITH PASSWORD ${sqlQuote(p)};`))}
-# 3. Database — guard-create (bash if), idempotent qua lần chạy sau.
-if ! $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-remote-cache'" | grep -q 1; then $PSQL -c 'CREATE DATABASE "db-remote-cache"'; fi
-# 4. Grant: migrator cần CREATE trên database để tạo schema remote_cache
-#    (migration 0001 tự cấp USAGE/CREATE trên schema sau khi tạo); runtime chỉ
-#    CONNECT — DML grant theo bảng nằm trong migration 0001.
-$PSQL -c 'REVOKE CONNECT ON DATABASE "db-remote-cache" FROM PUBLIC'
-$PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-remote-cache" TO ecoma_remote_cache_migrator'
-$PSQL -c 'GRANT CONNECT ON DATABASE "db-remote-cache" TO ecoma_remote_cache_runtime'
-# 5. Hardening schema public — ecoma_local mới revoke được; migration statement là no-op trên PG15+.
-docker exec $PG psql -U ecoma_local -d db-remote-cache -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-`;
+
+/**
+ * Script text là ĐẦU RA của hàm thuần `buildProvisionScript` (`scripts.ts`) và
+ * KHÔNG chứa giá trị secret nào: mật khẩu hai role đi vào tiến trình shell qua
+ * map `environment` của `command.local.Command` (dưới), script chỉ đọc TÊN
+ * biến, dựng SQL `ALTER ROLE ... PASSWORD` trong shell và nạp psql qua STDIN
+ * (`docker exec -i`) — giá trị không nằm trong argv của `sh -c`, của
+ * `docker exec`, của `psql`, cũng như trong `create`/`update` (plain input)
+ * mà Pulumi lưu trong state. Đổi hàm build hay đổi kênh truyền phải qua test
+ * argv-hygiene (`tests/integrations/`) — nó chạy đúng script text này.
+ */
+const provisionScript = buildProvisionScript({ postgresContainerName });
+
+/**
+ * Map `environment` của provision — kênh truyền mật khẩu DUY NHẤT: provider
+ * đặt từng giá trị vào environ của tiến trình chạy script (không argv). Giá
+ * trị là output đã bọc secret từ `requireSecret` ở trên, nên state Pulumi mã
+ * hoá. Lưu ý biên bảo mật: môi trường process bảo vệ tốt hơn argv (không đọc
+ * được qua `ps`/`/proc/<pid>/cmdline`), nhưng KHÔNG đòi hỏi chống mọi hình
+ * truy cập host — ai đọc được `/proc/<pid>/environ` của process đang sống với
+ * cùng user vẫn thấy được; ranh giới được chấp nhận ở local là file state
+ * passphrase-protected của worktree.
+ */
+const provisionEnvironment: Record<string, pulumi.Output<string>> = {
+  [MIGRATOR_PASSWORD_ENV_VAR]: migratorPassword,
+  [RUNTIME_PASSWORD_ENV_VAR]: runtimePassword,
+};
 
 const provision = new command.local.Command(
   dockerResourceName(ns, 'remote-cache-api') + '-provision',
@@ -201,6 +213,7 @@ const provision = new command.local.Command(
     // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
     // (trigger được lưu trong state Pulumi).
     triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+    environment: provisionEnvironment,
   },
 );
 
@@ -208,27 +221,39 @@ const provision = new command.local.Command(
  * Migration qua **đường canonical**: container ephemeral trên platform network
  * chạy đúng `tsx db/apply.mts` của repo (`apps/remote-cache-api/db/apply.mts` —
  * advisory lock `hashtext('db-remote-cache')`, mọi DDL idempotent). Repo mount
- * read-only; password qua `-e` env của container (kênh được chấp nhận), không
- * argv, không log. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ *
+ * Kênh `DATABASE_URL`: giá trị (password percent-encode trước khi ghép vào
+ * userinfo — an toàn khi mật khẩu chứa `@ : / ? #`; kết quả bọc `pulumi.secret`)
+ * đi vào environ của tiến trình shell qua map `environment` của provider; script
+ * chạy `docker run -e DATABASE_URL` với CHỈ TÊN biến, docker CLI đọc giá trị từ
+ * environ của chính nó và chuyển vào container env. Không có `-e VAR=giá trị`
+ * nào trong argv của `docker run`, nên URL không lộ qua argv của `sh -c` hay
+ * `docker run`; script text là đầu ra của hàm thuần `buildMigrateScript`
+ * (`scripts.ts`), không chứa giá trị secret nào.
  */
 // Percent-encode mật khẩu trước khi ghép vào userinfo của DATABASE_URL — an toàn
 // khi orchestration set mật khẩu chứa `@ : / ? #` (xem finding security OCR).
-// Encode trên plaintext; kết quả được bọc `pulumi.secret` trong template. Biến
-// kết quả KHÔNG mang tên khớp regex nguồn nhạy cảm (`password`...) nên không
+// Encode trên plaintext; kết quả được bọc `pulumi.secret` ở URL hoàn chỉnh dưới.
+// Biến kết quả KHÔNG mang tên khớp regex nguồn nhạy cảm (`password`...) nên không
 // bị taint-source của rule `security-sensitive-value-in-http-response` đánh dấu
 // (source là identifier bắt đầu bằng token/password/secret...).
 const migratorPasswordEncoded = migratorPassword.apply((v) => encodeURIComponent(v));
 
-const migrateScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/remote-cache-api \\
-  -e DATABASE_URL=postgresql://ecoma_remote_cache_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-remote-cache \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
-`;
+// URL migrator hoàn chỉnh — bọc `pulumi.secret` trước khi vào map `environment`:
+// state Pulumi mã hoá chứ không lưu plaintext. Percent-encode là việc của
+// `buildMigratorConnectionUrl` (một nguồn sự thật với spec unit).
+const migratorConnectionUrl = pulumi.secret(
+  migratorPassword.apply((raw) => buildMigratorConnectionUrl({ password: raw })),
+);
+
+const migrateScript = networkName.apply((net) =>
+  buildMigrateScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+  }),
+);
 
 const migrate = new command.local.Command(
   dockerResourceName(ns, 'remote-cache-api') + '-migrate',
@@ -237,6 +262,8 @@ const migrate = new command.local.Command(
     update: migrateScript,
     // Bọc secret: trigger nằm trong state Pulumi — không lưu plaintext.
     triggers: [pulumi.secret(migratorPassword), worktreeRoot],
+    // Giá trị bọc secret: provider đặt vào environ của tiến trình script.
+    environment: { DATABASE_URL: migratorConnectionUrl },
   },
   { dependsOn: [provision] },
 );

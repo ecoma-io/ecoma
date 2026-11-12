@@ -68,6 +68,7 @@
     "smoke.ts",
     "node-image.ts",
     "object-storage-env.ts",
+    "scripts.ts",
     "superadmin-resolver.ts"
   ]
 }
