@@ -22,6 +22,7 @@ import {
   migratorUrl,
   runBootstrapCli,
   startLlmApiDatabase,
+  type ApplyCliResult,
   type LlmApiDatabase,
 } from '../integrations/harness.ts';
 import {
@@ -453,8 +454,17 @@ async function approveCaseOnAxis(options: {
 }
 
 describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
+  // Run 8a đầu tiên là seed dùng chung cho cả chuỗi kịch bản: chạy nó trong
+  // beforeAll để run hỏng thì mọi test trong describe báo cùng một lỗi gốc,
+  // thay vì các test sau báo assertion divergence gây nhiễu.
+  let seededRun: ApplyCliResult;
+
+  beforeAll(async () => {
+    seededRun = await runGovernance(governanceEnv());
+  }, 180_000);
+
   it('seeds the canonical tenant, principal, real approvals and association with an eligible verdict', async () => {
-    const result = await runGovernance(governanceEnv());
+    const result = seededRun;
     const verdict = JSON.parse(stdoutLine(result.stdout, 'SELLER_ELIGIBILITY_VERDICT')) as {
       tenantId: string;
       eligible: boolean;

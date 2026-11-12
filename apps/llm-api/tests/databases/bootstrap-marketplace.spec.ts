@@ -161,6 +161,18 @@ async function fetchCredentials(): Promise<CredentialRow[]> {
   }
 }
 
+/** Dọn offering state giữa hai chuỗi kịch bản: URL chết của test đầu không được thừa kế sang các test sau — chúng seed fresh. */
+async function resetOfferingTables(): Promise<void> {
+  const cleanup = await db.connectAsMigrator('marketplace');
+  try {
+    await cleanup.query(
+      'TRUNCATE llm_marketplace.model_offers, llm_marketplace.endpoint_pools, llm_marketplace.upstream_endpoints, llm_marketplace.provider_credentials CASCADE',
+    );
+  } finally {
+    await cleanup.end();
+  }
+}
+
 describe('bootstrap runner 8b (marketplace) on real PostgreSQL with a stub upstream', () => {
   it('seeds offer, pool and credential hash-only, stays draft and degraded when the upstream probe fails', async () => {
     const result = await runMarketplace(
@@ -191,122 +203,120 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with a stub upstr
     expect(credentials[0].credential_hash).toBe(
       createHash('sha256').update(PLAINTEXT_ONE, 'utf8').digest('hex'),
     );
+  });
 
-    // Endpoint target là bất biến qua bootstrap: URL chết của test này không
-    // được thừa kế sang các test sau — dọn offering state để chúng seed fresh.
-    const cleanup = await db.connectAsMigrator('marketplace');
-    try {
-      await cleanup.query(
-        'TRUNCATE llm_marketplace.model_offers, llm_marketplace.endpoint_pools, llm_marketplace.upstream_endpoints, llm_marketplace.provider_credentials CASCADE',
+  // Endpoint target là bất biến qua bootstrap: URL chết của test đầu không được
+  // thừa kế sang các test sau. Dọn offering state trong beforeAll để test đầu
+  // hỏng sớm thì chuỗi này vẫn seed fresh và báo kết quả của chính nó.
+  describe('offering chain on a fresh seed', () => {
+    beforeAll(async () => {
+      await resetOfferingTables();
+    });
+
+    it('activates the offer when the smoke probe succeeds with a valid verdict for the owning tenant', async () => {
+      const result = await runMarketplace(marketplaceEnv());
+      const summary = stdoutLine(result.stdout, 'MARKETPLACE_RESULT');
+      expect(summary).toContain('"activation":"activated"');
+
+      const offer = await fetchOffer();
+      expect(offer.status).toBe('active');
+      expect(offer.activated_at).not.toBeNull();
+
+      const client = await db.connectAsMigrator('marketplace');
+      try {
+        const endpoints = await client.query<{ health: string; health_recorded_at: string | null }>(
+          'SELECT health, health_recorded_at::text AS health_recorded_at FROM llm_marketplace.upstream_endpoints WHERE id = $1',
+          [`${OFFER_ID}-pool-1-endpoint-1`],
+        );
+        expect(endpoints.rows[0]?.health).toBe('healthy');
+        expect(endpoints.rows[0]?.health_recorded_at).not.toBeNull();
+      } finally {
+        await client.end();
+      }
+    });
+
+    it('reruns as a no-op without a new credential row or a re-activation', async () => {
+      const before = await fetchCredentials();
+      const result = await runMarketplace(marketplaceEnv());
+      expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain('"outcome":"no-op"');
+      expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
+        '"activation":"already-active"',
       );
-    } finally {
-      await cleanup.end();
-    }
-  });
+      expect(await fetchCredentials()).toEqual(before);
+    });
 
-  it('activates the offer when the smoke probe succeeds with a valid verdict for the owning tenant', async () => {
-    const result = await runMarketplace(marketplaceEnv());
-    const summary = stdoutLine(result.stdout, 'MARKETPLACE_RESULT');
-    expect(summary).toContain('"activation":"activated"');
+    it('rotates the credential when the upstream key changes: new row active, old row revoked, nothing deleted', async () => {
+      const before = await fetchCredentials();
+      expect(before).toHaveLength(1);
 
-    const offer = await fetchOffer();
-    expect(offer.status).toBe('active');
-    expect(offer.activated_at).not.toBeNull();
-
-    const client = await db.connectAsMigrator('marketplace');
-    try {
-      const endpoints = await client.query<{ health: string; health_recorded_at: string | null }>(
-        'SELECT health, health_recorded_at::text AS health_recorded_at FROM llm_marketplace.upstream_endpoints WHERE id = $1',
-        [`${OFFER_ID}-pool-1-endpoint-1`],
+      const result = await runMarketplace(
+        marketplaceEnv({ LLM_UPSTREAM_CREDENTIAL_PLAINTEXT: PLAINTEXT_TWO }),
       );
-      expect(endpoints.rows[0]?.health).toBe('healthy');
-      expect(endpoints.rows[0]?.health_recorded_at).not.toBeNull();
-    } finally {
-      await client.end();
-    }
-  });
+      expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
+        '"credentialRotationFrom":"' + before[0].id + '"',
+      );
 
-  it('reruns as a no-op without a new credential row or a re-activation', async () => {
-    const before = await fetchCredentials();
-    const result = await runMarketplace(marketplaceEnv());
-    expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain('"outcome":"no-op"');
-    expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
-      '"activation":"already-active"',
-    );
-    expect(await fetchCredentials()).toEqual(before);
-  });
+      const after = await fetchCredentials();
+      expect(after).toHaveLength(2);
+      const active = after.find((row) => row.revoked_at === null);
+      const revoked = after.find((row) => row.revoked_at !== null);
+      expect(active?.id).not.toBe(before[0].id);
+      expect(active?.credential_hash).toBe(
+        createHash('sha256').update(PLAINTEXT_TWO, 'utf8').digest('hex'),
+      );
+      expect(revoked?.id).toBe(before[0].id);
+      expect((await fetchOffer()).status).toBe('active');
+    });
 
-  it('rotates the credential when the upstream key changes: new row active, old row revoked, nothing deleted', async () => {
-    const before = await fetchCredentials();
-    expect(before).toHaveLength(1);
+    it('rejects a verdict belonging to another seller tenant fail-closed before touching state', async () => {
+      const credentialsBefore = await fetchCredentials();
+      await expect(
+        runMarketplace(
+          marketplaceEnv({
+            SELLER_ELIGIBILITY_VERDICT: verdict({ tenantId: 'seller-tenant-someone-else' }),
+          }),
+        ),
+      ).rejects.toThrow(/does not belong to the canonical seller tenant/u);
+      expect(await fetchCredentials()).toEqual(credentialsBefore);
+    });
 
-    const result = await runMarketplace(
-      marketplaceEnv({ LLM_UPSTREAM_CREDENTIAL_PLAINTEXT: PLAINTEXT_TWO }),
-    );
-    expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
-      '"credentialRotationFrom":"' + before[0].id + '"',
-    );
+    it('keeps credentials tenant-scoped on the access path: other tenant is rejected, no provider-only lookup exists', async () => {
+      const credentials = await fetchCredentials();
+      const active = credentials.find((row) => row.revoked_at === null);
+      if (active === undefined) {
+        throw new Error('an active credential row must exist after rotation');
+      }
+      const rehydrated: ProviderCredential = {
+        id: active.id,
+        provider: PROVIDER,
+        sellerTenantId: createSellerTenantId(SELLER_TENANT_ID),
+        credentialHash: active.credential_hash,
+        createdBy: ACTOR,
+        createdAt: 0,
+        revokedAt: null,
+        revokedBy: null,
+      };
+      const tenantCheck = assertCredentialProvider(
+        rehydrated,
+        PROVIDER,
+        createSellerTenantId(SELLER_TENANT_ID),
+      );
+      expect(tenantCheck.ok).toBe(true);
+      const mismatch = assertCredentialProvider(
+        rehydrated,
+        PROVIDER,
+        createSellerTenantId('seller-tenant-someone-else'),
+      );
+      expect(mismatch.ok).toBe(false);
+      expect(mismatch).toMatchObject({ error: { code: 'credential_tenant_mismatch' } });
 
-    const after = await fetchCredentials();
-    expect(after).toHaveLength(2);
-    const active = after.find((row) => row.revoked_at === null);
-    const revoked = after.find((row) => row.revoked_at !== null);
-    expect(active?.id).not.toBe(before[0].id);
-    expect(active?.credential_hash).toBe(
-      createHash('sha256').update(PLAINTEXT_TWO, 'utf8').digest('hex'),
-    );
-    expect(revoked?.id).toBe(before[0].id);
-    expect((await fetchOffer()).status).toBe('active');
-  });
-
-  it('rejects a verdict belonging to another seller tenant fail-closed before touching state', async () => {
-    const credentialsBefore = await fetchCredentials();
-    await expect(
-      runMarketplace(
-        marketplaceEnv({
-          SELLER_ELIGIBILITY_VERDICT: verdict({ tenantId: 'seller-tenant-someone-else' }),
-        }),
-      ),
-    ).rejects.toThrow(/does not belong to the canonical seller tenant/u);
-    expect(await fetchCredentials()).toEqual(credentialsBefore);
-  });
-
-  it('keeps credentials tenant-scoped on the access path: other tenant is rejected, no provider-only lookup exists', async () => {
-    const credentials = await fetchCredentials();
-    const active = credentials.find((row) => row.revoked_at === null);
-    if (active === undefined) {
-      throw new Error('an active credential row must exist after rotation');
-    }
-    const rehydrated: ProviderCredential = {
-      id: active.id,
-      provider: PROVIDER,
-      sellerTenantId: createSellerTenantId(SELLER_TENANT_ID),
-      credentialHash: active.credential_hash,
-      createdBy: ACTOR,
-      createdAt: 0,
-      revokedAt: null,
-      revokedBy: null,
-    };
-    const tenantCheck = assertCredentialProvider(
-      rehydrated,
-      PROVIDER,
-      createSellerTenantId(SELLER_TENANT_ID),
-    );
-    expect(tenantCheck.ok).toBe(true);
-    const mismatch = assertCredentialProvider(
-      rehydrated,
-      PROVIDER,
-      createSellerTenantId('seller-tenant-someone-else'),
-    );
-    expect(mismatch.ok).toBe(false);
-    expect(mismatch).toMatchObject({ error: { code: 'credential_tenant_mismatch' } });
-
-    // Không tồn tại đường lookup theo `provider` một mình: mỗi SELECT credential
-    // trong runner đều scope theo owning tenant (ADR-0027 §8).
-    const runnerSource = readFileSync(
-      resolve(import.meta.dirname, '..', '..', 'db', 'bootstrap-marketplace.mts'),
-      'utf8',
-    );
-    expect(runnerSource).not.toMatch(/WHERE\s+provider\s*=/u);
+      // Không tồn tại đường lookup theo `provider` một mình: mỗi SELECT credential
+      // trong runner đều scope theo owning tenant (ADR-0027 §8).
+      const runnerSource = readFileSync(
+        resolve(import.meta.dirname, '..', '..', 'db', 'bootstrap-marketplace.mts'),
+        'utf8',
+      );
+      expect(runnerSource).not.toMatch(/WHERE\s+provider\s*=/u);
+    });
   });
 });
