@@ -525,6 +525,9 @@ importers:
 
   apps/llm-api:
     dependencies:
+      '@ecoma-io/llm-consumer-tenant-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-consumer-tenant-domain
       '@ecoma-io/llm-marketplace-domain':
         specifier: workspace:*
         version: link:../../libs/llm-marketplace-domain
