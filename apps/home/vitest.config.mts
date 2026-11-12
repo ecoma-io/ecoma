@@ -1,5 +1,5 @@
 /// <reference types='vitest' />
-import { defineConfig } from 'vite';
+import { defineConfig, defaultExclude } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 
@@ -34,10 +34,11 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
-    // Nuxt dùng `app/` (pages, domain) và `shared/`, không dùng `src/`;
-    // `tests/` chứa static-output (chạy trên output build thật — xem
-    // `package.json` target `test` dependsOn `build`) cùng token tests; giữ
-    // `src`/`tests` để không phá project được generate.
+    // Nuxt dùng `app/` (pages, domain) và `shared/`, không dùng `src/`; giữ
+    // `src` để không phá project được generate. `tests/` chỉ còn suite
+    // app-owned (`tests/integrations/` — đọc artifact build thật), bị exclude
+    // khỏi lane unit và chạy dưới target `test-integration` với config riêng
+    // `vitest.integration.config.mts` (06-testing §2, §4).
     //
     // Không còn glob cho `deploy/pipeline/`: pipeline hai làn (overview
     // `02-delivery.md` §7.2) là thiết kế chưa hiện thực — tooling dùng chung
@@ -46,6 +47,7 @@ export default defineConfig(() => ({
     // `scope:local`. Spec của pipeline tương lai sẽ chạy bằng vitest của
     // project tooling đó, không phải của app.
     include: ['{src,tests,app,shared,server}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    exclude: [...defaultExclude, 'tests/integrations/**'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

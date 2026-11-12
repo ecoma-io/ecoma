@@ -234,7 +234,7 @@ của `@source` và của `@import`: `apps/backoffice/app/assets/css/styles.spec
 `apps/pact-broker-app/tests/tailwind-source.spec.ts`,
 `apps/llm-console/tests/tailwind-source.spec.ts` và
 `apps/llm-seller/tests/tailwind-source.spec.ts`. (`apps/home` dùng `ui-ecoma-logo`, không
-phải consumer của library này; test `apps/home/tests/tailwind-source.spec.ts` ghim riêng thư mục
+phải consumer của library này; test `apps/home/app/assets/css/styles.spec.ts` ghim riêng thư mục
 nguồn `libs/ui-ecoma-logo/src`.)
 
 ## Runtime

@@ -53,9 +53,10 @@
           "`dist/`, nên `^build` từng là chi phí chết: mỗi `nx test` kéo cả chuỗi",
           "build của mọi lib phụ thuộc (L0 baseline 2026-10: ~795s/39 project,",
           "phần lớn là build không ai đọc). App nào test thật sự cần artifact build",
-          "phải khai `dependsOn` riêng ở project của nó (vd `apps/home` đọc",
-          "`.output/` sau `build`, `apps/account` test-integration đọc bundle",
-          "Nitro) — mặc định chung này chỉ phục vụ lane unit, nơi artifact không",
+          "phải khai `dependsOn` riêng ở project của nó (vd `apps/home`",
+          "test-integration đọc `.output/` sau `build`, `apps/account`",
+          "test-integration đọc bundle Nitro) — mặc định chung này chỉ phục vụ",
+          "lane unit, nơi artifact không tồn tại trong imports.",
           "tồn tại trong imports."
         ]
       }

@@ -24,13 +24,16 @@ import { describe, expect, it } from 'vitest';
  * `node:fs` bị lint cấm trong `apps/**` (runtime:edge) nhưng file này chạy ở
  * test time trên Node, không vào Worker bundle; override của
  * `**\/*.{spec,test}.*` trong `.oxlintrc.json` đã tắt rule đó cho spec.
+ *
+ * Spec colocated cạnh subject `styles.css` (06-testing §2): unit-type check,
+ * đọc source thôi, không cần build artifact — chạy trong lane `test`.
  */
 
 /** Stylesheet khai báo `@source` — đường dẫn trong đó tính tương đối từ chính nó. */
-const STYLESHEET = resolve(import.meta.dirname, '../app/assets/css/styles.css');
+const STYLESHEET = resolve(import.meta.dirname, './styles.css');
 
 /** Gốc workspace, để đối chiếu base của `@source` với thư mục nguồn library. */
-const WORKSPACE_ROOT = resolve(import.meta.dirname, '../../..');
+const WORKSPACE_ROOT = resolve(import.meta.dirname, '../../../../..');
 
 /** Thư mục nguồn của library phải được phủ — nơi chứa class Tailwind của logo. */
 const LIB_SOURCE_DIR = resolve(WORKSPACE_ROOT, 'libs/ui-ecoma-logo/src');
