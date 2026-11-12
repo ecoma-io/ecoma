@@ -250,7 +250,7 @@ jobs:
           ocr_version: 1.12.12
           llm_timeout: '360'
           review_task_timeout: '120'
-          effort: high
+          effort: medium
           review_concurrency: '32'
           stream_progress: 'true'
           upload_artifacts: 'true'
