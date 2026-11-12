@@ -6,9 +6,13 @@
  * `runtime:native`, còn `llm-api` là `type:composition` + `runtime:edge` —
  * module boundary cấm mọi cạnh import trực tiếp trên cả ba trục, và bản thân
  * mock cũng không có entry `exports` để resolve. Tiến trình con qua `tsx`
- * không tạo cạnh Nx graph nào (docs/architecture/06-testing.md §5: harness tự
+ * không tạo cạnh Nx graph nào (docs/architecture/06-testing.md §6: harness tự
  * sở hữu readiness, không thêm cạnh graph giả); tsx đã là root devDependency
  * và `runBootstrapCli` của harness dùng đúng cơ chế resolve tương tự.
+ *
+ * Hệ quả cần biết: vì không có cạnh graph, `nx affected` KHÔNG tự re-run
+ * `llm-api:test-integration` khi mock thay đổi — sửa mock xong phải chạy lại
+ * integration suite thủ công.
  *
  * Credential mock (khi bật `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION`) chỉ đi qua
  * env của tiến trình con — không argv — và stdout/stderr được thu lại để assert

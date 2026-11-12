@@ -109,18 +109,20 @@ function runMarketplace(env: Record<string, string>): Promise<ApplyCliResult> {
   });
 }
 
-/** Trích dòng máy đọc `KEY=value` cuối cùng từ stdout. */
+/** Trích dòng máy đọc `KEY=value` từ stdout (mỗi key in đúng một dòng). */
 function stdoutLine(stdout: string, key: string): string {
   const line = stdout.split('\n').find((candidate) => candidate.startsWith(`${key}=`));
   if (line === undefined) {
     throw new Error(`stdout must carry a ${key}= line; got: ${stdout}`);
   }
-  return line.slice(key.length);
+  return line.slice(key.length + 1);
 }
 
 /**
  * Fence không lộ credential: plaintext không xuất hiện trong bất kỳ output nào
- * của run (stdout/stderr runner + stdout/stderr mock).
+ * của run (stdout/stderr runner + stdout/stderr mock). So sánh qua boolean thay
+ * vì `not.toContain` để assertion đỏ chỉ in `true !== false` — không in lại
+ * toàn bộ output (kể cả plaintext nằm trong đó) vào test report.
  */
 function expectNoPlaintextLeak(
   runs: readonly ApplyCliResult[],
@@ -131,8 +133,8 @@ function expectNoPlaintextLeak(
     ...mocks.flatMap((mock) => [mock.stdout(), mock.stderr()]),
   ];
   for (const output of outputs) {
-    expect(output).not.toContain(PLAINTEXT_ONE);
-    expect(output).not.toContain(PLAINTEXT_TWO);
+    expect(output.includes(PLAINTEXT_ONE)).toBe(false);
+    expect(output.includes(PLAINTEXT_TWO)).toBe(false);
   }
 }
 
@@ -178,15 +180,21 @@ async function fetchCredentials(): Promise<CredentialRow[]> {
   }
 }
 
-async function fetchEndpointHealth(): Promise<string> {
+async function fetchEndpointHealth(): Promise<{ health: string; healthRecordedAt: string | null }> {
   const client = await db.connectAsMigrator('marketplace');
   try {
-    const endpoints = await client.query<{ health: string }>(
-      'SELECT health FROM llm_marketplace.upstream_endpoints WHERE id = $1',
+    const endpoints = await client.query<{
+      health: string;
+      health_recorded_at: string | null;
+    }>(
+      'SELECT health, health_recorded_at::text AS health_recorded_at FROM llm_marketplace.upstream_endpoints WHERE id = $1',
       [`${OFFER_ID}-pool-1-endpoint-1`],
     );
     expect(endpoints.rows[0], 'endpoint row must exist').toBeDefined();
-    return endpoints.rows[0].health;
+    return {
+      health: endpoints.rows[0].health,
+      healthRecordedAt: endpoints.rows[0].health_recorded_at,
+    };
   } finally {
     await client.end();
   }
@@ -198,6 +206,12 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
   // hai group không thể chia một mock; reset ở hook đảm bảo group trước hỏng
   // giữa chừng thì group sau vẫn seed fresh và báo kết quả của chính nó.
   describe('dead upstream (connection refused)', () => {
+    beforeAll(async () => {
+      // Reset như mọi group khác — không dựa vào "group đầu tiên chạy trên DB
+      // container vừa khởi động" (điều kiện thứ tự chạy implicit).
+      await resetMarketplace(db);
+    });
+
     it('seeds offer, pool and credential hash-only, stays draft and degraded when the probe cannot connect', async () => {
       const result = await runMarketplace(marketplaceEnv('http://127.0.0.1:1'));
       expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
@@ -207,7 +221,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       expect(offer.status).toBe('draft');
       expect(offer.normalized_model_id).toBe('dronie-flash');
       expect(offer.activated_at).toBeNull();
-      expect(await fetchEndpointHealth()).toBe('degraded');
+      expect((await fetchEndpointHealth()).health).toBe('degraded');
       // Hash-only: đúng SHA-256 của plaintext, không cột plaintext nào chứa giá trị.
       const credentials = await fetchCredentials();
       expect(credentials).toHaveLength(1);
@@ -245,10 +259,14 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       const offer = await fetchOffer();
       expect(offer.status).toBe('active');
       expect(offer.activated_at).not.toBeNull();
-      expect(await fetchEndpointHealth()).toBe('healthy');
-      // Bearer proof: mock chỉ chấp nhận đúng giá trị `Bearer <PLAINTEXT_ONE>`;
-      // một request thiếu/sai header đã bị 401 từ chối. Log chỉ mang verdict
-      // một-bit `auth=ok` — không bao giờ chứa giá trị header.
+      const endpoint = await fetchEndpointHealth();
+      expect(endpoint.health).toBe('healthy');
+      expect(endpoint.healthRecordedAt, 'probe success must be timestamped').not.toBeNull();
+      // Bearer proof: instance này khóa expected về hai giá trị của chuỗi
+      // (endpoint URL bất biến buộc một instance cho cả rotation); bằng chứng
+      // "đúng giá trị env" khóa đơn-giá-trị nằm ở group `/v1` (chỉ
+      // PLAINTEXT_ONE) và group wrong-Bearer (chỉ giá trị khác). Log chỉ mang
+      // verdict một-bit `auth=ok` — không bao giờ chứa giá trị header.
       expect(mock.stdout()).toContain('auth=ok');
       expect(mock.stdout()).not.toContain('auth=rejected');
       expectNoPlaintextLeak([activationRun], [mock]);
@@ -376,7 +394,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
         '"outcome":"created-draft-unhealthy"',
       );
       expect((await fetchOffer()).status).toBe('draft');
-      expect(await fetchEndpointHealth()).toBe('degraded');
+      expect((await fetchEndpointHealth()).health).toBe('degraded');
       // Bằng chứng probe THẬT SỰ gửi header: mock ghi verdict `auth=rejected`
       // cho request của probe (chỉ khi header lệch giá trị expected).
       expect(mock.stdout()).toContain('auth=rejected');
@@ -440,7 +458,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
         '"outcome":"created-draft-unhealthy"',
       );
       expect((await fetchOffer()).status).toBe('draft');
-      expect(await fetchEndpointHealth()).toBe('degraded');
+      expect((await fetchEndpointHealth()).health).toBe('degraded');
       expectNoPlaintextLeak([timeoutRun], [mock]);
     }, 30_000);
   });
