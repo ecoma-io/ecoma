@@ -209,7 +209,7 @@ describe('llm-api worker HTTP contract (all Hyperdrive bindings ready)', () => {
     const response = await fetchRouteOn(harness, '/llm/v1/models');
 
     expect(response.status).toBe(200);
-    expect(response.contentType).toContain('application/json');
+    expect(response.contentType).toBe('application/json');
     expect(expectJson(response.body)).toEqual({ object: 'list', data: [] });
   });
 
@@ -217,7 +217,7 @@ describe('llm-api worker HTTP contract (all Hyperdrive bindings ready)', () => {
     const response = await fetchRouteOn(harness, '/v1/models');
 
     expect(response.status).toBe(200);
-    expect(response.contentType).toContain('application/json');
+    expect(response.contentType).toBe('application/json');
     expect(expectJson(response.body)).toEqual({ object: 'list', data: [] });
   });
 
@@ -259,44 +259,86 @@ describe('llm-api worker HTTP contract (all Hyperdrive bindings ready)', () => {
     }
   });
 
-  it('answers GET /health with 200 liveness', async () => {
+  // Liveness body + content-type là một phần hợp đồng: `ok` với
+  // `text/plain; charset=utf-8` (worker-rs `Response::ok` ghim cứng).
+  it('answers GET /health with 200 liveness body ok as plain text', async () => {
     const response = await fetchRouteOn(harness, '/health');
 
     expect(response.status).toBe(200);
+    expect(response.body).toBe('ok');
+    expect(response.contentType).toBe('text/plain; charset=utf-8');
   });
 
-  it('answers GET /ready with 200 when all three Hyperdrive bindings answer SELECT 1', async () => {
+  it('answers GET /ready with 200 body ready as plain text when all three Hyperdrive bindings answer SELECT 1', async () => {
     const response = await fetchRouteOn(harness, '/ready');
 
     expect(response.status).toBe(200);
+    expect(response.body).toBe('ready');
+    expect(response.contentType).toBe('text/plain; charset=utf-8');
   });
 
   // Hợp đồng GET-only: method khác GET trên path đã định nghĩa không được biến
-  // thành response thành công — 405 + `Allow: GET` (review PR #113). POST là
-  // đại diện; PUT/DELETE đi cùng nhánh dispatch trong `lib.rs`.
-  it.each(['/health', '/ready', '/v1/models', '/llm/v1/models'])(
-    'answers POST %s with 405 and Allow: GET, never a success status',
-    async (path) => {
-      const response = await fetchRouteOn(harness, path, { method: 'POST' });
+  // thành response thành công — 405 + `Allow: GET` (review PR #113). HEAD và
+  // OPTIONS cũng thuộc nhánh 405: hợp đồng chỉ định nghĩa GET, không có ngoại
+  // lệ cho hai method "vô hại". Body `method not allowed` là một phần hợp đồng;
+  // HEAD không có body (ràng buộc HTTP, không phải của worker).
+  it.each([
+    ['/health', 'POST'],
+    ['/health', 'HEAD'],
+    ['/health', 'OPTIONS'],
+    ['/health', 'PUT'],
+    ['/health', 'DELETE'],
+    ['/ready', 'POST'],
+    ['/ready', 'HEAD'],
+    ['/ready', 'OPTIONS'],
+    ['/ready', 'PUT'],
+    ['/ready', 'DELETE'],
+    ['/v1/models', 'POST'],
+    ['/v1/models', 'HEAD'],
+    ['/v1/models', 'OPTIONS'],
+    ['/v1/models', 'PUT'],
+    ['/v1/models', 'DELETE'],
+    ['/llm/v1/models', 'POST'],
+    ['/llm/v1/models', 'HEAD'],
+    ['/llm/v1/models', 'OPTIONS'],
+    ['/llm/v1/models', 'PUT'],
+    ['/llm/v1/models', 'DELETE'],
+  ] as const)(
+    'answers %s %s with 405, Allow: GET and body method not allowed',
+    async (path, method) => {
+      const response = await fetchRouteOn(harness, path, { method });
 
       expect(response.status).toBe(405);
       expect(response.allow).toBe('GET');
+      expect(response.contentType).toBe('');
+      // HEAD không có body (ràng buộc HTTP của method, không phải của worker) —
+      // expected value điều kiện thay vì expect gọi có điều kiện (rule
+      // `vitest/no-conditional-expect`).
+      expect(response.body).toBe(method === 'HEAD' ? '' : 'method not allowed');
     },
   );
 
   // Không thêm route `/llm/*` nào ngoài `/llm/v1/models`: health/readiness là
   // deployment-internal, probe trên đường mạng container, không qua domain công
   // khai — nên `/llm/health` và `/llm/ready` phải ở lại 404 (review PR #113).
-  // Path lạ giữ 404 bất kể method.
+  // Path lạ giữ 404 bất kể method (bao gồm HEAD/OPTIONS — 405 chỉ dành cho path
+  // ĐÃ định nghĩa); body `not found` là một phần hợp đồng.
   it.each([
     ['/llm/health', 'GET'],
     ['/llm/ready', 'GET'],
     ['/definitely-not-a-route', 'GET'],
     ['/llm/definitely-not-a-route', 'POST'],
-  ] as const)('answers %s %s with 404', async (path, method) => {
+    ['/definitely-not-a-route', 'HEAD'],
+    ['/definitely-not-a-route', 'OPTIONS'],
+    ['/definitely-not-a-route', 'PUT'],
+    ['/definitely-not-a-route', 'DELETE'],
+  ] as const)('answers %s %s with 404 and body not found', async (path, method) => {
     const response = await fetchRouteOn(harness, path, { method });
 
     expect(response.status).toBe(404);
+    expect(response.contentType).toBe('');
+    // HEAD không có body — cùng chú thích của ma trận 405 phía trên.
+    expect(response.body).toBe(method === 'HEAD' ? '' : 'not found');
   });
 });
 
@@ -318,22 +360,28 @@ describe('llm-api worker fails closed when a Hyperdrive binding cannot connect',
     await degradedHarness.listen();
   }, 240_000);
 
-  it('answers GET /ready with 503 when one binding cannot connect', async () => {
+  it('answers GET /ready with 503 body not ready when one binding cannot connect', async () => {
     const response = await fetchRouteOn(degradedHarness, '/ready');
 
     expect(response.status).toBe(503);
+    expect(response.body).toBe('not ready');
+    expect(response.contentType).toBe('');
   });
 
-  it('answers GET /v1/models with 503 when one binding cannot connect', async () => {
+  it('answers GET /v1/models with 503 body service unavailable when one binding cannot connect', async () => {
     const response = await fetchRouteOn(degradedHarness, '/v1/models');
 
     expect(response.status).toBe(503);
+    expect(response.body).toBe('service unavailable');
+    expect(response.contentType).toBe('');
   });
 
-  it('answers GET /llm/v1/models with 503 when one binding cannot connect', async () => {
+  it('answers GET /llm/v1/models with 503 body service unavailable when one binding cannot connect', async () => {
     const response = await fetchRouteOn(degradedHarness, '/llm/v1/models');
 
     expect(response.status).toBe(503);
+    expect(response.body).toBe('service unavailable');
+    expect(response.contentType).toBe('');
   });
 
   // Liveness KHÔNG phụ thuộc database: healthcheck deployment phải vẫn thấy
