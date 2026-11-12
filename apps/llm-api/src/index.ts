@@ -47,7 +47,7 @@ function okText(body: string): Response {
  * Rust đưa byte thô qua `fixed()` nên KHÔNG có header nào được thêm. Byte
  * body là điều kiện của byte-compat, không phải chi tiết thẩm mỹ.
  */
-function bytes(body: string): Uint8Array {
+function bytes(body: string): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(body);
 }
 
@@ -154,7 +154,7 @@ const app = buildApp();
 // `props` mà runtime không cấp ở mọi hình thức invoke) — cùng chú thích
 // `apps/pact-broker-api/src/main.ts`.
 export default {
-  fetch(request: Request, env: LlmApiEnv, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: LlmApiEnv, ctx: ExecutionContext): Promise<Response> {
     return app.fetch(request, env, ctx);
   },
 };

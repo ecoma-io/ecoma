@@ -10,7 +10,7 @@
  * Bất biến platform: KHÔNG BAO GIỜ log connection string, credential hay body.
  * Log chỉ cấu trúc tối thiểu (route, outcome, tên binding lỗi + nhãn tiếng Anh).
  */
-import type { LlmApiEnv } from './env';
+import type { BindingName, LlmApiEnv } from './env';
 import {
   BINDING_GATEWAY,
   BINDING_NAMES,
@@ -49,7 +49,7 @@ export interface ReadinessReport {
 }
 
 /** Trạng thái của một binding theo tên khai báo của `wrangler.jsonc`. */
-function statusOf(report: ReadinessReport, binding: string): BindingStatus {
+function statusOf(report: ReadinessReport, binding: BindingName): BindingStatus {
   switch (binding) {
     case BINDING_GATEWAY:
       return report.gateway;

@@ -25,11 +25,10 @@ export const BINDING_TENANT = 'DB_LLM_TENANT';
 export const BINDING_MARKETPLACE = 'DB_LLM_MARKETPLACE';
 
 /** Danh sách binding theo đúng thứ tự khai báo của `wrangler.jsonc`. */
-export const BINDING_NAMES: readonly string[] = [
-  BINDING_GATEWAY,
-  BINDING_TENANT,
-  BINDING_MARKETPLACE,
-];
+export const BINDING_NAMES = [BINDING_GATEWAY, BINDING_TENANT, BINDING_MARKETPLACE] as const;
+
+/** Tên binding hợp lệ — union literal rút từ `BINDING_NAMES`, không phải string tuỳ ý. */
+export type BindingName = (typeof BINDING_NAMES)[number];
 
 /** Shape của `env` mà Worker nhận — mỗi binding có thể vắng mặt ở runtime. */
 export interface LlmApiEnv {
