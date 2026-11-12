@@ -362,8 +362,9 @@ export function pactRoutes(
     const rawSelectors = body.consumerVersionSelectors;
     // Cap số selector: mỗi selector constrained nhân số query tag/deployed
     // tra per-candidate — hàng nghìn selector từ token read là query
-    // amplification pin isolate + pool Hyperdrive (max 5). Upstream không cap
-    // nhưng single-tenant; multi-tenant thì read token phát rộng nên phải cap.
+    // amplification trên pool Hyperdrive của request (max 5). Upstream không
+    // cap nhưng single-tenant; multi-tenant thì read token phát rộng nên phải
+    // cap.
     if (Array.isArray(rawSelectors) && rawSelectors.length > MAX_CONSUMER_SELECTORS) {
       return c.json(
         {

@@ -2,15 +2,17 @@
  * API end-to-end trên PostgreSQL thật + Hono `app.request()` — thay cho
  * `@cloudflare/vitest-pool-workers` của upstream (`test/*.test.ts`).
  *
- * Mỗi test chạy trên cùng app instance (`buildApp()`); pool/config là
- * module-level cache của isolate — container của harness sống suốt file nên
- * cache đó là đúng. `truncateData` giữa các test để trạng thái không chảy.
+ * Mỗi test chạy trên cùng app instance (`buildApp()`); config được cache
+ * module-level (dữ liệu thuần), còn Pool thì per-request — mỗi request tự tạo
+ * và tự `end()` pool của mình (issue #118), nên không còn cache pool nào phải
+ * đóng trước khi container dừng. `truncateData` giữa các test để trạng thái
+ * không chảy.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import * as Infra from '@ecoma-io/pact-broker-api-infrastructure';
-import { buildApp, closeCachedPool } from '../../src/main';
+import { buildApp } from '../../src/main';
 import { samplePact } from '../fixtures/pact';
 import { type PactBrokerDatabase, PACT_BROKER_DATABASE, startPactBrokerDatabase } from './harness';
 
@@ -73,10 +75,10 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
   }, 180_000);
 
   afterAll(async () => {
-    // Pool cache của app phải end TRƯỚC khi container dừng — ngược lại pg
-    // ném unhandled 'terminating connection due to administrator command'
-    // (57P01) làm run đỏ dù mọi test xanh.
-    await closeCachedPool();
+    // Pool giờ per-request (issue #118): mỗi request đã `end()` pool của mình
+    // trước khi response trả về, nên khi container dừng không còn socket
+    // sống-một-chút-nào của app — không thể còn unhandled
+    // 'terminating connection due to administrator command' (57P01).
     await db?.stop();
   });
 

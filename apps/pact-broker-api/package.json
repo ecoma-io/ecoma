@@ -118,16 +118,23 @@
       },
       "test-integration": {
         "executor": "nx:run-commands",
-        "dependsOn": [],
+        "dependsOn": [
+          "build"
+        ],
         "options": {
           "cwd": "apps/pact-broker-api",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
         },
         "//": [
-          "KHÔNG `build`: suite integration import thẳng TS nguồn — `../../src/main`",
-          "(`buildApp`), `../../db/apply.mts`, các lib qua export `./src/index.ts` của",
-          "workspace. Không spec nào đọc `dist/` hay artifact build; bundle esbuild chỉ",
-          "tiêu thụ ở làn deploy."
+          "`dependsOn: build` bắt buộc cho `worker-runtime.spec.ts`: suite khởi động",
+          "workerd (createTestHarness) trên chính `wrangler.jsonc` của app, mà `main`",
+          "của nó trỏ vào `dist/main.js` — artifact chỉ tồn tại sau `esbuild`. Thiếu",
+          "build thì `listen()` ném ngay, đỏ thay vì pass rỗng (tiền lệ llm-seller).",
+          "",
+          "Các suite integration còn lại (`api.spec`, `revoke-isolation`, `tests/databases`)",
+          "import thẳng TS nguồn — `../../src/main` (`buildApp`), `../../db/apply.mts`,",
+          "các lib qua export `./src/index.ts` của workspace; bundle esbuild không tiêu",
+          "thụ ở đó nên `dependsOn` chỉ là chi phí build thêm một lần cho file."
         ]
       },
       "lint": {

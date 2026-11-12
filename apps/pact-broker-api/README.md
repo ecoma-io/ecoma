@@ -15,7 +15,7 @@ Nx project `@ecoma-io/pact-broker-api`, tags `type:composition`, `scope:pact`, `
 
 - **API surface**: đọc HAL/matrix (`read`), publish/deploy/webhook CRUD (`write`), quản trị token và membership (`admin`); danh sách route đầy đủ trong `src/routes/`.
 - **Queue consumer** `ecoma-staff-access-entitlement-events` (binding `ENTITLEMENT_EVENTS_QUEUE`): cùng entry module với `fetch`; parse envelope `EntitlementEvent`, compare-and-drop theo revision, upsert membership role `Member` cho tenant canonical `ecoma`, ghi revision đã áp dụng; lỗi hợp đồng để Queue retry theo `max_retries` + DLQ `ecoma-staff-access-entitlement-events-dlq`.
-- **Persistence**: `db/` là nguồn sự thật migration của `db-pact-broker` (PostgreSQL qua Hyperdrive binding `HYPERDRIVE`, id khai chuỗi rỗng); access qua `pg` với một Pool mỗi isolate, reset lazy khi connection bị chấm dứt.
+- **Persistence**: `db/` là nguồn sự thật migration của `db-pact-broker` (PostgreSQL qua Hyperdrive binding `HYPERDRIVE`, id khai chuỗi rỗng); access qua `pg` với Pool theo request — pool được tạo trong request và `end()` khi request kết thúc (issue #118: socket driver gắn với request context tạo ra nó, không được tái sử dụng xuyên request).
 - **Bootstrap và provisioning machine token**: `db/bootstrap-tenant.mts` tạo tenant canonical `ecoma` (ADR-0020), `db/provision-machine-token.mts` cấp token cho deploy unit — cả hai chạy từ runner, không từ Worker.
 - Webhook CRUD luôn mở; execution outbound bị khoá cứng trong code cho tới khi có SSRF guard (`PACT_BROKER_WEBHOOKS_ENABLED=true` bị từ chối, `src/config.ts`).
 - Log một dòng JSON có request-id; không bao giờ log token hay body request/response.

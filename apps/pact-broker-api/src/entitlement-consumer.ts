@@ -47,7 +47,7 @@ function writeLog(event: Record<string, unknown>): void {
   }
 }
 
-/** Pool pg của Hyperdrive binding — cùng pattern relay/transactional-mailer-job. */
+/** Pool pg của Hyperdrive binding — pool-per-batch, `end()` trong `finally` của batch. */
 function createEntitlementPool(connectionString: string): Pool {
   const pool = createPool(connectionString);
   pool.on('error', (error: unknown) => {
