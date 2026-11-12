@@ -10,7 +10,9 @@
  * Luồng (một transaction, all-or-nothing):
  * 1. Divergence pre-check: tên `ecoma` không được tồn tại (ADR-0027 §2 —
  *    `ecoma` là tên principal pháp lý, không phải Seller tenant).
- * 2. Tenant `dronie` (`first_party`, owner = `sub` Superadmin bootstrap).
+ * 2. Tenant `dronie` (`first_party`, owner = `sub` Superadmin bootstrap) và
+ *    owner membership của `sub` trong CÙNG bước seed (ADR-0027 §2; grant gắn
+ *    vào membership, không vào owner fact).
  * 3. Principal pháp lý first-party + revision 1 của legal/tax profile với
  *    facts là hồ sơ Ecoma-io; evidence reference trỏ hồ sơ authoritative
  *    ngoài sản phẩm (`storageRef` + `contentHash`).
@@ -54,7 +56,12 @@ import {
   type RestrictionRecord,
   type VerificationCase,
 } from '@ecoma-io/llm-seller-governance-domain';
-import { createSellerTenant } from '@ecoma-io/llm-seller-tenant-domain';
+import {
+  createSellerTenant,
+  isSellerMembership,
+  provisionMembership,
+  type SellerMembership,
+} from '@ecoma-io/llm-seller-tenant-domain';
 import {
   BOOTSTRAP_ACTOR_ENV,
   BOOTSTRAP_PROFILE_AXES,
@@ -67,6 +74,7 @@ import {
   PRINCIPAL_LEGAL_CASE_TYPE,
   PRINCIPAL_TAX_CASE_ID,
   PRINCIPAL_TAX_CASE_TYPE,
+  SELLER_OWNER_MEMBERSHIP_ID,
   SELLER_TENANT_ID,
   TAX_EVIDENCE_ID,
   assertBootstrapDatabase,
@@ -194,6 +202,113 @@ async function upsertCanonicalTenant(
   }
   // Concurrent bootstrap đã chèn row giữa hai bước — đọc lại ở run kế tiếp.
   fail('canonical tenant row appeared during concurrent bootstrap; rerun the step');
+}
+
+/**
+ * Seed owner membership của tenant canonical (ADR-0020 Quyết định 13, ADR-0027
+ * §2: provision trong cùng bước seed; 02-delivery §3.2 bước 8a: "owner
+ * membership của `sub` đọc lại được"). Grant gắn vào membership chứ không vào
+ * owner fact, nên thiếu membership là thiếu nền của mọi entitlement sau này.
+ *
+ * Idempotency + divergence theo đúng triết lý phần còn lại của runner:
+ * - Row id canonical tồn tại với đúng actor → `existing` (kể cả đã revoke —
+ *   membership bị revoke qua bề mặt governance là state hợp lệ, bootstrap
+ *   không resurrect).
+ * - Row id canonical tồn tại với actor khác → fail-closed (id là của owner).
+ * - Owner đã có membership active khác id → `existing` (bề mặt membership đã
+ *   tiến hoá; bootstrap không provision bản sao thứ hai).
+ * - Tenant đã seed nhưng owner không còn membership nào → fail-closed: row bị
+ *   xoá ngoài bề mặt provisioning, không có trạng thái resurrect.
+ */
+async function upsertOwnerMembership(
+  client: Client,
+  now: number,
+  input: GovernanceSeedInput,
+  tenantOutcome: 'created' | 'existing',
+): Promise<'created' | 'existing'> {
+  const rows = await client.query<{
+    tenant_id: string;
+    id: string;
+    actor: string;
+    status: string;
+    created_at: string | number;
+    revoked_at: string | number | null;
+    revoked_by: string | null;
+  }>(
+    'SELECT tenant_id, id, actor, status, created_at, revoked_at, revoked_by FROM llm_seller.seller_memberships WHERE tenant_id = $1',
+    [SELLER_TENANT_ID],
+  );
+  const memberships: SellerMembership[] = rows.rows.map((row) => {
+    const candidate = {
+      id: row.id,
+      tenantId: row.tenant_id,
+      actor: row.actor,
+      status: row.status,
+      createdAt: Number(row.created_at),
+      revokedAt: row.revoked_at === null ? null : Number(row.revoked_at),
+    };
+    if (!isSellerMembership(candidate)) {
+      fail('stored seller membership failed the domain shape guard; divergent provisioning state');
+    }
+    return candidate;
+  });
+  const canonicalRow = memberships.find((m) => m.id === SELLER_OWNER_MEMBERSHIP_ID);
+  if (canonicalRow !== undefined) {
+    if (canonicalRow.actor !== input.ownerSub) {
+      fail(
+        `canonical owner membership id is held by actor "${canonicalRow.actor}" but bootstrap seeds owner "${input.ownerSub}"; divergent provisioning state`,
+      );
+    }
+    return 'existing';
+  }
+  const ownerHasActive = memberships.some(
+    (m) => m.actor === input.ownerSub && m.status === 'active',
+  );
+  if (ownerHasActive) {
+    return 'existing';
+  }
+  if (tenantOutcome === 'existing') {
+    fail(
+      'canonical tenant is seeded but its owner membership is gone; membership was removed outside the provisioning surface and bootstrap never reseeds it — restore through the seller membership surface',
+    );
+  }
+  // Domain op là đường code duy nhất: aggregate được dựng qua
+  // `provisionMembership` rồi mới ghi bền vững, kèm đọc lại (read-back) theo
+  // tiêu chí kiểm của bước 8a.
+  const provisioned = provisionMembership(
+    {
+      id: SELLER_OWNER_MEMBERSHIP_ID,
+      tenantId: SELLER_TENANT_ID,
+      actor: input.ownerSub,
+      createdAt: now,
+    },
+    memberships,
+  );
+  if (!provisioned.ok) {
+    fail(`owner membership provisioning rejected by domain: ${provisioned.error}`);
+  }
+  const inserted = await client.query<{ id: string; actor: string; status: string }>(
+    `INSERT INTO llm_seller.seller_memberships (tenant_id, id, actor, status, created_at, revoked_at, revoked_by)
+     VALUES ($1, $2, $3, 'active', $4, NULL, NULL)
+     ON CONFLICT (tenant_id, id) DO NOTHING
+     RETURNING id, actor, status`,
+    [
+      provisioned.value.tenantId,
+      provisioned.value.id,
+      provisioned.value.actor,
+      provisioned.value.createdAt,
+    ],
+  );
+  const readBack = inserted.rows[0];
+  if (
+    readBack === undefined ||
+    readBack.id !== provisioned.value.id ||
+    readBack.actor !== provisioned.value.actor ||
+    readBack.status !== provisioned.value.status
+  ) {
+    fail('owner membership read-back diverged from the domain value; fail-closed');
+  }
+  return 'created';
 }
 
 /** Ghép principal từ các row durable thành aggregate cho domain guards. */
@@ -786,6 +901,7 @@ export async function bootstrapSellerGovernance(
   const now = Date.now();
 
   const tenantOutcome = await upsertCanonicalTenant(client, now, input);
+  const membershipOutcome = await upsertOwnerMembership(client, now, input, tenantOutcome);
   const principalOutcome = await upsertPrincipal(client, now, input);
   const principal = principalOutcome.principal;
 
@@ -990,6 +1106,7 @@ export async function bootstrapSellerGovernance(
 
   const outcome: BootstrapRunResult['outcome'] =
     tenantOutcome === 'created' ||
+    membershipOutcome === 'created' ||
     principalOutcome.outcome === 'created' ||
     legalCase.outcome === 'created' ||
     taxCase.outcome === 'created' ||
@@ -1005,6 +1122,7 @@ export async function bootstrapSellerGovernance(
       JSON.stringify({
         tenant: CANONICAL_SELLER_TENANT_NAME,
         tenantId: SELLER_TENANT_ID,
+        ownerMembership: membershipOutcome,
         principal: LEGAL_PRINCIPAL_ID,
         legalCasePin: { type: PRINCIPAL_LEGAL_CASE_TYPE, version: legalCase.pinnedVersion },
         taxCasePin: { type: PRINCIPAL_TAX_CASE_TYPE, version: taxCase.pinnedVersion },
@@ -1028,6 +1146,7 @@ export async function bootstrapSellerGovernance(
       detail: {
         tenant: CANONICAL_SELLER_TENANT_NAME,
         principal: LEGAL_PRINCIPAL_ID,
+        ownerMembership: membershipOutcome,
         association: associationOutcome,
       },
     },

@@ -20,6 +20,9 @@ export const CANONICAL_SELLER_TENANT_NAME = 'dronie';
 /** Seller tenant id hằng số — dùng chung 8a/8b vì hai runner chạm hai database. */
 export const SELLER_TENANT_ID = 'seller-tenant-dronie';
 
+/** Id membership của owner trong bước seed 8a (ADR-0020 Quyết định 13, ADR-0027 §2). */
+export const SELLER_OWNER_MEMBERSHIP_ID = 'seller-membership-dronie-owner';
+
 /** Principal id hằng số trong code (ADR-0020 Quyết định 12, ADR-0027 §3). */
 export const LEGAL_PRINCIPAL_ID = 'first-party-principal-ecoma-io';
 
