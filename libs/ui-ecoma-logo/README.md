@@ -1,79 +1,49 @@
-# ui-ecoma-logo
+# UI Ecoma Logo
 
-Thư viện **brand logo** của ecoma.io: artwork SVG nguồn sống trong repo và được phân phối qua một Vue component dùng chung, thay vì để mỗi app giữ bản copy SVG riêng.
+Thư viện brand logo của ecoma.io (`@ecoma-io/ui-ecoma-logo`): artwork SVG primary horizontal sống trong repo, render qua một Vue component dùng chung, cộng một URL asset đã resolve cho consumer cần phần tử ảnh tự quản. Consumer hiện tại: `apps/home`, `apps/backoffice`, `apps/llm-console`, `apps/llm-seller`, `apps/pact-broker-app`, `apps/remote-cache-app`.
 
-## Library làm gì
+Nx project `@ecoma-io/ui-ecoma-logo`, tags `type:application`, `scope:shared`, `runtime:universal`.
 
-- Lưu **primary horizontal logo** (SVG nguồn, giữ nguyên byte — artwork, hình học, tỷ lệ và màu sắc là bất biến) tại `src/assets/ecoma-logo-horizontal.svg`.
-- Render logo qua component [`EcomaLogo`](#ecomalogo).
-- Export [`ECOMA_LOGO_HORIZONTAL_SVG_URL`](#ecoma_logo_horizontal_svg_url) cho consumer cần phần tử ảnh tự quản (favicon, Open Graph image…).
+## Purpose
 
-## Library không làm gì
+- Một nguồn artwork duy nhất thay vì mỗi app giữ bản copy SVG riêng: file nguồn `src/assets/ecoma-logo-horizontal.svg` là bất biến, mọi thay đổi artwork là thay đổi file nguồn chứ không phải code component.
+- Cho logo đi theo design token của từng app thay vì nướng màu vào file: component render inline `<svg>` nên `fill` nhận được biến CSS của trang — điều `<img>` không làm được.
 
-- Không tạo biến thể chưa có thiết kế chính thức: hiện **chỉ có primary horizontal logo**; stacked, symbol, wordmark riêng, colorway … chưa có ở đây và không được tự vẽ.
-- Không chỉnh sửa SVG bằng code — không recolor, không crop, không tween; thay đổi artwork là thay đổi file nguồn, không phải component.
-- Không bọc logo trong link, không đọc router, không áp margin/spacing — brand link và layout là việc của consumer.
-- Không phụ thuộc library nào khác trong workspace (không cần locale, không cần layout) — chỉ `vue` và plugin bundler đã có sẵn.
-- Không biết Nx project, Worker name hay deployment unit.
+## Responsibilities
 
-## `EcomaLogo`
+- **`EcomaLogo`** (`src/lib/components/EcomaLogo.vue`): render inline `<svg>` từ đúng hai path trong `src/lib/logo-artwork.ts` (xét cùng file nguồn bởi `ecoma-logo.spec.ts`). API tối giản: `alt` (mặc định `"ecoma.io"`) là prop duy nhất; mọi attribute khác fallthrough xuống `<svg>`, **trừ** `src`/`srcset`/`imagesrcset` và `width`/`height` — sizing chỉ đi qua CSS vì override một mình một phía làm méo artwork. Component không bọc link, không đọc router, không thêm margin.
+- **`ECOMA_LOGO_HORIZONTAL_SVG_URL`** (`src/lib/logo-asset.ts`): URL của SVG nguồn đã được bundler resolve (dev server path hoặc hashed URL ở build); dùng khi consumer cần `<img>`, favicon hoặc ảnh tự quản.
+- **Token yêu cầu**: mark dùng `fill-brand` (`--color-brand`), wordmark dùng `fill-foam` (`--color-foam`) — hai class này do Tailwind của consumer sinh ra từ CSS của app; mỗi app consumer đăng ký `@source` tới `libs/ui-ecoma-logo/src` và giữ test ghim (ví dụ `apps/home/app/assets/css/styles.spec.ts`, `apps/remote-cache-app/tests/tailwind-source.spec.ts`). Thiếu đăng ký thì logo render với `fill` mặc định.
 
-```vue
-<script setup lang="ts">
-import { EcomaLogo } from '@ecoma-io/ui-ecoma-logo';
-</script>
+## Boundaries
 
-<template>
-  <EcomaLogo class="h-6 w-auto" />
-  <EcomaLogo alt="Về trang chủ ecoma.io" />
-</template>
+- Chỉ có **primary horizontal logo**: không có biến thể stacked, symbol, wordmark riêng hay colorway — biến thể mới cần thiết kế chính thức trước khi thêm.
+- Không chỉnh sửa artwork bằng code: không recolor, không crop, không tween.
+- Không phụ thuộc Nx project nào khác trong workspace và không có runtime dependency; chỉ cần `vue` và plugin bundler của app.
+- Không biết Nx project, Worker name hay deploy unit.
+- `runtime:universal`: render thuần server-compatible — không lifecycle hook, không `window`, không fetch.
+
+## Development
+
+```bash
+pnpm nx run @ecoma-io/ui-ecoma-logo:lint
+pnpm nx run @ecoma-io/ui-ecoma-logo:typecheck   # tsc --build tsconfig.json --emitDeclarationOnly
+pnpm nx run @ecoma-io/ui-ecoma-logo:build       # tsc --build tsconfig.lib.json
 ```
 
-- `alt` (mặc định `"ecoma.io"`) là prop duy nhất — đủ cho accessibility (`aria-label` trên `<svg>`); ngữ nghĩa "logo của brand" là đủ, phần mô tả thêm thuộc ngữ cảnh dùng.
-- Kích thước và style tùy chỉnh đi qua **CSS** (`class`/`style` fallthrough). `width`/`height` bị filter khỏi fallthrough: override một mình một trong hai làm méo artwork.
-- Render thuần server-compatible: không lifecycle hook, không `window`, không fetch — tương thích SSR/SSG.
-- Artwork render inline `<svg>` nên `fill` nhận được design token của consumer; không leak class generic (`.a`/`.b`) ra trang.
+Thay artwork là thay file SVG và cặp path tương ứng trong `logo-artwork.ts`; không sửa markup component để đổi hình.
 
-## Token yêu cầu: `fill-brand` và `fill-foam`
+## Testing
 
-Logo render inline `<svg>` nên hai `<path>` phải tô bằng design token của consumer:
-
-- mark → `fill-brand` (`--color-brand`, primary `#006AFF`)
-- wordmark → `fill-foam` (`--color-foam`, màu chữ chính của body)
-
-Vì `fill` attribute không có trên `<path>`, hai class này phải được Tailwind sinh ra từ CSS của consumer. consumer phải đăng ký nguồn library (xem dưới) — nếu không, logo sẽ render với `fill` mặc định (đen) và mất màu thương hiệu.
-
-## `ECOMA_LOGO_HORIZONTAL_SVG_URL`
-
-```ts
-import { ECOMA_LOGO_HORIZONTAL_SVG_URL } from '@ecoma-io/ui-ecoma-logo';
+```bash
+pnpm nx run @ecoma-io/ui-ecoma-logo:test    # vitest, environment node; component spec tự khai jsdom
 ```
 
-URL của SVG nguồn, đã được bundler resolve (dev server path hoặc hashed URL ở build). Dùng khi consumer cần phần tử ảnh tự quản thay vì component; không hard-code URL này ở bất kỳ đâu. **Lưu ý**: URL là đường dẫn tương đối với origin và đổi theo mỗi build (hash) — use case cần URL tuyệt đối ổn định (Open Graph image, schema.org logo…) phải do consumer tự prefix origin hoặc copy asset, không dựng `<meta>` trực tiếp từ URL này.
+Spec colocated: `ecoma-logo.spec.ts` (hình học path khớp file nguồn, filter attribute), `ecoma-logo-ssr.spec.ts` (render server), `ecoma-logo-reactivity.spec.ts` (đổi prop), `public-api.spec.ts` (bề mặt export).
 
-## Bắt buộc: đăng ký Tailwind source
+## Related Documentation
 
-Library này dùng Tailwind utility classes (`fill-brand`, `fill-foam`) trong component. Tailwind v4 chỉ sinh utility từ các file mà nó quét — và library nằm ngoài module graph của app, nên **app consumer phải đăng ký nguồn library trong `style.css` của chính app**. Nếu bỏ qua, CSS production không chứa `fill-brand`/`fill-foam` và logo mất màu.
-
-Ví dụ cho `apps/home` (`apps/home/app/assets/css/styles.css`):
-
-```css
-@source "../../../../../libs/ui-ecoma-logo/src/**/*.{vue,ts}";
-```
-
-Đường dẫn tính **tương đối với chính file stylesheet** này tới thư mục nguồn của library — từ `apps/home/app/assets/css/` phải là **5** cấp `..` mới về workspace root; đếm thiếu một cấp sẽ trỏ vào thư mục không tồn tại và Tailwind **bỏ qua âm thầm** (không lỗi build, chỉ mất utility).
-
-Cách verify **sai** (đã từng cho kết quả xanh giả): grep `.fill-brand` trong `.output/public/_nuxt/*.css`. App thường đã chứa chuỗi đó ở chỗ khác (spec, comment) nên Tailwind tự quét `apps/home/**` và vẫn sinh utility dù `@source` trỏ sai.
-
-Cách verify **đúng**: thêm tạm một class chỉ tồn tại trong library vào `EcomaLogo.vue`, build production, rồi kiểm class đó có trong `.output/public/_nuxt/*.css`. `apps/home/tests/tailwind-source.spec.ts` ghim bất biến này tự động cho `apps/home` (resolve base của mọi `@source` từ thư mục chứa stylesheet + `existsSync` + khẳng định phủ đúng `libs/ui-ecoma-logo/src` với glob có `.vue`). Hai consumer còn lại (`apps/backoffice`, `apps/pact-broker-app`) cũng đăng ký `@source` cho thư mục này nhưng test ghim của chúng (`apps/backoffice/app/assets/css/styles.spec.ts`, `apps/pact-broker-app/tests/tailwind-source.spec.ts`) hiện chỉ ghim riêng `libs/ui-app-shell/src` — chưa có app nào khác ghim riêng thư mục của logo.
-
-Không dùng broad workspace scan thay vì đăng ký tương đối — nó không giải quyết được vấn đề cho consumer mới.
-
-## Phân biệt component và URL asset
-
-- **Component** (`EcomaLogo`): render inline SVG, styleable qua CSS, dùng cho hiển thị trong trang.
-- **URL asset** (`ECOMA_LOGO_HORIZONTAL_SVG_URL`): đường dẫn file SVG, dùng khi consumer cần phần tử ảnh tự quản (favicon, `<img>`, Open Graph).
-
-## Giới hạn hiện tại
-
-- Chỉ có **primary horizontal logo** từ SVG nguồn. Các biến thể khác (stacked, symbol, wordmark riêng, colorway) cần thiết kế chính thức trước khi thêm vào library.
+- [`docs/architecture/05-code-architecture.md`](../../docs/architecture/05-code-architecture.md) — quy tắc Nx tags và `scope:shared` (§6).
+- [`docs/architecture/local-development/01-platform.md`](../../docs/architecture/local-development/01-platform.md) — build context của `apps/home` cần `libs/ui-ecoma-logo` (§Dockerfile và docker context).
+- [`libs/ui-app-shell/README.md`](../ui-app-shell/README.md) — shell dashboard dùng component này trong slot `brand`.
+- [`apps/home/`](../../apps/home/) — consumer dùng cả component và URL asset trên trang công khai.

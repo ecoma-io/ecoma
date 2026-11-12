@@ -26,7 +26,7 @@ Nx project `@ecoma-io/account-bridge`, tags `type:composition`, `scope:auth`, `r
 
 - Không phải mock: contract và HMAC là hợp đồng thật; bên trong là HTTP plain, đúng ngữ nghĩa service binding production (binding không cung cấp TLS).
 - Chạy bên trong container WIC của `auth-deploy` cùng `ecoma-auth` — entrypoint khởi bridge trước auth; không có topology production nào cho worker này.
-- `BRIDGE_TARGET_ORIGIN` inject lúc runtime (`.dev.vars` của shim), không hard-code trong config committed.
+- `BRIDGE_TARGET_ORIGIN` inject lúc runtime qua env của process `wrangler dev`: trên host do orchestration của `tools/dx` (`localWorkerEnvInjections`), trong WIC qua container `envs` của `auth-deploy`; không hard-code trong config committed.
 - Không bật `nodejs_compat`: shim không import Node builtin nào (`runtime:edge`).
 
 ## Development
