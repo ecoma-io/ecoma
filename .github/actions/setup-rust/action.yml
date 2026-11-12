@@ -1,0 +1,35 @@
+name: Setup Rust
+description: Set up Rust toolchain and cache Cargo for the workspace
+
+runs:
+  using: composite
+  steps:
+    # Version compiler đọc từ `rust-toolchain.toml` ở workspace root (single
+    # source of truth cho cả local và CI, cùng nguồn với cache key Cargo);
+    # rustup directory override giữ local/CI cùng toolchain.
+    - name: Read Rust toolchain
+      id: rust-toolchain
+      shell: bash
+      run: echo "channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+      with:
+        toolchain: ${{ steps.rust-toolchain.outputs.channel }}
+        components: clippy, rustfmt
+        # Preinstall cả target khai trong `apps/llm-api/rust-toolchain.toml`:
+        # nếu thiếu, rustup tự tải rust-std-wasm32 lúc task cargo chạy đầu
+        # tiên — lần tải đó từng flake (rename race trong ~/.rustup/downloads)
+        # và đỏ cả lane lint/test dù code đúng. Cài sẵn = task không còn
+        # network dependency.
+        targets: wasm32-unknown-unknown
+
+    - name: Cache Cargo
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          apps/llm-api/target
+        key: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: cargo-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
