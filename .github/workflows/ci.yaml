@@ -109,27 +109,7 @@ jobs:
       - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
-          targets: test-integration
-          affected: ${{ !inputs.force }}
-          bail: ${{ github.event_name == 'merge_group' }}
-  build:
-    name: build
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - name: Start runner resource monitoring
-        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Build
-        uses: ./.github/actions/run-nx-target
-        with:
-          targets: build
+          targets: build test-integration
           affected: ${{ !inputs.force }}
           bail: ${{ github.event_name == 'merge_group' }}
 
@@ -212,7 +192,7 @@ jobs:
 
   ci-gate:
     name: ci-gate
-    needs: [verify, unit-test, integration-test, build, system-test]
+    needs: [verify, unit-test, integration-test, system-test]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 5
