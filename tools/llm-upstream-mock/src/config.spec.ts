@@ -95,6 +95,43 @@ describe('parseConfig valid values', () => {
     expect(config.content).toBe('pong');
     expect(config.timeoutMs).toBe(1_500);
   });
+
+  it('parses a plain string as a single accepted authorization value', () => {
+    expect(
+      parseConfig({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: 'Bearer sk-a' }).expectedAuthorization,
+    ).toEqual(['Bearer sk-a']);
+  });
+
+  it('parses a JSON array of accepted authorization values for rotation groups', () => {
+    expect(
+      parseConfig({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '["Bearer sk-a","Bearer sk-b"]' })
+        .expectedAuthorization,
+    ).toEqual(['Bearer sk-a', 'Bearer sk-b']);
+  });
+
+  it('leaves the authorization check disabled when the variable is unset or empty', () => {
+    expect(parseConfig({}).expectedAuthorization).toBeUndefined();
+    expect(
+      parseConfig({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '' }).expectedAuthorization,
+    ).toBeUndefined();
+  });
+});
+
+describe('parseConfig rejects an invalid authorization expectation', () => {
+  it('rejects a JSON-array-looking value that does not parse', () => {
+    const broken = caughtFromParse({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '["Bearer sk-a",]' });
+    expect(broken).toBeInstanceOf(ConfigError);
+    expect((broken as ConfigError).message).toContain('MOCK_UPSTREAM_EXPECTED_AUTHORIZATION');
+  });
+
+  it('rejects an array that is empty or contains non-string/empty items', () => {
+    const empty = caughtFromParse({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '[]' });
+    expect(empty).toBeInstanceOf(ConfigError);
+    const nonString = caughtFromParse({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '["Bearer a",5]' });
+    expect(nonString).toBeInstanceOf(ConfigError);
+    const emptyItem = caughtFromParse({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '["Bearer a",""]' });
+    expect(emptyItem).toBeInstanceOf(ConfigError);
+  });
 });
 
 describe('parseConfig rejects invalid values', () => {

@@ -36,12 +36,20 @@ async function startTracked(config: MockConfig): Promise<RunningMockServer> {
 
 let server: RunningMockServer;
 let timeoutServer: RunningMockServer;
+let authServer: RunningMockServer;
+
+/** Giá trị Bearer giả chỉ dùng trong test — không phải credential thật của bất kỳ ai. */
+const EXPECTED_BEARER = 'Bearer sk-test-expected-auth-value';
 
 beforeAll(async () => {
   server = await startTracked(baseConfig());
   // Server riêng cho scenario `timeout`: timeoutMs lớn hơn hẳn abort của client
   // — nếu server phản hồi (bug) thì fetch sẽ resolve trước khi client abort.
   timeoutServer = await startTracked(baseConfig({ timeoutMs: 60_000 }));
+  // Server bật kiểm `Authorization` (mặc định tắt trên hai server trên).
+  authServer = await startTracked(
+    baseConfig({ expectedAuthorization: [EXPECTED_BEARER, 'Bearer sk-test-rotated-auth-value'] }),
+  );
 });
 
 afterAll(async () => {
@@ -256,6 +264,60 @@ describe('timeout scenario sends no response at all', () => {
   it('still serves other clients while one socket is hanging', async () => {
     const response = await fetch(`${timeoutServer.url}/v1/models`);
     expect(response.status).toBe(200);
+  });
+});
+
+describe('optional authorization gate (MOCK_UPSTREAM_EXPECTED_AUTHORIZATION)', () => {
+  it('serves requests whose Authorization header matches any accepted value', async () => {
+    const first = await fetch(`${authServer.url}/v1/models`, {
+      headers: { authorization: EXPECTED_BEARER },
+    });
+    expect(first.status).toBe(200);
+    const rotated = await fetch(`${authServer.url}/v1/models`, {
+      headers: { authorization: 'Bearer sk-test-rotated-auth-value' },
+    });
+    expect(rotated.status).toBe(200);
+  });
+
+  it('rejects a wrong or absent Authorization header with 401 invalid_api_key', async () => {
+    const wrong = await fetch(`${authServer.url}/v1/models`, {
+      headers: { authorization: 'Bearer sk-test-wrong-value' },
+    });
+    expect(wrong.status).toBe(401);
+    const envelope = JSON.parse(await wrong.text()) as { error: { code: string | null } };
+    expect(envelope.error.code).toBe('invalid_api_key');
+
+    const absent = await fetch(`${authServer.url}/v1/models`);
+    expect(absent.status).toBe(401);
+  });
+
+  it('keeps the gate off by default: a garbage Authorization header still gets served', async () => {
+    // Pin hợp đồng PR #137: không cấu hình → không kiểm auth, kể cả header rác.
+    const response = await fetch(`${server.url}/v1/models`, {
+      headers: { authorization: 'Bearer definitely-not-checked' },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('logs only the one-bit auth verdict, never the header value', async () => {
+    const loggedLines: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      loggedLines.push(args.map((arg) => String(arg)).join(' '));
+    });
+    try {
+      await fetch(`${authServer.url}/v1/models`, { headers: { authorization: EXPECTED_BEARER } });
+      await fetch(`${authServer.url}/v1/models`, {
+        headers: { authorization: 'Bearer sk-test-wrong-value' },
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
+    const logged = loggedLines.join('\n');
+    expect(logged).toContain('GET /v1/models scenario=ok status=200 duration_ms=');
+    expect(logged).toContain(' auth=ok\n');
+    expect(logged).toContain(' auth=rejected');
+    expect(logged).not.toContain('sk-test-expected-auth-value');
+    expect(logged).not.toContain('sk-test-wrong-value');
   });
 });
 

@@ -11,6 +11,7 @@
  * duration) — không bao giờ log prompt/response body (invariant repo).
  */
 
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 import {
@@ -55,13 +56,39 @@ interface RequestContext {
   readonly path: string;
   scenario: Scenario | 'invalid';
   status: number | 'no-response';
+  auth: 'ok' | 'rejected' | 'disabled';
 }
 
 /** Một dòng log per request — CHỈ metadata, tuyệt đối không có body. */
 function logRequest(ctx: RequestContext, durationMs: number): void {
+  const authSuffix = ctx.auth === 'disabled' ? '' : ` auth=${ctx.auth}`;
   console.log(
-    `mock-upstream ${ctx.method} ${ctx.path} scenario=${ctx.scenario} status=${String(ctx.status)} duration_ms=${durationMs}`,
+    `mock-upstream ${ctx.method} ${ctx.path} scenario=${ctx.scenario} status=${String(ctx.status)} duration_ms=${durationMs}${authSuffix}`,
   );
+}
+/**
+ * Kiểm `Authorization` khi cấu hình bật (test-only): so sánh timing-safe qua
+ * digest SHA-256 của hai phía. Thiếu header hoặc sai giá trị → `rejected`;
+ * không cấu hình → `disabled` (giữ nguyên hợp đồng mặc định của PR #137).
+ * Giá trị header KHÔNG BAO GIỜ đi vào log — chỉ verdict một-bit đi vào log.
+ */
+function checkAuthorization(
+  req: IncomingMessage,
+  config: MockConfig,
+): 'ok' | 'rejected' | 'disabled' {
+  if (config.expectedAuthorization === undefined) {
+    return 'disabled';
+  }
+  const raw = req.headers['authorization'];
+  const header = Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? '');
+  const headerDigest = createHash('sha256').update(header).digest();
+  const matched = config.expectedAuthorization.some((expected) => {
+    if (expected.length !== header.length) {
+      return false;
+    }
+    return timingSafeEqual(createHash('sha256').update(expected).digest(), headerDigest);
+  });
+  return matched ? 'ok' : 'rejected';
 }
 
 /** Ghi JSON response + đóng connection sau mỗi request (mock không cần keep-alive). */
@@ -298,6 +325,7 @@ async function handleRequest(
     path: req.url ?? '/',
     scenario: resolveScenario(req, config),
     status: 0,
+    auth: 'disabled',
   };
 
   try {
@@ -312,6 +340,19 @@ async function handleRequest(
           'invalid_request_error',
           null,
         ),
+      );
+      return;
+    }
+
+    // Auth gate đứng trước route dispatch — đúng thứ tự một upstream thật
+    // (chặn trước khi parse body) và phủ cả control path khi bật.
+    ctx.auth = checkAuthorization(req, config);
+    if (ctx.auth === 'rejected') {
+      sendJson(
+        ctx,
+        res,
+        401,
+        buildErrorEnvelope('Invalid API key provided.', 'invalid_request_error', 'invalid_api_key'),
       );
       return;
     }
