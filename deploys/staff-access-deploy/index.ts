@@ -32,9 +32,10 @@
  * Provision database mirror `deploys/backoffice-deploy/index.ts` + ADR-0013
  * §"Hệ quả": stack này provision `db-staff-access` + hai role
  * (`ecoma_staff_access_migrator`, `ecoma_staff_access_runtime`) qua
- * `docker exec` vào container PostgreSQL của platform, hai biên escaping
- * `sqlQuote` + `shellQuote`, password do orchestration sinh và truyền qua
- * stack config `--config` (stdin, không argv). Migration chạy **đường
+ * `docker exec` vào container PostgreSQL của platform; password do orchestration
+ * sinh và truyền qua stack config `--config` (stdin, không argv), rồi đi vào
+ * script qua kênh `environment` của `command.local.Command` — command text và
+ * argv không chứa credential nào (chi tiết ở `scripts.ts`). Migration chạy **đường
  * canonical** (`apps/staff-access/db/apply.mts` — advisory lock
  * `hashtext('db-staff-access')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
@@ -51,13 +52,17 @@ import * as pulumi from '@pulumi/pulumi';
 
 import { sha256DistTree } from './bundle-hash.js';
 import {
+  MIGRATOR_PASSWORD_ENV_VAR,
+  RUNTIME_PASSWORD_ENV_VAR,
+  buildMigrateScript,
+  buildProvisionScript,
+} from './scripts.js';
+import {
   LABEL_PREFIX,
   type PlatformOutputs,
   dockerResourceName,
   normalizeWorktreeRoot,
   ownershipLabels,
-  shellQuote,
-  sqlQuote,
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
@@ -181,66 +186,25 @@ const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) =>
  * database đích — cùng hình guard `if` với auth/account.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = pulumi.interpolate`set -e
-PG=${postgresContainerName}
-PSQL="docker exec $PG psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1"
-# Moi lan kiem tra ton tai deu gan ket qua vao bien TRUOC khi so sanh: 'set -e'
-# khong ap dung cho dieu kien cua 'if', nen dang 'if ! $PSQL ... | grep -q 1'
-# doc mot lan psql loi thanh "khong ton tai" va chay CREATE (hoac bo qua REVOKE)
-# trong khi command resource van bao thanh cong. Voi phep gan, loi psql lam ca
-# script dung (fail-closed).
-# 1. Hai role của db-staff-access — guard-create khi thiếu.
-MIGRATOR_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_migrator'")
-if [ "$MIGRATOR_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-RUNTIME_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='ecoma_staff_access_runtime'")
-if [ "$RUNTIME_EXISTS" != "1" ]; then $PSQL -c "CREATE ROLE ecoma_staff_access_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
-# 2. Mật khẩu role — hai biên escaping độc lập, áp ĐÚNG THỨ TỰ: sqlQuote bảo vệ
-#    literal SQL (psql thấy nguyên giá trị), rồi shellQuote bọc CẢ câu SQL
-#    thành một argument của shell (giải thích đầy đủ backoffice-deploy/index.ts).
-$PSQL -c ${migratorPassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_migrator WITH PASSWORD ${sqlQuote(p)};`))}
-$PSQL -c ${runtimePassword.apply((p) => shellQuote(`ALTER ROLE ecoma_staff_access_runtime WITH PASSWORD ${sqlQuote(p)};`))}
-# 3. Database — guard-create, idempotent qua lần chạy sau.
-DATABASE_EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='db-staff-access'")
-if [ "$DATABASE_EXISTS" != "1" ]; then $PSQL -c 'CREATE DATABASE "db-staff-access"'; fi
-# 4. Grant: migrator cần CREATE trên database để tạo schema staff_access
-#    (migration 0001 tự cấp USAGE/CREATE trên schema sau khi tạo); runtime chỉ
-#    CONNECT — DML grant theo bảng nằm trong migration 0001.
-$PSQL -c 'REVOKE CONNECT ON DATABASE "db-staff-access" FROM PUBLIC'
-$PSQL -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-staff-access" TO ecoma_staff_access_migrator'
-$PSQL -c 'GRANT CONNECT ON DATABASE "db-staff-access" TO ecoma_staff_access_runtime'
-# 4b. Chặn chéo chiều RA: rút CONNECT TRỰC TIẾP của hai role staff-access
-#     trên database của service khác. Điều kiện hoá theo sự tồn tại của
-#     database đích — nó có thể chưa được tạo ở lần up đầu, và REVOKE trên
-#     database không tồn tại là lỗi chứ không phải no-op (cùng hình với
-#     account/auth).
-#     ⚠️ Giới hạn đã đo: thu hồi này chỉ xoá grant TRỰC TIẾP. db-backoffice
-#     hiện vẫn cấp CONNECT cho PUBLIC (datacl giữ "=Tc/...") và unit sở hữu nó
-#     không rút quyền đó, nên has_database_privilege(...) vẫn là true qua
-#     PUBLIC cho tới khi backoffice-deploy tự rút PUBLIC rồi GRANT lại cho
-#     role của chính nó. Việc đó thuộc unit sở hữu database — staff-access
-#     không được cấp/rút quyền thay. db-account/db-auth đã rút PUBLIC nên ở
-#     đó thu hồi này là hiệu lực thật.
-for TARGET in db-account db-auth db-backoffice; do
-  # ⚠️ Gan ket qua vao bien TRUOC roi moi so sanh: 'set -e' khong ap dung cho
-  # dieu kien cua 'if', nen dang 'if $PSQL ... | grep -q 1' thi mot lan psql
-  # loi (database dang restart, socket loi) bi doc thanh "khong ton tai" va
-  # REVOKE bi bo qua trong im lang — command resource van bao thanh cong.
-  # Voi phep gan, lenh substitution loi lam ca script dung (fail-closed).
-  EXISTS=$($PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$TARGET'")
-  if [ "$EXISTS" = "1" ]; then
-    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_migrator"
-    $PSQL -c "REVOKE CONNECT ON DATABASE \\"$TARGET\\" FROM ecoma_staff_access_runtime"
-  fi
-done
-# 5. Hardening schema public — chạy bằng owner (ecoma_local) mới thực sự revoke
-#    được; statement tương đương trong migration 0002 là no-op trên PG15+ khi chạy
-#    bằng migrator. Idempotent.
-docker exec $PG psql -U ecoma_local -d db-staff-access -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-`;
+// Script provision do `scripts.ts` dựng (hàm thuần, test được tĩnh) — text
+// KHÔNG chứa giá trị secret nào: mật khẩu đi vào tiến trình shell qua map
+// `environment` của command resource (giá trị bọc `pulumi.secret`), script chỉ
+// đọc bằng TÊN biến (`STAFF_PW_*`). Lưu ý phạm vi: kênh `environment` chỉ cách
+// ly argv của process host — KHÔNG bảo vệ trước việc xem process environment ở
+// tầng host; một người đã đọc được environ của process Pulumi thì mọi kênh
+// của cùng process đều lộ như nhau.
+const provisionScript = buildProvisionScript({ postgresContainerName });
+// Map môi trường của provision — MỌI giá trị secret được bọc `pulumi.secret`:
+// state/diff chỉ thấy `[secret]`, và key khớp đúng TÊN biến mà script đọc.
+const provisionEnvironment = {
+  [MIGRATOR_PASSWORD_ENV_VAR]: pulumi.secret(migratorPassword),
+  [RUNTIME_PASSWORD_ENV_VAR]: pulumi.secret(runtimePassword),
+};
 
 const provision = new command.local.Command(dockerResourceName(ns, 'staff-access') + '-provision', {
   create: provisionScript,
   update: provisionScript,
+  // Mật khẩu đi qua `environment` (giá trị secret), KHÔNG qua command text.
   // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
   // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
   // (trigger được lưu trong state Pulumi).
@@ -255,14 +219,22 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
     worktreeRoot,
     verifiedNamespace,
   ],
+  environment: provisionEnvironment,
 });
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
  * chạy đúng `tsx db/apply.mts` của repo (`apps/staff-access/db/apply.mts` —
  * advisory lock `hashtext('db-staff-access')`, mọi DDL idempotent). Repo mount
- * read-only; password qua `-e` env của container (kênh được chấp nhận), không
- * argv, không log. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ *
+ * Kênh credential: `DATABASE_URL` (chứa password migrator) đi vào tiến trình
+ * shell qua map `environment` của command resource (giá trị bọc `pulumi.secret`),
+ * rồi `docker run -e DATABASE_URL` chỉ mang TÊN biến — giá trị được docker CLI
+ * đọc từ environ của chính nó và chuyển vào container env. Do đó URL không nằm
+ * trong command text, không trong argv của `sh -c`/`docker run`/tsx, và không
+ * trong state Pulumi. Phạm vi: kênh `environment` chỉ cách ly argv — KHÔNG
+ * bảo vệ trước việc xem process environment ở tầng host.
  */
 // Percent-encode mật khẩu trước khi ghép vào userinfo của DATABASE_URL — an toàn
 // khi orchestration set mật khẩu chứa `@ : / ? #` (xem finding security OCR).
@@ -272,24 +244,27 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
 // (source là identifier bắt đầu bằng token/password/secret...).
 const migratorPasswordEncoded = migratorPassword.apply((v) => encodeURIComponent(v));
 
-const migrateScript = pulumi.interpolate`set -e
-docker run --rm \\
-  --network ${networkName} \\
-  -v ${shellQuote(worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/staff-access \\
-  -e DATABASE_URL=postgresql://ecoma_staff_access_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-staff-access \\
-  ${NODE_IMAGE} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
-`;
+// URL ghép y hệt hình serving (percent-encoded userinfo) — giữ nguyên contract
+// kết nối của migration; chỉ đổi KÊNH vận chuyển từ argv sang `environment`.
+const migratorDatabaseUrl = pulumi.interpolate`postgresql://ecoma_staff_access_migrator:${pulumi.secret(migratorPasswordEncoded)}@${POSTGRES_HOST}:5432/db-staff-access`;
+
+const migrateScript = networkName.apply((net) =>
+  buildMigrateScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+  }),
+);
 
 const migrate = new command.local.Command(
   dockerResourceName(ns, 'staff-access') + '-migrate',
   {
     create: migrateScript,
     update: migrateScript,
-    // Bọc secret: trigger nằm trong state Pulumi — không lưu plaintext.
+    // URL đi qua `environment` (giá trị secret). Bọc secret: trigger nằm trong
+    // state Pulumi — không lưu plaintext.
     triggers: [pulumi.secret(migratorPassword), worktreeRoot],
+    environment: { DATABASE_URL: migratorDatabaseUrl },
   },
   { dependsOn: [provision] },
 );

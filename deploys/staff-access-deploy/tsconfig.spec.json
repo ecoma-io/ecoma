@@ -1,26 +1,30 @@
 {
   "extends": "../../tsconfig.base.json",
+  "//": "Composite cho emitDeclarationOnly của graph typecheck. `allowImportingTsExtensions` cho spec/harness import nhau bằng phần mở rộng thật (.ts) — cùng hình `deploys/llm-api-deploy/tsconfig.spec.json`; `moduleResolution: bundler` là cặp bắt buộc của flag đó (vitest tự resolve lúc chạy). `rootDir` là chính project: spec, harness và `scripts.ts` (subject được import vào test) cùng nằm trong project. `bundle-hash.spec.ts` import `./bundle-hash.js` — substitution `.js` → `.ts` chuẩn của tsc vẫn resolve được dưới bundler.",
   "compilerOptions": {
     "composite": true,
-    "outDir": "./out-tsc/vitest",
-    "rootDir": "../..",
     "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
   },
   "include": [
     "vite.config.ts",
     "vite.config.mts",
     "vitest.config.ts",
     "vitest.config.mts",
-    "bundle-hash.spec.ts"
-  ],
-  "references": [
-    {
-      "path": "./tsconfig.json"
-    }
+    "vitest.integration.config.mts",
+    "bundle-hash.ts",
+    "bundle-hash.spec.ts",
+    "scripts.ts",
+    "scripts.spec.ts",
+    "tests/**/*.ts"
   ]
 }
