@@ -55,6 +55,8 @@ jobs:
           targets: lint typecheck
           affected: ${{ !inputs.force }}
           bail: ${{ github.event_name == 'merge_group' }}
+      - name: README contract check
+        run: pnpm dx readme-check
 
   unit-test:
     name: unit-test
