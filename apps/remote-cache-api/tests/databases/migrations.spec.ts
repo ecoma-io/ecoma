@@ -159,6 +159,11 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
       const constraints = constraintRows.map((row) => row.conname);
       // CHECK định nghĩa khả năng của schema — tập đầy đủ phải khớp đúng
       // migration, CHECK lạ xuất hiện cũng phải đỏ như CHECK thiếu.
+      // CHECK định nghĩa khả năng của schema — tập đầy đủ phải khớp đúng
+      // migration, CHECK lạ xuất hiện cũng phải đỏ như CHECK thiếu. (Index
+      // unique từng phần `tenants_one_free_per_owner_key` KHÔNG nằm trong
+      // pg_constraint — nó là index, được probe riêng trong
+      // migrations-0007-classification-plan.spec.ts.)
       expect(constraints).toEqual(
         [
           'api_key_revoked_at_after_created_check',
@@ -168,8 +173,10 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
           'cache_entries_size_positive',
           'projects_name_check',
           'quota_limits_nonnegative',
+          'tenants_classification_check',
           'tenants_name_check',
           'tenants_owner_sub_check',
+          'tenants_plan_check',
           'tenants_status_check',
           'tenant_members_role_check',
           'usage_counters_nonnegative',
@@ -177,15 +184,19 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
       );
 
       // Status tenant: đúng ba nhãn lifecycle của ADR-0015 — chèn nhãn lạ phải
-      // chết ở CHECK, không phải ở lỗi type hay thứ tự cột.
+      // chết ở CHECK, không phải ở lỗi type hay thứ tự cột. classification/plan
+      // được khai tường minh ('customer','paid') để CHECK duy nhất bị vi phạm là
+      // CHECK đang probe.
       await expect(
         client.query(
-          `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ('check-tenant', 'terminated', 'sub-owner-check-tenant')`,
+          `INSERT INTO remote_cache.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('check-tenant', 'terminated', 'customer', 'paid', 'sub-owner-check-tenant')`,
         ),
       ).rejects.toThrow(/tenants_status_check|violates check constraint/iu);
       await expect(
         client.query(
-          `INSERT INTO remote_cache.tenants (name, status, owner_sub) VALUES ('check tenant', 'active', 'sub-owner-check-tenant-2')`,
+          `INSERT INTO remote_cache.tenants (name, status, classification, plan, owner_sub)
+           VALUES ('check tenant', 'active', 'customer', 'paid', 'sub-owner-check-tenant-2')`,
         ),
       ).rejects.toThrow(/tenants_name_check|violates check constraint/iu);
     } finally {
@@ -197,8 +208,11 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     const client = await db.connect();
     try {
       // owner_sub là NOT NULL — chèn thiếu cột này phải bị từ chối ngay ở catalog.
+      // classification/plan khai tường minh để owner_sub là vi phạm duy nhất.
       await expect(
-        client.query(`INSERT INTO remote_cache.tenants (name) VALUES ('no-owner-sub')`),
+        client.query(
+          `INSERT INTO remote_cache.tenants (name, classification, plan) VALUES ('no-owner-sub', 'customer', 'paid')`,
+        ),
       ).rejects.toThrow(/owner_sub|not-null|violates not-null/iu);
     } finally {
       await client.end();
@@ -209,7 +223,8 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     const client = await db.connect();
     try {
       const { rows } = await client.query<{ id: string }>(
-        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('role-owner-tenant', 'sub-owner-role-owner') RETURNING id`,
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+         VALUES ('role-owner-tenant', 'customer', 'paid', 'sub-owner-role-owner') RETURNING id`,
       );
       const tenantId = rows[0]?.id ?? '';
       // remote_cache chỉ cho phép role 'member' → 'owner' bị CHECK từ chối.
@@ -228,7 +243,8 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     const client = await db.connect();
     try {
       const { rows } = await client.query<{ id: string; owner_sub: string }>(
-        `INSERT INTO remote_cache.tenants (name, owner_sub) VALUES ('no-members-tenant', 'sub-owner-no-members') RETURNING id, owner_sub`,
+        `INSERT INTO remote_cache.tenants (name, classification, plan, owner_sub)
+         VALUES ('no-members-tenant', 'customer', 'paid', 'sub-owner-no-members') RETURNING id, owner_sub`,
       );
       expect(rows[0]?.owner_sub).toBe('sub-owner-no-members');
       const tenantId = rows[0]?.id ?? '';

@@ -16,7 +16,8 @@
     "vite.config.mts",
     "vitest.config.ts",
     "vitest.config.mts",
-    "object-storage-env.spec.ts"
+    "object-storage-env.spec.ts",
+    "superadmin-resolver.spec.ts"
   ],
   "references": [
     {

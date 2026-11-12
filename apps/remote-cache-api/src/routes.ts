@@ -92,6 +92,16 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 /**
+ * Chuan hoa `created_at` cua mot hang project thanh chuoi ISO — hop dong wire
+ * (`RemoteCacheProject.created_at: string`) va cursor keyset (`at: string`)
+ * deu de nghi chuoi, con postgres.js tra ve DOI TUONG `Date`. Khong chuan hoa
+ * thi validator contract tu choi hang hop le (500 thay vi 201/200).
+ */
+function toIsoCreatedAt(value: Date | string): string {
+  return typeof value === 'string' ? value : value.toISOString();
+}
+
+/**
  * Kiem header Authorization Bearer va tra key da xac thuc (kem tenant/project
  * tu bang projects), hoac HttpError. Key revoked thi 401 giong key khong ton
  * tai — khong phan biet cho caller.
@@ -225,7 +235,7 @@ export function remoteCacheRoutes(): Hono<AppEnv> {
       id: created.id,
       tenant_id: created.tenant_id,
       name: created.name,
-      created_at: created.created_at,
+      created_at: toIsoCreatedAt(created.created_at),
     };
     const checked = validateRemoteCacheProject(project);
     if (!checked.ok) {
@@ -280,13 +290,15 @@ export function remoteCacheRoutes(): Hono<AppEnv> {
 
     const page = okOutcome.projectRows.slice(0, validated.payload.limit);
     const hasMore = okOutcome.projectRows.length > validated.payload.limit;
-    const last = page[page.length - 1];
     const projects: RemoteCacheProject[] = page.map((row) => ({
       id: row.id,
       tenant_id: row.tenant_id,
       name: row.name,
-      created_at: row.created_at,
+      created_at: toIsoCreatedAt(row.created_at),
     }));
+    // Cursor dựng từ bản ĐÃ chuẩn hoá ISO — cùng trục (created_at, id) với
+    // trang vừa trả, giữ nguyên thứ tự keyset.
+    const last = projects[projects.length - 1];
     for (const project of projects) {
       const checked = validateRemoteCacheProject(project);
       if (!checked.ok) {

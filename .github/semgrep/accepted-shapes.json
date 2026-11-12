@@ -135,21 +135,21 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 203,
-    "end": 203,
-    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san.",
+    "start": 213,
+    "end": 213,
+    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi.",
     "lines": {
-      "203": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
+      "213": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 235,
-    "end": 235,
-    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata.",
+    "start": 245,
+    "end": 245,
+    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi.",
     "lines": {
-      "235": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
+      "245": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
     }
   },
   {
@@ -348,53 +348,83 @@
   {
     "rule": "security-sensitive-value-logged",
     "path": "deploys/remote-cache-api-deploy/smoke.ts",
-    "start": 193,
-    "end": 193,
-    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Bao loi spawn docker; tham so la result object, khong phai secret.",
+    "start": 212,
+    "end": 212,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Bao loi spawn docker; tham so la result object, khong phai secret. Re-pin khi tach hai secret cho envelope stdin (#20) - code tai pin khong doi.",
     "lines": {
-      "193": "^\\ \\ \\ \\ console\\.error\\(`\\[\\$\\{PROJECT\\}\\]\\ smoke:\\ docker\\ could\\ not\\ run:\\ \\$\\{describeSpawnFailure\\(result\\)\\}`\\);$"
+      "212": "^\\ \\ \\ \\ console\\.error\\(`\\[\\$\\{PROJECT\\}\\]\\ smoke:\\ docker\\ could\\ not\\ run:\\ \\$\\{describeSpawnFailure\\(result\\)\\}`\\);$"
     }
   },
   {
     "rule": "security-sensitive-value-logged",
     "path": "deploys/remote-cache-api-deploy/smoke.ts",
-    "start": 198,
-    "end": 200,
-    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout/stderr cua inner khi FAIL de debug; inner khong in secret.",
+    "start": 217,
+    "end": 219,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout/stderr cua inner khi FAIL de debug; inner khong in secret. Re-pin khi tach hai secret cho envelope stdin (#20) - code tai pin khong doi.",
     "lines": {
-      "198": "^\\ \\ \\ \\ console\\.error\\($",
-      "199": "^\\ \\ \\ \\ \\ \\ `\\[\\$\\{PROJECT\\}\\]\\ smoke\\ FAILED\\ \\(inner\\ exit\\ \\$\\{String\\(result\\.status\\)\\}\\):\\\\n\\$\\{result\\.stdout\\}\\\\n\\$\\{result\\.stderr\\}`,$",
-      "200": "^\\ \\ \\ \\ \\);$"
+      "217": "^\\ \\ \\ \\ console\\.error\\($",
+      "218": "^\\ \\ \\ \\ \\ \\ `\\[\\$\\{PROJECT\\}\\]\\ smoke\\ FAILED\\ \\(inner\\ exit\\ \\$\\{String\\(result\\.status\\)\\}\\):\\\\n\\$\\{result\\.stdout\\}\\\\n\\$\\{result\\.stderr\\}`,$",
+      "219": "^\\ \\ \\ \\ \\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/remote-cache-api-deploy/smoke.ts",
-    "start": 201,
-    "end": 201,
-    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Exit code cua inner dua ra process exit; khong phai du lieu.",
+    "start": 220,
+    "end": 220,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). Exit code cua inner dua ra process exit; khong phai du lieu. Re-pin khi tach hai secret cho envelope stdin (#20) - code tai pin khong doi.",
     "lines": {
-      "201": "^\\ \\ \\ \\ return\\ result\\.status;$"
+      "220": "^\\ \\ \\ \\ return\\ result\\.status;$"
     }
   },
   {
     "rule": "security-sensitive-value-logged",
     "path": "deploys/remote-cache-api-deploy/smoke.ts",
-    "start": 203,
-    "end": 203,
-    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout cua inner khi PASS; inner khong in secret.",
+    "start": 222,
+    "end": 222,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). In stdout cua inner khi PASS; inner khong in secret. Re-pin khi tach hai secret cho envelope stdin (#20) - code tai pin khong doi.",
     "lines": {
-      "203": "^\\ \\ console\\.log\\(result\\.stdout\\.trimEnd\\(\\)\\);$"
+      "222": "^\\ \\ console\\.log\\(result\\.stdout\\.trimEnd\\(\\)\\);$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/remote-cache-api-deploy/smoke.ts",
-    "start": 221,
-    "end": 221,
-    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). secret la tham so stdin cua runInnerSmoke; gia tri tra ve la exit code.",
+    "start": 243,
+    "end": 243,
+    "reason": "Secret cua smoke di qua STDIN cua `docker run` (khong bao gio argv/log); taint engine lan gia tri stdin qua object result cua execFile nen result.stdout/stderr va gia tri tra ve bi flag. Docker khong echo stdin; inner duoc viet de output khong chua secret (chi nhan PASS/FAIL + status code); CLI lifecycle gate, khong co HTTP surface. FP taint/naming cung lop voi token-auth.ts (#335). secret la tham so stdin cua runInnerSmoke; gia tri tra ve la exit code. Re-pin sau khi envelope stdin doi thanh hai secret (objectStorageSecretKey + ciKeyPlaintext) - van truyen qua stdin, khong qua argv.",
     "lines": {
-      "221": "^\\ \\ \\ \\ return\\ runInnerSmoke\\(inputs,\\ secret,\\ foundation\\.ctx\\.worktreeRoot\\);$"
+      "243": "\\ \\ \\ \\ return\\ runInnerSmoke\\(inputs,\\ secrets,\\ foundation\\.ctx\\.worktreeRoot\\);"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/local.ts",
+    "start": 130,
+    "end": 130,
+    "reason": "Deploy-unit nội bộ: password là secret migrator đọc từ stack config Pulumi của chính unit, truyền tiếp trong cùng process vào env của container migrate; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts.",
+    "lines": {
+      "130": "\\ \\ return\\ password;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/local.ts",
+    "start": 164,
+    "end": 164,
+    "reason": "Deploy-unit nội bộ: secret là secret object storage đọc lại từ stack config của platform (cross-stack, platform up trước theo dependsOn), truyền tiếp trong cùng process cho provisioning bucket; không có HTTP response.",
+    "lines": {
+      "164": "\\ \\ \\ \\ return\\ secret;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/superadmin-resolver.ts",
+    "start": 62,
+    "end": 62,
+    "reason": "URL PostgreSQL nội bộ dựng cho lệnh docker của superadmin resolver trong local lane; password percent-encoded, chỉ sống trong env một lần chạy của container. Không có HTTP response — cùng lớp FP với deploys/pact-broker-api-deploy/superadmin-resolver.ts đã accept.",
+    "lines": {
+      "62": "\\ \\ return\\ `postgresql://\\$\\{role\\}:\\$\\{encodeURIComponent\\(password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{database\\}`;"
     }
   }
 ]

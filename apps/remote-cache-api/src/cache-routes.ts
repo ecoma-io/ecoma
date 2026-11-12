@@ -528,13 +528,18 @@ export function remoteCacheDataRoutes(
         try {
           putResult = await storage.putIfAbsent(key, bodyStreamForStorage, actualSize, contentType);
         } catch (error) {
-          // P2-2: log requestId + errorName, cleanup best-effort, leave reconcilable state.
+          // P2-2: log requestId + errorName + errorMessage, cleanup best-effort,
+          // leave reconcilable state. Message của đường storage chỉ mang mã
+          // trạng thái ('S3 PUT failed: <status>') hoặc lý do mạng của fetch —
+          // không chứa credential hay binding (không cùng rủi ro với message
+          // postgres/Hyperdrive mà main.ts onError cố tình né).
           // oxlint-disable-next-line no-console
           console.error(
             JSON.stringify({
               level: 'error',
               requestId: c.get('requestId') ?? 'unknown',
               errorName: error instanceof Error ? error.name : String(error),
+              errorMessage: error instanceof Error ? error.message : undefined,
               phase: 'storage_put',
             }),
           );

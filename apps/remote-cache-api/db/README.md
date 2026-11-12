@@ -28,10 +28,15 @@ dùng chung bảng migration là cách buộc các service vào một release.
 
 ## Migrations hiện có
 
-| File                        | Nội dung                                                                                            |
-| --------------------------- | --------------------------------------------------------------------------------------------------- |
-| `0001_control_plane.sql`    | Schema `remote_cache`: `tenants`, `projects`, `tenant_members`, `api_keys` + trigger revoke-only    |
-| `0002_roles_and_grants.sql` | Ba role, grant least-privilege per table, REVOKE dangerous privileges, REVOKE public, guard CONNECT |
+| File                                      | Nội dung                                                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0001_control_plane.sql`                  | Schema `remote_cache`: `tenants`, `projects`, `tenant_members`, `api_keys` + trigger revoke-only                                                                               |
+| `0002_roles_and_grants.sql`               | Ba role, grant least-privilege per table, REVOKE dangerous privileges, REVOKE public, guard CONNECT                                                                            |
+| `0003_cache_entries.sql`                  | `cache_entries` — metadata data plane, immutability `UNIQUE (project_id, hash)`, object key theo namespace tenant/project                                                      |
+| `0004_api_key_trusted_ci.sql`             | Cột `api_keys.trusted_ci` (mặc định `false` fail-closed) — credential CI tin cậy mới được ghi, gate fork/PR của P4.4                                                           |
+| `0005_quota_usage_audit.sql`              | `quota_limits`, `usage_counters`, `audit_log` append-only + CHECK vocabulary, `cache_entries.expires_at` cho retention TTL                                                     |
+| `0006_usage_counter_sync.sql`             | Trigger đồng bộ `usage_counters` với `cache_entries` (INSERT/DELETE), counters luôn tái hiện được                                                                              |
+| `0007_tenant_classification_and_plan.sql` | Trục classification (`first_party`/`customer`) + `plan` (ADR-0026), free-slot invariant (unique index per owner), runtime chỉ UPDATE `status`, audit action `tenant_bootstrap` |
 
 ## API key là machine credential hash-only
 
