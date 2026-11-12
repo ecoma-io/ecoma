@@ -228,7 +228,9 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       expect(credentials[0].credential_hash).toBe(
         createHash('sha256').update(PLAINTEXT_ONE, 'utf8').digest('hex'),
       );
-      expect(result.stderr).not.toContain(PLAINTEXT_ONE);
+      // Fence không lộ: so sánh qua boolean — assertion đỏ chỉ in `true !==
+      // false`, không in lại stderr (kể cả plaintext nằm trong đó) vào report.
+      expect(result.stderr.includes(PLAINTEXT_ONE)).toBe(false);
     });
   });
 
