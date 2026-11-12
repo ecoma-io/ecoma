@@ -21,9 +21,9 @@ const BINDING_TIMEOUT: Duration = Duration::from_secs(3);
 
 // Tên binding khớp chính xác `wrangler.jsonc` — đổi một phía là phải đổi cả
 // hai phía cùng lúc (hợp đồng đóng băng của Issue #22).
-const BINDING_GATEWAY: &str = "DB_LLM_GATEWAY";
-const BINDING_TENANT: &str = "DB_LLM_TENANT";
-const BINDING_MARKETPLACE: &str = "DB_LLM_MARKETPLACE";
+pub(crate) const BINDING_GATEWAY: &str = "DB_LLM_GATEWAY";
+pub(crate) const BINDING_TENANT: &str = "DB_LLM_TENANT";
+pub(crate) const BINDING_MARKETPLACE: &str = "DB_LLM_MARKETPLACE";
 
 /// Kết quả probe một binding. Nhãn là chuỗi runtime tiếng Anh (chỉ dùng cho
 /// log cấu trúc tối thiểu).
@@ -99,7 +99,7 @@ pub(crate) async fn readiness_all(env: &Env) -> ReadinessReport {
 /// `BindingStatus::Unavailable`; chi tiết lỗi không bao giờ đi vào log (tránh
 /// lộ connection string/credential qua thông báo lỗi).
 #[derive(Debug)]
-enum ProbeError {
+pub(crate) enum ProbeError {
     // Lỗi khi mở Socket tới Hyperdrive.
     Socket,
     // Connection string của binding không parse được thành config.
@@ -130,7 +130,16 @@ async fn probe_env_binding(env: &Env, name: &'static str) -> BindingStatus {
     }
 }
 
-async fn probe_binding(hyperdrive: Hyperdrive) -> Result<(), ProbeError> {
+/// Chạy một `simple_query` qua Hyperdrive binding, tái dùng đúng pattern đã
+/// được thí nghiệm xác nhận (Issue #22, criteria 3): Socket với StartTls,
+/// `connect_raw` với PassthroughTls, race query-vs-connection với timeout bọc
+/// ngoài ở caller. Trả về toàn bộ message (có thể rỗng — caller tự quyết định
+/// rỗng có hợp lệ hay không). Dùng chung cho probe readiness và catalogue
+/// model (Issue #23); chi tiết lỗi không bao giờ đi vào log.
+pub(crate) async fn binding_simple_query(
+    hyperdrive: Hyperdrive,
+    sql: &'static str,
+) -> Result<Vec<SimpleQueryMessage>, ProbeError> {
     // Pattern đã được thí nghiệm xác nhận (Issue #22, criteria 3): socket qua
     // Socket API của Worker với StartTls, workerd dial thẳng tới database với
     // `sslmode=disable` (platform facts PF3/PF4). host/port lấy từ binding,
@@ -148,31 +157,33 @@ async fn probe_binding(hyperdrive: Hyperdrive) -> Result<(), ProbeError> {
         .await
         .map_err(|_| ProbeError::Connect)?;
 
-    // Race query với connection: bình thường `SELECT 1` trả lời trước rồi
+    // Race query với connection: bình thường câu lệnh trả lời trước rồi
     // connection bị drop (đóng socket); nếu connection ngắt sớm (auth lỗi,
     // socket đứt) thì coi như không sẵn sàng. Nhờ vậy không cần driver nền
     // riêng và probe gọn trong một future có timeout bọc ngoài.
     // Hai future này không Unpin (state nội bộ của tokio-postgres), nên ghim
     // stack trước khi `select`; `Pin<&mut _>` tự Unpin nên thỏa mãn bound.
-    let mut query = pin!(client.simple_query("SELECT 1"));
+    let mut query = pin!(client.simple_query(sql));
     let mut connection = pin!(connection);
     match select(query.as_mut(), connection.as_mut()).await {
-        Either::Left((rows, _)) => {
-            let rows = rows.map_err(|_| ProbeError::Query)?;
-            if rows
-                .iter()
-                .any(|message| matches!(message, SimpleQueryMessage::Row(_)))
-            {
-                Ok(())
-            } else {
-                Err(ProbeError::NoRow)
-            }
-        }
+        Either::Left((rows, _)) => rows.map_err(|_| ProbeError::Query),
         Either::Right((connection_error, _)) => {
             // Connection ngắt trước khi query trả lời — chi tiết lỗi không log.
             let _ = connection_error;
             Err(ProbeError::Connect)
         }
+    }
+}
+
+async fn probe_binding(hyperdrive: Hyperdrive) -> Result<(), ProbeError> {
+    let rows = binding_simple_query(hyperdrive, "SELECT 1").await?;
+    if rows
+        .iter()
+        .any(|message| matches!(message, SimpleQueryMessage::Row(_)))
+    {
+        Ok(())
+    } else {
+        Err(ProbeError::NoRow)
     }
 }
 

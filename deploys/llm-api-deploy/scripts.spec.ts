@@ -13,9 +13,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DATABASES,
+  BOOTSTRAP_GOVERNANCE_ENV_VARS,
+  BOOTSTRAP_MARKETPLACE_ENV_VARS,
+  bootstrapScriptName,
+  buildBootstrapScript,
   buildMigrateScript,
   buildProvisionScript,
   dbName,
+  extractEligibilityVerdict,
   migratorRole,
   passwordEnvVar,
   runtimeRole,
@@ -146,5 +151,76 @@ describe('role and database naming', () => {
     expect(dbName('gateway')).toBe('db-llm-gateway');
     expect(migratorRole('tenant')).toBe('ecoma_llm_tenant_migrator');
     expect(runtimeRole('marketplace')).toBe('ecoma_llm_marketplace_runtime');
+  });
+});
+
+describe('buildBootstrapScript', () => {
+  const envVars = ['ECOMA_GOVERNANCE_ACTOR', 'ECOMA_SELLER_TENANT_OWNER_SUB'];
+  const script = buildBootstrapScript({
+    networkName: 'ecoma-x-network',
+    worktreeRoot: '/repo/worktrees/x',
+    step: 'seller-governance',
+    nodeImage: NODE_IMAGE,
+    envVarNames: envVars,
+  });
+
+  it('passes DATABASE_URL and every bootstrap env var to docker run by NAME only', () => {
+    expect(script).toContain('-e DATABASE_URL \\');
+    for (const name of envVars) {
+      expect(script).toContain(`-e ${name} \\`);
+    }
+    // Không `-e TÊN=giá trị` nào: argv docker chỉ mang tên biến.
+    expect(script).not.toMatch(/-e \w+=/u);
+    expect(script).not.toContain(SENTINEL);
+  });
+
+  it('keeps the canonical runner invocation for the requested bootstrap step', () => {
+    expect(script).toContain('--network ecoma-x-network');
+    expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
+    expect(script).toContain('-w /repo/apps/llm-api');
+    expect(script).toContain(NODE_IMAGE);
+    expect(script).toContain(
+      `npx tsx --tsconfig tsconfig.db.json ${bootstrapScriptName('seller-governance')}`,
+    );
+    expect(bootstrapScriptName('marketplace')).toBe('db/bootstrap-marketplace.mts');
+  });
+
+  it('is deterministic for the same inputs', () => {
+    expect(
+      buildBootstrapScript({
+        networkName: 'ecoma-x-network',
+        worktreeRoot: '/repo/worktrees/x',
+        step: 'seller-governance',
+        nodeImage: NODE_IMAGE,
+        envVarNames: envVars,
+      }),
+    ).toBe(script);
+  });
+
+  it('declares the exact env var surface each runner reads (index wiring cannot drift)', () => {
+    expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).toContain('ECOMA_SELLER_TENANT_OWNER_SUB');
+    expect(BOOTSTRAP_GOVERNANCE_ENV_VARS).not.toContain('SELLER_ELIGIBILITY_VERDICT');
+    expect(BOOTSTRAP_MARKETPLACE_ENV_VARS).toContain('LLM_UPSTREAM_CREDENTIAL_PLAINTEXT');
+    expect(BOOTSTRAP_MARKETPLACE_ENV_VARS).toContain('SELLER_ELIGIBILITY_VERDICT');
+    expect(new Set(BOOTSTRAP_MARKETPLACE_ENV_VARS).size).toBe(
+      BOOTSTRAP_MARKETPLACE_ENV_VARS.length,
+    );
+    expect(new Set(BOOTSTRAP_GOVERNANCE_ENV_VARS).size).toBe(BOOTSTRAP_GOVERNANCE_ENV_VARS.length);
+  });
+});
+
+describe('extractEligibilityVerdict', () => {
+  it('returns the value of the SELLER_ELIGIBILITY_VERDICT machine line', () => {
+    const stdout =
+      'SELLER_ELIGIBILITY_VERDICT={"tenantId":"seller-tenant-dronie","eligible":true}\n';
+    expect(extractEligibilityVerdict(stdout)).toBe(
+      '{"tenantId":"seller-tenant-dronie","eligible":true}',
+    );
+  });
+
+  it('fails loudly when the stdout contract is broken', () => {
+    expect(() => extractEligibilityVerdict('[bootstrap] done\n')).toThrow(
+      /SELLER_ELIGIBILITY_VERDICT/u,
+    );
   });
 });

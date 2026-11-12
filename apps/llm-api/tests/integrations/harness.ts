@@ -267,6 +267,47 @@ export function runApplyCli(target: LlmDatabaseKey, databaseUrl: string): Promis
   });
 }
 
+export interface BootstrapCliOptions {
+  /** Đường dẫn script bootstrap relative tới `apps/llm-api` (vd `db/bootstrap-seller-governance.mts`). */
+  readonly script: string;
+  readonly databaseUrl: string;
+  /** Env bổ sung của run — credential chỉ đi qua env của tiến trình con, không argv. */
+  readonly env: Record<string, string>;
+}
+
+/**
+ * Chạy **đúng lệnh** mà bootstrap command chạy trên lane local: `tsx
+ * --tsconfig tsconfig.db.json <script>` với DATABASE_URL + env cấu hình.
+ * Exit khác 0 là NÉM kèm stderr — fail-closed của runner phải làm test đỏ.
+ * Stdout của run giữ nguyên cho caller parse các dòng máy đọc.
+ */
+export function runBootstrapCli(options: BootstrapCliOptions): Promise<ApplyCliResult> {
+  const tsxCli = requireFromHere.resolve('tsx/cli');
+  return new Promise<ApplyCliResult>((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [tsxCli, '--tsconfig', 'tsconfig.db.json', options.script],
+      {
+        cwd: APP_DIR,
+        encoding: 'utf8',
+        timeout: 120_000,
+        env: { ...process.env, DATABASE_URL: options.databaseUrl, ...options.env },
+      },
+      (error, stdout, stderr) => {
+        if (error !== null) {
+          reject(
+            new Error(
+              `${options.script} exited non-zero: ${(error as Error).message}\nstdout: ${stdout}\nstderr: ${stderr}`,
+            ),
+          );
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
 /**
  * Provisioning **step 1**, làm bằng superuser — đúng vai trò admin/owner.
  *

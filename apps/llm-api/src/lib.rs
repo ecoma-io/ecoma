@@ -1,12 +1,16 @@
 // Deploy unit `llm-api` — data plane LLM trên Cloudflare Workers, runtime Rust
 // dịch ra WASM qua `worker-build` (Nx target `build` sinh `build/index.js`).
 //
-// Hợp đồng HTTP đóng băng của slice Worker runtime (Issue #22, review PR #113):
+// Hợp đồng HTTP của slice Worker runtime (Issue #22, review PR #113) — hợp
+// đồng body `/v1/models` ĐÃ được Issue #23 thay (supersession): body giờ là
+// catalogue model thật đọc từ marketplace/gateway, không còn danh sách rỗng
+// đóng băng; các quy tắc còn lại giữ nguyên:
 // - `GET /health` → 200 liveness, KHÔNG chạm database.
 // - `GET /ready` → 200 khi cả ba Hyperdrive binding `SELECT 1` thành công;
 //   503 fail-closed khi một binding thiếu/lỗi/timeout.
-// - `GET /v1/models` → 200 với body chính xác `{"object":"list","data":[]}`
-//   `application/json` khi DB ready; 503 fail-closed khi không.
+// - `GET /v1/models` → 200 `application/json` với catalogue model `active`
+//   (Issue #23); 503 fail-closed khi DB chưa ready, catalogue lỗi, hoặc một
+//   offer active không ánh xạ được owner của nó.
 // - `GET /llm/v1/models` → 200 với chính hợp đồng như `/v1/models`: base path
 //   `/llm` là public contract (docs/architecture/01, bảng domain; A13 ranh
 //   giới routing), production giữ nguyên tiền tố khi forward vào Worker.
@@ -23,13 +27,10 @@
 // Bất biến platform: KHÔNG BAO GIỜ log prompt/response body, connection string
 // hay credential. Log chỉ cấu trúc tối thiểu, chuỗi runtime tiếng Anh.
 
+mod models;
 mod readiness;
 
 use worker::{console_log, event, Context, Env, Method, Request, Response, Result};
-
-// Body JSON đóng băng của `/v1/models` (Issue #22): danh sách model rỗng cho
-// tới khi lane inference (Issue #24) bổ sung catalogue.
-const MODELS_LIST_BODY: &str = r#"{"object":"list","data":[]}"#;
 
 #[event(fetch)]
 async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
@@ -72,23 +73,32 @@ async fn ready(env: &Env) -> Result<Response> {
     }
 }
 
-// `/v1/models` cùng điều kiện readiness với `/ready`: catalogue model đọc từ
-// DB, nên DB chưa sẵn sàng thì trả 503 thay vì danh sách rỗng giả tạo.
+// `/v1/models` cùng điều kiện readiness với `/ready`, rồi đọc catalogue thật
+// (Issue #23): offer `active` từ marketplace, owner là tên tenant từ gateway.
+// Fail-closed: DB chưa ready, catalogue lỗi hay owner không ánh xạ được đều
+// là 503 — không bao giờ trả danh sách rỗng giả tạo hay model mù chủ sở hữu.
+// Dựng response bằng builder thay vì `Response::ok`: `Response::ok` ghim
+// cứng `Content-Type: text/plain; charset=utf-8` (response.rs worker 0.8.7),
+// còn hợp đồng của endpoint này là `application/json` (review PR #113,
+// finding A2). `fixed` trả `Response` thuần nên bọc `Ok`.
 async fn models(env: &Env) -> Result<Response> {
     let report = readiness::readiness_all(env).await;
-    if report.is_ready() {
-        console_log!("[llm-api] /v1/models ok");
-        // Dựng response bằng builder thay vì `Response::ok`: `Response::ok` ghim
-        // cứng `Content-Type: text/plain; charset=utf-8` (response.rs worker
-        // 0.8.7), còn hợp đồng của endpoint này là `application/json` (review
-        // PR #113, finding A2). `with_header` đặt trước `fixed`; `fixed` trả
-        // `Response` thuần nên bọc `Ok` — status 200 là mặc định của builder.
-        Ok(Response::builder()
-            .with_header("content-type", "application/json")?
-            .fixed(MODELS_LIST_BODY.as_bytes().to_vec()))
-    } else {
+    if !report.is_ready() {
         console_log!("[llm-api] /v1/models not ready: db bindings failing");
-        Response::error("service unavailable", 503)
+        return Response::error("service unavailable", 503);
+    }
+    match models::serving_models(env).await {
+        Ok(catalogue) => {
+            console_log!("[llm-api] /v1/models ok: {} model(s)", catalogue.len());
+            let body = models::models_list_body(&catalogue);
+            Ok(Response::builder()
+                .with_header("content-type", "application/json")?
+                .fixed(body.as_bytes().to_vec()))
+        }
+        Err(_) => {
+            console_log!("[llm-api] /v1/models catalogue failed");
+            Response::error("service unavailable", 503)
+        }
     }
 }
 

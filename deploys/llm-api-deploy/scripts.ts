@@ -206,3 +206,110 @@ docker run --rm \\
   npx tsx --tsconfig tsconfig.db.json db/apply.mts ${inputs.target}
 `;
 }
+
+/** Bước bootstrap Issue #23 của ADR-0020 Quyết định 13 — hai sub-bước. */
+export type BootstrapStep = 'seller-governance' | 'marketplace';
+
+/** Đường dẫn script runner của một bước bootstrap (relative tới `apps/llm-api`). */
+export function bootstrapScriptName(step: BootstrapStep): string {
+  return step === 'seller-governance'
+    ? 'db/bootstrap-seller-governance.mts'
+    : 'db/bootstrap-marketplace.mts';
+}
+
+/**
+ * TÊN các biến môi trường mà runner 8a (`bootstrap-seller-governance.mts`) đọc
+ * (không tính `DATABASE_URL` — script luôn thêm riêng). Wiring Pulumi (`index.ts`)
+ * dựng map `environment` với đúng các tên này nên không thể lệch kênh; runner
+ * fail-closed khi thiếu bất kỳ biến bắt buộc nào (ADR-0020 Quyết định 12).
+ */
+export const BOOTSTRAP_GOVERNANCE_ENV_VARS = [
+  'ECOMA_GOVERNANCE_ACTOR',
+  'ECOMA_SELLER_TENANT_OWNER_SUB',
+  'ECOMA_FIRST_PARTY_LEGAL_NAME',
+  'ECOMA_FIRST_PARTY_LEGAL_TYPE',
+  'ECOMA_FIRST_PARTY_JURISDICTION',
+  'ECOMA_FIRST_PARTY_REGISTRATION_REFERENCE',
+  'ECOMA_FIRST_PARTY_TAX_RESIDENCY',
+  'ECOMA_FIRST_PARTY_TAX_IDENTIFIER',
+  'ECOMA_FIRST_PARTY_DECLARATION_REFERENCE',
+  'ECOMA_LEGAL_EVIDENCE_STORAGE_REF',
+  'ECOMA_LEGAL_EVIDENCE_CONTENT_HASH',
+  'ECOMA_TAX_EVIDENCE_STORAGE_REF',
+  'ECOMA_TAX_EVIDENCE_CONTENT_HASH',
+] as const;
+
+/**
+ * TÊN các biến môi trường mà runner 8b (`bootstrap-marketplace.mts`) đọc
+ * (không tính `DATABASE_URL`). `SELLER_ELIGIBILITY_VERDICT` không phải secret
+ * (verdict eligibility máy đọc từ stdout 8a) nhưng vẫn đi bằng kênh env.
+ * `LLM_UPSTREAM_CREDENTIAL_PLAINTEXT` là secret — giá trị bọc `pulumi.secret`
+ * ở wiring, script chỉ chứa TÊN biến.
+ */
+export const BOOTSTRAP_MARKETPLACE_ENV_VARS = [
+  'ECOMA_GOVERNANCE_ACTOR',
+  'LLM_UPSTREAM_PROVIDER',
+  'LLM_UPSTREAM_MODEL',
+  'LLM_UPSTREAM_BASE_URL',
+  'LLM_UPSTREAM_PROTOCOL',
+  'LLM_UPSTREAM_CREDENTIAL_PLAINTEXT',
+  'SELLER_ELIGIBILITY_VERDICT',
+] as const;
+
+/** Input của {@link buildBootstrapScript}. */
+export interface BootstrapScriptInputs {
+  /** Tên Docker network của platform mà container bootstrap gia nhập. */
+  readonly networkName: string;
+  /** Đường dẫn worktree — mount `/repo` read-only + `node_modules` RW. */
+  readonly worktreeRoot: string;
+  /** Bước bootstrap cần chạy (8a hoặc 8b). */
+  readonly step: BootstrapStep;
+  /** Image Node pin theo digest dùng để chạy tsx của repo. */
+  readonly nodeImage: string;
+  /**
+   * TÊN các biến môi trường pass-through (`-e TÊN`, không `=giá trị`) — dùng
+   * đúng hằng `BOOTSTRAP_*_ENV_VARS` ở wiring. Giá trị đi vào environ của
+   * process shell qua kênh `environment` của `command.local.Command`.
+   */
+  readonly envVarNames: readonly string[];
+}
+
+/**
+ * Script bootstrap cho MỘT bước: cùng pattern container ephemeral với migrate —
+ * `npx tsx --tsconfig tsconfig.db.json db/bootstrap-<step>.mts` của repo, một
+ * đường code canonical (ADR-0020 Quyết định 12: thin runner + config asserts).
+ * Kênh giá trị: mọi biến (kể cả `DATABASE_URL` và credential plaintext) chỉ
+ * mang TÊN trong argv `-e TÊN`; docker CLI đọc giá trị từ environ của chính nó.
+ */
+export function buildBootstrapScript(inputs: BootstrapScriptInputs): string {
+  const envArgs = ['DATABASE_URL', ...inputs.envVarNames]
+    .map((name) => `  -e ${name} \\`)
+    .join('\n');
+  return `set -e
+docker run --rm \\
+  --network ${inputs.networkName} \\
+  -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
+  -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
+  -w /repo/apps/llm-api \\
+${envArgs}
+  ${inputs.nodeImage} \\
+  npx tsx --tsconfig tsconfig.db.json ${bootstrapScriptName(inputs.step)}
+`;
+}
+
+/**
+ * Trích giá trị verdict eligibility từ stdout của runner 8a — dòng máy đọc
+ * `SELLER_ELIGIBILITY_VERDICT=<json>` (chuẩn stdout của hai runner: CHỈ chứa
+ * dòng máy đọc, log người đọc đi stderr). Hàm thuần để wiring và spec cùng
+ * chấm một nguồn sự thật.
+ */
+export function extractEligibilityVerdict(runnerStdout: string): string {
+  for (const line of runnerStdout.split('\n')) {
+    if (line.startsWith('SELLER_ELIGIBILITY_VERDICT=')) {
+      return line.slice('SELLER_ELIGIBILITY_VERDICT='.length);
+    }
+  }
+  throw new Error(
+    'runner 8a stdout carries no SELLER_ELIGIBILITY_VERDICT line; the stdout/stderr contract between the bootstrap sub-steps is broken',
+  );
+}

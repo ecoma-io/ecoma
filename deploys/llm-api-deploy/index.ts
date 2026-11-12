@@ -48,9 +48,13 @@ import {
 import {
   DATABASES,
   type Database,
+  BOOTSTRAP_GOVERNANCE_ENV_VARS,
+  BOOTSTRAP_MARKETPLACE_ENV_VARS,
+  buildBootstrapScript,
   buildMigrateScript,
   buildProvisionScript,
   dbName,
+  extractEligibilityVerdict,
   migratorRole,
   passwordEnvVar,
   runtimeRole,
@@ -227,6 +231,13 @@ const migrateCommands: Record<Database, command.local.Command> = {
   marketplace: undefined as never,
 };
 
+/** URL migrator của từng database — bootstrap tái dùng đúng credential này. */
+const migratorUrls: Record<Database, pulumi.Output<string>> = {
+  gateway: undefined as never,
+  tenant: undefined as never,
+  marketplace: undefined as never,
+};
+
 for (const target of DATABASES) {
   const migratorPasswordEncoded = rolePasswords[target].migrator.apply((v) =>
     encodeURIComponent(v),
@@ -234,6 +245,7 @@ for (const target of DATABASES) {
   // URL migrator hoàn chỉnh — được bọc secret (interpolate của một output bọc
   // secret là output secret), state Pulumi mã hoá chứ không lưu plaintext.
   const migratorConnectionUrl = pulumi.interpolate`postgresql://${migratorRole(target)}:${migratorPasswordEncoded}@${POSTGRES_HOST}:5432/${dbName(target)}`;
+  migratorUrls[target] = migratorConnectionUrl;
   const migrateScript = networkName.apply((net) =>
     buildMigrateScript({
       networkName: net,
@@ -259,6 +271,112 @@ for (const target of DATABASES) {
     { dependsOn: [provision] },
   );
 }
+
+/**
+ * Bootstrap Issue #23 (ADR-0020 Quyết định 13) — hai sub-bước chạy ĐÚNG runner
+ * của repo (`apps/llm-api/db/bootstrap-*.mts`) bằng cùng container ephemeral
+ * pattern với migrate. Thứ tự: migrate gateway → **8a seller-governance**
+ * (seed tenant `dronie` + principal + approvals thật + association; in verdict
+ * eligibility ra stdout) → migrate marketplace → **8b marketplace** (tiêu thụ
+ * verdict từ stdout 8a; seed offer/pool/credential; smoke probe upstream;
+ * activate khi probe sống). WIC chỉ lên sau CẢ HAI bootstrap để request đầu
+ * tiên không rơi vào cửa sổ chưa-seed.
+ *
+ * Kênh giá trị: mọi env của runner đi bằng `environment` của provider → argv
+ * `docker run` chỉ mang `-e TÊN` (dựng bằng hằng `BOOTSTRAP_*_ENV_VARS` trong
+ * `scripts.ts` — hai phía không thể lệch tên). Secret
+ * (`LLM_UPSTREAM_CREDENTIAL_PLAINTEXT`, `DATABASE_URL`) bọc `pulumi.secret`;
+ * verdict là máy đọc, không secret nhưng vẫn đi env.
+ *
+ * Cấu hình nguồn (stack config, đặt bởi `local.ts`): `tenantOwnerSub` (sub
+ * superadmin canonical — giải quyết qua dx runner trước khi up), các fact
+ * pháp lý/thuế của principal first_party, con trỏ evidence authoritative, và
+ * bộ `llmUpstream*` cho upstream thật. Runner fail-closed khi thiếu bất kỳ
+ * env bắt buộc nào (ADR-0020 Quyết định 12).
+ */
+const bootstrapActor = conf.require('bootstrapActor');
+const tenantOwnerSub = conf.require('tenantOwnerSub');
+
+const governanceEnvironment: Record<string, pulumi.Output<string> | string> = {
+  DATABASE_URL: migratorUrls.gateway,
+  ECOMA_GOVERNANCE_ACTOR: bootstrapActor,
+  ECOMA_SELLER_TENANT_OWNER_SUB: tenantOwnerSub,
+  ECOMA_FIRST_PARTY_LEGAL_NAME: conf.require('firstPartyLegalName'),
+  ECOMA_FIRST_PARTY_LEGAL_TYPE: conf.require('firstPartyLegalType'),
+  ECOMA_FIRST_PARTY_JURISDICTION: conf.require('firstPartyJurisdiction'),
+  ECOMA_FIRST_PARTY_REGISTRATION_REFERENCE: conf.require('firstPartyRegistrationReference'),
+  ECOMA_FIRST_PARTY_TAX_RESIDENCY: conf.require('firstPartyTaxResidency'),
+  ECOMA_FIRST_PARTY_TAX_IDENTIFIER: conf.require('firstPartyTaxIdentifier'),
+  ECOMA_FIRST_PARTY_DECLARATION_REFERENCE: conf.require('firstPartyDeclarationReference'),
+  ECOMA_LEGAL_EVIDENCE_STORAGE_REF: conf.require('legalEvidenceStorageRef'),
+  ECOMA_LEGAL_EVIDENCE_CONTENT_HASH: conf.require('legalEvidenceContentHash'),
+  ECOMA_TAX_EVIDENCE_STORAGE_REF: conf.require('taxEvidenceStorageRef'),
+  ECOMA_TAX_EVIDENCE_CONTENT_HASH: conf.require('taxEvidenceContentHash'),
+};
+
+const bootstrapGovernanceScript = networkName.apply((net) =>
+  buildBootstrapScript({
+    networkName: net,
+    worktreeRoot,
+    step: 'seller-governance',
+    nodeImage: NODE_IMAGE,
+    envVarNames: BOOTSTRAP_GOVERNANCE_ENV_VARS,
+  }),
+);
+
+const bootstrapGovernance = new command.local.Command(
+  dockerResourceName(ns, 'llm-api') + '-bootstrap-seller-governance',
+  {
+    create: bootstrapGovernanceScript,
+    update: bootstrapGovernanceScript,
+    triggers: [worktreeRoot, ...Object.entries(governanceEnvironment).map(([k, v]) => `${k}=${v}`)],
+    environment: governanceEnvironment,
+  },
+  { dependsOn: [migrateCommands.gateway] },
+);
+
+const upstreamCredentialPlaintext = pulumi.secret(conf.require('llmUpstreamCredentialPlaintext'));
+
+const bootstrapMarketplaceEnvironment: Record<string, pulumi.Output<string> | string> = {
+  DATABASE_URL: migratorUrls.marketplace,
+  ECOMA_GOVERNANCE_ACTOR: bootstrapActor,
+  LLM_UPSTREAM_PROVIDER: conf.require('llmUpstreamProvider'),
+  LLM_UPSTREAM_MODEL: conf.require('llmUpstreamModel'),
+  LLM_UPSTREAM_BASE_URL: conf.require('llmUpstreamBaseUrl'),
+  LLM_UPSTREAM_PROTOCOL: conf.require('llmUpstreamProtocol'),
+  LLM_UPSTREAM_CREDENTIAL_PLAINTEXT: upstreamCredentialPlaintext,
+  // Verdict eligibility từ stdout của 8a — hợp đồng stdout CHỈ dòng máy đọc,
+  // extraction là hàm thuần có spec (`extractEligibilityVerdict`).
+  SELLER_ELIGIBILITY_VERDICT: bootstrapGovernance.stdout.apply(extractEligibilityVerdict),
+};
+
+const bootstrapMarketplaceScript = networkName.apply((net) =>
+  buildBootstrapScript({
+    networkName: net,
+    worktreeRoot,
+    step: 'marketplace',
+    nodeImage: NODE_IMAGE,
+    envVarNames: BOOTSTRAP_MARKETPLACE_ENV_VARS,
+  }),
+);
+
+const bootstrapMarketplace = new command.local.Command(
+  dockerResourceName(ns, 'llm-api') + '-bootstrap-marketplace',
+  {
+    create: bootstrapMarketplaceScript,
+    update: bootstrapMarketplaceScript,
+    // Secret bọc trước khi làm trigger — state Pulumi mã hoá, không plaintext.
+    triggers: [
+      worktreeRoot,
+      upstreamCredentialPlaintext,
+      ...Object.entries(bootstrapMarketplaceEnvironment)
+        .filter(([k]) => k !== 'LLM_UPSTREAM_CREDENTIAL_PLAINTEXT')
+        .map(([k, v]) => `${k}=${v}`),
+    ],
+    environment: bootstrapMarketplaceEnvironment,
+  },
+  { dependsOn: [migrateCommands.marketplace, bootstrapGovernance] },
+);
 
 /**
  * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
@@ -352,9 +470,10 @@ const wicStateInit = new docker.Container(
  * Container WIC — MỘT worker `wrangler dev` (llm-api) qua `wic-entrypoint.sh`,
  * plain HTTP trên platform network.
  *
- * Thứ tự phụ thuộc: provision → migrate (cả ba DB) → image → volume → container
- * — container chỉ lên sau khi schema cả ba database sẵn sàng, để request đầu
- * tiên của consumer không rơi vào cửa sổ chưa-migrate.
+ * Thứ tự phụ thuộc: provision → migrate (cả ba DB) → bootstrap 8a → bootstrap
+ * 8b → image → volume → container — container chỉ lên sau khi schema và seed
+ * sẵn sàng, để request đầu tiên của consumer không rơi vào cửa sổ chưa-migrate
+ * hay catalogue rỗng.
  *
  * Env:
  * - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_{DB_LLM_GATEWAY,DB_LLM_TENANT,
@@ -450,6 +569,8 @@ const wic = new docker.Container(
       migrateCommands.gateway,
       migrateCommands.tenant,
       migrateCommands.marketplace,
+      bootstrapGovernance,
+      bootstrapMarketplace,
       wicImage,
       wicStateVolume,
       wicStateInit,
@@ -463,6 +584,7 @@ export const migrateCommandNames = [
   migrateCommands.tenant.id,
   migrateCommands.marketplace.id,
 ];
+export const bootstrapCommandNames = [bootstrapGovernance.id, bootstrapMarketplace.id];
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
 export const containerId = wic.id;
