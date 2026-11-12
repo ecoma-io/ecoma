@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import AccountLayout from './default.vue';
 import { mountAccount } from '../../tests/harness';
+import { createTestAccountAdapter } from '../../tests/test-adapter';
 
 describe('passwordless invariant', () => {
   it('the account layout links to no password route', async () => {
@@ -23,5 +24,26 @@ describe('passwordless invariant', () => {
     for (const href of hrefs) {
       expect(href).not.toMatch(/password|forgot|reset/iu);
     }
+  });
+});
+
+describe('preview banner', () => {
+  it('renders the preview banner when the adapter flags preview data', async () => {
+    // Adapter test mặc định `isPreview: true` — banner phải có mặt, vì mọi số
+    // liệu trên màn hình khi đó là fixtures ephemeral.
+    const { wrapper } = await mountAccount(AccountLayout, {
+      slots: { default: '<p data-testid="slot" />' },
+    });
+    expect(wrapper.find('[data-testid="account-preview-banner"]').exists()).toBe(true);
+  });
+
+  it('renders no preview banner on a real adapter', async () => {
+    // `isPreview: false` là hợp đồng của adapter thật: banner tuyệt đối không
+    // được xuất hiện — nó nói cho người dùng biết dữ liệu nào là preview.
+    const { wrapper } = await mountAccount(AccountLayout, {
+      adapter: { ...createTestAccountAdapter(), isPreview: false },
+      slots: { default: '<p data-testid="slot" />' },
+    });
+    expect(wrapper.find('[data-testid="account-preview-banner"]').exists()).toBe(false);
   });
 });

@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import ContinuePage from './continue.vue';
 import type { AccountAdapter } from '../../account-data/types';
-import { createMockAccountAdapter } from '../../account-data/mock-adapter';
+import { createTestAccountAdapter } from '../../../tests/test-adapter';
 import { mountAccount } from '../../../tests/harness';
 
 /**
@@ -27,7 +27,7 @@ function createDeferredHandoff(): {
 } {
   let release: (() => void) | undefined;
   let flushHook: (() => Promise<void>) | undefined;
-  const adapter = createMockAccountAdapter();
+  const adapter = createTestAccountAdapter();
   return {
     adapter: {
       ...adapter,

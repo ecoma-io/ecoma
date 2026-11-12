@@ -13,7 +13,7 @@ import { ref } from 'vue';
 
 import { useAccountLocale } from './use-account-locale';
 import type { AccountLocale } from '../i18n/locale-registry';
-import { createMockAccountAdapter } from '../account-data/mock-adapter';
+import { createTestAccountAdapter } from '../../tests/test-adapter';
 import { accountStores } from '../../tests/nuxt-runtime-bridge';
 
 describe('i18n acceptance', () => {
@@ -27,7 +27,7 @@ describe('i18n acceptance', () => {
     accountStores.store.set('account-locale-explicit', ref<AccountLocale>('vi'));
     accountStores.store.set('account-locale-stored', ref<AccountLocale>('en'));
     const { preferred, chooseAndPersist } = useAccountLocale();
-    const outcome = await chooseAndPersist('en', createMockAccountAdapter());
+    const outcome = await chooseAndPersist('en', createTestAccountAdapter());
     expect(outcome).toBe('saved');
     expect(preferred.value).toBe('en');
   });

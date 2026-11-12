@@ -13,7 +13,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import LoginPage from './index.vue';
-import { createMockAccountAdapter } from '../../account-data/mock-adapter';
+import { createTestAccountAdapter } from '../../../tests/test-adapter';
 import type { AccountAdapter } from '../../account-data/types';
 import { flushPromises, mountAccount } from '../../../tests/harness';
 import { accountStores } from '../../../tests/nuxt-runtime-bridge';
@@ -199,7 +199,7 @@ describe('login acceptance', () => {
     const assign = vi.fn<(url: string) => void>();
     vi.stubGlobal('window', Object.assign(window, { location: { assign } }));
 
-    const base = createMockAccountAdapter({ challengeMode: 'code' });
+    const base = createTestAccountAdapter({ challengeMode: 'code' });
     const adapter: AccountAdapter = {
       ...base,
       requestLoginChallenge: base.requestLoginChallenge,
@@ -245,7 +245,7 @@ describe('login acceptance', () => {
     // fallback tự chế.
     const assign = vi.fn<(url: string) => void>();
     vi.stubGlobal('window', Object.assign(window, { location: { assign } }));
-    const base = createMockAccountAdapter({ challengeMode: 'code' });
+    const base = createTestAccountAdapter({ challengeMode: 'code' });
     const adapter: AccountAdapter = {
       ...base,
       verifyLoginCode: async () => ({ ok: true, value: { confirmUrl: undefined } }),
@@ -275,7 +275,7 @@ describe('login acceptance', () => {
     // và đứng yên — không có continuation nào để relay.
     const assign = vi.fn<(url: string) => void>();
     vi.stubGlobal('window', Object.assign(window, { location: { assign } }));
-    const base = createMockAccountAdapter({ challengeMode: 'code' });
+    const base = createTestAccountAdapter({ challengeMode: 'code' });
     const adapter: AccountAdapter = {
       ...base,
       verifyLoginCode: async () => ({
@@ -303,7 +303,7 @@ describe('login acceptance', () => {
   });
 });
 
-/** Adapter mock cơ bản cho spec — dùng mock thật của app làm nền. */
+/** Adapter test cơ bản cho spec — nền fixtures của app, auth scripted. */
 describe('passwordless invariant', () => {
   it('/login has no password field and no password-recovery link', async () => {
     const { wrapper } = await mountAccount(LoginPage);

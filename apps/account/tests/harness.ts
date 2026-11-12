@@ -23,8 +23,7 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick, type Component } from 'vue';
 
 import type { AccountAdapter } from '../app/account-data/types';
-import { createMockAccountAdapter } from '../app/account-data/mock-adapter';
-import type { MockAdapterOptions } from '../app/account-data/mock-adapter';
+import { createTestAccountAdapter, type TestAdapterOptions } from './test-adapter';
 import type { AccountLocale } from '../app/i18n/locale-registry';
 // Import này có **side effect**: nó đăng ký global Nuxt và nối alias `#app`/`#i18n`.
 // Phải nạp **trước** mọi component của app — xem `tests/nuxt-globals.ts` vì sao thứ tự đó
@@ -46,7 +45,7 @@ export type AccountTestContext = {
 
 type MountOptions = {
   readonly adapter?: AccountAdapter;
-  readonly adapterOptions?: MockAdapterOptions;
+  readonly adapterOptions?: TestAdapterOptions;
   readonly locale?: AccountLocale;
   /**
    * Route **trước** lúc mount.
@@ -90,7 +89,7 @@ export async function mountAccount(
   component: Component,
   options: MountOptions = {},
 ): Promise<AccountTestContext> {
-  const adapter = options.adapter ?? createMockAccountAdapter(options.adapterOptions ?? {});
+  const adapter = options.adapter ?? createTestAccountAdapter(options.adapterOptions ?? {});
   const composer = i18n.global as unknown as { locale: { value: AccountLocale } };
   composer.locale.value = options.locale ?? 'en';
 

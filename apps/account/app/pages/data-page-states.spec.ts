@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import type { Component } from 'vue';
 import type { AccountAdapter } from '../account-data/types';
 
-import { createMockAccountAdapter } from '../account-data/mock-adapter';
+import { createTestAccountAdapter } from '../../tests/test-adapter';
 
 import ProfilePage from './index.vue';
 import EmailsPage from './emails.vue';
@@ -151,7 +151,7 @@ describe('data page states', () => {
       // biến, vì lúc đó công cụ không đọc được tên test).
       it(`shows an error state when ${read} fails`, async () => {
         const { wrapper } = await mountAccount(page.component, {
-          adapter: failingReads(createMockAccountAdapter(), [read]),
+          adapter: failingReads(createTestAccountAdapter(), [read]),
         });
 
         expect(wrapper.find('[data-testid="account-error"]').exists()).toBe(true);
@@ -162,7 +162,7 @@ describe('data page states', () => {
 
     it('shows an error state, not an empty one, when a read fails', async () => {
       const { wrapper } = await mountAccount(page.component, {
-        adapter: failingReads(createMockAccountAdapter(), page.reads),
+        adapter: failingReads(createTestAccountAdapter(), page.reads),
       });
 
       // Nhánh rỗng là trạng thái **riêng**: hiện nó khi đọc hỏng là nói dối người dùng
@@ -172,7 +172,7 @@ describe('data page states', () => {
 
     it('does not show an empty state for a read that failed', async () => {
       const { wrapper } = await mountAccount(page.component, {
-        adapter: failingReads(createMockAccountAdapter(), page.reads),
+        adapter: failingReads(createTestAccountAdapter(), page.reads),
       });
 
       expect(wrapper.find('[data-testid="account-empty"]').exists()).toBe(false);
@@ -190,7 +190,7 @@ describe('data page states', () => {
     for (const page of DATA_PAGES.filter((candidate) => candidate.hasEmpty)) {
       it(`${page.name} shows an empty state when the adapter returns nothing`, async () => {
         const { wrapper } = await mountAccount(page.component, {
-          adapter: emptyReads(createMockAccountAdapter(), page.reads),
+          adapter: emptyReads(createTestAccountAdapter(), page.reads),
         });
 
         expect(wrapper.find('[data-testid="account-error"]').exists()).toBe(false);
