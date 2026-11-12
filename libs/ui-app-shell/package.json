@@ -154,21 +154,6 @@
         },
         "configurations": {},
         "parallelism": true
-      },
-      "build": {
-        "executor": "nx:run-commands",
-        "cache": true,
-        "inputs": [
-          "default"
-        ],
-        "outputs": [
-          "{workspaceRoot}/dist/out-tsc/ui-app-shell"
-        ],
-        "options": {
-          "cwd": "{projectRoot}",
-          "command": "vue-tsc --build tsconfig.lib.json"
-        },
-        "//": "Dùng vue-tsc thay vì tsc thuần để emit declaration đúng cho SFC .vue; với emitDeclarationOnly chỉ sinh .d.ts, không sinh JS rác."
       }
     }
   }
