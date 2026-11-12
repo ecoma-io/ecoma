@@ -113,9 +113,45 @@ function collectPhrasingLinks(
  * Nội dung HTML mẫu trong repository hiện nay chỉ là comment trong code fence —
  * đã nằm trong node `code`, không bao giờ rơi vào nhánh này.
  */
+
+/** Regex nhận diện thuộc tính link trong một đoạn HTML "sống". */
+const LINK_ATTRIBUTE = /(?:href|src)\s*=/iu;
+
+/**
+ * Tách node HTML thành các đoạn "sống" — phần nằm NGOÀI comment `<!-- … -->`.
+ *
+ * Viết bằng vòng lặp `indexOf` thay vì một `.replace(/<!--…-->/, '')`: xóa
+ * comment bằng một lần replace là pattern mà CodeQL (`js/incomplete-multi-
+ * character-sanitization`) báo đỏ vì một lần replace có thể để lại dấu `<!--`
+ * dở dang — code scanning của PR sẽ fail. Scanner này còn khớp HTML thật hơn
+ * regex cũ: comment KHÔNG đóng (`<!--` mà không có `-->`) kéo dài đến cuối
+ * chuỗi theo spec HTML, tức mọi `href=` phía sau đều nằm trong comment và
+ * không phải link render được. Chỉ `-->` được nhận làm kết thúc (đúng cmark
+ * mà GitHub dùng); `--!>` của HTML spec không được cmark công nhận, nên giữ
+ * nguyên hành vi "chưa đóng".
+ */
+function liveHtmlSegments(value: string): readonly string[] {
+  const segments: string[] = [];
+  let cursor = 0;
+  for (;;) {
+    const open = value.indexOf('<!--', cursor);
+    if (open === -1) {
+      segments.push(value.slice(cursor));
+      break;
+    }
+    segments.push(value.slice(cursor, open));
+    const close = value.indexOf('-->', open + 4);
+    if (close === -1) {
+      // Comment chưa đóng: phần còn lại của node là comment theo HTML.
+      break;
+    }
+    cursor = close + 3;
+  }
+  return segments;
+}
+
 function htmlLinkAttributes(value: string): boolean {
-  const withoutComments = value.replace(/<!--[\s\S]*?-->/gu, '');
-  return /(?:href|src)\s*=/iu.test(withoutComments);
+  return liveHtmlSegments(value).some((segment) => LINK_ATTRIBUTE.test(segment));
 }
 
 /** Đi qua mọi khối cấp cao: heading, definition, html và mọi container khối. */

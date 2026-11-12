@@ -185,6 +185,26 @@ pnpm install   # [docs](docs/architecture/06-testing.md) sẽ không phải link
       ]);
     });
 
+    it('reports href after a closed comment as unsupported', () => {
+      const parsed = parseMarkdown('<!-- intro --> <a href="x.md">x</a>\n');
+
+      expect(parsed.unsupported).toHaveLength(1);
+    });
+
+    it('treats an unclosed comment as extending to the end, hiding a later href', () => {
+      // Theo spec HTML, `<!--` không có `-->` kéo dài đến cuối chuỗi: mọi thứ
+      // phía sau là comment, trình duyệt không render, không phải link bị bỏ sót.
+      const parsed = parseMarkdown('<!-- unterminated\n\n<a href="x.md">x</a>\n');
+
+      expect(parsed.unsupported).toEqual([]);
+    });
+
+    it('reports an href that appears before the comment opens', () => {
+      const parsed = parseMarkdown('<a href="x.md">x</a> <!-- note -->\n');
+
+      expect(parsed.unsupported).toHaveLength(1);
+    });
+
     it('exempts an HTML comment from unsupported and from links', () => {
       // Mẫu thực tế từ libs/ui-app-shell/README.md: comment trong code fence Vue.
       const parsed = parseMarkdown(
