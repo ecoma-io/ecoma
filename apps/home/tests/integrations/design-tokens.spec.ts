@@ -19,7 +19,8 @@ import { describe, expect, it } from 'vitest';
  *    module, nên cả `?raw` lẫn `query: '*'` đều trả chuỗi rỗng (đã thử).
  *  - `node:fs` bị lint cấm trong `apps/**` vì runtime là edge — nhưng file
  *    test này chạy ở **test time** trên Node, không được bundle vào Worker, và
- *    target `test` của project phụ thuộc `build` (xem `package.json`), nên đọc
+ *    target `test-integration` của project phụ thuộc `build` (xem
+ *    `package.json`), nên đọc
  *    build output ở đây là an toàn. Import bị chặn bởi
  *    `import/no-nodejs-modules`/`no-restricted-imports`, không phải bởi
  *    `node:fs` tự thân — nên khai báo tường minh chỗ duy nhất cần.
@@ -28,11 +29,12 @@ import { describe, expect, it } from 'vitest';
  * hoá; contrast = (L₁ + 0.05) / (L₂ + 0.05).
  */
 
-const NUXT_CSS_DIR = resolve(import.meta.dirname, '../.output/public/_nuxt');
+const NUXT_CSS_DIR = resolve(import.meta.dirname, '../../.output/public/_nuxt');
 
 /**
  * Nội dung mọi file CSS mà Worker thực sự phục vụ. Build xong mới có thư mục
- * này — target `test` của project `dependsOn: ['build']` bảo đảm điều đó.
+ * này — target `test-integration` của project `dependsOn: ['build']` bảo đảm
+ * điều đó.
  */
 const BUILT_CSS = readdirSync(NUXT_CSS_DIR)
   .filter((name) => name.endsWith('.css'))

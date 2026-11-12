@@ -144,17 +144,54 @@
         "configurations": {},
         "parallelism": true,
         "dependsOn": [
+          "nuxt-prepare"
+        ],
+        "//": [
+          "KHÔNG `build`: lane unit chạy TS nguồn, không spec colocated nào đọc",
+          "`.output/` — hai suite đọc artifact build thật đã chuyển về",
+          "`tests/integrations/` và thuộc `test-integration` bên dưới, nơi",
+          "`build` được giữ lại (06-testing §4: `test` = colocated unit/",
+          "component; `test-integration` = toàn bộ app-owned suite)."
+        ]
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "dependsOn": [
           "nuxt-prepare",
           "build"
         ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.{js,mjs,css,html,json}",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "options": {
+          "cwd": "apps/home",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
         "//": [
-          "`test` phụ thuộc `build`: suite `tests/static-output.spec.ts`",
-          "assert trên output production thật (`.output/public` prerender +",
-          "`.output/server` Worker bundle). `nx test @ecoma-io/home` (local lẫn",
-          "`nx affected -t test` trong CI) giờ luôn build trước, nên một page/",
-          "media/404 fallback hỏng lộ ngay ở bước test thay vì chỉ thấy khi đã",
-          "deploy. (Migrated từ apps/blogs: `test` previously depended on",
-          "`build-static` — home build is the SSR Worker build.)"
+          "`build` vào `dependsOn`: cả hai suite dưới `tests/integrations/`",
+          "assert trên artifact production thật — `static-output` đọc",
+          "`.output/public` prerender + `.output/server` Worker bundle +",
+          "`wrangler.jsonc`, `design-tokens` đọc CSS đã build trong",
+          "`.output/public/_nuxt`. Thiếu build thì đọc output ném lỗi ngay, đỏ",
+          "thay vì pass rỗng. Cấu trúc mirror `test-integration` của",
+          "`apps/backoffice`/`apps/account` (06-testing §2, §4)."
         ]
       },
       "lint": {

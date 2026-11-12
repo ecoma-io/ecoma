@@ -1,16 +1,16 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { PUBLIC_LOCALES } from '../app/i18n/index';
-import { HOME_CONTENT } from '../app/domain/home-content';
+import { PUBLIC_LOCALES } from '../../app/i18n/index';
+import { HOME_CONTENT } from '../../app/domain/home-content';
 import {
   EXPECTED_OUTPUT_HTML_PATHS,
   assessOutputHtmlInventory,
-} from '../shared/static-output-contract';
+} from '../../shared/static-output-contract';
 
 /**
  * Suite static-output — assert trên **artifact production thật** của
  * `apps/home` (`.output/public` prerender + `.output/server` Worker bundle),
- * chạy sau `nuxt build` (target `test` dependsOn `build`).
+ * chạy sau `nuxt build` (target `test-integration` dependsOn `build`).
  *
  * Phạm vi sau khi gỡ stack @nuxt/content (issue #72):
  *
@@ -27,7 +27,7 @@ import {
  */
 
 /** Toàn bộ HTML prerendered trong output — nguồn inventory cho mọi test. */
-const PRERENDERED_HTML = import.meta.glob<string>('../.output/public/**/*.html', {
+const PRERENDERED_HTML = import.meta.glob<string>('../../.output/public/**/*.html', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -35,7 +35,7 @@ const PRERENDERED_HTML = import.meta.glob<string>('../.output/public/**/*.html',
 
 /** `wrangler.jsonc` nguyên văn — assert trên giá trị JSON của config thật. */
 const WRANGLER_CONFIG = (() => {
-  const glob = import.meta.glob<string>('../wrangler.jsonc', {
+  const glob = import.meta.glob<string>('../../wrangler.jsonc', {
     query: '?raw',
     import: 'default',
     eager: true,
@@ -49,12 +49,12 @@ const WRANGLER_CONFIG = (() => {
 
 /** Key glob → đường dẫn tương đối `.output/public` (`en/index.html`…). */
 function outputPath(key: string): string {
-  return key.replace(/^\.\.\/\.output\/public\//u, '');
+  return key.replace(/^\.\.\/\.\.\/\.output\/public\//u, '');
 }
 
 /** HTML prerendered của một path tương đối, kèm thông báo thiếu rõ ràng. */
 function prerenderedHtml(path: string): string {
-  const key = `../.output/public/${path}`;
+  const key = `../../.output/public/${path}`;
   const html = PRERENDERED_HTML[key];
   if (html === undefined) {
     throw new Error(
@@ -224,12 +224,12 @@ describe('static output: deployment contract', () => {
     // Homepage là SSG nhưng Worker vẫn phải tồn tại: `/` trả 302 server-side,
     // URL lạ đi qua `validate` → 404 SSR, middleware no-index gắn header lúc
     // request. `.output/server` PHẢI tồn tại.
-    const serverEntry = import.meta.glob<string>('../.output/server/index.mjs', {
+    const serverEntry = import.meta.glob<string>('../../.output/server/index.mjs', {
       query: '?raw',
       import: 'default',
       eager: true,
     });
-    expect(Object.keys(serverEntry)).toContain('../.output/server/index.mjs');
+    expect(Object.keys(serverEntry)).toContain('../../.output/server/index.mjs');
   });
 
   it('keeps homepage HTML self-contained: stylesheet bundle exists and carries the tokens', () => {
