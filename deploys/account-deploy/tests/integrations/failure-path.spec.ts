@@ -94,6 +94,12 @@ async function runStack(
         PULUMI_CONFIG_PASSPHRASE: 'failure-path-fixture-passphrase',
         PULUMI_BACKEND_URL: `file://${workDir}/state`,
         PULUMI_SKIP_UPDATE_CHECK: 'true',
+        // CI (npm `pulumi` shim) thỉnh thoảng in thêm dòng ngoài stdout khiến
+        // Automation API không parse được version (đo được: red CI #157, chỉ
+        // control stack dính). Skip version check là override chính thức của
+        // Automation API; CLI thực sự được dùng ở bước `up` vẫn phải hoạt động
+        // hoặc fixture đỏ như ý muốn.
+        PULUMI_AUTOMATION_API_SKIP_VERSION_CHECK: 'true',
       },
     },
   );
