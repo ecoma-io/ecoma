@@ -64,7 +64,7 @@ Khi được gọi (trong bootstrap có kiểm soát), primitive thực hiện:
 
 1. `INSERT INTO pact.tenants (name, owner_sub, classification, plan, ...) VALUES ($defaultName, $ownerSub, 'customer', 'free', ...) ON CONFLICT (name) DO NOTHING RETURNING id` — `name` suy deterministic từ sub (vd `tenant-<sub-prefix>`), nên retry/concurrency hội tụ cùng một tên; `owner_sub` và `classification` chỉ được ghi trên lần tạo đầu, bên thua không ghi đè owner của bên thắng.
 2. Nếu `ON CONFLICT` không trả row → SELECT row hiện có; nếu tenant đó `deleted`/`suspended` → fail-closed (không tự hồi sinh).
-3. `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES (...,'member') ON CONFLICT (tenant_id, sub) DO NOTHING` — idempotent; thành viên có sẵn role cũ thì giữ nguyên. Membership bắt đầu ở role thấp nhất (`member`); owner nằm trên `tenants.owner_sub`, không phải role.
+3. `INSERT INTO pact.tenant_members (tenant_id, sub, role) VALUES (...,'member') ON CONFLICT (tenant_id, sub) DO NOTHING` — idempotent; thành viên có sẵn role cũ thì giữ nguyên. Membership bootstrap hiện ghi role `member` (giá trị trong code; [ADR-0025](../../domains/llm-consumer-tenant/adr/0025-thin-shared-tenant-kernel.md) §4 chỉ quy định "khởi đầu ở role thấp nhất" không gọi tên, còn thang role có `viewer` thấp hơn — role bootstrap của owner và đường tự thăng hạng là quyết định đang mở của #205); owner nằm trên `tenants.owner_sub`, không phải role.
 4. Race test: hai connection đồng thời cùng sub phải cho đúng một tenant + một membership `member`, không lỗi chết.
 
 **Ranh giới bắt buộc:** quyền truy cập sản phẩm từ Staff Access không thay thế authorization bên trong Pact Broker; nhân sự nội bộ provision vào tenant `ecoma` **chỉ bắt đầu với quyền Member** trừ khi có quy trình cấp quyền quản trị rõ ràng; thu hồi entitlement không được vô tình xóa customer membership độc lập hoặc machine credentials không thuộc vòng đời nhân sự đó. `ecoma` phải được bootstrap tường minh và có kiểm soát.
@@ -83,7 +83,7 @@ Hai đường credential tách biệt: browser/OIDC cho dashboard, machine token
 
 ### 5.2 Machine token (Pact CLI + CI)
 
-- `Authorization: Bearer <token>` — token là chuỗi base64url 32-byte không prefix (generator `libs/pact-broker-api-application/src/hashing.ts`); tra `SHA-256(token)` trong `machine_tokens`
+- `Authorization: Bearer <token>` — token là chuỗi base64url 32-byte không prefix (generator `libs/pact-broker-api-application/src/hashing.ts`); tra `SHA-256(token)` trong `machine_tokens`; so hash — không so plaintext, không timing leak (tra cứu hash qua PK là constant-time theo index).
 - Fail: 401 đồng nhất cho mọi lý do (thiếu header, token lạ, token đã revoke, tenant suspended) — không phân biệt "token không tồn tại" vs "đã revoke" trong body (chỉ audit phân biệt). Source: `apps/pact-broker-api/src/auth/token-auth.ts`.
 - Token có scope; endpoint check scope **và** tenant của token; không có cross-tenant token.
 

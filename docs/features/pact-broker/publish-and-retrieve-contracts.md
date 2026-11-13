@@ -41,10 +41,9 @@ Contract của consumer trở thành một artifact có địa chỉ ổn địn
 - **Không có versioning hay xoá pact.** Publish lại chỉ cập nhật nội dung tại chỗ; không có route xoá pact, consumer version hay tag.
 - **Không có xác thực nội dung pact theo schema Pact Specification.** Kiểm tra cấu trúc ở mức hình dạng tối thiểu; broker không từ chối một pact vì interaction không khớp spec.
 - **Không có webhook phát ra khi publish.** Bề mặt webhook trả lời được nhưng outbound bị tắt cứng ở cấu hình: bật nó làm config ném lỗi nên mọi request trừ `/health` trả 503, và một lượt execute trả thành công giả (`fired: false`) mà không gọi mạng. Đây là bề mặt đã tắt, không phải capability.
-- **Pact CLI chưa được kiểm chứng end to end** (hiện trạng). Không có system test nào chạy `pact-broker publish` thật hay gọi broker từ ngoài Worker; bằng chứng chỉ ở tầng integration gọi route trong process. Kiểm chứng CLI thật thuộc journey hệ thống #27; phiên bản CLI được pin và bộ lệnh chuẩn thuộc #205/#208.
+- **Pact CLI chưa được kiểm chứng end to end.** Không có system test nào chạy `pact-broker publish` thật hay gọi broker từ ngoài Worker; bằng chứng chỉ ở tầng integration gọi route trong process.
 - Không bao gồm verification result và `can-i-deploy` — thuộc [Verify contract và gate deployment](./verify-contracts-and-gate-deployments.md).
 - Không bao gồm cấp phát credential — thuộc [Quản lý machine credential](./manage-pact-broker-machine-credentials.md).
-- Portal onboarding (hướng dẫn tạo credential + cấu hình môi trường cho Pact CLI) là phạm vi M1 — hiện thực qua #208; đặc tả credential → [Quản lý machine credential](./manage-pact-broker-machine-credentials.md).
 
 ## 4. Acceptance Scenarios
 
@@ -110,7 +109,7 @@ Thì  nhận 401 với cùng một hình dạng phản hồi
 | `apps/pact-broker-api`                                     | Deploy unit phục vụ toàn bộ HTTP API của broker                                               | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
 | `libs/pact-broker-api-{domain,application,infrastructure}` | Rule publish/idempotent, HAL, validation, repository trên `db-pact-broker`                    | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
 
-`apps/pact-broker-app` (dashboard) **chưa** tham gia (hiện trạng): màn hình Pacts của nó gọi `/matrix` không kèm tham số và đọc sai hình dạng phản hồi, nên không hiển thị được danh sách pact — sửa lỗi đọc này thuộc #181, sau đó bề mặt đọc/onboarding của portal là #208 (publish vẫn là CLI/API). Không mô tả nó như bề mặt publish.
+`apps/pact-broker-app` (dashboard) **không** tham gia: màn hình Pacts của nó gọi `/matrix` không kèm tham số và đọc sai hình dạng phản hồi, nên không hiển thị được danh sách pact. Không mô tả nó như bề mặt đọc hay bề mặt publish contract.
 
 ## 6. Verification Mapping
 

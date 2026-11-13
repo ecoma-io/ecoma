@@ -53,7 +53,7 @@ Worker không chịu trách nhiệm: gọi mail relay/provider (thuộc delivery
 - Cloudflare Worker (control plane), module worker, internal API qua Service Binding; không public hostname — `workers_dev: false` là điều kiện readiness trước Production, chưa được khai trong config committed (`03-operations.md` §2).
 - D1 `mail` — storage owner; mỗi environment một D1 riêng.
 - Queue producer: `ecoma-mail-delivery` (+ DLQ `ecoma-mail-delivery-dlq` ở phía consumer).
-- Private delivery interface dùng `TRANSACTIONAL_MAIL_SERVICE` Service Binding; caller là `transactional-mailer-job` qua canonical internal auth contract (HMAC-SHA-256, `PROTOCOL_ID = 'ecoma-internal-v1'`).
+- Private delivery interface dùng `TRANSACTIONAL_MAIL_SERVICE` Service Binding; caller là `transactional-mailer-job` qua canonical internal auth contract (HMAC-SHA-256, `PROTOCOL_ID = 'ecoma-internal-v2'`).
 - Mỗi environment (`development`, `staging`, `production`) dùng D1, Queue, configuration và secrets độc lập.
 - Kho nonce bền trong D1 `mail` (migration `0004_mail_internal_nonces.sql`); keyring HMAC cho `request_fingerprint` là Worker Secret riêng của control plane.
 
@@ -460,7 +460,7 @@ V1 model:
 
 **Đã có trong contract — đối chiếu trực tiếp với `main` tại `dcb1695` (contract file không đổi so với `1a78d49` lúc mục này được viết), không phải đọc mô tả PR.**
 
-- Chuỗi canonical: `<method>\n<proto>\n<len(path)>:<path>\n<len(timestamp)>:<timestamp>\n<len(nonce)>:<nonce>\n<bodyHash>`, với `PROTOCOL_ID = 'ecoma-internal-v1'` ở dòng `proto` và `<method>` ở dạng **chữ thường** (`canonicalString` gọi `method.toLowerCase()`).
+- Chuỗi canonical: `<method>\n<proto>\n<len(path)>:<path>\n<len(timestamp)>:<timestamp>\n<len(nonce)>:<nonce>\n<bodyHash>`, với `PROTOCOL_ID = 'ecoma-internal-v2'` ở dòng `proto` và `<method>` ở dạng **chữ thường** (`canonicalString` gọi `method.toLowerCase()`).
 - **Nguồn sự thật của canonical form, error taxonomy và retention của giao thức là `docs/applications/auth/01-architecture.md` §8** ("Envelope nội bộ — một giao thức canonical, chống replay bền vững"), đã có trên `main`. Mục §7.4 này tóm tắt các hằng để chốt phần receiver, không thay thế tài liệu nguồn đó.
 - Length-prefix theo **byte UTF-8**; `path` là path chính xác **kể cả query string**.
 - HMAC-SHA-256, chữ ký dạng `v1=<64 hex chữ thường>` trong header `x-ecoma-internal-signature`, so sánh theo thời gian hằng. Hai header còn lại: `x-ecoma-internal-timestamp` (epoch giây) và `x-ecoma-internal-nonce`.

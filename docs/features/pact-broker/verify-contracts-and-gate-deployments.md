@@ -38,13 +38,13 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 
 ### Không bao gồm
 
-- **Chưa có dashboard hiển thị matrix hay verification** (hiện trạng — bề mặt đọc đầy đủ là phạm vi M1, hiện thực qua #208 trên nền read surface do #181 sửa). `apps/pact-broker-app` chỉ có bốn trang đọc (`/`, `/pacts`, `/environments`, `/tokens`); không có trang verification, không có trang matrix, và không có điều khiển ghi nào.
-- **Dashboard không phải công cụ gate.** Route BFF `can-i-deploy.post.ts` và `pacticipants.get.ts` không được trang nào gọi, và màn hình Pacts gọi `/matrix` không kèm tham số nên nhận 400 từ API thật (phần đọc được sửa bởi #181/#208); việc chạy verification và `can-i-deploy` vẫn thuộc CLI/CI.
-- **Chưa có kiểm chứng end to end bằng Pact CLI** (hiện trạng). Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process. Kiểm chứng thật thuộc journey #27; phiên bản CLI pin và bộ lệnh chuẩn thuộc #205/#208.
+- **Không có dashboard hiển thị matrix hay verification.** `apps/pact-broker-app` chỉ có bốn trang đọc (`/`, `/pacts`, `/environments`, `/tokens`); không có trang verification, không có trang matrix, và không có điều khiển ghi nào.
+- **Dashboard không dùng được cho gate.** Route BFF `can-i-deploy.post.ts` và `pacticipants.get.ts` không được trang nào gọi, và màn hình Pacts gọi `/matrix` không kèm tham số nên nhận 400 từ API thật; việc chạy verification và `can-i-deploy` thuộc CLI/CI.
+- **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
-- **Xoá environment không ghi audit**, và thay đổi tag hay deployment cũng không ghi audit. Chỉ `environment.create` và `environment.update` được ghi (audit coverage M1 — bao gồm membership change và environment delete — được định policy tại #205 và hiện thực qua #206).
-- **Chưa có RBAC theo vai trò người dùng** (hiện trạng — permission matrix là phạm vi M1, chốt tại #205, hiện thực qua #206/#207). Chỉ scope của token quyết định; `tenant_members.role` được ghi nhưng không được kiểm tra ở đường request.
-- **Đọc một verification result cần scope `write`**, không phải `read` (semantic này là một trong các quyết định đang mở của #205).
+- **Xoá environment không ghi audit**, và thay đổi tag hay deployment cũng không ghi audit. Chỉ `environment.create` và `environment.update` được ghi.
+- **Không có RBAC theo vai trò người dùng.** Chỉ scope của token quyết định; `tenant_members.role` được ghi nhưng không được kiểm tra ở đường request.
+- **Đọc một verification result cần scope `write`**, không phải `read`.
 - Không bao gồm publish pact và đọc contract — thuộc [Publish và truy xuất contract](./publish-and-retrieve-contracts.md). Không bao gồm credential — thuộc [Quản lý machine credential](./manage-pact-broker-machine-credentials.md).
 
 ## 4. Acceptance Scenarios

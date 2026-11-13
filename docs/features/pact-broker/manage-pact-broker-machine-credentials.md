@@ -42,10 +42,10 @@ Tenant quản lý được credential máy theo vòng đời tạo → dùng →
 - **Không có scope hẹp hơn ba mức cố định**, không có scope theo route, environment hay action.
 - **Không có API đọc audit.** Audit được ghi nhưng không có route trả nó ra.
 - **Không có mô tả hay ghi chú cho credential**; chỉ có `name`.
-- **Dashboard chưa tạo, xoay vòng hay thu hồi được credential** (hiện trạng — self-service credential là phạm vi M1, hiện thực qua #207 theo permission matrix chốt tại #205). Trang `/tokens` chỉ đọc metadata, hiện trạng thái "forbidden" khi API từ chối vì thiếu quyền, và không bao giờ hiển thị plaintext. BFF dùng **một token tĩnh** cấu hình ở server (scope chuẩn là quyết định #205), không phải danh tính của người xem; bất biến read-only của BFF có test chốt, disposition do #205 chốt.
-- **Chưa có xác thực người dùng cho dashboard** (hiện trạng — human authentication là phạm vi M1, hiện thực qua #206 với các quyết định thuộc #205). Mọi route `/api/broker/*` của `apps/pact-broker-app` truy cập được công khai; không có session, cookie hay CSRF. Limitation tương ứng được giữ trong #28 cho tới khi có bằng chứng verify.
+- **Dashboard không tạo, xoay vòng hay thu hồi được credential.** Trang `/tokens` chỉ đọc metadata, hiện trạng thái "forbidden" khi API từ chối vì thiếu quyền, và không bao giờ hiển thị plaintext. BFF dùng **một token tĩnh** cấu hình ở server, không phải danh tính của người xem.
+- **Không có xác thực người dùng cho dashboard.** Mọi route `/api/broker/*` của `apps/pact-broker-app` truy cập được công khai; không có session, cookie hay CSRF.
 - **Tạo và thu hồi không nguyên tử với audit.** Riêng xoay vòng chạy cùng một transaction; tạo và thu hồi đổi trạng thái trước rồi mới ghi audit ở transaction riêng, nên một lỗi audit để credential đã tạo (và secret một lần đã mất) hoặc đã thu hồi trong khi request trả 500. Đây là giới hạn hiện tại, không phải hành vi mong muốn.
-- **Chưa có RBAC theo vai trò người dùng** (hiện trạng — permission matrix là phạm vi M1, chốt tại #205 và hiện thực qua #206/#207). `tenant_members.role` được ghi nhưng không được kiểm tra ở bất kỳ đường request nào; chỉ scope của token quyết định.
+- **Không có RBAC theo vai trò người dùng.** `tenant_members.role` được ghi nhưng không được kiểm tra ở bất kỳ đường request nào; chỉ scope của token quyết định.
 - Không bao gồm việc dùng credential để publish hay verify — thuộc [Publish và truy xuất contract](./publish-and-retrieve-contracts.md) và [Verify contract và gate deployment](./verify-contracts-and-gate-deployments.md).
 
 ## 4. Acceptance Scenarios
