@@ -27,7 +27,12 @@
  * `dev.port` của `apps/llm-api/wrangler.jsonc`) trên platform network, ba biến
  * `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_*` đi vào bằng container envs
  * (pulumi.secret bọc trước interpolate — kênh duy nhất: không argv, không label,
- * không log). KHÔNG Traefik route (worker nội bộ — chưa có hostname công khai
+ * không log); serving path (Issue #24 slice P4) đọc thêm bộ upstream khỏi cùng
+ * kênh envs: `LLM_UPSTREAM_PROVIDER`, `LLM_UPSTREAM_BASE_URL` (output thường —
+ * cấu hình không phải secret) và `LLM_UPSTREAM_CREDENTIAL_PLAINTEXT` (output
+ * bọc pulumi.secret — plaintext credential của serving chỉ sống trong environ
+ * container, worker verify hash rồi chỉ dùng cho header Authorization upstream).
+ * KHÔNG Traefik route (worker nội bộ — chưa có hostname công khai
  * được chốt), KHÔNG publish cổng ra host. Readiness là liveness container:
  * healthcheck poll `GET /health` (không chạm DB — thiết kế của app).
  */
@@ -667,6 +672,14 @@ const wic = new docker.Container(
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_LLM_GATEWAY=${pulumi.secret(hyperdriveConnectionStrings.gateway)}`,
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_LLM_TENANT=${pulumi.secret(hyperdriveConnectionStrings.tenant)}`,
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_LLM_MARKETPLACE=${pulumi.secret(hyperdriveConnectionStrings.marketplace)}`,
+      // Serving upstream (slice P4, Issue #24): provider + base URL là cấu hình
+      // thường; credential plaintext BỌC pulumi.secret — cùng kênh envs, state
+      // Pulumi mã hoá, không argv/label/log. Worker chỉ verify sha256 plaintext
+      // với credential_hash active rồi đặt vào header Authorization upstream;
+      // không bao giờ log/persist/response (invariant 8).
+      pulumi.interpolate`LLM_UPSTREAM_PROVIDER=${conf.require('llmUpstreamProvider')}`,
+      pulumi.interpolate`LLM_UPSTREAM_BASE_URL=${conf.require('llmUpstreamBaseUrl')}`,
+      pulumi.interpolate`LLM_UPSTREAM_CREDENTIAL_PLAINTEXT=${upstreamCredentialPlaintext}`,
     ],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
     healthcheck: {

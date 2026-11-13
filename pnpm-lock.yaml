@@ -531,6 +531,9 @@ importers:
       '@ecoma-io/llm-financial-domain':
         specifier: workspace:*
         version: link:../../libs/llm-financial-domain
+      '@ecoma-io/llm-inference-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-inference-domain
       '@ecoma-io/llm-marketplace-domain':
         specifier: workspace:*
         version: link:../../libs/llm-marketplace-domain
@@ -540,6 +543,9 @@ importers:
       '@ecoma-io/llm-seller-tenant-domain':
         specifier: workspace:*
         version: link:../../libs/llm-seller-tenant-domain
+      '@ecoma-io/llm-usage-domain':
+        specifier: workspace:*
+        version: link:../../libs/llm-usage-domain
       hono:
         specifier: ^4.13.13
         version: 4.13.16

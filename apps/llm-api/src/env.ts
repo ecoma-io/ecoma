@@ -35,7 +35,22 @@ export interface LlmApiEnv {
   readonly [BINDING_GATEWAY]?: HyperdriveBinding;
   readonly [BINDING_TENANT]?: HyperdriveBinding;
   readonly [BINDING_MARKETPLACE]?: HyperdriveBinding;
+  readonly [ENV_UPSTREAM_PROVIDER]?: string;
+  readonly [ENV_UPSTREAM_CREDENTIAL_PLAINTEXT]?: string;
 }
+
+/** Tên env chứa provider identity của upstream serving (non-secret). */
+export const ENV_UPSTREAM_PROVIDER = 'LLM_UPSTREAM_PROVIDER';
+
+/**
+ * Tên env chứa credential plaintext của upstream serving (SECRET — invariant 8
+ * của slice P4). Giá trị đến Worker qua kênh env (WIC container envs +
+ * `CLOUDFLARE_INCLUDE_PROCESS_ENV`; test qua cùng kênh) — KHÔNG bao giờ nằm
+ * trong wrangler.jsonc, không log, không persist; chỉ dùng để (1) verify
+ * sha256(plaintext) == credential hash active của seller tenant trước dispatch
+ * và (2) đặt header `Authorization` upstream.
+ */
+export const ENV_UPSTREAM_CREDENTIAL_PLAINTEXT = 'LLM_UPSTREAM_CREDENTIAL_PLAINTEXT';
 
 /**
  * Đọc một binding từ env; trả `null` khi binding thiếu hoặc sai hình —
@@ -52,4 +67,17 @@ export function readBinding(env: LlmApiEnv, name: string): HyperdriveBinding | n
     return null;
   }
   return binding as HyperdriveBinding;
+}
+
+/**
+ * Đọc một biến env string (kênh secret/env của serving) — trả `null` khi thiếu
+ * hoặc sai hình, fail-closed cho caller. Giá trị không bao giờ đi vào log hay
+ * lỗi (chỉ tên biến).
+ */
+export function readStringEnv(env: LlmApiEnv, name: string): string | null {
+  const value: unknown = env[name as keyof LlmApiEnv];
+  if (typeof value !== 'string' || value === '') {
+    return null;
+  }
+  return value;
 }

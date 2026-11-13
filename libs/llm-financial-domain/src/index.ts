@@ -351,6 +351,8 @@ export {
 
 export { type AppendAuditInput, appendAudit, readAudit } from './audit';
 
+export { type AdmissionAmountInput, admissionUpperBoundAmount } from './admission-amount';
+
 export {
   SPONSOR_STATUSES,
   type SponsorStatus,

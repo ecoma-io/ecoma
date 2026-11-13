@@ -5,9 +5,11 @@
   "dependencies": {
     "@ecoma-io/llm-consumer-tenant-domain": "workspace:*",
     "@ecoma-io/llm-financial-domain": "workspace:*",
+    "@ecoma-io/llm-inference-domain": "workspace:*",
     "@ecoma-io/llm-marketplace-domain": "workspace:*",
     "@ecoma-io/llm-seller-governance-domain": "workspace:*",
     "@ecoma-io/llm-seller-tenant-domain": "workspace:*",
+    "@ecoma-io/llm-usage-domain": "workspace:*",
     "hono": "^4.13.13",
     "pg": "^8.23.1"
   },

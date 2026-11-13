@@ -25,7 +25,7 @@
 
 import type { LlmApiDatabase } from '../integrations/harness.ts';
 
-/** Bảng nghiệp vụ `llm_seller` (db-llm-gateway) — migration `gateway/0002`. */
+/** Bảng nghiệp vụ `llm_seller` (db-llm-gateway) — migration `gateway/0002` + `0005`. */
 const GATEWAY_TABLES: readonly string[] = [
   'seller_memberships',
   'principal_associations',
@@ -38,6 +38,7 @@ const GATEWAY_TABLES: readonly string[] = [
   'legal_principals',
   'seller_tenants',
   'bootstrap_audit',
+  'pricing_snapshots',
 ];
 
 /** Bảng nghiệp vụ `llm_marketplace` (db-llm-marketplace) — migration `marketplace/0004`. */
@@ -52,16 +53,28 @@ const MARKETPLACE_TABLES: readonly string[] = [
 /** Bảng nghiệp vụ `llm_tenant` (db-llm-tenant) — migration `tenant/0002`. */
 const TENANT_TABLES: readonly string[] = ['tenants', 'memberships', 'bootstrap_audit'];
 
-/** Bảng runtime `llm_gateway` (db-llm-gateway) — migration `gateway/0003`. */
-const GATEWAY_RUNTIME_TABLES: readonly string[] = ['api_keys', 'bootstrap_audit'];
+/** Bảng runtime `llm_gateway` (db-llm-gateway) — migration `gateway/0003` + `0005`. */
+const GATEWAY_RUNTIME_TABLES: readonly string[] = [
+  'api_keys',
+  'bootstrap_audit',
+  'tenant_quota',
+  'quota_reservations',
+  'logical_requests',
+  'attempts',
+];
 
-/** Bảng nghiệp vụ `llm_financial` (db-llm-gateway) — migration `gateway/0004`. */
+/** Bảng nghiệp vụ `llm_financial` (db-llm-gateway) — migration `gateway/0004` + `0005`. */
 const FINANCIAL_TABLES: readonly string[] = [
   'sponsor_grants',
   'sponsor_funding_authorizations',
   'billing_accounts',
   'sponsors',
   'bootstrap_audit',
+  'customer_charges',
+  'financial_reservations',
+  'ledger_entries',
+  'ledger_transactions',
+  'wallets',
 ];
 
 /**
