@@ -11,7 +11,6 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,19 +80,6 @@ export function mockContainer(): string {
 /** Tên container WIC của worker (dockerResourceName(ns, 'llm-api-wic') của deploy). */
 export function workerContainer(): string {
   return `ecoma-${laneNamespace()}-llm-api-wic`;
-}
-
-/**
- * SHA-256 hex của một chuỗi — đối chiếu key_hash/credential_hash hash-only.
- *
- * Đây KHÔNG phải lưu mật khẩu: domain đã chọn SHA-256 làm hàm one-way duy
- * nhất cho `api_keys.key_hash` (mọi mutation gateway đi qua cùng hàm), suite
- * tính lại đúng digest đó để ghim fence "DB chỉ giữ hash của key lane, không
- * giữ plaintext". Không có cách tính khác mà vẫn so khớp được cột domain.
- */
-export function sha256Hex(value: string): string {
-  //lgtm [js/insufficient-password-hash]
-  return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 /** Lỗi exec có exit + stderr gốc (log pulumi/docker — không secret). */

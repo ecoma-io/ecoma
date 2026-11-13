@@ -6,14 +6,14 @@ Nx project `llm-inference-e2e`, tags `type:tooling`, `scope:llm-api`, `runtime:n
 
 ## Purpose
 
-- Chứng minh trên hệ thống đã deploy: bootstrap lane đúng hợp đồng (superadmin sub một nguồn cho hai tenant; Dronie seller first_party với principal/case approved + attribution; đúng một provider credential hash-only; offer active trên pool healthy; consumer tenant với đúng một api key hash-only khớp SHA-256 của key lane; funding B1–B4 credited ở hàng aggregate); catalogue + một serving thành công thật (envelope chuẩn, content deterministic của mock, usage thật, model = normalized_model_id); settled đúng một lần trên logical request/quota reservation/charge với "charged ≤ held", escrow bảo toàn trên projection wallet SAU serving và journal metadata-only; replay cùng `x-request-id` → 409 `request_id_replay` không tạo dòng mới; auth thất bại (thiếu/sai hình/key lạ) → cùng lớp lỗi ổn định, không dấu vết ledger; fence không-leak trên log hai đầu và cột key_hash.
+- Chứng minh trên hệ thống đã deploy: bootstrap lane đúng hợp đồng (superadmin sub một nguồn cho hai tenant; Dronie seller first_party với principal/case approved + attribution; đúng một provider credential hash-only; offer active trên pool healthy; consumer tenant với đúng một api key hash-only (key_hash 64 hex, id suy ra deterministic từ hash; binding plaintext key lane ↔ key_hash do serving thật ở (f) chứng minh); funding B1–B4 credited ở hàng aggregate); catalogue + một serving thành công thật (envelope chuẩn, content deterministic của mock, usage thật, model = normalized_model_id); settled đúng một lần trên logical request/quota reservation/charge với "charged ≤ held", escrow bảo toàn trên projection wallet SAU serving và journal metadata-only; replay cùng `x-request-id` → 409 `request_id_replay` không tạo dòng mới; auth thất bại (thiếu/sai hình/key lạ) → cùng lớp lỗi ổn định, không dấu vết ledger; fence không-leak trên log hai đầu và cột key_hash.
 - KHÔNG chứng minh ở đây — đã có bằng chứng ở tầng integration của `apps/llm-api` (`tests/integrations/`): ma trận lỗi upstream (`unauthorized`/`rate_limited`/`server_error`/`timeout`/`malformed` inject qua `x-mock-scenario`), race trần quota đồng thời, và ngữ nghĩa 409 `idempotency_conflict` khi cùng request-id với payload khác. Suite này chạy kịch bản happy-path + replay + auth-failure trên hệ thống thật; mở rộng ma trận lỗi trên lane là work riêng nếu cần.
 
 ## Responsibilities
 
 - `bin/run-system-test.mjs` — runner: đọc `LANE_STATE`, nạp env `LLM_E2E_*`, chạy vitest, fence + forward output/exit code.
 - `global-setup.ts` — readiness gate fail-closed trong network.
-- `support/lane.mts` — accessor env, request in-network, psql read-only, docker logs, readiness probe, SHA-256 đối chiếu cột hash-only.
+- `support/lane.mts` — accessor env, request in-network, psql read-only, docker logs, readiness probe.
 - `support/client.mjs` — HTTP client thuần chạy trong container ephemeral (stdin JSON → một dòng JSON `{status, body}`).
 - `e2e/01-lane-bootstrap.spec.ts` — (b)(c)(d) trạng thái bootstrap bền của lane (aggregate B1–B4; projection wallet thuộc spec serving).
 - `e2e/02-serving-and-ledger.spec.ts` — (e)(f)(g)(h) serving thật + materialize projection wallet + sổ cái + replay.

@@ -21,11 +21,9 @@ import {
   SPONSOR_GRANT_AMOUNT_MINOR,
   SPONSOR_ID,
   TENANT_DATABASE,
-  laneConsumerApiKey,
   laneTenantOwnerSub,
   psqlCount,
   psqlQuery,
-  sha256Hex,
 } from '../support/lane.mts';
 
 describe('lane bootstrap state (b/c/d)', () => {
@@ -136,21 +134,29 @@ describe('lane bootstrap state (b/c/d)', () => {
     expect(snapshot).toBe(`${DRONIE_MODEL_ID}|active|VND`);
   });
 
-  it('(d) seeds the consumer tenant with exactly one active hash-only api key matching the lane key', () => {
+  it('(d) seeds the consumer tenant with exactly one active hash-only api key with an id derived deterministically from its hash', () => {
     const keyCount = psqlCount(
       GATEWAY_DATABASE,
       `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`,
     );
     expect(keyCount).toBe(1);
 
-    // Hash-only deterministic: SHA-256 hex của plaintext key suite đang giữ
-    // phải trùng đúng key_hash của row duy nhất — plaintext không nằm trong DB.
-    const keyHash = psqlQuery(
+    // Bằng chứng binding plaintext ↔ key_hash KHÔNG nằm ở hash lại plaintext
+    // trong suite mà ở đường serving thật: spec 02 (f) gửi plaintext key lane
+    // làm Bearer và nhận HTTP 200 từ worker đã deploy, mà đường auth của worker
+    // là sha256(key trình ra) → tra đúng cột key_hash (chat-completions.ts) —
+    // 200 đó buộc key_hash của row duy nhất phải là SHA-256 của plaintext lane.
+    // Suite vì vậy chỉ ghim fence hình dạng hash-only: key_hash 64 hex in
+    // thường, và id suy ra deterministic từ hash (bootstrap-consumer-tenant.mts:
+    // id = `consumer-api-key-` + `hash.slice(0, 24)` — 24 ký tự ĐẦU của key_hash).
+    const keyRow = psqlQuery(
       GATEWAY_DATABASE,
-      `SELECT key_hash FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`,
+      `SELECT id, key_hash FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`,
     );
-    expect(keyHash).toBe(sha256Hex(laneConsumerApiKey()));
+    const [keyId, keyHash] = keyRow.split('|');
+    expect(keyId).toMatch(/^consumer-api-key-[0-9a-f]{24}$/u);
     expect(keyHash).toMatch(/^[0-9a-f]{64}$/u);
+    expect(keyHash.startsWith(keyId.slice('consumer-api-key-'.length))).toBe(true);
   });
 
   it('(d) converges sponsor funding B1-B4 with the grant credited at the granted amount', () => {
