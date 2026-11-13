@@ -4,12 +4,18 @@ import { useDirection } from 'reka-ui';
 import type { VNode } from 'vue';
 import { defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppShellPreferences } from '../preferences';
+import type { AppShellColorMode } from '../color-mode';
 import { NuxtLinkStub, resetMediaQueryMatches, setMediaQueryMatches } from '../testing/nuxt-env';
 import AppShell from './AppShell.vue';
+import AppShellColorModeToggle from './AppShellColorModeToggle.vue';
 import { DEFAULT_APP_SHELL_LABELS } from './labels';
 import { isAppShellNavGroup } from './types';
-import type { AppShellCommandGroup, AppShellLabels, AppShellNavSection } from './types';
+import type {
+  AppShellCommandGroup,
+  AppShellDirection,
+  AppShellLabels,
+  AppShellNavSection,
+} from './types';
 
 /**
  * Test của shell trên DOM thật, không phải trên ảnh chụp component. Ba nhóm bất
@@ -18,9 +24,10 @@ import type { AppShellCommandGroup, AppShellLabels, AppShellNavSection } from '.
  * - chiều văn bản phải đi tới **cả** hai nơi: reka (menu, sheet, tooltip) và vị
  *   trí sidebar. Chỉ đổi được một trong hai là đúng cái lỗi "RTL chỉ đổi phía
  *   sidebar" mà yêu cầu cấm;
- * - bảng tuỳ chỉnh chỉ được có hai nhóm điều khiển, và `update:preferences` chỉ
- *   mang hai trường;
- * - nhánh mobile/desktop phải theo viewport, cả cho sidebar lẫn bảng tuỳ chỉnh.
+ * - color mode đi ra đúng qua `update:colorMode` và watcher tự cập nhật class
+ *   `dark` trên `<html>` sau hydration (class lúc tải trang là việc của script
+ *   bootstrap, không phải của Vue);
+ * - nhánh mobile/desktop phải theo viewport, cho sidebar.
  */
 
 const DESKTOP_QUERY = '(min-width: 768px)';
@@ -120,24 +127,30 @@ function swappedNav(): readonly AppShellNavSection[] {
 }
 
 interface MountShellOptions {
-  readonly preferences: AppShellPreferences;
+  readonly dir?: AppShellDirection;
+  readonly colorMode?: AppShellColorMode;
   readonly currentPath?: string;
   readonly nav?: readonly AppShellNavSection[];
   readonly labels?: AppShellLabels;
+  /** Ghi đè nội dung slot `#actions` — mặc định là một chuỗi đứng yên. */
+  readonly actionsSlot?: () => VNode;
 }
 
 const mountedWrappers: VueWrapper[] = [];
 
 function mountShell({
-  preferences,
+  dir = undefined,
+  colorMode = undefined,
   currentPath = '/dashboard',
   nav = NAV,
   labels = undefined,
+  actionsSlot = undefined,
 }: MountShellOptions) {
   const wrapper = mount(AppShell, {
     attachTo: document.body,
     props: {
-      preferences,
+      dir,
+      colorMode,
       nav,
       commands: COMMANDS,
       currentPath,
@@ -148,7 +161,7 @@ function mountShell({
       default: () => h(DirectionProbe),
       brand: () => 'Ecoma',
       footer: () => 'Account',
-      actions: () => 'Actions',
+      actions: actionsSlot ?? (() => 'Actions'),
     },
     global: { components: { NuxtLink: NuxtLinkStub } },
   });
@@ -191,28 +204,6 @@ function groupIsOpen(wrapper: VueWrapper, childHref: string): boolean {
   return wrapper.find(`a[href="${childHref}"]`).exists();
 }
 
-/**
- * Mở bảng tuỳ chỉnh bằng nút nổi rồi trả về **phần nội dung đã mở**, không trả
- * về cả `document.body`: các khẳng định phủ định dưới đây phải nói về bảng tuỳ
- * chỉnh, không phải về mọi thứ khác đang có trên trang.
- */
-async function openSettingsPanel(): Promise<HTMLElement> {
-  const trigger = document.body.querySelector<HTMLElement>('button.fixed');
-
-  expect(trigger).not.toBeNull();
-  trigger?.click();
-  await flushPromises();
-  await nextTick();
-
-  const panel =
-    document.body.querySelector<HTMLElement>('[data-slot="sheet-content"]') ??
-    document.body.querySelector<HTMLElement>('[data-slot="drawer-content"]');
-
-  expect(panel).not.toBeNull();
-
-  return panel as HTMLElement;
-}
-
 beforeEach(() => {
   setViewport(false);
 });
@@ -235,7 +226,7 @@ afterEach(() => {
 
 describe('AppShell nav', () => {
   it('renders every section heading and plain item', () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     expect(wrapper.text()).toContain('Platform');
     expect(wrapper.text()).toContain('Team');
@@ -244,7 +235,7 @@ describe('AppShell nav', () => {
   });
 
   it('renders a group as a trigger, with children only once it is open', () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     expect(wrapper.find('a[href="/billing/invoices"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('Billing');
@@ -252,7 +243,6 @@ describe('AppShell nav', () => {
 
   it('opens the group that contains the current path, so the active item is visible', () => {
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/billing/invoices',
     });
 
@@ -268,7 +258,7 @@ describe('AppShell nav', () => {
     // Khởi tạo trạng thái mở một lần lúc setup (thay vì `watch`) để lại nhóm đóng
     // sau khi đi từ `/dashboard` sang `/billing/invoices`, và mục đang xem biến
     // mất khỏi nav — không lỗi nào được ném ra.
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     expect(wrapper.find('a[href="/billing/invoices"]').exists()).toBe(false);
 
@@ -282,7 +272,6 @@ describe('AppShell nav', () => {
     // Chỉ được **mở** theo route, không bao giờ tự đóng: người dùng mở tay một
     // nhóm rồi điều hướng sang chỗ khác thì trạng thái của họ phải giữ nguyên.
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/billing/invoices',
     });
 
@@ -301,7 +290,6 @@ describe('AppShell nav', () => {
     // Vì vậy watcher phải theo `currentPath`, và đây là ca duy nhất phân biệt được
     // hai cách viết.
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/billing/invoices',
     });
 
@@ -327,7 +315,7 @@ describe('AppShell nav', () => {
     // điều hướng ra ngoài nó phải giữ nguyên trạng thái mở. Một watcher gán
     // `open = hasActiveChild` mỗi lần điều hướng sẽ đóng nó lại — đúng thứ hợp
     // đồng cấm.
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     // `/dashboard` không nằm trong nhóm Billing nên nhóm đóng sẵn.
     expect(groupIsOpen(wrapper, '/billing/invoices')).toBe(false);
@@ -347,7 +335,6 @@ describe('AppShell nav', () => {
     // `open` cục bộ ở lại. Nhóm mới không được thừa hưởng trạng thái mở của nhóm
     // cũ — nếu không, một nhóm chưa từng được mở sẽ hiện sẵn các mục con.
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/billing/invoices',
     });
 
@@ -366,7 +353,6 @@ describe('AppShell nav', () => {
     // của chính nó**, không phải luôn `false`. Đóng cứng mọi lần đổi prop cũng
     // sai, chỉ khác chiều.
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/reports/weekly',
     });
 
@@ -382,7 +368,6 @@ describe('AppShell nav', () => {
 
   it('marks the plain item matching the current path as active, and only that one', () => {
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/settings',
     });
 
@@ -397,7 +382,7 @@ describe('AppShell nav', () => {
   });
 
   it('renders the app-owned slots, not placeholder markup of its own', () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     expect(wrapper.text()).toContain('Ecoma');
     expect(wrapper.text()).toContain('Account');
@@ -407,14 +392,14 @@ describe('AppShell nav', () => {
 
 describe('AppShell direction', () => {
   it('moves the sidebar and tells reka, so RTL is not sidebar-only', () => {
-    const rtl = mountShell({ preferences: { themeColor: 'default', direction: 'rtl' } });
+    const rtl = mountShell({ dir: 'rtl' });
 
     expect(rtl.find('[data-side="right"]').exists()).toBe(true);
     expect(rtl.find('[data-probe-direction]').attributes('data-probe-direction')).toBe('rtl');
   });
 
   it('keeps the sidebar on the left for LTR', () => {
-    const ltr = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const ltr = mountShell({});
 
     expect(ltr.find('[data-side="left"]').exists()).toBe(true);
     expect(ltr.find('[data-probe-direction]').attributes('data-probe-direction')).toBe('ltr');
@@ -427,129 +412,15 @@ describe('AppShell direction', () => {
     // `noPropertyAccessFromIndexSignature`.
     expect(Object.keys(AppShell['props']).toSorted()).toEqual([
       'bottomItems',
+      'colorMode',
       'commands',
       'currentPath',
+      'dir',
       'homeLabel',
       'labels',
       'links',
       'nav',
-      'preferences',
     ]);
-  });
-});
-
-describe('AppShell settings panel', () => {
-  it('offers only the colour and direction controls', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    const panel = await openSettingsPanel();
-    const text = panel.textContent ?? '';
-
-    expect(text).toContain('Theming');
-    expect(text).toContain('Layout');
-    expect(text).toContain('Color');
-    expect(text).toContain('Direction');
-    expect(text).toContain('teal');
-  });
-
-  it('does not resurrect the controls the shell dropped', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    const panel = await openSettingsPanel();
-    const text = panel.textContent ?? '';
-
-    // Bốn nhóm điều khiển của nguồn không còn ở đây: navbar type
-    // (sidebar/floating/inset), typography (default/scaled/mono) và
-    // light/dark/system.
-    for (const dropped of ['Navbar', 'Mono', 'Scaled', 'Floating', 'Inset', 'System']) {
-      expect(text).not.toContain(dropped);
-    }
-  });
-
-  it('emits the new colour and leaves the direction untouched', async () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'rtl' } });
-
-    await openSettingsPanel();
-
-    const teal = findByText('button', 'teal');
-
-    expect(teal).toBeDefined();
-    teal?.click();
-    await nextTick();
-
-    expect(wrapper.emitted('update:preferences')?.at(0)).toEqual([
-      { themeColor: 'teal', direction: 'rtl' },
-    ]);
-  });
-
-  it('emits the new direction and leaves the colour untouched', async () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'violet', direction: 'ltr' } });
-
-    await openSettingsPanel();
-
-    const rtl = [...document.body.querySelectorAll('button')].find(
-      (button) => button.textContent?.trim() === 'RTL',
-    );
-
-    expect(rtl).toBeDefined();
-    rtl?.click();
-    await nextTick();
-
-    // Khong kem theo truong nao khac: doi chieu khong keo theo doi vi tri
-    // sidebar, va shell khong con truong nao luu vi tri sidebar de ma doi.
-    expect(wrapper.emitted('update:preferences')?.at(0)).toEqual([
-      { themeColor: 'violet', direction: 'rtl' },
-    ]);
-  });
-
-  it('opens as a sheet on a wide viewport', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    await openSettingsPanel();
-
-    expect(document.body.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
-    expect(document.body.querySelector('[data-slot="drawer-content"]')).toBeNull();
-  });
-
-  it('opens as a drawer on a narrow viewport', async () => {
-    setViewport(true);
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    await openSettingsPanel();
-
-    expect(document.body.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
-    expect(document.body.querySelector('[data-slot="sheet-content"]')).toBeNull();
-  });
-
-  /**
-   * Bảng phải phản ánh `preferences` **hiện tại**, chứ không phải giá trị lúc
-   * mount. Cái bẫy có tên: `createReusableTemplate` của `@vueuse/core` bị đánh
-   * giá là "chụp slot một lần rồi `cloneVNode`", tức là mọi binding động trong
-   * đó bị đóng băng. Thực tế `@vueuse/core@15` (phần lib này resolve) chỉ lưu
-   * `slots.default` trong một `shallowRef` và **gọi lại** hàm slot ở mỗi lần
-   * render của `Reuse`, nên binding được tính lại và render effect của `Reuse`
-   * có đọc tới `preferences` — đọc mã nguồn và một phép đo cô lập đều xác nhận
-   * điều đó, nên bảng đã đúng từ đầu và không cần tách component con.
-   *
-   * Vì sao vẫn giữ test này: nó ghim đúng bất biến đó ở mức DOM. Nếu sau này
-   * có người thay cơ chế chia sẻ markup bằng thứ thực sự đóng băng (chụp vnode
-   * một lần), test này đỏ ngay chứ không xanh im lặng.
-   */
-  it('reflects current preferences when they change, without freezing bindings', async () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    await openSettingsPanel();
-
-    const tealButton = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('teal'),
-    ) as HTMLButtonElement | undefined;
-    expect(tealButton).toBeDefined();
-    expect(tealButton?.querySelector('svg')).toBeNull();
-
-    await wrapper.setProps({ preferences: { themeColor: 'teal', direction: 'ltr' } });
-    await flushPromises();
-    await nextTick();
-
-    const tealButtonAfter = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('teal'),
-    ) as HTMLButtonElement | undefined;
-    expect(tealButtonAfter).toBeDefined();
-    expect(tealButtonAfter?.querySelector('svg')).not.toBeNull();
   });
 });
 
@@ -563,7 +434,7 @@ describe('AppShell media query reactivity', () => {
     //
     // Vì vậy phép đo ở đây đổi viewport **sau** mount và bắt buộc cây DOM phải
     // render lại, cả ở sidebar (mobile sheet) lẫn bảng tuỳ chỉnh (drawer).
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     await flushPromises();
 
@@ -587,31 +458,19 @@ describe('AppShell media query reactivity', () => {
     await flushPromises();
 
     expect(document.body.querySelector('[data-slot="sidebar"][data-mobile="true"]')).not.toBeNull();
-
-    // Bảng tuỳ chỉnh đọc cùng cơ chế qua query `(min-width: 768px)`: ở viewport
-    // hẹp nó phải mở bằng `Drawer`, không phải `Sheet`.
-    const trigger = document.body.querySelector<HTMLElement>('button.fixed');
-
-    expect(trigger).not.toBeNull();
-    trigger?.click();
-    await flushPromises();
-    await nextTick();
-
-    expect(document.body.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
-    expect(document.body.querySelector('[data-slot="sheet-content"]')).toBeNull();
   });
 });
 
 describe('AppShell responsive sidebar', () => {
   it('renders the desktop sidebar with a rail, not the mobile sheet', () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     expect(wrapper.find('[data-slot="sidebar-rail"]').exists()).toBe(true);
     expect(document.body.querySelector('[data-slot="sidebar"][data-mobile="true"]')).toBeNull();
   });
 
   it('opens the sidebar by default on desktop, and the header button collapses then reopens it', async () => {
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     await flushPromises();
 
@@ -640,7 +499,7 @@ describe('AppShell responsive sidebar', () => {
 
   it('opens the sidebar as a mobile sheet from the header trigger, on the RTL side', async () => {
     setViewport(true);
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'rtl' } });
+    const wrapper = mountShell({ dir: 'rtl' });
 
     await flushPromises();
 
@@ -669,13 +528,13 @@ describe('AppShell responsive sidebar', () => {
 
 describe('AppShell command palette', () => {
   it('stays closed until it is asked for', () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    mountShell({});
 
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('opens from the sidebar button', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    mountShell({});
 
     const search = findByText('button', 'Search');
 
@@ -687,7 +546,7 @@ describe('AppShell command palette', () => {
   });
 
   it('opens from the keyboard shortcut, which outlives the collapsed sidebar', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    mountShell({});
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
     await flushPromises();
@@ -696,7 +555,7 @@ describe('AppShell command palette', () => {
   });
 
   it('lists the commands the app passed in, as links', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    mountShell({});
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
     await flushPromises();
@@ -714,7 +573,7 @@ describe('AppShell command palette', () => {
     // chạy và ghi đè `open` — tự đóng nhóm người dùng vừa mở tay. Test này cố
     // tình dựng lại nav với nội dung **y hệt** nhưng object mới, và phải giữ
     // nguyên trạng thái mở.
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     // Nhóm Billing đóng sẵn (currentPath `/dashboard` không thuộc nhóm).
     expect(groupIsOpen(wrapper, '/billing/invoices')).toBe(false);
@@ -745,7 +604,7 @@ describe('AppShell command palette', () => {
     // biến nhóm thành nhóm khác, nên không được ghi đè trạng thái mở/đóng tay.
     // Nhóm đang mở tay thì vẫn mở (và mục con mới hiện ra trong đó, đúng như một
     // nhóm đang mở).
-    const wrapper = mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
+    const wrapper = mountShell({});
 
     await clickGroupTrigger('Billing');
     expect(groupIsOpen(wrapper, '/billing/invoices')).toBe(true);
@@ -771,7 +630,6 @@ describe('AppShell command palette', () => {
     // Chiều còn lại: nhóm đang chứa mục được xem nhưng người dùng đã đóng tay,
     // rồi app thêm một mục con. Không được nhân dịp đó mở lại nhóm.
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       currentPath: '/billing/invoices',
     });
 
@@ -808,15 +666,11 @@ describe('AppShell command palette', () => {
  */
 describe('AppShell labels', () => {
   const LABELS: AppShellLabels = {
-    settings: {
-      title: 'Tuy chinh giao dien',
-      description: 'Xem truoc theo thoi gian thuc',
-      theming: 'Mau sac',
-      layout: 'Bo cuc',
-      color: 'Mau chu dao',
-      direction: 'Chieu van ban',
-      directionLtr: 'Trai sang phai',
-      directionRtl: 'Phai sang trai',
+    colorMode: {
+      label: 'Che do mau',
+      light: 'Sang',
+      dark: 'Toi',
+      system: 'He thong',
     },
     search: {
       buttonLabel: 'Tim kiem',
@@ -827,39 +681,47 @@ describe('AppShell labels', () => {
     },
   };
 
-  it('renders the built-in English labels when none are passed', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' } });
-    const sidebar = document.body.textContent ?? '';
+  it('renders the built-in English labels when none are passed', () => {
+    mountShell({ actionsSlot: () => h(AppShellColorModeToggle) });
 
-    expect(sidebar).toContain(DEFAULT_APP_SHELL_LABELS.search.buttonLabel);
+    expect(document.body.textContent ?? '').toContain(DEFAULT_APP_SHELL_LABELS.search.buttonLabel);
+    // Nhãn của toggle chỉ sống trong `title`/`aria-label` (icon là nút duy nhất),
+    // nên đọc attribute chứ không `textContent`.
+    const toggle = document.body.querySelector<HTMLElement>('button[aria-label^="Color mode"]');
+    const spoken = `${toggle?.getAttribute('aria-label') ?? ''} ${toggle?.getAttribute('title') ?? ''}`;
 
-    const panel = await openSettingsPanel();
-    const text = panel.textContent ?? '';
-
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.title);
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.description);
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.theming);
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.layout);
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.color);
-    expect(text).toContain(DEFAULT_APP_SHELL_LABELS.settings.direction);
+    expect(spoken).toContain(DEFAULT_APP_SHELL_LABELS.colorMode.label);
+    // Mode mặc định là `system`, nên lời nói ra là "System → Light"; tên `dark`
+    // chỉ xuất hiện khi mode hiện tại hoặc đích là dark.
+    expect(spoken).toContain(DEFAULT_APP_SHELL_LABELS.colorMode.system);
+    expect(spoken).toContain(DEFAULT_APP_SHELL_LABELS.colorMode.light);
+    expect(spoken).not.toContain(DEFAULT_APP_SHELL_LABELS.colorMode.dark);
   });
 
-  it('replaces every settings panel string and leaves no English behind', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' }, labels: LABELS });
-    const panel = await openSettingsPanel();
-    const text = panel.textContent ?? '';
+  it('replaces every color-mode toggle string and leaves no English behind', () => {
+    mountShell({
+      colorMode: 'light',
+      labels: LABELS,
+      actionsSlot: () => h(AppShellColorModeToggle, { labels: LABELS.colorMode }),
+    });
+    const toggle = document.body.querySelector<HTMLElement>(
+      `button[aria-label^="${LABELS.colorMode.label}"]`,
+    );
+    const spoken = `${toggle?.getAttribute('aria-label') ?? ''} ${toggle?.getAttribute('title') ?? ''}`;
 
-    for (const label of Object.values(LABELS.settings)) {
-      expect(text).toContain(label);
-    }
+    // Mode truyền vào là `light` ⇒ lời nói ra là "Sang → Toi"; ba chuỗi đó phải
+    // dịch hết, và không còn một chuỗi tiếng Anh mặc định nào sót lại.
+    expect(spoken).toContain(LABELS.colorMode.label);
+    expect(spoken).toContain(LABELS.colorMode.light);
+    expect(spoken).toContain(LABELS.colorMode.dark);
 
-    for (const stale of Object.values(DEFAULT_APP_SHELL_LABELS.settings)) {
-      expect(text).not.toContain(stale);
+    for (const stale of Object.values(DEFAULT_APP_SHELL_LABELS.colorMode)) {
+      expect(spoken).not.toContain(stale);
     }
   });
 
   it('replaces the command palette labels', async () => {
-    mountShell({ preferences: { themeColor: 'default', direction: 'ltr' }, labels: LABELS });
+    mountShell({ labels: LABELS });
 
     expect(findByText('button', LABELS.search.buttonLabel)).toBeDefined();
 
@@ -905,7 +767,6 @@ describe('AppShell labels', () => {
 
   it('takes effect when the labels prop changes at runtime', async () => {
     const wrapper = mountShell({
-      preferences: { themeColor: 'default', direction: 'ltr' },
       labels: LABELS,
     });
 
@@ -916,5 +777,61 @@ describe('AppShell labels', () => {
 
     expect(findByText('button', DEFAULT_APP_SHELL_LABELS.search.buttonLabel)).toBeDefined();
     expect(findByText('button', LABELS.search.buttonLabel)).toBeUndefined();
+  });
+});
+
+/**
+ * Toggle đổi mode là UI duy nhất của cấu hình shell còn lại. Hai bất biến: vòng
+ * xoay `light → dark → system → light` phát đúng một sự kiện mỗi lần bấm, và
+ * watcher của `AppShell` tự đặt class `dark` trên `<html>` sau hydration —class
+ * lúc *tải trang* là việc của script bootstrap nên không test được ở đây.
+ */
+describe('AppShellColorModeToggle', () => {
+  it('cycles light → dark → system → light, emitting one mode per click', async () => {
+    const wrapper = mountShell({
+      colorMode: 'light',
+      actionsSlot: () => h(AppShellColorModeToggle),
+    });
+
+    const toggle = wrapper.find('[aria-label^="Color mode"]');
+    expect(toggle.exists()).toBe(true);
+
+    // App thật ghi cookie rồi đẩy prop mới xuống; test mô phỏng đúng vòng đó —
+    // không setProps thì mode trong context đứng yên và nút không xoay được.
+    toggle.trigger('click');
+    await flushPromises();
+    expect(wrapper.emitted('update:colorMode')?.at(-1)).toEqual(['dark']);
+    await wrapper.setProps({ colorMode: 'dark' });
+
+    toggle.trigger('click');
+    await flushPromises();
+    expect(wrapper.emitted('update:colorMode')?.at(-1)).toEqual(['system']);
+    await wrapper.setProps({ colorMode: 'system' });
+
+    toggle.trigger('click');
+    await flushPromises();
+    expect(wrapper.emitted('update:colorMode')?.at(-1)).toEqual(['light']);
+  });
+
+  it('applies the dark class to <html> when the mode prop changes after mount', async () => {
+    const wrapper = mountShell({ colorMode: 'light' });
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+
+    await wrapper.setProps({ colorMode: 'dark' });
+    await flushPromises();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+
+    // jsdom không có matchMedia ⇒ "system" rơi về sáng — khớp CSS mặc định.
+    await wrapper.setProps({ colorMode: 'system' });
+    await flushPromises();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+
+    // Lần mount đầu watcher KHÔNG chạy (không `immediate`): đặt light khi class
+    // đã có phải xoá được, chứng tỏ watcher phản ứng với giá trị, không chỉ mount.
+    document.documentElement.classList.add('dark');
+    await wrapper.setProps({ colorMode: 'light' });
+    await flushPromises();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 });

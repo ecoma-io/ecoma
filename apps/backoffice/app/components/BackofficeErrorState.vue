@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@ecoma-io/ui-app-shell';
+import { useI18n } from '#i18n';
+
+import { LOGIN_PATH } from '../composables/use-backoffice-session';
 /**
  * Trạng thái lỗi — lỗi tải dữ liệu, khác với lỗi của một thao tác ghi.
  *
@@ -10,6 +13,20 @@ import { Button } from '@ecoma-io/ui-app-shell';
  *
  * ⚠️ `role="alert"` chứ không phải `role="status"`: đây là thông tin **mới** và
  * quan trọng, cần đọc ngay, không phải thông báo lịch sự chen vào hàng đợi.
+ *
+ * ## Nhánh phiên hết hạn (`sessionExpired`)
+ *
+ * Trang nhận `401` từ route `/api/**` (phiên vắng, hết hạn idle/absolute, token
+ * chết) thì "Thử lại" là một affordance nói dối: retry không bao giờ tạo ra
+ * credential mới. ADR-0011 §4 chốt hành vi client cho `401` là **đường đăng
+ * nhập/re-auth** — component thay nút retry bằng nút "Log in again" dẫn tới
+ * `GET /api/auth/login` (BFF dựng authorize URL, UI không tự dựng — cùng luật
+ * với nút login của shell). Tiêu đề và câu chữ cũng đổi theo, vì "Could not
+ * load this data" mô tả sai bản chất của một phiên đã hết.
+ *
+ * ⚠️ Nhánh này **chỉ** do `401` kích hoạt. `403` là denial quyền — người dùng đã
+ * xác thực rồi, đưa họ sang login là hành vi sai (ADR-0011 §4); `503` giữ nút
+ * retry. Phân biệt nằm ở `state.status` của trang, không do component tự suy.
  */
 /**
  * ⚠️ `detail`/`retryLabel`/`onRetry` là prop optional nên phải khai default ở phần
@@ -37,6 +54,7 @@ const {
   detail = undefined,
   retryLabel = undefined,
   onRetry = undefined,
+  sessionExpired = false,
   // oxlint-disable-next-line vue/max-props
 } = defineProps<{
   readonly title: string;
@@ -46,7 +64,16 @@ const {
   /** Nhãn của nút thử lại; bỏ trắng để không render nút. */
   readonly retryLabel?: string;
   readonly onRetry?: () => void;
+  /** `401` từ lớp dữ liệu — thay retry bằng đường đăng nhập lại (ADR-0011 §4). */
+  readonly sessionExpired?: boolean;
 }>();
+
+const { t } = useI18n();
+
+/** CTA của nhánh 401: cùng đường đăng nhập với shell — UI không tự dựng URL. */
+function loginAgain(): void {
+  window.location.assign(LOGIN_PATH);
+}
 </script>
 
 <template>
@@ -55,8 +82,10 @@ const {
     role="alert"
     data-testid="backoffice-error"
   >
-    <p class="text-sm font-semibold text-destructive">{{ title }}</p>
-    <p class="mt-1 text-sm">{{ body }}</p>
+    <p class="text-sm font-semibold text-destructive">
+      {{ sessionExpired ? t('states.sessionExpired.title') : title }}
+    </p>
+    <p class="mt-1 text-sm">{{ sessionExpired ? t('states.sessionExpired.body') : body }}</p>
     <p
       v-if="detail"
       class="mt-2 font-mono text-xs break-all text-muted-foreground"
@@ -65,7 +94,17 @@ const {
       {{ detail }}
     </p>
     <Button
-      v-if="retryLabel && onRetry"
+      v-if="sessionExpired"
+      variant="outline"
+      size="sm"
+      class="mt-3"
+      data-testid="backoffice-error-login"
+      @click="loginAgain"
+    >
+      {{ t('states.sessionExpired.login') }}
+    </Button>
+    <Button
+      v-else-if="retryLabel && onRetry"
       variant="outline"
       size="sm"
       class="mt-3"

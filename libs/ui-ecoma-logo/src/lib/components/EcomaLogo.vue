@@ -24,6 +24,16 @@
   `width`/`height` (một mình một phía làm méo artwork, sizing chỉ đi qua CSS).
   Component không tự thêm margin, không bọc link, không đọc router — brand link là
   việc của consumer.
+
+  RTL (issue #213): khi document (hoặc một tổ tiên) mang `[dir='rtl']`, thứ tự
+  mark ↔ wordmark ĐẢO NGƯỢC qua dịch chuyển thuần CSS của hai `<g>` — mark rời
+  sang mép phải, wordmark sang mép trái, phản chiếu qua tâm viewBox. Vì là pure
+  CSS (không đọc `document.dir`, không prop mới) nên markup SSR như nhau ở cả
+  hai hướng — không có nguy cơ hydration mismatch; máy không hỗ trợ
+  `transform` trên phần tử SVG chỉ đơn giản giữ thứ tự LTR (suy thoái vô hại).
+  KHÔNG soi gương nét (`scaleX(-1)`): wordmark là chữ Latin "ecoma". Số liệu
+  và cách suy ra hai hằng dịch xem `logo-artwork.ts`; spec
+  `ecoma-logo-rtl-geometry.spec.ts` ghim literal CSS khớp hằng TS.
 -->
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue';
@@ -81,7 +91,54 @@ const svgAttrs = computed<Record<string, unknown>>(() => {
     class="ecoma-logo"
     v-bind="svgAttrs"
   >
-    <path :d="ECOMA_LOGO_MARK_PATH" fill-rule="evenodd" class="fill-brand" />
-    <path :d="ECOMA_LOGO_WORDMARK_PATH" class="fill-foam" />
+    <!--
+      Hai `<g>` là móc để CSS địa chỉ từng nửa logo khi đổi hướng RTL (xem
+      `<style scoped>` dưới). Class `fill-*` vẫn nằm trên `path` như trước —
+      việc bọc `<g>` không đổi cách tô màu.
+    -->
+    <g class="ecoma-logo-mark">
+      <path :d="ECOMA_LOGO_MARK_PATH" fill-rule="evenodd" class="fill-brand" />
+    </g>
+    <g class="ecoma-logo-wordmark">
+      <path :d="ECOMA_LOGO_WORDMARK_PATH" class="fill-foam" />
+    </g>
   </svg>
 </template>
+
+<style scoped>
+/*
+  RTL: đổi THỨ TỰ mark ↔ wordmark bằng dịch ngang thuần CSS — KHÔNG đọc
+  `document.dir` bằng JS (tránh hydration risk), KHÔNG prop mới, KHÔNG soi
+  gương nét (cấm mọi hàm scale âm trong khối style này: lật theo trục đứng làm
+  chữ Latin "ecoma" đọc ngược — lý do chi tiết xem comment đầu file). Selector
+  `[dir='rtl']` khớp `<html dir='rtl'>` (hoặc bất kỳ tổ tiên nào).
+
+  Vì sao DÙNG CSS nesting thay vì viết phẳng `:global([dir='rtl']) .ecoma-logo-mark`:
+  trong `<style scoped>` của Vue, `:global()` nuốt trọn selector chứa nó —
+  dạng phẳng biên dịch thành `[dir='rtl'] { … }` và MẤT hẳn class group, rule
+  bắn vào mọi phần tử trong trang RTL (đã thử, compiler-sfc 3.5). Viết lồng
+  nhau thì `:global()` chỉ gói phần tổ tiên, class bên trong vẫn được gắn
+  `[data-v-*]` của component — chỉ hai `<g>` của logo nhận transform.
+
+  Trình duyệt không hỗ trợ CSS nesting chỉ là bỏ nguyên rule này: logo giữ thứ
+  tự LTR (suy thoái vô hại, cùng hạng mục với trường hợp không hỗ trợ
+  `transform` trên SVG).
+
+  `transform` trên phần tử con của SVG tính theo user units của viewBox, nên
+  hai số dưới đây đúng bằng hằng địa lý trong `logo-artwork.ts` (được TÍNH từ
+  bbox từng nhóm: `t = W − min − max` — dịch `[a, b]` về `[W−b, W−a]`, phản
+  chiếu qua tâm viewBox, bảo toàn khoảng hở giữa mark và wordmark). CSS không
+  đọc được hằng TS nên số được hardcode tại đây; spec
+  `ecoma-logo-rtl-geometry.spec.ts` ghim literal CSS khớp hằng TS từng ký tự —
+  đổi artwork phải cập nhật cả hai cùng lúc.
+*/
+:global([dir='rtl']) {
+  .ecoma-logo-mark {
+    transform: translateX(361.433px);
+  }
+
+  .ecoma-logo-wordmark {
+    transform: translateX(-111.567px);
+  }
+}
+</style>

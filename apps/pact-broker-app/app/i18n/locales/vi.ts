@@ -18,15 +18,11 @@ export default {
       dialogDescription: 'Tìm một lệnh để chạy...',
     },
 
-    settings: {
-      title: 'Cài đặt',
-      description: 'Tùy chỉnh và xem trước theo thời gian thực',
-      theming: 'Giao diện',
-      layout: 'Bố cục',
-      color: 'Màu',
-      direction: 'Hướng',
-      directionLtr: 'LTR',
-      directionRtl: 'RTL',
+    colorMode: {
+      label: 'Chế độ màu',
+      light: 'Sáng',
+      dark: 'Tối',
+      system: 'Hệ thống',
     },
 
     language: {

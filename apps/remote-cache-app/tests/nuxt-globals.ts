@@ -109,10 +109,10 @@ export const useState = <T>(key?: string, init?: () => T): Ref<T> => {
 
 /**
  * `useCookie` của Nuxt trả một `Ref` phản ứng được, và app dựa vào đúng tính đó:
- * `app.vue` đọc cookie trong một `computed` (`preferences`) rồi ghi lại trong
- * `updatePreferences()`. Trả một object thường với getter/setter trên `Map` sẽ
+ * `app.vue` đọc cookie trong một `computed` (`colorMode`) rồi ghi lại trong
+ * `setColorMode()`. Trả một object thường với getter/setter trên `Map` sẽ
  * khiến `computed` cache lần đọc đầu và **không bao giờ** invalidate — đổi
- * theme/direction qua shell không cập nhật DOM lẫn `<html lang>`, và test xanh
+ * color mode qua shell không cập nhật prop của `AppShell`, và test xanh
  * nhầm. Ref thật trong map giữ hợp đồng của Nuxt: cùng key, cùng ref, reactive.
  *
  * ⚠️ Khác Nuxt ở hai điểm, có chủ ý: bỏ qua `options` (trừ `default`, dùng làm giá

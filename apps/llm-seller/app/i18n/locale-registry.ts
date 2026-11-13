@@ -19,16 +19,25 @@
  * gặp và không có dấu hiệu nào báo — `lang="zh-CN"` vẫn render bình thường.
  */
 export const LLM_SELLER_LOCALE_DEFINITIONS = [
-  { code: 'en', language: 'en', label: 'English' },
-  { code: 'vi', language: 'vi', label: 'Tiếng Việt' },
+  { code: 'en', language: 'en', label: 'English', dir: 'ltr' },
+  { code: 'vi', language: 'vi', label: 'Tiếng Việt', dir: 'ltr' },
   // Nhãn cố ý là chữ Hán giản thể bất kể locale đang chọn: người dùng đang tìm
   // ngôn ngữ của mình trong danh sách này, nên mỗi mục tự hiển thị bằng chính
   // ngôn ngữ đó — dịch nhãn "简体中文" theo locale hiện tại làm nó khó nhận ra.
-  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文' },
+  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文', dir: 'ltr' },
 ] as const;
 
 /** Locale code hợp lệ — union **suy ra** từ registry, không viết tay. */
 export type LlmSellerLocale = (typeof LLM_SELLER_LOCALE_DEFINITIONS)[number]['code'];
+
+/**
+ * Chiều văn bản của một locale — thuộc tính của **ngôn ngữ nội dung**, không
+ * phải lựa chọn người dùng (issue #213): shell không có setting LTR/RTL,
+ * `<html dir>` và prop `dir` của `AppShell` đều suy ra từ đây, cùng nguồn với
+ * `<html lang>`. Các ngôn ngữ dùng hệ chữ RTL (ar, he, fa, ur…) khai `'rtl'`;
+ * cả ba locale hiện tại của portal đều `'ltr'`.
+ */
+export type LlmSellerTextDirection = 'ltr' | 'rtl';
 
 /** Metadata của một locale. Mọi field `readonly`: registry là policy, không phải state. */
 export type LlmSellerLocaleDefinition = {
@@ -37,6 +46,8 @@ export type LlmSellerLocaleDefinition = {
   readonly language: string;
   /** Nhãn hiển thị trong language selector. */
   readonly label: string;
+  /** Chiều văn bản của ngôn ngữ — xem `LlmSellerTextDirection`. */
+  readonly dir: LlmSellerTextDirection;
 };
 
 /**

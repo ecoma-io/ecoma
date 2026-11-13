@@ -64,15 +64,30 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
+      # Job này chỉ chạy scanner trong docker và `filter-accepted.py` bằng
+      # python3 có sẵn trên runner — không cài Node/pnpm. Image ghim theo digest,
+      # đúng bằng image hook pre-push của lefthook dùng (`lefthook.yml`); spec
+      # `security-tool-pins.spec.ts` assert hai bên bằng nhau nên nâng một bên
+      # quên bên kia là đỏ.
       - name: Test the rules against their fixtures
-        run: pnpm dx semgrep-test-ci
-      # `semgrep-scan-ci`, không phải `semgrep-scan-local`: bản local có điều kiện
-      # chạy theo file đã đổi, còn ở đây một lần scan bị bỏ qua là required check
-      # xanh trong khi chưa quét gì. Hai lệnh dùng chung engine, rule và gate.
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/src" \
+            --workdir /src \
+            'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+            semgrep --test --config .github/semgrep .github/semgrep
+      # Luôn quét, không có điều kiện chạy: một lần scan bị bỏ qua ở đây là
+      # required check xanh trong khi chưa quét gì (hook pre-push mới có điều
+      # kiện skip theo file đã đổi). Hai nơi dùng chung engine, rule và gate.
       - name: Scan
-        run: pnpm dx semgrep-scan-ci --report-path=/tmp/semgrep.sarif
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/src" \
+            --volume /tmp:/out \
+            --workdir /src \
+            'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+            bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.sarif .github/semgrep/accepted-shapes.json'
+          echo "Semgrep scan passed: $(python3 -c 'import json; print(len(json.load(open("/tmp/semgrep.sarif"))["runs"][0].get("results") or []))') finding(s), all accepted by the allowlist."
       # Hai bước cuối của job này dùng chung một định nghĩa "finding được chấp
       # nhận" trong `.github/semgrep/accepted-shapes.json` (xem comment trong
       # file vì sao 3 shape này là thiết kế có chủ đích chứ không phải né
@@ -103,7 +118,12 @@ jobs:
           category: semgrep
       - name: Enforce the repository's own rules
         run: >-
-          pnpm dx semgrep-scan-ci --report-path=/tmp/semgrep.gate.sarif
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/src"
+          --volume /tmp:/out
+          --workdir /src
+          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d'
+          bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.gate.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.gate.sarif .github/semgrep/accepted-shapes.json'
           && python3 .github/semgrep/filter-accepted.py gate
           /tmp/semgrep.gate.sarif .github/semgrep/accepted-shapes.json
 
@@ -120,20 +140,17 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      # Bước resolve scope chạy `pnpm dx gitleaks-scope`, mà `tools/dx` phụ thuộc
-      # `citty` — nên job này cần cài dependency. Workflow này vốn chỉ chạy
-      # scanner tải về nên chưa từng cần; các job khác (`semgrep`, `codeql`) giữ
-      # nguyên không cài.
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-
+      # Job này chỉ chạy scanner docker và git — không cài Node/pnpm.
+      #
       # `gitleaks detect` không có `--log-opts` thì chạy
       # `git log -p -U0 --full-history --all` — `--all` là MỌI ref trong
       # checkout, nên một PR sạch vẫn đỏ vì secret nằm ở nhánh không liên quan,
       # và `analysis-gate` (required check) đỏ theo. Bước này chọn đúng range
       # cho từng event và XÁC MINH nó trước khi gitleaks chạy: gitleaks 8.30.1
       # trả exit 0 cho cả range rỗng lẫn range không tồn tại, tức "quét sai
-      # phạm vi" và "không có secret" cùng ra một tín hiệu xanh.
+      # phạm vi" và "không có secret" cùng ra một tín hiệu xanh. Fail-closed
+      # nghĩa là range rỗng, không tồn tại hoặc không resolve được thì step đỏ
+      # và docker KHÔNG được chạy.
       - name: Resolve the scan scope
         id: scope
         env:
@@ -143,23 +160,81 @@ jobs:
           GITLEAKS_BEFORE_SHA: ${{ github.event.before }}
           GITLEAKS_AFTER_SHA: ${{ github.event.after }}
         run: |
-          # Qua entrypoint citty (`pnpm dx <subcommand>`), không phải chạy file
-          # .ts trực tiếp: file đó export default một `defineCommand`, nên chạy
-          # thẳng sẽ không vào `run()` và im lặng exit 0.
-          #
-          # `pipefail` là bắt buộc ở đây. Trong `a | b | c` chỉ exit code của `c`
-          # quyết định, nên khi dx fail (ví dụ range rỗng) mà `grep` vẫn tìm
-          # được dòng `log-opts=` rỗng thì step vẫn XANH và `SCAN_LOG_OPTS` rỗng
-          # — tức quét sai phạm vi trong khi gate báo sạch. Fail closed bắt buộc
-          # phải nhìn exit code của chính dx.
-          set -o pipefail
-          scope_output=$(npx tsx tools/dx gitleaks-scope | tee /dev/stderr)
-          echo "$scope_output" | grep '^log-opts=' >> "$GITHUB_OUTPUT"
-          echo "$scope_output" | grep '^commits=' >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          die() {
+            echo "::error::$1" >&2
+            exit 1
+          }
+          # Commit id đầy đủ: 40 hex (SHA-1) hoặc 64 hex (SHA-256). Mọi giá trị
+          # sẽ được ghép thẳng thành range truyền cho `git log`, nên một chuỗi
+          # không phải commit id phải bị chặn ở đây — nếu không thì git có thể
+          # tôn trọng nó như một tên ref, và một range sai sẽ im lặng quét 0
+          # commit.
+          is_commit_id() { printf '%s' "$1" | grep -Eq '^[0-9a-f]{40}([0-9a-f]{24})?$'; }
+          # SHA "không có" của Git: khi branch vừa được tạo, payload `push` gửi
+          # `before` bằng toàn số 0. `git log 000…0..HEAD` lỗi
+          # `Invalid revision range`, nên trường hợp này phải được nhận ra trước
+          # và thay bằng quét toàn bộ lịch sử — đó cũng chính là lúc một secret
+          # lọt vào branch mới cần bị chặn.
+          is_zero_sha() { printf '%s' "$1" | grep -Eq '^0+$'; }
+          case "$GITLEAKS_EVENT_NAME" in
+            pull_request)
+              # `base..head` là tập commit của PR theo định nghĩa git: reachable
+              # từ head nhưng chưa reachable từ base. Dùng SHA thật của payload
+              # (không phải ref merge tổng hợp của GitHub) nên kết quả tái lập
+              # được và không phụ thuộc base trỏ về nhánh nào.
+              is_commit_id "$GITLEAKS_BASE_SHA" \
+                || die "pull_request.base.sha is missing or not a full commit id: \"${GITLEAKS_BASE_SHA:-}\"."
+              is_commit_id "$GITLEAKS_HEAD_SHA" \
+                || die "pull_request.head.sha is missing or not a full commit id: \"${GITLEAKS_HEAD_SHA:-}\"."
+              range="$GITLEAKS_BASE_SHA..$GITLEAKS_HEAD_SHA"
+              description='the commits this pull request adds'
+              ;;
+            push)
+              is_commit_id "$GITLEAKS_AFTER_SHA" \
+                || die "push.after is missing or not a full commit id: \"${GITLEAKS_AFTER_SHA:-}\"."
+              if [ -z "$GITLEAKS_BEFORE_SHA" ] || is_zero_sha "$GITLEAKS_BEFORE_SHA"; then
+                range='--all'
+                description='full history of the checked-out refs (push with no previous commit for this ref)'
+              else
+                is_commit_id "$GITLEAKS_BEFORE_SHA" \
+                  || die "push.before is not a full commit id: \"${GITLEAKS_BEFORE_SHA:-}\"."
+                range="$GITLEAKS_BEFORE_SHA..$GITLEAKS_AFTER_SHA"
+                description='the commits this push adds'
+              fi
+              ;;
+            schedule|workflow_dispatch)
+              # Audit có chủ ý: đây là lần duy nhất nhìn toàn bộ lịch sử, để bắt
+              # secret đã nằm im trong main từ lâu chứ không ai push nó.
+              range='--all'
+              description="full history of the checked-out refs ($GITLEAKS_EVENT_NAME audit)"
+              ;;
+            *)
+              die "no gitleaks scan scope is defined for the \"${GITLEAKS_EVENT_NAME:-unknown}\" event."
+              ;;
+          esac
+          # `git rev-list --count <range>` trả về 0 cho range hợp lệ nhưng rỗng,
+          # và lỗi (non-zero) cho range không tồn tại — hai trường hợp cần báo
+          # khác nhau. Cả hai đều đỏ: một range không resolve được thì không thể
+          # quét, và một lần quét không diễn ra không phải là một lần quét sạch.
+          if ! count=$(git rev-list --count $range 2>/tmp/gitleaks-scope.err); then
+            die "git could not resolve the scan range \"$range\": $(tr '\n' ' ' < /tmp/gitleaks-scope.err | sed 's/[[:space:]]*$//'). A range that does not resolve cannot be scanned, and an unscanned range is not a clean pass."
+          fi
+          [ "$count" -ge 1 ] \
+            || die "the scan range \"$range\" contains no commits. Refusing to report a clean scan over an empty range."
+          # Phần in ra log giúp người đọc biết job đang quét đúng cái gì mà
+          # không phải mở xem workflow; `key=value` để CI nạp vào step output.
+          echo "gitleaks scope: $description"
+          echo "gitleaks commits: $count"
+          {
+            echo "log-opts=$range"
+            echo "commits=$count"
+          } >> "$GITHUB_OUTPUT"
           {
             echo "--- gitleaks scan scope ---"
             echo '```'
-            echo "$scope_output" | grep '^gitleaks '
+            echo "gitleaks scope: $description"
+            echo "gitleaks commits: $count"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -167,10 +242,8 @@ jobs:
         env:
           SCAN_LOG_OPTS: ${{ steps.scope.outputs.log-opts }}
         run: |
-          # `gitleak-ci` tự fail-closed: gọi checkScanRange trước khi chạy
-          # docker, và KHÔNG chạy docker nếu range rỗng / không tồn tại / không
-          # resolve được. Điều này ngăn việc một lần quét rỗng (gitleaks trả
-          # exit 0 kèm "0 commits scanned") bị hiểu nhầm là đã qua gate.
+          # Bước resolve phía trên đã fail-closed trên range trước khi bước này
+          # chạy, nên docker chỉ chạy với một range đã xác minh có commit.
           #
           # `GITLEAKS_CONFIG_TOML` là precedence cao nhất sau `--config` và chỉ
           # gộp `useDefault`, nên nó ép bộ rule về đúng mặc định của gitleaks,
@@ -179,8 +252,54 @@ jobs:
           # file nào trong hai danh sách này, nên không mất khả năng đang dùng;
           # nếu sau này cần thì phải do CI sở hữu, không do PR mang vào.
           rm -f "$GITHUB_WORKSPACE/.gitleaksignore"
-          export GITLEAKS_CONFIG_TOML=$'[extend]\nuseDefault = true\n'
-          pnpm dx gitleak-ci --git-log-opts="$SCAN_LOG_OPTS"
+          status=0
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/repo" \
+            --volume "$GITHUB_WORKSPACE/.git:/repo/.git" \
+            --workdir /repo \
+            --volume "${RUNNER_TEMP}:/out" \
+            --env GITLEAKS_CONFIG_TOML=$'[extend]\nuseDefault=true' \
+            'zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb' \
+            detect --source=/repo --config=/repo/gitleaks.toml \
+              --log-opts="$SCAN_LOG_OPTS" --redact \
+              --exit-code=2 --report-format=sarif --report-path=/out/results.sarif || status=$?
+          # Gitleaks dùng exit code 2 để báo "leaks found"; exit khác 0/2 là
+          # scanner lỗi, không phải "có secret". Verdict là exit code của
+          # container, không phải của việc đọc SARIF — việc tóm tắt finding chỉ
+          # để người đọc log biết secret nào bị đánh dấu mà không phải mở file.
+          if [ "$status" -eq 2 ]; then
+            python3 - "$RUNNER_TEMP/results.sarif" <<'PY' >&2
+              import json, sys
+              try:
+                  document = json.load(open(sys.argv[1]))
+              except Exception:
+                  raise SystemExit(0)
+              runs = document.get("runs") or [{}]
+              results = runs[0].get("results") or []
+              findings = []
+              for raw in results:
+                  locations = raw.get("locations") or [{}]
+                  physical = locations[0].get("physicalLocation") or {}
+                  uri = (physical.get("artifactLocation") or {}).get("uri")
+                  if raw.get("ruleId") is None or uri is None:
+                      continue
+                  region = physical.get("region") or {}
+                  findings.append((uri, region.get("startLine", 0), raw["ruleId"]))
+              if findings:
+                  print(f"\ngitleaks scan: {len(findings)} finding(s) detected:")
+                  for path, line, rule in findings:
+                      print(f"  {path}:{line}  [{rule}]")
+          PY
+            exit 2
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "gitleaks scan failed: docker exited with code $status" >&2
+            exit 1
+          fi
+          # Quét sạch: xoá report rỗng để step upload bên dưới không đính artifact
+          # không cần thiết; report chỉ được giữ lại khi có finding để xem.
+          rm -f "${RUNNER_TEMP}/results.sarif"
+          echo 'gitleaks scan passed: no secrets detected in the scanned range.'
       - name: Upload the findings report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

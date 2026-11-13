@@ -15,13 +15,14 @@
  *
  * ⚠️ Mọi `Promise` do `tests/fake-adapter.ts` trả về đều do test settle.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Component } from 'vue';
 
 import PermissionsPage from './permissions.vue';
 import RolesPage from './roles.vue';
 import StaffPage from './staff.vue';
 import { PROTOTYPE_DATA } from '../backoffice-data/prototype-fixture';
+import { BackofficeRouteError } from '../backoffice-data/route-error';
 import type { Permission, StaffMember, SystemRole } from '../backoffice-data/types';
 import en from '../i18n/locales/en';
 import type { FakeAdapterData, FakeBackofficeAdapter } from '../../tests/fake-adapter';
@@ -32,7 +33,22 @@ const LOADING = '[data-testid="backoffice-loading"]';
 const ERROR = '[data-testid="backoffice-error"]';
 const ERROR_DETAIL = '[data-testid="backoffice-error-detail"]';
 const ERROR_RETRY = '[data-testid="backoffice-error-retry"]';
+const ERROR_LOGIN = '[data-testid="backoffice-error-login"]';
 const SAMPLE_NOTICE = '[data-testid="backoffice-sample-notice"]';
+
+const assign = vi.fn<(url: string) => void>();
+
+beforeEach(() => {
+  // jsdom không mô phỏng navigation; test assert trực tiếp trên `assign` —
+  // phương thức `assign` của jsdom là own non-configurable nên phải thay cả
+  // object `location` (descriptor của nó trên `window` lại configurable).
+  vi.stubGlobal('location', { assign });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 /** Dữ liệu cố ý khác fixture: xem ghi chú (3) ở đầu file. */
 const STAFF: readonly [StaffMember] = [
@@ -256,6 +272,55 @@ describe.each(PAGES)('data page $name', (page) => {
     expect(wrapper.find(SAMPLE_NOTICE).exists()).toBe(false);
     expect(wrapper.text()).not.toContain(page.fixtureMarker);
     expect(page.calls(fake)).toBe(1);
+  });
+
+  /**
+   * Hợp đồng 401 (ADR-0011 §4): phiên hết hạn thì "Thử lại" là affordance nói
+   * dối — retry không bao giờ tạo ra credential mới. UI phải thay bằng đường
+   * đăng nhập lại. Nhánh do `state.status === 401` kích hoạt, nên lỗi phải là
+   * `BackofficeRouteError` mang status (lỗi trần không có status ⇒ giữ retry).
+   */
+  it('a 401 error replaces retry with the log-in-again path and session-expired copy', async () => {
+    const fake = adapterFor();
+    const { wrapper, flush } = await mountBackofficePage(page.component, { adapter: fake.adapter });
+
+    page
+      .firstCall(fake)
+      .reject(new BackofficeRouteError('Backoffice route /api/staff trả về 401', 401));
+    await flush();
+
+    const error = wrapper.get(ERROR);
+    expect(error.text()).toContain(en.states.sessionExpired.title);
+    expect(error.text()).toContain(en.states.sessionExpired.body);
+    // Retry biến mất: bấm "Thử lại" với phiên chết chỉ tạo thêm một 401.
+    expect(wrapper.find(ERROR_RETRY).exists()).toBe(false);
+
+    const login = wrapper.get(ERROR_LOGIN);
+    expect(login.text()).toBe(en.states.sessionExpired.login);
+    // Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF — khẳng định
+    // trên handler thật vì đây là hợp đồng bảo mật, không phải chi tiết render.
+    await login.trigger('click');
+    expect(window.location.assign).toHaveBeenCalledWith('/api/auth/login');
+  });
+
+  it('403 and 503 keep the retry affordance — neither is a login problem', async () => {
+    for (const status of [403, 503]) {
+      const fake = adapterFor();
+      const { wrapper, flush } = await mountBackofficePage(page.component, {
+        adapter: fake.adapter,
+      });
+
+      page
+        .firstCall(fake)
+        .reject(new BackofficeRouteError(`Backoffice route /api/staff trả về ${status}`, status));
+      await flush();
+
+      // 403 = denial quyền (đã xác thực rồi — login lại không đổi được gì);
+      // 503 = hạ tầng không trả lời được (login không sửa hạ tầng). Cả hai giữ retry.
+      expect(wrapper.get(ERROR_RETRY).text()).toBe(en.states.retry);
+      expect(wrapper.find(ERROR_LOGIN).exists()).toBe(false);
+      expect(wrapper.text()).not.toContain(en.states.sessionExpired.title);
+    }
   });
 });
 

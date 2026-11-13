@@ -4,6 +4,12 @@ Component `llm-console` — composition UI consumer + BFF trên Cloudflare Worke
 
 Nx project `@ecoma-io/llm-console`, tags `type:composition`, `scope:llm-consumer`, `runtime:edge`.
 
+## M1 Status
+
+- Theo feature spec consumer ([`docs/features/llm-marketplace/consumer-usage.md`](../../docs/features/llm-marketplace/consumer-usage.md), quyết định 1), bề mặt consumer M1 của capability `llm-marketplace` là **API-only**: hệ thống nội bộ gọi trực tiếp data plane `llm-api` (`GET /v1/models`, `POST /v1/chat/completions`).
+- Sáu consumer workflow của [`docs/applications/llm-console/01-architecture.md`](../../docs/applications/llm-console/01-architecture.md) §6 (API keys, alias/routing, balance, top-up, usage, workspace scope) nằm ngoài M1 theo quyết định đó: `llm-console` không tham gia capability trong M1, deploy unit `llm-console-deploy` giữ marker `scaffold`, và unit này không thuộc danh sách MVP của issue #26.
+- Hiện trạng app là shell scaffold (health/ready, i18n en/vi/zh-CN, catch-all 404 cho `/api/**`) — chưa có workflow consumer nào có hiện thực hay test.
+
 ## Purpose
 
 - Worker `ecoma-llm-console` (`wrangler.jsonc`, entry `.output/server/index.mjs` của Nitro, preset `cloudflare-module`): static asset qua binding `ASSETS`, phần server xử lý request qua Nitro.
@@ -15,7 +21,7 @@ Nx project `@ecoma-io/llm-console`, tags `type:composition`, `scope:llm-consumer
 
 - **Shell dashboard**: sidebar/nav từ `AppShell` của `@ecoma-io/ui-app-shell`, trang Overview `/` (`app/pages/index.vue`), component empty/loading/error (`app/components/`).
 - **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`.
-- **Tuỳ chọn shell** (màu, chiều): cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()` của shell lib.
+- **Chế độ màu** (light/dark/system): lựa chọn người dùng **duy nhất** của shell, lưu qua cookie `app_shell_color_mode` và validate bằng `parseAppShellColorMode()` của shell lib; class `dark` trên `<html>` được `APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT` quyết định **trước first paint** (chèn tĩnh vào `app.head` trong `nuxt.config.ts`), Vue render không đọc môi trường. Chiều chữ (`dir`) **không phải** tuỳ chọn: nó là thuộc tính của ngôn ngữ, suy ra từ registry locale cùng nguồn với `<html lang>`.
 - **Health/readiness**: `/health` liveness không phụ thuộc dịch vụ nào; `/ready` trả `{ status: 'ready' }`, và `nuxt.config.ts` không khai `runtimeConfig` — khi một phụ thuộc cấu hình thật được đưa vào, route phải fail closed với 503 + mã ổn định.
 - `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để các nhóm này tới handler Nitro thay vì asset worker.
 

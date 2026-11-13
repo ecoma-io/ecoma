@@ -166,7 +166,13 @@
         ],
         "options": {
           "cwd": "apps/backoffice",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+          "commands": [
+            "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases",
+            "bash tests/browser/ensure-playwright-browser.sh",
+            "npx playwright test -c playwright.config.ts",
+            "npx playwright test -c playwright.unavailable.config.ts"
+          ],
+          "parallel": false
         },
         "//": [
           "`build` vào `dependsOn` từ issue #67: suite",
@@ -181,7 +187,31 @@
           "`wrangler` nằm trong `externalDependencies` và inputs đọc cả",
           "`.css`/`.html`/`.json` của build: nâng cấp wrangler đổi hành vi assets",
           "layer mà suite worker-runtime đo, nên cache phải mất hiệu lực khi nó đổi",
-          "(cùng cấu hình với target `test-integration` của `apps/llm-console`)."
+          "(cùng cấu hình với target `test-integration` của `apps/llm-console`).",
+          "",
+          "Suite browser (Playwright) gắn vào target này, không phải target `e2e`",
+          "riêng — 06-testing.md §4: mọi suite app-owned dưới tests/ thuộc",
+          "`test-integration`. `commands` (không phải `command`) để cả bốn bước",
+          "chạy nối tiếp trong cùng target: vitest integration suite (Docker/PG)",
+          "→ cấp binary chromium (CI tự cấp deps; xem",
+          "tests/browser/ensure-playwright-browser.sh) → lane `prototype`",
+          "(`NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`, cổng 4311) → lane",
+          "`unavailable` (`disabled`, cổng 4312). Hai lane chạy **server riêng**",
+          "vì hai mode assert hai tập hành vi khác nhau; nối tiếp vì cùng một",
+          "máy chạy target. Input `env: CI` cũng là của Playwright:",
+          "`reuseExistingServer` phải là `false` trên CI.",
+          "",
+          "`parallel: false` là **bắt buộc**, không phải tuỳ chọn: executor",
+          "`nx:run-commands` mặc định `parallel: true`, nên bốn lệnh trên chạy",
+          "song song. Hai lane Playwright cùng dựng `nuxt dev` trong **cùng một",
+          "thư mục app** ⇒ Nuxt chặn bằng lock \"Another Nuxt dev server is already",
+          "running\" và webServer của lane còn lại chết (`Process from",
+          "config.webServer was not able to start`) — lane đỏ vì lý do không liên",
+          "quan tới (race của hạ tầng, không phải hành vi). Đo được trực tiếp: log",
+          "nx của lần chạy đỏ có cả hai dòng `> npx playwright test` chen",
+          "nhau, và `nuxt dev` của lane sau báo PID của lane trước. `SeriallyRunningTasks`",
+          "(nhánh `parallel: false`) chạy lệnh nối tiếp, mỗi lệnh chờ lệnh trước",
+          "thoát ⇒ hai webServer không còn tranh lock."
         ]
       },
       "typecheck-db": {

@@ -1,5 +1,9 @@
 import { useI18n } from '#i18n';
-import { watchEffect, type ComputedRef } from 'vue';
+import { computed, watchEffect, type ComputedRef } from 'vue';
+import {
+  getBackofficeLocaleDefinition,
+  type BackofficeLocaleDefinition,
+} from '../i18n/locale-registry';
 import { useBackofficeLocale } from './use-backoffice-locale';
 
 /**
@@ -8,6 +12,8 @@ import { useBackofficeLocale } from './use-backoffice-locale';
 export type BackofficeI18nState = {
   /** BCP-47 cho `<html lang>` — khác `code` ở `zh-CN` (`zh-Hans`). */
   readonly language: ComputedRef<string>;
+  /** Hướng chữ cho `<html dir>` và prop `dir` của shell — của locale đang dùng. */
+  readonly dir: ComputedRef<BackofficeLocaleDefinition['dir']>;
 };
 
 /**
@@ -22,17 +28,23 @@ export type BackofficeI18nState = {
  * `watchEffect` chứ không phải set một lần: locale đổi được giữa phiên (đổi ở
  * language selector), và ngôn ngữ phải theo ngay.
  *
- * ⚠️ Composable này **không** gọi `useHead` cho `<html lang>`, khác
- * `useAccountI18n` của `apps/account`. Lý do là backoffice gộp **toàn bộ** thuộc
- * tính document vào **một** `useHead` ở `app.vue`: shell trả về `class`/`dir` của
- * `<html>` và `color-*` của `<body>` qua `appShellHeadAttributes`, còn `lang` là
- * việc của app — gộp vào cùng object thì kết quả không phụ thuộc vào việc unhead
- * có trộn `htmlAttrs` giữa hai lần gọi hay không. Vì vậy composable trả
- * `language` về cho `app.vue` thay vì tự ghi head.
+ * ⚠️ Composable này **không** gọi `useHead`, khác `useAccountI18n` của
+ * `apps/account`. Lý do là backoffice gộp **toàn bộ** thuộc tính document vào
+ * **một** `useHead` ở `app.vue`: `lang`/`dir` của `<html>` và script bootstrap
+ * color mode của shell đều đăng ký cùng lúc, nên kết quả không phụ thuộc vào
+ * việc unhead có trộn `htmlAttrs`/`script` giữa hai lần gọi hay không. Vì vậy
+ * composable trả `language` và `dir` về cho `app.vue` thay vì tự ghi head.
  *
  * ⚠️ `<html lang>` lấy `language` (BCP-47) chứ không lấy `code`. Ở `zh-CN` hai
  * cái khác nhau: `lang="zh-CN"` vẫn hợp lệ về cú pháp, nhưng screen reader và
  * công cụ dịch cần `zh-Hans` để hiểu đúng biến thể chữ Hán mà catalog viết.
+ *
+ * `dir` lấy từ cùng definition của registry với `language` (issue #213): hướng
+ * chữ là thuộc tính của ngôn ngữ nội dung, không phải lựa chọn người dùng, nên
+ * nó đổi cùng lúc với `lang` và không bao giờ lệch nguồn. Fallback `'ltr'` chỉ
+ * có nghĩa nếu `preferred` tra không ra definition — điều kiện không xảy ra vì
+ * `preferred` đã là `BackofficeLocale`; khai ra để kiểu không dựa vào điều kiện
+ * đó mà vẫn có giá trị tường minh.
  */
 export function useBackofficeI18n(): BackofficeI18nState {
   const i18n = useI18n();
@@ -42,5 +54,14 @@ export function useBackofficeI18n(): BackofficeI18nState {
     i18n.locale.value = preferred.value;
   });
 
-  return { language };
+  return {
+    language,
+    // Cùng hình dạng fallback với `language` ở trên (`?.dir ?? 'ltr'` cạnh
+    // `?.language ?? 'en'`): `preferred` đã được validator thu hẹp thành
+    // `BackofficeLocale`, và `code` trong registry được typecheck ghim theo
+    // đúng union đó — lệch registry/default là lỗi compile, không phải tình
+    // huống runtime. Fallback ở đây chỉ để kiểu không dựa vào điều kiện không
+    // xảy ra, không phải đường xử lý lỗi.
+    dir: computed(() => getBackofficeLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
+  };
 }

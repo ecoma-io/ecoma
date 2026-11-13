@@ -1,6 +1,7 @@
 import { defineNuxtConfig } from 'nuxt/config';
 import tailwindcss from '@tailwindcss/vite';
 
+import { APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT } from '@ecoma-io/ui-app-shell/lib/color-mode';
 import {
   DEFAULT_LLM_CONSOLE_LOCALE,
   LLM_CONSOLE_LOCALE_DEFINITIONS,
@@ -16,6 +17,17 @@ export default defineNuxtConfig({
   // tường minh để ràng buộc kiến trúc không phụ thuộc vào một default của
   // framework có thể đổi.
   ssr: false,
+  // Script bootstrap color mode (issue #213) phải nằm trong HTML served để
+  // chạy trước first paint. App là SPA nên `useHead` chỉ áp dụng sau mount;
+  // entry tĩnh trong `app.head` được render thẳng vào HTML shell lúc build —
+  // inline script trong `<head>` chạy đúng lúc parse, trước một pixel nào
+  // được vẽ. Hằng số lấy từ library để tên cookie trong script không thể lệch
+  // với cookie mà app ghi khi người dùng đổi mode.
+  app: {
+    head: {
+      script: [{ innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
+    },
+  },
   devtools: { enabled: true },
   devServer: {
     host: '0.0.0.0',

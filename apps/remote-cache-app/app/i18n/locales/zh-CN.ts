@@ -18,15 +18,11 @@ export default {
       dialogDescription: '搜索要运行的命令...',
     },
 
-    settings: {
-      title: '设置',
-      description: '实时自定义与预览',
-      theming: '主题',
-      layout: '布局',
-      color: '颜色',
-      direction: '方向',
-      directionLtr: 'LTR',
-      directionRtl: 'RTL',
+    colorMode: {
+      label: '配色模式',
+      light: '浅色',
+      dark: '深色',
+      system: '跟随系统',
     },
 
     language: {

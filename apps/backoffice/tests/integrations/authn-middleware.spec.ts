@@ -29,6 +29,7 @@ import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import authnMiddleware from '../../server/middleware/authn';
+import sessionRoute from '../../server/api/auth/session.get';
 import {
   SESSION_COOKIE_NAME,
   SESSION_IDLE_SECONDS,
@@ -43,6 +44,15 @@ import { BACKOFFICE_DATABASE, type BackofficeDatabase, startBackofficeDatabase }
 const AUDIENCE = 'https://api.test.ecoma.io/backoffice';
 const CLIENT_ID = 'backoffice-test';
 const ACCOUNT_ID = `sub_${'a'.repeat(32)}`;
+/**
+ * Account riêng của hai test route probe — các test khác dùng chung `ACCOUNT_ID`
+ * và chèn nhiều hàng phiên cùng account, nên assert SQL theo `account_sub` của
+ * chúng sẽ bắt nhầm hàng của test khác (đã đỏ thật theo kiểu đó). Một sub riêng
+ * làm hàng của test này định danh được tuyệt đối — và **mỗi** test một sub, vì
+ * hàng phiên sống sót sau test trước vẫn nằm trong cùng database.
+ */
+const PROBE_ACCOUNT_ID = `sub_${'b'.repeat(32)}`;
+const PROBE_NO_TOUCH_ACCOUNT_ID = `sub_${'c'.repeat(32)}`;
 
 /** JWKS hiện hành mà fake auth công bố; test đổi giữa các case. */
 let currentJwks: { keys: Record<string, unknown>[] };
@@ -142,6 +152,9 @@ function buildApp(env: Record<string, unknown>): (request: Request) => Promise<R
     '/api/canary',
     defineEventHandler((event) => ({ path: event.path })),
   );
+  // Route probe phiên (#182) — mount **thật** để boundary của nó được test
+  // cùng middleware thật, không phải bằng canary giả.
+  router.get('/api/auth/session', sessionRoute);
   app.use(router.handler);
 
   return toWebHandler(app);
@@ -216,6 +229,18 @@ describe('authn middleware boundary and classification', () => {
       const app = buildApp({});
       expect((await probe(app, '/api/auth/login')).status).toBe(404);
       expect((await probe(app, '/api/auth/logout')).status).toBe(404);
+    });
+
+    it('answers the session probe 200 with no OIDC config and no cookie (middleware exempts it)', async () => {
+      const app = buildApp({});
+      // Không cấu hình, không cookie: middleware **không** chặn (path nằm trong
+      // AUTH_PATHS), route kết luận sớm từ cookie vắng — 200 mà không chạm cấu
+      // hình/DB. Tính chất này giữ console của browser sạch: shell hỏi phiên
+      // qua route này trên **mọi** trang, một 503/401 ở đây là một console error
+      // mỗi navigation (đỏ bộ test browser prototype).
+      const { status, body } = await probe(app, '/api/auth/session');
+      expect(status).toBe(200);
+      expect(body).toEqual({ authenticated: false });
     });
 
     it('gates an /api route outside the auth flow', async () => {
@@ -300,6 +325,102 @@ describe('authn middleware boundary and classification', () => {
           [ACCOUNT_ID],
         );
         expect(result.rows[0]?.slid).toBe(true);
+      } finally {
+        await verify.end();
+      }
+    });
+
+    it('reports a live session as authenticated through the probe route', async () => {
+      const token = await signAccessToken();
+      const sessionValue = createSessionIdentifier();
+      const client = await db.connect();
+      try {
+        const deadlines = sessionDeadlines(Date.now());
+        await insertSession(client as never, {
+          idHash: await hashSessionIdentifier(sessionValue),
+          accountSub: PROBE_ACCOUNT_ID,
+          accessToken: token,
+          refreshToken: null,
+          authTime: null,
+          acr: null,
+          expiresAt: new Date(deadlines.idleExpiresAtMs),
+        });
+      } finally {
+        await client.end();
+      }
+
+      const app = buildApp(envWithDb());
+      const { status, body } = await probe(
+        app,
+        '/api/auth/session',
+        `${SESSION_COOKIE_NAME}=${sessionValue}`,
+      );
+
+      // Cùng cookie, cùng token, cùng JWKS như canary ở trên — nhưng qua route
+      // probe: boolean trạng thái để shell render nút, không phải principal.
+      expect(status).toBe(200);
+      expect(body).toEqual({ authenticated: true });
+    });
+
+    it('probe does not slide the idle expiry of the session it reads', async () => {
+      const token = await signAccessToken();
+      const sessionValue = createSessionIdentifier();
+      const client = await db.connect();
+      try {
+        // Phiên sống nhưng idle chỉ còn 3s: canary (có touch) sẽ trượt nó lên
+        // 12h; probe thì **không** được đụng vào — một cú đọc hiển thị không được
+        // kéo dài phiên thật.
+        //
+        // ⚠️ Raw SQL chứ không phải helper `insertSession`: test cần backdate
+        // `created_at` để mô phỏng phiên sắp hết hạn idle, mà helper chưa nhận
+        // tham số `created_at` (luôn dùng default `now()` của DB — xem
+        // `libs/backoffice-infrastructure/src/auth/session-store.ts`). Khi helper
+        // được mở rộng nhận `created_at`, dời khối INSERT này sang helper — và
+        // nếu schema `bff_sessions` đổi trước đó thì phải đồng bộ **cả hai**
+        // khối INSERT (đây và trong helper).
+        const created = new Date(Date.now() - 2_000);
+        await client.query(
+          `INSERT INTO backoffice.bff_sessions
+             (id_hash, account_sub, access_token, refresh_token, auth_time, acr, created_at, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            await hashSessionIdentifier(sessionValue),
+            PROBE_NO_TOUCH_ACCOUNT_ID,
+            token,
+            null,
+            null,
+            null,
+            created,
+            new Date(Date.now() + 3_000),
+          ],
+        );
+      } finally {
+        await client.end();
+      }
+
+      const app = buildApp(envWithDb());
+      // Bằng chứng phép đo thật sự chạm phiên: probe nhìn thấy nó còn sống.
+      const { status, body } = await probe(
+        app,
+        '/api/auth/session',
+        `${SESSION_COOKIE_NAME}=${sessionValue}`,
+      );
+      expect(status).toBe(200);
+      expect(body).toEqual({ authenticated: true });
+
+      const verify = await db.connect();
+      try {
+        // `< 1h` phân biệt chắc chắn với touch (luôn +12h): expires_at chưa bị
+        // trượt sau khi probe đọc nó. Lọc theo sub riêng của test này — test
+        // khác chèn phiên cùng account khác, lọc chung sẽ bắt nhầm hàng.
+        const result = await verify.query(
+          `SELECT extract(epoch from (expires_at - now())) AS seconds_left
+             FROM backoffice.bff_sessions WHERE account_sub = $1`,
+          [PROBE_NO_TOUCH_ACCOUNT_ID],
+        );
+        expect(result.rows).toHaveLength(1);
+        // seconds_left là numeric của pg (string ở driver) — so qua Number.
+        expect(Number(result.rows[0]?.seconds_left)).toBeLessThan(3600);
       } finally {
         await verify.end();
       }

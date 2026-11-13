@@ -65,6 +65,18 @@ describe('backoffice catalog parity', () => {
     ]);
   });
 
+  it('pins the text direction of every locale in the registry', () => {
+    // `dir` là thuộc tính của **ngôn ngữ** (issue #213), không phải cấu hình người
+    // dùng: nó cùng nguồn với `language` và `<html dir>`. Mọi locale hiện tại viết
+    // từ trái sang phải; một locale RTL mới (ar, he, fa…) phải khai `'rtl'` tại entry
+    // của nó, và test này là chỗ buộc người viết phải nghĩ tới điều đó.
+    expect(BACKOFFICE_LOCALE_DEFINITIONS.map((definition) => definition.dir)).toEqual([
+      'ltr',
+      'ltr',
+      'ltr',
+    ]);
+  });
+
   for (const [locale, catalog] of Object.entries(CATALOGS)) {
     it(`${locale} has exactly the same keys as en (both directions)`, () => {
       const keys = flattenKeys(catalog);

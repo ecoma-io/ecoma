@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url';
 import en from '../app/i18n/locales/en';
 import vi from '../app/i18n/locales/vi';
 import zhCN from '../app/i18n/locales/zh-CN';
-import { LLM_CONSOLE_LOCALE_DEFINITIONS, type LlmConsoleLocale } from '../app/i18n/locale-registry';
+import {
+  LLM_CONSOLE_LOCALE_DEFINITIONS,
+  getLlmConsoleLocaleDefinition,
+  type LlmConsoleLocale,
+  type LlmConsoleLocaleDefinition,
+} from '../app/i18n/locale-registry';
 
 function flattenKeys(tree: unknown, prefix = ''): Set<string> {
   if (typeof tree !== 'object' || tree === null) {
@@ -61,6 +66,24 @@ describe('llm-console catalog parity', () => {
       'vi',
       'zh-CN',
     ]);
+  });
+
+  it('marks every current locale as left-to-right', () => {
+    // `dir` là thuộc tính của ngôn ngữ (một ngôn ngữ RTL tương lai như ar, he,
+    // fa… sẽ khai `'rtl'` ngay tại entry của nó), không phải lựa chọn hiển thị:
+    // mọi locale hiện có đều viết từ trái sang phải, nên một giá trị khác ở đây
+    // là lỗi khai báo registry chứ không phải hành vi hợp lệ.
+    expect(LLM_CONSOLE_LOCALE_DEFINITIONS.map((definition) => definition.dir)).toEqual([
+      'ltr',
+      'ltr',
+      'ltr',
+    ]);
+    // Pin hình dạng type: `dir` là field của `LlmConsoleLocaleDefinition` và nhận
+    // giá trị trong union `'ltr' | 'rtl'`. Vì `LLM_CONSOLE_LOCALES` được khai kiểu
+    // `readonly LlmConsoleLocaleDefinition[]`, đọc `definition.dir` ở assertion trên
+    // chỉ biên dịch được khi chính định nghĩa type mang field này.
+    const direction: LlmConsoleLocaleDefinition['dir'] = 'ltr';
+    expect(getLlmConsoleLocaleDefinition('vi')?.dir).toBe(direction);
   });
 
   for (const [locale, catalog] of Object.entries(CATALOGS)) {
@@ -152,8 +175,10 @@ describe('llm-console catalog coverage of app usage', () => {
   it('finds the keys the app actually calls', () => {
     // Chống test rỗng: regex hỏng thì `usedKeys` rỗng và mọi khẳng định dưới
     // đây tự động xanh mà không kiểm gì. Ba key dưới đây đến từ ba bề mặt khác
-    // nhau của app — page, nav của shell, và language selector.
-    expect(usedKeys.size).toBeGreaterThanOrEqual(20);
+    // nhau của app — page, nav của shell, và language selector. Sàn 15 là đếm
+    // thật trên app hiện tại (18 key) sau khi bảng settings của shell bị gỡ
+    // (issue #213): vẫn đủ rộng để một regex hỏng (rõ ràng là 0) không lọt qua.
+    expect(usedKeys.size).toBeGreaterThanOrEqual(15);
     expect([...usedKeys]).toContain('overview.title');
     expect([...usedKeys]).toContain('nav.overview');
     expect([...usedKeys]).toContain('shell.language.label');

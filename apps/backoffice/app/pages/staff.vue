@@ -114,6 +114,7 @@ const entitlementsLabel = (
       :detail="state.message"
       :retry-label="i18n.t('states.retry')"
       :on-retry="reload"
+      :session-expired="state.status === 401"
     />
 
     <template v-else-if="state.kind === 'ready'">

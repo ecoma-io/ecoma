@@ -15,24 +15,24 @@ Credential đó cũng phải thu hồi được ngay khi CI bị lộ hoặc khi
 Tenant quản lý được credential máy theo vòng đời tạo → dùng → xoay vòng → thu hồi, với quyền hạn tối thiểu và secret chỉ lộ một lần.
 
 - Ba scope theo thứ tự bao hàm: `read` ⊂ `write` ⊂ `admin`.
-- Secret chỉ có trong phản hồi của lần tạo hoặc lần xoay vòng; danh sách chỉ trả metadata.
+- Secret chỉ có trong phản hồi của lần tạo hoặc lần xoay vòng; danh sách chỉ trả metadata (gồm `purpose` và `createdBy` — [ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §2, §8).
 - Thu hồi có hiệu lực từ request kế tiếp, không cần chờ.
 - Xoay vòng làm secret cũ mất hiệu lực **ngay lập tức**; xoay vòng lần hai làm secret của lần một mất hiệu lực.
 - Mọi thao tác chỉ chạm credential thuộc tenant của caller; credential tenant khác báo không tìm thấy, không phân biệt với credential không tồn tại.
-- Credential thiếu, không tồn tại, đã thu hồi hoặc bị treo đều trả cùng một 401; 403 chỉ dành cho thiếu scope.
-- Tạo, xoay vòng và thu hồi đều ghi audit append-only, không sửa hay xoá được.
+- Credential thiếu, không tồn tại, đã thu hồi hoặc bị treo đều trả cùng một 401; 403 dành cho thiếu scope (đường machine token) hoặc thiếu role/authority (đường user — [ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1).
+- Tạo, xoay vòng và thu hồi đều ghi audit append-only, không sửa hay xoá được; create và revoke chạy **cùng một transaction với audit** như rotate — mutation thành công luôn để lại audit row ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §4, hiện thực qua #207).
 
 ## 3. Scope
 
 ### Bao gồm
 
-- Liệt kê credential của tenant ở dạng metadata (`id`, `name`, `scopes`, `createdAt`, `revokedAt`); cần scope `admin`.
-- Tạo credential với một tên và một đến ba scope; secret trả về đúng một lần.
+- Liệt kê credential ở dạng metadata (`id`, `name`, `scopes`, `purpose`, `createdBy`, `createdAt`, `revokedAt`); đường machine token cần scope `admin`, đường user đi theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `member` chỉ thấy credential mình tạo, `admin`/owner thấy toàn tenant).
+- Tạo credential với một tên, purpose `developer`/`ci` (bắt buộc trên đường user, tùy chọn trên đường machine) và một đến ba scope; secret trả về đúng một lần. Purpose ràng buộc set scope được phép và role được phép tạo từng purpose, chạy lúc tạo — không bao giờ là input authorization runtime ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §2).
 - Xoay vòng credential: secret mới trả về đúng một lần, secret cũ chết ngay; credential đã thu hồi hoặc không tồn tại báo không tìm thấy.
-- Thu hồi credential; thu hồi lại báo không tìm thấy.
+- Thu hồi credential; thu hồi lại báo không tìm thấy. Rotate/revoke trên đường user đòi confirmation tường minh ở UI, không đòi step-up re-auth ở M1 ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1g).
 - Xác thực request bằng bearer token: broker băm token rồi tra database, không lưu plaintext.
 - Scope bị ràng buộc thêm ở tầng database, không chỉ ở tầng ứng dụng.
-- Audit append-only cho tạo, xoay vòng và thu hồi.
+- Audit append-only cho tạo, xoay vòng và thu hồi, kèm attribution người/token thực hiện ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §4).
 
 Đường dẫn, mã trạng thái và giới hạn độ dài tên thuộc contract của broker — xem [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md).
 
@@ -41,11 +41,11 @@ Tenant quản lý được credential máy theo vòng đời tạo → dùng →
 - **Không có thời hạn (TTL) và không có `last_used_at`.** Credential sống cho tới khi bị thu hồi hoặc xoay vòng; không có cách nào biết lần dùng cuối.
 - **Không có scope hẹp hơn ba mức cố định**, không có scope theo route, environment hay action.
 - **Không có API đọc audit.** Audit được ghi nhưng không có route trả nó ra.
-- **Không có mô tả hay ghi chú cho credential**; chỉ có `name`.
-- **Dashboard không tạo, xoay vòng hay thu hồi được credential.** Trang `/tokens` chỉ đọc metadata, hiện trạng thái "forbidden" khi API từ chối vì thiếu quyền, và không bao giờ hiển thị plaintext. BFF dùng **một token tĩnh** cấu hình ở server, không phải danh tính của người xem.
-- **Không có xác thực người dùng cho dashboard.** Mọi route `/api/broker/*` của `apps/pact-broker-app` truy cập được công khai; không có session, cookie hay CSRF.
-- **Tạo và thu hồi không nguyên tử với audit.** Riêng xoay vòng chạy cùng một transaction; tạo và thu hồi đổi trạng thái trước rồi mới ghi audit ở transaction riêng, nên một lỗi audit để credential đã tạo (và secret một lần đã mất) hoặc đã thu hồi trong khi request trả 500. Đây là giới hạn hiện tại, không phải hành vi mong muốn.
-- **Không có RBAC theo vai trò người dùng.** `tenant_members.role` được ghi nhưng không được kiểm tra ở bất kỳ đường request nào; chỉ scope của token quyết định.
+- **Không có mô tả hay ghi chú cho credential** ngoài `name` và `purpose`.
+- **Dashboard chưa tạo, xoay vòng hay thu hồi được credential.** Tới khi #207 land, trang `/tokens` chỉ đọc metadata, hiện trạng thái "forbidden" khi API từ chối vì thiếu quyền, và không bao giờ hiển thị plaintext. Quyết định đã chấp nhận: credential management trên portal đi theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — viewer bị chặn 403, member tự phục vụ purpose `developer`, admin/owner toàn tenant), hiện thực qua #207. Browser không bao giờ thấy machine credential nào trong cookie hay response — BFF forward access token của người dùng, không giữ deployment token nào ([ADR-0031](../../domains/pact-broker/adr/0031-developer-portal-authentication-and-identity-propagation.md) §5).
+- **Portal chưa có xác thực người dùng.** Tới khi #206 land, mọi route `/api/broker/*` của `apps/pact-broker-app` truy cập được công khai; không có session, cookie hay CSRF — khoảng trống đã biết, không phải hành vi mong muốn. Quyết định đã chấp nhận: OIDC authorization code + PKCE qua Ecoma Account với session store DB riêng ([ADR-0031](../../domains/pact-broker/adr/0031-developer-portal-authentication-and-identity-propagation.md)), hiện thực qua #206.
+- **Tạo và thu hồi chưa nguyên tử với audit.** Riêng xoay vòng chạy cùng một transaction; tạo và thu hồi đổi trạng thái trước rồi mới ghi audit ở transaction riêng, nên một lỗi audit để credential đã tạo (và secret một lần đã mất) hoặc đã thu hồi trong khi request trả 500 — giới hạn hiện tại, không phải hành vi mong muốn. Quyết định đã chấp nhận: create và revoke chuyển về single-transaction như rotate ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §4), hiện thực qua #207.
+- **Chưa có RBAC theo vai trò người dùng.** `tenant_members.role` được ghi nhưng không được kiểm tra ở bất kỳ đường request nào; chỉ scope của token quyết định — giới hạn hiện tại. Quyết định đã chấp nhận: đường user enforce theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1, hiện thực qua #206/#207); đường machine token (Pact CLI/CI) giữ nguyên scope-based.
 - Không bao gồm việc dùng credential để publish hay verify — thuộc [Publish và truy xuất contract](./publish-and-retrieve-contracts.md) và [Verify contract và gate deployment](./verify-contracts-and-gate-deployments.md).
 
 ## 4. Acceptance Scenarios
@@ -98,6 +98,38 @@ Khi  gọi bất kỳ route nào
 Thì  nhận 401 với cùng một hình dạng phản hồi
 ```
 
+Đường user qua portal (permission matrix — [ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1; hiện thực qua #207):
+
+```text
+Cho  user có role viewer trong tenant
+Khi  tạo, xoay vòng, thu hồi hoặc xem danh sách credential qua portal
+Thì  nhận 403 cho mọi thao tác và không thấy credential nào
+```
+
+```text
+Cho  user có role member
+Khi  tạo credential purpose `developer` với scope `read`
+Thì  nhận 201 kèm secret một lần; danh sách chỉ hiện credential mình tạo
+```
+
+```text
+Cho  user có role member
+Khi  tạo credential purpose `ci` hoặc xin scope `admin`
+Thì  nhận 403
+```
+
+```text
+Cho  user có role member
+Khi  xoay vòng credential mình vừa tạo, rồi xoay vòng credential người khác tạo
+Thì  thao tác đầu nhận 200 kèm secret mới; thao tác sau nhận 404
+```
+
+```text
+Cho  user là owner của tenant, membership row của owner ghi role `member`
+Khi  tạo credential purpose `ci` scope `admin`
+Thì  nhận 201 — authority của owner độc lập với role row
+```
+
 ```text
 Cho  một lần tạo, xoay vòng hoặc thu hồi thành công
 Khi  đọc bảng audit
@@ -106,12 +138,12 @@ Thì  có một hàng `machine_token.*` mới, không sửa hay xoá được
 
 ## 5. Domain & Application Mapping
 
-| Domain / Application                                | Vai trò trong Feature                                                                       | Canonical                                                                                          |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `pact-broker` (bounded context)                     | Sở hữu `machine_tokens`, scope, tenant binding và audit event                               | [`domains/pact-broker/`](../../domains/pact-broker/README.md)                                      |
-| `apps/pact-broker-api`                              | Deploy unit phục vụ route `/admin/machine-tokens` và kiểm tra credential cho mọi route khác | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
-| `libs/pact-broker-api-{application,infrastructure}` | Băm secret, kiểm tra scope, repository tenant và audit                                      | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
-| `apps/pact-broker-app`                              | Chỉ đọc metadata credential; không có đường tạo, xoay vòng hay thu hồi                      | [`applications/pact-broker/README.md`](../../applications/pact-broker/README.md)                   |
+| Domain / Application                                | Vai trò trong Feature                                                                                                                                                                                                        | Canonical                                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pact-broker` (bounded context)                     | Sở hữu `machine_tokens`, scope, tenant binding và audit event                                                                                                                                                                | [`domains/pact-broker/`](../../domains/pact-broker/README.md)                                      |
+| `apps/pact-broker-api`                              | Deploy unit phục vụ route `/admin/machine-tokens` và kiểm tra credential cho mọi route khác                                                                                                                                  | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
+| `libs/pact-broker-api-{application,infrastructure}` | Băm secret, kiểm tra scope, repository tenant và audit                                                                                                                                                                       | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
+| `apps/pact-broker-app`                              | Cổng credential self-service theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1, hiện thực qua #207; hiện trạng tới lúc đó: chỉ đọc metadata) | [`applications/pact-broker/README.md`](../../applications/pact-broker/README.md)                   |
 
 ## 6. Verification Mapping
 
@@ -129,12 +161,13 @@ Bằng chứng ở tầng integration app-owned (Hono `app.request()` trong proc
 | 401 đồng nhất cho missing/unknown/revoked                                 | cùng file trên                                            | integration | `test-integration` |
 | Luật scope và hình dạng hash của token                                    | `libs/pact-broker-api-application/src/token-auth.spec.ts` | unit        | `test`             |
 | Audit append-only và composite-FK tenant                                  | `apps/pact-broker-api/tests/databases/migrations.spec.ts` | database    | `test-integration` |
+| CHECK `machine_tokens.scopes` chỉ nhận từ vựng `read`/`write`/`admin`     | cùng file trên                                            | database    | `test-integration` |
 
 **Giới hạn của verification hiện tại:**
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
-- Không có test nào chứng minh hành vi khi audit lỗi trong lúc tạo hoặc thu hồi; khoảng trống đó là hệ quả của hai transaction tách rời, không phải một hành vi được thiết kế.
+- Không có test nào chứng minh hành vi khi audit lỗi trong lúc tạo hoặc thu hồi; khoảng trống đó là hệ quả của hai transaction tách rời và đã được quyết định xử lý — create/revoke chuyển về single-transaction như rotate ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §4, test + hiện thực thuộc #207).
 - Không có spec riêng cho hàm băm secret; việc không lưu plaintext chỉ được kiểm chứng gián tiếp qua luồng integration (tạo rồi dùng lại được secret).
 - Không có test nào cho trang `/tokens` của dashboard; `environments.vue` và `tokens.vue` không có render spec.
-- **Ràng buộc CHECK trên cột `scopes` không được assert ở đâu.** Ràng buộc tồn tại trong migration, nhưng spec database không chạm tới nó.
 - **Ánh xạ credential sang tenant không có unit test.** Spec unit chỉ phủ luật scope và hình dạng hash; tenant mapping chỉ được kiểm chứng gián tiếp qua các test cách ly tenant ở tầng integration.
+- **Các scenario đường user ở §4 chưa có bằng chứng ở tầng nào** — permission matrix được hiện thực qua #206/#207; test integration theo từng role là điều kiện hoàn thành của #207.

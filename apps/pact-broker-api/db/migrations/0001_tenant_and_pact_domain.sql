@@ -522,7 +522,9 @@ GRANT SELECT, INSERT, UPDATE ON TABLE pact.versions TO ecoma_pact_broker_runtime
 GRANT SELECT, INSERT, UPDATE ON TABLE pact.tags TO ecoma_pact_broker_runtime;
 GRANT SELECT, INSERT, UPDATE ON TABLE pact.pacts TO ecoma_pact_broker_runtime;
 GRANT SELECT, INSERT ON TABLE pact.verifications TO ecoma_pact_broker_runtime;
-GRANT SELECT, INSERT, UPDATE ON TABLE pact.environments TO ecoma_pact_broker_runtime;
+-- DELETE cần cho route DELETE /environments/:id (Pact CLI `delete-environment`):
+-- thiếu grant này, route trả 500 "permission denied for table environments".
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pact.environments TO ecoma_pact_broker_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pact.deployed_versions TO ecoma_pact_broker_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE pact.webhooks TO ecoma_pact_broker_runtime;
 GRANT SELECT, INSERT ON TABLE pact.webhook_executions TO ecoma_pact_broker_runtime;

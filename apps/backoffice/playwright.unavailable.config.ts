@@ -6,11 +6,11 @@ import { defineConfig, devices } from '@playwright/test';
  * Chạy Nuxt dev với `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=disabled` để backoffice
  * vào trạng thái "không khả dụng" (fail-closed): không banner dữ liệu mẫu,
  * không dữ liệu fixture, và các trang đọc-dữ liệu hiển thị trạng thái lỗi
- * thay vì bảng. Chạy test trong `e2e/unavailable-mode.spec.ts`.
+ * thay vì bảng. Chạy test trong `tests/browser/unavailable-mode.spec.ts`.
  *
  * Lane này là **không cùng server** với lane prototype (`playwright.config.ts`
  * dùng cổng 4311 + `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`), nên dùng
- * cổng khác để không đâm 충突.
+ * cổng khác để không đâm vào nhau.
  *
  * Chạy: `npx playwright test -c playwright.unavailable.config.ts`
  */
@@ -19,7 +19,7 @@ const PORT = Number(process.env.BACKOFFICE_E2E_PORT ?? 4312);
 const BASE_URL = `http://127.0.0.1:${String(PORT)}`;
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './tests/browser',
   testMatch: ['**/unavailable-mode.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

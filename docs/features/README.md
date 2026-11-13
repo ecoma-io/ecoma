@@ -52,6 +52,7 @@ docs/features/
   internal-access/           # truy cập tài nguyên nội bộ được bảo vệ
   pact-broker/               # contract testing giữa consumer và provider
   remote-cache/              # build cache theo project cho Nx
+  llm-marketplace/           # cung cấp và tiêu thụ model qua marketplace
 ```
 
 Quy tắc đặt tên: tên file là một cụm động từ + đối tượng mô tả outcome (`manage-profile-and-emails.md`), không phải tên endpoint hay tên bảng.
@@ -87,6 +88,11 @@ Quy tắc đặt tên: tên file là một cụm động từ + đối tượng 
 ### Remote cache
 
 - [Build cache theo project](./remote-cache/project-scoped-build-cache.md) — chia sẻ cache artifact giữa các lần chạy Nx, cách ly theo project.
+
+### LLM Marketplace
+
+- [Gọi inference LLM bằng credential nội bộ được tài trợ](./llm-marketplace/consumer-usage.md) — API credential nội bộ, gọi inference, quan sát usage và funding visibility.
+- [Cung cấp model cho marketplace](./llm-marketplace/seller-offering.md) — seller offering first-party: identity, offers, provider credentials, pricing và endpoint health.
 
 ## 5. Ranh giới với trạng thái
 

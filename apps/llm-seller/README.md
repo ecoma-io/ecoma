@@ -15,12 +15,14 @@ Nx project `@ecoma-io/llm-seller`, tags `type:composition`, `scope:llm-seller`, 
 
 - **Shell dashboard**: sidebar/nav từ `AppShell` của `@ecoma-io/ui-app-shell`, trang Overview `/` (`app/pages/index.vue`), component empty/loading/error (`app/components/`).
 - **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`.
-- **Tuỳ chọn shell** (màu, chiều): cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()` của shell lib.
+- **Chiều văn bản** theo ngôn ngữ: `dir` khai trong registry locale (cùng nguồn với `<html lang>`), truyền xuống shell qua prop `dir` — đây là thuộc tính của ngôn ngữ nội dung, không phải lựa chọn người dùng nên không có setting LTR/RTL.
+- **Chế độ màu**: lựa chọn người dùng duy nhất còn lại của shell (light/dark/system), lưu qua cookie `app_shell_color_mode`, validate qua `parseAppShellColorMode()` của shell lib. Class `dark` trên `<html>` do script bootstrap của shell quyết định **trước first paint** (chèn tĩnh vào `app.head` trong `nuxt.config.ts`), không phải do render Vue hay unhead.
 - **Health/readiness**: `/health` liveness không phụ thuộc dịch vụ nào; `/ready` trả `{ status: 'ready' }`, và `nuxt.config.ts` không khai `runtimeConfig` — khi một phụ thuộc cấu hình thật được đưa vào, route phải fail closed với 503 + mã ổn định.
 - `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để các nhóm này tới handler Nitro thay vì asset worker.
 
 ## Boundaries
 
+- **Không có bề mặt seller trong M1** — spec seller quyết bootstrap-only ([`seller-offering.md`](../../docs/features/llm-marketplace/seller-offering.md) §3): không UI hay HTTP API nào để tạo/sửa offer, endpoint, credential hay giá; supported interface cho mọi thao tác seller là bootstrap runner của `llm-api` (8a governance, 8b marketplace — spec §5). Component không có đường đăng nhập seller và không sở hữu dữ liệu nghiệp vụ nào; bổ sung bề mặt là mục tiêu tương lai, phải qua cập nhật feature spec trước khi có slice delivery.
 - Không có binding Hyperdrive/D1/R2/KV/Queue nào trong `wrangler.jsonc`, không có Service Binding, không có `runtimeConfig` — mọi dữ liệu nghiệp vụ chỉ có thể đi qua API của context owning (composition mapping → `docs/applications/llm-seller/README.md`).
 - Không có OIDC client id/secret, session signing key, provider credential hay credential nào khác trong repo này; không có đường bypass xác thực cho demo.
 - Component không sở hữu bounded context nào — Seller tenant, governance, pricing và marketplace là context riêng với domain model tại `docs/domains/<context>/`.

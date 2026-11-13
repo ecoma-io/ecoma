@@ -10,9 +10,10 @@
  * Quy ước: `zh-CN` là locale code, còn BCP-47 cho `<html lang>` là `zh-Hans` —
  * hai giá trị khác nhau, khai ở `nuxt.config.ts` (`i18n.locales[].language`).
  *
- * Nhóm `shell` và `shell.search` dịch **đúng** chuỗi mà library sinh mặc định
- * (`DEFAULT_APP_SHELL_LABELS`) cho llm-console và llm-seller: backoffice chỉ
- * thêm khả năng dịch, không đổi nội dung tiếng Anh mà hai app kia vẫn thấy.
+ * Nhóm `shell.colorMode` và `shell.search` dịch **đúng** chuỗi mà library sinh
+ * mặc định (`DEFAULT_APP_SHELL_LABELS`) cho llm-console và llm-seller:
+ * backoffice chỉ thêm khả năng dịch, không đổi nội dung tiếng Anh mà hai app kia
+ * vẫn thấy.
  */
 export default {
   app: {
@@ -32,20 +33,25 @@ export default {
       dialogDescription: 'Search for a command to run...',
     },
 
-    settings: {
-      title: 'Settings',
-      description: 'Customize & Preview in Real Time',
-      theming: 'Theming',
-      layout: 'Layout',
-      color: 'Color',
-      direction: 'Direction',
-      directionLtr: 'LTR',
-      directionRtl: 'RTL',
+    colorMode: {
+      label: 'Color mode',
+      light: 'Light',
+      dark: 'Dark',
+      system: 'System',
     },
 
     language: {
       label: 'Language',
       hint: 'Changes the language of the whole backoffice.',
+    },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls): đăng nhập dẫn tới
+      // `GET /api/auth/login` (BFF dựng authorize URL), đăng xuất gọi
+      // `POST /api/auth/logout` với CSRF double-submit.
+      login: 'Log in',
+      logout: 'Log out',
+      loggingOut: 'Logging out…',
     },
   },
 
@@ -64,6 +70,13 @@ export default {
     // "prototype") nằm ở `catalogs.spec.ts` (colocated cạnh file này); đây là nguồn sự thật cho key.
     errorBody: 'If a technical detail appears below, it can be shared with support.',
     retry: 'Try again',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4): phiên vắng/hết hạn —
+    // thay nút retry bằng đường đăng nhập lại.
+    sessionExpired: {
+      title: 'Your session has expired',
+      body: 'Log in again to continue where you left off.',
+      login: 'Log in again',
+    },
   },
 
   staff: {

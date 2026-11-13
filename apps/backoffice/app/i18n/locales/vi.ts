@@ -1,10 +1,10 @@
 /**
  * Message catalog tiếng Việt — **bản dịch**, không phải nguồn key.
  *
- * Cùng tập key với `en.ts`; kiểm bằng `catalogs.spec.ts` (colocated cạnh file này). Nhóm `shell` và
- * `shell.search` dịch chuỗi mà library sinh mặc định cho hai app không i18n,
- * nên người dùng tiếng Việt thấy đúng bảng tuỳ chỉnh / ô tìm kiếm mà llm-console
- * và llm-seller hiện bằng tiếng Anh.
+ * Cùng tập key với `en.ts`; kiểm bằng `catalogs.spec.ts` (colocated cạnh file này). Nhóm `shell.colorMode`
+ * và `shell.search` dịch chuỗi mà library sinh mặc định cho hai app không i18n,
+ * nên người dùng tiếng Việt thấy đúng nút đổi chế độ màu / ô tìm kiếm mà
+ * llm-console và llm-seller hiện bằng tiếng Anh.
  */
 import type { BackofficeMessages } from './messages';
 
@@ -26,20 +26,23 @@ const vi: BackofficeMessages = {
       dialogDescription: 'Tìm một lệnh để chạy...',
     },
 
-    settings: {
-      title: 'Cài đặt',
-      description: 'Tuỳ chỉnh và xem trước theo thời gian thực',
-      theming: 'Bảng màu',
-      layout: 'Bố cục',
-      color: 'Màu chủ đạo',
-      direction: 'Chiều văn bản',
-      directionLtr: 'Trái sang phải',
-      directionRtl: 'Phải sang trái',
+    colorMode: {
+      label: 'Chế độ màu',
+      light: 'Sáng',
+      dark: 'Tối',
+      system: 'Hệ thống',
     },
 
     language: {
       label: 'Ngôn ngữ',
       hint: 'Đổi ngôn ngữ của toàn bộ backoffice.',
+    },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls) — xem `en.ts` cùng nhóm.
+      login: 'Đăng nhập',
+      logout: 'Đăng xuất',
+      loggingOut: 'Đang đăng xuất…',
     },
   },
 
@@ -56,6 +59,12 @@ const vi: BackofficeMessages = {
     // có) ở `en.ts` và `catalogs.spec.ts` (colocated cạnh file này).
     errorBody: 'Chi tiết kỹ thuật hiện bên dưới (nếu có) có thể gửi cho bộ phận hỗ trợ.',
     retry: 'Thử lại',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4) — xem `en.ts` cùng nhóm.
+    sessionExpired: {
+      title: 'Phiên của bạn đã hết hạn',
+      body: 'Đăng nhập lại để tiếp tục công việc đang dở.',
+      login: 'Đăng nhập lại',
+    },
   },
 
   staff: {

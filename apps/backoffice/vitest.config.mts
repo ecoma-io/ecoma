@@ -77,7 +77,7 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
-    // `DrawerRoot` của `vaul-vue` (qua `AppShellSettingsPanel` → `AppShell` →
+    // `DrawerRoot` của `vaul-vue` (qua primitive `Drawer` của shell → `AppShell` →
     // `app.vue`) đăng ký một `setTimeout(…, 200)` chạm `document.body` bên trong
     // một `watchEffect` và "dọn" nó bằng cách **return** cleanup từ callback.
     // Vue chỉ nhận cleanup qua tham số `onCleanup` của `watchEffect` — giá trị
@@ -111,11 +111,14 @@ export default defineConfig(() => ({
     // ⚠️ Suite integration nằm ở `tests/integrations/` + `tests/databases/` và
     // chạy qua target `test-integration` với config riêng
     // (`vitest.integration.config.mts`). Include bên dưới phủ `tests/**` (spec
-    // colocated với support nằm ở `tests/`), nên phải exclude đúng hai thư mục
+    // colocated với support nằm ở `tests/`), nên phải exclude đúng ba thư mục
     // mục đích đó — nếu không, mọi suite integration chạy HAI lần (cả `test`
-    // lẫn `test-integration`) (06-testing.md §4).
+    // lẫn `test-integration`) (06-testing.md §4). `tests/browser/**` là suite
+    // Playwright — **không** phải vitest: nó cũng gắn vào `test-integration`,
+    // nhưng qua lệnh playwright riêng (xem `package.json`), không qua config
+    // vitest nào.
     include: ['{src,app,tests,server}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: [...defaultExclude, 'tests/integrations/**', 'tests/databases/**'],
+    exclude: [...defaultExclude, 'tests/integrations/**', 'tests/databases/**', 'tests/browser/**'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

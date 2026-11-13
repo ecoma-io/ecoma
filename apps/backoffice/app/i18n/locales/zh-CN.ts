@@ -27,15 +27,11 @@ const zhCN: BackofficeMessages = {
       dialogDescription: '查找要运行的命令...',
     },
 
-    settings: {
-      title: '设置',
-      description: '实时自定义并预览',
-      theming: '主题色',
-      layout: '布局',
-      color: '主色',
-      direction: '文字方向',
-      directionLtr: '从左到右',
-      directionRtl: '从右到左',
+    colorMode: {
+      label: '配色模式',
+      light: '浅色',
+      dark: '深色',
+      system: '跟随系统',
     },
 
     language: {
@@ -43,6 +39,13 @@ const zhCN: BackofficeMessages = {
       // Giữ "backoffice" như `prototype.notice.body` (và như `en.ts`/`vi.ts`):
       // cùng một tên ứng dụng không nên xuất hiện dưới hai dạng trong một catalog.
       hint: '更改整个 backoffice 界面的语言。',
+    },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls) — xem `en.ts` cùng nhóm.
+      login: '登录',
+      logout: '退出登录',
+      loggingOut: '正在退出…',
     },
   },
 
@@ -63,6 +66,12 @@ const zhCN: BackofficeMessages = {
     // nào để gửi, và câu này sẽ trỏ vào một thực thể không tồn tại.
     errorBody: '如下方出现技术详情，可提供给客服团队。',
     retry: '重试',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4) — xem `en.ts` cùng nhóm.
+    sessionExpired: {
+      title: '您的会话已过期',
+      body: '重新登录以继续未完成的工作。',
+      login: '重新登录',
+    },
   },
 
   staff: {

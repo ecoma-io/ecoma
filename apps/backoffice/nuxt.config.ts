@@ -1,6 +1,7 @@
 import { defineNuxtConfig } from 'nuxt/config';
 import tailwindcss from '@tailwindcss/vite';
 
+import { APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT } from '@ecoma-io/ui-app-shell/lib/color-mode';
 import { BACKOFFICE_DATA_MODE_DISABLED } from './app/backoffice-data/data-mode';
 import {
   DEFAULT_BACKOFFICE_LOCALE,
@@ -23,6 +24,17 @@ export default defineNuxtConfig({
   // `.output/server/index.mjs` (`nitro.config.ts`) và mọi route API dưới `/api`
   // vẫn chạy server-side. Đây chỉ là tắt bước render HTML phía server.
   ssr: false,
+  // Script bootstrap color mode (issue #213) phải nằm trong HTML served để
+  // chạy trước first paint. App là SPA nên `useHead` chỉ áp dụng sau mount;
+  // entry tĩnh trong `app.head` được render thẳng vào HTML shell lúc build —
+  // inline script trong `<head>` chạy đúng lúc parse, trước một pixel nào
+  // được vẽ. Hằng số lấy từ library để tên cookie trong script không thể lệch
+  // với cookie mà app ghi khi người dùng đổi mode.
+  app: {
+    head: {
+      script: [{ innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
+    },
+  },
   devtools: { enabled: true },
   devServer: {
     host: '0.0.0.0',

@@ -10,6 +10,7 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./lib/color-mode": "./src/lib/color-mode/index.ts",
     "./styles/app-shell.css": "./src/styles/app-shell.css"
   },
   "dependencies": {

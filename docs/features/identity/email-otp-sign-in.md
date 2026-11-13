@@ -39,7 +39,7 @@ Người dùng nhập địa chỉ email, nhận một mã dùng một lần, nh
 - **Gửi email thật chưa được kiểm chứng.** Ở môi trường local và trong system test, `transactional-mailer-job` chạy với provider giả (`MAIL_PROVIDER_KIND=fake`) và test đọc mã từ D1 sink. Không test nào trong repository chứng minh thư tới hộp thư thật.
 - **Passkey, TOTP và recovery code chưa hiện thực.** Trang bảo mật render các mục này ở trạng thái "chưa khả dụng" theo `securityCapabilities` (hiện đều `false`) — không có điều khiển thao tác nào, và không có đường mock nào thay thế. Không mô tả chúng như capability đã có.
 - **Không có mật khẩu và không có luồng đặt lại mật khẩu.**
-- **Không có đăng ký tài khoản trong phạm vi này.** Tài khoản được tạo ngoài luồng đăng nhập; địa chỉ phải đã được xác minh trước khi nhận được mã.
+- **Không có đăng ký tài khoản trong phạm vi này.** Tài khoản được tạo ngoài luồng đăng nhập; địa chỉ phải đã được xác minh trước khi nhận được mã. Ngoại lệ đã quyết, chưa hiện thực: địa chỉ có **lời mời** còn mở do administrator phát được gửi mã thật qua đúng luồng này, và việc xác minh mã sinh Account kèm email `verified` — kênh và điều kiện thuộc [ADR-0030](../../domains/account/adr/0030-account-creation-channel-invitation.md), hiện thực thuộc #227.
 - **Không có xác thực hai yếu tố ở bước đăng nhập.**
 - Địa chỉ email đang chờ đăng nhập chỉ nằm trong bộ nhớ của trang; tải lại trang giữa lúc yêu cầu mã và lúc nhập mã làm mất trạng thái đó, và người dùng phải yêu cầu mã mới.
 

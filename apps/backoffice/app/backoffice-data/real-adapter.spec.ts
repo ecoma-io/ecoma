@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createRealBackofficeAdapter } from './real-adapter';
+import { BackofficeRouteError } from './route-error';
 
 /**
  * Unit test cho adapter thật — fetch không gọi mạng thật: `globalThis.fetch`
@@ -155,6 +156,35 @@ describe('createRealBackofficeAdapter', () => {
     await expect(adapter.listPermissions()).rejects.toThrow(/503/u);
 
     vi.unstubAllGlobals();
+  });
+
+  /**
+   * ⚠️ Lỗi phi 2xx là `BackofficeRouteError` mang `status` **có kiểu**, không
+   * phải `Error` trần: `useAsyncState` đọc `status` đó vào `AsyncState.error`
+   * để UI phân nhánh 401/403/503 theo ADR-0011 §4. Assert theo `status` (không
+   * phải regex trên message) — message là hiển thị, status là hợp đồng.
+   */
+  it('each non-2xx rejection carries its HTTP status as a typed BackofficeRouteError', async () => {
+    for (const status of [401, 403, 503]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async (): Promise<Response> =>
+            new Response(JSON.stringify({ error: 'x' }), {
+              status,
+              headers: { 'content-type': 'application/json' },
+            }),
+        ),
+      );
+
+      const adapter = createRealBackofficeAdapter();
+      const error = await adapter.listStaff().catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(BackofficeRouteError);
+      expect((error as BackofficeRouteError).status).toBe(status);
+
+      vi.unstubAllGlobals();
+    }
   });
 
   it('network error rejects the promise', async () => {

@@ -27,6 +27,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from '#i18n';
 import { useAsyncState } from '../composables/use-async-state';
+import { BackofficeRouteError } from '../backoffice-data';
 
 const i18n = useI18n();
 
@@ -42,7 +43,10 @@ const { state, reload } = useAsyncState(
       headers: { accept: 'application/json' },
     });
     if (!response.ok) {
-      throw new Error(`onboarding-status ${response.status}`);
+      // ⚠️ Lỗi có kiểu (`BackofficeRouteError`) chứ không phải `Error` trần: trang
+      // này cũng cần phân biệt `401` (hết phiên → nút "Log in again" theo
+      // ADR-0011 §4) với `503` (thử lại) — cùng luật với mọi trang qua adapter.
+      throw new BackofficeRouteError(`onboarding-status ${response.status}`, response.status);
     }
     return (await response.json()) as { needsDisplayName: boolean };
   },
@@ -72,6 +76,7 @@ const dismissed = ref(false);
       :detail="state.message"
       :retry-label="i18n.t('states.retry')"
       :on-retry="reload"
+      :session-expired="state.status === 401"
     />
 
     <template v-else-if="state.kind === 'ready' && state.value.needsDisplayName">
