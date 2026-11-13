@@ -37,13 +37,13 @@ const LOCAL_CERT_PATH = join(
 export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
 
 /**
- * Origin gốc của stack local, dạng `https://<host>:<port>` — đọc `ROOT_DOMAIN`
- * trước rồi `ROOT_HOST` (#353 giới thiệu key; suite fallback `ROOT_HOST` cho
- * worktree chưa redeploy). Khi chạy qua Nx, `.env` repo root đã nằm trong env
+ * Origin gốc của stack local, dạng `https://<host>:<port>` — đọc `ROOT_HOST`
+ * (alias `ROOT_DOMAIN` từng tồn tại đã bị xoá khỏi contract `.env`, #210).
+ * Khi chạy qua Nx, `.env` repo root đã nằm trong env
  * của task; chạy `npx playwright test` trực tiếp thì fallback parse `.env`.
  */
 export function resolveStackOrigin(): string {
-  const fromEnv = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
     return withPort(fromEnv.trim());
   }
@@ -59,7 +59,7 @@ export function resolveStackOrigin(): string {
     // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
   }
   throw new Error(
-    'ROOT_DOMAIN (or ROOT_HOST) is not set and no .env file defines it. ' +
+    'ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
 }

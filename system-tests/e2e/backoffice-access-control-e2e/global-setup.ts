@@ -89,14 +89,14 @@ interface ProbeResult {
 }
 
 /**
- * Origin backoffice mà gate probe — hostname gốc (giá trị `ROOT_DOMAIN`/
- * `ROOT_HOST`, dạng `hostname:port`) GHÉP PREFIX `office.`: router Traefik của
+ * Origin backoffice mà gate probe — hostname gốc (giá trị `ROOT_HOST`,
+ * dạng `hostname:port`) GHÉP PREFIX `office.`: router Traefik của
  * backoffice match `Host(office.<root>)`, probe hostname gốc là 404 chắc chắn
  * (#392 — cùng hợp đồng mà `e2e/support/local-origin.ts` của suite đã suy).
  */
 function resolveBackofficeOrigin(): { hostname: string; port: string; ca: string } {
   const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return { ...readOfficeHostPort(raw.trim()), ca };
   }
@@ -113,7 +113,7 @@ function resolveBackofficeOrigin(): { hostname: string; port: string; ca: string
     // `.env` vắng mặt — throw bên dưới với message chỉ đúng remedy.
   }
   throw new Error(
-    'backoffice-access-control-e2e global setup failed: ROOT_DOMAIN (or ROOT_HOST) is not set and no .env file defines it. ' +
+    'backoffice-access-control-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
 }

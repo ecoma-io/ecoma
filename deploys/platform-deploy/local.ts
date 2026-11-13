@@ -17,10 +17,11 @@
  *    ràng buộc volume, sinh mới khi key chưa có trong config.
  * 2. `pulumi up` — Traefik + PostgreSQL + network; outputs chỉ tồn tại sau
  *    khi up xanh.
- * 3. Đọc outputs (port Traefik thật do Docker cấp) rồi upsert `.env` đúng 3
- *    key sở hữu (ROOT_HOST/ROOT_DOMAIN/POSTGRES_PASSWORD); mọi key khác trong
- *    file giữ nguyên byte-for-byte. `.env` là artifact — nguồn sự thật là
- *    stack config/outputs; mọi unit kế tiếp đọc ROOT_HOST từ file này.
+ * 3. Đọc outputs (port Traefik thật do Docker cấp) rồi upsert `.env` đúng 2
+ *    key sở hữu (ROOT_HOST/POSTGRES_PASSWORD); mọi key khác trong file giữ
+ *    nguyên byte-for-byte trừ key retired bị gỡ (`ROOT_DOMAIN`, #210).
+ *    `.env` là artifact — nguồn sự thật là stack config/outputs; mọi unit
+ *    kế tiếp đọc ROOT_HOST từ file này.
  *
  * `smoke` có đúng một prerequisite (`home-deploy:local-up`): smoke kiểm chuỗi
  * redirect `/` → `/en` của home qua Traefik với certificate local (script
@@ -43,7 +44,6 @@ import { join } from 'node:path';
 
 import {
   POSTGRES_PASSWORD_ENV_KEY,
-  ROOT_DOMAIN_ENV_KEY,
   ROOT_HOST_ENV_KEY,
   ensureStackForEntry,
   exec,
@@ -111,11 +111,10 @@ async function up(foundation: EntryFoundation): Promise<number> {
     );
     const { envPath } = upsertLocalEnv(foundation.ctx.worktreeRoot, {
       [ROOT_HOST_ENV_KEY]: outputs.rootHost,
-      [ROOT_DOMAIN_ENV_KEY]: outputs.rootHost,
       [POSTGRES_PASSWORD_ENV_KEY]: resolution.password,
     });
     console.log(
-      `${ROOT_HOST_ENV_KEY}=${outputs.rootHost}, ${ROOT_DOMAIN_ENV_KEY}=${outputs.rootHost} and ` +
+      `${ROOT_HOST_ENV_KEY}=${outputs.rootHost} and ` +
         `${POSTGRES_PASSWORD_ENV_KEY} written to ${envPath}`,
     );
     // Readiness đã thuộc container resource (`wait: true` trong index.ts cho

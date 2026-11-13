@@ -52,7 +52,7 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
  * root TẠI THỜI ĐIỂM ĐỌC. Fallback không phải chỉ cho CLI ngoài Nx: orchestrator
  * của Nx snapshot env của MỌI task đã schedule ngay vòng lặp đầu, TRƯỚC khi
  * `platform-deploy:local-up` kịp ghi `.env` — env-process của task suite không
- * bao giờ chứa `ROOT_DOMAIN` trong đường một-invocation
+ * bao giờ chứa `ROOT_HOST` trong đường một-invocation
  * (`nx affected -t system-test -c local`) dù `.env` mới nhất đã có key đó. Đọc
  * FILE lúc helper chạy thì luôn thấy giá trị platform vừa ghi — cùng rationale
  * với fallback trong `global-setup.ts` và `playwright.config.ts` của các suite.
@@ -60,7 +60,7 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
  * thì thắng fallback — nguồn ưu tiên như trước.
  */
 export function readRootHostPort(): string {
-  const fromEnv = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
     return fromEnv.trim();
   }
@@ -76,16 +76,16 @@ export function readRootHostPort(): string {
     // `.env` vắng mặt — throw bên dưới với message chỉ đúng remedy.
   }
   throw new Error(
-    'ROOT_DOMAIN (or ROOT_HOST) is neither set in the environment nor defined in the repo-root .env. ' +
+    'ROOT_HOST is neither set in the environment nor defined in the repo-root .env. ' +
       'Run this suite through `nx affected -t system-test -c local` (Nx provisions the local-up prerequisites, ' +
       'and platform-deploy writes the dynamic Traefik host:port into the repo-root .env before the suite runs), ' +
-      'or export ROOT_DOMAIN=<host>:<port> explicitly.',
+      'or export ROOT_HOST=<host>:<port> explicitly.',
   );
 }
 
 /**
  * Origin ACCOUNT của stack local, dạng `https://account.<host>:<port>` — đọc
- * `ROOT_DOMAIN` trước rồi `ROOT_HOST` (#353 giới thiệu key).
+ * `ROOT_HOST` (alias `ROOT_DOMAIN` từng tồn tại đã bị xoá khỏi contract, #210).
  */
 export function resolveAccountOrigin(): string {
   return withPort(readRootHostPort());

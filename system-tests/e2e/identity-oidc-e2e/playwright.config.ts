@@ -15,7 +15,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Stack local chạy sau Traefik với certificate self-signed `fbi.com` của repo
  * (`deploys/platform-deploy/local-certs/fbi.com.crt`, port Traefik ĐỘNG theo
- * mỗi lần container được tạo lại — giá trị thật nằm ở `ROOT_DOMAIN`/`ROOT_HOST`
+ * mỗi lần container được tạo lại — giá trị thật nằm ở `ROOT_HOST`
  * trong `.env` mà bước `local-up` của lane Nx ghi). TLS phải được VERIFY THẬT SỰ —
  * `ignoreHTTPSErrors: true` hay `NODE_TLS_REJECT_UNAUTHORIZED=0` là đường cấm,
  * vì suite sinh ra để chứng minh chuỗi DNS/TLS/routing/upstream; tắt verification
@@ -49,7 +49,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * ⚠️ Hệ quả phải biết khi debug graph Nx: `@nx/playwright/plugin` EVAL config
  * này lúc DỰNG PROJECT GRAPH (để suy target `e2e`). Config throw-loud khi thiếu
- * `ROOT_DOMAIN`/`ROOT_HOST` làm MỌI job CI đỏ với cùng một graph error, kể cả
+ * `ROOT_HOST` làm MỌI job CI đỏ với cùng một graph error, kể cả
  * lệnh `nx affected` không đụng gì đến suite — runner CI không có `.env` vì
  * stack local không tồn tại ở đó. Vì thế config KHÔNG BAO GIỜ throw: thiếu
  * origin là trả placeholder `.invalid` vô hại, và fail-closed thật nằm ở
@@ -83,7 +83,7 @@ function computeSpkiHash(pem: string): string {
 
 const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 
-/** Tách `host:port` từ giá trị `ROOT_DOMAIN`/`ROOT_HOST`, mặc định port 443. */
+/** Tách `host:port` từ giá trị `ROOT_HOST`, mặc định port 443. */
 function withOrigin(raw: string): string {
   const hostname = raw.split(':')[0];
   const port = raw.includes(':') ? raw.split(':')[1] : '443';
@@ -92,8 +92,7 @@ function withOrigin(raw: string): string {
 
 /**
  * Origin gốc của stack local — giữ nguyên `host:port`. `pnpm nx affected -t system-test -c local` — nó provision các prerequisite `local-up` trước
- * ghi `ROOT_HOST=<host>:<port>`; `ROOT_DOMAIN` mang cùng giá trị cho system
- * test. Đọc `ROOT_DOMAIN` trước, fallback `ROOT_HOST`.
+ * ghi `ROOT_HOST=<host>:<port>` — key duy nhất mà suite đọc.
  *
  * ⚠️ Port PHẢI giữ trong baseURL: Traefik local nghe trên port ĐỘNG map ra
  * loopback, không phải 443.
@@ -106,7 +105,7 @@ function withOrigin(raw: string): string {
  * thì mọi test đỏ với DNS failure thay vì xanh giả.
  */
 function resolveStackOrigin(): string {
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return withOrigin(raw.trim());
   }

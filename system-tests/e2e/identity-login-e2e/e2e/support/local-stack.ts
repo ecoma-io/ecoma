@@ -46,7 +46,7 @@ import { readRootHostPort } from './local-origin';
  * Một máy có thể có NHIỀU stack (mỗi worktree một namespace —
  * `tools/dx/src/local-runtime/deploy-namespace.ts`). Suite KHÔNG tự derive
  * namespace từ path (suite thường chạy ở worktree khác worktree chạy stack);
- * nguồn sự thật là `ROOT_DOMAIN`/`ROOT_HOST` (host:port Traefik publish ra
+ * nguồn sự thật là `ROOT_HOST` (host:port Traefik publish ra
  * loopback): map port → container `ecoma-*-traefik` publish đúng port đó →
  * đọc label `io.ecoma.worktree-id` → đó là namespace. Label do CLI ghi và
  * được `deploy-labels.ts` validate chéo worktree-path, đáng tin hơn suy luận
@@ -86,7 +86,7 @@ export function fixtureEmailHash(email: string): string {
 }
 
 /**
- * Namespace của stack mà `ROOT_DOMAIN`/`ROOT_HOST` đang trỏ tới — suy từ
+ * Namespace của stack mà `ROOT_HOST` đang trỏ tới — suy từ
  * container Traefik publish đúng port đó (khối "Tìm container" ở đầu file).
  * Cache một lần: container không đổi giữa chừng một lần chạy suite.
  */
@@ -125,8 +125,8 @@ export function resolveStackNamespace(): string {
   if (matches.length !== 1) {
     throw new Error(
       `expected exactly one ecoma Traefik container publishing loopback port ${port}, found ` +
-        `${matches.length}: ${JSON.stringify(matches)}. ROOT_DOMAIN must point at the live ` +
-        "stack's dynamic port — rerun the local lane in the owning checkout and use its ROOT_DOMAIN.",
+        `${matches.length}: ${JSON.stringify(matches)}. ROOT_HOST must point at the live ` +
+        "stack's dynamic port — rerun the local lane in the owning checkout and use its ROOT_HOST.",
     );
   }
   const namespace = dockerLines([

@@ -203,7 +203,7 @@ function requireNamespace(): string {
   if (namespace === undefined) {
     throw new Error(
       'could not discover the Docker namespace of this worktree (no ecoma-*-traefik container ' +
-        'with the ROOT_DOMAIN port). Run `pnpm nx affected -t system-test -c local` first.',
+        'with the ROOT_HOST port). Run `pnpm nx affected -t system-test -c local` first.',
     );
   }
   return namespace;

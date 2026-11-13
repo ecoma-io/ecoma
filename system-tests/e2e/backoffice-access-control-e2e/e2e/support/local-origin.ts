@@ -41,7 +41,7 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
 /**
  * Origin backoffice của stack local — `https://office.<root>:<port>`.
  *
- * `ROOT_DOMAIN`/`ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) —
+ * `ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) —
  * hợp đồng chung của mọi system suite (#392): `home-public-e2e` dùng nguyên
  * hostname gốc, còn `identity-login-e2e`/`identity-oidc-e2e` tự ghép subdomain
  * (`account.`, `auth.`); suite này ghép `office.` vì router Traefik của
@@ -54,7 +54,7 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
  * `npx playwright test` trực tiếp thì fallback parse `.env`.
  */
 export function resolveStackOrigin(): string {
-  const fromEnv = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
     return officeOrigin(fromEnv.trim());
   }
@@ -70,7 +70,7 @@ export function resolveStackOrigin(): string {
     // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
   }
   throw new Error(
-    'ROOT_DOMAIN (or ROOT_HOST) is not set and no .env file defines it. ' +
+    'ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
 }

@@ -119,7 +119,7 @@ jobs:
   # `local-up` của deploy project nó cần, Nx tự schedule deploy prerequisite
   # trước suite (task `local-up` chạy `pulumi up` thật, tự sinh passphrase Pulumi
   # + mật khẩu PostgreSQL, KHÔNG secret production nào được inject, và task
-  # platform ghi `.env` với ROOT_HOST/ROOT_DOMAIN mà các suite đọc). Suite
+  # platform ghi `.env` với ROOT_HOST mà các suite đọc). Suite
   # fail-closed khi stack không có (gate trong `global-setup.ts`), nên không
   # deploy là đỏ: chạy thật là điều kiện của job này, không phải cải tiến. Không
   # còn bước deploy hardcoded nào đứng trước invocation — trong đó PR docs-only
