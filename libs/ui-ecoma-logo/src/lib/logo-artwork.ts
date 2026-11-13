@@ -44,3 +44,65 @@ export const ECOMA_LOGO_MARK_PATH =
  */
 export const ECOMA_LOGO_WORDMARK_PATH =
   'm173.1 78h-58.9v-64.1h58.9v11.8h-47.1v14.3h37.9v11.9h-37.9v14.3h47.1zm20.9 0q-3.4 0-6.2-1.6-2.7-1.8-4.5-4.5-1.6-2.8-1.6-6.2v-27.1q0-3.3 1.6-6.1 1.8-2.8 4.5-4.4 2.8-1.7 6.2-1.7h40v11.6h-39.6q-0.4 0-0.8 0.4-0.2 0.3-0.2 0.7v26.2q0 0.4 0.2 0.8 0.4 0.2 0.8 0.2h39.7v11.7zm61.3 0q-3.4 0-6.2-1.6-2.7-1.8-4.5-4.5-1.6-2.8-1.6-6.2v-27.1q0-3.3 1.6-6.1 1.8-2.8 4.5-4.4 2.8-1.7 6.2-1.7h27.9q3.4 0 6.1 1.7 2.8 1.6 4.4 4.5 1.7 2.7 1.7 6v27.1q0 3.4-1.7 6.2-1.6 2.7-4.4 4.5-2.7 1.6-6.1 1.6zm0.5-11.7h26.9q0.4 0 0.7-0.2 0.4-0.4 0.4-0.8v-26.2q0-0.4-0.4-0.7-0.3-0.4-0.7-0.4h-26.9q-0.5 0-0.9 0.4-0.2 0.3-0.2 0.7v26.2q0 0.4 0.2 0.8 0.4 0.2 0.9 0.2zm60.8 11.7h-11.7v-51.6h64q3.4 0 6.1 1.7 2.8 1.6 4.5 4.4 1.6 2.8 1.6 6.1v39.4h-11.5v-38.9q0-0.4-0.4-0.7-0.3-0.4-0.7-0.4h-18.5q-0.4 0-0.8 0.4-0.3 0.3-0.3 0.7v38.9h-11.7v-38.9q0-0.4-0.4-0.7-0.2-0.4-0.7-0.4h-18.5q-0.4 0-0.8 0.4-0.2 0.3-0.2 0.7zm125.7 0h-40.2q-3.3 0-6.2-1.6-2.7-1.8-4.4-4.4-1.6-2.9-1.6-6.2v-19.5h40.7v-7.2q0-0.4-0.3-0.7-0.3-0.4-0.8-0.4h-39.6v-11.6h40.1q3.4 0 6.2 1.7 2.8 1.6 4.4 4.5 1.7 2.7 1.7 6zm-39.7-11.6h28v-9.6h-29.1v8.5q0 0.4 0.3 0.8 0.4 0.3 0.8 0.3z';
+
+// ---------------------------------------------------------------------------
+// Địa lý RTL: đổi THỨ TỰ mark ↔ wordmark khi document ở hướng RTL.
+//
+// Quyết định thiết kế (issue #213): khi `[dir='rtl']`, mỗi nhóm dịch ngang để
+// hộp bao `[a, b]` của nó đổ về `[W−b, W−a]` với `W` là chiều rộng viewBox —
+// tức là phản chiếu qua TÂM viewBox chứ KHÔNG phải soi gương từng nét. Nhờ
+// mark rời hẳn sang mép phải, wordmark sang mép trái, đúng chiều đọc RTL, và
+// **khoảng hở** giữa hai nhóm được giữ nguyên (phản chiếu bảo toàn khoảng
+// cách). KHÔNG BAO GIỜ dùng `scaleX(-1)`: wordmark là chữ Latin "ecoma", soi
+// gương làm chữ đọc ngược — chỉ dịch chuyển, không lật.
+//
+// Công thức: `[a, b] + t = [W−b, W−a]` ⇒ `t = W − a − b`. Hai hằng dịch bên
+// dưới được TÍNH từ bbox và W (không hardcode rời rạc), nên đổi artwork chỉ
+// phải cập nhật bbox ở đây cùng lúc với path ở trên — và `ecoma-logo.spec.ts`
+// cùng `ecoma-logo-rtl-geometry.spec.ts` ghim từng mắt xích với file nguồn.
+//
+// `transform` CSS trên phần tử con của SVG dùng đơn vị px, mà với SVG các px
+// đó map 1-1 sang **user units của viewBox** — cùng hệ tọa độ với bbox bên
+// dưới, nên số dùng cho CSS đúng bằng số hình học, không cần quy đổi.
+// ---------------------------------------------------------------------------
+
+/**
+ * Chiều rộng viewBox `W` — parse từ chuỗi viewBox phía trên thay vì hardcode
+ * số thứ hai để luôn khớp artwork khi nó đổi.
+ */
+export const ECOMA_LOGO_VIEWBOX_WIDTH = Number(ECOMA_LOGO_VIEWBOX.split(' ')[2]);
+
+/**
+ * Hộp bao theo trục x của nhóm **mark**, đơn vị viewBox user units. Số liệu
+ * được tính MỘT LẦN từ dữ liệu path ở trên bằng cách giải cực trị giải tích
+ * của từng Bézier (q/c) cộng với các điểm đầu-cuối của đoạn thẳng (m/h/v) —
+ * xem `ecoma-logo-rtl-geometry.spec.ts` ghim các con số này. Giá trị thô
+ * tích luỹ sai số float ±1e-13 qua ~1000 bước relative nhỏ trong path, nên
+ * làm tròn 6 chữ số thập phân — độ chính xác vượt xa mọi ngưỡng hiển thị
+ * (1 user unit ≈ 0.36px ở width tự nhiên 160px).
+ */
+export const ECOMA_LOGO_MARK_X_BBOX = { min: 2, max: 81.5 } as const;
+
+/** Hộp bao theo trục x của nhóm **wordmark** — cùng cách tính như bbox mark. */
+export const ECOMA_LOGO_WORDMARK_X_BBOX = { min: 114.2, max: 442.3 } as const;
+
+/** Làm tròn 6 chữ số thập phân để gán hằng dịch — lý do xem bbox ở trên. */
+const roundTo6Decimals = (value: number): number => Math.round(value * 1e6) / 1e6;
+
+/**
+ * Độ dịch x của nhóm mark khi RTL: `t = W − min − max`, đưa `[2, 81.5]` về
+ * `[363.433, 442.933]` (mép phải). Được dùng như literal trong `<style scoped>`
+ * của `EcomaLogo.vue` — CSS không đọc được hằng TS, nên spec ghim hai bên
+ * khớp từng ký tự.
+ */
+export const ECOMA_LOGO_RTL_MARK_TRANSLATE_X = roundTo6Decimals(
+  ECOMA_LOGO_VIEWBOX_WIDTH - ECOMA_LOGO_MARK_X_BBOX.min - ECOMA_LOGO_MARK_X_BBOX.max,
+);
+
+/**
+ * Độ dịch x của nhóm wordmark khi RTL: `[114.2, 442.3] + t = [2.633, 330.733]`
+ * (mép trái). Cùng cơ chế ghim với CSS như hằng mark phía trên.
+ */
+export const ECOMA_LOGO_RTL_WORDMARK_TRANSLATE_X = roundTo6Decimals(
+  ECOMA_LOGO_VIEWBOX_WIDTH - ECOMA_LOGO_WORDMARK_X_BBOX.min - ECOMA_LOGO_WORDMARK_X_BBOX.max,
+);

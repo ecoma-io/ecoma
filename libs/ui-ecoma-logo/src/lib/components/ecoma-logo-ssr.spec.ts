@@ -28,6 +28,19 @@ describe('EcomaLogo SSR', () => {
     expect(html).toMatch(/<svg[^>]*\sviewbox="[^"]*"/iu);
     // `<path>` vẽ artwork ngay trong markup.
     expect(html).toContain('<path');
+    // Hai `<g>` bọc mark/wordmark là móc cho CSS RTL (issue #213) — SSR cũng
+    // phải xuất ra để flip hoạt động ở client mà không cần thêm gì sau hydrate.
+    expect(html).toContain('<g class="ecoma-logo-mark"');
+    expect(html).toContain('<g class="ecoma-logo-wordmark"');
+  });
+
+  it('renders identical markup regardless of direction, carrying no transform attribute', async () => {
+    // Đảo thứ tự RTL là THUẦN CSS: markup SSR không bao giờ chứa attribute
+    // `transform` — HTML prerender như nhau ở cả hai hướng, nên không có
+    // hydration mismatch khi client gắn vào trang `dir='rtl'`.
+    const html = await renderLogo();
+
+    expect(html).not.toContain('transform');
   });
 
   it('is deterministic: renders are identical even when system time differs', async () => {

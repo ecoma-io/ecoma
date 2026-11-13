@@ -57,6 +57,36 @@ describe('EcomaLogo', () => {
     expect(wordmark?.attributes('d')).toBe(ECOMA_LOGO_WORDMARK_PATH);
   });
 
+  it('groups each path so CSS can address the mark and wordmark separately', () => {
+    // RTL (issue #213) dịch chuyển từng nửa logo bằng CSS trên hai `<g>` —
+    // selector của `<style scoped>` trỏ vào `g.ecoma-logo-mark` /
+    // `g.ecoma-logo-wordmark`, nên cấu trúc này là hợp đồng của CSS: đổi tên
+    // class group mà quên style (hoặc ngược lại) làm RTL câm lặng. Mỗi group
+    // chứa đúng một path để phép dịch không lôi theo nửa còn lại.
+    const wrapper = mount(EcomaLogo);
+
+    const markGroup = wrapper.find('g.ecoma-logo-mark');
+    const wordmarkGroup = wrapper.find('g.ecoma-logo-wordmark');
+    expect(markGroup.exists()).toBe(true);
+    expect(wordmarkGroup.exists()).toBe(true);
+    expect(markGroup.findAll('path')).toHaveLength(1);
+    expect(wordmarkGroup.findAll('path')).toHaveLength(1);
+    // Class `fill-*` vẫn nằm trên path (không nhảy lên group) — giữ nguyên
+    // hành vi tô màu theo token như trước khi bọc group.
+    expect(markGroup.find('path').classes()).toContain('fill-brand');
+    expect(wordmarkGroup.find('path').classes()).toContain('fill-foam');
+  });
+
+  it('carries no transform attribute in the markup itself', () => {
+    // Đảo thứ tự RTL là THUẦN CSS (xem `<style scoped>`): markup luôn như nhau
+    // ở cả hai hướng — đây là điều kiện để không có hydration mismatch giữa
+    // HTML prerender và client. Nếu một ngày ai thêm attribute `transform`
+    // vào markup thì flip đã không còn là pure CSS nữa.
+    const wrapper = mount(EcomaLogo);
+
+    expect(wrapper.html()).not.toContain('transform');
+  });
+
   it('preserves the fill-rule the source artwork relies on', () => {
     // Mark có lỗ hổng kín; bỏ `fill-rule` làm nó đổ thành nét đặc.
     const wrapper = mount(EcomaLogo);
