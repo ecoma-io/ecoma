@@ -19,7 +19,13 @@ import { pactBrokerBffConfig } from '../utils/broker-config';
  * route.
  */
 export default defineEventHandler((event) => {
-  const configured = pactBrokerBffConfig(event.context.runtimeConfig) !== null;
+  // `useRuntimeConfig(event)` (auto-import của Nitro), KHÔNG phải slot
+  // `event.context.runtimeConfig`: không có middleware/plugin nào gắn slot đó
+  // trên runtime thật — đọc nó là `undefined` vĩnh viễn, readiness 503 kể cả
+  // khi Worker đã có cấu hình đầy đủ (bug sửa trong issue #240; cùng pattern
+  // `server/api/broker/*`). Truyền `event` bắt buộc: trên Workers, env được
+  // nối vào runtime config theo request qua `globalThis.__env__`.
+  const configured = pactBrokerBffConfig(useRuntimeConfig(event)) !== null;
   if (!configured) {
     setResponseStatus(event, 503);
     return { status: 'unavailable', code: 'broker_not_configured' };
