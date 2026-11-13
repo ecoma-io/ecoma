@@ -56,6 +56,7 @@
     "types": ["node"]
   },
   "files": [
+    "environment-triggers.ts",
     "index.ts",
     "lane-invocation.ts",
     "lane.ts",

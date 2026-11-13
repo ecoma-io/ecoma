@@ -21,6 +21,7 @@
     "vitest.config.ts",
     "vitest.config.mts",
     "vitest.integration.config.mts",
+    "environment-triggers.ts",
     "scripts.ts",
     "scripts.spec.ts",
     "wic-state-init.spec.ts",
