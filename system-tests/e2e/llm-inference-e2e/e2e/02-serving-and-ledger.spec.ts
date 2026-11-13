@@ -187,6 +187,16 @@ describe('serving and ledger on the lane (e/f/g/h)', () => {
       GATEWAY_DATABASE,
       `SELECT w.wallet_id FROM llm_financial.wallets w JOIN llm_financial.billing_accounts b ON b.billing_account_id = w.billing_account_id WHERE b.tenant_ref = '${CONSUMER_TENANT_ID}'`,
     );
+    // Projection wallet materialize LƯỜI ở request serving đầu tiên
+    // (`ensureWalletRow` chỉ gọi từ serving phase) — (f) phía trên là request
+    // đó, nên row wallet phải tồn tại với denomination serving duy nhất. Trên
+    // lane trình kiến (d) của spec 01 chỉ ghim hàng aggregate B1–B4.
+    expect(walletId).not.toBe('');
+    const denomination = psqlQuery(
+      GATEWAY_DATABASE,
+      `SELECT denomination FROM llm_financial.wallets WHERE wallet_id = '${walletId}'`,
+    );
+    expect(denomination).toBe('UC');
     const walletLegsNet = psqlQuery(
       GATEWAY_DATABASE,
       `SELECT COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM llm_financial.ledger_entries ` +

@@ -153,7 +153,7 @@ describe('lane bootstrap state (b/c/d)', () => {
     expect(keyHash).toMatch(/^[0-9a-f]{64}$/u);
   });
 
-  it('(d) converges sponsor funding B1-B4 with the escrow conserved at the granted amount', () => {
+  it('(d) converges sponsor funding B1-B4 with the grant credited at the granted amount', () => {
     // B1 — sponsor định danh tồn tại.
     const sponsor = psqlCount(
       GATEWAY_DATABASE,
@@ -178,55 +178,14 @@ describe('lane bootstrap state (b/c/d)', () => {
       `SELECT state, amount_minor, amount_denomination FROM llm_financial.sponsor_grants WHERE sponsor_id = '${SPONSOR_ID}' AND billing_account_id = '${billingAccount}'`,
     );
     expect(grant).toBe(`credited|${SPONSOR_GRANT_AMOUNT_MINOR}|UC`);
-
-    // Bảo toàn escrow trên wallet của account: tổng net của BA leg wallet
-    // (available + held + charged) = amount grant — tiền không mất không sinh
-    // (comment migration 0005: "per wallet available + held + charged = total").
-    // CHỈ cộng ba leg wallet và quy ước DƯƠNG là debit: posting grant thật trên
-    // lane là `wallet_available` debit = grant (tiền VÀO leg) với mirror
-    // `sponsor_funding_clearing` credit — cộng cả clearing hay đảo dấu debit/
-    // credit đều phá invariant. `funding_clearing`/`earnings_clearing` là leg
-    // kế toán kép, không thuộc escrow wallet.
-    const walletId = psqlQuery(
-      GATEWAY_DATABASE,
-      `SELECT wallet_id FROM llm_financial.wallets WHERE billing_account_id = '${billingAccount}'`,
-    );
-    expect(walletId).not.toBe('');
-    const denomination = psqlQuery(
-      GATEWAY_DATABASE,
-      `SELECT denomination FROM llm_financial.wallets WHERE wallet_id = '${walletId}'`,
-    );
-    expect(denomination).toBe('UC');
-    const walletLegsNet = psqlQuery(
-      GATEWAY_DATABASE,
-      `SELECT COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM llm_financial.ledger_entries ` +
-        `WHERE wallet_id = '${walletId}' AND account IN ('wallet_available', 'wallet_held', 'wallet_charged')`,
-    );
-    expect(walletLegsNet).toBe(SPONSOR_GRANT_AMOUNT_MINOR);
-    // Các leg KHÔNG âm và charged không vượt grant — invariant escrow khỏe
-    // ĐỘC LẬP với lịch sử serving (các run trước đã có hold/capture hợp lệ nên
-    // KHÔNG khẳng định "mọi tiền còn ở available": điều đó phụ thuộc run thứ
-    // mấy trên lane, không phải invariant).
-    const legNets = psqlQuery(
-      GATEWAY_DATABASE,
-      `SELECT ` +
-        `COALESCE(SUM(CASE WHEN account = 'wallet_available' AND direction = 'debit' THEN amount_minor WHEN account = 'wallet_available' THEN -amount_minor ELSE 0 END), 0) || '|' || ` +
-        `COALESCE(SUM(CASE WHEN account = 'wallet_held' AND direction = 'debit' THEN amount_minor WHEN account = 'wallet_held' THEN -amount_minor ELSE 0 END), 0) || '|' || ` +
-        `COALESCE(SUM(CASE WHEN account = 'wallet_charged' AND direction = 'debit' THEN amount_minor WHEN account = 'wallet_charged' THEN -amount_minor ELSE 0 END), 0) ` +
-        `FROM llm_financial.ledger_entries WHERE wallet_id = '${walletId}' AND account IN ('wallet_available', 'wallet_held', 'wallet_charged')`,
-    );
-    const legs = legNets.split('|');
-    expect(legs).toHaveLength(3);
-    for (const leg of legs) {
-      expect(BigInt(leg) >= 0n).toBe(true);
-    }
-    expect(BigInt(legs[2] ?? '0') <= BigInt(SPONSOR_GRANT_AMOUNT_MINOR)).toBe(true);
-    // Kế toán kép toàn cột: tổng net MỌI leg (kể cả clearing) = 0 — debit =
-    // credit trên toàn ledger.
-    const globalNet = psqlQuery(
-      GATEWAY_DATABASE,
-      `SELECT COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM llm_financial.ledger_entries`,
-    );
-    expect(globalNet).toBe('0');
+    // CỐT Ý chỉ ghim hàng aggregate ở đây: projection wallet + ledger
+    // (`llm_financial.wallets`, `ledger_entries`) materialize LƯỜI ở request
+    // serving ĐẦU TIÊN — `ensureWalletRow` chỉ được gọi từ serving phase
+    // (`chat-completions.ts`), bootstrap chỉ ghi aggregate (docblock
+    // `bootstrap-financial.mts`: bút toán chạy in-memory trên aggregate). Suite
+    // trên lane TRÍNH KIẾN chạy (d) trước mọi serving nên KHÔNG được đòi row
+    // wallet tại đây; escrow bảo toàn (net ba leg wallet = grant, global net =
+    // 0) được ghim ở spec serving (g) SAU kịch bản (f) — nơi projection chắc
+    // chắn đã có theo đúng contract này.
   });
 });
