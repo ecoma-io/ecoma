@@ -18,6 +18,7 @@ import {
   getAccountLocaleDefinition,
   isAccountLocale,
   parseAccountLocale,
+  type AccountLocaleDefinition,
 } from './locale-registry';
 
 describe('locale registry', () => {
@@ -38,6 +39,20 @@ describe('locale registry', () => {
     // `<html lang>`/`hreflang`. Trộn hai khái niệm là lỗi thường gặp.
     expect(getAccountLocaleDefinition('zh-CN')?.language).toBe('zh-Hans');
     expect(getAccountLocaleDefinition('zh-CN')?.code).toBe('zh-CN');
+  });
+
+  it('marks every current locale as left-to-right', () => {
+    // `dir` là thuộc tính của ngôn ngữ (một ngôn ngữ RTL tương lai như ar, he,
+    // fa… sẽ khai `'rtl'` ngay tại entry của nó), không phải lựa chọn hiển thị:
+    // mọi locale hiện có đều viết từ trái sang phải, nên một giá trị khác ở đây
+    // là lỗi khai báo registry chứ không phải hành vi hợp lệ.
+    expect(ACCOUNT_LOCALES.map((definition) => definition.dir)).toEqual(['ltr', 'ltr', 'ltr']);
+    // Pin hình dạng type: `dir` là field của `AccountLocaleDefinition` và nhận
+    // giá trị trong union `'ltr' | 'rtl'`. Vì `ACCOUNT_LOCALES` được khai kiểu
+    // `readonly AccountLocaleDefinition[]`, đọc `definition.dir` ở assertion trên
+    // chỉ biên dịch được khi chính định nghĩa type mang field này.
+    const direction: AccountLocaleDefinition['dir'] = 'ltr';
+    expect(getAccountLocaleDefinition('vi')?.dir).toBe(direction);
   });
 
   it('rejects unsupported and malformed locale values', () => {

@@ -93,6 +93,12 @@ export type AccountLocaleState = {
   readonly preferred: ComputedRef<AccountLocale>;
   /** BCP-47 cho `<html lang>` — khác `code` ở `zh-CN` (`zh-Hans`). */
   readonly language: ComputedRef<string>;
+  /**
+   * Hướng chữ của locale đang dùng — thuộc tính của **ngôn ngữ**, lấy cùng
+   * một lần tra registry với `language`. Dùng cho `<html dir>` và hướng layout
+   * của shell.
+   */
+  readonly dir: ComputedRef<AccountLocaleDefinition['dir']>;
   /** Danh sách locale cho selector, đúng thứ registry khai. */
   readonly options: Readonly<Ref<readonly AccountLocaleDefinition[]>>;
   /** `true` khi locale đến từ preference đã lưu của tài khoản. */
@@ -175,6 +181,10 @@ export function useAccountLocale(): AccountLocaleState {
     // vào điều kiện không xảy ra — nếu registry và default lệch nhau thì lỗi phải
     // hiện ra, không phải trả `undefined` làm `<html lang>` rỗng.
     language: computed(() => getAccountLocaleDefinition(preferred.value)?.language ?? 'en'),
+    // `dir` tra cùng definition ngay sau `language` ở trên: hướng chữ là thuộc
+    // tính của ngôn ngữ đã chọn. Fallback `'ltr'` chỉ để kiểu không phụ thuộc
+    // vào điều kiện không xảy ra — `preferred` đã là `AccountLocale` hợp lệ.
+    dir: computed(() => getAccountLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
     options: readonly(computed(() => ACCOUNT_LOCALES)),
     hasStoredPreference: computed(() => stored.value !== undefined),
     chooseLocal: (locale) => {
