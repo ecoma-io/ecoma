@@ -16,7 +16,7 @@
  *   ghi nhận của bước 9 là secret (plaintext key show-once).
  */
 
-import { ownershipLabels } from '@ecoma-io/deployment';
+import { dockerResourceName, ownershipLabels } from '@ecoma-io/deployment';
 
 import { NODE_IMAGE } from './superadmin-resolver.js';
 
@@ -235,6 +235,93 @@ export function extractConsumerApiKeyRecordedStdout(recordedStdout: string): str
   }
   throw new Error(
     'recorded step-9 stdout carries no ECOMA_CONSUMER_API_KEY line; the show-once plaintext was never recorded by this stack state',
+  );
+}
+
+/**
+ * Đối chứng skip-converged của entry: stack output `consumerApiKeyStdout` còn
+ * giữ plaintext KHÔNG chứng minh database còn row key tương ứng — database có
+ * thể bị reset ngoài vòng đời lane (row mất) trong khi state Pulumi giữ nguyên
+ * output cũ. Bộ ba dưới đây là phần THUẦN của guard đó (builder argv probe +
+ * parser ô count + hàm quyết định skip), để spec colocated chấm được hợp đồng
+ * mà không exec Docker/psql nào; phần impure (chạy `docker exec`) nằm ở entry
+ * `lane.ts` — đúng hình cùng cặp builder/parser phía trên.
+ */
+
+/**
+ * Database vật lý chứa schema `llm_gateway` — cùng hằng `GATEWAY_DATABASE` của
+ * suite (`system-tests/e2e/llm-inference-e2e/support/lane.mts`, nguồn cùng
+ * lane). Giá trị là provision của chính deploy unit này, không phải secret.
+ */
+export const GATEWAY_DATABASE = 'db-llm-gateway';
+
+/**
+ * Id tenant consumer canonical — hằng từng-byte cùng `CONSUMER_TENANT_ID` của
+ * `apps/llm-api/db/bootstrap-shared.mts` (runner bước 9 ghi row `api_keys` với
+ * đúng id này; không truyền giá trị xuyên DB, hai bên cùng đọc hằng trong code).
+ */
+export const CONSUMER_TENANT_ID = 'consumer-tenant-ecoma';
+
+/**
+ * SQL probe của guard skip-converged — MỘT `SELECT count(*)` chỉ đọc đếm row
+ * `api_keys` ACTIVE (`revoked_at IS NULL`) của đúng tenant consumer canonical.
+ * Hằng nội suy từ hằng id nên SQL không bao giờ mang input chưa kiểm; không có
+ * câu lệnh ghi nào trong chuỗi này.
+ */
+export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`;
+
+/**
+ * Dựng argv `docker exec` của probe row api_keys — chạy psql TRONG container
+ * PostgreSQL platform của namespace, cùng cơ chế chỉ đọc mà suite dùng
+ * (`psqlQuery` của `lane.mts`: `-tAc` trả ô thô). argv chỉ chứa tên container,
+ * flag và SQL hằng — KHÔNG có giá trị secret nào đi qua argv (row count là
+ * metadata, không phải credential). Namespace sai hình là throw — cùng luật
+ * `dockerResourceName` của lib.
+ */
+export function consumerApiKeyRowProbeArgs(namespace: string): string[] {
+  return [
+    'exec',
+    dockerResourceName(namespace, 'postgres'),
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    GATEWAY_DATABASE,
+    '-tAc',
+    CONSUMER_API_KEY_ROW_PROBE_SQL,
+  ];
+}
+
+/**
+ * Parse ô count của probe (`-tAc` in một ô, kết thúc `\n`). Số âm hoặc không
+ * phải số nguyên là hợp đồng SQL gãy — fail-closed kèm message KHÔNG ghép raw
+ * output (cùng luật không-leak của parser stdout ghi nhận phía trên).
+ */
+export function activeConsumerApiKeyRowCount(probeStdout: string): number {
+  const value = Number.parseInt(probeStdout.trim(), 10);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(
+      'the api key row probe returned a non-integer count; the SQL contract is broken',
+    );
+  }
+  return value;
+}
+
+/**
+ * Quyết định skip-converged của `up`: skip CHỈ khi đồng thời (1) stdout ghi
+ * nhận trong stack output còn mang dòng plaintext key (show-once của bước 9 —
+ * chạy `local.ts up` thêm sẽ xoay password role và thay stdout, mất plaintext)
+ * và (2) probe database thấy ÍT NHẤT MỘT row `api_keys` active của tenant
+ * consumer. Output còn mà row mất (database bị reset ngoài vòng đời) là NGHỊCH
+ * — không skip, chạy `local.ts up` đầy đủ để bootstrap phát key mới qua hợp
+ * đồng converge-on-empty của runner bước 9.
+ */
+export function shouldSkipLaneUp(
+  recordedStdout: string | undefined,
+  activeRowCount: number,
+): boolean {
+  return (
+    recordedStdout !== undefined && hasConsumerApiKeyLine(recordedStdout) && activeRowCount > 0
   );
 }
 

@@ -22,9 +22,13 @@
  * → migrate chạy lại → command bootstrap bước 9 chạy lại → stdout ghi nhận
  * (recorded stdout) bị THAY THẾ mà KHÔNG còn plaintext (runner hội tụ: key tồn
  * tại → `outcome: 'existing'` → không in plaintext — show-once). Nên khi stack
- * output `consumerApiKeyStdout` đã mang dòng `ECOMA_CONSUMER_API_KEY=` thì
- * `up` SKIP `local.ts up` nguyên vòng: giữ nguyên plaintext trong state, giữ
- * nguyên đúng-một-row api_keys, và lane thứ hai trở đi chạy nhanh.
+ * output `consumerApiKeyStdout` đã mang dòng `ECOMA_CONSUMER_API_KEY=` VÀ probe
+ * chỉ đọc (docker exec psql) còn thấy ÍT NHẤT MỘT row `api_keys` ACTIVE của
+ * tenant consumer trong db-llm-gateway thì `up` SKIP `local.ts up` nguyên vòng:
+ * giữ nguyên plaintext trong state, giữ nguyên đúng-một-row api_keys, và lane
+ * thứ hai trở đi chạy nhanh. Output còn mà row mất (database bị reset ngoài
+ * vòng đời) là nghịch — không skip, `local.ts up` chạy lại để bootstrap phát
+ * key mới qua hợp đồng converge-on-empty của runner bước 9.
  *
  * Kênh secret của entry này (luật không-leak):
  * - credential upstream: env của process docker (argv name-only) và stdin của
@@ -37,10 +41,13 @@
  * - stdout của tiến trình con `local.ts up` bị GIỮ (không forward): run tạo
  *   key in plaintext qua chuỗi pulumi → withheld, lấy lại từ stack output.
  *
- * Hạn chế đã biết: plaintext mất khi state Pulumi bị xoá mà database còn giữ
+ * Hạn chế còn lại: plaintext mất khi state Pulumi bị xoá mà database còn giữ
  * row key (runner sẽ hội tụ `existing` và không bao giờ in lại) — phục hồi bằng
  * xoá row `api_keys` hoặc `local-down` đầy đủ rồi `test-lane-up` lại. Khi đó
- * `up` fail-closed với hướng dẫn, KHÔNG đoán key.
+ * `up` fail-closed với hướng dẫn, KHÔNG đoán key. Hướng nghịch — database bị
+ * reset ngoài vòng đời (row mất) mà state còn giữ output cũ — KHÔNG còn là hạn
+ * chế: probe chỉ đọc trước khi skip phát hiện row mất và `up` tự hội tụ lại
+ * (phát key mới) thay vì báo thành công với một key đã chết.
  */
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // output DUY NHẤT của lifecycle gate (nx:run-commands gộp stdout/stderr).
@@ -66,14 +73,17 @@ import {
 // do `superadmin-resolver.ts` tách khỏi `local.ts`).
 import {
   MOCK_WAIT_BUDGET_MS,
+  activeConsumerApiKeyRowCount,
   buildLaneStateLine,
   buildMockContainerInvocation,
   buildMockWaiterInvocation,
+  consumerApiKeyRowProbeArgs,
   extractConsumerApiKeyRecordedStdout,
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
   mockUpstreamEndpointUrl,
+  shouldSkipLaneUp,
 } from './lane-invocation.js';
 
 /** Stack project của unit này — mọi lệnh pulumi config/output dùng đúng nó. */
@@ -261,6 +271,33 @@ function awaitMockReadiness(
   }
 }
 
+/**
+ * Chạy probe chỉ đọc đếm row `api_keys` ACTIVE của tenant consumer trong
+ * db-llm-gateway — `docker exec` psql trong container PostgreSQL platform, argv
+ * dựng bởi `consumerApiKeyRowProbeArgs` (SQL hằng, không secret trên argv).
+ * Fail-closed: lỗi spawn hoặc exit != 0 của docker/psql là THROW — một lỗi hạ
+ * tầng của probe KHÔNG BAO GIỜ được đọc thành "không còn row", vì chạy
+ * `local.ts up` khi key thật vẫn sống sẽ xoay password role và thay stdout ghi
+ * nhận (mất plaintext show-once của bước 9).
+ */
+function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
+  const probe = exec(
+    'docker',
+    consumerApiKeyRowProbeArgs(foundation.ctx.namespace),
+    foundation.ctx.worktreeRoot,
+    foundation.env,
+  );
+  if (probe.error !== undefined) {
+    throw new Error(`starting the api key row probe failed: ${describeSpawnFailure(probe)}`);
+  }
+  if (probe.status !== 0) {
+    throw new Error(
+      `the api key row probe failed (exit ${String(probe.status)}) — verify the postgres container of this namespace is running, then re-run (the probe is a read-only SELECT count)`,
+    );
+  }
+  return activeConsumerApiKeyRowCount(probe.stdout);
+}
+
 async function up(foundation: EntryFoundation): Promise<number> {
   // Stack phải tồn tại trước khi config get/set — lần đầu trên worktree mới
   // state dir chưa có (cùng thứ tự `prepare()` của `local.ts`).
@@ -308,13 +345,26 @@ async function up(foundation: EntryFoundation): Promise<number> {
 
   // Skip-converged: stack output đã mang plaintext key → mọi thứ hội tụ, và
   // chạy `local.ts up` thêm lần nữa CHỈ xoay password + thay stdout ghi nhận
-  // (mất plaintext) — skip nguyên vòng.
+  // (mất plaintext) — skip nguyên vòng. NHƯNG output cũ không phải bằng chứng
+  // key còn sống: database có thể bị reset ngoài vòng đời lane (row mất) trong
+  // khi state Pulumi giữ nguyên output. Trước khi skip, probe chỉ đọc đếm row
+  // `api_keys` ACTIVE của tenant consumer trong db-llm-gateway; đếm 0 là NGHỊCH
+  // — KHÔNG skip, chạy `local.ts up` đầy đủ để bootstrap phát key mới qua hợp
+  // đồng converge-on-empty của runner bước 9 (bảng còn row nhưng tất cả revoked
+  // thì runner tự fail-closed đúng hợp đồng của nó). Quyết định skip đi qua
+  // `shouldSkipLaneUp` (module thuần) — spec colocated ghim hợp đồng đó.
   const recorded = readConsumerApiKeyStackOutput(foundation);
   if (recorded !== undefined && hasConsumerApiKeyLine(recorded)) {
+    const activeRowCount = probeConsumerApiKeyRowCount(foundation);
+    if (shouldSkipLaneUp(recorded, activeRowCount)) {
+      console.error(
+        '[llm-api-deploy-lane] lane converged — skipping local.ts up (api key plaintext stays in stack state; active api_keys row verified)',
+      );
+      return 0;
+    }
     console.error(
-      '[llm-api-deploy-lane] lane converged — skipping local.ts up (api key plaintext stays in stack state)',
+      '[llm-api-deploy-lane] stack state holds the recorded api key but db-llm-gateway has no active api_keys row for the canonical consumer tenant — running local.ts up to re-converge (its stdout is withheld)',
     );
-    return 0;
   }
   console.error(
     '[llm-api-deploy-lane] running local.ts up (first lane convergence; its stdout is withheld)',

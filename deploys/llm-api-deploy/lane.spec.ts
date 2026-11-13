@@ -5,24 +5,40 @@
  * Mọi assertion về credential đi kèm FENCE: argv/script của builder không bao
  * giờ chứa GIÁ TRỊ, chỉ mang TÊN biến pass-through; message lỗi của parser
  * không bao giờ ghép raw output (chính nó là secret).
+ *
+ * Skip-guard (đối chứng skip-converged): hợp đồng "skip CHỈ khi stdout ghi
+ * nhận còn plaintext VÀ probe chỉ đọc còn thấy row api_keys active của tenant
+ * consumer" được chấm trên bộ ba thuần (`shouldSkipLaneUp`,
+ * `consumerApiKeyRowProbeArgs`, `activeConsumerApiKeyRowCount`); dây nối trong
+ * entry (`up()` gọi probe TRƯỚC khi skip) không import được nên được ghim theo
+ * NGUỒN — cùng tiền lệ `wic-state-init.spec.ts` ghim `index.ts`. Ghim nguồn
+ * KHÔNG chứng minh hành vi runtime lúc chạy thật: điều đó thuộc `test-lane-up`
+ * trên lane local, không phải spec này.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
   CONSUMER_HANDOFF_LINE_PREFIX,
+  CONSUMER_TENANT_ID,
   MOCK_BIND_HOST,
   MOCK_KIND_SEGMENT,
   MOCK_UPSTREAM_PORT,
+  activeConsumerApiKeyRowCount,
   buildLaneStateLine,
   buildMockContainerInvocation,
   buildMockHealthcheckCommand,
   buildMockWaiterInvocation,
+  consumerApiKeyRowProbeArgs,
   extractConsumerApiKeyRecordedStdout,
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
   mockUpstreamEndpointUrl,
+  shouldSkipLaneUp,
 } from './lane-invocation.js';
 
 /** Giá trị header giả chỉ dùng trong test — không phải credential thật. */
@@ -231,5 +247,112 @@ describe('buildLaneStateLine', () => {
       tenantOwnerSub: 'auth0|66f super admin',
       consumerApiKey: 'sk-test-lane-consumer-key',
     });
+  });
+});
+
+describe('shouldSkipLaneUp', () => {
+  /** Stdout ghi nhận kiểu create-run: mang dòng plaintext (giá trị giả). */
+  const recordedWithKey = `${CONSUMER_HANDOFF_LINE_PREFIX}sk-test-lane-consumer-key\n`;
+
+  it('honors the skip when the recorded stdout carries the key line and an active row exists', () => {
+    expect(shouldSkipLaneUp(recordedWithKey, 1)).toBe(true);
+  });
+
+  it('does NOT honor the skip when the recorded stdout carries the key line but no active row exists', () => {
+    // Nghịch "output còn — row mất" (database reset ngoài vòng đời lane): phải
+    // đi đường converge đầy đủ để bootstrap phát key mới, không skip trên key
+    // đã chết.
+    expect(shouldSkipLaneUp(recordedWithKey, 0)).toBe(false);
+  });
+
+  it('does not skip on the first run before any recorded stdout exists', () => {
+    expect(shouldSkipLaneUp(undefined, 1)).toBe(false);
+    expect(shouldSkipLaneUp(undefined, 0)).toBe(false);
+  });
+
+  it('does not skip when the recorded stdout lost the plaintext line (replaced stdout)', () => {
+    // Stdout ghi nhận bị thay mà không còn plaintext (runner hội tụ `existing`)
+    // — skip phải không diễn ra kể cả khi row vẫn sống.
+    expect(shouldSkipLaneUp('CONSUMER_TENANT_RESULT={"outcome":"no-op"}\n', 1)).toBe(false);
+  });
+});
+
+describe('consumerApiKeyRowProbeArgs', () => {
+  const args = consumerApiKeyRowProbeArgs(NS);
+
+  it('execs a read-only psql probe inside the namespace postgres container', () => {
+    expect(args[0]).toBe('exec');
+    expect(args[1]).toBe(`ecoma-${NS}-postgres`);
+    expect(args.slice(2)).toEqual([
+      'psql',
+      '-U',
+      'ecoma_local',
+      '-d',
+      'db-llm-gateway',
+      '-tAc',
+      expect.stringContaining('SELECT count(*)'),
+    ]);
+  });
+
+  it('counts active api_keys rows of the canonical consumer tenant only', () => {
+    const sql = args[args.indexOf('-tAc') + 1];
+    expect(sql).toBe(
+      `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`,
+    );
+    expect(sql).not.toMatch(/INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE/iu);
+  });
+
+  it('rejects a namespace that is not a Docker-safe name', () => {
+    expect(() => consumerApiKeyRowProbeArgs('W_UPPER')).toThrow(/invalid namespace/u);
+  });
+});
+
+describe('activeConsumerApiKeyRowCount', () => {
+  it('parses the single count cell of a psql -tAc output', () => {
+    expect(activeConsumerApiKeyRowCount('1\n')).toBe(1);
+    expect(activeConsumerApiKeyRowCount('0\n')).toBe(0);
+    expect(activeConsumerApiKeyRowCount('42')).toBe(42);
+  });
+
+  it('fails closed on a non-integer cell without echoing the raw output', () => {
+    // Ô count không phải secret nhưng luật parser là MỘT: message mô tả hợp
+    // đồng, không ghép raw output (raw có thể là stderr chen vào stdout).
+    let message = '';
+    try {
+      activeConsumerApiKeyRowCount('not-a-count SECRET-MARKER-VALUE\n');
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('non-integer');
+    expect(message).not.toContain('SECRET-MARKER-VALUE');
+  });
+});
+
+describe('lane entry source contract (skip guard wiring)', () => {
+  // Entry `lane.ts` tự chạy `main()` lúc load nên spec không import được — dây
+  // nối guard được ghim theo NGUỒN (tiền lệ `wic-state-init.spec.ts`). Marker
+  // fail tường minh khi biến mất thay vì để assert sau chạy trên chuỗi rỗng.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(join(here, 'lane.ts'), 'utf8');
+
+  function sliceBetween(startMarker: string, endMarker: string): string {
+    const start = source.indexOf(startMarker);
+    expect(start, `source marker not found: ${startMarker}`).toBeGreaterThanOrEqual(0);
+    const end = source.indexOf(endMarker, start);
+    expect(end, `source marker not found: ${endMarker}`).toBeGreaterThan(start);
+    return source.slice(start, end + endMarker.length);
+  }
+
+  it('runs the api key row probe before honoring the skip in up()', () => {
+    // Đoạn skip-converged của `up()`: từ lần đọc output ĐẦU TIÊN tới `return 0`
+    // ĐẦU TIÊN (đường skip). `state()` cũng chứa marker mở nhưng `indexOf`
+    // chạm phần `up()` trước — thứ tự khai báo của file ghim điều đó.
+    const skipBlock = sliceBetween(
+      'const recorded = readConsumerApiKeyStackOutput(foundation);',
+      'return 0;',
+    );
+    expect(skipBlock).toContain('hasConsumerApiKeyLine(recorded)');
+    expect(skipBlock).toContain('probeConsumerApiKeyRowCount(foundation)');
+    expect(skipBlock).toContain('shouldSkipLaneUp(recorded, activeRowCount)');
   });
 });
