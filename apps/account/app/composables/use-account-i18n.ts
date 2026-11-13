@@ -18,14 +18,18 @@ import { useAccountLocale } from './use-account-locale';
  * ⚠️ `<html lang>` lấy `language` (BCP-47) chứ không lấy `code`. Ở `zh-CN` hai
  * cái khác nhau: `lang="zh-CN"` vẫn hợp lệ về cú pháp, nhưng screen reader và
  * công cụ dịch đọc nó là một biến thể khác với `zh-Hans` mà catalog này viết.
+ *
+ * `<html dir>` lấy `dir` từ cùng definition của registry với `language`: hướng
+ * chữ là thuộc tính của ngôn ngữ, nên hai thuộc tính đổi cùng lúc qua cùng một
+ * `useHead` và không bao giờ lệch nhau.
  */
 export function useAccountI18n(): void {
   const i18n = useI18n();
-  const { preferred, language } = useAccountLocale();
+  const { preferred, language, dir } = useAccountLocale();
 
   watchEffect(() => {
     i18n.locale.value = preferred.value;
   });
 
-  useHead({ htmlAttrs: { lang: language } });
+  useHead({ htmlAttrs: { lang: language, dir } });
 }

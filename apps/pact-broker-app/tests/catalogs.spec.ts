@@ -63,6 +63,17 @@ describe('pact-broker-app catalog parity', () => {
     ]);
   });
 
+  it('derives text direction from the locale itself, not a user setting', () => {
+    // `dir` là thuộc tính của ngôn ngữ (issue #213): mọi locale hiện tại đều
+    // `'ltr'`, và một ngôn ngữ RTL sau này khai `'rtl'` ngay tại entry của nó —
+    // cùng nguồn sự thật với `language`, không phải lựa chọn người dùng.
+    expect(PACT_BROKER_LOCALE_DEFINITIONS.map((definition) => definition.dir)).toEqual([
+      'ltr',
+      'ltr',
+      'ltr',
+    ]);
+  });
+
   for (const [locale, catalog] of Object.entries(CATALOGS)) {
     it(`${locale} has exactly the same keys as en (both directions)`, () => {
       const keys = flattenKeys(catalog);

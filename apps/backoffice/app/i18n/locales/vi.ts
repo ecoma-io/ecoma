@@ -1,10 +1,10 @@
 /**
  * Message catalog tiếng Việt — **bản dịch**, không phải nguồn key.
  *
- * Cùng tập key với `en.ts`; kiểm bằng `catalogs.spec.ts` (colocated cạnh file này). Nhóm `shell` và
- * `shell.search` dịch chuỗi mà library sinh mặc định cho hai app không i18n,
- * nên người dùng tiếng Việt thấy đúng bảng tuỳ chỉnh / ô tìm kiếm mà llm-console
- * và llm-seller hiện bằng tiếng Anh.
+ * Cùng tập key với `en.ts`; kiểm bằng `catalogs.spec.ts` (colocated cạnh file này). Nhóm `shell.colorMode`
+ * và `shell.search` dịch chuỗi mà library sinh mặc định cho hai app không i18n,
+ * nên người dùng tiếng Việt thấy đúng nút đổi chế độ màu / ô tìm kiếm mà
+ * llm-console và llm-seller hiện bằng tiếng Anh.
  */
 import type { BackofficeMessages } from './messages';
 
@@ -26,15 +26,11 @@ const vi: BackofficeMessages = {
       dialogDescription: 'Tìm một lệnh để chạy...',
     },
 
-    settings: {
-      title: 'Cài đặt',
-      description: 'Tuỳ chỉnh và xem trước theo thời gian thực',
-      theming: 'Bảng màu',
-      layout: 'Bố cục',
-      color: 'Màu chủ đạo',
-      direction: 'Chiều văn bản',
-      directionLtr: 'Trái sang phải',
-      directionRtl: 'Phải sang trái',
+    colorMode: {
+      label: 'Chế độ màu',
+      light: 'Sáng',
+      dark: 'Tối',
+      system: 'Hệ thống',
     },
 
     language: {

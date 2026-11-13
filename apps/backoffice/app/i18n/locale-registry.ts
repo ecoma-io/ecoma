@@ -19,12 +19,12 @@
  * không có dấu hiệu nào báo — `lang="zh-CN"` vẫn render bình thường.
  */
 export const BACKOFFICE_LOCALE_DEFINITIONS = [
-  { code: 'en', language: 'en', label: 'English' },
-  { code: 'vi', language: 'vi', label: 'Tiếng Việt' },
+  { code: 'en', language: 'en', label: 'English', dir: 'ltr' },
+  { code: 'vi', language: 'vi', label: 'Tiếng Việt', dir: 'ltr' },
   // Nhãn cố ý là chữ Hán giản thể bất kể locale đang chọn: người dùng đang tìm
   // ngôn ngữ của mình trong danh sách này, nên mỗi mục tự hiển thị bằng chính
   // ngôn ngữ đó — dịch nhãn "简体中文" theo locale hiện tại làm nó khó nhận ra.
-  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文' },
+  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文', dir: 'ltr' },
 ] as const;
 
 /** Locale code hợp lệ — union **suy ra** từ registry, không viết tay. */
@@ -37,6 +37,15 @@ export type BackofficeLocaleDefinition = {
   readonly language: string;
   /** Nhãn hiển thị trong language selector. */
   readonly label: string;
+  /**
+   * Hướng chữ của ngôn ngữ, dùng cho `<html dir>` và prop `dir` của shell
+   * (issue #213). Đây là thuộc tính của **ngôn ngữ nội dung**, không phải lựa
+   * chọn hiển thị của người dùng: thêm một ngôn ngữ viết từ phải sang trái
+   * (ar, he, fa…) thì khai `'rtl'` ngay tại entry của nó, và `dir` theo đúng
+   * nguồn sự thật với `language` — cùng một definition của registry. Mọi locale
+   * hiện tại đều `'ltr'`.
+   */
+  readonly dir: 'ltr' | 'rtl';
 };
 
 /**

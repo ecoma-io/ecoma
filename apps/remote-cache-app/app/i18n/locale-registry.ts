@@ -17,14 +17,20 @@
  * cú pháp, nhưng screen reader và công cụ dịch cần `zh-Hans` để hiểu đúng biến
  * thể chữ Hán giản thể mà catalog này viết. Trộn hai khái niệm là lỗi thường
  * gặp và không có dấu hiệu nào báo — `lang="zh-CN"` vẫn render bình thường.
+ *
+ * ⚠️ **`dir` là thuộc tính của ngôn ngữ, không phải lựa chọn người dùng** (issue
+ * #213): chiều văn bản của `<html>` suy ra từ chính khai báo locale — ngôn ngữ
+ * dùng hệ chữ RTL (`ar`, `he`, `fa`, `ur`…) khai `'rtl'`, còn lại `'ltr'`. Ba
+ * locale hiện tại đều `'ltr'`. Đây là cùng nguồn với `<html lang>`, nên shell
+ * không có đường nào đổi `dir` và app không có setting LTR/RTL nào.
  */
 export const REMOTE_CACHE_APP_LOCALE_DEFINITIONS = [
-  { code: 'en', language: 'en', label: 'English' },
-  { code: 'vi', language: 'vi', label: 'Tiếng Việt' },
+  { code: 'en', language: 'en', dir: 'ltr', label: 'English' },
+  { code: 'vi', language: 'vi', dir: 'ltr', label: 'Tiếng Việt' },
   // Nhãn cố ý là chữ Hán giản thể bất kể locale đang chọn: người dùng đang tìm
   // ngôn ngữ của mình trong danh sách này, nên mỗi mục tự hiển thị bằng chính
   // ngôn ngữ đó — dịch nhãn "简体中文" theo locale hiện tại làm nó khó nhận ra.
-  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文' },
+  { code: 'zh-CN', language: 'zh-Hans', dir: 'ltr', label: '简体中文' },
 ] as const;
 
 /** Locale code hợp lệ — union **suy ra** từ registry, không viết tay. */
@@ -35,6 +41,13 @@ export type RemoteCacheAppLocaleDefinition = {
   readonly code: RemoteCacheAppLocale;
   /** BCP-47 language tag cho `<html lang>`/`hreflang` — **khác** `code`. */
   readonly language: string;
+  /**
+   * Chiều văn bản của locale — cho `<html dir>` và prop `dir` của `AppShell`.
+   * Kiểu trùng literal union `AppShellDirection` của `@ecoma-io/ui-app-shell`
+   * nhưng khai độc lập: registry là data thuần của app, không import library
+   * (file này được `nuxt.config.ts` đọc lúc build, trước cả khi alias có ý nghĩa).
+   */
+  readonly dir: 'ltr' | 'rtl';
   /** Nhãn hiển thị trong language selector. */
   readonly label: string;
 };

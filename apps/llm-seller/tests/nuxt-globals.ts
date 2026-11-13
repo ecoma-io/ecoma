@@ -109,11 +109,12 @@ export const useState = <T>(key?: string, init?: () => T): Ref<T> => {
 
 /**
  * `useCookie` của Nuxt trả một `Ref` phản ứng được, và app dựa vào đúng tính đó:
- * `app.vue` đọc cookie trong một `computed` (`preferences`) rồi ghi lại trong
- * `updatePreferences()`. Trả một object thường với getter/setter trên `Map` sẽ
+ * `app.vue` đọc cookie trong một `computed` (`colorMode`) rồi ghi lại trong
+ * `setColorMode()`. Trả một object thường với getter/setter trên `Map` sẽ
  * khiến `computed` cache lần đọc đầu và **không bao giờ** invalidate — đổi
- * theme/direction qua shell không cập nhật DOM lẫn `<html lang>`, và test xanh
- * nhầm. Ref thật trong map giữ hợp đồng của Nuxt: cùng key, cùng ref, reactive.
+ * color mode qua toggle không cập nhật trạng thái nút lẫn cookie cho lần đọc
+ * sau, và test xanh nhầm. Ref thật trong map giữ hợp đồng của Nuxt: cùng key,
+ * cùng ref, reactive.
  *
  * ⚠️ Khác Nuxt ở hai điểm, có chủ ý: bỏ qua `options` (trừ `default`, dùng làm giá
  * trị đầu) và không mã hoá/giải mã `encode`/`decode` — cookie ở đây là state
@@ -149,7 +150,7 @@ function resolveHeadInput(input: HeadInput): Record<string, unknown> {
 
 /**
  * `useHead` của Nuxt nhận **object hoặc hàm trả object**, và app dùng dạng hàm
- * (`app.vue`: `useHead(() => ({ htmlAttrs, bodyAttrs }))`). Bản giả chỉ nhận object
+ * (`app.vue`: `useHead(() => ({ htmlAttrs, script }))`). Bản giả chỉ nhận object
  * phẳng sẽ trải một hàm ra thành `{}` — không ném lỗi, chỉ ghi sai — nên test khẳng
  * định `<html lang>` sẽ đọc object rỗng và xanh/đỏ vì lý do sai.
  *
@@ -188,7 +189,7 @@ export function documentHead(): Record<string, unknown> {
   );
 }
 
-/** `htmlAttrs` mà app đặt cho `<html>` — nơi `lang` được khai. */
+/** `htmlAttrs` mà app đặt cho `<html>` — nơi `lang`/`dir` được khai. */
 export function headHtmlAttrs(): Record<string, unknown> {
   return (documentHead()['htmlAttrs'] as Record<string, unknown> | undefined) ?? {};
 }

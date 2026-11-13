@@ -77,7 +77,7 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
-    // `DrawerRoot` của `vaul-vue` (qua `AppShellSettingsPanel` → `AppShell` →
+    // `DrawerRoot` của `vaul-vue` (qua primitive `Drawer` của shell → `AppShell` →
     // `app.vue`) đăng ký một `setTimeout(…, 200)` chạm `document.body` bên trong
     // một `watchEffect` và "dọn" nó bằng cách **return** cleanup từ callback.
     // Vue chỉ nhận cleanup qua tham số `onCleanup` của `watchEffect` — giá trị

@@ -14,8 +14,8 @@ Nx project `@ecoma-io/remote-cache-app`, tags `type:composition`, `scope:remote-
 ## Responsibilities
 
 - **Shell dashboard**: sidebar/nav từ `AppShell` của `@ecoma-io/ui-app-shell`, trang Overview `/` (`app/pages/index.vue`), component empty/loading/error (`app/components/`).
-- **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`.
-- **Tuỳ chọn shell** (màu, chiều): cookie `app-shell-preferences`, validate qua `parseAppShellPreferences()` của shell lib.
+- **Đa ngôn ngữ** en / vi / zh-CN: registry locale (`app/i18n/locale-registry.ts`), language selector, lựa chọn lưu qua cookie; `@nuxtjs/i18n` với strategy `no_prefix`. Chiều văn bản (`<html dir>`, prop `dir` của shell) suy ra từ registry của locale đang chọn — thuộc tính của ngôn ngữ, không phải lựa chọn người dùng (issue #213).
+- **Color mode** (light/dark/system): lựa chọn người dùng duy nhất của shell, lưu qua cookie `app_shell_color_mode`, validate qua `parseAppShellColorMode()` của shell lib; class `dark` trên `<html>` do script bootstrap (`APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT`, chèn tĩnh vào `app.head` trong `nuxt.config.ts`) quyết định trước first paint, Vue/unhead không quản lý class này.
 - **Health/readiness**: `/health` liveness không phụ thuộc dịch vụ nào; `/ready` trả `{ status: 'ready' }`, và `nuxt.config.ts` không khai `runtimeConfig` — khi một phụ thuộc cấu hình thật được đưa vào, route phải fail closed với 503 + mã ổn định.
 - `wrangler.jsonc` khai `assets.run_worker_first` cho `/api/*`, `/health`, `/ready` để các nhóm này tới handler Nitro thay vì asset worker.
 

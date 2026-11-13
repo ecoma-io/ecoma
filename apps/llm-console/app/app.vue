@@ -1,11 +1,12 @@
 <template>
   <AppShell
-    :preferences="preferences"
+    :dir="dir"
+    :color-mode="colorMode"
     :nav="nav"
     :current-path="route.path"
     :home-label="homeLabel"
     :labels="shellLabels"
-    @update:preferences="updatePreferences"
+    @update:color-mode="setColorMode"
   >
     <template #brand>
       <NuxtLink to="/" class="flex items-center gap-2 px-1">
@@ -14,6 +15,7 @@
     </template>
     <template #actions>
       <LlmConsoleLanguageSelect />
+      <AppShellColorModeToggle />
     </template>
     <NuxtPage />
   </AppShell>
@@ -21,13 +23,12 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_PREFERENCES_COOKIE,
+  APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
-  DEFAULT_APP_SHELL_PREFERENCES,
-  appShellHeadAttributes,
-  parseAppShellPreferences,
+  AppShellColorModeToggle,
+  parseAppShellColorMode,
+  type AppShellColorMode,
   type AppShellNavSection,
-  type AppShellPreferences,
 } from '@ecoma-io/ui-app-shell';
 import { EcomaLogo } from '@ecoma-io/ui-ecoma-logo';
 import { useI18n } from '#i18n';
@@ -42,27 +43,33 @@ const { t } = useI18n();
 // Nơi DUY NHẤT ghi `locale` của composer — xem `use-llm-console-i18n.ts`.
 // Không có lệnh gọi này thì language selector chỉ đổi `<html lang>` và cookie,
 // còn toàn bộ văn bản vẫn nằm ở `DEFAULT_LLM_CONSOLE_LOCALE`.
-const { language } = useLlmConsoleI18n();
+const { language, dir } = useLlmConsoleI18n();
 
-// Nguồn duy nhất của cấu hình shell là cookie này.
-const shellCookie = useCookie<AppShellPreferences>(APP_SHELL_PREFERENCES_COOKIE, {
-  default: () => DEFAULT_APP_SHELL_PREFERENCES,
-});
+// Nguồn duy nhất của cấu hình shell là cookie này. Sau issue #213 nó chỉ còn
+// chứa **một** lựa chọn của người dùng — chế độ màu; `dir` không nằm ở đây vì
+// hướng chữ là thuộc tính của ngôn ngữ, suy ra từ registry locale.
+const colorModeCookie = useCookie<string>(APP_SHELL_COLOR_MODE_COOKIE);
 
-// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library trước khi render.
-const preferences = computed(() => parseAppShellPreferences(shellCookie.value));
+// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library
+// trước khi render — giá trị lạ rơi về `system` thay vì render trạng thái vô nghĩa.
+const colorMode = computed(() => parseAppShellColorMode(colorModeCookie.value));
 
-function updatePreferences(next: AppShellPreferences): void {
-  shellCookie.value = next;
+function setColorMode(next: AppShellColorMode): void {
+  colorModeCookie.value = next;
 }
 
-// Gộp lang + htmlAttrs(bodyAttrs từ shell) vào một useHead duy nhất.
+// useHead chỉ đăng ký `lang`/`dir` của `<html>`: hai thuộc tính của cùng ngôn
+// ngữ, cùng tra từ definition của locale đang dùng trong registry (xem
+// `use-llm-console-i18n.ts`). Script bootstrap của color mode **không** nằm ở
+// đây — app chạy `ssr: false`, nên `useHead` chỉ áp dụng sau khi bundle mount,
+// quá muộn so với first paint; script được chèn tĩnh vào `app.head` trong
+// `nuxt.config.ts`, render thẳng vào HTML shell lúc build. Vue và unhead cũng
+// **không** quản lý class `dark` — không có `class` trong `htmlAttrs`, không có
+// `bodyAttrs` nào ở đây — nên hydration không bao giờ hoàn tác giá trị mà script
+// đã đặt.
 useHead(() => {
-  const { htmlAttrs, bodyAttrs } = appShellHeadAttributes(preferences.value);
-
   return {
-    htmlAttrs: { lang: language.value, ...htmlAttrs },
-    bodyAttrs,
+    htmlAttrs: { lang: language.value, dir: dir.value },
   };
 });
 

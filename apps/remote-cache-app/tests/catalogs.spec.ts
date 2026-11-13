@@ -68,6 +68,18 @@ describe('remote-cache-app catalog parity', () => {
     ]);
   });
 
+  it('declares the text direction of every locale in the registry', () => {
+    // `dir` là thuộc tính của ngôn ngữ (issue #213), khai ngay tại registry —
+    // cùng nguồn với `<html lang>`. Cả ba locale hiện tại đều `'ltr'`; một locale
+    // RTL (`ar`, `he`, `fa`…) thêm sau này phải khai `'rtl'` ngay tại đây, và
+    // không có setting người dùng nào đổi được giá trị này.
+    expect(REMOTE_CACHE_APP_LOCALE_DEFINITIONS.map((definition) => definition.dir)).toEqual([
+      'ltr',
+      'ltr',
+      'ltr',
+    ]);
+  });
+
   for (const [locale, catalog] of Object.entries(CATALOGS)) {
     it(`${locale} has exactly the same keys as en (both directions)`, () => {
       const keys = flattenKeys(catalog);
@@ -156,9 +168,12 @@ describe('remote-cache-app catalog coverage of app usage', () => {
 
   it('finds the keys the app actually calls', () => {
     // Chống test rỗng: regex hỏng thì `usedKeys` rỗng và mọi khẳng định dưới
-    // đây tự động xanh mà không kiểm gì. Ba key dưới đây đến từ ba bề mặt khác
-    // nhau của app — page, nav của shell, và language selector.
-    expect(usedKeys.size).toBeGreaterThanOrEqual(20);
+    // đây tự động xanh mà không kiểm gì. Sàn thấp hơn số key tĩnh hiện tại
+    // một khoảng đủ để regex hỏng cục bộ vẫn đỏ — số key giảm có chủ đích khi
+    // bảng settings (8 key) được thay bằng color mode (4 key), issue #213. Ba
+    // key dưới đây đến từ ba bề mặt khác nhau của app — page, nav của shell,
+    // và language selector.
+    expect(usedKeys.size).toBeGreaterThanOrEqual(16);
     expect([...usedKeys]).toContain('overview.title');
     expect([...usedKeys]).toContain('nav.overview');
     expect([...usedKeys]).toContain('shell.language.label');
