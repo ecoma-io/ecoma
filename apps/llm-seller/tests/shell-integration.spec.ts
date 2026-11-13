@@ -40,11 +40,20 @@ describe('lang and dir on <html> are owned by the app', () => {
 });
 
 describe('color mode contract', () => {
-  it('injects the bootstrap script that decides the dark class before first paint', () => {
-    const returned = firstReturnedObject(APP_VUE_SOURCE);
-    expect(returned).toMatch(/script\s*:/u);
-    expect(APP_VUE_CODE).toMatch(/APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT/u);
-    expect(APP_VUE_CODE).toMatch(/textContent\s*:\s*APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT/u);
+  it('injects the bootstrap script only through the static nuxt.config app.head', () => {
+    // App chạy `ssr: false`: `useHead` chỉ áp dụng sau mount, nên script phải
+    // là entry **tĩnh** trong `app.head` của `nuxt.config.ts` — render thẳng
+    // vào HTML shell lúc build, chạy lúc parse trước first paint. Ghim theo
+    // source: biểu thức chính xác `innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_
+    // SCRIPT` cùng dòng import subpath của library — tên hằng được typecheck
+    // kiểm, nên hai phía không thể lệch nhau.
+    const nuxtConfig = readFileSync(resolve(import.meta.dirname, '../nuxt.config.ts'), 'utf8');
+    expect(nuxtConfig).toContain("from '@ecoma-io/ui-app-shell/lib/color-mode'");
+    expect(nuxtConfig).toContain('innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT');
+
+    // Và `useHead` của app.vue không đăng ký script nào — một script qua
+    // useHead chỉ xuất hiện sau mount, tạo cảm giác đã bảo vệ mà thực ra không.
+    expect(APP_VUE_CODE).not.toMatch(/\bscript\s*:/u);
   });
 
   it('never lets unhead manage the dark class', () => {

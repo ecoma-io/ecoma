@@ -23,7 +23,6 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
   APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
   AppShellColorModeToggle,
@@ -59,16 +58,17 @@ function setColorMode(next: AppShellColorMode): void {
   colorModeCookie.value = next;
 }
 
-// Gộp lang + dir + script bootstrap color mode vào một useHead duy nhất.
-//
-// Script nằm trong `<head>` quyết định class `dark` trên `<html>` TRƯỚC first
-// paint; unhead cố ý KHÔNG quản lý class này — không có `class` nào trong
-// `htmlAttrs` (invariant mới của issue #213): render Vue không đọc môi trường,
-// nên hydration không bao giờ dispute với script.
+// useHead chỉ đăng ký `lang` + `dir` của `<html>`. Script bootstrap của color
+// mode **không** nằm ở đây — app chạy `ssr: false`, nên `useHead` chỉ áp dụng
+// sau khi bundle mount, quá muộn so với first paint; script được chèn tĩnh
+// vào `app.head` trong `nuxt.config.ts`, render thẳng vào HTML shell lúc build
+// và quyết định class `dark` TRƯỚC first paint. Unhead cũng cố ý KHÔNG quản lý
+// class này — không có `class` nào trong `htmlAttrs` (invariant mới của issue
+// #213): render Vue không đọc môi trường, nên hydration không bao giờ dispute
+// với script.
 useHead(() => {
   return {
     htmlAttrs: { lang: language.value, dir: dir.value },
-    script: [{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
   };
 });
 
