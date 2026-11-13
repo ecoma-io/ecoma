@@ -30,10 +30,12 @@ import {
 
 /**
  * Tập bảng user của db-llm-gateway: `llm_seller` của bootstrap Issue #23, cộng
- * schema `llm_gateway` của bước 9 và schema `llm_financial` của bước 10 (Issue
- * #24). Ba schema cùng có một bảng tên `bootstrap_audit` —
+ * schema `llm_gateway` của bước 9, schema `llm_financial` của bước 10 (Issue
+ * #24), và serving slice P4 (Issue #24) thêm pricing snapshot vào `llm_seller`,
+ * quota/journal vào `llm_gateway`, projection wallet/ledger vào
+ * `llm_financial`. Bốn schema cùng có một bảng tên `bootstrap_audit` —
  * `information_schema.tables` trả từng row và danh sách kỳ vọng liệt kê tương
- * ứng (ba entry trùng tên, một cho mỗi schema).
+ * ứng (bốn entry trùng tên, một cho mỗi schema).
  */
 const GATEWAY_TABLES: readonly string[] = [
   'seller_tenants',
@@ -54,6 +56,16 @@ const GATEWAY_TABLES: readonly string[] = [
   'sponsor_funding_authorizations',
   'sponsor_grants',
   'bootstrap_audit',
+  'pricing_snapshots',
+  'tenant_quota',
+  'quota_reservations',
+  'logical_requests',
+  'attempts',
+  'wallets',
+  'ledger_transactions',
+  'ledger_entries',
+  'financial_reservations',
+  'customer_charges',
 ];
 
 /** Tập bảng nghiệp vụ `llm_tenant` của bước 9 (Issue #24) trên db-llm-tenant. */
@@ -164,7 +176,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     // catalog: snapshot `information_schema.tables` trước và sau phải bằng nhau.
     const before = await countUserTables('gateway');
     const result = await runApplyCli('gateway', migratorUrl('gateway', db.host, db.port));
-    expect(result.stdout).toContain('done     4 file(s) applied');
+    expect(result.stdout).toContain('done     5 file(s) applied');
     const after = await countUserTables('gateway');
     expect(after).toBe(before);
   });
@@ -178,15 +190,16 @@ describe('llm-api migration runner on real PostgreSQL', () => {
       runApplyCli('gateway', url),
       runApplyCli('gateway', url),
     ]);
-    expect(first.stdout).toContain('done     4 file(s) applied');
-    expect(second.stdout).toContain('done     4 file(s) applied');
+    expect(first.stdout).toContain('done     5 file(s) applied');
+    expect(second.stdout).toContain('done     5 file(s) applied');
     expect(await countUserTables('gateway')).toBe(GATEWAY_TABLES.length);
   });
 
-  it('creates exactly the business tables of each domain slice (gateway 11 seller + 2 gateway-runtime + 5 financial, tenant 3, marketplace 5 offering)', async () => {
+  it('creates exactly the business tables of each domain slice (gateway 11 seller + 5 gateway-runtime + 9 financial, tenant 3, marketplace 5 offering)', async () => {
     // Gateway: đúng tập bảng `llm_seller` của Issue #23 + `llm_gateway` của
-    // bước 9 + `llm_financial` của bước 10 (Issue #24) — không bảng lạ; ba
-    // `bootstrap_audit` là ba bảng của ba schema khác nhau cùng tên.
+    // bước 9 + `llm_financial` của bước 10 + serving slice P4 (Issue #24) —
+    // không bảng lạ; ba `bootstrap_audit` là ba bảng của ba schema khác nhau
+    // cùng tên.
     expect(await listUserTables('gateway')).toEqual([...GATEWAY_TABLES].toSorted());
     // Tenant: đúng tập bảng `llm_tenant` của bước 9 (Issue #24) — không bảng lạ.
     expect(await listUserTables('tenant')).toEqual([...TENANT_TABLES].toSorted());
