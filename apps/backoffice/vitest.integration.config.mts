@@ -2,8 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * Config của target `test-integration` — suite app-owned dưới `tests/` phân loại
- * theo thư mục mục đích (`tests/integrations/`, `tests/databases/`; 06-testing.md
- * §2, §4: `test-integration` = toàn bộ app-owned suite).
+ * theo thư mục mục đích (`tests/integrations/`, `tests/databases/`, `tests/browser/`;
+ * 06-testing.md §2, §4: `test-integration` = toàn bộ app-owned suite).
  *
  * ⚠️ Cần file config RIÊNG thay vì dùng lại `vitest.config.mts` kèm path filter:
  * `vitest run <filter>` chỉ chọn được file mà `include` khớp, nên gỡ suite
@@ -15,6 +15,18 @@ import { defineConfig } from 'vitest/config';
  * component nên không cần jsdom), không `setupFiles` (bridge Nuxt của `tests/`
  * phục vụ unit tier), và có `globalSetup` probe Docker một lần mỗi lần chạy -
  * vắng Docker là probe NÉM, toàn bộ lần chạy đỏ (fail-loud, 06-testing.md §6).
+ *
+ * ⚠️ `tests/browser/**` nằm trong include nhưng **không** do vitest chạy: suite
+ * Playwright có runner riêng (`@playwright/test` gọi `test()` ngoài runner của
+ * nó là ném ngay), target `test-integration` chạy nó qua hai lệnh
+ * `playwright test` riêng (xem `package.json`). Include vẫn phải khai đủ mọi
+ * purpose dir vì hợp đồng của `pnpm dx arch-check` (`integration-config-missing-dir`):
+ * một purpose dir thiếu trong include là "suite mồ côi" - không suite nào được
+ * phép tồn tại trên đĩa mà target không nhìn thấy. Lệnh vitest của target truyền
+ * path filter tường minh (`tests/integrations tests/databases`), nên file
+ * Playwright không bao giờ rơi vào lane vitest; chạy config này KHÔNG filter thì
+ * Playwright specs được thu thập và ném lỗi "Playwright Test did not expect
+ * test() to be called here" - đỏ rõ nguyên nhân thay vì bỏ im.
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,
@@ -27,6 +39,9 @@ export default defineConfig(() => ({
     include: [
       'tests/integrations/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'tests/databases/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // Không do vitest chạy — runner Playwright sở hữu suite này; khai đủ
+      // purpose dir theo hợp đồng arch-check, xem JSDoc phía trên.
+      'tests/browser/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     // Không có spec nào khớp include là LỖI, không phải pass: "không test nào
     // chạy" phải đỏ để việc đổi đường dẫn suite không làm target chạy rỗng.
