@@ -21,7 +21,7 @@
 | `staff-access` | Entitlement product-level availability của nhân sự   | **Deferred cho MVP**: `remote-cache` dùng API key riêng; khi tích hợp thì chỉ qua entitlement event (ADR-0009) — không sync-call, không authorization-result contract                                                          |
 | `backoffice`   | Composition/UI + BFF                                 | Không tiêu thụ control-plane API của `remote-cache` — consumer duy nhất là portal `remote-cache-app` qua BFF + private service binding (quyết định [#177](https://github.com/ecoma-io/ecoma/issues/177)) — không chạm database |
 
-Enforcement authorization bên trong `remote-cache` resolve từ principal — API key ở data plane và portal; principal của con người trên control plane là quyết định còn mở (§4 của [`domain-model.md`](./domain-model.md)) — và dữ liệu của chính nó: **catalog govern / backend enforce** giữ nguyên hình dạng chung của hệ thống.
+Enforcement authorization bên trong `remote-cache` resolve từ principal — API key ở data plane; principal của con người trên control plane (portal) là quyết định còn mở (§4 của [`domain-model.md`](./domain-model.md)) — và dữ liệu của chính nó: **catalog govern / backend enforce** giữ nguyên hình dạng chung của hệ thống.
 
 ## 3. Ownership và storage
 
