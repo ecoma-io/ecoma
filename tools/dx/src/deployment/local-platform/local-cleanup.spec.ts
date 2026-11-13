@@ -481,6 +481,117 @@ describe('runLocalCleanup', () => {
     expect(report.errors).toEqual([]);
   });
 
+  it('LLM upstream mock orphan container is identified and removed', () => {
+    // Container mock upstream của lane E2E llm-api-deploy (#187): tên qua
+    // `dockerResourceName(ns, 'llm-upstream-mock')`, chỉ container (không
+    // volume/image riêng). Thiếu kind trong `CLEANUP_KINDS` thì orphan mock
+    // sống sót qua mọi lần `local-cleanup` — đúng hiện trạng #187 ghi nhận.
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(docker.removed).toEqual([`container/ecoma-${ns}-llm-upstream-mock`]);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('removed');
+    expect(report.errors).toEqual([]);
+  });
+
+  it('LLM upstream mock container of a live worktree is kept', () => {
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: (p) => (p === wt ? 'present' : 'absent'),
+    });
+    expect(docker.removed).toHaveLength(0);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('kept');
+    expect(report.errors).toEqual([]);
+  });
+
+  it('LLM upstream mock orphan is reported would-remove in dry-run without any rm', () => {
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: true,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(docker.removed).toHaveLength(0);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('would-remove');
+    expect(entry?.name).toBe(`ecoma-${ns}-llm-upstream-mock`);
+  });
+
+  it('unlabeled LLM upstream mock-shaped container is skipped like any other resource', () => {
+    // Mock KHÔNG được special-case: thiếu labels ownership thì vẫn outside DX
+    // management dù tên shape đúng `ecoma-<ns>-llm-upstream-mock` — cùng luật
+    // chung với test unlabeled `-home`/`-network` ở trên.
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', ['ecoma-w000000000001-llm-upstream-mock']],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([['container/ecoma-w000000000001-llm-upstream-mock', {}]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(docker.removed).toHaveLength(0);
+    const entry = report.entries.find((e) => e.name === 'ecoma-w000000000001-llm-upstream-mock');
+    expect(entry?.action).toBe('skipped');
+    expect(entry?.reason).toContain('outside DX management');
+  });
+
+  it('mock container kind is listed before network (network rm fails while mock endpoint attached)', () => {
+    // Ghim thứ tự placement: mock gắn vào platform network, nếu rơi xuống sau
+    // `network` thì lần chạy đầu fail "has active endpoints" (header comment)
+    // — mock vẫn bị xoá nhưng network sống sót sang lần chạy kế.
+    const mockIndex = CLEANUP_KINDS.indexOf('llm-upstream-mock');
+    const networkIndex = CLEANUP_KINDS.indexOf('network');
+    expect(mockIndex).toBeGreaterThan(-1);
+    expect(networkIndex).toBeGreaterThan(mockIndex);
+  });
+
   it('push WIC orphan resources (container, image, state volume) are identified and removed', () => {
     const wt = tempWorktree();
     const ns = worktreeNamespace(wt);

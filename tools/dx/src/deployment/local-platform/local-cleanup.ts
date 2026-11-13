@@ -97,6 +97,11 @@ export const CLEANUP_KINDS: readonly DeployResourceKind[] = [
   // `docker exec`, không tạo container/volume/image/network nào tồn lại sau
   // lệnh — giống kind `pact-api` ở trên.
   'object-store',
+  // Container mock upstream OpenAI-compatible của lane E2E llm-api-deploy
+  // (#187) — chỉ container + labels ownership, không volume/state riêng. Kind
+  // đã vào union của `@ecoma-io/deployment` và tên container được lane ghép qua
+  // `dockerResourceName`, nên orphan đi đúng luật chung ở dưới.
+  'llm-upstream-mock',
   'network',
   'home-image',
   'backoffice-image',

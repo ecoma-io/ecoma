@@ -16,7 +16,7 @@
  *   ghi nhận của bước 9 là secret (plaintext key show-once).
  */
 
-import { dockerResourceName, ownershipLabels } from '@ecoma-io/deployment';
+import { dockerResourceName, type DeployResourceKind, ownershipLabels } from '@ecoma-io/deployment';
 
 import { NODE_IMAGE } from './superadmin-resolver.js';
 
@@ -27,27 +27,22 @@ export const MOCK_UPSTREAM_PORT = '8787';
 export const MOCK_BIND_HOST = '0.0.0.0';
 
 /**
- * Đoạn tên mock trong `ecoma-<ns>-<kind>`. Kind này CHƯA nằm trong union đóng
- * `DeployResourceKind` của `libs/deployment` — thêm kind là thay đổi lib dùng
- * chung, nên tên được ghép tại đây với CÙNG hình dạng và validate namespace
- * giống `dockerResourceName`. Follow-up đã nộp: thêm kind vào lib +
- * `CLEANUP_KINDS` của `tools/dx` để `local-cleanup` tự dọn được.
+ * Đoạn tên mock trong `ecoma-<ns>-<kind>` — kind chính thức trong union đóng
+ * `DeployResourceKind` của `libs/deployment` (#187). Tên đi qua
+ * `dockerResourceName` (validate namespace cùng luật lib) và `local-cleanup`
+ * của `tools/dx` nhận diện được container mồ côi qua `CLEANUP_KINDS`.
  */
-export const MOCK_KIND_SEGMENT = 'llm-upstream-mock';
+export const MOCK_KIND_SEGMENT: DeployResourceKind = 'llm-upstream-mock';
 
 /** Budget chờ mock phục vụ `GET /v1/models` (tsx cold start + npx resolve). */
 export const MOCK_WAIT_BUDGET_MS = 60_000;
 
 /**
- * Tên container mock cho một namespace — hình dạng `ecoma-<ns>-<kind>` giống
- * `dockerResourceName`, ghép tại đây vì kind chưa vào union của lib (xem
- * {@link MOCK_KIND_SEGMENT}). Namespace sai hình là throw — cùng luật lib.
+ * Tên container mock cho một namespace — `dockerResourceName` của lib với kind
+ * {@link MOCK_KIND_SEGMENT}; namespace sai hình là throw (cùng luật lib).
  */
 export function mockContainerName(namespace: string): string {
-  if (!/^[a-z0-9][a-z0-9_-]*$/u.test(namespace)) {
-    throw new Error(`invalid namespace for Docker name: ${namespace}`);
-  }
-  return `ecoma-${namespace}-${MOCK_KIND_SEGMENT}`;
+  return dockerResourceName(namespace, MOCK_KIND_SEGMENT);
 }
 
 /** URL upstream mà worker serving sẽ dùng — DNS nội bộ của platform network. */
@@ -106,7 +101,7 @@ export interface DockerInvocation {
  * giá trị từ environ của CLI vào container); argv không bao giờ chứa giá trị.
  * Hai env không secret (port, bind host) ghép thẳng `k=v` trong argv cho người
  * đọc thấy cấu hình ngay trên lệnh. Labels ownership để `pnpm dx local-cleanup`
- * truy được nguồn dù kind chưa vào union của lib.
+ * truy được nguồn (kind `llm-upstream-mock` đã vào union của lib, #187).
  */
 export function buildMockContainerInvocation(inputs: {
   namespace: string;
