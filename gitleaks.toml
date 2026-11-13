@@ -59,6 +59,20 @@ paths = [
   # (`.pulumi-local-state/`) và là state máy developer — allowlist đúng
   # thư mục history, phần khác của state vẫn giữ độ phủ scan.
   '''^(\.claude/worktrees/[^/]+/)?\.pulumi-local-state/\.pulumi/history/''',
+  # Backup state của Pulumi CLI dưới file backend cục bộ: mỗi lần `pulumi up`
+  # ghi state mới, CLI giữ lại file `*.json.bak` cạnh state chính trong
+  # `.pulumi-local-state/.pulumi/stacks/<project>/`. Backup chứa ciphertext của
+  # secrets provider (`"ciphertext":"v1:..."` — đã mã hoá, không phải secret
+  # trần) nhưng entropy vượt ngưỡng `generic-api-key` — đo được, chặn push thật
+  # (issue #193: PR #192 bị chặn hai lần, phải xoá `.bak` mới push được; file
+  # sinh lại ở lần ghi state kế tiếp nên recurring, chặn cả rebase #189).
+  # Toàn thư mục nằm trong .gitignore (`.pulumi-local-state/`) và là state máy
+  # developer. Allowlist neo đúng filename backup `*.json.bak` ở đúng hai cấp
+  # thư mục đã đo; state chính `local-*.json` không khớp và vẫn giữ độ phủ
+  # scan — nếu secrets provider misconfig và state chứa secret trần thay vì
+  # ciphertext, pre-push vẫn bắt được. Caveat chung như các mục trên: allowlist
+  # theo path áp dụng cho MỌI chế độ quét, `git add -f` file khớp sẽ im lặng.
+  '''^(\.claude/worktrees/[^/]+/)?\.pulumi-local-state/\.pulumi/stacks/[^/]+/[^/]+\.json\.bak$''',
 ]
 # Sentinel của integration suite remediation #42: giá trị detect của
 # `generic-api-key` trên hai spec `tests/integrations/argv-hygiene.spec.ts`
