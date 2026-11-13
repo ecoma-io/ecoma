@@ -6,7 +6,7 @@ description: Manually review frontend UI against an isolated development server 
 # Frontend Visual Review
 
 A manual browser-based UI review procedure for a frontend application, run
-with the repo-local Playwright CLI (`pnpm exec playwright-cli`) against an
+with the repo-local Playwright CLI (`npx --no-install playwright cli`) against an
 isolated development instance of one app in its configured serve/data mode,
 in a uniquely named
 Playwright CLI session owned by this review alone. The reviewer (human or
@@ -123,9 +123,10 @@ something the task did not ask about.
 ## Playwright CLI invocation and named sessions
 
 - Invoke the CLI through the repo-local install:
-  `pnpm exec playwright-cli ...`. `@playwright/cli` is a repository
-  devDependency; never assume a global `playwright-cli` binary exists, and
-  never install one as a side effect of a review.
+  `npx --no-install playwright cli ...`. The standalone `playwright-cli` /
+  `@playwright/cli` package is not a repository dependency — the binary comes
+  from the lockfile-pinned `@playwright/test` dependency; never install
+  `playwright-cli` or `@playwright/cli` as a side effect of a review.
 - Every reviewer and every worktree creates its own uniquely named browser
   session and targets that session on EVERY command with `-s=<unique-name>`.
   Session semantics are owned by the `playwright-cli` skill
@@ -133,12 +134,12 @@ something the task did not ask about.
   subcommand. Use a semantic name that cannot collide with another reviewer:
 
   ```bash
-  pnpm exec playwright-cli -s=visual-review-<worktree-or-agent>-<app> open <base-url>
-  pnpm exec playwright-cli -s=visual-review-<worktree-or-agent>-<app> snapshot
+  npx --no-install playwright cli -s=visual-review-<worktree-or-agent>-<app> open <base-url>
+  npx --no-install playwright cli -s=visual-review-<worktree-or-agent>-<app> snapshot
   ```
 
 - The steps below abbreviate this to `<cmd>`; every real invocation is
-  `pnpm exec playwright-cli -s=<your-session> <cmd>`.
+  `npx --no-install playwright cli -s=<your-session> <cmd>`.
 - Never share a session across reviewers or subagents. Parallel reviews on
   one machine share one Playwright CLI daemon; two agents driving one session
   destroy each other's state.
@@ -175,7 +176,7 @@ app's data-mode seam, not by the review procedure.
 1. Finish §Preconditions. Start the server, verify readiness, and take the
    base URL from the environment (never a guessed port).
 2. Open YOUR uniquely named session against the app:
-   `pnpm exec playwright-cli -s=<your-session> open <base-url>`. Note the
+   `npx --no-install playwright cli -s=<your-session> open <base-url>`. Note the
    data-mode indicator — e.g. a preview-data banner (`isPreview`,
    `05-code-architecture.md` §5) — if the app provides one.
 3. Inspect initial state before navigating: run `console` and `requests` on
@@ -344,9 +345,9 @@ an unexercised route is a Not verified item, never a pass.
 - Actual execution rights are always decided by runtime-level permission
   configuration, not by skill frontmatter.
 - Do not describe `allowed-tools` as a sandbox or a uniform security
-  boundary, and do not propose editing the vendored `playwright-cli` skill
-  for cross-runtime uniformity — it is vendored to stay byte-identical with
-  the official skill.
+  boundary, and do not propose editing the `playwright-cli` skill for
+  cross-runtime uniformity — its single lockfile-pinned invocation is a
+  deliberate repository policy (#234), not an oversight to normalize.
 
 ## Review constraints
 

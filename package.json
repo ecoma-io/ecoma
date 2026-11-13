@@ -33,7 +33,6 @@
     "@nx/vite": "23.3.1",
     "@nx/vitest": "23.3.1",
     "@nx/workspace": "23.3.1",
-    "@playwright/cli": "^0.1.22",
     "@playwright/test": "^1.37.0",
     "@pulumi/cloudflare": "^6.22.1",
     "@pulumi/command": "^1.2.1",

@@ -16,7 +16,7 @@ To debug a failing Playwright test, run it with `--debug=cli` option. This comma
 
 **IMPORTANT**: run the command in the background and check the output until "Debugging Instructions" is printed. Make sure to stop the command after you have finished.
 
-Once instructions containing a session name are printed, use `playwright-cli` to attach the session and explore the page.
+Once instructions containing a session name are printed, use `npx --no-install playwright cli` to attach the session and explore the page.
 
 ```bash
 # Run the test
@@ -26,7 +26,7 @@ PLAYWRIGHT_HTML_OPEN=never npx playwright test --debug=cli
 # ...
 
 # Attach to the test
-playwright-cli attach tw-abcdef
+npx --no-install playwright cli attach tw-abcdef
 ```
 
 Keep the test running in the background while you explore and look for a fix.
