@@ -62,6 +62,8 @@ apps/llm-console  (Cloudflare Worker, Nuxt 4 + Nitro preset cloudflare_module)
 5. **Usage**: xem usage theo request/attempt, token categories (llm-usage).
 6. **Workspace/tenant scope**: resolve scope từ principal (llm-consumer-tenant).
 
+**Giới hạn M1 (quyết định 1 của feature spec consumer — [`docs/features/llm-marketplace/consumer-usage.md`](../../features/llm-marketplace/consumer-usage.md)):** cả sáu workflow trên nằm ngoài M1. Bề mặt consumer M1 là API-only: hệ thống nội bộ gọi trực tiếp data plane `llm-api` (`GET /v1/models`, `POST /v1/chat/completions`); `llm-console` cùng sáu workflow này không thuộc capability trong M1 và không thuộc danh sách unit MVP (#26). Hiện thực các workflow này thuộc milestone sau, kèm việc chốt mục mở re-home entitlement của spec (settler: Modelling/architecture khi `llm-console` vào MVP).
+
 Composition chỉ orchestrate UI + gọi API; business rule và state machine thuộc context owning.
 
 ## 7. Session / security boundary
