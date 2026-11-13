@@ -179,7 +179,9 @@ export type DeployResourceKind =
   /** Volume state wrangler của WIC llm-api (persist dev registry). */
   | 'llm-api-wic-state'
   /** Container init một-shot chown volume state WIC llm-api cho uid node. */
-  | 'llm-api-wic-state-init';
+  | 'llm-api-wic-state-init'
+  /** Container mock upstream OpenAI-compatible của lane E2E llm-api-deploy (#187) — tồn lại suốt phiên lane nên phải vào union để `local-cleanup` nhận diện được. */
+  | 'llm-upstream-mock';
 /**
  * Tên Docker resource hợp lệ và nhất quán cho một namespace.
  *

@@ -170,7 +170,7 @@ pnpm dx local-cleanup --dry-run             # chỉ báo cáo, không có lệnh
 pnpm dx local-cleanup --worktree-root <dir> # lọc báo cáo theo worktree (diagnostics, không nới ràng buộc)
 ```
 
-**Cleanup phát hiện và xoá những gì**: resource Docker mà luồng local deployment tạo — network platform, container Traefik, container PostgreSQL, container `ecoma-object-store` và container home/backoffice/account/pact-app, WIC containers và images của auth/pact-api/mail/push, volume PostgreSQL, volume `ecoma-<ns>-object-store-config` và volume `ecoma-<ns>-object-store-data`, và các volume state WIC (`CLEANUP_KINDS` trong `tools/dx/src/deployment/local-platform/local-cleanup.ts` (CLI adapter; classification từ `@ecoma-io/deployment`)). Cleanup KHÔNG có teardown theo thứ tự phụ thuộc: worktree biến mất thì không resource nào còn phụ thuộc vòng sống vào nhau; Docker chấp nhận lệnh `rm` trực tiếp từng resource.
+**Cleanup phát hiện và xoá những gì**: resource Docker mà luồng local deployment tạo — network platform, container Traefik, container PostgreSQL, container `ecoma-object-store` và container home/backoffice/account/pact-app, WIC containers và images của auth/pact-api/mail/push, container mock upstream của lane llm-api (`ecoma-<ns>-llm-upstream-mock`, #187), volume PostgreSQL, volume `ecoma-<ns>-object-store-config` và volume `ecoma-<ns>-object-store-data`, và các volume state WIC (`CLEANUP_KINDS` trong `tools/dx/src/deployment/local-platform/local-cleanup.ts` (CLI adapter; classification từ `@ecoma-io/deployment`)). Cleanup KHÔNG có teardown theo thứ tự phụ thuộc: worktree biến mất thì không resource nào còn phụ thuộc vòng sống vào nhau; Docker chấp nhận lệnh `rm` trực tiếp từng resource.
 
 ### Labels ownership — bằng chứng "của ai"
 

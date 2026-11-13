@@ -481,6 +481,82 @@ describe('runLocalCleanup', () => {
     expect(report.errors).toEqual([]);
   });
 
+  it('LLM upstream mock orphan container is identified and removed', () => {
+    // Container mock upstream của lane E2E llm-api-deploy (#187): tên qua
+    // `dockerResourceName(ns, 'llm-upstream-mock')`, chỉ container (không
+    // volume/image riêng). Thiếu kind trong `CLEANUP_KINDS` thì orphan mock
+    // sống sót qua mọi lần `local-cleanup` — đúng hiện trạng #187 ghi nhận.
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(docker.removed).toEqual([`container/ecoma-${ns}-llm-upstream-mock`]);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('removed');
+    expect(report.errors).toEqual([]);
+  });
+
+  it('LLM upstream mock container of a live worktree is kept', () => {
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: false,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: (p) => (p === wt ? 'present' : 'absent'),
+    });
+    expect(docker.removed).toHaveLength(0);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('kept');
+    expect(report.errors).toEqual([]);
+  });
+
+  it('LLM upstream mock orphan is reported would-remove in dry-run without any rm', () => {
+    const wt = tempWorktree();
+    const ns = worktreeNamespace(wt);
+    const docker: FakeDocker = {
+      names: new Map([
+        ['container', [`ecoma-${ns}-llm-upstream-mock`]],
+        ['image', []],
+        ['network', []],
+      ]),
+      labels: new Map([[`container/ecoma-${ns}-llm-upstream-mock`, ownedLabels(wt)]]),
+      removed: [],
+    };
+    const report = runLocalCleanup({
+      dryRun: true,
+      env: {},
+      execDocker: fakeDockerExec(docker),
+      worktreePresence: () => 'absent',
+    });
+    expect(docker.removed).toHaveLength(0);
+    const entry = report.entries.find((e) => e.kind === 'llm-upstream-mock');
+    expect(entry?.action).toBe('would-remove');
+    expect(entry?.name).toBe(`ecoma-${ns}-llm-upstream-mock`);
+  });
+
   it('push WIC orphan resources (container, image, state volume) are identified and removed', () => {
     const wt = tempWorktree();
     const ns = worktreeNamespace(wt);
