@@ -14,7 +14,6 @@ import {
   DRONIE_MODEL_ID,
   GATEWAY_DATABASE,
   WORKER_BASE_URL,
-  laneConsumerApiKey,
   psqlCount,
   requestInNetwork,
 } from '../support/lane.mts';
@@ -68,9 +67,14 @@ describe('auth failures stay stable and leave no ledger trace (i)', () => {
   });
 
   it('rejects a malformed authorization header with the same stable error', () => {
-    // Header không mang scheme Bearer — sai hình, cùng lớp lỗi với thiếu.
+    // Header không mang scheme Bearer — sai hình, cùng lớp lỗi với thiếu. GIÁ
+    // TRỊ TỔNG HỢP (không suy từ key thật): một phần plaintext của key thật
+    // trong header là bề mặt rò rỉ thừa — fence chỉ quét FULL plaintext nên một
+    // phần sẽ lọt qua mọi fence. Độ dài 43 khớp hình dạng key thật
+    // (base64url 32 byte) để sai hình chỉ nằm ở scheme, không ở độ dài.
+    const syntheticMalformedKey = 'x'.repeat(43);
     const outcome = postCompletion({
-      authorization: `sk-no-bearer-prefix-${laneConsumerApiKey().slice(0, 4)}`,
+      authorization: `sk-no-bearer-prefix-${syntheticMalformedKey}`,
     });
     expect(outcome.status).toBe(401);
     expect(outcome.errorCode).toBe('invalid_api_key');
