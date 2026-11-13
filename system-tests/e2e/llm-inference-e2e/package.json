@@ -1,0 +1,154 @@
+{
+  "name": "@ecoma-io/llm-inference-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "//": [
+      "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
+      "- platform-deploy: platform network (suite chạy client ephemeral TRONG network —",
+      "  PostgreSQL và container worker không publish cổng ra host) và container",
+      "  `ecoma-<ns>-postgres` mà support psql exec vào.",
+      "- account-deploy + staff-access-deploy: gap #113 — `local-up` của llm-api-deploy đọc",
+      "  credential migrator cross-stack từ hai stack này mà không khai dependsOn; suite bù",
+      "  cạnh ở cấp `system-test` để một lần chạy mới trên worktree sạch có thứ tự đúng.",
+      "- llm-api-deploy: toàn bộ hạ tầng của lane E2E — worker `ecoma-llm-api`, ba database",
+      "  LLM, bootstrap đã đi (superadmin, Dronie seller, consumer tenant + funding, offer),",
+      "  container mock upstream và kênh `LANE_STATE` (entry `lane.ts state`).",
+      "- apps/llm-api (`@ecoma-io/llm-api`): worker bundle chạy trong WIC container; suite",
+      "  KHÔNG build nó — bundle là prerequisite của `test-lane-up` ( Nx kéo qua dependsOn).",
+      "KHÔNG khai home/backoffice/mail/push/pact: suite không chạm unit nào của chúng."
+    ],
+    "implicitDependencies": [
+      "platform-deploy",
+      "account-deploy",
+      "staff-access-deploy",
+      "llm-api-deploy",
+      "@ecoma-io/llm-api"
+    ],
+    "tags": [
+      "type:tooling",
+      "scope:llm-api",
+      "runtime:native"
+    ],
+    "targets": {
+      "system-test": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "platform-deploy",
+              "account-deploy",
+              "staff-access-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "llm-api-deploy"
+            ],
+            "target": "test-lane-up"
+          }
+        ],
+        "configurations": {
+          "local": {}
+        },
+        "options": {
+          "cwd": "system-tests/e2e/llm-inference-e2e",
+          "command": "node bin/run-system-test.mjs"
+        },
+        "//": [
+          "Target canonical `system-test` của system-test suite (docs/architecture/06-testing.md",
+          "§4). `cache: false` là CONTRACT chứ không phải tối ưu: stack local phía sau là",
+          "external state sống ngoài inputs của Nx — cache hit sẽ trả kết quả xanh cho một hệ",
+          "thống KHÔNG còn chạy như lúc cache được ghi. Suite verify cả hệ thống đang chạy thật",
+          "nên mỗi lần chạy phải chạm stack thật.",
+          "`dependsOn` kéo prerequisite: `local-up` của BA deploy project upstream (gap #113 —",
+          "llm-api-deploy đọc credential migrator của account + staff-access cross-stack) và",
+          "`test-lane-up` của llm-api-deploy — lane hội tụ mock upstream + serving trước khi",
+          "suite chạy. Suite KHÔNG BAO GIỜ tự deploy hay đụng vòng đời container.",
+          "`configurations.local` cùng tên configuration mà các target prerequisite khai —",
+          "`-c local` trên lệnh Nx lan vào task prerequisite (task id `...:local-up:local`).",
+          "Runner `bin/run-system-test.mjs` đọc trạng thái lane qua `lane.ts state` (envelope",
+          "`LANE_STATE`), nạp env cho vitest, và GIỮ fence: plaintext key consumer không được",
+          "xuất hiện trong captured output của suite."
+        ]
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.json"
+          },
+          {
+            "externalDependencies": [
+              "typescript"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "system-tests/e2e/llm-inference-e2e",
+          "command": "tsc --noEmit -p tsconfig.json"
+        },
+        "//": [
+          "Suite KHÔNG build artifact nào — chạy qua vitest/node trực tiếp, nên typecheck là",
+          "`tsc --noEmit` một lần cho toàn bộ TS nguồn (spec + support + global-setup)."
+        ],
+        "configurations": {},
+        "parallelism": true
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/system-tests/e2e/.eslintignore",
+          "{workspaceRoot}/system-tests/e2e/.gitignore",
+          "{workspaceRoot}/system-tests/.eslintignore",
+          "{workspaceRoot}/system-tests/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      }
+    }
+  }
+}

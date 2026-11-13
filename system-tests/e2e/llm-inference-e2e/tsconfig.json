@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "//": "Suite KHÔNG build artifact nào (chạy qua vitest/node trực tiếp) nên typecheck là `tsc --noEmit` trên toàn bộ TS nguồn. `allowImportingTsExtensions` cho spec import support bằng phần mở rộng thật; cặp bắt buộc của flag là `moduleResolution: bundler` (vitest tự resolve lúc chạy).",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "lib": ["es2023"],
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["vitest.config.mts", "global-setup.ts", "support/**/*.mts", "e2e/**/*.spec.ts"]
+}
