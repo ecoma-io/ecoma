@@ -40,9 +40,12 @@ describe('app', () => {
     expect(meta.description).toBe('Devtools for ecoma-io repository');
   });
 
-  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, readme-check, commit-signing, gitleaks-scope, the four semgrep modes, the local platform commands and the local worker runtime commands', () => {
+  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, readme-check, commit-signing, the local platform commands and the local worker runtime commands', () => {
     // Set thay cho mảng sort: cùng đẳng thức tập hợp, không mutation và không
-    // cần `toSorted` (lib của repository hiện là es2022).
+    // cần `toSorted` (lib của repository hiện là es2022). Các lệnh scanner
+    // (gitleaks/semgrep) đã rời DX: docker run trực tiếp trong `lefthook.yml`
+    // và `.github/workflows/code-analysis.yml`, pin phiên bản do Renovate quét
+    // (issue #217).
     expect(new Set(Object.keys(app.subCommands ?? {}))).toEqual(
       new Set([
         'repo-prepare',
@@ -52,13 +55,6 @@ describe('app', () => {
         'readme-check',
         'commit-signing',
         'bootstrap-superadmin',
-        'gitleak-ci',
-        'gitleaks-scope',
-        'gitleak-local',
-        'semgrep-scan-local',
-        'semgrep-scan-ci',
-        'semgrep-test-local',
-        'semgrep-test-ci',
         'local-status',
         'local-cleanup',
         'local-worker-up',

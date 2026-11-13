@@ -20,12 +20,25 @@ pre-commit:
       run: ./tools/dx/check-signing-config.sh
     # Rule semgrep chỉ được kiểm bằng fixture ở CI hiện tại, tức một rule viết
     # sai vẫn đi qua được commit rồi mới đỏ ở `analysis-gate`. Chạy `--test` ngay
-    # khi commit chạm bộ rule để lỗi hiện ra tại chỗ. `eval` chỉ định target là
-    # thư mục rule, nên glob dưới đây chỉ quyết định **có chạy hay không**, giống
-    # cách `semgrep-scan-local` dùng danh sách file đã đổi.
+    # khi commit chạm bộ rule để lỗi hiện ra tại chỗ. Glob dưới đây chỉ quyết
+    # định **có chạy hay không** — khi chạy thì kiểm toàn bộ bộ rule, giống cách
+    # lệnh scan pre-push quyết định có chạy theo file đã đổi.
+    #
+    # Image ghim theo digest, đúng bằng image job `semgrep` của CI dùng
+    # (`.github/workflows/code-analysis.yml`); spec `security-tool-pins.spec.ts`
+    # assert hai bên bằng nhau nên nâng một bên quên bên kia là đỏ.
+    # `unset GIT_*`: lefthook export `GIT_DIR` khi chạy hook, và giá trị đó thắng
+    # cwd của `git rev-parse`.
     'semgrep rule fixtures':
       glob: '.github/semgrep/**'
-      run: pnpm dx semgrep-test-local
+      run: |
+        unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+        root=$(git rev-parse --show-toplevel)
+        docker run --rm \
+          --volume "$root:/src" \
+          --workdir /src \
+          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+          semgrep --test --config .github/semgrep .github/semgrep
 
 # Gate chặn thật cho commit vừa tạo: `pre-push` KHÔNG đủ, vì lefthook bỏ qua mọi
 # command pre-push khi lần push không đổi file nào (đo được: một commit rỗng làm
@@ -46,17 +59,112 @@ pre-push:
   commands:
     'commit signing':
       run: pnpm dx commit-signing --check push
+    # Image ghim theo digest, đúng bằng image job `gitleaks` của CI dùng
+    # (`.github/workflows/code-analysis.yml`); spec `security-tool-pins.spec.ts`
+    # assert hai bên bằng nhau. Mount `.git` chỉ khi nó tồn tại (worktree mang
+    # một file `.git`, không phải thư mục đầy đủ). Chế độ `dir` không cần lịch
+    # sử git; mount `.git` khi có là để gitleaks nhận ra ngữ cảnh repository.
     'secret leaks scan':
-      run: pnpm dx gitleak-local --config gitleaks.toml --no-banner --redact --verbose --exit-code 1
+      run: |
+        unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+        root=$(git rev-parse --show-toplevel)
+        docker run --rm \
+          --volume "$root:/repo" \
+          --workdir /repo \
+          $([ -e "$root/.git" ] && printf -- '--volume %s:/repo/.git' "$root/.git") \
+          'zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb' \
+          dir --config gitleaks.toml --no-banner --redact --verbose --exit-code 1
     # Rule của chính repository này, chạy bằng docker và gate bằng đúng script mà
-    # CI dùng (`filter-accepted.py`), nên một lần push xanh không có nghĩa khác
-    # với một lần `analysis-gate` xanh. Lệnh nằm ở `tools/dx` vì lý do của
-    # `pr-check`: YAML khai báo lệnh, DX giữ luật — gồm cả danh sách extension
-    # nào thuộc phạm vi rule (đo được, không phải suy đoán).
+    # CI dùng (`filter-accepted.py`, bên trong container), nên một lần push xanh
+    # không có nghĩa khác với một lần `analysis-gate` xanh. Logic nằm ngay tại
+    # đây theo quyết định của owner (issue #217): lệnh scanner tách khỏi DX, pin
+    # phiên bản do Renovate quét trực tiếp trên file YAML này.
     #
-    # `semgrep-scan-local` chứ không phải `semgrep-scan-ci`: bản local có điều
-    # kiện chạy (không file nào thuộc phạm vi rule thì bỏ qua); bản CI luôn quét.
+    # Điều kiện chạy KHÔNG thu hẹp phạm vi quét: khi chạy, nó quét TOÀN BỘ repo —
+    # `filter-accepted.py` fail-closed hai chiều, một entry allowlist không khớp
+    # result nào thì báo stale và đỏ, nên quét một tập con sẽ hỏng gate thay vì
+    # tiết kiệm gì (đo trên repo này: quét một file duy nhất làm gate đỏ vì
+    # 2/3 entry "biến mất").
+    #
+    # Git dir phải được mount — nếu không, phạm vi quét khác CI: ở git worktree,
+    # `.git` là một file trỏ tới `<main>/.git/worktrees/<id>` nằm ngoài root, và
+    # chỉ mount root thì semgrep mất git integration trong container, rơi về duyệt
+    # filesystem và quét cả file bị `.gitignore` loại (đo trên repo này: 1155 file
+    # thay vì 1124 của CI). Mount ở đúng đường dẫn tuyệt đối của host, read-only,
+    # bằng `--mount` chứ không phải `-v <dir>:<dir>:ro`: đo trên Docker 29.5.3
+    # rootless, same-path `-v …:ro` cho mount rỗng 10/10 lần, `--mount … readonly`
+    # đúng 10/10. Worktree mount lồng nhau (`worktrees/<id>` nằm trong common dir)
+    # thì chỉ mount thư mục ngoài là đủ — mount lồng nhau dưới bind read-only làm
+    # Docker không tạo được mountpoint (`mkdirat … read-only file system`).
+    #
+    # KHÔNG truyền `GIT_*` vào container: docker không tự chuyển env của host vào
+    # container, còn các lệnh git chạy dưới đây đã unset `GIT_*` ở đầu script —
+    # truyền `-e GIT_DIR` trỏ ra ngoài container từng làm semgrep quét hàng chục
+    # worktree khác và tạo finding giả.
     'semgrep rules':
-      run: pnpm dx semgrep-scan-local
+      run: |
+        unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+        root=$(git rev-parse --show-toplevel) || exit 1
+        cd "$root" || exit 1
+        # Phạm vi file mà bộ rule thực sự quét — spec `security-tool-pins.spec.ts`
+        # đọc lại biến này để assert khớp với điều semgrep thực sự bắt được
+        # (đo bằng cách cấy vi phạm thật, không phải suy đoán).
+        scannable_pattern='\.(ts|tsx|yml|yaml)$|(^|/)wrangler\.jsonc$'
+        # Base không diff được KHÔNG được hiểu là "không có gì đổi" — đó là im
+        # lặng bỏ gate, nên trường hợp đó quét hết thay vì bỏ qua.
+        if ! changed=$(git diff --name-only 'origin/HEAD..HEAD'); then
+          echo 'git could not diff "origin/HEAD..HEAD". Falling back to a full scan rather than skipping the gate.'
+        else
+          total=$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)
+          relevant=$(printf '%s\n' "$changed" | sed 's|.*/||' | grep -E -- "$scannable_pattern" || true)
+          n_relevant=$(printf '%s\n' "$relevant" | sed '/^$/d' | wc -l)
+          if [ "$n_relevant" -eq 0 ]; then
+            # Nói rõ đã BỎ QUA chứ không phải "đã pass" — hai lời đó khác nhau khi đọc log.
+            echo "Semgrep scan skipped: none of the $total changed file(s) are scanned by the repository's rules."
+            echo '  Only *.ts, *.tsx, *.yml, *.yaml and wrangler.jsonc are scanned; everything else never reaches this gate.'
+            exit 0
+          fi
+          echo "Semgrep scan: $n_relevant of $total changed file(s) are in scope; scanning the whole repository because the allowlist gate is fail-closed on partial scans."
+        fi
+        git_dirs=$(git rev-parse --path-format=absolute --absolute-git-dir --git-common-dir 2>/dev/null \
+          | sed '/^$/d' | sort -u)
+        if [ -z "$git_dirs" ]; then
+          echo "git could not resolve the repository directories in $root: without them semgrep scans a different file set than CI, so the scan is not run." >&2
+          exit 1
+        fi
+        # Lọc bỏ thư mục nằm trong root (clone thường: `.git` đã nằm trong `/src`)
+        # và mount lồng nhau: chỉ giữ thư mục ngoài cùng.
+        mounts=''
+        outside=''
+        for d in $git_dirs; do
+          case "$d" in "$root"|"$root"/*) ;; *) outside="$outside $d" ;; esac
+        done
+        for d in $outside; do
+          nested=0
+          for o in $outside; do
+            [ "$o" != "$d" ] && case "$d" in "$o"/*) nested=1 ;; esac
+          done
+          [ "$nested" -eq 0 ] && mounts="$mounts --mount type=bind,src=$d,dst=$d,readonly"
+        done
+        # SARIF ghi vào thư mục tạm của HOST, không ghi vào repo: để lại file
+        # trong worktree là cách nhanh nhất để dính `.semgrep.sarif` vào commit sau.
+        report_dir=$(mktemp -d "${TMPDIR:-/tmp}/semgrep-scan-XXXXXX") || exit 1
+        trap 'rm -rf "$report_dir"' EXIT INT TERM
+        status=0
+        docker run --rm \
+          --volume "$root:/src" \
+          --volume "$report_dir:/out" \
+          --workdir /src \
+          $mounts \
+          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+          bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.sarif .github/semgrep/accepted-shapes.json' || status=$?
+        # `--timeout 60` thay default 5s per file: rule taint trên file domain lớn
+        # (`llm-financial-domain`) nằm sát ngưỡng khi host đang tải cao — bị trượt
+        # thì allowlist báo stale và gate đỏ.
+        if [ "$status" -ne 0 ]; then
+          echo "Semgrep scan failed: docker exited with code $status. See the semgrep output above for the findings." >&2
+          exit 1
+        fi
+        echo 'Semgrep scan passed: all findings accepted by the allowlist.'
     verify:
       run: npx nx affected --target=lint --target=test --base=origin/HEAD
