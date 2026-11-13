@@ -44,7 +44,10 @@ import {
   type FinancialBook,
   type Money,
 } from '@ecoma-io/llm-financial-domain';
-import { assertCredentialProvider } from '@ecoma-io/llm-marketplace-domain';
+import {
+  assertCredentialProvider,
+  type ProviderCredential,
+} from '@ecoma-io/llm-marketplace-domain';
 import type { Context } from 'hono';
 
 import {
@@ -695,23 +698,28 @@ async function verifyUpstreamCredential(
     if (row.credential_hash !== expectedHash) {
       continue;
     }
-    const assertion = assertCredentialProvider(
-      {
-        id: row.id,
-        provider: row.provider,
-        sellerTenantId: row.seller_tenant_id,
-        credentialHash: row.credential_hash,
-        createdBy: row.created_by,
-        createdAt: Number(row.created_at),
-        revokedAt: row.revoked_at === null ? null : Number(row.revoked_at),
-        revokedBy: row.revoked_by,
-      },
-      provider,
-      sellerTenantId,
-    );
+    const assertion = assertCredentialProvider(toProviderCredential(row), provider, sellerTenantId);
     return assertion.ok;
   }
   return false;
+}
+
+/**
+ * Dựng input scope cho `assertCredentialProvider` từ row marketplace — hàm
+ * thuần module-scope. Shape tách riêng còn giữ dữ liệu hash trong mapper,
+ * không nội tuyến object literal tại call site của predicate scope.
+ */
+function toProviderCredential(row: CredentialRow): ProviderCredential {
+  return {
+    id: row.id,
+    provider: row.provider,
+    sellerTenantId: row.seller_tenant_id,
+    credentialHash: row.credential_hash,
+    createdBy: row.created_by,
+    createdAt: Number(row.created_at),
+    revokedAt: row.revoked_at === null ? null : Number(row.revoked_at),
+    revokedBy: row.revoked_by,
+  };
 }
 
 // ---------------------------------------------------------------------------
