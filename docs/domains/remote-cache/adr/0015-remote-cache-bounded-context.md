@@ -2,7 +2,7 @@
 
 > 📌 Thư mục này là bounded context **Remote Cache** (xem [`../README.md`](../README.md)): ADR này thi hành việc chuyển đã hẹn ở A18 — từ disposable build state sang bounded context multi-tenant.
 
-> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0017](./0017-lifecycle-enforcement.md) — câu "data plane không bao giờ đọc database trong hot path": data plane re-check lifecycle state từ `db-remote-cache` mỗi request) · **Ngày:** 2026-10-31 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §8 A18 · **Issue:** #442 (umbrella #440)
+> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0017](./0017-lifecycle-enforcement.md) — câu "data plane không bao giờ đọc database trong hot path": data plane re-check lifecycle state từ `db-remote-cache` mỗi request) · **Ngày:** 2026-10-31 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §8 A18 · **Issue:** #442 (umbrella #440) — số tham chiếu từ trước migration issue, không còn tồn tại trong repo hiện tại
 
 ## Bối cảnh
 
@@ -49,4 +49,4 @@ Câu hỏi ADR này phải trả lời: `remote-cache` có phải bounded contex
 - **System:** A2, A3, A5, A7, A9, A10, A18, A20 · invariant 6, 14, 22.
 - **Context:** [`domains/glossary.md`](../../glossary.md) (Tenant), [`domains/README.md`](../../README.md) §2, [`domains/context-map.md`](../../context-map.md) §3, [`domains/README.md`](../../README.md) §3 · [`../README.md`](../README.md) · [`applications/remote-cache/01-architecture.md`](../../../applications/remote-cache/01-architecture.md) §2 (plane boundaries), §2.1 (control-plane domain model), §10 (security boundaries).
 - **Staff Access:** ADR-0002, ADR-0009 ([`../../staff-access/adr/`](../../staff-access/adr/README.md)) — entitlement deferred, không sync-call; tích hợp sau MVP chỉ qua entitlement event.
-- **Kế thừa roadmap cũ** (file đã bị xoá theo #553): Phase 4 (P4.1 ADR này, P4.2 data plane, P4.3 quota/retention/usage/audit, P4.4 security) · Phase 5 (P5.2 backoffice consume control-plane API → #556).
+- **Kế thừa roadmap cũ** (file đã bị xoá khỏi repo; các issue tham chiếu thời điểm đó không còn tồn tại): Phase 4 (P4.1 ADR này, P4.2 data plane, P4.3 quota/retention/usage/audit, P4.4 security) · Phase 5 (P5.2 bề mặt quản trị consume control-plane API) — P5.2 được quyết định lại: consumer là portal `remote-cache-app`, không phải backoffice → [#177](https://github.com/ecoma-io/ecoma/issues/177).

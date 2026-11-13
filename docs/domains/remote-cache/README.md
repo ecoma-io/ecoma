@@ -9,19 +9,19 @@
 1. **Tenant** — ranh giới cách ly của tổ chức/customer; lifecycle state riêng (`active`/`suspended`/`deleted`) với enforcement fail-closed.
 2. **Project** — đơn vị isolation của cache; mỗi project thuộc đúng một tenant; namespace và storage scope derive từ project, không từ input client.
 3. **Membership** — quan hệ người dùng ↔ tenant kèm role; vòng đời độc lập với API key machine credential.
-4. **API key** — machine credential scoped theo project, read/write scope, revoke/expiry; hash-only ở storage, show-once lúc tạo; không `last_used_at` (observability không vào serving path).
+4. **API key** — machine credential scoped theo project, read/write scope, revoke/expiry; hai phân lớp tường minh trusted CI / developer credential (§2.4 của [`domain-model.md`](./domain-model.md)); hash-only ở storage, show-once lúc tạo; không `last_used_at` (observability không vào serving path).
 5. **Quota/usage** — attribution theo project, PostgreSQL là authority.
 6. **Audit** — mọi administrative mutation có entry actor/action/target/time/outcome.
 
 ## 2. Ranh giới với các context khác
 
-| Context        | Sở hữu (rút gọn)                                     | Ranh giới với `remote-cache`                                                                                                                                                               |
-| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pact-broker`  | Tenant/membership/role **của broker**, machine token | **Tenant của `remote-cache` ≠ tenant của `pact-broker`** — không dùng chung, không suy ra membership từ bên kia, không FK chéo database (glossary [`domains/glossary.md`](../glossary.md)) |
-| `staff-access` | Entitlement product-level availability của nhân sự   | **Deferred cho MVP**: `remote-cache` dùng API key riêng; khi tích hợp thì chỉ qua entitlement event (ADR-0009) — không sync-call, không authorization-result contract                      |
-| `backoffice`   | Composition/UI + BFF                                 | Consumer control-plane API của `remote-cache` (#556) — không chạm database                                                                                                                 |
+| Context        | Sở hữu (rút gọn)                                     | Ranh giới với `remote-cache`                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pact-broker`  | Tenant/membership/role **của broker**, machine token | **Tenant của `remote-cache` ≠ tenant của `pact-broker`** — không dùng chung, không suy ra membership từ bên kia, không FK chéo database (glossary [`domains/glossary.md`](../glossary.md))                                     |
+| `staff-access` | Entitlement product-level availability của nhân sự   | **Deferred cho MVP**: `remote-cache` dùng API key riêng; khi tích hợp thì chỉ qua entitlement event (ADR-0009) — không sync-call, không authorization-result contract                                                          |
+| `backoffice`   | Composition/UI + BFF                                 | Không tiêu thụ control-plane API của `remote-cache` — consumer duy nhất là portal `remote-cache-app` qua BFF + private service binding (quyết định [#177](https://github.com/ecoma-io/ecoma/issues/177)) — không chạm database |
 
-Enforcement authorization bên trong `remote-cache` resolve từ principal (API key) và dữ liệu của chính nó — **catalog govern / backend enforce** giữ nguyên hình dạng chung của hệ thống.
+Enforcement authorization bên trong `remote-cache` resolve từ principal — API key ở data plane; principal của con người trên control plane (portal) là quyết định còn mở (§4 của [`domain-model.md`](./domain-model.md)) — và dữ liệu của chính nó: **catalog govern / backend enforce** giữ nguyên hình dạng chung của hệ thống.
 
 ## 3. Ownership và storage
 
