@@ -18,6 +18,12 @@
   "exclude": ["out-tsc", "build", "vitest.config.mts", "src/**/*.test.ts", "src/**/*.spec.ts"],
   "references": [
     {
+      "path": "../../libs/llm-usage-domain/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/llm-inference-domain/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/llm-seller-tenant-domain/tsconfig.lib.json"
     },
     {
