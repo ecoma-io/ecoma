@@ -59,6 +59,65 @@
           "local": {}
         }
       },
+      "test-lane-up": {
+        "//": [
+          "Lane E2E của unit này (Issues #23/#24): hội tụ hạ tầng cho suite",
+          "system-tests/e2e/llm-inference-e2e qua entry `lane.ts up` — container",
+          "mock upstream `ecoma-<ns>-llm-upstream-mock` trên platform network",
+          "(credential qua env process docker, argv name-only), readiness qua",
+          "MỘT container waiter trong network, config `llmUpstreamBaseUrl` ghi",
+          "đè về DNS nội bộ mock (giá trị qua kênh stdin), rồi `local.ts up`",
+          "cùng entry lifecycle — hoặc SKIP khi stack output",
+          "`consumerApiKeyStdout` đã mang plaintext key (show-once; chạy lại",
+          "`local.ts up` sẽ xoay password và thay stdout ghi nhận, mất",
+          "plaintext). dependsOn GIỐNG `local-up` (platform:local-up + bundle",
+          "build của app); gap #113 (đọc stack account/staff-access không khai",
+          "dependsOn) được suite bù ở cấp `system-test`. Cache bị tắt ở",
+          "targetDefaults `nx.json` (CONTRACT: mutate Docker/Pulumi state thật)."
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "npx tsx lane.ts up"
+        },
+        "configurations": {
+          "local": {}
+        },
+        "dependsOn": [
+          {
+            "projects": [
+              "platform-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "@ecoma-io/llm-api"
+            ],
+            "target": "build"
+          }
+        ]
+      },
+      "test-lane-down": {
+        "//": [
+          "Teardown RIÊNG của lane E2E (`lane.ts down`): xoá container mock",
+          "trong namespace worktree, tolerating container vắng (no-op exit 0).",
+          "KHÔNG destroy stack Pulumi — teardown stack vẫn là `local-down`.",
+          "Container mock chưa nằm trong `CLEANUP_KINDS` của `tools/dx` (kind",
+          "chưa vào union `DeployResourceKind` của libs/deployment) nên",
+          "`pnpm dx local-cleanup` không tự dọn nó — target này là kênh dọn",
+          "chính thức. Không `dependsOn` (cùng ngữ nghĩa với `local-down`).",
+          "Cache bị tắt ở targetDefaults `nx.json`."
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-api-deploy",
+          "command": "npx tsx lane.ts down"
+        },
+        "configurations": {
+          "local": {}
+        }
+      },
       "test": {
         "executor": "nx:run-commands",
         "cache": true,

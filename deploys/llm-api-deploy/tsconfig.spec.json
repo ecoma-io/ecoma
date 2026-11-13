@@ -24,6 +24,8 @@
     "scripts.ts",
     "scripts.spec.ts",
     "wic-state-init.spec.ts",
+    "lane-invocation.ts",
+    "lane.spec.ts",
     "tests/**/*.ts"
   ]
 }

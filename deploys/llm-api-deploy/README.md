@@ -1,6 +1,6 @@
 # LLM API Deploy
 
-Pulumi deployment project provision **deploy unit của `apps/llm-api` trên lane LOCAL**: ba database `db-llm-gateway`/`db-llm-tenant`/`db-llm-marketplace`, sáu role PostgreSQL, migration theo từng database, image và container WIC (worker-in-container) cho data plane LLM. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, image ở `Dockerfile` với entrypoint `wic-entrypoint.sh`, script provision/migrate dựng bằng hàm thuần trong `scripts.ts`.
+Pulumi deployment project provision **deploy unit của `apps/llm-api` trên lane LOCAL**: ba database `db-llm-gateway`/`db-llm-tenant`/`db-llm-marketplace`, sáu role PostgreSQL, migration theo từng database, image và container WIC (worker-in-container) cho data plane LLM. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, entry lane E2E ở `lane.ts`, image ở `Dockerfile` với entrypoint `wic-entrypoint.sh`, script provision/migrate dựng bằng hàm thuần trong `scripts.ts`.
 
 Nx project `llm-api-deploy`, tags `type:deployment`, `scope:llm-api`, `runtime:native`. Chỉ có lane local (`configurations: local`); `apps/llm-api/wrangler.jsonc` không khai env `staging`/`production` nào, và cả hai lane đó đều không nằm trong chương trình này.
 
@@ -17,7 +17,8 @@ Nx project `llm-api-deploy`, tags `type:deployment`, `scope:llm-api`, `runtime:n
 - **Image + container WIC** (`Dockerfile`, `wic-entrypoint.sh`, `index.ts`): image mỏng ghim `node:24-bookworm-slim` theo digest + `ca-certificates`; repo mount read-only, bundle `apps/llm-api/build` (`index.js` do Nx target `build` sinh) mount bind trực tiếp, runtime tree mirror ghi được nằm trong volume `/state` (ephemeral, một-shot `chown 1000:1000` chạy trước container). Container: alias DNS hằng `ecoma-llm-api`, cổng nội bộ 4211 (`dev.port` của app), KHÔNG có label `traefik.*` và KHÔNG publish cổng ra host (worker nội bộ), ba biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_{DB_LLM_GATEWAY,DB_LLM_TENANT,DB_LLM_MARKETPLACE}` bọc `pulumi.secret` qua container `envs` (không argv, không label, không log), healthcheck `GET /health` (liveness không chạm DB) và `wait: true`.
 - **Platform dependency**: đọc outputs platform qua `StackReference` (`networkName`, `namespace`) fail-closed; so namespace platform với worktree namespace, lệch là lỗi deploy; target `local-up` dependsOn `platform-deploy:local-up` và build bundle `@ecoma-io/llm-api`.
 - **Multi-worktree**: mọi Docker resource mang namespace theo worktree và ownership labels để `pnpm dx local-cleanup` phân loại được.
-- Stack exports: `provisionCommandName`, `migrateCommandNames`, `imageDigest`, `containerName`, `containerId`, `stateVolumeName`, `namespaceVerified`.
+- **Lane E2E** (`lane.ts`, target `test-lane-up`/`test-lane-down`, Issues #23/#24): hội tụ hạ tầng cho suite `system-tests/e2e/llm-inference-e2e` — container mock upstream `ecoma-<ns>-llm-upstream-mock` trên platform network (image `node:24-bookworm-slim` pin digest, repo mount read-only, credential qua env của process docker — argv chỉ mang tên biến, healthcheck `GET /v1/models` kèm Authorization), readiness qua MỘT container waiter ephemeral trong network, config `namespace:llmUpstreamBaseUrl` ghi đè về DNS nội bộ mock (giá trị qua kênh stdin của `pulumi config set`), rồi chạy cùng entry `local.ts up`. Khi stack output `consumerApiKeyStdout` đã mang dòng plaintext key (show-once của bước 9), `up` SKIP `local.ts up` nguyên vòng — chạy lại sẽ xoay password role và thay stdout ghi nhận, mất plaintext vĩnh viễn. Suite KHÔNG đụng vòng đời container mock: lifecycle thuộc lane target này.
+- Stack exports: `provisionCommandName`, `migrateCommandNames`, `bootstrapCommandNames`, `imageDigest`, `containerName`, `containerId`, `stateVolumeName`, `namespaceVerified`, `consumerApiKeyStdout`.
 
 ## Boundaries
 
@@ -25,6 +26,7 @@ Nx project `llm-api-deploy`, tags `type:deployment`, `scope:llm-api`, `runtime:n
 - Không sở hữu code của `apps/llm-api` — container chạy bundle do app đó build; sửa hành vi app thì sửa app.
 - Không cấu hình consumer của data plane LLM ở local — base URL nội bộ `http://ecoma-llm-api:4211` là contract để unit consumer dùng, không phải phần của stack này.
 - Ngữ nghĩa quota/settlement của llm-api không được restatement ở đây → `docs/applications/llm-api/`.
+- Container mock upstream GHÉP TÊN tại `lane.ts` với hình dạng `ecoma-<ns>-<kind>` vì kind `llm-upstream-mock` chưa nằm trong union đóng `DeployResourceKind` của `libs/deployment` — thêm kind là thay đổi lib dùng chung, ngoài phạm vi lane E2E. Hệ quả: `pnpm dx local-cleanup` chưa tự phân loại container này — dọn chính thức là `test-lane-down`.
 
 ## Development
 
@@ -38,13 +40,17 @@ Lifecycle mutate Docker/Pulumi state thật — chỉ chạy khi chủ đích th
 ```bash
 pnpm nx run llm-api-deploy:local-up -c local    # provision unit này (kéo platform + build bundle app chạy trước)
 pnpm nx run llm-api-deploy:local-down -c local  # destroy của riêng project; no-op exit 0 nếu worktree chưa từng deploy
+pnpm nx run llm-api-deploy:test-lane-up -c local    # lane E2E: container mock upstream + serving về mock + local.ts up (skip khi đã hội tụ)
+pnpm nx run llm-api-deploy:test-lane-down -c local  # xoá container mock của lane E2E; stack vẫn teardown bằng local-down
 ```
+
+Lệnh `lane.ts up` GIỮ stdout của `local.ts up` (run tạo key in plaintext API key consumer qua chuỗi pulumi — không được chạm captured artifact nào); plaintext chỉ đọc lại được qua `pulumi stack output consumerApiKeyStdout --show-secrets`, và lệnh `state` (dành cho runner suite) là kênh duy nhất in nó ra — envelope `LANE_STATE=<json>` một dòng, do runner suite bắt rồi không forward. Hạn chế: xoá state Pulumi mà database còn giữ row key là runner bước 9 hội tụ `existing` và không bao giờ in lại plaintext — khi đó `test-lane-up` fail-closed với hướng dẫn phục hồi (xoá row hoặc `local-down` đầy đủ rồi lên lại).
 
 ## Testing
 
-Targets đã xác nhận từ project graph: `local-up`, `local-down`, `test`, `test-integration`, `lint`, `typecheck`.
+Targets đã xác nhận từ project graph: `local-up`, `local-down`, `test-lane-up`, `test-lane-down`, `test`, `test-integration`, `lint`, `typecheck`.
 
-- Kiểm tĩnh: `lint` + `typecheck`; `test` (vitest) chấm script text do `scripts.ts` dựng — không chứa giá trị secret nào.
+- Kiểm tĩnh: `lint` + `typecheck`; `test` (vitest) chấm script text do `scripts.ts` dựng và builder thuần của `lane-invocation.ts` (`lane.spec.ts`: argv mock/waiter không chứa giá trị credential, parser stdout không ghép raw output vào message) — không chứa giá trị secret nào.
 - `test-integration` là suite argv-hygiene: chạy đúng script provision/migrate thật với sentinel giả, khẳng định không giá trị secret nào lọt vào argv, script text hay output bắt được, đồng thời trạng thái database sau provision + migration vẫn đúng. Suite cần Docker là phụ thuộc cứng — vắng Docker thì suite đỏ.
 
 ## Related Documentation

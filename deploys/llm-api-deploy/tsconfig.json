@@ -55,5 +55,12 @@
     // để mặc định "mọi @types trong node_modules".
     "types": ["node"]
   },
-  "files": ["index.ts", "local.ts", "scripts.ts", "superadmin-resolver.ts"]
+  "files": [
+    "index.ts",
+    "lane-invocation.ts",
+    "lane.ts",
+    "local.ts",
+    "scripts.ts",
+    "superadmin-resolver.ts"
+  ]
 }

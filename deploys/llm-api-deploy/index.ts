@@ -741,3 +741,11 @@ export const containerName = wic.name;
 export const containerId = wic.id;
 export const stateVolumeName = wicStateVolume.name;
 export const namespaceVerified = verifiedNamespace;
+/**
+ * Stdout ghi nhận của bootstrap bước 9 (secret — `additionalSecretOutputs`):
+ * kênh DUY NHẤT để lane E2E đọc lại plaintext key show-once sau run tạo
+ * (`pulumi stack output consumerApiKeyStdout --show-secrets`, entry
+ * `lane.ts`). Không có export này thì plaintext chỉ sống trong state mã hoá
+ * mà không đọc được theo tên — lane E2E sẽ không có credential để suite dùng.
+ */
+export const consumerApiKeyStdout = bootstrapConsumerTenant.stdout;
