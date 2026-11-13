@@ -10,13 +10,14 @@
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { MockConfig } from './config.js';
+import { DEFAULT_HOST, type MockConfig } from './config.js';
 import { startMockServer, type RunningMockServer } from './server.js';
 
 /** Config base cho suite — port 0 (ephemeral), hai model, content cố định. */
 function baseConfig(overrides: Partial<MockConfig> = {}): MockConfig {
   return {
     port: 0,
+    host: DEFAULT_HOST,
     defaultScenario: 'ok',
     models: ['mock-a', 'mock-b'],
     content: 'Hello from llm-upstream-mock.',
@@ -152,6 +153,37 @@ describe('happy path (default scenario ok)', () => {
       expect(model.object).toBe('model');
       expect(model.owned_by).toBe('ecoma-io-mock');
     }
+  });
+});
+
+describe('prefix-tolerant route matching', () => {
+  it('answers the models list on a deeper models path derived from a chat endpoint base', async () => {
+    // Deploy bootstrap đăng ký endpoint URL ĐẦY ĐỦ đường chat rồi suy probe
+    // models là `{endpoint}/v1/models` từ cùng một env — mock phải phục vụ
+    // cả hai, đúng hợp đồng probe 8b của lane E2E.
+    const response = await fetch(`${server.url}/v1/chat/completions/v1/models`);
+
+    expect(response.status).toBe(200);
+    const body = JSON.parse(await response.text()) as { object: string };
+    expect(body.object).toBe('list');
+  });
+
+  it('answers completions when the route sits behind a gateway path prefix', async () => {
+    const response = await fetch(`${server.url}/llm/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'mock-a', messages: [{ role: 'user', content: 'hi' }] }),
+    });
+
+    expect(response.status).toBe(200);
+    const body = JSON.parse(await response.text()) as { object: string };
+    expect(body.object).toBe('chat.completion');
+  });
+
+  it('still 404s paths that do not end in a known route', async () => {
+    const response = await fetch(`${server.url}/v1/models/extra`);
+
+    expect(response.status).toBe(404);
   });
 });
 
