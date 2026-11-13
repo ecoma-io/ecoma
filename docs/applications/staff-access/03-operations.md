@@ -109,7 +109,7 @@ Câu đầu chứng minh Account này không có đường đăng nhập nào **
 
 ### Bước 5 — S1: tạo staff identity
 
-Ghi một hàng `staff_access.staff` với `sub` từ bước 4, `display_name` rỗng (hồ sơ canonical ở `account`), status `active`. Bảng **không có cột email** và không được thêm.
+Ghi một hàng `staff_access.staff` với `sub` từ bước 4, `display_name` = hằng `BOOTSTRAP_STAFF_DISPLAY_NAME` (`'Bootstrap Superadmin'` — ADR-0029, sửa vế "rỗng" của ADR-0021 sau #170), status `active`. Bảng **không có cột email** và không được thêm. Hàng `display_name` rỗng tạo bởi bootstrap trước ADR-0029 được migration `0009` repair một lần ở lần `staff-access-deploy` up kế tiếp.
 
 - `staff.sub` UNIQUE nghĩa là chạy lại **tìm thấy** hàng cũ. Quy tắc fail-closed: không có → tạo; có và `active` → hội tụ; có và khác `active` (`suspended`/`terminated`) → **dừng**, báo là trạng thái cần can thiệp, **không** tự sửa `status`. `staff_identity_and_terminal_guard` chặn hồi sinh nhưng **không** chặn việc gán role cho một staff không hoạt động.
 - Bước này chạy **bên trong** critical section ghi của ADR-0022: cùng transaction đã lấy advisory lock và đã đo `admins_before`/`admins_ever`; guard quyết định bước này có được chạy hay không.

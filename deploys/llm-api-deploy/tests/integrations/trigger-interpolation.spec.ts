@@ -612,3 +612,172 @@ describe('bootstrap trigger rotation via real Pulumi engine (issue #154)', () =>
     ).toBe(false);
   }, 300_000);
 });
+
+// ---------------------------------------------------------------------------
+// Issue #190 — chuỗi secret stdout → trigger (shape bước 9 → bước 10).
+// ---------------------------------------------------------------------------
+
+const tenantIds = [`tenant_v1_${runId}`, `tenant_v2_${runId}`];
+
+/**
+ * Fixture hai Command mirror bước 9→10 của production (`bootstrapConsumerTenant`
+ * → `bootstrapFinancial`): producer echo một dòng stdout máy đọc và ĐÁNH DẤU
+ * stdout/stderr là secret output (`additionalSecretOutputs` — mirror show-once
+ * API key); consumer có trigger+environment entry phái sinh từ stdout đó.
+ * Tham số `unsecret` giữ để tài liệu hóa hai nhánh pattern (production bọc
+ * `pulumi.unsecret`; không bọc là hình đã thấy trong #190 trước fix) — khối
+ * describe dưới chỉ gọi nhánh đã sửa, phần còn lại giải thích vì sao negative
+ * control không dựng được trong fixture.
+ *
+ * Khác với khối #154 ở trên: chuỗi stdout→trigger ở đó dùng stdout PLAIN
+ * (governance verdict), nên không cover được nhánh secret — đây là khoảng
+ * trống để #172 đi qua CI (affected set của nó không chứa `test-lane-up`).
+ */
+function secretStdoutProgram(workDir: string): () => Promise<void> {
+  const producerScript = buildFixtureScript({
+    runsLogPath: path.join(workDir, 'runs', 'producer.log'),
+    markerPath: path.join(workDir, 'markers', 'producer'),
+    envVarNames: ['SEED_TENANT_ID'],
+    // Hợp đồng stdout máy đọc kiểu bước 9/10: duy nhất một dòng = tenant id
+    // (extraction thật của production là `extractConsumerTenantId` — fixture
+    // dùng trim, cùng hình với verdict của khối #154).
+    stdoutCommand: 'echo "$SEED_TENANT_ID"',
+  });
+  const consumerScript = buildFixtureScript({
+    runsLogPath: path.join(workDir, 'runs', 'consumer.log'),
+    markerPath: path.join(workDir, 'markers', 'consumer'),
+    envVarNames: ['ECOMA_CONSUMER_TENANT_ID'],
+  });
+  return async () => {
+    const conf = new pulumi.Config();
+    const seedTenantId = conf.require('seedTenantId');
+
+    const producerEnvironment: Record<string, pulumi.Output<string> | string> = {
+      SEED_TENANT_ID: seedTenantId,
+    };
+    const producer = new command.local.Command('tenant-producer-shape', {
+      create: producerScript,
+      update: producerScript,
+      triggers: ['fixture-worktree-root', ...environmentTriggers(producerEnvironment)],
+      environment: producerEnvironment,
+      // MARKING QUYẾT ĐỊNH của #190: stdout là secret output → mọi giá trị
+      // phái sinh từ nó cũng là secret output, kể cả khi sentinel gốc plain.
+      additionalSecretOutputs: ['stdout', 'stderr'],
+    });
+
+    const tenantId = producer.stdout.apply((s) => s.trim());
+    const consumerEnvironment: Record<string, pulumi.Output<string> | string> = {
+      // Production (`index.ts`, shape bước 10) bọc `pulumi.unsecret(...)` tại
+      // đây: trigger không được mang secret-unknown (engine gục ở preview với
+      // stack thật chưa hội tụ — #190); unsecret giữ dependency tracking nên
+      // rotation vẫn sống — không quay lại trigger trơ của #154.
+      ECOMA_CONSUMER_TENANT_ID: pulumi.unsecret(tenantId),
+    };
+    void new command.local.Command(
+      'financial-shape',
+      {
+        create: consumerScript,
+        update: consumerScript,
+        triggers: ['fixture-worktree-root', ...environmentTriggers(consumerEnvironment)],
+        environment: consumerEnvironment,
+      },
+      { dependsOn: [producer] },
+    );
+  };
+}
+
+describe('secret stdout → trigger chain via real Pulumi engine (issue #190)', () => {
+  let workDir: string;
+  let fixedStack: Stack;
+  /** Nuốt text engine của khối này riêng — sentinel là plain config, không cần leak-scan. */
+  const engineText190: string[] = [];
+  const push190 = (chunk: string): void => void engineText190.push(chunk);
+
+  beforeAll(async () => {
+    // CLI phải ấm trước khi dựng workspace — cùng lý do với khối #154 (banner
+    // cài đặt của shim npm làm Automation API không parse được version).
+    await warmPulumiCli();
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue190-trigger-'));
+    fs.writeFileSync(
+      path.join(workDir, 'Pulumi.yaml'),
+      [`name: ${PROJECT_NAME}`, 'runtime: nodejs', 'description: Issue #190 fixture', ''].join(
+        '\n',
+      ),
+    );
+    fs.mkdirSync(path.join(workDir, 'state'));
+    fs.mkdirSync(path.join(workDir, 'markers'));
+    fs.mkdirSync(path.join(workDir, 'runs'));
+
+    fixedStack = await createFixtureStack(workDir, 'fixed190', secretStdoutProgram(workDir));
+    await fixedStack.setConfig('seedTenantId', { value: tenantIds[0], secret: false });
+  }, 300_000);
+
+  afterAll(async () => {
+    // Guard stack (negative control) chưa bao giờ hội tụ — không destroy; rm
+    // workDir dọn cả state backend file://. Command fixture không có delete
+    // script nên destroy chỉ dọn state.
+    try {
+      if (fixedStack) await fixedStack.destroy({ onOutput: push190 });
+    } catch {
+      // Stack chưa lên resource nào là bình thường.
+    }
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it('preview and up succeed when the trigger derives from a secret stdout through unsecret', async () => {
+    // Preview RIÊNG là điểm chết của #190: producer chưa chạy → stdout unknown
+    // → entry trigger phái sinh phải serialize được. Đã sửa: entry là plain.
+    await fixedStack.preview({ onOutput: push190 });
+
+    const up = await fixedStack.up({ onOutput: push190 });
+    expect(
+      up.summary.resourceChanges?.create,
+      'initial up must create the stack + exactly 2 commands',
+    ).toBe(3);
+
+    expect(readRuns(workDir, 'producer')).toBe(1);
+    expect(readRuns(workDir, 'consumer')).toBe(1);
+
+    const consumerMarker = fs.readFileSync(path.join(workDir, 'markers', 'consumer'), 'utf8');
+    expect(
+      consumerMarker.includes(`ECOMA_CONSUMER_TENANT_ID=${tenantIds[0]}`),
+      'consumer must receive the tenant id extracted from the producer stdout',
+    ).toBe(true);
+  }, 300_000);
+
+  it('changing the producer stdout value reruns producer AND consumer (rotation stays live)', async () => {
+    await fixedStack.setConfig('seedTenantId', { value: tenantIds[1], secret: false });
+    await fixedStack.up({ onOutput: push190 });
+
+    expect(readRuns(workDir, 'producer'), 'producer SEED_TENANT_ID trigger must react').toBe(2);
+    expect(
+      readRuns(workDir, 'consumer'),
+      'consumer trigger entry (stdout→apply→unsecret→trigger) must react — unsecret must not reintroduce the inert-trigger bug of #154',
+    ).toBe(2);
+
+    const consumerMarker = fs.readFileSync(path.join(workDir, 'markers', 'consumer'), 'utf8');
+    expect(
+      consumerMarker.includes(`ECOMA_CONSUMER_TENANT_ID=${tenantIds[1]}`),
+      'consumer rerun must receive the NEW tenant id',
+    ).toBe(true);
+    expect(
+      consumerMarker.includes(tenantIds[0]),
+      'consumer marker must no longer contain the OLD tenant id',
+    ).toBe(false);
+  }, 300_000);
+
+  // ⚠️ Khoảng trống đã biết (ghi nhận ở đây để không ai thử dựng lại guard
+  // tưởng là đủ): KHÔNG có negative control cho pattern không-unsecret. Shape
+  // isolate (producer secret-stdout + consumer trigger phái sinh, file://
+  // backend, có/không known-secret entry, consumer có/không secret-marking)
+  // preview VÀ up SẠCH cả khi bỏ unsecret — trong khi lane thật với stack
+  // chưa hội tụ gục ở preview "triggers[3]: malformed secret: missing value",
+  // lỗi thuộc ENGINE (chuỗi nằm trong pulumi CLI binary, không có trong
+  // pulumi-resource-command 1.2.1). Nguyên nhân gốc ở tầng serialize checkpoint
+  // của engine khi trigger mang secret-unknown chưa pin được ngoài chương
+  // trình thật; bằng chứng hành vi là đôi trước/sau trên chính stack lane
+  // (#190: CI run 43408604979 fail + local 2/2 trước fix, hội tụ 1/1 sau fix).
+  // Hai test phía trên pin thuộc tính PHỦ ĐỊNH mà fix phải giữ: preview/up
+  // sạch VÀ rotation còn sống (không quay lại trigger trơ của #154).
+});
