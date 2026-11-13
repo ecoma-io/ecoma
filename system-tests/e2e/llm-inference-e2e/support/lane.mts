@@ -83,8 +83,16 @@ export function workerContainer(): string {
   return `ecoma-${laneNamespace()}-llm-api-wic`;
 }
 
-/** SHA-256 hex của một chuỗi — đối chiếu key_hash/credential_hash hash-only. */
+/**
+ * SHA-256 hex của một chuỗi — đối chiếu key_hash/credential_hash hash-only.
+ *
+ * Đây KHÔNG phải lưu mật khẩu: domain đã chọn SHA-256 làm hàm one-way duy
+ * nhất cho `api_keys.key_hash` (mọi mutation gateway đi qua cùng hàm), suite
+ * tính lại đúng digest đó để ghim fence "DB chỉ giữ hash của key lane, không
+ * giữ plaintext". Không có cách tính khác mà vẫn so khớp được cột domain.
+ */
 export function sha256Hex(value: string): string {
+  //lgtm [js/insufficient-password-hash]
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
