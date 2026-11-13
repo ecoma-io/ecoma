@@ -461,12 +461,27 @@ const bootstrapConsumerTenant = new command.local.Command(
  * credential nào của bước này; stdout/stderr vẫn đánh dấu secret output cùng
  * cơ chế với bước 9.
  */
+// Tenant id từ stdout bước 9 — chuỗi kết nối hai bước đi qua hợp đồng máy đọc,
+// runner bước 10 tự assert với hằng của nó. stdout của bước 9 được đánh dấu
+// secret (`additionalSecretOutputs`), nên giá trị phái sinh phải `unsecret`
+// trước khi vào environment/triggers: trên lane up thật với stack chưa hội tụ,
+// engine (pulumi CLI, không phải provider) gục ở preview với
+// "triggers[3]: malformed secret: missing value" (#190 — tái hiện 2/2 trên CI
+// và local trước fix, hội tụ 1/1 sau fix; các shape isolate tương đương
+// KHÔNG tái hiện được, nên nguyên nhân gốc ở tầng serialize của engine khi
+// trigger mang secret-unknown). Tenant id là dữ liệu cấu hình, không
+// credential — ghi plaintext trong trigger là chủ đích, cùng lớp với
+// `SELLER_ELIGIBILITY_VERDICT` (stdout plain của governance, cùng cơ chế hai
+// bước); rotation vẫn sống vì unsecret không mất dependency tracking — spec
+// engine-level (`trigger-interpolation.spec.ts`, khối #190) pin cả hai tính chất.
+const consumerTenantId = pulumi.unsecret(
+  bootstrapConsumerTenant.stdout.apply(extractConsumerTenantId),
+);
+
 const bootstrapFinancialEnvironment: Record<string, pulumi.Output<string> | string> = {
   ECOMA_GATEWAY_DATABASE_URL: migratorUrls.gateway,
   ECOMA_GOVERNANCE_ACTOR: bootstrapActor,
-  // Tenant id từ stdout bước 9 — chuỗi kết nối hai bước đi qua hợp đồng máy
-  // đọc, runner bước 10 tự assert với hằng của nó.
-  ECOMA_CONSUMER_TENANT_ID: bootstrapConsumerTenant.stdout.apply(extractConsumerTenantId),
+  ECOMA_CONSUMER_TENANT_ID: consumerTenantId,
   ECOMA_CONSUMER_TENANT_OWNER_SUB: tenantOwnerSub,
   ECOMA_SPONSOR_ID: conf.require('sponsorId'),
   ECOMA_SPONSOR_CEILING: conf.require('sponsorCeiling'),
