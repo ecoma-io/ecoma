@@ -2,10 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
-  APP_SHELL_COLOR_MODE_COOKIE,
-} from '@ecoma-io/ui-app-shell';
+import { APP_SHELL_COLOR_MODE_COOKIE } from '@ecoma-io/ui-app-shell';
 
 import { flush, mountLlmConsoleApp } from './harness';
 import { headHtmlAttrs, llmConsoleStores } from './nuxt-globals';
@@ -27,18 +24,20 @@ describe('lang and dir on <html> are owned by the app', () => {
     expect(APP_VUE_CODE).toMatch(/htmlAttrs\s*:\s*\{[^}]*\bdir\s*:/u);
   });
 
-  it('injects the color mode bootstrap script through the same useHead', async () => {
-    // Nguồn: script được đăng ký trong **cùng** object `useHead` với `htmlAttrs`.
-    const returned = firstReturnedObject(APP_VUE_SOURCE);
-    expect(returned).toMatch(/script\s*:/u);
-    expect(returned).toMatch(/APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT/u);
-    // Hành vi: head mà app đăng ký chứa đúng script bootstrap của library với
-    // nội dung nguyên vẹn — không phải script nào khác của app tự viết.
-    const wrapper = await mountLlmConsoleApp({ page: IndexPage });
-    expect(llmConsoleStores.head.value['script']).toEqual([
-      { textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT },
-    ]);
-    wrapper.unmount();
+  it('injects the color mode bootstrap script only through the static nuxt.config app.head', () => {
+    // App chạy `ssr: false`: `useHead` chỉ áp dụng sau mount, nên script phải
+    // là entry **tĩnh** trong `app.head` của `nuxt.config.ts` — render thẳng
+    // vào HTML shell lúc build, chạy lúc parse trước first paint. Ghim theo
+    // source: biểu thức chính xác `innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_
+    // SCRIPT` cùng dòng import subpath của library — tên hằng được typecheck
+    // kiểm, nên hai phía không thể lệch nhau.
+    const nuxtConfig = readFileSync(resolve(import.meta.dirname, '../nuxt.config.ts'), 'utf8');
+    expect(nuxtConfig).toContain("from '@ecoma-io/ui-app-shell/lib/color-mode'");
+    expect(nuxtConfig).toContain('innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT');
+
+    // Và `useHead` của app.vue không đăng ký script nào — một script qua
+    // useHead chỉ xuất hiện sau mount, tạo cảm giác đã bảo vệ mà thực ra không.
+    expect(APP_VUE_CODE).not.toMatch(/\bscript\s*:/u);
   });
 
   it('never manages the dark class through head attributes', () => {

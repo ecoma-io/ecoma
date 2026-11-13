@@ -23,7 +23,6 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
   APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
   AppShellColorModeToggle,
@@ -59,19 +58,18 @@ function setColorMode(next: AppShellColorMode): void {
   colorModeCookie.value = next;
 }
 
-// Gộp TOÀN BỘ cấu hình document vào một useHead duy nhất:
-//
-// - `lang`/`dir` của `<html>`: hai thuộc tính của cùng ngôn ngữ, cùng tra từ
-//   definition của locale đang dùng trong registry (xem `use-llm-console-i18n.ts`).
-// - Script bootstrap của color mode: quyết định class `dark` trên `<html>` **trước
-//   first paint** từ cookie và `prefers-color-scheme` (issue #213). Vue và unhead
-//   **không** quản lý class này — không có `class` trong `htmlAttrs`, không có
-//   `bodyAttrs` nào ở đây — nên hydration không bao giờ hoàn tác giá trị mà script
-//   đã đặt.
+// useHead chỉ đăng ký `lang`/`dir` của `<html>`: hai thuộc tính của cùng ngôn
+// ngữ, cùng tra từ definition của locale đang dùng trong registry (xem
+// `use-llm-console-i18n.ts`). Script bootstrap của color mode **không** nằm ở
+// đây — app chạy `ssr: false`, nên `useHead` chỉ áp dụng sau khi bundle mount,
+// quá muộn so với first paint; script được chèn tĩnh vào `app.head` trong
+// `nuxt.config.ts`, render thẳng vào HTML shell lúc build. Vue và unhead cũng
+// **không** quản lý class `dark` — không có `class` trong `htmlAttrs`, không có
+// `bodyAttrs` nào ở đây — nên hydration không bao giờ hoàn tác giá trị mà script
+// đã đặt.
 useHead(() => {
   return {
     htmlAttrs: { lang: language.value, dir: dir.value },
-    script: [{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
   };
 });
 
