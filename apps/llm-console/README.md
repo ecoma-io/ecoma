@@ -4,6 +4,12 @@ Component `llm-console` — composition UI consumer + BFF trên Cloudflare Worke
 
 Nx project `@ecoma-io/llm-console`, tags `type:composition`, `scope:llm-consumer`, `runtime:edge`.
 
+## M1 Status
+
+- Theo feature spec consumer ([`docs/features/llm-marketplace/consumer-usage.md`](../../docs/features/llm-marketplace/consumer-usage.md), quyết định 1), bề mặt consumer M1 của capability `llm-marketplace` là **API-only**: hệ thống nội bộ gọi trực tiếp data plane `llm-api` (`GET /v1/models`, `POST /v1/chat/completions`).
+- Sáu consumer workflow của [`docs/applications/llm-console/01-architecture.md`](../../docs/applications/llm-console/01-architecture.md) §6 (API keys, alias/routing, balance, top-up, usage, workspace scope) nằm ngoài M1 theo quyết định đó: `llm-console` không tham gia capability trong M1, deploy unit `llm-console-deploy` giữ marker `scaffold`, và unit này không thuộc danh sách MVP của issue #26.
+- Hiện trạng app là shell scaffold (health/ready, i18n en/vi/zh-CN, catch-all 404 cho `/api/**`) — chưa có workflow consumer nào có hiện thực hay test.
+
 ## Purpose
 
 - Worker `ecoma-llm-console` (`wrangler.jsonc`, entry `.output/server/index.mjs` của Nitro, preset `cloudflare-module`): static asset qua binding `ASSETS`, phần server xử lý request qua Nitro.
