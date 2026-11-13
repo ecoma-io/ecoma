@@ -8,18 +8,18 @@
  * 1. `lang` **và** `dir` nằm chung trong `htmlAttrs` của **một** `useHead`:
  *    `lang` là BCP-47 từ registry, `dir` là hướng chữ của cùng definition đó —
  *    thuộc tính của ngôn ngữ, không phải cấu hình người dùng (issue #213).
- * 2. Script bootstrap color mode được inject qua `useHead` với `textContent`
- *    đúng hằng của library — script này quyết định class `dark` trên `<html>`
- *    **trước first paint**, nên thiếu nó là FOUC ở chế độ tối.
+ * 2. Script bootstrap color mode là entry **tĩnh** trong `app.head` của
+ *    `nuxt.config.ts` (app chạy `ssr: false`, `useHead` chỉ áp dụng sau mount)
+ *    — script này quyết định class `dark` trên `<html>` **trước first paint**,
+ *    nên thiếu nó là FOUC ở chế độ tối.
  * 3. Vue/unhead **không** quản lý class `dark`: `htmlAttrs` không có `class`,
  *    và không còn `bodyAttrs` nào — đăng ký class qua head là hoàn tác giá trị
  *    mà script đã đặt (lý do `appShellHeadAttributes` cũ bị xoá).
  */
 import { describe, expect, it } from 'vitest';
-import {
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
-  APP_SHELL_COLOR_MODE_COOKIE,
-} from '@ecoma-io/ui-app-shell';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { APP_SHELL_COLOR_MODE_COOKIE } from '@ecoma-io/ui-app-shell';
 
 import { documentHead, headHtmlAttrs, useCookie } from '../tests/nuxt-globals';
 import { flushPromises, mountBackofficeApp } from '../tests/harness';
@@ -50,14 +50,22 @@ describe('the app owns the <html> lang and dir attributes in one useHead', () =>
     expect(headHtmlAttrs()).toEqual({ lang: 'zh-Hans', dir: 'ltr' });
   });
 
-  it('injects the color-mode bootstrap script with its textContent', async () => {
-    await mountBackofficeApp();
+  it('injects the color-mode bootstrap script only through the static nuxt.config app.head', async () => {
+    // App chạy `ssr: false`: `useHead` chỉ áp dụng sau mount, nên script phải
+    // là entry **tĩnh** trong `app.head` của `nuxt.config.ts` — render thẳng
+    // vào HTML shell lúc build, chạy lúc parse trước first paint. Ghim theo
+    // source: biểu thức chính xác `innerHTML: APP_SHELL_COLOR_MODE_
+    // BOOTSTRAP_SCRIPT` cùng dòng import subpath của library — tên hằng được
+    // typecheck kiểm, nên hai phía không thể lệch nhau.
+    const nuxtConfig = readFileSync(resolve(import.meta.dirname, '../nuxt.config.ts'), 'utf8');
+    expect(nuxtConfig).toContain("from '@ecoma-io/ui-app-shell/lib/color-mode'");
+    expect(nuxtConfig).toContain('innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT');
 
+    // Và `useHead` của app.vue không đăng ký script nào — một script qua useHead
+    // chỉ xuất hiện sau mount, tạo cảm giác đã bảo vệ mà thực ra không.
+    await mountBackofficeApp();
     const scripts = documentHead()['script'] as Array<Record<string, unknown>> | undefined;
-    expect(Array.isArray(scripts)).toBe(true);
-    expect(
-      scripts?.some((entry) => entry['textContent'] === APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT),
-    ).toBe(true);
+    expect(scripts ?? []).toEqual([]);
   });
 
   it('never registers the dark class or body attributes through unhead', async () => {
