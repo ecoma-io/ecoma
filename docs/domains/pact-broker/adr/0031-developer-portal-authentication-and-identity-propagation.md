@@ -1,6 +1,6 @@
 # ADR-0031 — Developer Portal M1: xác thực người dùng, session store, CSRF, OIDC client và truyền danh tính BFF → API
 
-> **Trạng thái:** Proposed · **Ngày:** 2026-11-14 · **Quyết định từ:** Issue #205 (quyết định 1, 2, 3, 4, 10) · **Hiện thực:** #206
+> **Trạng thái:** Proposed · **Ngày:** 2026-11-13 · **Quyết định từ:** Issue #205 (quyết định 1, 2, 3, 4, 10) · **Hiện thực:** #206
 
 ## Bối cảnh
 
@@ -47,7 +47,7 @@ Ràng buộc không được phá: browser session và machine token là hai dan
 3. TTL phiên: idle 12h + tuyệt đối 7d (giá trị proven của backoffice); hết hạn ⇒ re-auth qua `auth`. Refresh token được dùng server-side để cấp access token mới; rotation của `auth` là sẵn có — reuse bị phát hiện ⇒ huỷ phiên và ép đăng nhập lại, không retry.
 4. Logout: huỷ phiên server-side + gọi `POST {AUTH_ISSUER}/revocation` cho access + refresh token, xoá cookie (pattern ADR-0012 §3; RP-initiated logout không là điều kiện).
 5. Callback replay (code dùng lại, `state` sai, cookie vắng/lặp) bị từ chối và không tạo phiên; `state` + PKCE verifier + cookie callback dùng một lần.
-6. Invariant deploy-unit §9.1 được sửa tương ứng: mỗi service chỉ chạm DB của mình — `pact-broker-api` chạm `db-pact-broker`, `pact-broker-app` chạm `db-pact-broker-app`; không DB nào chạm DB của service khác. Migration của `pact-broker-app` chạy từ CI runner (không DDL từ Worker), bám đúng quy trình hiện có.
+6. Invariant deploy-unit số 1 tại §9 được sửa tương ứng: mỗi service chỉ chạm DB của mình — `pact-broker-api` chạm `db-pact-broker`, `pact-broker-app` chạm `db-pact-broker-app`; không DB nào chạm DB của service khác. Migration của `pact-broker-app` chạy từ CI runner (không DDL từ Worker), bám đúng quy trình hiện có.
 7. ID token không được verify ở M1 (không có step-up — [ADR-0032](./0032-developer-authorization-matrix-and-credential-policy.md) §1g); nếu step-up cần sau này, áp pattern [ADR-0005](../../staff-access/adr/0005-step-up-fresh-session.md)/ADR-0012 §3.
 
 ### 3. CSRF: double-submit cookie (quyết định 3 của #205)

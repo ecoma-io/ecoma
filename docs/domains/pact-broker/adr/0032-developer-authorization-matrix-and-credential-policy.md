@@ -1,6 +1,6 @@
 # ADR-0032 — Developer Portal M1: permission matrix, credential purpose, creator-role→scope, audit policy và role bootstrap
 
-> **Trạng thái:** Proposed · **Ngày:** 2026-11-14 · **Quyết định từ:** Issue #205 (quyết định 5, 6, 7, 8, 9, 13, 15, 16) · **Hiện thực:** #206 (enforcement API-side, audit coverage), #207 (credential self-service, atomicity, UI)
+> **Trạng thái:** Proposed · **Ngày:** 2026-11-13 · **Quyết định từ:** Issue #205 (quyết định 5, 6, 7, 8, 9, 13, 15, 16) · **Hiện thực:** #206 (enforcement API-side, audit coverage), #207 (credential self-service, atomicity, UI)
 
 ## Bối cảnh
 
