@@ -31,12 +31,34 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-# ⚠️ Hai bước đều bọc `timeout`: `set -euo pipefail` chỉ bắt exit code khác 0,
-# không xử lý tiến trình treo vô hạn (mạng đứt, DNS chậm, registry không phản
-# hồi) — không có timeout thì target `test-integration` treo luôn và khoá CI
-# worker. Nới hạn: tải chromium (~170MB) trong 300s; `install-deps` chạy
+# ⚠️ Chống treo vô hạn: `set -euo pipefail` chỉ bắt exit code khác 0, không xử
+# lý tiến trình treo (mạng đứt, DNS chậm, registry không phản hồi) — không có
+# watchdog thì target `test-integration` treo luôn và khoá CI worker.
+#
+# Bước 1 chạy trên **mọi** máy target chạy, kể cả máy dev macOS nơi GNU coreutils
+# (`timeout`) không có sẵn — watchdog của bước 1 dựng trên `node child_process`,
+# dependency chắc chắn có của repo, hoạt động giống nhau trên Linux/macOS.
+# Exit 124 khi hết giờ, cùng quy ước với GNU `timeout`.
+#
+# Bước 2 chỉ chạy trên CI (`CI=true`) — Linux runner luôn có GNU `timeout`, nên
+# giữ nguyên. Nới hạn: tải chromium (~170MB) trong 300s; `install-deps` chạy
 # `apt-get` trên CI runner nên cho 600s.
-timeout 300 npx playwright install chromium
+run_with_timeout() {
+  local seconds="$1"
+  shift
+  node -e '
+    const { spawn } = require("node:child_process");
+    const [ms, ...argv] = process.argv.slice(1);
+    const child = spawn(argv[0], argv.slice(1), { stdio: "inherit" });
+    const timer = setTimeout(() => child.kill("SIGKILL"), Number(ms));
+    child.on("exit", (code, signal) => {
+      clearTimeout(timer);
+      process.exit(signal !== null ? 124 : (code ?? 1));
+    });
+  ' "$((seconds * 1000))" "$@"
+}
+
+run_with_timeout 300 npx playwright install chromium
 
 if [ "${CI:-}" = "true" ]; then
   timeout 600 npx playwright install-deps chromium
