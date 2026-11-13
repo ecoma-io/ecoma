@@ -27,15 +27,11 @@ export type Translate = (key: string) => string;
  */
 export function appShellLabels(translate: Translate): AppShellLabels {
   return {
-    settings: {
-      title: translate('shell.settings.title'),
-      description: translate('shell.settings.description'),
-      theming: translate('shell.settings.theming'),
-      layout: translate('shell.settings.layout'),
-      color: translate('shell.settings.color'),
-      direction: translate('shell.settings.direction'),
-      directionLtr: translate('shell.settings.directionLtr'),
-      directionRtl: translate('shell.settings.directionRtl'),
+    colorMode: {
+      label: translate('shell.colorMode.label'),
+      light: translate('shell.colorMode.light'),
+      dark: translate('shell.colorMode.dark'),
+      system: translate('shell.colorMode.system'),
     },
     search: {
       buttonLabel: translate('shell.search.button'),

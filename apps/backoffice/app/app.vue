@@ -1,11 +1,12 @@
 <template>
   <AppShell
-    :preferences="preferences"
+    :dir="dir"
+    :color-mode="colorMode"
     :nav="nav"
     :current-path="route.path"
     :home-label="homeLabel"
     :labels="shellLabels"
-    @update:preferences="updatePreferences"
+    @update:color-mode="setColorMode"
   >
     <template #brand>
       <NuxtLink to="/" class="flex items-center gap-2 px-1">
@@ -14,6 +15,7 @@
     </template>
     <template #actions>
       <BackofficeLanguageSelect />
+      <AppShellColorModeToggle />
     </template>
     <NuxtPage />
   </AppShell>
@@ -21,13 +23,13 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_PREFERENCES_COOKIE,
+  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
+  APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
-  DEFAULT_APP_SHELL_PREFERENCES,
-  appShellHeadAttributes,
-  parseAppShellPreferences,
+  AppShellColorModeToggle,
+  parseAppShellColorMode,
+  type AppShellColorMode,
   type AppShellNavSection,
-  type AppShellPreferences,
 } from '@ecoma-io/ui-app-shell';
 import { EcomaLogo } from '@ecoma-io/ui-ecoma-logo';
 import { useI18n } from '#i18n';
@@ -42,29 +44,34 @@ const { t } = useI18n();
 // Nơi DUY NHẤT ghi `locale` của composer — xem `use-backoffice-i18n.ts`.
 // Không có lệnh gọi này thì language selector chỉ đổi `<html lang>` và cookie,
 // còn toàn bộ văn bản vẫn nằm ở `DEFAULT_BACKOFFICE_LOCALE`.
-const { language } = useBackofficeI18n();
+const { language, dir } = useBackofficeI18n();
 
-// Nguồn duy nhất của cấu hình shell là cookie này.
-const cookie = useCookie<AppShellPreferences>(APP_SHELL_PREFERENCES_COOKIE, {
-  default: () => DEFAULT_APP_SHELL_PREFERENCES,
-});
+// Chế độ màu là lựa chọn người dùng **duy nhất** còn lại của shell (issue #213):
+// `dir` không phải cấu hình — nó đi theo locale từ registry ở trên. Nguồn sự
+// thật là cookie này, đúng tên mà script bootstrap (`APP_SHELL_COLOR_MODE_
+// BOOTSTRAP_SCRIPT`) đọc trước first paint — hai phía không được lệch tên khoá.
+const colorModeCookie = useCookie<string>(APP_SHELL_COLOR_MODE_COOKIE);
 
-// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library trước khi render.
-const preferences = computed(() => parseAppShellPreferences(cookie.value));
+// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library
+// trước khi render. Không cần `default:` — giá trị vắng mặt hoặc rác rơi về
+// `'system'` theo hợp đồng của `parseAppShellColorMode`.
+const colorMode = computed<AppShellColorMode>(() => parseAppShellColorMode(colorModeCookie.value));
 
-function updatePreferences(next: AppShellPreferences): void {
-  cookie.value = next;
+function setColorMode(mode: AppShellColorMode): void {
+  colorModeCookie.value = mode;
 }
 
-// Gộp lang + htmlAttrs(bodyAttrs từ shell) vào một useHead duy nhất.
-useHead(() => {
-  const { htmlAttrs, bodyAttrs } = appShellHeadAttributes(preferences.value);
-
-  return {
-    htmlAttrs: { lang: language.value, ...htmlAttrs },
-    bodyAttrs,
-  };
-});
+// Gộp lang + dir + script bootstrap vào một useHead duy nhất.
+//
+// ⚠️ **Không** đăng ký class `dark` ở đây: class đó do script bootstrap quyết
+// định trước first paint, còn sau hydration thì watcher của `AppShell` cập nhật
+// khi người dùng đổi mode. Vue/unhead không quản lý class này — đăng ký nó ở
+// head là hoàn tác giá trị mà script đã đặt (FOUC + hydration dispute, lý do
+// `appShellHeadAttributes` cũ bị xoá).
+useHead(() => ({
+  htmlAttrs: { lang: language.value, dir: dir.value },
+  script: [{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
+}));
 
 const shellLabels = computed(() => appShellLabels((key) => t(key)));
 

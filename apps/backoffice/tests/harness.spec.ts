@@ -119,7 +119,7 @@ describe('harness — useCookie', () => {
         });
         const second = useCookie<{ theme: string }>('prefs');
         const theme = computed(() => first.value?.theme ?? 'không có');
-        // Ghi qua hàm, đúng cách `app.vue` ghi (`updatePreferences`): đọc `vm.first`
+        // Ghi qua hàm, đúng cách `app.vue` ghi (`setColorMode`): đọc `vm.first`
         // từ ngoài sẽ nhận **giá trị đã unwrap**, không phải chính `Ref`.
         const setTheme = (next: string): void => {
           first.value = { theme: next };

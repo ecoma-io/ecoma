@@ -208,7 +208,7 @@ describe('switches locale at runtime', () => {
     // `explicit` vẫn `undefined`: cookie là nguồn duy nhất. Nếu jar của stub không
     // reactive (Map trần), `computed` cache vĩnh viễn và ghi cookie giữa phiên sẽ
     // không đổi một chữ nào trên UI — đúng false-green mà `app.vue` đang dễ mắc
-    // với `preferences` của shell.
+    // với cookie color mode của shell.
     const { wrapper } = await mountBackofficeApp();
     expect(pageTitle(wrapper)).toBe(EXPECTED.pageOverviewTitle.en);
 
@@ -281,13 +281,15 @@ describe('<html lang> follows BCP-47', () => {
     expect(headHtmlAttrs()['lang']).not.toBe('zh-CN');
   });
 
-  it("does not drop the shell's other <html>/<body> attributes", async () => {
+  it('keeps lang and dir in one htmlAttrs object with no dark class from unhead', async () => {
     const { wrapper } = await mountBackofficeApp();
     await selectLanguage(wrapper, 'vi');
 
-    // `app.vue` gộp `lang` với `htmlAttrs` của shell trong **một** `useHead`; nếu ai
-    // đó tách `lang` ra một `useHead` thứ hai, phần shell có thể rơi mất.
-    expect(headHtmlAttrs()).toMatchObject({ class: 'dark', dir: 'ltr' });
+    // `app.vue` gộp `lang` + `dir` trong **một** `useHead`; so khớp chính xác để
+    // mọi thuộc tính thừa đều đỏ: class `dark` là việc của script bootstrap
+    // (quyết định trước first paint) và watcher của shell — đăng ký nó qua unhead
+    // là hoàn tác giá trị mà script đã đặt (issue #213).
+    expect(headHtmlAttrs()).toEqual({ lang: 'vi', dir: 'ltr' });
   });
 });
 
