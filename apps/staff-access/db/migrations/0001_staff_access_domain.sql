@@ -53,7 +53,7 @@ COMMENT ON COLUMN staff_access.staff.id IS
 COMMENT ON COLUMN staff_access.staff.sub IS
   'Account ID (sub form) of the staff member. UNIQUE = 1:1 mapping; opaque reference, changing sub on an existing row is blocked (staff_identity_and_terminal_guard).';
 COMMENT ON COLUMN staff_access.staff.display_name IS
-  'Display name mirrored for audit/read surfaces; canonical profile lives in account (proposed label, pending confirmation).';
+  'Directory-local display label owned by staff-access, never synced from account (ADR-0029). Bootstrap writes the BOOTSTRAP_STAFF_DISPLAY_NAME constant; migration 0009 repairs legacy empty values.';
 COMMENT ON COLUMN staff_access.staff.status IS
   'Independent axis (proposed labels, pending confirmation): active | suspended | terminated. Terminated is terminal; a trigger silently blocks restoration.';
 

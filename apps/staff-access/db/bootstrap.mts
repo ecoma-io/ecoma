@@ -6,6 +6,8 @@
  * - docs/domains/staff-access/adr/0022-measured-first-admin-guard.md (guard đo được).
  * - docs/domains/staff-access/adr/0023-administrator-lifecycle-paths.md Quyết định 6 (denial audit).
  * - docs/domains/staff-access/adr/0024-trusted-bootstrap-verified-address.md Quyết định 5, 6.
+ * - docs/domains/staff-access/adr/0029-bootstrap-staff-display-name.md (supersede-in-part
+ *   ADR-0021 Quyết định 4 vế "`display_name` rỗng" — #170).
  * - docs/applications/staff-access/03-operations.md §2 Bước 5–8.
  *
  * Ba bước độc lập, mỗi bước một transaction:
@@ -51,6 +53,20 @@ export const ADMINISTRATOR_ASSIGNMENT_LOCK = 'staff_access.administrator_assignm
 
 /** Chế độ chạy mà procedure chấp nhận; chỉ `bootstrap` được hiện thực ở #17. */
 export const BOOTSTRAP_MODE = 'bootstrap';
+
+/**
+ * Tên hiển thị hằng mà S1 ghi cho staff row nó tạo (ADR-0029, #170).
+ *
+ * Contract staff (`management-staff-contract`) yêu cầu `display_name` 1..200 ký tự và
+ * validator phía consumer từ chối **cả trang** listing khi một entry rỗng — INSERT `''`
+ * cũ của S1 sinh ra đúng hình đó và làm `GET /api/staff` trả 503. `display_name` của
+ * staff là nhãn riêng của sổ staff-access, **không** đồng bộ từ account (contract cấm
+ * nhân bản hồ sơ qua contract này), và bootstrap không có tên nào của người để dùng —
+ * hằng mô tả nguồn gốc row là giá trị hợp lệ duy nhất tại biên này. Không đụng hàng đã
+ * tồn tại: nhánh converged của S1 không ghi gì, và hàng rỗng đã có trước ADR-0029 được
+ * repair một lần bởi migration `0009_bootstrap_staff_display_name.sql` (cùng hằng).
+ */
+export const BOOTSTRAP_STAFF_DISPLAY_NAME = 'Bootstrap Superadmin';
 
 /** Hành động ghi vào `authorization_audit.action` cho mọi lần từ chối (ADR-0023 Quyết định 6). */
 export const ROLE_ASSIGNMENT_CREATE_ACTION = 'role_assignment.create';
@@ -513,8 +529,8 @@ export async function provisionBootstrapStaff(
     if (row === undefined) {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO staff_access.staff (sub, display_name, status)
-         VALUES ($1, '', 'active') RETURNING id`,
-        [input.sub],
+         VALUES ($1, $2, 'active') RETURNING id`,
+        [input.sub, BOOTSTRAP_STAFF_DISPLAY_NAME],
       );
       const insertedId = inserted.rows[0]?.id;
       if (insertedId === undefined) {

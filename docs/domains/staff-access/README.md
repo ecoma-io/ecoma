@@ -42,7 +42,7 @@ Việc chuyển này **không** âm thầm sửa quyết định cũ: [ADR-0013]
 
 ## 5. Tài liệu
 
-| Document                               | Nội dung                                                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`domain-model.md`](./domain-model.md) | Business model, quy tắc nghiệp vụ, invariant, sự kiện domain và ngữ nghĩa quyền       |
-| [`adr/`](./adr/README.md)              | Architectural decision record — mười chín quyết định (ADR-0001…0014, 0016, 0020…0023) |
+| Document                               | Nội dung                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`domain-model.md`](./domain-model.md) | Business model, quy tắc nghiệp vụ, invariant, sự kiện domain và ngữ nghĩa quyền                |
+| [`adr/`](./adr/README.md)              | Architectural decision record — hai mươi mốt quyết định (ADR-0001…0014, 0016, 0020…0024, 0029) |
