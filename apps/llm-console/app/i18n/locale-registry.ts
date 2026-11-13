@@ -17,14 +17,18 @@
  * cú pháp, nhưng screen reader và công cụ dịch cần `zh-Hans` để hiểu đúng biến
  * thể chữ Hán giản thể mà catalog này viết. Trộn hai khái niệm là lỗi thường
  * gặp và không có dấu hiệu nào báo — `lang="zh-CN"` vẫn render bình thường.
+ *
+ * ⚠️ **`dir` là thuộc tính của ngôn ngữ, không phải lựa chọn người dùng.** Nó
+ * cùng nguồn với `language`: cùng một lần tra registry sinh ra cả `<html lang>`
+ * và `<html dir>`, nên hai thuộc tính không bao giờ lệch nhau.
  */
 export const LLM_CONSOLE_LOCALE_DEFINITIONS = [
-  { code: 'en', language: 'en', label: 'English' },
-  { code: 'vi', language: 'vi', label: 'Tiếng Việt' },
+  { code: 'en', language: 'en', label: 'English', dir: 'ltr' },
+  { code: 'vi', language: 'vi', label: 'Tiếng Việt', dir: 'ltr' },
   // Nhãn cố ý là chữ Hán giản thể bất kể locale đang chọn: người dùng đang tìm
   // ngôn ngữ của mình trong danh sách này, nên mỗi mục tự hiển thị bằng chính
   // ngôn ngữ đó — dịch nhãn "简体中文" theo locale hiện tại làm nó khó nhận ra.
-  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文' },
+  { code: 'zh-CN', language: 'zh-Hans', label: '简体中文', dir: 'ltr' },
 ] as const;
 
 /** Locale code hợp lệ — union **suy ra** từ registry, không viết tay. */
@@ -37,6 +41,13 @@ export type LlmConsoleLocaleDefinition = {
   readonly language: string;
   /** Nhãn hiển thị trong language selector. */
   readonly label: string;
+  /**
+   * Hướng chữ của ngôn ngữ, dùng cho `<html dir>` và hướng layout của shell.
+   * Đây là thuộc tính của **ngôn ngữ** chứ không phải lựa chọn hiển thị: khi
+   * thêm một ngôn ngữ viết từ phải sang trái (ar, he, fa…) thì khai `'rtl'`
+   * ngay tại entry của nó; mọi locale hiện tại đều `'ltr'`.
+   */
+  readonly dir: 'ltr' | 'rtl';
 };
 
 /**

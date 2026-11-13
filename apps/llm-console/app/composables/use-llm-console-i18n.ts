@@ -8,6 +8,8 @@ import { useLlmConsoleLocale } from './use-llm-console-locale';
 export type LlmConsoleI18nState = {
   /** BCP-47 cho `<html lang>` — khác `code` ở `zh-CN` (`zh-Hans`). */
   readonly language: ComputedRef<string>;
+  /** Hướng chữ của locale đang dùng, cho `<html dir>` và prop `dir` của shell. */
+  readonly dir: ComputedRef<'ltr' | 'rtl'>;
 };
 
 /**
@@ -22,24 +24,28 @@ export type LlmConsoleI18nState = {
  * `watchEffect` chứ không phải set một lần: locale đổi được giữa phiên (đổi ở
  * language selector), và ngôn ngữ phải theo ngay.
  *
- * ⚠️ Composable này **không** gọi `useHead` cho `<html lang>`: app gộp **toàn bộ**
- * thuộc tính document vào **một** `useHead` ở `app.vue` — shell trả về `class`/`dir`
- * của `<html>` và `color-*` của `<body>` qua `appShellHeadAttributes`, còn `lang`
- * là việc của app — gộp vào cùng object thì kết quả không phụ thuộc vào việc unhead
- * có trộn `htmlAttrs` giữa hai lần gọi hay không. Vì vậy composable trả
- * `language` về cho `app.vue` thay vì tự ghi head.
+ * ⚠️ Composable này **không** gọi `useHead` cho các thuộc tính document: app gộp
+ * **toàn bộ** vào **một** `useHead` ở `app.vue` — `lang`/`dir` của `<html>` (hai
+ * thuộc tính của cùng ngôn ngữ, cùng tra từ một definition trong registry) và
+ * script bootstrap của color mode. Gộp vào cùng object thì kết quả không phụ
+ * thuộc vào việc unhead có trộn `htmlAttrs` giữa hai lần gọi hay không. Vì vậy
+ * composable trả `language` và `dir` về cho `app.vue` thay vì tự ghi head.
  *
  * ⚠️ `<html lang>` lấy `language` (BCP-47) chứ không lấy `code`. Ở `zh-CN` hai
  * cái khác nhau: `lang="zh-CN"` vẫn hợp lệ về cú pháp, nhưng screen reader và
  * công cụ dịch cần `zh-Hans` để hiểu đúng biến thể chữ Hán mà catalog viết.
+ *
+ * ⚠️ `dir` **không** đọc từ cookie hay tuỳ chọn nào của người dùng: hướng chữ là
+ * thuộc tính của ngôn ngữ nội dung, nên nó đổi theo locale tại cùng một lần tra
+ * registry với `language` (issue #213).
  */
 export function useLlmConsoleI18n(): LlmConsoleI18nState {
   const i18n = useI18n();
-  const { preferred, language } = useLlmConsoleLocale();
+  const { preferred, language, dir } = useLlmConsoleLocale();
 
   watchEffect(() => {
     i18n.locale.value = preferred.value;
   });
 
-  return { language };
+  return { language, dir };
 }
