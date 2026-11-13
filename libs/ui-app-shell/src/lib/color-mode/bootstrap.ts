@@ -32,11 +32,15 @@ import { APP_SHELL_COLOR_MODE_COOKIE } from './defaults';
  *
  * Cookie name được nội suy lúc build hằng số (`APP_SHELL_COLOR_MODE_COOKIE`) —
  * một nguồn duy nhất cho tên khoá, app không thể lệch script với cookie mình ghi.
+ * Invariant bảo mật: hằng số này chỉ chứa **mã tĩnh**, không nội suy bất kỳ giá
+ * trị runtime nào; cookie name được chèn qua `JSON.stringify` (escape lúc build),
+ * nên nội dung hằng đổi thế nào script vẫn là chuỗi JS hợp lệ, không thành
+ * vectơ tiêm mã.
  */
 export const APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT = [
   '(function(){',
   'try{',
-  `var K='${APP_SHELL_COLOR_MODE_COOKIE}',`,
+  `var K=${JSON.stringify(APP_SHELL_COLOR_MODE_COOKIE)},`,
   "RE=new RegExp('(?:^|; )'+K+'=([^;]*)'),",
   'D=document.documentElement,',
   "Q=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;",

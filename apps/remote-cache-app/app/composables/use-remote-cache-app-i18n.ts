@@ -37,10 +37,11 @@ export type RemoteCacheAppI18nState = {
  *
  * ⚠️ `dir` cũng suy ra từ **cùng** registry đó (issue #213): nó là thuộc tính
  * của ngôn ngữ nội dung, không phải lựa chọn người dùng — không có setting
- * LTR/RTL nào. Fallback `'ltr'` chỉ tồn tại để kiểu không dựa vào điều kiện
- * không xảy ra, cùng cách `language` fallback `'en'`: `preferred` đã là
- * `RemoteCacheAppLocale` nên lookup không thể miss, và nếu registry lệch thì
- * lỗi phải hiện ra thay vì `<html>` thiếu `dir`.
+ * LTR/RTL nào. Fallback `'ltr'` cùng hình dạng với fallback `'en'` của
+ * `language`: `preferred` đã là `RemoteCacheAppLocale` (union suy ra từ chính
+ * registry) nên lệch registry/default là lỗi compile, còn lookup runtime không
+ * thể miss — fallback chỉ để kiểu không dựa vào điều kiện không xảy ra, không
+ * phải đường xử lý lỗi im lặng.
  */
 export function useRemoteCacheAppI18n(): RemoteCacheAppI18nState {
   const i18n = useI18n();

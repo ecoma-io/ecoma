@@ -68,7 +68,11 @@ describe('appShellApplyColorMode', () => {
 
 describe('APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT', () => {
   it('reads the canonical cookie name, so script and cookie cannot drift', () => {
-    expect(APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT).toContain(`'${APP_SHELL_COLOR_MODE_COOKIE}'`);
+    // Tên cookie được chèn qua `JSON.stringify` (escape lúc build) — script
+    // vẫn hợp lệ kể cả khi hằng số sau này đổi nội dung.
+    expect(APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT).toContain(
+      JSON.stringify(APP_SHELL_COLOR_MODE_COOKIE),
+    );
   });
 
   it('resolves dark and system modes before paint', () => {

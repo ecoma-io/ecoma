@@ -56,6 +56,12 @@ export function useBackofficeI18n(): BackofficeI18nState {
 
   return {
     language,
+    // Cùng hình dạng fallback với `language` ở trên (`?.dir ?? 'ltr'` cạnh
+    // `?.language ?? 'en'`): `preferred` đã được validator thu hẹp thành
+    // `BackofficeLocale`, và `code` trong registry được typecheck ghim theo
+    // đúng union đó — lệch registry/default là lỗi compile, không phải tình
+    // huống runtime. Fallback ở đây chỉ để kiểu không dựa vào điều kiện không
+    // xảy ra, không phải đường xử lý lỗi.
     dir: computed(() => getBackofficeLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
   };
 }

@@ -54,11 +54,12 @@ export function useLlmSellerI18n(): LlmSellerI18nState {
   });
 
   return {
-    // `getLlmSellerLocaleDefinition` không thể trả `undefined` ở đây vì
-    // `preferred` đã là `LlmSellerLocale`; fallback `'ltr'` vẫn được khai để
-    // kiểu không dựa vào điều kiện không xảy ra — nếu registry và default lệch
-    // nhau thì lỗi phải hiện ra, không phải trả `undefined` làm `<html dir>`
-    // rỗng.
+    // Cùng hình dạng fallback với `language` (`?.dir ?? 'ltr'` cạnh
+    // `?.language ?? 'en'`): `preferred` đã được validator thu hẹp thành
+    // `LlmSellerLocale`, và `code` trong registry được typecheck ghim theo đúng
+    // union đó (union suy ra từ chính registry) — lệch registry/default là lỗi
+    // compile, không phải tình huống runtime. Fallback ở đây chỉ để kiểu không
+    // dựa vào điều kiện không xảy ra, không phải đường xử lý lỗi.
     dir: computed(() => getLlmSellerLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
     language,
   };

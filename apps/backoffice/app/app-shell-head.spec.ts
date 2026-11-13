@@ -25,7 +25,13 @@ import { documentHead, headHtmlAttrs, useCookie } from '../tests/nuxt-globals';
 import { flushPromises, mountBackofficeApp } from '../tests/harness';
 import type { BackofficeLocale } from './i18n/locale-registry';
 
-/** Chọn một locale qua chính `<select>` mà người dùng bấm. */
+/**
+ * Chọn một locale qua chính `<select>` mà người dùng bấm.
+ *
+ * Selector ghim `data-testid="backoffice-language-select"` — thuộc tính đó do
+ * `BackofficeLanguageSelect` (component của app này) sở hữu; đổi testid ở đó
+ * phải cập nhật cả helper này.
+ */
 async function selectLanguage(
   wrapper: Awaited<ReturnType<typeof mountBackofficeApp>>['wrapper'],
   locale: BackofficeLocale,

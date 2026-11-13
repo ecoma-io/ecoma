@@ -53,10 +53,12 @@ export function usePactBrokerI18n(): PactBrokerI18nState {
 
   return {
     language,
-    // `getPactBrokerLocaleDefinition` không thể trả `undefined` ở đây vì
-    // `preferred` đã là `PactBrokerLocale`; fallback vẫn được khai để kiểu không
-    // dựa vào điều kiện không xảy ra — nếu registry và default lệch nhau thì
-    // lỗi phải hiện ra, không phải trả `undefined` làm `<html dir>` rỗng.
+    // Cùng hình dạng fallback với `language` ở `use-pact-broker-locale.ts`
+    // (`?.dir ?? 'ltr'` cạnh `?.language ?? 'en'`): `preferred` đã được
+    // validator thu hẹp thành `PactBrokerLocale`, và union locale suy ra từ
+    // chính registry nên lệch registry/default là lỗi compile, không phải tình
+    // huống runtime. Fallback ở đây chỉ để kiểu không dựa vào điều kiện không
+    // xảy ra, không phải đường xử lý lỗi im lặng.
     dir: computed(() => getPactBrokerLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
   };
 }
