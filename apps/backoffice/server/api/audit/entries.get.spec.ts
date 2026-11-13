@@ -8,15 +8,15 @@
 import { createApp, createRouter, defineEventHandler, toWebHandler } from 'h3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PRINCIPAL_CONTEXT_KEY } from '../principal';
-import auditRoute from './audit.get';
+import { PRINCIPAL_CONTEXT_KEY } from '../../principal';
+import auditRoute from './entries.get';
 import { fetchAuditEntries, staffAccessClientConfig } from '@ecoma-io/backoffice-infrastructure';
 import type { AuditListCallResult } from '@ecoma-io/backoffice-infrastructure';
 
 const writeLog = vi.fn<(entry: Record<string, unknown>) => void>();
-vi.mock('../log', () => ({ writeLog: (...args: unknown[]) => writeLog(...args) }));
+vi.mock('../../log', () => ({ writeLog: (...args: unknown[]) => writeLog(...args) }));
 
-vi.mock('../authorization', () => ({
+vi.mock('../../authorization', () => ({
   requirePermission: async () => ({
     allowed: true,
     stale: false,

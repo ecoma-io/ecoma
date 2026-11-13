@@ -16,13 +16,14 @@ const UNAVAILABLE_ROUTES = [
   { path: '/staff', title: 'Staff' },
   { path: '/roles', title: 'Roles' },
   { path: '/permissions', title: 'Permissions' },
+  { path: '/audit', title: 'Audit trail' },
 ] as const;
 
 /**
  * Tín hiệu "trang đã render xong" cho lane unavailable.
  *
  * Overview không đọc dữ liệu qua adapter → render ngay, dùng `backoffice-page-title`.
- * Ba trang còn lại dùng adapter → adapter fail-closed reject → `useAsyncState`
+ * Bốn trang còn lại dùng adapter → adapter fail-closed reject → `useAsyncState`
  * vào trạng thái error → render `backoffice-error`.
  */
 const READY_TEST_IDS: Readonly<Record<string, string>> = {
@@ -30,6 +31,7 @@ const READY_TEST_IDS: Readonly<Record<string, string>> = {
   '/staff': 'backoffice-error',
   '/roles': 'backoffice-error',
   '/permissions': 'backoffice-error',
+  '/audit': 'backoffice-error',
 };
 
 /** Chờ route hiện tại render xong phần dữ liệu mà test cần. */
@@ -64,8 +66,8 @@ test('shows no sample-data notice in unavailable mode on any route', async ({ pa
   }
 });
 
-test('staff/roles/permissions show error state instead of data table', async ({ page }) => {
-  for (const path of ['/staff', '/roles', '/permissions']) {
+test('staff/roles/permissions/audit show error state instead of data table', async ({ page }) => {
+  for (const path of ['/staff', '/roles', '/permissions', '/audit']) {
     await page.goto(path);
     await waitForRouteReady(page, path);
 
@@ -73,9 +75,25 @@ test('staff/roles/permissions show error state instead of data table', async ({ 
     await expect(page.getByTestId('backoffice-error')).toHaveCount(1);
     await expect(page.getByTestId('backoffice-error')).toBeVisible();
 
-    // Không có bảng dữ liệu render kèm theo trạng thái lỗi.
+    // Không có bảng dữ liệu render kèm theo trạng thái lỗi. Audit không có bảng
+    // (`audit-table`) mà có empty state — cũng là bề mặt dữ liệu, cũng không được
+    // render ở nhánh error.
     await expect(page.getByTestId(`${path.slice(1)}-table`)).toHaveCount(0);
+    await expect(page.getByTestId('audit-empty')).toHaveCount(0);
   }
+});
+
+test('the login affordance still renders in unavailable mode (auth is mode-independent)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForRouteReady(page, '/');
+
+  // Đường danh tính chạy thật trong **mọi** data mode: shell hỏi `/api/auth/session`,
+  // server trả `unauthenticated` (dev server không có cookie) → nút "Log in".
+  // Đây là biên giới dữ liệu/danh tính: mode `disabled` khoá dữ liệu, không khoá auth.
+  await expect(page.getByTestId('backoffice-login')).toHaveCount(1);
+  await expect(page.getByTestId('backoffice-logout')).toHaveCount(0);
 });
 
 test('overview shows neither error state nor sample notice', async ({ page }) => {

@@ -69,6 +69,8 @@ const outcomeLabel = (outcome: AuditEntry['outcome']): string => {
       :description="i18n.t('audit.description')"
     />
 
+    <BackofficeSampleNotice :message="i18n.t('prototype.notice.body')" />
+
     <BackofficeLoadingState v-if="state.kind === 'loading'" :label="i18n.t('states.loading')" />
 
     <BackofficeErrorState
@@ -78,6 +80,7 @@ const outcomeLabel = (outcome: AuditEntry['outcome']): string => {
       :detail="state.message"
       :retry-label="i18n.t('states.retry')"
       :on-retry="reload"
+      :session-expired="state.status === 401"
     />
 
     <template v-else-if="state.kind === 'ready'">

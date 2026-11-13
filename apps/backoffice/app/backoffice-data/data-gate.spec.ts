@@ -342,8 +342,20 @@ describe('import boundaries', () => {
     // Barrel khai mình là bề mặt công khai của lớp dữ liệu; nếu không file app nào
     // import qua nó thì bề mặt đó chỉ là mô tả sai, và "chỗ lộ bypass" mà barrel
     // được cho là ghim thực chất không gác gì cả.
+    //
+    // #182 thêm hai consumer mới, cả hai qua barrel (đúng luật):
+    // - `use-async-state.ts` — đọc `BackofficeRouteError` (lỗi route có kiểu mang
+    //   `status`, để UI phân nhánh 401/403/503 theo ADR-0011 §4);
+    // - `pages/onboarding.vue` — ném cùng loại lỗi cho route `/api/onboarding-status`
+    //   mà nó tự fetch (route ngoài adapter, nhưng quy tắc typed-error là chung).
     expect(new Set(barrelImporters)).toEqual(
-      new Set(['composables/use-backoffice-adapter.ts', 'pages/audit.vue', 'pages/staff.vue']),
+      new Set([
+        'composables/use-async-state.ts',
+        'composables/use-backoffice-adapter.ts',
+        'pages/audit.vue',
+        'pages/onboarding.vue',
+        'pages/staff.vue',
+      ]),
     );
   });
 });

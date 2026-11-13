@@ -40,6 +40,13 @@ const zhCN: BackofficeMessages = {
       // cùng một tên ứng dụng không nên xuất hiện dưới hai dạng trong một catalog.
       hint: '更改整个 backoffice 界面的语言。',
     },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls) — xem `en.ts` cùng nhóm.
+      login: '登录',
+      logout: '退出登录',
+      loggingOut: '正在退出…',
+    },
   },
 
   prototype: {
@@ -59,6 +66,12 @@ const zhCN: BackofficeMessages = {
     // nào để gửi, và câu này sẽ trỏ vào một thực thể không tồn tại.
     errorBody: '如下方出现技术详情，可提供给客服团队。',
     retry: '重试',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4) — xem `en.ts` cùng nhóm.
+    sessionExpired: {
+      title: '您的会话已过期',
+      body: '重新登录以继续未完成的工作。',
+      login: '重新登录',
+    },
   },
 
   staff: {

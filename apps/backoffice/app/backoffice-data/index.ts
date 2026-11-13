@@ -26,6 +26,7 @@
  *   `resolveBackofficeDataMode` (fail-closed).
  */
 export { createBackofficeAdapter } from './adapter';
+export { BackofficeRouteError } from './route-error';
 export {
   BACKOFFICE_BACKEND_UNAVAILABLE_CODE,
   BackofficeBackendUnavailableError,

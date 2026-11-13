@@ -44,6 +44,15 @@ export default {
       label: 'Language',
       hint: 'Changes the language of the whole backoffice.',
     },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls): đăng nhập dẫn tới
+      // `GET /api/auth/login` (BFF dựng authorize URL), đăng xuất gọi
+      // `POST /api/auth/logout` với CSRF double-submit.
+      login: 'Log in',
+      logout: 'Log out',
+      loggingOut: 'Logging out…',
+    },
   },
 
   prototype: {
@@ -61,6 +70,13 @@ export default {
     // "prototype") nằm ở `catalogs.spec.ts` (colocated cạnh file này); đây là nguồn sự thật cho key.
     errorBody: 'If a technical detail appears below, it can be shared with support.',
     retry: 'Try again',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4): phiên vắng/hết hạn —
+    // thay nút retry bằng đường đăng nhập lại.
+    sessionExpired: {
+      title: 'Your session has expired',
+      body: 'Log in again to continue where you left off.',
+      login: 'Log in again',
+    },
   },
 
   staff: {

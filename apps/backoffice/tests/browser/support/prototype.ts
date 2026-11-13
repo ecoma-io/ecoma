@@ -8,12 +8,23 @@ import type { Locator, Page } from '@playwright/test';
  * sao của `filtered` trong test sẽ luôn khớp với chính nó, kể cả khi UI sai).
  */
 
-/** Bốn route prototype, đúng thứ tự trong sidebar. */
+/**
+ * Năm route prototype, đúng thứ tự trong sidebar.
+ *
+ * ⚠️ `title` (tiêu đề `<h1>` của trang) và `navTitle` (nhãn link sidebar) là
+ * **hai** giá trị khác nhau và phải khai riêng: `/audit` có tiêu đề trang là
+ * "Audit trail" nhưng nhãn nav là "Audit" (`nav.audit` ≠ `audit.title`). Fixture
+ * cũ gộp một field cho cả hai là nguyên nhân bộ test đỏ khi `/audit` thêm vào
+ * nav — bốn test "points every internal link" fail vì nav thật có 5 link mà
+ * danh sách route chỉ có 4. Thêm route mới ⇒ thêm **một** mục ở đây + một tín
+ * hiệu ready; quên là bộ test đỏ (đúng chiều — fixture lỗi thời phải đỏ).
+ */
 export const PROTOTYPE_ROUTES = [
-  { path: '/', title: 'Overview' },
-  { path: '/staff', title: 'Staff' },
-  { path: '/roles', title: 'Roles' },
-  { path: '/permissions', title: 'Permissions' },
+  { path: '/', title: 'Overview', navTitle: 'Overview' },
+  { path: '/staff', title: 'Staff', navTitle: 'Staff' },
+  { path: '/roles', title: 'Roles', navTitle: 'Roles' },
+  { path: '/permissions', title: 'Permissions', navTitle: 'Permissions' },
+  { path: '/audit', title: 'Audit trail', navTitle: 'Audit' },
 ] as const;
 
 /**
@@ -29,6 +40,9 @@ const READY_TEST_IDS: Readonly<Record<string, string>> = {
   '/staff': 'staff-table',
   '/roles': 'roles-table',
   '/permissions': 'permissions-table',
+  // Audit không có dữ liệu mẫu cố định để render bảng: empty state (`audit-empty`)
+  // là tín hiệu sẵn có ngay khi trang load xong danh sách (rỗng hay không).
+  '/audit': 'audit-empty',
 };
 
 /** Chờ route hiện tại render xong phần dữ liệu mà test cần. */

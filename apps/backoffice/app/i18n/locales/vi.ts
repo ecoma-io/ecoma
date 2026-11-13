@@ -37,6 +37,13 @@ const vi: BackofficeMessages = {
       label: 'Ngôn ngữ',
       hint: 'Đổi ngôn ngữ của toàn bộ backoffice.',
     },
+
+    auth: {
+      // Nhãn nút của shell (BackofficeSessionControls) — xem `en.ts` cùng nhóm.
+      login: 'Đăng nhập',
+      logout: 'Đăng xuất',
+      loggingOut: 'Đang đăng xuất…',
+    },
   },
 
   prototype: {
@@ -52,6 +59,12 @@ const vi: BackofficeMessages = {
     // có) ở `en.ts` và `catalogs.spec.ts` (colocated cạnh file này).
     errorBody: 'Chi tiết kỹ thuật hiện bên dưới (nếu có) có thể gửi cho bộ phận hỗ trợ.',
     retry: 'Thử lại',
+    // Nhánh 401 của BackofficeErrorState (ADR-0011 §4) — xem `en.ts` cùng nhóm.
+    sessionExpired: {
+      title: 'Phiên của bạn đã hết hạn',
+      body: 'Đăng nhập lại để tiếp tục công việc đang dở.',
+      login: 'Đăng nhập lại',
+    },
   },
 
   staff: {

@@ -2,6 +2,14 @@
  * `GET /api/audit/entries` — truy vấn bản ghi authorization audit của Staff Access,
  * qua management API (`GET /audit/entries`).
  *
+ * ⚠️ **Vị trí file là một phần của hợp đồng.** Trước P5.4-route-fix (#182), file
+ * này nằm ở `server/api/audit.get.ts` — Nitro mount nó tại `/api/audit`, trong khi
+ * adapter thật (`app/backoffice-data/real-adapter.ts`) gọi `/api/audit/entries`:
+ * mọi lần đọc ở chế độ realtime rơi vào catch-all `apiNotFound` ⇒ 404. Chuyển
+ * sang `server/api/audit/entries.get.ts` đưa route mount khớp lại đúng hợp đồng
+ * mà cả adapter lẫn spec đều đã gọi; URL hợp đồng không đổi.
+ *
+
  * ## Thay đổi P5.4 (issue #478)
  *
  * Route mới trong workstream C: hiển thị vết nhảy của các thao tác nhạy cảm quyền
@@ -34,8 +42,8 @@ import {
   listAuthorizationAudit,
   staffAccessClientConfig,
 } from '@ecoma-io/backoffice-infrastructure';
-import { readWorkerEnv } from '../db';
-import { withReadEnforcement } from '../read-route';
+import { readWorkerEnv } from '../../db';
+import { withReadEnforcement } from '../../read-route';
 
 /** Lấy query params từ request, chỉ giữ các key hợp lệ của hợp đồng audit query. */
 function auditQueryFromQuery(event: import('h3').H3Event): Record<string, string> {

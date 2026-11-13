@@ -14,6 +14,7 @@
  * đã có enforcement riêng. Adapter này chỉ là consommateur của hợp đồng API
  * nội bộ.
  */
+import { BackofficeRouteError } from './route-error';
 import type {
   AuditEntry,
   BackofficeDataAdapter,
@@ -78,12 +79,22 @@ type WireAuditResponse = {
   readonly next_cursor: string | null;
 };
 
-/** Gọi một route đọc nội bộ, fail-closed: phi 2xx hoặc lỗi mạng đều ném. */
+/**
+ * Gọi một route đọc nội bộ, fail-closed: phi 2xx hoặc lỗi mạng đều ném.
+ *
+ * Lỗi phi 2xx là `BackofficeRouteError` mang `status` — useAsyncState đọc nó
+ * vào `AsyncState.error.status` để UI phân nhánh theo ADR-0011 §4 (401 → đường
+ * đăng nhập lại; 403/503 giữ hành vi cũ). Mạng đứt vẫn là `Error` trần: không
+ * có status nào để phân nhánh.
+ */
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
 
   if (!response.ok) {
-    throw new Error(`Backoffice route ${path} trả về ${response.status}`);
+    throw new BackofficeRouteError(
+      `Backoffice route ${path} trả về ${response.status}`,
+      response.status,
+    );
   }
 
   return (await response.json()) as T;

@@ -15,6 +15,7 @@ import { defineComponent, nextTick } from 'vue';
 import { describe, expect, it } from 'vitest';
 
 import { useAsyncState } from './use-async-state';
+import { BackofficeRouteError } from '../backoffice-data/route-error';
 import type { StaffMember } from '../backoffice-data/types';
 import { createFakeBackofficeAdapter } from '../../tests/fake-adapter';
 import { at, flushPromises } from '../../tests/harness';
@@ -106,6 +107,28 @@ describe('useAsyncState — data loading states', () => {
     expect(wrapper.vm.state).toEqual({ kind: 'error', message: 'adapter hỏng' });
   });
 
+  /**
+   * `BackofficeRouteError` là lỗi **duy nhất** mang `status` vào state: đó là
+   * kênh để UI phân nhánh 401/403/503 theo ADR-0011 §4 (401 → đường đăng nhập
+   * lại; 403/503 giữ retry). Chỉ lỗi có kiểu mới đóng góp — xem test kế tiếp.
+   */
+  it('a typed BackofficeRouteError rejection carries its HTTP status into the error state', async () => {
+    const fake = createFakeBackofficeAdapter();
+    const wrapper = mountHost(() => fake.adapter.listStaff());
+    await flushPromises(wrapper);
+
+    at(fake.staffCalls).reject(
+      new BackofficeRouteError('Backoffice route /api/staff trả về 401', 401),
+    );
+    await flushPromises(wrapper);
+
+    expect(wrapper.vm.state).toEqual({
+      kind: 'error',
+      message: 'Backoffice route /api/staff trả về 401',
+      status: 401,
+    });
+  });
+
   it('rejects with a non-Error value → message is String(error), possibly "[object Object]"', async () => {
     const fake = createFakeBackofficeAdapter();
     const wrapper = mountHost(() => fake.adapter.listStaff());
@@ -114,6 +137,9 @@ describe('useAsyncState — data loading states', () => {
     at(fake.staffCalls).reject({ status: 500 });
     await flushPromises(wrapper);
 
+    // ⚠️ Object trần có field `status` **không** được vào `state.status`:
+    // `instanceof` chứ không phải soi hình dạng — một lỗi của bên thứ ba tình cờ
+    // có `status` không được phép đổi hành vi UI (không CTA đăng nhập lọt qua).
     expect(wrapper.vm.state).toEqual({ kind: 'error', message: '[object Object]' });
   });
 
