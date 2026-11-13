@@ -7,9 +7,9 @@ import {
   buildRootHost,
   extractTraefikHostPort,
   LOCAL_ENV_OWNED_KEYS,
+  LOCAL_ENV_RETIRED_KEYS,
   LOCAL_ROOT_HOSTNAME,
   POSTGRES_PASSWORD_ENV_KEY,
-  ROOT_DOMAIN_ENV_KEY,
   ROOT_HOST_ENV_KEY,
   TRAEFIK_INTERNAL_PORT,
 } from './platform-outputs-contract.js';
@@ -26,20 +26,18 @@ describe('buildRootHost', () => {
 });
 
 describe('local .env owned keys contract', () => {
-  it('owns exactly the three keys: ROOT_HOST, ROOT_DOMAIN and POSTGRES_PASSWORD', () => {
+  it('owns exactly the keys ROOT_HOST and POSTGRES_PASSWORD', () => {
     // Ghim toàn bộ tập key sở hữu: thêm/bớt một key của `upsertLocalEnv` là
     // thay đổi contract ghi `.env` và phải đi qua test này một cách có chủ ý.
-    expect([...LOCAL_ENV_OWNED_KEYS]).toEqual([
-      ROOT_HOST_ENV_KEY,
-      ROOT_DOMAIN_ENV_KEY,
-      POSTGRES_PASSWORD_ENV_KEY,
-    ]);
+    expect([...LOCAL_ENV_OWNED_KEYS]).toEqual([ROOT_HOST_ENV_KEY, POSTGRES_PASSWORD_ENV_KEY]);
   });
 
-  it('ROOT_DOMAIN is the E2E-facing alias with the same literal as ROOT_HOST', () => {
-    // Hai key là hai tên gọi cho cùng một giá trị `host[:port]`; ghim literal
-    // để một lỗi đánh máy tên key không lọt qua consumer E2E đọc `.env`.
-    expect(ROOT_DOMAIN_ENV_KEY).toBe('ROOT_DOMAIN');
+  it('ROOT_DOMAIN is retired, not owned, and the key literals are pinned', () => {
+    // `ROOT_DOMAIN` từng là alias E2E-facing trùng giá trị `ROOT_HOST`; #210
+    // gộp về một key duy nhất. Ghim literal của cả hai tập để một key retired
+    // bị "hồi sinh" vào tập owned — hay một lỗi đánh máy tên key — không lọt
+    // qua consumer nào đọc `.env`.
+    expect([...LOCAL_ENV_RETIRED_KEYS]).toEqual(['ROOT_DOMAIN']);
     expect(ROOT_HOST_ENV_KEY).toBe('ROOT_HOST');
     expect(POSTGRES_PASSWORD_ENV_KEY).toBe('POSTGRES_PASSWORD');
   });

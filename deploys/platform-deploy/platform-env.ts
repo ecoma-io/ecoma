@@ -24,6 +24,7 @@ import {
   generatePostgresPassword,
   isConfigKeyMissing,
   LOCAL_ENV_OWNED_KEYS,
+  LOCAL_ENV_RETIRED_KEYS,
   pulumiRun,
   type ExecResult,
   type LocalDeployContext,
@@ -397,23 +398,34 @@ export function upsertLocalEnv(
   // (không chỉ dòng đầu) — nếu file lỡ có dòng trùng và dotenv parse last-wins
   // thì chỉ thay dòng đầu sẽ để lại giá trị cũ ở dòng sau. Không append thêm
   // dòng mới khi key đã xuất hiện (số lần nào cũng vậy). Dòng không thuộc key
-  // sở hữu giữ nguyên byte-for-byte.
+  // sở hữu giữ nguyên byte-for-byte, TRỪ dòng của key retired (xem bộ lọc dưới).
   const valueByKey = new Map(entries);
   const seen = new Set<string>();
-  const next = lines.map((entry) => {
-    const ownedKey = LOCAL_ENV_OWNED_KEYS.find((key) => entry.startsWith(`${key}=`));
-    if (ownedKey === undefined) return entry;
-    seen.add(ownedKey);
-    const value = valueByKey.get(ownedKey);
-    return value === undefined ? entry : `${ownedKey}=${value}`;
-  });
+  // Key retired (`LOCAL_ENV_RETIRED_KEYS`) không còn consumer nào đọc: gỡ MỌI
+  // dòng của nó khỏi file có sẵn tại lần up kế tiếp — migration một bước của
+  // contract `.env` (#210). Lưu ý khác với key sở hữu: key retired không bao
+  // giờ được ghi lại, chỉ được xoá.
+  const next = lines
+    .filter((entry) => !LOCAL_ENV_RETIRED_KEYS.some((key) => entry.startsWith(`${key}=`)))
+    .map((entry) => {
+      const ownedKey = LOCAL_ENV_OWNED_KEYS.find((key) => entry.startsWith(`${key}=`));
+      if (ownedKey === undefined) return entry;
+      seen.add(ownedKey);
+      const value = valueByKey.get(ownedKey);
+      return value === undefined ? entry : `${ownedKey}=${value}`;
+    });
   // Key sở hữu có trong `values` nhưng chưa xuất hiện trong file → thêm cuối một lần.
   for (const [key, value] of valueByKey) {
     if (!seen.has(key)) {
       next.push(`${key}=${value}`);
     }
   }
-  writeFileSync(envPath, `${next.join('\n')}\n`, { encoding: 'utf8', mode: 0o600 });
+  // Bộ lọc retired có thể rút cạn file (`.env` chỉ toàn key retired): ghi file
+  // rỗng thay vì một dòng `\n` thừa.
+  writeFileSync(envPath, next.length > 0 ? `${next.join('\n')}\n` : '', {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
   chmodFilePrivate(envPath, 0o600);
   return { envPath };
 }

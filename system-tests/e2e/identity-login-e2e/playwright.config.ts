@@ -14,7 +14,7 @@ import { defineConfig, devices } from '@playwright/test';
  * phần dưới chỉ ghi phần RIÊNG của suite này; giải thích đầy đủ của từng lớp
  * nằm ở config của skeleton:
  *
- * - Config KHÔNG BAO GIỜ throw khi thiếu `ROOT_DOMAIN`/`ROOT_HOST`: plugin
+ * - Config KHÔNG BAO GIỜ throw khi thiếu `ROOT_HOST`: plugin
  *   `@nx/playwright` eval config này LÚC DỰNG PROJECT GRAPH, throw ở đây làm
  *   MỌI job CI đỏ kể cả `nx affected` không đụng gì tới suite (runner CI không
  *   có `.env`). Thiếu origin → trả placeholder `.invalid:443` vô hại; fail-
@@ -60,7 +60,7 @@ function computeSpkiHash(pem: string): string {
 
 const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 
-/** Tách `host:port` từ giá trị `ROOT_DOMAIN`/`ROOT_HOST`, mặc định port 443. */
+/** Tách `host:port` từ giá trị `ROOT_HOST`, mặc định port 443. */
 function withOrigin(raw: string): string {
   const hostname = raw.split(':')[0];
   const port = raw.includes(':') ? raw.split(':')[1] : '443';
@@ -71,7 +71,7 @@ function withOrigin(raw: string): string {
  * Origin ACCOUNT của stack local — `account.<host>:<port>`, giữ nguyên port
  * (khối "KHÔNG cắt port" ở đầu file).
  *
- * Nguồn giá trị: `ROOT_DOMAIN`/`ROOT_HOST` env (Nx load `.env` repo root ngay
+ * Nguồn giá trị: `ROOT_HOST` env (Nx load `.env` repo root ngay
  * lúc CLI boot, nên qua `nx run`/`npx playwright test` dưới target Nx thì
  * biến có sẵn; plugin eval config lúc dựng graph cũng thấy env đó). Chạy
  * `npx playwright test` TRỰC TIẾP ngoài Nx và không có env: trả placeholder,
@@ -86,7 +86,7 @@ function withOrigin(raw: string): string {
  * đỏ với DNS failure thay vì xanh giả.
  */
 function resolveStackOrigin(): string {
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return `account.${withOrigin(raw.trim())}`;
   }

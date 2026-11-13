@@ -71,7 +71,7 @@ interface ProbeResult {
   readonly status: number;
 }
 
-/** Tách `hostname`/`port` từ giá trị `ROOT_DOMAIN`/`ROOT_HOST`, mặc định port 443. */
+/** Tách `hostname`/`port` từ giá trị `ROOT_HOST`, mặc định port 443. */
 function readHostPort(raw: string): { hostname: string; port: string } {
   const hostname = raw.split(':')[0];
   const port = raw.includes(':') ? raw.split(':')[1] : '443';
@@ -80,7 +80,7 @@ function readHostPort(raw: string): { hostname: string; port: string } {
 
 function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
   const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return { ...readHostPort(raw.trim()), ca };
   }
@@ -88,7 +88,7 @@ function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
   // Nx duy nhất cùng lúc với deploy (`nx affected -t system-test -c local`):
   // orchestrator của Nx snapshot env của MỌI task đã schedule ngay vòng lặp đầu
   // (trước khi `platform-deploy:local-up` kịp ghi `.env`), nên env-process của
-  // task suite không bao giờ chứa ROOT_DOMAIN dù `.env` đã có trước khi suite
+  // task suite không bao giờ chứa ROOT_HOST dù `.env` đã có trước khi suite
   // chạy. Đọc FILE lúc global-setup chạy thì luôn thấy giá trị mới nhất.
   // Cùng rationale với fallback của skeleton `home-public-e2e` (file nằm ở repo
   // root của checkout đang chạy — worktree sở hữu stack, không phải worktree lạ).
@@ -104,9 +104,9 @@ function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
     // `.env` vắng mặt — rơi xuống throw bên dưới với message chỉ đúng remedy.
   }
   throw new Error(
-    'identity-login-e2e global setup failed: ROOT_DOMAIN (or ROOT_HOST) is not set in the environment and no .env file defines it. ' +
+    'identity-login-e2e global setup failed: ROOT_HOST is not set in the environment and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env. ' +
-      'Or export ROOT_DOMAIN explicitly, then rerun the suite. ' +
+      'Or export ROOT_HOST explicitly, then rerun the suite. ' +
       'The suite must FAIL when the stack is unreachable; skipping is never acceptable.',
   );
 }

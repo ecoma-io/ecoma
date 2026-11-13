@@ -10,7 +10,7 @@
     "//": [
       "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
       "- platform-deploy: cert local `deploys/platform-deploy/local-certs/fbi.com.crt` (global-setup.ts + e2e/support/local-origin.ts + playwright.config.ts đọc trực tiếp),",
-      "  biến `ROOT_DOMAIN`/`ROOT_HOST` do `local-up` của platform ghi vào `.env`, và router Traefik của platform là chuỗi DNS/TLS/routing mà mọi test verify.",
+      "  biến `ROOT_HOST` do `local-up` của platform ghi vào `.env`, và router Traefik của platform là chuỗi DNS/TLS/routing mà mọi test verify.",
       "- home-deploy: origin apex `https://<host>:<port>` mà suite probe (global-setup gate `GET /` 302 → `/en`; mọi spec qua baseURL) do `local-up` của home provision.",
       "Không khai account/auth/backoffice/mail/pact/push: suite không chạm origin nào của chúng và không seed container nào."
     ],

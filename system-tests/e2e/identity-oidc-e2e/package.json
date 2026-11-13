@@ -11,7 +11,7 @@
     "//": [
       "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
       "- platform-deploy: cert local `deploys/platform-deploy/local-certs/fbi.com.crt` (global-setup.ts + e2e/support/local-origin.ts + playwright.config.ts đọc trực tiếp),",
-      "  `ROOT_DOMAIN`/`ROOT_HOST` do `local-up` của platform ghi vào `.env`, router Traefik của platform route mọi origin `auth.`/`account.`/`office.`,",
+      "  `ROOT_HOST` do `local-up` của platform ghi vào `.env`, router Traefik của platform route mọi origin `auth.`/`account.`/`office.`,",
       "  và container `ecoma-<ns>-postgres` mà e2e/support/local-origin.ts seed nằm trong namespace của platform.",
       "- auth-deploy: origin `auth.<host>` là issuer OIDC — baseURL của browser (`playwright.config.ts`), gate probe discovery, mọi endpoint",
       "  authorize/token/jwks/revocation/end-session mà protocol-surface + negative-paths + refresh-rotation gọi, và client",

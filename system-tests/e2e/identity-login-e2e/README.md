@@ -27,7 +27,7 @@ Theo `docs/architecture/06-testing.md` §3, đây là **system test** — verify
 ## Development
 
 - Thêm spec mới: tạo cặp danh tính fixture riêng cho file và lọc truy vấn sink theo `recipient` — `workers: 2` nên hai file chạy song song.
-- `playwright.config.ts` không throw khi thiếu `ROOT_DOMAIN`/`ROOT_HOST` (trả placeholder `.invalid`); gate thật nằm ở `global-setup.ts`.
+- `playwright.config.ts` không throw khi thiếu `ROOT_HOST` (trả placeholder `.invalid`); gate thật nằm ở `global-setup.ts`.
 - Helper dùng chung của suite nằm trong `e2e/support/` (`local-origin.ts`, `local-stack.ts`); `lint` chạy oxlint trên toàn project.
 
 ## Testing
@@ -39,7 +39,7 @@ pnpm nx run @ecoma-io/identity-login-e2e:system-test -c local
 ```
 
 - `dependsOn` kéo `local-up` của đúng ba deploy project mà suite phụ thuộc (`platform-deploy`, `account-deploy`, `transactional-mail-deploy`) trước khi Playwright chạy — một invocation tự dựng đủ stack.
-- Prerequisites: ba deploy unit trên đang up; `ROOT_DOMAIN`/`ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`.
+- Prerequisites: ba deploy unit trên đang up; `ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`.
 - Cấu hình chạy: `workers: 2`, `retries: 0` kể cả CI, timeout 60s.
 - Các suite system-test dùng chung một local stack — chạy batch với `--parallel=1` (§4).
 

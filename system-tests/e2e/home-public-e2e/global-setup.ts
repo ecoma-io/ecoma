@@ -76,7 +76,7 @@ interface ProbeResult {
   readonly location: string | undefined;
 }
 
-/** Tách `hostname`/`port` từ giá trị `ROOT_DOMAIN`/`ROOT_HOST`, mặc định port 443. */
+/** Tách `hostname`/`port` từ giá trị `ROOT_HOST`, mặc định port 443. */
 function readHostPort(raw: string): { hostname: string; port: string } {
   const hostname = raw.split(':')[0];
   const port = raw.includes(':') ? raw.split(':')[1] : '443';
@@ -85,7 +85,7 @@ function readHostPort(raw: string): { hostname: string; port: string } {
 
 function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
   const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return { ...readHostPort(raw.trim()), ca };
   }
@@ -103,7 +103,7 @@ function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
     // `.env` vắng mặt — rơi xuống throw bên dưới với message chỉ đúng remedy.
   }
   throw new Error(
-    'home-public-e2e global setup failed: ROOT_DOMAIN (or ROOT_HOST) is not set and no .env file defines it. ' +
+    'home-public-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
 }

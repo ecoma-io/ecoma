@@ -16,7 +16,7 @@ Nx project `platform-deploy`, tags `type:deployment`, `scope:platform`, `runtime
 - **PostgreSQL** (`index.ts`): image `timescale/timescaledb` ghim theo digest (TimescaleDB preload, extension pgvector có sẵn); user/database `ecoma_local`; mật khẩu do entry up sinh một lần khi stack mới và volume còn trống, persist vào stack config `postgres:password`; volume `retainOnDelete`; alias `ecoma-postgres`, không publish host port; healthcheck `pg_isready`.
 - **Object store SeaweedFS** (`index.ts`): `weed mini` một process (master + volume + filer + S3); hai volume không `retainOnDelete` (config `s3.json` + data cache); command config-init ghi `s3.json` qua stdin của `docker run -i` (secret không qua argv), command bucket guard-create bucket `remote-cache` qua `weed shell` trong container; alias `ecoma-object-store`, healthcheck `/healthz`.
 - **Secret lifecycle** (`local.ts`, `platform-env.ts`): `resolvePostgresPassword` fail-loud khi config mất mà volume còn; `resolveObjectStorageSecretKey` sinh `objectStorage:remoteCacheSecretKey` — secret key mà `remote-cache-api-deploy` đọc lại cross-stack. Không secret nào nằm trong stack outputs.
-- **Upsert `.env`** (`platform-env.ts`): sau khi up xanh, ghi đúng ba key sở hữu `ROOT_HOST`, `ROOT_DOMAIN`, `POSTGRES_PASSWORD`, giữ nguyên byte các dòng còn lại.
+- **Upsert `.env`** (`platform-env.ts`): sau khi up xanh, ghi đúng hai key sở hữu `ROOT_HOST`, `POSTGRES_PASSWORD`, giữ nguyên byte các dòng còn lại trừ dòng của key retired bị gỡ (`ROOT_DOMAIN`, #210).
 - Stack outputs: hợp đồng `PlatformOutputs` (`namespace`, `networkName`, `postgresHost`/`postgresPort`, bốn field object storage, `traefikHostPort` fail-closed qua `extractTraefikHostPort`, `rootHostname`) cộng hai command name của object store.
 
 ## Boundaries

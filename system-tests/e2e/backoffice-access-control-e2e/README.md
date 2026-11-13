@@ -31,7 +31,7 @@ Theo `docs/architecture/06-testing.md` §3, đây là **system test** — verify
 
 - Thêm spec mới: cấp một định danh fixture riêng trong `e2e/support/fixtures.ts` — Playwright chạy file song song (`workers: 2`), định danh dùng chung làm hai worker va chạm grant và mail sink.
 - Phần contract logout/kickoff dùng request Node với `CookieJar` (không browser) — logout là hành vi HTTP thuần; browser chỉ cần để lấy cặp cookie thật.
-- `playwright.config.ts` không throw khi thiếu `ROOT_DOMAIN`/`ROOT_HOST` — trả origin `office.<root>.invalid` vô hại (origin không thể route); fail-closed thật nằm ở `global-setup.ts` với message nêu remedy.
+- `playwright.config.ts` không throw khi thiếu `ROOT_HOST` — trả origin `office.<root>.invalid` vô hại (origin không thể route); fail-closed thật nằm ở `global-setup.ts` với message nêu remedy.
 - Cấu hình chạy: `workers: 2`, `retries: 0` kể cả CI, timeout 60s; mỗi file tự đi luồng login riêng (không chia sẻ `storageState` — session server-side dùng chung là đường che bug `bff_sessions`).
 
 ## Testing
@@ -43,7 +43,7 @@ pnpm nx run @ecoma-io/backoffice-access-control-e2e:system-test -c local
 ```
 
 - `dependsOn` kéo `local-up` của đúng sáu deploy project mà suite phụ thuộc trước khi Playwright chạy — một invocation tự dựng đủ stack; `-c local` lan configuration vào task prerequisite.
-- Prerequisites: sáu deploy unit trên đang up; `ROOT_DOMAIN`/`ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`; client `ecoma-backoffice-local` với redirect_uri `office.<host>` do chính `local-up` của `auth` seed.
+- Prerequisites: sáu deploy unit trên đang up; `ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`; client `ecoma-backoffice-local` với redirect_uri `office.<host>` do chính `local-up` của `auth` seed.
 - 17 test trong 5 file spec.
 - Các suite system-test dùng chung một local stack — chạy batch với `--parallel=1` (§4).
 

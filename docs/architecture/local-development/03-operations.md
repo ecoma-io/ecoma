@@ -38,7 +38,7 @@ Readiness thuộc container resource, không thuộc DX: mỗi container long-ru
 
 Lifecycle KHÔNG có khóa lane toàn cục: serialization thật của cùng một stack là state lock của chính Pulumi (`pulumi up`/`destroy` trên cùng stack tự chặn nhau), hai stack khác nhau thì độc lập trong namespace Docker riêng của worktree.
 
-Task `local-up` của platform tự ghi `.env` của worktree (đúng ba key sở hữu `ROOT_HOST`/`ROOT_DOMAIN`/`POSTGRES_PASSWORD`, giữ nguyên byte các dòng khác) ngay sau khi `pulumi up` xanh — mọi unit kế tiếp đọc `ROOT_HOST` từ file đó và fail rõ ràng kèm hướng dẫn khi file/key chưa có.
+Task `local-up` của platform tự ghi `.env` của worktree (đúng hai key sở hữu `ROOT_HOST`/`POSTGRES_PASSWORD`, giữ nguyên byte các dòng khác, gỡ dòng key retired như `ROOT_DOMAIN` — #210) ngay sau khi `pulumi up` xanh — mọi unit kế tiếp đọc `ROOT_HOST` từ file đó và fail rõ ràng kèm hướng dẫn khi file/key chưa có.
 
 ### `local-down` — teardown của từng project
 

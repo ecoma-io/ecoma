@@ -28,7 +28,7 @@ Theo `docs/architecture/06-testing.md` §3, đây là **system test** — verify
 ## Development
 
 - Thêm spec: assert lấy từ nguồn sự thật của app (`HOME_CONTENT` cho nội dung, route handler cho API), và chọn bề mặt đúng — Node `https` cho API assertion, `page` cho nội dung render thật.
-- `playwright.config.ts` không throw khi thiếu `ROOT_DOMAIN`/`ROOT_HOST` — trả origin `.invalid` vô hại (origin không thể route); fail-closed thật nằm ở `global-setup.ts` với message nêu remedy.
+- `playwright.config.ts` không throw khi thiếu `ROOT_HOST` — trả origin `.invalid` vô hại (origin không thể route); fail-closed thật nằm ở `global-setup.ts` với message nêu remedy.
 - Cấu hình chạy: `workers: 2` (ghim — worker lớn hơn làm SSR home đói và timeout), `retries: 0` kể cả CI, timeout 60s, expect 15s.
 
 ## Testing
@@ -40,7 +40,7 @@ pnpm nx run @ecoma-io/home-public-e2e:system-test -c local
 ```
 
 - `dependsOn` kéo `local-up` của đúng hai deploy project mà suite phụ thuộc (`platform-deploy`, `home-deploy`) trước khi Playwright chạy — một invocation tự dựng đủ phần stack nó cần; `-c local` lan configuration vào task prerequisite.
-- Prerequisites: platform + home đang up; `ROOT_DOMAIN`/`ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`.
+- Prerequisites: platform + home đang up; `ROOT_HOST` qua env hoặc `.env` repo root (platform `local-up` ghi giá trị); cert local `deploys/platform-deploy/local-certs/fbi.com.crt`.
 - 11 test trong 5 file spec.
 - Các suite system-test dùng chung một local stack — chạy batch với `--parallel=1` (§4).
 

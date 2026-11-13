@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
  * cùng đường mà deploy orchestration dùng (`deploys/account-deploy/index.ts`
  * seed qua `docker exec psql`), vì PostgreSQL không publish host port và mail
  * sink là D1 sqlite bên trong volume container. Namespace được SUITE TỰ DÒ qua
- * `docker ps` (match port Traefik với port trong `ROOT_DOMAIN`) — suite không
+ * `docker ps` (match port Traefik với port trong `ROOT_HOST`) — suite không
  * phụ thuộc `@node-rs/xxhash` để tính lại namespace từ path.
  *
  * ⚠️ Hợp đồng bí mật: helper này đọc `NUXT_OTP_HMAC_SECRET` từ container
@@ -54,12 +54,12 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
 /** Pem cert local cho các request https của Node — dùng `ca: LOCAL_CA_PEM`. */
 
 /**
- * Origin gốc của stack local, dạng `https://<host>:<port>` — đọc `ROOT_DOMAIN`
- * trước rồi `ROOT_HOST`. Khi chạy qua Nx, `.env` repo root đã nằm trong env
+ * Origin gốc của stack local, dạng `https://<host>:<port>` — đọc `ROOT_HOST`.
+ * Khi chạy qua Nx, `.env` repo root đã nằm trong env
  * của task; chạy `npx playwright test` trực tiếp thì fallback parse `.env`.
  */
 export function resolveStackOrigin(): string {
-  const fromEnv = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
     return withPort(fromEnv.trim());
   }
@@ -75,7 +75,7 @@ export function resolveStackOrigin(): string {
     // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
   }
   throw new Error(
-    'ROOT_DOMAIN (or ROOT_HOST) is not set and no .env file defines it. ' +
+    'ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
 }
@@ -123,7 +123,7 @@ export const LOCAL_CLIENT_ID = 'ecoma-backoffice-local';
 /**
  * Callback URI của client local — seed exact-string theo port Traefik hiện hành
  * (`deploys/auth-deploy/index.ts`). Một port đổi là URI seed khác; suite ghép
- * từ cùng nguồn chân lý (port trong ROOT_DOMAIN) thay vì hardcode.
+ * từ cùng nguồn chân lý (port trong ROOT_HOST) thay vì hardcode.
  */
 export function localRedirectUri(): string {
   return `https://office.${resolveRootHostname()}:${resolveTraefikPort()}/api/auth/callback`;
@@ -280,7 +280,7 @@ export function makePkceChallenge(verifier: string): string {
 
 /**
  * Namespace Docker của worktree hiện tại — dò bằng `docker ps`: container
- * `ecoma-<ns>-traefik` có published port BẰNG port trong ROOT_DOMAIN. Đây là
+ * `ecoma-<ns>-traefik` có published port BẰNG port trong ROOT_HOST. Đây là
  * fingerprint đủ chắc: hai worktree không bao giờ trùng published port, và port
  * trong `.env` chính là port suite sẽ gọi. Trả về undefined khi không thấy —
  * test gọi helper seeding sẽ fail với message remedy thay vì đoán tên container.

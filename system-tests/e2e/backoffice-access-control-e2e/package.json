@@ -10,7 +10,7 @@
     "//": [
       "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
       "- platform-deploy: cert local `deploys/platform-deploy/local-certs/fbi.com.crt` (global-setup.ts + e2e/support/local-origin.ts + playwright.config.ts đọc trực tiếp),",
-      "  `ROOT_DOMAIN`/`ROOT_HOST` do `local-up` của platform ghi vào `.env`, router Traefik của platform route `office.<host>`,",
+      "  `ROOT_HOST` do `local-up` của platform ghi vào `.env`, router Traefik của platform route `office.<host>`,",
       "  và container `ecoma-<ns>-postgres` mà e2e/support/stack-fixtures.ts seed nằm trong namespace của platform.",
       "- backoffice-deploy: origin `office.<host>` là điểm đến của toàn bộ suite — gate probe `/api/staff` và mọi spec gọi BFF API",
       "  (login kickoff, authenticated access, permission enforcement, logout), đồng thời `db-backoffice` mà suite seed role/assignment",

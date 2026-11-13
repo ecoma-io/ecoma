@@ -85,8 +85,36 @@ describe('upsertLocalEnv', () => {
   it('adds a previously absent owned key at the end without a misplaced blank line', () => {
     const root = tempWorktree();
     writeFileSync(join(root, '.env'), 'OTHER=1\n', 'utf8');
+    upsertLocalEnv(root, { POSTGRES_PASSWORD: 'pw-local' });
+    expect(readFileSync(join(root, '.env'), 'utf8')).toBe('OTHER=1\nPOSTGRES_PASSWORD=pw-local\n');
+  });
+
+  it('removes every retired-key line from an existing file on the next up (#210)', () => {
+    // `ROOT_DOMAIN` đã retired: worktree cũ còn dòng thặng dư trong `.env` —
+    // lần up kế tiếp phải gỡ sạch (mọi lần xuất hiện) thay vì giữ vô hạn.
+    // Key sở hữu chưa có trong file vẫn được append cuối như thường.
+    const root = tempWorktree();
+    writeFileSync(join(root, '.env'), 'ROOT_DOMAIN=fbi.com:44301\nOTHER=1\n', 'utf8');
+    upsertLocalEnv(root, { ROOT_HOST: 'fbi.com:44301' });
+    expect(readFileSync(join(root, '.env'), 'utf8')).toBe('OTHER=1\nROOT_HOST=fbi.com:44301\n');
+  });
+
+  it('a file reduced to only retired-key lines becomes empty, not a stray newline', () => {
+    // Upsert không kèm giá trị owned nào + file chỉ toàn dòng retired → file
+    // rỗng thay vì còn một dòng `\n` thừa.
+    const root = tempWorktree();
+    writeFileSync(join(root, '.env'), 'ROOT_DOMAIN=fbi.com:44301\n', 'utf8');
+    upsertLocalEnv(root, {});
+    expect(readFileSync(join(root, '.env'), 'utf8')).toBe('');
+  });
+
+  it('a retired key passed in values is never written', () => {
+    // Gỡ retired khỏi file là một chiều: kể cả khi caller (nhầm) đưa key
+    // retired vào `values`, upsert không được ghi nó vào file.
+    const root = tempWorktree();
+    writeFileSync(join(root, '.env'), 'OTHER=1\n', 'utf8');
     upsertLocalEnv(root, { ROOT_DOMAIN: 'fbi.com:44301' });
-    expect(readFileSync(join(root, '.env'), 'utf8')).toBe('OTHER=1\nROOT_DOMAIN=fbi.com:44301\n');
+    expect(readFileSync(join(root, '.env'), 'utf8')).toBe('OTHER=1\n');
   });
 
   it('refuses values containing newlines (structure corruption guard)', () => {

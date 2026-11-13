@@ -17,7 +17,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * `@nx/playwright` plugin EVAL config này LÚC DỰNG PROJECT GRAPH (để suy target
  * `e2e`), mà runner CI không có `.env` (stack local không tồn tại ở đó) —
- * throw khi thiếu `ROOT_DOMAIN`/`ROOT_HOST` làm MỌI job CI đỏ với cùng một
+ * throw khi thiếu `ROOT_HOST` làm MỌI job CI đỏ với cùng một
  * graph error, kể cả lệnh `nx affected` không đụng gì đến suite (bài học đã trả
  * giá thật của `home-public-e2e`). Config trả placeholder
  * `office.placeholder.invalid:443` vô hại; fail-closed thật nằm ở
@@ -85,11 +85,11 @@ function computeSpkiHash(pem: string): string {
 const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 
 /**
- * Origin backoffice từ hostname gốc (`ROOT_DOMAIN`/`ROOT_HOST`, dạng
+ * Origin backoffice từ hostname gốc (`ROOT_HOST`, dạng
  * `hostname:port`): GHÉP PREFIX `office.` — router Traefik của backoffice match
  * `Host(office.<root>)`, và port giữ nguyên vì Traefik local nghe port ĐỘNG map
  * ra loopback (#392 — cùng hợp đồng mà `e2e/support/local-origin.ts` của suite
- * đã suy). Giá trị raw của `ROOT_DOMAIN` là hostname gốc, không router nào
+ * đã suy). Giá trị raw của `ROOT_HOST` là hostname gốc, không router nào
  * serve backoffice trên đó.
  *
  * ⚠️ KHÔNG throw khi thiếu (xem khối đầu file): trả placeholder `.invalid`
@@ -97,7 +97,7 @@ const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
  * đỏ với DNS failure thay vì xanh giả.
  */
 function resolveStackOrigin(): string {
-  const raw = process.env.ROOT_DOMAIN ?? process.env.ROOT_HOST;
+  const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
     return withOfficeOrigin(raw.trim());
   }
