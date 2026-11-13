@@ -128,7 +128,12 @@ Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()`
 | Ghi verification chỉ vào pact cùng tenant                                               | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration | `test-integration` |
 | Ba nhánh fail-closed của `can-i-deploy` (chưa verify, chưa có pact, không có version)   | cùng file trên                                              | integration | `test-integration` |
 | Ghi deployment vào environment, undeploy, và `/can-i-deploy` nhắm theo environment đích | cùng file trên                                              | integration | `test-integration` |
-| 401 đồng nhất cho missing/unknown/revoked                                               | cùng file trên                                              | integration | `test-integration` |
+| `/matrix` báo version đang deploy và lý do kèm target environment                       | cùng file trên                                              | integration | `test-integration` |
+| `/matrix` sau undeploy: lịch sử còn trong DB, matrix không còn deployment hiệu lực      | cùng file trên                                              | integration | `test-integration` |
+| Ưu tiên target environment → tag → branch; verification tốt nhất theo `verified_at`     | cùng file trên                                              | integration | `test-integration` |
+| 400 khi `/matrix` thiếu `pacticipant`                                                   | cùng file trên                                              | integration | `test-integration` |
+| CRUD environment end-to-end: create, list, read by name, update, delete                 | cùng file trên                                              | integration | `test-integration` |
+| 401 đồng nhất cho missing/unknown/revoked, kể cả `/matrix` và `/can-i-deploy`           | cùng file trên                                              | integration | `test-integration` |
 | Phán quyết ba trạng thái và lý do tương ứng                                             | `libs/pact-broker-api-application/src/can-i-deploy.spec.ts` | unit        | `test`             |
 | Tổng hợp matrix: `failed > 0 → false`, `unknown > 0 → null`, còn lại `true`             | `libs/pact-broker-api-domain/src/matrix-summary.spec.ts`    | unit        | `test`             |
 | Ràng buộc một deployment hiệu lực cho mỗi version + environment; composite-FK tenant    | `apps/pact-broker-api/tests/databases/migrations.spec.ts`   | database    | `test-integration` |
@@ -137,7 +142,4 @@ Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()`
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
 - Không có test nào chạy Pact CLI; tương thích với `pact-broker verify` hay `can-i-deploy` của CLI chỉ được suy ra từ hình dạng route và compatibility version.
-- Chọn target theo thứ tự environment → tag → branch và chọn verification tốt nhất theo `verified_at` chỉ có bằng chứng trong repository code; không có integration test assert trực tiếp thứ tự ưu tiên đó.
-- Không có test cho CRUD environment ở tầng integration ngoài đường deployment tự tạo environment.
 - Không có test nào chứng minh việc thiếu audit khi xoá environment là hành vi mong muốn; đó là khoảng trống đã biết.
-- **Route `/matrix` không có test nào gọi tới.** Deployment được kiểm chứng qua `/can-i-deploy` nhắm environment, không qua `/matrix`, và nhánh 400 khi thiếu `pacticipant` cũng chưa được assert. Hai scenario §4 dùng `/matrix` vì vậy chưa có bằng chứng ở tầng integration.
