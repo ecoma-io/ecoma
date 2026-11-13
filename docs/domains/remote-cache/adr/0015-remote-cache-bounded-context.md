@@ -2,7 +2,7 @@
 
 > 📌 Thư mục này là bounded context **Remote Cache** (xem [`../README.md`](../README.md)): ADR này thi hành việc chuyển đã hẹn ở A18 — từ disposable build state sang bounded context multi-tenant.
 
-> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0017](./0017-lifecycle-enforcement.md) — câu "data plane không bao giờ đọc database trong hot path": data plane re-check lifecycle state từ `db-remote-cache` mỗi request) · **Ngày:** 2026-10-31 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §8 A18 · **Issue:** #442 (umbrella #440)
+> **Trạng thái:** Accepted (Superseded (in part) by [ADR-0017](./0017-lifecycle-enforcement.md) — câu "data plane không bao giờ đọc database trong hot path": data plane re-check lifecycle state từ `db-remote-cache` mỗi request) · **Ngày:** 2026-10-31 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §8 A18 · **Issue:** #442 (umbrella #440) — số tham chiếu từ trước migration issue, không còn tồn tại trong repo hiện tại
 
 ## Bối cảnh
 
