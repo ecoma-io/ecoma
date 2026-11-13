@@ -25,7 +25,6 @@ import {
   CONSUMER_HANDOFF_LINE_PREFIX,
   CONSUMER_TENANT_ID,
   MOCK_BIND_HOST,
-  MOCK_KIND_SEGMENT,
   MOCK_UPSTREAM_PORT,
   activeConsumerApiKeyRowCount,
   buildLaneStateLine,
@@ -47,7 +46,10 @@ const NS = 'w000000000001';
 
 describe('mockContainerName', () => {
   it('composes the ecoma-<ns>-<kind> name with the mock kind segment', () => {
-    expect(mockContainerName(NS)).toBe(`ecoma-${NS}-${MOCK_KIND_SEGMENT}`);
+    // Literal TUYỆT ĐỐI (không suy từ MOCK_KIND_SEGMENT): `CLEANUP_KINDS` của
+    // `tools/dx` liệt kê hậu tố `-llm-upstream-mock` bằng chữ — đổi segment tại
+    // đây mà spec vẫn xanh thì orphan mock lại rơi khỏi `local-cleanup` (#187).
+    expect(mockContainerName(NS)).toBe(`ecoma-${NS}-llm-upstream-mock`);
   });
 
   it('rejects a namespace that is not a Docker-safe name', () => {
@@ -60,7 +62,7 @@ describe('mockContainerName', () => {
 describe('mockUpstreamBaseUrl', () => {
   it('points at the mock container DNS name on the internal mock port', () => {
     expect(mockUpstreamBaseUrl(NS)).toBe(
-      `http://ecoma-${NS}-${MOCK_KIND_SEGMENT}:${MOCK_UPSTREAM_PORT}`,
+      `http://ecoma-${NS}-llm-upstream-mock:${MOCK_UPSTREAM_PORT}`,
     );
   });
 });
