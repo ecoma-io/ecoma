@@ -1,6 +1,6 @@
 # Attaching Screenshots and Videos to Pull Requests
 
-`gh` 2.99+ uploads local images and videos with the repeatable `--attach` flag on `gh pr create`, `gh pr comment`, `gh pr edit`, `gh issue create`, `gh issue comment` and `gh issue edit`. PNG, JPEG, GIF, WebP, SVG, MP4, MOV and WebM are accepted, so `npx --no-install playwright cli screenshot` and `video-start` output can be attached as is.
+`gh` 2.99+ uploads local images and videos with the repeatable `--attach` flag on `gh pr create`, `gh pr comment`, `gh pr edit`, `gh issue create`, `gh issue comment` and `gh issue edit`. PNG, JPEG, GIF, WebP, SVG, MP4, MOV and WebM are accepted, so `npx --no-install playwright cli screenshot` and `npx --no-install playwright cli video-start` output can be attached as is.
 
 ## When to attach
 
