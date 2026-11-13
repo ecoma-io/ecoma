@@ -311,7 +311,15 @@ export function createUpstreamMockServer(config: MockConfig): MockServerHandle {
   };
 }
 
-/** Dispatch một request: resolve scenario, match route, log một dòng metadata. */
+/**
+ * Dispatch một request: resolve scenario, match route, log một dòng metadata.
+ *
+ * Route match theo HẬU TỐ (`endsWith`), không exact path: upstream thật sống
+ * sau path prefix của gateway (`/llm/v1/...`), và deploy bootstrap của
+ * `llm-api-deploy` đăng ký endpoint URL ĐẦY ĐỦ đường chat rồi suy probe models
+ * là `{endpoint}/v1/models` từ CÙNG MỘT env — mock chấp nhận mọi base path để
+ * cả hai hợp đồng đều chạm đúng route (chi tiết ở README, mục Boundary).
+ */
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -358,11 +366,11 @@ async function handleRequest(
       return;
     }
 
-    if (ctx.path === '/v1/models') {
+    if (ctx.path.endsWith('/v1/models')) {
       handleModels(ctx, req, res, config, hung);
       return;
     }
-    if (ctx.path === '/v1/chat/completions') {
+    if (ctx.path.endsWith('/v1/chat/completions')) {
       await handleChatCompletions(ctx, req, res, config, hung);
       return;
     }
