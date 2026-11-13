@@ -7,15 +7,15 @@ Nx project `@ecoma-io/ui-app-shell`, tags `type:application`, `scope:shared`, `r
 ## Purpose
 
 - Một shell duy nhất cho mọi app dashboard: cùng bố cục sidebar/header/breadcrumb/command palette, cùng hệ token CSS, cùng hành vi responsive — app chỉ đưa nav và nội dung trang.
-- Giữ shell ở chế độ duy nhất mà Ecoma dùng: luôn dark mode, sidebar variant `sidebar`, typography `default` — người dùng chỉ cấu hình được `themeColor` và `direction`.
+- Giữ shell ở chế độ duy nhất mà Ecoma dùng: sidebar variant `sidebar`, typography `default`. Color mode có ba giá trị `light`/`dark`/`system` (mặc định `system`, theo hệ điều hành) — lựa chọn người dùng duy nhất; `direction` không phải cấu hình: nó là thuộc tính của ngôn ngữ nội dung, app suy ra từ locale registry (cùng nguồn với `<html lang>`) và truyền vào shell bằng prop.
 
 ## Responsibilities
 
 Entry TS `src/index.ts` export bốn nhóm:
 
-- **`./lib/shell`** — `AppShell` và các mảnh con (`AppShellSidebar`, `AppShellHeader`, `AppShellNav`, `AppShellBreadcrumb`, `AppShellSearch`, `AppShellSettingsPanel`, `AppShellSidebarNavGroup`, `AppShellSidebarNavLink`), kiểu nav/command/breadcrumb, `useAppShell`, `useAppShellCommandPaletteShortcut`, `appShellBreadcrumbLinks`, `DEFAULT_APP_SHELL_LABELS`. `AppShell` là component thuần: không đọc/ghi cookie, không đọc route, không giữ bản sao cấu hình — app truyền `preferences` bằng prop, nhận lại qua `update:preferences`, đưa nav qua prop và thương hiệu/menu tài khoản qua slot (`brand`, `actions`, `footer`, slot mặc định).
+- **`./lib/shell`** — `AppShell` và các mảnh con (`AppShellSidebar`, `AppShellHeader`, `AppShellNav`, `AppShellBreadcrumb`, `AppShellSearch`, `AppShellColorModeToggle`, `AppShellSidebarNavGroup`, `AppShellSidebarNavLink`), kiểu nav/command/breadcrumb, `useAppShell`, `useAppShellCommandPaletteShortcut`, `appShellBreadcrumbLinks`, `DEFAULT_APP_SHELL_LABELS`. `AppShell` là component thuần: không đọc/ghi cookie, không đọc route, không giữ bản sao cấu hình — app truyền `dir` (từ locale) và `colorMode` (từ cookie) bằng prop, nhận color mode mới qua `update:colorMode` (`v-model:color-mode` là cách dùng chuẩn), đưa nav qua prop và thương hiệu/menu tài khoản qua slot (`brand`, `actions`, `footer`, slot mặc định).
 - **`./lib/ui`** — primitive shadcn-vue theo thư mục nguồn (avatar, badge, breadcrumb, button, collapsible, command, dialog, drawer, dropdown-menu, input, kbd, label, scroll-area, separator, sheet, sidebar, skeleton, tooltip); dùng trực tiếp khi dựng nội dung trang.
-- **`./lib/preferences`** — cấu hình người dùng: `AppShellPreferences` (`themeColor` từ `APP_SHELL_THEME_COLORS` — 9 giá trị; `direction` `'ltr' | 'rtl'`), cookie `app_shell_preferences`, `parseAppShellPreferences` (luôn trả giá trị hợp lệ — cookie hỏng rơi về `DEFAULT_APP_SHELL_PREFERENCES`), `appShellHeadAttributes`, `appShellColorClass`, `migrateLegacyAppSettings` cho khoá cũ `app_settings`.
+- **`./lib/color-mode`** — cấu hình màu: `AppShellColorMode` = `'light' | 'dark' | 'system'`, cookie `app_shell_color_mode` (cookie chứ không localStorage vì script bootstrap chạy trước paint cần đọc được ngoài Vue, và app SSR cần giá trị này để render đúng trạng thái), `parseAppShellColorMode` (luôn trả giá trị hợp lệ — cookie hỏng rơi về `DEFAULT_APP_SHELL_COLOR_MODE` = `'system'`), `appShellColorModeIsDark`, `appShellApplyColorMode` (đặt/xoá class `dark` trên `<html>`), `APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT` — script inline ES5 app inject qua `useHead`, quyết định class `dark` **trước first paint** và tự theo `prefers-color-scheme` khi đang ở `system`; Vue render không bao giờ đọc môi trường nên hydration không dispute với script.
 - **`cn`** — helper ghép class.
 
 CSS là entry riêng, không import trong entry TS: `src/styles/app-shell.css`. Consumer `@import` file này (đường dẫn **tương đối**, không specifier package — alias của app áp cho cả resolver stylesheet của Tailwind và build đỏ `ENOTDIR`) và đăng ký `@source` tới source của lib; mọi app consumer giữ một test ghim số cấp `..` (ví dụ `apps/backoffice/app/assets/css/styles.spec.ts`, `apps/remote-cache-app/tests/tailwind-source.spec.ts`) vì đếm sai một cấp là lỗi im lặng của Tailwind.
@@ -36,7 +36,7 @@ pnpm nx run @ecoma-io/ui-app-shell:typecheck   # vue-tsc --build tsconfig.json -
 pnpm nx run @ecoma-io/ui-app-shell:build       # vue-tsc --build tsconfig.lib.json
 ```
 
-Source nằm dưới `src/lib/` (`shell/`, `ui/`, `preferences/`, `media-query.ts`, `utils.ts`) và `src/styles/app-shell.css`; giấy phép và nguồn gốc của từng thành phần bên thứ ba ghi ở `THIRD-PARTY-NOTICES.md`.
+Source nằm dưới `src/lib/` (`shell/`, `ui/`, `color-mode/`, `media-query.ts`, `utils.ts`) và `src/styles/app-shell.css`; giấy phép và nguồn gốc của từng thành phần bên thứ ba ghi ở `THIRD-PARTY-NOTICES.md`.
 
 ## Testing
 
@@ -44,7 +44,7 @@ Source nằm dưới `src/lib/` (`shell/`, `ui/`, `preferences/`, `media-query.t
 pnpm nx run @ecoma-io/ui-app-shell:test    # vitest, environment jsdom
 ```
 
-Spec colocated: `preferences.spec.ts`, `shell.spec.ts`, `sidebar.spec.ts`, `command.spec.ts`, `cascade.spec.ts` (so khớp cascade CSS bằng mẫu), `globals.spec.ts` (harness `nuxt-env.ts`). Test đọc CSS thật (`css: true` trong `vitest.config.mts`) thay vì chuỗi rỗng.
+Spec colocated: `color-mode.spec.ts`, `shell.spec.ts`, `sidebar.spec.ts`, `command.spec.ts`, `cascade.spec.ts` (so khớp cascade CSS bằng mẫu), `globals.spec.ts` (harness `nuxt-env.ts`). Test đọc CSS thật (`css: true` trong `vitest.config.mts`) thay vì chuỗi rỗng.
 
 ## Related Documentation
 

@@ -1,6 +1,14 @@
 import type { Component } from 'vue';
 
 /**
+ * Chiều văn bản của document. Thuộc tính của **ngôn ngữ nội dung**, không phải
+ * lựa chọn người dùng: các ngôn ngữ dùng hệ chữ RTL (ar, he, fa, ur…) suy ra
+ * `rtl` từ locale registry của app — cùng nguồn với `<html lang>` (issue #213).
+ * Shell chỉ cần giá trị này để orient các primitive reka và vị trí sidebar.
+ */
+export type AppShellDirection = 'ltr' | 'rtl';
+
+/**
  * Một mục điều hướng **để render** — library chỉ biết cách hiển thị, không biết
  * và không sở hữu dữ liệu điều hướng. App truyền vào nhãn, đích đến và icon;
  * quyền hạn, thứ tự và nội dung là chuyện của app.
@@ -66,18 +74,15 @@ export function isAppShellNavGroup(entry: AppShellNavEntry): entry is AppShellNa
 }
 
 /**
- * Nhãn hiển thị của bảng tuỳ chỉnh. Shell sinh sẵn tiếng Anh ở
+ * Nhãn hiển thị của nút đổi color mode. Shell sinh sẵn tiếng Anh ở
  * `DEFAULT_APP_SHELL_LABELS`; app nào i18n thì truyền bản dịch của riêng mình.
  */
-export interface AppShellSettingsLabels {
-  readonly title: string;
-  readonly description: string;
-  readonly theming: string;
-  readonly layout: string;
-  readonly color: string;
-  readonly direction: string;
-  readonly directionLtr: string;
-  readonly directionRtl: string;
+export interface AppShellColorModeLabels {
+  /** Nhãn mô tả control, dùng cho `aria-label`/`title`. */
+  readonly label: string;
+  readonly light: string;
+  readonly dark: string;
+  readonly system: string;
 }
 
 /**
@@ -102,6 +107,6 @@ export interface AppShellSearchLabels {
  * (llm-console, llm-seller) giữ nguyên hành vi bằng cách không truyền prop này.
  */
 export interface AppShellLabels {
-  readonly settings: AppShellSettingsLabels;
+  readonly colorMode: AppShellColorModeLabels;
   readonly search: AppShellSearchLabels;
 }

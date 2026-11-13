@@ -2,11 +2,11 @@
      Xem libs/ui-app-shell/THIRD-PARTY-NOTICES.md. -->
 <script setup lang="ts">
 import { ConfigProvider } from 'reka-ui';
-import { computed, ref } from 'vue';
-import type { AppShellDirection, AppShellPreferences, AppShellThemeColor } from '../preferences';
+import { computed, ref, watch } from 'vue';
+import { appShellApplyColorMode } from '../color-mode';
+import type { AppShellColorMode } from '../color-mode';
 import { SidebarInset, SidebarProvider } from '../ui/sidebar';
 import AppShellHeader from './AppShellHeader.vue';
-import AppShellSettingsPanel from './AppShellSettingsPanel.vue';
 import AppShellSidebar from './AppShellSidebar.vue';
 import { provideAppShellContext } from './context';
 import { DEFAULT_APP_SHELL_LABELS } from './labels';
@@ -14,6 +14,7 @@ import { useAppShellCommandPaletteShortcut } from './shortcuts';
 import type {
   AppShellBreadcrumbLink,
   AppShellCommandGroup,
+  AppShellDirection,
   AppShellLabels,
   AppShellNavEntry,
   AppShellNavSection,
@@ -24,14 +25,22 @@ import type {
  * `layouts/default.vue` của nguồn.
  *
  * Không nhận `children`/slot mặc định nào khác ngoài nội dung trang, và **không**
- * sở hữu cấu hình: `preferences` vào bằng prop và đi ra bằng
- * `update:preferences`, nên app là nơi duy nhất biết cookie (`v-model:preferences`
+ * sở hữu cấu hình: `dir`/`colorMode` vào bằng prop và `colorMode` đi ra bằng
+ * `update:colorMode`, nên app là nơi duy nhất biết cookie (`v-model:color-mode`
  * là cách dùng chuẩn). Library không đọc/ghi cookie, không đọc route, không giữ
  * bản sao nào của cấu hình — hết reload vẫn chỉ có một nguồn.
  *
- * Purity đổi lại một chút phiền cho nơi gọi: app phải tự render `<html>` (thuộc
- * tính `dir`/class `dark`) từ cùng cấu hình đó qua `useHead`, vì library không
- * được chạm vào document và cũng không chạy được SSR nếu tự gắn class sau mount.
+ * Hai nguồn sự thật của hai cấu hình, đúng theo issue #213:
+ *
+ * - `dir` là thuộc tính của **ngôn ngữ**: app suy ra từ locale registry (cùng
+ *   nguồn với `<html lang>`) và truyền xuống. Shell không có đường nào đổi nó —
+ *   không còn setting LTR/RTL.
+ * - `colorMode` là lựa chọn người dùng duy nhất còn lại (light/dark/system).
+ *   Class `dark` trên `<html>` **không** do render của Vue đặt: lúc tải trang,
+ *   script bootstrap (`APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT`, app tự inject qua
+ *   `useHead`) quyết định trước first paint; sau hydration, watcher bên dưới mới
+ *   cập nhật class khi người dùng đổi mode. Vue/unhead không quản lý class này,
+ *   nên hydration không bao giờ dispute với script.
  *
  * `SidebarProvider` nằm trong template của chính component này, nên mọi thứ cần
  * ngữ cảnh sidebar (`SidebarTrigger`, `SidebarInset`, các mục nav gọi
@@ -42,22 +51,22 @@ import type {
  *
  * - `ConfigProvider :dir` của reka: RTL của các primitive (dropdown, sheet,
  *   tooltip, sub-menu) do reka quyết định theo `dir` nhận được, chứ không tự
- *   đọc thuộc tính `dir` trên `<html>`. Thiếu nó, đổi sang RTL chỉ đổi hướng
- *   chữ còn menu vẫn bung về bên trái — đúng kiểu "RTL chỉ đổi phía sidebar" mà
- *   yêu cầu cấm.
+ *   đọc thuộc tính `dir` trên `<html>`. Thiếu nó, đổi locale sang ngôn ngữ RTL
+ *   chỉ đổi hướng chữ còn menu vẫn bung về bên trái.
  * - `vaul-drawer-wrapper` trên phần tử bao ngoài: Drawer trên mobile thu nhỏ
  *   phần nội dung phía sau theo attribute này; không có nó thì drawer mở ra
  *   nhưng không có hiệu ứng lùi nền của nguồn.
  *
  * `labels` là prop duy nhất shell nhận về **hiển thị**: các chuỗi người dùng
- * thấy trong bảng tuỳ chỉnh và ô tìm kiếm. Shell không biết locale, không gọi
- * API dịch và không đổi chuỗi — app i18n truyền vào, app còn lại không truyền
- * và nhận đúng chuỗi tiếng Anh cũ (`DEFAULT_APP_SHELL_LABELS`). Nhãn là prop
- * chứ không phải provide/inject vì chúng đi theo đúng cây của chính component,
- * và một `AppShell` duy nhất trong mỗi app.
+ * thấy ở nút đổi mode và ô tìm kiếm. Shell không biết locale, không gọi API dịch
+ * và không đổi chuỗi — app i18n truyền vào, app còn lại không truyền và nhận
+ * đúng chuỗi tiếng Anh cũ (`DEFAULT_APP_SHELL_LABELS`). Nhãn là prop chứ không
+ * phải provide/inject vì chúng đi theo đúng cây của chính component, và một
+ * `AppShell` duy nhất trong mỗi app.
  */
 const {
-  preferences,
+  dir = 'ltr',
+  colorMode = 'system',
   nav,
   bottomItems = undefined,
   commands = undefined,
@@ -67,7 +76,10 @@ const {
   labels = DEFAULT_APP_SHELL_LABELS,
   // oxlint-disable-next-line vue/max-props
 } = defineProps<{
-  preferences: AppShellPreferences;
+  /** Chiều văn bản — app suy ra từ locale, shell chỉ orient theo giá trị này. */
+  dir?: AppShellDirection;
+  /** Chế độ màu — app đọc từ cookie, mặc định đi theo hệ điều hành. */
+  colorMode?: AppShellColorMode;
   nav: readonly AppShellNavSection[];
   bottomItems?: readonly AppShellNavEntry[];
   commands?: readonly AppShellCommandGroup[];
@@ -78,7 +90,7 @@ const {
 }>();
 
 const emit = defineEmits<{
-  (event: 'update:preferences', value: AppShellPreferences): void;
+  (event: 'update:colorMode', value: AppShellColorMode): void;
 }>();
 
 const paletteOpen = ref(false);
@@ -88,13 +100,21 @@ const paletteOpen = ref(false);
 // phải luôn hoạt động.
 useAppShellCommandPaletteShortcut(paletteOpen);
 
-provideAppShellContext({
-  preferences: computed(() => preferences),
-  setThemeColor: (themeColor: AppShellThemeColor) => {
-    emit('update:preferences', { ...preferences, themeColor });
+// Không `immediate`: lúc hydration class đã đúng do script bootstrap đặt, và
+// watcher chỉ có việc cập nhật khi người dùng đổi mode *sau* đó. Chạy ở SSR
+// cũng vô hại — `appShellApplyColorMode` tự thoát khi không có document.
+watch(
+  () => colorMode,
+  (mode) => {
+    appShellApplyColorMode(mode);
   },
-  setDirection: (direction: AppShellDirection) => {
-    emit('update:preferences', { ...preferences, direction });
+);
+
+provideAppShellContext({
+  dir: computed(() => dir),
+  colorMode: computed(() => colorMode),
+  setColorMode: (mode: AppShellColorMode) => {
+    emit('update:colorMode', mode);
   },
   currentPath: computed(() => currentPath),
   paletteOpen,
@@ -102,7 +122,7 @@ provideAppShellContext({
 </script>
 
 <template>
-  <ConfigProvider :dir="preferences.direction">
+  <ConfigProvider :dir="dir">
     <div vaul-drawer-wrapper class="relative">
       <SidebarProvider>
         <AppShellSidebar
@@ -130,7 +150,6 @@ provideAppShellContext({
             </div>
           </div>
         </SidebarInset>
-        <AppShellSettingsPanel :labels="labels.settings" />
       </SidebarProvider>
     </div>
   </ConfigProvider>

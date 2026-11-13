@@ -1,6 +1,7 @@
 import type { ComputedRef, InjectionKey, Ref } from 'vue';
 import { inject, provide } from 'vue';
-import type { AppShellDirection, AppShellPreferences, AppShellThemeColor } from '../preferences';
+import type { AppShellColorMode } from '../color-mode';
+import type { AppShellDirection } from './types';
 
 /**
  * Trạng thái shell chia cho các component con. App giữ **nguồn duy nhất** của
@@ -9,12 +10,12 @@ import type { AppShellDirection, AppShellPreferences, AppShellThemeColor } from 
  * lần render đầu ở client luôn dùng đúng giá trị mà SSR đã dùng.
  */
 export interface AppShellContext {
-  /** Cấu hình hiện tại (đọc từ cookie của app). */
-  readonly preferences: ComputedRef<AppShellPreferences>;
-  /** Đổi màu chủ đạo; app ghi cookie ở tầng trên. */
-  readonly setThemeColor: (themeColor: AppShellThemeColor) => void;
-  /** Đổi chiều văn bản; độc lập với vị trí sidebar. */
-  readonly setDirection: (direction: AppShellDirection) => void;
+  /** Chiều văn bản hiện tại — app suy ra từ locale và truyền vào qua prop. */
+  readonly dir: ComputedRef<AppShellDirection>;
+  /** Chế độ màu hiện tại (đọc từ cookie của app). */
+  readonly colorMode: ComputedRef<AppShellColorMode>;
+  /** Đổi chế độ màu; app ghi cookie ở tầng trên. */
+  readonly setColorMode: (colorMode: AppShellColorMode) => void;
   /** Đường dẫn đang xem, để đánh dấu mục nav đang active. */
   readonly currentPath: ComputedRef<string>;
   /**
@@ -33,7 +34,7 @@ export function provideAppShellContext(context: AppShellContext): void {
 
 /**
  * Đọc trạng thái shell từ component con. Dùng trong `AppShellNav`,
- * `AppShellHeader`, `AppShellSettingsPanel`… Chỉ có hiệu lực khi nằm trong
+ * `AppShellHeader`, `AppShellColorModeToggle`… Chỉ có hiệu lực khi nằm trong
  * `AppShell`.
  */
 export function useAppShell(): AppShellContext {

@@ -22,9 +22,10 @@ import type {
  * - `variant` cố định `sidebar` và `collapsible` cố định `offcanvas`, không lấy
  *   từ cấu hình. Nguồn cho người dùng chọn `floating`/`inset` và
  *   `offcanvas`/`icon`; ở đây không còn đường nào đổi hai giá trị đó.
- * - `side` **suy ra từ chiều văn bản**, không lưu riêng: `rtl` thì sidebar nằm
- *   bên phải. Nhờ vậy không có cặp giá trị nào mâu thuẫn nhau (direction `ltr`
- *   nhưng sidebar `right`) và không cần di trú thêm một trường.
+ * - `side` **suy ra từ chiều văn bản** của app (prop `dir` của `AppShell`, nguồn
+ *   sự thật là locale), không lưu riêng: `rtl` thì sidebar nằm bên phải. Nhờ vậy
+ *   không có cặp giá trị nào mâu thuẫn nhau (direction `ltr` nhưng sidebar
+ *   `right`) và không cần di trú thêm một trường.
  *
  * Thương hiệu và chân trang là slot vì chúng thuộc về app: tên sản phẩm, logo,
  * menu tài khoản, đăng xuất — library không biết và không nên biết.
@@ -42,9 +43,9 @@ const {
   labels?: AppShellLabels;
 }>();
 
-const { preferences } = useAppShell();
+const { dir } = useAppShell();
 
-const side = computed(() => (preferences.value.direction === 'rtl' ? 'right' : 'left'));
+const side = computed(() => (dir.value === 'rtl' ? 'right' : 'left'));
 </script>
 
 <template>
