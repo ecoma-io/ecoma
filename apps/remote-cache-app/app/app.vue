@@ -1,11 +1,12 @@
 <template>
   <AppShell
-    :preferences="preferences"
+    :dir="dir"
+    :color-mode="colorMode"
     :nav="nav"
     :current-path="route.path"
     :home-label="homeLabel"
     :labels="shellLabels"
-    @update:preferences="updatePreferences"
+    @update:color-mode="setColorMode"
   >
     <template #brand>
       <NuxtLink to="/" class="flex items-center gap-2 px-1">
@@ -13,6 +14,10 @@
       </NuxtLink>
     </template>
     <template #actions>
+      <!-- Nút đổi color mode nằm cạnh language selector: hai control shell duy nhất
+           của header, cùng một hàng. Component đọc ngữ cảnh của `AppShell` (nên phải
+           render bên trong nó) và phát `update:colorMode` lên đây để ghi cookie. -->
+      <AppShellColorModeToggle :labels="shellLabels.colorMode" />
       <RemoteCacheAppLanguageSelect />
     </template>
     <NuxtPage />
@@ -21,13 +26,13 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_PREFERENCES_COOKIE,
+  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
+  APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
-  DEFAULT_APP_SHELL_PREFERENCES,
-  appShellHeadAttributes,
-  parseAppShellPreferences,
+  AppShellColorModeToggle,
+  parseAppShellColorMode,
+  type AppShellColorMode,
   type AppShellNavSection,
-  type AppShellPreferences,
 } from '@ecoma-io/ui-app-shell';
 import { EcomaLogo } from '@ecoma-io/ui-ecoma-logo';
 import { useI18n } from '#i18n';
@@ -39,32 +44,47 @@ import { useRemoteCacheAppI18n } from './composables/use-remote-cache-app-i18n';
 const route = useRoute();
 const { t } = useI18n();
 
+// Cookie lựa chọn phải sống qua các phiên — cùng tuổi thọ với cookie locale của
+// app (`use-remote-cache-app-locale.ts`), vì cùng một loại dữ liệu: lựa chọn
+// người dùng không nhạy cảm.
+const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
+
 // Nơi DUY NHẤT ghi `locale` của composer — xem `use-remote-cache-app-i18n.ts`.
 // Không có lệnh gọi này thì language selector chỉ đổi `<html lang>` và cookie,
 // còn toàn bộ văn bản vẫn nằm ở `DEFAULT_REMOTE_CACHE_APP_LOCALE`.
-const { language } = useRemoteCacheAppI18n();
+// `dir` đi cùng nguồn: suy ra từ registry của locale đang chọn, không phải lựa
+// chọn người dùng (issue #213).
+const { language, dir } = useRemoteCacheAppI18n();
 
-// Nguồn duy nhất của cấu hình shell là cookie này.
-const shellCookie = useCookie<AppShellPreferences>(APP_SHELL_PREFERENCES_COOKIE, {
-  default: () => DEFAULT_APP_SHELL_PREFERENCES,
+// Nguồn duy nhất của cấu hình shell còn lại — color mode, một lựa chọn người dùng
+// (light/dark/system). Cookie chứ không `localStorage`: script bootstrap nằm ở
+// `<head>` đọc `document.cookie` để quyết định class `dark` trước first paint.
+const colorModeCookie = useCookie<string>(APP_SHELL_COLOR_MODE_COOKIE, {
+  sameSite: 'lax',
+  path: '/',
+  maxAge: ONE_YEAR_IN_SECONDS,
 });
 
-// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library trước khi render.
-const preferences = computed(() => parseAppShellPreferences(shellCookie.value));
+// Cookie là dữ liệu người dùng sửa được, nên phải đi qua validator của library
+// trước khi dùng: giá trị lạ rơi về `system` — không có `default:` ở `useCookie`
+// vì "không có lựa chọn" và "lựa chọn hỏng" cùng về một giá trị mặc định.
+const colorMode = computed(() => parseAppShellColorMode(colorModeCookie.value));
 
-function updatePreferences(next: AppShellPreferences): void {
-  shellCookie.value = next;
+function setColorMode(next: AppShellColorMode): void {
+  // Giá trị đến từ `AppShellColorModeToggle` với kiểu đã thu hẹp, nên ghi thẳng
+  // được; class `dark` không đặt ở đây — watcher của shell cập nhật sau hydration,
+  // render Vue không bao giờ chạm vào class đó.
+  colorModeCookie.value = next;
 }
 
-// Gộp lang + htmlAttrs(bodyAttrs từ shell) vào một useHead duy nhất.
-useHead(() => {
-  const { htmlAttrs, bodyAttrs } = appShellHeadAttributes(preferences.value);
-
-  return {
-    htmlAttrs: { lang: language.value, ...htmlAttrs },
-    bodyAttrs,
-  };
-});
+// Gộp mọi thứ app ghi vào head vào một `useHead` duy nhất: `lang` + `dir` của
+// `<html>` và script bootstrap của color mode. Class `dark` **không** nằm ở đây —
+// script quyết định nó trước first paint, Vue/unhead không quản lý class này nên
+// hydration không bao giờ dispute với script.
+useHead(() => ({
+  htmlAttrs: { lang: language.value, dir: dir.value },
+  script: [{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
+}));
 
 const shellLabels = computed(() => appShellLabels((key) => t(key)));
 
