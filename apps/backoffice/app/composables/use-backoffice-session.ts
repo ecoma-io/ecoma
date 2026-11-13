@@ -79,7 +79,11 @@ export type BackofficeSession = {
   readonly loggingOut: Ref<boolean>;
   /** Hỏi lại server về phiên. Client-side; an toàn gọi lại nhiều lần. */
   readonly refresh: () => Promise<void>;
-  /** Kéo người dùng vào đường đăng nhập của BFF (full navigation). */
+  /**
+   * Kéo người dùng vào đường đăng nhập của BFF (full navigation). Chỉ gọi từ
+   * **event handler client-side** — `login()` cố ý không có guard `typeof
+   * window` (xem JSDoc của hàm ở module scope vì sao fail-loud là chủ ý).
+   */
   readonly login: () => void;
   /** Hủy phiên server-side rồi quay về trang chủ (full navigation). */
   readonly logout: () => Promise<void>;
@@ -137,6 +141,11 @@ function createBackofficeSession(): BackofficeSession {
    * "Nguồn sự thật của trạng thái".
    */
   async function refresh(): Promise<void> {
+    // Trạng thái cũ (kể cả `authenticated` từ lần probe trước) là thông tin
+    // stale ngay khi một probe mới bắt đầu: hạ về `unknown` trước, để mọi kết
+    // cục không hợp lệ (mạng lỗi, status lạ, body lỗi) kết thúc ở `unknown` —
+    // không giữ nút "Log out" trên trạng thái không còn bằng chứng.
+    status.value = 'unknown';
     let response: Response;
     try {
       response = await fetch('/api/auth/session', { credentials: 'same-origin' });

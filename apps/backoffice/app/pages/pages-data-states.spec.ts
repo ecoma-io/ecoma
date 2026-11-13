@@ -24,6 +24,7 @@ import StaffPage from './staff.vue';
 import { PROTOTYPE_DATA } from '../backoffice-data/prototype-fixture';
 import { BackofficeRouteError } from '../backoffice-data/route-error';
 import type { Permission, StaffMember, SystemRole } from '../backoffice-data/types';
+import { LOGIN_PATH } from '../composables/use-backoffice-session';
 import en from '../i18n/locales/en';
 import type { FakeAdapterData, FakeBackofficeAdapter } from '../../tests/fake-adapter';
 import { createFakeBackofficeAdapter } from '../../tests/fake-adapter';
@@ -300,7 +301,7 @@ describe.each(PAGES)('data page $name', (page) => {
     // Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF — khẳng định
     // trên handler thật vì đây là hợp đồng bảo mật, không phải chi tiết render.
     await login.trigger('click');
-    expect(window.location.assign).toHaveBeenCalledWith('/api/auth/login');
+    expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
   });
 
   it('403 and 503 keep the retry affordance — neither is a login problem', async () => {

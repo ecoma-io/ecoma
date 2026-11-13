@@ -133,8 +133,6 @@ describe('createRealBackofficeAdapter', () => {
     await adapter.listPermissions();
 
     expect(calls).toEqual(['/api/staff', '/api/roles', '/api/permissions']);
-
-    vi.unstubAllGlobals();
   });
 
   it('non-2xx response rejects the promise (fail-closed, no fake data)', async () => {
@@ -154,8 +152,6 @@ describe('createRealBackofficeAdapter', () => {
     await expect(adapter.listStaff()).rejects.toThrow(/503/u);
     await expect(adapter.listRoles()).rejects.toThrow(/503/u);
     await expect(adapter.listPermissions()).rejects.toThrow(/503/u);
-
-    vi.unstubAllGlobals();
   });
 
   /**
@@ -182,8 +178,6 @@ describe('createRealBackofficeAdapter', () => {
 
       expect(error).toBeInstanceOf(BackofficeRouteError);
       expect((error as BackofficeRouteError).status).toBe(status);
-
-      vi.unstubAllGlobals();
     }
   });
 
@@ -198,8 +192,6 @@ describe('createRealBackofficeAdapter', () => {
     const adapter = createRealBackofficeAdapter();
 
     await expect(adapter.listStaff()).rejects.toThrow('Failed to fetch');
-
-    vi.unstubAllGlobals();
   });
 
   /**
@@ -264,7 +256,5 @@ describe('createRealBackofficeAdapter', () => {
     await adapter.listPermissions();
 
     expect(calls).toEqual(['/api/staff', '/api/roles', '/api/permissions']);
-
-    vi.unstubAllGlobals();
   });
 });

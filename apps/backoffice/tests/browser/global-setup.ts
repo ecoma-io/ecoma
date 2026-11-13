@@ -26,8 +26,8 @@ import { gotoWithReloadRetry } from './support/warm-up';
  * `apps/backoffice/node_modules/.cache/vite/client/deps`): không warm-up browser
  * thì reload buộc rơi vào **giữa** giai đoạn test — bản ghi document là `/`, `/`
  * (cái đầu `net::ERR_ABORTED`) rồi `/staff`; có warm-up browser thì nó rơi hết vào
- * giai đoạn warm-up và giai đoạn test chỉ còn đúng bốn lần điều hướng, không lần
- * nào bị huỷ.
+ * giai đoạn warm-up và giai đoạn test chỉ còn đúng năm lần điều hướng (mỗi route
+ * một lần, khớp `PROTOTYPE_ROUTES`), không lần nào bị huỷ.
  *
  * ⚠️ Reload có thể rơi **giữa một lần `page.goto` của chính warm-up** — đúng race
  * mà vế 2 tồn tại để "ăn", nhưng chưa từng được bảo vệ: CI đỏ thật với
@@ -46,7 +46,7 @@ import { gotoWithReloadRetry } from './support/warm-up';
  * Bao lâu không có document request mới thì coi như dev server đã thôi thay trang.
  *
  * Đo được: reload buộc tới khoảng 0.4s sau lần tải đầu ở local và ~2.6s trên CI,
- * nên warm-up bốn route (vài giây) thường đã "ăn" luôn nó; con số này chỉ là
+ * nên warm-up năm route (vài giây) thường đã "ăn" luôn nó; con số này chỉ là
  * khoảng lặng xác nhận ở cuối.
  */
 const QUIET_MS = 3_000;
@@ -92,7 +92,7 @@ async function assertRoutesRespond(baseURL: string): Promise<void> {
 }
 
 /**
- * Vế 2 — tải đủ bốn route bằng browser thật để Vite pre-bundle xong dependency
+ * Vế 2 — tải đủ năm route bằng browser thật để Vite pre-bundle xong dependency
  * client, rồi chờ dev server thôi thay trang.
  *
  * `page.goto` bọc bởi `gotoWithReloadRetry`: reload của dev server có thể huỷ
