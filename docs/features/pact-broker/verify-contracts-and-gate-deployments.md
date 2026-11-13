@@ -39,7 +39,7 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 ### Không bao gồm
 
 - **Không có dashboard hiển thị matrix hay verification.** `apps/pact-broker-app` chỉ có bốn trang đọc (`/`, `/pacts`, `/environments`, `/tokens`); không có trang verification, không có trang matrix, và không có điều khiển ghi nào.
-- **Dashboard không dùng được cho gate.** Route BFF `can-i-deploy.post.ts` và `pacticipants.get.ts` không được trang nào gọi, và màn hình Pacts gọi `/matrix` không kèm tham số nên nhận 400 từ API thật.
+- **Dashboard không dùng được cho gate.** Route BFF `can-i-deploy.post.ts` và `pacticipants.get.ts` không được trang nào gọi, và màn hình Pacts gọi `/matrix` không kèm tham số nên nhận 400 từ API thật; việc chạy verification và `can-i-deploy` thuộc CLI/CI.
 - **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
 - **Xoá environment không ghi audit**, và thay đổi tag hay deployment cũng không ghi audit. Chỉ `environment.create` và `environment.update` được ghi.

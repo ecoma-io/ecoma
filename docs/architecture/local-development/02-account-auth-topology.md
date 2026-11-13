@@ -54,7 +54,7 @@ Chuỗi bằng chứng (PF6–PF8):
 
 1. Service bindings của `wrangler dev` giải được **cross-process** qua shared dev registry (`WRANGLER_REGISTRY_PATH`): caller thấy `[connected]` và gọi `env.ACCOUNT_SERVICE.fetch()` thành công tới worker khác process (PF6).
 2. Dev registry chỉ chứa entry của workerd process — không thể đăng ký một container Node thuần; phía nhận binding buộc phải là worker (PF7).
-3. Shim worker chuyển tiếp fetch qua HTTP thuần tới upstream bất kỳ — chuỗi `auth → ACCOUNT_SERVICE → shim → HTTP → container` chạy end-to-end (PF8). Bên trong là HTTP plain, đúng ngữ nghĩa service binding production (binding không cung cấp TLS); bảo mật lớp application là envelope HMAC `ecoma-internal-v1` — **hợp đồng thật, không mock**.
+3. Shim worker chuyển tiếp fetch qua HTTP thuần tới upstream bất kỳ — chuỗi `auth → ACCOUNT_SERVICE → shim → HTTP → container` chạy end-to-end (PF8). Bên trong là HTTP plain, đúng ngữ nghĩa service binding production (binding không cung cấp TLS); bảo mật lớp application là envelope HMAC `ecoma-internal-v2` — **hợp đồng thật, không mock**.
 
 Hai chiều:
 
@@ -63,7 +63,7 @@ Hai chiều:
 | auth → account | Binding `ACCOUNT_SERVICE` (auth) → shim worker `ecoma-account-bridge` (cùng WIC) → `http://ecoma-<ns>-account:3000` (tên container account trên network per-worktree — DNS target, không cần alias thêm). |
 | account → auth | Nitro adapter fetch thẳng `http://ecoma-<ns>-auth:4203` (alias DNS của container WIC, port trong của worker auth) — account là HTTP client thuần, không cần binding.                                      |
 
-Envelope `ecoma-internal-v1` chạy nguyên vẹn trên cả hai chiều; secret cấu hình theo đường stack config (không argv/labels/log).
+Envelope `ecoma-internal-v2` chạy nguyên vẹn trên cả hai chiều; secret cấu hình theo đường stack config (không argv/labels/log).
 
 ## Dependency graph
 

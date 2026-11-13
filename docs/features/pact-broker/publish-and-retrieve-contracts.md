@@ -109,7 +109,7 @@ Thì  nhận 401 với cùng một hình dạng phản hồi
 | `apps/pact-broker-api`                                     | Deploy unit phục vụ toàn bộ HTTP API của broker                                               | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
 | `libs/pact-broker-api-{domain,application,infrastructure}` | Rule publish/idempotent, HAL, validation, repository trên `db-pact-broker`                    | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
 
-`apps/pact-broker-app` (dashboard) **không** tham gia: màn hình Pacts của nó gọi `/matrix` không kèm tham số và đọc sai hình dạng phản hồi, nên không hiển thị được danh sách pact. Không mô tả nó như bề mặt đọc contract.
+`apps/pact-broker-app` (dashboard) **không** tham gia: màn hình Pacts của nó gọi `/matrix` không kèm tham số và đọc sai hình dạng phản hồi, nên không hiển thị được danh sách pact. Không mô tả nó như bề mặt đọc hay bề mặt publish contract.
 
 ## 6. Verification Mapping
 

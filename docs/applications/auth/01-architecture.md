@@ -560,17 +560,17 @@ Chuỗi được ký là một dạng canonical có **length prefix theo byte UT
 
 ```
 <method chữ thường>
-ecoma-internal-v1
+ecoma-internal-v2
 <byteLength(path)>:<path>
 <byteLength(timestamp)>:<timestamp>
 <byteLength(nonce)>:<nonce>
 <bodyHash 64 hex>
 ```
 
-`ecoma-internal-v1` (hằng `PROTOCOL_ID`) là dòng **thứ hai**, không phải dòng đầu; dòng cuối là SHA-256 của **đúng byte thân request**. Ba tính chất bắt buộc, và cả ba đều là lý do tồn tại của dạng này:
+`ecoma-internal-v2` (hằng `PROTOCOL_ID`) là dòng **thứ hai**, không phải dòng đầu; dòng cuối là SHA-256 của **đúng byte thân request**. Ba tính chất bắt buộc, và cả ba đều là lý do tồn tại của dạng này:
 
 - **Đơn ánh (injective).** Không có length prefix thì `path="ab", nonce="c"` và `path="a", nonce="bc"` cho ra cùng một chuỗi byte — kẻ tấn công ghép lại được một thông điệp đã ký. Prefix làm phép mã hoá đơn ánh trên mọi đầu vào.
-- **Tách miền theo giao thức.** Hằng `ecoma-internal-v1` nằm trong chuỗi ký, nên chữ ký của giao thức này không dùng lại được cho giao thức khác, kể cả khi trùng secret.
+- **Tách miền theo giao thức.** Hằng `ecoma-internal-v2` nằm trong chuỗi ký, nên chữ ký của giao thức này không dùng lại được cho giao thức khác, kể cả khi trùng secret.
 - **Đơn ánh trên chuỗi JS, không chỉ trên byte.** ⚠️ `TextEncoder` **thay** surrogate lẻ (unpaired surrogate) bằng U+FFFD, nên `/a\uD800` và `/a\uFFFD` encode ra **cùng** một mảng byte và sẽ cho cùng chữ ký — một va chạm ở tầng canonical, không phải ở tầng HMAC. Vì vậy `canonicalString` **từ chối** chuỗi chứa surrogate lẻ bằng `InvalidCanonicalFieldError` (lý do `invalid_field`) trước khi encode, thay vì hợp thức hoá va chạm đó bằng một comment. Length prefix được tính trên **chính** chuỗi byte sắp được ký, và `path` giữ nguyên văn dạng đã nhận.
 
 ##### Hai không gian tên phiên bản, không được trộn
@@ -579,7 +579,7 @@ Có **hai** chữ "v1" trong envelope này và chúng trả lời hai câu hỏi
 
 | Tên trong code     | Ở đâu                                         | Trả lời câu hỏi                                 | Đổi khi nào                                                   |
 | ------------------ | --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
-| `PROTOCOL_ID`      | **trong** chuỗi được ký (`ecoma-internal-v1`) | "Envelope này dùng canonicalization nào?"       | Khi canonicalization đổi — tức giao thức đổi                  |
+| `PROTOCOL_ID`      | **trong** chuỗi được ký (`ecoma-internal-v2`) | "Envelope này dùng canonicalization nào?"       | Khi canonicalization đổi — tức giao thức đổi                  |
 | `SIGNATURE_PREFIX` | header, `v1=<hex>`                            | "Chữ ký này được biểu diễn theo định dạng nào?" | Khi định dạng biểu diễn chữ ký đổi (ví dụ đổi sang base64url) |
 
 ⚠️ **`v1=` KHÔNG phải số phiên bản của giao thức.** Nó chỉ nói định dạng của giá trị trong header. PR hợp nhất này đổi canonicalization (thêm dòng `PROTOCOL_ID`, đổi length prefix từ UTF-16 sang byte UTF-8) mà **giữ nguyên** `v1=` — nên một envelope của bản cũ vẫn mang header `v1=…` và không có gì trong header cho biết nó không tương thích. Đọc `v1=` thành "envelope phiên bản 1" là suy sai.
