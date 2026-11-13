@@ -35,7 +35,7 @@ for (const route of PROTOTYPE_ROUTES) {
     await page.goto(route.path);
     await waitForRouteReady(page, route.path);
 
-    await expect(sidebarLink(page, route.title)).toHaveAttribute('data-active', 'true');
+    await expect(sidebarLink(page, route.navTitle)).toHaveAttribute('data-active', 'true');
     expect(await activeSidebarHrefs(page)).toEqual([route.path]);
   });
 
@@ -61,7 +61,7 @@ for (const route of PROTOTYPE_ROUTES) {
 
     const hrefs = await internalHrefs(page);
 
-    // Vế 1: tập link nội bộ đúng bằng bốn route prototype.
+    // Vế 1: tập link nội bộ đúng bằng năm route prototype.
     expect(hrefs).toEqual(ALL_PATHS);
 
     // Vế 2: mỗi link trả 200 thật, không chỉ suy ra từ việc route có trong danh sách.
@@ -96,14 +96,14 @@ test('navigates between prototype routes from the sidebar and follows the active
   for (const route of PROTOTYPE_ROUTES) {
     const failures = watchRuntimeFailures(page);
 
-    await sidebarLink(page, route.title).click();
+    await sidebarLink(page, route.navTitle).click();
     // Chờ theo `pathname` thay vì glob `**/roles`: glob không phân biệt được `/` với
     // mọi URL kết thúc bằng `/`.
     await page.waitForURL((url) => url.pathname === route.path);
     await waitForRouteReady(page, route.path);
 
     await expect(page.getByTestId('backoffice-page-title')).toHaveText(route.title);
-    await expect(sidebarLink(page, route.title)).toHaveAttribute('data-active', 'true');
+    await expect(sidebarLink(page, route.navTitle)).toHaveAttribute('data-active', 'true');
     expect(await activeSidebarHrefs(page)).toEqual([route.path]);
     expect(failures.consoleErrors).toEqual([]);
     expect(failures.pageErrors).toEqual([]);

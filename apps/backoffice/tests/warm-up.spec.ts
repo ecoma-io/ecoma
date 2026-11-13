@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { gotoWithReloadRetry } from '../e2e/support/warm-up';
+import { gotoWithReloadRetry } from './browser/support/warm-up';
 
 /**
- * Unit test cho `gotoWithReloadRetry` — logic retry navigation của warm-up e2e.
+ * Unit test cho `gotoWithReloadRetry` — logic retry navigation của warm-up
+ * browser suite (nay ở `tests/browser/`, xem #182: dời từ `e2e/` sang
+ * `tests/browser/` và gắn target `test-integration`).
  *
  * Flake này không tái hiện deterministic được (đó chính là bản chất của nó), nên
  * verification là **mô phỏng**: thay `Page` thật bằng một fake chỉ có `goto`, và

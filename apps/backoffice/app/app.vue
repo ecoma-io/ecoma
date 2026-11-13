@@ -16,6 +16,7 @@
     <template #actions>
       <BackofficeLanguageSelect />
       <AppShellColorModeToggle />
+      <BackofficeSessionControls />
     </template>
     <NuxtPage />
   </AppShell>
@@ -35,6 +36,7 @@ import { useI18n } from '#i18n';
 
 import { appShellLabels } from './utils/app-shell-labels';
 import BackofficeLanguageSelect from './components/BackofficeLanguageSelect.vue';
+import BackofficeSessionControls from './components/BackofficeSessionControls.vue';
 import { useBackofficeI18n } from './composables/use-backoffice-i18n';
 
 const route = useRoute();

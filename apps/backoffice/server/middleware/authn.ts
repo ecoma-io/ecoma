@@ -102,8 +102,19 @@ const API_PREFIX = '/api/';
  * route `/api/**` mới sinh ra **không** nằm trong danh sách này là bị chặn —
  * an toàn theo hướng deny-by-default. Thêm path vào đây là một quyết định có
  * review, không phải tiện tay.
+ *
+ * `/api/auth/session` (#182): probe trạng thái phiên **chỉ để hiển thị** của
+ * shell — luôn `200 { authenticated: boolean }`, tự trả `false` khi không có
+ * cookie nên không cần ranh giới này che. Route đó không gắn principal và
+ * không trả dữ liệu nào ngoài boolean hiển thị; mọi quyết định vẫn nằm sau
+ * authn trên từng route thật. Chi tiết hợp đồng ở `server/api/auth/session.get.ts`.
  */
-const AUTH_PATHS = new Set(['/api/auth/login', '/api/auth/callback', '/api/auth/logout']);
+const AUTH_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/callback',
+  '/api/auth/logout',
+  '/api/auth/session',
+]);
 
 /**
  * Nguồn connection string PostgreSQL của request — dùng hàm chung `poolBinding`

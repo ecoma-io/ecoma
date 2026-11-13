@@ -1,5 +1,17 @@
 import { ref, type Ref } from 'vue';
 
+import { BackofficeRouteError } from '../backoffice-data';
+
+/**
+ * Đọc `status` từ một lỗi nếu và chỉ nếu nó là lỗi route có kiểu.
+ *
+ * `instanceof` chứ không phải soi hình dạng object (`{ status }` trần): một
+ * lỗi của bên thứ ba tình cờ có field `status` không được phép đổi hành vi UI.
+ */
+function routeErrorStatus(error: unknown): number | undefined {
+  return error instanceof BackofficeRouteError ? error.status : undefined;
+}
+
 /**
  * Bốn trạng thái của một trang dữ liệu, mô hình hoá trong **kiểu** chứ không
  * phải bằng cờ rời rạc.
@@ -14,7 +26,7 @@ import { ref, type Ref } from 'vue';
  */
 export type AsyncState<T> =
   | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'error'; readonly message: string; readonly status?: number }
   | { readonly kind: 'empty' }
   | { readonly kind: 'ready'; readonly value: T };
 
@@ -31,7 +43,7 @@ export type AsyncState<T> =
  */
 export type NonEmptyAsyncState<T> =
   | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'error'; readonly message: string; readonly status?: number }
   | { readonly kind: 'ready'; readonly value: T };
 
 /**
@@ -108,9 +120,17 @@ export function useAsyncState<T>(
       // `AsyncState.error` mang **chuỗi**, không mang `unknown`: một lần reject bằng
       // giá trị không phải `Error` (adapter của bên thứ ba) vẫn phải render được, nên
       // nhánh đó chuyển qua `String(error)`, kể cả khi kết quả là "[object Object]".
+      //
+      // ⚠️ `status` là dữ liệu **có kiểu** đi kèm, không phải suy ra từ message:
+      // UI phải phân biệt `401` (hết phiên → đường đăng nhập lại) với `403` (thiếu
+      // quyền → không đăng nhập lại) và `503` (thử lại) theo ADR-0011 §4. Chỉ lỗi
+      // mang status có kiểu (`BackofficeRouteError`) đóng góp `status`; mọi lỗi
+      // khác không có status ⇒ nhánh lỗi giữ hành vi cũ.
+      const status = routeErrorStatus(error);
       state.value = {
         kind: 'error',
         message: error instanceof Error ? error.message : String(error),
+        ...(status === undefined ? {} : { status }),
       };
     }
   }

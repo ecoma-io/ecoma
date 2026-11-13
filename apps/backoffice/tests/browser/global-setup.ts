@@ -4,7 +4,7 @@ import { PROTOTYPE_ROUTES, waitForRouteReady } from './support/prototype';
 import { gotoWithReloadRetry } from './support/warm-up';
 
 /**
- * Nóng bốn route prototype **trước** khi chạy test, theo hai vế khác nhau.
+ * Nóng năm route prototype **trước** khi chạy test, theo hai vế khác nhau.
  *
  * Việc này không phải để "che" lỗi: nó tách "app còn đang khởi động" khỏi "app
  * thật sự có lỗi". Setup fail-loud: server không lên, hoặc route trả sai mã, là

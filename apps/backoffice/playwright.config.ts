@@ -25,7 +25,9 @@ import { defineConfig, devices } from '@playwright/test';
  * của Playwright (tự chờ), nên chỗ nào còn flake thì đó là bug cần sửa, không phải
  * bug cần che.
  *
- * Chạy: `npx nx e2e @ecoma-io/backoffice`.
+ * Chạy: gắn vào target `test-integration` của project (06-testing.md — suite
+ * app-owned là một phần của test-integration, không phải target `e2e` riêng);
+ * chạy lane riêng bằng `npx playwright test -c playwright.config.ts` từ thư mục app.
  */
 
 /**
@@ -38,11 +40,16 @@ const PORT = Number(process.env.BACKOFFICE_E2E_PORT ?? 4311);
 const BASE_URL = `http://127.0.0.1:${String(PORT)}`;
 
 export default defineConfig({
-  testDir: './e2e',
+  // ⚠️ Suite này chạy **chỉ** trong data mode `prototype` — lane `unavailable`
+  // có config riêng (`playwright.unavailable.config.ts`) và được loại trừ khỏi
+  // testDir này: hai mode assert hai tập hành vi khác nhau, một testDir chung sẽ
+  // làm một nửa suite đỏ ở mode kia thay vì báo đúng config thiếu.
+  testDir: './tests/browser',
+  testIgnore: '**/unavailable-mode.spec.ts',
   // Warm-up một lần cho cả suite: dev server biên dịch route theo lượt truy cập
   // đầu tiên, nên nếu để test tự "trả giá" cho lần compile đó thì triệu chứng là
   // một test timeout — đúng thứ khó đọc nhất, và nó không nói gì về hành vi UI.
-  globalSetup: './e2e/global-setup.ts',
+  globalSetup: './tests/browser/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

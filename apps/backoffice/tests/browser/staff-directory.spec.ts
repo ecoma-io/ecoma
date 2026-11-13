@@ -13,14 +13,28 @@ import { readTable, waitForRouteReady } from './support/prototype';
  * literal thì buộc mọi thay đổi dữ liệu prototype phải được cập nhật có ý thức.
  */
 
-const HEADERS = ['Staff member', 'Account ID', 'Staff status', 'Assigned roles'];
+/**
+ * ⚠️ Năm cột từ P5.4 (issue #478): trang thêm cột "Entitlements" nhưng literal
+ * dưới đây không được cập nhật theo — bằng chứng cùng loại trôi fixture với
+ * chuyện nav 5 link / danh sách route 4 mục (issue #182). Literal được sửa theo
+ * trang **hiện tại**, không phải theo mong muốn: một cột mới trên UI phải đi
+ * kèm cập nhật có ý thức ở đây.
+ */
+
+const HEADERS = ['Staff member', 'Account ID', 'Staff status', 'Assigned roles', 'Entitlements'];
 
 const ALL_ROWS = [
-  ['Linh Trần', 'acct_7PZNH32PY20PD8Y10EF9CQXJ18', 'Active', 'operator'],
-  ['Minh Nguyễn', 'acct_4TPCKEP6AW4YNNQJMXEE37E1FS', 'Active', 'support'],
-  ['An Lê', 'acct_2PKJGMDSQTG64PY4DMHBX6TNC0', 'Suspended', 'operator, support'],
-  ['Quang Phạm', 'acct_6Z7N9NWQ0SCWKK02XYWZPD6WMH', 'Terminated', 'auditor'],
-  ['Thu Vũ', 'acct_0DKKG1D0ZQ1KMN3PYT8RQ9W9G4', 'Active', 'No roles assigned'],
+  ['Linh Trần', 'acct_7PZNH32PY20PD8Y10EF9CQXJ18', 'Active', 'operator', 'backoffice: Entitled'],
+  ['Minh Nguyễn', 'acct_4TPCKEP6AW4YNNQJMXEE37E1FS', 'Active', 'support', 'backoffice: Entitled'],
+  [
+    'An Lê',
+    'acct_2PKJGMDSQTG64PY4DMHBX6TNC0',
+    'Suspended',
+    'operator, support',
+    'backoffice: Entitled',
+  ],
+  ['Quang Phạm', 'acct_6Z7N9NWQ0SCWKK02XYWZPD6WMH', 'Terminated', 'auditor', 'backoffice: Revoked'],
+  ['Thu Vũ', 'acct_0DKKG1D0ZQ1KMN3PYT8RQ9W9G4', 'Active', 'No roles assigned', 'No entitlements'],
 ];
 
 /** Tên hiển thị của một bảng đã render. */
@@ -28,7 +42,7 @@ function displayNames(rows: readonly (readonly string[])[]): string[] {
   return rows.map((row) => row[0]);
 }
 
-test('lists every member of the prototype staff fixture with all four columns', async ({
+test('lists every member of the prototype staff fixture with all five columns', async ({
   page,
 }) => {
   await page.goto('/staff');

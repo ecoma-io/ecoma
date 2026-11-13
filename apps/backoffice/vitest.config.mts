@@ -111,11 +111,14 @@ export default defineConfig(() => ({
     // ⚠️ Suite integration nằm ở `tests/integrations/` + `tests/databases/` và
     // chạy qua target `test-integration` với config riêng
     // (`vitest.integration.config.mts`). Include bên dưới phủ `tests/**` (spec
-    // colocated với support nằm ở `tests/`), nên phải exclude đúng hai thư mục
+    // colocated với support nằm ở `tests/`), nên phải exclude đúng ba thư mục
     // mục đích đó — nếu không, mọi suite integration chạy HAI lần (cả `test`
-    // lẫn `test-integration`) (06-testing.md §4).
+    // lẫn `test-integration`) (06-testing.md §4). `tests/browser/**` là suite
+    // Playwright — **không** phải vitest: nó cũng gắn vào `test-integration`,
+    // nhưng qua lệnh playwright riêng (xem `package.json`), không qua config
+    // vitest nào.
     include: ['{src,app,tests,server}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: [...defaultExclude, 'tests/integrations/**', 'tests/databases/**'],
+    exclude: [...defaultExclude, 'tests/integrations/**', 'tests/databases/**', 'tests/browser/**'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

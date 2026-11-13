@@ -43,6 +43,14 @@ const READ_ONLY_CONTROLS = [
   },
   { path: '/roles', controls: [{ role: 'searchbox', name: 'Search roles' }] },
   { path: '/permissions', controls: [{ role: 'searchbox', name: 'Search permissions' }] },
+  {
+    path: '/audit',
+    controls: [
+      { role: 'searchbox', name: 'Actor' },
+      { role: 'searchbox', name: 'Target' },
+      { role: 'searchbox', name: 'Action' },
+    ],
+  },
 ] as const;
 
 /**
@@ -67,16 +75,25 @@ const WRITE_AFFORDANCE_NAME =
 /**
  * Path `/api/**` mà prototype được phép gọi — allow-list **tường minh**.
  *
- * ⚠️ Mặc định **rỗng**, và đó là chủ ý: prototype không có backend, nên không được
+ * ⚠️ Ban đầu **rỗng** theo chủ ý: prototype không có backend, nên không được
  * gọi route `/api/**` nào — kể cả GET same-origin. Một `fetch('/api/staff')` là
- * nguồn sự thật thứ hai bên cạnh fixture, trong khi banner vẫn ghi "never talks to
- * a backend": đúng cái cửa sổ "hai nguồn sự thật" mà bộ test này phải chặn.
+ * nguồn sự thật thứ hai bên cạnh fixture, trong khi banner vẫn ghi "never talks
+ * to a backend": đúng cái cửa sổ "hai nguồn sự thật" mà bộ test này phải chặn.
+ *
+ * Danh sách hiện có:
+ *
+ * - `/api/auth/session` — probe trạng thái phiên của shell (#182, ADR-0012).
+ *   Đăng nhập/đăng xuất là đường **danh tính**, không phải dữ liệu: nó chạy thật
+ *   trong **mọi** data mode (frontend-data-mocking — auth không bao giờ bị mô
+ *   phỏng), và route này trả `{ authenticated: boolean }` cho shell render nút.
+ *   Nó không mang dữ liệu nghiệp vụ nào nên không phải "nguồn sự thật thứ hai"
+ *   của bảng — phép kiểm này vẫn chặn mọi path dữ liệu khác.
  *
  * So khớp là **pathname chính xác** (không phải prefix). Nếu sau này prototype cần
  * gọi route thật, khai path cụ thể ở đây — tường minh, kèm lý do — chứ không âm
  * thầm nới phép kiểm bên dưới.
  */
-const ALLOWED_API_PATHS: readonly string[] = [];
+const ALLOWED_API_PATHS: readonly string[] = ['/api/auth/session'];
 
 /**
  * Chữ tự nhận một thao tác ghi **đã hoàn tất**.
@@ -191,7 +208,7 @@ test('sends no mutating request and never leaves the app origin', async ({ page,
   await page.getByTestId('permissions-search-input').fill('mail');
 
   for (const route of PROTOTYPE_ROUTES) {
-    await sidebarLink(page, route.title).click();
+    await sidebarLink(page, route.navTitle).click();
     await page.waitForURL((url) => url.pathname === route.path);
     await waitForRouteReady(page, route.path);
   }
