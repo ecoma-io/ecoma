@@ -15,6 +15,7 @@ import { specialSecretSig } from '@pulumi/pulumi/runtime/rpc';
 import * as command from '@pulumi/command';
 
 import { environmentTriggers } from '../../environment-triggers.js';
+import { warmPulumiCli } from './pulumi-cli-warmup.js';
 
 /**
  * Regression engine-level cho Issue #154: trigger `k=v` của bootstrap được dựng
@@ -311,6 +312,11 @@ describe('bootstrap trigger rotation via real Pulumi engine (issue #154)', () =>
   let fixedStack: Stack;
 
   beforeAll(async () => {
+    // Cache CLI lạnh trên CI làm `pulumi version` in thêm banner cài đặt ra
+    // stdout → Automation parse không được version → `preview` gục ở getter
+    // (cơ chế đầy đủ trong module warmup). Phải ấm TRƯỚC khi dựng workspace.
+    await warmPulumiCli();
+
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue154-trigger-'));
     fs.writeFileSync(
       path.join(workDir, 'Pulumi.yaml'),
