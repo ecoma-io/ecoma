@@ -11,6 +11,7 @@ Staff Access event/internal-auth contracts và permission catalog canonical sour
 
 ## Documents
 
-| Document                               | Nội dung                                                                                                           |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [`domain-model.md`](./domain-model.md) | Mô hình nghiệp vụ: pact, verification, matrix, can-i-deploy, tenant/membership/role, machine credential, invariant |
+| Document                               | Nội dung                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`domain-model.md`](./domain-model.md) | Mô hình nghiệp vụ: pact, verification, matrix, can-i-deploy, tenant/membership/role, machine credential, invariant                         |
+| [`adr/`](./adr/README.md)              | Architectural decision record của context: Developer Portal M1 (auth, session, identity propagation, permission matrix, credential policy) |
