@@ -19,10 +19,12 @@ import { resolve } from 'node:path';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { validateStaffMember } from '@ecoma-io/staff-access-contracts';
 import {
   assignBootstrapAdministrator,
   type BootstrapDeniedError,
   type BootstrapStaffInput,
+  BOOTSTRAP_STAFF_DISPLAY_NAME,
   CANONICAL_ROLE_KIND,
   CANONICAL_ROLE_NAME,
   provisionBootstrapStaff,
@@ -323,7 +325,7 @@ describe('bootstrap steps against the canonical seed', () => {
     await db?.stop();
   });
 
-  it('S1 creates one active staff row with an empty display_name and never writes email', async () => {
+  it('S1 creates one active staff row with the canonical bootstrap display_name and never writes email', async () => {
     await resetBusinessRows(db);
     const input = bootstrapInput();
     const client = await db.connectAsMigrator();
@@ -337,12 +339,36 @@ describe('bootstrap steps against the canonical seed', () => {
         sub: string;
         display_name: string;
         status: string;
-      }>(`SELECT id, sub, display_name, status FROM staff_access.staff WHERE sub = $1`, [
-        input.sub,
-      ]);
+        created_at: Date;
+        updated_at: Date;
+      }>(
+        `SELECT id, sub, display_name, status, created_at, updated_at
+           FROM staff_access.staff WHERE sub = $1`,
+        [input.sub],
+      );
       expect(rows).toEqual([
-        { id: result.staffId, sub: input.sub, display_name: '', status: 'active' },
+        {
+          id: result.staffId,
+          sub: input.sub,
+          display_name: BOOTSTRAP_STAFF_DISPLAY_NAME,
+          status: 'active',
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        },
       ]);
+
+      // Row vừa tạo phải đi qua đúng validator contract mà consumer (backoffice) dùng
+      // để đọc sổ staff — một entry rỗng là nguyên nhân 503 của #170.
+      const row = rows[0];
+      const validated = validateStaffMember({
+        id: row?.id,
+        sub: row?.sub,
+        status: row?.status,
+        display_name: row?.display_name,
+        created_at: row?.created_at.toISOString(),
+        updated_at: row?.updated_at.toISOString(),
+      });
+      expect(validated.ok).toBe(true);
 
       const audit = await auditRowsFor(db, input.correlationId);
       expect(audit).toHaveLength(1);
