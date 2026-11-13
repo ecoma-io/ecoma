@@ -23,6 +23,7 @@
     "vitest.integration.config.mts",
     "environment-triggers.ts",
     "scripts.ts",
+    "superadmin-resolver.ts",
     "scripts.spec.ts",
     "wic-state-init.spec.ts",
     "lane-invocation.ts",
