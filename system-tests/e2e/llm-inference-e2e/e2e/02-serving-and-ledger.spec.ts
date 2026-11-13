@@ -208,6 +208,14 @@ describe('serving and ledger on the lane (e/f/g/h)', () => {
       `SELECT COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM llm_financial.ledger_entries WHERE wallet_id = '${walletId}' AND account = 'wallet_charged'`,
     );
     expect(BigInt(chargedMinor) >= BigInt(chargeMinor)).toBe(true);
+
+    // Kế toán kép toàn cột: tổng net MỌI leg (kể cả clearing) = 0 — debit =
+    // credit trên toàn ledger.
+    const globalNet = psqlQuery(
+      GATEWAY_DATABASE,
+      `SELECT COALESCE(SUM(CASE WHEN direction = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM llm_financial.ledger_entries`,
+    );
+    expect(globalNet).toBe('0');
   });
 
   it('(h) rejects the same request id as a replay without settling anything new', () => {
