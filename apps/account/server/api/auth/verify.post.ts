@@ -90,6 +90,13 @@ import {
   SESSION_IDLE_SECONDS,
 } from '../../lib/session';
 import { checkHandoffBinding, expireHandoff, hashHandle, lookupHandoff } from '../../lib/handoff';
+import {
+  acceptInvitationAndCreateAccount,
+  createInvitedSubject,
+  findOpenInvitation,
+  recordAcceptanceRejection,
+  type OpenInvitationRow,
+} from '../../lib/invitation';
 
 interface VerifyBody {
   email: string;
@@ -159,6 +166,70 @@ export default defineEventHandler(async (event) => {
   // confirm bên dưới so khớp binding đúng với session browser đang cầm cookie.
   let issuedSessionRef: string | undefined;
 
+  /**
+   * Chấp nhận lời mời cho địa chỉ vừa so khớp mã — dựng material session ngoài
+   * transaction (entropy CSPRNG, hash identifier), rồi gọi
+   * `acceptInvitationAndCreateAccount`: MỘT transaction ghi Account + email
+   * verified + lời mời accepted + provenance + session (ADR-0030 Quyết định 2).
+   *
+   * Rotate tại đây khác đăng nhập thường ở một điểm có chủ đích: chỉ session
+   * **anonymous** (`user_sub` NULL) bị thu hồi — chấp nhận lời mời không hợp
+   * nhất vào Account đang đăng nhập, phiên của Account khác phải còn nguyên sau
+   * response này. Binding handoff (nếu có) vẫn chuyển sang session mới trong
+   * cùng transaction — browser vừa đi qua challenge với handle X thì session
+   * mới phải cầm binding, bất kể trạng thái trước đó của browser.
+   */
+  async function acceptInvitation(
+    pool: import('pg').Pool,
+    challengeId: string,
+    invitation: OpenInvitationRow,
+  ): Promise<boolean> {
+    const newSub = createInvitedSubject();
+    const previousCookie = getCookie(event, '__Host-account-session');
+    const previousHash =
+      previousCookie === undefined ? null : await hashSessionIdentifier(previousCookie);
+    const previous =
+      previousHash === null ? undefined : await findLiveSessionByHash(pool, previousHash);
+    const revokeRef =
+      previous !== undefined && previous.userSub === null ? previous.sessionRef : undefined;
+
+    const identifier = createSessionIdentifier();
+    const sessionRef = await hashSessionIdentifier(identifier + ':ref:' + newSub);
+    const now = Date.now();
+    const accepted = await acceptInvitationAndCreateAccount(pool, {
+      addressHash: invitation.address_hash,
+      addressNormalized: invitation.address_normalized,
+      challengeId,
+      correlationId: invitation.correlation_id,
+      newSub,
+      session: {
+        idHash: await hashSessionIdentifier(identifier),
+        sessionRef,
+        acr: OTP_ACR,
+        authnAt: new Date(now),
+        expiresAt: new Date(now + SESSION_IDLE_SECONDS * 1000),
+        revokeSessionRef: revokeRef,
+        carryHandoffFromSessionRef: previous?.sessionRef,
+      },
+    });
+    if (!accepted.ok) {
+      // Row audit failure trong transaction RIÊNG sau khi transaction chấp nhận
+      // đã rollback — row ghi trong transaction bị abort thì mất theo rollback,
+      // và lần từ chối trở thành không có dấu vết (cùng bài học với row `denied`
+      // của ADR-0023 Quyết định 6).
+      await recordAcceptanceRejection(pool, {
+        reason: accepted.reason,
+        addressHash: invitation.address_hash,
+        correlationId: invitation.correlation_id,
+      });
+      writeLog({ event: 'otp_verify.rejected', status: 400, reason: accepted.reason });
+      return false;
+    }
+    issuedSessionRef = sessionRef;
+    applySessionIssueResponse(event, identifier, accepted.sub);
+    return true;
+  }
+
   try {
     const result = await withRequestPool(hyperdrive, async (pool) => {
       const challenge = await findActiveChallenge(pool, hash, OTP_PURPOSE_LOGIN);
@@ -191,8 +262,18 @@ export default defineEventHandler(async (event) => {
       // Account suspended giữa lúc cấp mã và verify phải dừng ở đây (FR-012).
       const target = resolveOtpTarget(await lookupVerifiedAddress(pool, hash));
       if (target.kind !== 'verified' || target.userSub === undefined) {
-        writeLog({ event: 'otp_verify.rejected', status: 400, reason: 'address_unusable' });
-        return false;
+        // ── Kênh lời mời (ADR-0030 Quyết định 2) ─────────────────────────────
+        //
+        // Địa chỉ chưa có hàng email verified: nếu đang có lời mời mở, mã đúng
+        // mở đường **chấp nhận** — Account + email verified + lời mời accepted +
+        // provenance + session trong MỘT transaction. Ngược lại là nhánh từ chối
+        // thường (address_unusable), 400 chung như mọi nhánh khác.
+        const invitation = await findOpenInvitation(pool, hash);
+        if (invitation === null) {
+          writeLog({ event: 'otp_verify.rejected', status: 400, reason: 'address_unusable' });
+          return false;
+        }
+        return acceptInvitation(pool, challenge.id, invitation);
       }
 
       // Consume trước khi phát hành — single-use của mã là thứ giữ hai request
@@ -217,7 +298,9 @@ export default defineEventHandler(async (event) => {
       const previousHash =
         previousCookie === undefined ? null : await hashSessionIdentifier(previousCookie);
       const revokeRef =
-        previousHash === null ? undefined : await findSessionRefByHash(pool, previousHash);
+        previousHash === null
+          ? undefined
+          : (await findLiveSessionByHash(pool, previousHash))?.sessionRef;
 
       const identifier = createSessionIdentifier();
       const sessionRef = await hashSessionIdentifier(identifier + ':ref:' + target.userSub);
@@ -236,22 +319,7 @@ export default defineEventHandler(async (event) => {
         carryHandoffFromSessionRef: revokeRef,
       });
 
-      const csrfToken = createCsrfToken();
-      setResponseHeader(event, 'Cache-Control', 'no-store');
-      setCookie(event, SESSION_COOKIE_NAME, identifier, {
-        maxAge: SESSION_ABSOLUTE_SECONDS,
-        path: '/',
-        secure: true,
-        httpOnly: true,
-        sameSite: 'lax',
-      });
-      setCookie(event, CSRF_COOKIE_NAME, csrfToken, {
-        maxAge: SESSION_ABSOLUTE_SECONDS,
-        path: '/',
-        secure: true,
-        sameSite: 'lax',
-      });
-      writeLog({ event: 'otp_verify.issued', status: 200, sub: target.userSub });
+      applySessionIssueResponse(event, identifier, target.userSub);
       return true;
     });
 
@@ -322,18 +390,47 @@ function isExpired(expiresAt: Date, nowMs: number): boolean {
   return nowMs >= expiresAt.getTime();
 }
 
-/** `session_ref` của session đang sống theo hash identifier — cho rotation. */
-async function findSessionRefByHash(
+/** Hàng tối thiểu của session đang sống theo hash identifier — cho rotation. */
+async function findLiveSessionByHash(
   pool: import('pg').Pool,
   idHash: string,
-): Promise<string | undefined> {
-  const result = await pool.query<{ session_ref: string }>(
-    `SELECT session_ref FROM account.account_sessions
+): Promise<{ sessionRef: string; userSub: string | null } | undefined> {
+  const result = await pool.query<{ session_ref: string; user_sub: string | null }>(
+    `SELECT session_ref, user_sub FROM account.account_sessions
       WHERE id_hash = $1 AND revoked_at IS NULL
       LIMIT 1`,
     [idHash],
   );
-  return result.rows[0]?.session_ref;
+  const row = result.rows[0];
+  return row === undefined ? undefined : { sessionRef: row.session_ref, userSub: row.user_sub };
+}
+
+/**
+ * Đặt cookie session + CSRF cho một lần xác thực thành công và log issued —
+ * một nguồn duy nhất cho cả hai đường phát session của route (đăng nhập thường
+ * và chấp nhận lời mời), tránh hai bản cookie-set dễ lệch thuộc tính.
+ */
+function applySessionIssueResponse(
+  event: import('h3').H3Event,
+  identifier: string,
+  sub: string,
+): void {
+  const csrfToken = createCsrfToken();
+  setResponseHeader(event, 'Cache-Control', 'no-store');
+  setCookie(event, SESSION_COOKIE_NAME, identifier, {
+    maxAge: SESSION_ABSOLUTE_SECONDS,
+    path: '/',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'lax',
+  });
+  setCookie(event, CSRF_COOKIE_NAME, csrfToken, {
+    maxAge: SESSION_ABSOLUTE_SECONDS,
+    path: '/',
+    secure: true,
+    sameSite: 'lax',
+  });
+  writeLog({ event: 'otp_verify.issued', status: 200, sub });
 }
 
 /** HTTPError của h3 (đã có statusCode) — không bọc lại thành 503. */

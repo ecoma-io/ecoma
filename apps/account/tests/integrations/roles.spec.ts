@@ -69,6 +69,22 @@ const PRIVACY_REQUEST_TABLES = ['privacy_requests'];
 const PRIVACY_REQUEST_PRIVILEGES = ['INSERT', 'SELECT', 'UPDATE'];
 
 /**
+ * Bảng lời mời (`0012_invitation_channel.sql`): `SELECT`/`INSERT`/`UPDATE`
+ * nhưng **không** `DELETE` — cùng hình dạng grant với `privacy_requests` nhưng
+ * vì lý do khác hẳn.
+ *
+ * Lời mời là dữ liệu **authorization có dấu vết**: thu hồi là chuyển trạng thái
+ * có audit (`revoked`), không phải xoá hàng — một lời mời đã accept là bằng
+ * chứng provenance "ai mời, ai nhận" (ADR-0030 Quyết định 1 và 5), và xoá nó
+ * là xoá dấu vết. `UPDATE` chỉ đi tiếp `open` → kết thúc (trigger lifecycle);
+ * `DELETE` không có đường hợp lệ nào, retention là quyết định còn mở.
+ */
+const INVITATION_TABLES = ['invitations'];
+
+/** Grant kỳ vọng của `invitations` — đủ DML trừ DELETE (authorization trail). */
+const INVITATION_PRIVILEGES = ['INSERT', 'SELECT', 'UPDATE'];
+
+/**
  * Bỏ comment `--` ra khỏi SQL trước khi quét nội dung.
  *
  * Cần thiết vì các file migration **có** giải thích bằng chính tên thứ mà
@@ -191,27 +207,36 @@ describe('roles and grants on db-account', () => {
         rows.map((row) => [row.table_name, [...row.privileges].toSorted()]),
       );
 
-      // `users` là ngoại lệ: tombstone là nhóm (1), nhóm duy nhất được giữ vĩnh
-      // viễn, và DELETE giải phóng PK `sub` — mở lại đường tái phát hành
-      // identifier (FR-001, FR-012d). Giữ đúng danh sách mong đợi, không suy ra
-      // từ "bảng nào cũng DML đầy đủ".
-      const USERS_PRIVILEGES = ['SELECT', 'UPDATE'];
+      // `users` là ngoại lệ kép. Tombstone là nhóm (1), nhóm duy nhất được giữ
+      // vĩnh viễn, và DELETE giải phóng PK `sub` — mở lại đường tái phát hành
+      // identifier (FR-001, FR-012d) — nên vẫn KHÔNG DELETE. INSERT thì `0011`
+      // đã thu hồi nhưng `0013` trả lại một cách có điều kiện: quyền nằm ở role
+      // còn điều kiện nằm ở trigger birth-guard (chỉ nhả trong transaction chấp
+      // nhận lời mời — ADR-0030 Quyết định 5), nên quyền cấp bảng có INSERT.
+      // Giữ đúng danh sách mong đợi, không suy ra từ "bảng nào cũng DML đầy đủ".
+      const USERS_PRIVILEGES = ['INSERT', 'SELECT', 'UPDATE'];
       const dml = ['DELETE', 'INSERT', 'SELECT', 'UPDATE'];
       const expected = Object.fromEntries(
-        [...DML_TABLES, ...INSERT_ONLY_TABLES, ...NONCE_TABLES, ...PRIVACY_REQUEST_TABLES].map(
-          (table) => [
-            table,
-            table === 'security_events'
-              ? ['INSERT', 'SELECT']
-              : table === 'internal_nonces'
-                ? NONCE_PRIVILEGES
-                : table === 'users'
-                  ? USERS_PRIVILEGES
-                  : table === 'privacy_requests'
-                    ? PRIVACY_REQUEST_PRIVILEGES
+        [
+          ...DML_TABLES,
+          ...INSERT_ONLY_TABLES,
+          ...NONCE_TABLES,
+          ...PRIVACY_REQUEST_TABLES,
+          ...INVITATION_TABLES,
+        ].map((table) => [
+          table,
+          table === 'security_events'
+            ? ['INSERT', 'SELECT']
+            : table === 'internal_nonces'
+              ? NONCE_PRIVILEGES
+              : table === 'users'
+                ? USERS_PRIVILEGES
+                : table === 'privacy_requests'
+                  ? PRIVACY_REQUEST_PRIVILEGES
+                  : table === 'invitations'
+                    ? INVITATION_PRIVILEGES
                     : dml,
-          ],
-        ),
+        ]),
       );
 
       // So sánh theo từng bảng **và** theo tập bảng: một bảng lạ xuất hiện trong
@@ -223,12 +248,20 @@ describe('roles and grants on db-account', () => {
       // so khớp ở trên đã bắt điều đó, nhưng một assertion đặt tên giữ tài sản
       // này sống lâu hơn mọi lần refactor danh sách privileges.
       expect(actual['users']).not.toContain('DELETE');
-      // Migration `0011` thu hồi INSERT trên `users`: runtime không được tạo user,
-      // chỉ migrator/owner mới được. Giữ tên của thuộc tính này cho lâu dài.
-      expect(actual['users']).not.toContain('INSERT');
+      // `0011` thu hồi INSERT trên `users`, `0013` trả lại kèm điều kiện dữ liệu
+      // (trigger birth-guard): quyền cấp bảng PHẢI có INSERT, còn ràng buộc
+      // "chỉ trong transaction chấp nhận lời mời" được test ở
+      // `bootstrap-superadmin.spec.ts` và `databases/invitations.spec.ts`. Nếu
+      // quyền này mất, migration `0013` tự ném khi apply — assertion đặt tên ở
+      // đây giữ thuộc tính hiển thị ở tầng test của catalog.
+      expect(actual['users']).toContain('INSERT');
       // Cùng lập luận cho `privacy_requests`: thiếu DELETE là thuộc tính nhóm (3)
       // — bằng chứng request phải sống qua tombstone (FR-013).
       expect(actual['privacy_requests']).not.toContain('DELETE');
+      // Và cho `invitations`: thiếu DELETE là thuộc tính authorization trail —
+      // thu hồi là chuyển trạng thái có audit, xoá hàng là xoá dấu vết
+      // "ai mời, ai nhận" (ADR-0030 Quyết định 1 và 5).
+      expect(actual['invitations']).not.toContain('DELETE');
     } finally {
       await client.end();
     }

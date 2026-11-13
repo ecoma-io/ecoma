@@ -369,7 +369,7 @@ export async function startAccountDatabase(): Promise<AccountDatabase> {
                   account.account_outbox_events, account.account_sessions, account.users,
                   account.email_addresses, account.otp_challenges,
                   account.user_profiles, account.user_preferences,
-                  account.notification_preferences`,
+                  account.notification_preferences, account.invitations`,
         );
       } finally {
         await client.end();

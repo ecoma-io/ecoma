@@ -31,6 +31,7 @@ import { createError, defineEventHandler, getHeader, readRawBody, type H3Event }
 import type { Pool } from 'pg';
 
 import {
+  INTERNAL_ACTOR_SUB_HEADER,
   INTERNAL_BODY_LIMIT_BYTES,
   INTERNAL_KID_HEADER,
   INTERNAL_NONCE_HEADER,
@@ -52,15 +53,34 @@ const INTERNAL_PREFIX = '/internal/';
 /**
  * Dữ liệu xác thực gắn vào `event.context` để route không phải verify lần nữa.
  *
- * ⚠️ Chỉ mang `nonce` và `timestamp` — cùng bộ trường mà `VerifyResult.ok` trả về.
- * Không gắn `secret`, không gắn chữ ký: route chỉ cần biết "request này đã được
- * xác thực" và dùng `nonce` cho audit.
+ * `actorSub` là danh tính operator mà phía ký đã khai trong header nội bộ —
+ * header này nằm trong chuỗi ký canonical, nên một `actorSub` khác null nghĩa là
+ * chữ ký HMAC phủ đúng danh tính đó: route dùng nó làm principal đã xác thực
+ * (attribution của đường phát lời mời, ADR-0030 Quyết định 3 — principal lấy từ
+ * credential của request, không từ body). `null` = envelope không khai danh
+ * tính — hợp lệ cho các đường internal không cần attribution hiện có; route cần
+ * danh tính tự kiểm `null` và từ chối.
+ *
+ * ⚠️ Không gắn `secret`, không gắn chữ ký: route chỉ cần biết "request này đã
+ * được xác thực" và dùng `nonce` cho audit.
  */
 export interface InternalAuthContext {
   readonly internalAuth: {
     readonly nonce: string;
     readonly timestamp: string;
+    readonly actorSub: string | null;
   };
+  /**
+   * Byte thô của body mà middleware đã đọc để verify chữ ký.
+   *
+   * ⚠️ Route dưới `/internal/` KHÔNG được `readBody(event)` lại: trong đường web
+   * handler, stream body bị tiêu thụ bởi lần đọc đầu tiên của middleware và lần
+   * đọc thứ hai trả rỗng (lỗi im lặng — route sẽ thấy body rỗng chứ không thấy
+   * lỗi). Trên preset Workers Nitro đã đọc sẵn body nên re-read chịu được — hai
+   * đường khác hành vi là một bẫy; truyền byte qua context là một nguồn duy nhất
+   * cho cả hai. Giới hạn 64 KiB của {@link INTERNAL_BODY_LIMIT_BYTES} áp từ đầu.
+   */
+  readonly internalBody: Uint8Array;
 }
 
 /**
@@ -334,6 +354,10 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
           [INTERNAL_TIMESTAMP_HEADER]: getHeader(event, INTERNAL_TIMESTAMP_HEADER) ?? null,
           [INTERNAL_NONCE_HEADER]: getHeader(event, INTERNAL_NONCE_HEADER) ?? null,
           [INTERNAL_SIGNATURE_HEADER]: getHeader(event, INTERNAL_SIGNATURE_HEADER) ?? null,
+          // Danh tính operator khai bởi phía ký — nằm trong chuỗi ký canonical,
+          // nên verify sai chữ ký khi header bị thay đổi. Route đọc qua
+          // `event.context.internalAuth.actorSub`, không đọc header lại.
+          [INTERNAL_ACTOR_SUB_HEADER]: getHeader(event, INTERNAL_ACTOR_SUB_HEADER) ?? null,
           // ⚠️ `kid` PHẢI được chuyển vào đây. Thiếu dòng này thì `verifyRequest`
           // không bao giờ thấy `kid` ⇒ resolver không bao giờ chạy ⇒ một envelope tự
           // khai `kid` ngoài registry vẫn verify được bằng secret hiện hành. Đó là
@@ -360,7 +384,11 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
   event.context.internalAuth = {
     nonce: verification.nonce,
     timestamp: verification.timestamp,
+    actorSub: verification.actorSub,
   };
+  // Byte body đã đọc cho verify — route dùng lại thay vì đọc stream lần hai
+  // (đã bị tiêu thụ trên đường web handler). Xem JSDoc của `InternalAuthContext`.
+  event.context.internalBody = body;
 });
 
 /**

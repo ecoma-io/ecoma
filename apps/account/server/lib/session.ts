@@ -221,37 +221,7 @@ export async function insertAuthenticatedSession(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    if (params.revokeSessionRef !== undefined) {
-      await client.query(
-        `UPDATE account.account_sessions
-            SET revoked_at = now()
-          WHERE session_ref = $1 AND revoked_at IS NULL`,
-        [params.revokeSessionRef],
-      );
-    }
-    if (params.carryHandoffFromSessionRef !== undefined) {
-      // Chuyển binding qua helper nội bộ bên dưới — câu UPDATE của nó nhận
-      // `PoolClient` đang giữ transaction này, KHÔNG đi qua `Pool`: truyền
-      // `Pool` vào đây sẽ để hàm tự `connect()` ngoài transaction rotate,
-      // mất đúng tính atomic của §3.6.2.
-      await carryHandoffInsideRotation(client, {
-        fromSessionRef: params.carryHandoffFromSessionRef,
-        toSessionRef: params.sessionRef,
-      });
-    }
-    await client.query(
-      `INSERT INTO account.account_sessions
-         (id_hash, session_ref, user_sub, acr, authn_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        params.idHash,
-        params.sessionRef,
-        params.userSub,
-        params.acr,
-        params.authnAt,
-        params.expiresAt,
-      ],
-    );
+    await writeAuthenticatedSessionStatements(client, params);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -259,6 +229,64 @@ export async function insertAuthenticatedSession(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Các statement session của một lần xác thực thành công, chạy trên client của
+ * transaction caller — thu hồi session cũ (nếu có), chuyển binding handoff
+ * (nếu có), INSERT hàng mới — **không có BEGIN/COMMIT**.
+ *
+ * ⚠️ Export cho đúng một caller thứ hai: transaction chấp nhận lời mời
+ * (`server/lib/invitation.ts`, ADR-0030 Quyết định 2) cần mọi statement của
+ * lần xác thực nằm trên MỘT client của transaction chung nó đang mở. Tách
+ * BEGIN/COMMIT khỏi các statement là cách hai đường dùng chung đúng MỘT bộ
+ * SQL thay vì hai bản copy dễ lệch nhau.
+ */
+export async function writeAuthenticatedSessionStatements(
+  client: import('pg').PoolClient,
+  params: {
+    idHash: string;
+    sessionRef: string;
+    userSub: string;
+    acr: string;
+    authnAt: Date;
+    expiresAt: Date;
+    revokeSessionRef?: string;
+    /** Binding handoff của session cũ cần chuyển sang session mới (FR-006c4). */
+    carryHandoffFromSessionRef?: string;
+  },
+): Promise<void> {
+  if (params.revokeSessionRef !== undefined) {
+    await client.query(
+      `UPDATE account.account_sessions
+          SET revoked_at = now()
+        WHERE session_ref = $1 AND revoked_at IS NULL`,
+      [params.revokeSessionRef],
+    );
+  }
+  if (params.carryHandoffFromSessionRef !== undefined) {
+    // Chuyển binding qua helper nội bộ bên dưới — câu UPDATE của nó nhận
+    // `PoolClient` đang giữ transaction này, KHÔNG đi qua `Pool`: truyền
+    // `Pool` vào đây sẽ để hàm tự `connect()` ngoài transaction rotate,
+    // mất đúng tính atomic của §3.6.2.
+    await carryHandoffInsideRotation(client, {
+      fromSessionRef: params.carryHandoffFromSessionRef,
+      toSessionRef: params.sessionRef,
+    });
+  }
+  await client.query(
+    `INSERT INTO account.account_sessions
+       (id_hash, session_ref, user_sub, acr, authn_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      params.idHash,
+      params.sessionRef,
+      params.userSub,
+      params.acr,
+      params.authnAt,
+      params.expiresAt,
+    ],
+  );
 }
 
 /**

@@ -549,11 +549,21 @@ export async function expireChallengeIfExpired(
 /**
  * Consume challenge — một UPDATE nguyên tử, chỉ khi còn active.
  *
+ * Nhận `Pool` hoặc `PoolClient`: đường chấp nhận lời mời
+ * (`server/lib/invitation.ts`) gọi hàm này trên client của transaction chấp
+ * nhận đang mở — consume phải commit CÙNG mọi hàng khác của lần chấp nhận
+ * (ADR-0030 Quyết định 2); truyền `Pool` tại đó sẽ tách consume ra một
+ * transaction riêng và mở khoảng chết "mã đã dùng mà Account chưa ra đời".
+ * Các đường đăng nhập thường giữ truyền `Pool` như trước.
+ *
  * @returns `true` khi request này thắng consume; `false` khi request khác đã
  *   consume trước (single-use enforced bởi điều kiện WHERE, không phải bằng
  *   đọc-rồi-ghi).
  */
-export async function consumeChallenge(pool: QueryablePool, challengeId: string): Promise<boolean> {
+export async function consumeChallenge(
+  pool: QueryablePool | import('pg').PoolClient,
+  challengeId: string,
+): Promise<boolean> {
   const result = await pool.query(
     `UPDATE account.otp_challenges
         SET consumed_at = now()

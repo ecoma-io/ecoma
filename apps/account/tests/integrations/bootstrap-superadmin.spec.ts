@@ -16,14 +16,18 @@
  *    đầu tiên vẫn đi qua `POST /api/auth/challenge` → `POST /api/auth/verify`
  *    với OTP thật (ADR-0024 Quyết định 2).
  *
- * ## Ranh giới credential (migration `0011`)
+ * ## Ranh giới credential (migration `0011` + `0013`)
  *
  * Migration `0011_bootstrap_write_guards.sql` thu hồi `INSERT` trên
  * `account.users` từ `ecoma_account_runtime`, và thêm trigger chặn runtime chèn
- * sự kiện `bootstrap_account_provisioned`. Do đó A1/A2 chạy bằng credential
- * **migrator thật** (`connectAsMigrator()`), không qua `SET ROLE` từ superuser —
- * đó là chính credential CLI dùng trên CI runner. Superuser chỉ còn dùng để seed
- * dữ liệu đối lập trong test.
+ * sự kiện `bootstrap_account_provisioned`. `0013` sau đó **trả lại** INSERT cho
+ * runtime nhưng ràng buộc bằng dữ liệu (trigger birth-guard chỉ nhả khi đang
+ * trong transaction chấp nhận lời mời — ADR-0030 Quyết định 5); nhánh runtime
+ * của trigger chỉ nhả cho `ecoma_account_migrator`/owner. Do đó A1/A2 vẫn chạy
+ * bằng credential **migrator thật** (`connectAsMigrator()`), không qua `SET
+ * ROLE` từ superuser — đó là chính credential CLI dùng trên CI runner, và là
+ * credential duy nhất vượt được birth-guard ngoài serving path. Superuser chỉ
+ * còn dùng để seed dữ liệu đối lập trong test.
  *
  * ## Harness
  *
@@ -632,14 +636,18 @@ describe('bootstrap superadmin (A1/A2)', () => {
     }
   });
 
-  it('runtime role cannot INSERT into account.users (0011 revoke)', async () => {
+  it('runtime role cannot INSERT into account.users outside an invitation acceptance (0013 guard)', async () => {
+    // `0013` trả lại INSERT cho runtime nhưng ràng buộc bằng dữ liệu: trigger
+    // birth-guard chỉ nhả trong transaction chấp nhận lời mời (ADR-0030 Quyết
+    // định 5). INSERT trần của runtime — hình cũ `0011` chặn bằng permission —
+    // giờ bị chặn bằng chính trigger, với thông điệp riêng.
     const runtime = await db.connectAsRuntime();
     try {
       await expect(
         runtime.query(`INSERT INTO account.users (sub, status) VALUES ($1, 'active')`, [
           'sub_runtime_insert',
         ]),
-      ).rejects.toThrow(/permission denied/iu);
+      ).rejects.toThrow(/invitation-acceptance transaction/iu);
     } finally {
       await runtime.end();
     }

@@ -26,11 +26,11 @@ unit sinh ra để tránh.
 
 ## Ba tầng role
 
-| Tầng        | Role                     | Quyền                                                                                                                        |
-| ----------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Owner/admin | `ecoma_owner`            | Sở hữu database và object, **không** chạy trong Worker                                                                       |
-| Migrator    | `ecoma_account_migrator` | DDL trên schema `account`; **chỉ** chạy ở CI runner                                                                          |
-| Runtime     | `ecoma_account_runtime`  | Chỉ DML, **không** DDL; `users` không có `INSERT` (`0011` — tạo user là của migrator/owner) và không có `DELETE` (tombstone) |
+| Tầng        | Role                     | Quyền                                                                                                                                                                                                                                   |
+| ----------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Owner/admin | `ecoma_owner`            | Sở hữu database và object, **không** chạy trong Worker                                                                                                                                                                                  |
+| Migrator    | `ecoma_account_migrator` | DDL trên schema `account`; **chỉ** chạy ở CI runner                                                                                                                                                                                     |
+| Runtime     | `ecoma_account_runtime`  | Chỉ DML, **không** DDL; `users` có `INSERT` nhưng bị ràng buộc bằng dữ liệu (trigger birth-guard của `0013` chỉ nhả trong transaction chấp nhận lời mời — `0011` thu hồi, `0013` trả lại có điều kiện) và không có `DELETE` (tombstone) |
 
 `db-auth` có bộ ba role riêng theo cùng hình hình. `ecoma_account_runtime` **không**
 được `CONNECT` tới `db-auth` — xem "Chặn chéo" bên dưới.
@@ -195,10 +195,13 @@ DATABASE_URL='postgresql://…/db-account' \
 | A2 `verify`    | Chỉ đọc. Trả `sub` khi state đúng là trạng thái hội tụ; database trống → `no_bootstrap_account`; mọi trạng thái khác → từ chối.                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Bằng chứng nguồn gốc được **enforce ở tầng database** (`0011_bootstrap_write_guards.sql`):
-`ecoma_account_runtime` mất `INSERT` trên `account.users`, và một trigger trên
-`account.security_events` từ chối `bootstrap_account_provisioned` khi principal thực thi
-(`current_user`) là runtime — audit thường của serving path vẫn ghi bình thường. Chỉ
-credential migrator/owner (đường CLI này) được ghi user đầu tiên và provenance bootstrap.
+một trigger trên `account.security_events` từ chối `bootstrap_account_provisioned` khi
+principal thực thi (`current_user`) là runtime — audit thường của serving path vẫn ghi
+bình thường. Cùng file đó thu hồi `INSERT` trên `account.users` khỏi runtime; `0013`
+sau đó trả lại quyền này cho serving path **chỉ** trong transaction chấp nhận lời mời
+(ADR-0030 Quyết định 5, trigger birth-guard ràng buộc bằng dữ liệu lời mời). Đường CLI
+này (credential migrator/owner) vẫn là đường bootstrap duy nhất — đi qua birth-guard
+không kiểm.
 
 Địa chỉ canonical (`superadmin@ecoma.io`) là **hằng trong code**; `ECOMA_BOOTSTRAP_EMAIL`
 chỉ được assert lại giá trị đó và procedure từ chối khi lệch. `DATABASE_URL` và input
@@ -259,5 +262,7 @@ apps/account/db/
     ├── 0008_data_domain_v1.sql     # bảng data domain v1
     ├── 0009_verify_email_purpose.sql  # purpose verify_email của luồng email thường
     ├── 0010_privacy_requests.sql   # privacy requests + tombstone
-    └── 0011_bootstrap_write_guards.sql  # rút INSERT users khỏi runtime + trigger chặn provenance bootstrap từ runtime
+    ├── 0011_bootstrap_write_guards.sql  # rút INSERT users khỏi runtime + trigger chặn provenance bootstrap từ runtime
+    ├── 0012_invitation_channel.sql  # bảng invitations (ADR-0030): lifecycle guard + partial UNIQUE một-lời-mời-mở
+    └── 0013_invitation_users_insert_guard.sql  # trả INSERT users cho runtime, ràng buộc bằng dữ liệu lời mời (birth-guard)
 ```
