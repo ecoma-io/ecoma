@@ -62,14 +62,20 @@ const HD_LOCAL_ENV = 'CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE';
 
 /**
  * Thông số PostgreSQL test — bản sao chữ-số-chữ của harness API (deliberate
- * duplication): image 17-alpine, database đúng tên production, superuser test
- * và mật khẩu chung giả cho các role (database ném đi sau mỗi run).
+ * duplication): image 17-alpine, database đúng tên production, superuser test.
+ *
+ * Mật khẩu test KHÔNG là hằng số trong source: sinh ngẫu nhiên mỗi run (hex)
+ * hoặc đọc từ env để debug một stack đã chạy — credential chỉ sống trong
+ * container `--rm` bị ném đi sau mỗi run, và mọi đường đưa ra ngoài (error)
+ * đều qua `redact`.
  */
 const POSTGRES_IMAGE = 'postgres:17-alpine';
 const PACT_BROKER_DATABASE = 'db-pact-broker';
 const SUPERUSER = 'ecoma_test_superuser';
-const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
-const ROLE_PASSWORD = 'ecoma_test_role_pw';
+const SUPERUSER_PASSWORD_ENV = 'PACT_BROKER_IT_SUPERUSER_PASSWORD';
+const ROLE_PASSWORD_ENV = 'PACT_BROKER_IT_ROLE_PASSWORD';
+const SUPERUSER_PASSWORD = process.env[SUPERUSER_PASSWORD_ENV] ?? randomBytes(16).toString('hex');
+const ROLE_PASSWORD = process.env[ROLE_PASSWORD_ENV] ?? randomBytes(16).toString('hex');
 const MIGRATOR_ROLE = 'ecoma_pact_broker_migrator';
 const RUNTIME_ROLE = 'ecoma_pact_broker_runtime';
 
@@ -295,6 +301,10 @@ const PROVISIONABLE_ROLE_NAMES: ReadonlySet<string> = new Set([MIGRATOR_ROLE, RU
  * kết nối thật phải do admin tạo + grant trước khi migration chạy).
  */
 function provisionRoles(containerName: string): void {
+  // Password nội suy vào SQL literal — escape `'` thành `''` trước (giá trị
+  // mặc định là hex nên không chứa quote, nhưng giá trị override từ env thì có
+  // thể; `psql -c` không bind được placeholder cho literal).
+  const sqlPassword = ROLE_PASSWORD.split("'").join("''");
   for (const role of [MIGRATOR_ROLE, RUNTIME_ROLE]) {
     // Ghim allowlist trước khi nội suy (xem `PROVISIONABLE_ROLE_NAMES`).
     if (!PROVISIONABLE_ROLE_NAMES.has(role)) {
@@ -304,7 +314,7 @@ function provisionRoles(containerName: string): void {
       containerName,
       `DO $$ BEGIN
          IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '${role}') THEN
-           CREATE ROLE ${role} LOGIN PASSWORD '${ROLE_PASSWORD}'
+           CREATE ROLE ${role} LOGIN PASSWORD '${sqlPassword}'
              NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
          END IF;
        END $$;`,

@@ -197,7 +197,11 @@ describe('pacts — BFF-side composition of the matrix read (issue #181)', () =>
 
     expect(response.status).toBe(200);
     expect(calledUrls).toHaveLength(2);
-    expect(calledUrls[0]).toBe('/pacticipants?');
+    // Tách pathname và search để assert không dính vào cách stub serialize URL
+    // (chuỗi ghi lại luôn có `?` kể cả khi search rỗng).
+    const firstHop = new URL(`https://broker.test${calledUrls[0]}`);
+    expect(firstHop.pathname).toBe('/pacticipants');
+    expect(firstHop.search).toBe('');
     // Selector lặp `q[][pacticipant]` — đúng format mà reference client gửi,
     // API tự union + dedup; không chế độ "không param" nào được phát minh.
     const matrixQuery = new URL(`https://broker.test${calledUrls[1]}`).searchParams;

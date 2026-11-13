@@ -73,6 +73,9 @@ export default defineEventHandler(async (event) => {
 
   const names = pacticipantNamesOf(list.body);
   if (names.length === 0) {
+    // 200 tường minh cho đồng nhất với mọi nhánh khác trong file — broker rỗng
+    // là thành công thật, không phải rơi vào default ngầm của h3.
+    setResponseStatus(event, 200);
     return EMPTY_MATRIX;
   }
 

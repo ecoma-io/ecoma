@@ -36,7 +36,7 @@ function buildHandler(runtimeConfig: unknown): WebHandler {
   vi.stubGlobal('useRuntimeConfig', () => runtimeConfig);
   const app = createApp();
   const router = createRouter();
-  router.get('/api/broker/pacts', pactsRoute as never);
+  router.get('/api/broker/pacts', pactsRoute);
   app.use(router.handler);
   return toWebHandler(app);
 }
@@ -134,7 +134,12 @@ describe('pacts BFF route — composition over real endpoints', () => {
     const handler = buildHandler(CONFIGURED);
     await handler(new Request('https://dashboard.test/api/broker/pacts'));
 
-    expect(calls[1]?.query.getAll('q[][pacticipant]')).toEqual(['svc-a', 'svc-b']);
+    expect(calls).toHaveLength(2);
+    // Ghim hop ma trận tồn tại trước khi dereference — thay cho non-null
+    // assertion (bị cấm).
+    const matrixCall = calls[1];
+    expect(matrixCall, 'matrix hop happened').toBeDefined();
+    expect(matrixCall?.query.getAll('q[][pacticipant]')).toEqual(['svc-a', 'svc-b']);
   });
 
   it('passes a non-200 listing hop through verbatim and never queries the matrix', async () => {
