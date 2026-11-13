@@ -6,21 +6,62 @@
  * - `503` từ BFF là **unavailable**, không phải lỗi lần tải — người dùng thấy
  *   trạng thái tạm dừng, không phải nút "thử lại" vô nghĩa.
  * - Lỗi khác của API là **error** kèm nút retry.
+ * - **Matrix HAL thật** (`{matrix}` ở top-level, row có `consumer.version`,
+ *   `verificationResult` — issue #181): cột Verification phản chiếu đúng ba
+ *   trạng thái success/failed/chưa verification.
  * - `MAX_ROWS = 100` là giới hạn hiển thị phía trang (quan sát, không phân
  *   trang) — cắt đúng số row và **ghi lại** tổng số bị cắt.
- * - Khác biệt "rỗng thật" (`_embedded` trống) với "shape lạ" (không phải
- *   `_embedded.matrix`) là cùng một nhánh empty — trang không vỡ với HAL body
- *   bất thường.
+ * - Khác biệt "rỗng thật" (`matrix` trống) với "shape lạ" (không phải `matrix`
+ *   array) là cùng một nhánh empty — trang không vỡ với HAL body bất thường.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { pactBrokerMessages } from '../i18n/catalogs';
 import PactsPage from './pacts.vue';
 import { flush, mountPactBrokerPage, stubFetch, type FetchEndpoint } from '../../tests/harness';
 
+/** Body mà BFF trả khi composition thành công — matrix ở top-level, không _embedded. */
 function matrixBody(rows: object[]): FetchEndpoint {
-  return { path: '/api/broker/pacts', status: 200, body: { _embedded: { matrix: rows } } };
+  return { path: '/api/broker/pacts', status: 200, body: { matrix: rows } };
 }
+
+/**
+ * Row HAL mà trang đọc — kiểu cụ thể (không `object`) để fixture lệch shape là
+ * lỗi compile; cùng cấu trúc mà `pacts.vue` khai trong `MatrixRow` của nó.
+ */
+interface MatrixRowFixture {
+  consumer: { name: string; version: { number: string } };
+  provider: { name: string };
+  pact: { createdAt: string };
+  verificationResult: { success: boolean; verifiedAt: string } | null;
+}
+
+/** Row đúng hình dạng mà `decorateMatrixRow` của API công bố. */
+function matrixRow(overrides: {
+  consumerName: string;
+  providerName: string;
+  version: string;
+  verificationResult?: { success: boolean; verifiedAt: string } | null;
+}): MatrixRowFixture {
+  return {
+    consumer: { name: overrides.consumerName, version: { number: overrides.version } },
+    provider: { name: overrides.providerName },
+    pact: { createdAt: '2026-11-13T00:00:00Z' },
+    verificationResult: overrides.verificationResult ?? null,
+  };
+}
+
+/**
+ * Chuỗi verification lấy từ **catalog en thật** mà harness mount (cùng object
+ * với production) — assert ngữ nghĩa "đúng key cho đúng trạng thái" mà không
+ * nhân bản literal i18n vào test.
+ */
+const verificationTexts = {
+  success: pactBrokerMessages.en.pacts.verificationSuccess,
+  failed: pactBrokerMessages.en.pacts.verificationFailed,
+  none: pactBrokerMessages.en.pacts.verificationNone,
+} as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -28,21 +69,24 @@ afterEach(() => {
 });
 
 describe('pacts page — BFF states', () => {
-  it('renders the table rows for a populated matrix', async () => {
+  it('renders consumer, provider, consumer version and the verification outcome', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch([
         matrixBody([
-          {
-            consumer: { name: 'svc-a' },
-            provider: { name: 'svc-b' },
-            consumerVersion: { number: '1.2.3' },
-          },
-          {
-            consumer: { name: 'svc-c' },
-            provider: { name: 'svc-d' },
-            consumerVersion: { number: '2.0.0' },
-          },
+          matrixRow({
+            consumerName: 'svc-a',
+            providerName: 'svc-b',
+            version: '1.2.3',
+            verificationResult: { success: true, verifiedAt: '2026-11-13T01:00:00Z' },
+          }),
+          matrixRow({
+            consumerName: 'svc-c',
+            providerName: 'svc-d',
+            version: '2.0.0',
+            verificationResult: { success: false, verifiedAt: '2026-11-13T02:00:00Z' },
+          }),
+          matrixRow({ consumerName: 'svc-e', providerName: 'svc-f', version: '0.1.0' }),
         ]),
       ]),
     );
@@ -51,9 +95,17 @@ describe('pacts page — BFF states', () => {
     await flush();
 
     expect(wrapper.find('[data-testid="pact-broker-pacts-table"]').exists()).toBe(true);
-    expect(wrapper.findAll('tbody tr')).toHaveLength(2);
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3);
     expect(wrapper.text()).toContain('svc-a');
     expect(wrapper.text()).toContain('svc-d');
+    // Version nằm ở consumer.version.number — đúng shape HAL của matrix thật.
+    expect(wrapper.text()).toContain('1.2.3');
+    expect(wrapper.text()).toContain('2.0.0');
+    // Ba trạng thái verification hiển thị bằng văn bản catalog en thật —
+    // đúng key cho đúng trạng thái, không nhân bản chuỗi vào test.
+    expect(wrapper.text()).toContain(verificationTexts.success);
+    expect(wrapper.text()).toContain(verificationTexts.failed);
+    expect(wrapper.text()).toContain(verificationTexts.none);
     wrapper.unmount();
   });
 
@@ -95,12 +147,12 @@ describe('pacts page — BFF states', () => {
     wrapper.unmount();
   });
 
-  it('does not crash on an unexpected HAL shape and shows the empty state', async () => {
-    // `_embedded` thiếu hay không phải mảng đều rơi về `[]` — shape lạ của API
-    // là dữ liệu hiển thị trống, không phải exception trắng trang.
+  it('does not crash on an unexpected body shape and shows the empty state', async () => {
+    // `matrix` thiếu hay không phải mảng đều rơi về `[]` — shape lạ của API là
+    // dữ liệu hiển thị trống, không phải exception trắng trang.
     vi.stubGlobal(
       'fetch',
-      stubFetch([{ path: '/api/broker/pacts', status: 200, body: { _embedded: {} } }]),
+      stubFetch([{ path: '/api/broker/pacts', status: 200, body: { unexpected: true } }]),
     );
 
     const wrapper = await mountPactBrokerPage(PactsPage);
@@ -113,7 +165,7 @@ describe('pacts page — BFF states', () => {
   it('renders fallback dashes for rows whose fields are not strings', async () => {
     vi.stubGlobal(
       'fetch',
-      stubFetch([matrixBody([{ consumer: { name: 42 }, provider: null, consumerVersion: {} }])]),
+      stubFetch([matrixBody([{ consumer: { name: 42 }, provider: null, version: {} }])]),
     );
 
     const wrapper = await mountPactBrokerPage(PactsPage);
@@ -131,22 +183,20 @@ describe('pacts page — MAX_ROWS display cap', () => {
   it('caps the rendered rows at 100 without changing the fetch payload', async () => {
     // 120 row từ API ⇒ trang render đúng 100 — cắt ở tầng hiển thị, và fetch
     // nhận nguyên payload (trang không giả định phân trang của API).
-    const rows = Array.from({ length: 120 }, (_, index) => ({
-      consumer: { name: `svc-${index}` },
-      provider: { name: 'provider' },
-      consumerVersion: { number: '1.0.0' },
-    }));
+    const rows = Array.from({ length: 120 }, (_, index) =>
+      matrixRow({
+        consumerName: `svc-${index}`,
+        providerName: 'provider',
+        version: '1.0.0',
+      }),
+    );
     let fetchBodyLength = -1;
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
-        // HAL embedding dùng tiền tố gạch dưới theo đặc tả — không thể tránh,
-        // nên chuỗi truy cập đi qua chỉ mục thay vì thuộc tính.
-        const payload = JSON.stringify({ _embedded: { matrix: rows } });
-        const root = JSON.parse(payload) as {
-          readonly [key: string]: { readonly matrix?: readonly unknown[] } | undefined;
-        };
-        fetchBodyLength = root['_embedded']?.matrix?.length ?? 0;
+        const payload = JSON.stringify({ matrix: rows });
+        const root = JSON.parse(payload) as { readonly matrix?: readonly unknown[] };
+        fetchBodyLength = root.matrix?.length ?? 0;
         return new Response(payload, { status: 200 });
       }),
     );

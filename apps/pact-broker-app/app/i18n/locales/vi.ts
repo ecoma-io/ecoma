@@ -60,7 +60,11 @@ export default {
     description: 'Các pact đã được publish giữa consumer và provider.',
     consumer: 'Consumer',
     provider: 'Provider',
-    latestVersion: 'Phiên bản mới nhất',
+    consumerVersion: 'Phiên bản consumer',
+    verification: 'Xác minh',
+    verificationSuccess: 'Xác minh thành công',
+    verificationFailed: 'Xác minh thất bại',
+    verificationNone: 'Chưa xác minh',
     updatedAt: 'Cập nhật lúc',
   },
 

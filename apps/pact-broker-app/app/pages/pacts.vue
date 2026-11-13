@@ -1,7 +1,10 @@
 <script setup lang="ts">
 /**
- * Pacts — quan hệ consumer/provider đang có pact, đọc qua BFF (`/api/broker/pacts`
- * → `/matrix` của API).
+ * Pacts — ma trận consumer/provider đang có pact, đọc qua BFF (`/api/broker/pacts`).
+ * BFF compose từ `/pacticipants` + `/matrix` của API (issue #181), nên body mà
+ * trang nhận là **matrix HAL thật** của API: `{summary, notices, matrix}` với
+ * row có `consumer.name`, `consumer.version.number`, `provider.name` và
+ * `verificationResult` (null = chưa có verification).
  *
  * ⚠️ **Chỉ đọc.** Publish pact là việc của Pact CLI/CI qua machine token riêng —
  * dashboard không có nút publish nào: với machine token tĩnh chung cho cả
@@ -9,9 +12,8 @@
  * của người dùng (SR-004 theo tinh thần). Thao tác ghi thêm sau khi OIDC session
  * cấp quyền per-user.
  *
- * Matrix trả về HAL-shaped body; `_embedded` chứa row. Trang tự giới hạn hiển
- * thị (MAX_ROWS) thay vì giả định phân trang — API chưa công bố contract phân
- * trang nào cho dashboard.
+ * Trang tự giới hạn hiển thị (MAX_ROWS) thay vì giả định phân trang — API chưa
+ * công bố contract phân trang nào cho dashboard.
  */
 import { computed } from 'vue';
 import { useI18n } from '#i18n';
@@ -21,10 +23,9 @@ import { useAsyncState } from '../composables/use-async-state';
 const { t } = useI18n();
 
 interface MatrixRow {
-  consumer?: { name?: unknown };
+  consumer?: { name?: unknown; version?: { number?: unknown } };
   provider?: { name?: unknown };
-  consumerVersion?: { number?: unknown };
-  pactSha?: unknown;
+  verificationResult?: { success?: unknown } | null;
 }
 
 /** Giới hạn hiển thị — trang là quan sát, không phải xuất toàn bộ dữ liệu. */
@@ -40,8 +41,9 @@ const { state, reload } = useAsyncState(async () => {
   if (!res.ok) {
     throw new Error(`broker api ${String(res.status)}`);
   }
-  const embedded = (body as { _embedded?: { matrix?: unknown } })['_embedded'];
-  const rows = Array.isArray(embedded?.matrix) ? (embedded.matrix as MatrixRow[]) : [];
+  const rows = Array.isArray((body as { matrix?: unknown }).matrix)
+    ? ((body as { matrix: unknown[] }).matrix as MatrixRow[])
+    : [];
   return { kind: 'rows' as const, rows: rows.slice(0, MAX_ROWS), total: rows.length };
 });
 
@@ -54,6 +56,25 @@ const isUnavailable = computed(
 );
 
 const nameOf = (value: unknown): string => (typeof value === 'string' ? value : '—');
+
+/**
+ * Trạng thái verification của một row — `verificationResult` của API là null
+ * khi chưa verification, `{success: boolean}` khi đã có; shape lạ coi như chưa
+ * có, không bao giờ vỡ ô hiển thị.
+ */
+const verificationKind = (row: MatrixRow): 'success' | 'failed' | 'none' => {
+  const result = row.verificationResult;
+  if (result !== null && typeof result === 'object' && typeof result.success === 'boolean') {
+    return result.success ? 'success' : 'failed';
+  }
+  return 'none';
+};
+
+/**
+ * View-model mỗi row — `verificationKind` tính đúng MỘT lần mỗi row mỗi render,
+ * không gọi lại trong từng `v-if`/`v-else-if` của ô Verification.
+ */
+const displayRows = computed(() => rows.value.map((row) => ({ row, kind: verificationKind(row) })));
 </script>
 
 <template>
@@ -92,19 +113,31 @@ const nameOf = (value: unknown): string => (typeof value === 'string' ? value : 
           <tr class="border-b border-border bg-muted/40 text-left text-muted-foreground">
             <th class="px-4 py-2 font-medium">{{ t('pacts.consumer') }}</th>
             <th class="px-4 py-2 font-medium">{{ t('pacts.provider') }}</th>
-            <th class="px-4 py-2 font-medium">{{ t('pacts.latestVersion') }}</th>
+            <th class="px-4 py-2 font-medium">{{ t('pacts.consumerVersion') }}</th>
+            <th class="px-4 py-2 font-medium">{{ t('pacts.verification') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(row, index) in rows"
+            v-for="(entry, index) in displayRows"
             :key="index"
             class="border-b border-border last:border-0"
           >
-            <td class="px-4 py-2 font-medium">{{ nameOf(row.consumer?.name) }}</td>
-            <td class="px-4 py-2">{{ nameOf(row.provider?.name) }}</td>
+            <td class="px-4 py-2 font-medium">{{ nameOf(entry.row.consumer?.name) }}</td>
+            <td class="px-4 py-2">{{ nameOf(entry.row.provider?.name) }}</td>
             <td class="px-4 py-2 font-mono text-xs">
-              {{ nameOf(row.consumerVersion?.number) }}
+              {{ nameOf(entry.row.consumer?.version?.number) }}
+            </td>
+            <td class="px-4 py-2">
+              <span
+                v-if="entry.kind === 'success'"
+                class="text-emerald-600 dark:text-emerald-400"
+                >{{ t('pacts.verificationSuccess') }}</span
+              >
+              <span v-else-if="entry.kind === 'failed'" class="text-red-600 dark:text-red-400">{{
+                t('pacts.verificationFailed')
+              }}</span>
+              <span v-else class="text-muted-foreground">{{ t('pacts.verificationNone') }}</span>
             </td>
           </tr>
         </tbody>

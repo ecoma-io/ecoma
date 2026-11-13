@@ -59,7 +59,11 @@ export default {
     description: '在 consumer 与 provider 之间发布的 pact。',
     consumer: 'Consumer',
     provider: 'Provider',
-    latestVersion: '最新版本',
+    consumerVersion: 'Consumer 版本',
+    verification: '验证结果',
+    verificationSuccess: '验证通过',
+    verificationFailed: '验证失败',
+    verificationNone: '未验证',
     updatedAt: '更新于',
   },
 

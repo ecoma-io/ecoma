@@ -79,7 +79,11 @@ export default {
     description: 'Pacts published between consumers and providers.',
     consumer: 'Consumer',
     provider: 'Provider',
-    latestVersion: 'Latest version',
+    consumerVersion: 'Consumer version',
+    verification: 'Verification',
+    verificationSuccess: 'Verified',
+    verificationFailed: 'Failed',
+    verificationNone: 'Not verified',
     updatedAt: 'Updated at',
   },
 

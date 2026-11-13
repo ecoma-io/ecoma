@@ -7,6 +7,13 @@
  * Workers, secret được nối vào runtime config **ở request**, không phải lúc
  * module load — vì vậy accessor được gọi mỗi request, không cache ở module scope.
  *
+ * ⚠️ Caller BẮT BUỘC truyền `useRuntimeConfig(event)` (auto-import của Nitro,
+ * có `event`), không phải đọc slot `event.context.runtimeConfig`: không có
+ * middleware nào gắn slot đó trên runtime thật, đọc nó là `undefined` vĩnh viễn
+ * — mọi route fail-closed 503 kể cả khi đã cấu hình (bug sửa trong issue #181;
+ * cùng pattern `apps/account`). Với `event`, Nitro dựng lại config theo request
+ * qua shim `process.env` → `globalThis.__env__` = env binding của Worker.
+ *
  * ⚠️ Trả `null` **không phải** "chạy được không cần broker" — mọi caller fail
  * closed: route trả 503 `Service Unavailable` với mã ổn định, không đoán origin
  * và không để lỗi thoát ra h3.
