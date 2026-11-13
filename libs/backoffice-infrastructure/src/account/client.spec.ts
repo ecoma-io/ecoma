@@ -10,10 +10,15 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ACCOUNT_PROFILES_MAX_SUBS, accountProfilesResponse } from '@ecoma-io/account-contracts';
+import {
+  ACCOUNT_PROFILES_MAX_SUBS,
+  accountProfilesResponse,
+  signRequest,
+} from '@ecoma-io/account-contracts';
 
 import {
   accountClientConfig,
+  ACCOUNT_INTERNAL_SECRET_ENV,
   ACCOUNT_SERVICE_BINDING_NAME,
   AUTH_INTERNAL_SECRET_ENV,
   fetchAccountProfiles,
@@ -94,6 +99,66 @@ describe('accountClientConfig', () => {
     ['binding without fetch', envWith({ notFetch: 1 } as never, SECRET)],
   ])('returns null when %s', (_label, env) => {
     expect(accountClientConfig(env)).toBeNull();
+  });
+
+  it('falls back to the generic internal secret when the account-pair secret is absent', () => {
+    // Workers không đặt `ACCOUNT_INTERNAL_SECRET` — contract hiện có (secret
+    // `AUTH_INTERNAL_SECRET` trong `env` của Worker) phải tiếp tục được nhận.
+    const binding = fakeBinding(new Response('{}'));
+    const env = {
+      [ACCOUNT_SERVICE_BINDING_NAME]: binding,
+      [AUTH_INTERNAL_SECRET_ENV]: SECRET,
+    };
+    expect(accountClientConfig(env)).not.toBeNull();
+  });
+
+  it('prefers the account-pair secret when both secrets are present', async () => {
+    // Runtime Node local: container giữ secret cặp staff-access trong
+    // `AUTH_INTERNAL_SECRET` và secret cặp account trong
+    // `ACCOUNT_INTERNAL_SECRET` — signing PHẢI dùng secret của account, nếu
+    // không `account` verify 401 mọi call.
+    const binding = fakeBinding(new Response('{}'));
+    const otherSecret = 'staff-access-pair-secret';
+    const env = {
+      [ACCOUNT_SERVICE_BINDING_NAME]: binding,
+      [AUTH_INTERNAL_SECRET_ENV]: otherSecret,
+      [ACCOUNT_INTERNAL_SECRET_ENV]: SECRET,
+    };
+    const config = accountClientConfig(env);
+    expect(config).not.toBeNull();
+
+    // Signature đúng chỉ có thể tạo bằng secret đã ký — header tạo bằng
+    // `SECRET` phải khác header tạo bằng secret còn lại trên cùng envelope
+    // (timestamp/nonce giống nhau để phép so sánh sạch).
+    const headers = await config?.signHeaders('/internal/account/profiles?subs=sub_x');
+    const expected = await signRequest({
+      method: 'GET',
+      path: '/internal/account/profiles?subs=sub_x',
+      body: new Uint8Array(),
+      secret: SECRET,
+      timestamp: headers?.['x-ecoma-internal-timestamp'] ?? '',
+      nonce: headers?.['x-ecoma-internal-nonce'] ?? '',
+    });
+    expect(headers?.['x-ecoma-internal-signature']).toBe(expected['x-ecoma-internal-signature']);
+
+    const wrongEnv = {
+      [ACCOUNT_SERVICE_BINDING_NAME]: binding,
+      [AUTH_INTERNAL_SECRET_ENV]: SECRET,
+      [ACCOUNT_INTERNAL_SECRET_ENV]: otherSecret,
+    };
+    const wrongConfig = accountClientConfig(wrongEnv);
+    const wrongHeaders = await wrongConfig?.signHeaders('/internal/account/profiles?subs=sub_x');
+    const expectedWrong = await signRequest({
+      method: 'GET',
+      path: '/internal/account/profiles?subs=sub_x',
+      body: new Uint8Array(),
+      secret: otherSecret,
+      timestamp: wrongHeaders?.['x-ecoma-internal-timestamp'] ?? '',
+      nonce: wrongHeaders?.['x-ecoma-internal-nonce'] ?? '',
+    });
+    expect(wrongHeaders?.['x-ecoma-internal-signature']).toBe(
+      expectedWrong['x-ecoma-internal-signature'],
+    );
   });
 });
 

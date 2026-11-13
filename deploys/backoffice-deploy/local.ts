@@ -61,12 +61,46 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
   }
   const internalHmacSecret = readInternalSecret.stdout.trim();
 
+  // Đọc `internalHmacSecret` từ stack config của account-deploy — secret của
+  // cặp backoffice ↔ account (#242). account-deploy up phải chạy trước
+  // backoffice-deploy (dependsOn ở package.json) nên stack config đã có giá
+  // trị. Log-safety như khối staff-access bên trên: KHÔNG nhúng raw
+  // stdout/stderr vào error — exit-0 stdout CHÍNH LÀ secret.
+  const readAccountInternalSecret = exec(
+    'pulumi',
+    [
+      'config',
+      'get',
+      'namespace:internalHmacSecret',
+      '--stack',
+      fullStackRef('account-deploy', foundation.ctx),
+    ],
+    deployProjectDir('account-deploy'),
+    foundation.env,
+  );
+  if (
+    readAccountInternalSecret.status !== 0 ||
+    readAccountInternalSecret.stdout.trim().length === 0
+  ) {
+    console.error(
+      '[backoffice-deploy] up: reading namespace:internalHmacSecret from the account-deploy stack ' +
+        `failed (exit ${String(readAccountInternalSecret.status)}) — account up must run BEFORE backoffice ` +
+        '(dependsOn at package.json). `nx run account-deploy:local-up -c local` trước, rồi chạy lại.',
+    );
+    process.exit(1);
+  }
+  const accountInternalHmacSecret = readAccountInternalSecret.stdout.trim();
+
   const secrets: ReadonlyArray<readonly [string, string]> = [
     ['namespace:runtimePassword', generatePostgresPassword()],
     ['namespace:migratorPassword', generatePostgresPassword()],
     // Giá trị đọc lại từ staff-access-deploy — hai stack dùng CHÍNH MỘT secret
     // envelope HMAC để ký envelope gọi staff-access management API.
     ['namespace:internalHmacSecret', internalHmacSecret],
+    // Secret cặp backoffice ↔ account — đọc lại từ account-deploy, KHÁC giá
+    // trị staff-access bên trên (mỗi stack sinh secret độc lập). index.ts
+    // đặt vào biến container `ACCOUNT_INTERNAL_SECRET` của backoffice.
+    ['namespace:accountInternalHmacSecret', accountInternalHmacSecret],
   ];
   for (const [configKey, configValue] of secrets) {
     setStackConfig('backoffice-deploy', configKey, configValue, foundation);

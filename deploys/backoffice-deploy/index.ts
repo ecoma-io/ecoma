@@ -54,6 +54,15 @@ const AUTH_INTERNAL_PORT_OF_AUTH_WIC = 4203;
  */
 const STAFF_ACCESS_INTERNAL_PORT = 4206;
 
+/**
+ * Cổng HTTP nội bộ của container `ecoma-account` của account-deploy — `dev.port`
+ * của `apps/account/wrangler.jsonc`. Giá trị này được copy vì hai stack là hai
+ * Pulumi program độc lập. Alias `ecoma-account` + port này là đường duy nhất
+ * container Node backoffice tới được account trên platform network (cùng lý
+ * luận `STAFF_ACCESS_INTERNAL_PORT` ở trên).
+ */
+const ACCOUNT_INTERNAL_PORT = 4202;
+
 const traefikPrefix = (ns: string): string => `backoffice-${ns}`;
 
 const conf = new pulumi.Config('namespace');
@@ -91,6 +100,18 @@ const traefikHostPort = requirePlatformOutput('traefikHostPort');
 // Vắng ⇒ backoffice container không gắn AUTH_INTERNAL_SECRET ⇒ staff-access
 // client fail-closed 503 mọi `/api/staff`/`/api/roles`/`/api/permissions`.
 const internalHmacSecret = conf.require('internalHmacSecret');
+
+// Secret HMAC internal của cặp backoffice ↔ account — ĐỌC LẠI từ stack config
+// của account-deploy (cùng pattern `internalHmacSecret` bên trên, và cùng
+// pattern auth-deploy đọc `internalSecret` từ account-deploy). Đây là giá trị
+// KHÁC `internalHmacSecret` bên trên: mỗi stack deploy sinh secret nội bộ độc
+// lập, và account verify envelope bằng `internalHmacSecret` của CHÍNH stack
+// account (`NUXT_INTERNAL_HMAC_SECRET` của container account). Client account
+// của backoffice (`accountClientConfig`) đọc biến `ACCOUNT_INTERNAL_SECRET`;
+// shim Nitro (`server/plugins/account-service-shim.ts`) nạp nó vào env theo
+// từng request. Vắng ⇒ shim không nạp secret ⇒ client fail-closed `null` ⇒
+// `/api/onboarding-status` 503, `/api/me` `displayName: null`.
+const accountInternalHmacSecret = conf.require('accountInternalHmacSecret');
 
 // Mật khẩu hai role local — do orchestration sinh và truyền qua --config
 // (stdin, không argv); `requireSecret` để giá trị luôn là Output được đánh dấu
@@ -207,6 +228,21 @@ const backoffice = new docker.Container(
       // Shim Nitro trong backoffice biến URL này thành binding `STAFF_ACCESS_SERVICE`
       // lúc runtime (xem `server/plugins/staff-access-service-shim.ts`).
       pulumi.interpolate`NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL=http://ecoma-staff-access:${STAFF_ACCESS_INTERNAL_PORT}`,
+      // Secret HMAC nội bộ của cặp backoffice ↔ account — giá trị khác
+      // `AUTH_INTERNAL_SECRET` bên trên (cặp staff-access); xem JSDoc
+      // `accountInternalHmacSecret`. Shim Nitro
+      // (`server/plugins/account-service-shim.ts`) nạp biến này vào env theo
+      // từng request để `accountClientConfig` ký envelope đúng khoá mà
+      // account verify.
+      pulumi.interpolate`ACCOUNT_INTERNAL_SECRET=${pulumi.secret(accountInternalHmacSecret)}`,
+      // Origin fetch server-side tới account qua alias DNS nội bộ
+      // `ecoma-account` của WIC account-deploy (port 4202). Cùng lý luật với
+      // `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL` bên trên: container Node
+      // không resolve được hostname `account.<rootHostname>` — đường duy nhất
+      // là alias Docker trên platform network. Shim Nitro biến URL này thành
+      // binding `ACCOUNT_SERVICE` lúc runtime, bật đường onboarding-status/
+      // displayName (#242); rỗng/vắng ⇒ client fail-closed như production.
+      pulumi.interpolate`NUXT_BACKOFFICE_ACCOUNT_SERVICE_URL=http://ecoma-account:${ACCOUNT_INTERNAL_PORT}`,
       // Origin fetch server-side: JWKS (`/jwks.json`) và token exchange
       // (`/token`) chạy TRONG container Node, mà container không resolve được
       // `auth.<rootHostname>` và không đi ra host loopback được — đường duy
