@@ -289,7 +289,7 @@ jobs:
                   print(f"\ngitleaks scan: {len(findings)} finding(s) detected:")
                   for path, line, rule in findings:
                       print(f"  {path}:{line}  [{rule}]")
-            PY
+          PY
             exit 2
           fi
           if [ "$status" -ne 0 ]; then
