@@ -5,7 +5,7 @@
 ## 1. Deploy units
 
 - `pact-broker-api`: Cloudflare Worker (Hono), API-only, tương thích Pact CLI; Hyperdrive binding → `db-pact-broker` (PostgreSQL; query cache OFF).
-- `pact-broker-app`: Cloudflare Worker (Nuxt 4 + Nitro preset `cloudflare_module`); BFF server routes → gọi `pact-broker-api` qua Service Binding hoặc fetch nội bộ; browser session qua OIDC `auth.ecoma.io`.
+- `pact-broker-app`: Cloudflare Worker (Nuxt 4 + Nitro preset `cloudflare_module`); BFF server routes → gọi `pact-broker-api` bằng fetch nội bộ qua base URL cấu hình kèm machine token server-side (không dùng Service Binding); browser session qua OIDC `auth.ecoma.io` — target M1, hiện thực qua #206 (hiện trạng: `/api/broker/*` chưa có xác thực — xem §5.1).
 
 ## 2. Runtime
 
@@ -15,7 +15,7 @@ apps/pact-broker-api   (Cloudflare Worker, Hono; API-only, Pact CLI-compatible)
 └── Worker Secrets: PACT_BROKER_INTERNAL_SECRET (HMAC internal, target — xem §8)
 
 apps/pact-broker-app   (Cloudflare Worker, Nuxt 4 + Nitro preset cloudflare_module)
-├── BFF server routes → gọi pact-broker-api (Service Binding hoặc fetch nội bộ)
+├── BFF server routes → gọi pact-broker-api (fetch nội bộ qua base URL + machine token server-side)
 └── Browser session: OIDC qua auth.ecoma.io; browser KHÔNG chạm DB, KHÔNG tin
     userId/sub/role/permission do client gửi
 ```
@@ -32,7 +32,7 @@ Schema ứng dụng tên `pact`. Ba nhóm bảng:
 - `tenants`: `id` (uuid), `name` (unique, regex giống `nameSchema` upstream), `status` (`active|suspended|deleted`), `owner_sub` (NOT NULL, opaque `sub` của đúng một owner — không phải role membership), `classification` (NOT NULL, `first_party|customer` — immutable sau provisioning), `plan` (nullable, `free|paid`, chỉ khi `classification='customer'`; invariant "đúng một Free slot mỗi owner" enforce bằng partial unique index `tenants_one_free_per_owner_key` — `WHERE plan = 'free' AND status <> 'deleted'`), timestamps. Default tenant per sub được provision **tường minh** (deterministic từ sub, qua bootstrap script — xem §4; không tự động khi signup/login), **idempotent + race-safe** (INSERT ON CONFLICT); tenant canonical `ecoma` đi qua script bootstrap riêng (first_party, không có plan — xem §4).
 - `tenant_members`: `UNIQUE (tenant_id, sub)`; `role` CHECK IN ('admin','member','viewer') — role `owner` đã bị loại, ownership nằm ở `tenants.owner_sub`. Composite FK về `tenants` và (khi thêm) unique-sub constraint cho phép DB-level enforce "member thuộc đúng tenant".
 - `machine_tokens`: chỉ lưu **hash** SHA-256 của token (`token_hash` UNIQUE, là index tra cứu của mọi request; PK là `id` uuid); `tenant_id`, `name`, `scopes` (text CSV hoặc jsonb), `created_by_sub`, `revoked_at` (NULL = active). Không có `last_used_at` — ghi nó đòi UPDATE trên mọi request (observability thành serving-path dependency, trái bất biến); usage tracking khi cần thì đọc từ `audit_events` (append-only, off-path). Plaintext hiện **một lần** trong response của lệnh tạo; không đường nào đọc lại. Revoke = set `revoked_at`, hiệu lực **ngay lập tức** (mỗi request tra hash rồi check `revoked_at IS NULL`).
-- Scopes: `read` (viewer trở lên), `write` (member trở lên: publish pact/verification), `admin` (environments, webhooks, membership). Token scope ≠ role của người — token là credential cấp sẵn quyền cố định. Người tạo phải có role đủ cao; owner của tenant (`tenants.owner_sub`) không phải role membership — authority riêng của owner được diễn đạt qua authorization rules của broker (§5.1), không nằm trong thang scope token.
+- Scopes: `read` (viewer trở lên), `write` (member trở lên: publish pact/verification), `admin` (environments, webhooks, membership). Token scope ≠ role của người — token là credential cấp sẵn quyền cố định. Người tạo phải có role đủ cao (quy tắc này chưa được enforce trên đường request nào — permission matrix và cơ chế enforce thuộc #205, hiện thực qua #206/#207); owner của tenant (`tenants.owner_sub`) không phải role membership — authority riêng của owner được diễn đạt qua authorization rules của broker (§5.1), không nằm trong thang scope token.
 
 Ngữ nghĩa business của tenant/membership/role, machine credential, plan và Free slot → [`docs/domains/pact-broker/domain-model.md`](../../domains/pact-broker/domain-model.md) §2.5, §2.6 (canonical; schema `classification`/`plan` và invariant Free slot đã được migration `0004_tenant_classification_and_plan.sql` hiện thực hoá).
 
@@ -75,18 +75,15 @@ Hai đường credential tách biệt: browser/OIDC cho dashboard, machine token
 
 ### 5.1 Dashboard path (`pact-broker-app`)
 
-- Browser đăng nhập qua OIDC `auth.ecoma.io` (authorization code + PKCE); access token JWT ES256 TTL 300s verify offline bằng JWKS.
-- BFF server-side giữ token, browser chỉ thấy session cookie `__Host-…` (hash-only ở server, đúng pattern `apps/account`).
-- **Không tin bất kỳ claim nào do client gửi**: mọi request dashboard đi qua BFF; BFF verify token rồi forward với credential của chính app hoặc ForwardAuth header ký internal.
-- Target tối thiểu hiện tại: BFF giữ **một machine token server-side** của deploy unit `pact-broker-app`, scope `read`; BFF forward kèm token của chính mình. Source: `apps/pact-broker-app/server/utils/broker-client.ts`.
-- Internal service-to-service (target khi OIDC per-user được wire): internal HMAC envelope `ecoma-internal-v1` (`libs/internal-auth-contracts/src/internal-auth.ts`) để ký request BFF→API; receiver tự suy consumer từ credential. ForwardAuth header ký internal là hướng evolution, **chưa** được wire — không claim đã implement. Source-verified: `broker-client.ts` comment "thay token tĩnh bằng token per-user và ForwardAuth, nhưng hợp đồng của các hàm ở đây không đổi".
-- **RBAC:** kiểm ở cả BFF và API — role membership `viewer` đọc, `member` publish, `admin` quản lý environments/webhooks; quản lý members/tokens là authority cấp owner, diễn đạt qua authorization rules của broker (owner là thuộc tính `tenants.owner_sub`, không phải role membership — Staff Access system role không tự map thành role nào ở đây); enforce cuối cùng ở API side theo token scope và tenant.
-
-KHÔNG dùng BFF ForwardAuth như một thay thế đã implement cho machine token; machine token server-side là target hiện tại, ForwardAuth/internal HMAC là evolution sau khi có OIDC per-user (issue #144).
+- **Hiện trạng (audit 2026-11-13):** route `/api/broker/*` chưa có xác thực nào (public); BFF giữ **một machine token server-side** của deploy unit `pact-broker-app` và forward kèm token của chính mình — source `apps/pact-broker-app/server/utils/broker-client.ts`; bất biến read-only của BFF có test chốt (`apps/pact-broker-app/tests/read-only-bff.spec.ts`) và BFF fail-closed khi thiếu config. Trên lane local token được provision scope `admin`; scope chuẩn của token này là quyết định đang mở — #205.
+- **Target M1 (đã accept, hiện thực qua #206; các quyết định chi tiết thuộc Modelling #205):** browser đăng nhập qua OIDC `auth.ecoma.io` (authorization code + PKCE; access token ES256 TTL 300s verify offline bằng JWKS); BFF giữ credential server-side, browser chỉ thấy session cookie `__Host-…` (hash-only ở server, đúng pattern `apps/account`); không tin bất kỳ claim nào do client gửi — identity chỉ đến từ session đã verify; CSRF cho mutation. API tự enforce role/owner độc lập với BFF — enforce cuối cùng ở API side.
+- Identity propagation BFF→API: candidate là internal HMAC envelope `ecoma-internal-v2` (`libs/internal-auth-contracts/src/internal-auth.ts` — actor-sub integrity-bound, replay-protected, giới hạn body 64 KiB) hoặc per-user machine token — **quyết định đang mở, thuộc #205**; chưa wire gì, không claim đã implement.
+- **RBAC:** target M1 kiểm ở cả BFF và API theo permission matrix được chốt tại #205 (role membership `viewer`/`member`/`admin`; authority cấp owner qua `tenants.owner_sub` — Staff Access system role không tự map thành role nào). Hiện trạng: chưa có đường request nào đọc role — deviation được ghi nhận, hiện thực qua #206/#207.
+- Machine token server-side của BFF là trạng thái hiện hành cho tới khi #206 land; disposition của bất biến read-only-bff sau đó do #205 chốt.
 
 ### 5.2 Machine token (Pact CLI + CI)
 
-- `Authorization: Bearer pbk_<random>`; tra `SHA-256(token)` trong `machine_tokens`; so hash — không so plaintext, không timing leak (tra cứu hash qua PK là constant-time theo index).
+- `Authorization: Bearer <token>` — token là chuỗi base64url 32-byte không prefix (generator `libs/pact-broker-api-application/src/hashing.ts`); tra `SHA-256(token)` trong `machine_tokens`
 - Fail: 401 đồng nhất cho mọi lý do (thiếu header, token lạ, token đã revoke, tenant suspended) — không phân biệt "token không tồn tại" vs "đã revoke" trong body (chỉ audit phân biệt). Source: `apps/pact-broker-api/src/auth/token-auth.ts`.
 - Token có scope; endpoint check scope **và** tenant của token; không có cross-tenant token.
 
@@ -113,7 +110,7 @@ Upstream có webhook outbound. Cho đến khi có SSRF protection chứng minh �
 | `HYPERDRIVE` (hoặc `DB_PACT_BROKER`) | Hyperdrive             | Connection string tới `db-pact-broker`; query cache OFF                                      |
 | `PACT_BROKER_WEBHOOKS_ENABLED`       | var                    | Mặc định `false`; production **không** được set `true`                                       |
 | `PACT_BROKER_DASHBOARD_ORIGIN`       | var                    | Origin duy nhất được CORS mở; thiếu = CORS đóng hoàn toàn                                    |
-| `PACT_BROKER_INTERNAL_SECRET`        | Worker Secret (target) | HMAC internal cho envelope `ecoma-internal-v1`; chỉ dùng khi BFF→API internal auth được wire |
+| `PACT_BROKER_INTERNAL_SECRET`        | Worker Secret (target) | HMAC internal cho envelope `ecoma-internal-v2`; chỉ dùng khi BFF→API internal auth được wire |
 
 Secrets không đặt trong PR/CI file — native Worker Secrets qua quy trình `02-delivery.md`.
 

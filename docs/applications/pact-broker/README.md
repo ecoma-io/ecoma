@@ -3,7 +3,7 @@
 Solution spec của hai deploy unit `pact-broker-api` + `pact-broker-app` thuộc bounded context `pact-broker`. Bounded context và domain rules → [`docs/domains/pact-broker/`](../../domains/pact-broker/README.md) (canonical).
 
 - `pact-broker-api`: Cloudflare Worker (Hono), API-only, tương thích Pact CLI; sở hữu `db-pact-broker` (PostgreSQL qua Hyperdrive).
-- `pact-broker-app`: Cloudflare Worker (Nuxt 4 + Nitro preset `cloudflare_module`); BFF server routes → gọi `pact-broker-api` qua Service Binding hoặc fetch nội bộ; browser session qua OIDC `auth.ecoma.io`.
+- `pact-broker-app`: Cloudflare Worker (Nuxt 4 + Nitro preset `cloudflare_module`); BFF server routes → gọi `pact-broker-api` bằng fetch nội bộ qua base URL cấu hình kèm machine token server-side (không dùng Service Binding); browser session qua OIDC `auth.ecoma.io` — target M1, hiện thực qua #206 (hiện trạng: `/api/broker/*` chưa có xác thực).
 
 ## Documents
 
