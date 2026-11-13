@@ -38,10 +38,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Image của gitleaks và semgrep ghim theo digest trong tools/dx/security-tools.lock.json và trong code/test của tools/dx — không nằm trong Dockerfile nên không manager built-in nào đọc được. Một manager phủ cả bốn bản sao để một PR bump đồng thời mọi nơi; test của dx assert các digest này bằng nhau nên bump lệch một nơi sẽ đỏ.",
-      "managerFilePatterns": [
-        "/^tools\\/dx\\/(security-tools\\.lock\\.json|src\\/security\\/[^/]+\\.ts)$/"
-      ],
+      "description": "Image của gitleaks và semgrep ghim theo digest ngay trong `lefthook.yml` và `.github/workflows/code-analysis.yml` — không nằm trong Dockerfile nên không manager built-in nào đọc được. Một manager phủ cả hai file để một PR bump đồng thời mọi nơi; spec của tools/dx assert các digest này bằng nhau nên bump lệch một nơi sẽ đỏ.",
+      "managerFilePatterns": ["/^(lefthook\\.yml|\\.github\\/workflows\\/code-analysis\\.yml)$/"],
       "matchStrings": [
         "(?<depName>zricethezav/gitleaks|semgrep/semgrep):(?<currentValue>[^@\"'\\s]+)@(?<currentDigest>sha256:[0-9a-f]{64})"
       ],
