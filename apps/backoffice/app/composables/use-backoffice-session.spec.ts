@@ -105,6 +105,22 @@ describe('use-backoffice-session', () => {
     expect(session.status.value).toBe('unknown');
   });
 
+  it('probe failure after authenticated resets status to unknown', async () => {
+    setNuxtApp({});
+    stubFetch(() => ({ status: 200, body: { authenticated: true } }));
+
+    const session = useBackofficeSession();
+    await session.refresh();
+    expect(session.status.value).toBe('authenticated');
+
+    // Probe sau đó thất bại ⇒ bằng chứng cũ là stale: phải hạ về `unknown`,
+    // không được giữ nút "Log out" trên trạng thái không còn bằng chứng.
+    stubFetch(() => ({ status: 200, networkError: true }));
+    await session.refresh();
+
+    expect(session.status.value).toBe('unknown');
+  });
+
   it('probe response with a missing authenticated field falls to unauthenticated', async () => {
     setNuxtApp({});
     stubFetch(() => ({ status: 200, body: { nope: 1 } }));

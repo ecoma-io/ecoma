@@ -41,7 +41,7 @@
  * cho một phiên khác (hoặc giữ `false` sau login) là trạng thái shell sai.
  */
 
-import { defineEventHandler, getCookie, setResponseHeader } from 'h3';
+import { defineEventHandler, getCookie, setResponseHeader, type H3Event } from 'h3';
 
 import {
   hashSessionIdentifier,
@@ -89,10 +89,7 @@ export default defineEventHandler(async (event) => {
  * Phép đo khi có cookie — mirrors trình tự của middleware authn, mỗi nhánh
  * không kết luận được trả `degradedReason` thay vì 503.
  */
-async function probeWithCookie(
-  event: import('h3').H3Event,
-  cookieValue: string,
-): Promise<ProbeOutcome> {
+async function probeWithCookie(event: H3Event, cookieValue: string): Promise<ProbeOutcome> {
   const config = backofficeAuthConfig(event);
   if (config === null) {
     return { authenticated: false, degradedReason: 'auth_config_missing' };
