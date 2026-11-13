@@ -78,7 +78,7 @@ Execution state không tự động trở thành domain state chỉ vì được
 ## Persistence implementation
 
 - Ba database riêng — một service sở hữu toàn bộ (A2): `db-llm-gateway` (quota/settlement authority), `db-llm-tenant` (tiến hành của `llm-consumer-tenant` trong cùng deploy unit, không qua contract), `db-llm-marketplace` (chưa có bảng nghiệp vụ trong slice này; các bảng thuộc slice sau). Không cross-database query (bất biến 25/A2).
-- Schema namespaces đã được đặt tên (đó là mức tối thiểu của slice này): `llm_financial`, `llm_seller` trong `db-llm-gateway`; `llm_tenant` trong `db-llm-tenant`; `llm_marketplace` trong `db-llm-marketplace` (domain model `llm-marketplace` §7).
+- Schema namespaces đã được đặt tên (đó là mức tối thiểu của slice này): `llm_financial`, `llm_seller`, `llm_gateway` (bảng `api_keys` của bootstrap bước 9, Issue #24) trong `db-llm-gateway`; `llm_tenant` trong `db-llm-tenant`; `llm_marketplace` trong `db-llm-marketplace` (domain model `llm-marketplace` §7).
 - Ba-role pattern `ecoma_owner` / migrator / runtime áp cho mỗi database (`ecoma_llm_gateway_*`, `ecoma_llm_tenant_*`, `ecoma_llm_marketplace_*`), `REVOKE CONNECT` chặn chéo PUBLIC và runtime, mặc định quyền DML của runtime qua `ALTER DEFAULT PRIVILEGES FOR ROLE <migrator>`.
 - Ba Hyperdrive binding `DB_LLM_GATEWAY` / `DB_LLM_TENANT` / `DB_LLM_MARKETPLACE`, mỗi binding một database, **query cache OFF** (A14 — cache không invalidate khi ghi, dữ liệu quota/settlement bị stale là lần cấp quyền thứ hai). Migration chạy từ CI runner với advisory lock (HD6: Hyperdrive không hỗ trợ advisory lock); Worker không DDL.
 

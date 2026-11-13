@@ -58,6 +58,28 @@ export const BOOTSTRAP_ACTOR_ENV = 'ECOMA_GOVERNANCE_ACTOR';
 /** Env chứa `sub` Superadmin bootstrap — owner của tenant canonical. */
 export const OWNER_SUB_ENV = 'ECOMA_SELLER_TENANT_OWNER_SUB';
 
+// ---------------------------------------------------------------------------
+// Bước 9 — Consumer tenant canonical (`llm-consumer-tenant`, Issue #24)
+// ---------------------------------------------------------------------------
+
+/** Tên Consumer tenant canonical — hằng trong code, không bao giờ `ecoma-internal` (ADR-0020 Quyết định 9). */
+export const CANONICAL_CONSUMER_TENANT_NAME = 'ecoma';
+
+/** Consumer tenant id hằng số — hai database của bước 9 cùng đọc hằng này (không truyền giá trị xuyên DB). */
+export const CONSUMER_TENANT_ID = 'consumer-tenant-ecoma';
+
+/** Id membership của owner trong bước seed 9 (ADR-0020 Quyết định 13). */
+export const CONSUMER_OWNER_MEMBERSHIP_ID = 'consumer-membership-ecoma-owner';
+
+/** Env chứa `sub` Superadmin bootstrap — owner của Consumer tenant canonical. */
+export const CONSUMER_TENANT_OWNER_SUB_ENV = 'ECOMA_CONSUMER_TENANT_OWNER_SUB';
+
+/** Env chứa chuỗi kết nối migrator của `db-llm-tenant` cho bước 9. */
+export const CONSUMER_TENANT_DATABASE_URL_ENV = 'ECOMA_TENANT_DATABASE_URL';
+
+/** Env chứa chuỗi kết nối migrator của `db-llm-gateway` cho bước 9 (API key). */
+export const CONSUMER_GATEWAY_DATABASE_URL_ENV = 'ECOMA_GATEWAY_DATABASE_URL';
+
 /** Kết quả máy đọc của một run bootstrap, in ra stdout dòng cuối. */
 export interface BootstrapRunResult {
   readonly outcome: 'created' | 'no-op' | 'created-draft-unhealthy';

@@ -1,8 +1,10 @@
 /**
- * Reset toàn bộ trạng thái business của hai database mà chuỗi kịch bản bootstrap
- * 8a/8b ghi (`db-llm-gateway` schema `llm_seller`, `db-llm-marketplace` schema
- * `llm_marketplace`) về trạng thái "chưa seed" — dùng bởi `afterEach`/`afterAll`
- * của hai spec và có thể dùng lại cho nhóm kịch bản cần seed fresh.
+ * Reset toàn bộ trạng thái business của các database mà chuỗi kịch bản
+ * bootstrap 8a/8b/bước-9 ghi (`db-llm-gateway` schema `llm_seller` +
+ * `llm_gateway`, `db-llm-marketplace` schema `llm_marketplace`,
+ * `db-llm-tenant` schema `llm_tenant`) về trạng thái "chưa seed" — dùng bởi
+ * `afterEach`/`afterAll` của các spec bootstrap và có thể dùng lại cho nhóm
+ * kịch bản cần seed fresh.
  *
  * Vì sao tồn tại: `startLlmApiDatabase()` là factory không memoise, nên **mỗi
  * spec file** được một container riêng, nhưng mọi test trong cùng một file chia
@@ -46,6 +48,12 @@ const MARKETPLACE_TABLES: readonly string[] = [
   'bootstrap_audit',
 ];
 
+/** Bảng nghiệp vụ `llm_tenant` (db-llm-tenant) — migration `tenant/0002`. */
+const TENANT_TABLES: readonly string[] = ['tenants', 'memberships', 'bootstrap_audit'];
+
+/** Bảng runtime `llm_gateway` (db-llm-gateway) — migration `gateway/0003`. */
+const GATEWAY_RUNTIME_TABLES: readonly string[] = ['api_keys', 'bootstrap_audit'];
+
 /**
  * `TRUNCATE` một tập bảng đã đóng gói identifier, `RESTART IDENTITY` để cột
  * identity trở về 1 — assertion về thứ tự audit không phụ thuộc số lần chạy.
@@ -53,7 +61,7 @@ const MARKETPLACE_TABLES: readonly string[] = [
  */
 async function truncate(
   db: LlmApiDatabase,
-  key: 'gateway' | 'marketplace',
+  key: 'gateway' | 'tenant' | 'marketplace',
   schema: string,
   tables: readonly string[],
 ): Promise<void> {
@@ -75,4 +83,14 @@ export function resetSellerGovernance(db: LlmApiDatabase): Promise<void> {
 /** Đưa `llm_marketplace` của `db-llm-marketplace` về trạng thái chưa seed. */
 export function resetMarketplace(db: LlmApiDatabase): Promise<void> {
   return truncate(db, 'marketplace', 'llm_marketplace', MARKETPLACE_TABLES);
+}
+
+/**
+ * Đưa trạng thái bước 9 về "chưa seed": `llm_tenant` của `db-llm-tenant` và
+ * `llm_gateway` của `db-llm-gateway` (hai database mà runner bước 9 ghi — hai
+ * schema không FK chéo nên mỗi schema reset độc lập).
+ */
+export async function resetConsumerTenant(db: LlmApiDatabase): Promise<void> {
+  await truncate(db, 'tenant', 'llm_tenant', TENANT_TABLES);
+  await truncate(db, 'gateway', 'llm_gateway', GATEWAY_RUNTIME_TABLES);
 }

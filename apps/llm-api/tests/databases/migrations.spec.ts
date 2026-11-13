@@ -9,11 +9,13 @@
  * `02-delivery.md` §3). Tất cả invocation đều đi qua credential migrator thật
  * (proxy `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
  *
- * Suite này chạy migration hiện tại trên ba database — gateway có `0001`–`0002`
- * (schema namespace + bảng nghiệp vụ `llm_seller` của bootstrap Issue #23),
- * tenant có `0001` (namespace-only, slice #24), marketplace có `0001`–`0004`
- * (schema `llm_marketplace`, thu hẹp default privileges, bảng nghiệp vụ
- * offering của Issue #23) — catalog PostgreSQL là nguồn sự thật.
+ * Suite này chạy migration hiện tại trên ba database — gateway có `0001`–`0003`
+ * (schema namespace + bảng nghiệp vụ `llm_seller` của bootstrap Issue #23 +
+ * schema `llm_gateway` với bảng `api_keys` của bootstrap Issue #24), tenant có
+ * `0001`–`0002` (namespace + bảng nghiệp vụ `llm_tenant` của bước 9, Issue #24),
+ * marketplace có `0001`–`0004` (schema `llm_marketplace`, thu hẹp default
+ * privileges, bảng nghiệp vụ offering của Issue #23) — catalog PostgreSQL là
+ * nguồn sự thật.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +28,12 @@ import {
   startLlmApiDatabase,
 } from '../integrations/harness.ts';
 
-/** Tập bảng nghiệp vụ `llm_seller` của bootstrap Issue #23 trên db-llm-gateway. */
+/**
+ * Tập bảng user của db-llm-gateway: `llm_seller` của bootstrap Issue #23 cộng
+ * schema `llm_gateway` của bước 9 (Issue #24). Hai schema cùng có một bảng
+ * tên `bootstrap_audit` — `information_schema.tables` trả cả hai row và danh
+ * sách kỳ vọng liệt kê tương ứng (hai entry trùng tên, một cho mỗi schema).
+ */
 const GATEWAY_TABLES: readonly string[] = [
   'seller_tenants',
   'seller_memberships',
@@ -39,7 +46,12 @@ const GATEWAY_TABLES: readonly string[] = [
   'restriction_records',
   'principal_associations',
   'bootstrap_audit',
+  'api_keys',
+  'bootstrap_audit',
 ];
+
+/** Tập bảng nghiệp vụ `llm_tenant` của bước 9 (Issue #24) trên db-llm-tenant. */
+const TENANT_TABLES: readonly string[] = ['tenants', 'memberships', 'bootstrap_audit'];
 
 /** Tập bảng offering của Issue #23 trên db-llm-marketplace. */
 const MARKETPLACE_TABLES: readonly string[] = [
@@ -146,7 +158,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     // catalog: snapshot `information_schema.tables` trước và sau phải bằng nhau.
     const before = await countUserTables('gateway');
     const result = await runApplyCli('gateway', migratorUrl('gateway', db.host, db.port));
-    expect(result.stdout).toContain('done     2 file(s) applied');
+    expect(result.stdout).toContain('done     3 file(s) applied');
     const after = await countUserTables('gateway');
     expect(after).toBe(before);
   });
@@ -160,16 +172,19 @@ describe('llm-api migration runner on real PostgreSQL', () => {
       runApplyCli('gateway', url),
       runApplyCli('gateway', url),
     ]);
-    expect(first.stdout).toContain('done     2 file(s) applied');
-    expect(second.stdout).toContain('done     2 file(s) applied');
+    expect(first.stdout).toContain('done     3 file(s) applied');
+    expect(second.stdout).toContain('done     3 file(s) applied');
     expect(await countUserTables('gateway')).toBe(GATEWAY_TABLES.length);
   });
 
-  it('creates exactly the business tables of each domain slice (gateway 11 seller, tenant 0, marketplace 5 offering)', async () => {
-    // Gateway: đúng tập bảng `llm_seller` của Issue #23 — không bảng lạ.
+  it('creates exactly the business tables of each domain slice (gateway 11 seller + 2 gateway-runtime, tenant 3, marketplace 5 offering)', async () => {
+    // Gateway: đúng tập bảng `llm_seller` của Issue #23 + `llm_gateway` của
+    // bước 9 (Issue #24) — không bảng lạ; hai `bootstrap_audit` là hai bảng
+    // của hai schema khác nhau cùng tên.
     expect(await listUserTables('gateway')).toEqual([...GATEWAY_TABLES].toSorted());
-    // Tenant: namespace-only (slice consumer #24 chưa có bảng nào).
-    expect(await countUserTables('tenant')).toBe(0);
+    // Tenant: đúng tập bảng `llm_tenant` của bước 9 (Issue #24) — không bảng lạ.
+    expect(await listUserTables('tenant')).toEqual([...TENANT_TABLES].toSorted());
+    expect(await countUserTables('tenant')).toBe(TENANT_TABLES.length);
     // Marketplace: đúng tập bảng offering của Issue #23.
     expect(await listUserTables('marketplace')).toEqual([...MARKETPLACE_TABLES].toSorted());
   });
@@ -307,7 +322,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     try {
       await client.query('SELECT pg_advisory_lock(hashtext($1))', ['db-llm-gateway']);
       const result = await runApplyCli('tenant', migratorUrl('tenant', db.host, db.port));
-      expect(result.stdout).toContain('done     1 file(s) applied');
+      expect(result.stdout).toContain('done     2 file(s) applied');
     } finally {
       await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['db-llm-gateway']);
       await client.end();
