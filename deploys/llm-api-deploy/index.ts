@@ -68,6 +68,8 @@ import {
   runtimeRole,
 } from './scripts.js';
 
+import { environmentTriggers } from './environment-triggers.js';
+
 /**
  * Image Node pin (theo DIGEST) để chạy migration trong container gắn platform
  * network — cùng digest mà `deploys/auth-deploy/Dockerfile` ghim.
@@ -346,7 +348,7 @@ const bootstrapGovernance = new command.local.Command(
   {
     create: bootstrapGovernanceScript,
     update: bootstrapGovernanceScript,
-    triggers: [worktreeRoot, ...Object.entries(governanceEnvironment).map(([k, v]) => `${k}=${v}`)],
+    triggers: [worktreeRoot, ...environmentTriggers(governanceEnvironment)],
     environment: governanceEnvironment,
   },
   { dependsOn: [migrateCommands.gateway] },
@@ -386,9 +388,9 @@ const bootstrapMarketplace = new command.local.Command(
     triggers: [
       worktreeRoot,
       upstreamCredentialPlaintext,
-      ...Object.entries(bootstrapMarketplaceEnvironment)
-        .filter(([k]) => k !== 'LLM_UPSTREAM_CREDENTIAL_PLAINTEXT')
-        .map(([k, v]) => `${k}=${v}`),
+      ...environmentTriggers(bootstrapMarketplaceEnvironment, [
+        'LLM_UPSTREAM_CREDENTIAL_PLAINTEXT',
+      ]),
     ],
     environment: bootstrapMarketplaceEnvironment,
   },
@@ -432,10 +434,7 @@ const bootstrapConsumerTenant = new command.local.Command(
     // Trigger trên worktreeRoot + mọi entry environment (k=v): hai URL là
     // output bọc secret (interpolate của password secret) nên state mã hoá
     // entry đó — cùng cơ chế với 8a/8b.
-    triggers: [
-      worktreeRoot,
-      ...Object.entries(bootstrapConsumerTenantEnvironment).map(([k, v]) => `${k}=${v}`),
-    ],
+    triggers: [worktreeRoot, ...environmentTriggers(bootstrapConsumerTenantEnvironment)],
     environment: bootstrapConsumerTenantEnvironment,
   },
   {
@@ -494,10 +493,7 @@ const bootstrapFinancial = new command.local.Command(
     update: bootstrapFinancialScript,
     // Trigger trên worktreeRoot + mọi entry environment (k=v): URL gateway là
     // output bọc secret nên state mã hoá entry đó — cùng cơ chế 8a/8b/bước 9.
-    triggers: [
-      worktreeRoot,
-      ...Object.entries(bootstrapFinancialEnvironment).map(([k, v]) => `${k}=${v}`),
-    ],
+    triggers: [worktreeRoot, ...environmentTriggers(bootstrapFinancialEnvironment)],
     environment: bootstrapFinancialEnvironment,
   },
   {
