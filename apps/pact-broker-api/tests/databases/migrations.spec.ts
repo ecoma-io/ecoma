@@ -283,6 +283,48 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     }
   });
 
+  it('rejects machine token scopes outside the fixed read/write/admin vocabulary', async () => {
+    // Declared limit của credentials doc: CHECK `machine_tokens_scopes_check`
+    // trên cột `scopes` chưa từng được assert — token ngoài tập scope cố định
+    // hoặc sai phân tách dấu cách phải bị PostgreSQL chặn, không phải chỉ ở
+    // tầng validation của route.
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('mt-probe', 'customer', 'free', 'sub-owner-mt-probe')`,
+      );
+      const insertToken = (hash: string, scopes: string) =>
+        runtime.query(
+          `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, scopes)
+           SELECT $1, id, 'probe-token', $2 FROM pact.tenants WHERE name = 'mt-probe'`,
+          [hash, scopes],
+        );
+
+      // Hợp lệ: tập scope phân tách dấu cách, lặp lại cũng được.
+      await insertToken('probe-hash-valid', 'read write');
+      await insertToken('probe-hash-admin', 'admin');
+
+      // Scope ngoài tập cố định → CHECK chặn.
+      await expect(insertToken('probe-hash-deploy', 'read deploy')).rejects.toThrow(
+        /machine_tokens_scopes_check/u,
+      );
+      // Token không scope nào = vô dụng → CHECK chặn.
+      await expect(insertToken('probe-hash-empty', '')).rejects.toThrow(
+        /machine_tokens_scopes_check/u,
+      );
+      // Sai phân tách (dấu phẩy, khoảng trắng kép) → CHECK chặn.
+      await expect(insertToken('probe-hash-comma', 'read,write')).rejects.toThrow(
+        /machine_tokens_scopes_check/u,
+      );
+      await expect(insertToken('probe-hash-double-space', 'read  write')).rejects.toThrow(
+        /machine_tokens_scopes_check/u,
+      );
+    } finally {
+      await runtime.end();
+    }
+  });
+
   it('rejects owner_sub violating tenants_owner_sub_check (empty, spaced, too long)', async () => {
     const runtime = await db.asRuntime();
     try {

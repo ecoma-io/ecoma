@@ -31,6 +31,16 @@ const stripRequestId = (b: unknown): unknown => {
   return rest;
 };
 
+/** Batch publish: content base64 của một contract — có hoặc không có interactions. */
+const base64Pact = (provider: string, withInteractions: boolean): string =>
+  Buffer.from(
+    JSON.stringify(
+      withInteractions
+        ? samplePact({ consumer: 'bo-c', provider })
+        : { consumer: { name: 'bo-c' }, provider: { name: provider } },
+    ),
+  ).toString('base64');
+
 describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
   let db: PactBrokerDatabase;
   let app: ReturnType<typeof buildApp>;
@@ -253,6 +263,23 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     expect(stripRequestId(unknown.body)).toEqual(stripRequestId(missing.body));
   });
 
+  it('answers /matrix and /can-i-deploy without credentials with the same 401 shape as every other route', async () => {
+    // Scenario §4 của verify doc: 401 đồng nhất cho /matrix lẫn /can-i-deploy —
+    // thiếu credential phải cho cùng một hình dạng phản hồi như các route khác,
+    // không phải một hình dạng lỗi riêng.
+    const baseline = await reqJson('/pacticipants');
+    expect(baseline.status).toBe(401);
+
+    const matrix = await reqJson('/matrix?q%5B%5D%5Bpacticipant%5D=any-svc');
+    expect(matrix.status).toBe(401);
+
+    const canIDeploy = await reqJson('/can-i-deploy?pacticipant=any-svc&version=1.0.0');
+    expect(canIDeploy.status).toBe(401);
+
+    expect(stripRequestId(matrix.body)).toEqual(stripRequestId(baseline.body));
+    expect(stripRequestId(canIDeploy.body)).toEqual(stripRequestId(baseline.body));
+  });
+
   it('serves HAL index with compatibility version and publish-contracts link', async () => {
     const { status, body } = await reqJson('/', {
       headers: auth(tenantASecret),
@@ -271,10 +298,22 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     });
     expect(first.status).toBe(201);
 
+    // Hình dạng phản hồi publish được assert trực tiếp ở tầng integration
+    // (scenario §4 "201 kèm contentSha và link publish verification result"),
+    // không chỉ qua unit test của use case.
+    const firstBody = first.body as {
+      contentSha?: string;
+      _links?: Record<string, { href: string }>;
+    };
+    expect(firstBody.contentSha).toMatch(/^[0-9a-f]{64}$/u);
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_links`.
+    expect(firstBody['_links']?.['pb:publish-verification-results']).toBeDefined();
+
     const again = await publishPact(tenantASecret, 'order-service', 'payment-service', '1.0.0', {
       branch: 'main',
     });
     expect(again.status).toBe(200);
+    expect((again.body as { contentSha?: string }).contentSha).toBe(firstBody.contentSha);
   });
 
   it('caps consumerVersionSelectors to prevent query amplification on a read token', async () => {
@@ -889,6 +928,303 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     expect(del.status).toBe(204);
   });
 
+  /** Deploy một version (đã tồn tại) của một pacticipant vào một environment. */
+  async function deployVersion(
+    pacticipant: string,
+    version: string,
+    environment: string,
+  ): Promise<{ status: number }> {
+    return reqJson(
+      `/pacticipants/${encodeURIComponent(pacticipant)}/versions/${encodeURIComponent(version)}/deployed-versions/environment/${encodeURIComponent(environment)}`,
+      { method: 'POST', headers: auth(tenantASecret), body: '{}' },
+    );
+  }
+
+  /** Hỏi /matrix cho một pacticipant với target là một environment. */
+  function matrixForEnvironment(
+    pacticipant: string,
+    environment: string,
+  ): Promise<{
+    status: number;
+    body: unknown;
+  }> {
+    return reqJson(
+      `/matrix?q%5B%5D%5Bpacticipant%5D=${encodeURIComponent(pacticipant)}&environment=${encodeURIComponent(environment)}`,
+      { headers: auth(tenantASecret) },
+    );
+  }
+
+  // Hình dạng wire của matrix row (matrix_decorator): target KHÔNG nằm ở đây —
+  // việc resolve target chỉ thấy được qua `summary.reason` / `notices`.
+  interface MatrixRow {
+    consumer: { name: string; version: { number: string } };
+    provider: {
+      name: string;
+      version: { number: string } | null;
+    };
+    verificationResult: { success: boolean } | null;
+  }
+
+  it('rejects a /matrix request without a pacticipant selector with 400', async () => {
+    const { status, body } = await reqJson('/matrix', { headers: auth(tenantASecret) });
+    expect(status).toBe(400);
+    expect(body).toMatchObject({
+      error: 'Bad Request',
+      message: expect.stringContaining('pacticipant query parameter is required'),
+    });
+  });
+
+  it('matrix reports the provider version currently deployed in the targeted environment', async () => {
+    // Scenario §4 của verify doc: version được ghi đã deploy vào một environment,
+    // /matrix nhắm target environment đó phải báo deployment đó. Target của
+    // matrix là version PROVIDER đang deploy (matrix hỏi "provider đang chạy
+    // prod là ai" khi chọn verification để đối chiếu).
+    await publishPact(tenantASecret, 'mx-c', 'mx-p', '1.0.0', { branch: 'main' });
+    // Version 2.0.0 của provider chưa từng là consumer nào — tạo qua
+    // pb:branch-version resource (cùng đường mà pipeline dùng).
+    const version = await reqJson('/pacticipants/mx-p/branches/main/versions/2.0.0', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: '{}',
+    });
+    expect(version.status).toBe(200);
+
+    const deployed = await deployVersion('mx-p', '2.0.0', 'prod');
+    expect(deployed.status).toBe(201);
+
+    const { status, body } = await matrixForEnvironment('mx-c', 'prod');
+    expect(status).toBe(200);
+    const rows = (body as { matrix: MatrixRow[] }).matrix;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.consumer.name).toBe('mx-c');
+    expect(rows[0]?.consumer.version.number).toBe('1.0.0');
+    expect(rows[0]?.provider.name).toBe('mx-p');
+    expect(rows[0]?.provider.version?.number).toBe('2.0.0');
+    // Pact chưa được verify với version đang chạy → phán quyết không được
+    // rơi về true (fail-closed tri-state).
+    expect((body as { summary: { deployable: boolean | null } }).summary.deployable).toBeNull();
+    // Wire-level bằng chứng target environment đã resolve đúng version deploy:
+    // reason text do describeProvider tạo (nguồn sự thật của matrix summary).
+    expect((body as { notices: Array<{ type: string; text: string }> }).notices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          text: 'There is no verified pact between version 1.0.0 of mx-c and the version of mx-p currently in prod (2.0.0)',
+        }),
+      ]),
+    );
+  });
+
+  it('keeps the undeployed history in the database while /matrix reports no active deployment', async () => {
+    // Scenario §4: sau undeploy, lịch sử deployment còn nhưng không còn
+    // deployment nào hiệu lực — /matrix hết báo version trong prod, còn hàng
+    // deployed_versions vẫn ở lại database với undeployed_at đã set.
+    await publishPact(tenantASecret, 'ux-c', 'ux-p', '1.0.0', { branch: 'main' });
+    await reqJson('/pacticipants/ux-p/branches/main/versions/2.0.0', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: '{}',
+    });
+    expect((await deployVersion('ux-p', '2.0.0', 'prod')).status).toBe(201);
+
+    const undeployed = await reqJson('/pacticipants/ux-p/versions/2.0.0/deployed/prod', {
+      method: 'DELETE',
+      headers: auth(tenantASecret),
+    });
+    expect(undeployed.status).toBe(204);
+
+    const { status, body } = await matrixForEnvironment('ux-c', 'prod');
+    expect(status).toBe(200);
+    const rows = (body as { matrix: MatrixRow[] }).matrix;
+    expect(rows).toHaveLength(1);
+    // Pact vẫn hiện trong matrix (cặp consumer/provider tồn tại), nhưng target
+    // không còn resolve được version nào đang deploy — provider.version null.
+    expect(rows[0]?.provider.version).toBeNull();
+    // Wire-level bằng chứng "target KHÔNG resolve" (resolved:false): reason
+    // phải phân biệt trạng thái này với "chưa ai verify".
+    expect((body as { notices: Array<{ type: string; text: string }> }).notices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          text: 'There is no verified pact between version 1.0.0 of ux-c and a version of ux-p currently in prod (no version is currently recorded as deployed/released in this environment)',
+        }),
+      ]),
+    );
+
+    // Lịch sử còn nguyên trong database: đúng một hàng đã undeploy, không còn
+    // hàng hiệu lực nào.
+    const client = await db.connect();
+    try {
+      const { rows: history } = await client.query<{ active: string; undeployed: string }>(
+        `SELECT count(*) FILTER (WHERE dv.undeployed_at IS NULL) AS active,
+                count(*) FILTER (WHERE dv.undeployed_at IS NOT NULL) AS undeployed
+           FROM pact.deployed_versions dv
+           JOIN pact.environments e ON e.tenant_id = dv.tenant_id AND e.id = dv.environment_id
+          WHERE e.name = 'prod'
+            AND dv.tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')`,
+      );
+      expect(history[0]).toEqual({ active: '0', undeployed: '1' });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('resolves the matrix target with environment before tag before branch and picks the newest verification by verified_at', async () => {
+    // Declared limit của verify doc: thứ tự ưu tiên target environment → tag →
+    // branch và việc chọn verification tốt nhất theo verified_at trước đây chỉ
+    // có bằng chứng trong repository code.
+    await publishPact(tenantASecret, 'pr-c', 'pr-p', '1.0.0', { branch: 'main' });
+    const sha = (
+      await reqJson('/pacts/provider/pr-p/consumer/pr-c/latest', { headers: auth(tenantASecret) })
+    ).body as { contentSha?: string };
+    expect(sha.contentSha).toMatch(/^[0-9a-f]{64}$/u);
+
+    // Ba version của provider có thể trỏ được tới target "rel": 3.0.0 theo
+    // branch, 2.0.0 theo tag, 4.0.0 theo deployment vào environment. Tạo
+    // branch TRƯỚC, tag và environment tạo dần để quan sát từng bậc ưu tiên.
+    for (const [version, branch] of [
+      ['2.0.0', 'main'],
+      ['3.0.0', 'rel'],
+      ['4.0.0', 'main'],
+    ] as const) {
+      const created = await reqJson(`/pacticipants/pr-p/branches/${branch}/versions/${version}`, {
+        method: 'PUT',
+        headers: auth(tenantASecret),
+        body: '{}',
+      });
+      expect(created.status).toBe(200);
+    }
+
+    // 1) Chỉ branch "rel" khớp target (chưa có tag nào, chưa có environment) →
+    // resolution rơi xuống bậc branch → 3.0.0.
+    const byBranchOnly = await reqJson('/matrix?q%5B%5D%5Bpacticipant%5D=pr-c&tag=rel', {
+      headers: auth(tenantASecret),
+    });
+    expect(byBranchOnly.status).toBe(200);
+    const branchRows = (byBranchOnly.body as { matrix: MatrixRow[] }).matrix;
+    expect(branchRows).toHaveLength(1);
+    expect(branchRows[0]?.provider.version?.number).toBe('3.0.0');
+    expect(
+      (byBranchOnly.body as { notices: Array<{ type: string; text: string }> }).notices,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: 'There is no verified pact between version 1.0.0 of pr-c and the latest version of pr-p from branch rel (3.0.0)',
+        }),
+      ]),
+    );
+
+    // 2) Tag "rel" trên 2.0.0 → tag thắng branch.
+    await reqJson('/pacticipants/pr-p/versions/2.0.0/tags/rel', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: '{}',
+    });
+    const byTag = await reqJson('/matrix?q%5B%5D%5Bpacticipant%5D=pr-c&tag=rel', {
+      headers: auth(tenantASecret),
+    });
+    expect(byTag.status).toBe(200);
+    const tagRows = (byTag.body as { matrix: MatrixRow[] }).matrix;
+    expect(tagRows).toHaveLength(1);
+    expect(tagRows[0]?.provider.version?.number).toBe('2.0.0');
+    expect((byTag.body as { notices: Array<{ type: string; text: string }> }).notices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: 'There is no verified pact between version 1.0.0 of pr-c and the latest version of pr-p with tag rel (2.0.0)',
+        }),
+      ]),
+    );
+
+    // 3) Environment "rel" + deploy 4.0.0 vào đó → environment thắng cả tag.
+    await reqJson('/environments/rel', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: JSON.stringify({ displayName: 'Release', production: false }),
+    });
+    expect((await deployVersion('pr-p', '4.0.0', 'rel')).status).toBe(201);
+    const byEnvironment = await matrixForEnvironment('pr-c', 'rel');
+    expect(byEnvironment.status).toBe(200);
+    const envRows = (byEnvironment.body as { matrix: MatrixRow[] }).matrix;
+    expect(envRows).toHaveLength(1);
+    expect(envRows[0]?.provider.version?.number).toBe('4.0.0');
+    expect(
+      (byEnvironment.body as { notices: Array<{ type: string; text: string }> }).notices,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: 'There is no verified pact between version 1.0.0 of pr-c and the version of pr-p currently in rel (4.0.0)',
+        }),
+      ]),
+    );
+
+    // Verification tốt nhất theo thời điểm: mỗi lần ghi đè kết quả cũ, matrix
+    // phải đọc kết quả MỚI NHẤT (fail rồi pass rồi fail), không phải kết quả
+    // đầu tiên hay kết quả tốt nhất.
+    const postVerification = (success: boolean): Promise<{ status: number }> =>
+      reqJson(
+        `/pacts/provider/pr-p/consumer/pr-c/pact-version/${sha.contentSha}/verification-results`,
+        {
+          method: 'POST',
+          headers: auth(tenantASecret),
+          body: JSON.stringify({ success, providerApplicationVersion: '4.0.0' }),
+        },
+      );
+
+    await postVerification(false);
+    let rows = ((await matrixForEnvironment('pr-c', 'rel')).body as { matrix: MatrixRow[] }).matrix;
+    expect(rows[0]?.verificationResult?.success).toBe(false);
+
+    await postVerification(true);
+    rows = ((await matrixForEnvironment('pr-c', 'rel')).body as { matrix: MatrixRow[] }).matrix;
+    expect(rows[0]?.verificationResult?.success).toBe(true);
+
+    await postVerification(false);
+    rows = ((await matrixForEnvironment('pr-c', 'rel')).body as { matrix: MatrixRow[] }).matrix;
+    expect(rows[0]?.verificationResult?.success).toBe(false);
+  });
+
+  it('manages environments end to end: create, list, read by name, update, delete', async () => {
+    // Declared limit của verify doc: CRUD environment trước đây chỉ có bằng
+    // chứng qua đường deployment tự tạo environment.
+    const created = await reqJson('/environments', {
+      method: 'POST',
+      headers: auth(tenantASecret),
+      body: JSON.stringify({ name: 'crud-env', displayName: 'CRUD', production: false }),
+    });
+    expect(created.status).toBe(201);
+    const uuid = (created.body as { uuid?: string }).uuid;
+    expect(uuid).toMatch(/^[0-9a-f-]{36}$/u);
+
+    const list = await reqJson('/environments', { headers: auth(tenantASecret) });
+    expect(list.status).toBe(200);
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_embedded`.
+    const names = (list.body as { _embedded: { environments: Array<{ name: string }> } })[
+      '_embedded'
+    ].environments.map((e) => e.name);
+    expect(names).toContain('crud-env');
+
+    const read = await reqJson('/environments/crud-env', { headers: auth(tenantASecret) });
+    expect(read.status).toBe(200);
+    expect(read.body).toMatchObject({ name: 'crud-env', displayName: 'CRUD', production: false });
+
+    // PUT lên tên đã có là update (route luôn trả 201, hành vi upstream).
+    const updated = await reqJson('/environments/crud-env', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: JSON.stringify({ displayName: 'CRUD renamed', production: true }),
+    });
+    expect(updated.status).toBe(201);
+    expect(updated.body).toMatchObject({ displayName: 'CRUD renamed', production: true });
+
+    const deleted = await reqJson('/environments/crud-env', {
+      method: 'DELETE',
+      headers: auth(tenantASecret),
+    });
+    expect(deleted.status).toBe(204);
+    const gone = await reqJson('/environments/crud-env', { headers: auth(tenantASecret) });
+    expect(gone.status).toBe(404);
+  });
+
   it('contracts/publish batch endpoint matches CLI contract', async () => {
     const payload = {
       pacticipantName: 'batch-c',
@@ -918,6 +1254,179 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
       headers: auth(tenantASecret),
     });
     expect(byTag.status).toBe(200);
+
+    // `notices` của phản hồi batch là một phần contract của CLI: mỗi contract
+    // thành công có notice success, branch và tag ghi rõ trong notice debug.
+    const notices = (body as { notices?: Array<{ type: string; text: string }> }).notices;
+    expect(notices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'success',
+          text: 'Successfully published pact for batch-c version 3.1.0 and provider batch-p',
+        }),
+        expect.objectContaining({
+          type: 'debug',
+          text: 'Version 3.1.0 of batch-c is on branch release/3.1',
+        }),
+        expect.objectContaining({
+          type: 'debug',
+          text: 'Tagged version 3.1.0 of batch-c as "release"',
+        }),
+      ]),
+    );
+  });
+
+  it('retrieves the latest pact of a pair and the latest pact carrying a tag', async () => {
+    // Declared limit của publish doc: GET latest và latest/:tag chưa từng được
+    // assert trực tiếp ở tầng integration.
+    await publishPact(tenantASecret, 'lt-c', 'lt-p', '1.0.0', { branch: 'main' });
+    // Version 2.0.0 publish nội dung KHÁC (mỗi version một nội dung riêng, như
+    // pipeline thật) — nội dung trùng sẽ chạm ràng buộc unique sha theo tenant.
+    const changed = samplePact({ consumer: 'lt-c', provider: 'lt-p', path: '/v2-endpoint' });
+    const second = await reqJson('/pacts/provider/lt-p/consumer/lt-c/version/2.0.0', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: JSON.stringify(changed),
+    });
+    expect(second.status).toBe(201);
+    // Chỉ version 1.0.0 mang tag "ga" — latest/ga phải nhắm đúng version đó.
+    const tagged = await reqJson('/pacticipants/lt-c/versions/1.0.0/tags/ga', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: '{}',
+    });
+    expect(tagged.status).toBe(201);
+
+    const latest = await reqJson('/pacts/provider/lt-p/consumer/lt-c/latest', {
+      headers: auth(tenantASecret),
+    });
+    expect(latest.status).toBe(200);
+    const latestBody = latest.body as { consumerVersion?: string; contentSha?: string };
+    expect(latestBody.consumerVersion).toBe('2.0.0');
+    expect(latestBody.contentSha).toMatch(/^[0-9a-f]{64}$/u);
+
+    const latestByTag = await reqJson('/pacts/provider/lt-p/consumer/lt-c/latest/ga', {
+      headers: auth(tenantASecret),
+    });
+    expect(latestByTag.status).toBe(200);
+    expect((latestByTag.body as { consumerVersion?: string }).consumerVersion).toBe('1.0.0');
+
+    // Tag không khớp version nào → 404, không phải rơi về latest không tag.
+    const unknownTag = await reqJson('/pacts/provider/lt-p/consumer/lt-c/latest/no-such-tag', {
+      headers: auth(tenantASecret),
+    });
+    expect(unknownTag.status).toBe(404);
+  });
+
+  it('keeps recorded verification results attached when a version is republished with different content', async () => {
+    // Declared limit của publish doc: republish nội dung khác giữ verification
+    // result chỉ được assert qua unit test của use case — scenario §4 yêu cầu
+    // bằng chứng integration trực tiếp.
+    const first = await publishPact(tenantASecret, 'rp-c', 'rp-p', '1.0.0');
+    expect(first.status).toBe(201);
+    const firstSha = (first.body as { contentSha?: string }).contentSha;
+    expect(firstSha).toMatch(/^[0-9a-f]{64}$/u);
+
+    const verification = await reqJson(
+      `/pacts/provider/rp-p/consumer/rp-c/pact-version/${firstSha}/verification-results`,
+      {
+        method: 'POST',
+        headers: auth(tenantASecret),
+        body: JSON.stringify({ success: true, providerApplicationVersion: '2.0.0' }),
+      },
+    );
+    expect(verification.status).toBe(201);
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_links`.
+    const verificationId = /verification-results\/([0-9a-f-]{36})$/u.exec(
+      (verification.body as { _links: { self: { href: string } } })['_links'].self.href,
+    )?.[1];
+    expect(verificationId).toBeDefined();
+
+    // Republish CÙNG version với nội dung khác → 200, contentSha phải đổi.
+    const changed = samplePact({ consumer: 'rp-c', provider: 'rp-p', path: '/v2-endpoint' });
+    expect(JSON.stringify(changed)).not.toBe(
+      JSON.stringify(samplePact({ consumer: 'rp-c', provider: 'rp-p' })),
+    );
+    const republished = await reqJson('/pacts/provider/rp-p/consumer/rp-c/version/1.0.0', {
+      method: 'PUT',
+      headers: auth(tenantASecret),
+      body: JSON.stringify(changed),
+    });
+    expect(republished.status).toBe(200);
+    const newSha = (republished.body as { contentSha?: string }).contentSha;
+    expect(newSha).toMatch(/^[0-9a-f]{64}$/u);
+    expect(newSha).not.toBe(firstSha);
+
+    // Verification cũ vẫn gắn với pact: đọc lại được qua SHA MỚI với cùng id.
+    const reRead = await reqJson(
+      `/pacts/provider/rp-p/consumer/rp-c/pact-version/${newSha}/verification-results/${verificationId}`,
+      { headers: auth(tenantASecret) },
+    );
+    expect(reRead.status).toBe(200);
+    expect(reRead.body).toMatchObject({ success: true, providerApplicationVersion: '2.0.0' });
+
+    // Append-only: không có hàng thứ hai nào được tạo sau republish.
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ count: string }>(
+        `SELECT count(*) AS count FROM pact.verifications
+          WHERE tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')`,
+      );
+      expect(rows[0]?.count).toBe('1');
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('writes nothing from a batch publish when one contract is malformed', async () => {
+    // Scenario §4 của publish doc: batch có một contract sai cấu trúc → nhận
+    // lỗi và KHÔNG contract nào trong batch được ghi, kể cả contract hợp lệ.
+    const rejected = await reqJson('/contracts/publish', {
+      method: 'POST',
+      headers: auth(tenantASecret),
+      body: JSON.stringify({
+        pacticipantName: 'bo-c',
+        pacticipantVersionNumber: '1.0.0',
+        contracts: [
+          {
+            consumerName: 'bo-c',
+            providerName: 'bo-good-p',
+            content: base64Pact('bo-good-p', true),
+          },
+          {
+            consumerName: 'bo-c',
+            providerName: 'bo-bad-p',
+            content: base64Pact('bo-bad-p', false),
+          },
+        ],
+      }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body).toMatchObject({
+      error: 'Bad Request',
+      message: 'contract content must be base64-encoded pact JSON',
+    });
+
+    // Contract hợp lệ cũng phải vắng mặt: không pact, không version, không
+    // pacticipant nào của batch được ghi.
+    const goodPactGone = await reqJson('/pacts/provider/bo-good-p/consumer/bo-c/latest', {
+      headers: auth(tenantASecret),
+    });
+    expect(goodPactGone.status).toBe(404);
+
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ pacticipants: string; versions: string }>(
+        `SELECT (SELECT count(*) FROM pact.pacticipants
+                  WHERE tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')
+                    AND name IN ('bo-c', 'bo-good-p', 'bo-bad-p')) AS pacticipants,
+                (SELECT count(*) FROM pact.versions
+                  WHERE tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')) AS versions`,
+      );
+      expect(rows[0]).toEqual({ pacticipants: '0', versions: '0' });
+    } finally {
+      await client.end();
+    }
   });
 
   it('webhook execute is disabled: 202 with no outbound connection (SR-006)', async () => {
