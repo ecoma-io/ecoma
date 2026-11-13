@@ -209,6 +209,16 @@ describe('users and the tombstone', () => {
       //   chỉ giữ **hash** (không lưu địa chỉ thô), còn `email_addresses` giữ cả
       //   hai: hash để tra cứu, dạng chuẩn hoá để chủ tài khoản xem được địa chỉ
       //   của mình.
+      // - `invitations.address_hash|address_normalized`: kênh lời mời
+      //   (0012/0013, ADR-0030 Quyết định 1 chỉ định rõ nội dung tối thiểu
+      //   "`address_hash` (kèm `address_normalized`)"). Lời mời là authorization
+      //   record cho MỘT địa chỉ: hash là khoá tra cứu của exclusivity (partial
+      //   UNIQUE), của challenge (mã thật chỉ đi ra cho địa chỉ có lời mời mở)
+      //   và của chấp nhận; dạng chuẩn hoá là dữ liệu nguồn của địa chỉ được mời
+      //   khi chấp nhận sinh `email_addresses` — hash không đảo ngược được, nên
+      //   không có cột này thì record không mang lại địa chỉ nào cả. Kênh này
+      //   giữ địa chỉ của NGƯỜI ĐƯỢC MỜI trong lúc lời mời còn mở — sau khi
+      //   accept, dữ liệu địa chỉ sống duy nhất ở `email_addresses` như trên.
       // - `user_profiles.display_name|avatar_url` và
       //   `user_preferences.locale|timezone`: data domain v1 (`0008`) — tên
       //   hiển thị, avatar và preference là dữ liệu định nghĩa của nhóm (2),
@@ -218,6 +228,8 @@ describe('users and the tombstone', () => {
         'email_addresses.address_normalized',
         'email_addresses.address_hash',
         'otp_challenges.address_hash',
+        'invitations.address_hash',
+        'invitations.address_normalized',
         'user_profiles.display_name',
         'user_profiles.avatar_url',
         'user_preferences.locale',

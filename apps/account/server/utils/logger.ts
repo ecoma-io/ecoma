@@ -70,6 +70,12 @@ const ALLOWED_FIELDS = [
   // "Binding này có thuộc về session đang trình X không" — boolean kết luận của
   // phép so khớp, không dẫn được về giá trị handle hay về session_ref.
   'bound_to_current',
+  // UUID của hàng lời mời vừa phát — nối dòng log phát với provenance chấp nhận
+  // trong `security_events` (ADR-0030). Định danh điều hành, không phải dữ liệu user.
+  'invitation_id',
+  // Id tương quan của lần phát lời mời — nối dòng log với hàng `invitations`
+  // cùng tên cột. UUID do server sinh.
+  'correlation_id',
 ] as const;
 
 /** Field trong allowlist mà giá trị bắt buộc phải đã băm trước. */
@@ -97,6 +103,10 @@ export interface LogFields {
   binding_kind?: 'missing' | 'binding_mismatch' | 'unusable' | 'matched';
   /** Kết luận so khớp "binding có thuộc session trình X không". */
   bound_to_current?: boolean;
+  /** UUID của hàng lời mời vừa phát (ADR-0030) — định danh điều hành. */
+  invitation_id?: string;
+  /** Id tương quan của lần phát lời mời — nối log với cột cùng tên của `invitations`. */
+  correlation_id?: string;
 }
 
 /** Bao nhiêu ký tự được giữ lại cho mỗi field trước khi cắt. */

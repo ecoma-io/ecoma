@@ -20,6 +20,7 @@ const EXPECTED_TABLES = [
   'account_sessions',
   'email_addresses',
   'internal_nonces',
+  'invitations',
   'login_handoffs',
   'notification_preferences',
   'otp_challenges',
@@ -79,11 +80,15 @@ describe('db-account migrations on a real PostgreSQL', () => {
   it('leaves the runtime role able to do DML and nothing else', async () => {
     const runtime = await db.asRuntime();
     try {
-      // `0011_bootstrap_write_guards.sql` thu hồi INSERT trên `account.users` từ
-      // runtime: runtime không được tạo user. SELECT và UPDATE vẫn giữ.
+      // `0011` thu hồi INSERT trên `account.users`, và `0013` trả lại quyền đó
+      // KÈM birth-guard ràng buộc bằng dữ liệu lời mời (ADR-0030 Quyết định 5):
+      // INSERT của runtime KHÔNG kèm dữ liệu chấp nhận lời mời phải bị trigger
+      // từ chối — lỗi là của trigger (insufficient_privilege), không phải của
+      // grant, nên thông báo là thông báo guard chứ không phải "permission
+      // denied" của grant. SELECT và UPDATE vẫn giữ.
       await expect(
         runtime.query(`INSERT INTO account.users (sub) VALUES ($1)`, ['sub-migrations-smoke']),
-      ).rejects.toThrow(/permission denied/iu);
+      ).rejects.toThrow(/invitation-acceptance transaction/iu);
 
       const { rows } = await runtime.query<{ sub: string }>(
         `SELECT sub FROM account.users LIMIT 1`,

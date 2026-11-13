@@ -94,6 +94,7 @@ import {
   resolveOtpTarget,
 } from '../../lib/otp';
 import { LOGIN_HANDOFF_TTL_SECONDS, bindHandleFirst, hashHandle } from '../../lib/handoff';
+import { findOpenInvitation } from '../../lib/invitation';
 import {
   ANONYMOUS_SESSION_TTL_SECONDS,
   SESSION_COOKIE_NAME,
@@ -352,6 +353,14 @@ export default defineEventHandler(async (event) => {
       // Tra cứu địa chỉ — quyết định gửi mail hay không, KHÔNG quyết định response.
       const target = resolveOtpTarget(await lookupVerifiedAddress(pool, hash));
 
+      // Kênh lời mời (ADR-0030 Quyết định 2): địa chỉ CHƯA có hàng email nhưng
+      // đang có lời mời mở cũng nhận mã **thật** — người được mời đi qua đúng
+      // luồng email-OTP của đăng nhập, và verify là nơi chuyển luồng sang chấp
+      // nhận. Response vẫn 204 mọi nhánh (anti-enumeration không đổi); tín hiệu
+      // "địa chỉ này được mời" chỉ lộ qua việc mail tới — đúng tín hiệu mà địa
+      // chỉ đã verified có từ trước.
+      const invited = target.kind !== 'verified' && (await findOpenInvitation(pool, hash)) !== null;
+
       let inserted: { id: string; expiresAt: Date } | undefined;
       try {
         inserted = await insertChallenge(pool, {
@@ -381,7 +390,7 @@ export default defineEventHandler(async (event) => {
         throw error;
       }
 
-      if (target.kind !== 'verified') {
+      if (target.kind !== 'verified' && !invited) {
         // Challenge ma: digest được ghi (rate-limit địa chỉ lạ như địa chỉ thật),
         // mail KHÔNG đi ra. Log mã ổn định — không log địa chỉ (đó là dữ liệu
         // định danh, SR-001; address_hash đủ để điều tra mà không lộ).
