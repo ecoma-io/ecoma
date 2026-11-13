@@ -28,6 +28,11 @@
     "src/connections.ts",
     "src/env.ts",
     "src/index.ts",
+    "src/admission.ts",
+    "src/api-errors.ts",
+    "src/upstream.ts",
+    "src/financial-state.ts",
+    "src/chat-completions.ts",
     "db/**/*.mts"
   ]
 }

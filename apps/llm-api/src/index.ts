@@ -4,7 +4,8 @@
  * `build/index.js` (Nx target `build`).
  *
  * Hợp đồng HTTP đóng băng (Issue #22, review PR #113; body `/v1/models` ĐÃ
- * được Issue #23 thay bằng catalogue thật, các quy tắc còn lại giữ nguyên):
+ * được Issue #23 thay bằng catalogue thật; POST /v1/chat/completions ĐÃ được
+ * Issue #24 slice P4 thêm vào — các quy tắc còn lại giữ nguyên):
  * - `GET /health` → 200 liveness `ok` (`text/plain; charset=utf-8`), KHÔNG
  *   chạm database.
  * - `GET /ready` → 200 `ready` khi cả ba Hyperdrive binding `SELECT 1`
@@ -12,8 +13,15 @@
  * - `GET /v1/models` và `GET /llm/v1/models` → cùng handler: readiness gate
  *   trước, rồi catalogue model `active`; 503 fail-closed khi DB chưa ready,
  *   catalogue lỗi, hay một offer không ánh xạ được owner.
- * - Method không phải GET trên một path đã định nghĩa (`/health`, `/ready`,
- *   `/v1/models`, `/llm/v1/models`) → 405 kèm header `allow: GET` — HEAD và
+ * - `POST /v1/chat/completions` và `POST /llm/v1/chat/completions` → cùng
+ *   handler serving (slice P4, Issue #24): admission → dispatch → settlement
+ *   (`chat-completions.ts`); lỗi API ổn định dạng envelope OpenAI
+ *   (`application/json`, bảng mã ở `api-errors.ts`); 503 fail-closed KÈM
+ *   header `retry-after` cho các trạng thái retry được.
+ * - Method không phải GET trên các path GET (`/health`, `/ready`,
+ *   `/v1/models`, `/llm/v1/models`) → 405 kèm header `allow: GET`; method
+ *   không phải POST trên các path POST (`/v1/chat/completions`,
+ *   `/llm/v1/chat/completions`) → 405 kèm header `allow: POST` — HEAD và
  *   OPTIONS cũng thuộc nhánh 405, không bao giờ biến thành response thành công.
  * - Path khác → 404 `not found`, bất kể method; không có route `/llm/*` nào
  *   khác (`/llm/health`, `/llm/ready` vẫn 404).
@@ -27,6 +35,7 @@ import type { LlmApiEnv } from './env';
 import { createBindingLimiters } from './connections';
 import { BINDING_STATUS_LABELS, failures, isReady, probeReadiness } from './readiness';
 import { modelsListBody, servingCatalogue } from './models';
+import { serveChatCompletions } from './chat-completions';
 
 /** Hono env của app — bindings là ba Hyperdrive binding, không variables. */
 export type AppEnv = {
@@ -82,6 +91,19 @@ function getOnly(
   handler: (c: Context<AppEnv>) => Response | Promise<Response>,
 ): void {
   app.all(path, (c) => (c.req.method === 'GET' ? handler(c) : methodNotAllowed()));
+}
+
+/** 405 kèm `allow: POST` — path POST-only của serving (cùng nguyên tắc `getOnly`). */
+function postOnly(
+  app: Hono<AppEnv>,
+  path: string,
+  handler: (c: Context<AppEnv>) => Response | Promise<Response>,
+): void {
+  app.all(path, (c) =>
+    c.req.method === 'POST'
+      ? handler(c)
+      : new Response(bytes('method not allowed'), { status: 405, headers: { allow: 'POST' } }),
+  );
 }
 
 /** App đầy đủ — dùng bởi Worker fetch và bởi test (`app.request()`). */
@@ -143,6 +165,14 @@ export function buildApp(): Hono<AppEnv> {
   // `/llm` là public contract (docs/architecture/01, bảng domain; A13 ranh
   // giới routing), production giữ nguyên tiền tố khi forward vào Worker.
   getOnly(app, '/llm/v1/models', modelsHandler);
+
+  // POST /v1/chat/completions — serving path đầy đủ admission → dispatch →
+  // settlement (slice P4, Issue #24). Readiness gate + fail-closed ở mọi bước
+  // nằm trong `serveChatCompletions`; route chỉ đăng ký POST-only.
+  const chatCompletionsHandler = (c: Context<AppEnv>): Promise<Response> =>
+    serveChatCompletions(c, limiters);
+  postOnly(app, '/v1/chat/completions', chatCompletionsHandler);
+  postOnly(app, '/llm/v1/chat/completions', chatCompletionsHandler);
 
   // Path lạ → 404 bất kể method. Không thêm route `/llm/*` khác: `/health` và
   // `/ready` là deployment-internal, probe trên đường mạng container, không qua
