@@ -1,6 +1,6 @@
 # LLM Upstream Mock
 
-Mock upstream OpenAI-compatible **chỉ phục vụ testing** (`@ecoma-io/llm-upstream-mock`): mô phỏng đúng subset bề mặt upstream mà `llm-api` tiêu thụ — `POST /v1/chat/completions` (stream/non-stream) và `GET /v1/models` — kèm ma trận lỗi inject được qua env hoặc header per-request. Server Node thuần (`node:http`), listen `127.0.0.1` (`src/main.ts:16`), không dependency runtime nào trong `package.json`.
+Mock upstream OpenAI-compatible **chỉ phục vụ testing** (`@ecoma-io/llm-upstream-mock`): mô phỏng đúng subset bề mặt upstream mà `llm-api` tiêu thụ — `POST /v1/chat/completions` (stream/non-stream) và `GET /v1/models` — kèm ma trận lỗi inject được qua env hoặc header per-request. Server Node thuần (`node:http`), không dependency runtime nào trong `package.json`.
 
 Nx project `@ecoma-io/llm-upstream-mock`, tags `type:tooling`, `runtime:native`, `scope:local`.
 
@@ -14,14 +14,14 @@ Nx project `@ecoma-io/llm-upstream-mock`, tags `type:tooling`, `runtime:native`,
 - Hai route: `POST /v1/chat/completions` (nhận diện `"stream": true` → SSE 3 chunk `chat.completion.chunk` + sentinel `data: [DONE]`; non-stream → JSON `chat.completion`) và `GET /v1/models` (`src/server.ts`).
 - Sáu scenario (`SCENARIOS` trong `src/config.ts:11`): `ok`, `unauthorized` (401 `invalid_api_key`), `rate_limited` (429 + `retry-after: 1`), `server_error` (500 `api_error`), `timeout` (giữ socket đến `MOCK_UPSTREAM_TIMEOUT_MS` rồi destroy), `malformed` (200 nhưng thiếu `choices`/`usage`).
 - Scenario mặc định qua env `MOCK_UPSTREAM_SCENARIO`; override per-request bằng header `x-mock-scenario` (`SCENARIO_HEADER`) — sai tên scenario → `400`, không fallback âm thầm.
-- Config toàn env, tùy chọn, fail-fast khi boot (`src/config.ts`): `MOCK_UPSTREAM_PORT` (mặc định 8787, `0` = ephemeral), `MOCK_UPSTREAM_MODELS`, `MOCK_UPSTREAM_CONTENT`, `MOCK_UPSTREAM_TIMEOUT_MS`, `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION` (tắt mặc định — bật kiểm `Authorization` đúng giá trị: chuỗi đơn hoặc mảng JSON cho rotation; sai/thiếu → `401 invalid_api_key`).
+- Config toàn env, tùy chọn, fail-fast khi boot (`src/config.ts`): `MOCK_UPSTREAM_PORT` (mặc định 8787, `0` = ephemeral), `MOCK_UPSTREAM_HOST` (mặc định `127.0.0.1` — địa chỉ bind của listen socket; hostname hoặc IP literal, ví dụ `0.0.0.0` cho chế độ container), `MOCK_UPSTREAM_MODELS`, `MOCK_UPSTREAM_CONTENT`, `MOCK_UPSTREAM_TIMEOUT_MS`, `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION` (tắt mặc định — bật kiểm `Authorization` đúng giá trị: chuỗi đơn hoặc mảng JSON cho rotation; sai/thiếu → `401 invalid_api_key`).
 - Response cấu trúc không chịu scenario: route lạ → `404`, sai method → `405` + header `Allow`, body JSON hỏng → `400` — dùng chung phong bì lỗi OpenAI.
 
 ## Boundaries
 
 - Không dùng ngoài testing: không nằm trong production topology, không auth thật (401 chỉ đến từ scenario `unauthorized`, hoặc từ gate `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION` khi bật — opt-in test-only, so sánh timing-safe; log chỉ ghi verdict một-bit `auth=ok|rejected`, không bao giờ giá trị header).
 - Không phải SSE fidelity đầy đủ: nhánh stream chỉ đủ để client phân biệt stream thành công — embeddings, legacy completions, tool calls không có trong surface.
-- Không wiring container vào lane local platform; mock chạy bằng process `tsx` trên host.
+- Chạy ở MỘT trong hai chế độ, đều chỉ phục vụ testing: **host** (mặc định — process `tsx` trên loopback, dùng cho integration suite của `llm-api`), hoặc **container trên lane local** — target `test-lane-up` của `deploys/llm-api-deploy` dựng container trên platform network với `MOCK_UPSTREAM_HOST=0.0.0.0` cho suite E2E `system-tests/e2e/llm-inference-e2e` truy cập qua DNS nội bộ. Mock không tự quản lý vòng đời container nào — lifecycle thuộc lane target, mock chỉ là process phục vụ HTTP.
 - Non-goal phát sinh surface mới khi chưa có consumer thật — quyết định phạm vi owner ghi tại Issue #132.
 
 ## Development

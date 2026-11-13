@@ -10,13 +10,14 @@
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { MockConfig } from './config.js';
+import { DEFAULT_HOST, type MockConfig } from './config.js';
 import { startMockServer, type RunningMockServer } from './server.js';
 
 /** Config base cho suite — port 0 (ephemeral), hai model, content cố định. */
 function baseConfig(overrides: Partial<MockConfig> = {}): MockConfig {
   return {
     port: 0,
+    host: DEFAULT_HOST,
     defaultScenario: 'ok',
     models: ['mock-a', 'mock-b'],
     content: 'Hello from llm-upstream-mock.',

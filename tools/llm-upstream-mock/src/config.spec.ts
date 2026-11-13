@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigError,
   DEFAULT_CONTENT,
+  DEFAULT_HOST,
   DEFAULT_MODELS,
   DEFAULT_PORT,
   DEFAULT_SCENARIO,
@@ -37,6 +38,7 @@ describe('parseConfig defaults', () => {
   it('falls back to every default when the environment is empty', () => {
     expect(parseConfig({})).toEqual({
       port: DEFAULT_PORT,
+      host: DEFAULT_HOST,
       defaultScenario: DEFAULT_SCENARIO,
       models: DEFAULT_MODELS,
       content: DEFAULT_CONTENT,
@@ -48,6 +50,7 @@ describe('parseConfig defaults', () => {
     expect(
       parseConfig({
         MOCK_UPSTREAM_PORT: '',
+        MOCK_UPSTREAM_HOST: '',
         MOCK_UPSTREAM_SCENARIO: '',
         MOCK_UPSTREAM_MODELS: '',
         MOCK_UPSTREAM_CONTENT: '',
@@ -115,6 +118,20 @@ describe('parseConfig valid values', () => {
       parseConfig({ MOCK_UPSTREAM_EXPECTED_AUTHORIZATION: '' }).expectedAuthorization,
     ).toBeUndefined();
   });
+
+  it('keeps the host-only default binding when MOCK_UPSTREAM_HOST is unset or empty', () => {
+    expect(parseConfig({}).host).toBe(DEFAULT_HOST);
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: '' }).host).toBe(DEFAULT_HOST);
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: '   ' }).host).toBe(DEFAULT_HOST);
+  });
+
+  it('accepts hostname and IP literal bind addresses for the container mode', () => {
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: '0.0.0.0' }).host).toBe('0.0.0.0');
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: 'localhost' }).host).toBe('localhost');
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: '::' }).host).toBe('::');
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: '[::1]' }).host).toBe('[::1]');
+    expect(parseConfig({ MOCK_UPSTREAM_HOST: ' ecoma-mock ' }).host).toBe('ecoma-mock');
+  });
 });
 
 describe('parseConfig rejects an invalid authorization expectation', () => {
@@ -178,6 +195,15 @@ describe('parseConfig rejects invalid values', () => {
     const fractional = caughtFromParse({ MOCK_UPSTREAM_TIMEOUT_MS: '1.5' });
     expect(fractional).toBeInstanceOf(ConfigError);
     expect((fractional as ConfigError).message).toContain('MOCK_UPSTREAM_TIMEOUT_MS');
+  });
+
+  it('rejects a bind address that is not a hostname or IP literal', () => {
+    const spaced = caughtFromParse({ MOCK_UPSTREAM_HOST: 'not a host' });
+    expect(spaced).toBeInstanceOf(ConfigError);
+    expect((spaced as ConfigError).message).toContain('MOCK_UPSTREAM_HOST');
+    const url = caughtFromParse({ MOCK_UPSTREAM_HOST: 'http://127.0.0.1:8787' });
+    expect(url).toBeInstanceOf(ConfigError);
+    expect((url as ConfigError).message).toContain('MOCK_UPSTREAM_HOST');
   });
 });
 

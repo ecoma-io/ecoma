@@ -25,6 +25,14 @@ export const SCENARIO_HEADER = 'x-mock-scenario';
 /** Cấu hình đã parse của server. Tất cả field read-only để handler không mutate. */
 export interface MockConfig {
   readonly port: number;
+  /**
+   * Địa chỉ bind của listen socket. Mặc định `127.0.0.1` — hợp đồng host-only
+   * của PR #137 giữ nguyên khi biến không set. Giá trị `0.0.0.0` là chế độ
+   * container: lane local mount mock vào platform network (`deploys/llm-api-deploy`
+   * target `test-lane-up`), nơi ephemeral client kết nối qua DNS nội bộ chứ
+   * không qua loopback của container.
+   */
+  readonly host: string;
   readonly defaultScenario: Scenario;
   readonly models: readonly string[];
   readonly content: string;
@@ -41,6 +49,7 @@ export interface MockConfig {
 export class ConfigError extends Error {}
 
 export const DEFAULT_PORT = 8787;
+export const DEFAULT_HOST = '127.0.0.1';
 export const DEFAULT_SCENARIO: Scenario = 'ok';
 export const DEFAULT_MODELS: readonly string[] = ['mock-chat-model'];
 export const DEFAULT_CONTENT = 'Hello from llm-upstream-mock.';
@@ -130,6 +139,26 @@ function parseExpectedAuthorization(
   return parsed;
 }
 
+/**
+ * Parse `MOCK_UPSTREAM_HOST`: unset/rỗng → `127.0.0.1` (hợp đồng mặc định giữ
+ * nguyên). Giá trị khác phải là hostname hoặc IP literal (IPv4, IPv6 cả hai
+ * dạng raw lẫn bracket) — parse sai hình là `ConfigError` ngay lúc boot: một
+ * mock bind nhầm địa chỉ còn nguy hơn mock không chạy, consumer test sẽ xanh
+ * giả hoặc không nối được. Node vẫn reject giá trị hình đúng mà không route
+ * được ở `listen` — lớp cuối đó nằm ngoài config.
+ */
+function parseHost(env: Record<string, string | undefined>): string {
+  const raw = env['MOCK_UPSTREAM_HOST'];
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_HOST;
+  }
+  const value = raw.trim();
+  if (!/^[a-zA-Z0-9._:\-[\]]+$/u.test(value)) {
+    throw new ConfigError(`MOCK_UPSTREAM_HOST must be a hostname or IP literal, got: ${value}`);
+  }
+  return value;
+}
+
 /** Parse toàn bộ config từ một map env-like (inject được để unit test). */
 export function parseConfig(env: Record<string, string | undefined>): MockConfig {
   const rawScenario = env['MOCK_UPSTREAM_SCENARIO'];
@@ -146,6 +175,7 @@ export function parseConfig(env: Record<string, string | undefined>): MockConfig
 
   return {
     port: parsePositiveInt(env, 'MOCK_UPSTREAM_PORT', DEFAULT_PORT, 65_535),
+    host: parseHost(env),
     defaultScenario,
     models: parseModels(env),
     content:
