@@ -21,6 +21,7 @@ Nx project `@ecoma-io/llm-seller`, tags `type:composition`, `scope:llm-seller`, 
 
 ## Boundaries
 
+- **Không có bề mặt seller trong M1** — spec seller quyết bootstrap-only ([`seller-offering.md`](../../docs/features/llm-marketplace/seller-offering.md) §3): không UI hay HTTP API nào để tạo/sửa offer, endpoint, credential hay giá; supported interface cho mọi thao tác seller là bootstrap runner của `llm-api` (8a governance, 8b marketplace — spec §5). Component không có đường đăng nhập seller và không sở hữu dữ liệu nghiệp vụ nào; bổ sung bề mặt là mục tiêu tương lai, phải qua cập nhật feature spec trước khi có slice delivery.
 - Không có binding Hyperdrive/D1/R2/KV/Queue nào trong `wrangler.jsonc`, không có Service Binding, không có `runtimeConfig` — mọi dữ liệu nghiệp vụ chỉ có thể đi qua API của context owning (composition mapping → `docs/applications/llm-seller/README.md`).
 - Không có OIDC client id/secret, session signing key, provider credential hay credential nào khác trong repo này; không có đường bypass xác thực cho demo.
 - Component không sở hữu bounded context nào — Seller tenant, governance, pricing và marketplace là context riêng với domain model tại `docs/domains/<context>/`.
