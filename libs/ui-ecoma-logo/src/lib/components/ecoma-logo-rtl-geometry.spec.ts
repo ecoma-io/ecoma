@@ -132,8 +132,9 @@ describe('EcomaLogo RTL geometry', () => {
     expect(style).toBeDefined();
     expect(style).toMatch(/translateX\(/u);
     // Regex chặn **mọi** hàm biến đổi có dấu trừ bên trong ngoặc — `scale(-…)`,
-    // `scaleX/Y/Z(-…)`, `scale3d(-1,…)`, `matrix(…,-1,…)` đều lật nét chữ, nên
-    // chặn theo dạng hàm + dấu trừ thay vì liệt kê từng tên.
-    expect(style).not.toMatch(/(?:scale|matrix)\s*\([^)]*-/u);
+    // `scaleX/Y/Z(-…)`, `scale3d(-1,…)`, `matrix(…,-1,…)` đều lật nét chữ. `\w*`
+    // bắt tiền tố hàm (`X`, `Y`, `Z`, `3d`) giữa tên và dấu ngoặc; không khớp
+    // `translateX(-…)` vì không bắt đầu bằng `scale`/`matrix`.
+    expect(style).not.toMatch(/(?:scale|matrix)\w*\(\s*[^)]*-/u);
   });
 });
