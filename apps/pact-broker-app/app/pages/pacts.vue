@@ -69,6 +69,12 @@ const verificationKind = (row: MatrixRow): 'success' | 'failed' | 'none' => {
   }
   return 'none';
 };
+
+/**
+ * View-model mỗi row — `verificationKind` tính đúng MỘT lần mỗi row mỗi render,
+ * không gọi lại trong từng `v-if`/`v-else-if` của ô Verification.
+ */
+const displayRows = computed(() => rows.value.map((row) => ({ row, kind: verificationKind(row) })));
 </script>
 
 <template>
@@ -113,26 +119,24 @@ const verificationKind = (row: MatrixRow): 'success' | 'failed' | 'none' => {
         </thead>
         <tbody>
           <tr
-            v-for="(row, index) in rows"
+            v-for="(entry, index) in displayRows"
             :key="index"
             class="border-b border-border last:border-0"
           >
-            <td class="px-4 py-2 font-medium">{{ nameOf(row.consumer?.name) }}</td>
-            <td class="px-4 py-2">{{ nameOf(row.provider?.name) }}</td>
+            <td class="px-4 py-2 font-medium">{{ nameOf(entry.row.consumer?.name) }}</td>
+            <td class="px-4 py-2">{{ nameOf(entry.row.provider?.name) }}</td>
             <td class="px-4 py-2 font-mono text-xs">
-              {{ nameOf(row.consumer?.version?.number) }}
+              {{ nameOf(entry.row.consumer?.version?.number) }}
             </td>
             <td class="px-4 py-2">
               <span
-                v-if="verificationKind(row) === 'success'"
+                v-if="entry.kind === 'success'"
                 class="text-emerald-600 dark:text-emerald-400"
                 >{{ t('pacts.verificationSuccess') }}</span
               >
-              <span
-                v-else-if="verificationKind(row) === 'failed'"
-                class="text-red-600 dark:text-red-400"
-                >{{ t('pacts.verificationFailed') }}</span
-              >
+              <span v-else-if="entry.kind === 'failed'" class="text-red-600 dark:text-red-400">{{
+                t('pacts.verificationFailed')
+              }}</span>
               <span v-else class="text-muted-foreground">{{ t('pacts.verificationNone') }}</span>
             </td>
           </tr>

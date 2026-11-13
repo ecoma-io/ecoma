@@ -271,9 +271,23 @@ function psqlSync(containerName: string, sql: string): void {
     { encoding: 'utf8' },
   );
   if (result.status !== 0) {
-    throw new Error(`psql failed (exit ${String(result.status)}):\n${result.stderr.slice(-1000)}`);
+    // psql in lại SQL lỗi (context LINE n) — với DO $$ CREATE ROLE thì SQL đó
+    // chứa mật khẩu role, phải redact trước khi đưa vào error (cùng luật với
+    // `runApiCliScript`).
+    throw new Error(
+      `psql failed (exit ${String(result.status)}):\n` +
+        redact(result.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+    );
   }
 }
+
+/**
+ * Allowlist role được phép nội suy vào SQL — PostgreSQL không bind được
+ * placeholder cho identifier (`CREATE ROLE <name>`) nên interpolation là bắt
+ * buộc; property an toàn đến từ việc chỉ hai hằng số module-level này được
+ * chấp nhận, không bao giờ từ input động.
+ */
+const PROVISIONABLE_ROLE_NAMES: ReadonlySet<string> = new Set([MIGRATOR_ROLE, RUNTIME_ROLE]);
 
 /**
  * Provision role LOGIN cho migrator/runtime bằng superuser — đúng khối
@@ -282,6 +296,10 @@ function psqlSync(containerName: string, sql: string): void {
  */
 function provisionRoles(containerName: string): void {
   for (const role of [MIGRATOR_ROLE, RUNTIME_ROLE]) {
+    // Ghim allowlist trước khi nội suy (xem `PROVISIONABLE_ROLE_NAMES`).
+    if (!PROVISIONABLE_ROLE_NAMES.has(role)) {
+      throw new Error(`Refusing to interpolate a non-allowlisted role name into SQL: ${role}`);
+    }
     psqlSync(
       containerName,
       `DO $$ BEGIN
@@ -463,35 +481,33 @@ async function startApiWorker(
   runtimeConnectionString: string,
 ): Promise<StartedWorker & { restoreHdEnv(): void }> {
   const saved = { had: HD_LOCAL_ENV in process.env, value: process.env[HD_LOCAL_ENV] };
-  process.env[HD_LOCAL_ENV] = runtimeConnectionString;
-  const harness = wranglerCli.createTestHarness({
-    root: API_DIR,
-    workers: [{ configPath: resolve(API_DIR, 'wrangler.jsonc') }],
-  });
-  try {
-    const { url } = await harness.listen();
-    await waitFor(async () => (await fetch(`${url.origin}/health`)).status === 200, {
-      timeoutMs: 120_000,
-      label: 'pact-broker-api /health',
-    });
-    return {
-      harness,
-      origin: url.origin,
-      restoreHdEnv(): void {
-        if (saved.had) {
-          process.env[HD_LOCAL_ENV] = saved.value;
-        } else {
-          Reflect.deleteProperty(process.env, HD_LOCAL_ENV);
-        }
-      },
-    };
-  } catch (error) {
-    await harness.close().catch(() => undefined);
+  const restoreHdEnv = (): void => {
     if (saved.had) {
       process.env[HD_LOCAL_ENV] = saved.value;
     } else {
       Reflect.deleteProperty(process.env, HD_LOCAL_ENV);
     }
+  };
+  let harness: TestHarness | undefined;
+  try {
+    // Ghi env BÊN TRONG try: nếu `createTestHarness` ném ngay từ đầu, restore
+    // vẫn chạy — không ô nhiễm process.env của các suite khác cùng worker
+    // vitest. `harness` undefined-an toàn trong catch (spawn lỗi trước khi có
+    // harness thì chỉ restore, không TypeError che lỗi gốc).
+    process.env[HD_LOCAL_ENV] = runtimeConnectionString;
+    harness = wranglerCli.createTestHarness({
+      root: API_DIR,
+      workers: [{ configPath: resolve(API_DIR, 'wrangler.jsonc') }],
+    });
+    const { url } = await harness.listen();
+    await waitFor(async () => (await fetch(`${url.origin}/health`)).status === 200, {
+      timeoutMs: 120_000,
+      label: 'pact-broker-api /health',
+    });
+    return { harness, origin: url.origin, restoreHdEnv };
+  } catch (error) {
+    await harness?.close().catch(() => undefined);
+    restoreHdEnv();
     throw error;
   }
 }

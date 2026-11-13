@@ -17,6 +17,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { pactBrokerMessages } from '../i18n/catalogs';
 import PactsPage from './pacts.vue';
 import { flush, mountPactBrokerPage, stubFetch, type FetchEndpoint } from '../../tests/harness';
 
@@ -25,13 +26,24 @@ function matrixBody(rows: object[]): FetchEndpoint {
   return { path: '/api/broker/pacts', status: 200, body: { matrix: rows } };
 }
 
+/**
+ * Row HAL mà trang đọc — kiểu cụ thể (không `object`) để fixture lệch shape là
+ * lỗi compile; cùng cấu trúc mà `pacts.vue` khai trong `MatrixRow` của nó.
+ */
+interface MatrixRowFixture {
+  consumer: { name: string; version: { number: string } };
+  provider: { name: string };
+  pact: { createdAt: string };
+  verificationResult: { success: boolean; verifiedAt: string } | null;
+}
+
 /** Row đúng hình dạng mà `decorateMatrixRow` của API công bố. */
 function matrixRow(overrides: {
   consumerName: string;
   providerName: string;
   version: string;
   verificationResult?: { success: boolean; verifiedAt: string } | null;
-}): object {
+}): MatrixRowFixture {
   return {
     consumer: { name: overrides.consumerName, version: { number: overrides.version } },
     provider: { name: overrides.providerName },
@@ -39,6 +51,17 @@ function matrixRow(overrides: {
     verificationResult: overrides.verificationResult ?? null,
   };
 }
+
+/**
+ * Chuỗi verification lấy từ **catalog en thật** mà harness mount (cùng object
+ * với production) — assert ngữ nghĩa "đúng key cho đúng trạng thái" mà không
+ * nhân bản literal i18n vào test.
+ */
+const verificationTexts = {
+  success: pactBrokerMessages.en.pacts.verificationSuccess,
+  failed: pactBrokerMessages.en.pacts.verificationFailed,
+  none: pactBrokerMessages.en.pacts.verificationNone,
+} as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -78,10 +101,11 @@ describe('pacts page — BFF states', () => {
     // Version nằm ở consumer.version.number — đúng shape HAL của matrix thật.
     expect(wrapper.text()).toContain('1.2.3');
     expect(wrapper.text()).toContain('2.0.0');
-    // Ba trạng thái verification hiển thị bằng văn bản, không ném exception.
-    expect(wrapper.text()).toContain('Verified');
-    expect(wrapper.text()).toContain('Failed');
-    expect(wrapper.text()).toContain('Not verified');
+    // Ba trạng thái verification hiển thị bằng văn bản catalog en thật —
+    // đúng key cho đúng trạng thái, không nhân bản chuỗi vào test.
+    expect(wrapper.text()).toContain(verificationTexts.success);
+    expect(wrapper.text()).toContain(verificationTexts.failed);
+    expect(wrapper.text()).toContain(verificationTexts.none);
     wrapper.unmount();
   });
 
