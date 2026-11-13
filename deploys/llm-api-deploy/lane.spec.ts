@@ -22,6 +22,7 @@ import {
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
+  mockUpstreamEndpointUrl,
 } from './lane-invocation.js';
 
 /** Giá trị header giả chỉ dùng trong test — không phải credential thật. */
@@ -45,6 +46,15 @@ describe('mockUpstreamBaseUrl', () => {
     expect(mockUpstreamBaseUrl(NS)).toBe(
       `http://ecoma-${NS}-${MOCK_KIND_SEGMENT}:${MOCK_UPSTREAM_PORT}`,
     );
+  });
+});
+
+describe('mockUpstreamEndpointUrl', () => {
+  it('carries the chat completions path the worker POSTs verbatim', () => {
+    // Worker serving dùng endpoint URL đã đăng ký THẲNG (không ghép path —
+    // `chat-completions.ts` của `apps/llm-api`), nên giá trị config lane phải
+    // mang sẵn `/v1/chat/completions`, không phải root mock.
+    expect(mockUpstreamEndpointUrl(NS)).toBe(`${mockUpstreamBaseUrl(NS)}/v1/chat/completions`);
   });
 });
 

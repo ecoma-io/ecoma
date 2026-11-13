@@ -6,7 +6,8 @@
  *
  * `up` hội tụ BỐN thứ, đúng thứ tự:
  * 1. credential upstream set-if-absent (`namespace:llmUpstreamCredentialPlaintext`)
- *    và base URL ghi đè về DNS nội bộ mock — giá trị CHỈ đi qua kênh stdin
+ *    và endpoint URL ghi đè về mock nội bộ (DNS + đường chat completions —
+ *    worker POST endpoint URL nguyên vẹn) — giá trị CHỈ đi qua kênh stdin
  *    của `pulumi config set` (`setStackConfig`), không bao giờ argv;
  * 2. container mock `ecoma-<ns>-llm-upstream-mock` trên platform network, image
  *    pin digest, repo mount read-only, credential qua env của PROCESS docker
@@ -72,6 +73,7 @@ import {
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
+  mockUpstreamEndpointUrl,
 } from './lane-invocation.js';
 
 /** Stack project của unit này — mọi lệnh pulumi config/output dùng đúng nó. */
@@ -274,13 +276,18 @@ async function up(foundation: EntryFoundation): Promise<number> {
     setStackConfig(LANE_PROJECT, UPSTREAM_CREDENTIAL_CONFIG_KEY, credential, foundation);
     console.error('[llm-api-deploy-lane] generated a new upstream credential (set-if-absent)');
   }
-  // Base URL: lane SỞ HỮU serving cho E2E — ghi đè về DNS nội bộ mock mỗi lần
-  // up. Giá trị không secret; khi nó ĐỔI, trigger của command bootstrap 8b
-  // thay đổi và runner chạy lại (probe → activate offer) — đúng chủ đích.
+  // Endpoint URL: lane SỞ HỮU serving cho E2E — ghi đè về endpoint đầy đủ của
+  // mock mỗi lần up. Worker POST endpoint URL đã đăng ký NGUYÊN VẸN (không ghép
+  // path — `apps/llm-api/src/chat-completions.ts` dùng `endpoint.url` thẳng)
+  // nên giá trị PHẢI mang đường chat; probe 8b suy models từ cùng giá trị và
+  // mock match hậu tố (README mock) nên probe vẫn chạm models. Giá trị không
+  // secret. LƯU Ý đổi giá trị: bootstrap coi endpoint target là BẤT BIẾN
+  // (fail-closed khi diverge) — phục hồi bằng xoá row `upstream_endpoints` rồi
+  // cho bootstrap chạy lại (xem README, mục Lane E2E).
   setStackConfig(
     LANE_PROJECT,
     UPSTREAM_BASE_URL_CONFIG_KEY,
-    mockUpstreamBaseUrl(foundation.ctx.namespace),
+    mockUpstreamEndpointUrl(foundation.ctx.namespace),
     foundation,
   );
 

@@ -56,6 +56,25 @@ export function mockUpstreamBaseUrl(namespace: string): string {
 }
 
 /**
+ * Đường chat completions trên upstream OpenAI-compatible — đồng bộ
+ * `UPSTREAM_PATH` của integration suite `apps/llm-api` (`/v1/chat/completions`):
+ * worker POST thẳng endpoint URL đã đăng ký (`upstream_endpoints.url`) KHÔNG
+ * ghép thêm path nào, nên giá trị config `namespace:llmUpstreamBaseUrl` của
+ * lane PHẢI mang sẵn đường này, không phải root mock.
+ */
+export const MOCK_CHAT_COMPLETIONS_PATH = '/v1/chat/completions';
+
+/**
+ * Giá trị config `namespace:llmUpstreamBaseUrl` của lane — endpoint URL ĐẦY ĐỦ
+ * mà serving POST tới. Bootstrap marketplace dùng CÙNG giá trị này làm base
+ * cho probe 8b (suy `GET {base}/v1/models`); mock route-match theo hậu tố nên
+ * cả hai hợp đồng cùng chạm đúng route (xem README mock, mục Responsibilities).
+ */
+export function mockUpstreamEndpointUrl(namespace: string): string {
+  return `${mockUpstreamBaseUrl(namespace)}${MOCK_CHAT_COMPLETIONS_PATH}`;
+}
+
+/**
  * Lệnh healthcheck Docker của container mock — chạy TRONG container, probe
  * `GET /v1/models` kèm header Authorization đọc từ env của chính container
  * (biến `MOCK_UPSTREAM_EXPECTED_AUTHORIZATION`) nên healthcheck chấm đúng bề
