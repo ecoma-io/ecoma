@@ -13,6 +13,13 @@ import { APP_SHELL_COLOR_MODE_COOKIE } from './defaults';
  *   `useHead`), nên hydration không bao giờ đụng chạm hay hoàn tác giá trị mà
  *   script đã đặt. Invariant mới, thu hẹp có chủ ý: *render* Vue không đọc
  *   environment; script bootstrap nằm ngoài chu trình render của Vue.
+ * - App inject script bằng **`app.head` tĩnh trong `nuxt.config`**, không qua
+ *   `useHead`: mọi app shell trong repo chạy `ssr: false`, và `useHead` ở SPA
+ *   chỉ áp dụng client-side sau khi bundle mount — quá muộn so với first paint.
+ *   Entry tĩnh trong `app.head` được render thẳng vào HTML shell lúc build,
+ *   nên script là inline script trong `<head>` của HTML served, chạy đúng lúc
+ *   parse. App import hằng số này qua subpath `@ecoma-io/ui-app-shell/lib/color-mode`
+ *   (barrel gốc kéo theo component `.vue`, không nạp được từ `nuxt.config`).
  * - Không có JS thì không có class nào được đặt → giao diện sáng. Chấp nhận:
  *   đây cũng hành vi của next-themes và của mọi giải pháp mode-system SSR.
  *

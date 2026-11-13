@@ -37,10 +37,12 @@ import type {
  *   không còn setting LTR/RTL.
  * - `colorMode` là lựa chọn người dùng duy nhất còn lại (light/dark/system).
  *   Class `dark` trên `<html>` **không** do render của Vue đặt: lúc tải trang,
- *   script bootstrap (`APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT`, app tự inject qua
- *   `useHead`) quyết định trước first paint; sau hydration, watcher bên dưới mới
- *   cập nhật class khi người dùng đổi mode. Vue/unhead không quản lý class này,
- *   nên hydration không bao giờ dispute với script.
+ *   script bootstrap (`APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT`, app chèn tĩnh vào
+ *   `app.head` trong `nuxt.config` — không qua `useHead`, vì app shell chạy
+ *   `ssr: false` và `useHead` chỉ áp dụng sau mount) quyết định trước first
+ *   paint; sau hydration, watcher bên dưới mới cập nhật class khi người dùng
+ *   đổi mode. Vue/unhead không quản lý class này, nên hydration không bao giờ
+ *   dispute với script.
  *
  * `SidebarProvider` nằm trong template của chính component này, nên mọi thứ cần
  * ngữ cảnh sidebar (`SidebarTrigger`, `SidebarInset`, các mục nav gọi
