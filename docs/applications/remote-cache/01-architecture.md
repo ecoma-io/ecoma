@@ -68,7 +68,7 @@ Hai plane cùng nằm trong một service. Ngữ nghĩa nghiệp vụ của tena
 
 Hệ quả kỹ thuật của rule lifecycle fail-closed (canonical: Domain Model §2.8 và [ADR-0017](../../domains/remote-cache/adr/0017-lifecycle-enforcement.md)): data plane **re-check trạng thái từ `db-remote-cache` mỗi request**, fail-closed ở mọi nhánh, không cache trạng thái tenant. Vì vậy data plane phụ thuộc database; target "không phụ thuộc DB trong hot path" bị thu hẹp có chủ đích.
 
-Control-plane API là contract nội bộ của context này; backoffice tiêu thụ nó ở #556, và contract phải được lock trước khi integration bắt đầu — hiện API còn là skeleton (`POST/GET /projects`) nên #556 chưa thể dựa vào hình dạng đầy đủ. Tenancy là yêu cầu MVP — không defer. Chuyển từ disposable infra sang SaaS bounded context đã được chốt bằng [ADR-0015](../../domains/remote-cache/adr/0015-remote-cache-bounded-context.md) theo A18 ([`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md) §8) — ADR là canonical của ownership/storage, file này giữ thiết kế kỹ thuật.
+Control-plane API là contract nội bộ của context này; consumer duy nhất của nó là portal `remote-cache-app` qua BFF + private service binding (§12), và contract phải được lock trước khi integration bắt đầu — hiện API còn là skeleton (`POST/GET /projects`), các workflow portal (đăng nhập, key lifecycle) chưa có route nên chưa thể lock hình dạng đầy đủ. Tenancy là yêu cầu MVP — không defer. Chuyển từ disposable infra sang SaaS bounded context đã được chốt bằng [ADR-0015](../../domains/remote-cache/adr/0015-remote-cache-bounded-context.md) theo A18 ([`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md) §8) — ADR là canonical của ownership/storage, file này giữ thiết kế kỹ thuật.
 
 Các lớp module tách trách nhiệm, dependency đi **một chiều**:
 
@@ -199,6 +199,7 @@ API Key → Principal → Project / Namespace → Storage Partition → Cache Ob
 - Không có global write credential cho toàn ecosystem.
 - B2 credentials nằm trong storage layer, không expose cho protocol/authentication layer; mỗi backend dùng least-privilege credentials.
 - API key secrets chỉ tồn tại ở creation response; persistent state chỉ giữ cryptographic representation.
+- Hai lớp identity tách biệt: **human identity** do Ecoma Account sở hữu (portal xác thực qua OIDC, quyền resolve từ membership của tenant sản phẩm — R16/R17) và **machine identity** là API key của `remote-cache` (§2.4 domain model). Portal không trao trạng thái đăng nhập cho data plane — truy cập cache vẫn luôn qua API key. Phân lớp developer credential vs trusted CI credential giữ nguyên write semantics của trusted CI (R20); đại diện canonical của human principal trên control plane là quyết định còn mở → [`../../domains/remote-cache/domain-model.md`](../../domains/remote-cache/domain-model.md) §4.
 
 ---
 
@@ -212,7 +213,16 @@ Data plane observability không được làm tăng dependency trên request pat
 
 ## 12. Deployment shape
 
-Runtime của application gồm **hai composition**: API composition (`apps/remote-cache-api` — một Cloudflare Worker) phục vụ cả data plane lẫn control plane, và admin UI composition (`apps/remote-cache-app` — Nuxt app non-SSR, `ssr: false` là điều kiện của lần dựng đầu, cùng lý do anchor với `docs/applications/llm-console/01-architecture.md` §1–§2). Admin UI là bề mặt quản trị riêng, không nằm trên hot path của cache traffic; nó truy cập control plane qua private service binding theo R10 — và giai đoạn scaffold nó chỉ là app shell (landing, `/health`, `/ready`), chưa có authentication hay BFF/API integration. Mỗi composition có một deploy unit riêng — API composition thuộc `deploys/remote-cache-api-deploy`, admin UI composition thuộc `deploys/remote-cache-app-deploy`; hai deploy unit deploy độc lập với nhau (dependency app → API chỉ thêm khi BFF thật sự xuất hiện). Admin UI được phục vụ qua hostname riêng của nó (local lane: `remote-cache-app.<ROOT_HOST>`); hostname công khai của admin UI chưa được quyết định ở giai đoạn scaffold. Control plane hỗ trợ multi-tenant từ MVP (tenant/project/membership/API key/quota/usage/audit — §2.1); storage bắt đầu với một backend/partition. Sau khi protocol và streaming được validate, mở rộng theo thứ tự: multiple partitions → multiple B2 accounts (initial scope → [`02-requirements.md`](./02-requirements.md) §5).
+Runtime của application gồm **hai composition**: API composition (`apps/remote-cache-api` — một Cloudflare Worker) phục vụ cả data plane lẫn control plane, và portal composition (`apps/remote-cache-app` — Nuxt app non-SSR, `ssr: false` là điều kiện của lần dựng đầu, cùng lý do anchor với `docs/applications/llm-console/01-architecture.md` §1–§2).
+
+**Portal composition — Internal Developer Portal** (quyết định phạm vi [#177](https://github.com/ecoma-io/ecoma/issues/177)): bề mặt tự phục vụ của developer Ecoma — đăng nhập, quản lý project/API key, hướng dẫn cấu hình Nx (yêu cầu R16–R22). Nó không nằm trên hot path của cache traffic. Cấu trúc:
+
+- Nuxt non-SSR SPA + **BFF server routes** theo pattern `apps/llm-console`: xác thực human identity qua Ecoma Account (OIDC qua `auth.ecoma.io`), browser session `__Host-` cookie, **BFF giữ token server-side**; session store owner là `account` — portal không sở hữu session state và không chạm `db-remote-cache` (R16).
+- BFF gọi control plane **chỉ qua private service binding** (R10, R22); Admin API không bao giờ public chỉ để phục vụ UI. Browser không gọi control plane trực tiếp.
+- Machine identity (API key) là credential duy nhất chạm data plane; trạng thái đăng nhập portal không bao giờ trở thành credential cache.
+- Giai đoạn hiện tại composition chỉ là app shell (landing, `/health`, `/ready`) — deviation được ghi nhận, portal workflows hiện thực qua [#180](https://github.com/ecoma-io/ecoma/issues/180).
+
+Mỗi composition có một deploy unit riêng — API composition thuộc `deploys/remote-cache-api-deploy`, portal composition thuộc `deploys/remote-cache-app-deploy`; hai deploy unit deploy độc lập với nhau (dependency app → API chỉ thêm khi BFF thật sự xuất hiện). Portal được phục vụ qua hostname riêng của nó (local lane: `remote-cache-app.<ROOT_HOST>`); hostname công khai của portal chưa được quyết định. Control plane hỗ trợ multi-tenant từ MVP (tenant/project/membership/API key/quota/usage/audit — §2.1); storage bắt đầu với một backend/partition. Sau khi protocol và streaming được validate, mở rộng theo thứ tự: multiple partitions → multiple B2 accounts (initial scope → [`02-requirements.md`](./02-requirements.md) §5).
 
 Kiến trúc ưu tiên **một deployable Worker nhỏ** thay vì distributed internal services.
 

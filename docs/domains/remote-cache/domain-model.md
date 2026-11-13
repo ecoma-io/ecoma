@@ -28,13 +28,18 @@ Project là đơn vị isolation của cache. Mỗi project thuộc đúng một
 
 ### 2.3 Membership
 
-Membership là quan hệ người dùng ↔ tenant kèm role. Vòng đời độc lập với API key machine credential.
+Membership là quan hệ người dùng ↔ tenant kèm role. Vòng đời độc lập với API key machine credential. Membership là nguồn quyền của con người trên control plane (portal) — xem quyết định còn mở §4 về mô hình authorization cho human principal.
 
 Role của membership là dữ liệu sản phẩm, dùng cho phân quyền nội bộ remote-cache — **không** là nguồn quyền sở hữu tenant. Owner là thuộc tính persistence của tenant (§2.1), và role `owner` đã bị loại khỏi từ điển role của membership; role còn lại là `member`. Việc thu hồi membership không làm tenant mất chủ thể vận hành.
 
 ### 2.4 API key
 
 API key là machine credential scoped theo project, có read/write scope, có revoke/expiry. Hash-only ở storage, show-once lúc tạo. Vòng đời độc lập với membership. Không có `last_used_at` (observability không vào serving path).
+
+Credential có hai phân lớp tường minh, set lúc tạo và không đổi sau đó:
+
+- **Trusted CI credential** (`trusted_ci = true`) — credential máy tin cậy; mọi ghi cache ở data plane đòi key trusted kèm scope `write`. Qua đường API hiện có, chỉ một key trusted mới tạo được key trusted khác — key không tin cậy không bao giờ tự nâng cấp thành trusted.
+- **Developer credential** (`trusted_ci = false`) — credential portal cấp cho người dùng; không trusted, không ghi được cache, phân biệt tường minh với trusted CI ở cả UI lẫn API. Trusted CI semantics không bị nới vì developer credential (R20, [`../../applications/remote-cache/02-requirements.md`](../../applications/remote-cache/02-requirements.md)).
 
 ### 2.5 Quota / usage
 
@@ -91,4 +96,4 @@ _Ghi chú delta:_ các đoạn classification và tenant `first_party` ở §2.9
 
 ## 4. Open boundary
 
-Không có open boundary nghiệp vụ còn mở trong phạm vi context này.
+**Mô hình authorization cho human principal trên control plane — mở.** Quyết định phạm vi M1 của portal ([#177](https://github.com/ecoma-io/ecoma/issues/177)) yêu cầu người đã xác thực bằng Ecoma Account, là member của tenant sản phẩm, thực hiện được các thao tác control plane (tạo project, tạo thêm key, revoke key) **mà không cần sở hữu API key máy nào trước đó**. Model hiện tại chưa có đường này: principal duy nhất control plane nhận diện là API key, nên chưa quyết định được — principal người dùng được đại diện thế nào khi gọi control plane qua BFF (subject `sub` resolve trực tiếp, credential tạm thời, hay cơ chế khác), thao tác nào role `member` được phép, và audit entry (§2.7) ghi actor của mutation do người dùng khởi phát ra sao. Quyết định thuộc context `remote-cache`; chốt bằng ADR khi thiết kế delivery của [#180](https://github.com/ecoma-io/ecoma/issues/180) — không hiện thực theo một lựa chọn ngầm.

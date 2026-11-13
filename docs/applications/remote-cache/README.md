@@ -6,7 +6,7 @@ Self-hosted remote cache cho Nx: tái sử dụng kết quả task để rút ng
 
 - Phục vụ đúng Nx remote cache protocol (`GET`/`PUT /v1/cache/{hash}`) với Bearer API key project-scoped.
 - Stream immutable cache artifact tới object storage durable (S3-compatible; MVP: Backblaze B2).
-- **Hai composition**: API composition (`apps/remote-cache-api`) và admin UI composition (`apps/remote-cache-app` — Nuxt non-SSR SPA shell, truy cập control plane qua private service binding theo R10; giai đoạn scaffold chỉ có app shell, chưa có dashboard/authentication/BFF).
+- **Hai composition**: API composition (`apps/remote-cache-api`) và portal composition (`apps/remote-cache-app` — Internal Developer Portal cho developer Ecoma, quyết định [#177](https://github.com/ecoma-io/ecoma/issues/177): Nuxt non-SSR SPA + BFF, xác thực qua Ecoma Account, truy cập control plane qua private service binding theo R10/R22; thiết kế ở [01-architecture.md](./01-architecture.md) §12, hiện thực qua [#180](https://github.com/ecoma-io/ecoma/issues/180)).
 - Không phải source of truth, không phải serving dependency của application nào (A18, invariant 22 — [`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md)).
 
 ## Documents

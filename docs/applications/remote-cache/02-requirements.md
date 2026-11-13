@@ -22,11 +22,11 @@ Mục tiêu:
 
 ## 2. Users
 
-| User              | Dùng cache để                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| **Developer**     | Đọc/ghi artifact; chỉ truy cập project được cấp quyền                                   |
-| **CI**            | Đọc/ghi bằng credential riêng theo project/repository                                   |
-| **Administrator** | Quản lý projects, API keys, storage backends/partitions, capacity, health, usage, audit |
+| User              | Dùng cache để                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Developer**     | Tự onboarding qua portal (đăng nhập Ecoma Account, tạo project/key, cấu hình Nx); đọc/ghi artifact; chỉ truy cập project được cấp quyền |
+| **CI**            | Đọc/ghi bằng credential riêng theo project/repository                                                                                   |
+| **Administrator** | Quản lý projects, API keys, storage backends/partitions, capacity, health, usage, audit                                                 |
 
 ---
 
@@ -49,6 +49,13 @@ Mục tiêu:
 | R13 | Control plane MUST model tenant, project (mỗi project thuộc đúng một tenant), membership/role của người dùng trong tenant, và lifecycle state của tenant/project. Multi-tenancy là yêu cầu MVP, không phải mở rộng sau MVP                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | R14 | Service MUST định nghĩa quota/usage semantics ở mức MVP: attribution theo project, không double-count khi retry hoặc upload đồng thời. Hành vi khi write vượt quota không được phá vỡ build correctness của caller: write vượt quota trả `429` non-fatal và caller coi như cache miss — hiện thực ở `apps/remote-cache-api/src/cache-routes.ts`                                                                                                                                                                                                                                                                                                          |
 | R15 | Mọi administrative mutation (tenant/project/membership/API key/quota/retention) MUST tạo audit entry với actor, action, target, time, outcome; audit MUST query được qua control plane                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| R16 | Portal (`remote-cache-app`) MUST xác thực developer qua Ecoma Account (OIDC qua `auth.ecoma.io`); browser session theo pattern `__Host-` cookie + BFF giữ token server-side, session store owner là `account` — portal MUST NOT tự sở hữu session state và không có local account riêng                                                                                                                                                                                                                                                                                                                                                                  |
+| R17 | Quyền thực hiện thao tác control plane MUST resolve từ membership của tenant sản phẩm; người đã xác thực nhưng không có membership MUST bị từ chối mọi thao tác quản trị. Không có customer self-registration. Tenant nội bộ `ecoma` là tenant đầu tiên; đại diện canonical của human principal trên control plane là quyết định còn mở → [`../../domains/remote-cache/domain-model.md`](../../domains/remote-cache/domain-model.md) §4                                                                                                                                                                                                                  |
+| R18 | Developer là member MUST tự tạo được project và API key đầu tiên của mình qua portal — không đòi thao tác database, bootstrap credential hay key máy có trước. Bootstrap tenant/membership/host project của key CI vẫn thuộc bề mặt provisioning ADR-0020, không có UI/API cho việc đó trong M1                                                                                                                                                                                                                                                                                                                                                          |
+| R19 | Portal MUST hỗ trợ: list project, tạo project, tạo thêm API key cho project (secret show-once), list metadata key không lộ secret, revoke key. Key đã revoke MUST bị data plane từ chối. Mutation qua portal tạo audit entry theo R15 với actor là principal người dùng đã xác thực                                                                                                                                                                                                                                                                                                                                                                      |
+| R20 | Developer credential và trusted CI credential MUST phân biệt tường minh ở cả UI lẫn API. Portal MUST NOT cấp trusted CI cho developer credential trong M1; write semantics của trusted CI (R2, R3) MUST NOT bị nới để phục vụ developer credential                                                                                                                                                                                                                                                                                                                                                                                                       |
+| R21 | Portal MUST cung cấp hướng dẫn cấu hình Nx copy được — endpoint, credential và một first-use workflow thực dụng                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| R22 | Portal/BFF MUST truy cập control plane qua private service binding (R10); Admin API MUST NOT được public chỉ để phục vụ UI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -67,6 +74,8 @@ Mục tiêu:
 MVP là **multi-tenant**: tenant/project/membership/API key là control-plane state từ ngày đầu (R13); một storage backend (bucket) và một storage partition cho tới khi protocol và streaming được validate. Deployment shape mở rộng theo thứ tự multiple partitions → multiple backends sau đó; tenancy không nằm trong chuỗi mở rộng đó — nó là yêu cầu MVP.
 
 `ecoma-cache` **không** phải: Nx Cloud · Nx Agents · distributed task execution · artifact registry · general-purpose object storage · backup · long-term artifact retention · Object Lock · arbitrary backend management · automatic cache migration · multi-region replication. Tương thích protocol cache khác không phải yêu cầu MVP.
+
+Portal **không** bao gồm trong M1 (quyết định phạm vi [#177](https://github.com/ecoma-io/ecoma/issues/177)): customer self-registration · admin multi-tenant dùng chung cho khách hàng · tạo tenant hay admin membership · RBAC/organization management · billing/subscription/payment · admin storage backend · UI cấu hình quota/retention · advanced analytics. Portal là Internal Developer Portal cho developer Ecoma, không phải SaaS administration dashboard.
 
 ---
 
@@ -130,8 +139,21 @@ Mỗi dòng là một hành vi quan sát được.
 | A25 | Administrative mutation (key/membership/project/quota)                              | Có audit entry với actor/action/target/time/outcome                               |
 | A26 | Upload retry sau khi request đầu đã ghi đủ artifact                                 | Usage không bị double-count                                                       |
 
+### Developer portal
+
+| #   | Kịch bản                                                             | Kết quả mong đợi                                                                          |
+| --- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| A27 | Developer (member `ecoma`) chưa có key nào tự tạo project qua portal | Nhận project + secret key show-once, không cần thao tác database hay bootstrap credential |
+| A28 | Người đã xác thực không có membership gọi thao tác control plane     | Bị từ chối — quyền resolve từ membership, không từ trạng thái đăng nhập                   |
+| A29 | List metadata key của một project                                    | Thấy scopes/cờ trusted/thời điểm tạo; không thấy secret của key nào                       |
+| A30 | Secret của key mới tạo qua portal                                    | Chỉ hiển thị đúng một lần                                                                 |
+| A31 | Key vừa bị revoke qua portal gọi data plane                          | Bị từ chối (`401`) ở request đầu tiên sau revoke                                          |
+| A32 | Developer credential (không trusted) gọi `PUT` cache                 | `403` — trusted CI semantics giữ nguyên                                                   |
+| A33 | Mở hướng dẫn Nx trên portal                                          | Endpoint + credential + first-use workflow copy được                                      |
+| A34 | Kiểm tra đường truy cập của portal tới control plane                 | Chỉ qua private service binding; Admin API không có endpoint public                       |
+
 ---
 
 ## 7. Success criteria
 
-MVP thành công khi hai tenant trở lên dùng đồng thời service ([`03-operations.md`](./03-operations.md) §4) và đạt đồng thời: cache hit hoạt động · cache miss hoạt động · CI publish cache an toàn · project không đọc được cache của nhau (kể cả cross-tenant) · artifact lớn stream đúng · storage disposable · cache failure không ảnh hưởng build correctness · quota/usage/audit hoạt động ở mức MVP · service deploy/observe/operate được mà không thêm hạ tầng không cần thiết.
+MVP thành công khi hai tenant trở lên dùng đồng thời service ([`03-operations.md`](./03-operations.md) §4) và đạt đồng thời: cache hit hoạt động · cache miss hoạt động · CI publish cache an toàn · project không đọc được cache của nhau (kể cả cross-tenant) · artifact lớn stream đúng · storage disposable · cache failure không ảnh hưởng build correctness · quota/usage/audit hoạt động ở mức MVP · developer tự onboarding được qua portal (A27) · service deploy/observe/operate được mà không thêm hạ tầng không cần thiết.
