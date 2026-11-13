@@ -57,6 +57,7 @@ import {
   resolveEntryFoundation,
   setStackConfig,
   type EntryFoundation,
+  type ExecResult,
 } from '@ecoma-io/deployment';
 
 // Module thuần túy dựng argv + parser stdout — entry này chỉ orchestrate; spec
@@ -109,6 +110,24 @@ function readStackConfig(foundation: EntryFoundation, configKey: string): string
   );
 }
 
+/**
+ * "Chưa có output" của `pulumi stack output` — CHỈ khi CLI báo đúng vậy.
+ *
+ * `up` ĐẦU TIÊN của stack chưa từng chạy `local.ts up` nên output
+ * `consumerApiKeyStdout` chưa tồn tại: exit 1 kèm đúng thông điệp này là đường
+ * "chưa hội tụ" phải trả `undefined` để `up` đi tiếp, KHÔNG phải lỗi. Exit != 0
+ * vì lý do khác (sai passphrase, state lock, backend hỏng) phải tiếp tục ném —
+ * nuốt nhầm là `up` tự nghĩ chưa hội tụ rồi đè state đang khoá plaintext.
+ * So khớp chuỗi con bằng indexOf thay vì regex `.*` cùng lý do CodeQL RedDoS
+ * như `isConfigKeyMissing` của libs (helper này là bản địa phương — libs nằm
+ * ngoài phạm vi slice này).
+ */
+function isStackOutputMissing(result: ExecResult): boolean {
+  const output = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  const marker = output.indexOf('does not have output property');
+  return marker !== -1 && output.includes('consumerapikeystdout', marker);
+}
+
 /** Đọc stdout ghi nhận của stack output key — `undefined` khi output chưa có. */
 function readConsumerApiKeyStackOutput(foundation: EntryFoundation): string | undefined {
   const read = exec(
@@ -125,7 +144,7 @@ function readConsumerApiKeyStackOutput(foundation: EntryFoundation): string | un
     foundation.env,
   );
   if (read.status === 0 && read.stdout.trim().length > 0) return read.stdout;
-  if (read.status === 0) return undefined;
+  if (read.status === 0 || isStackOutputMissing(read)) return undefined;
   throw new Error(
     `reading stack output ${CONSUMER_API_KEY_OUTPUT_NAME} failed (exit ${String(read.status)}) — ` +
       `run \`pulumi stack output ${CONSUMER_API_KEY_OUTPUT_NAME} --stack ${fullStackRef(LANE_PROJECT, foundation.ctx)} --show-secrets\` in ${deployProjectDir(LANE_PROJECT)} to see the original stderr`,
