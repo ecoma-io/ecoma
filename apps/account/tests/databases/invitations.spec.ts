@@ -51,9 +51,12 @@ const SESSION_REF = 'session-ref-invitation-db-test';
 const SESSION_ACR = 'urn:ecoma:acr:email-otp';
 
 function hexHash(seed: string): string {
-  // SHA-256 hex thật của địa chỉ — dùng cùng parity với serving path thay vì
-  // một chuỗi hex giả: hash sai parity với `address_normalized` là chính thứ
-  // mà `email_addresses_hash_shape_check` + app parity chặn.
+  // Hex-encode của seed đệm '0' tới đúng 64 ký tự — chỉ thoả HÌNH DẠNG
+  // `^[0-9a-f]{64}$` mà các ràng buộc DB (CHECK hình dạng, partial UNIQUE) đòi.
+  // KHÔNG phải SHA-256 và KHÔNG có parity với hash thật của serving path
+  // (`normalizeAndHashEmail` trong `server/lib/otp`): không dùng hàm này ở đâu
+  // cần hash thật — giá trị sai parity với `address_normalized` là chính thứ mà
+  // parity của serving path chặn.
   return Buffer.from(seed).toString('hex').padEnd(64, '0').slice(0, 64);
 }
 
@@ -403,10 +406,16 @@ describe('users birth guard (0013) on a real PostgreSQL', () => {
           [invitationId],
         );
       } finally {
-        await superuser
-          .query(`ALTER TABLE account.invitations ENABLE TRIGGER invitations_lifecycle_guard`)
-          .catch(() => undefined);
-        await superuser.end();
+        // Bật lại trigger KHÔNG nuốt lỗi: ENABLE thất bại phải đỏ test này ngay
+        // — trigger còn tắt sẽ che vi phạm lifecycle của mọi test sau trong cùng
+        // container (`truncateData` chỉ xoá dữ liệu, không khôi phục DDL).
+        try {
+          await superuser.query(
+            `ALTER TABLE account.invitations ENABLE TRIGGER invitations_lifecycle_guard`,
+          );
+        } finally {
+          await superuser.end();
+        }
       }
 
       await expect(

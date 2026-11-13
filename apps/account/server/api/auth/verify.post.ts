@@ -185,7 +185,7 @@ export default defineEventHandler(async (event) => {
     invitation: OpenInvitationRow,
   ): Promise<boolean> {
     const newSub = createInvitedSubject();
-    const previousCookie = getCookie(event, '__Host-account-session');
+    const previousCookie = getCookie(event, SESSION_COOKIE_NAME);
     const previousHash =
       previousCookie === undefined ? null : await hashSessionIdentifier(previousCookie);
     const previous =
@@ -294,7 +294,7 @@ export default defineEventHandler(async (event) => {
       // rotate — tách ra là một khoảng chết sống sót giữa hai thao tác, đúng
       // cái §3.6.2 gọi là login hỏng. Không có binding thì UPDATE khớp 0 hàng,
       // rotate đi tiếp bình thường.
-      const previousCookie = getCookie(event, '__Host-account-session');
+      const previousCookie = getCookie(event, SESSION_COOKIE_NAME);
       const previousHash =
         previousCookie === undefined ? null : await hashSessionIdentifier(previousCookie);
       const revokeRef =

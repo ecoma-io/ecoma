@@ -161,21 +161,19 @@ export async function findOpenInvitation(
     return null;
   }
   if (row.expires_at.getTime() <= Date.now()) {
-    const expired = await pool.query(
+    await pool.query(
       `UPDATE account.invitations
           SET status = 'expired'
         WHERE id = $1 AND status = 'open' AND expires_at <= $2`,
       [row.id, new Date(Date.now())],
     );
-    if ((expired.rowCount ?? 0) > 0) {
-      return null;
-    }
-    // UPDATE khớp 0 hàng: một request cạnh tranh vừa chuyển trạng thái (accepted
-    // hoặc expired). Trả hàng theo trạng thái đọc được thay vì đoán — caller
-    // (đường chấp nhận) sẽ khoá lại FOR UPDATE và tự quyết; đường challenge sẽ
-    // coi như còn mở cho tới lần đọc kế tiếp. Không có nhánh nào gửi mail cho
-    // lời mời đã hết hạn: verify là nơi quyết bằng hàng đã khoá.
-    return row;
+    // Hàng không bao giờ bị DELETE và UPDATE có điều kiện `status = 'open'`, nên
+    // UPDATE khớp 0 hàng ⇔ một request cạnh tranh vừa chuyển accepted/expired;
+    // khớp ≥1 hàng ⇔ chính lần đọc này vừa mark-expired. Cả hai trường hợp lời
+    // mời KHÔNG còn open — trả `null` luôn: trả `row` đọc lúc đầu sẽ để đường
+    // challenge gửi mã OTP cho lời mời đã kết thúc. Đường chấp nhận vẫn tự quyết
+    // bằng khoá FOR UPDATE của riêng nó, không phụ thuộc kết quả này.
+    return null;
   }
   return row;
 }

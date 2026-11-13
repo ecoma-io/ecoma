@@ -28,6 +28,11 @@ import challengeRoute from '../../server/api/auth/challenge.post';
 import verifyRoute from '../../server/api/auth/verify.post';
 import { writeLog } from '../../server/utils/logger';
 import { INVITATION_AUDIT_TYPE } from '../../server/lib/invitation';
+import {
+  CSRF_COOKIE_NAME,
+  hashSessionIdentifier,
+  SESSION_COOKIE_NAME,
+} from '../../server/lib/session';
 import { ACCOUNT_DATABASE, type AccountDatabase, startAccountDatabase } from './harness.ts';
 import { installRuntimeConfigStub, type AccountTestRuntimeConfig } from './nuxt-globals.ts';
 
@@ -281,8 +286,32 @@ describe('invitation acceptance end-to-end', () => {
     const response = await post('/api/auth/verify', { email: EMAIL_INVITED, code });
     expect(response.status).toBe(200);
     const cookies = setCookies(response);
-    expect(cookieValue(cookies, '__Host-account-session')).toBeDefined();
-    expect(cookieValue(cookies, '__Host-account-csrf')).toBeDefined();
+    const sessionCookie = cookieValue(cookies, SESSION_COOKIE_NAME);
+    expect(sessionCookie).toBeDefined();
+    expect(cookieValue(cookies, CSRF_COOKIE_NAME)).toBeDefined();
+    if (sessionCookie === undefined) {
+      throw new Error('session cookie missing from Set-Cookie');
+    }
+
+    // Binding thật giữa cookie và `sub` vừa sinh: hash SHA-256 của giá trị
+    // cookie phải trỏ đúng hàng session sống trong DB, và hàng đó thuộc đúng
+    // `sub` mà cặp accepted của lời mời ghi — không chỉ "có cookie".
+    const identifierHash = await hashSessionIdentifier(sessionCookie);
+    const client = await db.connect();
+    try {
+      const session = await client.query<{ user_sub: string | null; revoked_at: Date | null }>(
+        `SELECT user_sub, revoked_at FROM account.account_sessions WHERE id_hash = $1`,
+        [identifierHash],
+      );
+      expect(session.rows).toHaveLength(1);
+      expect(session.rows[0]?.revoked_at).toBeNull();
+      const invitation = await client.query<{ accepted_sub: string | null }>(
+        `SELECT accepted_sub FROM account.invitations WHERE status = 'accepted'`,
+      );
+      expect(session.rows[0]?.user_sub).toBe(invitation.rows[0]?.accepted_sub);
+    } finally {
+      await client.end();
+    }
   });
 
   it('does not accept a replayed code and issues no second session', async () => {

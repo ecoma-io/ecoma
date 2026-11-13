@@ -35,6 +35,11 @@
 --     SELECT của runtime (`invitations` được cấp ở `0012`, `otp_challenges` ở
 --     `0006`); migrator/superuser đi qua nhánh cho-pass ngay từ phép kiểm
 --     `current_user`, không cần SELECT nào.
+--   * Phép kiểm cố ý khoá vào `current_user`, không `session_user`: cả hai cách
+--     kết nối của harness (`SET ROLE` và credential trực tiếp) đều làm
+--     `current_user` = role mục tiêu, còn `session_user` giữ nguyên role đăng
+--     nhập. Nếu sau này đổi cơ chế giả lập quyền, xem lại phép kiểm này trước
+--     khi tin nhánh runtime.
 --
 -- ⚠️ Idempotent: `GRANT` bản chất lặp được; `CREATE OR REPLACE FUNCTION` +
 --    `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER` chạy lại là no-op hình dạng.
