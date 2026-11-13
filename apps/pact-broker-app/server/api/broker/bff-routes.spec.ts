@@ -49,17 +49,8 @@ const ALL_ROUTES: readonly (readonly [string, unknown])[] = [
   ...POST_ROUTES.map(([path, handler]) => [path, handler] as const),
 ];
 
-function buildApp(
-  route: { method: 'GET' | 'POST'; path: string; handler: unknown },
-  runtimeConfig: unknown,
-): WebHandler {
+function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknown }): WebHandler {
   const app = createApp();
-  // Nuxt gắn `runtimeConfig` vào `event.context` ở middleware thật của nó; ở
-  // web handler test phải tự gắn — đúng slot mà route đọc
-  // (`event.context.runtimeConfig`).
-  app.use((event) => {
-    event.context.runtimeConfig = runtimeConfig;
-  });
   const router = createRouter();
   if (route.method === 'POST') {
     router.post(route.path, route.handler as never);
@@ -86,7 +77,11 @@ async function call(
 ): Promise<Response> {
   const isPost = (options.methodFor ?? path).endsWith('can-i-deploy');
   const method: 'GET' | 'POST' = isPost ? 'POST' : 'GET';
-  const webHandler = buildApp({ method, path, handler }, options.runtimeConfig ?? CONFIGURED);
+  // Route đọc config qua auto-import `useRuntimeConfig(event)` (sửa trong issue
+  // #181: không phải slot `event.context.runtimeConfig` — slot đó không ai gắn
+  // trên runtime thật), nên test stub toàn cục — đúng pattern `apps/account`.
+  vi.stubGlobal('useRuntimeConfig', () => options.runtimeConfig ?? CONFIGURED);
+  const webHandler = buildApp({ method, path, handler });
   return webHandler(
     new Request(`https://dashboard.test${path}`, {
       method,
@@ -143,9 +138,11 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
     });
   }
 
-  it('keeps the exact upstream path per route — each route owns its endpoint', async () => {
-    const expectedPaths: Record<string, string> = {
-      '/api/broker/pacts': '/matrix',
+  it('keeps the exact upstream first hop per route — each route owns its endpoint', async () => {
+    // `/api/broker/pacts` compose từ `/pacticipants` + `/matrix` (issue #181):
+    // hop ĐẦU là listing, hop ma trận được phủ riêng ở describe cuối.
+    const expectedFirstHop: Record<string, string> = {
+      '/api/broker/pacts': '/pacticipants',
       '/api/broker/pacticipants': '/pacticipants',
       '/api/broker/environments': '/environments',
       '/api/broker/machine-tokens': '/admin/machine-tokens',
@@ -153,18 +150,78 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
     };
 
     for (const [path, handler] of ALL_ROUTES) {
-      let calledPath = '';
+      const calledPaths: string[] = [];
       vi.stubGlobal(
         'fetch',
         vi.fn(async (input: RequestInfo | URL) => {
-          calledPath = new URL(String(input)).pathname;
+          calledPaths.push(new URL(String(input)).pathname);
           return new Response('{}', { status: 200 });
         }),
       );
 
       await call(path, handler, { methodFor: path });
-      expect(calledPath, `route: ${path}`).toBe(expectedPaths[path]);
+      expect(calledPaths[0], `route: ${path}`).toBe(expectedFirstHop[path]);
     }
+  });
+});
+
+describe('pacts — BFF-side composition of the matrix read (issue #181)', () => {
+  it('queries the matrix once with one repeated selector per pacticipant', async () => {
+    const calledUrls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        calledUrls.push(`${url.pathname}?${url.searchParams.toString()}`);
+        if (url.pathname === '/pacticipants') {
+          return new Response(
+            JSON.stringify({
+              _links: { self: { href: '/pacticipants' } },
+              _embedded: {
+                pacticipants: [
+                  { name: 'svc-a', createdAt: '2026-11-13T00:00:00Z' },
+                  { name: 'svc-b', createdAt: '2026-11-13T00:00:00Z' },
+                ],
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ summary: {}, notices: [], matrix: [] }), {
+          status: 200,
+        });
+      }),
+    );
+
+    const response = await call('/api/broker/pacts', pactsRoute);
+
+    expect(response.status).toBe(200);
+    expect(calledUrls).toHaveLength(2);
+    expect(calledUrls[0]).toBe('/pacticipants?');
+    // Selector lặp `q[][pacticipant]` — đúng format mà reference client gửi,
+    // API tự union + dedup; không chế độ "không param" nào được phát minh.
+    const matrixQuery = new URL(`https://broker.test${calledUrls[1]}`).searchParams;
+    expect(matrixQuery.getAll('q[][pacticipant]')).toEqual(['svc-a', 'svc-b']);
+    await expect(response.json()).resolves.toEqual({ summary: {}, notices: [], matrix: [] });
+  });
+
+  it('answers an empty matrix at the BFF when the broker has no pacticipant', async () => {
+    const calledPaths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        calledPaths.push(new URL(String(input)).pathname);
+        return new Response(JSON.stringify({ _links: {}, _embedded: { pacticipants: [] } }), {
+          status: 200,
+        });
+      }),
+    );
+
+    const response = await call('/api/broker/pacts', pactsRoute);
+
+    expect(response.status).toBe(200);
+    expect(calledPaths).toEqual(['/pacticipants']);
+    await expect(response.json()).resolves.toEqual({ matrix: [] });
   });
 });
 

@@ -10,6 +10,16 @@
     "@nuxtjs/i18n": "10.6.0"
   },
   "nx": {
+    "//": [
+      "implicitDependencies — suite `tests/integrations/` + `tests/browser/` của app dựng full stack thật",
+      "với cạnh provider của nó (`pact-broker-api`): boot workerd của API từ `dist/`, chạy CLI vận hành",
+      "của API (migrations/bootstrap/token) qua tsx subprocess. Không phải import code (module boundary",
+      "cấm), nhưng kết quả suite phụ thuộc thật vào project đó — khai đúng cạnh để `nx affected`",
+      "chọn suite khi API đổi, cùng luật `implicitDependencies` của `system-tests/local-smoke`."
+    ],
+    "implicitDependencies": [
+      "@ecoma-io/pact-broker-api"
+    ],
     "tags": [
       "type:composition",
       "scope:pact",
@@ -117,11 +127,23 @@
         "executor": "nx:run-commands",
         "cache": true,
         "dependsOn": [
-          "build"
+          "build",
+          {
+            "projects": [
+              "@ecoma-io/pact-broker-api"
+            ],
+            "target": "build"
+          }
         ],
         "inputs": [
           "default",
           "^production",
+          {
+            "fileset": "{workspaceRoot}/apps/pact-broker-api/db/**"
+          },
+          {
+            "fileset": "{workspaceRoot}/apps/pact-broker-api/wrangler.jsonc"
+          },
           {
             "externalDependencies": [
               "vitest",
@@ -141,7 +163,7 @@
         ],
         "options": {
           "cwd": "apps/pact-broker-app",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
@@ -151,12 +173,32 @@
           "ném ngay, đỏ thay vì pass rỗng (cùng cấu hình với target",
           "`test-integration` của `apps/llm-console` và `apps/backoffice`).",
           "",
+          "`dependsOn` thứ hai là cạnh cross-project CẦN THIẾT (issue #181): suite",
+          "contract + browser boot workerd cho `pact-broker-api` từ `dist/main.js`",
+          "của nó — thứ chỉ tồn tại sau build của API. Suite KHÔNG import code API",
+          "(module boundary cấm), nhưng execution của nó phụ thuộc artifact build —",
+          "cạnh task-graph là kênh khai báo đúng, không phải tiện nghi.",
+          "",
+          "`command` không còn path filter: `include` của config integration là",
+          "nguồn chọn suite duy nhất (tests/integrations/** + tests/browser/**);",
+          "filter thừa tạo hai nguồn thật và che mất suite mới khi thư mục đổi tên.",
+          "",
+          "`inputs` khai thêm `db/**` + `wrangler.jsonc` của API: suite chạy CLI",
+          "migrations/bootstrap/token từ thư mục đó qua tsx subprocess — đổi",
+          "script hay config Hyperdrive phải mất hiệu lực cache dù build của API",
+          "có thể không đổi (db scripts không nằm trong artifact Nitro).",
+          "",
           "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
           "suite assert trên asset do build emit, không chỉ trên `.js`.",
           "",
           "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
           "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
-          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
+          "suite này đo, nên cache phải mất hiệu lực khi nó đổi.",
+          "",
+          "Docker là phụ thuộc cứng của target (globalSetup probe fail-loud) —",
+          "không khai được như `externalDependencies` vì docker là binary hệ",
+          "thống ngoài npm; runner thiếu Docker sẽ đỏ ở `globalSetup`, đúng luật",
+          "06-testing.md §6."
         ]
       },
       "lint": {

@@ -86,12 +86,13 @@ export default defineConfig(() => ({
     // nằm cạnh subject trong owning project). `src`/`server`/`tests` giữ nguyên
     // theo contract của PR-A/#299.
     include: ['{src,app,tests,server}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    // ⚠️ `tests/integrations/` thuộc tier `test-integration` (06-testing.md §4):
-    // nó khởi động workerd thật, thứ mà unit tier không được boot. Không
-    // exclude thì suite chạy HAI lần (cả `test` lẫn `test-integration`) với hai
-    // tầng ngữ nghĩa khác nhau — đúng vi phạm
+    // ⚠️ `tests/integrations/` và `tests/browser/` thuộc tier `test-integration`
+    // (06-testing.md §2, §4): chúng khởi động workerd/Chromium thật, thứ mà unit
+    // tier không được boot (import wrangler còn vỡ ngay trong environment jsdom
+    // + unenv globals của unit). Không exclude thì suite chạy HAI lần (cả `test`
+    // lẫn `test-integration`) với hai tầng ngữ nghĩa khác nhau — đúng vi phạm
     // `integration-dir-in-unit-config` của arch-check.
-    exclude: [...defaultExclude, 'tests/integrations/**'],
+    exclude: [...defaultExclude, 'tests/integrations/**', 'tests/browser/**'],
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

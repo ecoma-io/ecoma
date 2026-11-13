@@ -44,7 +44,9 @@ function isCanIDeployBody(
  * ba tham số có nghĩa được truyền tiếp, mọi thứ khác bị bỏ.
  */
 export default defineEventHandler(async (event) => {
-  const config = pactBrokerBffConfig(event.context.runtimeConfig);
+  // `useRuntimeConfig(event)` — không phải `event.context.runtimeConfig`: slot
+  // đó không ai gắn trên runtime thật (chi tiết ở `pacts.get.ts`).
+  const config = pactBrokerBffConfig(useRuntimeConfig(event));
   if (config === null) {
     setResponseStatus(event, 503);
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
