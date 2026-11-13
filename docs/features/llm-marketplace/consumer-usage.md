@@ -33,7 +33,7 @@ Các hệ thống nội bộ của tổ chức cần gọi mô hình LLM. Khi ca
 
 - `POST /v1/chat/completions` (kèm biến thể `/llm/v1/...`): chuỗi admission fail-closed → dispatch → settlement; `GET /v1/models` trả catalogue từ offer `active`, readiness-gated, fail-closed 503 khi database chưa sẵn sàng.
 - Request tương thích OpenAI: `max_tokens` bắt buộc (422 khi thiếu); `stream:true` bị từ chối (400).
-- Idempotency theo `x-request-id`: replay cùng payload → 409, cùng id khác payload → 409 `idempotency_conflict`; không side effect mới nào.
+- Idempotency theo `x-request-id`: replay cùng payload → 409 `request_id_replay`, cùng id khác payload → 409 `idempotency_conflict`; không side effect mới nào.
 - Lỗi upstream map ổn định: provider 401 → 502 với evidence `confirmed_not_executed` và release cả hai reservation; provider 429 → 429 forward `retry-after`; provider 500/timeout → 502 với evidence `may_have_executed`, settle capped tại amount đã giữ, không blind retry.
 
 **Usage attribution (đã hiện thực, ghi bền):**
