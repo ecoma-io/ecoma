@@ -24,8 +24,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-npx playwright install chromium
+# ⚠️ Hai bước đều bọc `timeout`: `set -euo pipefail` chỉ bắt exit code khác 0,
+# không xử lý tiến trình treo vô hạn (mạng đứt, DNS chậm, registry không phản
+# hồi) — không có timeout thì target `test-integration` treo luôn và khoá CI
+# worker. Nới hạn: tải chromium (~170MB) trong 300s; `install-deps` chạy
+# `apt-get` trên CI runner nên cho 600s.
+timeout 300 npx playwright install chromium
 
 if [ "${CI:-}" = "true" ]; then
-  npx playwright install-deps chromium
+  timeout 600 npx playwright install-deps chromium
 fi

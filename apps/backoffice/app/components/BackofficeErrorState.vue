@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@ecoma-io/ui-app-shell';
 import { useI18n } from '#i18n';
+
+import { LOGIN_PATH } from '../composables/use-backoffice-session';
 /**
  * Trạng thái lỗi — lỗi tải dữ liệu, khác với lỗi của một thao tác ghi.
  *
@@ -68,9 +70,9 @@ const {
 
 const { t } = useI18n();
 
-/** Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF. */
+/** CTA của nhánh 401: cùng đường đăng nhập với shell — UI không tự dựng URL. */
 function loginAgain(): void {
-  window.location.assign('/api/auth/login');
+  window.location.assign(LOGIN_PATH);
 }
 </script>
 

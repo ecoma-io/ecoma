@@ -23,6 +23,7 @@
  * không ghi dữ liệu nghiệp vụ, và "Log out" là đóng phiên — một control tên sai
  * sẽ làm bộ test đó đỏ vì lý do không liên quan.
  */
+import { onMounted } from 'vue';
 import { Button } from '@ecoma-io/ui-app-shell';
 import { useI18n } from '#i18n';
 

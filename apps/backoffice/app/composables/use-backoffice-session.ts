@@ -55,8 +55,13 @@ const CSRF_COOKIE_NAME = '__Host-backoffice-csrf';
 /** Header double-submit tương ứng — cùng luật với `account`. */
 const CSRF_HEADER_NAME = 'x-ecoma-csrf';
 
-/** Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF. */
-const LOGIN_PATH = '/api/auth/login';
+/**
+ * Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF. Export cho
+ * `BackofficeErrorState` (CTA "Log in again" của trang lỗi 401): hai đường
+ * đăng nhập của app phải chỉ vào **cùng một** path — một string literal thứ
+ * hai là một drift chờ xảy ra.
+ */
+export const LOGIN_PATH = '/api/auth/login';
 /** Route logout của BFF — idempotent, luôn 204 khi gọi tới được. */
 const LOGOUT_PATH = '/api/auth/logout';
 
@@ -109,11 +114,14 @@ function readCsrfToken(): string | undefined {
 }
 
 /**
- * Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF.
- *
  * Ở **module scope** (không trong `createBackofficeSession`): hàm không đọc
  * ref nào của phiên, và một hàm thuần túy tái tạo mỗi lần gọi là nhiễu không
  * cần thiết (oxlint `unicorn/consistent-function-scoping` — cùng chiều).
+ *
+ * ⚠️ Chỉ gọi từ **event handler client-side** (nút của shell, CTA của trang
+ * lỗi): SSR render không bao giờ gọi nó. Một guard `typeof window` ở đây sẽ
+ * biến lỗi "gọi sai thời điểm" thành no-op im lặng — để nó ném ngay thì rõ
+ * hơn, nên hàm cố ý không có guard.
  */
 function login(): void {
   window.location.assign(LOGIN_PATH);

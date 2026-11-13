@@ -370,6 +370,14 @@ describe('authn middleware boundary and classification', () => {
         // Phiên sống nhưng idle chỉ còn 3s: canary (có touch) sẽ trượt nó lên
         // 12h; probe thì **không** được đụng vào — một cú đọc hiển thị không được
         // kéo dài phiên thật.
+        //
+        // ⚠️ Raw SQL chứ không phải helper `insertSession`: test cần backdate
+        // `created_at` để mô phỏng phiên sắp hết hạn idle, mà helper chưa nhận
+        // tham số `created_at` (luôn dùng default `now()` của DB — xem
+        // `libs/backoffice-infrastructure/src/auth/session-store.ts`). Khi helper
+        // được mở rộng nhận `created_at`, dời khối INSERT này sang helper — và
+        // nếu schema `bff_sessions` đổi trước đó thì phải đồng bộ **cả hai**
+        // khối INSERT (đây và trong helper).
         const created = new Date(Date.now() - 2_000);
         await client.query(
           `INSERT INTO backoffice.bff_sessions
