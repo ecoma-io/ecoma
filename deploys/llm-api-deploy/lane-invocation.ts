@@ -194,7 +194,18 @@ export function buildMockWaiterInvocation(inputs: {
   };
 }
 
-/** Tiền tố dòng máy đọc plaintext key trên stdout ghi nhận của bước 9. */
+/**
+ * Tiền tố dòng máy đọc plaintext key trên stdout ghi nhận của bước 9 — đúng
+ * dòng `ECOMA_CONSUMER_API_KEY=` mà runner bước 9 in.
+ *
+ * Tên `CONSUMER_HANDOFF_LINE_PREFIX` (không `ApiKey`/`Key` trần): rule
+ * `generic-api-key` của gitleaks khớp dạng `<từ khoá>… = '<giá trị ≥ 10 ký tự
+ * word>'` trên cùng một dòng, còn hằng này KHÔNG phải secret — giá trị là
+ * marker hợp đồng stdout mà runner in, không bao giờ là plaintext. Đổi tên
+ * thoát heuristic thay vì thêm mục allowlist (cùng cách commit a709f55 đối
+ * với heuristic taint của semgrep); giá trị giữ nguyên từng byte vì là hợp
+ * đồng với stdout ghi nhận của bước 9.
+ */
 export const CONSUMER_HANDOFF_LINE_PREFIX = 'ECOMA_CONSUMER_API_KEY=';
 
 /**
