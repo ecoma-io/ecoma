@@ -163,7 +163,11 @@
         ],
         "options": {
           "cwd": "apps/pact-broker-app",
-          "command": "npx vitest run -c vitest.integration.config.mts"
+          "commands": [
+            "bash tests/browser/ensure-playwright-browser.sh",
+            "npx vitest run -c vitest.integration.config.mts"
+          ],
+          "parallel": false
         },
         "//": [
           "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
@@ -198,7 +202,19 @@
           "Docker là phụ thuộc cứng của target (globalSetup probe fail-loud) —",
           "không khai được như `externalDependencies` vì docker là binary hệ",
           "thống ngoài npm; runner thiếu Docker sẽ đỏ ở `globalSetup`, đúng luật",
-          "06-testing.md §6."
+          "06-testing.md §6.",
+          "",
+          "`command` thành `commands` + `parallel: false` để cấp binary chromium",
+          "TRƯỚC vitest: suite `tests/browser/read-pages.spec.ts` tự",
+          "`chromium.launch()` BÊN TRONG vitest (không phải lane `playwright test`",
+          "riêng như backoffice), mà runner hosted không còn preinstall bản",
+          "chromium khớp `@playwright/test` của workspace — thiếu binary là đỏ ở",
+          "`chromium.launch()` thay vì ở assert. Cơ chế copy nguyên",
+          "`tests/browser/ensure-playwright-browser.sh` của `apps/backoffice`",
+          "(cache theo phiên bản thì no-op; CI tự cấp OS deps). `parallel: false`",
+          "là bắt buộc ở đây: executor mặc định chạy các commands song song, để",
+          "vitest nhảy vào lúc `playwright install` đang tải là race đỏ vì lý do",
+          "không liên quan tới hành vi."
         ]
       },
       "lint": {
