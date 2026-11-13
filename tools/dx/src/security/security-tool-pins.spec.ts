@@ -46,7 +46,7 @@ function pinsInLefthook(): { image: string; dep: string }[] {
   const hook = readFileSync(LEFTHOOK, 'utf8');
   return [...hook.matchAll(PIN_PATTERN)].map((match) => ({
     image: `${match[1]}:${match[2]}@${match[3]}`,
-    dep: match[1] ?? '',
+    dep: match[1],
   }));
 }
 
@@ -55,7 +55,7 @@ function pinsInWorkflow(): { image: string; dep: string }[] {
   const workflow = readFileSync(CODE_ANALYSIS, 'utf8');
   return [...workflow.matchAll(PIN_PATTERN)].map((match) => ({
     image: `${match[1]}:${match[2]}@${match[3]}`,
-    dep: match[1] ?? '',
+    dep: match[1],
   }));
 }
 

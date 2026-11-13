@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,6 +9,11 @@ import { gitEnv } from '../utils.js';
 const DX_ROOT = resolve(import.meta.dirname, '../..');
 const REPO_ROOT = resolve(DX_ROOT, '../..');
 const LEFTHOOK = join(REPO_ROOT, 'lefthook.yml');
+/**
+ * Mọi thư mục tạm suite này tạo ra, để `afterAll` dọn đúng những gì đã dựng —
+ * không dựa vào việc đoán lại tên prefix.
+ */
+const createdDirs: string[] = [];
 
 /**
  * Image đọc trực tiếp từ `lefthook.yml` — hook là một trong hai nơi chạy engine.
@@ -43,14 +49,31 @@ function git(repo: string, ...args: string[]): string {
 }
 
 function initRepo(prefix = 'semgrep-repo-'): string {
-  const repo = join(process.env.SEMGREP_TEST_TMP ?? '/tmp', `${prefix}${process.pid}`);
+  // Suffix random: hai lần chạy song song (hoặc PID được tái sử dụng) không thể
+  // chỉ vào cùng một thư mục và xoá repo của test đang chạy.
+  const repo = join(
+    process.env.SEMGREP_TEST_TMP ?? '/tmp',
+    `${prefix}${process.pid}-${randomUUID()}`,
+  );
   rmSync(repo, { recursive: true, force: true });
   mkdirSync(repo, { recursive: true });
+  createdDirs.push(repo);
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'config', 'user.email', 'semgrep-test@example.com');
   git(repo, 'config', 'user.name', 'semgrep test');
   git(repo, 'config', 'commit.gpgsign', 'false');
   return repo;
+}
+
+/** Thư mục bứng SARIF trên host, đăng ký với `afterAll` cùng các repo tạm. */
+function makeReportDir(prefix: string): string {
+  const dir = join(
+    process.env.SEMGREP_TEST_TMP ?? '/tmp',
+    `${prefix}${process.pid}-${randomUUID()}`,
+  );
+  mkdirSync(dir, { recursive: true });
+  createdDirs.push(dir);
+  return dir;
 }
 
 function commitAll(repo: string, message: string): string {
@@ -168,8 +191,9 @@ beforeAll(() => {
 }, 300_000);
 
 afterAll(() => {
-  const repo = join(process.env.SEMGREP_TEST_TMP ?? '/tmp', `semgrep-repo-${process.pid}`);
-  rmSync(repo, { recursive: true, force: true });
+  for (const dir of createdDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /* -------------------------------------------------------------------------- */
@@ -198,25 +222,19 @@ describe("the repository's own rules, scanned by the engine the hook runs", () =
       writeFileSync(join(repo, 'apps/probe/src', name), contents);
     }
     commitAll(repo, 'probe');
-    const reportDir = join(process.env.SEMGREP_TEST_TMP ?? '/tmp', `semgrep-out-${process.pid}`);
-    rmSync(reportDir, { recursive: true, force: true });
-    mkdirSync(reportDir, { recursive: true });
-    try {
-      const findings = scanRules(repo, reportDir);
-      const hit = (name: string): boolean =>
-        findings.some((finding) => finding.path === `apps/probe/src/${name}`);
-      // Các extension mà danh sách trong hook hứa là sẽ bắt được.
-      expect(hit('a.ts')).toBe(true);
-      expect(hit('a.tsx')).toBe(true);
-      // Các extension CHƯA được quét. Đây là lỗ hổng đã biết của bộ rule, được
-      // ghi thành khẳng định để nó không biến mất trong im lặng: khi rule phủ
-      // được chúng, test đỏ và bắt người sửa danh sách + báo lại.
-      expect(hit('a.mts')).toBe(false);
-      expect(hit('a.cts')).toBe(false);
-      expect(hit('a.vue')).toBe(false);
-    } finally {
-      rmSync(reportDir, { recursive: true, force: true });
-    }
+    const reportDir = makeReportDir('semgrep-out-');
+    const findings = scanRules(repo, reportDir);
+    const hit = (name: string): boolean =>
+      findings.some((finding) => finding.path === `apps/probe/src/${name}`);
+    // Các extension mà danh sách trong hook hứa là sẽ bắt được.
+    expect(hit('a.ts')).toBe(true);
+    expect(hit('a.tsx')).toBe(true);
+    // Các extension CHƯA được quét. Đây là lỗ hổng đã biết của bộ rule, được
+    // ghi thành khẳng định để nó không biến mất trong im lặng: khi rule phủ
+    // được chúng, test đỏ và bắt người sửa danh sách + báo lại.
+    expect(hit('a.mts')).toBe(false);
+    expect(hit('a.cts')).toBe(false);
+    expect(hit('a.vue')).toBe(false);
   }, 300_000);
 
   it('catches the wrangler.jsonc ownership violation through the generic rule', () => {
@@ -231,14 +249,8 @@ describe("the repository's own rules, scanned by the engine the hook runs", () =
       '{\n  "name": "probe",\n  "database_name": "probe-db"\n}\n',
     );
     commitAll(repo, 'probe');
-    const reportDir = join(process.env.SEMGREP_TEST_TMP ?? '/tmp', `semgrep-wr-${process.pid}`);
-    rmSync(reportDir, { recursive: true, force: true });
-    mkdirSync(reportDir, { recursive: true });
-    try {
-      const findings = scanRules(repo, reportDir);
-      expect(findings.some((finding) => finding.path === 'apps/probe/wrangler.jsonc')).toBe(true);
-    } finally {
-      rmSync(reportDir, { recursive: true, force: true });
-    }
+    const reportDir = makeReportDir('semgrep-wr-');
+    const findings = scanRules(repo, reportDir);
+    expect(findings.some((finding) => finding.path === 'apps/probe/wrangler.jsonc')).toBe(true);
   }, 300_000);
 });
