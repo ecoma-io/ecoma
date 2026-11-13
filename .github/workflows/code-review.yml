@@ -203,41 +203,6 @@ jobs:
           pr_number: ${{ inputs.pr_number }}
           full_review: ${{ inputs.full_review }}
           background: |
-            Project: Ecoma.io monorepo
-
-            This is a greenfield platform under active construction. Distinguish
-            implemented contracts from planned architecture; do not report intentionally
-            unimplemented future capabilities as defects.
-
-            Architecture invariants:
-            - Services own their data; no cross-service direct database access.
-            - Cross-service communication uses explicit APIs or events.
-            - Services remain independently deployable.
-            - No node-local durable/shared state.
-            - Secrets must not leak to clients or logs.
-            - API/event contract changes must remain expand-compatible.
-            - Reliable event publication requires transactional outbox and idempotency
-              where applicable.
-            - Observability must not expose prompt bodies or sensitive request content.
-            - Respect Nx project boundaries and service runtime constraints.
-
-            Documentation and language:
-            - Commit titles and messages must be written in English.
-            - `AGENTS.md` must be written in English
-            - Other documents must be written in Vietnamese, while retaining proper nouns, terminology, and technical terms in English.
-            - All documents must be concise and succinct; they must be entirely free of internal contradictions and consistent with one another.
-            - The documentation describes the desired target state; therefore, it can be written before the current state of the codebase.
-
-            Review priorities:
-            1. Architecture and boundary violations.
-            2. Security and data exposure.
-            3. Breaking API/event contracts.
-            4. Persistence, transaction, consistency, and idempotency bugs.
-            5. Reliability and production correctness.
-            6. Significant performance regressions.
-
-            Do not report style-only issues unless explicitly required by repository rules.
-
             PR Title: ${{ steps.pr.outputs.title }}
             PR Description:
             ${{ steps.pr.outputs.body }}
@@ -250,7 +215,6 @@ jobs:
           ocr_version: 1.12.12
           llm_timeout: '360'
           review_task_timeout: '120'
-          effort: low
           review_concurrency: '32'
           stream_progress: 'true'
           upload_artifacts: 'true'
@@ -259,9 +223,8 @@ jobs:
           incremental_overlap_threshold: '0.75'
           checkpoint_range: 'true'
           resolve_outdated: 'true'
-          review_comment_batch_size: '100'
+          review_comment_batch_size: '128'
           rule: .github/ocr-rules.json
-          route_severity_below: medium
 
       # Cổng phải chạy script và rule của BASE branch — ref tin cậy — chứ không
       # phải bất cứ thứ gì action bên thứ ba để lại trong workspace. Checkout
