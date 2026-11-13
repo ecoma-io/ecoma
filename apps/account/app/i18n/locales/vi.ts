@@ -123,6 +123,7 @@ const messages: AccountMessages = {
     recoveryCodesRegenerate: 'Tạo mã mới',
     recoveryCodesReveal: 'Hiện mã',
     recoveryCodesWarning: 'Các mã này chỉ hiện một lần. Hãy lưu lại ở nơi an toàn trước khi đóng.',
+    capabilityUnavailable: 'Chưa khả dụng — backend chưa cung cấp năng lực này.',
   },
 
   sessions: {

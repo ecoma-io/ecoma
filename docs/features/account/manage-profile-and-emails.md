@@ -39,7 +39,7 @@ Người dùng đã đăng nhập sửa được profile và quản lý được
 
 - **Chưa có UI nhập mã xác minh email.** Route xác minh tồn tại và hoạt động ở tầng server, nhưng trang email không có ô nhập mã và không gọi route đó. Nút duy nhất trên địa chỉ đang chờ là "Resend link", và nội dung chữ nói "link" trong khi server phát mã 8 chữ số. Vì vậy, từ góc người dùng, **địa chỉ mới không thể trở thành đã xác minh bằng UI**.
 - **Chưa có upload ảnh đại diện.** UI chỉ hiển thị ảnh khi `avatarUrl` đã có; không có input file, và UI không bao giờ gửi một `avatarUrl` mới.
-- **Không có xác thực hai yếu tố.** Passkey, TOTP và recovery code render qua adapter mock và các điều khiển đang `disabled`.
+- **Không có xác thực hai yếu tố.** Passkey, TOTP và recovery code render ở trạng thái "chưa khả dụng" theo `securityCapabilities` (hiện đều `false`) — không có điều khiển thao tác nào.
 - **Không có đổi mật khẩu**, vì sản phẩm không có mật khẩu.
 - Đăng xuất và session thuộc [Quản lý session đang hoạt động](./manage-active-sessions.md); application đã cấp quyền thuộc [Truy cập application qua OIDC](../identity/oidc-application-access.md).
 

@@ -1,8 +1,3 @@
-export {
-  createMockAccountAdapter,
-  MOCK_CONSENT_HANDLE,
-  type MockAdapterOptions,
-} from './mock-adapter';
 export { createServerAccountAdapter } from './real-adapter';
 export {
   ACCOUNT_DATA_MODE_MOCK,
@@ -12,10 +7,13 @@ export {
 } from './data-mode';
 export type {
   AccountAdapter,
+  AccountDataPort,
   AccountEmail,
   AccountPreferences,
   AccountProfile,
+  AccountSecurityPort,
   AccountSession,
+  AuthenticationPort,
   ColorMode,
   ConnectedApplication,
   ConsentContext,
@@ -23,10 +21,13 @@ export type {
   LoginChallengeMode,
   NotificationPreferences,
   Passkey,
+  PreviewAccountAdapter,
   PrivacyRequest,
   PrivacyRequestKind,
   PrivacyRequestStatus,
   RecoveryCodesState,
   Result,
+  SecurityCapabilities,
+  SecurityCapability,
   TotpState,
 } from './types';

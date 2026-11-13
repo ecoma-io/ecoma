@@ -118,7 +118,7 @@ export type NotificationPreferences = {
  * Chế độ challenge mà `/login` được phép render.
  *
  * ⚠️ Tài liệu **chưa chốt** cơ chế email challenge (email link hay one-time
- * code) — xem `docs/applications/account/01-architecture.md` §10. Vì vậy kiểu này
+ * code) — xem `docs/applications/account/01-architecture.md` §12. Vì vậy kiểu này
  * chỉ **mô tả** chế độ mà implementation thật trả về; UI không giả định. Bước
  * nhập code chỉ render khi adapter nói `'code'`.
  */
@@ -163,20 +163,52 @@ export type Result<T> =
   | { readonly ok: false; readonly reason: string };
 
 /**
- * Adapter dữ liệu account — ranh giới duy nhất giữa UI và dữ liệu.
+ * Adapter dữ liệu account — ranh giới duy nhất giữa UI và dữ liệu, ghép từ
+ * **ba trách nhiệm** (`AccountDataPort` + `AuthenticationPort` +
+ * `AccountSecurityPort`).
+ *
+ * ⚠️ Việc tách ba port không phải trang trí kiểu: đó là điều kiện để luật
+ * "mock chỉ nằm trên dữ liệu" trở thành **bất biến compile-time**. Adapter mock
+ * chỉ hiện thực `PreviewAccountAdapter` (dữ liệu + `isPreview: true`), nên một
+ * lệnh spread từ mock vào adapter thật không thể cung cấp phương thức auth hay
+ * security — đúng lỗ hổng mà `...mock` cũ tạo ra (bốn phương thức credential
+ * chạy bản in-memory ở mode real).
  *
  * Mọi phương thức đọc có thể ném lỗi (UI hiển thị error state); mọi phương thức
  * ghi trả `Result` để nhánh hỏng không bị bỏ qua.
  *
  * ⚠️ **Thao tác ghi của adapter này KHÔNG phải là bằng chứng server đã đổi
- * trạng thái.** Implementation thật sẽ gọi BFF với CSRF token; bản mock chỉ đổi
- * state trong bộ nhớ và UI đánh dấu rõ điều đó. UI không bao giờ là security
- * boundary: mọi quyết định xác thực/uỷ quyền/session cuối cùng do server enforce.
+ * trạng thái.** Implementation thật gọi BFF với CSRF token; bản preview chỉ đổi
+ * state trong bộ nhớ và UI đánh dấu rõ điều đó qua `isPreview`. UI không bao giờ
+ * là security boundary: mọi quyết định xác thực/uỷ quyền/session cuối cùng do
+ * server enforce.
  */
-export type AccountAdapter = {
-  /** `true` khi dữ liệu đến từ mock, để UI hiển thị banner "preview data". */
-  readonly isPreview: boolean;
+export type AccountAdapter = AccountDataPort &
+  AuthenticationPort &
+  AccountSecurityPort & {
+    /** `true` khi dữ liệu đến từ mock, để UI hiển thị banner "preview data". */
+    readonly isPreview: boolean;
+  };
 
+/**
+ * Bề mặt adapter preview — thứ duy nhất adapter mock được phép hiện thực.
+ *
+ * `isPreview: true` là **literal**, không phải `boolean`: hệ thống kiểu tự nói
+ * rằng mọi adapter hiện thực kiểu này là adapter dữ liệu giả, và banner preview
+ * không thể quên bật.
+ */
+export type PreviewAccountAdapter = AccountDataPort & {
+  readonly isPreview: true;
+};
+
+/**
+ * Port dữ liệu tài khoản — hồ sơ, email, phiên, ứng dụng đã kết nối,
+ * preference, thông báo, privacy request.
+ *
+ * Đây là **port duy nhất** mock được thay thế: dữ liệu preview là fixture cục
+ * bộ, tất định, ephemeral (`docs/architecture/05-code-architecture.md` §5).
+ */
+export type AccountDataPort = {
   getProfile(): Promise<AccountProfile>;
   updateProfile(input: {
     displayName: string;
@@ -187,11 +219,6 @@ export type AccountAdapter = {
   addEmail(address: string): Promise<Result<AccountEmail>>;
   resendVerification(id: string): Promise<Result<void>>;
   removeEmail(id: string): Promise<Result<void>>;
-
-  listPasskeys(): Promise<readonly Passkey[]>;
-  removePasskey(id: string): Promise<Result<void>>;
-  getTotpState(): Promise<TotpState>;
-  getRecoveryCodesState(): Promise<RecoveryCodesState>;
 
   listSessions(): Promise<readonly AccountSession[]>;
   revokeSession(id: string): Promise<Result<void>>;
@@ -209,7 +236,19 @@ export type AccountAdapter = {
 
   listPrivacyRequests(): Promise<readonly PrivacyRequest[]>;
   submitPrivacyRequest(kind: PrivacyRequestKind): Promise<Result<PrivacyRequest>>;
+};
 
+/**
+ * Port xác thực — challenge, verify OTP, bàn giao session, consent.
+ *
+ * ⚠️ **Không có implementation mock nào của port này, ở mọi mode** — kể cả
+ * preview dưới `nuxt dev` (`docs/architecture/05-code-architecture.md` §5:
+ * "auth flows luôn thật"; skill `frontend-data-mocking` §G: auth giữ đường BFF
+ * thật ở mọi mode). Hệ quả trải nghiệm: dưới dev preview, `/login` và
+ * `/consent` gọi BFF thật và cần auth backend chạy cục bộ; không có backend thì
+ * luồng **thất bại trung thực** thay vì diễn một luồng đăng nhập giả.
+ */
+export type AuthenticationPort = {
   /**
    * Bắt đầu đăng nhập passwordless. Trả **chế độ** challenge để UI quyết định có
    * render bước nhập code hay không — không phải UI tự đoán.
@@ -264,9 +303,7 @@ export type AccountAdapter = {
   /**
    * Ghi nhận quyết định consent và nhận URL tiếp theo khi `auth` cấp.
    *
-   * `continueUrl` là URL do `auth` dựng (contract trả bắt buộc ở cả hai
-   * outcome — phần vắng mặt này chỉ xảy ra ở mock, nơi không có grant và
-   * không có trình duyệt để điều hướng). UI relay URL bằng điều hướng browser;
+   * `continueUrl` là URL do `auth` dựng; UI relay URL bằng điều hướng browser;
    * nó không tự dựng redirect và không thêm tham số nào. Handle đã bị tiêu thụ
    * sau khi thành công, nên UI không gửi lại nó: thành công của method này là
    * trạng thái chết (terminal), khác với các thao tác ghi retry-able khác.
@@ -275,4 +312,42 @@ export type AccountAdapter = {
     handle: string,
     decision: 'approve' | 'deny',
   ): Promise<Result<{ readonly continueUrl: string | undefined }>>;
+};
+
+/**
+ * Năng lực security mà backend thực sự cung cấp — passkey, TOTP, mã khôi phục.
+ *
+ * Đây là bản đồ **năng lực thật**, không phải cờ UI: `false` nghĩa là BFF chưa
+ * có route cho năng lực đó, và UI phải render trạng thái "chưa khả dụng" thay
+ * vì bày một hành động chỉ thành công được qua dữ liệu giả.
+ */
+export type SecurityCapability = 'passkeys' | 'totp' | 'recovery-codes';
+
+export type SecurityCapabilities = Readonly<Record<SecurityCapability, boolean>>;
+
+/**
+ * Port security — passkey, TOTP, mã khôi phục MFA.
+ *
+ * ⚠️ **Không giả thành công.** Khi `securityCapabilities` nói một năng lực chưa
+ * có đường backend, phương thức tương ứng **từ chối tường minh**: đọc ném lỗi có
+ * chữ ký ổn định, ghi trả `Result` lỗi. Không bao giờ có trạng thái thành công
+ * sinh ra mà không có một thao tác backend thật đứng sau (`05-code-architecture.md`
+ * §5: no fake success). UI đọc `securityCapabilities` trước để render đúng
+ * trạng thái unavailable thay vì bày control chỉ thành công được qua mock.
+ */
+export type AccountSecurityPort = {
+  /** Năng lực thật của backend hôm nay — UI dùng nó để bật/tắt hành động. */
+  readonly securityCapabilities: SecurityCapabilities;
+
+  /**
+   * Danh sách passkey đã đăng ký. Ném lỗi tường minh khi năng lực chưa có
+   * đường backend — không bao giờ trả một danh sách minh hoạ.
+   */
+  listPasskeys(): Promise<readonly Passkey[]>;
+  /** Gỡ một passkey. `ok: false` khi năng lực chưa có đường backend. */
+  removePasskey(id: string): Promise<Result<void>>;
+  /** Trạng thái TOTP. Ném lỗi tường minh khi năng lực chưa có đường backend. */
+  getTotpState(): Promise<TotpState>;
+  /** Trạng thái mã khôi phục MFA. Ném lỗi tường minh khi năng lực chưa có đường backend. */
+  getRecoveryCodesState(): Promise<RecoveryCodesState>;
 };

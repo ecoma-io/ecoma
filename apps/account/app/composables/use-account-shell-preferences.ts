@@ -14,26 +14,33 @@ import { useStoredAccountLocale } from './use-account-locale';
  * `/applications`, `/security`, `/privacy` luôn rơi về `DEFAULT_ACCOUNT_LOCALE` +
  * `UTC` dù tài khoản đã lưu `Asia/Ho_Chi_Minh`.
  *
- * ⚠️ `useAsyncData` chứ không phải fire-and-forget: trong SSR nó **chặn render**
- * cho tới khi nạp xong, nên locale và timezone đã lưu có mặt ngay ở HTML đầu
- * tiên. Bỏ qua bước này thì server render tiếng Anh/UTC rồi client đổi sang
- * vi/ICT sau hydrate — đúng cảnh báo "chuỗi render hai lần khác nhau" trong
- * `useAccountFormat`. Payload cũng được serialize, nên client không nạp lại.
+ * ⚠️ Nạp **client-only** (`server: false`): adapter thật dùng `fetch` thô với
+ * URL tương đối, và trên runtime server (workerd/Node) lệnh gọi đó không thể
+ * chạy — không mang được cookie của request vào một fetch mới và URL tương đối
+ * không parse được ngoài browser. Trước Issue #123, lệnh đọc này "thành công"
+ * ở SSR vì nó rơi vào mock — đúng đường rò mock mà #123 xoá. Hệ quả được chấp
+ * nhận: lần render đầu dùng `DEFAULT_ACCOUNT_LOCALE` + UTC, preference thật áp
+ * sau hydrate (hiện tượng đổi một lần, chấp nhận thay vì rò mock hoặc fetch
+ * giả thành công). Payload `useAsyncData` vẫn serialize, nên chỉ nạp một lần.
  *
- * ⚠️ Lỗi nạp **không** được làm sập shell: `useAsyncData` giữ lỗi trong `error`
- * của nó và hai state (`stored`, `preferences`) đứng yên ở `undefined` — app rơi
- * về cookie rồi `DEFAULT_ACCOUNT_LOCALE`, đúng như hành vi khi chưa đăng nhập.
- * Khi BFF thật có mặt, `getPreferences()` cho người chưa đăng nhập sẽ trả lỗi
- * hoặc rỗng; khi đó adapter — không phải shell này — là nơi diễn giải.
+ * Lỗi nạp **không** được làm sập shell: `useAsyncData` giữ lỗi trong `error`
+ * của nó và hai state (`stored`, `preferences`) đứng yên ở `undefined` — app
+ * rơi về cookie rồi `DEFAULT_ACCOUNT_LOCALE`, đúng như hành vi khi chưa đăng
+ * nhập. Khi BFF thật có mặt, `getPreferences()` cho người chưa đăng nhập sẽ
+ * trả lỗi hoặc rỗng; khi đó adapter — không phải shell này — là nơi diễn giải.
  */
 export function useAccountShellPreferences(): void {
   const adapter = useAccountAdapter();
   const { load } = useAccountPreferences();
 
-  useAsyncData('account-shell-preferences', async () => {
-    // Hai lời gọi này cùng đọc `adapter.getPreferences()`. Bản mock chỉ là dữ
-    // liệu trong bộ nhớ nên chi phí không đáng kể; với BFF thật, việc gộp một
-    // fetch thành hai là việc của tầng adapter/hợp đồng — xem handoff của PR.
-    await Promise.all([useStoredAccountLocale(adapter), load()]);
-  });
+  useAsyncData(
+    'account-shell-preferences',
+    async () => {
+      // Hai lời gọi này cùng đọc `adapter.getPreferences()`. Bản mock chỉ là dữ
+      // liệu trong bộ nhớ nên chi phí không đáng kể; với BFF thật, việc gộp một
+      // fetch thành hai là việc của tầng adapter/hợp đồng — xem handoff của PR.
+      await Promise.all([useStoredAccountLocale(adapter), load()]);
+    },
+    { server: false },
+  );
 }

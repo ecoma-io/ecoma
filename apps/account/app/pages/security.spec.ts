@@ -14,13 +14,13 @@
  * của `/security` (từ `tests/acceptance-passwordless.spec.ts` — mã khôi phục MFA
  * có mặt, nhưng không một ngữ cảnh mật khẩu nào).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import SecurityPage from './security.vue';
 import { useAccountI18n } from '../composables/use-account-i18n';
 import { useAccountShellPreferences } from '../composables/use-account-shell-preferences';
-import { createMockAccountAdapter } from '../account-data/mock-adapter';
+import { createTestAccountAdapter } from '../../tests/test-adapter';
 import { flushPromises, mountAccount } from '../../tests/harness';
 import { accountStores } from '../../tests/nuxt-runtime-bridge';
 
@@ -88,6 +88,57 @@ describe('security page interactions', () => {
   });
 });
 
+describe('security capabilities', () => {
+  it('renders every section as unavailable when the backend has no security capability', async () => {
+    // Adapter thật hôm nay: cả ba năng lực `false`. UI phải nói rõ trạng thái —
+    // không danh sách, không control — thay vì bày hành động chỉ thành công được
+    // qua dữ liệu giả (Issue #123).
+    const { wrapper } = await mountAccount(SecurityPage, {
+      adapterOptions: {
+        securityCapabilities: { passkeys: false, totp: false, 'recovery-codes': false },
+      },
+    });
+
+    expect(wrapper.find('[data-testid="passkeys-unavailable"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="totp-unavailable"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="recovery-codes-unavailable"]').exists()).toBe(true);
+
+    // Không có danh sách, không có control hành động nào của cả ba phần.
+    expect(wrapper.find('[data-testid="passkey-list"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="passkey-remove-passkey-1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="passkey-add-disabled"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="totp-state"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="totp-toggle-disabled"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="recovery-codes-state"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="recovery-codes-regenerate-disabled"]').exists()).toBe(false);
+  });
+
+  it('never calls a security read for a capability the backend lacks', async () => {
+    // Loader giữ chỗ không được truy cập adapter: một lời gọi đi ra rồi ném là
+    // một error state cài ghim lên unavailable — sai trạng thái, và retry không
+    // bao giờ thành công được. Spy gắn **trước** mount để bắt cả lần nạp đầu.
+    const adapter = createTestAccountAdapter({
+      securityCapabilities: { passkeys: false },
+    });
+    const listPasskeys = vi.spyOn(adapter, 'listPasskeys');
+    const { wrapper } = await mountAccount(SecurityPage, { adapter });
+
+    expect(wrapper.find('[data-testid="passkeys-unavailable"]').exists()).toBe(true);
+    expect(listPasskeys).not.toHaveBeenCalled();
+  });
+
+  it('keeps full passkey management when the backend reports the capability', async () => {
+    // Nhánh đối chiếu: capability `true` (nền fixtures của adapter test) ⇒ UI
+    // đầy đủ — đây là hợp đồng mà BFF sẽ nối vào khi có route.
+    const { wrapper } = await mountAccount(SecurityPage);
+
+    expect(wrapper.find('[data-testid="passkeys-unavailable"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="passkey-list"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="totp-state"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="recovery-codes-state"]').exists()).toBe(true);
+  });
+});
+
 describe('i18n acceptance', () => {
   it('defaults to English with no saved preference and no explicit choice', async () => {
     const { wrapper } = await mountAccount(SecurityPage, {
@@ -151,7 +202,7 @@ describe('i18n acceptance', () => {
     // **lúc tải trang**, qua đúng đường shell wiring (`useAccountShellPreferences`
     // nạp `useStoredAccountLocale`), không phải bằng cách set composer locale.
     accountStores.cookies.set(LOCALE_COOKIE, 'en');
-    const adapter = createMockAccountAdapter();
+    const adapter = createTestAccountAdapter();
     await adapter.updatePreferences({ locale: 'vi' });
     const { wrapper } = await mountAccount(ShellSecurityPage, { adapter });
     await flushPromises();

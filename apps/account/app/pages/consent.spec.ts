@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import ConsentPage from './consent.vue';
-import { MOCK_CONSENT_HANDLE } from '../account-data/mock-adapter';
+import { TEST_CONSENT_HANDLE } from '../../tests/test-adapter';
 import { flushPromises, mountAccount } from '../../tests/harness';
 
 /** Tham số protocol mà UI không bao giờ được tự dựng hay tin. */
@@ -18,7 +18,7 @@ const PROTOCOL_PARAMS = /[?&](code|state|client_id|redirect_uri|scope|response_t
 describe('consent acceptance', () => {
   it('takes its client name, permissions and risk from the adapter alone', async () => {
     const { wrapper } = await mountAccount(ConsentPage, {
-      route: { path: '/consent', query: { handle: MOCK_CONSENT_HANDLE } },
+      route: { path: '/consent', query: { handle: TEST_CONSENT_HANDLE } },
     });
 
     expect(wrapper.find('[data-testid="consent-card"]').exists()).toBe(true);
@@ -55,7 +55,7 @@ describe('consent acceptance', () => {
     const { wrapper } = await mountAccount(ConsentPage, {
       route: {
         path: '/consent',
-        query: { handle: MOCK_CONSENT_HANDLE, client_id: 'attacker-app', scope: 'admin:write' },
+        query: { handle: TEST_CONSENT_HANDLE, client_id: 'attacker-app', scope: 'admin:write' },
       },
     });
 
@@ -66,7 +66,7 @@ describe('consent acceptance', () => {
 
   it('shows approve and deny, and builds no success or error redirect', async () => {
     const { wrapper, adapter } = await mountAccount(ConsentPage, {
-      route: { path: '/consent', query: { handle: MOCK_CONSENT_HANDLE } },
+      route: { path: '/consent', query: { handle: TEST_CONSENT_HANDLE } },
     });
 
     const decideConsent = vi.spyOn(adapter, 'decideConsent');
@@ -74,7 +74,7 @@ describe('consent acceptance', () => {
     await flushPromises();
 
     // Quyết định đi qua adapter — nơi duy nhất được phép biết hậu quả của nó.
-    expect(decideConsent).toHaveBeenCalledWith(MOCK_CONSENT_HANDLE, 'approve');
+    expect(decideConsent).toHaveBeenCalledWith(TEST_CONSENT_HANDLE, 'approve');
 
     // Không có `window.location` nào bị gán, và không có liên kết protocol nào.
     for (const anchor of wrapper.findAll('a')) {
@@ -86,7 +86,7 @@ describe('consent acceptance', () => {
   it('reports a refused decision instead of a completed authorization', async () => {
     const { wrapper } = await mountAccount(ConsentPage, {
       adapterOptions: { failWrites: ['decideConsent'] },
-      route: { path: '/consent', query: { handle: MOCK_CONSENT_HANDLE } },
+      route: { path: '/consent', query: { handle: TEST_CONSENT_HANDLE } },
     });
 
     await wrapper.find('[data-testid="consent-approve"]').trigger('click');
@@ -103,7 +103,7 @@ describe('consent acceptance', () => {
 
   it('reports a granted decision as granted, keeps it on screen, and never re-uses the handle', async () => {
     const { wrapper, adapter } = await mountAccount(ConsentPage, {
-      route: { path: '/consent', query: { handle: MOCK_CONSENT_HANDLE } },
+      route: { path: '/consent', query: { handle: TEST_CONSENT_HANDLE } },
     });
 
     expect(wrapper.find('[data-testid="account-result"]').exists()).toBe(false);
@@ -134,7 +134,7 @@ describe('consent acceptance', () => {
     // quyền nhầm ứng dụng. Route trong harness là `reactive` nên `setRoute`
     // giữa chừng chính là mô phỏng điều hướng SPA đó.
     const { wrapper, adapter, setRoute } = await mountAccount(ConsentPage, {
-      route: { path: '/consent', query: { handle: MOCK_CONSENT_HANDLE } },
+      route: { path: '/consent', query: { handle: TEST_CONSENT_HANDLE } },
     });
     expect(wrapper.text()).toContain('Ecoma Docs');
 
@@ -149,7 +149,7 @@ describe('consent acceptance', () => {
 
     // Quay lại handle hợp lệ: context mới tải và nút bật — trạng thái quyết định
     // cũ (nếu có) không giữ khóa.
-    setRoute({ query: { handle: MOCK_CONSENT_HANDLE } });
+    setRoute({ query: { handle: TEST_CONSENT_HANDLE } });
     await flushPromises();
     expect(wrapper.text()).toContain('Ecoma Docs');
     expect(

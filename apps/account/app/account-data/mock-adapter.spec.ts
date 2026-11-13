@@ -2,22 +2,27 @@
  * Bất biến của mock adapter — thứ chống lẫn giữa preview và dữ liệu thật.
  *
  * ⚠️ Đây là lý do file mock tồn tại: nó **không** được phép trông giống một tài
- * khoản đã lưu. Ba điều test này giữ là:
+ * khoản đã lưu, và từ Issue #123 nó **không được phép mang auth hay security**.
+ * Các điều test này giữ:
  *
  * 1. `isPreview` bật — banner của layout dựa vào cờ này, và nó phải do lớp dữ liệu
  *    đặt chứ không phải bởi biến build-time, để khi adapter thật thay vào thì banner
  *    tự biến mất.
- * 2. **Tất định** — mọi mốc thời gian là hằng số ISO, không `Date.now()`. UI format
+ * 2. **Chỉ port dữ liệu** — không có phương thức auth (challenge/verify/handoff/
+ *    consent) hay security (passkey/TOTP/mã khôi phục) nào trên object mock. Kiểu
+ *    trả về của factory đã ép điều này ở compile-time; test dưới đây là bằng chứng
+ *    runtime mà ai đọc diff cũng thấy được, không cần chạy `tsc`.
+ * 3. **Tất định** — mọi mốc thời gian là hằng số ISO, không `Date.now()`. UI format
  *    bằng `Intl` theo locale + timezone tường minh, nên SSR và client cho cùng chuỗi;
  *    dùng đồng hồ thật sẽ tạo hydration mismatch chỉ vào những ngày khác nhau.
- * 3. **Không giả vờ là server** — thao tác ghi chỉ đổi state trong bộ nhớ, và nó từ
+ * 4. **Không giả vờ là server** — thao tác ghi chỉ đổi state trong bộ nhớ, và nó từ
  *    chối đúng những việc mà server sẽ từ chối (xoá địa chỉ đăng nhập cuối cùng,
  *    thu hồi chính phiên này) để UI không đi qua một đường production từ chối.
  */
 import { describe, expect, it } from 'vitest';
 
-import { createMockAccountAdapter, MOCK_CONSENT_HANDLE } from './';
-import type { AccountAdapter, Result } from './types';
+import { createMockAccountAdapter } from './mock-adapter';
+import type { PreviewAccountAdapter, Result } from './types';
 
 /**
  * Thu hẹp `Result<T>` sang nhánh thành công.
@@ -57,11 +62,10 @@ function collectIsoStrings(value: unknown, found: string[] = []): string[] {
   return found;
 }
 
-async function snapshot(adapter: AccountAdapter): Promise<unknown> {
+async function snapshot(adapter: PreviewAccountAdapter): Promise<unknown> {
   return {
     profile: await adapter.getProfile(),
     emails: await adapter.listEmails(),
-    passkeys: await adapter.listPasskeys(),
     sessions: await adapter.listSessions(),
     applications: await adapter.listApplications(),
     preferences: await adapter.getPreferences(),
@@ -73,6 +77,28 @@ async function snapshot(adapter: AccountAdapter): Promise<unknown> {
 describe('mock adapter', () => {
   it('flags itself as preview data', () => {
     expect(createMockAccountAdapter().isPreview).toBe(true);
+  });
+
+  it('has no auth methods in any mode', () => {
+    const adapter = createMockAccountAdapter();
+    // Khẳng định qua `toHaveProperty` (không phải truy cập thuộc tính): chính
+    // kiểu `PreviewAccountAdapter` đã **không có** các key này — truy cập trực
+    // tiếp là lỗi compile-time, và test này ghi lại điều đó thành bằng chứng
+    // runtime.
+    expect(adapter).not.toHaveProperty('requestLoginChallenge');
+    expect(adapter).not.toHaveProperty('verifyLoginCode');
+    expect(adapter).not.toHaveProperty('completeHandoff');
+    expect(adapter).not.toHaveProperty('getConsentContext');
+    expect(adapter).not.toHaveProperty('decideConsent');
+  });
+
+  it('has no security methods and no capability map', () => {
+    const adapter = createMockAccountAdapter();
+    expect(adapter).not.toHaveProperty('listPasskeys');
+    expect(adapter).not.toHaveProperty('removePasskey');
+    expect(adapter).not.toHaveProperty('getTotpState');
+    expect(adapter).not.toHaveProperty('getRecoveryCodesState');
+    expect(adapter).not.toHaveProperty('securityCapabilities');
   });
 
   it('reads identically on every call — no clock, no randomness', async () => {
@@ -136,32 +162,6 @@ describe('mock adapter', () => {
 
     expect(added.status).toBe('pending');
     expect(added.isSignInAddress).toBe(false);
-  });
-
-  it('serves a consent context only for its own handle', async () => {
-    const adapter = createMockAccountAdapter();
-    expect(await adapter.getConsentContext(MOCK_CONSENT_HANDLE)).toBeDefined();
-    expect(await adapter.getConsentContext('some-other-handle')).toBeUndefined();
-  });
-
-  it('renders the code step only when the challenge mode is "code"', async () => {
-    const linkMode = createMockAccountAdapter();
-    const codeMode = createMockAccountAdapter({ challengeMode: 'code' });
-
-    expect(unwrap(await linkMode.requestLoginChallenge('a@example.com')).mode).toBe('email-link');
-    // Chế độ email-link không có bước nhập mã, nên mã "đúng" cũng phải bị từ chối.
-    expect(await linkMode.verifyLoginCode('123456')).toEqual({
-      ok: false,
-      reason: 'invalid code',
-    });
-
-    expect(unwrap(await codeMode.requestLoginChallenge('a@example.com')).mode).toBe('code');
-    const accepted = await codeMode.verifyLoginCode('123456');
-    // Mock không có BFF ⇒ không có continuation cấp được: trường tồn tại với giá
-    // trị `undefined`, không phải trường vắng mặt — caller đọc `.confirmUrl`
-    // an toàn trên mọi value thành công.
-    expect(accepted).toEqual({ ok: true, value: { confirmUrl: undefined } });
-    expect((await codeMode.verifyLoginCode('000000')).ok).toBe(false);
   });
 
   it('surfaces an invalid stored locale instead of silently substituting one', async () => {
