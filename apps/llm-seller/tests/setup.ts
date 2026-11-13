@@ -8,7 +8,7 @@
  *   thay đi, nên assertion của test sau có thể đọc trạng thái của test trước.
  * - Reset client state của jsdom (cookie, localStorage, sessionStorage, URL) vì
  *   mọi test trong cùng file dùng chung một `window`: cookie locale và cookie
- *   preferences nếu không xoá thì các test chạy sau diễn ra trong môi trường
+ *   color mode nếu không xoá thì các test chạy sau diễn ra trong môi trường
  *   đã bị nhiễm — một khẳng định "mặc định là en" có thể xanh vì lý do sai
  *   (cookie rò từ test trước) thay vì vì logic thật.
  * - Reset state của Vitest (mock và global stub) vì `vitest.config.mts` không bật

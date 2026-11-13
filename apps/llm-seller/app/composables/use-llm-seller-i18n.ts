@@ -1,5 +1,7 @@
 import { useI18n } from '#i18n';
-import { watchEffect, type ComputedRef } from 'vue';
+import type { AppShellDirection } from '@ecoma-io/ui-app-shell';
+import { computed, watchEffect, type ComputedRef } from 'vue';
+import { getLlmSellerLocaleDefinition } from '../i18n/locale-registry';
 import { useLlmSellerLocale } from './use-llm-seller-locale';
 
 /**
@@ -8,6 +10,11 @@ import { useLlmSellerLocale } from './use-llm-seller-locale';
 export type LlmSellerI18nState = {
   /** BCP-47 cho `<html lang>` — khác `code` ở `zh-CN` (`zh-Hans`). */
   readonly language: ComputedRef<string>;
+  /**
+   * Chiều văn bản cho `<html dir>` và prop `dir` của shell — suy ra từ registry,
+   * cùng nguồn với `language`.
+   */
+  readonly dir: ComputedRef<AppShellDirection>;
 };
 
 /**
@@ -22,12 +29,17 @@ export type LlmSellerI18nState = {
  * `watchEffect` chứ không phải set một lần: locale đổi được giữa phiên (đổi ở
  * language selector), và ngôn ngữ phải theo ngay.
  *
- * ⚠️ Composable này **không** gọi `useHead` cho `<html lang>`: app gộp **toàn bộ**
- * thuộc tính document vào **một** `useHead` ở `app.vue` — shell trả về `class`/`dir`
- * của `<html>` và `color-*` của `<body>` qua `appShellHeadAttributes`, còn `lang`
- * là việc của app — gộp vào cùng object thì kết quả không phụ thuộc vào việc unhead
- * có trộn `htmlAttrs` giữa hai lần gọi hay không. Vì vậy composable trả
- * `language` về cho `app.vue` thay vì tự ghi head.
+ * `dir` là thuộc tính của **ngôn ngữ nội dung**, không phải lựa chọn người dùng
+ * (issue #213): shell không còn setting LTR/RTL, chiều văn bản đọc từ định nghĩa
+ * locale đang chọn trong registry — cùng nguồn với `<html lang>`, nên thêm một
+ * locale RTL (ar, he, fa…) chỉ cần khai `dir: 'rtl'` ở registry một chỗ, không
+ * phải sửa app.vue hay shell.
+ *
+ * ⚠️ Composable này **không** gọi `useHead` cho thuộc tính document: app gộp
+ * **toàn bộ** head vào **một** `useHead` ở `app.vue` — `lang`/`dir` của `<html>`
+ * và script bootstrap color mode nằm trong cùng một object, nên kết quả không
+ * phụ thuộc vào việc unhead có trộn head giữa hai lần gọi hay không. Vì vậy
+ * composable trả `language` và `dir` về cho `app.vue` thay vì tự ghi head.
  *
  * ⚠️ `<html lang>` lấy `language` (BCP-47) chứ không lấy `code`. Ở `zh-CN` hai
  * cái khác nhau: `lang="zh-CN"` vẫn hợp lệ về cú pháp, nhưng screen reader và
@@ -41,5 +53,13 @@ export function useLlmSellerI18n(): LlmSellerI18nState {
     i18n.locale.value = preferred.value;
   });
 
-  return { language };
+  return {
+    // `getLlmSellerLocaleDefinition` không thể trả `undefined` ở đây vì
+    // `preferred` đã là `LlmSellerLocale`; fallback `'ltr'` vẫn được khai để
+    // kiểu không dựa vào điều kiện không xảy ra — nếu registry và default lệch
+    // nhau thì lỗi phải hiện ra, không phải trả `undefined` làm `<html dir>`
+    // rỗng.
+    dir: computed(() => getLlmSellerLocaleDefinition(preferred.value)?.dir ?? 'ltr'),
+    language,
+  };
 }
