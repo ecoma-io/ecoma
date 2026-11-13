@@ -119,10 +119,13 @@ Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.requ
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------- | ------------------ |
 | `/health` không cần credential; CORS chỉ cho origin cấu hình; 401 đồng nhất cho missing/unknown/revoked | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration | `test-integration` |
 | HAL index có link publish contract (không assert giá trị compatibility `version`)                       | cùng file trên                                              | integration | `test-integration` |
-| Publish 201 rồi publish lại 200; trần selector 50                                                       | cùng file trên                                              | integration | `test-integration` |
+| Publish 201 rồi publish lại 200, `contentSha` ổn định kèm link verification; trần selector 50           | cùng file trên                                              | integration | `test-integration` |
 | Trần body 1 MiB đo trên stream trả 413, request nhỏ trả 201                                             | cùng file trên                                              | integration | `test-integration` |
 | Cách ly tenant trên mọi đường đọc                                                                       | cùng file trên                                              | integration | `test-integration` |
-| Batch publish kèm branch và tag                                                                         | cùng file trên                                              | integration | `test-integration` |
+| Batch publish kèm branch, tag và `notices`                                                              | cùng file trên                                              | integration | `test-integration` |
+| Batch all-or-nothing: một contract hỏng thì không contract nào được ghi                                 | cùng file trên                                              | integration | `test-integration` |
+| `latest` và `latest/:tag`, kèm 404 cho tag không tồn tại                                                | cùng file trên                                              | integration | `test-integration` |
+| Republish nội dung khác giữ verification result đã ghi                                                  | cùng file trên                                              | integration | `test-integration` |
 | Rule publish/idempotent ở tầng application                                                              | `libs/pact-broker-api-application/src/publish-pact.spec.ts` | unit        | `test`             |
 | Hình dạng HAL và link                                                                                   | `libs/pact-broker-api-domain/src/hal.spec.ts`               | unit        | `test`             |
 | Validation tên, version, branch, tag, SHA                                                               | `libs/pact-broker-api-domain/src/validation.spec.ts`        | unit        | `test`             |
@@ -131,9 +134,4 @@ Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.requ
 **Giới hạn của verification hiện tại:**
 
 - Không có test nào chạy Pact CLI thật; tương thích với CLI chỉ được suy ra từ hình dạng route và `compatibility version 2.107.0` trong HAL index.
-- Publish lại nội dung khác giữ verification result: rule được mô tả trong repository và có unit test cho use case, nhưng **không có scenario integration** assert trực tiếp rằng verification row vẫn còn sau khi publish đè.
-- Không có test cho `GET /pacts/latest` hay `GET .../latest/:tag` ở tầng integration; chỉ có unit test của phần domain.
-- **Hình dạng phản hồi publish chỉ được assert một phần.** Scenario "201 kèm `contentSha`" dựa trên unit test của use case; integration test assert mã trạng thái và bản ghi, không assert `contentSha` trong body.
-- **Tính all-or-nothing của batch publish không được assert trực tiếp.** Không spec nào gửi một batch có contract hỏng rồi kiểm tra rằng không contract nào trong batch được ghi.
-- Trường `notices` trong phản hồi batch không được test nào assert.
 - Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass. Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.

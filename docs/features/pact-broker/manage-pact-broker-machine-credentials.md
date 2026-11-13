@@ -129,6 +129,7 @@ Bằng chứng ở tầng integration app-owned (Hono `app.request()` trong proc
 | 401 đồng nhất cho missing/unknown/revoked                                 | cùng file trên                                            | integration | `test-integration` |
 | Luật scope và hình dạng hash của token                                    | `libs/pact-broker-api-application/src/token-auth.spec.ts` | unit        | `test`             |
 | Audit append-only và composite-FK tenant                                  | `apps/pact-broker-api/tests/databases/migrations.spec.ts` | database    | `test-integration` |
+| CHECK `machine_tokens.scopes` chỉ nhận từ vựng `read`/`write`/`admin`     | cùng file trên                                            | database    | `test-integration` |
 
 **Giới hạn của verification hiện tại:**
 
@@ -136,5 +137,4 @@ Bằng chứng ở tầng integration app-owned (Hono `app.request()` trong proc
 - Không có test nào chứng minh hành vi khi audit lỗi trong lúc tạo hoặc thu hồi; khoảng trống đó là hệ quả của hai transaction tách rời, không phải một hành vi được thiết kế.
 - Không có spec riêng cho hàm băm secret; việc không lưu plaintext chỉ được kiểm chứng gián tiếp qua luồng integration (tạo rồi dùng lại được secret).
 - Không có test nào cho trang `/tokens` của dashboard; `environments.vue` và `tokens.vue` không có render spec.
-- **Ràng buộc CHECK trên cột `scopes` không được assert ở đâu.** Ràng buộc tồn tại trong migration, nhưng spec database không chạm tới nó.
 - **Ánh xạ credential sang tenant không có unit test.** Spec unit chỉ phủ luật scope và hình dạng hash; tenant mapping chỉ được kiểm chứng gián tiếp qua các test cách ly tenant ở tầng integration.
