@@ -26,7 +26,7 @@ Nx project `llm-api-deploy`, tags `type:deployment`, `scope:llm-api`, `runtime:n
 - Không sở hữu code của `apps/llm-api` — container chạy bundle do app đó build; sửa hành vi app thì sửa app.
 - Không cấu hình consumer của data plane LLM ở local — base URL nội bộ `http://ecoma-llm-api:4211` là contract để unit consumer dùng, không phải phần của stack này.
 - Ngữ nghĩa quota/settlement của llm-api không được restatement ở đây → `docs/applications/llm-api/`.
-- Container mock upstream GHÉP TÊN tại `lane.ts` với hình dạng `ecoma-<ns>-<kind>` vì kind `llm-upstream-mock` chưa nằm trong union đóng `DeployResourceKind` của `libs/deployment` — thêm kind là thay đổi lib dùng chung, ngoài phạm vi lane E2E. Hệ quả: `pnpm dx local-cleanup` chưa tự phân loại container này — dọn chính thức là `test-lane-down`.
+- Container mock upstream dùng kind `llm-upstream-mock` trong union `DeployResourceKind` của `libs/deployment` (#187) — tên qua `dockerResourceName`, và `pnpm dx local-cleanup` tự phân loại container mồ côi qua `CLEANUP_KINDS`. `test-lane-down` vẫn là teardown thuộc lane (chạy khi worktree còn sống).
 
 ## Development
 
