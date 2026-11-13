@@ -12,19 +12,24 @@
       "- account-deploy + staff-access-deploy: gap #113 — `local-up` của llm-api-deploy đọc",
       "  credential migrator cross-stack từ hai stack này mà không khai dependsOn; suite bù",
       "  cạnh ở cấp `system-test` để một lần chạy mới trên worktree sạch có thứ tự đúng.",
-      "- llm-api-deploy: toàn bộ hạ tầng của lane E2E — worker `ecoma-llm-api`, ba database",
-      "  LLM, bootstrap đã đi (superadmin, Dronie seller, consumer tenant + funding, offer),",
-      "  container mock upstream và kênh `LANE_STATE` (entry `lane.ts state`).",
-      "- apps/llm-api (`@ecoma-io/llm-api`): worker bundle chạy trong WIC container; suite",
-      "  KHÔNG build nó — bundle là prerequisite của `test-lane-up` ( Nx kéo qua dependsOn).",
+      "KHÔNG khai llm-api-deploy ở đây dù lane thuộc nó: hợp đồng",
+      "local-lifecycle-graph.spec của dx đòi implicitDependencies BẰNG ĐÚNG tập project",
+      "của các entry dependsOn target `local-up` (selection và prerequisite là một tập;",
+      "entry `test-lane-up` dưới đây không nằm trong phép so). Cạnh lane vẫn thật ở task",
+      "graph — `test-lane-up` kéo toàn bộ hạ tầng (worker `ecoma-llm-api`, ba database LLM,",
+      "bootstrap, container mock upstream, kênh `LANE_STATE` qua `lane.ts state`). Hệ quả",
+      "đã biết: `nx affected` KHÔNG chọn suite này khi chỉ llm-api-deploy đổi — khoảng",
+      "trống hiện tại của hợp đồng dx (chỉ biết prerequisite target `local-up`), ghi nhận",
+      "cho chủ sở hữu tools/dx, không tự xử tại đây.",
+      "KHÔNG khai apps/llm-api (`@ecoma-io/llm-api`): suite không import gì từ project app",
+      "và KHÔNG build nó — worker bundle là prerequisite của `test-lane-up` (Nx kéo qua",
+      "dependsOn), còn cạnh implicit ngoài deploys/* bị hợp đồng dx cấm.",
       "KHÔNG khai home/backoffice/mail/push/pact: suite không chạm unit nào của chúng."
     ],
     "implicitDependencies": [
       "platform-deploy",
       "account-deploy",
-      "staff-access-deploy",
-      "llm-api-deploy",
-      "@ecoma-io/llm-api"
+      "staff-access-deploy"
     ],
     "tags": [
       "type:tooling",
