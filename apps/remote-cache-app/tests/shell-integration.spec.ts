@@ -3,10 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import IndexPage from '../app/pages/index.vue';
-import {
-  APP_SHELL_COLOR_MODE_COOKIE,
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
-} from '@ecoma-io/ui-app-shell';
+import { APP_SHELL_COLOR_MODE_COOKIE } from '@ecoma-io/ui-app-shell';
 import { mountRemoteCacheAppApp, flush } from './harness';
 import { documentHead, remoteCacheAppStores } from './nuxt-globals';
 import { stripComments } from './source-code';
@@ -32,9 +29,20 @@ describe('lang and dir on <html> are owned by the app', () => {
 });
 
 describe('the dark class is not managed by unhead', () => {
-  it('registers the color mode bootstrap script as inline head content', () => {
-    expect(APP_VUE_CODE).toMatch(/script\s*:\s*\[\s*\{\s*textContent\s*:/u);
-    expect(APP_VUE_CODE).toMatch(/APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT/u);
+  it('injects the color mode bootstrap script only through the static nuxt.config app.head', () => {
+    // App chạy `ssr: false`: `useHead` chỉ áp dụng sau mount, nên script phải
+    // là entry **tĩnh** trong `app.head` của `nuxt.config.ts` — render thẳng
+    // vào HTML shell lúc build, chạy lúc parse trước first paint. Ghim theo
+    // source: biểu thức chính xác `innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_
+    // SCRIPT` cùng dòng import subpath của library — tên hằng được typecheck
+    // kiểm, nên hai phía không thể lệch nhau.
+    const nuxtConfig = readFileSync(resolve(import.meta.dirname, '../nuxt.config.ts'), 'utf8');
+    expect(nuxtConfig).toContain("from '@ecoma-io/ui-app-shell/lib/color-mode'");
+    expect(nuxtConfig).toContain('innerHTML: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT');
+
+    // Và `useHead` của app.vue không đăng ký script nào — một script qua
+    // useHead chỉ xuất hiện sau mount, tạo cảm giác đã bảo vệ mà thực ra không.
+    expect(APP_VUE_CODE).not.toMatch(/\bscript\s*:/u);
   });
 
   it('never sets a dark class through htmlAttrs or bodyAttrs', () => {
@@ -69,13 +77,15 @@ describe('color mode is the one persisted shell setting', () => {
   });
 });
 
-describe('the merged head carries lang, dir and the bootstrap script', () => {
-  it('registers lang and dir on <html> and the bootstrap script in one head', async () => {
+describe('the merged head carries lang and dir', () => {
+  it('registers lang and dir on <html> and no scripts', async () => {
     const wrapper = await mountRemoteCacheAppApp({ page: IndexPage });
     const head = documentHead();
 
     expect(head['htmlAttrs']).toMatchObject({ lang: 'en', dir: 'ltr' });
-    expect(head['script']).toEqual([{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }]);
+    // Script bootstrap nằm trong `app.head` tĩnh của `nuxt.config.ts` (ngoài
+    // tầm với của `useHead`) — head mà app đăng ký phải sạch script.
+    expect(head['script'] ?? []).toEqual([]);
 
     wrapper.unmount();
   });

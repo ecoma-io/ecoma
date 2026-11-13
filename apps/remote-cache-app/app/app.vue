@@ -26,7 +26,6 @@
 
 <script setup lang="ts">
 import {
-  APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT,
   APP_SHELL_COLOR_MODE_COOKIE,
   AppShell,
   AppShellColorModeToggle,
@@ -77,13 +76,15 @@ function setColorMode(next: AppShellColorMode): void {
   colorModeCookie.value = next;
 }
 
-// Gộp mọi thứ app ghi vào head vào một `useHead` duy nhất: `lang` + `dir` của
-// `<html>` và script bootstrap của color mode. Class `dark` **không** nằm ở đây —
-// script quyết định nó trước first paint, Vue/unhead không quản lý class này nên
-// hydration không bao giờ dispute với script.
+// useHead đăng ký `lang` + `dir` của `<html>`. Script bootstrap của color mode
+// **không** nằm ở đây — app chạy `ssr: false`, nên `useHead` chỉ áp dụng sau
+// khi bundle mount, quá muộn so với first paint; script được chèn tĩnh vào
+// `app.head` trong `nuxt.config.ts`, render thẳng vào HTML shell lúc build.
+// Class `dark` cũng **không** nằm ở đây — script quyết định nó trước first
+// paint, Vue/unhead không quản lý class này nên hydration không bao giờ
+// dispute với script.
 useHead(() => ({
   htmlAttrs: { lang: language.value, dir: dir.value },
-  script: [{ textContent: APP_SHELL_COLOR_MODE_BOOTSTRAP_SCRIPT }],
 }));
 
 const shellLabels = computed(() => appShellLabels((key) => t(key)));
