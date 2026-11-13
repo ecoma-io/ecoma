@@ -43,8 +43,8 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 - **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
 - **Xoá environment không ghi audit**, và thay đổi tag hay deployment cũng không ghi audit. Chỉ `environment.create` và `environment.update` được ghi.
-- **Không có RBAC theo vai trò người dùng.** Chỉ scope của token quyết định; `tenant_members.role` được ghi nhưng không được kiểm tra ở đường request.
-- **Đọc một verification result cần scope `write`**, không phải `read`.
+- **Chưa có RBAC theo vai trò người dùng.** Chỉ scope của token quyết định; `tenant_members.role` được ghi nhưng không được kiểm tra ở đường request — giới hạn hiện tại. Quyết định đã chấp nhận: đường user qua portal enforce theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `viewer` trở lên đọc được verification/matrix), hiện thực qua #206/#207.
+- **Đọc một verification result hiện đòi scope `write`, không phải `read`.** Quyết định đã chấp nhận: đổi thành scope `read` ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §6 — guard `write` hiện tại tại `apps/pact-broker-api/src/routes/verifications.ts:22-24` là lệch semantic; thay đổi strictly permissive vì `read` ⊂ `write`), hiện thực qua #206.
 - Không bao gồm publish pact và đọc contract — thuộc [Publish và truy xuất contract](./publish-and-retrieve-contracts.md). Không bao gồm credential — thuộc [Quản lý machine credential](./manage-pact-broker-machine-credentials.md).
 
 ## 4. Acceptance Scenarios
@@ -141,5 +141,5 @@ Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()`
 **Giới hạn của verification hiện tại:**
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
-- Không có test nào chạy Pact CLI; tương thích với `pact-broker verify` hay `can-i-deploy` của CLI chỉ được suy ra từ hình dạng route và compatibility version.
+- Không có test nào chạy Pact CLI; tương thích với `pact-broker verify` hay `can-i-deploy` của CLI chỉ được suy ra từ hình dạng route và compatibility version. CLI làm chuẩn là npm `@pact-foundation/pact-cli` ghim theo bằng chứng chạy thật (kết luận #205 quyết định 12 — #208 sở hữu evidence publish/verify/can-i-deploy trên lane; system E2E thuộc #27).
 - Không có test nào chứng minh việc thiếu audit khi xoá environment là hành vi mong muốn; đó là khoảng trống đã biết.
