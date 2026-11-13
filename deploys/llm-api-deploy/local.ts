@@ -283,6 +283,17 @@ const BOOTSTRAP_CONFIG_DEFAULTS: Readonly<Record<string, string>> = {
   // `pulumi config set namespace:llmUpstreamCredentialPlaintext <key>` rồi up
   // lại; runner 8b sẽ rotation (revoke cũ, thêm mới), không bao giờ xoá.
   'namespace:llmUpstreamCredentialPlaintext': generatePostgresPassword(),
+  // Funding ADR-0028 cho tenant consumer (bước 10): tiền là minor unit của UC
+  // (đơn vị gốc VND ×100). `sponsorId` CHỈ ASSERT định danh nằm trong code của
+  // runner (`sponsor_ecoma_internal`) — cấu hình lệch là runner từ chối, không
+  // bao giờ ghi. Hai trần + evidence_ref + amount là cấu hình lane local,
+  // nâng được bằng `pulumi config set` rồi up lại; trần thấp hơn amount là
+  // runner exit khác 0 với grant `pending` bền (ADR-0028 §6).
+  'namespace:sponsorId': 'sponsor_ecoma_internal',
+  'namespace:sponsorCeiling': '1000000000000',
+  'namespace:sponsorAuthorizationCeiling': '1000000000000',
+  'namespace:sponsorAuthorizationEvidenceRef': 'budget-decision:2026-Q4:lane-local',
+  'namespace:sponsorGrantAmount': '100000000000',
 };
 
 async function prepare(foundation: EntryFoundation): Promise<void> {

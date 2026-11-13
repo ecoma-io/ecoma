@@ -476,5 +476,100 @@
     "lines": {
       "127": "^\\ \\ return\\ `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 175,
+    "end": 184,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "175": "\\ \\ return\\ \\(",
+      "176": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.authorization_id\\)\\ \\&\\&",
+      "177": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.sponsor_id\\)\\ \\&\\&",
+      "178": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.billing_account_id\\)\\ \\&\\&",
+      "179": "\\ \\ \\ \\ \\(candidate\\.ceiling\\ ===\\ null\\ \\|\\|\\ isMoney\\(candidate\\.ceiling\\)\\)\\ \\&\\&",
+      "180": "\\ \\ \\ \\ isFundingAuthorizationStatus\\(candidate\\.status\\)\\ \\&\\&",
+      "181": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.evidence_ref\\)\\ \\&\\&",
+      "182": "\\ \\ \\ \\ isEpochMillis\\(candidate\\.created_at\\)\\ \\&\\&",
+      "183": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.created_by\\)",
+      "184": "\\ \\ \\);"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 193,
+    "end": 202,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "193": "\\ \\ return\\ \\(",
+      "194": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.grant_id\\)\\ \\&\\&",
+      "195": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.authorization_id\\)\\ \\&\\&",
+      "196": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.sponsor_id\\)\\ \\&\\&",
+      "197": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.billing_account_id\\)\\ \\&\\&",
+      "198": "\\ \\ \\ \\ isMoney\\(candidate\\.amount\\)\\ \\&\\&",
+      "199": "\\ \\ \\ \\ isSponsorGrantState\\(candidate\\.state\\)\\ \\&\\&",
+      "200": "\\ \\ \\ \\ isOpaqueId\\(candidate\\.actor_ref\\)\\ \\&\\&",
+      "201": "\\ \\ \\ \\ isEpochMillis\\(candidate\\.created_at\\)",
+      "202": "\\ \\ \\);"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 221,
+    "end": 221,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "221": "\\ \\ \\ \\ \\(candidate\\)\\ =>\\ candidate\\.authorization_id\\ ===\\ authorizationId,"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 223,
+    "end": 225,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "223": "\\ \\ return\\ authorization\\ ===\\ undefined",
+      "224": "\\ \\ \\ \\ \\?\\ financialFailure\\('funding_authorization_not_found'\\)",
+      "225": "\\ \\ \\ \\ :\\ financialOk\\(authorization\\);"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 446,
+    "end": 455,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "446": "\\ \\ return\\ financialOk\\(",
+      "447": "\\ \\ \\ \\ Object\\.freeze\\(\\{",
+      "448": "\\ \\ \\ \\ \\ \\ book:\\ Object\\.freeze\\(\\{",
+      "449": "\\ \\ \\ \\ \\ \\ \\ \\ \\.\\.\\.book,",
+      "450": "\\ \\ \\ \\ \\ \\ \\ \\ fundingAuthorizations:\\ freezeArray\\(\\[\\.\\.\\.book\\.fundingAuthorizations,\\ authorization\\]\\),",
+      "451": "\\ \\ \\ \\ \\ \\ \\}\\),",
+      "452": "\\ \\ \\ \\ \\ \\ authorization,",
+      "453": "\\ \\ \\ \\ \\ \\ replayed:\\ false,",
+      "454": "\\ \\ \\ \\ \\}\\),",
+      "455": "\\ \\ \\);"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "libs/llm-financial-domain/src/sponsor.ts",
+    "start": 534,
+    "end": 540,
+    "reason": "Domain library thuần (ADR-0028 §4-5): sponsor funding — `return` trả aggregate/domain result cho application layer trong cùng process, không phải HTTP response — file này không có handler, không mount route, không deploy. Taint khởi phát từ định danh `authorization*` (vocabulary canonical của ADR-0028: trường `authorization_id`, biến cục bộ `authorization`) qua naming-heuristic của rule, lan qua type guard/finder/domain result tới `return`; cùng lớp FP với hai entry `conversion.ts` và `records.ts` của cùng lib. Đổi tên để né shape là scanner evasion theo chính sách của rule.",
+    "lines": {
+      "534": "\\ \\ return\\ financialOk\\(",
+      "535": "\\ \\ \\ \\ Object\\.freeze\\(\\{",
+      "536": "\\ \\ \\ \\ \\ \\ book:\\ Object\\.freeze\\(\\{\\ \\.\\.\\.book,\\ grants:\\ freezeArray\\(\\[\\.\\.\\.book\\.grants,\\ grant\\]\\)\\ \\}\\),",
+      "537": "\\ \\ \\ \\ \\ \\ grant,",
+      "538": "\\ \\ \\ \\ \\ \\ replayed:\\ false,",
+      "539": "\\ \\ \\ \\ \\}\\),",
+      "540": "\\ \\ \\);"
+    }
   }
 ]

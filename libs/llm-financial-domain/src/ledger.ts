@@ -51,6 +51,8 @@ import type { WalletBalances } from './wallet';
  * - `funding_clearing`: đối ứng khi tiền vào/ra ledger từ nguồn ngoài (deposit).
  * - `earnings_clearing`: đối ứng khi EC earnings được credit vào ví seller.
  * - `conversion_clearing`: đối ứng của một leg conversion EC→UC.
+ * - `sponsor_funding_clearing`: đối ứng của grant tài trợ nội bộ (ADR-0028 §4)
+ *   — nguồn riêng, không tái dùng `funding_clearing` của deposit `payment`.
  */
 export const LEDGER_ACCOUNTS = [
   'wallet_available',
@@ -59,6 +61,7 @@ export const LEDGER_ACCOUNTS = [
   'funding_clearing',
   'earnings_clearing',
   'conversion_clearing',
+  'sponsor_funding_clearing',
 ] as const;
 
 /** Một ledger account. */
@@ -100,6 +103,8 @@ export const LEDGER_REFERENCE_TYPES = [
   'escrow',
   'escrow_release',
   'earning',
+  'sponsor_grant',
+  'sponsor_grant_reversal',
 ] as const;
 
 /** Loại nguồn tham chiếu. */

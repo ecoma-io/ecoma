@@ -2,7 +2,7 @@
  * `@ecoma-io/llm-financial-domain` — tầng domain thuần của bounded context
  * `llm-financial`: billing account/wallet, double-entry ledger, reservation,
  * settlement, seller payable, conversion, hold, budget escrow/lease,
- * reconciliation và financial audit.
+ * reconciliation, financial audit và sponsor funding (ADR-0028).
  *
  * Target architecture: `docs/domains/llm-financial/domain-model.md`.
  *
@@ -350,3 +350,39 @@ export {
 } from './reconcile';
 
 export { type AppendAuditInput, appendAudit, readAudit } from './audit';
+
+export {
+  SPONSOR_STATUSES,
+  type SponsorStatus,
+  isSponsorStatus,
+  FUNDING_AUTHORIZATION_STATUSES,
+  type FundingAuthorizationStatus,
+  isFundingAuthorizationStatus,
+  SPONSOR_GRANT_STATES,
+  type SponsorGrantState,
+  isSponsorGrantState,
+  type Sponsor,
+  isSponsor,
+  type SponsorFundingAuthorization,
+  isSponsorFundingAuthorization,
+  type SponsorGrant,
+  isSponsorGrant,
+  findSponsor,
+  findFundingAuthorization,
+  findGrant,
+  sponsorNetCredited,
+  authorizationNetCredited,
+  type RegisterSponsorInput,
+  type SponsorSeedOutcome,
+  registerSponsor,
+  type AuthorizeFundingInput,
+  type FundingAuthorizationOutcome,
+  authorizeFunding,
+  type RegisterGrantInput,
+  type SponsorGrantOutcome,
+  registerGrant,
+  type CreditGrantInput,
+  creditGrant,
+  type ReverseGrantInput,
+  reverseGrant,
+} from './sponsor';

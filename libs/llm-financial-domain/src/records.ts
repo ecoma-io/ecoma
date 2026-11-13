@@ -680,6 +680,19 @@ export const AUDIT_ACTIONS = [
   'escrow_reallocated',
   'converted',
   'fencing_token_rotated',
+  // Sponsor funding vocabulary — tên exactly theo ADR-0028 §4. Các action
+  // revoke/update không có operation nào phát sinh ở MVP; chúng là vocabulary
+  // canonical cho bề mặt tương lai (ADR-0028 §13.6).
+  'sponsor_registered',
+  'sponsor_funding_authorized',
+  'sponsor_funding_authorization_revoked',
+  'sponsor_grant_registered',
+  'sponsor_grant_credited',
+  'sponsor_grant_reversed',
+  'sponsor_ceiling_updated',
+  'sponsor_funding_authorization_ceiling_updated',
+  'financial_charge_capped',
+  'financial_settle_missing_usage',
 ] as const;
 
 /** Một hành động audit. */
