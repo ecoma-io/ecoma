@@ -23,6 +23,6 @@ Ranh giới context tại system level → [`docs/architecture/01-architecture.m
 | Document                               | Nội dung                                                                                                             |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | [`domain-model.md`](./domain-model.md) | Ranh giới, khái niệm nghiệp vụ, mô hình assurance, vòng đời account, retention/privacy, invariant nghiệp vụ, điểm mở |
-| [`adr/`](./adr/README.md)              | Architectural decision record — ADR-0030 (Proposed): kênh tạo Account ngoài bootstrap qua lời mời                    |
+| [`adr/`](./adr/README.md)              | Architectural decision record — ADR-0030 (Accepted): kênh tạo Account ngoài bootstrap qua lời mời                    |
 
 Runtime, schema, contract, cookie/session, envelope HMAC và vận hành của component hiện thực context này → [`../../applications/account/`](../../applications/account/README.md).

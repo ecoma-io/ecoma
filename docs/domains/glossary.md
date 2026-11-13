@@ -13,6 +13,7 @@
 - **Account** — bằng chứng đăng nhập của một người dùng. Gồm credential, MFA/passkey, browser session, profile, preference, privacy/legal consent. Không phải "user nghiệp vụ" của bất kỳ Application nào.
 - **Account ID (`sub`)** — opaque identifier của account, không tái sử dụng, không tái phát hành. Là **tham chiếu** mà các context khác (staff member của `staff-access`, tenant membership của `pact-broker`, tenant của LLM) dùng để liên kết; **không** phải foreign key xuyên database và **không** phải quan hệ sở hữu (A21).
 - **Dễ nhầm:** `sub` ≠ email (email là contact credential và login identifier, không phải OIDC `sub`); `sub` ≠ staff member (staff là khái niệm của `staff-access`, liên kết bằng `sub`).
+- **Lời mời (invitation)** — bản ghi authorization của `account` cho việc sinh **một** Account mới cho **một** địa chỉ; Account ngoài bootstrap chỉ ra đời khi người được mời chứng minh kiểm soát hộp thư bằng OTP đăng nhập, và Account + email `verified` + phiên ra đời trong một transaction. Việc phát là thao tác quản trị permission-gated (verdict enforce phía chuỗi `staff-access`); lời mời không phải role, staff identity hay entitlement, và địa chỉ canonical `superadmin@ecoma.io` bị loại trừ. **Dễ nhầm:** lời mời ≠ signup tự phục vụ (không tồn tại); ≠ đường tự thêm email của một Account đã đăng nhập; ≠ invitation/membership của bất kỳ Application hay tenant nào → [ADR-0030](./account/adr/0030-account-creation-channel-invitation.md).
 
 ## Authentication / Authorization
 
