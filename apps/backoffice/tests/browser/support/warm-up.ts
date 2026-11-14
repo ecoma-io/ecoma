@@ -50,6 +50,56 @@ export function warmUpCapMs(isCI: boolean): number {
 }
 
 /**
+ * Sàn của một lần chờ trong vế warm-up browser.
+ *
+ * ⚠️ Trước đây phần "còn lại" bị kẹp xuống 1 ms: khi trần sắp cạn, mỗi lượt chờ
+ * chỉ nhận 1 ms và đỏ ngay bằng một timeout locator khó đọc, không nói được là
+ * đã hết ngân sách warm-up. Sàn 1 s giữ cho lượt chờ cuối vẫn có ý nghĩa.
+ *
+ * Biên tăng thêm do sàn, tính trên trần CI 120 s: tối đa 1 s cho lượt chờ vượt
+ * trần + tối đa `QUIET_MS` 3 s của vòng settle = 4 s. Một `page.goto` không
+ * truyền timeout thì dùng mặc định 30 s của Playwright (đo được: `goto` tới host
+ * không phản hồi hết sau 30 004 ms) — nhưng đó là trần **có sẵn** của navigation,
+ * không phải phần sàn này thêm vào. Biên ngoài thật của cả job là
+ * `timeout-minutes: 30` của job `integration-test` trong `.github/workflows/ci.yaml`.
+ *
+ * Không lượt chờ nào bắt đầu sau khi trần đã cạn: `remainingWarmUpMs` ném lỗi
+ * rõ ràng thay vì trả về một giá trị vô nghĩa.
+ */
+export const WARM_UP_MIN_WAIT_MS = 1_000;
+
+/**
+ * Phần ngân sách warm-up còn lại cho một lượt chờ.
+ *
+ * - Còn nhiều hơn sàn: trả về đúng phần còn lại.
+ * - Còn ít hơn sàn nhưng chưa cạn: trả về sàn (`WARM_UP_MIN_WAIT_MS`), để lượt
+ *   chờ cuối không bị biến thành một timeout 1 ms vô nghĩa.
+ * - Đã cạn: **ném** lỗi nói rõ đã dùng bao lâu, trần bao nhiêu và đang ở bước
+ *   nào, thay vì để lượt chờ kế tiếp đỏ với `Timeout 1ms exceeded`.
+ *
+ * `stage` là nhãn cho người đọc (route/bước) để lỗi chỉ đúng chỗ; đồng hồ nhận
+ * qua tham số để unit-test được (xem `tests/warm-up.spec.ts`).
+ */
+export function remainingWarmUpMs(options: {
+  readonly capMs: number;
+  readonly phaseStart: number;
+  readonly stage: string;
+  readonly now?: () => number;
+}): number {
+  const now = options.now ?? Date.now;
+  const elapsedMs = now() - options.phaseStart;
+  const remainingMs = options.capMs - elapsedMs;
+
+  if (remainingMs <= 0) {
+    throw new Error(
+      `Warm-up browser budget exhausted after ${String(elapsedMs)} ms (cap ${String(options.capMs)} ms) at ${options.stage}; refusing to start a meaningless wait.`,
+    );
+  }
+
+  return Math.max(remainingMs, WARM_UP_MIN_WAIT_MS);
+}
+
+/**
  * Điều hướng chịu được `full-reload` của `nuxt dev` giữa chừng.
  *
  * ⚠️ Vì sao cần hàm này: khi Vite pre-bundle dependency theo lượt tải đầu tiên của

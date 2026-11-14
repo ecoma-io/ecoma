@@ -1,7 +1,7 @@
 import { chromium, request, type FullConfig, type Page } from '@playwright/test';
 
 import { PROTOTYPE_ROUTES, waitForRouteReady } from './support/prototype';
-import { gotoWithReloadRetry, warmUpCapMs } from './support/warm-up';
+import { gotoWithReloadRetry, remainingWarmUpMs, warmUpCapMs } from './support/warm-up';
 
 /**
  * Nóng năm route prototype **trước** khi chạy test, theo hai vế khác nhau.
@@ -111,9 +111,16 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
   // thời gian warm-up không có biên biết trước (đó là một trong hai lỗ hổng của
   // #239: `waitForRouteReady` không truyền timeout nên rơi về 30s mặc định của
   // Playwright, ngoài tầm với của trần warm-up).
-  const capMs = warmUpCapMs(process.env.CI !== undefined && process.env.CI !== '');
+  // Dùng đúng công tắc truthiness của `playwright.config.ts` (`!!process.env.CI`,
+  // `!process.env.CI`): `CI=false` **không** phải cờ tắt CI được hỗ trợ trong repo
+  // — GitHub Actions đặt `CI=true`, local để trống. Một predicate `=== 'true'` sẽ
+  // tách trần warm-up khỏi phần còn lại của cấu hình (`forbidOnly`, `reporter`,
+  // `reuseExistingServer` vẫn coi `'false'` là CI), đúng loại lệch cấu hình mà
+  // #239 gây ra.
+  const capMs = warmUpCapMs(Boolean(process.env.CI));
   const phaseStart = Date.now();
-  const remainingMs = (): number => Math.max(capMs - (Date.now() - phaseStart), 1);
+  const elapsedMs = (): number => Date.now() - phaseStart;
+  const remainingMs = (stage: string): number => remainingWarmUpMs({ capMs, phaseStart, stage });
 
   try {
     const page = await browser.newPage({ baseURL });
@@ -126,27 +133,39 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
 
     for (const route of PROTOTYPE_ROUTES) {
       const routeStart = Date.now();
-      await gotoWithReloadRetry(page, route.path, { capMs: remainingMs() });
+      await gotoWithReloadRetry(page, route.path, {
+        capMs: remainingMs(`navigation to ${route.path}`),
+      });
       const gotoMs = Date.now() - routeStart;
 
+      // Tính timeout **trước** `try`: hết ngân sách phải nổi lên đúng lỗi
+      // "budget exhausted" của `remainingWarmUpMs`, không bị catch bên dưới
+      // bọc lại thành "route không sẵn sàng" — hai nguyên nhân khác nhau.
+      const readyTimeoutMs = remainingMs(`ready signal of ${route.path}`);
+
       try {
-        await waitForRouteReady(page, route.path, remainingMs());
+        await waitForRouteReady(page, route.path, readyTimeoutMs);
       } catch (cause) {
         // Đo được trên merge queue: cấu hình thiếu làm route **không** sẵn sàng,
         // và lỗi gốc (`waiting for getByTestId('backoffice-sample-notice')`) không
         // nói lý do — đọc như một flake của `nuxt dev` thay vì một gate bị tắt.
+        // Nói thêm phần trần còn lại: một lượt chờ hết trần phải đọc ra là "hết
+        // ngân sách warm-up", không phải "route hỏng" — hai nguyên nhân khác nhau.
         throw new Error(
-          `${route.path} không sẵn sàng sau khi warm-up. Bộ test này chỉ kiểm bề mặt prototype, còn dev server phải chạy với NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype (đặt trong playwright.config.ts). Nếu chế độ đó tắt, app render trạng thái unavailable: không fixture và không banner backoffice-sample-notice — đây là cấu hình, không phải app.`,
+          `${route.path} không sẵn sàng sau khi warm-up (đã dùng ${String(Date.now() - phaseStart)} ms / trần ${String(capMs)} ms). Bộ test này chỉ kiểm bề mặt prototype, còn dev server phải chạy với NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype (đặt trong playwright.config.ts). Nếu chế độ đó tắt, app render trạng thái unavailable: không fixture và không banner backoffice-sample-notice — đây là cấu hình, không phải app.`,
           { cause },
         );
       }
 
+      // Không dùng `remainingMs()` ở đây: chỉ để **log** phần còn lại, không được
+      // ném "budget exhausted" sau khi route vừa sẵn sàng thành công. Lượt chờ kế
+      // tiếp vẫn sẽ ném đúng lỗi đó nếu trần đã cạn.
       console.log(
-        `[warm-up] ${route.path} ready in ${String(Date.now() - routeStart)} ms (goto ${String(gotoMs)} ms, ${String(remainingMs())} ms of cap left)`,
+        `[warm-up] ${route.path} ready in ${String(Date.now() - routeStart)} ms (goto ${String(gotoMs)} ms, ${String(Math.max(capMs - elapsedMs(), 0))} ms of cap left)`,
       );
     }
 
-    await waitForDevServerToSettle(page, remainingMs());
+    await waitForDevServerToSettle(page, remainingMs('dev server settle'));
     console.log(`[warm-up] browser phase finished in ${String(Date.now() - phaseStart)} ms`);
   } finally {
     await browser.close();
