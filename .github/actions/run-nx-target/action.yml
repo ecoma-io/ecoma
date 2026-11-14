@@ -27,6 +27,14 @@ inputs:
       run are re-reported there anyway.
     required: false
     default: 'false'
+  exclude:
+    description: |
+      Projects to leave out of the run, comma or space separated. Forwarded to
+      Nx as `--exclude`; the negation form (`*,!project`) selects only the named
+      projects and excludes every other. Empty (the default) excludes nothing,
+      so existing callers keep their behaviour unchanged.
+    required: false
+    default: ''
   configuration:
     description: |
       Nx configuration ('-c') forwarded to the run, e.g. 'local' to select the
@@ -77,6 +85,7 @@ runs:
         RAW_TARGETS: ${{ inputs.targets }}
         THREADS: ${{ inputs.threads }}
         BAIL: ${{ inputs.bail }}
+        RAW_EXCLUDE: ${{ inputs.exclude }}
         CONFIGURATION: ${{ inputs.configuration }}
         RETRIES: ${{ inputs.retries }}
         RETRY_COMMAND: ${{ inputs.retry-command }}
@@ -94,6 +103,18 @@ runs:
         if [ -z "$targets" ]; then
           echo "::error::run-nx-target: input 'targets' resolved to nothing. Pass at least one target, e.g. 'test' or 'test,typecheck'."
           exit 1
+        fi
+
+        # `--exclude` cũng dùng `parseCSV` không trim, nên chuẩn hoá y như
+        # `targets`. Rỗng là giá trị hợp lệ: không loại project nào. Dạng phủ
+        # định `*,!project` được Nx hiểu là "chỉ project này", dùng để chọn một
+        # tập con thay cho một danh sách loại trừ.
+        IFS=$', \t\n' read -ra excluded <<< "$RAW_EXCLUDE"
+        exclude="$(IFS=,; echo "${excluded[*]}")"
+
+        exclude_flag=''
+        if [ -n "$exclude" ]; then
+          exclude_flag="--exclude=$exclude"
         fi
 
         # Bash word splitting is deliberate: an empty flag must vanish from the
@@ -114,11 +135,11 @@ runs:
 
         run_nx() {
           if [ "$AFFECTED" = 'true' ]; then
-            echo "Running on the affected set: npx nx affected -t $targets $config_flag"
-            npx nx affected -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+            echo "Running on the affected set: npx nx affected -t $targets $config_flag $exclude_flag"
+            npx nx affected -t "$targets" --parallel="$THREADS" $bail_flag $config_flag $exclude_flag
           else
-            echo "Running on every project: npx nx run-many -t $targets $config_flag"
-            npx nx run-many -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+            echo "Running on every project: npx nx run-many -t $targets $config_flag $exclude_flag"
+            npx nx run-many -t "$targets" --parallel="$THREADS" $bail_flag $config_flag $exclude_flag
           fi
         }
 

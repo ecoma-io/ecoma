@@ -123,12 +123,39 @@ jobs:
       # ở đó đỏ ngay tại `chromium.launch()` của suite.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Integration test
+      # Tách lane browser khỏi phần còn lại của `test-integration` (issue #253).
+      # Trên affected set rộng (27 project, `--parallel=6`), Chromium huỷ cả loạt
+      # request module của Vite dev server trong một đợt với
+      # `net::ERR_NETWORK_CHANGED`, kèm `Failed to fetch dynamically imported
+      # module: .../nuxt/dist/app/entry.js`; client Nuxt không bao giờ mount
+      # (`ssr: false` nên shell rỗng phía server là đúng hành vi). Cùng HEAD trên
+      # affected set hẹp thì xanh, nên lỗi gắn với quy mô job chứ không với mã
+      # nguồn. Đã chứng minh: đó là sự kiện thay đổi network topology của runner,
+      # trùng với các project dùng Docker/testcontainers chạy song song trong job.
+      # Task nào tạo ra thay đổi đó thì CHƯA được đo — không có kết luận nhân quả
+      # nào ở đây.
+      #
+      # Vì vậy hai bước dưới đây chạy tuần tự trong cùng job: bước đầu chạy phần
+      # không dùng browser; bước sau chạy riêng hai project dùng Playwright với
+      # `threads: 1`, để không task Docker nào của bước đầu còn chạy khi browser
+      # khởi động. Bước hai chọn đúng hai project bằng `--exclude` dạng phủ định
+      # (`*,!project`); affected set không chứa chúng thì Nx báo "0 tasks" và
+      # thoát 0, không phải lỗi.
+      - name: Integration test (non-browser)
         uses: ./.github/actions/run-nx-target
         with:
           targets: build test-integration
           affected: ${{ !inputs.force }}
           bail: ${{ github.event_name == 'merge_group' }}
+          exclude: '@ecoma-io/backoffice,@ecoma-io/pact-broker-app'
+      - name: Integration test (browser, serialized)
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: test-integration
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
+          threads: '1'
+          exclude: '*,!@ecoma-io/backoffice,!@ecoma-io/pact-broker-app'
 
   # Bộ system test (Playwright + Chromium thật) chạy trên local platform stack
   # thật: invocation `nx affected -t system-test -c local` là ĐƯỜNG DUY NHẤT dẫn
