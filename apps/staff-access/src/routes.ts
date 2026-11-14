@@ -60,6 +60,8 @@ import {
   getRoleById,
   getStaffById,
   insertAssignment,
+  iso,
+  isoNullable,
   listActivePermissions,
   listActiveRoles,
   listAssignmentsForStaff,
@@ -82,27 +84,6 @@ import { decodeKeysetCursor, encodeKeysetCursor } from './cursor';
 
 const HIGH_ENTITLEMENT_FRESHNESS_MS = 5_000;
 const NORMAL_ENTITLEMENT_FRESHNESS_MS = 60_000;
-
-/**
- * Chuẩn hoá một giá trị `timestamptz` của driver về ISO 8601 string trước khi
- * đưa vào payload wire.
- *
- * `postgres.js` parse OID 1184 (`timestamptz`) thành `Date`, nên kiểu khai báo
- * ở tầng repository không phải sự thật runtime. Contract wire đòi ISO string có
- * offset hoặc `Z`; đưa `Date` thô vào payload làm validator trả `invalid_entry`
- * (issue #252). Mọi mapper timestamp ở file này phải đi qua helper này.
- */
-function iso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
-
-/** Như {@link iso} nhưng giữ `null` — dùng cho cột `timestamptz` nullable. */
-function isoNullable(value: Date | string | null): string | null {
-  if (value === null) {
-    return null;
-  }
-  return iso(value);
-}
 
 function isEntitlementFresh(
   row: { status: string; occurred_at: Date | string },

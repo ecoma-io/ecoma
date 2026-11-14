@@ -4,19 +4,9 @@ import {
   type EntitlementEventType,
 } from '@ecoma-io/staff-access-contracts';
 import type { StaffAccessQueryable, StaffAccessTransaction } from './postgres';
+import { iso } from './timestamps';
 
 export type { EntitlementEvent };
-
-/**
- * Chuẩn hoá giá trị `timestamptz` của driver về ISO 8601 string.
- *
- * `postgres.js` parse OID 1184 thành `Date`, nên kiểu khai báo trên row không
- * phải sự thật runtime; envelope {@link EntitlementEvent} của contract đòi ISO
- * string có offset hoặc `Z` (issue #252).
- */
-function iso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
 
 /**
  * Repository của `staff_access.entitlements` + `staff_access.entitlement_outbox_events`
