@@ -116,6 +116,8 @@ export default {
     revoke: 'Revoke',
     createFailed: 'Credential creation was rejected — check your permissions or the input.',
     mutateFailed: 'The operation was rejected — the credential may have just changed state.',
+    csrfMissing:
+      'Your session is missing its security token — reload the page and sign in again if it persists.',
     revealed: {
       title: 'The token is shown only this once',
       hint: 'Store it now — "{name}" will never be shown again. Reloading the page loses it permanently.',

@@ -80,6 +80,7 @@ const createPurpose = ref<'developer' | 'ci'>('developer');
 const createScopes = ref<string[]>(['read']);
 const creating = ref(false);
 const createRejected = ref(false);
+const createCsrfMissing = ref(false);
 
 /** Secret show-once đang hiển thị — chỉ sống trong bộ nhớ tab này. */
 const revealed = ref<{ name: string; secret: string } | null>(null);
@@ -97,10 +98,19 @@ async function submitCreate(): Promise<void> {
   if (creating.value || createName.value.trim() === '' || createScopes.value.length === 0) return;
   creating.value = true;
   createRejected.value = false;
+  createCsrfMissing.value = false;
   try {
+    const csrf = readCsrfToken();
+    // CSRF cookie vắng mặt ⇒ request chắc chắn bị từ chối fail-closed — báo lỗi
+    // ngay thay vì gửi request 401/403 im lặng.
+    if (csrf === undefined || csrf === '') {
+      createCsrfMissing.value = true;
+      createRejected.value = true;
+      return;
+    }
     const res = await brokerFetch('/api/broker/machine-tokens', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', [CSRF_HEADER_NAME]: readCsrfToken() ?? '' },
+      headers: { 'content-type': 'application/json', [CSRF_HEADER_NAME]: csrf },
       body: JSON.stringify({
         name: createName.value.trim(),
         scopes: createScopes.value,
@@ -119,6 +129,8 @@ async function submitCreate(): Promise<void> {
     } else {
       createRejected.value = true;
     }
+  } catch {
+    createRejected.value = true;
   } finally {
     creating.value = false;
   }
@@ -128,8 +140,13 @@ async function submitCreate(): Promise<void> {
 const copied = ref(false);
 async function copySecret(): Promise<void> {
   if (revealed.value === null) return;
-  await navigator.clipboard.writeText(revealed.value.secret);
-  copied.value = true;
+  try {
+    await navigator.clipboard.writeText(revealed.value.secret);
+    copied.value = true;
+  } catch {
+    // Clipboard bị từ chối (permission/HTTP không secure) — giữ nút "Copy",
+    // người dùng vẫn đọc plaintext trực tiếp.
+  }
 }
 
 /** Snippet CLI copy-được kèm token vừa tạo (issue #207). */
@@ -145,6 +162,7 @@ const confirmTarget = ref<{ id: string; name: string; action: 'rotate' | 'revoke
 const confirmName = ref('');
 const mutating = ref(false);
 const mutateError = ref(false);
+const mutateCsrfMissing = ref(false);
 
 function askConfirm(id: string, name: string, action: 'rotate' | 'revoke'): void {
   confirmTarget.value = { id, name, action };
@@ -161,20 +179,29 @@ async function runConfirm(): Promise<void> {
   if (target === null || !confirmReady.value || mutating.value) return;
   mutating.value = true;
   mutateError.value = false;
+  mutateCsrfMissing.value = false;
   try {
+    const csrf = readCsrfToken();
+    // CSRF cookie vắng mặt ⇒ request chắc chắn bị từ chối fail-closed — báo lỗi
+    // ngay thay vì gửi request 401/403 im lặng.
+    if (csrf === undefined || csrf === '') {
+      mutateCsrfMissing.value = true;
+      mutateError.value = true;
+      return;
+    }
     const res =
       target.action === 'rotate'
         ? await brokerFetch(`/api/broker/machine-tokens/${target.id}/rotate`, {
             method: 'POST',
             headers: {
               'content-type': 'application/json',
-              [CSRF_HEADER_NAME]: readCsrfToken() ?? '',
+              [CSRF_HEADER_NAME]: csrf,
             },
             body: '{}',
           })
         : await brokerFetch(`/api/broker/machine-tokens/${target.id}`, {
             method: 'DELETE',
-            headers: { [CSRF_HEADER_NAME]: readCsrfToken() ?? '' },
+            headers: { [CSRF_HEADER_NAME]: csrf },
           });
     if (res.ok) {
       if (target.action === 'rotate') {
@@ -189,6 +216,8 @@ async function runConfirm(): Promise<void> {
     } else {
       mutateError.value = true;
     }
+  } catch {
+    mutateError.value = true;
   } finally {
     mutating.value = false;
   }
@@ -305,7 +334,7 @@ async function runConfirm(): Promise<void> {
           </label>
         </fieldset>
         <p v-if="createRejected" class="mb-2 text-sm text-destructive">
-          {{ t('tokens.createFailed') }}
+          {{ createCsrfMissing ? t('tokens.csrfMissing') : t('tokens.createFailed') }}
         </p>
         <button
           type="submit"
@@ -422,7 +451,7 @@ async function runConfirm(): Promise<void> {
             data-testid="pact-broker-token-confirm-input"
           />
           <p v-if="mutateError" class="mb-2 text-sm text-destructive">
-            {{ t('tokens.mutateFailed') }}
+            {{ mutateCsrfMissing ? t('tokens.csrfMissing') : t('tokens.mutateFailed') }}
           </p>
           <div class="flex justify-end gap-2">
             <button

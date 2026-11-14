@@ -95,6 +95,7 @@ export default {
     revoke: '撤销',
     createFailed: '创建凭据被拒绝 — 请检查权限或输入内容。',
     mutateFailed: '操作被拒绝 — 凭据状态可能刚被其他人变更。',
+    csrfMissing: '您的会话缺少安全令牌 — 请刷新页面；如仍出现，请重新登录后再试。',
     revealed: {
       title: 'Token 仅显示这一次',
       hint: '请立即保存 — "{name}" 不会再显示。刷新页面后将永久丢失。',

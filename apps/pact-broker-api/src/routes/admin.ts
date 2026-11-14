@@ -67,7 +67,11 @@ function callerAuthority(c: import('hono').Context<AppEnv>): CallerAuthority {
   if (typeof sub === 'string' && sub !== '') {
     // Middleware user-auth đã resolve role; đọc lại từ context cùng giá trị.
     const role = c.get('principalRole');
-    return { role: (role ?? 'viewer') as CallerAuthority['role'], actorSub: sub };
+    // roleSatisfies fail-closed với giá trị lạ, nên coerce tường minh an toàn
+    // hơn assertion: role không nằm trong ROLE_RANK bị coi là viewer (đọc) và
+    // bị chặn ở mọi mutation.
+    const safeRole: MembershipRole = role === 'member' || role === 'admin' ? role : 'viewer';
+    return { role: safeRole, actorSub: sub };
   }
   // Đường machine: guard scope admin của route đã chạy; admin-level.
   return { role: 'admin', actorSub: null };
@@ -145,9 +149,7 @@ export function adminRoutes(adminAuth: () => MiddlewareHandler<AppEnv>): Hono<Ap
 
     const authority = callerAuthority(c);
     const userPath = authority.actorSub !== null;
-    const purpose: TokenPurpose | null = userPath
-      ? (parsed.data.purpose ?? null)
-      : (parsed.data.purpose ?? null);
+    const purpose: TokenPurpose | null = parsed.data.purpose ?? null;
     if (userPath) {
       // Đường user bắt buộc purpose (ADR-0032 §2).
       if (purpose === null) {

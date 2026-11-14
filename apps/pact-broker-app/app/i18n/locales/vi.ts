@@ -97,6 +97,8 @@ export default {
     revoke: 'Thu hồi',
     createFailed: 'Tạo credential bị từ chối — kiểm tra lại quyền hoặc dữ liệu.',
     mutateFailed: 'Thao tác bị từ chối — credential có thể vừa bị người khác đổi trạng thái.',
+    csrfMissing:
+      'Phiên của bạn thiếu security token — tải lại trang; nếu vẫn lặp lại, đăng nhập rồi thử lại.',
     revealed: {
       title: 'Token chỉ hiển thị lần này',
       hint: 'Lưu lại ngay — "{name}" sẽ không bao giờ hiển thị lại. Reload trang là mất vĩnh viễn.',
