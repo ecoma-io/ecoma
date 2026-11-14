@@ -19,6 +19,9 @@ import { brokerFetch } from '../utils/broker-fetch';
 
 const { t } = useI18n();
 
+const CSRF_COOKIE_NAME = '__Host-pact-broker-csrf';
+const CSRF_HEADER_NAME = 'x-ecoma-csrf';
+
 interface MatrixRow {
   consumer?: { name?: unknown; version?: { number?: unknown } };
   provider?: { name?: unknown };
@@ -80,6 +83,23 @@ const verdict = ref<
 
 const busy = ref(false);
 
+/** Cookie CSRF vắng mặt — lỗi fail-closed hiển thị thay vì gửi request 401. */
+const csrfMissing = ref(false);
+
+/** Đọc cookie CSRF cho double-submit (ADR-0031 §3). Base64url thuần, không encode. */
+function readCsrfToken(): string | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  for (const part of document.cookie.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === CSRF_COOKIE_NAME) {
+      return rest.join('=');
+    }
+  }
+  return undefined;
+}
+
 const kindOf = (value: unknown): 'deployable' | 'not-deployable' | 'unknown' => {
   if (value === true) {
     return 'deployable';
@@ -99,10 +119,19 @@ async function ask(): Promise<void> {
   busy.value = true;
   asked.value = true;
   verdict.value = null;
+  csrfMissing.value = false;
   try {
+    const csrf = readCsrfToken();
+    // CSRF cookie vắng mặt ⇒ middleware authn chắc chắn từ chối POST fail-closed
+    // — báo lỗi ngay thay vì gửi request 401 mà brokerFetch dịch thành redirect
+    // login (kicks người dùng ra login khi bấm Check).
+    if (csrf === undefined || csrf === '') {
+      csrfMissing.value = true;
+      return;
+    }
     const res = await brokerFetch('/api/broker/can-i-deploy', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', [CSRF_HEADER_NAME]: csrf },
       body: JSON.stringify(
         environmentInput.value.trim() === ''
           ? { pacticipant, version }
@@ -244,13 +273,13 @@ const verificationKind = (row: MatrixRow): 'success' | 'failed' | 'none' => {
       </div>
 
       <div
-        v-else-if="verdict !== null && verdict.kind === 'error'"
+        v-else-if="csrfMissing || (verdict !== null && verdict.kind === 'error')"
         data-testid="pact-broker-matrix-error"
       >
         <PactBrokerErrorState
           :title="t('states.errorTitle')"
-          :body="t('states.errorBody')"
-          :detail="verdict.message"
+          :body="csrfMissing ? t('tokens.csrfMissing') : t('states.errorBody')"
+          :detail="verdict !== null && verdict.kind === 'error' ? verdict.message : ''"
           :retry-label="t('matrix.ask')"
           :on-retry="ask"
         />

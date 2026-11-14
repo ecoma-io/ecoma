@@ -61,16 +61,29 @@ async function mountWith(endpoints: FetchEndpoint[]) {
 
 /** Điền form và submit — đi qua DOM thật của trang, không đụng internal. */
 async function askVerdict(wrapper: Awaited<ReturnType<typeof mountWith>>): Promise<void> {
+  stubCsrfCookie();
   await wrapper.find('[data-testid="pact-broker-matrix-pacticipant"]').setValue('svc-a');
   await wrapper.find('[data-testid="pact-broker-matrix-version"]').setValue('1.0.0');
   await wrapper.find('form').trigger('submit.prevent');
   await flush();
 }
 
+const csrfMissingText = pactBrokerMessages.en.tokens.csrfMissing;
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  // `document.cookie` là state jsdom dùng chung — xoá cookie CSRF giữa các test.
+  document.cookie = '__Host-pact-broker-csrf=; Max-Age=0; Path=/; Secure';
 });
+
+/**
+ * Cài cookie CSRF double-submit như runtime thật (cùng pattern tokens.spec.ts).
+ * jsdom enforce prefix `__Host-`: thiếu `Secure` thì phép gán bị từ chối lặng lẽ.
+ */
+function stubCsrfCookie(): void {
+  document.cookie = '__Host-pact-broker-csrf=csrf-test-token; Path=/; Secure';
+}
 
 describe('matrix page — verdict tri-state', () => {
   it('shows the deployable verdict and the matrix rows for deployable: true', async () => {
@@ -151,6 +164,35 @@ describe('matrix page — verdict tri-state', () => {
 
     expect(wrapper.find('[data-testid="pact-broker-matrix-error"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('bad selector');
+    wrapper.unmount();
+  });
+
+  it('skips the fetch and shows the error when the CSRF cookie is missing', async () => {
+    const wrapper = await mountWith([pacticipantsEndpoint(['svc-a'])]);
+    // Bọc fetch đã stub sau mount: GET nạp danh sách đi qua bình thường, còn
+    // POST can-i-deploy được đếm để assert không bao giờ rời trang.
+    const base = globalThis.fetch;
+    const postCalls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input, init) => {
+        if (String(input).includes('/api/broker/can-i-deploy')) {
+          postCalls.push(String(input));
+        }
+        return base(input, init);
+      }),
+    );
+
+    await wrapper.find('[data-testid="pact-broker-matrix-pacticipant"]').setValue('svc-a');
+    await wrapper.find('[data-testid="pact-broker-matrix-version"]').setValue('1.0.0');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flush();
+
+    // Fail-closed ở client: POST không rời trang, lỗi hiển thị thay vì để
+    // brokerFetch dịch 401 thành redirect login.
+    expect(postCalls).toHaveLength(0);
+    expect(wrapper.find('[data-testid="pact-broker-matrix-error"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain(csrfMissingText);
     wrapper.unmount();
   });
 

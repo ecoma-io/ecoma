@@ -333,12 +333,53 @@ describe('pact-broker-app read pages on a real browser against the real broker',
     await expectCleanPage(authenticated, errors);
   });
 
-  // ⚠️ Verdict `can-i-deploy` từ browser CHƯA regression được: đang phát hiện
-  // bug sản phẩm — `app/pages/matrix.vue` `ask()` POST `/api/broker/can-i-deploy`
-  // không mang header `x-ecoma-csrf`, middleware authn 401 mọi POST thiếu
-  // header, và `brokerFetch` dịch 401 thành redirect ra login ⇒ trình duyệt
-  // bị bật ra trang chủ thay vì nhận verdict. Fix thuộc `matrix.vue` — ngoài
-  // scope lock của slice này; test verdict bổ sung sau khi fix land.
+  // Verdict `can-i-deploy` qua form thật: POST phải mang header CSRF
+  // double-submit — thiếu header là middleware authn 401 và `brokerFetch`
+  // dịch thành redirect login (kicks người dùng ra login thay vì hiện verdict).
+
+  it('returns a verdict for svc-consumer@1.0.0 without any login redirect on /matrix', async () => {
+    const { page: authenticated } = await openAuthenticatedPage();
+    const errors = watchBrowserErrors(authenticated);
+
+    await openPage(authenticated, '/matrix');
+
+    await authenticated.waitForSelector('[data-testid="pact-broker-matrix-form"]', {
+      timeout: 30_000,
+    });
+
+    // Điền form với cặp seed có verification thành công
+    // (svc-consumer@1.0.0 → svc-provider): verdict phải là deployable.
+    await authenticated.selectOption('[data-testid="pact-broker-matrix-pacticipant"]', {
+      label: 'svc-consumer',
+    });
+    await authenticated.fill('[data-testid="pact-broker-matrix-version"]', '1.0.0');
+    await authenticated.click('[data-testid="pact-broker-matrix-ask"]');
+
+    // Verdict hiện ra và KHÔNG có redirect login: URL vẫn là /matrix và
+    // nguyên văn verdict deployable của catalog render trên trang.
+    await authenticated.waitForSelector('[data-testid="pact-broker-matrix-verdict"]', {
+      timeout: 30_000,
+    });
+    expect(authenticated.url()).not.toContain('/api/auth/login');
+    const verdictText = await authenticated
+      .locator('[data-testid="pact-broker-matrix-verdict"]')
+      .innerText();
+    expect(verdictText).toContain('Deployable: all verifications for this version pass.');
+
+    // Bảng matrix đi kèm verdict: row thật của seed, verification Verified.
+    await authenticated.waitForSelector('[data-testid="pact-broker-matrix-table"]', {
+      timeout: 30_000,
+    });
+    const tableText = await authenticated
+      .locator('[data-testid="pact-broker-matrix-table"]')
+      .innerText();
+    expect(tableText).toContain('svc-consumer');
+    expect(tableText).toContain('svc-provider');
+    expect(tableText).toContain('1.0.0');
+    expect(tableText).toContain('Verified');
+
+    await expectCleanPage(authenticated, errors);
+  });
 
   it('renders the CLI onboarding command blocks with the pinned CLI version on /onboarding', async () => {
     const { page: authenticated } = await openAuthenticatedPage();
