@@ -104,5 +104,14 @@ export default defineNuxtConfig({
     remoteCacheApiBaseUrl: '',
     internalAuthSecret: '',
     remoteCacheAppDatabaseUrl: '',
+    // Public cho client (SPA đọc qua `useRuntimeConfig().public`): tên tenant
+    // canonical (ADR-0020 Q9) và cache endpoint hiển thị ở trang onboarding
+    // (R21). Vắng mặt ⇒ trang trả trạng thái unavailable — fail-closed, không
+    // bao giờ đoán tên tenant. Trên Workers đi qua `NUXT_PUBLIC_*` của Worker
+    // env; không nằm trong nhánh private vì client cần đọc.
+    public: {
+      remoteCacheTenantName: '',
+      remoteCacheCacheEndpoint: '',
+    },
   },
 });
