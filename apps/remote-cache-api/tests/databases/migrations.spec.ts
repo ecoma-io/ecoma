@@ -21,6 +21,22 @@ import { type RemoteCacheDatabase, startRemoteCacheDatabase } from '../integrati
 
 let db: RemoteCacheDatabase;
 
+// Tên bảng trong schema `remote_cache` sau khi áp xong toàn bộ migrations:
+// 5 bảng data (P4.1/P4.2) + 3 bảng P4.3 (quota_limits, usage_counters, audit_log)
+// + internal_nonces (portal authorization #202) = 9 bảng. Dùng chung cho cả hai
+// test assertions để tổng số bảng không bị hardcode riêng lẻ.
+const EXPECTED_REMOTE_CACHE_TABLES = [
+  'api_keys',
+  'audit_log',
+  'cache_entries',
+  'internal_nonces',
+  'projects',
+  'quota_limits',
+  'tenant_members',
+  'tenants',
+  'usage_counters',
+].toSorted();
+
 beforeAll(async () => {
   db = await startRemoteCacheDatabase();
 }, 180_000);
@@ -39,9 +55,8 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
       expect(result.applied).toBe(files.length);
 
       // Không có bảng lịch sử để đối chiếu: catalog là nguồn sự thật duy nhất —
-      // đếm bảng `CREATE TABLE remote_cache.*` (9 bảng: 5 bảng data P4.1/P4.2 +
-      // 3 bảng P4.3 quota_limits, usage_counters, audit_log + internal_nonces
-      // của portal authorization #202) qua catalog thật.
+      // đếm bảng `CREATE TABLE remote_cache.*` qua catalog thật. Danh sách bên
+      // dưới cũng dùng để tính tổng số bảng asserts cho result.
       const { rows } = await migrator.query<{ relname: string }>(
         `SELECT c.relname
            FROM pg_class c
@@ -49,20 +64,8 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
           WHERE n.nspname = 'remote_cache' AND c.relkind IN ('r', 'p')
           ORDER BY c.relname`,
       );
-      expect(rows.map((row) => row.relname)).toEqual(
-        [
-          'api_keys',
-          'audit_log',
-          'cache_entries',
-          'internal_nonces',
-          'projects',
-          'quota_limits',
-          'tenant_members',
-          'tenants',
-          'usage_counters',
-        ].toSorted(),
-      );
-      expect(result.tablesInRemoteCacheSchema).toBe(9);
+      expect(rows.map((row) => row.relname)).toEqual(EXPECTED_REMOTE_CACHE_TABLES);
+      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
     } finally {
       await migrator.end();
     }
@@ -72,12 +75,12 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     // Runner không có ledger — nó chạy LẠI mọi file. Tính idempotent của DDL
     // (`IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`) là thứ
     // làm lần chạy thứ hai thành công mà không đổi gì: applied = số file,
-    // schema vẫn 5 bảng. Một migration mất idempotency lộ ngay ở đây.
+    // schema vẫn 9 bảng. Một migration mất idempotency lộ ngay ở đây.
     const migrator = await db.connectAsMigrator();
     try {
       const result = await applyAllMigrations(migrator);
       expect(result.applied).toBe(listMigrations().length);
-      expect(result.tablesInRemoteCacheSchema).toBe(9);
+      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
     } finally {
       await migrator.end();
     }
