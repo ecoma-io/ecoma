@@ -1,16 +1,17 @@
 /**
- * Ghim bất biến **BFF chỉ đọc** — thứ mà test mount không thấy được vì nó là
- * tính chất của *tập tin route*, không phải của một component.
+ * Ghim disposition bất biến đọc-only của BFF sau #207 (ADR-0032 §5): bất
+ * biến bị **thu hẹp, không bỏ** — write domain (publish/verify/
+ * record-deployment/environment mutation) tiếp tục KHÔNG tồn tại dưới
+ * `/api/broker/*`; write duy nhất được phép là credential management
+ * (create/rotate/revoke machine token). Mọi mutation route đòi principal đã
+ * verify (middleware authn + CSRF, test runtime ở
+ * `tests/integrations/bff-auth-runtime.spec.ts`) và quyền theo ma trận được
+ * enforce ở API side — BFF mirror không phải security boundary.
  *
- * BFF giữ một machine token server-side của deploy unit (SR-004): mọi request
- * từ dashboard được BFF forward bằng quyền của token đó, không phải của người
- * dùng. Với token tĩnh như vậy, một route ghi (`POST`/`DELETE`/`PUT`) trong
- * `server/api/broker/` là ghi bằng quyền deploy unit — AI biết URL cũng gọi
- * được. Nên tới khi có OIDC per-user, BFF chỉ được có method đọc (`GET`, và
- * `POST /api/broker/can-i-deploy` — truy vấn, không đổi trạng thái).
- *
- * Route DELETE record-undeployment từng tồn tại ở đây và bị XOÁ sau security
- * review: đường ghi hợp lệ là Pact CLI → API với machine token per-tenant.
+ * Trước #206, BFF giữ một machine token server-side; một route ghi lúc đó là
+ * ghi bằng quyền deploy unit. Từ #206 (ADR-0031 §4–5) BFF forward access
+ * token của chủ phiên và API tự enforce role — route ghi credential vì thế
+ * an toàn đúng nghĩa; route ghi domain khác vẫn bị cấm ở đây.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,40 +26,56 @@ function routeFiles(dir: string): string[] {
     .map((f) => join(dir, f));
 }
 
-/**
- * Route POST duy nhất được phép: `can-i-deploy` — truy vấn tri-state, không
- * đổi trạng thái broker (assert riêng ở test dưới: không forward method nào).
- * Hậu tố file của nó vẫn là `.post.ts`, nên carve-out tường minh ở đây thay
- * vì nới lỏng regex cho mọi file.
- */
-const QUERY_POST_ROUTES = /can-i-deploy\.post\.ts$/u;
+/** Route đọc không mang hậu tố method ghi. */
+const isReadRoute = (file: string): boolean => !/\.(post|delete|put|patch)\.ts$/u.test(file);
 
-describe('BFF broker routes are read-only', () => {
-  it('declares no write-method route file under server/api/broker', () => {
+/**
+ * Write route được phép — credential management duy nhất (ADR-0032 §5). Mẫu
+ * neo theo tên file: route mới thuộc loại khác phải sửa test này để khai
+ * carve-out, không lọt qua im lặng.
+ */
+const CREDENTIAL_WRITE_ROUTES = [
+  /machine-tokens\.post\.ts$/u,
+  /machine-tokens[\\/]\[id\][\\/](rotate\.post|index\.delete)\.ts$/u,
+  // Truy vấn POST duy nhất không đổi trạng thái broker (can-i-deploy).
+  /can-i-deploy\.post\.ts$/u,
+];
+
+describe('BFF broker routes expose no write-domain surface', () => {
+  it('declares no write-method route file outside the credential-management allowlist', () => {
     const files = routeFiles(BROKER_API_DIR);
     // Cấu trúc thay đổi phải cập nhật test — không cho phép route mới lọt
     // qua im lặng khi quét.
-    expect(files.length).toBeGreaterThanOrEqual(5);
+    expect(files.length).toBeGreaterThanOrEqual(7);
 
     for (const file of files) {
-      // Route ghi của Nitro phát biểu qua hậu tố file: `.post.ts`, `.delete.ts`,
-      // `.put.ts`, `.patch.ts`. Ngoại lệ duy nhất: can-i-deploy (truy vấn).
-      if (QUERY_POST_ROUTES.test(file)) continue;
-      expect(file).not.toMatch(/\.(post|delete|put|patch)\.ts$/u);
+      if (isReadRoute(file)) continue;
+      expect(
+        CREDENTIAL_WRITE_ROUTES.some((pattern) => pattern.test(file)),
+        `write route not in the ADR-0032 §5 allowlist: ${file}`,
+      ).toBe(true);
     }
   });
 
-  it('never mutates upstream state even inside GET handlers', () => {
+  it('never mutates upstream state inside read handlers', () => {
     for (const file of routeFiles(BROKER_API_DIR)) {
+      if (!isReadRoute(file)) continue;
       const source = readFileSync(file, 'utf8');
-      // brokerCall chỉ được dùng với method đọc; POST duy nhất được phép là
-      // can-i-deploy (truy vấn). Mọi method ghi khác là vi phạm bất biến.
+      // brokerCall chỉ được dùng với method đọc trong route đọc; method ghi
+      // là vi phạm bất biến (route ghi có hậu tố riêng đã được allowlist).
       const writeCalls = [...source.matchAll(/method:\s*['"`](DELETE|PUT|PATCH|POST)['"`]/gu)].map(
         (m) => m[1],
       );
-      // can-i-deploy POST không forward method POST đi — nó dựng query string;
-      // rule vẫn phải chạy trên nó (writeCalls phải rỗng như mọi file khác).
       expect(writeCalls).toEqual([]);
+    }
+  });
+
+  it('keeps credential write routes strictly on the machine-tokens prefix', () => {
+    // Non-goal "không publish pact qua browser" ghim theo diện: mọi route ghi
+    // ngoài prefix credential là vi phạm bất kể allowlist phía trên.
+    for (const file of routeFiles(BROKER_API_DIR)) {
+      if (isReadRoute(file)) continue;
+      expect(file.replace(/\\/gu, '/')).toMatch(/(machine-tokens|can-i-deploy)/u);
     }
   });
 });

@@ -30,6 +30,11 @@ export interface AppVariables {
    * token-admin). Actor ghi vẫn là machine token (`tokenId`).
    */
   principalSub?: string;
+  /**
+   * Vai trò hiệu lực của principal user (owner đã floor admin) — middleware
+   * user-auth gắn. Route token-admin đọc để enforce ma trận ADR-0032 §1.
+   */
+  principalRole?: string;
   /** Pool của request — middleware config tạo mới mỗi request và `end()` sau khi request hoàn tất (issue #118). */
   pool: import('pg').Pool;
   /** Config đã kiểm — middleware config gắn vào. */

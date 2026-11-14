@@ -22,6 +22,9 @@ import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 
 import canIDeployRoute from './can-i-deploy.post';
 import environmentsRoute from './environments.get';
+import machineTokensDeleteRoute from './machine-tokens/[id]/index.delete';
+import machineTokensCreateRoute from './machine-tokens.post';
+import machineTokensRotateRoute from './machine-tokens/[id]/rotate.post';
 import machineTokensRoute from './machine-tokens.get';
 import pacticipantsRoute from './pacticipants.get';
 import pactsRoute from './pacts.get';
@@ -31,6 +34,8 @@ const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
 };
 
+const UUID_PATH = '11111111-2222-3333-4444-555555555555';
+
 /** [path, route handler] — danh sách là nguồn chạy bảng, không phải bản sao. */
 const GET_ROUTES: readonly (readonly [string, unknown])[] = [
   ['/api/broker/pacts', pactsRoute],
@@ -39,21 +44,50 @@ const GET_ROUTES: readonly (readonly [string, unknown])[] = [
   ['/api/broker/machine-tokens', machineTokensRoute],
 ];
 
-/** [path, route handler, body] — route POST duy nhất (truy vấn, không ghi). */
+/**
+ * [path, route handler, body] — các route POST. `can-i-deploy` là truy vấn
+ * (không đổi trạng thái); create/rotate là mutation credential (#207, ADR-0032
+ * §5 — write duy nhất được phép dưới /api/broker/*).
+ */
 const POST_ROUTES: readonly (readonly [string, unknown, object])[] = [
   ['/api/broker/can-i-deploy', canIDeployRoute, { pacticipant: 'service-a', version: '1.0.0' }],
+  [
+    '/api/broker/machine-tokens',
+    machineTokensCreateRoute,
+    { name: 'ci', purpose: 'developer', scopes: ['read'] },
+  ],
+  [`/api/broker/machine-tokens/:id/rotate`, machineTokensRotateRoute, {}],
+];
+
+/** [path, route handler] — route DELETE duy nhất (mutation credential). */
+const DELETE_ROUTES: readonly (readonly [string, unknown])[] = [
+  [`/api/broker/machine-tokens/:id`, machineTokensDeleteRoute],
 ];
 
 const ALL_ROUTES: readonly (readonly [string, unknown])[] = [
   ...GET_ROUTES,
   ...POST_ROUTES.map(([path, handler]) => [path, handler] as const),
+  ...DELETE_ROUTES,
 ];
 
-function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknown }): WebHandler {
+/** Method thật của route theo bảng khai — GET/POST/DELETE. */
+function methodOf(path: string): 'GET' | 'POST' | 'DELETE' {
+  if (DELETE_ROUTES.some(([p]) => p === path)) return 'DELETE';
+  if (POST_ROUTES.some(([p]) => p === path)) return 'POST';
+  return 'GET';
+}
+
+function buildApp(route: {
+  method: 'GET' | 'POST' | 'DELETE';
+  path: string;
+  handler: unknown;
+}): WebHandler {
   const app = createApp();
   const router = createRouter();
   if (route.method === 'POST') {
     router.post(route.path, route.handler as never);
+  } else if (route.method === 'DELETE') {
+    router.delete(route.path, route.handler as never);
   } else {
     router.get(route.path, route.handler as never);
   }
@@ -68,9 +102,10 @@ function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknow
 }
 
 /**
- * Gọi một route qua web handler. Route POST (duy nhất: `can-i-deploy`) luôn
- * nhận body hợp lệ mặc định — các nhánh validate body sai được phủ riêng ở
- * describe cuối, không nằm trong bảng chung.
+ * Gọi một route qua web handler. Route POST luôn nhận body hợp lệ mặc định
+ * (`can-i-deploy`: tham số truy vấn; create/rotate: body credential) — các
+ * nhánh validate body sai được phủ riêng ở describe cuối, không nằm trong
+ * bảng chung. Rotate khớp path động qua hậu tố; DELETE khớp bảng riêng.
  */
 async function call(
   path: string,
@@ -78,25 +113,26 @@ async function call(
   options: {
     runtimeConfig?: unknown;
     body?: object;
-    methodFor?: string;
   } = {},
 ): Promise<Response> {
-  const isPost = (options.methodFor ?? path).endsWith('can-i-deploy');
-  const method: 'GET' | 'POST' = isPost ? 'POST' : 'GET';
+  const method = methodOf(path);
   // Route đọc config qua auto-import `useRuntimeConfig(event)` (sửa trong issue
   // #181: không phải slot `event.context.runtimeConfig` — slot đó không ai gắn
   // trên runtime thật), nên test stub toàn cục — đúng pattern `apps/account`.
   vi.stubGlobal('useRuntimeConfig', () => options.runtimeConfig ?? CONFIGURED);
   const webHandler = buildApp({ method, path, handler });
+  const defaultBody = POST_ROUTES.find(([p]) => p === path)?.[2] ?? {};
+  // Pattern `:id` dùng để đăng ký router; request dùng UUID thật như runtime.
+  const requestPath = path.replaceAll(':id', UUID_PATH);
   return webHandler(
-    new Request(`https://dashboard.test${path}`, {
+    new Request(`https://dashboard.test${requestPath}`, {
       method,
-      ...(isPost
-        ? {
-            body: JSON.stringify(options.body ?? { pacticipant: 'service-a', version: '1.0.0' }),
+      ...(method === 'GET'
+        ? {}
+        : {
+            body: JSON.stringify(options.body ?? defaultBody),
             headers: { 'content-type': 'application/json' },
-          }
-        : {}),
+          }),
     }),
   );
 }
@@ -135,7 +171,7 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
         }),
       );
 
-      const response = await call(path, handler, { methodFor: path });
+      const response = await call(path, handler);
 
       expect(response.status).toBe(403);
       // BFF gọi đúng endpoint upstream mà route khai (không route nào dựng
@@ -151,7 +187,10 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
       '/api/broker/pacts': '/pacticipants',
       '/api/broker/pacticipants': '/pacticipants',
       '/api/broker/environments': '/environments',
+      // Cùng key cho GET list và POST create — cùng hop upstream đầu tiên.
       '/api/broker/machine-tokens': '/admin/machine-tokens',
+      '/api/broker/machine-tokens/:id/rotate': `/admin/machine-tokens/${UUID_PATH}/rotate`,
+      '/api/broker/machine-tokens/:id': `/admin/machine-tokens/${UUID_PATH}`,
       '/api/broker/can-i-deploy': '/can-i-deploy',
     };
 
@@ -165,7 +204,7 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
         }),
       );
 
-      await call(path, handler, { methodFor: path });
+      await call(path, handler);
       expect(calledPaths[0], `route: ${path}`).toBe(expectedFirstHop[path]);
     }
   });
@@ -186,7 +225,7 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
 
     for (const [path, handler] of ALL_ROUTES) {
       seenAuth.length = 0;
-      await call(path, handler, { methodFor: path });
+      await call(path, handler);
       expect(seenAuth.length).toBeGreaterThan(0);
       for (const header of seenAuth) {
         expect(header, `route ${path}`).toBe(`Bearer ${USER_TOKEN}`);
@@ -311,7 +350,7 @@ describe('every /api/broker route maps a transport failure to 502', () => {
       );
       const logSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-      const response = await call(path, handler, { methodFor: path });
+      const response = await call(path, handler);
 
       expect(response.status).toBe(502);
       await expect(response.json()).resolves.toEqual({ error: 'broker_unreachable' });

@@ -325,6 +325,34 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     }
   });
 
+  it('rejects machine token purpose outside the developer/ci vocabulary (ADR-0032 §2)', async () => {
+    // Purpose là enum cố định 'developer' | 'ci' | NULL — CHECK
+    // `machine_tokens_purpose_check` (migration 0005) chặn giá trị lạ ngay
+    // tầng PostgreSQL, không chỉ validation của route.
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('purpose-probe', 'customer', 'free', 'sub-owner-purpose-probe')`,
+      );
+      const insertToken = (hash: string, purpose: string | null) =>
+        runtime.query(
+          `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, scopes, purpose)
+           SELECT $1, id, 'probe-token', 'read', $2 FROM pact.tenants WHERE name = 'purpose-probe'`,
+          [hash, purpose],
+        );
+
+      await insertToken('probe-purpose-null', null);
+      await insertToken('probe-purpose-developer', 'developer');
+      await insertToken('probe-purpose-ci', 'ci');
+      await expect(insertToken('probe-purpose-bad', 'deploy')).rejects.toThrow(
+        /machine_tokens_purpose_check/u,
+      );
+    } finally {
+      await runtime.end();
+    }
+  });
+
   it('rejects owner_sub violating tenants_owner_sub_check (empty, spaced, too long)', async () => {
     const runtime = await db.asRuntime();
     try {

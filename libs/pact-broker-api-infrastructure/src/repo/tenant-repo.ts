@@ -31,9 +31,16 @@ export interface MachineTokenRecord {
   tenantId: string;
   name: string;
   scopes: string;
+  /** Creation-time purpose label (ADR-0032 §2) — 'developer' | 'ci' | null. */
+  purpose: 'developer' | 'ci' | null;
+  /** Opaque sub của người tạo (ADR-0032 §8) — null cho đường machine token. */
+  createdBySub: string | null;
   createdAt: string;
   revokedAt: string | null;
 }
+
+/** Client (đã BEGIN) để mutation + audit chạy trong MỘT transaction (ADR-0032 §4). */
+export type QueryableClient = Pick<import('pg').PoolClient, 'query'>;
 
 export class PactBrokerTenantError extends Error {
   constructor(message: string) {
@@ -250,27 +257,34 @@ export class PgTenantRepo {
   /**
    * Tạo token mới. Trả bản rõ ĐÚNG MỘT LẦN — chỉ hash nằm DB. Caller chịu
    * trách nhiệm không log giá trị này.
+   *
+   * `client` là pg client đã BEGIN (ADR-0032 §4: create + audit cùng một
+   * transaction, fail-closed) — route mở transaction, ghi token rồi audit
+   * rồi COMMIT/ROLLBACK trên cùng client.
    */
   async createMachineToken(
+    client: QueryableClient,
     tenantId: string,
     actorSub: string | null,
     name: string,
     scopes: string[],
+    purpose: 'developer' | 'ci' | null = null,
   ): Promise<{ token: string; record: MachineTokenRecord }> {
     // 32 byte entropy = 192 bit, base64url không padding.
     const raw = randomToken();
     const tokenHash = await sha256Hex(raw);
 
-    const { rows } = await this.pool.query<{
+    const { rows } = await client.query<{
       id: string;
       tenant_id: string;
       scopes: string;
+      purpose: string | null;
       created_at: Date;
     }>(
-      `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, created_by_sub, scopes)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, tenant_id, scopes, created_at`,
-      [tokenHash, tenantId, name, actorSub, scopes.join(' ')],
+      `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, created_by_sub, scopes, purpose)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, tenant_id, scopes, purpose, created_at`,
+      [tokenHash, tenantId, name, actorSub, scopes.join(' '), purpose],
     );
     const row = rows[0];
     return {
@@ -280,6 +294,8 @@ export class PgTenantRepo {
         tenantId: row.tenant_id,
         name,
         scopes: row.scopes,
+        purpose: (row.purpose as MachineTokenRecord['purpose']) ?? null,
+        createdBySub: actorSub,
         createdAt: row.created_at.toISOString(),
         revokedAt: null,
       },
@@ -292,10 +308,12 @@ export class PgTenantRepo {
       tenant_id: string;
       name: string;
       scopes: string;
+      purpose: string | null;
+      created_by_sub: string | null;
       created_at: Date;
       revoked_at: Date | null;
     }>(
-      `SELECT id, tenant_id, name, scopes, created_at, revoked_at
+      `SELECT id, tenant_id, name, scopes, purpose, created_by_sub, created_at, revoked_at
          FROM pact.machine_tokens
         WHERE tenant_id = $1
         ORDER BY created_at DESC`,
@@ -306,14 +324,25 @@ export class PgTenantRepo {
       tenantId: r.tenant_id,
       name: r.name,
       scopes: r.scopes,
+      purpose: (r.purpose as MachineTokenRecord['purpose']) ?? null,
+      createdBySub: r.created_by_sub,
       createdAt: r.created_at.toISOString(),
       revokedAt: r.revoked_at === null ? null : r.revoked_at.toISOString(),
     }));
   }
 
-  /** Revoke — set revoked_at; hiệu lực tức thời. false khi không tìm thấy. */
-  async revokeMachineToken(tenantId: string, tokenId: string): Promise<boolean> {
-    const { rowCount } = await this.pool.query(
+  /**
+   * Revoke — set revoked_at; hiệu lực tức thời. false khi không tìm thấy.
+   *
+   * `client` là pg client đã BEGIN (ADR-0032 §4: revoke + audit cùng một
+   * transaction, fail-closed).
+   */
+  async revokeMachineToken(
+    client: QueryableClient,
+    tenantId: string,
+    tokenId: string,
+  ): Promise<boolean> {
+    const { rowCount } = await client.query(
       `UPDATE pact.machine_tokens
           SET revoked_at = now()
         WHERE tenant_id = $1 AND id = $2::uuid AND revoked_at IS NULL`,
@@ -332,7 +361,7 @@ export class PgTenantRepo {
    * bộ transaction rollback và token mới không được lưu.
    */
   async rotateMachineToken(
-    client: import('pg').PoolClient,
+    client: QueryableClient,
     tenantId: string,
     tokenId: string,
     _actorSub: string | null,
@@ -345,12 +374,14 @@ export class PgTenantRepo {
       tenant_id: string;
       name: string;
       scopes: string;
+      purpose: string | null;
+      created_by_sub: string | null;
       created_at: Date;
     }>(
       `UPDATE pact.machine_tokens
           SET token_hash = $1
         WHERE tenant_id = $2 AND id = $3::uuid AND revoked_at IS NULL
-        RETURNING id, tenant_id, name, scopes, created_at`,
+        RETURNING id, tenant_id, name, scopes, purpose, created_by_sub, created_at`,
       [tokenHash, tenantId, tokenId],
     );
     const row = rows[0];
@@ -362,6 +393,8 @@ export class PgTenantRepo {
         tenantId: row.tenant_id,
         name: row.name,
         scopes: row.scopes,
+        purpose: (row.purpose as MachineTokenRecord['purpose']) ?? null,
+        createdBySub: row.created_by_sub,
         createdAt: row.created_at.toISOString(),
         revokedAt: null,
       },

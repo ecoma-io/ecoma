@@ -298,14 +298,17 @@ describe('pact-broker-app BFF authentication contract (#206)', () => {
     expect(afterFreshLogin.status).toBe(200);
   });
 
-  it('refuses to reach the API with a user token through the admin-only route (403)', async () => {
-    // ADR-0032: M1 user path chỉ đọc — `/admin/machine-tokens` là mực admin,
-    // đường user nhận 403 (không phải lỗi hệ thống) và BFF truyền nguyên văn.
+  it('lets the owner session list machine tokens as metadata only (200), never any token material', async () => {
+    // ADR-0032 §5 (#207): quản lý credential là write DUY NHẤT được phép dưới
+    // /api/broker/* — owner (floor admin) nhận 200 danh sách metadata; hợp đồng
+    // không đổi: browser không bao giờ thấy token material (SR-002/SR-007).
     const session = await stack.loginSession();
 
     const response = await callBff('/api/broker/machine-tokens', { cookie: session.cookieHeader });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     expect(response.body).not.toContain(stack.machineToken);
+    // Chỉ metadata HAL — không khoá nào mang vật liệu token.
+    expect(response.body).not.toMatch(/[0-9a-f]{64}/u);
   });
 });

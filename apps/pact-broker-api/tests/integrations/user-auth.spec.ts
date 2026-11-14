@@ -159,6 +159,9 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
     await repo.upsertMember(tenantA.id, 'user-viewer-sub', 'viewer');
     await repo.upsertMember(tenantA.id, 'user-admin-sub', 'admin');
     await repo.upsertMember(tenantA.id, 'user-multi-sub', 'member');
+    // Member single-tenant — sub dùng riêng cho ma trận credential #207
+    // (multi-sub ở trên là cố ý ambiguous, không dùng được cho create path).
+    await repo.upsertMember(tenantA.id, 'user-member-sub', 'member');
     await repo.upsertMember(tenantB.id, 'user-multi-sub', 'member');
     // Tenant suspended-only membership.
     const suspended = await repo.ensureDefaultTenant('tenant-suspended', 'user-susp-owner-sub');
@@ -167,10 +170,10 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
 
     // Machine tokens — kênh Pact CLI vẫn sống bên cạnh kênh user.
     tenantAToken = (
-      await repo.createMachineToken(tenantA.id, 'user-owner-sub', 'it-cli-a', ['admin'])
+      await repo.createMachineToken(pool, tenantA.id, 'user-owner-sub', 'it-cli-a', ['admin'])
     ).token;
     tenantBToken = (
-      await repo.createMachineToken(tenantB.id, 'user-b-owner-sub', 'it-cli-b', ['admin'])
+      await repo.createMachineToken(pool, tenantB.id, 'user-b-owner-sub', 'it-cli-b', ['admin'])
     ).token;
     await pool.end();
   }, 180_000);
@@ -333,7 +336,7 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
     expect(res.body).toEqual({ error: 'Unauthorized', requestId: expect.any(String) });
   });
 
-  it('blocks every user token from write and admin routes regardless of role', async () => {
+  it('blocks every user token from write-domain routes regardless of role', async () => {
     const adminToken = await mintToken(privateKey, jwks.issuer, 'user-admin-sub');
     const create = await reqJson('/environments', {
       method: 'POST',
@@ -342,9 +345,9 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
     });
     expect(create.status).toBe(403);
 
-    // /admin/machine-tokens: user-authority path thuộc #207 — user token 403.
-    const adminList = await reqJson('/admin/machine-tokens', { headers: bearer(adminToken) });
-    expect(adminList.status).toBe(403);
+    // Write domain KHÁC credential management vẫn chặn user path hoàn toàn
+    // (ADR-0032 §3: publish/verify/environment-CRUD là ✗ mọi vai trò qua
+    // portal). Credential management đi ma trận riêng ở describe dưới.
   });
 
   it('serves GET verification-results at read level for user and machine tokens', async () => {
@@ -393,8 +396,9 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
     try {
       const repo = new Infra.PgTenantRepo(pool);
       const tenantA = (await repo.getTenantByName('tenant-a')) ?? fail('tenant-a missing');
-      const readToken = (await repo.createMachineToken(tenantA.id, null, 'it-cli-read', ['read']))
-        .token;
+      const readToken = (
+        await repo.createMachineToken(pool, tenantA.id, null, 'it-cli-read', ['read'])
+      ).token;
       const asMachineRead = await reqJson(verificationPath, { headers: bearer(readToken) });
       expect(asMachineRead.status).toBe(200);
     } finally {
@@ -488,6 +492,10 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
       error: 'Service Unavailable',
       message: 'Identity provider is unavailable',
     });
+    // Config được cache theo isolate — dead issuer của test này KHÔNG được
+    // rò sang các test sau (issue #207: tests user-path đầu tiên chạy sau
+    // test này nhận 503 thay vì verify thật nếu cache không được reset).
+    resetCachedConfig();
   });
 
   it('audits environment.delete on the machine path', async () => {
@@ -590,6 +598,254 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
       await pool2.end();
     }
   });
+
+  // ============ #207 — credential self-service theo ma trận ADR-0032 §1 ============
+
+  /**
+   * Tạo credential qua đường user; trả status + body đã parse. Body mặc định
+   * purpose `developer` scopes [read] — hợp lệ cho member trở lên.
+   */
+  async function createAsUser(
+    sub: string,
+    body: Record<string, unknown> = { purpose: 'developer', scopes: ['read'] },
+  ): Promise<{ status: number; body: unknown }> {
+    return reqJson('/admin/machine-tokens', {
+      method: 'POST',
+      headers: {
+        ...bearer(await mintToken(privateKey, jwks.issuer, sub)),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ name: `cred-${sub}`, ...body }),
+    });
+  }
+
+  it('credential matrix: member creates a developer credential limited to read/write scopes', async () => {
+    const ok = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read', 'write'],
+    });
+    expect(ok.status).toBe(201);
+    const token = (ok.body as { token: Record<string, unknown> }).token;
+    expect(token).toMatchObject({ purpose: 'developer', revokedAt: null });
+    // createdBy là chính mình (ADR-0032 §8).
+    expect(token['createdBy']).toBe('user-member-sub');
+    // Show-once: secret chỉ xuất hiện ở response này.
+    expect(typeof (ok.body as { secret?: unknown }).secret).toBe('string');
+  });
+
+  it('credential matrix: viewer is denied every credential mutation with 403', async () => {
+    const create = await createAsUser('user-viewer-sub');
+    expect(create.status).toBe(403);
+
+    const list = await reqJson('/admin/machine-tokens', {
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-viewer-sub')),
+    });
+    expect(list.status).toBe(403);
+  });
+
+  it('credential matrix: member cannot mint a ci purpose or an admin scope (403)', async () => {
+    const ci = await createAsUser('user-member-sub', { purpose: 'ci', scopes: ['read'] });
+    expect(ci.status).toBe(403);
+
+    const adminScope = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read', 'admin'],
+    });
+    expect(adminScope.status).toBe(403);
+  });
+
+  it('credential matrix: admin creates a ci credential with the admin scope; owner floors to admin', async () => {
+    const admin = await createAsUser('user-admin-sub', {
+      purpose: 'ci',
+      scopes: ['read', 'write', 'admin'],
+    });
+    expect(admin.status).toBe(201);
+
+    // Owner: membership row là 'member' nhưng owner_sub floor admin (ADR-0032 §7).
+    const owner = await createAsUser('user-owner-sub', { purpose: 'ci', scopes: ['admin'] });
+    expect(owner.status).toBe(201);
+  });
+
+  it('credential matrix: user path without purpose is rejected 400; machine path stays purpose-optional', async () => {
+    const noPurpose = await createAsUser('user-member-sub', { scopes: ['read'] });
+    expect(noPurpose.status).toBe(400);
+
+    // Machine path (FR-008 không đổi): không purpose vẫn tạo được qua admin token.
+    const machine = await reqJson('/admin/machine-tokens', {
+      method: 'POST',
+      headers: { ...authMachine(tenantAToken), 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'cli-no-purpose', scopes: ['read'] }),
+    });
+    expect(machine.status).toBe(201);
+    expect((machine.body as { token: { purpose: string | null } }).token.purpose).toBeNull();
+  });
+
+  it('credential list visibility: member sees only own credentials, admin/owner see the whole tenant', async () => {
+    // member tạo một credential; admin tạo hai (một của mình, một của member qua machine path).
+    const memberCreate = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read'],
+    });
+    expect(memberCreate.status).toBe(201);
+    const machineMade = await reqJson('/admin/machine-tokens', {
+      method: 'POST',
+      headers: { ...authMachine(tenantAToken), 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'machine-made', scopes: ['write'] }),
+    });
+    expect(machineMade.status).toBe(201);
+
+    const memberList = await reqJson('/admin/machine-tokens', {
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+    });
+    expect(memberList.status).toBe(200);
+    const memberNames = listTokenNames(memberList.body);
+    expect(memberNames).toContain('cred-user-member-sub');
+    expect(memberNames).not.toContain('machine-made');
+
+    const adminList = await reqJson('/admin/machine-tokens', {
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-admin-sub')),
+    });
+    expect(adminList.status).toBe(200);
+    const adminNames = listTokenNames(adminList.body);
+    expect(adminNames).toContain('cred-user-member-sub');
+    expect(adminNames).toContain('machine-made');
+  });
+
+  it('credential mutation boundaries: member rotates and revokes only own credentials; others 404', async () => {
+    const memberCreate = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read'],
+    });
+    const memberId = (memberCreate.body as { token: { id: string } }).token.id;
+
+    const memberRotate = await reqJson(`/admin/machine-tokens/${memberId}/rotate`, {
+      method: 'POST',
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+    });
+    expect(memberRotate.status).toBe(200);
+    const newSecret = (memberRotate.body as { secret: string }).secret;
+
+    // Secret cũ chết ngay sau rotate.
+    const oldSecretUse = await reqJson('/pacticipants', {
+      headers: bearer(newSecret.replace(/./gu, 'x')),
+    });
+    expect(oldSecretUse.status).toBe(401);
+
+    // Credential machine-made (creator NULL): member không rotate/revoke — 404.
+    const machineMade = await reqJson('/admin/machine-tokens', {
+      method: 'POST',
+      headers: { ...authMachine(tenantAToken), 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'not-members', scopes: ['read'] }),
+    });
+    const machineId = (machineMade.body as { token: { id: string } }).token.id;
+    const foreignRotate = await reqJson(`/admin/machine-tokens/${machineId}/rotate`, {
+      method: 'POST',
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+    });
+    expect(foreignRotate.status).toBe(404);
+
+    // Admin rotate credential người khác tạo — được phép (ma trận §1).
+    const adminRotate = await reqJson(`/admin/machine-tokens/${machineId}/rotate`, {
+      method: 'POST',
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-admin-sub')),
+    });
+    expect(adminRotate.status).toBe(200);
+
+    // Member revoke credential của mình — được phép.
+    const memberRevoke = await reqJson(`/admin/machine-tokens/${memberId}`, {
+      method: 'DELETE',
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+    });
+    expect(memberRevoke.status).toBe(204);
+  });
+
+  it('credential revocation is immediate: the next request with the old secret is 401', async () => {
+    const created = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read'],
+    });
+    const secret = (created.body as { secret: string }).secret;
+    const works = await reqJson('/pacticipants', { headers: bearer(secret) });
+    expect(works.status).toBe(200);
+
+    const id = (created.body as { token: { id: string } }).token.id;
+    const revoke = await reqJson(`/admin/machine-tokens/${id}`, {
+      method: 'DELETE',
+      headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+    });
+    expect(revoke.status).toBe(204);
+
+    const dead = await reqJson('/pacticipants', { headers: bearer(secret) });
+    expect(dead.status).toBe(401);
+  });
+
+  it('audits user-path credential create with actor_sub, and create/revoke are atomic with audit (fail-closed)', async () => {
+    const created = await createAsUser('user-member-sub', {
+      purpose: 'developer',
+      scopes: ['read'],
+    });
+    expect(created.status).toBe(201);
+    const id = (created.body as { token: { id: string } }).token.id;
+
+    const pool = await db.createRuntimePool();
+    try {
+      // Actor attribution ADR-0032 §4: user path ghi actor_sub, actor_token_id null.
+      const audit = await pool.query<{ actor_sub: string | null; actor_token_id: string | null }>(
+        `SELECT actor_sub, actor_token_id FROM pact.audit_events WHERE action = 'machine_token.create'`,
+      );
+      expect(audit.rows).toHaveLength(1);
+      expect(audit.rows[0]?.actor_sub).toBe('user-member-sub');
+      expect(audit.rows[0]?.actor_token_id).toBeNull();
+
+      // Atomicity: mô phỏng audit write fail sau mutation bằng trigger fail —
+      // route mở transaction trên repo.createMachineToken/revokeMachineToken,
+      // nên mình trigger một exception trong audit insert để chứng minh rollback.
+      // Trigger DO BẮT BUỘC superuser client (db.connect()): role runtime của
+      // app không có CREATE trên schema pact — đúng như deploy cấp quyền.
+      const superuser = await db.connect();
+      try {
+        await superuser.query(
+          `CREATE OR REPLACE FUNCTION pact.test_fail_audit() RETURNS trigger AS $$
+             BEGIN RAISE EXCEPTION 'audit write fails'; END;
+           $$ LANGUAGE plpgsql`,
+        );
+        await superuser.query(
+          `CREATE TRIGGER test_fail_audit_trigger BEFORE INSERT ON pact.audit_events
+             FOR EACH ROW EXECUTE FUNCTION pact.test_fail_audit()`,
+        );
+      } finally {
+        await superuser.end();
+      }
+
+      const revoke = await reqJson(`/admin/machine-tokens/${id}`, {
+        method: 'DELETE',
+        headers: bearer(await mintToken(privateKey, jwks.issuer, 'user-member-sub')),
+      });
+      expect(revoke.status).toBe(500);
+
+      // Fail-closed: token VẪN active (mutation rollback) và KHÔNG audit row nửa vời.
+      const stillActive = await pool.query<{ revoked_at: Date | null }>(
+        `SELECT revoked_at FROM pact.machine_tokens WHERE id = $1`,
+        [id],
+      );
+      expect(stillActive.rows[0]?.revoked_at).toBeNull();
+      const auditCount = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM pact.audit_events WHERE action = 'machine_token.revoke'`,
+      );
+      expect(auditCount.rows[0]?.count).toBe('0');
+    } finally {
+      const superuser = await db.connect();
+      try {
+        await superuser.query(
+          `DROP TRIGGER IF EXISTS test_fail_audit_trigger ON pact.audit_events`,
+        );
+        await superuser.query(`DROP FUNCTION IF EXISTS pact.test_fail_audit()`);
+      } finally {
+        await superuser.end();
+      }
+      await pool.end();
+    }
+  });
 });
 
 /** Body của một entitlement event trên queue — helper thuần của suite. */
@@ -645,4 +901,19 @@ function stripRequestId(body: unknown): unknown {
 /** Nhánh không thể tới trong seed — giữ flow kiểu nhanh không dùng `!`. */
 function fail(message: string): never {
   throw new Error(message);
+}
+
+/** Header machine-token — kênh Pact CLI bất đổi (đường scope admin). */
+function authMachine(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}` };
+}
+
+/** Tên token từ body HAL list — helper thuần của suite. */
+function listTokenNames(body: unknown): string[] {
+  const embedded = (body as Record<string, unknown>)['_embedded'] as
+    | { tokens?: Array<{ name?: unknown }> }
+    | undefined;
+  return (embedded?.tokens ?? [])
+    .map((token) => token.name)
+    .filter((name): name is string => typeof name === 'string');
 }

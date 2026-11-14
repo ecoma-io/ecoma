@@ -97,11 +97,39 @@ export default {
 
   tokens: {
     title: 'API tokens',
-    description: 'Machine tokens for CI and the Pact CLI. Values are shown only once at creation.',
+    description:
+      'Machine credentials for CI and the Pact CLI. Values are shown only once at creation.',
     name: 'Name',
     scopes: 'Scopes',
+    purpose: 'Purpose',
+    purposeDeveloper: 'Developer (CLI workflows, publish/verify)',
+    purposeCi: 'CI (pipelines)',
+    creator: 'Created by',
     createdAt: 'Created at',
+    status: 'Status',
     revoked: 'Revoked',
     active: 'Active',
+    copy: 'Copy token',
+    copied: 'Copied',
+    dismiss: 'Saved — hide',
+    rotate: 'Rotate',
+    revoke: 'Revoke',
+    createFailed: 'Credential creation was rejected — check your permissions or the input.',
+    mutateFailed: 'The operation was rejected — the credential may have just changed state.',
+    revealed: {
+      title: 'The token is shown only this once',
+      hint: 'Store it now — "{name}" will never be shown again. Reloading the page loses it permanently.',
+    },
+    create: {
+      title: 'Create a new credential',
+      submit: 'Create credential',
+    },
+    confirm: {
+      rotateTitle: 'Rotate this credential?',
+      revokeTitle: 'Revoke this credential?',
+      hint: 'Type the exact name "{name}" to confirm. Rotation kills the old secret immediately; revocation cannot be undone.',
+      cancel: 'Cancel',
+    },
+    forbidden: "You do not have permission to view this tenant's credentials.",
   },
 } as const;
