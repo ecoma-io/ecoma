@@ -277,8 +277,13 @@ DECLARE
   -- assertion "sealed set" bên dưới so với hợp của hai mảng, nên một literal
   -- không khai báo ở đây làm lần apply kế tiếp dừng — đó là chủ đích.
   --   * `invitation.create` — `0010`, ADR-0033 Quyết định 1–2.
+  --   * `role.assign`, `role.revoke`, `staff.create` — `0011`, ADR-0034
+  --     Quyết định 1–2 (bộ permission ghi của bổ nhiệm thường, issue #44).
   later_seed_permissions constant text[] := ARRAY[
-    'invitation.create'
+    'invitation.create',
+    'role.assign',
+    'role.revoke',
+    'staff.create'
   ];
   declared_permissions constant text[] := expected_permissions || later_seed_permissions;
   conflicting_id uuid;

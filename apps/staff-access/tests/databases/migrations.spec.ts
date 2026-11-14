@@ -149,7 +149,7 @@ describe('staff-access migration runner on a real PostgreSQL', () => {
     }
   });
 
-  it('seeds exactly the canonical catalog: four read permissions plus invitation.create', async () => {
+  it('seeds exactly the canonical catalog: four read permissions plus the invitation and write-action literals', async () => {
     const client = await db.connect();
     try {
       const { rows } = await client.query<{ id: string; status: string }>(
@@ -157,14 +157,18 @@ describe('staff-access migration runner on a real PostgreSQL', () => {
       );
       // Bốn permission read: ba permission của ADR-0010 (`0003`) và `audit.read` của
       // ADR-0024 Quyết định 5, thêm bởi `0007`. `invitation.create` thêm bởi `0010`
-      // (ADR-0033 Quyết định 1) là permission **ghi** đầu tiên của catalog. Guard này
+      // (ADR-0033 Quyết định 1). Ba permission ghi `role.assign`/`role.revoke`/
+      // `staff.create` thêm bởi `0011` (ADR-0034 Quyết định 1, issue #44). Guard này
       // cố ý chốt **toàn bộ** catalog để một seed lọt vào mà không qua review làm đỏ
       // suite.
       expect(rows).toEqual([
         { id: 'audit.read', status: 'active' },
         { id: 'invitation.create', status: 'active' },
         { id: 'permission.read', status: 'active' },
+        { id: 'role.assign', status: 'active' },
         { id: 'role.read', status: 'active' },
+        { id: 'role.revoke', status: 'active' },
+        { id: 'staff.create', status: 'active' },
         { id: 'staff.read', status: 'active' },
       ]);
     } finally {
@@ -181,13 +185,17 @@ describe('staff-access migration runner on a real PostgreSQL', () => {
           WHERE rp.role_id = 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b'
           ORDER BY rp.permission_id`,
       );
-      // `0010` (ADR-0033 Quyết định 2) cấp `invitation.create` cho role canonical; tập
-      // này phải khớp đúng mảng khai báo của assertion "sealed set" ở `0008`.
+      // `0010` (ADR-0033) cấp `invitation.create`; `0011` (ADR-0034) cấp ba
+      // permission ghi — tập này phải khớp đúng mảng khai báo của assertion
+      // "sealed set" ở `0008`.
       expect(rows.map((row) => row.permission_id)).toEqual([
         'audit.read',
         'invitation.create',
         'permission.read',
+        'role.assign',
         'role.read',
+        'role.revoke',
+        'staff.create',
         'staff.read',
       ]);
     } finally {
