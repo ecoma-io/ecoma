@@ -176,10 +176,12 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
       }
       if (verification.outcome === 'invalid') {
         // Access token hết hạn hay sai đều qua nhánh này; phiên sống còn có
-        // refresh token thì gia hạn đúng MỘT lần (#244) — không scheduler, hai
-        // request đua nhau thì kẻ thua 401 một lần (xem JSDoc `refresh.ts`).
-        // Refresh token revoked/invalid ⇒ `null` ⇒ 401 như phiên chết, không
-        // loop. Phiên không có refresh token thì trả về luôn — 401.
+        // refresh token thì gia hạn đúng MỘT lần (#244) — không scheduler; hai
+        // request đua nhau thì family bị thu hồi ⇒ cả hai tab đăng nhập lại
+        // trong TTL access token (Amendment #281 của ADR-0012 §3, JSDoc
+        // `refresh.ts`). Refresh token revoked/invalid ⇒ `null` ⇒ 401 như
+        // phiên chết, không loop. Phiên không có refresh token thì trả về
+        // luôn — 401.
         if (row.refresh_token === null) {
           return;
         }
@@ -215,6 +217,17 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
         }
         // `sub` của access token mới — phải khớp hàng phiên (refresh của auth
         // giữ nguyên subject); dùng sub đã verify của token mới là fail-closed.
+        // Assert tường minh là defense-in-depth (#281): một provider không giữ
+        // nguyên subject qua refresh không được gắn principal khác cho phiên cũ.
+        if (renewed.sub !== row.account_sub) {
+          writeLog({
+            event: 'backoffice_session.renewal_sub_mismatch',
+            route: pathname,
+            status: 401,
+            sub: row.account_sub,
+          });
+          return;
+        }
         principal = { actorSub: renewed.sub };
         return;
       }
