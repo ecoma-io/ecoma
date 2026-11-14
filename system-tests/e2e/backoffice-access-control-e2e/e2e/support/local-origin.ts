@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
+import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -121,11 +122,12 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
         signal: AbortSignal.timeout(10_000),
       },
       (response) => {
-        if (response.socket?.authorized !== true) {
+        const tlsSocket = response.socket instanceof tls.TLSSocket ? response.socket : undefined;
+        if (tlsSocket?.authorized !== true) {
           reject(
             new Error(
               `TLS not verified for ${url} — ${
-                response.socket?.authorizationError?.message ?? 'socket has no verify status'
+                tlsSocket?.authorizationError?.message ?? 'socket has no verify status'
               }`,
             ),
           );
