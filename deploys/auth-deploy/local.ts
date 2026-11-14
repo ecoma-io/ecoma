@@ -58,7 +58,9 @@ import { generateEs256SigningKeyPem } from './local-generators.js';
 // riêng vì entry này tự chạy `main()` lúc load (không import được `index.ts`).
 import {
   LOCAL_PACT_BROKER_CLIENT_ID,
+  LOCAL_REMOTE_CACHE_APP_CLIENT_ID,
   PACT_BROKER_APP_CLIENT_ID_CONFIG_KEY,
+  REMOTE_CACHE_APP_CLIENT_ID_CONFIG_KEY,
 } from './local-clients.js';
 
 /**
@@ -190,6 +192,14 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
     'auth-deploy',
     PACT_BROKER_APP_CLIENT_ID_CONFIG_KEY,
     LOCAL_PACT_BROKER_CLIENT_ID,
+    foundation,
+  );
+  // Client id của `remote-cache-app` (#180, ADR-0031 §4) — cùng pattern phía
+  // trên: persist để `remote-cache-app-deploy` đọc cross-stack lúc up.
+  setStackConfig(
+    'auth-deploy',
+    REMOTE_CACHE_APP_CLIENT_ID_CONFIG_KEY,
+    LOCAL_REMOTE_CACHE_APP_CLIENT_ID,
     foundation,
   );
 }

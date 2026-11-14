@@ -37,3 +37,24 @@ export const LOCAL_PACT_BROKER_CLIENT_NAME = 'Pact Broker App (local)';
  * công khai OAuth) nên nằm ở config thường, không phải `--secret`.
  */
 export const PACT_BROKER_APP_CLIENT_ID_CONFIG_KEY = 'namespace:pactBrokerAppClientId';
+
+/**
+ * `client_id` của client public `remote-cache-app` tại `auth` trên lane local —
+ * sibling thứ ba theo đúng pattern phía trên (issue #180, ADR-0031 §4): BFF của
+ * `remote-cache-app` chạy authorization-code + PKCE với scope `openid
+ * offline_access`, redirect URI callback `/api/auth/callback` trên origin
+ * `https://remote-cache-app.<rootHostname>:<traefikHostPort>`. `remote-cache-app-deploy`
+ * đọc giá trị qua cross-stack `pulumi config get` lúc up (stack config do
+ * `local.ts` của auth-deploy persist). Cùng cảnh báo: client public, PKCE S256
+ * bắt buộc, không secret nào đi qua hằng này.
+ */
+export const LOCAL_REMOTE_CACHE_APP_CLIENT_ID = 'ecoma-remote-cache-app-local';
+
+/** `client_name` hiển thị của client trong row `oauth_clients`. */
+export const LOCAL_REMOTE_CACHE_APP_CLIENT_NAME = 'Remote Cache App (local)';
+
+/**
+ * Key stack config của auth-deploy chứa {@link LOCAL_REMOTE_CACHE_APP_CLIENT_ID} —
+ * `remote-cache-app-deploy` đọc cross-stack lúc up. Không phải secret.
+ */
+export const REMOTE_CACHE_APP_CLIENT_ID_CONFIG_KEY = 'namespace:remoteCacheAppClientId';
