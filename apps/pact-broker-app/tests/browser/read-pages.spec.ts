@@ -91,6 +91,52 @@ async function openPage(target: Page, path: string): Promise<void> {
   await target.goto(`${stack.appUrl}${path}`, { waitUntil: 'load' });
 }
 
+/**
+ * Raw i18n key rò ra trang — dấu hiệu `t('...')` nhận key không có trong
+ * catalog và render nguyên văn. Pattern giới hạn prefix của các nhóm key
+ * dashboard (không generic: các khối lệnh CLI trên `/onboarding` chứa
+ * `provider.json` kiểu đó sẽ khớp regex generic gây âm giả).
+ */
+const I18N_RAW_KEY_PATTERN =
+  /\b(?:verifications|matrix|onboarding|states|pacts|overview|tokens|environments|nav)\.[a-zA-Z]/u;
+
+/**
+ * Ghi nhận lỗi trình duyệt của một page: console mức `error` và `pageerror`
+ * chưa bắt. Listener gắn vào page được trả về và các mảng được push tiếp sau
+ * khi helper return — assert ở **cuối** test để bắt cả lỗi nổ sau khi assert
+ * dữ liệu (ví dụ lỗi hydration muộn hay fetch reject chậm).
+ */
+function watchBrowserErrors(target: Page): { consoleErrors: string[]; pageErrors: string[] } {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  target.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+  target.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+  return { consoleErrors, pageErrors };
+}
+
+/**
+ * Assert chung cho mọi trang đọc: không lỗi console, không lỗi chưa bắt, và
+ * không raw i18n key nào rò ra body. Tách hàm để cả ba trang mới dùng đúng
+ * một định nghĩa "trang sạch".
+ */
+async function expectCleanPage(
+  target: Page,
+  errors: { consoleErrors: string[]; pageErrors: string[] },
+): Promise<void> {
+  const bodyText = await target.locator('body').innerText();
+  expect(bodyText, 'raw i18n keys must never leak into the rendered page').not.toMatch(
+    I18N_RAW_KEY_PATTERN,
+  );
+  expect(errors.pageErrors, 'uncaught page errors').toEqual([]);
+  expect(errors.consoleErrors, 'console errors').toEqual([]);
+}
+
 describe('pact-broker-app read pages on a real browser against the real broker', () => {
   it('renders the pacts matrix table with real seeded rows on /pacts', async () => {
     const { page: authenticated } = await openAuthenticatedPage();
@@ -211,5 +257,112 @@ describe('pact-broker-app read pages on a real browser against the real broker',
     );
     expect(secondSession).toBeDefined();
     expect(secondSession?.value).not.toBe(firstSession?.value);
+  });
+
+  // ===== Ba trang mới của #208: /verifications, /matrix, /onboarding =====
+
+  it('renders the verifications table with the seeded verification on /verifications', async () => {
+    const { page: authenticated } = await openAuthenticatedPage();
+    const errors = watchBrowserErrors(authenticated);
+
+    await openPage(authenticated, '/verifications');
+
+    // Trang gộp row theo provider cho consumer ĐANG chọn (mặc định cái đầu
+    // trong dropdown) và lấy verification mới nhất — seed có một verification
+    // thành công cho svc-consumer@1.0.0 → svc-provider, nên bảng mặc định
+    // phải ra đúng row đó, không rơi vào empty/unavailable dù seed đầy đủ.
+    await authenticated.waitForSelector('[data-testid="pact-broker-verifications-table"]', {
+      timeout: 30_000,
+    });
+    const tableText = await authenticated
+      .locator('[data-testid="pact-broker-verifications-table"]')
+      .innerText();
+    expect(tableText).toContain('svc-consumer');
+    expect(tableText).toContain('svc-provider');
+    expect(tableText).toContain('Verified');
+
+    // Đổi consumer qua dropdown thật: cặp chưa verify nào phải hiện
+    // "Not verified" — nhánh null-verification của trang, không phải row mất.
+    const consumers = ['svc-consumer', 'svc-other'];
+    for (const consumer of consumers) {
+      const present = await authenticated
+        .locator('[data-testid="pact-broker-verifications-consumer-select"] option', {
+          hasText: consumer,
+        })
+        .count();
+      expect(present, `dropdown must offer the seeded consumer ${consumer}`).toBeGreaterThan(0);
+    }
+    await authenticated.selectOption('[data-testid="pact-broker-verifications-consumer-select"]', {
+      label: 'svc-other',
+    });
+    await authenticated.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="pact-broker-verifications-table"]')
+          ?.textContent?.includes('svc-other'),
+      undefined,
+      { timeout: 30_000 },
+    );
+    const otherText = await authenticated
+      .locator('[data-testid="pact-broker-verifications-table"]')
+      .innerText();
+    expect(otherText).toContain('svc-other');
+    expect(otherText).toContain('Not verified');
+
+    await expectCleanPage(authenticated, errors);
+  });
+
+  it('serves the matrix form populated with the seeded pacticipants on /matrix', async () => {
+    const { page: authenticated } = await openAuthenticatedPage();
+    const errors = watchBrowserErrors(authenticated);
+
+    await openPage(authenticated, '/matrix');
+
+    // Form chỉ render khi danh sách pacticipant nạp được từ BFF — chính nó là
+    // bằng chứng trang đọc được dữ liệu thật.
+    await authenticated.waitForSelector('[data-testid="pact-broker-matrix-form"]', {
+      timeout: 30_000,
+    });
+    for (const name of ['svc-consumer', 'svc-other', 'svc-provider']) {
+      const present = await authenticated
+        .locator('[data-testid="pact-broker-matrix-pacticipant"] option', { hasText: name })
+        .count();
+      expect(present, `dropdown must offer the seeded pacticipant ${name}`).toBeGreaterThan(0);
+    }
+
+    await expectCleanPage(authenticated, errors);
+  });
+
+  // ⚠️ Verdict `can-i-deploy` từ browser CHƯA regression được: đang phát hiện
+  // bug sản phẩm — `app/pages/matrix.vue` `ask()` POST `/api/broker/can-i-deploy`
+  // không mang header `x-ecoma-csrf`, middleware authn 401 mọi POST thiếu
+  // header, và `brokerFetch` dịch 401 thành redirect ra login ⇒ trình duyệt
+  // bị bật ra trang chủ thay vì nhận verdict. Fix thuộc `matrix.vue` — ngoài
+  // scope lock của slice này; test verdict bổ sung sau khi fix land.
+
+  it('renders the CLI onboarding command blocks with the pinned CLI version on /onboarding', async () => {
+    const { page: authenticated } = await openAuthenticatedPage();
+    const errors = watchBrowserErrors(authenticated);
+
+    await openPage(authenticated, '/onboarding');
+
+    // Trang tĩnh không đọc BFF — khối lệnh là dữ liệu assert: pin CLI và các
+    // lệnh thật của quy trình publish/verify/can-i-deploy.
+    await authenticated.waitForSelector('[data-testid="pact-broker-onboarding-pin"]', {
+      timeout: 30_000,
+    });
+    const bodyText = await authenticated.locator('body').innerText();
+    expect(bodyText).toContain('18.10.9');
+    expect(bodyText).toContain('pact-broker publish');
+    expect(bodyText).toContain('pact verifier');
+    expect(bodyText).toContain('can-i-deploy');
+    expect(bodyText).toContain('record-deployment');
+
+    // SR-002: token thật của stack không bao giờ render lại trên trang nào.
+    expect(bodyText).not.toContain(stack.machineToken);
+    // Placeholder của token trong khối lệnh là chủ ý (show-once), giữ nguyên.
+    expect(bodyText).toContain('$PACT_BROKER_TOKEN');
+
+    await expectCleanPage(authenticated, errors);
   });
 });
