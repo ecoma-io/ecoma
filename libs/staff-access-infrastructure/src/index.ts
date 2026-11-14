@@ -39,7 +39,9 @@ export {
   type PermissionRow,
 } from './permission-repository';
 export {
+  countLiveAssignmentsForStaffRole,
   getAssignmentById,
+  getLiveAssignmentForStaffRole,
   insertAssignment,
   listAssignmentsForStaff,
   revokeAssignment,

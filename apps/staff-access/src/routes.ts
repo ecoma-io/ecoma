@@ -48,6 +48,7 @@ import {
   staffListResponse,
   validateAuditQueryRequest,
   validateCreateAssignmentRequest,
+  validateCreateStaffRequest,
   validateStaffListRequest,
   validateStaffRoleAssignment,
   validateRevokeAssignmentRequest,
@@ -62,10 +63,13 @@ import {
   appendAuditEntry,
   getAssignmentById,
   getEntitlement,
+  getLiveAssignmentForStaffRole,
   getPermissionById,
   getRoleById,
   getStaffById,
+  getStaffBySub,
   insertAssignment,
+  insertStaff,
   iso,
   isoNullable,
   listActivePermissions,
@@ -102,7 +106,56 @@ function isEntitlementFresh(
   return Number.isFinite(occurredAtMs) && nowMs - occurredAtMs <= deadline;
 }
 
-/** Loi http chuan cua route — body JSON khong leak noi bo. */
+/**
+ * Role đích của đường bổ nhiệm thường (ADR-0023 Quyết định 2): định danh
+ * canonical `system-administrator` — phân giải theo `(kind, name)` (UNIQUE ở
+ * `0008`), không theo id cứng, cùng hình phân giải của ADR-0022 Quyết định 4.
+ */
+const CANONICAL_ADMINISTRATOR_KIND = 'system';
+const CANONICAL_ADMINISTRATOR_NAME = 'system-administrator';
+
+function isCanonicalAdministratorRole(role: RoleRow): boolean {
+  return role.kind === CANONICAL_ADMINISTRATOR_KIND && role.name === CANONICAL_ADMINISTRATOR_NAME;
+}
+
+/**
+ * Kiểm permission ghi cho một route quản trị (ADR-0034): đọc tập permission
+ * hiệu lực của actor trong envelope (không bao giờ từ body) và ghi hàng audit
+ * **commit trước khi trả lời** (ADR-0023 Quyết định 6, ADR-0033 Quyết định 3).
+ *
+ * - Không actor principal ⇒ 401 — không có lần từ chối quyền nào để audit
+ *   (target của hàng `denied` là `staff.id`, mà chưa phân giải được staff nào;
+ *   cùng lập luận của `POST /authorization/verdict`).
+ * - Actor có principal nhưng thiếu permission ⇒ 403 + đúng một hàng audit
+ *   `denied` với `action = <permission>`, `reason = 'permission_denied'`,
+ *   `target = actorStaffId`, `correlation_id` = request id.
+ */
+async function requireWritePermission(
+  c: { get: (key: 'actorStaffId' | 'actorSub' | 'requestId') => string | null },
+  db: StaffAccessClient,
+  permission: string,
+): Promise<boolean> {
+  const actorStaffId = c.get('actorStaffId');
+  if (actorStaffId === null) {
+    return false;
+  }
+  const effective = await listEffectivePermissionIdsForStaff(db, actorStaffId);
+  const allowed = effective.includes(permission);
+  if (!allowed) {
+    await appendAuditEntry(db, {
+      actorStaffId,
+      actorSub: c.get('actorSub'),
+      target: actorStaffId,
+      action: permission,
+      outcome: 'denied',
+      reason: 'permission_denied',
+      correlationId: c.get('requestId'),
+    });
+  }
+  return allowed;
+}
+
+/** Lỗi http chuan cua route — body JSON khong leak noi bo. */
 interface HttpError {
   readonly status: 400 | 404 | 409;
   readonly body: { error: string; message: string };
@@ -263,6 +316,89 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     return c.json(toStaffMember(row));
   });
 
+  // ------------------------------------------------- staff create (ADR-0034) --
+  // `POST /staff` — đường tạo staff identity (issue #44, ADR-0023 Quyết định 2
+  // tiền đề của bổ nhiệm thường). Permission `staff.create` enforce như route
+  // gán/thu hồi; sub là Account ID đã tồn tại bên `account` (reference opaque —
+  // service này không tạo Account, ADR-0012 §4), display_name theo cap contract.
+  app.post('/staff', async (c) => {
+    const parsed = await readJsonObject(c);
+    if (!parsed.ok) {
+      return c.json(parsed.error.body, parsed.error.status);
+    }
+    const validated = validateCreateStaffRequest(parsed.body);
+    if (!validated.ok) {
+      return c.json(badRequest(validated.detail).body, 400);
+    }
+    const request = validated.payload;
+
+    // Permission enforcement TRƯỚC mọi đọc nghiệp vụ — cùng hình route gán/thu hồi.
+    const permitted = await withClient(c, (db) => requireWritePermission(c, db, 'staff.create'));
+    if (!permitted) {
+      if (c.get('actorStaffId') === null) {
+        return c.json(
+          {
+            error: 'Unauthorized',
+            message: 'Creating a staff entry requires an actor principal in the envelope.',
+          },
+          401,
+        );
+      }
+      return c.json(
+        { error: 'Forbidden', message: 'The actor does not hold the staff.create permission.' },
+        403,
+      );
+    }
+
+    const result = await withClient(c, async (db) =>
+      db.begin(async (tx) => {
+        // sub UNIQUE ở schema là ràng buộc thật; SELECT trước để hàng audit
+        // `denied` mang đúng lý do thay vì một lỗi constraint chung.
+        const existing = await getStaffBySub(tx, request.sub);
+        if (existing !== null) {
+          await appendAuditEntry(tx, {
+            actorStaffId: c.get('actorStaffId'),
+            actorSub: c.get('actorSub'),
+            target: existing.id,
+            action: 'staff.create',
+            outcome: 'denied',
+            reason: 'staff_already_exists',
+            correlationId: c.get('requestId'),
+          });
+          return { conflict: true as const };
+        }
+        const staffId = crypto.randomUUID();
+        await insertStaff(tx, {
+          id: staffId,
+          sub: request.sub,
+          displayName: request.display_name,
+        });
+        // Audit cùng transaction — tạo staff không tồn tại không audit là dấu
+        // vết thiếu (SR-013): sổ staff chỉ lớn lên qua đường có audit này.
+        await appendAuditEntry(tx, {
+          actorStaffId: c.get('actorStaffId'),
+          actorSub: c.get('actorSub'),
+          target: staffId,
+          action: 'staff.create',
+          outcome: 'success',
+          correlationId: c.get('requestId'),
+        });
+        return { staffId };
+      }),
+    );
+    if (result.conflict === true) {
+      return c.json(
+        { error: 'Conflict', message: 'A staff entry already exists for this account.' },
+        409,
+      );
+    }
+    const created = await withClient(c, (db) => getStaffById(db, result.staffId));
+    if (created === null) {
+      throw new Error('staff entry vanished after commit');
+    }
+    return c.json(toStaffMember(created), 201);
+  });
+
   app.get('/staff/:id/assignments', async (c) => {
     const staffId = c.req.param('id');
     const rows = await withClient(c, (db) => listAssignmentsForStaff(db, staffId));
@@ -290,11 +426,36 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     }
     const request = validated.payload;
 
+    // Permission enforcement TRƯỚC mọi đọc nghiệp vụ (ADR-0034): denied ->
+    // 403 + hàng audit đã commit (helper ghi trong cùng client rồi helper trả
+    // 403; client đóng trong finally nên hàng đã commit khi response về).
+    const permitted = await withClient(c, (db) => requireWritePermission(c, db, 'role.assign'));
+    if (!permitted) {
+      if (c.get('actorStaffId') === null) {
+        return c.json(
+          {
+            error: 'Unauthorized',
+            message: 'Granting a role requires an actor principal in the envelope.',
+          },
+          401,
+        );
+      }
+      return c.json(
+        { error: 'Forbidden', message: 'The actor does not hold the role.assign permission.' },
+        403,
+      );
+    }
+
     const result = await withClient(c, async (db) =>
       db.begin(async (tx) => {
         const staff = await getStaffById(tx, staffId);
         if (staff === null) {
           throw staffAccessDomainError('staff_not_found');
+        }
+        // Target phải `active` (ADR-0023 Quyết định 2): suspended lẫn terminated
+        // đều không phải mục tiêu bổ nhiệm hợp lệ.
+        if (staff.status === 'suspended') {
+          throw staffAccessDomainError('staff_suspended');
         }
         if (staff.status === 'terminated') {
           throw staffAccessDomainError('staff_terminated');
@@ -303,10 +464,30 @@ export function staffAccessRoutes(): Hono<AppEnv> {
         if (role === null || role.status !== 'active') {
           throw staffAccessDomainError('role_not_found');
         }
+        // SR-005: cấm self-assignment — actor không tự gán role cho chính mình.
+        // Không ghi audit trong transaction: ADR-0023 Quyết định 6 đòi hàng
+        // `denied` phải commit, mà transaction này không được commit — hàng
+        // được ghi ngoài transaction sau khi begin trả về (cùng hình
+        // `requireWritePermission`), trước khi route trả 403.
+        if (c.get('actorStaffId') === staffId) {
+          return { selfAssignment: true as const };
+        }
+        // ADR-0023 Quyết định 2: target đã có assignment còn hiệu lực cho cùng
+        // role -> không tạo thêm; đó là no-op có audit, không phải bổ nhiệm lần hai.
+        const live = await getLiveAssignmentForStaffRole(tx, staffId, request.role_id);
+        if (live !== null) {
+          await appendAuditEntry(tx, {
+            actorStaffId: c.get('actorStaffId'),
+            actorSub: c.get('actorSub'),
+            target: live.id,
+            action: 'role_assignment.create',
+            outcome: 'success',
+            reason: 'duplicate_live_assignment',
+            correlationId: c.get('requestId'),
+          });
+          return { duplicate: live.id };
+        }
         const assignmentId = crypto.randomUUID();
-        // granted_by la NULL theo thiet ke (schema cho phep, dung cho
-        // bootstrap/migrator). Actor who grant se wired khi BFF gui verified
-        // principal (T-10: khong lay actor tu request body).
         await insertAssignment(tx, {
           id: assignmentId,
           staffId,
@@ -317,8 +498,6 @@ export function staffAccessRoutes(): Hono<AppEnv> {
           grantedBy: c.get('actorStaffId'),
         });
         // Audit cung transaction — grant khong ton tai khong audit (SR-013).
-        // correlationId la request-scoped (khong phai identity — T-10 khong
-        // cham toi); actor_* van NULL den P5.1 khi BFF gui verified principal.
         await appendAuditEntry(tx, {
           actorStaffId: c.get('actorStaffId'),
           actorSub: c.get('actorSub'),
@@ -331,15 +510,40 @@ export function staffAccessRoutes(): Hono<AppEnv> {
               ? null
               : 'temporary',
         });
-        return assignmentId;
+        return { created: assignmentId };
       }),
     );
-    if (typeof result !== 'string') {
-      // Khong the xay ra — `begin` tra ve gia tri cua fn; thu loai nay chi de
-      // type check dong nhat voi duong loi o duoi.
+    if (result.selfAssignment === true) {
+      // Hàng audit `denied` ghi ngoài transaction, commit trước khi trả 403
+      // (ADR-0023 Quyết định 6 — cùng hình `requireWritePermission`).
+      await withClient(c, (db) =>
+        appendAuditEntry(db, {
+          actorStaffId: c.get('actorStaffId'),
+          actorSub: c.get('actorSub'),
+          target: staffId,
+          action: 'role.assign',
+          outcome: 'denied',
+          reason: 'self_assignment',
+          correlationId: c.get('requestId'),
+        }),
+      );
+      return c.json(
+        { error: 'Forbidden', message: 'Self-assignment of a role is not permitted.' },
+        403,
+      );
+    }
+    if (result.duplicate !== undefined) {
+      // No-op có audit: trả assignment hiện có, không tạo hàng trùng.
+      const existing = await withClient(c, (db) => getAssignmentById(db, result.duplicate));
+      if (existing === null) {
+        throw new Error('live assignment vanished');
+      }
+      return c.json(toAssignment(existing));
+    }
+    if (result.created === undefined) {
       throw new Error('assignment create returned no id');
     }
-    const created = await withClient(c, (db) => getAssignmentById(db, result));
+    const created = await withClient(c, (db) => getAssignmentById(db, result.created));
     if (created === null) {
       throw new Error('assignment vanished after commit');
     }
@@ -357,6 +561,25 @@ export function staffAccessRoutes(): Hono<AppEnv> {
       return c.json(badRequest(validated.detail).body, 400);
     }
     const assignmentId = validated.payload.id;
+
+    // Permission enforcement TRƯỚC mọi đọc nghiệp vụ — cùng hình route gán.
+    const permitted = await withClient(c, (db) => requireWritePermission(c, db, 'role.revoke'));
+    if (!permitted) {
+      if (c.get('actorStaffId') === null) {
+        return c.json(
+          {
+            error: 'Unauthorized',
+            message: 'Revoking an assignment requires an actor principal in the envelope.',
+          },
+          401,
+        );
+      }
+      return c.json(
+        { error: 'Forbidden', message: 'The actor does not hold the role.revoke permission.' },
+        403,
+      );
+    }
+
     const outcome = await withClient(c, async (db) =>
       db.begin(async (tx) => {
         const existing = await getAssignmentById(tx, assignmentId);
@@ -365,6 +588,33 @@ export function staffAccessRoutes(): Hono<AppEnv> {
         }
         if (existing.revoked_at !== null) {
           return { alreadyRevoked: true as const };
+        }
+        // ADR-0023 Quyết định 2: cấm self-revocation của assignment administrator
+        // CUỐI CÙNG còn hiệu lực — administrator không tự rút quyền của chính mình
+        // khi không còn ai khác giữ canonical role. Audit `denied` ghi trong cùng
+        // transaction rồi transaction ROLLBACK theo kết quả — không có hàng nào
+        // khác được ghi.
+        if (c.get('actorStaffId') === existing.staff_id && existing.role_id !== null) {
+          const role = await getRoleById(tx, existing.role_id);
+          if (role !== null && isCanonicalAdministratorRole(role)) {
+            // Đếm TOÀN CỤC mọi holder sống của role canonical (không chỉ của
+            // actor — unique (staff_id, role_id) của migration 0008 khiến đếm
+            // theo staff luôn là 1): chỉ chặn khi actor là người giữ cuối cùng.
+            const rows = await tx.unsafe<{ count: string }>(
+              `SELECT count(*)::text AS count
+                 FROM staff_access.role_assignments
+                WHERE role_id = $1
+                  AND revoked_at IS NULL`,
+              [existing.role_id],
+            );
+            const liveCount = rows[0] === undefined ? 0 : Number(rows[0].count);
+            if (liveCount === 1) {
+              // Không ghi audit trong transaction — hàng `denied` phải commit
+              // (ADR-0023 Quyết định 6) mà transaction này không được commit;
+              // hàng được ghi ngoài transaction trước khi route trả 403.
+              return { selfRevocationLastAdmin: true as const };
+            }
+          }
         }
         const changed = await revokeAssignment(tx, assignmentId, new Date().toISOString());
         if (changed !== 1) {
@@ -383,6 +633,28 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     );
     if (outcome.notFound) {
       return c.json(notFound('Assignment not found.').body, 404);
+    }
+    if (outcome.selfRevocationLastAdmin === true) {
+      // Hàng audit `denied` ghi ngoài transaction, commit trước khi trả 403
+      // (ADR-0023 Quyết định 6 — cùng hình `requireWritePermission`).
+      await withClient(c, (db) =>
+        appendAuditEntry(db, {
+          actorStaffId: c.get('actorStaffId'),
+          actorSub: c.get('actorSub'),
+          target: assignmentId,
+          action: 'role.revoke',
+          outcome: 'denied',
+          reason: 'self_revocation_last_administrator',
+          correlationId: c.get('requestId'),
+        }),
+      );
+      return c.json(
+        {
+          error: 'Forbidden',
+          message: 'Self-revocation of the last live administrator assignment is not permitted.',
+        },
+        403,
+      );
     }
     if (outcome.alreadyRevoked) {
       return c.json(

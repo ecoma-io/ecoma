@@ -109,6 +109,53 @@ export async function insertAssignment(
   );
 }
 
+/**
+ * Lấy assignment **còn sống** (`revoked_at IS NULL` — đúng predicate của partial
+ * unique index `role_assignments_active_unique_idx` ở `0008`) cho cặp
+ * `(staff_id, role_id)`. Đường guard "đã có assignment còn hiệu lực" của route
+ * gán (ADR-0023 Quyết định 2): trùng natural key là no-op có audit, không phải
+ * assignment thứ hai.
+ */
+export async function getLiveAssignmentForStaffRole(
+  db: StaffAccessQueryable,
+  staffId: string,
+  roleId: string,
+): Promise<AssignmentRow | null> {
+  const rows = await db.unsafe<AssignmentRow>(
+    `SELECT id, staff_id, role_id, scope, effective_from, effective_until,
+            granted_by, created_at, revoked_at
+       FROM staff_access.role_assignments
+      WHERE staff_id = $1
+        AND role_id = $2
+        AND revoked_at IS NULL`,
+    [staffId, roleId],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Đếm assignment còn sống (`revoked_at IS NULL`) của một staff member cho một
+ * role — đường guard "self-revocation của assignment administrator cuối cùng"
+ * (ADR-0023 Quyết định 2): đếm == 1 nghĩa là assignment đang bị thu hồi là
+ * hàng sống cuối cùng của actor với role đó.
+ */
+export async function countLiveAssignmentsForStaffRole(
+  db: StaffAccessQueryable,
+  staffId: string,
+  roleId: string,
+): Promise<number> {
+  const rows = await db.unsafe<{ count: string }>(
+    `SELECT count(*)::text AS count
+       FROM staff_access.role_assignments
+      WHERE staff_id = $1
+        AND role_id = $2
+        AND revoked_at IS NULL`,
+    [staffId, roleId],
+  );
+  const row = rows[0];
+  return row === undefined ? 0 : Number(row.count);
+}
+
 /** Thu hồi có chủ đích — UPDATE `revoked_at` đúng nghĩa §4.6, trả số hàng bị đổi. */
 export async function revokeAssignment(
   db: StaffAccessQueryable,

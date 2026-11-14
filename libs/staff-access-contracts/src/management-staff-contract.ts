@@ -353,3 +353,79 @@ export function staffListResponse(
 ): StaffListResponse {
   return { staff, next_cursor: nextCursor };
 }
+
+/**
+ * Request tạo một staff identity mới — đường `POST /staff` của service Staff
+ * Access (issue #44, ADR-0034 Quyết định 1: permission `staff.create`).
+ *
+ * ⚠️ Chỉ mang đúng hai trường: `sub` (Account ID của `account` — reference
+ * opaque, không phải dữ liệu hồ sơ) và `display_name` (tên hiển thị nghiệp vụ
+ * do Staff Access giữ). Mọi trường hồ sơ danh tính khác là dữ liệu của
+ * `account` và bị {@link FORBIDDEN_STAFF_PROFILE_FIELDS} chặn.
+ */
+export interface CreateStaffRequest {
+  /** Account ID (`sub_` + 32 ký tự base32) của staff member mới — {@link isStaffSubFormat}. */
+  readonly sub: string;
+  /** Tên hiển thị nghiệp vụ — 1..{@link STAFF_DISPLAY_NAME_MAX_LENGTH} ký tự. */
+  readonly display_name: string;
+}
+
+/** Kết quả validate request tạo staff. */
+export type CreateStaffValidation = StaffContractValidation<CreateStaffRequest>;
+
+/**
+ * Validate request tạo staff — chặn trường ngoài contract và trường hồ sơ bị
+ * cấm trước, rồi kiểm hình thức của `sub` và `display_name`.
+ *
+ * ⚠️ Không nối **giá trị** trường bị cấm vào `detail`; chỉ nêu tên trường.
+ */
+export function validateCreateStaffRequest(payload: unknown): CreateStaffValidation {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return { ok: false, reason: 'invalid_payload', detail: 'Request must be an object.' };
+  }
+  const record = payload as Record<string, unknown>;
+
+  for (const field of FORBIDDEN_STAFF_PROFILE_FIELDS) {
+    if (field in record) {
+      return {
+        ok: false,
+        reason: 'forbidden_field',
+        detail: `Staff entry carries a forbidden identity field: ${field}.`,
+      };
+    }
+  }
+  const allowedKeys = ['sub', 'display_name'];
+  for (const key of Object.keys(record)) {
+    if (!allowedKeys.includes(key)) {
+      return {
+        ok: false,
+        reason: 'forbidden_field',
+        detail: `Staff entry carries a field outside the contract: ${key}.`,
+      };
+    }
+  }
+
+  if (!isStaffSubFormat(record.sub)) {
+    return {
+      ok: false,
+      reason: 'invalid_sub',
+      detail: 'sub must be an Account ID: sub_ prefix + 32 lowercase base32 characters.',
+    };
+  }
+  if (
+    typeof record.display_name !== 'string' ||
+    record.display_name.length === 0 ||
+    record.display_name.length > STAFF_DISPLAY_NAME_MAX_LENGTH
+  ) {
+    return {
+      ok: false,
+      reason: 'invalid_entry',
+      detail: `display_name must be 1..${STAFF_DISPLAY_NAME_MAX_LENGTH} characters.`,
+    };
+  }
+
+  return {
+    ok: true,
+    payload: { sub: record.sub, display_name: record.display_name },
+  };
+}

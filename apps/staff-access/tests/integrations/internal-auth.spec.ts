@@ -12,6 +12,21 @@ describe('internal HMAC envelope authentication', () => {
     await db?.stop();
   });
   it('enforces missing, invalid, valid, and replayed envelopes at the management boundary', async () => {
+    // Route revoke giờ đòi actor principal + permission: envelope hợp lệ KHÔNG
+    // actor bị route từ chối 401 (đã qua middleware HMAC), envelope hợp lệ CÓ
+    // actor nhưng thiếu permission bị 403 — cả hai chỉ tới được sau khi ranh
+    // giới HMAC đã cho qua, nên vẫn chứng minh đúng ranh giới này.
+    const actorSub = `sub_${'a'.repeat(32)}`;
+    const client = await db.connect();
+    try {
+      await client.query(
+        `INSERT INTO staff_access.staff (sub, display_name, status)
+         VALUES ($1, 'Auth Boundary Staff', 'active')`,
+        [actorSub],
+      );
+    } finally {
+      await client.end();
+    }
     resetCachedConfig();
     const app = buildApp();
     const env = {
@@ -28,6 +43,7 @@ describe('internal HMAC envelope authentication', () => {
       secret: env.AUTH_INTERNAL_SECRET,
       timestamp: String(Math.floor(Date.now() / 1000)),
       nonce: `endpoint-valid-${crypto.randomUUID()}`,
+      actorSub,
     } as const;
     expect((await app.request('/assignments/revoke', { method: 'POST', body }, env)).status).toBe(
       401,
@@ -46,7 +62,7 @@ describe('internal HMAC envelope authentication', () => {
       { method: 'POST', body, headers: signed },
       env,
     );
-    expect(valid.status).toBe(404);
+    expect(valid.status).toBe(403);
     const replay = await app.request(
       '/assignments/revoke',
       { method: 'POST', body, headers: signed },

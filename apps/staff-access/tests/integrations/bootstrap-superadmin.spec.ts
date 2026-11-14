@@ -169,7 +169,10 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
         { id: 'audit.read', status: 'active' },
         { id: 'invitation.create', status: 'active' },
         { id: 'permission.read', status: 'active' },
+        { id: 'role.assign', status: 'active' },
         { id: 'role.read', status: 'active' },
+        { id: 'role.revoke', status: 'active' },
+        { id: 'staff.create', status: 'active' },
         { id: 'staff.read', status: 'active' },
       ]);
 
@@ -180,7 +183,10 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
         'audit.read',
         'invitation.create',
         'permission.read',
+        'role.assign',
         'role.read',
+        'role.revoke',
+        'staff.create',
         'staff.read',
       ]);
     } finally {
@@ -220,7 +226,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
         `SELECT (SELECT count(*)::text FROM staff_access.roles) AS roles,
                 (SELECT count(*)::text FROM staff_access.permissions) AS permissions`,
       );
-      expect(seedCounts.rows[0]).toEqual({ roles: '1', permissions: '5' });
+      expect(seedCounts.rows[0]).toEqual({ roles: '1', permissions: '8' });
     } finally {
       await client.end();
     }
@@ -304,7 +310,10 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
         'audit.read',
         'invitation.create',
         'permission.read',
+        'role.assign',
         'role.read',
+        'role.revoke',
+        'staff.create',
         'staff.read',
       ]);
     } finally {
