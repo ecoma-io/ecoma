@@ -30,10 +30,11 @@ Staff đăng nhập được vào backoffice và chỉ đọc được những t
 - Callback: đổi code, xác thực access token và ID token, tạo session server-side, đặt session cookie và CSRF cookie.
 - Logout: trả 403 khi CSRF cookie có mặt nhưng header không khớp; thiếu hẳn CSRF cookie thì vẫn thu hồi session (204). Thu hồi best-effort ở authorization server, đánh dấu session đã thu hồi.
 - Năm bề mặt đọc được bảo vệ theo permission: danh bạ staff, role, permission, audit và entitlement.
+- Quyết định permission của các bề mặt đó đọc từ ảnh authorization của Staff Access — staff, role, assignment và role permission đọc qua API của `staff-access` (ADR-0023 Quyết định 2). Cổng cutover `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` (ISO-8601) do deploy layer cấp; cutover bật mà projection không đọc được hoặc quá TTL thì fallback về nguồn legacy kèm một dòng log — không chọn im lặng.
 - Hai bề mặt chỉ cần session: thông tin người dùng hiện tại và trạng thái onboarding.
 - Chuyển hướng sang `/onboarding` khi profile chưa có tên hiển thị.
 - Gộp tên hiển thị từ `account` vào danh bạ staff, có đường suy giảm có kiểm soát khi `account` không đọc được.
-- Audit cho lần bị từ chối, ghi append-only trong database của backoffice.
+- Audit cho lần bị từ chối và cho lần đọc có bảo vệ được cho qua, ghi append-only trong database của backoffice.
 
 ### Không bao gồm
 
@@ -45,8 +46,6 @@ Staff đăng nhập được vào backoffice và chỉ đọc được những t
 - **Bốn trang dữ liệu đang ở chế độ prototype** với dữ liệu mẫu và banner: `/`, `/staff`, `/roles`, `/permissions`. Hai trang đọc dữ liệu thật: `/audit` và `/onboarding`. Chế độ mặc định là `disabled`, và mọi giá trị không nhận diện được đều fail-closed về trạng thái không dùng được.
 - **Trang `/roles` không hiển thị permission của role** ở chế độ thật: adapter đặt `permissionIds: []`, nên số permission luôn là 0. Ở chế độ realtime, cột entitlement của `/staff` luôn trống vì `mapStaff` đặt `entitlements: []` và không trang nào gọi `listEntitlements`.
 - **Staff Access Worker không tự kiểm tra permission.** Nó chỉ xác thực envelope và kiểm tra actor là staff `active`; kiểm tra permission là việc của BFF.
-- **Projection authorization của Staff Access chưa thể trở thành nguồn sự thật.** Cổng cutover được đọc nhưng không được đặt ở đâu, nên `db-backoffice` legacy vẫn là nguồn quyết định.
-- **Catalog permission ở hai database lệch nhau**: `db-backoffice` có `audit.read`, `db-staff-access` không có. Việc đưa `audit.read` vào catalog canonical đã được chấp nhận ([`staff-access` ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) Quyết định 8); migration seed tương ứng chưa tồn tại.
 - Playwright suite app-owned trong `apps/backoffice/e2e/` **không chạy được**: không có target `e2e`, không có CI job. Bằng chứng browser chỉ đến từ system test.
 
 ## 4. Acceptance Scenarios
@@ -144,26 +143,26 @@ Thì  thấy trạng thái lỗi thay vì dữ liệu mẫu
 
 Bằng chứng gồm ba tầng: integration app-owned (PostgreSQL thật), unit/component, và system E2E trên stack local thật.
 
-| Scenario                                                                                                           | Test file / suite                                                                                    | Loại test      | Nx target          |
-| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------------- | ------------------ |
-| Năm route trả 401 khi không có cookie                                                                              | `system-tests/e2e/backoffice-access-control-e2e/e2e/unauthenticated-denial.spec.ts`                  | system E2E     | `system-test`      |
-| Kickoff sinh PKCE S256, scope, cookie dùng một lần, state/challenge khác nhau giữa hai lần                         | `system-tests/e2e/backoffice-access-control-e2e/e2e/login-kickoff.spec.ts`                           | system E2E     | `system-test`      |
-| Callback tạo session cookie, `/api/me` 200 với `no-store`, trang overview render                                   | `system-tests/e2e/backoffice-access-control-e2e/e2e/authenticated-access.spec.ts`                    | system E2E     | `system-test`      |
-| 403 khi chưa cấp quyền; 200 sau khi cấp; 403 sau khi thu hồi mà không đăng nhập lại                                | `system-tests/e2e/backoffice-access-control-e2e/e2e/permission-enforcement.spec.ts`                  | system E2E     | `system-test`      |
-| CSRF sai trả 403; CSRF đúng trả 204 và xoá cookie; cookie cũ trả 401; logout không cookie idempotent               | `system-tests/e2e/backoffice-access-control-e2e/e2e/logout.spec.ts`                                  | system E2E     | `system-test`      |
-| Middleware: pass-through cho non-`/api`, canary với JWKS thật, 503 thiếu config/binding, 401 cho cookie lạ/hết hạn | `apps/backoffice/tests/integrations/authn-middleware.spec.ts`                                        | integration    | `test-integration` |
-| Route đọc: 200; 403 kèm audit row ghi trước phản hồi; 401 không principal; 503 khi DB hoặc binding không dùng được | `apps/backoffice/tests/integrations/read-routes.spec.ts`                                             | integration    | `test-integration` |
-| Audit từ chối: trường, từ chối khoá bí mật, không UPDATE/DELETE, lỗi insert lan truyền                             | `apps/backoffice/tests/integrations/authorization-audit.spec.ts`                                     | integration    | `test-integration` |
-| Quyền ở mức database, audit append-only, từ chối tự cấp quyền, catalog bất biến                                    | `apps/backoffice/tests/integrations/{grants,self-elevation-guard,migrations-and-races}.spec.ts`      | integration    | `test-integration` |
-| Mỗi permission literal được thực thi đều resolve được trong catalog `active`                                       | `apps/backoffice/tests/integrations/permission-catalog-contract.spec.ts`                             | integration    | `test-integration` |
-| Gộp `displayName` và suy giảm khi `account` không đọc được                                                         | `apps/backoffice/tests/integrations/staff-display-name.spec.ts`                                      | integration    | `test-integration` |
-| Migration áp dụng được, đặt tên đúng, catalog seed đúng                                                            | `apps/backoffice/tests/databases/{migrations,migration-file-naming,permission-catalog-seed}.spec.ts` | database       | `test-integration` |
-| Seam chọn adapter fail-closed theo data mode                                                                       | `apps/backoffice/app/backoffice-data/data-gate.spec.ts`                                              | unit/component | `test`             |
+| Scenario                                                                                                                                     | Test file / suite                                                                                    | Loại test      | Nx target          |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------- | ------------------ |
+| Năm route trả 401 khi không có cookie                                                                                                        | `system-tests/e2e/backoffice-access-control-e2e/e2e/unauthenticated-denial.spec.ts`                  | system E2E     | `system-test`      |
+| Kickoff sinh PKCE S256, scope, cookie dùng một lần, state/challenge khác nhau giữa hai lần                                                   | `system-tests/e2e/backoffice-access-control-e2e/e2e/login-kickoff.spec.ts`                           | system E2E     | `system-test`      |
+| Callback tạo session cookie, `/api/me` 200 với `no-store`, trang overview render                                                             | `system-tests/e2e/backoffice-access-control-e2e/e2e/authenticated-access.spec.ts`                    | system E2E     | `system-test`      |
+| 403 khi chưa cấp quyền; 200 sau khi cấp grant trong `db-staff-access`; 403 sau khi thu hồi mà không đăng nhập lại; allow ghi audit `success` | `system-tests/e2e/backoffice-access-control-e2e/e2e/permission-enforcement.spec.ts`                  | system E2E     | `system-test`      |
+| CSRF sai trả 403; CSRF đúng trả 204 và xoá cookie; cookie cũ trả 401; logout không cookie idempotent                                         | `system-tests/e2e/backoffice-access-control-e2e/e2e/logout.spec.ts`                                  | system E2E     | `system-test`      |
+| Middleware: pass-through cho non-`/api`, canary với JWKS thật, 503 thiếu config/binding, 401 cho cookie lạ/hết hạn                           | `apps/backoffice/tests/integrations/authn-middleware.spec.ts`                                        | integration    | `test-integration` |
+| Route đọc: 200; 403 kèm audit row ghi trước phản hồi; 401 không principal; 503 khi DB hoặc binding không dùng được                           | `apps/backoffice/tests/integrations/read-routes.spec.ts`                                             | integration    | `test-integration` |
+| Audit từ chối: trường, từ chối khoá bí mật, không UPDATE/DELETE, lỗi insert lan truyền                                                       | `apps/backoffice/tests/integrations/authorization-audit.spec.ts`                                     | integration    | `test-integration` |
+| Quyền ở mức database, audit append-only, từ chối tự cấp quyền, catalog bất biến                                                              | `apps/backoffice/tests/integrations/{grants,self-elevation-guard,migrations-and-races}.spec.ts`      | integration    | `test-integration` |
+| Mỗi permission literal được thực thi đều resolve được trong catalog `active`                                                                 | `apps/backoffice/tests/integrations/permission-catalog-contract.spec.ts`                             | integration    | `test-integration` |
+| Gộp `displayName` và suy giảm khi `account` không đọc được                                                                                   | `apps/backoffice/tests/integrations/staff-display-name.spec.ts`                                      | integration    | `test-integration` |
+| Migration áp dụng được, đặt tên đúng, catalog seed đúng                                                                                      | `apps/backoffice/tests/databases/{migrations,migration-file-naming,permission-catalog-seed}.spec.ts` | database       | `test-integration` |
+| Seam chọn adapter fail-closed theo data mode                                                                                                 | `apps/backoffice/app/backoffice-data/data-gate.spec.ts`                                              | unit/component | `test`             |
 
 **Giới hạn của verification hiện tại:**
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test-integration` và `system-test`; `system-test` chỉ chạy được sau `local-up` của sáu deploy unit.
-- Revocation được chứng minh ở tầng system **trên nguồn legacy `db-backoffice`**. Đường projection của Staff Access không có test chứng minh nó được dùng, vì cổng cutover chưa thể bật.
+- Revocation và đường authorization projection của Staff Access được chứng minh ở tầng system: `permission-enforcement.spec.ts` cấp và thu hồi grant **chỉ trong `db-staff-access`**, nên suite đỏ nếu BFF quyết định permission từ nguồn khác (issue #241). Legacy `db-backoffice` chỉ còn vai trò shadow trong dual-read.
 - Scenario prototype/fail-closed chỉ có bằng chứng ở tầng unit (`data-gate.spec.ts`, `data-mode.spec.ts`); browser suite `apps/backoffice/e2e/` không chạy được nên không tạo bằng chứng.
 - Không có test nào kiểm chứng trải nghiệm sau khi access token hết hạn 300 giây.
 - Không có test nào kiểm chứng một đường ghi từ UI, vì đường đó không tồn tại.

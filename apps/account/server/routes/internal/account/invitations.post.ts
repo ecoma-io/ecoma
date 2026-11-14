@@ -16,9 +16,9 @@
  *
  * Verdict permission (`invitation.create`) hỏi staff-access qua
  * {@link authorizeInvitationIssuance} cho **mỗi** request — không cache, không
- * suy từ trạng thái `account`. Hợp đồng verdict chưa tồn tại (ADR-0009 đòi
- * ADR mới), nên implementation hiện tại trả `unavailable` → 503 fail-closed;
- * route đã sẵn sàng cho ba verdict khi staff-access có endpoint.
+ * suy từ trạng thái `account` (hợp đồng `POST /authorization/verdict`, ADR-0033
+ * Quyết định 3). Denied ⇒ 403 (hàng audit `denied` ở phía staff-access);
+ * không hỏi được verdict ⇒ 503 fail-closed, không phát lời mời nào.
  *
  * ## Hai lớp từ chối địa chỉ, hai mã lý do khác nhau
  *
@@ -50,12 +50,21 @@ export default defineEventHandler(async (event) => {
   }
   const actorSub = context.internalAuth.actorSub;
 
-  // Enforcement permission theo request — xem JSDoc của cổng về hợp đồng ba
-  // verdict và trạng thái fail-closed hiện tại. Tên local là `decision`, KHÔNG
-  // phải `authorization`: tên "authorization" trúng nguồn taint của rule
+  // Định danh của chính request này, sinh **trước** phép kiểm quyền: nó là
+  // `correlation_id` đi xuống staff-access cho hàng audit của verdict, và cũng
+  // là giá trị ghi vào hàng lời mời — một giá trị, không hai.
+  const correlationId = crypto.randomUUID();
+
+  // Enforcement permission theo request — hỏi thẳng staff-access mỗi lần
+  // (ADR-0030 Quyết định 3, ADR-0033 Quyết định 3). Tên local là `decision`,
+  // KHÔNG phải `authorization`: tên "authorization" trúng nguồn taint của rule
   // `security-sensitive-value-in-http-response` (scanner chặn pre-push), dù
   // giá trị ở đây là một verdict, không phải credential nào.
-  const decision = await authorizeInvitationIssuance(actorSub);
+  const decision = await authorizeInvitationIssuance({
+    runtimeConfig: useRuntimeConfig(event),
+    actorSub,
+    correlationId,
+  });
   if (decision.verdict === 'denied') {
     // Quyết định authorization là của staff-access; phía account chỉ ghi log
     // serving — row audit denied thuộc `staff_access.authorization_audit`
@@ -108,7 +117,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, statusMessage: 'Service Unavailable' });
   }
 
-  const correlationId = crypto.randomUUID();
   let result;
   try {
     result = await withRequestPool(hyperdrive, (pool) =>

@@ -71,9 +71,20 @@ export const BOOTSTRAP_STAFF_DISPLAY_NAME = 'Bootstrap Superadmin';
 /** Hành động ghi vào `authorization_audit.action` cho mọi lần từ chối (ADR-0023 Quyết định 6). */
 export const ROLE_ASSIGNMENT_CREATE_ACTION = 'role_assignment.create';
 
-/** Tập permission sealed của role canonical (ADR-0024 Quyết định 5). */
+/**
+ * Tập permission sealed của role canonical (ADR-0024 Quyết định 5, mở rộng bởi
+ * ADR-0033 Quyết định 2).
+ *
+ * Bốn permission read là nội dung bootstrap cần cho phép đo `admins_before`/
+ * `admins_ever`; `invitation.create` được seed migration `0010` cấp thêm cho cùng
+ * role canonical để administrator phát được lời mời tạo Account (ADR-0030 Quyết
+ * định 3). Tập này phải khớp mảng khai báo của assertion "sealed set" ở migration
+ * `0008` — lệch nhau thì bootstrap từ chối `role_permissions_mismatch`, đúng chủ
+ * đích: phép đo không được hợp lệ hoá một catalog mà migration chưa chốt.
+ */
 export const CANONICAL_ROLE_PERMISSIONS = [
   'audit.read',
+  'invitation.create',
   'permission.read',
   'role.read',
   'staff.read',
@@ -272,8 +283,8 @@ interface StepContext {
 }
 
 /**
- * Assert role canonical **sẵn sàng để đo**: đúng tập bốn permission canonical và
- * tất cả đều `active`. Một role thiếu permission, thừa permission, hoặc mang
+ * Assert role canonical **sẵn sàng để đo**: đúng tập permission khai báo ở
+ * {@link CANONICAL_ROLE_PERMISSIONS} và tất cả đều `active`. Một role thiếu permission, thừa permission, hoặc mang
  * permission đã retire không được làm cơ sở cho phép đo `admins_before`/
  * `admins_ever` — phép đo đó sẽ hợp lệ hoá một catalog sai.
  *
@@ -792,7 +803,7 @@ export async function verifyBootstrapStaff(
     fail('assignment', 'administrator_assignment_missing');
   }
 
-  // Kiểm 4 — role_permissions đúng tập bốn read permission và tất cả `active`
+  // Kiểm 4 — role_permissions đúng tập permission khai báo và tất cả `active`
   // (cùng ngữ nghĩa với `assertCanonicalRoleReady` của guard, nhưng S3 chỉ đọc
   // và báo stderr, không ghi audit `denied`).
   if (roleId !== undefined) {

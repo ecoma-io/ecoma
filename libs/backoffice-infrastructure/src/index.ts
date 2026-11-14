@@ -40,6 +40,7 @@ export {
   listStaff,
   loadPrincipalAuthorization,
   loadPrincipalAuthorizationProjection,
+  AUTHZ_PROJECTION_CUTOVER_ENV,
 } from './queries';
 export type {
   PrincipalAuthorizationData,

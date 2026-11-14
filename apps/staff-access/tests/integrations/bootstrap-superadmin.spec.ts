@@ -147,7 +147,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
     await db?.stop();
   });
 
-  it('seeds exactly one canonical role and exactly four read permissions', async () => {
+  it('seeds exactly one canonical role with the declared permission set', async () => {
     const client = await db.connect();
     try {
       const roles = await client.query<{ id: string; kind: string; name: string; status: string }>(
@@ -167,6 +167,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
       );
       expect(permissions.rows).toEqual([
         { id: 'audit.read', status: 'active' },
+        { id: 'invitation.create', status: 'active' },
         { id: 'permission.read', status: 'active' },
         { id: 'role.read', status: 'active' },
         { id: 'staff.read', status: 'active' },
@@ -177,6 +178,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
       );
       expect(rolePermissions.rows.map((row) => row.permission_id)).toEqual([
         'audit.read',
+        'invitation.create',
         'permission.read',
         'role.read',
         'staff.read',
@@ -218,7 +220,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
         `SELECT (SELECT count(*)::text FROM staff_access.roles) AS roles,
                 (SELECT count(*)::text FROM staff_access.permissions) AS permissions`,
       );
-      expect(seedCounts.rows[0]).toEqual({ roles: '1', permissions: '4' });
+      expect(seedCounts.rows[0]).toEqual({ roles: '1', permissions: '5' });
     } finally {
       await client.end();
     }
@@ -292,7 +294,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
       await runtime.end();
     }
 
-    // Và catalog vẫn đúng bốn permission sau lần thử đó.
+    // Và catalog vẫn đúng tập khai báo sau lần thử đó.
     const client = await db.connect();
     try {
       const permissions = await client.query<{ id: string }>(
@@ -300,6 +302,7 @@ describe('migrations, canonical seed and uniqueness constraints', () => {
       );
       expect(permissions.rows.map((row) => row.id)).toEqual([
         'audit.read',
+        'invitation.create',
         'permission.read',
         'role.read',
         'staff.read',

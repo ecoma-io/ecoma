@@ -259,6 +259,16 @@ const backoffice = new docker.Container(
       // này. `disabled` là app vào trạng thái "không khả dụng" vô ích trên
       // local. Staging ghim cùng giá trị cùng lý do (`wrangler.jsonc`).
       `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`,
+      // Mốc cutover authorization (issue #241): từ mốc này projection của
+      // Staff Access là nguồn quyết định permission của BFF thay cho legacy
+      // `db-backoffice` rỗng (ADR-0023 Quyết định 2 — verdict do Staff Access
+      // sở hữu). Giá trị GHIM do deploy layer cấp, không hard-code trong app
+      // source; quyết định nguồn được ghi ở
+      // `docs/features/internal-access/access-protected-staff-resources.md`.
+      // Gate fail-closed: cutover bật mà projection không đọc được/quá TTL thì
+      // fallback legacy kèm log (`server/read-route.ts`); preset node-server
+      // nhận biến qua shim worker-env (`server/plugins/staff-access-service-shim.ts`).
+      `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT=2026-11-14T00:00:00Z`,
     ],
     labels: [
       ...Object.entries(labels).map(([label, value]) => ({ label, value })),

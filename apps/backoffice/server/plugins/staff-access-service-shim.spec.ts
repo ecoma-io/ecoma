@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AUTHZ_PROJECTION_CUTOVER_ENV,
   STAFF_ACCESS_SECRET_ENV,
   STAFF_ACCESS_SERVICE_BINDING_NAME,
 } from '@ecoma-io/backoffice-infrastructure';
@@ -46,6 +47,38 @@ describe('mountStaffAccessServiceBinding', () => {
 
     const env = (context.cloudflare as { env: Record<string, unknown> }).env;
     expect(env[STAFF_ACCESS_SERVICE_BINDING_NAME]).toBe(existing);
+  });
+
+  it('forwards the authorization cutover moment into the worker env (issue #241)', () => {
+    const context: Record<string, unknown> = {};
+    const cutoverAt = '2026-11-14T00:00:00Z';
+
+    mountStaffAccessServiceBinding({
+      context,
+      origin: 'http://staff-access:8787',
+      cutoverAt,
+    });
+
+    const env = (context.cloudflare as { env: Record<string, unknown> }).env;
+    // Biến container do deploy layer cấp phải nhìn thấy được qua `readWorkerEnv`
+    // — không có đường này thì gate cutover đóng vĩnh viễn trên node-server.
+    expect(env[AUTHZ_PROJECTION_CUTOVER_ENV]).toBe(cutoverAt);
+  });
+
+  it('keeps an existing cutover value and ignores an empty one', () => {
+    const existing = '2026-01-01T00:00:00Z';
+    const context: Record<string, unknown> = {
+      cloudflare: { env: { [AUTHZ_PROJECTION_CUTOVER_ENV]: existing } },
+    };
+
+    mountStaffAccessServiceBinding({
+      context,
+      origin: 'http://staff-access:8787',
+      cutoverAt: '',
+    });
+
+    const env = (context.cloudflare as { env: Record<string, unknown> }).env;
+    expect(env[AUTHZ_PROJECTION_CUTOVER_ENV]).toBe(existing);
   });
 });
 
