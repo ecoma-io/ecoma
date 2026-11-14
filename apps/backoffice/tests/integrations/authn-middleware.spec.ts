@@ -57,6 +57,16 @@ const PROBE_NO_TOUCH_ACCOUNT_ID = `sub_${'c'.repeat(32)}`;
 /** JWKS hiện hành mà fake auth công bố; test đổi giữa các case. */
 let currentJwks: { keys: Record<string, unknown>[] };
 
+/**
+ * Hành vi của `POST /token` trên fake auth — `null` là "endpoint vắng" (404,
+ * không grant nào được phục vụ); các test renewal (#244) gán handler riêng.
+ */
+let tokenGrant: ((body: URLSearchParams) => { status: number; payload: unknown } | null) | null =
+  null;
+
+/** Body của lần POST `/token` gần nhất — assertion shape request của renewal. */
+let lastTokenGrantBody: string | null = null;
+
 /** Số lần fake server được fetch `/jwks.json` — reset trong beforeEach. */
 let jwksFetchCount = 0;
 
@@ -84,6 +94,25 @@ beforeAll(async () => {
       res.end(JSON.stringify(currentJwks));
       return;
     }
+    if (req.url === '/token' && req.method === 'POST' && tokenGrant !== null) {
+      let raw = '';
+      req.on('data', (chunk: Buffer) => {
+        raw += chunk.toString();
+      });
+      req.on('end', () => {
+        lastTokenGrantBody = raw;
+        const handler = tokenGrant;
+        const grant = handler === null ? null : handler(new URLSearchParams(raw));
+        if (grant === null) {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+        res.writeHead(grant.status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(grant.payload));
+      });
+      return;
+    }
     res.writeHead(404);
     res.end();
   });
@@ -106,6 +135,8 @@ afterAll(async () => {
 beforeEach(() => {
   resetJwksCacheForTests();
   jwksFetchCount = 0;
+  tokenGrant = null;
+  lastTokenGrantBody = null;
 });
 
 /** Ký access token đúng cấu trúc `at+jwt` của `auth`. */
@@ -122,6 +153,42 @@ async function signAccessToken(expSeconds?: number): Promise<string> {
     .setIssuedAt()
     .setExpirationTime(expSeconds ?? Math.floor(Date.now() / 1000) + 300)
     .sign(signingKey.privateKey as CryptoKey);
+}
+
+/**
+ * Chèn phiên với token đã hết hạn (verify ⇒ `invalid`) + refresh token —
+ * hình dạng thật của một phiên sau ~5 phút TTL access token (ADR-0012 §3).
+ */
+async function insertExpiredSession(
+  db: BackofficeDatabase,
+  accountSub: string,
+  refreshToken: string,
+): Promise<string> {
+  const staleToken = await new SignJWT({ jti: 'renewal-test' })
+    .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
+    .setIssuer(issuerUrl)
+    .setAudience(AUDIENCE)
+    .setSubject(accountSub)
+    .setIssuedAt(Math.floor(Date.now() / 1000) - 600)
+    .setExpirationTime(Math.floor(Date.now() / 1000) - 300)
+    .sign(signingKey.privateKey as CryptoKey);
+  const sessionValue = createSessionIdentifier();
+  const client = await db.connect();
+  try {
+    const deadlines = sessionDeadlines(Date.now());
+    await insertSession(client as never, {
+      idHash: await hashSessionIdentifier(sessionValue),
+      accountSub,
+      accessToken: staleToken,
+      refreshToken,
+      authTime: null,
+      acr: null,
+      expiresAt: new Date(deadlines.idleExpiresAtMs),
+    });
+  } finally {
+    await client.end();
+  }
+  return sessionValue;
 }
 
 /** Cấu hình OIDC test — cùng hình dạng `backofficeAuthConfig` trả. */
@@ -554,6 +621,106 @@ describe('authn middleware boundary and classification', () => {
       const app = buildApp(envWithDb());
       const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
       expect(status).toBe(401);
+    });
+  });
+
+  describe('access token renewal from the stored refresh token (#244)', () => {
+    it('renews the access token once and persists both rotated tokens', async () => {
+      const newToken = await signAccessToken();
+      tokenGrant = (body) => {
+        expect(body.get('grant_type')).toBe('refresh_token');
+        expect(body.get('client_id')).toBe(CLIENT_ID);
+        expect(body.get('refresh_token')).toBe('rotating-refresh-token');
+        return { status: 200, payload: { access_token: newToken, refresh_token: 'next-refresh' } };
+      };
+
+      const sessionValue = await insertExpiredSession(db, ACCOUNT_ID, 'rotating-refresh-token');
+      const app = buildApp(envWithDb());
+      const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(status).toBe(200);
+
+      // Cả hai token mới đã được persist — bỏ sót refresh token mới là phá
+      // phiên ngay sau lần gia hạn đầu (rotation của auth).
+      const verify = await db.connect();
+      try {
+        const result = await verify.query(
+          `SELECT access_token, refresh_token FROM backoffice.bff_sessions
+            WHERE id_hash = $1 AND revoked_at IS NULL`,
+          [await hashSessionIdentifier(sessionValue)],
+        );
+        expect(result.rows).toHaveLength(1);
+        expect(result.rows[0]?.access_token).toBe(newToken);
+        expect(result.rows[0]?.refresh_token).toBe('next-refresh');
+      } finally {
+        await verify.end();
+      }
+    });
+
+    it('answers 401 once and leaves the session untouched when the refresh grant fails', async () => {
+      tokenGrant = () => ({ status: 400, payload: { error: 'invalid_grant' } });
+
+      const sessionValue = await insertExpiredSession(db, ACCOUNT_ID, 'revoked-refresh');
+      const app = buildApp(envWithDb());
+      const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(status).toBe(401);
+
+      // Không loop: đúng MỘT lần grant — và phiên không bị xoá (caller tự
+      // đăng nhập lại; việc revoke phiên là việc của logout/reuse-detection).
+      expect(lastTokenGrantBody).not.toBeNull();
+      const verify = await db.connect();
+      try {
+        const result = await verify.query(
+          `SELECT revoked_at FROM backoffice.bff_sessions WHERE account_sub = $1`,
+          [ACCOUNT_ID],
+        );
+        expect(result.rows[0]?.revoked_at).toBeNull();
+      } finally {
+        await verify.end();
+      }
+    });
+
+    it('answers 401 without calling the token endpoint when the session has no refresh token', async () => {
+      const sessionValue = await insertExpiredSession(db, ACCOUNT_ID, 'to-be-removed');
+      const client = await db.connect();
+      try {
+        await client.query(
+          `UPDATE backoffice.bff_sessions SET refresh_token = NULL WHERE account_sub = $1`,
+          [ACCOUNT_ID],
+        );
+      } finally {
+        await client.end();
+      }
+
+      const app = buildApp(envWithDb());
+      const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(status).toBe(401);
+      expect(lastTokenGrantBody).toBeNull();
+    });
+
+    it('does not renew when the stored token is still valid', async () => {
+      // Token sống: middleware đi nhánh verify thành công, không đụng `/token`.
+      const token = await signAccessToken();
+      const sessionValue = createSessionIdentifier();
+      const client = await db.connect();
+      try {
+        const deadlines = sessionDeadlines(Date.now());
+        await insertSession(client as never, {
+          idHash: await hashSessionIdentifier(sessionValue),
+          accountSub: ACCOUNT_ID,
+          accessToken: token,
+          refreshToken: 'unused-refresh',
+          authTime: null,
+          acr: null,
+          expiresAt: new Date(deadlines.idleExpiresAtMs),
+        });
+      } finally {
+        await client.end();
+      }
+
+      const app = buildApp(envWithDb());
+      const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(status).toBe(200);
+      expect(lastTokenGrantBody).toBeNull();
     });
   });
 });
