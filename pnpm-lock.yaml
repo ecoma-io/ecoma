@@ -606,6 +606,9 @@ importers:
       hono:
         specifier: ^4.13.13
         version: 4.13.16
+      jose:
+        specifier: 6.2.17
+        version: 6.2.17
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -631,10 +634,19 @@ importers:
       '@ecoma-io/ui-ecoma-logo':
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
+      jose:
+        specifier: 6.2.17
+        version: 6.2.17
     devDependencies:
       '@nuxtjs/i18n':
         specifier: 10.6.0
         version: 10.6.0(@nuxt/schema@4.6.4)(db0@0.3.4(better-sqlite3@13.0.3))(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(ioredis@5.11.1(supports-color@10.2.2))(jiti@2.7.0)(rolldown@1.2.14)(rollup@4.68.2)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.105.2)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
 
   apps/push-notification:
     dependencies:

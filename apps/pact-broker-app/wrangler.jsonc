@@ -9,9 +9,30 @@
   // identity này. Reference: docs/architecture/02-delivery.md §5.
   //
   // `pact-broker-app` là deploy unit thứ hai của bounded context `pact-broker`:
-  // dashboard BFF, KHÔNG có Hyperdrive binding nào (invariant 1 của
-  // `01-architecture.md` §8 — một service một database; chỉ `pact-broker-api`
-  // chạm `db-pact-broker`). Nó nói chuyện với API qua HTTP + machine token.
+  // dashboard BFF. Từ #206 (ADR-0031 §2) app **sở hữu database riêng**
+  // `db-pact-broker-app` — nơi lưu phiên BFF (`bff_sessions`) và luồng
+  // login-in-progress (`bff_login_flows`). Binding Hyperdrive
+  // `DB_PACT_BROKER_APP` trỏ tới đúng database đó.
+  //
+  // ⚠️ Đây KHÔNG phải "một service, hai database": invariant 1 của
+  // `01-architecture.md` §9 là **mỗi service sở hữu một** database — app
+  // này sở hữu `db-pact-broker-app`, API sở hữu `db-pact-broker`. App không
+  // bao giờ chạm database của API (cross-service đi qua HTTP + contract).
+  //
+  // ⚠️ **CHỈ tên binding — không host, không port, không user, không
+  // password.** `id` là định danh Hyperdrive config **theo môi trường** (thuộc
+  // hạ tầng), không phải thông tin kết nối; connection string thật lấy ở
+  // runtime qua `binding.connectionString`. `id` dưới đây là placeholder toàn
+  // số 0 — deploy layer sẽ thay. Migration KHÔNG chạy qua binding này: nó
+  // chạy từ CI runner bằng chuỗi kết nối trực tiếp, vì Hyperdrive không hỗ trợ
+  // advisory lock (platform facts HD6).
+  //
+  // ⚠️ **Binding này KHÔNG được Preview dùng** (invariant 2): Worker đích giữ
+  // Hyperdrive production nên một Preview gọi binding là **ghi vào dữ liệu
+  // production qua một Worker production**. Wrangler không inherit binding giữa
+  // các `env.<lane>` (đo trên `wrangler` 4.151.0), nên mỗi `env` phải khai
+  // binding của chính nó — staging tuyệt đối không trỏ vào Hyperdrive
+  // production.
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-pact-broker-app",
   "main": ".output/server/index.mjs",
@@ -80,6 +101,22 @@
   "env": {
     "staging": {
       "name": "stg-ecoma-pact-broker-app",
+      // Hyperdrive binding tới `db-pact-broker-app` — database của chính app
+      // này (xem ghi chú binding ở top-level). `id` là placeholder toàn số 0 —
+      // deploy layer sẽ thay.
+      //
+      // ⚠️ **QUERY CACHE OFF — bắt buộc.** Cache được đặt ở **config
+      // Hyperdrive**, không phải ở file này, nên không có key nào ở đây tắt
+      // được nó; việc tắt là thao tác vận hành trên `db-pact-broker-app`.
+      // Lý do: cache bật mặc định + cache **không** invalidate khi ghi ⇒ một
+      // phiên vừa bị revoke vẫn được đọc là còn sống trong tối đa 60s. Đây là
+      // đường correctness (ADR-0031 §3) nên không có ngoại lệ nào.
+      "hyperdrive": [
+        {
+          "binding": "DB_PACT_BROKER_APP",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
       // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
       // deploy unit mà không phải suy đoán từ `account_id` (subdomain
@@ -94,9 +131,13 @@
       // Địa chỉ của pact-broker-api mà BFF gọi. `vars` KHÔNG inherit từ
       // top-level, nên khai tường minh cho từng env. Giá trị `https://` này là
       // placeholder **có cấu trúc hợp lệ** — BFF chấp nhận nó (origin parse
-      // được) nhưng API ở đó chưa tồn tại, nên mọi `/api/broker/**` trả 502 và
-      // `/ready` vẫn báo ready (chỉ kiểm cấu hình, không probe). Token đi qua
-      // Worker Secrets (`NITRO_PACT_BROKER_API_TOKEN`), KHÔNG qua `vars`.
+      // được) nhưng API ở đó chưa tồn tại.
+      //
+      // ⚠️ KHÔNG có token nào ở đây nữa (ADR-0031 §5): machine token của BFF
+      // bị retire; BFF forward access token của chủ phiên. Issuer/audience của
+      // OIDC và client_id đi qua Worker Secrets (`PACT_BROKER_AUTH_*`), KHÔNG
+      // qua `vars` — client_id là public nhưng vẫn thuộc nhóm cấu hình OIDC
+      // mà deploy layer cấp cùng nhau.
       "vars": {
         "NITRO_PACT_BROKER_API_BASE_URL": "https://stg-ecoma-pact-broker-api.workers.dev",
       },
@@ -107,8 +148,14 @@
       "name": "ecoma-pact-broker-app",
       // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
       "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
-      // Cùng quy tắc với staging; production trỏ API production. Machine token
-      // của BFF phải có scope `read` — dashboard phiên này chỉ đọc.
+      // Cùng quy tắc với staging; production trỏ API production. KHÔNG có
+      // machine token của BFF nữa (ADR-0031 §5) — user path chỉ.
+      "hyperdrive": [
+        {
+          "binding": "DB_PACT_BROKER_APP",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
       "vars": {
         "NITRO_PACT_BROKER_API_BASE_URL": "https://ecoma-pact-broker-api.workers.dev",
       },

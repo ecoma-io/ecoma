@@ -58,15 +58,53 @@ function createEntitlementPool(connectionString: string): Pool {
   return pool;
 }
 
-/** Adapter repo Membership: delegate PgTenantRepo (tra cứu read-only + membership). */
-function membershipRepoAdapter(pool: Pool): MembershipRepo {
+/**
+ * Adapter repo Membership: delegate PgTenantRepo (tra cứu read-only +
+ * membership) và ghi audit ngay sau khi membership projection thành công
+ * (ADR-0032: membership.grant / membership.revoke thuộc coverage của #206).
+ * Actor là đường event hệ thống — actor_sub NULL, attribution qua detail
+ * (staff_id/sub, event_id, revision). Audit lỗi propagate → message retry:
+ * grant mà không audit được thì không được ack.
+ *
+ * ⚠️ Trade-off không dùng transaction chung (đã xem xét — review #254): mutation
+ * membership và audit chạy trên pool Hyperdrive chung nhưng client khác nhau,
+ * nên có cửa sổ "mutation thành công, audit thất bại". Đường chuyển sang một
+ * PoolClient duy nhất đặt trong `PgTenantRepo`/`PgAuditRepo` (ports nằm ở
+ * `@ecoma-io/pact-broker-api-infrastructure`) là thay đổi contract của hai repo
+ * này — ngoài phạm vi của slice này, được theo dõi như follow-up. Ngược lại,
+ * idempotency của retry vẫn giữ: upsert DO NOTHING, mark-revoked và
+ * `writeRevision` CAS theo revision đều an toàn khi replay.
+ */
+function membershipRepoAdapter(pool: Pool, audit: PgAuditRepo): MembershipRepo {
   const tenantRepo = new PgTenantRepo(pool);
   return {
     getTenantByName: (name: string) => tenantRepo.getTenantByName(name),
-    upsertMember: (tenantId: string, sub: string, role: string, provenance?) =>
-      tenantRepo.upsertMember(tenantId, sub, role, provenance),
-    markEntitlementRevoked: (tenantId: string, sub: string, eventId: string, revision: number) =>
-      tenantRepo.markEntitlementRevoked(tenantId, sub, eventId, revision),
+    upsertMember: async (tenantId, sub, role, provenance) => {
+      await tenantRepo.upsertMember(tenantId, sub, role, provenance);
+      await audit.writeAudit({
+        tenantId,
+        actorSub: null,
+        action: 'membership.grant',
+        outcome: 'success',
+        detail: {
+          memberSub: sub,
+          role,
+          eventId: provenance?.eventId ?? null,
+          revision: provenance?.revision ?? null,
+          source: provenance?.source ?? null,
+        },
+      });
+    },
+    markEntitlementRevoked: async (tenantId, sub, eventId, revision) => {
+      await tenantRepo.markEntitlementRevoked(tenantId, sub, eventId, revision);
+      await audit.writeAudit({
+        tenantId,
+        actorSub: null,
+        action: 'membership.revoke',
+        outcome: 'success',
+        detail: { memberSub: sub, eventId, revision },
+      });
+    },
   };
 }
 
@@ -196,10 +234,10 @@ export async function entitlementQueueBatch(
 
   const pool = createEntitlementPool(connectionString);
   try {
+    const audit = new PgAuditRepo(pool);
     const deps = {
-      membership: membershipRepoAdapter(pool),
+      membership: membershipRepoAdapter(pool, audit),
       sync: new PgEntitlementSyncRepo(pool),
-      audit: new PgAuditRepo(pool),
     };
 
     // Tuần tự: mỗi message một lần xử lý, ack/retry có kiểm soát từng message.

@@ -20,4 +20,17 @@
 // `nitro` là transitive dependency của `nuxt`, pnpm không cho resolve từ đây.
 export default {
   preset: 'cloudflare-module',
+  // `pg` được **bundle** vào Worker, không external: preset `cloudflare-module`
+  // chạy trong isolate của Cloudflare nên `node:*` không tồn tại ở đó.
+  alias: {
+    // ⚠️ Bắt buộc, xem `server/lib/pg-native.cjs` về lý do. Tóm tắt:
+    // `pg/lib/native/client.js` `require('pg-native')` — optional dependency mà
+    // Node nuốt lỗi được, còn Rollup của Nitro thì fail build. Preset bật
+    // `noExternals` nên `nitro.externals` **không** được đọc; `nitro.alias` thì có,
+    // vì nó chạy trước resolver trong plugin `alias` của rollup.
+    //
+    // Đây là cùng cách sửa với `apps/backoffice` và `apps/account` — xem
+    // `apps/account/server/lib/pg-native.cjs`.
+    'pg-native': new URL('./server/lib/pg-native.cjs', import.meta.url).pathname,
+  },
 };

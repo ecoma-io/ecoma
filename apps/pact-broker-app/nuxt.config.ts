@@ -90,17 +90,35 @@ export default defineNuxtConfig({
     vueI18n: './vue-i18n.config.ts',
   },
   runtimeConfig: {
-    // Secret của BFF khai chuỗi rỗng — KHÔNG BAO GIỜ default có giá trị đoán
-    // được: default rỗng biến "chưa cấu hình" thành "chạy được với secret
-    // rỗng", mà BFF với broker token rỗng thì mọi request dashboard bị API
-    // từ chối 401 (fail closed ở chiều đúng). `server/plugins/config.ts`
-    // kiểm lúc request và trả 503 — mới là fail closed rõ ràng.
+    // Địa chỉ của `pact-broker-api` mà BFF gọi. KHÔNG có token nào ở đây nữa:
+    // ADR-0031 §5 retire hẳn machine token của BFF — BFF forward access token
+    // **của chủ phiên**, API tự verify + phân quyền (ADR-0032). Browser không
+    // bao giờ thấy token nào (token nằm ở cookie HttpOnly phía server).
     //
     // Giá trị runtime đến từ biến môi trường `NITRO_PACT_BROKER_*` (Nitro
     // `applyEnv` phủ lên giá trị build-time dưới đây), khai tường minh cho
     // từng env trong `wrangler.jsonc` — `vars` không inherit giữa các env;
     // secret thật thì dùng Worker Secrets, không phải `vars`.
     pactBrokerApiBaseUrl: '',
-    pactBrokerApiToken: '',
+    // Connection string PostgreSQL local (Node container) — **private**, không
+    // vào `public`/client bundle/log. Workers dùng binding Hyperdrive
+    // `DB_PACT_BROKER_APP`, không dùng key này.
+    pactBrokerAppDatabaseUrl: '',
+    // Cấu hình OIDC của portal (ADR-0031 §2) — **private**, cùng luật
+    // `NUXT_*` của `backoffice`: `pactBrokerAuthIssuer` ←
+    // `NITRO_PACT_BROKER_AUTH_ISSUER`. Workers đọc các giá trị này từ `env`
+    // của Worker (`PACT_BROKER_AUTH_*`), Node container local đọc từ đây.
+    // KHÔNG default: thiếu biến là fail-closed 503 ở middleware authn
+    // (`server/auth/config.ts`), không phải "chạy với giá trị rỗng".
+    pactBrokerAuthIssuer: '',
+    pactBrokerAuthAudience: '',
+    pactBrokerAuthClientId: '',
+    // Origin fetch server-side tới `auth` — **tuỳ chọn** (đối lập ba biến trên):
+    // rỗng = mọi fetch JWKS/token dựng URL từ issuer như production; có giá
+    // trị (local: origin nội bộ do pact-broker-app-deploy cấp) = fetch từ
+    // origin nội bộ vì container không resolve được hostname issuer. Issuer vẫn
+    // là danh tính `iss`/authorize — chỉ fetch origin đổi. Xem JSDoc của
+    // `server/auth/config.ts`.
+    pactBrokerAuthInternalOrigin: '',
   },
 });

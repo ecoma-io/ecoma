@@ -13,6 +13,7 @@ import { computed } from 'vue';
 import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
+import { brokerFetch } from '../utils/broker-fetch';
 
 const { t } = useI18n();
 
@@ -23,7 +24,7 @@ interface EnvironmentRow {
 }
 
 const { state, reload } = useAsyncState(async () => {
-  const res = await fetch('/api/broker/environments');
+  const res = await brokerFetch('/api/broker/environments');
   const body: unknown = await res.json().catch(() => null);
   if (res.status === 503) {
     return { kind: 'unavailable' as const };
