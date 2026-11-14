@@ -53,6 +53,18 @@ jobs:
           targets: lint typecheck
           affected: ${{ !inputs.force }}
           bail: ${{ github.event_name == 'merge_group' }}
+      # `typecheck-db` đứng ở đây vì cùng ngữ nghĩa với `typecheck` trên dòng
+      # trên: một lượt typecheck, không phải một lane test (issue #265). `db/`
+      # nằm ngoài tsconfig của app — chính là lý do target này tồn tại — nên
+      # nó không thể gộp vào `typecheck`; khỏi CI thì code migration chỉ được
+      # kiểm kiểu khi ai đó nhớ chạy tay, tức đỏ muộn nhất ở lúc deploy.
+      - name: DB migration type check
+        if: github.event_name != 'merge_group'
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: typecheck-db
+          affected: ${{ !inputs.force }}
+          bail: ${{ github.event_name == 'merge_group' }}
       - name: README contract check
         run: pnpm dx readme-check
 

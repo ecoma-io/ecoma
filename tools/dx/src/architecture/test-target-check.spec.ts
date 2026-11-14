@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ArchProjectNode } from './arch-tags.js';
 import {
+  collectCiTargets,
   createNodeTestTargetFs,
   crossTierImportMarkers,
   detectRealDependencyMarkers,
@@ -535,6 +536,7 @@ describe('temporary allowlist mechanics', () => {
   });
 });
 
+
 /** Package.json khai test-integration qua nx target với lệnh `playwright test`. */
 function playwrightApp(commandShape: 'command' | 'commands' | 'script'): Record<string, string> {
   const { files } = goodApp();
@@ -644,6 +646,128 @@ describe('validateTestTargets — Playwright-executed browser suite', () => {
     const violations = run(files, [node('@ecoma-io/widget', 'apps/widget')]);
     expect(violations.some((v) => v.kind === 'integration-config-missing-dir')).toBe(true);
     expect(violations.some((v) => v.kind === 'missing-integration-target')).toBe(true);
+
+describe('collectCiTargets', () => {
+  it('extracts run-nx-target step target values in order', () => {
+    const yaml = [
+      'jobs:',
+      '  verify:',
+      '    steps:',
+      '      - name: Linting & type check',
+      '        uses: ./.github/actions/run-nx-target',
+      '        with:',
+      '          targets: lint typecheck',
+      '          affected: true',
+      '      - name: Unit test',
+      '        uses: ./.github/actions/run-nx-target',
+      '        with:',
+      '          targets: test',
+      '      - name: Integration',
+      '        with:',
+      '          targets: build, test-integration',
+    ].join('\n');
+    expect(collectCiTargets(yaml)).toEqual([
+      'lint',
+      'typecheck',
+      'test',
+      'build',
+      'test-integration',
+    ]);
+  });
+
+  it('ignores targets keys at other indentation levels', () => {
+    // Chỉ step `with:` (10 dấu cách) là nguồn — key cùng tên ở cấp khác (job
+    // input, action metadata) không phải một target-set CI.
+    const yaml = [
+      '  targets: should-not-match',
+      '      targets: also-not',
+      '        with:',
+      '          targets: test',
+    ].join('\n');
+    expect(collectCiTargets(yaml)).toEqual(['test']);
+  });
+
+  it('returns an empty list when no run-nx-target step declares targets', () => {
+    expect(collectCiTargets('jobs: {}')).toEqual([]);
+  });
+});
+
+/** CI yaml theo hình thật của ci.yaml: mọi target mà CI gọi. */
+const ciYaml = (targets: string[]): string =>
+  [
+    'jobs:',
+    '  verify:',
+    '    steps:',
+    '      - uses: ./.github/actions/run-nx-target',
+    '        with:',
+    `          targets: ${targets.join(' ')}`,
+  ].join('\n');
+
+describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
+  it('reports a project that declares typecheck-db while CI invokes no such target', () => {
+    const { files, project } = goodApp();
+    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck-db']);
+    files['.github/workflows/ci.yaml'] = ciYaml(['lint', 'typecheck', 'test']);
+    const violations = run(files, [project]);
+    expect(kinds(violations)).toEqual(['orphan-nx-target']);
+    expect(violations[0].project).toBe('@ecoma-io/widget');
+    expect(violations[0].detail).toContain("'typecheck-db'");
+    expect(violations[0].detail).toContain('issue #265');
+  });
+
+  it('passes when the CI target list invokes the declared target', () => {
+    const { files, project } = goodApp();
+    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck-db']);
+    files['.github/workflows/ci.yaml'] = ciYaml(['test', 'typecheck-db']);
+    expect(run(files, [project])).toEqual([]);
+  });
+
+  it('does not require the target from a project that does not declare it', () => {
+    // Cờ "target mồ côi" chỉ đúng khi target THỰC SỰ được khai: đặt tên target
+    // trong ci.yaml mà không project nào khai là chuyện của Nx, không phải của
+    // lượt này.
+    const { files, project } = goodApp();
+    files['.github/workflows/ci.yaml'] = ciYaml(['test']);
+    expect(run(files, [project])).toEqual([]);
+  });
+
+  it('fails closed when an existing CI workflow cannot be read', () => {
+    // ci.yaml TỒN TẠI mà không đọc được tức không xác minh được target nào
+    // được gọi — nuốt thành "workspace sạch" là đúng hình im lặng mà #265 phê
+    // phán. Workspace KHÔNG có ci.yaml thì check không có gì để đối chiếu và
+    // được bỏ qua (workspace tổng hợp của các fixture khác phụ thuộc điều đó).
+    const { files, project } = goodApp();
+    files['apps/widget/package.json'] = pkg(['test', 'typecheck-db']);
+    files['.github/workflows/ci.yaml'] = 'targets: test';
+    const failing: TestTargetFs = {
+      ...memFs(files),
+      readFile(path) {
+        if (path === '.github/workflows/ci.yaml') throw new Error('EACCES');
+        return files[path] ?? '';
+      },
+    };
+    const violations = validateTestTargets({
+      projects: new Map([[project.name, project]]),
+      fs: failing,
+      allowlist: [],
+    });
+    // Fixture dùng pkg(['test','typecheck-db']) — khai test-integration qua
+    // helper `pkg` chỉ đặt tên target, thiếu nó là nhóm (1) báo thêm lỗi của
+    // riêng nhóm đó. Các lỗi này độc lập với lỗi fail-closed đang assert.
+    expect(kinds(violations)).toContain('unreadable-test-config');
+    expect(violations.find((v) => v.kind === 'unreadable-test-config')?.detail).toContain(
+      'ci.yaml',
+    );
+  });
+
+  it('ignores projects without package.json for the orphan check', () => {
+    const { files } = goodApp();
+    files['.github/workflows/ci.yaml'] = ciYaml(['test']);
+    // system-tests project không có package.json trong fixture — lượt bỏ qua.
+    expect(
+      run(files, [node('system-tests/e2e/x', 'system-tests/e2e/x'), node('dx', 'tools/dx')]),
+    ).toEqual([]);
+
   });
 });
 

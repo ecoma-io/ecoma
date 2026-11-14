@@ -187,7 +187,10 @@ export interface ArchTagViolation {
     | 'unit-real-dependency-spec'
     | 'lib-real-dependency-spec'
     | 'unreadable-test-config'
-    | 'stale-test-target-allowlist-entry';
+    | 'stale-test-target-allowlist-entry'
+    // Target Nx được khai trong package.json nhưng không CI target-set nào gọi —
+    // code mà target bảo vệ không bao giờ được kiểm kiểu trong CI (issue #265).
+    | 'orphan-nx-target';
   detail: string;
 }
 

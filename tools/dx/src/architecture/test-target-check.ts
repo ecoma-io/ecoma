@@ -63,6 +63,12 @@
  * trong thư mục mục đích) không bị lượt này kết tội placement: xếp chúng vào
  * tier đúng là việc của các PR chuyển tier dưới #357, không phải của validator.
  *
+ * Ngoài layout, lượt này còn kiểm target mồ côi trong CI (`orphan-nx-target`,
+ * #265): mọi target trong `REQUIRED_INVOKED_TARGETS` mà project khai trong
+ * `nx.targets` phải được gọi qua một step `run-nx-target` của ci.yaml — check
+ * đọc `.github/workflows/ci.yaml` bằng `collectCiTargets`, fail-closed khi
+ * workflow không đọc được.
+ *
  * Toàn bộ I/O đi qua `TestTargetFs` inject được: unit test dựng workspace tổng
  * hợp trong bộ nhớ, không spawn nx, không chạm repo thật. Production dùng
  * `createNodeTestTargetFs(ROOT_DIR)` — cùng hình dạng inject như lượt deployment
@@ -615,6 +621,52 @@ export function validateTestTargets(input: {
     }
   }
 
+  // Target mồ côi trong CI: target bắt buộc được khai mà không CI target-set
+  // nào gọi là target chỉ tồn tại trên giấy — code nó bảo vệ chỉ được kiểm
+  // kiểu khi ai đó nhớ chạy tay (đúng lỗ hổng của #265 với `typecheck-db`).
+  // Không đọc được workflow CI là fail-closed, không phải "không có target nào
+  // được gọi" cũng không phải "tất cả đều được gọi".
+  const ciYamlPath = '.github/workflows/ci.yaml';
+  let ciTargets: readonly string[] | undefined;
+  // Workspace không có ci.yaml (workspace tổng hợp trong unit test, workspace
+  // không dùng GitHub Actions) thì check này không có gì để đối chiếu — bỏ qua,
+  // không báo. File TỒN TẠI mà không đọc được là fail-closed: không xác minh
+  // được target nào được gọi thì không được nuốt thành "workspace sạch".
+  if (fs.exists(ciYamlPath)) {
+    try {
+      ciTargets = collectCiTargets(fs.readFile(ciYamlPath));
+    } catch {
+      violations.push({
+        project: '.github/workflows/ci.yaml',
+        kind: 'unreadable-test-config',
+        detail:
+          `${ciYamlPath} could not be read; arch-check cannot verify that required Nx targets ` +
+          `are invoked in CI, and failing closed beats guessing (docs/architecture/06-testing.md §4)`,
+      });
+    }
+  }
+  if (ciTargets !== undefined) {
+    for (const project of input.projects.values()) {
+      const root = project.root;
+      if (root === undefined || !(root.startsWith('apps/') || root.startsWith('libs/'))) continue;
+      const pkgPath = `${root}/package.json`;
+      if (!fs.exists(pkgPath)) continue;
+      const declared = declaredTargets(fs, pkgPath);
+      for (const target of REQUIRED_INVOKED_TARGETS) {
+        if (declared.has(target) && !ciTargets.includes(target)) {
+          violations.push({
+            project: project.name,
+            kind: 'orphan-nx-target',
+            detail:
+              `package.json declares nx target '${target}' but no CI target-set invokes it; ` +
+              `the code it protects is only checked when someone remembers to run it by hand ` +
+              `— add it to a run-nx-target step of ${ciYamlPath} (issue #265)`,
+          });
+        }
+      }
+    }
+  }
+
   return sortViolations(violations);
 }
 
@@ -695,6 +747,44 @@ function readNxTargets(fs: TestTargetFs, path: string): Record<string, unknown> 
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Target Nx mà lượt này yêu cầu PHẢI được gọi trong CI. Danh sách nằm trong
+ * check chứ không suy từ graph: một target được khai rồi bỏ quên là chính lỗi
+ * mà #265 mô tả, và cách duy nhất phát hiện được là liệt kê tường minh ai phải
+ * được gọi. Mở rộng danh sách khi một target thứ hai chịu rủi ro tương tự.
+ */
+export const REQUIRED_INVOKED_TARGETS: readonly string[] = ['typecheck-db'];
+
+/**
+ * Thu thập tập target mà CI gọi qua action `run-nx-target`: regex trên TEXT
+ * workflow, không YAML parse — cùng mẫu fail-closed như parseVitestConfig. Chỉ
+ * các giá trị `targets:` ở cấp step `with:` được nhận (indent đúng 10 dấu cách,
+ * hình thống nhất của mọi caller trong ci.yaml), nên giá trị `targets:` của
+ * ngữ cảnh khác không nhiễm vào.
+ */
+export function collectCiTargets(ciYamlText: string): readonly string[] {
+  const targets: string[] = [];
+  for (const match of ciYamlText.matchAll(/^\s{10}targets:\s*(\S.*)$/gmu)) {
+    for (const word of match[1].split(/[,\s]+/u)) {
+      if (word !== '') targets.push(word);
+    }
+  }
+  return targets;
+}
+
+/** Package.json của project khai target Nx nào, theo tên target. */
+function declaredTargets(fs: TestTargetFs, pkgPath: string): ReadonlySet<string> {
+  const targets = new Set<string>();
+  let pkg: { nx?: { targets?: Record<string, unknown> } };
+  try {
+    pkg = JSON.parse(fs.readFile(pkgPath));
+  } catch {
+    return targets; // file hỏng đã được các nhóm khác báo — không nhân lỗi
+  }
+  for (const name of Object.keys(pkg.nx?.targets ?? {})) targets.add(name);
+  return targets;
 }
 
 function allowlistKey(project: string, kind: string): string {
