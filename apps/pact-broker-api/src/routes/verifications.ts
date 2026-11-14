@@ -15,13 +15,17 @@ import { PgVerificationRepo } from '@ecoma-io/pact-broker-api-infrastructure';
 /** UUID format — id của verification ở schema PG. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
-export function verificationRoutes(writeAuth: () => MiddlewareHandler<AppEnv>): Hono<AppEnv> {
+export function verificationRoutes(
+  readAuth: () => MiddlewareHandler<AppEnv>,
+  writeAuth: () => MiddlewareHandler<AppEnv>,
+): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
-  // Get a specific verification result
+  // Get a specific verification result — READ (#206: scope write→read; kết quả
+  // verification là dữ liệu đọc theo matrix ADR-0032 §3, viewer+).
   app.get(
     '/provider/:provider/consumer/:consumer/pact-version/:sha/verification-results/:id',
-    writeAuth(),
+    readAuth(),
     async (c) => {
       const providerResult = validateParam(c, nameSchema, c.req.param('provider'), 'provider');
       if (!providerResult.valid) return providerResult.errorResponse;

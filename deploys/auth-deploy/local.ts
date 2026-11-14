@@ -53,6 +53,14 @@ import {
 
 import { generateEs256SigningKeyPem } from './local-generators.js';
 
+// Client id `pact-broker-app` (#206) — persist vào stack config để
+// `pact-broker-app-deploy` đọc cross-stack lúc up; hằng thuần túy ở module
+// riêng vì entry này tự chạy `main()` lúc load (không import được `index.ts`).
+import {
+  LOCAL_PACT_BROKER_CLIENT_ID,
+  PACT_BROKER_APP_CLIENT_ID_CONFIG_KEY,
+} from './local-clients.js';
+
 /**
  * Đọc lại giá trị từ stack config.
  *
@@ -175,6 +183,15 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
   for (const [configKey, configValue] of secrets) {
     setStackConfig('auth-deploy', configKey, configValue, foundation);
   }
+  // Client id của `pact-broker-app` (#206, ADR-0031 §4) — định danh công khai,
+  // không phải secret: config thường, persist để `pact-broker-app-deploy` đọc
+  // cross-stack (dependsOn bảo auth up chạy trước).
+  setStackConfig(
+    'auth-deploy',
+    PACT_BROKER_APP_CLIENT_ID_CONFIG_KEY,
+    LOCAL_PACT_BROKER_CLIENT_ID,
+    foundation,
+  );
 }
 
 async function main(command: string): Promise<number> {

@@ -38,22 +38,19 @@
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock — `docs/applications/pact-broker/03-operations.md` §2).
  *
- * Cấp phép máy (issue #21): `db/migrations/` không seed token nào, mà consumer
- * chính ở local (`pact-broker-app`, unit song song) cần token máy trong DB
- * để gọi API. Token máy được cấp bằng script service-owned
- * (`db/provision-machine-token.mts`) chạy SAU migration và provision tenant
- * `ecoma` — DB chỉ lưu SHA-256 hex (không phải secret; plaintext do
- * orchestration sinh, giữ ở stack config `namespace:machineToken` của stack
- * này cho unit pact-app đọc qua cross-stack `pulumi config get`). Plaintext
- * là ổn định theo environment (set-if-absent của `local.ts`); rotation là
- * hành động của người vận hành, không phải đầu ra của provision idempotent.
+ * Cấp phép máy (issue #21 → **retired bởi #206**, ADR-0031 §5): machine token
+ * `pact-broker-app-bff` của consumer local `pact-broker-app` KHÔNG còn được
+ * provision ở đây nữa — BFF chạy bằng access token OIDC của chủ phiên (đường
+ * user, ADR-0031 §1), giữ thêm token máy cho nó là standing secret chết trong
+ * config. Machine path của Pact CLI/CI không đổi; cấp token cho CLI là hành
+ * động của operator qua `db/provision-machine-token.mts`, không phải đầu ra
+ * idempotent của stack này. DoD của #206 assert "không provision machine token
+ * nào cho pact-broker-app trên lane" được thỏa bằng cấu trúc: step provisioning
+ * không tồn tại trong program.
  *
- * Hai bước provisioning chạy dưới dạng container ephemeral trên platform
- * network (giống migration, không tự viết vòng provisioning): `bootstrapTenant`
- * (gán `ecoma` cho chủ thể đã resolve qua `local.ts`) và `machineTokenProvision`
- * (cấp token máy theo NAME/SCOPES/PLAINTEXT đã cấu hình). Mỗi bước đúng MỘT
- * lần Pulumi: re-run với cùng đầu vào là no-op, plaintext mới xoay phép token
- * cũ (revoke trước khi chèn, đúng một active token sau khi xong).
+ * Bootstrap tenant `ecoma` vẫn là bước provisioning riêng
+ * (`db/bootstrap-tenant.mts`, idempotent theo ADR-0020) — membership user của
+ * lane được nạp qua entitlement event (consumer queue), không phải ở đây.
  */
 
 import * as command from '@pulumi/command';
@@ -70,12 +67,10 @@ import {
 } from '@ecoma-io/deployment';
 
 import {
-  MACHINE_TOKEN_PLAINTEXT_ENV_VAR,
   MIGRATOR_PASSWORD_ENV_VAR,
   POSTGRES_HOST,
   RUNTIME_PASSWORD_ENV_VAR,
   buildBootstrapTenantScript,
-  buildMachineTokenProvisionScript,
   buildMigrateScript,
   buildMigratorConnectionUrl,
   buildProvisionScript,
@@ -120,15 +115,16 @@ const PACT_API_INTERNAL_PORT = 4204;
 const PACT_API_ALIAS = 'ecoma-pact-api';
 
 /**
- * Tên + scopes của token máy consumer local (`pact-broker-app`) — consumer
- * chính gọi API ở local. Tên token là natural key cùng với tenant; scopes
- * `admin` vì BFF local cần toàn quyền gọi bộ endpoint. Bản thân token máy
- * KHÔNG phải danh tính tenant: tenant canonical là `ecoma` ở mọi environment
- * (ADR-0020 Quyết định 9), chủ thể sở hữu được giải quyết qua
- * `namespace:tenantOwnerSub` của stack này (xem `local.ts`).
+ * Port HTTP nội bộ của worker `auth` trong WIC container — cùng port mà
+ * `pact-broker-app-deploy` dùng cho `NITRO_PACT_BROKER_AUTH_INTERNAL_ORIGIN`
+ * (`AUTH_INTERNAL_PORT` 4203 ở `apps/auth/wrangler.jsonc`).
+ *
+ * ⚠️ Issuer là URL public (`https://auth.<host>:<port>`) — trong container KHÔNG
+ * resolve được (Traefik chỉ publish host port trên loopback của host), nên
+ * worker này phải fetch JWKS qua origin NỘI BỘ `http://ecoma-<ns>-auth:4203`.
+ * Cùng cơ chế với BFF, cùng path `/jwks.json`.
  */
-const MACHINE_TOKEN_NAME = 'pact-broker-app-bff';
-const MACHINE_TOKEN_SCOPES = 'admin';
+const AUTH_INTERNAL_PORT = 4203;
 
 const conf = new pulumi.Config('namespace');
 
@@ -156,6 +152,11 @@ function requirePlatformOutput<K extends keyof PlatformOutputs>(
 
 const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
+// Issuer/audience của OIDC được ghim cục bộ từ hai output platform mà auth-deploy
+// cũng dùng — cùng nguồn phát sinh nên issuer/audience hai stack khớp exact
+// (điều kiện verify offline của API, ADR-0031 §1).
+const rootHostname = requirePlatformOutput('rootHostname');
+const traefikHostPort = requirePlatformOutput('traefikHostPort');
 
 // Mật khẩu hai role của db-pact-broker — do orchestration sinh và truyền qua
 // --config (stdin, không argv). `requireSecret` như remote-cache/staff-access:
@@ -163,19 +164,6 @@ const platformNamespace = requirePlatformOutput('namespace');
 // của `setStackConfig`), nên state Pulumi mã hoá giá trị ở mọi lần dùng.
 const runtimePassword = conf.requireSecret('runtimePassword');
 const migratorPassword = conf.requireSecret('migratorPassword');
-
-/**
- * Machine token plaintext của consumer local (`pact-broker-app`) — orchestration
- * sinh SET-IF-ABSENT ở `local.ts` (ổn định theo environment) và unit pact-app
- * đọc lại qua cross-stack `config get`. DB chỉ nhận SHA-256 hex do script
- * `db/provision-machine-token.mts` tự tính (hash một chiều). Plaintext đi vào
- * container provisioning qua map `environment` của `command.local.Command` và
- * được bọc secret ở mọi lần dùng — không nằm trong command text, không trong
- * argv của process nào. Đó là biên đã chấp nhận ở local: giá trị KHÔNG cam kết
- * chống mọi hình truy cập host (env của process đang sống vẫn đọc được qua
- * `/proc/<pid>/environ` bởi cùng user), chỉ cam kết không rò qua log/state/argv.
- */
-const machineToken = conf.requireSecret('machineToken');
 
 /**
  * `sub` chủ thể sở hữu tenant `ecoma` — do `local.ts` giải quyết qua dx runner
@@ -293,8 +281,8 @@ const migrate = new command.local.Command(
  * URL runtime hoàn chỉnh — bọc `pulumi.secret` trước khi vào map `environment`:
  * state Pulumi mã hoá chứ không lưu plaintext. Percent-encode là việc của hàm
  * dựng URL (`buildRuntimeConnectionUrl`, một nguồn sự thật với spec unit).
- * Dùng chung bởi provision tenant và provision token máy qua map `environment`
- * của từng command.
+ * Dùng chung bởi provision tenant qua map `environment` của command (token máy
+ * của BFF đã retire — ADR-0031 §5).
  */
 const runtimeConnectionUrl = pulumi.secret(
   runtimePassword.apply((raw) => buildRuntimeConnectionUrl({ password: raw })),
@@ -342,45 +330,6 @@ const bootstrapTenant = new command.local.Command(
     environment: { DATABASE_URL: runtimeConnectionUrl },
   },
   { dependsOn: [migrate] },
-);
-
-/**
- * Cấp token máy của consumer local qua **script service-owned**
- * (`db/provision-machine-token.mts`) — chạy SAU provision tenant (token phải
- * trỏ về tenant `ecoma` đã tồn tại). Hợp đồng 02-delivery.md §3.2: đúng MỘT
- * token active cho (tenant `ecoma`, name `pact-broker-app-bff`); plaintext
- * đổi = rotation (revoke row cũ trước khi chèn); re-run cùng plaintext =
- * no-op; token bị revoke thủ công KHÔNG được hồi sinh. DB chỉ nhận SHA-256
- * hex.
- *
- * Kênh giá trị: `DATABASE_URL` và plaintext token chỉ mang TÊN biến trong argv
- * (`docker run -e VAR` không `=giá trị`); giá trị đi qua map `environment` của
- * provider, bọc `pulumi.secret` — không vào command text, không vào argv của
- * process nào. Trigger gồm plaintext + mật khẩu runtime (cả hai bọc secret):
- * plaintext đổi là xoay token, mật khẩu đổi là chạy lại với URL mới.
- */
-const machineTokenProvisionScript = networkName.apply((net) =>
-  buildMachineTokenProvisionScript({
-    networkName: net,
-    worktreeRoot,
-    nodeImage: NODE_IMAGE,
-    tokenName: MACHINE_TOKEN_NAME,
-    tokenScopes: MACHINE_TOKEN_SCOPES,
-  }),
-);
-
-const machineTokenProvision = new command.local.Command(
-  dockerResourceName(ns, 'pact-api') + '-machine-token',
-  {
-    create: machineTokenProvisionScript,
-    update: machineTokenProvisionScript,
-    triggers: [pulumi.secret(machineToken), pulumi.secret(runtimePassword), worktreeRoot],
-    environment: {
-      DATABASE_URL: runtimeConnectionUrl,
-      [MACHINE_TOKEN_PLAINTEXT_ENV_VAR]: pulumi.secret(machineToken),
-    },
-  },
-  { dependsOn: [bootstrapTenant] },
 );
 
 /**
@@ -479,10 +428,9 @@ const wicStateInit = new docker.Container(
  * Container WIC — MỘT worker `wrangler dev` (pact-broker-api) qua
  * `wic-entrypoint.sh`, plain HTTP trên platform network.
  *
- * Thứ tự phụ thuộc: provision → migrate → bootstrap-tenant → machine-token →
- * image → volume → container — container chỉ lên sau khi schema + tenant
- * canonical + token máy sẵn sàng, để request đầu tiên của consumer (login BFF
- * lấy token tra DB) không rơi vào cửa sổ chưa-cấp token.
+ * Thứ tự phụ thuộc: provision → migrate → bootstrap-tenant → image → volume →
+ * container — container chỉ lên sau khi schema + tenant canonical sẵn sàng.
+ * Token máy của consumer local KHÔNG còn là bước nào (retired — ADR-0031 §5).
  *
  * Env:
  * - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` (secret):
@@ -553,6 +501,19 @@ const wic = new docker.Container(
     ],
     envs: [
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=${pulumi.secret(hyperdriveLocalConnectionString)}`,
+      // Cấu hình đường user (ADR-0031 §1.2): issuer + audience mà access token
+      // OIDC forward bởi BFF phải khớp. GHIM CÙNG CHUỖI với auth-deploy (cả hai
+      // stack dựng từ cùng hai output platform `rootHostname` + `traefikHostPort`),
+      // nên phép so `iss`/`aud` exact khớp theo cấu trúc. Thiếu MỘT biến là đường
+      // user 503 fail-closed từng request (src/config.ts) — machine path không bị
+      // ảnh hưởng. KHÔNG có secret nào ở đây: JWKS được fetch công khai.
+      pulumi.interpolate`PACT_BROKER_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`PACT_BROKER_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      // Origin NỘI BỘ để fetch JWKS — issuer ở trên là URL public, không
+      // resolve được từ trong container (Traefik chỉ publish host port trên
+      // loopback host). Origin này chỉ đổi NƠI lấy JWKS; claim `iss` vẫn so
+      // với `PACT_BROKER_AUTH_ISSUER`. Cùng cơ chế `internalOrigin` của BFF.
+      pulumi.interpolate`PACT_BROKER_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:${AUTH_INTERNAL_PORT}`,
     ],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
     healthcheck: {
@@ -579,13 +540,12 @@ const wic = new docker.Container(
       startPeriod: '2m0s',
     },
   },
-  { dependsOn: [machineTokenProvision, wicImage, wicStateVolume, wicStateInit] },
+  { dependsOn: [bootstrapTenant, wicImage, wicStateVolume, wicStateInit] },
 );
 
 export const provisionCommandName = provision.id;
 export const migrateCommandName = migrate.id;
 export const bootstrapTenantCommandName = bootstrapTenant.id;
-export const machineTokenProvisionCommandName = machineTokenProvision.id;
 export const imageDigest = wicImage.digest;
 export const containerName = wic.name;
 export const containerId = wic.id;

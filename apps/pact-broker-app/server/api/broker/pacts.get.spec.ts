@@ -22,10 +22,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 
 import pactsRoute, { pacticipantNamesOf } from './pacts.get';
+import { principalForTests } from './test-principal';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
-  pactBrokerApiToken: 'test-token',
 };
 
 /** Web handler h3 thật; config được cấp qua stub toàn cục `useRuntimeConfig`. */
@@ -37,6 +37,11 @@ function buildHandler(runtimeConfig: unknown): WebHandler {
   const app = createApp();
   const router = createRouter();
   router.get('/api/broker/pacts', pactsRoute);
+  // Đóng vai middleware authn: gắn principal vào context để route đọc được
+  // access token của chủ phiên (h3 chạy tiếp khi handler trả undefined).
+  // Helper dùng chung ở `test-principal.ts` — một nguồn cho cả hai spec file
+  // của thư mục này (review #254).
+  app.use(principalForTests());
   app.use(router.handler);
   return toWebHandler(app);
 }

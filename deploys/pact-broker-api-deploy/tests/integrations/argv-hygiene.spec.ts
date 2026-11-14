@@ -2,20 +2,23 @@
  * Suite argv-hygiene của `pact-broker-api-deploy` (target `test-integration`)
  * — bằng chứng tự động cho bất biến bảo mật của unit: **không giá trị secret
  * nào vào argv của process host, vào script text, vào output bắt được** trong
- * lúc provision, migrate, bootstrap tenant và provision token máy chạy THẬT.
+ * lúc provision, migrate và bootstrap tenant chạy THẬT.
  *
  * Bản sao pattern của `deploys/llm-api-deploy/tests/integrations/argv-hygiene.spec.ts`
  * (06-testing.md §6: không shared test-support giữa các deploy unit), mở rộng
  * đúng BỐN đường mà unit này có: provision (hai role), migrate (`db/apply.mts`),
- * bootstrap tenant canonical (`db/bootstrap-tenant.mts`) và provision token máy
- * (`db/provision-machine-token.mts`).
+ * bootstrap tenant canonical (`db/bootstrap-tenant.mts`). Script provision
+ * token máy của BFF đã bị retire (ADR-0031 §5, #206) — không còn step nào để
+ * đo ở đây; hành vi script `db/provision-machine-token.mts` (còn là công cụ
+ * operator cho machine path của Pact CLI) nằm ở `apps/pact-broker-api`
+ * `tests/databases/provision-machine-token.spec.ts`.
  *
  * Thiết kế (06-testing.md §2/§4 — app-owned suite, Docker là phụ thuộc cứng,
  * vắng Docker là suite ĐỎ theo §6):
  *
- * 1. **Sentinel giả** — mật khẩu/token tổng hợp, KHÔNG phải secret thật, mỗi
+ * 1. **Sentinel giả** — mật khẩu tổng hợp, KHÔNG phải secret thật, mỗi
  *    credential loại/khoảnh khắc một giá trị (mật khẩu migrator/runtime lần
- *    tạo, cặp mật khẩu lần xoay, plaintext token lần tạo và lần xoay), có chứa
+ *    tạo, cặp mật khẩu lần xoay), có chứa
  *    nháy đơn và các ký tự edge (`% @ : / ; $ \` \\`) để khoá cả hai lớp escape
  *    (SQL quoting trong shell của script provision, percent-encoding của
  *    userinfo DATABASE_URL phía migrate/runtime).
@@ -30,27 +33,23 @@
  *    stdout/stderr, script text) VÀ trạng thái database sau flow vẫn đúng:
  *    role/db/schema/grant, provision idempotent khi chạy lại, xoay password
  *    thật (login scram bằng mật khẩu mới, mật khẩu cũ bị từ chối — negative
- *    control), tenant `ecoma` thuộc owner giả, lifecycle token máy
- *    created → no-op → rotated với đúng MỘT row active có hash SHA-256 của
- *    plaintext lần xoay, ON_ERROR_STOP dừng SQL hỏng mà không in câu SQL chứa
- *    secret.
+ *    control), tenant `ecoma` thuộc owner giả, ON_ERROR_STOP dừng SQL hỏng
+ *    mà không in câu SQL chứa secret.
  *
  * Mọi thông điệp lỗi nêu KÊNH rò rỉ, không bao giờ in giá trị sentinel.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createArgvHarness, type ArgvHarness, type RunResult } from './argv-harness.ts';
 import {
   DATABASE_NAME,
-  MACHINE_TOKEN_PLAINTEXT_ENV_VAR,
   MIGRATOR_PASSWORD_ENV_VAR,
   MIGRATOR_ROLE,
   RUNTIME_PASSWORD_ENV_VAR,
   RUNTIME_ROLE,
   buildBootstrapTenantScript,
-  buildMachineTokenProvisionScript,
   buildMigrateScript,
   buildMigratorConnectionUrl,
   buildProvisionScript,
@@ -67,7 +66,7 @@ const POSTGRES_IMAGE =
   'timescale/timescaledb@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2';
 
 /**
- * Image Node pin của migrate/bootstrap/token — GIỐNG HẰNG `NODE_IMAGE` của unit
+ * Image Node pin của migrate/bootstrap — GIỐNG HẰNG `NODE_IMAGE` của unit
  * (`node-image.ts`, module thuần import được vào test). Dòng này là bản sao có
  * chủ đích của hằng đó trong suite integration; đổi digest phải đổi cả hai.
  */
@@ -78,35 +77,27 @@ const NODE_IMAGE =
  * Sáu sentinel — dữ liệu giả, phủ các edge case escape: nháy đơn (SQL quoting),
  * `%` (percent-encode URL), `@ : / ? #` (delineator userinfo), `$` và backtick
  * và `;` (mở rộng shell nếu giá trị bị tái phân tích). Cặp `*2` là giá trị của
- * lần XOAY (provision lần ba với mật khẩu mới, token lần ba với plaintext mới).
+ * lần XOAY (provision lần ba với mật khẩu mới).
  */
 const SENTINELS = {
   pwMigrator1: `S3nt1n3l-Pact-Mig'x1%`,
   pwRuntime1: `S3nt1n3l-Pact-Run'x2$`,
   pwMigrator2: `S3nt1n3l-Pact-Mig2/x3@:`,
   pwRuntime2: `S3nt1n3l-Pact-Run2\`x4?`,
-  machineToken1: `S3nt1n3l-Pact-Tok'x9;`,
-  machineToken2: `S3nt1n3l-Pact-Tok2\`x5$`,
 } as const;
 
 /** `sub` chủ tenant giả — định danh test, hợp lệ theo CHECK 1–200 ký tự trim. */
 const OWNER_SUB = 'sub-argv-hygiene-owner';
-
-/** Tên + scope token máy dùng trong suite — khớp CHECK `scopes` của schema. */
-const TOKEN_NAME = 'argv-hygiene-token';
-const TOKEN_SCOPES = 'admin';
 
 const WATCHED: ReadonlyArray<{ channel: string; value: string }> = [
   { channel: MIGRATOR_PASSWORD_ENV_VAR, value: SENTINELS.pwMigrator1 },
   { channel: RUNTIME_PASSWORD_ENV_VAR, value: SENTINELS.pwRuntime1 },
   { channel: 'rotated-migrator-password', value: SENTINELS.pwMigrator2 },
   { channel: 'rotated-runtime-password', value: SENTINELS.pwRuntime2 },
-  { channel: MACHINE_TOKEN_PLAINTEXT_ENV_VAR, value: SENTINELS.machineToken1 },
-  { channel: 'rotated-machine-token', value: SENTINELS.machineToken2 },
 ];
 
 /**
- * Gốc repo thật — mount `/repo` của script migrate/bootstrap/token, y hệt
+ * Gốc repo thật — mount `/repo` của script migrate/bootstrap, y hệt
  * production. Bốn lần `dirname` từ `tests/integrations/`: integrations → tests
  * → pact-broker-api-deploy → deploys → gốc repo. Sai một cấp là `/repo` mất
  * subtree `apps/` và workdir `/repo/apps/pact-broker-api` không tồn tại trong
@@ -131,16 +122,12 @@ interface FlowArtifacts {
   readonly provisionScriptText: string;
   readonly migrateScriptText: string;
   readonly bootstrapScriptText: string;
-  readonly tokenScriptText: string;
   readonly provisionRun1: RecordedRun;
   readonly provisionRun2: RecordedRun;
   readonly provisionRotation: RecordedRun;
   readonly migrateRun: RecordedRun;
   readonly bootstrapRun: RecordedRun;
   readonly bootstrapRerun: RecordedRun;
-  readonly tokenRun1: RecordedRun;
-  readonly tokenRun2: RecordedRun;
-  readonly tokenRotation: RecordedRun;
   readonly onStopFailure: RecordedRun;
   readonly catalog: Record<string, RunResult>;
   readonly logins: LoginCheck[];
@@ -229,8 +216,8 @@ beforeAll(async () => {
       );
     }
 
-    // --- 3. Bootstrap tenant canonical + lifecycle token máy — chuỗi phụ thuộc
-    //     production: token cần tenant `ecoma` đã tồn tại. Cả hai dùng URL
+    // --- 3. Bootstrap tenant canonical — container ephemeral trên network,
+    //     DATABASE_URL qua env (name-only trong argv).
     //     RUNTIME (đúng hình wiring của index.ts) với mật khẩu lần xoay. -------
     const bootstrapScriptText = buildBootstrapTenantScript({
       networkName: created.networkName,
@@ -254,38 +241,6 @@ beforeAll(async () => {
     const bootstrapRerun: RecordedRun = {
       name: 'bootstrap tenant ecoma re-run (idempotency)',
       result: await created.runScript(bootstrapScriptText, runtimeEnv),
-    };
-
-    const tokenScriptText = buildMachineTokenProvisionScript({
-      networkName: created.networkName,
-      worktreeRoot: WORKTREE_ROOT,
-      nodeImage: NODE_IMAGE,
-      tokenName: TOKEN_NAME,
-      tokenScopes: TOKEN_SCOPES,
-    });
-    const tokenEnv1 = {
-      DATABASE_URL: runtimeEnv.DATABASE_URL,
-      [MACHINE_TOKEN_PLAINTEXT_ENV_VAR]: SENTINELS.machineToken1,
-    };
-    const tokenRun1: RecordedRun = {
-      name: 'machine token #1 (create)',
-      result: await created.runScript(tokenScriptText, tokenEnv1),
-    };
-    if (tokenRun1.result.code !== 0) {
-      throw new Error(
-        `machine token #1 exited non-zero — stdout:\n${tokenRun1.result.stdout}\nstderr:\n${tokenRun1.result.stderr}`,
-      );
-    }
-    const tokenRun2: RecordedRun = {
-      name: 'machine token #2 (no-op, same plaintext)',
-      result: await created.runScript(tokenScriptText, tokenEnv1),
-    };
-    const tokenRotation: RecordedRun = {
-      name: 'machine token #3 (rotate plaintext)',
-      result: await created.runScript(tokenScriptText, {
-        DATABASE_URL: runtimeEnv.DATABASE_URL,
-        [MACHINE_TOKEN_PLAINTEXT_ENV_VAR]: SENTINELS.machineToken2,
-      }),
     };
 
     // --- 4. Failure semantics: ON_ERROR_STOP dừng SQL hỏng, không in SQL. ----
@@ -358,23 +313,6 @@ printf '%s\\n' "ALTER ROLE argv_hygiene_missing_role WITH PASSWORD '$quoted';" |
       DATABASE_NAME,
       `SELECT owner_sub FROM pact.tenants WHERE name='ecoma'`,
     );
-    const tokenTenantFilter = `tenant_id=(SELECT id FROM pact.tenants WHERE name='ecoma') AND name='${TOKEN_NAME}'`;
-    await psqlAsLocal(
-      'activeTokenCount',
-      DATABASE_NAME,
-      `SELECT count(*) FROM pact.machine_tokens WHERE ${tokenTenantFilter} AND revoked_at IS NULL`,
-    );
-    await psqlAsLocal(
-      'revokedTokenCount',
-      DATABASE_NAME,
-      `SELECT count(*) FROM pact.machine_tokens WHERE ${tokenTenantFilter} AND revoked_at IS NOT NULL`,
-    );
-    await psqlAsLocal(
-      'tokenHash',
-      DATABASE_NAME,
-      `SELECT token_hash FROM pact.machine_tokens WHERE ${tokenTenantFilter} AND revoked_at IS NULL`,
-    );
-
     // --- 7. Login bằng sentinel (password verify THẬT qua scram). pg_hba của
     //    image: các dòng loopback trust của initdb đứng TRƯỚC, entrypoint chỉ
     //    APPEND `host all all all scram-sha-256` (first-match wins) — nối
@@ -422,16 +360,12 @@ printf '%s\\n' "ALTER ROLE argv_hygiene_missing_role WITH PASSWORD '$quoted';" |
       provisionScriptText,
       migrateScriptText,
       bootstrapScriptText,
-      tokenScriptText,
       provisionRun1,
       provisionRun2,
       provisionRotation,
       migrateRun,
       bootstrapRun,
       bootstrapRerun,
-      tokenRun1,
-      tokenRun2,
-      tokenRotation,
       onStopFailure,
       catalog,
       logins,
@@ -459,9 +393,6 @@ function capturedOutputBuffer(flowState: FlowArtifacts): Buffer {
     flowState.migrateRun,
     flowState.bootstrapRun,
     flowState.bootstrapRerun,
-    flowState.tokenRun1,
-    flowState.tokenRun2,
-    flowState.tokenRotation,
     flowState.onStopFailure,
     ...flowState.logins.map((login) => ({
       name: `login ${login.role} (${login.label})`,
@@ -489,7 +420,7 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
   it('docker argv log recorded the real flows and carries none of the sentinels', () => {
     const flowState = requireFlow();
     // Recording phải chạy thật: shim đã ghi lại cả `docker exec` (provision)
-    // lẫn `docker run` (migrate/bootstrap/token) — log rỗng là harness hỏng.
+    // lẫn `docker run` (migrate/bootstrap) — log rỗng là harness hỏng.
     expect(flowState.argvLog.includes(Buffer.from('ON_ERROR_STOP', 'utf8'))).toBe(true);
     expect(flowState.argvLog.includes(Buffer.from('--network', 'utf8'))).toBe(true);
     for (const { channel, value } of WATCHED) {
@@ -528,7 +459,6 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
       flowState.provisionScriptText,
       flowState.migrateScriptText,
       flowState.bootstrapScriptText,
-      flowState.tokenScriptText,
     ];
     for (const text of scriptTexts) {
       for (const { channel, value } of WATCHED) {
@@ -537,19 +467,11 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
         );
       }
     }
-    // Ba script chạy container phải truyền secret qua TÊN biến, không giá trị.
-    for (const text of [
-      flowState.migrateScriptText,
-      flowState.bootstrapScriptText,
-      flowState.tokenScriptText,
-    ]) {
+    // Hai script chạy container phải truyền secret qua TÊN biến, không giá trị.
+    for (const text of [flowState.migrateScriptText, flowState.bootstrapScriptText]) {
       expect(text).toContain('-e DATABASE_URL \\');
       expect(text).not.toMatch(/-e DATABASE_URL=/u);
     }
-    expect(flowState.tokenScriptText).toContain(`-e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR} \\`);
-    expect(flowState.tokenScriptText).not.toMatch(
-      new RegExp(`-e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR}=`, 'u'),
-    );
   });
 
   it('ON_ERROR_STOP aborts bad SQL without echoing the secret-bearing statement', () => {
@@ -613,7 +535,7 @@ describe('migrate runs the canonical runner against the right database', () => {
   });
 });
 
-describe('bootstrap tenant and machine token run end-to-end through the runtime credential', () => {
+describe('bootstrap tenant runs end-to-end through the runtime credential', () => {
   it('created the canonical tenant owned by the configured sub', () => {
     const flowState = requireFlow();
     const { result } = flowState.bootstrapRun;
@@ -628,34 +550,5 @@ describe('bootstrap tenant and machine token run end-to-end through the runtime 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('already exists');
     expect(result.stdout).toContain('no-op, state preserved');
-  });
-
-  it('machine token lifecycle ran created, then no-op, then rotated', () => {
-    const flowState = requireFlow();
-    expect(flowState.tokenRun1.result.code).toBe(0);
-    expect(flowState.tokenRun1.result.stdout).toContain(
-      `machine token ${TOKEN_NAME} of tenant ecoma: created`,
-    );
-    expect(flowState.tokenRun2.result.code).toBe(0);
-    expect(flowState.tokenRun2.result.stdout).toContain(
-      `machine token ${TOKEN_NAME} of tenant ecoma: no-op`,
-    );
-    expect(flowState.tokenRotation.result.code).toBe(0);
-    expect(flowState.tokenRotation.result.stdout).toContain(
-      `machine token ${TOKEN_NAME} of tenant ecoma: rotated`,
-    );
-  });
-
-  it('leaves exactly one active token whose hash is the sha256 of the rotated plaintext', () => {
-    const flowState = requireFlow();
-    expect(flowState.catalog.activeTokenCount?.stdout.trim()).toBe('1');
-    expect(flowState.catalog.revokedTokenCount?.stdout.trim()).toBe('1');
-    const storedHash = flowState.catalog.tokenHash?.stdout.trim() ?? '';
-    expect(storedHash).toMatch(/^[0-9a-f]{64}$/u);
-    expect(storedHash).toBe(
-      createHash('sha256').update(SENTINELS.machineToken2, 'utf8').digest('hex'),
-    );
-    // Phòng thủ kép: hash lưu trong DB không bao giờ là plaintext.
-    expect(storedHash).not.toBe(SENTINELS.machineToken2);
   });
 });

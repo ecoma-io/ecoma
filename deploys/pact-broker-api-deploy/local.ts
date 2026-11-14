@@ -13,17 +13,16 @@
  * - Mật khẩu 2 role PostgreSQL (runtime/migrator) — sinh ngẫu nhiên bằng API
  *   mật mã an toàn, xoay mỗi lần up là vô hại vì role được guard-create/ALTER
  *   trong cùng lần up đó.
- * - `machineToken`: plaintext token máy của consumer local `pact-broker-app`,
- *   SET-IF-ABSENT nên ổn định qua mọi lần up của cùng environment (một plaintext
- *   một environment; rotation là hành động của người vận hành). Stack api chỉ
- *   cấp token vào DB qua script service-owned; plaintext nằm ở stack config
- *   cho unit pact-app đọc qua cross-stack `config get` (cùng hình auth đọc
- *   `internalHmacSecret` từ account stack).
  * - `tenantOwnerSub`: `sub` của superadmin tenant `ecoma`, giải quyết trước
  *   khi `pulumi up` qua dx runner (`bootstrap-superadmin --resolve-if-bootstrapped`)
  *   chạy trong container ephemeral trên platform network — chỉ đọc nếu môi
  *   trường đã bootstrapped, fail-closed nếu không. `sub` là ĐỊNH DANH, không
  *   phải credential → giữ non-secret trong stack config.
+ *
+ * ⚠️ `machineToken` KHÔNG còn tồn tại: token máy của consumer local
+ * `pact-broker-app` bị retire hoàn toàn (ADR-0031 §5, #206) — BFF forward
+ * access token của chủ phiên, unit pact-app không còn đọc secret nào từ stack
+ * này qua cross-stack `config get`.
  *
  * Hướng dữ liệu của `owner_sub`: platform postgres (migrator credential của
  * account-stacks, đọc qua `pulumi config get` cross-stack) → env của container
@@ -132,27 +131,6 @@ function readPlatformNetwork(foundation: EntryFoundation): string {
   if (read.status === 0 && read.stdout.trim().length > 0) return read.stdout.trim();
   throw new Error(
     `reading platform output networkName failed (exit ${String(read.status)}): ${read.stderr}`,
-  );
-}
-
-/**
- * `machineToken` SET-IF-ABSENT — plaintext ổn định theo environment.
- *
- * Có giá trị (exit 0 + non-empty) → giữ nguyên: mọi container consumer đang
- * cầm plaintext đó vẫn hợp lệ sau lần up này. Key chưa có (`config get` báo
- * đúng lỗi missing) hoặc giá trị rỗng (exit 0 + empty — unusable, và token
- * không phải credential database nên regen không khoá ai khỏi dữ liệu) →
- * sinh mới bằng API mật mã an toàn. Lỗi đọc khác → throw qua
- * `readStackConfig`, KHÔNG kèm raw output.
- */
-function ensureStableMachineToken(foundation: EntryFoundation): void {
-  const existing = readStackConfig(foundation, 'pact-broker-api-deploy', 'namespace:machineToken');
-  if (existing !== undefined) return;
-  setStackConfig(
-    'pact-broker-api-deploy',
-    'namespace:machineToken',
-    generatePostgresPassword(),
-    foundation,
   );
 }
 
@@ -271,8 +249,6 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
     generatePostgresPassword(),
     foundation,
   );
-  // Token máy: set-if-absent — plaintext ổn định theo environment.
-  ensureStableMachineToken(foundation);
   // Owner sub của tenant ecoma: giải quyết qua dx runner (chỉ đọc trên môi
   // trường đã bootstrapped) rồi ghi vào stack config — sub là định danh, không
   // phải credential.

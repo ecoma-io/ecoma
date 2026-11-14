@@ -2,6 +2,7 @@ import { defineEventHandler, readValidatedBody, setResponseStatus } from 'h3';
 
 import { brokerCall } from '../../utils/broker-client';
 import { pactBrokerBffConfig } from '../../utils/broker-config';
+import { requirePrincipal } from '../../principal';
 
 /**
  * Body hợp lệ: ba tham số truy vấn của `can-i-deploy`, giới hạn độ dài theo rule
@@ -44,6 +45,11 @@ function isCanIDeployBody(
  * ba tham số có nghĩa được truyền tiếp, mọi thứ khác bị bỏ.
  */
 export default defineEventHandler(async (event) => {
+  // Principal TRƯỚC config guard (review #254, nhất quán cả 5 route): request
+  // chưa xác thực luôn nhận 401 bất kể broker có cấu hình hay không — không rò
+  // trạng thái cấu hình cho caller vô danh (contract của `requirePrincipal`).
+  const principal = requirePrincipal(event);
+
   // `useRuntimeConfig(event)` — không phải `event.context.runtimeConfig`: slot
   // đó không ai gắn trên runtime thật (chi tiết ở `pacts.get.ts`).
   const config = pactBrokerBffConfig(useRuntimeConfig(event));
@@ -63,7 +69,11 @@ export default defineEventHandler(async (event) => {
     params.set('to', query.to);
   }
 
-  const result = await brokerCall(config, `/can-i-deploy?${params.toString()}`);
+  const result = await brokerCall(
+    config,
+    principal.accessToken,
+    `/can-i-deploy?${params.toString()}`,
+  );
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };
 });

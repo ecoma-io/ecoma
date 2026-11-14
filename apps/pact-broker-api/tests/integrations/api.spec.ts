@@ -9,6 +9,8 @@
  * không chảy.
  */
 
+import { createHash } from 'node:crypto';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import * as Infra from '@ecoma-io/pact-broker-api-infrastructure';
@@ -595,13 +597,39 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     });
     expect(used.status).toBe(200);
 
-    // List KHÔNG chứa secret.
+    // List KHÔNG chứa secret — và cũng không chứa BẤT KỲ vật liệu token nào:
+    // bản rõ, digest SHA-256 (tra cứu được thành token, nên cũng là bí mật),
+    // hay chuỗi mã hoá. ADR-0031 §5.3 là điều kiện kiểm được, không phải mô tả:
+    // chốt hình dạng chính xác của một phần tử list (đúng 5 khoá metadata), rồi
+    // chốt rằng toàn bộ body không mang vật liệu nào ở trên.
     const list = await reqJson('/admin/machine-tokens', {
       headers: auth(tenantASecret),
     });
     expect(list.status).toBe(200);
-    expect(JSON.stringify(list.body)).not.toContain(createdBody.secret);
-    expect(JSON.stringify(list.body)).not.toContain(tenantASecret);
+    const listBody = list.body as { _embedded: { tokens: Record<string, unknown>[] } };
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_embedded`
+    // (cùng pattern ở test environments bên dưới).
+    const listed = listBody['_embedded'].tokens;
+    // Tenant A còn token bootstrap `ci-a`; tìm đúng token vừa tạo.
+    const entry = listed.find((row) => row.id === tokenId);
+    expect(entry).toBeDefined();
+    expect(Object.keys(entry ?? {}).toSorted()).toEqual(
+      ['createdAt', 'id', 'name', 'revokedAt', 'scopes'].toSorted(),
+    );
+    expect(entry?.name).toBe('one-shot');
+    expect(entry?.scopes).toEqual(['write']);
+    // Digest của secret là thứ tra ngược được thành token ⇒ cấm xuất hiện.
+    const secretDigest = createHash('sha256').update(createdBody.secret).digest('hex');
+    const serializedList = JSON.stringify(list.body);
+    expect(serializedList).not.toContain(createdBody.secret);
+    expect(serializedList).not.toContain(tenantASecret);
+    expect(serializedList).not.toContain(secretDigest);
+    // Không khoá nào tên như vật liệu token, và không giá trị nào trông như
+    // digest hex 64 ký tự hoặc ciphertext của Pulumi/state.
+    const allKeys = listed.flatMap((row) => Object.keys(row));
+    expect(allKeys.some((key) => /token|secret|hash|cipher/iu.test(key))).toBe(false);
+    expect(serializedList).not.toMatch(/[0-9a-f]{64}/u);
+    expect(serializedList).not.toContain('ciphertext');
 
     // Revoke → dùng lại là 401 ngay.
     const revoked = await reqJson(`/admin/machine-tokens/${tokenId}`, {

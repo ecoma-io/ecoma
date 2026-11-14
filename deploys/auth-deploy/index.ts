@@ -66,6 +66,8 @@ import {
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
+import { LOCAL_PACT_BROKER_CLIENT_ID, LOCAL_PACT_BROKER_CLIENT_NAME } from './local-clients.js';
+
 import {
   MIGRATOR_PASSWORD_ENV_VAR,
   PRUNER_PASSWORD_ENV_VAR,
@@ -271,6 +273,14 @@ const migrate = new command.local.Command(
 const redirectUriLocal = pulumi.interpolate`https://office.${rootHostname}:${traefikHostPort}/api/auth/callback`;
 
 /**
+ * Redirect URI của client `pact-broker-app` — callback BFF của
+ * `pact-broker-app` (route `/api/auth/callback`, ADR-0031 §4). Cùng luật port
+ * động + exact-match với `redirectUriLocal` phía trên; origin ghim này phải
+ * khớp origin Traefik route `Host(pact.<rootHostname>)` của unit pact-app.
+ */
+const redirectUriPactLocal = pulumi.interpolate`https://pact.${rootHostname}:${traefikHostPort}/api/auth/callback`;
+
+/**
  * Seed client public `backoffice` cho authorize endpoint sống lại trên local
  * (issue #194, phần local): `oauth_clients` rỗng là `createProvider` ném lúc
  * dựng provider — mọi `/authorize` 500 trong khi `/ready` vẫn xanh.
@@ -310,6 +320,14 @@ const redirectUriLocal = pulumi.interpolate`https://office.${rootHostname}:${tra
  * Trigger gồm `rootHostname` + `traefikHostPort`: port động đổi là platform
  * redeploy → URI mới phải được seed; hai giá trị còn lại là hằng compile-time.
  *
+ * #206 (ADR-0031 §4) seed thêm client public thứ hai `pact-broker-app` trong
+ * CÙNG script idempotent — BFF của pact-broker-app chạy authorization-code +
+ * PKCE với scope `openid offline_access`, redirect URI callback
+ * `/api/auth/callback` trên origin `https://pact.<rootHostname>:<port>`. Cùng
+ * idempotency hai mệnh đề với backoffice; `client_id` sống ở
+ * `./local-clients.js` và được `pact-broker-app-deploy` đọc cross-stack qua
+ * stack config `namespace:pactBrokerAppClientId`.
+ *
  * `redirectUriLocal` là Output (StackReference) nên câu SQL dựng bằng
  * `pulumi.interpolate` và được quote theo đúng hai lớp: `sqlQuote` cho string
  * literal SQL (qua `.apply`), `shellQuote` cho argument của shell.
@@ -320,6 +338,13 @@ VALUES (${sqlQuote(LOCAL_BACKOFFICE_CLIENT_ID)}, 'Backoffice (local)', 'public',
 ON CONFLICT (client_id) DO UPDATE SET allowed_scopes = EXCLUDED.allowed_scopes;
 INSERT INTO auth.client_redirect_uris (client_id, redirect_uri)
 VALUES (${sqlQuote(LOCAL_BACKOFFICE_CLIENT_ID)}, ${redirectUriLocal.apply(sqlQuote)})
+ON CONFLICT DO NOTHING;
+INSERT INTO auth.oauth_clients (client_id, client_name, client_type, allowed_scopes)
+VALUES (${sqlQuote(LOCAL_PACT_BROKER_CLIENT_ID)}, ${sqlQuote(LOCAL_PACT_BROKER_CLIENT_NAME)}, 'public',
+        ARRAY['openid', 'offline_access']::text[])
+ON CONFLICT (client_id) DO UPDATE SET allowed_scopes = EXCLUDED.allowed_scopes;
+INSERT INTO auth.client_redirect_uris (client_id, redirect_uri)
+VALUES (${sqlQuote(LOCAL_PACT_BROKER_CLIENT_ID)}, ${redirectUriPactLocal.apply(sqlQuote)})
 ON CONFLICT DO NOTHING;`;
 
 const seedScript = pulumi.interpolate`set -e

@@ -45,6 +45,13 @@
               "pact-broker-api-deploy"
             ],
             "target": "local-up"
+          },
+          {
+            "//": "#206: đọc client id `pact-broker-app` cross-stack từ stack auth (auth seed client + persist config khi up của nó) — auth phải up trước.",
+            "projects": [
+              "auth-deploy"
+            ],
+            "target": "local-up"
           }
         ]
       },
@@ -146,6 +153,60 @@
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
           "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/pact-broker-app-deploy",
+          "command": "vitest"
         },
         "configurations": {},
         "parallelism": true

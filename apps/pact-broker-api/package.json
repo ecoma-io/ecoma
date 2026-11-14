@@ -9,6 +9,7 @@
     "@ecoma-io/staff-access-contracts": "workspace:*",
     "@ecoma-io/tenant-kernel-domain": "workspace:*",
     "hono": "^4.13.13",
+    "jose": "6.2.17",
     "pg": "^8.23.1",
     "zod": "^4.0.0"
   },
