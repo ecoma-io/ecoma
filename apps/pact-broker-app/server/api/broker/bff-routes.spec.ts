@@ -201,6 +201,49 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
   });
 });
 
+describe('machine-tokens — the BFF returns the API body byte-for-byte (ADR-0031 §5.3)', () => {
+  const apiBody = {
+    _embedded: {
+      tokens: [
+        {
+          id: '11111111-2222-3333-4444-555555555555',
+          name: 'ci-token',
+          scopes: ['read', 'write'],
+          createdAt: '2026-11-14T00:00:00.000Z',
+          revokedAt: null,
+        },
+      ],
+    },
+  };
+
+  it('returns exactly what the API returned and adds no field of its own', async () => {
+    // §5.3 là điều kiện kiểm được: KHÔNG machine token (mọi scope) trong bất kỳ
+    // response nào. Bằng chứng gồm hai vế — API chỉ trả 5 khoá metadata
+    // (`apps/pact-broker-api/tests/integrations/api.spec.ts`, test lifecycle
+    // machine token), và BFF là pass-through thuần: body ra bằng body vào, nên
+    // BFF không thể tự thêm token material vào.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(apiBody), { status: 200 })),
+    );
+
+    const response = await call('/api/broker/machine-tokens', machineTokensRoute);
+
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toEqual(apiBody);
+    // Chốt thêm ở dạng phủ định: không khoá nào tên như vật liệu token, và
+    // không giá trị nào trông như digest hex 64 ký tự hay ciphertext.
+    const serialized = JSON.stringify(body);
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_embedded`.
+    const firstToken = (body as typeof apiBody)['_embedded'].tokens[0] ?? {};
+    const keys = Object.keys(firstToken);
+    expect(keys.some((key) => /token|secret|hash|cipher/iu.test(key))).toBe(false);
+    expect(serialized).not.toMatch(/[0-9a-f]{64}/u);
+    expect(serialized).not.toContain('ciphertext');
+  });
+});
+
 describe('pacts — BFF-side composition of the matrix read (issue #181)', () => {
   it('queries the matrix once with one repeated selector per pacticipant', async () => {
     const calledUrls: string[] = [];
