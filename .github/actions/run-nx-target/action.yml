@@ -27,6 +27,14 @@ inputs:
       run are re-reported there anyway.
     required: false
     default: 'false'
+  exclude:
+    description: |
+      Projects to leave out of the run, comma or space separated. Forwarded to
+      Nx as `--exclude`; the negation form (`*,!project`) selects only the named
+      projects and excludes every other. Empty (the default) excludes nothing,
+      so existing callers keep their behaviour unchanged.
+    required: false
+    default: ''
   configuration:
     description: |
       Nx configuration ('-c') forwarded to the run, e.g. 'local' to select the
@@ -77,6 +85,7 @@ runs:
         RAW_TARGETS: ${{ inputs.targets }}
         THREADS: ${{ inputs.threads }}
         BAIL: ${{ inputs.bail }}
+        RAW_EXCLUDE: ${{ inputs.exclude }}
         CONFIGURATION: ${{ inputs.configuration }}
         RETRIES: ${{ inputs.retries }}
         RETRY_COMMAND: ${{ inputs.retry-command }}
@@ -96,29 +105,37 @@ runs:
           exit 1
         fi
 
-        # Bash word splitting is deliberate: an empty flag must vanish from the
-        # command line entirely (`$bail_flag` unquoted), a present one arrives
-        # as the single argument `--nxBail`. `$config_flag` follows the same
-        # rule for the configuration: no input means no `-c` argument at all,
-        # which is byte-for-byte the command line the action built before the
-        # input existed.
-        bail_flag=''
-        if [ "$BAIL" = 'true' ]; then
-          bail_flag='--nxBail'
-        fi
+        # `--exclude` cũng dùng `parseCSV` không trim, nên chuẩn hoá y như
+        # `targets`. Rỗng là giá trị hợp lệ: không loại project nào. Dạng phủ
+        # định `*,!project` được Nx hiểu là "chỉ project này", dùng để chọn một
+        # tập con thay cho một danh sách loại trừ.
+        IFS=$', \t\n' read -ra excluded <<< "$RAW_EXCLUDE"
+        exclude="$(IFS=,; echo "${excluded[*]}")"
 
-        config_flag=''
+        # Dựng argv bằng bash array, KHÔNG nối cờ thành chuỗi rồi để bash tách
+        # lại. `--exclude` ở bước browser mang `*` (dạng phủ định `*,!project`);
+        # một expansion không quote sẽ bị pathname expansion thay bằng tên file
+        # khớp trong cwd, và Nx nhận exclude set rác thay vì một lỗi rõ ràng.
+        # Quote từng phần tử cũng làm cờ rỗng biến mất đúng cách — không sinh
+        # đối số rỗng — nên hành vi cũ (không truyền cờ) giữ nguyên.
+        nx_args=(-t "$targets" --parallel="$THREADS")
+        if [ "$BAIL" = 'true' ]; then
+          nx_args+=(--nxBail)
+        fi
         if [ -n "$CONFIGURATION" ]; then
-          config_flag="--configuration=$CONFIGURATION"
+          nx_args+=("--configuration=$CONFIGURATION")
+        fi
+        if [ -n "$exclude" ]; then
+          nx_args+=("--exclude=$exclude")
         fi
 
         run_nx() {
           if [ "$AFFECTED" = 'true' ]; then
-            echo "Running on the affected set: npx nx affected -t $targets $config_flag"
-            npx nx affected -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+            echo "Running on the affected set: npx nx affected ${nx_args[*]}"
+            npx nx affected "${nx_args[@]}"
           else
-            echo "Running on every project: npx nx run-many -t $targets $config_flag"
-            npx nx run-many -t "$targets" --parallel="$THREADS" $bail_flag $config_flag
+            echo "Running on every project: npx nx run-many ${nx_args[*]}"
+            npx nx run-many "${nx_args[@]}"
           fi
         }
 

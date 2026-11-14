@@ -1,5 +1,12 @@
 import { chromium, request, type FullConfig, type Page } from '@playwright/test';
 
+import {
+  describeBrowserSession,
+  emptyBrowserSessionLog,
+  summarizeBrowserSession,
+  watchBrowserSession,
+  type BrowserSessionLog,
+} from './support/diagnostics';
 import { PROTOTYPE_ROUTES, waitForRouteReady } from './support/prototype';
 import { gotoWithReloadRetry, remainingWarmUpMs, warmUpCapMs } from './support/warm-up';
 
@@ -122,8 +129,17 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
   const elapsedMs = (): number => Date.now() - phaseStart;
   const remainingMs = (stage: string): number => remainingWarmUpMs({ capMs, phaseStart, stage });
 
+  // Khai ngoài `try` để nhánh `catch` còn đọc được trang lúc fail: chẩn đoán
+  // #253 chỉ có giá trị nếu nó chạy trên **chính** page đã hỏng.
+  let page: Page | undefined;
+  let session: BrowserSessionLog | undefined;
+
   try {
-    const page = await browser.newPage({ baseURL });
+    page = await browser.newPage({ baseURL });
+    // Gắn listener **trước** navigation đầu tiên: Playwright chỉ phát sự kiện
+    // phát sinh sau thời điểm đăng ký, và toàn bộ bằng chứng cần cho #253 nằm ở
+    // giai đoạn mount đầu tiên của `/`.
+    session = watchBrowserSession(page, phaseStart);
 
     // Log đo theo route: bằng chứng trần đủ/chưa đủ nằm ngay trong output của job
     // CI (điều kiện hoàn thành của issue #239), không phải phải chạy lại có đo.
@@ -166,7 +182,28 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
     }
 
     await waitForDevServerToSettle(page, remainingMs('dev server settle'));
+    // Một dòng chứng minh instrumentation đã chạy; không in chi tiết khi xanh.
+    console.log(summarizeBrowserSession(session));
     console.log(`[warm-up] browser phase finished in ${String(Date.now() - phaseStart)} ms`);
+  } catch (cause) {
+    // Chẩn đoán chỉ in ở đường thất bại (issue #253): lần đỏ kế tiếp phải tự nói
+    // ra document có phải app ở mode prototype không, data mode client đọc được
+    // là gì, và client có mount hay không — thay vì một dòng timeout mơ hồ.
+    // Lỗi gốc luôn được ném tiếp: chẩn đoán không được che nguyên nhân.
+    if (page !== undefined) {
+      try {
+        // `session === undefined` nghĩa là chính `watchBrowserSession` đã hỏng;
+        // dùng log rỗng để phần đọc trang vẫn in ra, thay vì mất toàn bộ chẩn
+        // đoán đúng lúc instrumentation là thứ cần chẩn đoán.
+        const diagnosticsSession = session ?? emptyBrowserSessionLog(phaseStart);
+        console.error(await describeBrowserSession(page, diagnosticsSession, { capMs }));
+      } catch {
+        // Chẩn đoán tự lỗi (trang đã đóng, unresponsive) thì bỏ qua phần chẩn
+        // đoán, không thay thế lỗi warm-up gốc bằng lỗi của chính nó.
+      }
+    }
+
+    throw cause;
   } finally {
     await browser.close();
   }
