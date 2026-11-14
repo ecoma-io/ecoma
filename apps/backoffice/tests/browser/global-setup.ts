@@ -1,7 +1,7 @@
 import { chromium, request, type FullConfig, type Page } from '@playwright/test';
 
 import { PROTOTYPE_ROUTES, waitForRouteReady } from './support/prototype';
-import { gotoWithReloadRetry } from './support/warm-up';
+import { gotoWithReloadRetry, warmUpCapMs } from './support/warm-up';
 
 /**
  * Nóng năm route prototype **trước** khi chạy test, theo hai vế khác nhau.
@@ -33,7 +33,7 @@ import { gotoWithReloadRetry } from './support/warm-up';
  * mà vế 2 tồn tại để "ăn", nhưng chưa từng được bảo vệ: CI đỏ thật với
  * `net::ERR_ABORTED` tại `warmUpBrowserClient` (issue #224, run 40100840085).
  * Vì vậy navigation ở đây đi qua `gotoWithReloadRetry`: bắt abort do reload rồi
- * thử lại, giới hạn bởi cùng trần `WARM_UP_CAP_MS` với `waitForDevServerToSettle`.
+ * thử lại, giới hạn bởi cùng trần warm-up (`warmUpCapMs`) với `waitForDevServerToSettle`.
  * Chỉ lỗi abort-due-to-reload được nuốt; lỗi thật (server sập, mất mạng) vẫn
  * được đẩy lên ngay.
  *
@@ -52,14 +52,15 @@ import { gotoWithReloadRetry } from './support/warm-up';
 const QUIET_MS = 3_000;
 
 /**
- * Trần chờ của vế warm-up browser; vượt trần là server còn thay trang liên tục.
+ * Trần chờ của vế warm-up browser.
  *
- * Giờ đây trần này áp cho **cả hai** chỗ chờ của vế 2: chuỗi retry của
- * `gotoWithReloadRetry` (mặc định theo hằng cùng tên trong `support/warm-up.ts`)
- * và vòng "khoảng lặng" của `waitForDevServerToSettle` — tổng thời gian warm-up
- * browser có trần biết trước thay vì chỉ vòng chờ cuối.
+ * Nguồn chân lý của con số là `warmUpCapMs` trong `support/warm-up.ts` (kèm số đo
+ * local lẫn CI); `globalSetup` chỉ quyết định **môi trường nào** (`process.env.CI`
+ * — cùng công tắc mà `playwright.config.ts` dùng cho `reuseExistingServer`) rồi
+ * truyền phần trần còn lại qua tham số cho từng chỗ chờ. Không nhân bản hằng số ở
+ * đây nữa: hai bản sao (trong `global-setup.ts` và `support/warm-up.ts`) phải đổi
+ * tay với nhau nhưng không có gì buộc chúng khớp.
  */
-const WARM_UP_CAP_MS = 30_000;
 
 /**
  * Vế 1 — kiểm server đã lên và mọi route trả 200.
@@ -105,14 +106,31 @@ async function assertRoutesRespond(baseURL: string): Promise<void> {
 async function warmUpBrowserClient(baseURL: string): Promise<void> {
   const browser = await chromium.launch();
 
+  // Một trần tổng cho cả vế browser: mỗi chỗ chờ nhận phần trần **còn lại** của
+  // vế, chứ không phải một trần riêng full — nếu mỗi chờ có trần độc lập thì tổng
+  // thời gian warm-up không có biên biết trước (đó là một trong hai lỗ hổng của
+  // #239: `waitForRouteReady` không truyền timeout nên rơi về 30s mặc định của
+  // Playwright, ngoài tầm với của trần warm-up).
+  const capMs = warmUpCapMs(process.env.CI !== undefined && process.env.CI !== '');
+  const phaseStart = Date.now();
+  const remainingMs = (): number => Math.max(capMs - (Date.now() - phaseStart), 1);
+
   try {
     const page = await browser.newPage({ baseURL });
 
+    // Log đo theo route: bằng chứng trần đủ/chưa đủ nằm ngay trong output của job
+    // CI (điều kiện hoàn thành của issue #239), không phải phải chạy lại có đo.
+    console.log(
+      `[warm-up] browser phase cap: ${String(capMs)} ms (${process.env.CI ? 'CI' : 'local'} cap)`,
+    );
+
     for (const route of PROTOTYPE_ROUTES) {
-      await gotoWithReloadRetry(page, route.path);
+      const routeStart = Date.now();
+      await gotoWithReloadRetry(page, route.path, { capMs: remainingMs() });
+      const gotoMs = Date.now() - routeStart;
 
       try {
-        await waitForRouteReady(page, route.path);
+        await waitForRouteReady(page, route.path, remainingMs());
       } catch (cause) {
         // Đo được trên merge queue: cấu hình thiếu làm route **không** sẵn sàng,
         // và lỗi gốc (`waiting for getByTestId('backoffice-sample-notice')`) không
@@ -122,9 +140,14 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
           { cause },
         );
       }
+
+      console.log(
+        `[warm-up] ${route.path} ready in ${String(Date.now() - routeStart)} ms (goto ${String(gotoMs)} ms, ${String(remainingMs())} ms of cap left)`,
+      );
     }
 
-    await waitForDevServerToSettle(page);
+    await waitForDevServerToSettle(page, remainingMs());
+    console.log(`[warm-up] browser phase finished in ${String(Date.now() - phaseStart)} ms`);
   } finally {
     await browser.close();
   }
@@ -138,11 +161,14 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
  * lặng** — không document request nào nữa. Khi cache dependency đã nóng, lần chờ
  * duy nhất này là toàn bộ chi phí của vế warm-up browser.
  *
- * Vượt `WARM_UP_CAP_MS` thì báo lỗi thay vì đi tiếp: server thay trang liên tục là
+ * Trần của vòng chờ là **phần còn lại** của trần warm-up (`capMs` từ caller),
+ * không phải một trần độc lập: tổng thời gian vế browser giữ nguyên một biên.
+ *
+ * Vượt trần thì báo lỗi thay vì đi tiếp: server thay trang liên tục là
  * bất thường, và chạy test trên server như vậy chỉ tạo ra đỏ khó đọc.
  */
-async function waitForDevServerToSettle(page: Page): Promise<void> {
-  const deadline = Date.now() + WARM_UP_CAP_MS;
+async function waitForDevServerToSettle(page: Page, capMs: number): Promise<void> {
+  const deadline = Date.now() + capMs;
 
   while (Date.now() < deadline) {
     // `waitForRequest` là event-driven: không có sleep cố định ở đường đi thường,
@@ -159,7 +185,7 @@ async function waitForDevServerToSettle(page: Page): Promise<void> {
   }
 
   throw new Error(
-    `Dev server vẫn thay trang sau ${String(WARM_UP_CAP_MS)} ms warm-up — dừng suite thay vì chạy test trên server không ổn định.`,
+    `Dev server vẫn thay trang sau ${String(capMs)} ms warm-up — dừng suite thay vì chạy test trên server không ổn định.`,
   );
 }
 

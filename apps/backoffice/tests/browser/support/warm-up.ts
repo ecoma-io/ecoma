@@ -1,13 +1,53 @@
 import type { Page, Response } from '@playwright/test';
 
 /**
- * Trần chờ của vế warm-up browser; vượt trần là server còn thay trang liên tục.
+ * Trần chờ của vế warm-up browser ở **local**; vượt trần là server còn thay trang
+ * liên tục.
  *
- * Nguồn chân lý của con số nằm ở `global-setup.ts` (kèm số đo trên CI); helper này
- * nhận trần qua tham số và **mặc định** theo giá trị đó, nên hai nơi luôn đi cùng
- * một trần mà không cần import ngược.
+ * Số đo với cache Vite nguội (lần tải đầu của browser), máy dev 16 nhân, không
+ * tải cạnh tranh: banner ready của `/` xuất hiện sau 7,7-14,3s và cả vế browser
+ * (năm route + khoảng lặng) kết thúc sau 13,1s. Trần 30s vẫn dư hơn hai lần.
  */
 export const WARM_UP_CAP_MS = 30_000;
+
+/**
+ * Trần chờ của vế warm-up browser trên **CI**; vượt trần là server còn thay trang
+ * liên tục.
+ *
+ * ⚠️ Vì sao local và CI phải khác trần — số đo, không phải phỏng đoán:
+ *
+ * - Job `integration-test` chạy `nx affected -t build,test-integration
+ *   --parallel=6` trên một runner 4 vCPU; khi affected set rộng (ví dụ PR #226
+ *   chỉ chạm lockfile mà kéo 27 project vào), 5-6 task thật khác (build Nuxt,
+ *   vitest + testcontainers, workerd) chạy cạnh dev server của suite này.
+ * - Mô phỏng đúng điều kiện đó ở local (ghim toàn bộ tiến trình vào 4 nhân
+ *   `taskset -c 0-3` + 6 vòng xoay CPU độc lập, cache Vite nguội): banner ready
+ *   của `/` xuất hiện sau **22,4s rồi 38,8s** ở hai lần chạy, và cả vế browser
+ *   kết thúc sau **30,1s** — vượt trần local 30s. CI thật đỏ 3/3 lần ở đúng trần
+ *   này (`locator.waitFor: Timeout 30000ms exceeded` tại route đầu `/`, issue
+ *   #239).
+ * - Cơ chế bị kéo dài là chain reload của Vite optimizer: với cache nguội,
+ *   `[optimizer] bundling dependencies...` chạy **nhiều vòng** (đo được 3 vòng),
+ *   mỗi vòng phát `full-reload` và browser tải lại toàn bộ module graph. Không
+ *   tải cạnh tranh, một vòng hết ~3s; dưới tải 6 task, mỗi vòng lên ~13-16s.
+ * - `120_000` ≈ ba lần số đo xấu nhất (38,8s) — dư địa cho runner CI chậm hơn
+ *   mô phỏng, mà vẫn dưới trần `webServer.timeout` (180s) nên vòng đời server
+ *   vẫn là biên ngoài. Trần local giữ nguyên để phản hồi nhanh khi dev tự chạy.
+ */
+export const CI_WARM_UP_CAP_MS = 120_000;
+
+/**
+ * Trần warm-up theo môi trường: `process.env.CI` là công tắc mà
+ * `playwright.config.ts` đã dùng cho `reuseExistingServer`/`reporter`, nên dùng
+ * cùng công tắc để trần và hành vi đổi tay nhau.
+ *
+ * Gọi **một lần** đầu `globalSetup` rồi truyền trần qua tham số cho mọi chỗ chờ
+ * (`gotoWithReloadRetry`, `waitForRouteReady`, `waitForDevServerToSettle`), để cả
+ * vế browser có đúng một trần tổng thay vì mỗi chỗ chờ một trần riêng.
+ */
+export function warmUpCapMs(isCI: boolean): number {
+  return isCI ? CI_WARM_UP_CAP_MS : WARM_UP_CAP_MS;
+}
 
 /**
  * Điều hướng chịu được `full-reload` của `nuxt dev` giữa chừng.
