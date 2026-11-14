@@ -130,20 +130,23 @@ describe('pact-broker-app read pages on a real browser against the real broker',
     expect(tableText).toContain('Test');
   });
 
-  it('shows a forbidden state on /tokens and never renders any machine token', async () => {
+  it('renders the tokens table on /tokens with metadata only and never any machine token', async () => {
     const { page: authenticated } = await openAuthenticatedPage();
 
     await openPage(authenticated, '/tokens');
 
-    // ADR-0032: M1 user path chỉ đọc — route `machine-tokens` đòi mực admin,
-    // nên API trả 403 và trang hiển thị trạng thái "không đủ quyền", KHÔNG
-    // phải bảng token (credential self-service là #207).
-    await authenticated.waitForSelector('[data-testid="pact-broker-empty"]', { timeout: 30_000 });
-    expect(await authenticated.locator('[data-testid="pact-broker-tokens-table"]').count()).toBe(0);
+    // ADR-0032 §5 (#207): owner session (floor admin) thấy bảng metadata
+    // credential; hợp đồng không đổi — không token material nào trên trang
+    // (SR-002/SR-007), và list chỉ chứa metadata (không secret).
+    await authenticated.waitForSelector('[data-testid="pact-broker-tokens-table"]', {
+      timeout: 30_000,
+    });
 
     // SR-002 — plaintext token không bao giờ xuất hiện ở bất kỳ đâu trên trang.
     const bodyText = await authenticated.locator('body').innerText();
     expect(bodyText).not.toContain(stack.machineToken);
+    // Digest hex 64 ký tự của token seed cũng không được rò qua bảng metadata.
+    expect(bodyText).not.toMatch(new RegExp(stack.machineToken, 'u'));
   });
 
   it('sets __Host- session cookies that are Secure and HttpOnly, and carries no machine token', async () => {

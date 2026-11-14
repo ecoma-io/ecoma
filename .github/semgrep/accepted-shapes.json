@@ -2,24 +2,26 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-api/src/routes/admin.ts",
-    "start": 103,
-    "end": 116,
-    "reason": "Show-once machine token creation: POST /admin/machine-tokens tra token ban ro DUNG MOT LAN trong response 201 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Line pin doi theo khoang cach import khi tach repo layer (#335) - noi dung response khong doi. Re-pin +1 dong khi sua comment header admin.ts (#21) - code tai pin khong doi.",
+    "start": 196,
+    "end": 211,
+    "reason": "Show-once machine token creation: POST /admin/machine-tokens tra token ban ro DUNG MOT LAN trong response 201 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Line pin doi theo khoang cach import khi tach repo layer (#335) - noi dung response khong doi. Re-pin 103->194 boi #207: fail-closed transaction dua response vao trong try/COMMIT; token object them purpose/createdBy - noi dung show-once khong doi. Re-pin +2 boi PR #278 review fix (callerAuthority +4 roi purpose -2, net +2): show-once khong doi.",
     "lines": {
-      "103": "^    return c\\.json\\($",
-      "104": "^      \\{$",
-      "105": "^        token: \\{$",
-      "106": "^          id: record\\.id,$",
-      "107": "^          name: parsed\\.data\\.name,$",
-      "108": "^          scopes: parsed\\.data\\.scopes,$",
-      "109": "^          createdAt: record\\.createdAt,$",
-      "110": "^          revokedAt: null,$",
-      "111": "^        \\},$",
-      "112": "^        // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
-      "113": "^        secret: token,$",
-      "114": "^      \\},$",
-      "115": "^      201,$",
-      "116": "^    \\);$"
+      "196": "^\\ \\ \\ \\ \\ \\ return\\ c\\.json\\($",
+      "197": "^\\ \\ \\ \\ \\ \\ \\ \\ \\{$",
+      "198": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ token:\\ \\{$",
+      "199": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ id:\\ record\\.id,$",
+      "200": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ name:\\ record\\.name,$",
+      "201": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ scopes:\\ parsed\\.data\\.scopes,$",
+      "202": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ purpose:\\ record\\.purpose,$",
+      "203": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ createdBy:\\ record\\.createdBySub,$",
+      "204": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ createdAt:\\ record\\.createdAt,$",
+      "205": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ revokedAt:\\ null,$",
+      "206": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\},$",
+      "207": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ //\\ Show\\-once:\\ giá\\ trị\\ duy\\ nhất\\ lần\\ này\\ response\\ chứa\\ nó\\.$",
+      "208": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ secret:\\ token,$",
+      "209": "^\\ \\ \\ \\ \\ \\ \\ \\ \\},$",
+      "210": "^\\ \\ \\ \\ \\ \\ \\ \\ 201,$",
+      "211": "^\\ \\ \\ \\ \\ \\ \\);$"
     }
   },
   {
@@ -225,24 +227,26 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-api/src/routes/admin.ts",
-    "start": 151,
-    "end": 164,
-    "reason": "Show-once machine token rotation: POST /admin/machine-tokens/:id/rotate tra token ban ro DUNG MOT LAN trong response 200 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Xoay thay token_hash cu, token cu mat hieu luc luc lan sau. Xoay + ghi audit cung transaction tren mot pg client (fail-closed) - doi vi tri block response vi xoay chuyen vao trong try/catch/COMMIT. Re-pin +1 dong khi sua comment header admin.ts (#21) - code tai pin khong doi.",
+    "start": 265,
+    "end": 280,
+    "reason": "Show-once machine token rotation: POST /admin/machine-tokens/:id/rotate tra token ban ro DUNG MOT LAN trong response 200 - day la hop dong cua endpoint (xem comment 'Show-once' trong code). Token hash nam trong DB; moi list sau do chi thay metadata. Xoay thay token_hash cu, token cu mat hieu luc luc lan sau. Xoay + ghi audit cung transaction tren mot pg client (fail-closed) - doi vi tri block response vi xoay chuyen vao trong try/catch/COMMIT. Re-pin 151->263 boi #207: xoay+audit cung transaction dua response vao try/COMMIT; token object them purpose/createdBy - noi dung show-once khong doi. Re-pin +2 boi PR #278 review fix (callerAuthority +4 roi purpose -2, net +2): show-once khong doi.",
     "lines": {
-      "151": "^      return c\\.json\\($",
-      "152": "^        \\{$",
-      "153": "^          token: \\{$",
-      "154": "^            id: rotated\\.record\\.id,$",
-      "155": "^            name: rotated\\.record\\.name,$",
-      "156": "^            scopes: rotated\\.record\\.scopes\\.split\\(' '\\)\\.filter\\(\\(s\\) => s !== ''\\),$",
-      "157": "^            createdAt: rotated\\.record\\.createdAt,$",
-      "158": "^            revokedAt: null,$",
-      "159": "^          \\},$",
-      "160": "^          // Show-once: giá trị duy nhất lần này response chứa nó\\.$",
-      "161": "^          secret: rotated\\.token,$",
-      "162": "^        \\},$",
-      "163": "^        200,$",
-      "164": "^      \\);$"
+      "265": "^\\ \\ \\ \\ \\ \\ return\\ c\\.json\\($",
+      "266": "^\\ \\ \\ \\ \\ \\ \\ \\ \\{$",
+      "267": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ token:\\ \\{$",
+      "268": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ id:\\ rotated\\.record\\.id,$",
+      "269": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ name:\\ rotated\\.record\\.name,$",
+      "270": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ scopes:\\ rotated\\.record\\.scopes\\.split\\('\\ '\\)\\.filter\\(\\(s\\)\\ =>\\ s\\ !==\\ ''\\),$",
+      "271": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ purpose:\\ rotated\\.record\\.purpose,$",
+      "272": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ createdBy:\\ rotated\\.record\\.createdBySub,$",
+      "273": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ createdAt:\\ rotated\\.record\\.createdAt,$",
+      "274": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ revokedAt:\\ null,$",
+      "275": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\},$",
+      "276": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ //\\ Show\\-once:\\ giá\\ trị\\ duy\\ nhất\\ lần\\ này\\ response\\ chứa\\ nó\\.$",
+      "277": "^\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ secret:\\ rotated\\.token,$",
+      "278": "^\\ \\ \\ \\ \\ \\ \\ \\ \\},$",
+      "279": "^\\ \\ \\ \\ \\ \\ \\ \\ 200,$",
+      "280": "^\\ \\ \\ \\ \\ \\ \\);$"
     }
   },
   {
@@ -720,6 +724,36 @@
     "reason": "[Role runtime] Builder thuần của #206: password được percent-encode rồi ghép vào userinfo của URL kết nối, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-api-deploy/scripts.ts` (remediation #42, cùng #206). Re-pin 125->129 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
       "129": "^  return `postgresql://\\$\\{RUNTIME_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/machine-tokens.post.ts",
+    "start": 58,
+    "end": 58,
+    "reason": "Show-once pass-through BFF cua #207 (ADR-0032 section 5): route BFF chi forward response cua pact-broker-api (create/rotate/revoke machine token) ve browser sau khi middleware authn da verify phien - response show-once la hop dong cua endpoint API phia tren (da accept trong admin.ts). Token chi roi process qua Authorization header cua request BFF->API; body tra ve browser la body NGUYEN VAN cua API, bao gom ban ro token DUNG MOT LAN theo hop dong show-once. FP cung lop voi cac pin BFF pacts.get.ts (#206).",
+    "lines": {
+      "58": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/machine-tokens/[id]/index.delete.ts",
+    "start": 33,
+    "end": 33,
+    "reason": "Show-once pass-through BFF cua #207 (ADR-0032 section 5): route BFF chi forward response cua pact-broker-api (create/rotate/revoke machine token) ve browser sau khi middleware authn da verify phien - response show-once la hop dong cua endpoint API phia tren (da accept trong admin.ts). Token chi roi process qua Authorization header cua request BFF->API; body tra ve browser la body NGUYEN VAN cua API, bao gom ban ro token DUNG MOT LAN theo hop dong show-once. FP cung lop voi cac pin BFF pacts.get.ts (#206).",
+    "lines": {
+      "33": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/machine-tokens/[id]/rotate.post.ts",
+    "start": 39,
+    "end": 39,
+    "reason": "Show-once pass-through BFF cua #207 (ADR-0032 section 5): route BFF chi forward response cua pact-broker-api (create/rotate/revoke machine token) ve browser sau khi middleware authn da verify phien - response show-once la hop dong cua endpoint API phia tren (da accept trong admin.ts). Token chi roi process qua Authorization header cua request BFF->API; body tra ve browser la body NGUYEN VAN cua API, bao gom ban ro token DUNG MOT LAN theo hop dong show-once. FP cung lop voi cac pin BFF pacts.get.ts (#206).",
+    "lines": {
+      "39": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
   }
 ]

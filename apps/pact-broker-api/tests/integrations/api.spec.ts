@@ -70,12 +70,14 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     await repo.ensureDefaultTenant('tenant-a', 'sub-a-owner');
     await repo.ensureDefaultTenant('tenant-b', 'sub-b-owner');
     const a = await repo.createMachineToken(
+      pool,
       (await repo.getTenantByName('tenant-a'))?.id ?? '',
       'sub-a-owner',
       'ci-a',
       ['admin'],
     );
     const b = await repo.createMachineToken(
+      pool,
       (await repo.getTenantByName('tenant-b'))?.id ?? '',
       'sub-b-owner',
       'ci-b',
@@ -245,11 +247,14 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     const repo = new PgTenantRepo(pool);
     const tenantB = await repo.getTenantByName('tenant-b');
     const tokens = await repo.listMachineTokens(tenantB?.id ?? '');
-    await repo.revokeMachineToken(tenantB?.id ?? '', tokens[0]?.id ?? '');
+    await pool.query('BEGIN');
+    await repo.revokeMachineToken(pool, tenantB?.id ?? '', tokens[0]?.id ?? '');
+    await pool.query('COMMIT');
     const revokedSecret = tenantBSecret;
     // Token B vừa bị revoke vĩnh viễn (truncateData giữ tokens) — cấp token
     // thay thế để các test sau vẫn dùng được tenant B.
     const replacement = await repo.createMachineToken(
+      pool,
       tenantB?.id ?? '',
       'sub-b-owner',
       'broker-b (replacement)',
@@ -645,8 +650,11 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     const entry = listed.find((row) => row.id === tokenId);
     expect(entry).toBeDefined();
     expect(Object.keys(entry ?? {}).toSorted()).toEqual(
-      ['createdAt', 'id', 'name', 'revokedAt', 'scopes'].toSorted(),
+      // purpose/createdBy được expose từ #207 (ADR-0032 §2/§8).
+      ['createdAt', 'createdBy', 'id', 'name', 'purpose', 'revokedAt', 'scopes'].toSorted(),
     );
+    expect(entry?.purpose).toBeNull(); // đường machine không bắt buộc purpose
+    expect(entry?.createdBy).toBeNull(); // đường machine: actor_sub null
     expect(entry?.name).toBe('one-shot');
     expect(entry?.scopes).toEqual(['write']);
     // Digest của secret là thứ tra ngược được thành token ⇒ cấm xuất hiện.
@@ -914,12 +922,20 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     const { PgTenantRepo } = Infra;
     const repo = new PgTenantRepo(pool);
     const tenantA = await repo.getTenantByName('tenant-a');
-    const readToken = await repo.createMachineToken(tenantA?.id ?? '', 'sub-a-owner', 'reader', [
-      'read',
-    ]);
-    const writeToken = await repo.createMachineToken(tenantA?.id ?? '', 'sub-a-owner', 'writer', [
-      'write',
-    ]);
+    const readToken = await repo.createMachineToken(
+      pool,
+      tenantA?.id ?? '',
+      'sub-a-owner',
+      'reader',
+      ['read'],
+    );
+    const writeToken = await repo.createMachineToken(
+      pool,
+      tenantA?.id ?? '',
+      'sub-a-owner',
+      'writer',
+      ['write'],
+    );
     await pool.end();
 
     // read không publish được (403 — token hợp lệ, thiếu scope).

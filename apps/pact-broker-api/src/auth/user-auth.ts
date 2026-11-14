@@ -255,10 +255,15 @@ function forbidden(): Response {
  * token quyết định đây là JWT. Đọc issuer/audience từ `config` của request,
  * verify, resolve membership, kiểm vai trò, gắn context rồi `next()`.
  *
- * `required` là mực của ROUTE (read/write/admin của machine path); đường user
- * trong M1 chỉ đạt mực read (viewer+). Write/admin qua user token → 403 —
- * đúng matrix ADR-0032 §3: publish/verify/environment-CRUD/token-admin là ✗
- * mọi vai trò cho tới khi có route portal riêng (#207 sở hữu UI mutation).
+ * `required` là mực của ROUTE theo từ vựng machine path:
+ *  * `read` — đòi viewer+ (mọi đọc portal, ADR-0032 §1);
+ *  * `write` — KHÔNG user nào đạt được trong M1 (publish/verify/environment
+ *    CRUD là ✗ mọi vai trò, ADR-0032 §3);
+ *  * `admin` — cho qua mọi principal đã xác thực: ma trận mutation của
+ *    token-admin phân biệt viewer/member/admin theo từng hành vi
+ *    (list/rotate/revoke per-creator), nên admission thô ở middleware rồi
+ *    enforce tinh ở route — middleware không thể biểu thị "member nhưng chỉ
+ *    row mình tạo".
  */
 export async function handleUserToken(
   c: import('hono').Context<AppEnv>,
@@ -296,12 +301,21 @@ export async function handleUserToken(
     case 'granted':
       break;
   }
-  if (required !== 'read' || !roleSatisfies(membership.role, 'viewer')) {
+  if (required === 'write') {
+    // ADR-0032 §3: không user nào ghi domain qua portal trong M1.
     return forbidden();
   }
+  if (required === 'read' && !roleSatisfies(membership.role, 'viewer')) {
+    return forbidden();
+  }
+  // `admin`: mọi principal đã xác thực đi tiếp — ma trận từng hành vi nằm ở
+  // route (`routes/admin.ts`), nơi phân biệt viewer/member/admin/owner.
   c.set('tenantId', membership.tenantId);
   c.set('tenantName', membership.tenantName);
   c.set('principalSub', verified.sub);
+  // Role hiệu lực (owner đã floor admin) — route token-admin đọc để enforce
+  // ma trận ADR-0032 §1 mà không resolve lại membership lần thứ hai.
+  c.set('principalRole', membership.role);
   await next();
   return undefined;
 }

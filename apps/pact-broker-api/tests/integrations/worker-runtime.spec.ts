@@ -90,6 +90,7 @@ beforeAll(async () => {
     const repo = new Infra.PgTenantRepo(pool);
     await repo.ensureDefaultTenant('tenant-a', 'sub-a-owner');
     const token = await repo.createMachineToken(
+      pool,
       (await repo.getTenantByName('tenant-a'))?.id ?? '',
       'sub-a-owner',
       'ci-worker-runtime',

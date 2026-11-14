@@ -71,9 +71,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const migrator = await db.connectAsMigrator();
     try {
       const first = await applyAllMigrations(migrator);
-      expect(first.applied).toBe(5);
+      expect(first.applied).toBe(6);
       const second = await applyAllMigrations(migrator);
-      expect(second.applied).toBe(5);
+      expect(second.applied).toBe(6);
     } finally {
       await migrator.end();
     }
@@ -98,7 +98,7 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
         const migrator = await fresh.connectAsMigrator();
         try {
           const result = await applyAllMigrations(migrator);
-          expect(result.applied).toBe(5);
+          expect(result.applied).toBe(6);
           expect(result.tablesInPactSchema).toBe(EXPECTED_TABLES.length);
         } finally {
           await migrator.end();
@@ -319,6 +319,34 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
       );
       await expect(insertToken('probe-hash-double-space', 'read  write')).rejects.toThrow(
         /machine_tokens_scopes_check/u,
+      );
+    } finally {
+      await runtime.end();
+    }
+  });
+
+  it('rejects machine token purpose outside the developer/ci vocabulary (ADR-0032 §2)', async () => {
+    // Purpose là enum cố định 'developer' | 'ci' | NULL — CHECK
+    // `machine_tokens_purpose_check` (migration 0006) chặn giá trị lạ ngay
+    // tầng PostgreSQL, không chỉ validation của route.
+    const runtime = await db.asRuntime();
+    try {
+      await runtime.query(
+        `INSERT INTO pact.tenants (name, classification, plan, owner_sub)
+         VALUES ('purpose-probe', 'customer', 'free', 'sub-owner-purpose-probe')`,
+      );
+      const insertToken = (hash: string, purpose: string | null) =>
+        runtime.query(
+          `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, scopes, purpose)
+           SELECT $1, id, 'probe-token', 'read', $2 FROM pact.tenants WHERE name = 'purpose-probe'`,
+          [hash, purpose],
+        );
+
+      await insertToken('probe-purpose-null', null);
+      await insertToken('probe-purpose-developer', 'developer');
+      await insertToken('probe-purpose-ci', 'ci');
+      await expect(insertToken('probe-purpose-bad', 'deploy')).rejects.toThrow(
+        /machine_tokens_purpose_check/u,
       );
     } finally {
       await runtime.end();

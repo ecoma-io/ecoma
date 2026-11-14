@@ -79,11 +79,40 @@ export default {
   tokens: {
     title: 'API tokens',
     description:
-      'Machine token cho CI và Pact CLI. Giá trị token chỉ hiển thị đúng một lần lúc tạo.',
+      'Machine credential cho CI và Pact CLI. Giá trị chỉ hiển thị đúng một lần lúc tạo.',
     name: 'Tên',
     scopes: 'Phạm vi',
+    purpose: 'Mục đích',
+    purposeDeveloper: 'Developer (kịch bản CLI, publish/verify)',
+    purposeCi: 'CI (pipeline)',
+    creator: 'Người tạo',
     createdAt: 'Tạo lúc',
+    status: 'Trạng thái',
     revoked: 'Đã thu hồi',
     active: 'Còn hiệu lực',
+    copy: 'Sao chép token',
+    copied: 'Đã sao chép',
+    dismiss: 'Đã lưu — ẩn',
+    rotate: 'Xoay',
+    revoke: 'Thu hồi',
+    createFailed: 'Tạo credential bị từ chối — kiểm tra lại quyền hoặc dữ liệu.',
+    mutateFailed: 'Thao tác bị từ chối — credential có thể vừa bị người khác đổi trạng thái.',
+    csrfMissing:
+      'Phiên của bạn thiếu security token — tải lại trang; nếu vẫn lặp lại, đăng nhập rồi thử lại.',
+    revealed: {
+      title: 'Token chỉ hiển thị lần này',
+      hint: 'Lưu lại ngay — "{name}" sẽ không bao giờ hiển thị lại. Reload trang là mất vĩnh viễn.',
+    },
+    create: {
+      title: 'Tạo credential mới',
+      submit: 'Tạo credential',
+    },
+    confirm: {
+      rotateTitle: 'Xoay credential?',
+      revokeTitle: 'Thu hồi credential?',
+      hint: 'Gõ đúng tên "{name}" để xác nhận. Xoay làm secret cũ hết hiệu lực ngay; thu hồi không thể hoàn tác.',
+      cancel: 'Huỷ',
+    },
+    forbidden: 'Bạn không có quyền xem credential của tenant này.',
   },
 };
