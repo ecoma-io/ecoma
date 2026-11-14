@@ -120,13 +120,19 @@ async function portalProxy(event: H3Event): Promise<unknown> {
   const principal = requirePrincipal(event);
 
   // Byte thẳng từ request — đúng byte được ký; không parse/serialize lại.
-  const rawBody = await readRawBody(event, false);
+  // ⚠️ `readRawBody` của h3 1.15 assert method PayloadMethods (POST/PUT/PATCH/
+  // DELETE) trước khi đọc — một GET đi qua đây nhận 405 dù không có body.
+  // GET của portal không mang body, nên chỉ đọc khi method là payload method.
   const body =
-    rawBody === undefined || rawBody === null
+    event.method === 'GET'
       ? null
-      : typeof rawBody === 'string'
-        ? new TextEncoder().encode(rawBody)
-        : new Uint8Array(rawBody);
+      : await (async (): Promise<Uint8Array | null> => {
+          const rawBody = await readRawBody(event, false);
+          if (rawBody === undefined || rawBody === null) return null;
+          return typeof rawBody === 'string'
+            ? new TextEncoder().encode(rawBody)
+            : new Uint8Array(rawBody);
+        })();
 
   let result;
   try {
@@ -154,7 +160,9 @@ async function portalProxy(event: H3Event): Promise<unknown> {
   }
 
   setResponseStatus(event, result.status);
-  return stripForbiddenKeys(result.json);
+  // Bóc khoá secret CHỈ trên GET (metadata list/detail): response của POST tạo
+  // là show-once — `api_key.token` là nội dung ĐÚNG hợp đồng phải tới browser.
+  return event.method === 'GET' ? stripForbiddenKeys(result.json) : result.json;
 }
 
 /** Handler GET chung — list project, chi tiết project, list metadata key. */
