@@ -199,7 +199,7 @@ API Key → Principal → Project / Namespace → Storage Partition → Cache Ob
 - Không có global write credential cho toàn ecosystem.
 - B2 credentials nằm trong storage layer, không expose cho protocol/authentication layer; mỗi backend dùng least-privilege credentials.
 - API key secrets chỉ tồn tại ở creation response; persistent state chỉ giữ cryptographic representation.
-- Hai lớp identity tách biệt: **human identity** do Ecoma Account sở hữu (portal xác thực qua OIDC, quyền resolve từ membership của tenant sản phẩm — R16/R17) và **machine identity** là API key của `remote-cache` (§2.4 domain model). Portal không trao trạng thái đăng nhập cho data plane — truy cập cache vẫn luôn qua API key. Phân lớp developer credential vs trusted CI credential giữ nguyên write semantics của trusted CI (R20); đại diện canonical của human principal trên control plane là quyết định còn mở → [`../../domains/remote-cache/domain-model.md`](../../domains/remote-cache/domain-model.md) §4.
+- Hai lớp identity tách biệt: **human identity** do Ecoma Account sở hữu (portal xác thực qua OIDC, quyền resolve từ membership của tenant sản phẩm — R16/R17) và **machine identity** là API key của `remote-cache` (§2.4 domain model). Portal không trao trạng thái đăng nhập cho data plane — truy cập cache vẫn luôn qua API key. Phân lớp developer credential vs trusted CI credential giữ nguyên write semantics của trusted CI (R20); đại diện canonical của human principal trên control plane đã chốt — envelope HMAC nội bộ mang actor `sub` đã verify, membership resolve từ database phía server → [ADR-0034](../../domains/remote-cache/adr/0034-human-principal-control-plane-authorization.md).
 
 ---
 
