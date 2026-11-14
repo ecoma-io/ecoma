@@ -73,20 +73,25 @@ export const ROLE_ASSIGNMENT_CREATE_ACTION = 'role_assignment.create';
 
 /**
  * Tập permission sealed của role canonical (ADR-0024 Quyết định 5, mở rộng bởi
- * ADR-0033 Quyết định 2).
+ * ADR-0033 Quyết định 2 và ADR-0034 Quyết định 2).
  *
  * Bốn permission read là nội dung bootstrap cần cho phép đo `admins_before`/
  * `admins_ever`; `invitation.create` được seed migration `0010` cấp thêm cho cùng
  * role canonical để administrator phát được lời mời tạo Account (ADR-0030 Quyết
- * định 3). Tập này phải khớp mảng khai báo của assertion "sealed set" ở migration
- * `0008` — lệch nhau thì bootstrap từ chối `role_permissions_mismatch`, đúng chủ
- * đích: phép đo không được hợp lệ hoá một catalog mà migration chưa chốt.
+ * định 3); ba permission ghi `role.assign`/`role.revoke`/`staff.create` được
+ * `0011` cấp thêm cho bổ nhiệm thường (ADR-0034, issue #44). Tập này phải khớp
+ * mảng khai báo của assertion "sealed set" ở migration `0008` — lệch nhau thì
+ * bootstrap từ chối `role_permissions_mismatch`, đúng chủ đích: phép đo không
+ * được hợp lệ hoá một catalog mà migration chưa chốt.
  */
 export const CANONICAL_ROLE_PERMISSIONS = [
   'audit.read',
   'invitation.create',
   'permission.read',
+  'role.assign',
   'role.read',
+  'role.revoke',
+  'staff.create',
   'staff.read',
 ] as const;
 
