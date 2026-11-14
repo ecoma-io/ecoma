@@ -17,7 +17,7 @@
  *   Account↔Mail (OTP). PHẢI khác `internalHmacSecret` — validation của
  *   account từ chối hai secret trùng nhau, và registry của receiver mail coi
  *   mỗi entry là một credential riêng.
- * - `staffAccessInternalHmacSecret` (#260): path HMAC Account↔Staff-Access —
+ * - `staffAccessInternalAuthSecret` (#260): path HMAC Account↔Staff-Access —
  *   ĐỌC LẠI từ stack config của staff-access-deploy (secret envelope mà
  *   staff-access verify, cùng pattern backoffice-deploy đọc secret của nó).
  *   PHẢI khác `internalHmacSecret` — cùng lý do hai credential ở trên.
@@ -93,7 +93,7 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
     // `internalHmacSecret` bên trên (mỗi path một credential riêng; staff-access
     // verify bằng `AUTH_INTERNAL_SECRET` của nó). index.ts đặt vào biến container
     // `NUXT_STAFF_ACCESS_INTERNAL_AUTH_SECRET` của account (#260).
-    ['namespace:staffAccessInternalHmacSecret', resolveStaffAccessInternalSecret(foundation)],
+    ['namespace:staffAccessInternalAuthSecret', resolveStaffAccessInternalSecret(foundation)],
   ];
   for (const [configKey, configValue] of secrets) {
     setStackConfig('account-deploy', configKey, configValue, foundation);
