@@ -26,9 +26,12 @@ import {
  *
  * `/api/me` là route đọc session (KHÔNG enforcement permission) — 200 với
  * `{sub, displayName}` chứng minh toàn chuỗi token→session→principal chạy
- * thật. `displayName` local luôn `null` (controlled degrade): container Node
- * không có binding `ACCOUNT_SERVICE` nên `accountClientConfig` trả `null` —
- * suite chấp nhận cả hai (null hoặc string) nhưng KHÔNG chấp nhận vắng mặt.
+ * thật. `displayName` của identity này là `null` **vì user chưa đặt tên**
+ * (gate onboarding của #325/#242 — xem `onboarding-status.spec.ts` cho nhánh
+ * user ĐÃ có tên): container Node local CÓ binding `ACCOUNT_SERVICE` kể từ
+ * #242, nên `accountClientConfig` không còn trả `null` và route không còn
+ * degrade. Suite chấp nhận cả hai (null hoặc string) nhưng KHÔNG chấp nhận
+ * vắng mặt.
  */
 
 test.describe.serial('authenticated access after full browser login', () => {
@@ -49,14 +52,18 @@ test.describe.serial('authenticated access after full browser login', () => {
     const sinceMs = Date.now();
     const mailWic = mailWicContainerOf(postgres);
 
-    const { finalHop } = await performBrowserLogin(page, {
+    const { finalHop, finalPath } = await performBrowserLogin(page, {
       email: AUTH_IDENTITY.email,
       readOtp: () => readOtpFromMailSink(mailWic, { recipient: AUTH_IDENTITY.email, sinceMs }),
     });
     callbackStatus = finalHop.status;
 
-    // Browser đứng ở `/` của backoffice (callback 302 đích cuối).
-    expect(page.url()).toBe(`${resolveStackOrigin()}/`);
+    // Browser đứng ở trang đích sau callback 302: `/` khi user đã có display
+    // name, `/onboarding` khi chưa (gate onboarding của #325/#242 quyết định ở
+    // server). Identity của suite này KHÔNG có display name ⇒ đích đúng là
+    // `/onboarding`.
+    expect(finalPath).toBe('/onboarding');
+    expect(page.url()).toBe(`${resolveStackOrigin()}/onboarding`);
 
     // Session cookie đã nằm trong browser context — HttpOnly vẫn đọc được qua
     // API context của Playwright (không phải document.cookie).

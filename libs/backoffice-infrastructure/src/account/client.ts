@@ -54,6 +54,26 @@ export const ACCOUNT_SERVICE_BINDING_NAME = 'ACCOUNT_SERVICE';
  */
 export const AUTH_INTERNAL_SECRET_ENV = 'AUTH_INTERNAL_SECRET';
 
+/**
+ * Tên biến `env` giữ secret HMAC cho **cặp backoffice ↔ account** — giá trị
+ * `internalHmacSecret` mà `account` dùng để verify, do deploy layer cấp riêng.
+ *
+ * ## Vì sao không dùng lại `AUTH_INTERNAL_SECRET`
+ *
+ * Tên `AUTH_INTERNAL_SECRET` là quy ước "một container, một secret nội bộ":
+ * mỗi caller đặt giá trị của cặp DUY NHẤT của mình vào đó (auth đặt secret của
+ * account; backoffice đặt secret của staff-access). Backoffice gọi **hai**
+ * service nội bộ với **hai** secret khác nhau (mỗi stack sinh secret độc lập —
+ * `account-deploy` và `staff-access-deploy` tự `generateInternalHmacSecret`),
+ * nên một tên env không đủ chứa hai giá trị. Trên runtime Node local, shim
+ * (`apps/backoffice/server/plugins/account-service-shim.ts`) nạp giá trị của
+ * account từ biến container cùng tên vào `env` theo từng request; Workers thì
+ * KHÔNG đặt biến này (binding `ACCOUNT_SERVICE` + `AUTH_INTERNAL_SECRET` giữ
+ * nguyên hành vi hiện có — hàm đọc bên dưới ưu tiên biến này nhưng vẫn fallback
+ * về `AUTH_INTERNAL_SECRET`).
+ */
+export const ACCOUNT_INTERNAL_SECRET_ENV = 'ACCOUNT_INTERNAL_SECRET';
+
 /** Shape tối thiểu của Service Binding mà module này đọc từ `env` của Worker. */
 export interface AccountServiceBinding {
   fetch: (input: Request, init?: RequestInit) => Promise<Response>;
@@ -122,7 +142,11 @@ export function accountClientConfig(env: unknown): AccountClientConfig | null {
   }
   const record = env as Record<string, unknown>;
   const bindingValue = record[ACCOUNT_SERVICE_BINDING_NAME];
-  const secret = readString(record[AUTH_INTERNAL_SECRET_ENV]);
+  // Secret của cặp account đặt trước (đặt tên riêng — xem
+  // `ACCOUNT_INTERNAL_SECRET_ENV`); fallback về tên chung giữ hành vi Workers
+  // hiện có, nơi chỉ `AUTH_INTERNAL_SECRET` tồn tại.
+  const secret =
+    readString(record[ACCOUNT_INTERNAL_SECRET_ENV]) ?? readString(record[AUTH_INTERNAL_SECRET_ENV]);
   if (
     typeof bindingValue !== 'object' ||
     bindingValue === null ||

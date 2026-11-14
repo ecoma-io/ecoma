@@ -85,6 +85,7 @@ export type {
 } from './auth/verify';
 
 export {
+  ACCOUNT_INTERNAL_SECRET_ENV,
   ACCOUNT_SERVICE_BINDING_NAME,
   AUTH_INTERNAL_SECRET_ENV,
   accountClientConfig,

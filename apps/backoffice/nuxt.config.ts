@@ -89,6 +89,16 @@ export default defineNuxtConfig({
     // chính path của request (`/staff`, `/roles`, `/permissions`), shim chỉ thay
     // protocol + authority của URL, KHÔNG ký thêm gì, KHÔNG giữ khoá.
     backofficeStaffAccessServiceUrl: '',
+    // Origin fetch server-side tới `account` — **tuỳ chọn**, cùng nguyên tắc
+    // `backofficeStaffAccessServiceUrl`: rỗng = không mount shim ⇒
+    // `accountClientConfig()` trả `null` ⇒ mọi gọi account fail-closed
+    // `binding_missing` (`/api/onboarding-status` 503, `/api/me` trả
+    // `displayName: null`), đúng trạng thái production khi hạ tầng chưa
+    // provision. Có giá trị (local: `http://ecoma-account:3000` do
+    // backoffice-deploy cấp) = fetch từ origin nội bộ vì container không
+    // resolve được hostname `account` và không đi ra host loopback được. Xem
+    // `server/plugins/account-service-shim.ts`.
+    backofficeAccountServiceUrl: '',
     public: {
       backofficeDataMode: BACKOFFICE_DATA_MODE_DISABLED,
       // URL trang profile của `account` (origin + path, vd

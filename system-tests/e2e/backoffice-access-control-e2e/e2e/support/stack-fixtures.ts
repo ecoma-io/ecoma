@@ -156,6 +156,69 @@ export async function seedAccountIdentity(
   ]);
 }
 
+/**
+ * Xoá hàng profile 1:1 của một user (`account.user_profiles`) — đưa user về
+ * trạng thái "chưa đặt tên" (contract `displayName: null`).
+ *
+ * ⚠️ Không dùng `display_name = ''` để làm việc này: CHECK
+ * `user_profiles_display_name_shape_check` chặn chuỗi rỗng (NULL = chưa nhập,
+ * rỗng là dạng sai). Xoá hàng là cách duy nhất đúng hình dạng.
+ */
+export async function clearAccountDisplayName(
+  postgresContainer: string,
+  params: { readonly sub: string },
+): Promise<void> {
+  await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-account',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `DELETE FROM account.user_profiles WHERE user_sub = ${sqlQuote(params.sub)};`,
+  ]);
+}
+
+/**
+ * Seed hàng profile 1:1 của một user (`account.user_profiles`) — cột
+ * `display_name` là nguồn của `displayName` mà `account` trả qua contract
+ * `GET /internal/account/profiles` (#325), và cũng là điều kiện để gate
+ * onboarding của backoffice trả `needsDisplayName: false`.
+ *
+ * ⚠️ `ON CONFLICT (user_sub) DO UPDATE` — rerun phải là CÙNG một trạng thái
+ * (tên đã đổi thì lần sau vẫn phải là tên mới, không phải tên cũ).
+ *
+ * ⚠️ Ghi thẳng DB chứ không gọi `PATCH /api/profile` của account: suite cần
+ * trạng thái "đã có tên" **trước** khi đăng nhập (để callback đáp `/`), mà
+ * `PATCH /api/profile` đòi session account đã xác thực — vòng lặp không khép
+ * lại được. Ràng buộc của bảng vẫn được DB chặn: `display_name` NULL hoặc
+ * chuỗi 1–200 ký tự (CHECK `user_profiles_display_name_shape_check`).
+ */
+export async function seedAccountDisplayName(
+  postgresContainer: string,
+  params: { readonly sub: string; readonly displayName: string },
+): Promise<void> {
+  const sql = [
+    `INSERT INTO account.user_profiles (user_sub, display_name)
+     VALUES (${sqlQuote(params.sub)}, ${sqlQuote(params.displayName)})
+     ON CONFLICT (user_sub) DO UPDATE
+       SET display_name = EXCLUDED.display_name, updated_at = now();`,
+  ].join('\n');
+  await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-account',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    sql,
+  ]);
+}
+
 // -------------------------------------------------------------------------------------------
 // Backoffice side (db-backoffice): staff + role + permission + assignment
 // -------------------------------------------------------------------------------------------

@@ -53,6 +53,35 @@ export const PERMISSION_IDENTITY = {
 } as const;
 
 /**
+ * Định danh của `onboarding-status.spec.ts` — user ĐÃ có display name ⇒
+ * callback 302 `/` (đi thẳng app), `needsDisplayName` false.
+ *
+ * ⚠️ Tách identity riêng cho file này (cùng lý do tách per-file của các
+ * identity trên): hai worker chạy song song cùng đi path `granted` và cùng
+ * đụng một hộp thư sink ⇒ email riêng cho mỗi file là điều kiện để không
+ * cross-match OTP.
+ */
+export const ONBOARDING_NAMED_IDENTITY = {
+  sub: 'sub_pr242onbnameduseraaaaaaaaaaaaaaa',
+  email: 'backoffice-acl-e2e-onb-named@local.test',
+} as const;
+
+/**
+ * Định danh của `onboarding-status.spec.ts` — user CHƯA có display name ⇒
+ * callback 302 `/onboarding`, `needsDisplayName` true.
+ */
+export const ONBOARDING_UNNAMED_IDENTITY = {
+  sub: 'sub_pr242onbunnameduseraaaaaaaaaaaaa',
+  email: 'backoffice-acl-e2e-onb-unnamed@local.test',
+} as const;
+
+/**
+ * Display name seed cho `ONBOARDING_NAMED_IDENTITY` — giá trị cố định để
+ * rerun là cùng một hàng (`ON CONFLICT DO UPDATE` trong helper seed profile).
+ */
+export const ONBOARDING_NAMED_DISPLAY_NAME = 'Acl E2e Named';
+
+/**
  * Actor khai báo trên `role_assignments.created_by_sub` — PHẢI khác sub của
  * staff (guard self-elevation của migration `0004` chặn
  * `staff_sub = created_by_sub` khi INSERT bằng runtime role; suite seed bằng

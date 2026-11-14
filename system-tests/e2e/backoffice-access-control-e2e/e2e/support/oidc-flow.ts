@@ -30,9 +30,14 @@ import { expect, type Page, type Response } from '@playwright/test';
  * 6. Provider cấp `code` về `redirect_uri` = `…/api/auth/callback`; callback
  *    của BFF đổi code lấy token qua `NUXT_BACKOFFICE_AUTH_INTERNAL_ORIGIN`,
  *    insert `bff_sessions`, set `__Host-backoffice-session` +
- *    `__Host-backoffice-csrf`, xoá login-flow cookie, 302 `/`
- *    (onboarding redirect không kích hoạt local vì `ACCOUNT_SERVICE` binding
- *    không được cấp cho container Node — `accountClientConfig` trả `null`).
+ *    `__Host-backoffice-csrf`, xoá login-flow cookie, rồi 302:
+ *    - `/onboarding` khi session CHƯA có display name ở `account` (gate
+ *      onboarding của #325/#242 — server quyết định, không phải client);
+ *    - `/` khi session ĐÃ có display name.
+ *    Trước #242, container Node local không có binding `ACCOUNT_SERVICE` ⇒
+ *    `accountClientConfig` trả `null` ⇒ gate luôn mềm ⇒ mọi phiên đáp `/`;
+ *    nay CẢ HAI đích đều là hành vi đúng, nên helper chấp nhận cả hai và
+ *    trả `finalPath` để test assert đúng nhánh mình đang chứng minh.
  *
  * Helper KHÔNG assert chi tiết contract từng redirect — việc đó thuộc các test
  * contract chạy bằng request Node; helper chỉ điều khiển UI cho đến khi
@@ -54,10 +59,15 @@ export interface LoginFlowParams {
  */
 export interface LoginFlowResult {
   /**
-   * Status + `Set-Cookie` của hop CUỐI (callback 302 `/`): bằng chứng contract
+   * Status + `Set-Cookie` của hop CUỐI (callback 302): bằng chứng contract
    * hop cuối của callback, lấy từ response listener gắn trước khi điều hướng.
    */
   readonly finalHop: { readonly status: number; readonly setCookie: string | undefined };
+  /**
+   * Path mà browser đứng sau khi callback 302 — `/` khi user đã có display name,
+   * `/onboarding` khi chưa (gate onboarding của #325/#242 quyết định ở server).
+   */
+  readonly finalPath: string;
 }
 
 /**
@@ -71,6 +81,19 @@ export interface LoginFlowResult {
  */
 const NAVIGATION_RETRIES = 5;
 const NAVIGATION_BUDGET_MS = 45_000;
+
+/**
+ * Hai đích hợp lệ sau khi callback 302 — `/` (đã có display name) và
+ * `/onboarding` (chưa có tên ⇒ gate onboarding của #325/#242 điều hướng).
+ *
+ * ⚠️ Pattern này là **đường đích của phiên**, không phải "bất cứ đâu trong
+ * app": `/$` khớp đúng `/` (không khớp `/onboarding`), `/\/onboarding$/` khớp
+ * đúng `/onboarding`. Trước #242, account không trả lời được local ⇒ gate luôn
+ * mềm ⇒ mọi phiên đáp `/`; nay nhánh `/onboarding` là hành vi ĐÚNG, nên helper
+ * phải chấp nhận cả hai — còn `performBrowserLogin` trả `finalPath` để test
+ * assert CHÍNH NHÁNH mình muốn chứng minh.
+ */
+const LANDED_PATH_PATTERN = /(?:\/$|\/onboarding$)/u;
 
 /**
  * Trang chết "chưa sẵn sàng" mà browser đang đứng — đọc từ status của response
@@ -206,16 +229,16 @@ export async function performBrowserLogin(
 
   // Lần đầu login ⇒ trang consent với nút approve; nhưng grant của identity
   // tồn tại qua các run (persist trong `oauth_grants`) ⇒ run sau đi path
-  // `granted` — handoff trả resume URL và browser về `/` TRỰC TIẾP, không qua
-  // consent. `Promise.race` chấp nhận cả hai hình dạng: thấy consent card thì
-  // đi đủ approve → continue, không thấy (đã về `/`) thì đi thẳng.
+  // `granted` — handoff trả resume URL và browser về trang đích TRỰC TIẾP,
+  // không qua consent. `Promise.race` chấp nhận cả hai hình dạng: thấy consent
+  // card thì đi đủ approve → continue, không thấy (đã về đích) thì đi thẳng.
   const consentCard = page.getByTestId('consent-card');
-  const backAtHome = page.waitForURL(/\/$/u, { timeout: 30_000 });
+  const backAtDestination = page.waitForURL(LANDED_PATH_PATTERN, { timeout: 30_000 });
   const consentShown = consentCard
     .waitFor({ state: 'visible', timeout: 30_000 })
     .then(() => true)
     .catch(() => false);
-  const sawConsent = await Promise.race([consentShown, backAtHome.then(() => false)]);
+  const sawConsent = await Promise.race([consentShown, backAtDestination.then(() => false)]);
   if (sawConsent) {
     await page.getByTestId('consent-approve').click();
 
@@ -226,10 +249,14 @@ export async function performBrowserLogin(
     await consentContinue.click();
   }
 
-  // Callback → 302 `/`; browser đổ về overview của backoffice với session.
-  await expect(page).toHaveURL(/\/$/u);
+  // Callback → 302: browser đổ về `/` (đã có display name) HOẶC `/onboarding`
+  // (chưa có — gate onboarding của #325/#242 quyết định ở server, không ở
+  // client). Trước #242, account không trả lời được local ⇒ gate luôn mềm ⇒
+  // mọi phiên đáp `/`; nay nhánh `/onboarding` là hành vi ĐÚNG và bắt buộc,
+  // nên helper chấp nhận CẢ HAI đích.
+  await expect(page).toHaveURL(LANDED_PATH_PATTERN);
   if (finalHop === undefined) {
     throw new Error('login flow finished but no /api/auth/callback response was observed');
   }
-  return { finalHop };
+  return { finalHop, finalPath: new URL(page.url()).pathname };
 }
