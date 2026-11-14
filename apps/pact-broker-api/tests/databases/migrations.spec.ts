@@ -71,9 +71,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const migrator = await db.connectAsMigrator();
     try {
       const first = await applyAllMigrations(migrator);
-      expect(first.applied).toBe(4);
+      expect(first.applied).toBe(5);
       const second = await applyAllMigrations(migrator);
-      expect(second.applied).toBe(4);
+      expect(second.applied).toBe(5);
     } finally {
       await migrator.end();
     }
@@ -98,7 +98,7 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
         const migrator = await fresh.connectAsMigrator();
         try {
           const result = await applyAllMigrations(migrator);
-          expect(result.applied).toBe(4);
+          expect(result.applied).toBe(5);
           expect(result.tablesInPactSchema).toBe(EXPECTED_TABLES.length);
         } finally {
           await migrator.end();
