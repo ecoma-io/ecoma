@@ -655,11 +655,11 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-app/server/api/broker/environments.get.ts",
-    "start": 25,
-    "end": 25,
-    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts).",
+    "start": 26,
+    "end": 26,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 25->26 khi sua #254 review: requirePrincipal chuyen len truoc config guard, dong pin xuong 1 dong (khong doi noi dung dong pin).",
     "lines": {
-      "25": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+      "26": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
   },
   {
