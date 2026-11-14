@@ -187,6 +187,21 @@ export default defineNuxtConfig({
     // `unavailable` với reason `authorization_surface_not_configured` ⇒ route phát
     // lời mời 503 fail-closed (không có đường nào phát mà không có verdict).
     staffAccessInternalAuthSecret: '',
+    // Origin HTTP của worker `staff-access` cho adapter Service Binding
+    // `STAFF_ACCESS_SERVICE` trên preset `node-server` (local lane) — cùng cơ
+    // chế với `authServiceUrl` bên trên. Rỗng = chưa cấu hình ⇒ shim không
+    // mount ⇒ `staffAccessServiceBinding()` trả `null` ⇒ mọi hỏi verdict
+    // fail-closed `authorization_surface_not_configured`, đúng trạng thái
+    // production khi hạ tầng chưa provision (production Workers dùng binding
+    // thật qua `__env__`, không đặt biến này).
+    //
+    // ## Vì sao key này phải nằm ở đây
+    //
+    // Envmmap của Nitro (`applyEnv`) chỉ merge vào các key CÓ SẴN trong object
+    // inline (đã đo ở `NUXT_CLOUDFLARE_ENV` của chính file này) — không khai key
+    // thì biến `NUXT_STAFF_ACCESS_SERVICE_URL` của deploy layer không bao giờ
+    // chạm được tới runtimeConfig.
+    staffAccessServiceUrl: '',
     // Cửa sổ skew (giây) của envelope HMAC; rỗng ⇒ `verifyRequest` dùng mặc định
     // 300s. Để trống chứ không đặt số ở đây để chỉ có **một** nơi định nghĩa mặc định
     // (trong `internal-auth-contracts`) — tránh hai nguồn sự thật cho cùng một luật.

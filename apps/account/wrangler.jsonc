@@ -87,6 +87,21 @@
       "id": "00000000000000000000000000000000",
     },
   ],
+  // Service binding tới worker `ecoma-staff-access` — cùng kiểu khai với
+  // `apps/backoffice/wrangler.jsonc`: binding `STAFF_ACCESS_SERVICE` giữ nguyên
+  // shape contract thật (`fetch(request, init)`), code gọi không biết gì về việc
+  // ở local nó là shim chuyển tiếp HTTP tới WIC staff-access. Binding KHÔNG
+  // phải authenticator — mọi request qua nó vẫn ký envelope HMAC với secret
+  // path này (`staffAccessInternalAuthSecret`, ADR-0033 Quyết định 3). Top-level
+  // (không khai trong `env.*`): Worker này hiện chưa dùng identity Cloudflare
+  // per-env, và wrangler không inherit `services` giữa các env — thêm vào env
+  // cụ thể khi làn staging/production bật contract verdict này.
+  "services": [
+    {
+      "binding": "STAFF_ACCESS_SERVICE",
+      "service": "ecoma-staff-access",
+    },
+  ],
   "dev": {
     "port": 4202,
   },

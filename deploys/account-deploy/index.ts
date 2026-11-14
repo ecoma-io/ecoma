@@ -153,6 +153,30 @@ const otpHmacSecret = conf.require('otpHmacSecret');
  */
 const mailInternalAuthSecret = conf.require('mailInternalAuthSecret');
 
+/**
+ * Secret HMAC path Account↔Staff-Access (`POST /authorization/verdict`,
+ * ADR-0033 Quyết định 3) — ĐỌC LẠI từ stack config của staff-access-deploy
+ * (`namespace:internalHmacSecret` — secret envelope HMAC mà staff-access
+ * verify), theo đúng pattern backoffice-deploy đọc lại secret của cặp
+ * staff-access ↔ backoffice. `local.ts` persist giá trị đó vào stack config
+ * của chính stack này trước khi `index.ts` chạy (`ensureStackForEntry` +
+ * đọc cross-stack); vắng ⇒ fail ngay lúc `pulumi up` chứ không container với
+ * secret rỗng. PHẢI khác `internalHmacSecret` — hai path là hai credential
+ * riêng (validation của account chặn trùng khi path mail bật, cùng luật).
+ */
+const staffAccessInternalAuthSecret = conf.require('staffAccessInternalAuthSecret');
+
+/**
+ * Cổng HTTP nội bộ của worker `ecoma-staff-access` trong WIC của
+ * staff-access-deploy — GIÁ TRỊ GHIM ở stack đó (`dev.port` của
+ * `apps/staff-access/wrangler.jsonc`), copy tại đây vì hai stack là hai Pulumi
+ * program độc lập; lệch giá trị là connection refused ở lần hỏi verdict đầu
+ * tiên. Alias `ecoma-staff-access` + port này là đường duy nhất container Node
+ * tới được staff-access trên platform network (cùng pattern
+ * `AUTH_INTERNAL_PORT_OF_AUTH_WIC` ở trên).
+ */
+const STAFF_ACCESS_INTERNAL_PORT_OF_STAFF_ACCESS_WIC = 4206;
+
 const verifiedNamespace = pulumi.output(platformNamespace).apply((upstreamNs) => {
   if (upstreamNs !== ns) {
     throw new Error(
@@ -349,6 +373,21 @@ const account = new docker.Container(
       // alias duy nhất trên platform network, account container cùng network).
       pulumi.interpolate`NUXT_MAIL_SERVICE_URL=http://ecoma-mail:${MAIL_INTERNAL_PORT_OF_MAIL_WIC}`,
       pulumi.interpolate`NUXT_MAIL_INTERNAL_AUTH_SECRET=${pulumi.secret(mailInternalAuthSecret)}`,
+      // Alias `ecoma-staff-access` của WIC staff-access-deploy (không
+      // namespace — một alias duy nhất trên platform network, port nội bộ 4206
+      // — nguồn hằng `dev.port` của apps/staff-access/wrangler.jsonc). Shim
+      // Nitro trong account biến URL này thành binding STAFF_ACCESS_SERVICE
+      // lúc runtime (server/plugins/staff-access-service-shim.ts) — bật đường
+      // verdict phát lời mời (ADR-0033 Quyết định 3). URL rỗng/vắng ⇒ mọi hỏi
+      // verdict fail-closed `authorization_surface_not_configured`.
+      pulumi.interpolate`NUXT_STAFF_ACCESS_SERVICE_URL=http://ecoma-staff-access:${STAFF_ACCESS_INTERNAL_PORT_OF_STAFF_ACCESS_WIC}`,
+      // Secret HMAC path Account↔Staff-Access — giá trị KHÁC
+      // `NUXT_INTERNAL_HMAC_SECRET` (cặp account↔auth) và KHÁC
+      // `NUXT_MAIL_INTERNAL_AUTH_SECRET` (cặp account↔mail): staff-access
+      // verify envelope bằng `AUTH_INTERNAL_SECRET` của nó, một entry riêng
+      // trong registry. Đọc lại từ stack config của staff-access-deploy (xem
+      // JSDoc `staffAccessInternalAuthSecret` ở trên).
+      pulumi.interpolate`NUXT_STAFF_ACCESS_INTERNAL_AUTH_SECRET=${pulumi.secret(staffAccessInternalAuthSecret)}`,
       // Alias `ecoma-<ns>-auth` của WIC auth-deploy — nguồn hằng
       // `AUTH_INTERNAL_PORT` của auth-deploy (`dev.port` của
       // apps/auth/wrangler.jsonc). Shim Nitro trong account biến URL này thành
