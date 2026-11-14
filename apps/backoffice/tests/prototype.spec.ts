@@ -108,7 +108,7 @@ describe('waitForRouteReady', () => {
       reloadCalls,
     );
 
-    await expect(waitForRouteReady(page, '/', 5_000)).rejects.toThrow('Timeout 3000ms exceeded');
+    await expect(waitForRouteReady(page, '/', 1_000)).rejects.toThrow('Timeout 3000ms exceeded');
     expect(reloadCalls).toHaveLength(1);
   });
 
@@ -126,7 +126,7 @@ describe('waitForRouteReady', () => {
       reloadCalls,
     );
 
-    await expect(waitForRouteReady(page, '/', 5_000)).rejects.toThrow('Timeout 3000ms exceeded');
+    await expect(waitForRouteReady(page, '/', 1_000)).rejects.toThrow('Timeout 3000ms exceeded');
     expect(reloadCalls).toHaveLength(1);
   });
 

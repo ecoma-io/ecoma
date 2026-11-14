@@ -111,15 +111,18 @@ export async function waitForRouteReady(
       }
 
       const now = Date.now();
-      if (now >= deadline || reloaded) {
+      if (now >= deadline) {
         throw firstCause;
       }
 
       // Một lần reload theo ý định: Vite full-reload đã huỷ module graph, nhưng
       // cache dependency đã nóng sau lần tải đầu. Reload lần thứ hai phục vụ
-      // module từ cache, không gây full-reload nữa.
-      reloaded = true;
-      await page.reload({ waitUntil: 'domcontentloaded' });
+      // module từ cache, không gây full-reload nữa. Chỉ reload một lần; sau đó
+      // tiếp tục chờ theo lát cho đến hết trần thay vì ném ngay sau một lát.
+      if (!reloaded) {
+        reloaded = true;
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      }
     }
   }
 }
