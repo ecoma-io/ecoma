@@ -26,6 +26,7 @@
 import { createApp, createRouter, defineEventHandler, toWebHandler } from 'h3';
 import { createServer, type Server } from 'node:http';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import authnMiddleware from '../../server/middleware/authn';
@@ -176,7 +177,9 @@ async function insertExpiredSession(
   const client = await db.connect();
   try {
     const deadlines = sessionDeadlines(Date.now());
-    await insertSession(client as never, {
+    // `db.connect()` trả PoolClient; `insertSession` chỉ cần `pool.query` —
+    // cast tường minh qua `unknown` thay vì `as never`.
+    await insertSession(client as unknown as Pool, {
       idHash: await hashSessionIdentifier(sessionValue),
       accountSub,
       accessToken: staleToken,

@@ -9,7 +9,8 @@
  *
  * Mock dừng ở hai biên (06 §9): `globalThis.fetch` và barrel
  * `@ecoma-io/backoffice-infrastructure` (pool + session lookup) — mọi thứ sau
- * là code thật.
+ * là code thật. Hai biến trạng thái của barrel được assert thêm vì logout có
+ * **ba** hiệu ứng phải cùng chạy: revoke phía `auth`, hủy phiên DB, xoá cookie.
  */
 
 import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
@@ -30,6 +31,7 @@ const SESSION_ROW = {
 
 const infra = vi.hoisted(() => ({
   loaded: null as unknown,
+  revokedHashes: [] as string[],
 }));
 
 vi.mock('@ecoma-io/backoffice-infrastructure', () => ({
@@ -41,7 +43,9 @@ vi.mock('@ecoma-io/backoffice-infrastructure', () => ({
     cookie !== undefined && cookie === header,
   hashSessionIdentifier: async () => SESSION_ROW.id_hash,
   loadSessionByHash: async () => infra.loaded,
-  revokeSessionByHash: async () => undefined,
+  revokeSessionByHash: async (_pool: unknown, idHash: string) => {
+    infra.revokedHashes.push(idHash);
+  },
   SESSION_COOKIE_NAME: '__Host-backoffice-session',
   // Giữ hình dạng thật của hai hàm nguồn DB: `poolBinding` là code thật của
   // app (không mock), nên hai hàm này đọc đúng runtimeConfig được stub.
@@ -84,6 +88,7 @@ function logoutRequest(): Request {
 
 beforeEach(() => {
   infra.loaded = SESSION_ROW;
+  infra.revokedHashes = [];
   fetchCalls = [];
   vi.stubGlobal('useRuntimeConfig', () => CONFIG);
   vi.stubGlobal(
@@ -132,5 +137,30 @@ describe('POST /api/auth/logout — revocation fetch origin (#243)', () => {
 
     expect(response.status).toBe(204);
     expect(fetchCalls).toHaveLength(0);
+  });
+});
+
+describe('POST /api/auth/logout — the three effects of a successful logout', () => {
+  it('revokes the server-side session, clears both cookies, and answers 204', async () => {
+    // Ba hiệu ứng của logout thành công phải CÙNG chạy: hủy phiên DB (bước có
+    // thẩm quyền), xoá cookie phiên + CSRF trên response. Bỏ một hiệu ứng nào
+    // là logout "nửa vời" — phiên sống lại sau cookie chết, ngược lại là cookie
+    // sống sau phiên chết. Test này chết khi một regression bỏ bất kỳ nhánh nào.
+    const response = await handler()(logoutRequest());
+
+    expect(response.status).toBe(204);
+    expect(infra.revokedHashes).toEqual([SESSION_ROW.id_hash]);
+    const setCookie = response.headers.getSetCookie();
+    expect(setCookie.some((cookie) => cookie.startsWith('__Host-backoffice-session=;'))).toBe(true);
+    expect(setCookie.some((cookie) => cookie.startsWith('__Host-backoffice-csrf=;'))).toBe(true);
+  });
+
+  it('does not revoke the server-side session when no live session matches', async () => {
+    infra.loaded = { ...SESSION_ROW, revoked_at: new Date() };
+
+    const response = await handler()(logoutRequest());
+
+    expect(response.status).toBe(204);
+    expect(infra.revokedHashes).toEqual([]);
   });
 });

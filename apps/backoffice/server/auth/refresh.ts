@@ -61,12 +61,15 @@ export async function renewSessionTokens(
   try {
     // Origin fetch nội bộ khi cấu hình (local) — container Node không resolve
     // được hostname issuer (cùng luật `callback.get.ts`); path `/token` không đổi.
+    // Timeout 10s: auth không trả lời là "không gia hạn được lúc này" — request
+    // treo không được block người dùng vô hạn (nuốt cả AbortError vào `null`).
     const response = await fetch(
       new URL('/token', config.internalOrigin ?? config.issuer).toString(),
       {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
+        signal: AbortSignal.timeout(10_000),
       },
     );
     if (!response.ok) {
@@ -97,11 +100,22 @@ export async function renewSessionTokens(
     return null;
   }
 
-  await pool.query(
-    `UPDATE backoffice.bff_sessions
-        SET access_token = $2, refresh_token = $3
-      WHERE id_hash = $1 AND revoked_at IS NULL`,
-    [idHash, newAccess, newRefresh],
-  );
+  try {
+    // `rowCount === 0` (phiên bị revoke giữa lúc load và UPDATE — logout song
+    // song, reuse-detection) là thất bại: không gắn principal cho phiên đã chết.
+    const result = await pool.query(
+      `UPDATE backoffice.bff_sessions
+          SET access_token = $2, refresh_token = $3
+        WHERE id_hash = $1 AND revoked_at IS NULL`,
+      [idHash, newAccess, newRefresh],
+    );
+    if (result.rowCount === 0) {
+      return null;
+    }
+  } catch {
+    // DB lỗi ⇒ không persist được ⇒ fail-closed về 401, không ném ra ngoài
+    // (một cú lỗi DB không được biến thành 503 cho một request chỉ cần re-login).
+    return null;
+  }
   return { sub: verified.sub };
 }

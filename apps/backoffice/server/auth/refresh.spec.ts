@@ -13,11 +13,13 @@
  *    client);
  * 3. Thành công ⇒ UPDATE **cả hai** cột token (rotation của auth — persist
  *    thiếu refresh token mới là phá phiên sau lần gia hạn đầu);
- * 4. Mọi nhánh thất bại (network, non-2xx, thiếu token, verify hỏng) ⇒ `null`
- *    và **không** UPDATE gì — fail-closed về 401, không loop.
+ * 4. Mọi nhánh thất bại (network, non-2xx, thiếu token, verify hỏng, DB lỗi,
+ *    UPDATE khớp 0 hàng) ⇒ `null` và **không** báo thành công — fail-closed
+ *    về 401, không loop.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Pool } from 'pg';
 
 import { renewSessionTokens } from './refresh';
 
@@ -47,6 +49,12 @@ const CONFIG = {
   internalOrigin: null as string | null,
 };
 
+const VERIFIED_RESULT = () => ({
+  outcome: 'verified' as const,
+  sub: 'sub_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  exp: 0,
+});
+
 interface FetchCall {
   readonly url: string;
   readonly init: RequestInit | undefined;
@@ -58,23 +66,34 @@ interface FetchCall {
 let nextResponse: { status: number; payload: Record<string, unknown> | null };
 let fetchCalls: FetchCall[];
 
-function fakePool(): { queries: { text: string; values: readonly unknown[] }[] } {
-  return { queries: [] };
-}
-
-function poolOf(fake: {
+/**
+ * Pool mock thuần — `queries` ghi lại mọi lệnh để assert; `updateRowCount`
+ * điều khiển rowCount của UPDATE (mặc định 1 = khớp 1 hàng).
+ */
+function createPoolMock(): {
   queries: { text: string; values: readonly unknown[] }[];
-}): Parameters<typeof renewSessionTokens>[0] {
-  return {
+  handle: { updateRowCount: number; throwOnQuery: boolean };
+  pool: Pool;
+} {
+  const queries: { text: string; values: readonly unknown[] }[] = [];
+  const handle = { updateRowCount: 1, throwOnQuery: false };
+  const pool = {
     query: async (text: string, values?: readonly unknown[]) => {
-      fake.queries.push({ text, values: values ?? [] });
-      return { rows: [], rowCount: 1 };
+      if (handle.throwOnQuery) {
+        throw new Error('db connection lost');
+      }
+      queries.push({ text, values: values ?? [] });
+      return { rows: [], rowCount: handle.updateRowCount };
     },
-  } as Parameters<typeof renewSessionTokens>[0];
+  } as unknown as Pool;
+  // Trả `handle` (object gốc, không spread) — mutate `db.handle.updateRowCount`
+  // phải nhìn thấy được trong closure của `pool.query`.
+  return { queries, handle, pool };
 }
 
 beforeEach(() => {
   fetchCalls = [];
+  verifyOutcome.result = VERIFIED_RESULT();
   nextResponse = { status: 200, payload: { access_token: NEW_ACCESS, refresh_token: NEW_REFRESH } };
   vi.stubGlobal(
     'fetch',
@@ -94,9 +113,9 @@ afterEach(() => {
 
 describe('renewSessionTokens — fetch origin and request shape', () => {
   it('POSTs the refresh grant to the internal origin when configured', async () => {
-    const pool = fakePool();
+    const db = createPoolMock();
     const result = await renewSessionTokens(
-      poolOf(pool),
+      db.pool,
       ID_HASH,
       { ...CONFIG, internalOrigin: INTERNAL_ORIGIN },
       OLD_REFRESH,
@@ -114,8 +133,8 @@ describe('renewSessionTokens — fetch origin and request shape', () => {
   });
 
   it('POSTs to the issuer origin when no internal origin is configured', async () => {
-    const pool = fakePool();
-    await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const db = createPoolMock();
+    await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(fetchCalls[0]?.url).toBe(`${ISSUER}/token`);
   });
@@ -123,13 +142,13 @@ describe('renewSessionTokens — fetch origin and request shape', () => {
 
 describe('renewSessionTokens — success persists both rotated tokens', () => {
   it('UPDATEs both token columns with the new values and returns the verified sub', async () => {
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toEqual({ sub: verifyOutcome.result.sub });
-    expect(pool.queries).toHaveLength(1);
-    const update = pool.queries[0];
+    expect(db.queries).toHaveLength(1);
+    const update = db.queries[0];
     expect(update?.text).toContain('SET access_token = $2, refresh_token = $3');
     expect(update?.text).toContain('revoked_at IS NULL');
     expect(update?.values).toEqual([ID_HASH, NEW_ACCESS, NEW_REFRESH]);
@@ -137,12 +156,12 @@ describe('renewSessionTokens — success persists both rotated tokens', () => {
 
   it('does not persist when the new access token fails verification', async () => {
     verifyOutcome.result = { outcome: 'invalid' as const };
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toBeNull();
-    expect(pool.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
   });
 });
 
@@ -154,43 +173,62 @@ describe('renewSessionTokens — failure returns null without writing', () => {
         throw new TypeError('fetch failed');
       }),
     );
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toBeNull();
-    expect(pool.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
   });
 
   it('returns null on a non-2xx response (revoked refresh token)', async () => {
     nextResponse = { status: 400, payload: { error: 'invalid_grant' } };
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toBeNull();
-    expect(pool.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
   });
 
   it('returns null when the response body is not JSON', async () => {
     nextResponse = { status: 200, payload: null };
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toBeNull();
-    expect(pool.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
   });
 
   it('returns null when the rotated refresh token is missing from the response', async () => {
     // Rotation của auth: response thiếu refresh_token là contract hỏng —
     // không persist nửa vời (access mới + refresh cũ đã tiêu thụ).
     nextResponse = { status: 200, payload: { access_token: NEW_ACCESS } };
-    const pool = fakePool();
+    const db = createPoolMock();
 
-    const result = await renewSessionTokens(poolOf(pool), ID_HASH, CONFIG, OLD_REFRESH);
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toBeNull();
-    expect(pool.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(0);
+  });
+
+  it('returns null when the UPDATE matches zero rows (session revoked concurrently)', async () => {
+    const db = createPoolMock();
+    db.handle.updateRowCount = 0;
+
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
+
+    expect(result).toBeNull();
+    expect(db.queries).toHaveLength(1);
+  });
+
+  it('returns null when the UPDATE throws (database unreachable)', async () => {
+    const db = createPoolMock();
+    db.handle.throwOnQuery = true;
+
+    const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
+
+    expect(result).toBeNull();
   });
 });
