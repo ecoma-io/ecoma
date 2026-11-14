@@ -71,9 +71,9 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
     const migrator = await db.connectAsMigrator();
     try {
       const first = await applyAllMigrations(migrator);
-      expect(first.applied).toBe(5);
+      expect(first.applied).toBe(6);
       const second = await applyAllMigrations(migrator);
-      expect(second.applied).toBe(5);
+      expect(second.applied).toBe(6);
     } finally {
       await migrator.end();
     }
@@ -98,7 +98,7 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
         const migrator = await fresh.connectAsMigrator();
         try {
           const result = await applyAllMigrations(migrator);
-          expect(result.applied).toBe(5);
+          expect(result.applied).toBe(6);
           expect(result.tablesInPactSchema).toBe(EXPECTED_TABLES.length);
         } finally {
           await migrator.end();
@@ -327,7 +327,7 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
 
   it('rejects machine token purpose outside the developer/ci vocabulary (ADR-0032 §2)', async () => {
     // Purpose là enum cố định 'developer' | 'ci' | NULL — CHECK
-    // `machine_tokens_purpose_check` (migration 0005) chặn giá trị lạ ngay
+    // `machine_tokens_purpose_check` (migration 0006) chặn giá trị lạ ngay
     // tầng PostgreSQL, không chỉ validation của route.
     const runtime = await db.asRuntime();
     try {

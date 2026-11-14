@@ -1,4 +1,4 @@
--- 0005_machine_token_purpose.sql — cột `purpose` của machine token (expand-only).
+-- 0006_machine_token_purpose.sql — cột `purpose` của machine token (expand-only).
 --
 -- ADR-0032 §2 (quyết định 6 của #205): purpose là creation-time metadata +
 -- validation, KHÔNG phải authorization runtime — request time không bao giờ
