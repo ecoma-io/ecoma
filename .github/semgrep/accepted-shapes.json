@@ -137,21 +137,31 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 216,
-    "end": 216,
-    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi.",
+    "start": 218,
+    "end": 218,
+    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi. Pin dich 216->218 khi #232 chuyen sang INSERT ... RETURNING: transaction carrier doi shape (them truong `inserted` mang hang da chen, bo truong tenantId) - token van la fresh token trong process, khong tren wire.",
     "lines": {
-      "216": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
+      "218": "^        return \\{ token: freshToken, inserted: row \\} as const;$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 248,
-    "end": 248,
-    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi.",
+    "start": 220,
+    "end": 220,
+    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 — cung shape transaction-carrier da accept tai routes.ts:218 va portal-routes.ts:602. #232 chuyen sang INSERT ... RETURNING nen ket qua transaction them truong `inserted` mang hang da chen de dung payload 201; token van la fresh token cua key moi, khong phai secret co san, chi roi process qua response 201 hop dong endpoint.",
     "lines": {
-      "248": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
+      "220": "^      return \\{ inserted, projectId, token \\} as const;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/routes.ts",
+    "start": 246,
+    "end": 246,
+    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi. Pin dich 248->246 khi #232 xoa duong `project vanished after commit` (INSERT ... RETURNING tra hang truc tiep); doi bien outcome -> okOutcome - token van la fresh token trong payload 201.",
+    "lines": {
+      "246": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: okOutcome\\.token \\} \\}, 201\\);$"
     }
   },
   {
