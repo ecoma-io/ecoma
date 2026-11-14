@@ -90,10 +90,11 @@ export const DEPLOYMENT_MAP: Readonly<Record<string, DeploymentMapEntry>> = {
   // Control plane của bounded context remote-cache (ADR-0015): deploy unit
   // dựng ở P4.1 (issue #442), object storage local ở issue #19.
   'remote-cache-api': { kind: 'app', owner: 'remote-cache-api-deploy', status: 'implemented' },
-  // Admin UI composition của cùng bounded context: SPA shell non-SSR, không
-  // sở hữu database; deploy unit độc lập với remote-cache-api-deploy ở giai
-  // đoạn scaffold (chưa có BFF/API integration).
-  'remote-cache-app': { kind: 'app', owner: 'remote-cache-app-deploy', status: 'scaffold' },
+  // Admin UI composition của cùng bounded context: SPA + BFF server routes,
+  // SỞ HỮU database phiên BFF riêng `db-remote-cache-app` (#180, ADR-0035);
+  // unit đọc client id cross-stack từ auth-deploy và secret HMAC từ
+  // remote-cache-api-deploy.
+  'remote-cache-app': { kind: 'app', owner: 'remote-cache-app-deploy', status: 'implemented' },
   'staff-access': { kind: 'app', owner: 'staff-access-deploy', status: 'implemented' },
   'staff-access-relay': {
     kind: 'app',

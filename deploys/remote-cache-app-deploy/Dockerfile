@@ -16,13 +16,16 @@
 # Closure của app (đối chiếu `.dockerignore` ở root): `libs/ui-app-shell` (alias
 # `@ecoma-io/ui-app-shell` trong `nuxt.config.ts` trỏ thẳng vào `src/index.ts`;
 # CSS entry `src/styles/app-shell.css` được import qua relative path từ
-# `app/assets/css/styles.css`) và `libs/ui-ecoma-logo` (alias
-# `@ecoma-io/ui-ecoma-logo` + `@source` của Tailwind). Hai lib này là LÁ — không
-# tham chiếu workspace package nào khác.
+# `app/assets/css/styles.css`), `libs/ui-ecoma-logo` (alias
+# `@ecoma-io/ui-ecoma-logo` + `@source` của Tailwind) và
+# `libs/internal-auth-contracts` (alias `@ecoma-io/internal-auth-contracts` —
+# BFF ký envelope HMAC nội bộ qua `signRequest`, #180). Hai lib UI là LÁ;
+# `internal-auth-contracts` cũng là LÁ (chỉ chuẩn hoá type + WebCrypto).
 #
-# App là SPA admin shell của Remote Cache: không database, không backend, không
-# secret — chỉ `/health`, `/ready` và static assets được Nitro `node-server`
-# phục vụ. Không có BFF.
+# App là SPA admin + BFF server routes (`/api/**` qua Nitro) của Remote Cache:
+# phiên BFF nằm trong database riêng `db-remote-cache-app` (provision/migrate
+# thuộc chương trình Pulumi của unit, không thuộc image). Secret không bao giờ
+# vào image — mọi config runtime qua env của container trong `index.ts`.
 #
 # Hai stage:
 #   1. `build` — cài dependency, build Nuxt ra `.output`.
@@ -53,6 +56,7 @@ COPY apps/remote-cache-app/package.json ./apps/remote-cache-app/
 COPY apps/remote-cache-app/.npmrc ./apps/remote-cache-app/.npmrc
 COPY libs/ui-app-shell/package.json ./libs/ui-app-shell/
 COPY libs/ui-ecoma-logo/package.json ./libs/ui-ecoma-logo/
+COPY libs/internal-auth-contracts/package.json ./libs/internal-auth-contracts/
 
 # `apps/remote-cache-app/.npmrc` (`shamefully-hoist`) phải CÓ MẶT TRƯỚC
 # `pnpm install` (đã COPY ở khối manifest phía trên) — config chỉ có tác dụng
@@ -71,6 +75,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 COPY apps/remote-cache-app/ ./apps/remote-cache-app/
 COPY libs/ui-app-shell/ ./libs/ui-app-shell/
 COPY libs/ui-ecoma-logo/ ./libs/ui-ecoma-logo/
+COPY libs/internal-auth-contracts/ ./libs/internal-auth-contracts/
 
 # CHỈ copy `tsconfig.base.json`, KHÔNG copy `tsconfig.json` ở root — cùng lý do
 # với `pact-broker-app-deploy`: `tsconfig.json` ở root là manifest project
