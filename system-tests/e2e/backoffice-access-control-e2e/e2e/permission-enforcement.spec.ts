@@ -1,62 +1,49 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import { expect, test } from '@playwright/test';
 
-import { PERMISSION_IDENTITY, SEED_ACTOR_SUB, TEST_ROLE_ID } from './support/fixtures';
+import { PERMISSION_IDENTITY, TEST_STAFF_ACCESS_ROLE_ID } from './support/fixtures';
 import { CookieJar, resolveStackOrigin, stackGet } from './support/local-origin';
 import { performBrowserLogin } from './support/oidc-flow';
 import {
+  countAuthorizationAuditSuccess,
   mailWicContainerOf,
   readOtpFromMailSink,
   resolvePostgresContainer,
   seedAccountIdentity,
-  seedBackofficeGrant,
+  seedStaffAccessGrant,
   seedStaffAccessStaff,
+  revokeStaffAccessAssignment,
 } from './support/stack-fixtures';
 
 /**
  * Permission enforcement — trái tim của suite.
  *
- * Chuỗi trạng thái THẬT trong `db-backoffice`, assert qua HTTP thật:
+ * ## Nguồn quyết định là projection Staff Access (issue #241)
  *
- * 1. Đã đăng nhập nhưng `backoffice.staff` KHÔNG có hàng của sub ⇒
- *    `loadPrincipalAuthorization` trả assignments rỗng (principal vắng staff
- *    row được coi như "không assignment"), `can()` deny-by-default với
- *    `permission_not_granted` ⇒ `requirePermission('staff.read')` ném
- *    `AuthorizationDeniedError` ⇒ **403** (sau audit write).
- * 2. Seed role custom + `role_permissions('staff.read')` + `role_assignments`
- *    + staff row `active` — bốn INSERT như mô tả ở `seedBackofficeGrant`.
- * 3. GET lại `/api/staff` ⇒ **200** `{staff: [...]}` đọc từ DB thật
- *    (`libs/backoffice-infrastructure/src/queries.ts::listStaff`).
- * 4. UPDATE `revoked_at = now()` (thu hồi ĐÚNG NGHĨA của schema: không DELETE,
- *    audit giữ lịch sử) ⇒ 403 trở lại mà không cần relogin — permission check
- *    chạy mỗi request, không cache trong session.
+ * Sau cutover (`BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` do
+ * `deploys/backoffice-deploy` cấp), BFF quyết định permission từ projection
+ * Staff Access (staff + role + assignment + role_permissions của
+ * `db-staff-access`), không từ legacy `db-backoffice`. Vì vậy grant của suite
+ * được seed **CHỈ** vào `db-staff-access` — nếu BFF vẫn quyết định từ legacy
+ * (regression của #241: legacy rỗng trên lane thật ⇒ 403 cho operator hợp lệ)
+ * hoặc gate cutover không được cấp, các assertion 200 dưới đây ĐỎ. Suite từng
+ * seed grant vào `db-backoffice` và vì thế không bắt được gap đó — đây chính
+ * là lỗ hổng phủ test mà #241 ghi nhận.
  *
- * `authorization_audit` ghi các quyết định — schema có nhưng suite không assert
- * nội dung audit (không thuộc hợp đồng HTTP; một test riêng của job là nơi
- * đúng cho invariant đó).
+ * Chuỗi trạng thái THẬT, assert qua HTTP thật:
+ *
+ * 1. Đã đăng nhập nhưng `db-staff-access` chưa có gì của sub ⇒ projection
+ *    trả assignments rỗng, `can()` deny-by-default với `permission_not_granted`
+ *    ⇒ **403** (sau audit write).
+ * 2. Seed staff + role + `role_permissions('staff.read')` + assignment vào
+ *    `db-staff-access` (không đụng legacy) ⇒ GET `/api/staff` ⇒ **200**
+ *    `{staff: [...]}` đọc từ Staff Access API.
+ * 3. UPDATE `revoked_at = now()` trên assignment của `db-staff-access` ⇒ 403
+ *    trở lại mà không cần relogin — projection được đọc lại mỗi request
+ *    (fetchedAt cùng request), không cache trong session.
+ * 4. `backoffice.authorization_audit` ghi `outcome='success'` cho allow của
+ *    `staff.read` — privileged-operation audit (SR-013), điều kiện hoàn thành
+ *    của #241.
  */
-
-const execFileAsync = promisify(execFile);
-
-/** Chạy một câu SQL trong `db-backoffice` — chỉ UPDATE của test revocation. */
-async function revokeAssignment(postgresContainer: string): Promise<void> {
-  await execFileAsync('docker', [
-    'exec',
-    postgresContainer,
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    'db-backoffice',
-    '-v',
-    'ON_ERROR_STOP=1',
-    '-c',
-    `UPDATE backoffice.role_assignments SET revoked_at = now()
-      WHERE staff_sub = '${PERMISSION_IDENTITY.sub}' AND role_id = '${TEST_ROLE_ID}' AND revoked_at IS NULL;`,
-  ]);
-}
 
 /** Cookie jar từ browser context — chuyển sang Node request cho phần contract. */
 async function jarFromBrowser(page: import('@playwright/test').Page): Promise<CookieJar> {
@@ -85,12 +72,19 @@ test.describe.serial('permission enforcement for staff.read', () => {
   test('authenticated session WITHOUT any staff row or assignment gets 403 on GET /api/staff', async ({
     page,
   }) => {
-    // Identity account có mặt (login chạy được) nhưng phía backoffice CHƯA có
-    // gì: đây đúng trạng thái "người dùng thật lần đầu login" trước khi admin
-    // cấp role. Suite cố ý KHÔNG seed staff trước login — thứ tự trạng thái là
-    // một phần của test.
+    // Identity account có mặt (login chạy được) nhưng phía authorization CHƯA
+    // có gì: đây đúng trạng thái "người dùng thật lần đầu login" trước khi
+    // admin cấp role. Suite cố ý KHÔNG seed staff trước login — thứ tự trạng
+    // thái là một phần của test.
     const postgres = await resolvePostgresContainer(origin());
     await seedAccountIdentity(postgres, PERMISSION_IDENTITY);
+    // Rerun-safe: lần chạy trước có thể đã seed grant ở viên test 2 rồi dừng
+    // trước viên revoke (viên đó "did not run" khi suite đỏ) — grant còn sống
+    // sẽ làm precondition "chưa có gì" của viên này sai. Thu hồi trước khi
+    // login để trạng thái đầu là "chưa cấp quyền" bất kể lịch sử stack.
+    await revokeStaffAccessAssignment(postgres, {
+      staffSub: PERMISSION_IDENTITY.sub,
+    });
 
     const sinceMs = Date.now();
     const mailWic = mailWicContainerOf(postgres);
@@ -112,21 +106,20 @@ test.describe.serial('permission enforcement for staff.read', () => {
     expect(staff.status).toBe(403);
   });
 
-  test('seeding role + assignment + staff turns the same permission into a 200 listing', async ({
+  test('granting staff.read in db-staff-access turns the same permission into a 200 listing', async ({
     page,
   }) => {
     const postgres = await resolvePostgresContainer(origin());
-    // Bốn INSERT idempotent — chạy được lại sau test trước mà không phá state.
-    await seedBackofficeGrant(postgres, {
+    // Nguồn quyết định sau cutover: staff + role + permission + assignment
+    // của `db-staff-access`. KHÔNG seed legacy `db-backoffice` — nếu suite
+    // seed legacy thì assertion 200 không còn chứng minh projection là nguồn
+    // quyết định (lỗ hổng phủ test gốc của #241).
+    await seedStaffAccessStaff(postgres, { sub: PERMISSION_IDENTITY.sub });
+    await seedStaffAccessGrant(postgres, {
       staffSub: PERMISSION_IDENTITY.sub,
-      actorSub: SEED_ACTOR_SUB,
-      roleId: TEST_ROLE_ID,
+      roleId: TEST_STAFF_ACCESS_ROLE_ID,
       permissionId: 'staff.read',
     });
-    // P5.1: `/api/staff` đọc từ Staff Access API (`staff_access.staff` của
-    // `db-staff-access`), không còn từ `db-backoffice` — seed staff row vào
-    // staff-access trước khi assert 200 listing.
-    await seedStaffAccessStaff(postgres, { sub: PERMISSION_IDENTITY.sub });
 
     const sinceMs = Date.now();
     const mailWic = mailWicContainerOf(postgres);
@@ -150,14 +143,17 @@ test.describe.serial('permission enforcement for staff.read', () => {
     expect('displayName' in (seededRow ?? {})).toBe(true);
   });
 
-  test('revoking the assignment server-side returns the endpoint to 403 without relogin', async ({
+  test('revoking the assignment in db-staff-access returns the endpoint to 403 without relogin', async ({
     page,
   }) => {
     // Viên test phủ chiều ngược: revocation là UPDATE `revoked_at` (không
-    // DELETE — schema 0001 cấm xoá để giữ audit) và filter là READ-TIME trong
-    // `loadPrincipalAuthorization`.
+    // DELETE — schema cấm xoá để giữ audit) và filter là READ-TIME trong
+    // projection loader — mỗi request đọc lại Staff Access nên thu hồi có
+    // hiệu lực từ request kế tiếp.
     const postgres = await resolvePostgresContainer(origin());
-    await revokeAssignment(postgres);
+    await revokeStaffAccessAssignment(postgres, {
+      staffSub: PERMISSION_IDENTITY.sub,
+    });
 
     const sinceMs = Date.now();
     const mailWic = mailWicContainerOf(postgres);
@@ -170,5 +166,18 @@ test.describe.serial('permission enforcement for staff.read', () => {
 
     const staff = await stackGet(`${origin()}/api/staff`, { cookie: jar.header() ?? '' });
     expect(staff.status).toBe(403);
+  });
+
+  test('the projection-backed allow leaves a success audit row (SR-013)', async () => {
+    // Điều kiện hoàn thành của #241: allow của `staff.read` cho operator
+    // (viên test 200 phía trên) phải ghi `outcome='success'` vào
+    // `backoffice.authorization_audit` — deny đã luôn được audit; allow phải
+    // để lại dấu vết như deny.
+    const postgres = await resolvePostgresContainer(origin());
+    const successRows = await countAuthorizationAuditSuccess(postgres, {
+      actorSub: PERMISSION_IDENTITY.sub,
+      action: 'staff.read',
+    });
+    expect(successRows).toBeGreaterThanOrEqual(1);
   });
 });

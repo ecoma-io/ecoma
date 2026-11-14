@@ -36,6 +36,7 @@
  */
 
 import {
+  AUTHZ_PROJECTION_CUTOVER_ENV,
   STAFF_ACCESS_SECRET_ENV,
   STAFF_ACCESS_SERVICE_BINDING_NAME,
 } from '@ecoma-io/backoffice-infrastructure';
@@ -69,6 +70,7 @@ export function mountStaffAccessServiceBinding(params: {
   context: Record<string, unknown>;
   origin: unknown;
   secret?: unknown;
+  cutoverAt?: unknown;
 }): void {
   if (typeof params.origin !== 'string' || params.origin === '') {
     return;
@@ -92,6 +94,14 @@ export function mountStaffAccessServiceBinding(params: {
 
   if (typeof params.secret === 'string' && params.secret !== '') {
     env[STAFF_ACCESS_SECRET_ENV] ??= params.secret;
+  }
+
+  // Mốc cutover authorization (issue #241) — biến container của deploy layer
+  // được forward vào env container để `readWorkerEnv` thấy được trên preset
+  // node-server, cùng cơ chế với secret ở trên. Workers đọc var của chính
+  // env nên không cần đường này. Vắng biến ⇒ gate đóng ⇒ legacy vẫn authority.
+  if (typeof params.cutoverAt === 'string' && params.cutoverAt !== '') {
+    env[AUTHZ_PROJECTION_CUTOVER_ENV] ??= params.cutoverAt;
   }
 
   // Binding thật của Workers (hoặc một shim đã mount trên chính event này)
@@ -120,6 +130,10 @@ export default defineNitroPlugin((nitroApp) => {
       secret:
         typeof process !== 'undefined' && process.versions?.node
           ? process.env[STAFF_ACCESS_SECRET_ENV]
+          : undefined,
+      cutoverAt:
+        typeof process !== 'undefined' && process.versions?.node
+          ? process.env[AUTHZ_PROJECTION_CUTOVER_ENV]
           : undefined,
     });
   });

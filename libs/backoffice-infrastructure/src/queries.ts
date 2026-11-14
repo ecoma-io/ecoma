@@ -35,6 +35,20 @@ export interface PrincipalAuthorizationData {
 }
 
 /**
+ * Tên biến `env` giữ mốc cutover của đường authorization (ISO-8601) — sau mốc
+ * này projection của Staff Access là nguồn quyết định thay cho legacy
+ * `db-backoffice` (issue #241; ADR-0023 Quyết định 2 — verdict permission do
+ * Staff Access enforce server-side).
+ *
+ * ⚠️ Giá trị do **deploy layer** cấp (`deploys/backoffice-deploy` cấp cho
+ * container local; Worker đặt var ở môi trường tương ứng) — code chỉ chứa tên;
+ * không mốc nào hard-code trong source. Gate đọc mốc ở
+ * `apps/backoffice/server/read-route.ts`: cutover bật mà projection không đọc
+ * được hoặc đã quá TTL thì fallback legacy **kèm log** — không chọn im lặng.
+ */
+export const AUTHZ_PROJECTION_CUTOVER_ENV = 'BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT';
+
+/**
  * Đọc ảnh assignment của một staff từ DB thật.
  *
  * Câu lệnh gộp **một lượt** fetch: joins `staff` + `role_assignments` +

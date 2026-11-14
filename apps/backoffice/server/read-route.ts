@@ -26,6 +26,16 @@
  * 3. `requirePermission` deny ⇒ `403` **sau khi** audit đã ghi (audit trước
  *    throw là quy tắc của workstream B, module này không sửa).
  * 4. DB unreachable giữa chừng ⇒ `503`.
+ *
+ * ## Nguồn quyết định authorization — cutover (issue #241)
+ *
+ * Ảnh assignment được đọc từ HAI nguồn: legacy `db-backoffice` (shadow) và
+ * projection Staff Access qua client binding `STAFF_ACCESS_SERVICE`. Sau mốc
+ * `AUTHZ_PROJECTION_CUTOVER_ENV` (ISO-8601, giá trị do deploy layer cấp —
+ * ADR-0023 Quyết định 2: verdict permission do Staff Access sở hữu) projection
+ * còn tươi là nguồn quyết định; cutover bật mà projection không có/quá TTL thì
+ * fallback legacy **kèm log** — không chọn im lặng. Allow của phép đọc có bảo
+ * vệ ghi thêm một audit row `success` (SR-013 — privileged operation audit).
  */
 
 import { createError, type H3Event } from 'h3';
@@ -33,8 +43,10 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { CatalogPermission } from '@ecoma-io/backoffice-domain';
 import {
+  AUTHZ_PROJECTION_CUTOVER_ENV,
   loadPrincipalAuthorization,
   loadPrincipalAuthorizationProjection,
+  recordPrivilegedSuccess,
   staffAccessClientConfig,
   withBackofficePool,
 } from '@ecoma-io/backoffice-infrastructure';
@@ -93,18 +105,18 @@ export async function withReadEnforcement<T>(
   try {
     return await withBackofficePool(binding, (pool) =>
       withPoolClient(pool, async (client) => {
-        // 3. Ảnh assignment — dual-read migration (P5.3).
+        // 3. Ảnh assignment — dual-read với cutover gate (issue #241).
         //
-        // Legacy path (db-backoffice) vẫn active và read-only. Projection từ
-        // Staff Access được đọc song song khi client cấu hình. Hai kết quả được
-        // so sánh; mismatch được log — không bao giờ im lặng chọn một trong hai.
-        // Legacy vẫn là quyết định hiện hành (cutover chưa tới); projection chỉ
-        // quan sát + log để chuẩn bị cutover.
+        // Legacy path (db-backoffice) vẫn được đọc làm shadow; projection từ
+        // Staff Access là nguồn quyết định sau mốc cutover. Hai kết quả được so
+        // sánh; mismatch được log — không bao giờ im lặng chọn một trong hai.
         const legacy = await loadPrincipalAuthorization(client, principal.actorSub);
 
         const env = readWorkerEnv(event);
-        const staffConfig = env === null ? null : staffAccessClientConfig(env);
+        const staffConfig = env === null || env === undefined ? null : staffAccessClientConfig(env);
         let projection = null;
+        let projectionUnavailableReason: 'client_unconfigured' | 'projection_fetch_failed' | null =
+          null;
         if (staffConfig !== null) {
           try {
             projection = await loadPrincipalAuthorizationProjection(
@@ -114,6 +126,11 @@ export async function withReadEnforcement<T>(
           } catch {
             projection = null;
           }
+          if (projection === null) {
+            projectionUnavailableReason = 'projection_fetch_failed';
+          }
+        } else {
+          projectionUnavailableReason = 'client_unconfigured';
         }
 
         // Dual-read comparison harness — log mismatch, không chọn im lặng.
@@ -147,16 +164,31 @@ export async function withReadEnforcement<T>(
           });
         }
 
-        // Cutover gate: projection chỉ trở thành quyết định hiện hành khi env
-        // `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` (ISO-8601) đã tới VÀ
-        // projection còn tươi. Trước cutover, legacy vẫn là authority (P5.3).
-        const cutoverAtRaw = (
-          readWorkerEnv(event) as { BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT?: unknown } | null
-        )?.BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT;
+        // Cutover gate: projection trở thành quyết định hiện hành khi env
+        // `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` (ISO-8601, giá trị do deploy
+        // layer cấp — hằng tên ở `AUTHZ_PROJECTION_CUTOVER_ENV`) đã tới VÀ
+        // projection còn tươi (issue #241).
+        const envRecord =
+          typeof env === 'object' && env !== null ? (env as Record<string, unknown>) : null;
+        const cutoverAtRaw = envRecord?.[AUTHZ_PROJECTION_CUTOVER_ENV];
         const cutoverAt = typeof cutoverAtRaw === 'string' ? Date.parse(cutoverAtRaw) : NaN;
         const cutoverEnabled = Number.isFinite(cutoverAt) && Date.now() >= cutoverAt;
 
         const useProjection = cutoverEnabled && projection !== null && projectionFresh;
+
+        // Cutover đã bật mà projection KHÔNG có ⇒ fallback legacy **kèm log** —
+        // không chọn im lặng (ràng buộc của issue #241). Legacy rỗng vẫn deny
+        // (fail-closed giữ nguyên chiều an toàn); log là dấu vết điều tra cho
+        // việc "quyết định không đến từ nguồn đã chọn".
+        if (cutoverEnabled && projection === null && projectionUnavailableReason !== null) {
+          writeLog({
+            event: 'backoffice.authz.projection_unavailable',
+            route: event.path ?? '',
+            method: 'GET',
+            sub: principal.actorSub,
+            reason: projectionUnavailableReason,
+          });
+        }
 
         const principalAuthorization: PrincipalAuthorization = {
           assignments:
@@ -167,6 +199,16 @@ export async function withReadEnforcement<T>(
         // 4. Enforcement — deny ⇒ `403` sau khi audit đã ghi (module của
         //    workstream B, không sửa ở đây).
         await requirePermission(permission, principalAuthorization, client);
+
+        // 4b. Audit success của phép đọc có bảo vệ (issue #241): allow của
+        //     route permission-gated là privileged operation theo SR-013 —
+        //     allow cũng phải để lại dấu vết như deny. Ghi TRƯỚC khi đọc dữ
+        //     liệu, cùng client; lỗi INSERT propagate ⇒ 503 (I-08 — lỗi audit
+        //     không được nuốt).
+        await recordPrivilegedSuccess(client, {
+          actorSub: principal.actorSub,
+          operation: permission,
+        });
 
         // 5. Đọc dữ liệu của route — cùng client với enforcement.
         return read(client);
