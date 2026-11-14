@@ -32,6 +32,14 @@ import type {
   RemoteCacheControlPlaneValidation,
 } from './project-control-plane-contract';
 
+// Re-export đúng hình dạng validate trả về — consumer của contract portal
+// (spec này, BFF #180) narrow outcome qua hai type đó, nên chúng thuộc bề mặt
+// export của module, không chỉ là import nội bộ.
+export type {
+  RemoteCacheControlPlaneRejectionReason,
+  RemoteCacheControlPlaneValidation,
+} from './project-control-plane-contract';
+
 /** Request tạo project qua portal — CHỈ mang `name`. */
 export interface PortalCreateProjectRequest {
   readonly name: string;
