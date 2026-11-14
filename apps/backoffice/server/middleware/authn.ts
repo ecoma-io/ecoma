@@ -204,7 +204,14 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
         } catch {
           // Token mới đã persist; trượt idle hỏng không được biến một lần gia
           // hạn thành công thành 503 — client retry sẽ đi nhánh verify thành
-          // công và tự trượt idle. Nuốt, vẫn gắn principal.
+          // công và tự trượt idle. Vẫn gắn principal, nhưng ghi lại để phiên
+          // hết hạn sớm hơn dự kiến không mất dấu vết.
+          writeLog({
+            event: 'backoffice_session.idle_touch_failed',
+            route: pathname,
+            status: 200,
+            sub: row.account_sub,
+          });
         }
         // `sub` của access token mới — phải khớp hàng phiên (refresh của auth
         // giữ nguyên subject); dùng sub đã verify của token mới là fail-closed.
