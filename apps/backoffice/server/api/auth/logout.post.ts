@@ -1,7 +1,9 @@
 /**
  * `POST /api/auth/logout` — logout cục bộ (ADR-0012 §3): hủy phiên
- * server-side + gọi `POST {issuer}/revocation` cho access + refresh token
- * (RFC 7009) + xoá cookie.
+ * server-side + gọi `POST {origin}/revocation` cho access + refresh token
+ * (RFC 7009) + xoá cookie. Origin fetch là `internalOrigin ?? issuer` — trên
+ * local issuer mang port động của Traefik mà container Node không resolve được
+ * (cùng luật `callback.get.ts`).
  *
  * ## CSRF bắt buộc
  *
@@ -46,13 +48,17 @@ import { poolBinding } from '../../db';
 import { writeLog } from '../../log';
 
 /**
- * Gọi `POST {issuer}/revocation` — RFC 7009, public client `client_id` trong
+ * Gọi `POST {origin}/revocation` — RFC 7009, public client `client_id` trong
  * body. Best-effort: `true` khi `auth` nhận (2xx), `false` cho mọi nhánh khác.
  */
-async function revokeAtAuth(issuer: string, clientId: string, token: string): Promise<boolean> {
+async function revokeAtAuth(
+  fetchOrigin: string,
+  clientId: string,
+  token: string,
+): Promise<boolean> {
   try {
     const body = new URLSearchParams({ token, client_id: clientId });
-    const response = await fetch(new URL('/revocation', issuer).toString(), {
+    const response = await fetch(new URL('/revocation', fetchOrigin).toString(), {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
@@ -120,14 +126,17 @@ export default defineEventHandler(async (event) => {
         // thu hồi — vẫn 204 idempotent.
         return;
       }
-      // Revocation best-effort trước, hủy phiên là bước có thẩm quyền.
+      // Revocation best-effort trước, hủy phiên là bước có thẩm quyền. Fetch
+      // origin nội bộ khi cấu hình (local) — container Node không resolve được
+      // hostname issuer (cùng luật `callback.get.ts`); path `/revocation` không đổi.
+      const revocationOrigin = config.internalOrigin ?? config.issuer;
       const revokedAccess = await revokeAtAuth(
-        config.issuer,
+        revocationOrigin,
         config.clientId,
         session.access_token,
       );
       if (session.refresh_token !== null) {
-        await revokeAtAuth(config.issuer, config.clientId, session.refresh_token);
+        await revokeAtAuth(revocationOrigin, config.clientId, session.refresh_token);
       }
       if (!revokedAccess) {
         writeLog({

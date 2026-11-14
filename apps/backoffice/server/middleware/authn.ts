@@ -23,8 +23,10 @@
  *    lúc này).
  * 3. Verify access token của phiên offline (ES256/`iss`/`aud`/`exp` —
  *    `server/auth/verify.ts`):
- *    - `invalid` ⇒ **401** — token của phiên không còn hợp lệ ⇒ phiên này
- *      không đáng tin nữa; caller phải đăng nhập lại.
+ *    - `invalid` ⇒ gia hạn thử **một lần** từ refresh token đã lưu (#244 —
+ *      `server/auth/refresh.ts`): thành công là persist token mới + đi tiếp
+ *      như phiên hợp lệ; thất bại (refresh token revoked, network, verify
+ *      hỏng) ⇒ **401** — caller đăng nhập lại, không loop.
  *    - `unavailable` ⇒ **503** — JWKS không fetch được.
  * 4. Trượt idle expiry (sliding), gắn principal vào context — route chạy như
  *    bình thường.
@@ -83,8 +85,10 @@ import {
 } from '@ecoma-io/backoffice-infrastructure';
 
 import { backofficeAuthConfig } from '../auth/config';
+import { renewSessionTokens } from '../auth/refresh';
 import { poolBinding } from '../db';
 import { PRINCIPAL_CONTEXT_KEY, type VerifiedPrincipal } from '../principal';
+import { writeLog } from '../log';
 
 /**
  * Prefix của resource-server surface — thứ middleware authn chặn.
@@ -171,6 +175,34 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
         throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
       }
       if (verification.outcome === 'invalid') {
+        // Access token hết hạn hay sai đều qua nhánh này; phiên sống còn có
+        // refresh token thì gia hạn đúng MỘT lần (#244) — không scheduler, hai
+        // request đua nhau thì kẻ thua 401 một lần (xem JSDoc `refresh.ts`).
+        // Refresh token revoked/invalid ⇒ `null` ⇒ 401 như phiên chết, không
+        // loop. Phiên không có refresh token thì trả về luôn — 401.
+        if (row.refresh_token === null) {
+          return;
+        }
+        const renewed = await renewSessionTokens(pool, idHash, config, row.refresh_token);
+        if (renewed === null) {
+          writeLog({
+            event: 'backoffice_session.renewal_failed',
+            route: pathname,
+            status: 401,
+            sub: row.account_sub,
+          });
+          return;
+        }
+        writeLog({
+          event: 'backoffice_session.renewed',
+          route: pathname,
+          status: 200,
+          sub: renewed.sub,
+        });
+        await touchSession(pool, idHash, now + SESSION_IDLE_SECONDS * 1000);
+        // `sub` của access token mới — phải khớp hàng phiên (refresh của auth
+        // giữ nguyên subject); dùng sub đã verify của token mới là fail-closed.
+        principal = { actorSub: renewed.sub };
         return;
       }
 
