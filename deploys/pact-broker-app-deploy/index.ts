@@ -196,6 +196,16 @@ const provision = new command.local.Command(dockerResourceName(ns, 'pact-app') +
   // khẩu plaintext (trigger được lưu trong state Pulumi).
   triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
   environment: provisionEnvironment,
+  // ⚠️ Không có `dependsOn` Pulumi nào ở đây — có chủ đích (review #254):
+  // container PostgreSQL platform là tài nguyên của stack `platform-deploy`
+  // khác, và unit này chỉ chạm nó qua `docker exec` (tên container là chuỗi
+  // theo convention, không phải Output nào của platform stack). Pulumi không
+  // biểu diễn được dependency cross-stack tới tài nguyên không tự quản; chỉnh
+  // thứ tự chạy bằng Nx task ordering: `pact-broker-app-deploy` chỉ được chạy
+  // sau `platform-deploy:local-up` (orchestration của `local-up` ghép, cùng
+  // mô hình với `pact-broker-api-deploy`). Chạy `pulumi up` trực tiếp trên
+  // stack này khi platform chưa `up`: `docker exec` vào container vắng mặt ⇒
+  // provision fail-loud ngay, không có nhánh im lặng nào.
 });
 
 // Percent-encode mật khẩu trước khi ghép vào userinfo của DATABASE_URL — encode

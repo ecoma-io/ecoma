@@ -325,7 +325,7 @@ const redirectUriPactLocal = pulumi.interpolate`https://pact.${rootHostname}:${t
  * PKCE với scope `openid offline_access`, redirect URI callback
  * `/api/auth/callback` trên origin `https://pact.<rootHostname>:<port>`. Cùng
  * idempotency hai mệnh đề với backoffice; `client_id` sống ở
- * `./local-clients.ts` và được `pact-broker-app-deploy` đọc cross-stack qua
+ * `./local-clients.js` và được `pact-broker-app-deploy` đọc cross-stack qua
  * stack config `namespace:pactBrokerAppClientId`.
  *
  * `redirectUriLocal` là Output (StackReference) nên câu SQL dựng bằng

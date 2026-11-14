@@ -30,6 +30,8 @@ let stack: BrokerStack;
 let browser: Browser;
 /** Trang đang mở của test hiện tại — afterEach đóng bất kể test đỏ hay xanh. */
 let page: Page | undefined;
+/** Context gần nhất mà `openAuthenticatedPage` tạo — afterEach đóng cùng `page`. */
+let lastContext: BrowserContext | undefined;
 
 beforeAll(async () => {
   // Stack riêng của suite này: dữ liệu seed là dữ liệu assert, không chia sẻ
@@ -48,11 +50,19 @@ afterEach(async () => {
   // (timeout, mất kết nối) không được để rò rỉ tab trong cùng session Chromium.
   await page?.close().catch(() => undefined);
   page = undefined;
+  await lastContext?.close().catch(() => undefined);
+  lastContext = undefined;
 });
 
 /**
  * Mở một browser context **đã đăng nhập**: đi trọn luồng OIDC thật của BFF
  * (`/api/auth/login` → authorize của `auth` → callback → set cookie phiên).
+ *
+ * Context và page được ghi vào module scope (`page`/`lastContext`) để
+ * `afterEach` đóng cả hai bất kể test đỏ hay xanh (review #254: test "logout
+ * và login lại" mở context thứ hai — không đóng thì rò context trong cùng
+ * session Chromium). Helper không trả context qua module scope cho test body:
+ * return value là nguồn dữ liệu của test.
  *
  * ⚠️ Context riêng cho mỗi test: cookie phiên là trạng thái của người dùng,
  * nên test này không được kế thừa phiên của test trước (khác với app thật,
@@ -62,6 +72,7 @@ async function openAuthenticatedPage(): Promise<{ context: BrowserContext; page:
   const context = await browser.newContext();
   const opened = await context.newPage();
   page = opened;
+  lastContext = context;
   // `waitUntil: 'load'` chờ tới trang đích sau chuỗi redirect của OIDC.
   await opened.goto(`${stack.appUrl}/api/auth/login`, { waitUntil: 'load' });
   await opened.waitForURL((url) => url.pathname === '/', { timeout: 30_000 });

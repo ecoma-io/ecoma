@@ -495,6 +495,10 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
       // Body không được đọc nội dung — chỉ drain để request kết thúc.
       req.resume();
       req.on('end', () => {
+        // Fire-and-forget có đuôi (review #254): lỗi của `signAccessToken` hay
+        // của `res.*` (client ngắt kết nối giữa chừng) bị nuốt — harness test
+        // không được biến lỗi dọn dẹp thành unhandled rejection làm đỏ vitest.
+        // `res.headersSent` chặn double-response khi lỗi đến sau khi đã gửi.
         void (async (): Promise<void> => {
           // Mã code/verifier KHÔNG được kiểm ở đây: mã code là single-use CAS
           // ở `auth` thật — fake không có code store; callback BFF vẫn chạy
@@ -512,7 +516,9 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
             }),
           );
         })().catch(() => {
-          res.writeHead(500);
+          if (!res.headersSent) {
+            res.writeHead(500);
+          }
           res.end();
         });
       });

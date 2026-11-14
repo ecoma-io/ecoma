@@ -17,7 +17,16 @@
     "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
     "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
     "(không external). `jose` ở dependencies: verify access token offline trong",
-    "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice`."
+    "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice`.",
+    "",
+    "Vì sao devDependencies là đủ cho `pg` (review #254): Worker bundle KHÔNG",
+    "có node_modules lúc chạy — Nitro đóng gói toàn bộ `pg` vào artifact",
+    "(`noExternals` của preset `cloudflare-module`), nên việc cài hay không cài",
+    "dependency này ở 'môi trường production' không tồn tại như một khái niệm;",
+    "artifact chỉ được dựng từ workspace install đầy đủ. Cùng vị trí",
+    "devDependencies với `apps/backoffice` — BFF sibling mà PR này mirror",
+    "deliberate. `@types/pg` là compile-time types, devDependencies đúng theo",
+    "nghĩa thông thường."
   ],
   "nx": {
     "//": [

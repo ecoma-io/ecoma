@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS pact_broker_app.bff_sessions (
 COMMENT ON TABLE pact_broker_app.bff_sessions IS
   'Server-side BFF session of pact-broker-app (ADR-0031): the cookie carries only an ID, the access token lives here. Tokens are never logged (SR-007).';
 
+-- Tra cứu theo chủ phiên (revocation hàng loạt khi account bị treo/đổi mật
+-- khẩu) không được quét bảng — index btree trên account_sub.
+CREATE INDEX IF NOT EXISTS bff_sessions_account_sub_idx
+  ON pact_broker_app.bff_sessions (account_sub);
+
+-- Dọn phiên hết hạn (prune) và tra cứu phiên sống theo mốc idle — index trên
+-- expires_at. `revoked_at` đa số NULL, selectivity kém; truy vấn revoked luôn
+-- kèm id_hash (khoá chính) nên không cần index riêng.
+CREATE INDEX IF NOT EXISTS bff_sessions_expires_at_idx
+  ON pact_broker_app.bff_sessions (expires_at);
+
 -- Phiên append-then-revoke: UPDATE chỉ cho phép đổi `expires_at` (sliding),
 -- `access_token` (refresh rotate sau này), `revoked_at` (logout) — không đường
 -- nào đổi chủ phiên hay mốc tạo. Cùng guard pattern `account_sessions`/`bff_sessions`.
@@ -86,7 +97,7 @@ BEGIN
      OR NEW.created_at <> OLD.created_at
      OR NEW.id_hash <> OLD.id_hash THEN
     RAISE EXCEPTION
-      'bff_sessions: chi expires_at, access_token, refresh_token, revoked_at duoc phep doi';
+      'bff_sessions: only expires_at, access_token, refresh_token and revoked_at may change';
   END IF;
   RETURN NEW;
 END;

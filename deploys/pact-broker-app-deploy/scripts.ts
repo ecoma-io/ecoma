@@ -72,6 +72,10 @@ if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='${MIGRATOR_ROLE}'" | grep
 if ! $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='${RUNTIME_ROLE}'" | grep -q 1; then $PSQL -c "CREATE ROLE ${RUNTIME_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"; fi
 # 2. Mật khẩu hai role — giá trị đến từ biến môi trường của shell (kênh
 #    \`environment\` của command.local.Command), script text chỉ chứa TÊN biến.
+#    Chú ý \`$$\`: bên trong template literal JavaScript, \`$$\` là cách escape
+#    sinh ĐÚNG MỘT \`$\` trong script text — \`$${MIGRATOR_ROLE}\` ở dòng apply
+#    dưới đây là biến shell của role, KHÔNG phải interpolation JS (interpolation
+#    JS không escape sẽ nhét giá trị vào lúc build script text).
 sql_quote() {
   printf '%s' "$1" | sed "s/'/''/g"
 }
