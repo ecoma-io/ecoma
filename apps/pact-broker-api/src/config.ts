@@ -78,8 +78,8 @@ export interface PactBrokerConfig {
  * cấp cái gì — nhưng không bao giờ nêu giá trị (giống F-07 của auth).
  */
 export class PactBrokerConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'PactBrokerConfigurationError';
   }
 }
@@ -195,17 +195,21 @@ function parseUserAuthConfig(env: PactBrokerEnv): {
     }
     // Issuer chuẩn hoá về origin + không trailing slash — JWKS URL dựng từ đây.
     const issuer = parsedIssuer.origin;
-    if (rawAudience.trim() === '') {
+    const audience = rawAudience.trim();
+    if (audience === '') {
       throw new Error('audience must not be blank');
     }
     return {
       authIssuer: issuer,
-      authAudience: rawAudience,
+      authAudience: audience,
       authInternalOrigin: parseInternalOrigin(env.PACT_BROKER_AUTH_INTERNAL_ORIGIN),
     };
-  } catch {
+  } catch (error) {
+    // Chuỗi `cause` giữ chi tiết lỗi gốc (URL nào sai, check nào fail) cho việc
+    // triage; message công khai vẫn chung chung và KHÔNG BAO GIỜ nhắc giá trị.
     throw new PactBrokerConfigurationError(
       'PACT_BROKER_AUTH_ISSUER must be a valid URL origin and PACT_BROKER_AUTH_AUDIENCE a non-empty audience',
+      { cause: error },
     );
   }
 }

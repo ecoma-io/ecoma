@@ -65,6 +65,12 @@ function requirePrincipalFactory(required: 'read' | 'write' | 'admin'): Middlewa
     const match = header === undefined ? null : /^Bearer ([^\s]+)$/u.exec(header);
     const token = match?.[1];
     if (token !== undefined && isJwtShape(token)) {
+      // ⚠️ Invariant thứ tự mount (review #254): `getConfig` ở đây KHÔNG ném
+      // trong runtime thật — middleware config (sau cùng trong buildApp) đã nạp
+      // + cache config trước mọi route group, và bắt `PactBrokerConfigurationError`
+      // thành 503. Refactor sau nào đưa auth trước config middleware thì lỗi
+      // cấu hình lan lên `app.onError` thành 500 thay vì 503 fail-closed — giữ
+      // config middleware TRƯỚC mọi auth khi sắp xếp lại chain.
       const config = getConfig(c.env);
       return handleUserToken(c, token, config, required, next);
     }

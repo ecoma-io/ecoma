@@ -136,7 +136,7 @@ describe('loadPactBrokerConfig — user auth pair', () => {
     expect(config.authAudience).toBeNull();
   });
 
-  it('normalizes the issuer origin and keeps the audience verbatim', () => {
+  it('normalizes the issuer origin and trims the audience', () => {
     const config = loadPactBrokerConfig({
       HYPERDRIVE,
       PACT_BROKER_AUTH_ISSUER: 'https://auth.example.com/',
@@ -144,6 +144,22 @@ describe('loadPactBrokerConfig — user auth pair', () => {
     });
     expect(config.authIssuer).toBe('https://auth.example.com');
     expect(config.authAudience).toBe('pact-aud');
+    const padded = loadPactBrokerConfig({
+      HYPERDRIVE,
+      PACT_BROKER_AUTH_ISSUER: 'https://auth.example.com',
+      PACT_BROKER_AUTH_AUDIENCE: '  pact-aud  ',
+    });
+    expect(padded.authAudience).toBe('pact-aud');
+  });
+
+  it('rejects a whitespace-only audience', () => {
+    expect(() =>
+      loadPactBrokerConfig({
+        HYPERDRIVE,
+        PACT_BROKER_AUTH_ISSUER: 'https://auth.example.com',
+        PACT_BROKER_AUTH_AUDIENCE: '   ',
+      }),
+    ).toThrow(PactBrokerConfigurationError);
   });
 
   it('rejects a half-configured pair', () => {

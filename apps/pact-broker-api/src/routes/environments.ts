@@ -211,6 +211,15 @@ export function environmentRoutes(
   // (ADR-0032: coverage của #206) — cùng pattern create/update: mutation qua
   // repo (pool), audit ghi trong transaction riêng (client); audit lỗi thì
   // error propagate (fail-closed, request 500) chứ không nuốt.
+  //
+  // ⚠️ Trade-off không dùng transaction chung (đã xem xét — review #254): delete
+  // thành công mà audit thất bại thì environment đã mất nhưng không còn audit
+  // record, client nhận 500 dù delete đã diễn ra. Gộp delete + audit vào một
+  // PoolClient đòi `PgEnvironmentRepo` nhận client ngoài (thay đổi contract
+  // repo, ảnh hưởng mọi route dùng nó) — ngoài phạm vi slice này, theo dõi như
+  // follow-up chung của pattern "mutation + audit hai client" (cùng trạng thái
+  // ở entitlement-consumer). Audit trước delete không được: audit record
+  // "delete thành công" ghi trước khi biết delete có xảy ra là audit sai.
   app.delete('/:id', writeAuth(), async (c) => {
     const raw = c.req.param('id');
     const repo = new PgEnvironmentRepo(c.get('pool'));
