@@ -257,6 +257,10 @@ $$;
 
 DO $$
 DECLARE
+  -- UUID literal là canonical theo ADR-0024 Quyết định 5 (định danh cố định
+  -- `kind='system'`, `name='system-administrator'`, seed idempotent bằng `id`
+  -- cố định); giá trị literal do chính migration này định nghĩa và được
+  -- `0010` tham chiếu (ADR-0033 Quyết định 2). Hardcode là chủ đích.
   canonical_role_id constant uuid := 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b';
   canonical_kind constant text := 'system';
   canonical_name constant text := 'system-administrator';

@@ -23,7 +23,7 @@ Permission của hành động phát lời mời là **`invitation.create`** (`d
 
 ### 2. Role mapping: canonical `system-administrator`
 
-Literal này được cấp cho **đúng một** role canonical hiện có: `kind = 'system'`, `name = 'system-administrator'`, `id = 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b'` ([ADR-0024](./0024-trusted-bootstrap-verified-address.md) Quyết định 5). Đây là role mà bootstrap gán cho administrator đầu tiên ([ADR-0021](./0021-first-admin-bootstrap-path.md) Quyết định 4), nên "administrator" trong ADR-0030 Quyết định 3 nghĩa đúng là người giữ role này.
+Literal này được cấp cho **đúng một** role canonical hiện có: `kind = 'system'`, `name = 'system-administrator'`, với `id` cố định do [ADR-0024](./0024-trusted-bootstrap-verified-address.md) Quyết định 5 chốt (định danh canonical kèm seed idempotent); **giá trị literal UUID** `eeb3abcb-31ef-479f-9dd1-198a9d520b1b` được định nghĩa tại migration `0008_role_identity_and_assignment_uniqueness.sql` (`canonical_role_id`, được `0010` tham chiếu). Đây là role mà bootstrap gán cho administrator đầu tiên ([ADR-0021](./0021-first-admin-bootstrap-path.md) Quyết định 4), nên "administrator" trong ADR-0030 Quyết định 3 nghĩa đúng là người giữ role này.
 
 Hệ quả là nội dung role canonical **không còn đúng bốn permission read**: nó là bốn permission read cộng `invitation.create`. ADR này supersede-in-part ADR-0021 Quyết định 4 ở đúng vế "tập bốn permission read của system administrator role" — bốn read vẫn là **mức tối thiểu**, nhưng không còn là toàn bộ.
 

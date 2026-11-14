@@ -81,7 +81,7 @@ export function validatePermissionVerdictRequest(
     if (key !== 'permission' && key !== 'correlation_id') {
       return {
         ok: false,
-        detail: `Request body carries a field outside the contract: ${key}.`,
+        detail: 'Request body carries fields outside the contract.',
       };
     }
   }

@@ -70,8 +70,9 @@ async function staffAccessFetch(request: Request): Promise<Response> {
     now: String(Math.floor(Date.now() / 1000)),
     // Kho nonce của fake: mỗi request một nonce mới (`createNonce`) nên luôn
     // "chưa bị chiếm". Chống replay của envelope là hợp đồng của
-    // `@ecoma-io/internal-auth-contracts`, có test riêng; ở đây cần chữ ký và
-    // `actorSub` trong chuỗi ký.
+    // `@ecoma-io/internal-auth-contracts`, có test riêng tại
+    // `tests/integrations/internal-nonces.spec.ts`; suite này **không** bao giờ
+    // kéo nhánh `claimNonce` trả `true` — nhánh replay 401 thuộc contract owner.
     claimNonce: async () => false,
   });
   if (!verified.ok) {

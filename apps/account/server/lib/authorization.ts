@@ -106,10 +106,11 @@ export async function authorizeInvitationIssuance(params: {
   });
 
   if (!result.ok) {
+    // `binding_missing` / `secret_missing` không thể xảy ra ở đây: caller đã
+    // kiểm `binding === null || signingKey === null` ở trên và trả sớm với
+    // `authorization_surface_not_configured` — hai giá trị đó do caller sở hữu,
+    // `requestPermissionVerdict` nhận tham số đã qua kiểm và không trả lại.
     switch (result.reason) {
-      case 'binding_missing':
-      case 'secret_missing':
-        return { verdict: 'unavailable', reason: 'authorization_surface_not_configured' };
       case 'rejected':
         return { verdict: 'unavailable', reason: 'authorization_surface_rejected' };
       case 'invalid_response':

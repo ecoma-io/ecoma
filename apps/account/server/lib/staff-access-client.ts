@@ -20,6 +20,10 @@
  * chuỗi khác rỗng. Khi `account` được phép phụ thuộc lib contracts của provider,
  * bản mirror này bị xoá và `validatePermissionVerdictResponse` được import.
  *
+ * Sự chặt chẽ (đúng hai khoá, không thừa) là chủ đích fail-closed theo
+ * ADR-0033: `staff-access` thêm trường mới thì phía này trả `invalid_response`
+ * (503) thay vì bỏ qua — lộ trình hội hợp là xoá mirror, không nới validator.
+ *
  * ## Fail-closed: chỉ 200 mới là verdict
  *
  * Mọi nhánh không phải `200` + body đúng hợp đồng đều trả `{ ok: false, reason }`
@@ -47,10 +51,6 @@ export interface StaffAccessServiceBinding {
 
 /** Mã lỗi ổn định của nhánh hạ tầng — đi vào log, không phải message cho người dùng. */
 export type StaffAccessCallFailureReason =
-  /** Chưa cấu hình binding — hạ tầng chưa provision (hoặc preset local chưa nối). */
-  | 'binding_missing'
-  /** Chưa cấu hình secret của path này — không thể ký, không có đường unsigned. */
-  | 'secret_missing'
   /** `staff-access` trả 5xx — chính nó đang fail-close. */
   | 'staff_access_unavailable'
   /** `staff-access` trả 4xx — envelope hỏng (401) hoặc actor không phải staff (403). */
