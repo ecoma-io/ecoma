@@ -45,15 +45,28 @@ const READY_TEST_IDS: Readonly<Record<string, string>> = {
   '/audit': 'audit-empty',
 };
 
-/** Chờ route hiện tại render xong phần dữ liệu mà test cần. */
-export async function waitForRouteReady(page: Page, path: string): Promise<void> {
+/**
+ * Chờ route hiện tại render xong phần dữ liệu mà test cần.
+ *
+ * ⚠️ `timeoutMs` không phải tùy chọn trang trí: không truyền thì lần chờ rơi về
+ * timeout mặc định của Playwright (30s) — **không liên quan** đến trần warm-up
+ * (`WARM_UP_CAP_MS`). Đó chính là cơ chế đỏ của #239: chain reload của Vite
+ * optimizer trên CI vượt 30s trong khi trần warm-up chỉ áp cho hai chỗ chờ khác.
+ * `globalSetup` truyền phần trần còn lại của cả vế browser để tổng thời gian
+ * warm-up có đúng một biên biết trước.
+ */
+export async function waitForRouteReady(
+  page: Page,
+  path: string,
+  timeoutMs?: number,
+): Promise<void> {
   const testId = READY_TEST_IDS[path];
 
   if (testId === undefined) {
     throw new Error(`Không có tín hiệu ready cho route "${path}".`);
   }
 
-  await page.getByTestId(testId).waitFor({ state: 'visible' });
+  await page.getByTestId(testId).waitFor({ state: 'visible', timeout: timeoutMs });
 }
 
 /** Tiêu đề `<h1>` của trang đang xem. */

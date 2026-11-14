@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { gotoWithReloadRetry } from './browser/support/warm-up';
+import {
+  CI_WARM_UP_CAP_MS,
+  WARM_UP_CAP_MS,
+  WARM_UP_MIN_WAIT_MS,
+  gotoWithReloadRetry,
+  remainingWarmUpMs,
+  warmUpCapMs,
+} from './browser/support/warm-up';
 
 /**
  * Unit test cho `gotoWithReloadRetry` — logic retry navigation của warm-up
@@ -140,5 +147,57 @@ describe('gotoWithReloadRetry', () => {
       'net::ERR_CONNECTION_REFUSED',
     );
     expect(calls.calls()).toBe(1);
+  });
+});
+
+describe('remainingWarmUpMs', () => {
+  it('returns the whole cap before any time has elapsed', () => {
+    const clock = fakeClock();
+
+    expect(remainingWarmUpMs({ capMs: 30_000, phaseStart: 0, stage: '/', now: clock.now })).toBe(
+      30_000,
+    );
+  });
+
+  it('returns the remaining slice while more than the floor is left', () => {
+    const clock = fakeClock();
+    clock.advance(5_000);
+
+    expect(remainingWarmUpMs({ capMs: 30_000, phaseStart: 0, stage: '/', now: clock.now })).toBe(
+      25_000,
+    );
+  });
+
+  it('floors a nearly exhausted budget instead of returning a 1 ms wait', () => {
+    const clock = fakeClock();
+    clock.advance(29_500);
+
+    expect(remainingWarmUpMs({ capMs: 30_000, phaseStart: 0, stage: '/', now: clock.now })).toBe(
+      WARM_UP_MIN_WAIT_MS,
+    );
+  });
+
+  it('throws a clear budget-exhausted error once the cap is spent', () => {
+    const clock = fakeClock();
+    clock.advance(30_000);
+
+    expect(() =>
+      remainingWarmUpMs({
+        capMs: 30_000,
+        phaseStart: 0,
+        stage: '/staff ready',
+        now: clock.now,
+      }),
+    ).toThrow(/budget exhausted after 30000 ms \(cap 30000 ms\) at \/staff ready/u);
+  });
+});
+
+describe('warmUpCapMs', () => {
+  it('selects the local cap outside CI', () => {
+    expect(warmUpCapMs(false)).toBe(WARM_UP_CAP_MS);
+  });
+
+  it('selects the CI cap in CI', () => {
+    expect(warmUpCapMs(true)).toBe(CI_WARM_UP_CAP_MS);
   });
 });
