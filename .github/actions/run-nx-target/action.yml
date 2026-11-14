@@ -112,34 +112,30 @@ runs:
         IFS=$', \t\n' read -ra excluded <<< "$RAW_EXCLUDE"
         exclude="$(IFS=,; echo "${excluded[*]}")"
 
-        exclude_flag=''
-        if [ -n "$exclude" ]; then
-          exclude_flag="--exclude=$exclude"
-        fi
-
-        # Bash word splitting is deliberate: an empty flag must vanish from the
-        # command line entirely (`$bail_flag` unquoted), a present one arrives
-        # as the single argument `--nxBail`. `$config_flag` follows the same
-        # rule for the configuration: no input means no `-c` argument at all,
-        # which is byte-for-byte the command line the action built before the
-        # input existed.
-        bail_flag=''
+        # Dựng argv bằng bash array, KHÔNG nối cờ thành chuỗi rồi để bash tách
+        # lại. `--exclude` ở bước browser mang `*` (dạng phủ định `*,!project`);
+        # một expansion không quote sẽ bị pathname expansion thay bằng tên file
+        # khớp trong cwd, và Nx nhận exclude set rác thay vì một lỗi rõ ràng.
+        # Quote từng phần tử cũng làm cờ rỗng biến mất đúng cách — không sinh
+        # đối số rỗng — nên hành vi cũ (không truyền cờ) giữ nguyên.
+        nx_args=(-t "$targets" --parallel="$THREADS")
         if [ "$BAIL" = 'true' ]; then
-          bail_flag='--nxBail'
+          nx_args+=(--nxBail)
         fi
-
-        config_flag=''
         if [ -n "$CONFIGURATION" ]; then
-          config_flag="--configuration=$CONFIGURATION"
+          nx_args+=("--configuration=$CONFIGURATION")
+        fi
+        if [ -n "$exclude" ]; then
+          nx_args+=("--exclude=$exclude")
         fi
 
         run_nx() {
           if [ "$AFFECTED" = 'true' ]; then
-            echo "Running on the affected set: npx nx affected -t $targets $config_flag $exclude_flag"
-            npx nx affected -t "$targets" --parallel="$THREADS" $bail_flag $config_flag $exclude_flag
+            echo "Running on the affected set: npx nx affected ${nx_args[*]}"
+            npx nx affected "${nx_args[@]}"
           else
-            echo "Running on every project: npx nx run-many -t $targets $config_flag $exclude_flag"
-            npx nx run-many -t "$targets" --parallel="$THREADS" $bail_flag $config_flag $exclude_flag
+            echo "Running on every project: npx nx run-many ${nx_args[*]}"
+            npx nx run-many "${nx_args[@]}"
           fi
         }
 
