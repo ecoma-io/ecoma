@@ -143,4 +143,4 @@ Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()`
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
 - Không có test nào chạy Pact CLI; tương thích với `pact-broker verify` hay `can-i-deploy` của CLI chỉ được suy ra từ hình dạng route và compatibility version. CLI làm chuẩn là npm `@pact-foundation/pact-cli` ghim theo bằng chứng chạy thật (kết luận #205 quyết định 12 — #208 sở hữu evidence publish/verify/can-i-deploy trên lane; system E2E thuộc #27).
-- Không có test nào chứng minh thay đổi tag hay deployment là hành vi không ghi audit mong muốn; đó là khoảng trống đã biết. Xoá environment thì ngược lại: hàng audit `environment.delete` được assert trong test (`apps/pact-broker-app/tests/browser/user-auth.spec.ts`).
+- Không có test nào chứng minh thay đổi tag hay deployment là hành vi không ghi audit mong muốn; đó là khoảng trống đã biết. Xoá environment thì ngược lại: hàng audit `environment.delete` được assert trong test (`apps/pact-broker-api/tests/integrations/user-auth.spec.ts:493`).
