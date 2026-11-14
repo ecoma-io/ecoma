@@ -389,14 +389,14 @@ export async function revokeStaffAccessAssignment(
   postgresContainer: string,
   params: { readonly staffSub: string; readonly roleId?: string },
 ): Promise<void> {
-  const roleFilter = params.roleId ? `AND ra.role_id = ${sqlQuote(params.roleId)}` : '';
+  const whereParts = [
+    `staff_id = (SELECT id FROM staff_access.staff WHERE sub = ${sqlQuote(params.staffSub)})`,
+    ...(params.roleId ? [`role_id = ${sqlQuote(params.roleId)}`] : []),
+    'revoked_at IS NULL',
+  ];
   const sql = `UPDATE staff_access.role_assignments
                   SET revoked_at = now()
-                WHERE staff_id = (SELECT id FROM staff_access.staff WHERE sub = ${sqlQuote(
-                  params.staffSub,
-                )})
-                  ${roleFilter}
-                  AND revoked_at IS NULL;`;
+                WHERE ${whereParts.join('\n                  AND ')};`;
   await dockerExec(postgresContainer, [
     'psql',
     '-U',

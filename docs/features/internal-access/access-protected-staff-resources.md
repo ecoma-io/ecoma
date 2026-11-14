@@ -29,7 +29,7 @@ Staff đăng nhập được vào backoffice và chỉ đọc được những t
 - Khởi động login: đặt cookie luồng dùng một lần rồi chuyển hướng tới authorization server với PKCE S256.
 - Callback: đổi code, xác thực access token và ID token, tạo session server-side, đặt session cookie và CSRF cookie.
 - Logout: trả 403 khi CSRF cookie có mặt nhưng header không khớp; thiếu hẳn CSRF cookie thì vẫn thu hồi session (204). Thu hồi best-effort ở authorization server, đánh dấu session đã thu hồi.
-- Năm bề mặt đọc được bảo vệ theo permission: danh bạ staff, role, permission, audit và entitlement; quyết định permission đọc từ ảnh authorization của Staff Access — staff, role, assignment và role permission đọc qua API của `staff-access` (ADR-0023 Quyết định 2). Cổng cutover `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` (ISO-8601) do deploy layer cấp; cutover bật mà projection không đọc được hoặc quá TTL thì fallback về nguồn legacy kèm một dòng log — không chọn im lặng.
+- Năm bề mặt đọc được bảo vệ theo permission: danh bạ staff, role, permission, audit và entitlement.
 - Quyết định permission của các bề mặt đó đọc từ ảnh authorization của Staff Access — staff, role, assignment và role permission đọc qua API của `staff-access` (ADR-0023 Quyết định 2). Cổng cutover `BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT` (ISO-8601) do deploy layer cấp; cutover bật mà projection không đọc được hoặc quá TTL thì fallback về nguồn legacy kèm một dòng log — không chọn im lặng.
 - Hai bề mặt chỉ cần session: thông tin người dùng hiện tại và trạng thái onboarding.
 - Chuyển hướng sang `/onboarding` khi profile chưa có tên hiển thị.
