@@ -40,6 +40,12 @@ export interface RenewedSession {
 }
 
 /**
+ * Timeout của fetch refresh grant — auth không trả lời trong 10s là "không
+ * gia hạn được lúc này"; request treo không được block người dùng vô hạn.
+ */
+const REFRESH_FETCH_TIMEOUT_MS = 10_000;
+
+/**
  * Gia hạn token của phiên theo hash: gọi `/token` với refresh token đã lưu,
  * verify access token mới, rồi ghi **cả hai** token mới vào hàng phiên (chỉ
  * khi hàng vẫn chưa revoke). `null` cho mọi nhánh thất bại — caller phân loại
@@ -69,7 +75,7 @@ export async function renewSessionTokens(
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(REFRESH_FETCH_TIMEOUT_MS),
       },
     );
     if (!response.ok) {

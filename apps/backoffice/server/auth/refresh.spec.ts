@@ -24,7 +24,13 @@ import type { Pool } from 'pg';
 import { renewSessionTokens } from './refresh';
 
 const verifyOutcome = vi.hoisted(() => ({
-  result: { outcome: 'verified' as const, sub: 'sub_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', exp: 0 },
+  // Kiểu nở đủ hai outcome của union `TokenVerifyResult` — test mutate giữa
+  // các nhánh; các trường `sub`/`exp` không có nghĩa ở nhánh `invalid`.
+  result: {
+    outcome: 'verified' as 'verified' | 'invalid' | 'unavailable',
+    sub: 'sub_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    exp: 0,
+  },
 }));
 
 vi.mock('@ecoma-io/backoffice-infrastructure', async (importOriginal) => {

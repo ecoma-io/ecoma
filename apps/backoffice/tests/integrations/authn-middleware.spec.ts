@@ -687,8 +687,8 @@ describe('authn middleware boundary and classification', () => {
       const client = await db.connect();
       try {
         await client.query(
-          `UPDATE backoffice.bff_sessions SET refresh_token = NULL WHERE account_sub = $1`,
-          [ACCOUNT_ID],
+          `UPDATE backoffice.bff_sessions SET refresh_token = NULL WHERE id_hash = $1`,
+          [await hashSessionIdentifier(sessionValue)],
         );
       } finally {
         await client.end();

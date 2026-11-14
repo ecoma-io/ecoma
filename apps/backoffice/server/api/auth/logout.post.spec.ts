@@ -127,7 +127,10 @@ describe('POST /api/auth/logout — revocation fetch origin (#243)', () => {
     const response = await handler()(logoutRequest());
 
     expect(response.status).toBe(204);
-    expect(fetchCalls[0]?.url).toBe(`${ISSUER}/revocation`);
+    // Cả access lẫn refresh token đều revoke qua issuer (production shape) —
+    // ghim đủ hai lần gọi để một regression bỏ refresh-token revocation là đỏ.
+    const urls = fetchCalls.map((call) => call.url);
+    expect(urls).toEqual([`${ISSUER}/revocation`, `${ISSUER}/revocation`]);
   });
 
   it('still answers 204 and skips revocation when the session is already revoked', async () => {

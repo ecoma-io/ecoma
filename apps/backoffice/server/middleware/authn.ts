@@ -197,9 +197,15 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
           event: 'backoffice_session.renewed',
           route: pathname,
           status: 200,
-          sub: renewed.sub,
+          sub: row.account_sub,
         });
-        await touchSession(pool, idHash, now + SESSION_IDLE_SECONDS * 1000);
+        try {
+          await touchSession(pool, idHash, now + SESSION_IDLE_SECONDS * 1000);
+        } catch {
+          // Token mới đã persist; trượt idle hỏng không được biến một lần gia
+          // hạn thành công thành 503 — client retry sẽ đi nhánh verify thành
+          // công và tự trượt idle. Nuốt, vẫn gắn principal.
+        }
         // `sub` của access token mới — phải khớp hàng phiên (refresh của auth
         // giữ nguyên subject); dùng sub đã verify của token mới là fail-closed.
         principal = { actorSub: renewed.sub };
