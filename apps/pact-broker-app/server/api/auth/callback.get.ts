@@ -186,7 +186,7 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
   try {
     let consumed: { codeVerifier: string } | null;
     try {
-      const flowIdHash = await hashFlowIdentifier(flowCookie as string);
+      const flowIdHash = await hashFlowIdentifier(flowCookie);
       consumed = await consumeLoginFlow(pool, flowIdHash, state);
     } catch {
       consumed = null;
@@ -222,7 +222,7 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
         : null;
 
     // 4. Verify access token — không lưu token chưa verify.
-    const verified = await verifyAccessToken(accessToken as string, config);
+    const verified = await verifyAccessToken(accessToken, config);
     if (verified.outcome === 'unavailable') {
       reject(event, 503, 'jwks_unavailable');
     }
@@ -241,7 +241,7 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
     await insertSession(pool, {
       idHash,
       accountSub: verified.sub,
-      accessToken: accessToken as string,
+      accessToken,
       refreshToken,
       expiresAt: new Date(deadlines.idleExpiresAtMs),
     });
