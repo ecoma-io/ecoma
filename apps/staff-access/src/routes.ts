@@ -466,19 +466,11 @@ export function staffAccessRoutes(): Hono<AppEnv> {
           throw staffAccessDomainError('role_not_found');
         }
         // SR-005: cấm self-assignment — actor không tự gán role cho chính mình.
-        // Audit `denied` ghi TRONG transaction rồi ROLLBACK theo guard (SR-013:
-        // hàng audit sống độc lập với dữ liệu nghiệp vụ đã từ chối — không có
-        // dữ liệu nào được ghi). Route trả 403 sau khi begin ném.
+        // Không ghi audit trong transaction: ADR-0023 Quyết định 6 đòi hàng
+        // `denied` phải commit, mà transaction này không được commit — hàng
+        // được ghi ngoài transaction sau khi begin trả về (cùng hình
+        // `requireWritePermission`), trước khi route trả 403.
         if (c.get('actorStaffId') === staffId) {
-          await appendAuditEntry(tx, {
-            actorStaffId: c.get('actorStaffId'),
-            actorSub: c.get('actorSub'),
-            target: staffId,
-            action: 'role.assign',
-            outcome: 'denied',
-            reason: 'self_assignment',
-            correlationId: c.get('requestId'),
-          });
           return { selfAssignment: true as const };
         }
         // ADR-0023 Quyết định 2: target đã có assignment còn hiệu lực cho cùng
@@ -523,6 +515,19 @@ export function staffAccessRoutes(): Hono<AppEnv> {
       }),
     );
     if (result.selfAssignment === true) {
+      // Hàng audit `denied` ghi ngoài transaction, commit trước khi trả 403
+      // (ADR-0023 Quyết định 6 — cùng hình `requireWritePermission`).
+      await withClient(c, (db) =>
+        appendAuditEntry(db, {
+          actorStaffId: c.get('actorStaffId'),
+          actorSub: c.get('actorSub'),
+          target: staffId,
+          action: 'role.assign',
+          outcome: 'denied',
+          reason: 'self_assignment',
+          correlationId: c.get('requestId'),
+        }),
+      );
       return c.json(
         { error: 'Forbidden', message: 'Self-assignment of a role is not permitted.' },
         403,
@@ -599,15 +604,9 @@ export function staffAccessRoutes(): Hono<AppEnv> {
               existing.role_id,
             );
             if (liveCount === 1) {
-              await appendAuditEntry(tx, {
-                actorStaffId: c.get('actorStaffId'),
-                actorSub: c.get('actorSub'),
-                target: assignmentId,
-                action: 'role.revoke',
-                outcome: 'denied',
-                reason: 'self_revocation_last_administrator',
-                correlationId: c.get('requestId'),
-              });
+              // Không ghi audit trong transaction — hàng `denied` phải commit
+              // (ADR-0023 Quyết định 6) mà transaction này không được commit;
+              // hàng được ghi ngoài transaction trước khi route trả 403.
               return { selfRevocationLastAdmin: true as const };
             }
           }
@@ -631,6 +630,19 @@ export function staffAccessRoutes(): Hono<AppEnv> {
       return c.json(notFound('Assignment not found.').body, 404);
     }
     if (outcome.selfRevocationLastAdmin === true) {
+      // Hàng audit `denied` ghi ngoài transaction, commit trước khi trả 403
+      // (ADR-0023 Quyết định 6 — cùng hình `requireWritePermission`).
+      await withClient(c, (db) =>
+        appendAuditEntry(db, {
+          actorStaffId: c.get('actorStaffId'),
+          actorSub: c.get('actorSub'),
+          target: assignmentId,
+          action: 'role.revoke',
+          outcome: 'denied',
+          reason: 'self_revocation_last_administrator',
+          correlationId: c.get('requestId'),
+        }),
+      );
       return c.json(
         {
           error: 'Forbidden',

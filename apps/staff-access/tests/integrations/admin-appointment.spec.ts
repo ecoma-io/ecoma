@@ -183,7 +183,7 @@ describe('admin appointment write authorization end-to-end', () => {
     }
   });
 
-  it('rejects self-assignment with 403 and a denied audit row', async () => {
+  it('rejects self-assignment with 403 and a committed denied audit row', async () => {
     const response = await call({
       method: 'POST',
       path: `/staff/${adminStaffId}/assignments`,
@@ -193,6 +193,15 @@ describe('admin appointment write authorization end-to-end', () => {
     expect(response.status).toBe(403);
     const body = (await response.json()) as { error: string };
     expect(body.error).toBe('Forbidden');
+    // ADR-0023 Quyết định 6: hàng `denied` phải commit trước khi trả 403 —
+    // guard không ghi trong transaction rồi để rollback nuốt hàng.
+    const rows = await auditRows(response.headers.get('x-request-id') ?? '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      outcome: 'denied',
+      action: 'role.assign',
+      reason: 'self_assignment',
+    });
   });
 
   it('rejects a target staff that is not active with 409', async () => {
@@ -241,6 +250,14 @@ describe('admin appointment write authorization end-to-end', () => {
       actorSub: SUB_ADMIN,
     });
     expect(response.status).toBe(403);
+    // ADR-0023 Quyết định 6: hàng `denied` commit trước khi trả 403.
+    const deniedRows = await auditRows(response.headers.get('x-request-id') ?? '');
+    expect(deniedRows).toHaveLength(1);
+    expect(deniedRows[0]).toMatchObject({
+      outcome: 'denied',
+      action: 'role.revoke',
+      reason: 'self_revocation_last_administrator',
+    });
     expect(
       await db.connect().then(async (c) => {
         try {
