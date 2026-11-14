@@ -535,6 +535,118 @@ describe('temporary allowlist mechanics', () => {
   });
 });
 
+/** Package.json khai test-integration qua nx target với lệnh `playwright test`. */
+function playwrightApp(commandShape: 'command' | 'commands' | 'script'): Record<string, string> {
+  const { files } = goodApp();
+  // Thêm tests/browser/ và bỏ include hình thức khỏi integration config.
+  files['apps/widget/tests/browser/page.spec.ts'] =
+    "import { test, expect } from '@playwright/test'; test('works', async () => {});\n";
+  files['apps/widget/vitest.integration.config.mts'] = integrationConfig([
+    'tests/integrations/**/*.{test,spec}.ts',
+  ]);
+  // Unit include phủ tests/**: suite browser phải bị exclude ở tier unit như
+  // mọi suite integration khác, để violation "chạy hai lần" không đè lỗi mà
+  // từng test đang assert.
+  files['apps/widget/vitest.config.mts'] = unitConfig(
+    ['{src,tests}/**/*.{test,spec}.ts'],
+    `exclude: [...defaultExclude, 'tests/integrations/**', 'tests/browser/**'],`,
+  );
+  const playwrightCommands = [
+    'bash tests/browser/ensure-playwright-browser.sh',
+    'npx playwright test -c playwright.config.ts',
+  ];
+  const nxTargets: Record<string, unknown> = {
+    test: {},
+    'test-integration':
+      commandShape === 'commands'
+        ? {
+            executor: 'nx:run-commands',
+            options: {
+              commands: ['npx vitest run -c vitest.integration.config.mts', ...playwrightCommands],
+            },
+          }
+        : {
+            executor: 'nx:run-commands',
+            options: { command: 'npx vitest run -c vitest.integration.config.mts' },
+          },
+  };
+  const pkgJson: Record<string, unknown> = { name: 'fixture', nx: { targets: nxTargets } };
+  if (commandShape === 'script') {
+    pkgJson.scripts = { 'test-integration': playwrightCommands.join(' && ') };
+  }
+  files['apps/widget/package.json'] = JSON.stringify(pkgJson);
+  return files;
+}
+
+describe('validateTestTargets — Playwright-executed browser suite', () => {
+  it('accepts a browser suite declared through a playwright test commands array in the nx target', () => {
+    // Hình thật của apps/backoffice: `commands: [vitest…, playwright test…]`.
+    expect(run(playwrightApp('commands'), [node('@ecoma-io/widget', 'apps/widget')])).toEqual([]);
+  });
+
+  it('accepts a browser suite declared through a package.json test-integration script', () => {
+    expect(run(playwrightApp('script'), [node('@ecoma-io/widget', 'apps/widget')])).toEqual([]);
+  });
+
+  it('accepts a browser suite declared through a single command option carrying playwright test', () => {
+    // Không phải hình thật hôm nay (lệnh đơn là vitest thuần), nhưng cơ chế
+    // nhận diện theo regex trên mọi hình command của target phải phủ.
+    const files = playwrightApp('commands');
+    files['apps/widget/package.json'] = JSON.stringify({
+      name: 'fixture',
+      nx: {
+        targets: {
+          test: {},
+          'test-integration': {
+            executor: 'nx:run-commands',
+            options: { command: 'npx playwright test -c playwright.config.ts' },
+          },
+        },
+      },
+    });
+    expect(run(files, [node('@ecoma-io/widget', 'apps/widget')])).toEqual([]);
+  });
+
+  it('still reports a browser suite when the integration target declares no playwright test command', () => {
+    // Ngược fail-loud: vitest-only target mà có tests/browser/ trên đĩa thì
+    // config phải include dir đó như cũ — cơ chế không nới rule cho runner khác.
+    const files = playwrightApp('command'); // command không chứa `playwright test`
+    const violations = run(files, [node('@ecoma-io/widget', 'apps/widget')]);
+    expect(kinds(violations)).toEqual(['integration-config-missing-dir']);
+    expect(violations.find((v) => v.kind === 'integration-config-missing-dir')?.detail).toContain(
+      'tests/browser',
+    );
+  });
+
+  it('does not exempt contracts, databases or integrations dirs through the playwright lane', () => {
+    // Ngoại lệ chỉ dành cho tests/browser: gỡ include của databases/ vẫn đỏ
+    // kể cả khi target khai lệnh playwright test.
+    const files = playwrightApp('commands');
+    files['apps/widget/tests/databases/migrate.spec.ts'] =
+      'import { it } from "vitest"; it("works", () => {});\n';
+    const violations = run(files, [node('@ecoma-io/widget', 'apps/widget')]);
+    // databases/ không nằm trong exclude unit của fixture nên cùng vi phạm
+    // "chạy hai lần" — đúng như test 'omits an existing purpose directory'.
+    expect(kinds(violations)).toEqual([
+      'integration-config-missing-dir',
+      'integration-dir-in-unit-config',
+    ]);
+    expect(violations.find((v) => v.kind === 'integration-config-missing-dir')?.detail).toContain(
+      'tests/databases',
+    );
+  });
+
+  it('does not exempt a browser suite in a project whose package.json is unreadable', () => {
+    // Fail-closed: không đọc được package.json tức không chứng minh được lane
+    // Playwright tồn tại — rule cũ giữ nguyên, và nhóm (1) báo lỗi của nó.
+    const files = playwrightApp('commands');
+    files['apps/widget/package.json'] = '{ broken json';
+    const violations = run(files, [node('@ecoma-io/widget', 'apps/widget')]);
+    expect(violations.some((v) => v.kind === 'integration-config-missing-dir')).toBe(true);
+    expect(violations.some((v) => v.kind === 'missing-integration-target')).toBe(true);
+  });
+});
+
 describe('parseVitestConfig', () => {
   it('extracts include, exclude and passWithNoTests from a repo-shaped config', () => {
     const parsed = parseVitestConfig(

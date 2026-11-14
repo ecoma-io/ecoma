@@ -18,6 +18,13 @@
  *    `integration-config-missing-dir`). Không có "suite mồ côi" chỉ chạy lặng
  *    lẽ dưới job unit.
  *
+ *    Ngoại lệ duy nhất: purpose dir `tests/browser/` khi lane Playwright là
+ *    người thực thi — target `test-integration` (nx target hoặc package.json
+ *    script) khai lệnh `playwright test` thì suite đó đã có runner nhìn thấy,
+ *    không cần include hình thức trong vitest (`declaresPlaywrightTestLane`).
+ *    Các dir khác (contracts/databases/integrations) không thuộc ngoại lệ này:
+ *    runner của chúng vẫn là vitest.
+ *
  * 2. **Suite app-owned không được chạy trùng ở tier unit.** Unit config include
  *    tới đâu thì tier unit chạy tới đó: thư mục mục đích bị include phủ mà
  *    không có exclude tương ứng là suite chạy HAI lần (cả `test` lẫn
@@ -494,7 +501,12 @@ export function validateTestTargets(input: {
         if (text !== undefined && parsed === undefined) {
           reportUnreadable(project.name, integrationConfigPath, report);
         } else if (parsed !== undefined) {
+          // Lane Playwright sở hữu thực thi suite browser: purpose dir
+          // `tests/browser` đã được runner đó khai, không cần include vitest
+          // hình thức. Các dir khác không thuộc ngoại lệ này.
+          const playwrightOwnsBrowser = declaresPlaywrightTestLane(fs, `${root}/package.json`);
           for (const purpose of purposeDirs) {
+            if (purpose === 'browser' && playwrightOwnsBrowser) continue;
             if (!parsed.include.some((e) => includeCoversPurposeDir(e, purpose))) {
               report({
                 project: project.name,
@@ -638,6 +650,39 @@ function reportUnreadable(
       `${path} has no include array arch-check can parse; test configs follow a fixed shape ` +
       `and failing to read one is a fail-closed error, not a skip`,
   });
+}
+
+/**
+ * Target `test-integration` có khai lệnh `playwright test` hay không — trong
+ * nx target (`options.command` / `options.commands[]`, hình thật của
+ * apps/backoffice) hoặc package.json script. Đọc package.json qua fs inject:
+ * unit test dựng workspace tổng hợp không cần đĩa thật, và
+ * `collectTargetCommands()` của lượt deployment map không dùng được vì nó đọc
+ * `ROOT_DIR` trực tiếp và bỏ sót dạng mảng `commands`.
+ */
+function declaresPlaywrightTestLane(fs: TestTargetFs, pkgPath: string): boolean {
+  let text: string;
+  try {
+    text = fs.readFile(pkgPath);
+  } catch {
+    return false; // file hỏng/thiếu đã được báo ở nhóm (1) — không nhân lỗi
+  }
+  let pkg: {
+    nx?: { targets?: Record<string, { options?: { command?: string; commands?: string[] } }> };
+    scripts?: Record<string, string>;
+  };
+  try {
+    pkg = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const integration = pkg.nx?.targets?.['test-integration'];
+  const commands = [
+    ...(integration?.options?.command ? [integration.options.command] : []),
+    ...(integration?.options?.commands ?? []),
+    ...(pkg.scripts?.['test-integration'] ? [pkg.scripts['test-integration']] : []),
+  ];
+  return commands.some((c) => /\bplaywright\s+test\b/u.test(c));
 }
 
 /** Đọc `nx.targets` của package.json; undefined khi file hỏng — caller báo thiếu target. */
