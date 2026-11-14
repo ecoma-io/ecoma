@@ -55,6 +55,7 @@ const EXPECTED_PRIVILEGES: Record<string, readonly string[]> = {
   api_keys: ['INSERT', 'SELECT'],
   audit_log: ['INSERT', 'SELECT'],
   cache_entries: ['INSERT', 'SELECT'],
+  internal_nonces: ['DELETE', 'INSERT', 'SELECT'],
   projects: ['INSERT', 'SELECT'],
   quota_limits: ['SELECT'],
   tenant_members: ['SELECT'],

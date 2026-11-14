@@ -24,6 +24,9 @@
     },
     {
       "path": "../../libs/remote-cache-domain/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/internal-auth-contracts/tsconfig.lib.json"
     }
   ]
 }

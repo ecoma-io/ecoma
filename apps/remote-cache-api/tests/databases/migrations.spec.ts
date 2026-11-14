@@ -39,8 +39,9 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
       expect(result.applied).toBe(files.length);
 
       // Không có bảng lịch sử để đối chiếu: catalog là nguồn sự thật duy nhất —
-      // đếm bảng `CREATE TABLE remote_cache.*` (8 bảng: 5 bảng data P4.1/P4.2 +
-      // 3 bảng P4.3 quota_limits, usage_counters, audit_log) qua catalog thật.
+      // đếm bảng `CREATE TABLE remote_cache.*` (9 bảng: 5 bảng data P4.1/P4.2 +
+      // 3 bảng P4.3 quota_limits, usage_counters, audit_log + internal_nonces
+      // của portal authorization #202) qua catalog thật.
       const { rows } = await migrator.query<{ relname: string }>(
         `SELECT c.relname
            FROM pg_class c
@@ -53,6 +54,7 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
           'api_keys',
           'audit_log',
           'cache_entries',
+          'internal_nonces',
           'projects',
           'quota_limits',
           'tenant_members',
@@ -60,7 +62,7 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
           'usage_counters',
         ].toSorted(),
       );
-      expect(result.tablesInRemoteCacheSchema).toBe(8);
+      expect(result.tablesInRemoteCacheSchema).toBe(9);
     } finally {
       await migrator.end();
     }
@@ -75,7 +77,7 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     try {
       const result = await applyAllMigrations(migrator);
       expect(result.applied).toBe(listMigrations().length);
-      expect(result.tablesInRemoteCacheSchema).toBe(8);
+      expect(result.tablesInRemoteCacheSchema).toBe(9);
     } finally {
       await migrator.end();
     }

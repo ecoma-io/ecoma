@@ -135,21 +135,91 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 213,
-    "end": 213,
-    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi.",
+    "start": 216,
+    "end": 216,
+    "reason": "Show-once: POST /projects tra token nhan vat 1 lan trong response 201 (hop dong endpoint, comment 'Show-once'). Token hash da luu DB; toi vieu sau chi tra metadata. token o day la fresh token cua key moi chua duoc luu — khong phai secret co san. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi.",
     "lines": {
-      "213": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
+      "216": "^      return \\{ tenantId: auth\\.tenantId, projectId, token \\} as const;$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-api/src/routes.ts",
-    "start": 245,
-    "end": 245,
-    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi.",
+    "start": 248,
+    "end": 248,
+    "reason": "Show-once: POST /projects tra fresh token trong response 201 (hop dong endpoint). Token hash da luu DB; toi vieu sau chi tra metadata. Re-pin khi sua created_at tra ISO string (#20) - code tai pin khong doi. Pin dich +3 dong khi them comment JSDoc export cho portal surface (#202) - code tai pin khong doi.",
     "lines": {
-      "245": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
+      "248": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: \\{ token: outcome\\.token \\} \\}, 201\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/config.ts",
+    "start": 219,
+    "end": 219,
+    "reason": "Config carrier cua portal authorization (#202): loadInternalAuth tra doi tuong cau hinh mang secret HMAC noi bo ecoma-internal-v2 cho runtime trong process — khong co HTTP surface nao tra secret, khong log gia tri. Cung lop shape voi config internal auth cua staff-access; ten truong `secret` la hop dong cua interface RemoteCacheConfig.internalAuth, khong phai secret tren wire. Pin doi -1 khi bo mo ta dinh dang kid hardcode khoi message loi cau hinh (kid format chi den tu assertKid cua contract) - review PR #226, round 3; code tai pin khong doi.",
+    "lines": {
+      "219": "^    return \\{ secret, kid, skewSeconds: parsed \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/config.ts",
+    "start": 221,
+    "end": 221,
+    "reason": "Config carrier cua portal authorization (#202): cung lop voi pin tai config.ts:204 — gia tri skew default thay cho parsed, doi tuong van la cau hinh trong process cua RemoteCacheConfig.internalAuth, khong log, khong tren wire. Pin doi -1 khi bo mo ta dinh dang kid hardcode khoi message loi cau hinh (kid format chi den tu assertKid cua contract) - review PR #226, round 3; code tai pin khong doi.",
+    "lines": {
+      "221": "^  return \\{ secret, kid, skewSeconds: DEFAULT_SKEW_SECONDS \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/portal-routes.ts",
+    "start": 586,
+    "end": 586,
+    "reason": "Show-once: tao project qua portal (#202, R19) tra token nhan vat 1 lan trong response 201 — cung shape transaction-carrier da accept tai routes.ts:216. Token la fresh token cua key moi vua tao trong transaction (SHA-256 hash luu DB), khong phai secret co san; portal chi cap developer credential (trusted_ci = false, scope read — R20). Pin doi +67 dong khi tach `resolvePortalContext` va doc-lai hang project tren cung client cua request de bo cua so ro sau commit (review PR #226) - shape moi giong cu shape cu, chi them truong `project` mang hang da doc-lai. Pin doi +61 khi them helper race UNIQUE (isProjectNameConflict, recordProjectNameConflictDenied) va boc transaction tao project trong try/catch de tra 409 thay vi 500 (review PR #226, round 3) - code tai pin khong doi.",
+    "lines": {
+      "586": "^        return \\{ projectId, apiKeyId, token, project: created \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/portal-routes.ts",
+    "start": 614,
+    "end": 614,
+    "reason": "Show-once: response 201 tao project qua portal mang token trong api_key — cung shape da accept tai routes.ts:248. Cac response portal sau do (list/detail/keys) chi tra metadata khong token; validatePortalApiKeyMetadata tu choi moi truong token/hash tren wire. Pin dich +14 khi don gian hoa parse limit, bo sung details cho audit portal va format hook (review PR #226) - code tai pin khong doi. Pin doi +61 khi them helper race UNIQUE (isProjectNameConflict, recordProjectNameConflictDenied) va boc transaction tao project trong try/catch de tra 409 thay vi 500 (review PR #226, round 3) - code tai pin khong doi.",
+    "lines": {
+      "614": "^    return c\\.json\\(\\{ project: checked\\.payload, api_key: apiKey \\}, 201\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/portal-routes.ts",
+    "start": 743,
+    "end": 743,
+    "reason": "Show-once: tao them key qua portal (#202, R19) tra token nhan vat 1 lan — cung shape transaction-carrier da accept tai portal-routes.ts:458 va routes.ts:216. DB chi giu hash; token mat hieu luc ngay khi revoke. Pin dich +15 khi don gian hoa parse limit, bo sung details cho audit portal va format hook (review PR #226) - code tai pin khong doi. Pin doi +61 khi them helper race UNIQUE (isProjectNameConflict, recordProjectNameConflictDenied) va boc transaction tao project trong try/catch de tra 409 thay vi 500 (review PR #226, round 3) - code tai pin khong doi.",
+    "lines": {
+      "743": "^        return \\{ projectId: project\\.id, apiKeyId, token \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/portal-routes.ts",
+    "start": 761,
+    "end": 761,
+    "reason": "Show-once: response 201 tao them key qua portal mang token trong api_key — cung shape da accept tai portal-routes.ts:493 va routes.ts:248; metadata key sau do khong bao gio mang token/hash. Pin dich +15 khi don gian hoa parse limit, bo sung details cho audit portal va format hook (review PR #226) - code tai pin khong doi. Pin doi +61 khi them helper race UNIQUE (isProjectNameConflict, recordProjectNameConflictDenied) va boc transaction tao project trong try/catch de tra 409 thay vi 500 (review PR #226, round 3) - code tai pin khong doi.",
+    "lines": {
+      "761": "^    return c\\.json\\(\\{ api_key: apiKey \\}, 201\\);$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-api/src/portal-routes.ts",
+    "start": 838,
+    "end": 838,
+    "reason": "Naming-heuristic FP tren shape metadata dong (R19): danh sach key chi tra id/scopes/credential_class/revoked_at/created_at; validatePortalApiKeyMetadata tu choi moi truong trong FORBIDDEN_PORTAL_KEY_CREDENTIAL_FIELDS (token/token_hash/secret/credential). `credential_class` la truong hop dong bat buoc cua domain model §2.4 — phan biet hai phan lop credential tren wire, khong phai secret. Pin dich +15 khi don gian hoa parse limit, bo sung details cho audit portal va format hook (review PR #226) - code tai pin khong doi. Pin doi +61 khi them helper race UNIQUE (isProjectNameConflict, recordProjectNameConflictDenied) va boc transaction tao project trong try/catch de tra 409 thay vi 500 (review PR #226, round 3) - code tai pin khong doi.",
+    "lines": {
+      "838": "^    return c\\.json\\(\\{ project: checkedProject\\.payload, api_keys: apiKeys \\}\\);$"
     }
   },
   {

@@ -22,15 +22,22 @@ function routeSurface(app: ReturnType<typeof buildApp>): string[] {
 }
 
 describe('composition root route surface (unit)', () => {
-  it('exposes exactly /health, /ready, POST /projects, GET /projects and the /v1/cache/:hash pair', () => {
+  it('exposes exactly /health, /ready, the machine control plane, the portal control plane and the /v1/cache/:hash pair', () => {
     const app = buildApp();
     // Middleware (method ALL, path *) bị loại: chúng không phải bề mặt công khai.
+    // Bề mặt portal (#202): địa chỉ tenant theo NAME trên path, đúng sáu workflow R19.
     expect(routeSurface(app)).toEqual(
       [
         'GET /health',
         'GET /ready',
         'POST /projects',
         'GET /projects',
+        'GET /tenants/:tenantName/projects',
+        'POST /tenants/:tenantName/projects',
+        'GET /tenants/:tenantName/projects/:projectName',
+        'POST /tenants/:tenantName/projects/:projectName/api-keys',
+        'GET /tenants/:tenantName/projects/:projectName/api-keys',
+        'POST /tenants/:tenantName/projects/:projectName/api-keys/:keyId/revoke',
         'GET /v1/cache/:hash',
         'PUT /v1/cache/:hash',
       ].toSorted(),
