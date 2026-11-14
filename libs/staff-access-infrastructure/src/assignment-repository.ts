@@ -17,18 +17,31 @@ import type { StaffAccessQueryable } from './postgres';
  * chặn runtime làm điều đó; repo không đặt tên hàm gợi ý ngược lại).
  */
 
-/** Một hàng assignment như schema trả về. */
+/**
+ * Một hàng assignment như schema trả về.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * đăng ký parser mặc định cho OID 1184 (`timestamptz`) là `new Date(x)`
+ * (`types.js`, `date.from = [1082, 1114, 1184]`), nên runtime trả `Date` chứ
+ * không phải `string`. `Date | string` giữ đúng cả hai khả năng (driver parse
+ * thành `Date`, hoặc text mode trả string); caller phải chuẩn hoá về ISO 8601
+ * string trước khi đưa vào contract wire (issue #252).
+ */
 export interface AssignmentRow {
   readonly id: string;
   readonly staff_id: string;
   readonly role_id: string;
   /** JSONB scope — hình dạng dữ liệu do tầng application quyết (điểm mở §4.5). */
   readonly scope: unknown;
-  readonly effective_from: string;
-  readonly effective_until: string | null;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly effective_from: Date | string | null;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly effective_until: Date | string | null;
   readonly granted_by: string | null;
-  readonly created_at: string;
-  readonly revoked_at: string | null;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly created_at: Date | string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly revoked_at: Date | string | null;
 }
 
 /** Lấy một assignment theo id. */

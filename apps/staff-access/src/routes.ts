@@ -60,6 +60,8 @@ import {
   getRoleById,
   getStaffById,
   insertAssignment,
+  iso,
+  isoNullable,
   listActivePermissions,
   listActiveRoles,
   listAssignmentsForStaff,
@@ -70,7 +72,11 @@ import {
   revokeAssignment,
   settleOutboxEvent,
   withStaffAccessClient,
+  type AssignmentRow,
+  type AuditEntryRow,
+  type RoleRow,
   type StaffAccessClient,
+  type StaffRow,
 } from '@ecoma-io/staff-access-infrastructure';
 import { staffAccessDomainError } from '@ecoma-io/staff-access-domain';
 import type { AppEnv } from './types';
@@ -80,10 +86,10 @@ const HIGH_ENTITLEMENT_FRESHNESS_MS = 5_000;
 const NORMAL_ENTITLEMENT_FRESHNESS_MS = 60_000;
 
 function isEntitlementFresh(
-  row: { status: string; occurred_at: string },
+  row: { status: string; occurred_at: Date | string },
   nowMs = Date.now(),
 ): boolean {
-  const occurredAtMs = Date.parse(row.occurred_at);
+  const occurredAtMs = Date.parse(iso(row.occurred_at));
   const deadline =
     row.status === 'revoked' ? HIGH_ENTITLEMENT_FRESHNESS_MS : NORMAL_ENTITLEMENT_FRESHNESS_MS;
   return Number.isFinite(occurredAtMs) && nowMs - occurredAtMs <= deadline;
@@ -147,33 +153,20 @@ async function readJsonObject(c: {
 }
 
 /** Chuyen mot StaffRow (schema) sang StaffMember (wire) — khong them field. */
-function toStaffMember(row: {
-  id: string;
-  sub: string;
-  status: string;
-  display_name: string;
-  created_at: string;
-  updated_at: string;
-}): StaffMember {
+function toStaffMember(row: StaffRow): StaffMember {
   return {
     id: row.id,
     sub: row.sub,
     status: row.status as StaffMember['status'],
     display_name: row.display_name,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    created_at: iso(row.created_at),
+    updated_at: iso(row.updated_at),
   };
 }
 
 /** Chuyen mot RoleRow (schema) + permission ids sang StaffRole (wire). */
 function toStaffRole(
-  row: {
-    id: string;
-    name: string;
-    kind: string;
-    status: string;
-    created_at: string;
-  },
+  row: RoleRow,
   permissions: readonly string[],
 ): import('@ecoma-io/staff-access-contracts').StaffRole {
   return {
@@ -182,55 +175,36 @@ function toStaffRole(
     kind: row.kind as 'system' | 'custom',
     permissions: [...permissions],
     status: row.status as 'active' | 'retired',
-    created_at: row.created_at,
+    created_at: iso(row.created_at),
   };
 }
 
 /** Chuyen mot AssignmentRow (schema) sang StaffRoleAssignment (wire). */
-function toAssignment(row: {
-  id: string;
-  staff_id: string;
-  role_id: string;
-  scope: unknown;
-  effective_from: string;
-  effective_until: string | null;
-  granted_by: string | null;
-  created_at: string;
-  revoked_at: string | null;
-}): StaffRoleAssignment {
+function toAssignment(row: AssignmentRow): StaffRoleAssignment {
   return {
     id: row.id,
     staff_id: row.staff_id,
     role_id: row.role_id,
     ...(row.scope === null ? {} : { scope: row.scope as StaffRoleAssignment['scope'] }),
-    effective_from: row.effective_from,
-    effective_until: row.effective_until,
+    // `effective_from` nullable ở schema nhưng contract khai `?: string` (vắng =
+    // hiệu lực từ thời điểm tạo) — `null` phải thành vắng mặt, không phải `null`.
+    ...(row.effective_from === null ? {} : { effective_from: iso(row.effective_from) }),
+    effective_until: isoNullable(row.effective_until),
     granted_by: row.granted_by,
-    created_at: row.created_at,
-    revoked_at: row.revoked_at,
+    created_at: iso(row.created_at),
+    revoked_at: isoNullable(row.revoked_at),
   };
 }
 
 /** Chuyen mot AuditEntryRow (schema) sang AuditEntry (wire). */
-function toAuditEntry(row: {
-  id: string;
-  actor_staff_id: string | null;
-  actor_sub: string | null;
-  target: string;
-  action: string;
-  occurred_at: string;
-  outcome: string;
-  reason: string | null;
-  correlation_id: string | null;
-  context: Record<string, unknown>;
-}): AuditEntry {
+function toAuditEntry(row: AuditEntryRow): AuditEntry {
   return {
     id: row.id,
     actor_staff_id: row.actor_staff_id,
     actor_sub: row.actor_sub,
     target: row.target,
     action: row.action,
-    occurred_at: row.occurred_at,
+    occurred_at: iso(row.occurred_at),
     outcome: row.outcome as AuditEntry['outcome'],
     reason: row.reason,
     correlation_id: row.correlation_id,
@@ -268,7 +242,7 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     const response = staffListResponse(
       page.map(toStaffMember),
       hasMore && last !== undefined
-        ? encodeKeysetCursor({ axis: 'staff-created-at', at: last.created_at, id: last.id })
+        ? encodeKeysetCursor({ axis: 'staff-created-at', at: iso(last.created_at), id: last.id })
         : null,
     );
     return c.json(response);
@@ -475,7 +449,12 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     // next_cursor luon null — cung ly do voi /roles (khong co keyset input).
     const response = permissionListResponse(
       page.map((row) =>
-        permissionEntry(row.domain, row.action, row.status as 'active' | 'retired', row.created_at),
+        permissionEntry(
+          row.domain,
+          row.action,
+          row.status as 'active' | 'retired',
+          iso(row.created_at),
+        ),
       ),
       null,
     );
@@ -488,7 +467,12 @@ export function staffAccessRoutes(): Hono<AppEnv> {
       return c.json(notFound('Permission is not in the catalog.').body, 404);
     }
     return c.json(
-      permissionEntry(row.domain, row.action, row.status as 'active' | 'retired', row.created_at),
+      permissionEntry(
+        row.domain,
+        row.action,
+        row.status as 'active' | 'retired',
+        iso(row.created_at),
+      ),
     );
   });
 
@@ -545,7 +529,7 @@ export function staffAccessRoutes(): Hono<AppEnv> {
     const response = auditListResponse(
       page.map(toAuditEntry),
       hasMore && last !== undefined
-        ? encodeKeysetCursor({ axis: 'audit-occurred-at', at: last.occurred_at, id: last.id })
+        ? encodeKeysetCursor({ axis: 'audit-occurred-at', at: iso(last.occurred_at), id: last.id })
         : null,
     );
     return c.json(response);
@@ -564,7 +548,7 @@ export function staffAccessRoutes(): Hono<AppEnv> {
       product: row.product,
       status: row.status as 'entitled' | 'revoked',
       revision: Number(row.revision),
-      occurred_at: row.occurred_at,
+      occurred_at: iso(row.occurred_at),
     });
   });
 
@@ -580,7 +564,7 @@ export function staffAccessRoutes(): Hono<AppEnv> {
         product: row.product,
         status: row.status as 'entitled' | 'revoked',
         revision: Number(row.revision),
-        occurred_at: row.occurred_at,
+        occurred_at: iso(row.occurred_at),
       })),
       next_cursor: null,
     });

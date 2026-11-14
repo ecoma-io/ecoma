@@ -59,14 +59,21 @@ export async function appendAuditEntry(
   );
 }
 
-/** Một hàng audit như schema trả về — hình đọc ra cho query path. */
+/**
+ * Một hàng audit như schema trả về — hình đọc ra cho query path.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * parse OID 1184 thành `Date`, không phải `string`. Caller phải chuẩn hoá về
+ * ISO 8601 string trước khi đưa vào contract wire (issue #252).
+ */
 export interface AuditEntryRow {
   readonly id: string;
   readonly actor_staff_id: string | null;
   readonly actor_sub: string | null;
   readonly target: string;
   readonly action: string;
-  readonly occurred_at: string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly occurred_at: Date | string;
   readonly outcome: string;
   readonly reason: string | null;
   readonly correlation_id: string | null;

@@ -10,7 +10,13 @@ import type { StaffAccessQueryable } from './postgres';
  * không qua repo runtime.
  */
 
-/** Một hàng role như schema trả về. */
+/**
+ * Một hàng role như schema trả về.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * parse OID 1184 thành `Date`, không phải `string`. Caller phải chuẩn hoá về
+ * ISO 8601 string trước khi đưa vào contract wire (issue #252).
+ */
 export interface RoleRow {
   readonly id: string;
   readonly name: string;
@@ -18,7 +24,8 @@ export interface RoleRow {
   readonly kind: string;
   /** `active | retired` — retired là terminal (insert-then-retire). */
   readonly status: string;
-  readonly created_at: string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly created_at: Date | string;
 }
 
 /** Danh sách permission id gắn với một role, theo thứ tự catalog. */

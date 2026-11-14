@@ -16,15 +16,23 @@ import type { StaffAccessQueryable } from './postgres';
  * lớp enforce thật: repo không lặp lại policy đó ở JS.
  */
 
-/** Một hàng staff như schema trả về. */
+/**
+ * Một hàng staff như schema trả về.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * parse OID 1184 thành `Date`, không phải `string`. Caller phải chuẩn hoá về
+ * ISO 8601 string trước khi đưa vào contract wire (issue #252).
+ */
 export interface StaffRow {
   readonly id: string;
   readonly sub: string;
   readonly display_name: string;
   /** Nhãn trạng thái — tập nhãn ĐỀ XUẤT của `01-architecture.md` §4.2 (chưa chốt). */
   readonly status: string;
-  readonly created_at: string;
-  readonly updated_at: string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly created_at: Date | string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly updated_at: Date | string;
 }
 
 /** Lấy một staff member theo định danh nội bộ của directory. */

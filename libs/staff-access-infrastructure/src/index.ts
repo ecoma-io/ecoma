@@ -61,3 +61,4 @@ export {
   type EntitlementRow,
 } from './entitlement-repository';
 export type { StaffAccessTransaction } from './postgres';
+export { iso, isoNullable } from './timestamps';
