@@ -110,15 +110,17 @@ jobs:
       # có Chromium. Cấp ở **cấp job**, đúng một lượt, trước khi Nx chạy — cùng
       # hình dạng với job `system-test` bên dưới.
       #
-      # ⚠️ Vì sao không để từng project tự cấp (issue #253): mỗi app có
-      # `tests/browser/ensure-playwright-browser.sh` chạy `playwright install` và
-      # (khi `CI=true`) `install-deps` — tức `sudo apt-get` — từ **bên trong** Nx
-      # task. Với affected set rộng (ví dụ 27 project, `--parallel=6` trên runner
-      # 4 vCPU), hai script đó chạy đồng thời với 5 task nặng khác: tải song song
-      # vào cùng `~/.cache/ms-playwright` và hai lượt `apt-get`/dpkg chồng nhau
-      # trên cùng máy. Với affected set hẹp (2 project, đúng thứ #247 kiểm) chỉ
-      # một bản chạy nên lỗi không lộ ra. Cấp ở đây thì script của project trở
-      # thành cache hit, không còn `apt-get` nào trong task graph.
+      # ⚠️ Vì sao cấp ở đây chứ không để từng project tự cấp (issue #253): một
+      # bước cấp browser nằm trong Nx task sẽ chạy đồng thời với các task nặng
+      # khác. Với affected set rộng (ví dụ 27 project, `--parallel=6` trên runner
+      # 4 vCPU), `apps/backoffice/tests/browser/ensure-playwright-browser.sh` có
+      # thể chạy `playwright install` và `install-deps` (`sudo apt-get`) cùng lúc
+      # với 5 task khác: tải vào cùng `~/.cache/ms-playwright` và hai lượt
+      # apt-get/dpkg chồng nhau trên cùng máy. Với affected set hẹp (2 project,
+      # đúng thứ #247 kiểm) một bản chạy nên lỗi không lộ ra. Cấp một lần ở đây
+      # thì script còn lại của project là cache hit, không còn `apt-get` nào
+      # trong task graph; `pact-broker-app` không còn script riêng — thiếu browser
+      # ở đó đỏ ngay tại `chromium.launch()` của suite.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Integration test

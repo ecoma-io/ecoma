@@ -163,11 +163,7 @@
         ],
         "options": {
           "cwd": "apps/pact-broker-app",
-          "commands": [
-            "bash tests/browser/ensure-playwright-browser.sh",
-            "npx vitest run -c vitest.integration.config.mts"
-          ],
-          "parallel": false
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
@@ -204,17 +200,29 @@
           "thống ngoài npm; runner thiếu Docker sẽ đỏ ở `globalSetup`, đúng luật",
           "06-testing.md §6.",
           "",
-          "`command` thành `commands` + `parallel: false` để cấp binary chromium",
-          "TRƯỚC vitest: suite `tests/browser/read-pages.spec.ts` tự",
-          "`chromium.launch()` BÊN TRONG vitest (không phải lane `playwright test`",
-          "riêng như backoffice), mà runner hosted không còn preinstall bản",
-          "chromium khớp `@playwright/test` của workspace — thiếu binary là đỏ ở",
-          "`chromium.launch()` thay vì ở assert. Cơ chế copy nguyên",
-          "`tests/browser/ensure-playwright-browser.sh` của `apps/backoffice`",
-          "(cache theo phiên bản thì no-op; CI tự cấp OS deps). `parallel: false`",
-          "là bắt buộc ở đây: executor mặc định chạy các commands song song, để",
-          "vitest nhảy vào lúc `playwright install` đang tải là race đỏ vì lý do",
-          "không liên quan tới hành vi."
+          "`command` (số ít) thay cho `commands` + `parallel: false`: target chỉ",
+          "còn một lệnh chạy. Hai lệnh trước đây tồn tại chỉ để cấp binary",
+          "chromium TRƯỚC vitest; bỏ bước đó thì `parallel` cũng hết đối tượng —",
+          "không còn hai lệnh nào để tranh nhau thứ tự.",
+          "",
+          "Target này KHÔNG tự cấp Playwright chromium, và đó là chủ ý (issue",
+          "#253): thiếu browser phải đỏ thẳng, không được lặng lẽ cài trong một",
+          "Nx task song song. Job `integration-test` của CI cấp browser một lần ở",
+          "cấp job (`npx playwright install --with-deps chromium`, xem",
+          "`.github/workflows/ci.yaml`). Suite `tests/browser/read-pages.spec.ts`",
+          "tự `chromium.launch()` BÊN TRONG vitest — không phải lane",
+          "`playwright test` riêng như `apps/backoffice` — nên thiếu browser là",
+          "đỏ ngay tại `chromium.launch()` của suite đó, không phải ở một assert",
+          "mơ hồ hơn. Máy dev mới chạy `npx playwright install chromium` một lần;",
+          "target không làm hộ.",
+          "",
+          "`inputs.env: CI` GIỮ LẠI, đã kiểm chứ không đoán: suite và config",
+          "integration không đọc `process.env.CI` (grep `process.env` trong",
+          "`tests/**` chỉ thấy credential/Hyperdrive của harness), nhưng chính",
+          "vitest đổi hành vi theo `isCI` ở `allowOnly` — `.only` lọt vào source",
+          "làm local lọc im lặng còn CI đỏ. Entry này có từ trước script cấp",
+          "browser (blame commit 52bd011), nên nó không phải di sản của script",
+          "vừa bỏ, và vẫn là khoá cache cần giữ."
         ]
       },
       "lint": {
