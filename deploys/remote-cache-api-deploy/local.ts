@@ -49,6 +49,7 @@ import {
   exec,
   fullStackRef,
   generatePostgresPassword,
+  generateInternalHmacSecret,
   isConfigKeyMissing,
   pulumiDestroyForEntry,
   pulumiUpForEntry,
@@ -314,6 +315,13 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
     // chạy trước theo dependsOn nên đã tồn tại) — set qua STDIN của helper
     // dùng chung, không bao giờ qua argv hay log.
     ['namespace:objectStorageSecretKey', objectStorageSecretKey],
+    // Secret HMAC envelope nội bộ cho portal surface (ADR-0034, issue #180):
+    // sinh Ở ĐÂY (unit sở hữu control plane) rồi persist, để `remote-cache-app-deploy`
+    // đọc cross-stack và BFF nhận ĐÚNG MỘT giá trị với API — sinh hai lần độc
+    // lập là mọi envelope chết `bad_signature` lúc runtime (cùng bất biến với
+    // auth ← account). Config set rotate mỗi lần up cũng an toàn: consumer up
+    // SAU (dependsOn) đọc lại giá trị hiện hành trong lần up của chính nó.
+    ['namespace:internalHmacSecret', generateInternalHmacSecret()],
   ];
   for (const [configKey, configValue] of secrets) {
     setStackConfig('remote-cache-api-deploy', configKey, configValue, foundation);
