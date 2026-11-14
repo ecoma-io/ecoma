@@ -25,10 +25,10 @@ import environmentsRoute from './environments.get';
 import machineTokensRoute from './machine-tokens.get';
 import pacticipantsRoute from './pacticipants.get';
 import pactsRoute from './pacts.get';
+import { USER_TOKEN, principalForTests } from './test-principal';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
-  pactBrokerApiToken: 'test-token',
 };
 
 /** [path, route handler] — danh sách là nguồn chạy bảng, không phải bản sao. */
@@ -57,6 +57,12 @@ function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknow
   } else {
     router.get(route.path, route.handler as never);
   }
+  // Middleware authn gắn principal vào `event.context` — route đọc nó qua
+  // `requirePrincipal`. Test dựng app h3 thủ công nên phải đóng vai middleware:
+  // không có principal ⇒ 401, đúng như runtime thật (h3 chạy tiếp khi handler
+  // trả undefined). Helper dùng chung ở `test-principal.ts` — một nguồn cho cả
+  // hai spec file của thư mục này (review #254).
+  app.use(principalForTests());
   app.use(router.handler);
   return toWebHandler(app);
 }
@@ -162,6 +168,73 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
       await call(path, handler, { methodFor: path });
       expect(calledPaths[0], `route: ${path}`).toBe(expectedFirstHop[path]);
     }
+  });
+
+  it('forwards the session access token, never a machine token of the deploy unit', async () => {
+    // ADR-0031 §4: BFF forward access token CỦA CHỦ PHIÊN. Machine token của
+    // BFF đã bị retire (§5) — không có header nào mang credential của deploy
+    // unit, và browser không bao giờ thấy token nào. Ghim trên MỌI route
+    // (review #254) — forward là luật chung của `/api/broker/**`.
+    const seenAuth: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seenAuth.push(new Headers(init?.headers).get('authorization') ?? '');
+        return new Response('{}', { status: 200 });
+      }),
+    );
+
+    for (const [path, handler] of ALL_ROUTES) {
+      seenAuth.length = 0;
+      await call(path, handler, { methodFor: path });
+      expect(seenAuth.length).toBeGreaterThan(0);
+      for (const header of seenAuth) {
+        expect(header, `route ${path}`).toBe(`Bearer ${USER_TOKEN}`);
+      }
+    }
+  });
+});
+
+describe('machine-tokens — the BFF returns the API body byte-for-byte (ADR-0031 §5.3)', () => {
+  const apiBody = {
+    _embedded: {
+      tokens: [
+        {
+          id: '11111111-2222-3333-4444-555555555555',
+          name: 'ci-token',
+          scopes: ['read', 'write'],
+          createdAt: '2026-11-14T00:00:00.000Z',
+          revokedAt: null,
+        },
+      ],
+    },
+  };
+
+  it('returns exactly what the API returned and adds no field of its own', async () => {
+    // §5.3 là điều kiện kiểm được: KHÔNG machine token (mọi scope) trong bất kỳ
+    // response nào. Bằng chứng gồm hai vế — API chỉ trả 5 khoá metadata
+    // (`apps/pact-broker-api/tests/integrations/api.spec.ts`, test lifecycle
+    // machine token), và BFF là pass-through thuần: body ra bằng body vào, nên
+    // BFF không thể tự thêm token material vào.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(apiBody), { status: 200 })),
+    );
+
+    const response = await call('/api/broker/machine-tokens', machineTokensRoute);
+
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toEqual(apiBody);
+    // Chốt thêm ở dạng phủ định: không khoá nào tên như vật liệu token, và
+    // không giá trị nào trông như digest hex 64 ký tự hay ciphertext.
+    const serialized = JSON.stringify(body);
+    // Truy cập bracket để tránh no-underscore-dangle với HAL `_embedded`.
+    const firstToken = (body as typeof apiBody)['_embedded'].tokens[0] ?? {};
+    const keys = Object.keys(firstToken);
+    expect(keys.some((key) => /token|secret|hash|cipher/iu.test(key))).toBe(false);
+    expect(serialized).not.toMatch(/[0-9a-f]{64}/u);
+    expect(serialized).not.toContain('ciphertext');
   });
 });
 

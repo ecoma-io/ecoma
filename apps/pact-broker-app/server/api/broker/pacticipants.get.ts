@@ -2,6 +2,7 @@ import { defineEventHandler, setResponseStatus } from 'h3';
 
 import { brokerCall } from '../../utils/broker-client';
 import { pactBrokerBffConfig } from '../../utils/broker-config';
+import { requirePrincipal } from '../../principal';
 
 /**
  * `GET /api/broker/pacticipants` — danh sách pacticipant của tenant, cho trang
@@ -13,6 +14,11 @@ import { pactBrokerBffConfig } from '../../utils/broker-config';
  * không phải của dashboard hay của API.
  */
 export default defineEventHandler(async (event) => {
+  // Principal TRƯỚC config guard (review #254, nhất quán cả 5 route): request
+  // chưa xác thực luôn nhận 401 bất kể broker có cấu hình hay không — không rò
+  // trạng thái cấu hình cho caller vô danh (contract của `requirePrincipal`).
+  const principal = requirePrincipal(event);
+
   // `useRuntimeConfig(event)` — không phải `event.context.runtimeConfig`: slot
   // đó không ai gắn trên runtime thật (chi tiết ở `pacts.get.ts`).
   const config = pactBrokerBffConfig(useRuntimeConfig(event));
@@ -20,7 +26,8 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 503);
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
   }
-  const result = await brokerCall(config, '/pacticipants');
+
+  const result = await brokerCall(config, principal.accessToken, '/pacticipants');
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };
 });

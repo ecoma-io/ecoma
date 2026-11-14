@@ -11,12 +11,18 @@
  * có `event`), không phải đọc slot `event.context.runtimeConfig`: không có
  * middleware nào gắn slot đó trên runtime thật, đọc nó là `undefined` vĩnh viễn
  * — mọi route fail-closed 503 kể cả khi đã cấu hình (bug sửa trong issue #181;
- * cùng pattern `apps/account`). Với `event`, Nitro dựng lại config theo request
- * qua shim `process.env` → `globalThis.__env__` = env binding của Worker.
+ * cùng pattern `apps/account`).
  *
  * ⚠️ Trả `null` **không phải** "chạy được không cần broker" — mọi caller fail
- * closed: route trả 503 `Service Unavailable` với mã ổn định, không đoán origin
- * và không để lỗi thoát ra h3.
+ * closed: route trả 503 `Service Unavailable` với mã ổn định.
+ *
+ * ## Không còn machine token của BFF (ADR-0031 §5)
+ *
+ * Trước #206, BFF mang **một** machine token server-side và forward nó cho mọi
+ * request. ADR-0031 §5 quyết định **retire** hẳn đường đó: BFF forward access
+ * token **của chủ phiên** (user token), API là resource server tự phân quyền
+ * theo membership. Vì vậy cấu hình BFF chỉ còn **base URL** — không còn khoá
+ * `pactBrokerApiToken`, không còn secret nào của BFF với API.
  *
  * Không dùng `instanceof`: object binding/runtime của Workers đi qua shim và
  * không có prototype ổn định giữa môi trường build và runtime.
@@ -25,19 +31,14 @@
 /** Khoá trong `runtimeConfig` giữ base URL của pact-broker-api. */
 export const PACT_BROKER_API_BASE_URL_KEY = 'pactBrokerApiBaseUrl';
 
-/** Khoá trong `runtimeConfig` giữ machine token mà BFF dùng gọi API. */
-export const PACT_BROKER_API_TOKEN_KEY = 'pactBrokerApiToken';
-
 /** Cấu hình đã kiểm để nói chuyện với pact-broker-api. */
 export interface PactBrokerBffConfig {
   readonly baseUrl: string;
-  readonly token: string;
 }
 
 /** Shape mà `useRuntimeConfig()` trả — chỉ phần app đọc. */
 interface AppRuntimeConfig {
   pactBrokerApiBaseUrl?: unknown;
-  pactBrokerApiToken?: unknown;
 }
 
 /**
@@ -76,10 +77,5 @@ export function pactBrokerBffConfig(runtimeConfig: unknown): PactBrokerBffConfig
     return null;
   }
 
-  const rawToken = config.pactBrokerApiToken;
-  if (typeof rawToken !== 'string' || rawToken === '') {
-    return null;
-  }
-
-  return { baseUrl, token: rawToken };
+  return { baseUrl };
 }

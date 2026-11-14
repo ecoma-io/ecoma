@@ -4,11 +4,30 @@
   "private": true,
   "dependencies": {
     "@ecoma-io/ui-app-shell": "workspace:*",
-    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+    "@ecoma-io/ui-ecoma-logo": "workspace:*",
+    "jose": "6.2.17"
   },
   "devDependencies": {
-    "@nuxtjs/i18n": "10.6.0"
+    "@nuxtjs/i18n": "10.6.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   },
+  "//": [
+    "`pg` + `@types/pg` ở devDependencies: driver PostgreSQL chỉ dùng ở",
+    "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
+    "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
+    "(không external). `jose` ở dependencies: verify access token offline trong",
+    "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice`.",
+    "",
+    "Vì sao devDependencies là đủ cho `pg` (review #254): Worker bundle KHÔNG",
+    "có node_modules lúc chạy — Nitro đóng gói toàn bộ `pg` vào artifact",
+    "(`noExternals` của preset `cloudflare-module`), nên việc cài hay không cài",
+    "dependency này ở 'môi trường production' không tồn tại như một khái niệm;",
+    "artifact chỉ được dựng từ workspace install đầy đủ. Cùng vị trí",
+    "devDependencies với `apps/backoffice` — BFF sibling mà PR này mirror",
+    "deliberate. `@types/pg` là compile-time types, devDependencies đúng theo",
+    "nghĩa thông thường."
+  ],
   "nx": {
     "//": [
       "implicitDependencies — suite `tests/integrations/` + `tests/browser/` của app dựng full stack thật",
@@ -61,6 +80,22 @@
           "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
           "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
         ]
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/pact-broker-app",
+          "command": "npx tsc --project tsconfig.db.json"
+        }
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/pact-broker-app",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        }
       },
       "test": {
         "executor": "nx:run-commands",

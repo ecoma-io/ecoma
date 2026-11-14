@@ -1,21 +1,27 @@
 /**
- * Xây script shell cho provision, migrate, bootstrap tenant và provision token
- * máy của `pact-broker-api-deploy` — HÀM THUẦN, input là dữ liệu thô (tên
- * container, tên network, đường dẫn worktree, tên image, sub owner, mật khẩu
- * thô CHỈ cho hàm dựng URL), output là script text KHÔNG chứa giá trị secret
- * nào. Chương trình Pulumi (`index.ts`) gọi đúng các hàm này nên script chạy
- * thật và script được test là MỘT nguồn sự thật.
+ * Xây script shell cho provision, migrate và bootstrap tenant của
+ * `pact-broker-api-deploy` — HÀM THUẦN, input là dữ liệu thô (tên container,
+ * tên network, đường dẫn worktree, tên image, sub owner, mật khẩu thô CHỈ cho
+ * hàm dựng URL), output là script text KHÔNG chứa giá trị secret nào. Chương
+ * trình Pulumi (`index.ts`) gọi đúng các hàm này nên script chạy thật và script
+ * được test là MỘT nguồn sự thật.
  *
- * Bất biến bảo mật của cả bốn script: giá trị secret (mật khẩu role, chuỗi
- * kết nối, plaintext token máy) KHÔNG BAO GIỜ nằm trong script text — tức
- * không nằm trong argv của `sh -c` mà provider dùng để chạy script — cũng như
- * trong argv của bất kỳ process nào script sinh ra. Mật khẩu role đi vào tiến
- * trình shell qua biến môi trường (kênh `environment` của
- * `command.local.Command`), rồi được tiêu thụ bằng đúng TÊN biến trong script;
- * `DATABASE_URL` và `PACT_MACHINE_TOKEN_PLAINTEXT` đi theo cùng kênh và
+ * Bất biến bảo mật của cả ba script: giá trị secret (mật khẩu role, chuỗi kết
+ * nối) KHÔNG BAO GIỜ nằm trong script text — tức không nằm trong argv của
+ * `sh -c` mà provider dùng để chạy script — cũng như trong argv của bất kỳ
+ * process nào script sinh ra. Mật khẩu role đi vào tiến trình shell qua biến
+ * môi trường (kênh `environment` của `command.local.Command`), rồi được tiêu
+ * thụ bằng đúng TÊN biến trong script; `DATABASE_URL` đi theo cùng kênh và
  * `docker run -e` chỉ mang TÊN biến (docker CLI đọc giá trị từ environ của
  * chính nó). Mật khẩu trong URL được percent-encode ngay trong hàm dựng URL
  * (một nguồn sự thật cho cả wiring lẫn spec unit).
+ *
+ * ⚠️ Script provision token máy của BFF không còn tồn tại ở đây (ADR-0031 §5,
+ * #206): machine token `pact-broker-app-bff` của consumer local đã bị retire
+ * hoàn toàn — BFF chạy bằng access token của chủ phiên. Machine path của Pact
+ * CLI/CI không đổi; cấp token cho CLI là hành động của operator qua script
+ * `db/provision-machine-token.mts` của app, không phải đầu ra idempotent của
+ * stack này.
  */
 
 import { shellQuote } from '@ecoma-io/deployment';
@@ -40,13 +46,6 @@ export const POSTGRES_HOST = 'ecoma-postgres';
  */
 export const MIGRATOR_PASSWORD_ENV_VAR = 'PACT_PW_MIGRATOR';
 export const RUNTIME_PASSWORD_ENV_VAR = 'PACT_PW_RUNTIME';
-
-/**
- * TÊN biến môi trường chứa plaintext token máy mà runner
- * `db/provision-machine-token.mts` đọc. Script chỉ chứa TÊN biến; giá trị bọc
- * `pulumi.secret` trong map `environment` của wiring.
- */
-export const MACHINE_TOKEN_PLAINTEXT_ENV_VAR = 'PACT_MACHINE_TOKEN_PLAINTEXT';
 
 /** Input của {@link buildProvisionScript}. */
 export interface ProvisionScriptInputs {
@@ -215,46 +214,5 @@ docker run --rm \\
   -e CANONICAL_TENANT_OWNER_SUB=${shellQuote(inputs.tenantOwnerSub)} \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/bootstrap-tenant.mts
-`;
-}
-
-/** Input của {@link buildMachineTokenProvisionScript}. */
-export interface MachineTokenProvisionScriptInputs {
-  /** Tên Docker network của platform mà container provision token gia nhập. */
-  readonly networkName: string;
-  /** Đường dẫn worktree — mount `/repo` read-only + `node_modules` RW. */
-  readonly worktreeRoot: string;
-  /** Image Node pin theo digest dùng để chạy tsx của repo. */
-  readonly nodeImage: string;
-  /** Tên token máy (natural key cùng tenant) — non-secret. */
-  readonly tokenName: string;
-  /** Danh sách scope cách nhau bởi khoảng trắng — non-secret, có thể chứa space. */
-  readonly tokenScopes: string;
-}
-
-/**
- * Script provision token máy của consumer local: container ephemeral chạy đúng
- * `db/provision-machine-token.mts` của repo. Hai giá trị secret (`DATABASE_URL`
- * chứa mật khẩu runtime, `PACT_MACHINE_TOKEN_PLAINTEXT` là plaintext token)
- * CHỈ mang TÊN biến trong argv; giá trị đi qua kênh `environment` của provider.
- * Tên và scopes token là non-secret nên vẫn nội suy giá trị, nhưng builder TỰ
- * bọc `shellQuote` — an toàn theo cấu trúc với mọi input caller truyền vào
- * (nháy đơn/semicolon/space không thể phá shell hay tách từ của `docker run`).
- */
-export function buildMachineTokenProvisionScript(
-  inputs: MachineTokenProvisionScriptInputs,
-): string {
-  return `set -e
-docker run --rm \\
-  --network ${inputs.networkName} \\
-  -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
-  -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/pact-broker-api \\
-  -e DATABASE_URL \\
-  -e PACT_MACHINE_TOKEN_NAME=${shellQuote(inputs.tokenName)} \\
-  -e PACT_MACHINE_TOKEN_SCOPES=${shellQuote(inputs.tokenScopes)} \\
-  -e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR} \\
-  ${inputs.nodeImage} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts
 `;
 }

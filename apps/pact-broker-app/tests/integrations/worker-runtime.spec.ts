@@ -21,9 +21,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * `wrangler` (cùng mô hình `apps/llm-console`, `apps/backoffice`).
  *
  * Harness chạy ở trạng thái **chưa cấu hình** (`wrangler.jsonc` không khai
- * `vars` nào ở top-level — base URL và token chỉ có ở env staging/production
- * và qua Worker Secrets), nên suite này ghim được luôn chiều fail-closed: BFF
- * và `/ready` trả 503 `broker_not_configured`, không bao giờ đoán origin hay
+ * `vars` nào ở top-level — cấu hình broker và OIDC chỉ có ở env
+ * staging/production và qua Worker Secrets), nên suite này ghim được luôn
+ * chiều fail-closed: `/ready` trả 503 `broker_not_configured`, còn mọi
+ * `/api/**` (trừ các path auth) bị middleware authn chặn bằng 503
+ * `authorization unavailable` (ADR-0031, #206) — không bao giờ đoán origin hay
  * rò token vào response.
  *
  * ⚠️ Harness được tạo trong `beforeAll`, không ở top level: Vitest import mọi
@@ -60,6 +62,8 @@ interface RouteResponse {
   readonly status: number;
   readonly contentType: string;
   readonly body: string;
+  /** Header của response — dùng cho assert `cache-control`/`set-cookie`. */
+  readonly headers: Headers;
 }
 
 /**
@@ -80,6 +84,7 @@ async function fetchRoute(
     status: response.status,
     contentType: response.headers.get('content-type') ?? '',
     body: await response.text(),
+    headers: response.headers,
   };
 }
 
@@ -133,45 +138,53 @@ describe('pact-broker-app worker runtime (SPA, issue #68)', () => {
     });
   });
 
-  // BFF thật với cấu hình thiếu: cùng hợp đồng fail-closed, đo được trên
-  // runtime thật (unit suite dựng h3 thủ công, không thấy tầng routing này).
-  // Body khẳng định **đúng hình dạng** — một token hay base URL nào lọt vào
-  // response đều làm test đỏ ở đây.
-  it.each(['/api/broker/pacts', '/api/broker/machine-tokens'])(
-    'answers %s with the fail-closed 503 when unconfigured',
-    async (path) => {
-      const response = await fetchRoute(path);
+  // Probe phiên nằm NGOÀI ranh giới authn (`AUTH_PATHS`): không cookie ⇒
+  // `{ authenticated: false }` ngay, không chạm cấu hình hay DB — kể cả khi
+  // harness chưa cấu hình OIDC gì (route không bao giờ 5xx, xem
+  // `server/api/auth/session.get.ts`).
+  it('answers /api/auth/session with authenticated:false without a cookie, even unconfigured', async () => {
+    const response = await fetchRoute('/api/auth/session');
 
-      expect(response.status).toBe(503);
-      expect(response.contentType).toContain('application/json');
-      expect(JSON.parse(response.body)).toEqual({
-        error: 'Service Unavailable',
-        code: 'broker_not_configured',
-      });
-      expect(response.body).not.toContain('Bearer');
-    },
-  );
+    expect(response.status).toBe(200);
+    expect(response.contentType).toContain('application/json');
+    expect(JSON.parse(response.body)).toEqual({ authenticated: false });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
 
-  it.each(['/api/non-existent', '/api/nested/deep', '/api/', '/api'])(
-    'answers %s with a JSON 404, never the SPA shell',
-    async (path) => {
-      const response = await fetchRoute(path);
+  // BFF thật với cấu hình OIDC thiếu: middleware authn chặn **mọi** `/api/**`
+  // (deny-by-default, `AUTH_PATHS` là danh sách đóng) và fail-closed 503
+  // trước cả khi nhìn thấy phiên — không có nhánh nào coi "chưa cấu hình" là
+  // "cho phép". Body là hình dạng lỗi của **Nitro** (`createError` đi qua error
+  // renderer: `statusCode` + `statusMessage` + `error`/`message`/`url`), không
+  // phải object tự dựng — nên assert đúng những trường hợp đồng ổn định, và
+  // khẳng định không token/credential nào lọt vào response.
+  it.each([
+    '/api/broker/pacts',
+    '/api/broker/machine-tokens',
+    '/api/broker/definitely-not-a-route',
+    '/api/non-existent',
+    '/api/nested/deep',
+    '/api/',
+  ])('answers %s with the middleware fail-closed 503 when OIDC is unconfigured', async (path) => {
+    const response = await fetchRoute(path);
 
-      expect(response.status).toBe(404);
-      expect(response.contentType).toContain('application/json');
-      expect(response.body).not.toContain('<!DOCTYPE html>');
-      expect(JSON.parse(response.body)).toEqual({
-        statusCode: 404,
-        statusMessage: 'Not Found',
-      });
-    },
-  );
+    expect(response.status).toBe(503);
+    expect(response.contentType).toContain('application/json');
+    const body = JSON.parse(response.body) as {
+      statusCode?: unknown;
+      statusMessage?: unknown;
+    };
+    expect(body.statusCode).toBe(503);
+    expect(body.statusMessage).toBe('authorization unavailable');
+    expect(response.body).not.toContain('Bearer');
+  });
 
-  // Một path dưới namespace BFF nhưng không có route thật phải gặp catch-all
-  // 404 — không phải 503 của nhánh fail-closed (chứng minh catch-all chỉ chạy
-  // khi thật sự không có handler nào) và không bao giờ là shell.
-  it('answers an unknown /api/broker path with the catch-all 404, not the BFF 503', async () => {
-    const response = await fetchRoute('/api/broker/definitely-not-a-route');
+  // `/api` (không trailing slash) KHÔNG nằm dưới prefix `/api/` của middleware
+  // — đi qua tự do và gặp catch-all 404 của router. Đường ranh giới prefix này
+  // là hợp đồng của `AUTH_PATHS`/`API_PREFIX`, ghim ở đây để một sửa đổi lệch
+  // một ký tự bị bắt ngay trên runtime thật.
+  it('answers /api (no trailing slash) with the catch-all 404', async () => {
+    const response = await fetchRoute('/api');
 
     expect(response.status).toBe(404);
     expect(response.contentType).toContain('application/json');
@@ -183,28 +196,25 @@ describe('pact-broker-app worker runtime (SPA, issue #68)', () => {
   });
 
   // ⚠️ Header của một lần điều hướng bằng trình duyệt, không phải của `fetch`.
-  // Middleware lỗi của Nitro chỉ bỏ qua error renderer khi `Accept` **không**
-  // chứa `text/html`, nên nếu handler dùng `createError` thì request này nhận
-  // **trang HTML 404** thay vì JSON — đo được trên workerd trước khi đổi sang
-  // object thuần. Đây là lý do phải gửi header thật: request mặc định của
-  // harness không có `Accept`, nên một mình nó không phân biệt được hai cách
-  // cài.
-  it.each(['/api/browser-navigation', '/api'])(
-    'answers %s with JSON even for a browser navigation',
-    async (path) => {
-      const response = await fetchRoute(path, {
-        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'sec-fetch-mode': 'navigate',
-        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-      });
+  // Nuxt renderer chọn JSON hay trang lỗi HTML theo **`Accept`**:
+  // `isJsonRequest` trả false khi `Accept` chứa `text/html`, bất kể path
+  // (`nuxt/dist/runtime/server/renderer/error.js`). Một browser navigation
+  // thẳng vào `/api/**` vì thế nhận trang lỗi HTML — hành vi của framework cho
+  // người dùng cuối; client thật của BFF (`fetch`) vẫn nhận JSON, đã ghim ở
+  // `it.each` phía trên. Bất biến cần đo ở đây là **status** và việc không
+  // credential nào lọt vào body của cả hai hình dạng.
+  it('answers the middleware 503 to a browser navigation as an HTML error page', async () => {
+    const response = await fetchRoute('/api/blocked-by-authn', {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'sec-fetch-mode': 'navigate',
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+    });
 
-      expect(response.status).toBe(404);
-      expect(response.contentType).toContain('application/json');
-      expect(response.body).not.toContain('<!DOCTYPE html>');
-      expect(JSON.parse(response.body)).toEqual({
-        statusCode: 404,
-        statusMessage: 'Not Found',
-      });
-    },
-  );
+    expect(response.status).toBe(503);
+    expect(response.contentType).toContain('text/html');
+    // Không credential nào trong body — hình dạng HTML hay JSON đều vậy.
+    expect(response.body).not.toContain('Bearer');
+    expect(response.body).not.toContain('postgres://');
+    expect(response.body).not.toContain('PACT_BROKER_AUTH_CLIENT_ID');
+  });
 });
