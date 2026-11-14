@@ -61,7 +61,6 @@ import {
 } from '@ecoma-io/staff-access-contracts';
 import {
   appendAuditEntry,
-  countLiveAssignmentsForStaffRole,
   getAssignmentById,
   getEntitlement,
   getLiveAssignmentForStaffRole,
@@ -598,11 +597,17 @@ export function staffAccessRoutes(): Hono<AppEnv> {
         if (c.get('actorStaffId') === existing.staff_id && existing.role_id !== null) {
           const role = await getRoleById(tx, existing.role_id);
           if (role !== null && isCanonicalAdministratorRole(role)) {
-            const liveCount = await countLiveAssignmentsForStaffRole(
-              tx,
-              existing.staff_id,
-              existing.role_id,
+            // Đếm TOÀN CỤC mọi holder sống của role canonical (không chỉ của
+            // actor — unique (staff_id, role_id) của migration 0008 khiến đếm
+            // theo staff luôn là 1): chỉ chặn khi actor là người giữ cuối cùng.
+            const rows = await tx.unsafe<{ count: string }>(
+              `SELECT count(*)::text AS count
+                 FROM staff_access.role_assignments
+                WHERE role_id = $1
+                  AND revoked_at IS NULL`,
+              [existing.role_id],
             );
+            const liveCount = rows[0] === undefined ? 0 : Number(rows[0].count);
             if (liveCount === 1) {
               // Không ghi audit trong transaction — hàng `denied` phải commit
               // (ADR-0023 Quyết định 6) mà transaction này không được commit;

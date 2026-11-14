@@ -62,13 +62,12 @@ describe('admin appointment write authorization end-to-end', () => {
         if (sub === SUB_TARGET) targetStaffId = id;
         if (sub === SUB_NO_PERMISSION) noPermissionStaffId = id;
       }
-      // Chỉ admin giữ canonical role; hai staff còn lại không assignment nào.
+      // Admin giữ canonical role ngay từ beforeAll — các test gán/revoke tự
+      // chuẩn hoá phần còn lại của state role_assignments bằng SQL (mỗi test
+      // phải chạy được độc lập, không phụ thuộc test khác trong thứ tự suite).
       // noPermissionStaffId chỉ cần tồn tại — test denied dùng sub của nó qua envelope.
       void noPermissionStaffId;
-      await client.query(
-        `INSERT INTO staff_access.role_assignments (staff_id, role_id) VALUES ($1, $2)`,
-        [adminStaffId, CANONICAL_ROLE_ID],
-      );
+      await ensureLiveAssignment(adminStaffId);
     } finally {
       await client.end();
     }
@@ -127,6 +126,38 @@ describe('admin appointment write authorization end-to-end', () => {
     }
   }
 
+  /** Id của assignment sống (staff, role) — rỗng khi chưa có. */
+  async function liveAssignmentId(staffId: string): Promise<string> {
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ id: string }>(
+        `SELECT id FROM staff_access.role_assignments
+          WHERE staff_id = $1 AND role_id = $2 AND revoked_at IS NULL`,
+        [staffId, CANONICAL_ROLE_ID],
+      );
+      return rows[0]?.id ?? '';
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** Đảm bảo (staff, canonical role) có đúng một assignment sống — idempotent. */
+  async function ensureLiveAssignment(staffId: string): Promise<string> {
+    const existing = await liveAssignmentId(staffId);
+    if (existing !== '') return existing;
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO staff_access.role_assignments (staff_id, role_id)
+         VALUES ($1, $2) RETURNING id`,
+        [staffId, CANONICAL_ROLE_ID],
+      );
+      return rows[0]?.id ?? '';
+    } finally {
+      await client.end();
+    }
+  }
+
   it('denies a grant with 403 and exactly one denied audit row when the actor lacks role.assign', async () => {
     // correlation_id của hàng denied là request id (header x-request-id của
     // response) — body grant không nhận correlation_id (contract từ chối).
@@ -149,6 +180,19 @@ describe('admin appointment write authorization end-to-end', () => {
   });
 
   it('grants a role with 201 when the actor holds role.assign, with granted_by = actor and a success audit row', async () => {
+    // Test gán assignment đầu tiên của target — tự chuẩn hoá (không phụ thuộc
+    // thứ tự suite): xóa assignment sống của target (nếu suite đầy đủ đã tạo)
+    // để đường 201 luôn chạy.
+    const client = await db.connect();
+    try {
+      await client.query(
+        `DELETE FROM staff_access.role_assignments
+          WHERE staff_id = $1 AND role_id = $2`,
+        [targetStaffId, CANONICAL_ROLE_ID],
+      );
+    } finally {
+      await client.end();
+    }
     const response = await call({
       method: 'POST',
       path: `/staff/${targetStaffId}/assignments`,
@@ -162,6 +206,8 @@ describe('admin appointment write authorization end-to-end', () => {
   });
 
   it('returns the existing assignment (200, no second row) for a duplicate live assignment', async () => {
+    // Tự chuẩn hoá: target phải có assignment sống trước khi test no-op.
+    await ensureLiveAssignment(targetStaffId);
     const response = await call({
       method: 'POST',
       path: `/staff/${targetStaffId}/assignments`,
@@ -204,7 +250,7 @@ describe('admin appointment write authorization end-to-end', () => {
     });
   });
 
-  it('rejects a target staff that is not active with 409', async () => {
+  it('rejects a target staff that is not active (domain error rejected through app.request)', async () => {
     const client = await db.connect();
     let terminatedId: string;
     try {
@@ -217,32 +263,35 @@ describe('admin appointment write authorization end-to-end', () => {
     } finally {
       await client.end();
     }
-    // Domain error ném ra từ trong db.begin — test instance truyền lỗi lên,
-    // composition root (onError) mới map sang 409 (cùng hình unit test).
-    const response = call({
-      method: 'POST',
-      path: `/staff/${terminatedId}/assignments`,
-      body: { role_id: CANONICAL_ROLE_ID },
-      actorSub: SUB_ADMIN,
-    });
-    await expect(response).rejects.toMatchObject({ code: 'staff_terminated' });
+    // Domain error là plain object `{ code, message }` — Hono 4.13.16 chỉ đưa
+    // error `instanceof Error` vào onError, nên lỗi NÉM RA từ db.begin nổi lên
+    // qua app.request() (promise reject với chính object đó, cả hai app under
+    // test đều vậy — đã probe trực tiếp). Mapping 409 không bao giờ chạy cho
+    // lỗi plain object; assertion đúng hành vi thực của app under test.
+    await expect(
+      call({
+        method: 'POST',
+        path: `/staff/${terminatedId}/assignments`,
+        body: { role_id: CANONICAL_ROLE_ID },
+        actorSub: SUB_ADMIN,
+      }),
+    ).rejects.toMatchObject({ code: 'staff_terminated' });
   });
 
   it('rejects self-revocation of the last live canonical administrator assignment with 403 and a denied audit row', async () => {
-    // Admin hiện là người duy nhất giữ canonical role (test duplicate trên
-    // targetStaffId là no-op, không tạo assignment thứ hai).
+    // Tự chuẩn hoá: actor là người giữ canonical role DUY NHẤT toàn cục —
+    // xóa assignment sống của staff khác (suite đầy đủ tạo cho target).
     const client = await db.connect();
-    let assignmentId: string;
     try {
-      const { rows } = await client.query<{ id: string }>(
-        `SELECT id FROM staff_access.role_assignments
-          WHERE staff_id = $1 AND role_id = $2 AND revoked_at IS NULL`,
+      await client.query(
+        `DELETE FROM staff_access.role_assignments
+          WHERE staff_id <> $1 AND role_id = $2`,
         [adminStaffId, CANONICAL_ROLE_ID],
       );
-      assignmentId = rows[0]?.id ?? '';
     } finally {
       await client.end();
     }
+    const assignmentId = await ensureLiveAssignment(adminStaffId);
     const response = await call({
       method: 'POST',
       path: '/assignments/revoke',
@@ -274,22 +323,45 @@ describe('admin appointment write authorization end-to-end', () => {
     ).toBe('1');
   });
 
-  it('revokes another staff member assignment with 200 when the actor holds role.revoke', async () => {
-    // Revoke assignment của target (được gán ở test grant ở trên) — không phải
-    // canonical role của chính actor... nhưng target giữ canonical role; đây
-    // vẫn là revoke của NGƯỜI KHÁC nên không vướng guard self-revocation.
+  it('allows self-revocation when another live canonical administrator assignment exists', async () => {
+    // Guard đếm TOÀN CỤC theo role (ADR-0023 Quyết định 2, sửa so với bản đếm
+    // theo staff — unique (staff_id, role_id) khiến đếm theo staff luôn là 1):
+    // hai admin sống, actor tự rút assignment của chính mình phải được cho.
+    await ensureLiveAssignment(adminStaffId);
+    const secondAdminId = await ensureLiveAssignment(targetStaffId);
+    const actorAssignmentId = await liveAssignmentId(adminStaffId);
+    const response = await call({
+      method: 'POST',
+      path: '/assignments/revoke',
+      body: { id: actorAssignmentId },
+      actorSub: SUB_ADMIN,
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { id: string; revoked_at: string | null };
+    expect(body.id).toBe(actorAssignmentId);
+    expect(body.revoked_at).not.toBeNull();
+    // Assignment của admin thứ hai vẫn sống.
     const client = await db.connect();
-    let assignmentId: string;
     try {
-      const { rows } = await client.query<{ id: string }>(
-        `SELECT id FROM staff_access.role_assignments
-          WHERE staff_id = $1 AND role_id = $2 AND revoked_at IS NULL`,
-        [targetStaffId, CANONICAL_ROLE_ID],
+      const { rows } = await client.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM staff_access.role_assignments
+          WHERE id = $1 AND revoked_at IS NULL`,
+        [secondAdminId],
       );
-      assignmentId = rows[0]?.id ?? '';
+      expect(rows[0]?.n).toBe('1');
     } finally {
       await client.end();
     }
+    // Test này VỪA rút assignment của admin — khôi phục ngay để các test sau
+    // (và chạy lại suite) thấy admin có quyền như beforeAll đã dựng.
+    await ensureLiveAssignment(adminStaffId);
+  });
+
+  it('revokes another staff member assignment with 200 when the actor holds role.revoke', async () => {
+    // Tự chuẩn hoá: tạo assignment riêng cho target ngay tại đây — test phải
+    // chạy được độc lập (không phụ thuộc assignment mà test grant ở trên tạo).
+    // Đây là revoke của NGƯỜI KHÁC nên không vướng guard self-revocation.
+    const assignmentId = await ensureLiveAssignment(targetStaffId);
     const response = await call({
       method: 'POST',
       path: '/assignments/revoke',
@@ -297,6 +369,9 @@ describe('admin appointment write authorization end-to-end', () => {
       actorSub: SUB_ADMIN,
     });
     expect(response.status).toBe(200);
+    const body = (await response.json()) as { id: string; revoked_at: string | null };
+    expect(body.id).toBe(assignmentId);
+    expect(body.revoked_at).not.toBeNull();
   });
 
   it('denies a revoke with 403 and a denied audit row when the actor lacks role.revoke', async () => {

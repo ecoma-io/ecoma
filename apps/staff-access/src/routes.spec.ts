@@ -500,7 +500,7 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
     ).toBe(false);
   });
 
-  it('rejects a suspended target staff (domain error thrown, mapped to 409 at composition root)', async () => {
+  it('rejects a suspended target staff (domain error rejected through app.request)', async () => {
     unsafeMock.mockImplementation(async (sql: string): Promise<unknown[]> => {
       if (sql.includes('SELECT DISTINCT rp.permission_id')) {
         return [{ permission_id: 'role.assign' }];
@@ -512,14 +512,17 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
     });
     beginMock.mockImplementation(beginPassingClientAsTx());
     const app = buildTestApp();
-    const response = app.request('/staff/stf_target/assignments', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ role_id: 'role_admin' }),
-    });
-    // Domain error StaffAccessDomainError được ném ra từ transaction; map HTTP
-    // 409 thuộc composition root (onError của main.ts, có spec riêng).
-    await expect(response).rejects.toMatchObject({ code: 'staff_suspended' });
+    // App test này KHÔNG có onError: domain error ném ra từ transaction nổi lên
+    // qua app.request() — promise REJECT với object `{ code, message }` (đã
+    // probe trực tiếp), không resolve thành Response. Assertion đúng hành vi
+    // thực của app under test.
+    await expect(
+      app.request('/staff/stf_target/assignments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role_id: 'role_admin' }),
+      }),
+    ).rejects.toMatchObject({ code: 'staff_suspended' });
   });
 
   it('returns the existing assignment without creating a duplicate for a live (staff_id, role_id)', async () => {
@@ -565,7 +568,7 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
     expect(params).toContain('success');
   });
 
-  it('rejects self-revocation of the last live canonical administrator assignment with 403 and a denied audit row', async () => {
+  it('rejects self-revocation of the last live canonical administrator assignment with 403 and a denied audit row (global count)', async () => {
     unsafeMock.mockImplementation(async (sql: string): Promise<unknown[]> => {
       if (sql.includes('SELECT DISTINCT rp.permission_id')) {
         return [{ permission_id: 'role.revoke' }];
@@ -576,6 +579,8 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
       if (sql.includes('FROM staff_access.roles')) {
         return [ROLE_ROW];
       }
+      // Guard moi đếm TOÀN CỤC theo role_id (không theo staff_id) — giả lập
+      // count(*) trả đúng số holder sống toàn cục.
       if (sql.includes('count(*)')) {
         return [{ count: '1' }];
       }
@@ -600,7 +605,7 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
     ).toBe(false);
   });
 
-  it('allows self-revocation when another live canonical administrator assignment exists', async () => {
+  it('allows self-revocation when another live canonical administrator assignment exists (global count)', async () => {
     unsafeMock.mockImplementation(async (sql: string): Promise<unknown[]> => {
       if (sql.includes('SELECT DISTINCT rp.permission_id')) {
         return [{ permission_id: 'role.revoke' }];
@@ -611,14 +616,12 @@ describe('staff-access write authorization (issue #44, ADR-0034)', () => {
       if (sql.includes('FROM staff_access.roles')) {
         return [ROLE_ROW];
       }
+      // Toàn cục có 2 holder sống cho role — self-revoke của actor được cho.
       if (sql.includes('count(*)')) {
         return [{ count: '2' }];
       }
       if (sql.includes('UPDATE staff_access.role_assignments')) {
         return [{ id: 'asg_actor' }];
-      }
-      if (sql.includes('FROM staff_access.role_assignments') && sql.includes('WHERE id = $1')) {
-        return [{ ...ASSIGNMENT_ROW, staff_id: ACTOR_STAFF_ID, id: 'asg_actor' }];
       }
       return [];
     });
