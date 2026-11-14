@@ -197,9 +197,11 @@ describe('POST /authorization/verdict end-to-end', () => {
   it('denies a permission that exists in no catalog entry for a staff member who holds another one', async () => {
     // Verdict là về **tập hiệu lực của actor**, không phải về sự tồn tại của
     // literal trong catalog: một literal chưa seed không thể là `allowed`.
+    // `role.assign` giờ đã được seed (0011) cho role canonical, nên test dùng
+    // một literal vẫn nằm ngoài catalog: `delivery.redrive`.
     const correlationId = crypto.randomUUID();
     const response = await verdictRequest({
-      body: { permission: 'role.assign', correlation_id: correlationId },
+      body: { permission: 'delivery.redrive', correlation_id: correlationId },
       actorSub: SUB_ADMIN,
     });
     expect(response.status).toBe(200);
