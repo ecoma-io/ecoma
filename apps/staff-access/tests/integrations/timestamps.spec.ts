@@ -47,6 +47,8 @@ describe('ISO timestamps on the staff-access wire surface', () => {
   };
   let staffId = '';
   let staffWithoutAssignmentsId = '';
+  let boundedAssignmentId = '';
+  let nullableBoundsAssignmentId = '';
 
   /** GET đã ký envelope nội bộ — `path` phải kèm nguyên query string sẽ gửi. */
   async function signedGet(path: string): Promise<Response> {
@@ -104,7 +106,19 @@ describe('ISO timestamps on the staff-access wire surface', () => {
          RETURNING id`,
         [staffId, roleId],
       );
-      const assignmentId = assignment.rows[0]?.id ?? '';
+      boundedAssignmentId = assignment.rows[0]?.id ?? '';
+
+      // Assignment thứ hai của cùng staff, ba cột `timestamptz` nullable đều NULL:
+      // buộc `toAssignment` đi qua nhánh bỏ hẳn key `effective_from` và nhánh
+      // `isoNullable` trả `null` cho `effective_until`/`revoked_at`.
+      const nullableBounds = await client.query<{ id: string }>(
+        `INSERT INTO staff_access.role_assignments
+           (staff_id, role_id, effective_from, effective_until, created_at, revoked_at)
+         VALUES ($1, $2, NULL, NULL, now() - interval '5 days', NULL)
+         RETURNING id`,
+        [staffId, roleId],
+      );
+      nullableBoundsAssignmentId = nullableBounds.rows[0]?.id ?? '';
 
       // Hai audit entry để route list có `hasMore` ⇒ nhánh encode cursor
       // (`at` lấy từ `occurred_at`) cũng được chạy.
@@ -112,7 +126,7 @@ describe('ISO timestamps on the staff-access wire surface', () => {
         `INSERT INTO staff_access.authorization_audit (target, action, outcome)
          VALUES ($1, 'role_assignment.create', 'success'),
                 ($1, 'role_assignment.revoke', 'success')`,
-        [assignmentId],
+        [boundedAssignmentId],
       );
 
       await client.query(
@@ -137,12 +151,31 @@ describe('ISO timestamps on the staff-access wire surface', () => {
     expect(validateAssignmentListResponse(body)).toMatchObject({ ok: true });
 
     const { assignments } = body as { assignments: readonly Record<string, unknown>[] };
-    expect(assignments).toHaveLength(1);
-    const assignment = assignments[0];
+    expect(assignments).toHaveLength(2);
+    const assignment = assignments.find((entry) => entry['id'] === boundedAssignmentId);
+    expect(assignment).toBeDefined();
     expectIso(assignment?.['created_at']);
     expectIso(assignment?.['effective_from']);
     expectIso(assignment?.['effective_until']);
     expectIso(assignment?.['revoked_at']);
+  });
+
+  it('omits effective_from and keeps nullable timestamps null when the assignment has no bounds', async () => {
+    const response = await signedGet(`/staff/${staffId}/assignments`);
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as unknown;
+    expect(validateAssignmentListResponse(body)).toMatchObject({ ok: true });
+
+    const { assignments } = body as { assignments: readonly Record<string, unknown>[] };
+    const assignment = assignments.find((entry) => entry['id'] === nullableBoundsAssignmentId);
+    expect(assignment).toBeDefined();
+    // `effective_from` nullable ở schema nhưng contract khai `?: string` — NULL
+    // phải thành key vắng mặt, không phải `null`.
+    expect(assignment).not.toHaveProperty('effective_from');
+    expect(assignment?.['effective_until']).toBeNull();
+    expect(assignment?.['revoked_at']).toBeNull();
+    expectIso(assignment?.['created_at']);
   });
 
   it('still returns 200 with an empty list when the staff member has no assignment', async () => {
