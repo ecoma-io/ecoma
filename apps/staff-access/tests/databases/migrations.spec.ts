@@ -149,23 +149,89 @@ describe('staff-access migration runner on a real PostgreSQL', () => {
     }
   });
 
-  it('seeds exactly the four read permissions of the canonical catalog', async () => {
+  it('seeds exactly the canonical catalog: four read permissions plus invitation.create', async () => {
     const client = await db.connect();
     try {
       const { rows } = await client.query<{ id: string; status: string }>(
         `SELECT id, status FROM staff_access.permissions ORDER BY id`,
       );
       // Bốn permission read: ba permission của ADR-0010 (`0003`) và `audit.read` của
-      // ADR-0024 Quyết định 5, thêm bởi `0007`. Guard này cố ý chốt **toàn bộ** catalog
-      // để một seed lọt vào mà không qua review làm đỏ suite.
+      // ADR-0024 Quyết định 5, thêm bởi `0007`. `invitation.create` thêm bởi `0010`
+      // (ADR-0033 Quyết định 1) là permission **ghi** đầu tiên của catalog. Guard này
+      // cố ý chốt **toàn bộ** catalog để một seed lọt vào mà không qua review làm đỏ
+      // suite.
       expect(rows).toEqual([
         { id: 'audit.read', status: 'active' },
+        { id: 'invitation.create', status: 'active' },
         { id: 'permission.read', status: 'active' },
         { id: 'role.read', status: 'active' },
         { id: 'staff.read', status: 'active' },
       ]);
     } finally {
       await client.end();
+    }
+  });
+
+  it('grants the canonical administrator role exactly the declared permission set', async () => {
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query<{ permission_id: string }>(
+        `SELECT rp.permission_id
+           FROM staff_access.role_permissions rp
+          WHERE rp.role_id = 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b'
+          ORDER BY rp.permission_id`,
+      );
+      // `0010` (ADR-0033 Quyết định 2) cấp `invitation.create` cho role canonical; tập
+      // này phải khớp đúng mảng khai báo của assertion "sealed set" ở `0008`.
+      expect(rows.map((row) => row.permission_id)).toEqual([
+        'audit.read',
+        'invitation.create',
+        'permission.read',
+        'role.read',
+        'staff.read',
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('still rejects an undeclared permission granted to the canonical role', async () => {
+    // Mở rộng tập khai báo ở `0008` không được làm assertion "sealed set" thành
+    // no-op: một permission **không** khai báo vẫn phải làm lần apply kế tiếp dừng.
+    const superuser = await db.connect();
+    try {
+      await superuser.query(
+        `INSERT INTO staff_access.permissions (id, domain, action, status)
+         VALUES ('sealed.probe', 'sealed', 'probe', 'active')`,
+      );
+      await superuser.query(
+        `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+         VALUES ('eeb3abcb-31ef-479f-9dd1-198a9d520b1b', 'sealed.probe')`,
+      );
+
+      const migrator = await db.connectAsMigrator();
+      try {
+        await expect(applyAllMigrations(migrator)).rejects.toThrow(
+          /outside the sealed set: sealed\.probe/u,
+        );
+      } finally {
+        await migrator.end();
+      }
+    } finally {
+      // Dọn để các test sau (và lần apply sau) thấy catalog canonical.
+      await superuser.query(
+        `DELETE FROM staff_access.role_permissions
+          WHERE role_id = 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b' AND permission_id = 'sealed.probe'`,
+      );
+      await superuser.query(`DELETE FROM staff_access.permissions WHERE id = 'sealed.probe'`);
+      await superuser.end();
+    }
+
+    const migrator = await db.connectAsMigrator();
+    try {
+      await expect(applyAllMigrations(migrator)).resolves.toBeDefined();
+    } finally {
+      await migrator.end();
     }
   });
 

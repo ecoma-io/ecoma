@@ -177,6 +177,16 @@ export default defineNuxtConfig({
     // Cùng luật `NUXT_*` ở trên: không default, thiếu ⇒ validate throw ở request
     // đầu (fail-closed, không có "gửi unsigned" để receiver từ chối).
     mailInternalAuthSecret: '',
+    // Credential HMAC ký cho path Account↔Staff-Access (`POST /authorization/verdict`,
+    // ADR-0033 Quyết định 3).
+    //
+    // ⚠️ **Không dùng chung `internalHmacSecret`** — cùng lý do
+    // `mailInternalAuthSecret`: giá trị phải là secret mà `staff-access` verify
+    // (`AUTH_INTERNAL_SECRET` của nó), là một entry riêng trong registry của
+    // receiver. Cùng luật `NUXT_*`: không default, thiếu ⇒ cổng verdict trả
+    // `unavailable` với reason `authorization_surface_not_configured` ⇒ route phát
+    // lời mời 503 fail-closed (không có đường nào phát mà không có verdict).
+    staffAccessInternalAuthSecret: '',
     // Cửa sổ skew (giây) của envelope HMAC; rỗng ⇒ `verifyRequest` dùng mặc định
     // 300s. Để trống chứ không đặt số ở đây để chỉ có **một** nơi định nghĩa mặc định
     // (trong `internal-auth-contracts`) — tránh hai nguồn sự thật cho cùng một luật.
