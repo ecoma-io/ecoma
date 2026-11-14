@@ -12,6 +12,14 @@ on:
         type: boolean
         required: false
         default: false
+  # Đường chạy TOÀN BỘ repository trên main không cần con người (issue #264,
+  # phương án 1 - khuyến nghị): hằng đêm chạy full run-many thay vì affected.
+  # GitHub chỉ chạy schedule trên branch mặc định (main). Affected set giữ cho
+  # pull_request/merge_group/push để không tăng latency review; "main xanh"
+  # trên một tập affected không chứng minh được gì về toàn bộ repository - một
+  # lỗ hổng trong tính affected set chỉ lộ ở lần chạy đầy đủ này.
+  schedule:
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
@@ -46,12 +54,14 @@ jobs:
       # `force` chỉ tồn tại với workflow_dispatch; mọi trigger khác để nó rỗng và
       # `!inputs.force` ra `true`, nên PR/push vẫn chạy theo affected như cũ.
       # Khi dispatch với force=true thì affected=false → action rơi sang `run-many`.
+      # Riêng `schedule` luôn affected=false (điều kiện `github.event_name !=
+      # 'schedule'`): đường chạy toàn bộ repository mỗi đêm, issue #264.
       - name: Linting &  type check
         if: github.event_name != 'merge_group'
         uses: ./.github/actions/run-nx-target
         with:
           targets: lint typecheck
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
       # `typecheck-db` đứng ở đây vì cùng ngữ nghĩa với `typecheck` trên dòng
       # trên: một lượt typecheck, không phải một lane test (issue #265). `db/`
@@ -63,7 +73,7 @@ jobs:
         uses: ./.github/actions/run-nx-target
         with:
           targets: typecheck-db
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
       - name: README contract check
         run: pnpm dx readme-check
 
@@ -92,7 +102,7 @@ jobs:
         uses: ./.github/actions/run-nx-target
         with:
           targets: test
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
 
   integration-test:
@@ -156,14 +166,14 @@ jobs:
         uses: ./.github/actions/run-nx-target
         with:
           targets: build test-integration
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
           exclude: '@ecoma-io/backoffice,@ecoma-io/pact-broker-app'
       - name: Integration test (browser, serialized)
         uses: ./.github/actions/run-nx-target
         with:
           targets: test-integration
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
           threads: '1'
           exclude: '*,!@ecoma-io/backoffice,!@ecoma-io/pact-broker-app'
@@ -227,7 +237,7 @@ jobs:
         uses: ./.github/actions/run-nx-target
         with:
           targets: system-test
-          affected: ${{ !inputs.force }}
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
           threads: '1'
           configuration: local
