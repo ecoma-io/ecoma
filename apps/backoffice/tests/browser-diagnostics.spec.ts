@@ -21,7 +21,7 @@ import {
 
 type FakePageOptions = {
   readonly content?: () => Promise<string>;
-  readonly evaluate?: () => Promise<PageSnapshot>;
+  readonly evaluate?: (...args: unknown[]) => Promise<PageSnapshot>;
 };
 
 /**
@@ -265,6 +265,26 @@ describe('describeBrowserSession', () => {
 
     expect(report).toContain(`body excerpt: ${'a'.repeat(900)}`);
     expect(report).not.toContain('a'.repeat(901));
+  });
+
+  it('passes the excerpt bound as an argument instead of closing over a module constant', async () => {
+    const calls: unknown[][] = [];
+    const { page } = fakePage({
+      evaluate: async (...args: unknown[]) => {
+        calls.push(args);
+        return snapshot();
+      },
+    });
+    const log = watchBrowserSession(page);
+
+    await describeBrowserSession(page, log, { capMs: 120_000 });
+
+    // Hàm `evaluate` được serialize và chạy trong browser, nơi hằng số module
+    // không tồn tại; trần excerpt phải đi qua đối số thứ hai (lỗi đã thấy trên
+    // CI ở lượt chạy đầu của #253).
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toHaveLength(2);
+    expect(calls[0][1]).toBe(900);
   });
 });
 

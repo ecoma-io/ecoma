@@ -290,7 +290,11 @@ async function readPageSnapshot(
 ): Promise<{ ok: true; value: PageSnapshot } | { ok: false; error: string }> {
   try {
     const value = await withTimeout(
-      page.evaluate(() => {
+      // ⚠️ Tham số phải truyền qua đối số thứ hai của `page.evaluate`, không đọc
+      // biến module: hàm này được serialize rồi chạy **trong browser**, nơi
+      // `BODY_EXCERPT_LENGTH` không tồn tại. Lượt chạy CI đầu tiên của #253 đã
+      // đỏ đúng chỗ này (`ReferenceError: BODY_EXCERPT_LENGTH is not defined`).
+      page.evaluate((maxLength: number) => {
         const root = document.querySelector('#__nuxt');
         // Tên global của Nuxt đi qua biến + chỉ số chuỗi: `no-underscore-dangle`
         // của repo chặn truy cập trực tiếp `window.__NUXT__`.
@@ -312,11 +316,9 @@ async function readPageSnapshot(
           nuxtRootHtmlLength: (root?.innerHTML ?? '').length,
           noticeInDom: document.querySelector('[data-testid="backoffice-sample-notice"]') !== null,
           dataMode: mode === undefined || mode === null ? null : JSON.stringify(mode),
-          bodyExcerpt: (document.body?.innerHTML ?? '')
-            .replace(/\s+/gu, ' ')
-            .slice(0, BODY_EXCERPT_LENGTH),
+          bodyExcerpt: (document.body?.innerHTML ?? '').replace(/\s+/gu, ' ').slice(0, maxLength),
         };
-      }),
+      }, BODY_EXCERPT_LENGTH),
       PAGE_READ_TIMEOUT_MS,
       'page.evaluate()',
     );
