@@ -1,16 +1,20 @@
 /**
  * HTTP client từ BFF sang pact-broker-api.
  *
- * Mô hình: **một** machine token server-side duy nhất (cấp cho deploy unit
- * `pact-broker-app`, scope `read`), browser không bao giờ thấy nó. Mọi request
- * dashboard đi qua BFF; BFF forward kèm token của chính mình. Đây là hướng đi
- * tối thiểu khi Auth/OIDC chưa provision — khi OIDC có mặt, tầng session sẽ
- * thay token tĩnh bằng token per-user và ForwardAuth, nhưng hợp đồng của các
- * hàm ở đây không đổi.
+ * ## Access token của chủ phiên, không phải machine token của BFF (ADR-0031 §4–5)
+ *
+ * Trước #206, BFF forward **một** machine token server-side duy nhất cho mọi
+ * request. ADR-0031 §5 quyết định retire hẳn đường đó: BFF forward access
+ * token **của chủ phiên** (`Authorization: Bearer <user token>`), và API là
+ * resource server tự verify token + phân quyền theo membership (ADR-0032).
+ *
+ * Hệ quả trực tiếp: **browser không bao giờ thấy token nào** (token nằm ở
+ * cookie HttpOnly phía server và trong context của request), và BFF không còn
+ * secret nào với API — không có machine token của deploy unit này còn tồn tại.
  *
  * Quy tắc lỗi (giống `apps/account`): **không** nối `error` của driver/fetch
  * vào log hay response — message của nó có thể chứa URL/credential. Chỉ log mã
- * ổn định (`broker_unreachable`, `broker_not_configured`).
+ * ổn định (`broker_unreachable`).
  *
  * Trạng thái HTTP từ API được truyền **nguyên văn** về cho UI kèm body đã parse
  * — UI quyết định render gì; BFF không hiện hóa lỗi của API thành 500.
@@ -26,19 +30,26 @@ export interface BrokerCallResult {
 }
 
 /**
- * Gọi một endpoint của broker API với machine token của BFF.
+ * Gọi một endpoint của broker API với access token của chủ phiên.
+ *
+ * @param config Cấu hình BFF — chỉ base URL (không còn token của BFF).
+ * @param accessToken Access token của phiên, lấy từ principal do middleware
+ *   authn gắn (`server/principal.ts`). KHÔNG ghi log, KHÔNG trả response.
+ * @param path Path của API, ví dụ `/pacticipants`.
+ * @param init Init tuỳ chọn cho `fetch`.
  *
  * ⚠️ KHÔNG BAO GIỜ log `Authorization`, token, hay body request/response —
  * SR-007. Log duy nhất là một dòng mã ổn định khi fetch ném.
  */
 export async function brokerCall(
-  config: { baseUrl: string; token: string },
+  config: { baseUrl: string },
+  accessToken: string,
   path: string,
   init: RequestInit = {},
 ): Promise<BrokerCallResult> {
   const url = `${config.baseUrl}${path}`;
   const headers = new Headers(init.headers);
-  headers.set('authorization', `Bearer ${config.token}`);
+  headers.set('authorization', `Bearer ${accessToken}`);
   if (init.body !== undefined && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }

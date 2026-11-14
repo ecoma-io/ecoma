@@ -2,6 +2,7 @@ import { defineEventHandler, readValidatedBody, setResponseStatus } from 'h3';
 
 import { brokerCall } from '../../utils/broker-client';
 import { pactBrokerBffConfig } from '../../utils/broker-config';
+import { requirePrincipal } from '../../principal';
 
 /**
  * Body hợp lệ: ba tham số truy vấn của `can-i-deploy`, giới hạn độ dài theo rule
@@ -52,6 +53,11 @@ export default defineEventHandler(async (event) => {
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
   }
 
+  // Principal do middleware authn gắn — mang access token của chủ phiên để
+  // forward tới API (ADR-0031 §4). Không có principal ⇒ 401 (middleware đã
+  // chặn trước; nhánh này là lưới an toàn cho route gọi ngoài middleware).
+  const principal = requirePrincipal(event);
+
   const query = await readValidatedBody(event, isCanIDeployBody).catch(() => null);
   if (query === null) {
     setResponseStatus(event, 400);
@@ -63,7 +69,11 @@ export default defineEventHandler(async (event) => {
     params.set('to', query.to);
   }
 
-  const result = await brokerCall(config, `/can-i-deploy?${params.toString()}`);
+  const result = await brokerCall(
+    config,
+    principal.accessToken,
+    `/can-i-deploy?${params.toString()}`,
+  );
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };
 });

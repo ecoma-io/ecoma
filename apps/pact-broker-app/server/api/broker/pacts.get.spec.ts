@@ -19,14 +19,17 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
+import { createApp, createRouter, defineEventHandler, toWebHandler, type WebHandler } from 'h3';
 
+import { PRINCIPAL_CONTEXT_KEY } from '../../principal';
 import pactsRoute, { pacticipantNamesOf } from './pacts.get';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
-  pactBrokerApiToken: 'test-token',
 };
+
+/** Access token của chủ phiên — BFF forward nó xuống API (ADR-0031 §4). */
+const USER_TOKEN = 'user-access-token-value';
 
 /** Web handler h3 thật; config được cấp qua stub toàn cục `useRuntimeConfig`. */
 function buildHandler(runtimeConfig: unknown): WebHandler {
@@ -37,6 +40,13 @@ function buildHandler(runtimeConfig: unknown): WebHandler {
   const app = createApp();
   const router = createRouter();
   router.get('/api/broker/pacts', pactsRoute);
+  // Đóng vai middleware authn: gắn principal vào context để route đọc được
+  // access token của chủ phiên (h3 chạy tiếp khi handler trả undefined).
+  app.use(
+    defineEventHandler((event) => {
+      event.context[PRINCIPAL_CONTEXT_KEY] = { actorSub: 'sub-user', accessToken: USER_TOKEN };
+    }),
+  );
   app.use(router.handler);
   return toWebHandler(app);
 }

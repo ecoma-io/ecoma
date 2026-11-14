@@ -21,6 +21,8 @@ export interface AppVariables {
   scopes?: string[];
   /** ID của machine token đang gọi (auth middleware gắn vào). */
   tokenId?: string;
+  /** `sub` đã verify của user token (đường BFF forward, ADR-0031) — không bao giờ là actor ghi. */
+  principalSub?: string;
   /** Pool của request — middleware config tạo mới mỗi request và `end()` sau khi request hoàn tất (issue #118). */
   pool: import('pg').Pool;
   /** Config đã kiểm — middleware config gắn vào. */

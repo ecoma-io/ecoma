@@ -7,11 +7,13 @@
  *   3. body-limit        — chặn request body quá lớn trước khi parse
  *   4. cors (tuỳ chọn)   — CHỈ khi cấu hình dashboard origin; API machine
  *                          protocol không cần CORS (CLI không preflight)
- *   5. auth per-route    — `requireMachineToken` gắn ở từng route group, KHÔNG
+ *   5. auth per-route    — `requirePrincipal` gắn ở từng route group, KHÔNG
  *                          global: `/health` và index discovery phải đạt được
  *                          không credential (Pact CLI đọc index trước khi
  *                          biết token không? — CLI gắn token từ lệnh đầu,
- *                          nhưng health probe của infra thì không)
+ *                          nhưng health probe của infra thì không). Mỗi route
+ *                          chấp nhận kép: Bearer JWT = user token (ADR-0031,
+ *                          chỉ read trong M1); hình dạng khác = machine token.
  *
  * KHÔNG rate-limit (SR: origin Cloudflare đã có), KHÔNG public-read (mọi
  * Pact data theo tenant, không endpoint đọc public nào).
@@ -26,6 +28,7 @@ import {
 } from './config';
 import { PgTokenRepo, createPool } from '@ecoma-io/pact-broker-api-infrastructure';
 import { requireMachineToken } from './auth/token-auth';
+import { handleUserToken, isJwtShape } from './auth/user-auth';
 import type { TokenRepo } from '@ecoma-io/pact-broker-api-application';
 import { indexRoutes } from './routes';
 import { pacticipantRoutes } from './routes/pacticipants';
@@ -45,15 +48,26 @@ const MAX_BODY_BYTES = 5 * 1024 * 1024;
  * Auth middleware factory — trả handler đọc pool từ context lúc chạy. Hào
  * phòng: middleware này PHẢI chạy sau middleware config (đã set pool), nên
  * mount order trong buildApp là quan trọng.
+ *
+ * Chấp nhận kép theo hình dạng token (ADR-0031 §1): Bearer JWT là access
+ * token user của BFF forward — đường user verify offline + resolve membership
+ * (chỉ đạt mực read trong M1); mọi hình dạng khác đi đường machine token với
+ * scope `required`. Header vắng/thiếu `Bearer ` rơi vào đường machine và bị
+ * 401 đồng nhất — cùng một hình dạng response cho cả hai kênh.
  */
-function requireMachineTokenFactory(
-  required: 'read' | 'write' | 'admin',
-): MiddlewareHandler<AppEnv> {
+function requirePrincipalFactory(required: 'read' | 'write' | 'admin'): MiddlewareHandler<AppEnv> {
   // Không annotate tường minh: kiểu trả về của `MiddlewareHandler` (Hono) —
   // `Promise<Response | void>` — là kiểu ngữ cảnh; annotation `| undefined`
   // sai (`void` không assignable vào `undefined`), còn `Promise<Response | void>`
   // viết ra thì vi phạm rule lint `no-invalid-void-type` của repo.
   return async (c, next) => {
+    const header = c.req.header('authorization');
+    const match = header === undefined ? null : /^Bearer ([^\s]+)$/u.exec(header);
+    const token = match?.[1];
+    if (token !== undefined && isJwtShape(token)) {
+      const config = getConfig(c.env);
+      return handleUserToken(c, token, config, required, next);
+    }
     const repo: TokenRepo = new PgTokenRepo(c.get('pool'));
     // Response khi deny (401/403) PHẢI được trả ra — vứt nó là "Context is
     // not finalized". Khi allow, hàm đã gọi `next()` và trả undefined.
@@ -67,7 +81,7 @@ function requireMachineTokenFactory(
  * trong khi `pool` vẫn được đọc từ context lúc request.
  */
 function authBinder(required: 'read' | 'write' | 'admin'): () => MiddlewareHandler<AppEnv> {
-  const handler = requireMachineTokenFactory(required);
+  const handler = requirePrincipalFactory(required);
   return () => handler;
 }
 
@@ -276,7 +290,10 @@ export function buildApp(): Hono<AppEnv> {
   app.route('/', indexRoutes(readAuth));
   app.route('/pacticipants', pacticipantRoutes(readAuth, writeAuth));
   app.route('/pacts', pactRoutes(readAuth, writeAuth));
-  app.route('/pacts', verificationRoutes(writeAuth));
+  // GET verification-results là read (#206 — scope write→read của route GET,
+  // nghiêm ngặt hơn và permissive hơn cùng lúc: read ⊂ write nên máy CLI scope
+  // write vẫn gọi được như trước); POST verification giữ write.
+  app.route('/pacts', verificationRoutes(readAuth, writeAuth));
   app.route('/', matrixRoutes(readAuth));
   app.route('/environments', environmentRoutes(readAuth, writeAuth));
   app.route('/contracts', contractsRoutes(writeAuth));

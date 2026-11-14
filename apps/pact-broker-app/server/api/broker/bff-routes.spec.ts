@@ -18,8 +18,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
+import { createApp, createRouter, defineEventHandler, toWebHandler, type WebHandler } from 'h3';
 
+import { PRINCIPAL_CONTEXT_KEY } from '../../principal';
 import canIDeployRoute from './can-i-deploy.post';
 import environmentsRoute from './environments.get';
 import machineTokensRoute from './machine-tokens.get';
@@ -28,8 +29,13 @@ import pactsRoute from './pacts.get';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
-  pactBrokerApiToken: 'test-token',
 };
+
+/**
+ * Access token của chủ phiên — BFF forward nó xuống API (ADR-0031 §4).
+ * Không phải machine token của deploy unit: token đó đã bị retire (§5).
+ */
+const USER_TOKEN = 'user-access-token-value';
 
 /** [path, route handler] — danh sách là nguồn chạy bảng, không phải bản sao. */
 const GET_ROUTES: readonly (readonly [string, unknown])[] = [
@@ -57,6 +63,15 @@ function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknow
   } else {
     router.get(route.path, route.handler as never);
   }
+  // Middleware authn gắn principal vào `event.context` — route đọc nó qua
+  // `requirePrincipal`. Test dựng app h3 thủ công nên phải đóng vai middleware:
+  // không có principal ⇒ 401, đúng như runtime thật (h3 chạy tiếp khi handler
+  // trả undefined).
+  app.use(
+    defineEventHandler((event) => {
+      event.context[PRINCIPAL_CONTEXT_KEY] = { actorSub: 'sub-user', accessToken: USER_TOKEN };
+    }),
+  );
   app.use(router.handler);
   return toWebHandler(app);
 }
@@ -161,6 +176,27 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
 
       await call(path, handler, { methodFor: path });
       expect(calledPaths[0], `route: ${path}`).toBe(expectedFirstHop[path]);
+    }
+  });
+
+  it('forwards the session access token, never a machine token of the deploy unit', async () => {
+    // ADR-0031 §4: BFF forward access token CỦA CHỦ PHIÊN. Machine token của
+    // BFF đã bị retire (§5) — không có header nào mang credential của deploy
+    // unit, và browser không bao giờ thấy token nào.
+    const seenAuth: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seenAuth.push(new Headers(init?.headers).get('authorization') ?? '');
+        return new Response('{}', { status: 200 });
+      }),
+    );
+
+    await call('/api/broker/pacts', pactsRoute);
+
+    expect(seenAuth.length).toBeGreaterThan(0);
+    for (const header of seenAuth) {
+      expect(header).toBe(`Bearer ${USER_TOKEN}`);
     }
   });
 });

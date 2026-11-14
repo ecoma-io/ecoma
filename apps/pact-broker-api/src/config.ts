@@ -22,6 +22,28 @@ export interface PactBrokerEnv {
    * bật (API không tin origin nào ngoài cùng origin).
    */
   PACT_BROKER_DASHBOARD_ORIGIN?: string;
+  /**
+   * Issuer OIDC mà access token user (forward bởi BFF) phải khớp `iss`
+   * (ADR-0031 §1.2: verifier đọc từ config của chính mình). Tuỳ chọn: thiếu ⇒
+   * đường user 503 fail-closed, đường machine token KHÔNG bị ảnh hưởng.
+   */
+  PACT_BROKER_AUTH_ISSUER?: string;
+  /**
+   * Audience mà access token user phải khớp `aud` — audience chung của lane
+   * (ADR-0031 §4), không phải audience per-app. Tuỳ chọn cùng issuer.
+   */
+  PACT_BROKER_AUTH_AUDIENCE?: string;
+  /**
+   * Origin server-side để fetch JWKS (tuỳ chọn, local-only). Khi có, JWKS được
+   * fetch từ origin NỘI Bộ này thay vì từ `PACT_BROKER_AUTH_ISSUER` — cùng
+   * cơ chế `internalOrigin` của BFF (`apps/pact-broker-app/server/auth/config.ts`).
+   * Issuer vẫn là giá trị dùng để so claim `iss`; chỉ NƠI lấy JWKS đổi.
+   *
+   * ⚠️ Issuer là URL public (`https://auth.<host>`) — trong container không
+   * resolve được (Traefik chỉ publish host port trên loopback của host), nên
+   * đường user sẽ luôn 503 nếu không có origin nội bộ.
+   */
+  PACT_BROKER_AUTH_INTERNAL_ORIGIN?: string;
 }
 
 /** Cấu hình đã kiểm, dùng bởi composition root. */
@@ -36,6 +58,19 @@ export interface PactBrokerConfig {
   readonly webhooksEnabled: boolean;
   /** Origin dashboard được CORS, hoặc `null` = không CORS. */
   readonly dashboardOrigin: string | null;
+  /**
+   * Issuer OIDC của đường user (ADR-0031 §1.2), hoặc `null` = chưa cấu hình —
+   * mọi access token user gặp `null` là 503 fail-closed, riêng từng path-type;
+   * machine token path không đọc trường này.
+   */
+  readonly authIssuer: string | null;
+  /** Audience chung mà token user phải khớp, hoặc `null` = chưa cấu hình. */
+  readonly authAudience: string | null;
+  /**
+   * Origin server-side để fetch JWKS, hoặc `null` = không có (fetch từ issuer).
+   * Không bao giờ dùng để so claim `iss` — chỉ là NƠI lấy JWKS.
+   */
+  readonly authInternalOrigin: string | null;
 }
 
 /**
@@ -112,5 +147,89 @@ export function loadPactBrokerConfig(envInput: PactBrokerEnv | undefined | null)
     }
   }
 
-  return { hyperdrive, webhooksEnabled, dashboardOrigin };
+  return {
+    hyperdrive,
+    webhooksEnabled,
+    dashboardOrigin,
+    ...parseUserAuthConfig(env),
+  };
+}
+
+/**
+ * Parse cặp issuer/audience của đường user — TUỴ CHỌN và fail-closed một nửa:
+ * thiếu (cả hai vắng hoặc rỗng) ⇒ `null/null` (đường user 503, machine path
+ * nguyên vẹn); có nhưng sai hình dạng URL ⇒ lỗi cấu hình (deploy sai phải đỏ
+ * ngay, không chạy kiểu "bỏ qua auth user"). Chỉ chấp nhận cả hai cùng có:
+ * một nửa cấu hình là cấu hình sai.
+ */
+function parseUserAuthConfig(env: PactBrokerEnv): {
+  authIssuer: string | null;
+  authAudience: string | null;
+  authInternalOrigin: string | null;
+} {
+  const rawIssuer = env.PACT_BROKER_AUTH_ISSUER;
+  const rawAudience = env.PACT_BROKER_AUTH_AUDIENCE;
+  if (
+    (rawIssuer === undefined || rawIssuer === '') &&
+    (rawAudience === undefined || rawAudience === '')
+  ) {
+    return { authIssuer: null, authAudience: null, authInternalOrigin: null };
+  }
+  if (
+    rawIssuer === undefined ||
+    rawIssuer === '' ||
+    rawAudience === undefined ||
+    rawAudience === ''
+  ) {
+    throw new PactBrokerConfigurationError(
+      'PACT_BROKER_AUTH_ISSUER and PACT_BROKER_AUTH_AUDIENCE must be configured together',
+    );
+  }
+  try {
+    const parsedIssuer = new URL(rawIssuer);
+    if (parsedIssuer.pathname !== '/' && parsedIssuer.pathname !== '') {
+      throw new Error('issuer must not carry a path');
+    }
+    if (parsedIssuer.search !== '' || parsedIssuer.hash !== '') {
+      throw new Error('issuer must not carry query or fragment');
+    }
+    // Issuer chuẩn hoá về origin + không trailing slash — JWKS URL dựng từ đây.
+    const issuer = parsedIssuer.origin;
+    if (rawAudience.trim() === '') {
+      throw new Error('audience must not be blank');
+    }
+    return {
+      authIssuer: issuer,
+      authAudience: rawAudience,
+      authInternalOrigin: parseInternalOrigin(env.PACT_BROKER_AUTH_INTERNAL_ORIGIN),
+    };
+  } catch {
+    throw new PactBrokerConfigurationError(
+      'PACT_BROKER_AUTH_ISSUER must be a valid URL origin and PACT_BROKER_AUTH_AUDIENCE a non-empty audience',
+    );
+  }
+}
+
+/**
+ * Origin nội bộ (tuỳ chọn) để fetch JWKS — origin thuần, không path/query/hash.
+ * Rỗng ⇒ `null` ⇒ fetch JWKS từ issuer.
+ */
+function parseInternalOrigin(raw: string | undefined): string | null {
+  if (raw === undefined || raw.trim() === '') {
+    return null;
+  }
+  try {
+    const parsed = new URL(raw);
+    if (parsed.pathname !== '/' && parsed.pathname !== '') {
+      throw new Error('internal origin must not carry a path');
+    }
+    if (parsed.search !== '' || parsed.hash !== '') {
+      throw new Error('internal origin must not carry query or fragment');
+    }
+    return parsed.origin;
+  } catch {
+    throw new PactBrokerConfigurationError(
+      'PACT_BROKER_AUTH_INTERNAL_ORIGIN must be a valid URL origin',
+    );
+  }
 }

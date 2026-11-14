@@ -2,6 +2,7 @@ import { defineEventHandler, setResponseStatus } from 'h3';
 
 import { brokerCall } from '../../utils/broker-client';
 import { pactBrokerBffConfig } from '../../utils/broker-config';
+import { requirePrincipal } from '../../principal';
 
 /**
  * `GET /api/broker/pacts` — ma trận consumer/provider/version cho trang Pacts,
@@ -64,8 +65,13 @@ export default defineEventHandler(async (event) => {
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
   }
 
+  // Principal do middleware authn gắn — mang access token của chủ phiên để
+  // forward tới API (ADR-0031 §4). Không có principal ⇒ 401 (middleware đã
+  // chặn trước; nhánh này là lưới an toàn cho route gọi ngoài middleware).
+  const principal = requirePrincipal(event);
+
   // Hop 1 — liệt kê pacticipants của tenant.
-  const list = await brokerCall(config, '/pacticipants');
+  const list = await brokerCall(config, principal.accessToken, '/pacticipants');
   if (list.errorCode !== null || list.status !== 200) {
     setResponseStatus(event, list.errorCode !== null ? 502 : list.status);
     return list.body ?? { error: 'broker_unreachable' };
@@ -84,7 +90,7 @@ export default defineEventHandler(async (event) => {
   for (const name of names) {
     params.append('q[][pacticipant]', name);
   }
-  const result = await brokerCall(config, `/matrix?${params.toString()}`);
+  const result = await brokerCall(config, principal.accessToken, `/matrix?${params.toString()}`);
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };
 });

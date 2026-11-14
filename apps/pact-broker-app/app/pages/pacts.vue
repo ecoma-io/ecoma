@@ -19,6 +19,7 @@ import { computed } from 'vue';
 import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
+import { brokerFetch } from '../utils/broker-fetch';
 
 const { t } = useI18n();
 
@@ -32,7 +33,7 @@ interface MatrixRow {
 const MAX_ROWS = 100;
 
 const { state, reload } = useAsyncState(async () => {
-  const res = await fetch('/api/broker/pacts');
+  const res = await brokerFetch('/api/broker/pacts');
   const body: unknown = await res.json().catch(() => null);
   if (res.status === 503) {
     // BFF chưa cấu hình — trạng thái unavailable, không phải lỗi lần tải.

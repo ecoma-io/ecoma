@@ -11,18 +11,15 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { shellQuote } from '@ecoma-io/deployment';
-
+import * as scriptsModule from './scripts.ts';
 import {
   DATABASE_NAME,
-  MACHINE_TOKEN_PLAINTEXT_ENV_VAR,
   MIGRATOR_PASSWORD_ENV_VAR,
   MIGRATOR_ROLE,
   POSTGRES_HOST,
   RUNTIME_PASSWORD_ENV_VAR,
   RUNTIME_ROLE,
   buildBootstrapTenantScript,
-  buildMachineTokenProvisionScript,
   buildMigrateScript,
   buildMigratorConnectionUrl,
   buildProvisionScript,
@@ -36,14 +33,20 @@ const NODE_IMAGE =
 // hàm build — assert dưới chỉ chứng minh text sinh ra không bao giờ chứa nó,
 // tức script không thể rò secret kể cả khi ai đó tái nhúng interpolation.
 const PASSWORD_SENTINEL = `S3nt1n3l-Pact-Mig'x1%`;
-const TOKEN_SENTINEL = `S3nt1n3l-Pact-Tok'x9;`;
 
 describe('env var name constants', () => {
-  it('declares distinct, deterministic env var names for both role passwords and the token', () => {
+  it('declares distinct, deterministic env var names for both role passwords', () => {
     expect(MIGRATOR_PASSWORD_ENV_VAR).toBe('PACT_PW_MIGRATOR');
     expect(RUNTIME_PASSWORD_ENV_VAR).toBe('PACT_PW_RUNTIME');
-    expect(MACHINE_TOKEN_PLAINTEXT_ENV_VAR).toBe('PACT_MACHINE_TOKEN_PLAINTEXT');
     expect(MIGRATOR_PASSWORD_ENV_VAR).not.toBe(RUNTIME_PASSWORD_ENV_VAR);
+  });
+
+  it('exposes no machine-token script — the BFF token is retired (ADR-0031 §5)', () => {
+    // Machine token của consumer local bị retire hoàn toàn ở #206: không còn
+    // builder nào provision token, không còn env var plaintext token nào.
+    const moduleKeys = Object.keys(scriptsModule);
+    expect(moduleKeys).not.toContain('buildMachineTokenProvisionScript');
+    expect(moduleKeys.some((key) => key.includes('MACHINE_TOKEN'))).toBe(false);
   });
 });
 
@@ -202,73 +205,6 @@ describe('buildBootstrapTenantScript', () => {
         worktreeRoot: '/repo/worktrees/x',
         nodeImage: NODE_IMAGE,
         tenantOwnerSub: 'sub-integration-owner',
-      }),
-    ).toBe(script);
-  });
-});
-
-describe('buildMachineTokenProvisionScript', () => {
-  const script = buildMachineTokenProvisionScript({
-    networkName: 'ecoma-x-network',
-    worktreeRoot: '/repo/worktrees/x',
-    nodeImage: NODE_IMAGE,
-    tokenName: 'pact-broker-app-bff',
-    tokenScopes: 'admin',
-  });
-
-  it('passes DATABASE_URL and the token plaintext to docker run by NAME only', () => {
-    expect(script).toContain('-e DATABASE_URL \\');
-    expect(script).toContain(`-e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR} \\`);
-    // Không dạng `-e TÊN=giá trị` nào cho DATABASE_URL hay plaintext token —
-    // cả hai chỉ được phép xuất hiện ở dạng name-only (có `\` nối dòng).
-    expect(script).not.toMatch(/-e DATABASE_URL=/u);
-    expect(script).not.toMatch(new RegExp(`-e ${MACHINE_TOKEN_PLAINTEXT_ENV_VAR}=`, 'u'));
-    expect(script).not.toMatch(/-e \w+=postgresql/u);
-    expect(script).not.toContain(PASSWORD_SENTINEL);
-    expect(script).not.toContain(TOKEN_SENTINEL);
-  });
-
-  it('keeps token name and scopes inline as quoted non-secret values', () => {
-    expect(script).toContain(`-e PACT_MACHINE_TOKEN_NAME=${shellQuote('pact-broker-app-bff')}`);
-    expect(script).toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${shellQuote('admin')}`);
-  });
-
-  it('shell-quotes hostile token name and scopes inside the builder', () => {
-    // Giá trị chứa nháy đơn/semicolon/space phải ở dưới dạng đã shellQuote:
-    // shell parse ra nguyên giá trị gốc thành MỘT argument env — không tách
-    // từ, không chạy lệnh. Nội suy trần (lỗi bị ghim ở đây) không được quay lại.
-    const hostileName = `pact"tok'en;x y`;
-    const hostileScopes = `admin 'extra;scope`;
-    const hostile = buildMachineTokenProvisionScript({
-      networkName: 'ecoma-x-network',
-      worktreeRoot: '/repo/worktrees/x',
-      nodeImage: NODE_IMAGE,
-      tokenName: hostileName,
-      tokenScopes: hostileScopes,
-    });
-    expect(hostile).toContain(`-e PACT_MACHINE_TOKEN_NAME=${shellQuote(hostileName)}`);
-    expect(hostile).toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${shellQuote(hostileScopes)}`);
-    expect(hostile).not.toContain(`-e PACT_MACHINE_TOKEN_NAME=${hostileName}`);
-    expect(hostile).not.toContain(`-e PACT_MACHINE_TOKEN_SCOPES=${hostileScopes}`);
-  });
-
-  it('keeps the canonical runner invocation, mounts and network', () => {
-    expect(script).toContain('--network ecoma-x-network');
-    expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
-    expect(script).toContain('-w /repo/apps/pact-broker-api');
-    expect(script).toContain(
-      '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts',
-    );
-  });
-
-  it('is deterministic for the same inputs', () => {
-    expect(
-      buildMachineTokenProvisionScript({
-        networkName: 'ecoma-x-network',
-        worktreeRoot: '/repo/worktrees/x',
-        nodeImage: NODE_IMAGE,
-        tokenName: 'pact-broker-app-bff',
-        tokenScopes: 'admin',
       }),
     ).toBe(script);
   });

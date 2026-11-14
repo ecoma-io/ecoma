@@ -207,21 +207,52 @@ export function environmentRoutes(
     );
   });
 
-  // DELETE environment — Pact CLI `delete-environment`.
+  // DELETE environment — Pact CLI `delete-environment`. Audit `environment.delete`
+  // (ADR-0032: coverage của #206) — cùng pattern create/update: mutation qua
+  // repo (pool), audit ghi trong transaction riêng (client); audit lỗi thì
+  // error propagate (fail-closed, request 500) chứ không nuốt.
   app.delete('/:id', writeAuth(), async (c) => {
     const raw = c.req.param('id');
     const repo = new PgEnvironmentRepo(c.get('pool'));
     const tenantId = currentTenantId(c);
+    const callerTokenId = c.get('tokenId') ?? null;
     let ok: boolean;
+    let deletedName: string;
     if (UUID_RE.test(raw)) {
+      // Tên đọc TRƯỚC khi delete — sau delete row đã biến, không tra lại được.
+      const existing = await repo.getEnvironmentByUuid(tenantId, raw);
+      if (existing === null) {
+        return c.json({ error: 'Not Found', message: 'Environment not found' }, 404);
+      }
+      deletedName = existing.name;
       ok = await repo.deleteEnvironment(tenantId, raw, true);
     } else {
       const nameResult = validateParam(c, environmentNameSchema, raw, 'name');
       if (!nameResult.valid) return nameResult.errorResponse;
+      deletedName = nameResult.value;
       ok = await repo.deleteEnvironment(tenantId, nameResult.value, false);
     }
     if (!ok) {
       return c.json({ error: 'Not Found', message: 'Environment not found' }, 404);
+    }
+
+    const auditClient = await c.get('pool').connect();
+    try {
+      await auditClient.query('BEGIN');
+      await insertAuditEvent(auditClient, {
+        tenantId,
+        actorSub: null,
+        actorTokenId: callerTokenId,
+        action: 'environment.delete',
+        outcome: 'success',
+        detail: { name: deletedName },
+      });
+      await auditClient.query('COMMIT');
+    } catch (error) {
+      await auditClient.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      auditClient.release();
     }
     return c.body(null, 204);
   });
