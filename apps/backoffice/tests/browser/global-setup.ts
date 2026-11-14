@@ -190,7 +190,12 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
     // là gì, và client có mount hay không — thay vì một dòng timeout mơ hồ.
     // Lỗi gốc luôn được ném tiếp: chẩn đoán không được che nguyên nhân.
     if (page !== undefined && session !== undefined) {
-      console.error(await describeBrowserSession(page, session, { capMs }));
+      try {
+        console.error(await describeBrowserSession(page, session, { capMs }));
+      } catch {
+        // Chẩn đoán tự lỗi (trang đã đóng, unresponsive) thì bỏ qua phần chẩn
+        // đoán, không thay thế lỗi warm-up gốc bằng lỗi của chính nó.
+      }
     }
 
     throw cause;

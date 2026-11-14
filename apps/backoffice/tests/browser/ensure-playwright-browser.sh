@@ -39,22 +39,42 @@ cd "$(dirname "$0")/../.."
 # `chromium.executablePath()` resolve tới đúng bản mà `@playwright/test` của
 # workspace mong đợi, và `existsSync` xác nhận nó có thật trong
 # `~/.cache/ms-playwright`.
+#
+# Mã thoát phân biệt hai nguyên nhân: 0 = có binary, 1 = thiếu binary nhưng
+# module đã cài, 2 = không nạp được `@playwright/test`. Thiếu module là lỗi
+# dependency/`pnpm install`, không phải thiếu bước cấp browser — gộp chung sẽ
+# chỉ sai chỗ cần sửa.
 chromium_is_cached() {
   node -e '
     const fs = require("node:fs");
-    const { chromium } = require("@playwright/test");
+    let chromium;
+    try {
+      ({ chromium } = require("@playwright/test"));
+    } catch {
+      process.exit(2);
+    }
     process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);
   '
 }
 
 if [ "${CI:-}" = "true" ]; then
-  if chromium_is_cached; then
-    echo "Playwright chromium already provisioned by the CI job step; skipping install."
-    exit 0
-  fi
+  status=0
+  chromium_is_cached || status=$?
 
-  echo "Playwright chromium is missing on CI. The integration-test job must run 'npx playwright install --with-deps chromium' before Nx starts (see .github/workflows/ci.yaml); this script deliberately does not install or apt-get from inside a parallel Nx task (issue #253)." >&2
-  exit 1
+  case "$status" in
+    0)
+      echo "Playwright chromium already provisioned by the CI job step; skipping install."
+      exit 0
+      ;;
+    2)
+      echo "Playwright module '@playwright/test' could not be loaded in this checkout; run 'pnpm install' before the test target. This is a missing or broken dependency, not a missing browser binary (issue #253)." >&2
+      exit 2
+      ;;
+    *)
+      echo "Playwright chromium is missing on CI. The integration-test job must run 'npx playwright install --with-deps chromium' before Nx starts (see .github/workflows/ci.yaml); this script deliberately does not install or apt-get from inside a parallel Nx task (issue #253)." >&2
+      exit 1
+      ;;
+  esac
 fi
 
 # ⚠️ `timeout`: `set -euo pipefail` chỉ bắt exit code khác 0, không xử lý tiến

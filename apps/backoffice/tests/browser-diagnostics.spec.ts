@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import type { Page } from '@playwright/test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   describeBrowserSession,
@@ -27,9 +27,15 @@ type FakePageOptions = {
 /**
  * `Page` giả: chỉ có đúng ba thành viên mà instrumentation dùng, và phát sự kiện
  * qua `EventEmitter` như Playwright.
+ *
+ * Kiểu hẹp cố ý: nếu instrumentation cần thêm thành viên `Page`, kiểu của
+ * `watchBrowserSession`/`describeBrowserSession` đổi theo và lời gọi trong spec
+ * này đỏ ngay khi biên dịch, thay vì lọt tới lỗi runtime.
  */
+type FakePage = Pick<Page, 'on' | 'content' | 'evaluate'>;
+
 function fakePage(options: FakePageOptions = {}): {
-  page: Page;
+  page: FakePage;
   emit: (event: string, payload: unknown) => void;
 } {
   const emitter = new EventEmitter();
@@ -43,7 +49,7 @@ function fakePage(options: FakePageOptions = {}): {
   };
 
   return {
-    page: page as unknown as Page,
+    page: page as unknown as FakePage,
     emit: (event, payload) => {
       emitter.emit(event, payload);
     },
@@ -156,6 +162,23 @@ describe('watchBrowserSession', () => {
       url: 'http://127.0.0.1:4311/_nuxt/client.js',
       failure: 'net::ERR_ABORTED',
     });
+  });
+
+  it('records both the first and the last occurrence of a repeated failed request', () => {
+    const { page, emit } = fakePage();
+    const log = watchBrowserSession(page, 0);
+
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValueOnce(1_000);
+    now.mockReturnValueOnce(4_234);
+    emit('response', response(500, 'fetch', 'http://127.0.0.1:4311/api/staff'));
+    emit('response', response(500, 'fetch', 'http://127.0.0.1:4311/api/staff'));
+    now.mockRestore();
+
+    const entry = [...log.failedRequests.values()][0];
+    expect(entry.count).toBe(2);
+    expect(entry.firstAtMs).toBe(1_000);
+    expect(entry.lastAtMs).toBe(4_234);
   });
 
   it('caps the number of retained console kinds', () => {

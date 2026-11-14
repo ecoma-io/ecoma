@@ -23,6 +23,15 @@ import type { Page } from '@playwright/test';
  *   vì chờ vô hạn.
  */
 
+/**
+ * Phần `Page` mà instrumentation thực sự dùng.
+ *
+ * Khai báo hẹp để unit test chỉ cần giả lập đúng ba thành viên này, và để
+ * compiler buộc fake phải bổ sung thành viên khi instrumentation cần thêm —
+ * một fake `as unknown as Page` sẽ nuốt mất lỗi đó.
+ */
+type InstrumentedPage = Pick<Page, 'on' | 'content' | 'evaluate'>;
+
 /** Số loại thông điệp console tối đa giữ lại (đã gộp theo nội dung). */
 const MAX_CONSOLE_KINDS = 40;
 /** Độ dài tối đa của một thông điệp/ngăn xếp lỗi giữ lại. */
@@ -58,6 +67,8 @@ export type FailedRequest = {
   readonly failure?: string;
   count: number;
   readonly firstAtMs: number;
+  /** Thời điểm xuất hiện lần cuối, tính từ đầu vế browser. */
+  lastAtMs: number;
 };
 
 /** Một document request — chính là dấu vết dev server full-reload. */
@@ -107,7 +118,7 @@ export type PageSnapshot = {
  * mount đầu tiên.
  */
 export function watchBrowserSession(
-  page: Page,
+  page: InstrumentedPage,
   phaseStart: number = Date.now(),
 ): BrowserSessionLog {
   const log: BrowserSessionLog = {
@@ -187,7 +198,7 @@ export function summarizeBrowserSession(log: BrowserSessionLog): string {
  * hàng đầu của issue.
  */
 export async function describeBrowserSession(
-  page: Page,
+  page: InstrumentedPage,
   log: BrowserSessionLog,
   options: { readonly capMs: number },
 ): Promise<string> {
@@ -250,9 +261,13 @@ export async function describeBrowserSession(
         ? `failure=${request.failure ?? 'unknown'}`
         : `HTTP ${String(request.status)}`;
     const suffix = request.count > 1 ? ` (x${String(request.count)})` : '';
-    lines.push(
-      `[warm-up]     ${request.method} ${request.url} -> ${detail}${suffix} (+${String(request.firstAtMs)} ms)`,
-    );
+    // In cả mốc đầu và mốc cuối: một loạt lỗi dồn trong khoảng ngắn khác với
+    // lỗi kéo dài suốt phiên, và chỉ `firstAtMs` thì không phân biệt được.
+    const timing =
+      request.count > 1
+        ? `+${String(request.firstAtMs)}..${String(request.lastAtMs)} ms`
+        : `+${String(request.firstAtMs)} ms`;
+    lines.push(`[warm-up]     ${request.method} ${request.url} -> ${detail}${suffix} (${timing})`);
   }
 
   return lines.join('\n');
@@ -267,7 +282,7 @@ export async function describeBrowserSession(
  * dòng "source" và "rendered DOM" phải đọc cùng nhau: `source=absent` là bình
  * thường, còn `rendered DOM=absent` nghĩa là client chưa mount xong.
  */
-async function describePageContent(page: Page): Promise<string[]> {
+async function describePageContent(page: InstrumentedPage): Promise<string[]> {
   try {
     const content = await withTimeout(page.content(), PAGE_READ_TIMEOUT_MS, 'page.content()');
     const noticeInSource = content.includes('data-testid="backoffice-sample-notice"');
@@ -286,7 +301,7 @@ async function describePageContent(page: Page): Promise<string[]> {
  * che lỗi gốc của warm-up.
  */
 async function readPageSnapshot(
-  page: Page,
+  page: InstrumentedPage,
 ): Promise<{ ok: true; value: PageSnapshot } | { ok: false; error: string }> {
   try {
     const value = await withTimeout(
@@ -354,6 +369,7 @@ function recordFailedRequest(
 
   if (existing !== undefined) {
     existing.count += 1;
+    existing.lastAtMs = Date.now() - log.phaseStart;
     return;
   }
 
@@ -361,13 +377,15 @@ function recordFailedRequest(
     return;
   }
 
+  const atMs = Date.now() - log.phaseStart;
   log.failedRequests.set(key, {
     method,
     url,
     status: detail.status,
     failure: detail.failure,
     count: 1,
-    firstAtMs: Date.now() - log.phaseStart,
+    firstAtMs: atMs,
+    lastAtMs: atMs,
   });
 }
 
