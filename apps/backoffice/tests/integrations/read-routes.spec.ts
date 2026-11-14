@@ -63,6 +63,15 @@ function accountId(char: string): string {
 const READER = accountId('a');
 const NO_PERMISSION_STAFF = accountId('b');
 const SUSPENDED_STAFF = accountId('c');
+/**
+ * Principal KHÔNG có grant legacy nào trong `db-backoffice` — nhân vật chính
+ * của nhóm cutover (issue #241): quyết định permission của nó phải đến từ
+ * projection Staff Access sau cutover, không từ legacy rỗng.
+ */
+const PROJECTION_ONLY_STAFF = accountId('d');
+
+/** Role id của projection binding — id tự do của contract, không phải UUID DB. */
+const PROJECTION_ROLE_ID = 'role-projection-reader';
 
 const SECRET = 'test-internal-hmac-secret-0123456789abcdef';
 
@@ -105,6 +114,95 @@ const staffBinding = {
       { status: 200 },
     ),
 };
+
+/**
+ * Service Binding giả phục vụ ĐỦ ba endpoint mà projection loader đọc
+ * (issue #241): `/staff` (directory), `/staff/:id/assignments`,
+ * `/roles` (catalog để map permission). Shapes khớp contract của
+ * `@ecoma-io/staff-access-contracts` — loader chạy validator thật.
+ */
+const projectionBinding = {
+  fetch: async (input: Request) => {
+    const path = new URL(input.url).pathname;
+    if (path === '/staff') {
+      return new Response(
+        JSON.stringify({
+          staff: [
+            {
+              id: 's-proj',
+              sub: PROJECTION_ONLY_STAFF,
+              status: 'active',
+              display_name: 'Projection Reader',
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+          ],
+          next_cursor: null,
+        }),
+        { status: 200 },
+      );
+    }
+    const assignmentMatch = /^\/staff\/([^/]+)\/assignments$/u.exec(path);
+    if (assignmentMatch !== null) {
+      return new Response(
+        JSON.stringify({
+          assignments: [
+            {
+              id: 'asg-proj-1',
+              staff_id: decodeURIComponent(assignmentMatch[1] ?? ''),
+              role_id: PROJECTION_ROLE_ID,
+              scope: { label: 'global' },
+              effective_from: '2026-01-01T00:00:00Z',
+              effective_until: null,
+              granted_by: null,
+              created_at: '2026-01-01T00:00:00Z',
+              revoked_at: null,
+            },
+          ],
+          next_cursor: null,
+        }),
+        { status: 200 },
+      );
+    }
+    if (path === '/roles') {
+      return new Response(
+        JSON.stringify({
+          roles: [
+            {
+              id: PROJECTION_ROLE_ID,
+              name: 'projection reader',
+              kind: 'custom',
+              permissions: ['staff.read'],
+              status: 'active',
+              created_at: '2026-01-01T00:00:00Z',
+            },
+          ],
+          next_cursor: null,
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+  },
+};
+
+/**
+ * Env đầy đủ cho nhóm cutover: DB + staff-access binding + secret + mốc
+ * cutover đã qua.
+ *
+ * ⚠️ Ở scope module (không phải trong `describe`): lint
+ * `consistent-function-scoping` yêu cầu hàm không capture biến scope cha;
+ * `runtimeConnectionString()` đọc `db` của `describe`, nên bản ở đây nhận
+ * connection string làm tham số.
+ */
+function cutoverEnv(connectionString: string): Record<string, unknown> {
+  return {
+    DB_BACKOFFICE: { connectionString },
+    [STAFF_ACCESS_SERVICE_BINDING_NAME]: projectionBinding,
+    [AUTH_INTERNAL_SECRET_ENV]: SECRET,
+    BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT: new Date(Date.now() - 1_000).toISOString(),
+  };
+}
 
 /**
  * Dựng h3 app với 3 route thật rồi gọi một path.
@@ -358,6 +456,92 @@ describe('read routes /api/staff, /api/roles, /api/permissions', () => {
       });
 
       expect(status).toBe(503);
+    });
+  });
+
+  describe('authorization source cutover (issue #241)', () => {
+    it('reads data for a principal whose only grant lives in the staff-access projection', async () => {
+      // `PROJECTION_ONLY_STAFF` không có hàng nào trong db-backoffice legacy —
+      // trước cutover chính trạng thái này là lỗi của issue #241 (legacy rỗng
+      // là authority ⇒ 403 cho principal có thật).
+      const { status } = await get('/api/staff', {
+        env: cutoverEnv(runtimeConnectionString()),
+        principal: { actorSub: PROJECTION_ONLY_STAFF },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    it('writes a success audit row for the projection-backed allow', async () => {
+      await get('/api/staff', {
+        env: cutoverEnv(runtimeConnectionString()),
+        principal: { actorSub: PROJECTION_ONLY_STAFF },
+      });
+
+      const client = await db.connect();
+      try {
+        const { rows } = await client.query<{
+          actor_sub: string;
+          action: string;
+          outcome: string;
+        }>(
+          `SELECT actor_sub, action, outcome
+             FROM backoffice.authorization_audit
+            WHERE actor_sub = $1 AND action = 'staff.read'
+            ORDER BY occurred_at`,
+          [PROJECTION_ONLY_STAFF],
+        );
+        // SR-013 privileged-operation audit: allow của route có bảo vệ để lại
+        // dấu vết `success` như deny đã để lại `denied`.
+        expect(rows).toEqual([
+          { actor_sub: PROJECTION_ONLY_STAFF, action: 'staff.read', outcome: 'success' },
+        ]);
+      } finally {
+        await client.end();
+      }
+    });
+
+    it('keeps the gate closed as legacy authority: no legacy grant means 403 even with a fresh projection', async () => {
+      // Cùng env nhưng KHÔNG có biến cutover — legacy (rỗng với principal này)
+      // vẫn là nguồn quyết định: đúng hành vi pre-cutover, 403 với lý do
+      // `permission_not_granted` của legacy rỗng.
+      const { BACKOFFICE_AUTHZ_PROJECTION_CUTOVER_AT: _cutoverAt, ...env } =
+        cutoverEnv(runtimeConnectionString());
+
+      const { status } = await get('/api/staff', {
+        env,
+        principal: { actorSub: PROJECTION_ONLY_STAFF },
+      });
+
+      expect(status).toBe(403);
+
+      const client = await db.connect();
+      try {
+        const { rows } = await client.query<{ outcome: string; reason_code: string }>(
+          `SELECT outcome, reason_code
+             FROM backoffice.authorization_audit
+            WHERE actor_sub = $1 AND action = 'staff.read'
+            ORDER BY occurred_at`,
+          [PROJECTION_ONLY_STAFF],
+        );
+        expect(rows).toEqual([{ outcome: 'denied', reason_code: 'normal:permission_not_granted' }]);
+      } finally {
+        await client.end();
+      }
+    });
+
+    it('falls back to legacy (deny) and still fails closed when staff-access is unavailable post-cutover', async () => {
+      // Cutover bật nhưng client staff-access không cấu hình được ⇒ projection
+      // vắng ⇒ fallback legacy rỗng ⇒ 403 — không allow, không 500.
+      const { [STAFF_ACCESS_SERVICE_BINDING_NAME]: _binding, ...env } =
+        cutoverEnv(runtimeConnectionString());
+
+      const { status } = await get('/api/staff', {
+        env,
+        principal: { actorSub: PROJECTION_ONLY_STAFF },
+      });
+
+      expect(status).toBe(403);
     });
   });
 });

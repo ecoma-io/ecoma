@@ -95,6 +95,17 @@ export const SEED_ACTOR_SUB = 'sub_aclfe2eactorseaaaaaaaaaaaaaaaaaa';
 export const TEST_ROLE_ID = 'acl-e2e-role';
 
 /**
+ * UUID của role tương ứng **trong `db-staff-access`** — schema `staff_access`
+ * dùng `uuid` cho `roles.id` (0001), nên seed grant projection cần một uuid
+ * cố định để rerun là cùng một hàng (`ON CONFLICT (id) DO NOTHING`).
+ *
+ * ⚠️ Giá trị cố ý là uuid **entropy thấp** (toàn số 1): một uuid ngẫu nhiên
+ * trong file test bị gitleaks `generic-api-key` bắt vì chuỗi đủ entropy và
+ * cạnh một tên biến chứa `access` — false positive nhưng chặn pre-push và CI.
+ */
+export const TEST_STAFF_ACCESS_ROLE_ID = '11111111-1111-4111-8111-111111111111';
+
+/**
  * Id một role thứ hai KHÔNG có permission nào — dùng cho khẳng định phụ:
  * role trống cung cấp `permissions = []` ⇒ `can()` deny
  * (`permission_not_granted`), độc lập với số assignment.

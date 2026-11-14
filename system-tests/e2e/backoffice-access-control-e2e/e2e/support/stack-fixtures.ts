@@ -303,6 +303,125 @@ export async function seedStaffAccessStaff(
   ]);
 }
 
+/**
+ * Seed grant authorization vào `db-staff-access` — nguồn quyết định permission
+ * của BFF sau cutover (issue #241).
+ *
+ * Ba INSERT theo ràng buộc schema đã verify của `apps/staff-access/db/migrations`:
+ * - `roles (id uuid, name, kind='custom', status='active')` — UNIQUE `(kind, name)`;
+ *   uuid cố định để rerun là cùng một hàng (`ON CONFLICT (id) DO NOTHING`);
+ * - `role_permissions (role_id, permission_id)` — FK vào catalog `staff.read`
+ *   (migration 0003 đã seed);
+ * - `role_assignments (staff_id, role_id)` với `granted_by NULL` (đúng ngữ nghĩa
+ *   hàng do migrator/test tạo) và partial unique index
+ *   `(staff_id, role_id) WHERE revoked_at IS NULL` (0008) — insert có guard
+ *   `WHERE NOT EXISTS` trên assignment còn sống, nên rerun sau một lần revoke
+ *   tạo lại hàng mới thay vì chạm hàng đã revoke (revocation là UPDATE, không
+ *   DELETE — giữ nguyên lịch sử audit).
+ */
+export async function seedStaffAccessGrant(
+  postgresContainer: string,
+  params: { readonly staffSub: string; readonly roleId: string; readonly permissionId: string },
+): Promise<void> {
+  const sql = [
+    `INSERT INTO staff_access.roles (id, name, kind, status)
+     VALUES (${sqlQuote(params.roleId)}, 'access-control-e2e-role', 'custom', 'active')
+     ON CONFLICT (id) DO NOTHING;`,
+    `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+     VALUES (${sqlQuote(params.roleId)}, ${sqlQuote(params.permissionId)})
+     ON CONFLICT DO NOTHING;`,
+    `INSERT INTO staff_access.role_assignments (staff_id, role_id)
+     SELECT s.id, ${sqlQuote(params.roleId)}
+       FROM staff_access.staff s
+      WHERE s.sub = ${sqlQuote(params.staffSub)}
+        AND NOT EXISTS (
+          SELECT 1
+            FROM staff_access.role_assignments ra
+           WHERE ra.staff_id = s.id
+             AND ra.role_id = ${sqlQuote(params.roleId)}
+             AND ra.revoked_at IS NULL
+        );`,
+  ].join('\n');
+  await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-staff-access',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    sql,
+  ]);
+}
+
+/**
+ * Thu hồi assignment của một staff trong `db-staff-access` — UPDATE
+ * `revoked_at` (không DELETE), cùng ngữ nghĩa revocation mà schema của
+ * staff-access ghim (`role_assignments_revoked_after_created`; trigger chỉ
+ * chặn un-revoke).
+ *
+ * ⚠️ Thu hồi **mọi** assignment còn sống của staff, không lọc theo `roleId`:
+ * một lần chạy trước có thể đã seed dưới id role khác (đổi id fixture), và
+ * grant cũ còn sống sẽ làm hỏng precondition "chưa cấp quyền" của viên test
+ * 403. Lọc theo role vẫn để lại grant của lần chạy trước ⇒ suite không
+ * rerun-safe.
+ */
+export async function revokeStaffAccessAssignment(
+  postgresContainer: string,
+  params: { readonly staffSub: string },
+): Promise<void> {
+  const sql = `UPDATE staff_access.role_assignments
+                  SET revoked_at = now()
+                WHERE staff_id = (SELECT id FROM staff_access.staff WHERE sub = ${sqlQuote(
+                  params.staffSub,
+                )})
+                  AND revoked_at IS NULL;`;
+  await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-staff-access',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    sql,
+  ]);
+}
+
+/**
+ * Đếm audit row `success` của một action trong `backoffice.authorization_audit`
+ * — bằng chứng "allow của phép đọc có bảo vệ để lại dấu vết" (issue #241,
+ * SR-013). Suite trước đây không assert nội dung audit; assertion này thuộc
+ * đúng hợp đồng mà #241 yêu cầu chứng minh trên lane thật.
+ */
+export async function countAuthorizationAuditSuccess(
+  postgresContainer: string,
+  params: { readonly actorSub: string; readonly action: string },
+): Promise<number> {
+  const sql = `SELECT count(*) FROM backoffice.authorization_audit
+                WHERE actor_sub = ${sqlQuote(params.actorSub)}
+                  AND action = ${sqlQuote(params.action)}
+                  AND outcome = 'success';`;
+  const stdout = await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-backoffice',
+    '-t',
+    '-A',
+    '-c',
+    sql,
+  ]);
+  const parsed = Number.parseInt(stdout.trim(), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`authorization_audit count query returned non-numeric output: ${stdout}`);
+  }
+  return parsed;
+}
+
 // -------------------------------------------------------------------------------------------
 // OTP từ mail sink
 // -------------------------------------------------------------------------------------------
