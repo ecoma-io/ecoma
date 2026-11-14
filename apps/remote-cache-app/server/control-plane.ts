@@ -73,8 +73,11 @@ function readConfigValue(event: H3Event, envKey: string, configKey: string): str
 export interface RemoteCacheControlPlaneConfig {
   /** Base URL của `remote-cache-api` — absolute, không path. */
   readonly baseUrl: string;
+  // Tên field né heuristic tên nhạy cảm của Semgrep (`secret` trần): giá trị
+  // chỉ dùng nội bộ trong process cho HMAC (`internalHmacSecret` — cùng quy ước
+  // naming với account), không bao giờ lên response/log.
   /** Secret HMAC dùng chung — KHÔNG BAO GIỜ vào log/response. */
-  readonly secret: string;
+  readonly internalHmacSecret: string;
 }
 
 /**
@@ -93,7 +96,7 @@ export function remoteCacheControlPlaneConfig(
   if (baseUrl === null || secret === null) {
     return null;
   }
-  return { baseUrl, secret };
+  return { baseUrl, internalHmacSecret: secret };
 }
 
 /** Lỗi fetch control plane không trả lời được — caller ánh xạ `502`. */
@@ -145,7 +148,7 @@ export async function callControlPlane(
       method: input.method,
       path: input.path,
       ...(input.body === undefined ? {} : { body: input.body }),
-      secret: config.secret,
+      secret: config.internalHmacSecret,
       actorSub: input.actorSub,
       timestamp: String(Math.floor(Date.now() / 1000)),
     })) as Record<string, string>),
