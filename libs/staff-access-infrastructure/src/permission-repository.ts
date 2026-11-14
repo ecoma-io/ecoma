@@ -10,7 +10,13 @@ import type { StaffAccessQueryable } from './postgres';
  * tầng database đã chặn.
  */
 
-/** Một hàng permission như schema trả về. */
+/**
+ * Một hàng permission như schema trả về.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * parse OID 1184 thành `Date`, không phải `string`. Caller phải chuẩn hoá về
+ * ISO 8601 string trước khi đưa vào contract wire (issue #252).
+ */
 export interface PermissionRow {
   /** Định danh đầy đủ `<domain>.<action>` — bằng đúng chuỗi của catalog (ADR-0010). */
   readonly id: string;
@@ -18,7 +24,8 @@ export interface PermissionRow {
   readonly action: string;
   /** `active | retired` — retired là terminal (ADR-0010). */
   readonly status: string;
-  readonly created_at: string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly created_at: Date | string;
 }
 
 /** Lấy một permission theo định danh đầy đủ. */

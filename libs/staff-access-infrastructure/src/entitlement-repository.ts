@@ -8,6 +8,17 @@ import type { StaffAccessQueryable, StaffAccessTransaction } from './postgres';
 export type { EntitlementEvent };
 
 /**
+ * Chuẩn hoá giá trị `timestamptz` của driver về ISO 8601 string.
+ *
+ * `postgres.js` parse OID 1184 thành `Date`, nên kiểu khai báo trên row không
+ * phải sự thật runtime; envelope {@link EntitlementEvent} của contract đòi ISO
+ * string có offset hoặc `Z` (issue #252).
+ */
+function iso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+/**
  * Repository của `staff_access.entitlements` + `staff_access.entitlement_outbox_events`
  * — read model gốc của tính khả dụng sản phẩm (ADR-0009: entitlement ≠
  * authorization; entry chỉ mang product availability, KHÔNG verdict/permission/role)
@@ -27,14 +38,22 @@ export type { EntitlementEvent };
  * ghim `'staff-access'`. Cơ chế relay/queue KHÔNG nằm ở đây — P2.2.
  */
 
-/** Một hàng entitlement như schema trả về. */
+/**
+ * Một hàng entitlement như schema trả về.
+ *
+ * ⚠️ Kiểu khai báo ở đây **không đáng tin cho cột `timestamptz`**: `postgres.js`
+ * parse OID 1184 thành `Date`, không phải `string`. `revision` thì đúng là
+ * string — `bigint` về string từ driver. Caller phải chuẩn hoá `occurred_at` về
+ * ISO 8601 string trước khi đưa vào contract wire hoặc event (issue #252).
+ */
 export interface EntitlementRow {
   readonly staff_id: string;
   readonly product: string;
   /** `entitled | revoked` — revoked là trạng thái ghi nhận, không xoá entry. */
   readonly status: string;
   readonly revision: string;
-  readonly occurred_at: string;
+  /** `timestamptz` — xem cảnh báo ở JSDoc của interface. */
+  readonly occurred_at: Date | string;
 }
 
 /**
@@ -69,8 +88,10 @@ export async function upsertEntitlement(
   eventId: string,
 ): Promise<EntitlementEvent> {
   // Revision (bigint) về string từ driver — Number() an toàn trên dải
-  // MAX_SAFE_INTEGER mà contract validate.
-  const rows = await db.unsafe<{ revision: string; occurred_at: string }>(
+  // MAX_SAFE_INTEGER mà contract validate. `occurred_at` là `timestamptz` nên
+  // driver trả `Date`: kiểu khai báo không đáng tin, phải chuẩn hoá trước khi
+  // dựng event (issue #252).
+  const rows = await db.unsafe<{ revision: string; occurred_at: Date | string }>(
     `INSERT INTO staff_access.entitlements (staff_id, product, status)
      VALUES ($1, $2, $3)
      ON CONFLICT (staff_id, product)
@@ -104,7 +125,7 @@ export async function upsertEntitlement(
     staffId: entry.staffId,
     product: entry.product as EntitlementEvent['product'],
     revision,
-    occurredAt: row.occurred_at,
+    occurredAt: iso(row.occurred_at),
   });
 
   // Cùng transaction, đúng invariant A8: ném ở đây rollback cả hai đường ghi.
