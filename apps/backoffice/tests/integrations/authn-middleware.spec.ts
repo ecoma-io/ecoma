@@ -54,6 +54,11 @@ const ACCOUNT_ID = `sub_${'a'.repeat(32)}`;
  */
 const PROBE_ACCOUNT_ID = `sub_${'b'.repeat(32)}`;
 const PROBE_NO_TOUCH_ACCOUNT_ID = `sub_${'c'.repeat(32)}`;
+/**
+ * Account riêng của test family-revocation (#281) — cùng lý do các sub trên:
+ * hàng phiên của test này phải định danh được tuyệt đối trong database chung.
+ */
+const FAMILY_REVOCATION_ACCOUNT_ID = `sub_${'d'.repeat(32)}`;
 
 /** JWKS hiện hành mà fake auth công bố; test đổi giữa các case. */
 let currentJwks: { keys: Record<string, unknown>[] };
@@ -141,7 +146,7 @@ beforeEach(() => {
 });
 
 /** Ký access token đúng cấu trúc `at+jwt` của `auth`. */
-async function signAccessToken(expSeconds?: number): Promise<string> {
+async function signAccessToken(expSeconds?: number, subject: string = ACCOUNT_ID): Promise<string> {
   return new SignJWT({
     scope: 'openid offline_access',
     client_id: CLIENT_ID,
@@ -150,7 +155,7 @@ async function signAccessToken(expSeconds?: number): Promise<string> {
     .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
     .setIssuer(issuerUrl)
     .setAudience(AUDIENCE)
-    .setSubject(ACCOUNT_ID)
+    .setSubject(subject)
     .setIssuedAt()
     .setExpirationTime(expSeconds ?? Math.floor(Date.now() / 1000) + 300)
     .sign(signingKey.privateKey as CryptoKey);
@@ -659,6 +664,36 @@ describe('authn middleware boundary and classification', () => {
       }
     });
 
+    it('answers 401 and does not attach a principal when the renewed token sub mismatches the session row (#281)', async () => {
+      // Defense-in-depth (#281): refresh của auth giữ nguyên subject, nhưng nếu
+      // một provider khác trả token với sub khác hàng phiên thì principal mới
+      // không được gắn cho phiên cũ — 401, không principal.
+      const strangerToken = await new SignJWT({ jti: 'sub-mismatch' })
+        .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
+        .setIssuer(issuerUrl)
+        .setAudience(AUDIENCE)
+        .setSubject(`sub_${'e'.repeat(32)}`)
+        .setIssuedAt()
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 300)
+        .sign(signingKey.privateKey as CryptoKey);
+      tokenGrant = () => ({
+        status: 200,
+        payload: { access_token: strangerToken, refresh_token: 'mismatch-refresh' },
+      });
+
+      const sessionValue = await insertExpiredSession(db, ACCOUNT_ID, 'mismatch-old-refresh');
+      const app = buildApp(envWithDb());
+      const { status, body } = await probe(
+        app,
+        '/api/canary',
+        `${SESSION_COOKIE_NAME}=${sessionValue}`,
+      );
+      expect(status).toBe(401);
+      // 401 của h3 mang body lỗi chuẩn — điều kiện cốt lõi là principal không
+      // được gắn, tức request không bao giờ tới route (canary không trả gì).
+      expect(body).not.toEqual({ path: '/api/canary' });
+    });
+
     it('answers 401 once and leaves the session untouched when the refresh grant fails', async () => {
       tokenGrant = () => ({ status: 400, payload: { error: 'invalid_grant' } });
 
@@ -724,6 +759,111 @@ describe('authn middleware boundary and classification', () => {
       const { status } = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
       expect(status).toBe(200);
       expect(lastTokenGrantBody).toBeNull();
+    });
+
+    it('kicks both tabs out after refresh-token reuse (grant-family revocation, #281)', async () => {
+      // Mô phỏng đúng race hai tab + reuse-detection của oidc-provider
+      // (Amendment #281 của ADR-0012 §3). Hai tab đọc cùng phiên khi access
+      // token đã hết hạn (cùng `refresh_token` cũ trong bộ nhớ tab): tab A
+      // thắng (persist hai token mới), tab B dùng lại token đã rotate ⇒
+      // `invalid_grant` ⇒ provider thu hồi **cả grant family** — token mới của
+      // tab A cũng chết, nên lần renewal kế tiếp của tab A fail 401.
+      let familyUses = 0;
+      const sessionValue = await insertExpiredSession(
+        db,
+        FAMILY_REVOCATION_ACCOUNT_ID,
+        'family-refresh',
+      );
+      const app = buildApp(envWithDb());
+      // Token mới của "tab A" — ký trước, vì handler `/token` là sync.
+      const newAccessToken = await signAccessToken(undefined, FAMILY_REVOCATION_ACCOUNT_ID);
+      const idHash = await hashSessionIdentifier(sessionValue);
+
+      tokenGrant = (body) => {
+        const presented = body.get('refresh_token');
+        if (presented === 'family-refresh' && familyUses === 0) {
+          familyUses += 1;
+          return {
+            status: 200,
+            payload: { access_token: newAccessToken, refresh_token: 'next-refresh' },
+          };
+        }
+        // Token đã rotate xuất hiện lại là reuse ⇒ family chết; mọi grant kế
+        // tiếp của family (kể cả `next-refresh` của tab A) cũng `invalid_grant`.
+        return { status: 400, payload: { error: 'invalid_grant' } };
+      };
+
+      // Tab A: gia hạn thành công, persist hai token mới.
+      const tabA = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(tabA.status).toBe(200);
+
+      // Tab B trong race đã chụp trạng thái TRƯỚC khi tab A persist (token cũ
+      // hết hạn + refresh token cũ) — đưa hàng về đúng trạng thái đó rồi probe:
+      // verify invalid ⇒ renewal với token đã rotate ⇒ reuse ⇒ 401 một lần.
+      const staleToken = await new SignJWT({ jti: 'family-race-stale' })
+        .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
+        .setIssuer(issuerUrl)
+        .setAudience(AUDIENCE)
+        .setSubject(FAMILY_REVOCATION_ACCOUNT_ID)
+        .setIssuedAt(Math.floor(Date.now() / 1000) - 600)
+        .setExpirationTime(Math.floor(Date.now() / 1000) - 300)
+        .sign(signingKey.privateKey as CryptoKey);
+      const client = await db.connect();
+      try {
+        await client.query(
+          `UPDATE backoffice.bff_sessions SET access_token = $2, refresh_token = 'family-refresh'
+            WHERE id_hash = $1`,
+          [idHash, staleToken],
+        );
+      } finally {
+        await client.end();
+      }
+      const tabB = await probe(app, '/api/canary', `${SESSION_COOKIE_NAME}=${sessionValue}`);
+      expect(tabB.status).toBe(401);
+
+      // Hậu quả thật của family revocation: khôi phục đúng trạng thái tab A
+      // đã persist (token mới + `next-refresh`), rồi đưa token về "đã hết hạn"
+      // (ký sẵn token hết hạn cùng key — mô phỏng TTL 300s đã trôi): tab A
+      // đi nhánh renewal với `next-refresh` và nhận `invalid_grant` vì family
+      // đã chết theo tab B. Phiên KHÔNG bị xoá (fail-closed); cả hai tab đăng
+      // nhập lại trong ~5 phút.
+      const expiredNewToken = await new SignJWT({ jti: 'family-revoked-winner' })
+        .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: KEY_ID })
+        .setIssuer(issuerUrl)
+        .setAudience(AUDIENCE)
+        .setSubject(FAMILY_REVOCATION_ACCOUNT_ID)
+        .setIssuedAt(Math.floor(Date.now() / 1000) - 600)
+        .setExpirationTime(Math.floor(Date.now() / 1000) - 300)
+        .sign(signingKey.privateKey as CryptoKey);
+      const client2 = await db.connect();
+      try {
+        await client2.query(
+          `UPDATE backoffice.bff_sessions SET access_token = $2, refresh_token = 'next-refresh'
+            WHERE id_hash = $1`,
+          [idHash, expiredNewToken],
+        );
+      } finally {
+        await client2.end();
+      }
+      const tabAAfterExpiry = await probe(
+        app,
+        '/api/canary',
+        `${SESSION_COOKIE_NAME}=${sessionValue}`,
+      );
+      expect(tabAAfterExpiry.status).toBe(401);
+
+      // Và bằng chứng "leaves the session untouched": phiên vẫn sống sau cả
+      // hai lần 401 — chỉ token là chết.
+      const verify = await db.connect();
+      try {
+        const result = await verify.query(
+          `SELECT revoked_at FROM backoffice.bff_sessions WHERE id_hash = $1`,
+          [idHash],
+        );
+        expect(result.rows[0]?.revoked_at).toBeNull();
+      } finally {
+        await verify.end();
+      }
     });
   });
 });

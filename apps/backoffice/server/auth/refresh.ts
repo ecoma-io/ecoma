@@ -11,8 +11,11 @@
  * Không background refresher, không distributed lock (quyết định M1 của
  * #244): gia hạn on-demand khi access token hết hạn, một lần thử mỗi request.
  * Hai request đua nhau trên cùng phiên thì một cái thắng, cái thua nhận
- * `invalid_grant` (thậm chí trigger reuse-detection thu hồi family) ⇒ 401
- * một lần rồi đăng nhập lại — chấp nhận, đổi lại không thêm state node-local.
+ * `invalid_grant` — và `invalid_grant` đó kích hoạt reuse-detection của
+ * provider thu hồi **cả grant family**, gồm cả token mới của bên thắng. Hậu
+ * quả thật (ghim ở Amendment #281 của ADR-0012 §3): **cả hai tab** bị 401 và
+ * đăng nhập lại trong vòng TTL access token (~5 phút), không chỉ tab thua.
+ * Chấp nhận, đổi lại không thêm state node-local.
  *
  * ## Không bao giờ lưu token chưa verify
  *

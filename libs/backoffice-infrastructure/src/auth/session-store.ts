@@ -19,11 +19,15 @@
  * trùng khoá tra cứu DB). Token set nằm **chỉ** ở DB — cookie không bao giờ
  * mang token (ADR-0012 §1: token không về browser).
  *
- * ## Rotate refresh ⇒ destroy phiên
+ * ## Rotate refresh ⇒ family chết, phiên để tự hết hạn
  *
  * `auth` rotate refresh token ở mỗi lần dùng, và một refresh **đã rotate**
- * xuất hiện lại ⇒ provider thu hồi cả grant (`invalid_grant`). Handler refresh
- * bắt đúng tín hiệu đó và **xoá phiên** — không retry (ADR-0012 §3).
+ * xuất hiện lại ⇒ provider thu hồi cả grant family (`invalid_grant`). Handler
+ * refresh **không** xoá phiên theo tín hiệu đó (Amendment #281 của
+ * ADR-0012 §3): family revocation đã giết mọi token của phiên tại `auth`, hàng
+ * phiên còn lại chỉ là bộ đệm token chết — nó fail 401 một lần rồi tự hết hạn
+ * theo idle/absolute TTL. Hủy phiên là việc của logout, không phải của nhánh
+ * reuse.
  *
  * ## Biên module
  *

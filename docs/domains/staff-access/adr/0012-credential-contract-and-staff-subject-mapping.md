@@ -57,7 +57,7 @@ Ranh giới bất biến của luồng:
 ### 3. Phiên BFF, refresh, logout
 
 - **Phiên server-side:** cookie `__Host-backoffice-session` chỉ mang định danh phiên bất động (opaque, entropy cao); nội dung phiên (token set, metadata) nằm ở store server-side của `backoffice`, không ở cookie. TTL idle + TTL tuyệt đối; giới hạn số phiên song song theo tài nguyên khả dụng (không phải yêu cầu bảo mật riêng).
-- **Refresh:** dùng refresh token trong phiên để lấy access token mới khi hết hạn; rotation là cơ chế sẵn có của `auth`, **reuse bị phát hiện (`invalid_grant`) ⇒ `auth` thu hồi cả grant ⇒ BFF phải hủy phiên và ép đăng nhập lại** — không retry, không fallback.
+- **Refresh:** dùng refresh token trong phiên để lấy access token mới khi hết hạn; rotation là cơ chế sẵn có của `auth`, **reuse bị phát hiện (`invalid_grant`) ⇒ `auth` thu hồi cả grant family ⇒ mọi token của family chết tại `auth`; BFF không hủy phiên — handler refresh fail-closed về 401, caller đăng nhập lại và hàng phiên chết tự hết hạn** (Amendment #281) — không retry, không fallback.
 - **Logout:** hủy phiên server-side + gọi `POST {AUTH_ISSUER}/revocation` cho access + refresh token (RFC 7009); xoá cookie. RP-initiated end-session của `auth` dùng khi cần logout toàn cục, không phải điều kiện cho logout cục bộ.
 - **CSRF:** mọi route mutation (J4) phải qua defence CSRF (so nguồn gốc request — `Origin`/`Sec-Fetch-Site` — kết hợp token phiên same-site); read-only routes không cần vì không đổi trạng thái. Route callback/login chỉ chấp nhận đúng luồng §1.
 - **Step-up ([ADR-0005](./0005-step-up-fresh-session.md)):** bằng chứng `auth_time` chỉ có trong ID token, nên BFF **verify ID token lúc code exchange** (chữ ký/iss/aud/exp/nội dung `sub` khớp access token), ghi `auth_time` đã verify vào phiên server-side; privileged operation đòi `auth_time` ≤ 5 phút tính tại thời điểm thao tác — không phải thời điểm tạo phiên. Hết cửa sổ ⇒ điều hướng lại authorize (policy `auth` vốn ép login+consent trên mọi authorization nên mỗi authorize mới là một re-auth thật). `acr` được lưu kèm cho audit, không dùng làm điều kiện allow.
@@ -78,7 +78,7 @@ Ranh giới bất biến của luồng:
 ### 6. Scope của client `backoffice`
 
 - `openid` — bắt buộc để có ID token cho `auth_time` (§3 step-up).
-- `offline_access` — để có refresh token cho phiên dài hạn (glue tự chèn `prompt=consent`; reuse refresh ⇒ hủy phiên, §3).
+- `offline_access` — để có refresh token cho phiên dài hạn (glue tự chèn `prompt=consent`; reuse refresh ⇒ thu hồi family, §3).
 - `profile` — không cần cho authn/authz của `backoffice` MVP (không dùng claim nào từ nó); xin khi cần hiển thị hồ sơ, không phải điều kiện của luồng.
 - **Không có scope nào map thành permission** — scope ≠ permission (A22); mọi permission đi qua catalog `backoffice` ([ADR-0010](./0010-permission-naming-and-read-catalog.md)).
 
@@ -102,3 +102,41 @@ Hợp đồng của ADR này bám **hành vi đã chạy**: nhánh `granted` tr�
 - **ADR liên quan:** [ADR-0002](./0002-revocation-latency-risk-class.md) · [ADR-0005](./0005-step-up-fresh-session.md) · [ADR-0010](./0010-permission-naming-and-read-catalog.md) · [ADR-0011](./0011-authn-boundary-and-unauthenticated-response.md).
 - **Đối chiếu implementation hiện có:** `apps/auth/src/oidc/provider.ts` (interaction ép login+consent, resourceIndicators, static public clients, JWT ES256, refresh rotation, `/revocation`) · `apps/auth/src/browser-handlers.ts` (glue `/authorize`, tự chèn `resource`, `prompt=consent` khi `offline_access`) · `apps/auth/src/session-verified-handler.ts` (deviation resume-completion) · `apps/account/server/lib/session.ts` (pattern cookie `__Host-`) · `libs/backoffice-infrastructure/src/queries.ts` (`loadPrincipalAuthorization`).
 - **Issue:** #116 — ADR này trả lời bốn câu hỏi mở của issue; phần việc của context `auth` được tách rõ ở §5.
+
+---
+
+## Amendment — Refresh-token reuse không hủy phiên BFF (#281)
+
+**Quyết định:** giữ nguyên ngữ nghĩa fail-closed đã ship trong PR #274 — khi
+`POST /token` trả `invalid_grant` (refresh token đã rotate, reuse bị
+reuse-detection phát hiện), handler refresh của `backoffice` **không** gọi
+`revokeSessionByHash`; nó trả `null`, middleware trả **401** một lần và hàng
+phiên được **để nguyên** (tự hết hạn theo idle/absolute TTL hoặc bị revoke bởi
+logout). §3 gốc ghi "BFF phải hủy phiên" — điều đó **không** được hiện thực và
+giờ được rút lại: hủy phiên không phải nghĩa vụ của BFF khi reuse.
+
+### Lý do
+
+- **Family revocation đã là cơ chế thi hành.** Reuse-detection của
+  oidc-provider thu hồi **cả grant family** (`apps/auth/src/oidc/provider.ts`,
+  `rotateRefreshToken` — reuse ⇒ `revokeByGrantId`), nên access + refresh token
+  mới nhất của phiên chết tại `auth` ngay lập tức. Hàng phiên BFF còn sống chỉ
+  là một bộ đệm token chết: lần verify tiếp theo fail và renewal kế tiếp cũng
+  fail (refresh token đã bị thu hồi) ⇒ 401, caller đăng nhập lại. Gọi thêm
+  `revokeSessionByHash` không mua thêm giá trị bảo mật nào và thêm một đường
+  ghi DB vào nhánh lỗi.
+- **Hành vi đã được test ghim.** PR #274 đã merge với integration test ghim
+  "leaves the session untouched" (`authn-middleware.spec.ts`); đổi handler sang
+  hủy phiên là phá hành vi đã chốt mà không có giá trị bảo mật bù lại (mục trên).
+- **Fail-closed vẫn đúng nghĩa bảo mật:** reuse là tín hiệu bất thường; đáp ứng
+  là từ chối service (401, đăng nhập lại), không phải là nghĩa vụ dọn dẹp state.
+
+### Hậu quả family-revocation cho race hai tab
+
+Race hai tab trên cùng phiên: một request gia hạn thắng (persist hai token
+mới), request kia dùng refresh token đã rotate ⇒ thua và **401 một lần**. Nhưng
+reuse-detection thu hồi cả family, nên **token mới của bên thắng cũng chết** —
+lần verify/renewal kế tiếp của tab thắng (trong TTL 300s của access token mới)
+cũng 401. Hậu quả thật: **cả hai tab bị đẩy ra đăng nhập lại trong vòng ~5
+phút**, không chỉ tab thua. Race này không được nhân bản state node-local để
+"giải" — chấp nhận, đúng quyết định M1 của #244.
