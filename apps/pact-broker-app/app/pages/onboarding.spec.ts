@@ -1,0 +1,86 @@
+/**
+ * Colocated spec của trang Onboarding (issue #208) — nội dung lệnh copy-được:
+ *
+ * - **Bằng chứng CLI pin**: page công bố đúng version ghim `18.10.9` (kết
+ *   luận #205 quyết định 12) — assert tồn tại, không nhảy version âm thầm.
+ * - **SR-002**: không token thật nào ở trang — mọi tham chiếu token là
+ *   placeholder `$PACT_BROKER_TOKEN` / `<machine-token-...>`.
+ * - **Copy control** là điều khiển thật: click gọi `navigator.clipboard`.
+ * - Mỗi khối lệnh dùng **chính syntax đã chạy thật** với CLI pin (bằng chứng
+ *   trong PR của #208) — spec ghim các flag cốt lõi để ai sửa page không thể
+ *   thay bằng flag bịa.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import OnboardingPage from './onboarding.vue';
+import { mountPactBrokerPage } from '../../tests/harness';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('onboarding page — pinned CLI and copyable commands', () => {
+  it('announces the pinned pact-cli version 18.10.9', async () => {
+    const wrapper = await mountPactBrokerPage(OnboardingPage);
+
+    expect(wrapper.find('[data-testid="pact-broker-onboarding-pin"]').text()).toContain(
+      '@pact-foundation/pact-cli@18.10.9',
+    );
+    wrapper.unmount();
+  });
+
+  it('renders the local commands with the flags proven against the pinned CLI', async () => {
+    const wrapper = await mountPactBrokerPage(OnboardingPage);
+
+    const publish = wrapper.find('[data-testid="pact-broker-onboarding-publish"]').text();
+    expect(publish).toContain('--consumer-app-version');
+    expect(publish).toContain('--broker-base-url');
+    expect(publish).toContain('--broker-token');
+
+    const verify = wrapper.find('[data-testid="pact-broker-onboarding-verify"]').text();
+    // pact-verifier 18.10.9 dùng --broker-url (KHÔNG có --broker-token flag —
+    // token đi qua env PACT_BROKER_TOKEN; bằng chứng chạy thật trong PR).
+    expect(verify).toContain('--broker-url');
+    expect(verify).toContain('--provider-name');
+
+    const gate = wrapper.find('[data-testid="pact-broker-onboarding-can-i-deploy"]').text();
+    expect(gate).toContain('--pacticipant');
+    expect(gate).toContain('--to-environment');
+    wrapper.unmount();
+  });
+
+  it('renders the CI commands including record-deployment', async () => {
+    const wrapper = await mountPactBrokerPage(OnboardingPage);
+
+    const record = wrapper.find('[data-testid="pact-broker-onboarding-ci-record-deployment"]');
+    expect(record.exists()).toBe(true);
+    expect(record.text()).toContain('--environment');
+    wrapper.unmount();
+  });
+
+  it('never renders a real token — only placeholders', async () => {
+    const wrapper = await mountPactBrokerPage(OnboardingPage);
+
+    const text = wrapper.text();
+    expect(text).toContain('$PACT_BROKER_TOKEN');
+    // Không giá trị nào trông như token thật (base64url 32+ ký tự không khoảng).
+    expect(text).not.toMatch(/[A-Za-z0-9_-]{32,}/u);
+    wrapper.unmount();
+  });
+
+  it('copies the block code through the real clipboard control', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+
+    const wrapper = await mountPactBrokerPage(OnboardingPage);
+
+    const code = wrapper.find('[data-testid="pact-broker-onboarding-publish"]').text();
+    await wrapper.find('[data-testid="pact-broker-onboarding-publish-copy"]').trigger('click');
+    expect(writeText).toHaveBeenCalledWith(code);
+    wrapper.unmount();
+  });
+});

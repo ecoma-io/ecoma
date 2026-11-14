@@ -64,14 +64,59 @@ export default {
     broker: 'Pact Broker',
     overview: 'Overview',
     pacts: 'Pacts',
+    verifications: 'Verifications',
     matrix: 'Matrix',
     environments: 'Environments',
     tokens: 'API tokens',
+    onboarding: 'CLI onboarding',
   },
 
   overview: {
     title: 'Overview',
     description: 'Consumer-driven contracts between the services of this workspace.',
+    empty: 'No pacts published yet. See CLI onboarding to publish the first contract.',
+    statParticipants: 'Pacticipants',
+    statIntegrations: 'Integrations',
+    statVerifications: 'Verification results',
+  },
+
+  verifications: {
+    title: 'Verifications',
+    description: 'Latest verification results per consumer/provider pair.',
+    consumer: 'Consumer',
+    consumerVersion: 'Consumer version',
+    provider: 'Provider',
+    outcome: 'Outcome',
+    verifiedAt: 'Verified at',
+  },
+
+  matrix: {
+    title: 'Matrix',
+    description:
+      'Can-I-deploy verdict for a pacticipant version against an environment. Unknown means not verified — not safe.',
+    pacticipant: 'Pacticipant',
+    choosePacticipant: 'Choose a pacticipant',
+    version: 'Version',
+    environment: 'Target environment',
+    environmentPlaceholder: 'e.g. test',
+    ask: 'Check',
+    verdict: {
+      deployable: 'Deployable: all verifications for this version pass.',
+      'not-deployable': 'Not deployable: at least one verification failed.',
+      unknown: 'Unknown: missing verification results. Do not deploy without evidence.',
+    },
+  },
+
+  onboarding: {
+    title: 'CLI onboarding',
+    description: 'Configure the Pact CLI for local development and CI/CD against this broker.',
+    pinPrefix: 'All commands are verified with the pinned CLI version:',
+    localTitle: 'Local development',
+    ciTitle: 'CI/CD pipeline',
+    copy: 'Copy',
+    credentialsTitle: 'Credentials and rotation',
+    credentialsBody:
+      'Machine tokens are created by your administrator (or via the API with an admin-scope credential). The token value is shown only once at creation — store it in your CI secret store. To rotate: create a new token, update the CI secret, then revoke the old one. Never commit tokens to the repository.',
   },
 
   pacts: {
@@ -92,7 +137,18 @@ export default {
     description: 'Deployment environments known to the broker.',
     name: 'Name',
     displayName: 'Display name',
+    production: 'Production',
+    productionTrue: 'Production',
+    productionFalse: 'Non-production',
     createdAt: 'Created at',
+    deploymentsTitle: 'Deployments (latest version per pacticipant)',
+    deploymentsEmpty: 'No deployments recorded yet.',
+    deploymentsUnavailable: 'Deployment records are not available right now.',
+    deployedPacticipant: 'Pacticipant',
+    deployedVersion: 'Version',
+    deployedEnvironment: 'Environment',
+    deployedAt: 'Deployed at',
+    undeployedAt: 'Undeployed at',
   },
 
   tokens: {
