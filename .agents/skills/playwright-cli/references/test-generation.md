@@ -7,7 +7,7 @@ End-to-end workflow for authoring and maintaining Playwright tests with `playwri
 - **Generate** — turn a spec into Playwright test files. Update the spec if it's vague or stale.
 - **Heal** — diagnose failing tests, fix the code, reconcile the spec with reality.
 
-Plan / generate / heal lean on the same mechanic: run `npx playwright test --debug=cli` in the background, then `playwright-cli attach tw-XXXX` to drive the paused page interactively. See [playwright-tests.md](playwright-tests.md) for the debug/attach mechanics.
+Plan / generate / heal lean on the same mechanic: run `npx playwright test --debug=cli` in the background, then `npx --no-install playwright cli attach tw-XXXX` to drive the paused page interactively. See [playwright-tests.md](playwright-tests.md) for the debug/attach mechanics.
 
 ---
 
@@ -17,22 +17,22 @@ Every action you perform with `playwright-cli` generates corresponding Playwrigh
 
 ```bash
 # Start a session
-playwright-cli open https://example.com/login
+npx --no-install playwright cli open https://example.com/login
 
 # Take a snapshot to see elements
-playwright-cli snapshot
+npx --no-install playwright cli snapshot
 # Output shows: e1 [textbox "Email"], e2 [textbox "Password"], e3 [button "Sign In"]
 
 # Fill form fields - generates code automatically
-playwright-cli fill e1 "user@example.com"
+npx --no-install playwright cli fill e1 "user@example.com"
 # Ran Playwright code:
 # await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
 
-playwright-cli fill e2 "password123"
+npx --no-install playwright cli fill e2 "password123"
 # Ran Playwright code:
 # await page.getByRole('textbox', { name: 'Password' }).fill('password123');
 
-playwright-cli click e3
+npx --no-install playwright cli click e3
 # Ran Playwright code:
 # await page.getByRole('button', { name: 'Sign In' }).click();
 ```
@@ -73,10 +73,10 @@ await page.locator('#submit-btn').click();
 Take snapshots to understand the page structure before recording actions:
 
 ```bash
-playwright-cli open https://example.com
-playwright-cli snapshot
+npx --no-install playwright cli open https://example.com
+npx --no-install playwright cli snapshot
 # Review the element structure
-playwright-cli click e5
+npx --no-install playwright cli click e5
 ```
 
 ### Add assertions manually
@@ -89,7 +89,7 @@ Generated code captures actions but not assertions. Add expectations in your tes
 - `toBeChecked() / toBeUnchecked()` — checkbox state matches
 - `toMatchAriaSnapshot(snapshot)` — page (or locator) matches a partial accessibility snapshot
 
-Use `playwright-cli generate-locator <target>` to produce the locator expression for the assertion, and the snapshot/eval commands to capture the expected value.
+Use `npx --no-install playwright cli generate-locator <target>` to produce the locator expression for the assertion, and the snapshot/eval commands to capture the expected value.
 
 When asserting text content, make sure that generated locator does not contain text from the element itself. `getByTestId()` or `getByLabel()` usually work well with asserting text. When locator is text-based, prefer `toBeVisible()` instead.
 
@@ -97,19 +97,19 @@ Snapshot to be matched does not have to contain all the information - only captu
 
 ```bash
 # Get a stable locator for an element ref to use in the assertion
-playwright-cli --raw generate-locator e5
+npx --no-install playwright cli --raw generate-locator e5
 # getByRole('button', { name: 'Submit' })
 
 # Capture expected text content for toHaveText
-playwright-cli --raw eval "el => el.textContent" e5
+npx --no-install playwright cli --raw eval "el => el.textContent" e5
 
 # Capture expected input value for toHaveValue/toBeEmpty
-playwright-cli --raw eval "el => el.value" e5
+npx --no-install playwright cli --raw eval "el => el.value" e5
 
 # Capture expected aria snapshot for toMatchAriaSnapshot/toBeChecked
 # (whole page, or use a ref to scope to a region)
-playwright-cli --raw snapshot
-playwright-cli --raw snapshot e5
+npx --no-install playwright cli --raw snapshot
+npx --no-install playwright cli --raw snapshot e5
 ```
 
 ```typescript
@@ -207,17 +207,17 @@ Launch the app via the seed in the background and attach:
 ```bash
 PLAYWRIGHT_HTML_OPEN=never npx playwright test tests/seed.spec.ts --debug=cli
 # wait for "Debugging Instructions" and the session name tw-XXXX
-playwright-cli attach tw-XXXX
+npx --no-install playwright cli attach tw-XXXX
 ```
 
 Resume so the seed runs, then probe the app:
 
 ```bash
-playwright-cli resume                   # resume so that seed test runs fully
-playwright-cli snapshot                 # inventory of interactive elements
-playwright-cli click e5                 # follow a flow
-playwright-cli eval "location.href"     # read URL / state
-playwright-cli show --annotate          # ask the user to point at something
+npx --no-install playwright cli resume                   # resume so that seed test runs fully
+npx --no-install playwright cli snapshot                 # inventory of interactive elements
+npx --no-install playwright cli click e5                 # follow a flow
+npx --no-install playwright cli eval "location.href"     # read URL / state
+npx --no-install playwright cli show --annotate          # ask the user to point at something
 ```
 
 Map out:
@@ -294,7 +294,7 @@ For each target scenario, in sequence (never in parallel — scenarios share the
 
 ```bash
 PLAYWRIGHT_HTML_OPEN=never npx playwright test <seed-file> --debug=cli   # background
-playwright-cli attach tw-XXXX
+npx --no-install playwright cli attach tw-XXXX
 # resume
 ```
 
@@ -305,10 +305,10 @@ Walk the scenario's `Steps:` one by one with `playwright-cli`, treating the spec
 Every action prints the equivalent Playwright TypeScript (see [How generation works](#0-how-generation-works)):
 
 ```bash
-playwright-cli snapshot                         # find refs
-playwright-cli fill e3 "John Doe"               # -> page.getByRole('textbox', {...}).fill(...)
-playwright-cli press Enter
-playwright-cli click e7
+npx --no-install playwright cli snapshot                         # find refs
+npx --no-install playwright cli fill e3 "John Doe"               # -> page.getByRole('textbox', {...}).fill(...)
+npx --no-install playwright cli press Enter
+npx --no-install playwright cli click e7
 ```
 
 For each `- expect:` bullet, add an explicit assertion. See [How generation works](#0-how-generation-works) for details.
@@ -382,16 +382,16 @@ Run the single failing test in debug mode in the background, then attach:
 ```bash
 PLAYWRIGHT_HTML_OPEN=never npx playwright test tests/<group>/<scenario>.spec.ts:<line> --debug=cli
 # wait for "Debugging Instructions" and the tw-XXXX session name
-playwright-cli attach tw-XXXX
+npx --no-install playwright cli attach tw-XXXX
 ```
 
 The test is paused at the start. Step forward or run to until just before the failing action or assertion, then diagnose:
 
 ```bash
-playwright-cli snapshot                # did the element change / move / rename?
-playwright-cli console                 # app-side errors?
-playwright-cli requests                # failed request? wrong payload?
-playwright-cli show --annotate         # ask the user to point somewhere
+npx --no-install playwright cli snapshot                # did the element change / move / rename?
+npx --no-install playwright cli console                 # app-side errors?
+npx --no-install playwright cli requests                # failed request? wrong payload?
+npx --no-install playwright cli show --annotate         # ask the user to point somewhere
 ```
 
 Common causes: selector drift, new wrapper element, label/ARIA rename, timing (transition, async load), assertion text updated in the app, test data leaking between runs.
