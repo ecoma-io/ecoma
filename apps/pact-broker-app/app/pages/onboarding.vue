@@ -41,8 +41,15 @@ export PACT_BROKER_TOKEN=<machine-token-from-your-admin>`,
   },
   {
     testid: 'pact-broker-onboarding-verify',
-    code: `PACT_BROKER_TOKEN="$PACT_BROKER_TOKEN" npx pact-verifier \\
+    // `--consumer-version-selectors '{"latest":true}'` là BẮT BUỘC với broker
+    // này: index HAL của API không phát `pb:latest-provider-pacts` — đường
+    // mặc định của verifier dừng 404 "No pacts found" (bằng chứng chạy thật
+    // trong PR của #208). Cờ chọn đường `pb:provider-pacts-for-verification`
+    // mà API phát.
+    code: `PACT_BROKER_TOKEN="$PACT_BROKER_TOKEN" npx pact verifier \\
   --provider-name my-provider \\
+  --provider-version "$PROVIDER_VERSION" --publish \\
+  --consumer-version-selectors '{"latest":true}' \\
   --hostname localhost --port 3000 \\
   --broker-url "$PACT_BROKER_BASE_URL"`,
   },
@@ -68,8 +75,12 @@ const ciBlocks: readonly CommandBlock[] = [
   },
   {
     testid: 'pact-broker-onboarding-ci-verify',
-    code: `PACT_BROKER_TOKEN="$PACT_BROKER_TOKEN" npx pact-verifier \\
+    // Cùng cờ bắt buộc với khối local — đường mặc định của verifier không có
+    // `pb:latest-provider-pacts` ở broker này.
+    code: `PACT_BROKER_TOKEN="$PACT_BROKER_TOKEN" npx pact verifier \\
   --provider-name my-provider \\
+  --provider-version "$CI_COMMIT_SHA" --publish \\
+  --consumer-version-selectors '{"latest":true}' \\
   --hostname localhost --port "$PORT" \\
   --broker-url "$PACT_BROKER_BASE_URL"`,
   },

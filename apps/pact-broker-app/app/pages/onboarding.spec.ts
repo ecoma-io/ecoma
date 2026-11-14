@@ -39,8 +39,16 @@ describe('onboarding page — pinned CLI and copyable commands', () => {
     expect(publish).toContain('--broker-token');
 
     const verify = wrapper.find('[data-testid="pact-broker-onboarding-verify"]').text();
-    // pact-verifier 18.10.9 dùng --broker-url (KHÔNG có --broker-token flag —
-    // token đi qua env PACT_BROKER_TOKEN; bằng chứng chạy thật trong PR).
+    // pact CLI 18.10.9: binary là `pact verifier` (pact-verifier là deprecated
+    // alias), token đi qua env PACT_BROKER_TOKEN (KHÔNG có --broker-token flag).
+    // `--provider-version ... --publish` để result về broker, và
+    // `--consumer-version-selectors '{"latest":true}'` là BẮT BUỘC với broker
+    // này — đường mặc định cần HAL link `pb:latest-provider-pacts` mà API chưa
+    // phát; thiếu cờ là 404 "No pacts found" (bằng chứng chạy thật trong PR).
+    expect(verify).toContain('pact verifier');
+    expect(verify).toContain('--provider-version');
+    expect(verify).toContain('--publish');
+    expect(verify).toContain('--consumer-version-selectors');
     expect(verify).toContain('--broker-url');
     expect(verify).toContain('--provider-name');
 
