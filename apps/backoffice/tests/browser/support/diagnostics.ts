@@ -43,7 +43,7 @@ const MAX_FAILED_REQUESTS = 30;
 /** Số document request tối đa giữ lại; phần dư chỉ đếm (`documentRequestCount`). */
 const MAX_DOCUMENT_REQUESTS = 20;
 /** Độ dài excerpt HTML của `<body>` in ra (không in cả document). */
-const BODY_EXCERPT_LENGTH = 900;
+export const BODY_EXCERPT_LENGTH = 900;
 /** Trần của một lượt đọc trang. Hết trần thì in phần đã thu được. */
 const PAGE_READ_TIMEOUT_MS = 10_000;
 
@@ -117,11 +117,15 @@ export type PageSnapshot = {
  * phát sinh sau thời điểm đăng ký, và toàn bộ giá trị chẩn đoán nằm ở giai đoạn
  * mount đầu tiên.
  */
-export function watchBrowserSession(
-  page: InstrumentedPage,
-  phaseStart: number = Date.now(),
-): BrowserSessionLog {
-  const log: BrowserSessionLog = {
+/**
+ * Nhật ký rỗng, chưa gắn listener nào.
+ *
+ * `globalSetup` dùng nó làm fallback trên đường thất bại: nếu chính
+ * {@link watchBrowserSession} ném trước khi trả log, phần đọc trang (data mode,
+ * `#__nuxt`, body excerpt) vẫn phải in ra thay vì biến mất cùng instrumentation.
+ */
+export function emptyBrowserSessionLog(phaseStart: number = Date.now()): BrowserSessionLog {
+  return {
     phaseStart,
     consoleKinds: new Map<string, ConsoleKind>(),
     pageErrors: [],
@@ -129,50 +133,77 @@ export function watchBrowserSession(
     documentRequests: [],
     documentRequestCount: 0,
   };
+}
 
+export function watchBrowserSession(
+  page: InstrumentedPage,
+  phaseStart: number = Date.now(),
+): BrowserSessionLog {
+  const log = emptyBrowserSessionLog(phaseStart);
+
+  // Mỗi handler tự bọc: payload bất thường (message/response đã đóng giữa
+  // chừng, Playwright đổi API) không được ném ra khỏi instrumentation. Một
+  // listener ném trong EventEmitter có thể làm sập cả suite — chẩn đoán phải là
+  // quan sát thuần, không đổi hành vi.
   page.on('console', (message) => {
-    const text = truncate(message.text(), MAX_MESSAGE_LENGTH);
-    const type = message.type();
-    const key = `${type}\u0000${text}`;
-    const existing = log.consoleKinds.get(key);
+    try {
+      const text = truncate(message.text(), MAX_MESSAGE_LENGTH);
+      const type = message.type();
+      const key = `${type}\u0000${text}`;
+      const existing = log.consoleKinds.get(key);
 
-    if (existing !== undefined) {
-      existing.count += 1;
-      return;
+      if (existing !== undefined) {
+        existing.count += 1;
+        return;
+      }
+
+      if (log.consoleKinds.size >= MAX_CONSOLE_KINDS) {
+        return;
+      }
+
+      log.consoleKinds.set(key, { type, text, count: 1, firstAtMs: Date.now() - phaseStart });
+    } catch {
+      // Bỏ qua: lỗi của instrumentation không được ảnh hưởng suite.
     }
-
-    if (log.consoleKinds.size >= MAX_CONSOLE_KINDS) {
-      return;
-    }
-
-    log.consoleKinds.set(key, { type, text, count: 1, firstAtMs: Date.now() - phaseStart });
   });
 
   page.on('pageerror', (error) => {
-    if (log.pageErrors.length >= MAX_PAGE_ERRORS) {
-      return;
-    }
+    try {
+      if (log.pageErrors.length >= MAX_PAGE_ERRORS) {
+        return;
+      }
 
-    log.pageErrors.push(truncate(`${error.name}: ${error.message}`, MAX_MESSAGE_LENGTH));
+      log.pageErrors.push(truncate(`${error.name}: ${error.message}`, MAX_MESSAGE_LENGTH));
+    } catch {
+      // Bỏ qua: lỗi của instrumentation không được ảnh hưởng suite.
+    }
   });
 
   page.on('response', (response) => {
-    const request = response.request();
-    const status = response.status();
+    try {
+      const request = response.request();
+      const status = response.status();
 
-    if (request.resourceType() === 'document') {
-      recordDocumentRequest(log, request.url(), status);
-    }
+      if (request.resourceType() === 'document') {
+        recordDocumentRequest(log, request.url(), status);
+      }
 
-    if (status >= 400) {
-      recordFailedRequest(log, request.method(), request.url(), { status });
+      if (status >= 400) {
+        recordFailedRequest(log, request.method(), request.url(), { status });
+      }
+    } catch {
+      // Bỏ qua: lỗi của instrumentation không được ảnh hưởng suite.
     }
   });
 
   page.on('requestfailed', (request) => {
-    recordFailedRequest(log, request.method(), request.url(), {
-      failure: request.failure()?.errorText ?? 'unknown failure',
-    });
+    try {
+      recordFailedRequest(log, request.method(), request.url(), {
+        failure: request.failure()?.errorText ?? 'unknown failure',
+      });
+    } catch {
+      // Bỏ qua: lỗi của instrumentation không được ảnh hưởng suite.
+    }
   });
 
   return log;

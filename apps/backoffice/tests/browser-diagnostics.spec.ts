@@ -4,6 +4,7 @@ import type { Page } from '@playwright/test';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  BODY_EXCERPT_LENGTH,
   describeBrowserSession,
   summarizeBrowserSession,
   watchBrowserSession,
@@ -181,6 +182,21 @@ describe('watchBrowserSession', () => {
     expect(entry.lastAtMs).toBe(4_234);
   });
 
+  it('does not throw when a payload handler fails', () => {
+    const { page, emit } = fakePage();
+    const log = watchBrowserSession(page);
+
+    expect(() =>
+      emit('console', {
+        type: () => 'error',
+        text: () => {
+          throw new Error('detached console message');
+        },
+      }),
+    ).not.toThrow();
+    expect(log.consoleKinds.size).toBe(0);
+  });
+
   it('caps the number of retained console kinds', () => {
     const { page, emit } = fakePage();
     const log = watchBrowserSession(page);
@@ -307,7 +323,7 @@ describe('describeBrowserSession', () => {
     // CI ở lượt chạy đầu của #253).
     expect(calls).toHaveLength(1);
     expect(calls[0]).toHaveLength(2);
-    expect(calls[0][1]).toBe(900);
+    expect(calls[0][1]).toBe(BODY_EXCERPT_LENGTH);
   });
 });
 

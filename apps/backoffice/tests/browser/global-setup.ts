@@ -2,6 +2,7 @@ import { chromium, request, type FullConfig, type Page } from '@playwright/test'
 
 import {
   describeBrowserSession,
+  emptyBrowserSessionLog,
   summarizeBrowserSession,
   watchBrowserSession,
   type BrowserSessionLog,
@@ -189,9 +190,13 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
     // ra document có phải app ở mode prototype không, data mode client đọc được
     // là gì, và client có mount hay không — thay vì một dòng timeout mơ hồ.
     // Lỗi gốc luôn được ném tiếp: chẩn đoán không được che nguyên nhân.
-    if (page !== undefined && session !== undefined) {
+    if (page !== undefined) {
       try {
-        console.error(await describeBrowserSession(page, session, { capMs }));
+        // `session === undefined` nghĩa là chính `watchBrowserSession` đã hỏng;
+        // dùng log rỗng để phần đọc trang vẫn in ra, thay vì mất toàn bộ chẩn
+        // đoán đúng lúc instrumentation là thứ cần chẩn đoán.
+        const diagnosticsSession = session ?? emptyBrowserSessionLog(phaseStart);
+        console.error(await describeBrowserSession(page, diagnosticsSession, { capMs }));
       } catch {
         // Chẩn đoán tự lỗi (trang đã đóng, unresponsive) thì bỏ qua phần chẩn
         // đoán, không thay thế lỗi warm-up gốc bằng lỗi của chính nó.
