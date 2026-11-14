@@ -14,7 +14,10 @@
 --      (ADR-0021 Quyết định 5).
 --   3. Seed đúng một role canonical `kind='system'`, `name='system-administrator'`,
 --      `status='active'` với `id` cố định, cùng `role_permissions` của nó là đúng bốn
---      permission read (ADR-0024 Quyết định 5).
+--      permission read (ADR-0024 Quyết định 5), và assertion rằng nội dung role không có
+--      permission nào ngoài tập khai báo — bốn read ở đây cộng các literal mà seed
+--      migration sau thêm vào `later_seed_permissions` (hiện tại: `invitation.create`
+--      của `0010`, ADR-0033).
 --   4. Assertion rằng catalog vẫn sealed: runtime role không có quyền ghi trên
 --      `permissions` / `roles` / `role_permissions`.
 --
@@ -257,12 +260,23 @@ DECLARE
   canonical_role_id constant uuid := 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b';
   canonical_kind constant text := 'system';
   canonical_name constant text := 'system-administrator';
+  -- Seed của chính file này: role phải có đủ bốn permission read ngay sau khi
+  -- `0008` chạy, nên đây cũng là tập được kiểm "phải tồn tại và active".
   expected_permissions constant text[] := ARRAY[
     'audit.read',
     'permission.read',
     'role.read',
     'staff.read'
   ];
+  -- Permission mà seed migration **sau** cấp thêm cho cùng role canonical. Mỗi
+  -- seed grant mới phải thêm literal của nó vào đây (và ghi ADR tương ứng):
+  -- assertion "sealed set" bên dưới so với hợp của hai mảng, nên một literal
+  -- không khai báo ở đây làm lần apply kế tiếp dừng — đó là chủ đích.
+  --   * `invitation.create` — `0010`, ADR-0033 Quyết định 1–2.
+  later_seed_permissions constant text[] := ARRAY[
+    'invitation.create'
+  ];
+  declared_permissions constant text[] := expected_permissions || later_seed_permissions;
   conflicting_id uuid;
   conflicting_status text;
   missing_permissions text;
@@ -341,7 +355,8 @@ BEGIN
   ON CONFLICT (role_id, permission_id) DO NOTHING;
 
   -- Nội dung role là sealed data: một permission thừa nghĩa là role đã bị sửa ngoài
-  -- seed migration, và im lặng chấp nhận sẽ cấp quyền mà ADR chưa chốt.
+  -- seed migration, và im lặng chấp nhận sẽ cấp quyền mà ADR chưa chốt. Tập khai báo
+  -- là bốn read của file này cộng các literal mà seed migration sau thêm.
   SELECT array_agg(rp.permission_id::text ORDER BY rp.permission_id::text)
     INTO actual_permissions
     FROM staff_access.role_permissions rp
@@ -350,12 +365,12 @@ BEGIN
   SELECT array_agg(p.id ORDER BY p.id)
     INTO extra_permissions
     FROM unnest(actual_permissions) AS p(id)
-   WHERE p.id <> ALL (expected_permissions);
+   WHERE p.id <> ALL (declared_permissions);
 
   IF extra_permissions IS NOT NULL THEN
     RAISE EXCEPTION
-      'role_permissions: canonical system administrator role has permissions outside the sealed set: % (expected exactly %)',
-      array_to_string(extra_permissions, ', '), array_to_string(expected_permissions, ', ')
+      'role_permissions: canonical system administrator role has permissions outside the sealed set: % (declared exactly %)',
+      array_to_string(extra_permissions, ', '), array_to_string(declared_permissions, ', ')
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
 END;

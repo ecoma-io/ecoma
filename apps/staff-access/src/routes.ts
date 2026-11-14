@@ -20,6 +20,10 @@
  *   anh xa identity tu token sang staff id la cong viec cua caller BFF +
  *   Phase sau (revocation latency, P2.5) — service khong tu nghiem token tai
  *   day (ADR-0009: khong co internal authorization-result contract).
+ *   Ngoai le duy nhat: `POST /authorization/verdict` — caller khac bounded
+ *   context hoi verdict permission cho **mot** request (ADR-0033 Quyet dinh 3,
+ *   supersede-in-part ADR-0009 o dung hop dong do). Route management khong
+ *   dung no.
  *
  * ⚠️ Exposure contract (giai doan nay): Worker KHONG publish port ra host,
  * KHONG mang label `traefik.*` (deploy unit — deploys/staff-access-deploy);
@@ -63,6 +67,7 @@ import {
   listActivePermissions,
   listActiveRoles,
   listAssignmentsForStaff,
+  listEffectivePermissionIdsForStaff,
   listEntitlementsForStaff,
   listRolePermissionIds,
   listStaff,
@@ -75,6 +80,10 @@ import {
 import { staffAccessDomainError } from '@ecoma-io/staff-access-domain';
 import type { AppEnv } from './types';
 import { decodeKeysetCursor, encodeKeysetCursor } from './cursor';
+import {
+  permissionVerdictResponse,
+  validatePermissionVerdictRequest,
+} from './authorization-verdict';
 
 const HIGH_ENTITLEMENT_FRESHNESS_MS = 5_000;
 const NORMAL_ENTITLEMENT_FRESHNESS_MS = 60_000;
@@ -493,6 +502,56 @@ export function staffAccessRoutes(): Hono<AppEnv> {
   });
 
   // ----------------------------------------------------------------- audit --
+  // ------------------------------------------- authorization verdict --
+  // `POST /authorization/verdict` — bề mặt duy nhất trả verdict permission cho
+  // một caller khác bounded context (ADR-0033 Quyết định 3). KHÔNG phải route
+  // management: nó đọc tập permission hiệu lực của chính actor trong envelope
+  // và ghi một hàng audit cho mỗi lần hỏi, commit trước khi trả lời.
+  app.post('/authorization/verdict', async (c) => {
+    const actorStaffId = c.get('actorStaffId');
+    // Không có actor principal ⇒ không có verdict nào để quyết. 401 (thiếu
+    // danh tính), không phải 403: đây không phải một lần từ chối quyền, nên
+    // không có hàng audit `denied` — target của hàng đó là `staff.id`, mà chưa
+    // phân giải được staff nào (ADR-0023 Quyết định 6).
+    if (actorStaffId === null) {
+      return c.json(
+        {
+          error: 'Unauthorized',
+          message: 'A permission verdict requires an actor principal in the envelope.',
+        },
+        401,
+      );
+    }
+    const parsed = await readJsonObject(c);
+    if (!parsed.ok) {
+      return c.json(parsed.error.body, parsed.error.status);
+    }
+    const validated = validatePermissionVerdictRequest(parsed.body);
+    if (!validated.ok) {
+      return c.json(badRequest(validated.detail).body, 400);
+    }
+    const request = validated.request;
+
+    // Đọc và ghi trên cùng một client; `appendAuditEntry` là một câu INSERT nên
+    // hàng audit đã commit khi route trả lời (SR-013, ADR-0023 Quyết định 6).
+    const allowed = await withClient(c, async (db) => {
+      const effective = await listEffectivePermissionIdsForStaff(db, actorStaffId);
+      const isAllowed = effective.includes(request.permission);
+      await appendAuditEntry(db, {
+        actorStaffId,
+        actorSub: c.get('actorSub'),
+        target: actorStaffId,
+        action: request.permission,
+        outcome: isAllowed ? 'success' : 'denied',
+        reason: isAllowed ? null : 'permission_denied',
+        correlationId: request.correlation_id,
+      });
+      return isAllowed;
+    });
+
+    return c.json(permissionVerdictResponse(allowed ? 'allowed' : 'denied', actorStaffId));
+  });
+
   app.get('/audit/entries', async (c) => {
     const query = c.req.query();
     const candidate: AuditQueryRequest = {

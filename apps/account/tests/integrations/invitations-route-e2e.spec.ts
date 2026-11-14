@@ -1,21 +1,20 @@
 /**
- * Route phát lời mời end-to-end — envelope HMAC thật, middleware thật, DB thật.
+ * Route phát lời mời end-to-end — envelope HMAC thật, middleware thật,
+ * client staff-access thật, DB thật.
  *
- * ## Cấu hình giống `internal-auth-e2e.spec.ts`
+ * ## Verdict được giả ở **transport**, không mock module
  *
  * `createApp` + middleware `internal-auth` trước + route `/internal/account/
  * invitations` sau, `toWebHandler`; request ký bằng `signRequest` thật của
- * `@ecoma-io/internal-auth-contracts` (kèm `actorSub` trong header nội bộ —
- * nằm trong chuỗi ký). `db-account` thật qua credential runtime.
+ * `@ecoma-io/internal-auth-contracts`. Phép kiểm quyền chạy qua **đúng** client
+ * production (`server/lib/staff-access-client.ts`): nó ký envelope thật, gửi
+ * tới `STAFF_ACCESS_SERVICE`, và validate response. Chỉ `fetch` của Service
+ * Binding là giả, và nó **verify envelope** trước khi trả lời — nên test này
+ * chứng minh cả chữ ký, `actorSub` trong chuỗi ký, và nội dung request
+ * (`permission` + `correlation_id`), không chỉ shape response.
  *
- * ## Verdict permission được stub ở biên module
- *
- * Hợp đồng verdict của staff-access chưa tồn tại (ADR-0009) — cổng production
- * trả `unavailable`. Test mock **module** `server/lib/authorization` (biên giữa
- * route và việc hỏi staff-access), chuyển verdict giữa `allowed`/`denied` để
- * đo shape response của ba nhánh route. Stub này là hợp đồng-faithful: cổng
- * trả đúng union `IssuanceAuthorization`. E2E thật qua mạng với staff-access
- * thuộc #26/#27 — không phải của slice này.
+ * E2E qua mạng thật tới một `staff-access` đang chạy thuộc #26/#27 — không
+ * phải của slice này.
  */
 
 import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
@@ -24,8 +23,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import invitationsRoute from '../../server/routes/internal/account/invitations.post';
 import internalAuthMiddleware from '../../server/middleware/internal-auth';
 import { writeLog } from '../../server/utils/logger';
-import { signRequest } from '@ecoma-io/internal-auth-contracts';
-import type { IssuanceAuthorization } from '../../server/lib/authorization';
+import { signRequest, verifyRequest } from '@ecoma-io/internal-auth-contracts';
 import { ACCOUNT_DATABASE, type AccountDatabase, startAccountDatabase } from './harness.ts';
 import { installRuntimeConfigStub, type AccountTestRuntimeConfig } from './nuxt-globals.ts';
 
@@ -34,38 +32,65 @@ vi.mock('../../server/utils/logger', () => ({
 }));
 
 /**
- * Trạng thái verdict của cổng cho từng test — mock module giữ hình hợp đồng
- * `IssuanceAuthorization` thật, chỉ đổi verdict qua biến này.
+ * Trạng thái của transport giả và bản ghi request cuối — mutable cell để test
+ * đổi verdict/khả năng kết nối giữa các case mà không phải dựng lại app.
  */
-const authorizationState = vi.hoisted(() => ({
-  verdict: 'unavailable' as 'allowed' | 'denied' | 'unavailable',
+const staffAccessState = vi.hoisted(() => ({
+  mode: 'verdict' as 'verdict' | 'unreachable' | 'unconfigured',
+  verdict: 'denied' as 'allowed' | 'denied',
+  lastRequest: null as null | {
+    readonly actorSub: string | null;
+    readonly permission: string;
+    readonly correlationId: string;
+  },
 }));
-
-vi.mock('../../server/lib/authorization', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../server/lib/authorization')>();
-  return {
-    ...actual,
-    authorizeInvitationIssuance: vi.fn<() => Promise<IssuanceAuthorization>>(async () => {
-      if (authorizationState.verdict === 'allowed') {
-        return { verdict: 'allowed', actorStaffId: 'stf_00000000-0000-0000-0000-000000000001' };
-      }
-      if (authorizationState.verdict === 'denied') {
-        return { verdict: 'denied' };
-      }
-      return {
-        verdict: 'unavailable',
-        reason: 'authorization_contract_not_established',
-      };
-    }),
-  };
-});
 
 const mockedWriteLog = vi.mocked(writeLog);
 
 const SECRET = 'test-internal-hmac-secret-0123456789abcdef';
+/** Secret của path Account↔Staff-Access — **khác** `SECRET`, như ở deployment thật. */
+const STAFF_ACCESS_SECRET = 'test-staff-access-internal-secret-0123456789';
+const STAFF_ACTOR_STAFF_ID = 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b';
 const SUB_OPERATOR = `sub_${'o'.repeat(32)}`;
 const PATH = '/internal/account/invitations';
 const EMAIL_INVITED = 'route.invited@example.com';
+
+/** `fetch` của binding giả: verify envelope thật, ghi lại request, trả verdict đã chọn. */
+async function staffAccessFetch(request: Request): Promise<Response> {
+  if (staffAccessState.mode === 'unreachable') {
+    throw new Error('connect ECONNREFUSED');
+  }
+  const text = await request.text();
+  const verified = await verifyRequest({
+    method: request.method,
+    path: new URL(request.url).pathname,
+    body: new TextEncoder().encode(text),
+    headers: request.headers,
+    secret: STAFF_ACCESS_SECRET,
+    now: String(Math.floor(Date.now() / 1000)),
+    // Kho nonce của fake: mỗi request một nonce mới (`createNonce`) nên luôn
+    // "chưa bị chiếm". Chống replay của envelope là hợp đồng của
+    // `@ecoma-io/internal-auth-contracts`, có test riêng; ở đây cần chữ ký và
+    // `actorSub` trong chuỗi ký.
+    claimNonce: async () => false,
+  });
+  if (!verified.ok) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+  const parsed = JSON.parse(text) as { permission?: string; correlation_id?: string };
+  staffAccessState.lastRequest = {
+    actorSub: verified.actorSub,
+    permission: parsed.permission ?? '',
+    correlationId: parsed.correlation_id ?? '',
+  };
+  return new Response(
+    JSON.stringify({
+      verdict: staffAccessState.verdict,
+      actor_staff_id: STAFF_ACTOR_STAFF_ID,
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  );
+}
 
 describe('POST /internal/account/invitations end-to-end', () => {
   let db: AccountDatabase;
@@ -74,14 +99,17 @@ describe('POST /internal/account/invitations end-to-end', () => {
   let connectionString: string;
 
   function fullRuntimeConfig(): AccountTestRuntimeConfig {
+    const env: Record<string, unknown> = { DB_ACCOUNT: { connectionString } };
+    if (staffAccessState.mode !== 'unconfigured') {
+      env['STAFF_ACCESS_SERVICE'] = { fetch: staffAccessFetch };
+    }
     return {
       internalHmacSecret: SECRET,
       otpHmacSecret: 'test-otp-hmac-secret-0123456789abcdef',
       mailServiceUrl: 'https://mail.test',
       mailInternalAuthSecret: 'test-mail-internal-auth-secret-placeholder-0001',
-      cloudflare: {
-        env: { DB_ACCOUNT: { connectionString } },
-      },
+      staffAccessInternalAuthSecret: STAFF_ACCESS_SECRET,
+      cloudflare: { env },
     };
   }
 
@@ -126,9 +154,11 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   beforeEach(async () => {
+    staffAccessState.mode = 'verdict';
+    staffAccessState.verdict = 'denied';
+    staffAccessState.lastRequest = null;
     setRuntimeConfig(fullRuntimeConfig());
     mockedWriteLog.mockClear();
-    authorizationState.verdict = 'unavailable';
     await db.truncateData();
   });
 
@@ -153,12 +183,34 @@ describe('POST /internal/account/invitations end-to-end', () => {
     );
   });
 
-  it('fails closed with 503 while no staff-access verdict contract exists', async () => {
-    // Production hiện tại: cổng trả `unavailable` (ADR-0009) → 503, không có
-    // hàng lời mời nào được ghi — không đường nào phát lời mời mà không có
-    // verdict của staff-access.
+  it('fails closed with 503 when the staff-access binding is not configured', async () => {
+    staffAccessState.mode = 'unconfigured';
+    setRuntimeConfig(fullRuntimeConfig());
     const response = await signedPost({ address: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
     expect(response.status).toBe(503);
+    expect(mockedWriteLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'account_invitations.failed',
+        reason: 'authorization_surface_not_configured',
+      }),
+    );
+    const client = await db.connect();
+    try {
+      const { rows } = await client.query(`SELECT id FROM account.invitations`);
+      expect(rows).toHaveLength(0);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('fails closed with 503 when staff-access is unreachable', async () => {
+    staffAccessState.mode = 'unreachable';
+    setRuntimeConfig(fullRuntimeConfig());
+    const response = await signedPost({ address: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
+    expect(response.status).toBe(503);
+    expect(mockedWriteLog).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'authorization_surface_unreachable' }),
+    );
     const client = await db.connect();
     try {
       const { rows } = await client.query(`SELECT id FROM account.invitations`);
@@ -169,7 +221,7 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   it('issues an invitation with 201 and records attribution when allowed', async () => {
-    authorizationState.verdict = 'allowed';
+    staffAccessState.verdict = 'allowed';
     const before = Date.now();
     const response = await signedPost({ address: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
     expect(response.status).toBe(201);
@@ -183,6 +235,13 @@ describe('POST /internal/account/invitations end-to-end', () => {
     expect(payload.status).toBe('open');
     expect(payload.id).toBeDefined();
     expect(payload.correlation_id).toBeDefined();
+    // Cùng **một** correlation_id đi xuống staff-access (hàng audit của verdict)
+    // và vào hàng lời mời của account — không phải hai giá trị song song.
+    expect(staffAccessState.lastRequest).toEqual({
+      actorSub: SUB_OPERATOR,
+      permission: 'invitation.create',
+      correlationId: payload.correlation_id,
+    });
     const issuedAt = Date.parse(payload.issued_at);
     const expiresAt = Date.parse(payload.expires_at);
     expect(issuedAt).toBeGreaterThanOrEqual(before - 5000);
@@ -199,7 +258,7 @@ describe('POST /internal/account/invitations end-to-end', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
         actor_sub: SUB_OPERATOR,
-        actor_staff_id: 'stf_00000000-0000-0000-0000-000000000001',
+        actor_staff_id: STAFF_ACTOR_STAFF_ID,
         status: 'open',
       });
     } finally {
@@ -208,12 +267,19 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   it('returns 403 without writing a row when the verdict is denied', async () => {
-    authorizationState.verdict = 'denied';
+    staffAccessState.verdict = 'denied';
     const response = await signedPost({ address: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
     expect(response.status).toBe(403);
     expect(mockedWriteLog).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'account_invitations.denied', sub: SUB_OPERATOR }),
     );
+    // Phép kiểm đã thật sự chạy: request tới staff-access mang đúng permission
+    // và đúng operator trong chuỗi ký (đây mới là thứ `staff-access` dùng để
+    // quyết verdict và ghi hàng audit `denied`).
+    expect(staffAccessState.lastRequest).toMatchObject({
+      actorSub: SUB_OPERATOR,
+      permission: 'invitation.create',
+    });
     const client = await db.connect();
     try {
       const { rows } = await client.query(`SELECT id FROM account.invitations`);
@@ -224,7 +290,7 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   it('returns 409 with the canonical reason for the bootstrap address', async () => {
-    authorizationState.verdict = 'allowed';
+    staffAccessState.verdict = 'allowed';
     const response = await signedPost(
       { address: 'superadmin@ecoma.io' },
       { actorSub: SUB_OPERATOR },
@@ -235,7 +301,7 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   it('returns 409 invitation_already_open for a second open invitation of the same address', async () => {
-    authorizationState.verdict = 'allowed';
+    staffAccessState.verdict = 'allowed';
     const first = await signedPost({ address: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
     expect(first.status).toBe(201);
 
@@ -246,7 +312,7 @@ describe('POST /internal/account/invitations end-to-end', () => {
   });
 
   it('returns 400 for a body without an address', async () => {
-    authorizationState.verdict = 'allowed';
+    staffAccessState.verdict = 'allowed';
     const response = await signedPost({ email: EMAIL_INVITED }, { actorSub: SUB_OPERATOR });
     expect(response.status).toBe(400);
   });

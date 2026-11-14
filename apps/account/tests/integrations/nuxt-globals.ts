@@ -26,6 +26,8 @@ export interface AccountTestRuntimeConfig {
   mailServiceUrl?: unknown;
   /** Credential HMAC ký cho path Account↔Mail — dùng bởi `server/api/auth/challenge`. */
   mailInternalAuthSecret?: unknown;
+  /** Credential HMAC ký cho path Account↔Staff-Access — dùng bởi `server/lib/authorization`. */
+  staffAccessInternalAuthSecret?: unknown;
   /** Origin của worker auth — dùng bởi `server/api/auth/verify` dựng `confirmUrl`. */
   authIssuer?: unknown;
   cloudflare?: unknown;
