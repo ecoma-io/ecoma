@@ -113,7 +113,7 @@ export async function withReadEnforcement<T>(
         const legacy = await loadPrincipalAuthorization(client, principal.actorSub);
 
         const env = readWorkerEnv(event);
-        const staffConfig = env === null ? null : staffAccessClientConfig(env);
+        const staffConfig = env == null ? null : staffAccessClientConfig(env);
         let projection = null;
         let projectionUnavailableReason: 'client_unconfigured' | 'projection_fetch_failed' | null =
           null;

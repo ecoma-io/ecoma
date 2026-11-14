@@ -323,13 +323,32 @@ export async function seedStaffAccessGrant(
   postgresContainer: string,
   params: { readonly staffSub: string; readonly roleId: string; readonly permissionId: string },
 ): Promise<void> {
+  const staffExistsSql = `SELECT count(*) FROM staff_access.staff WHERE sub = ${sqlQuote(params.staffSub)};`;
+  const staffExists = await dockerExec(postgresContainer, [
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    'db-staff-access',
+    '-t',
+    '-A',
+    '-c',
+    staffExistsSql,
+  ]);
+  if (Number(staffExists.trim()) === 0) {
+    throw new Error(
+      `staff_access.staff không tìm thấy hàng với sub = ${sqlQuote(params.staffSub)} — ` +
+        'chạy seedStaffAccessStaff trước seedStaffAccessGrant; không INSERT assignment vào staff không tồn tại.',
+    );
+  }
+
   const sql = [
     `INSERT INTO staff_access.roles (id, name, kind, status)
      VALUES (${sqlQuote(params.roleId)}, 'access-control-e2e-role', 'custom', 'active')
      ON CONFLICT (id) DO NOTHING;`,
     `INSERT INTO staff_access.role_permissions (role_id, permission_id)
      VALUES (${sqlQuote(params.roleId)}, ${sqlQuote(params.permissionId)})
-     ON CONFLICT DO NOTHING;`,
+     ON CONFLICT (role_id, permission_id) DO NOTHING;`,
     `INSERT INTO staff_access.role_assignments (staff_id, role_id)
      SELECT s.id, ${sqlQuote(params.roleId)}
        FROM staff_access.staff s
@@ -361,21 +380,22 @@ export async function seedStaffAccessGrant(
  * staff-access ghim (`role_assignments_revoked_after_created`; trigger chỉ
  * chặn un-revoke).
  *
- * ⚠️ Thu hồi **mọi** assignment còn sống của staff, không lọc theo `roleId`:
- * một lần chạy trước có thể đã seed dưới id role khác (đổi id fixture), và
- * grant cũ còn sống sẽ làm hỏng precondition "chưa cấp quyền" của viên test
- * 403. Lọc theo role vẫn để lại grant của lần chạy trước ⇒ suite không
- * rerun-safe.
+ * ⚠️ Mặc định thu hồi **mọi** assignment còn sống của staff, không lọc theo `roleId`.
+ * Truyền `roleId` để chỉ thu hồi assignment của role đó — dùng khi nhiều suite
+ * chia sẻ cùng container `db-staff-access` và cùng `staffSub`, tránh vô tình
+ * thu hồi grant của suite khác (cross-suite state leakage).
  */
 export async function revokeStaffAccessAssignment(
   postgresContainer: string,
-  params: { readonly staffSub: string },
+  params: { readonly staffSub: string; readonly roleId?: string },
 ): Promise<void> {
+  const roleFilter = params.roleId ? `AND ra.role_id = ${sqlQuote(params.roleId)}` : '';
   const sql = `UPDATE staff_access.role_assignments
                   SET revoked_at = now()
                 WHERE staff_id = (SELECT id FROM staff_access.staff WHERE sub = ${sqlQuote(
                   params.staffSub,
                 )})
+                  ${roleFilter}
                   AND revoked_at IS NULL;`;
   await dockerExec(postgresContainer, [
     'psql',
