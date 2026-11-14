@@ -65,9 +65,7 @@ describe('buildProvisionScript', () => {
     const alterLines = script.split('\n').filter((line) => line.startsWith('apply_password '));
     expect(alterLines).toHaveLength(2);
     for (const line of alterLines) {
-      expect(line).toMatch(
-        /^apply_password ecoma_remote_cache_app_(migrator|runtime) "\$\w+"$/u,
-      );
+      expect(line).toMatch(/^apply_password ecoma_remote_cache_app_(migrator|runtime) "\$\w+"$/u);
     }
   });
 

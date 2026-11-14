@@ -165,9 +165,7 @@ describe('remote-cache-app portal admin workflows on a real browser against the 
     await authenticated.waitForSelector('[data-testid="remote-cache-app-revoke-confirm"]', {
       timeout: 15_000,
     });
-    await authenticated
-      .locator('[data-testid="remote-cache-app-revoke-confirm-submit"]')
-      .click();
+    await authenticated.locator('[data-testid="remote-cache-app-revoke-confirm-submit"]').click();
     await authenticated.waitForSelector('[data-testid="remote-cache-app-revoke-confirm"]', {
       state: 'detached',
       timeout: 15_000,

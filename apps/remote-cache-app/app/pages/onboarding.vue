@@ -103,9 +103,7 @@ async function copy(key: string, value: string): Promise<void> {
           <Label>{{ t('onboarding.configureLabel') }}</Label>
           <div class="mt-2 flex flex-col gap-2">
             <div
-              v-for="entry in copyables().filter(
-                (item) => item.key !== 'nx.install',
-              )"
+              v-for="entry in copyables().filter((item) => item.key !== 'nx.install')"
               :key="entry.key"
               class="flex items-center gap-2"
             >

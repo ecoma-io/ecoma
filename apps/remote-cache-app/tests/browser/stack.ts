@@ -202,11 +202,9 @@ async function startPostgresContainer(): Promise<PostgresContainer> {
     // Đợi readiness THẬT: hai probe cách quãng 1.5s — cửa sổ server tạm của
     // initdb cũng trả pg_isready 0 (cùng lý do với harness pact).
     const pgIsReady = (database: string): boolean =>
-      spawnSync(
-        'docker',
-        ['exec', name, 'pg_isready', '-U', SUPERUSER, '-d', database],
-        { encoding: 'utf8' },
-      ).status === 0;
+      spawnSync('docker', ['exec', name, 'pg_isready', '-U', SUPERUSER, '-d', database], {
+        encoding: 'utf8',
+      }).status === 0;
     await waitFor(
       async () => {
         if (!pgIsReady(API_DATABASE)) {
@@ -770,10 +768,9 @@ export async function startRemoteCacheStack(): Promise<RemoteCacheStack> {
 
     // Probe composition: một phiên user thật phải đọc được project qua BFF.
     const session = await loginSession(app.origin);
-    const bffProbe = await fetch(
-      `${app.origin}/api/portal/tenants/${TENANT_NAME}/projects`,
-      { headers: { cookie: session.cookieHeader } },
-    );
+    const bffProbe = await fetch(`${app.origin}/api/portal/tenants/${TENANT_NAME}/projects`, {
+      headers: { cookie: session.cookieHeader },
+    });
     const bffBody = await bffProbe.text();
     if (bffProbe.status !== 200) {
       const logs = app.harness
@@ -793,8 +790,7 @@ export async function startRemoteCacheStack(): Promise<RemoteCacheStack> {
       apiUrl: startedApi.origin,
       internalAuthSecret: INTERNAL_AUTH_SECRET,
       bootstrapKeyPlaintext: BOOTSTRAP_KEY_PLAINTEXT,
-      portalApi: (actorSub, path, init) =>
-        portalApi(startedApi.origin, actorSub, path, init),
+      portalApi: (actorSub, path, init) => portalApi(startedApi.origin, actorSub, path, init),
       loginSession: (): Promise<RemoteCacheSession> => loginSession(startedApp.origin),
       close: async (): Promise<void> => {
         await startedApp.harness.close().catch(() => undefined);

@@ -94,22 +94,24 @@ describe('project detail page', () => {
     const endpoint = keysEndpoint();
     vi.stubGlobal(
       'fetch',
-      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        fetchCalls.push({ url, method: init?.method ?? 'GET' });
-        if (init?.method === 'POST' && url.endsWith('/revoke')) {
-          return new Response(
-            JSON.stringify({
-              api_key: { id: KEY_DEVELOPER.id, revoked_at: '2026-11-15T10:00:00Z' },
-            }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-          );
-        }
-        return new Response(JSON.stringify(endpoint.body), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }) as unknown as typeof fetch,
+      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          fetchCalls.push({ url, method: init?.method ?? 'GET' });
+          if (init?.method === 'POST' && url.endsWith('/revoke')) {
+            return new Response(
+              JSON.stringify({
+                api_key: { id: KEY_DEVELOPER.id, revoked_at: '2026-11-15T10:00:00Z' },
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            );
+          }
+          return new Response(JSON.stringify(endpoint.body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        },
+      ) as unknown as typeof fetch,
     );
 
     const wrapper = await mountRemoteCacheAppPage(Page, {
@@ -118,9 +120,7 @@ describe('project detail page', () => {
 
     // Bấm revoke của key developer — dialog mở ra. Dialog render qua Teleport
     // tới `body` nên phải tra DOM toàn cục, không phải wrapper.
-    wrapper
-      .find(`[data-testid="remote-cache-app-revoke-${KEY_DEVELOPER.id}"]`)
-      .trigger('click');
+    wrapper.find(`[data-testid="remote-cache-app-revoke-${KEY_DEVELOPER.id}"]`).trigger('click');
     await flush();
 
     const confirm = document.body.querySelector('[data-testid="remote-cache-app-revoke-confirm"]');
@@ -147,25 +147,27 @@ describe('project detail page', () => {
     const endpoint = keysEndpoint();
     vi.stubGlobal(
       'fetch',
-      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (init?.method === 'POST') {
-          return new Response(
-            JSON.stringify({
-              api_key: {
-                id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
-                scopes: ['read'],
-                credential_class: 'developer',
-                token: 'rc_once_abc123',
-              },
-            }),
-            { status: 201, headers: { 'content-type': 'application/json' } },
-          );
-        }
-        return new Response(JSON.stringify(endpoint.body), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }) as unknown as typeof fetch,
+      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'POST') {
+            return new Response(
+              JSON.stringify({
+                api_key: {
+                  id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
+                  scopes: ['read'],
+                  credential_class: 'developer',
+                  token: 'rc_once_abc123',
+                },
+              }),
+              { status: 201, headers: { 'content-type': 'application/json' } },
+            );
+          }
+          return new Response(JSON.stringify(endpoint.body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        },
+      ) as unknown as typeof fetch,
     );
 
     const wrapper = await mountRemoteCacheAppPage(Page, {
@@ -179,9 +181,7 @@ describe('project detail page', () => {
     const dialog = document.body.querySelector('[data-testid="remote-cache-app-show-once"]');
     expect(dialog).not.toBeNull();
     expect(
-      document.body
-        .querySelector('[data-testid="remote-cache-app-show-once-token"]')
-        ?.textContent,
+      document.body.querySelector('[data-testid="remote-cache-app-show-once-token"]')?.textContent,
     ).toContain('rc_once_abc123');
     wrapper.unmount();
   });

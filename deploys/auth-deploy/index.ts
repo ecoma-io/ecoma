@@ -66,7 +66,12 @@ import {
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
-import { LOCAL_PACT_BROKER_CLIENT_ID, LOCAL_PACT_BROKER_CLIENT_NAME, LOCAL_REMOTE_CACHE_APP_CLIENT_ID, LOCAL_REMOTE_CACHE_APP_CLIENT_NAME } from './local-clients.js';
+import {
+  LOCAL_PACT_BROKER_CLIENT_ID,
+  LOCAL_PACT_BROKER_CLIENT_NAME,
+  LOCAL_REMOTE_CACHE_APP_CLIENT_ID,
+  LOCAL_REMOTE_CACHE_APP_CLIENT_NAME,
+} from './local-clients.js';
 
 import {
   MIGRATOR_PASSWORD_ENV_VAR,

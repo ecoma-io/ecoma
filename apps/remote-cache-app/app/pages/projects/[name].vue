@@ -18,7 +18,16 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from '#i18n';
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@ecoma-io/ui-app-shell';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@ecoma-io/ui-app-shell';
 
 import RemoteCacheAppShowOnceDialog from '../../components/RemoteCacheAppShowOnceDialog.vue';
 import { useAsyncState } from '../../composables/use-async-state';
@@ -151,14 +160,11 @@ async function confirmRevoke(): Promise<void> {
   revoking.value = true;
   revokeError.value = null;
   try {
-    const res = await portalFetch(
-      `${keysBasePath.value}/${encodeURIComponent(target.id)}/revoke`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
+    const res = await portalFetch(`${keysBasePath.value}/${encodeURIComponent(target.id)}/revoke`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
     if (res.ok) {
       revokeTarget.value = null;
       await reload();
@@ -189,11 +195,7 @@ const isDeveloper = (key: KeyMetadataWire): boolean => key.credential_class === 
       :description="t('projectDetail.keysDescription')"
     >
       <template #actions>
-        <Button
-          variant="outline"
-          as-child
-          data-testid="remote-cache-app-back-to-projects"
-        >
+        <Button variant="outline" as-child data-testid="remote-cache-app-back-to-projects">
           <NuxtLink to="/">{{ t('projectDetail.backToProjects') }}</NuxtLink>
         </Button>
       </template>
@@ -293,9 +295,11 @@ const isDeveloper = (key: KeyMetadataWire): boolean => key.credential_class === 
                 {{ key.scopes.join(' ') }}
               </td>
               <td class="px-4 py-2">
-                <span v-if="key.revoked_at === null" class="text-emerald-600 dark:text-emerald-400">{{
-                  t('projectDetail.activeStatus')
-                }}</span>
+                <span
+                  v-if="key.revoked_at === null"
+                  class="text-emerald-600 dark:text-emerald-400"
+                  >{{ t('projectDetail.activeStatus') }}</span
+                >
                 <span v-else class="text-muted-foreground">
                   {{ t('projectDetail.revokedStatus') }}
                   ({{ isoDateOf(key.revoked_at) }})

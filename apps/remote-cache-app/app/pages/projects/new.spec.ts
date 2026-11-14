@@ -22,25 +22,31 @@ describe('create project page', () => {
     const fetchCalls: { url: string; method: string; body: string | null }[] = [];
     vi.stubGlobal(
       'fetch',
-      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        const body = typeof init?.body === 'string' ? init.body : null;
-        if (init?.method === 'POST') {
-          fetchCalls.push({ url, method: init.method, body });
-        }
-        return new Response(
-          JSON.stringify({
-            project: { id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', name: 'orders-cache', created_at: '2026-11-15T00:00:00Z' },
-            api_key: {
-              id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
-              scopes: ['read'],
-              credential_class: 'developer',
-              token: 'rc_once_abc123',
-            },
-          }),
-          { status: 201, headers: { 'content-type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch,
+      vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          const body = typeof init?.body === 'string' ? init.body : null;
+          if (init?.method === 'POST') {
+            fetchCalls.push({ url, method: init.method, body });
+          }
+          return new Response(
+            JSON.stringify({
+              project: {
+                id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+                name: 'orders-cache',
+                created_at: '2026-11-15T00:00:00Z',
+              },
+              api_key: {
+                id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
+                scopes: ['read'],
+                credential_class: 'developer',
+                token: 'rc_once_abc123',
+              },
+            }),
+            { status: 201, headers: { 'content-type': 'application/json' } },
+          );
+        },
+      ) as unknown as typeof fetch,
     );
 
     const wrapper = await mountRemoteCacheAppPage(NewPage, {
@@ -71,21 +77,27 @@ describe('create project page', () => {
     let postCount = 0;
     vi.stubGlobal(
       'fetch',
-      vi.fn<(_input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (_input: RequestInfo | URL, init?: RequestInit) => {
-        if (init?.method === 'POST') postCount += 1;
-        return new Response(
-          JSON.stringify({
-            project: { id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', name: 'orders-cache', created_at: '2026-11-15T00:00:00Z' },
-            api_key: {
-              id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
-              scopes: ['read'],
-              credential_class: 'developer',
-              token: 'rc_once_abc123',
-            },
-          }),
-          { status: 201, headers: { 'content-type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch,
+      vi.fn<(_input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+        async (_input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'POST') postCount += 1;
+          return new Response(
+            JSON.stringify({
+              project: {
+                id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+                name: 'orders-cache',
+                created_at: '2026-11-15T00:00:00Z',
+              },
+              api_key: {
+                id: '2f0e0d0c-0b0a-4948-8276-5f4e3d2c1b0c',
+                scopes: ['read'],
+                credential_class: 'developer',
+                token: 'rc_once_abc123',
+              },
+            }),
+            { status: 201, headers: { 'content-type': 'application/json' } },
+          );
+        },
+      ) as unknown as typeof fetch,
     );
 
     const wrapper = await mountRemoteCacheAppPage(NewPage, {
@@ -108,9 +120,7 @@ describe('create project page', () => {
     await flush();
 
     // SR show-once: dialog đóng và component (cùng token) biến mất.
-    expect(
-      document.body.querySelector('[data-testid="remote-cache-app-show-once"]'),
-    ).toBeNull();
+    expect(document.body.querySelector('[data-testid="remote-cache-app-show-once"]')).toBeNull();
     // Không submit lần hai: token chỉ có một lượt.
     expect(postCount).toBe(1);
     wrapper.unmount();
@@ -121,9 +131,7 @@ describe('create project page', () => {
       runtimeConfig: { remoteCacheTenantName: 'ecoma' },
     });
 
-    await wrapper
-      .find('[data-testid="remote-cache-app-create-project-name"]')
-      .setValue('Orders');
+    await wrapper.find('[data-testid="remote-cache-app-create-project-name"]').setValue('Orders');
     const submit = wrapper.find('[data-testid="remote-cache-app-create-project-submit"]');
     expect((submit.element as HTMLButtonElement).disabled).toBe(true);
     wrapper.unmount();

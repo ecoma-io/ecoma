@@ -193,19 +193,22 @@ const provisionEnvironment: Record<string, pulumi.Output<string>> = {
   [RUNTIME_PASSWORD_ENV_VAR]: runtimePassword,
 };
 
-const provision = new command.local.Command(dockerResourceName(ns, 'remote-cache-app') + '-provision', {
-  create: provisionScript,
-  update: provisionScript,
-  // Trigger bọc secret: state/diff chỉ thấy `[secret]`, không bao giờ thấy mật
-  // khẩu plaintext (trigger được lưu trong state Pulumi).
-  triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
-  environment: provisionEnvironment,
-  // ⚠️ Không có `dependsOn` Pulumi nào ở đây — có chủ đích (review #254, cùng
-  // mô hình với pact-broker-app-deploy): container PostgreSQL platform là tài
-  // nguyên của stack `platform-deploy` khác, và unit này chỉ chạm nó qua
-  // `docker exec` (tên container là chuỗi theo convention, không phải Output).
-  // Thứ tự chạy ghim bằng Nx: `local-up` dependsOn `platform-deploy:local-up`.
-});
+const provision = new command.local.Command(
+  dockerResourceName(ns, 'remote-cache-app') + '-provision',
+  {
+    create: provisionScript,
+    update: provisionScript,
+    // Trigger bọc secret: state/diff chỉ thấy `[secret]`, không bao giờ thấy mật
+    // khẩu plaintext (trigger được lưu trong state Pulumi).
+    triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+    environment: provisionEnvironment,
+    // ⚠️ Không có `dependsOn` Pulumi nào ở đây — có chủ đích (review #254, cùng
+    // mô hình với pact-broker-app-deploy): container PostgreSQL platform là tài
+    // nguyên của stack `platform-deploy` khác, và unit này chỉ chạm nó qua
+    // `docker exec` (tên container là chuỗi theo convention, không phải Output).
+    // Thứ tự chạy ghim bằng Nx: `local-up` dependsOn `platform-deploy:local-up`.
+  },
+);
 
 // Percent-encode mật khẩu trước khi ghép vào userinfo của DATABASE_URL — encode
 // là việc của hàm dựng URL (`buildMigratorConnectionUrl`); URL hoàn chỉnh bọc
@@ -259,95 +262,99 @@ const image = new dockerBuild.Image(dockerResourceName(ns, remoteCacheAppImageKi
  * được — container bị thay đúng lúc. KHÔNG có `ports`: mọi request đi qua
  * Traefik của platform — bất biến của local platform.
  */
-const remoteCacheApp = new docker.Container(dockerResourceName(ns, remoteCacheAppKind), {
-  name: dockerResourceName(ns, remoteCacheAppKind),
-  image: pulumi.interpolate`${imageTag}@${image.digest}`,
-  // `restart: unless-stopped` để DOCKER tự start lại container sau
-  // reboot/restart daemon — cùng lý do với traefik/postgres ở `platform-deploy`.
-  restart: 'unless-stopped',
-  // Readiness resource-owned (`wait: true` — cùng ngữ nghĩa với platform):
-  // cold start của Node server (build `node-server`, SPA admin) có thể vượt 30s; trần chờ = startPeriod 30s +
-  // 12 retries × 10s = 150s; waitTimeout 180s dư.
-  wait: true,
-  waitTimeout: 180,
-  networksAdvanced: [{ name: networkName, aliases: ['ecoma-remote-cache-app'] }],
-  // `envs` (không phải `environment`): cặp `KEY=VALUE` dạng mảng chuỗi — shape
-  // của `docker run -e`.
-  //
-  // BFF config (ADR-0034/0035, #180): base URL trỏ alias nội bộ với port
-  // contract (hằng đối xứng với `remote-cache-api-deploy`) — sai port chỉ làm
-  // `/api/portal/**` trả 502, còn `/health` vẫn xanh vì healthcheck cố ý không
-  // phụ thuộc control plane. Chuỗi kết nối DB + HMAC secret bọc `pulumi.secret`
-  // nên interpolate giữ redact trong diff/log.
-  envs: [
-    `PORT=${APP_INTERNAL_PORT}`,
-    'NODE_ENV=production',
-    pulumi.interpolate`NITRO_REMOTE_CACHE_API_BASE_URL=http://${REMOTE_CACHE_API_ALIAS}:${REMOTE_CACHE_API_INTERNAL_PORT}`,
-    pulumi.interpolate`NITRO_INTERNAL_AUTH_SECRET=${pulumi.secret(internalHmacSecret)}`,
-    // Database phiên BFF (ADR-0035) — role runtime, percent-encode trong builder;
-    // preset `node-server` đọc qua runtimeConfig private (không Hyperdrive).
-    pulumi.interpolate`NITRO_REMOTE_CACHE_APP_DATABASE_URL=${pulumi.secret(
-      runtimePassword.apply((raw) => buildRuntimeConnectionUrl({ password: raw })),
-    )}`,
-    // Issuer/audience ghim từ platform outputs — cùng nguồn với auth-deploy
-    // (structural exact match); client_id từ stack config; origin fetch nội bộ
-    // trỏ thẳng container auth trong network (local-only, production vắng mặt).
-    pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
-    pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
-    pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_CLIENT_ID=${remoteCacheAppClientId}`,
-    pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:4203`,
-    // Public runtimeConfig cho SPA: tenant canonical + cache endpoint hiển thị
-    // ở trang onboarding (R21). Non-secret — cấu hình hiển thị, không credential.
-    pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_TENANT_NAME=ecoma`,
-    pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_CACHE_ENDPOINT=https://cache.${rootHostname}`,
-  ],
-  labels: [
-    ...Object.entries(labels).map(([label, value]) => ({ label, value })),
-    { label: 'traefik.enable', value: 'true' },
-    {
-      // Khai network của ROUTER này cho Traefik — bắt buộc với provider docker
-      // multi-tenant: vừa chọn IP đúng network cho backend, vừa là điều kiện
-      // lọc container vào router của đúng worktree.
-      label: 'traefik.docker.network',
-      value: networkName,
-    },
-    {
-      label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-      value: pulumi.interpolate`Host(\`remote-cache-app.${rootHostname}\`)`,
-    },
-    {
-      label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,
-      value: 'websecure',
-    },
-    { label: `traefik.http.routers.${traefikPrefix(ns)}.tls`, value: 'true' },
-    {
-      label: `traefik.http.services.${traefikPrefix(ns)}.loadbalancer.server.port`,
-      value: String(APP_INTERNAL_PORT),
-    },
-  ],
-  healthcheck: {
-    // `/health` là liveness của app; chứa route tĩnh, không phụ thuộc backend
-    // (app không có backend). Cổng lấy từ cùng hằng số với `ENV PORT` của image,
-    // không hard-code lần thứ hai trong một string khác. Chỉ 2xx (`r.ok`) mới
-    // healthy — một điều kiện nới hơn kiểu `status < 500` sẽ coi 404 (route sai,
-    // app build sai) là healthy và phá readiness.
-    tests: [
-      'CMD',
-      'node',
-      '-e',
-      `fetch('http://127.0.0.1:${APP_INTERNAL_PORT}/health')` +
-        `.then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`,
+const remoteCacheApp = new docker.Container(
+  dockerResourceName(ns, remoteCacheAppKind),
+  {
+    name: dockerResourceName(ns, remoteCacheAppKind),
+    image: pulumi.interpolate`${imageTag}@${image.digest}`,
+    // `restart: unless-stopped` để DOCKER tự start lại container sau
+    // reboot/restart daemon — cùng lý do với traefik/postgres ở `platform-deploy`.
+    restart: 'unless-stopped',
+    // Readiness resource-owned (`wait: true` — cùng ngữ nghĩa với platform):
+    // cold start của Node server (build `node-server`, SPA admin) có thể vượt 30s; trần chờ = startPeriod 30s +
+    // 12 retries × 10s = 150s; waitTimeout 180s dư.
+    wait: true,
+    waitTimeout: 180,
+    networksAdvanced: [{ name: networkName, aliases: ['ecoma-remote-cache-app'] }],
+    // `envs` (không phải `environment`): cặp `KEY=VALUE` dạng mảng chuỗi — shape
+    // của `docker run -e`.
+    //
+    // BFF config (ADR-0034/0035, #180): base URL trỏ alias nội bộ với port
+    // contract (hằng đối xứng với `remote-cache-api-deploy`) — sai port chỉ làm
+    // `/api/portal/**` trả 502, còn `/health` vẫn xanh vì healthcheck cố ý không
+    // phụ thuộc control plane. Chuỗi kết nối DB + HMAC secret bọc `pulumi.secret`
+    // nên interpolate giữ redact trong diff/log.
+    envs: [
+      `PORT=${APP_INTERNAL_PORT}`,
+      'NODE_ENV=production',
+      pulumi.interpolate`NITRO_REMOTE_CACHE_API_BASE_URL=http://${REMOTE_CACHE_API_ALIAS}:${REMOTE_CACHE_API_INTERNAL_PORT}`,
+      pulumi.interpolate`NITRO_INTERNAL_AUTH_SECRET=${pulumi.secret(internalHmacSecret)}`,
+      // Database phiên BFF (ADR-0035) — role runtime, percent-encode trong builder;
+      // preset `node-server` đọc qua runtimeConfig private (không Hyperdrive).
+      pulumi.interpolate`NITRO_REMOTE_CACHE_APP_DATABASE_URL=${pulumi.secret(
+        runtimePassword.apply((raw) => buildRuntimeConnectionUrl({ password: raw })),
+      )}`,
+      // Issuer/audience ghim từ platform outputs — cùng nguồn với auth-deploy
+      // (structural exact match); client_id từ stack config; origin fetch nội bộ
+      // trỏ thẳng container auth trong network (local-only, production vắng mặt).
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_CLIENT_ID=${remoteCacheAppClientId}`,
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:4203`,
+      // Public runtimeConfig cho SPA: tenant canonical + cache endpoint hiển thị
+      // ở trang onboarding (R21). Non-secret — cấu hình hiển thị, không credential.
+      pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_TENANT_NAME=ecoma`,
+      pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_CACHE_ENDPOINT=https://cache.${rootHostname}`,
     ],
-    interval: '10s',
-    timeout: '5s',
-    retries: 12,
-    // Cold start của container có thể vượt 30s trên host chậm; chỉ sau `startPeriod`
-    // mới tính `retries`.
-    startPeriod: '30s',
+    labels: [
+      ...Object.entries(labels).map(([label, value]) => ({ label, value })),
+      { label: 'traefik.enable', value: 'true' },
+      {
+        // Khai network của ROUTER này cho Traefik — bắt buộc với provider docker
+        // multi-tenant: vừa chọn IP đúng network cho backend, vừa là điều kiện
+        // lọc container vào router của đúng worktree.
+        label: 'traefik.docker.network',
+        value: networkName,
+      },
+      {
+        label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
+        value: pulumi.interpolate`Host(\`remote-cache-app.${rootHostname}\`)`,
+      },
+      {
+        label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,
+        value: 'websecure',
+      },
+      { label: `traefik.http.routers.${traefikPrefix(ns)}.tls`, value: 'true' },
+      {
+        label: `traefik.http.services.${traefikPrefix(ns)}.loadbalancer.server.port`,
+        value: String(APP_INTERNAL_PORT),
+      },
+    ],
+    healthcheck: {
+      // `/health` là liveness của app; chứa route tĩnh, không phụ thuộc backend
+      // (app không có backend). Cổng lấy từ cùng hằng số với `ENV PORT` của image,
+      // không hard-code lần thứ hai trong một string khác. Chỉ 2xx (`r.ok`) mới
+      // healthy — một điều kiện nới hơn kiểu `status < 500` sẽ coi 404 (route sai,
+      // app build sai) là healthy và phá readiness.
+      tests: [
+        'CMD',
+        'node',
+        '-e',
+        `fetch('http://127.0.0.1:${APP_INTERNAL_PORT}/health')` +
+          `.then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))`,
+      ],
+      interval: '10s',
+      timeout: '5s',
+      retries: 12,
+      // Cold start của container có thể vượt 30s trên host chậm; chỉ sau `startPeriod`
+      // mới tính `retries`.
+      startPeriod: '30s',
+    },
+    // Container chỉ lên sau khi schema phiên sẵn sàng — BFF middleware authn đọc
+    // `remote_cache_app.bff_sessions` ở request đầu tiên.
   },
-  // Container chỉ lên sau khi schema phiên sẵn sàng — BFF middleware authn đọc
-  // `remote_cache_app.bff_sessions` ở request đầu tiên.
-}, { dependsOn: [migrate] });
+  { dependsOn: [migrate] },
+);
 
 export const imageDigest = image.digest;
 export const containerName = remoteCacheApp.name;

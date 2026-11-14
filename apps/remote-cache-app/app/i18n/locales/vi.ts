@@ -95,7 +95,8 @@ export default {
   projectDetail: {
     backToProjects: 'Về danh sách dự án',
     keysTitle: 'API key',
-    keysDescription: 'Chỉ metadata — token của khoá không bao giờ hiển thị lại tại đây sau khi tạo.',
+    keysDescription:
+      'Chỉ metadata — token của khoá không bao giờ hiển thị lại tại đây sau khi tạo.',
     createKey: 'Tạo API key',
     creatingKey: 'Đang tạo…',
     scopesHeader: 'Scopes',

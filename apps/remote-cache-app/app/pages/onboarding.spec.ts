@@ -50,9 +50,9 @@ describe('onboarding page', () => {
       runtimeConfig: { remoteCacheCacheEndpoint: 'https://cache.example.test' },
     });
 
-    expect(
-      wrapper.find('[data-testid="remote-cache-app-onboarding-first-use"]').exists(),
-    ).toBe(true);
+    expect(wrapper.find('[data-testid="remote-cache-app-onboarding-first-use"]').exists()).toBe(
+      true,
+    );
     expect(wrapper.text()).toContain('Remote Cache Hit');
     wrapper.unmount();
   });

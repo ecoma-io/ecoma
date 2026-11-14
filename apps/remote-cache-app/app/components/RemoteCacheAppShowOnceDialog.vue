@@ -24,11 +24,11 @@ const { t } = useI18n();
 const { token, open } =
   // oxlint-disable-next-line vue/max-props
   defineProps<{
-  /** Token show-once — parent giữ và truyền xuống; component không giữ lại. */
-  readonly token: string;
-  /** Điều khiển mở/đóng từ parent — parent đặt `false` khi token được thả. */
-  readonly open: boolean;
-}>();
+    /** Token show-once — parent giữ và truyền xuống; component không giữ lại. */
+    readonly token: string;
+    /** Điều khiển mở/đóng từ parent — parent đặt `false` khi token được thả. */
+    readonly open: boolean;
+  }>();
 
 const emit = defineEmits<{ confirm: [] }>();
 

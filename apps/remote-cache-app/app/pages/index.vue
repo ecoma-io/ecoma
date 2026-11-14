@@ -65,8 +65,7 @@ const { state, reload } = useAsyncState(async (): Promise<ProjectsPage | typeof 
 });
 
 const isUnavailable = computed(
-  () =>
-    state.value.kind === 'ready' && (state.value.value as unknown as symbol) === UNAVAILABLE,
+  () => state.value.kind === 'ready' && (state.value.value as unknown as symbol) === UNAVAILABLE,
 );
 
 const projects = computed(() =>

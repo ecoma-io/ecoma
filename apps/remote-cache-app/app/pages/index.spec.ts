@@ -77,7 +77,11 @@ describe('projects page', () => {
           path: '/api/portal/tenants/ecoma/projects',
           body: {
             projects: [
-              { id: '11111111-1111-4111-8111-111111111111', name: 'orders-cache', created_at: '2026-11-15T00:00:00Z' },
+              {
+                id: '11111111-1111-4111-8111-111111111111',
+                name: 'orders-cache',
+                created_at: '2026-11-15T00:00:00Z',
+              },
             ],
             next_cursor: null,
           },
