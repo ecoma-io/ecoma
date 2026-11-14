@@ -13,11 +13,12 @@
  * không label, không log), `pulumi.secret` bọc trước khi interpolate để redact
  * trong diff/log.
  *
- * KHÔNG có Traefik router (quyết định thiết kế, issue #238): consumer duy nhất
- * của API ở local là (a) `pact-broker-app` (BFF Nuxt) fetch server-side qua
- * alias DNS nội bộ `ecoma-pact-api` — fetch server-side không preflight nên
- * không cần CORS; (b) Pact CLI chạy trong platform network. Vì thế container
- * KHÔNG publish port ra host, KHÔNG mang label `traefik.*` — khác auth.
+ * Có Traefik router `Host(api.<rootHostname>)` (kết luận #205 quyết định 11,
+ * hiện thực qua #208): Pact CLI trên máy dev gọi API qua host route public
+ * `https://api.<rootHostname>:<traefikHostPort>`. Consumer trong network vẫn
+ * (a) `pact-broker-app` (BFF Nuxt) fetch server-side qua alias DNS nội bộ
+ * `ecoma-pact-api` — fetch server-side không preflight nên không cần CORS;
+ * (b) Pact CLI trong network. CORS KHÔNG mở thêm origin nào (SR-003/SR-005).
  * Readiness là liveness container: Docker healthcheck poll `GET /health` của
  * worker (không chạm DB — thiết kế của app, cùng declaration `http-health`
  * của `local-worker.jsonc`); `/health` 200 không phải bằng chứng readiness
@@ -439,11 +440,11 @@ const wicStateInit = new docker.Container(
  * - KHÔNG set `PACT_BROKER_WEBHOOKS_ENABLED`: mặc định TẮT (SR-006 — không có
  *   SSRF guard thì code còn chặn cứng `true`, `src/config.ts`).
  * - KHÔNG set `PACT_BROKER_DASHBOARD_ORIGIN`: BFF fetch server-side qua alias
- *   nội bộ, không preflight → không cần CORS ở local (quyết định #238).
+ *   nội bộ, không preflight → không cần CORS ở local (kết luận #205 quyết
+ *   định 11).
  *
- * KHÔNG có `ports` và KHÔNG có label `traefik.*`: WIC không publish cổng ra
- * host — consumer là pact-broker-app (server-side fetch qua alias) và Pact
- * CLI trong network (issue #238, quyết định no-Traefik).
+ * KHÔNG có `ports` (publish host port) — vào host qua Traefik host route, cùng
+ * cơ chế auth/pact-app. Label `traefik.*` ở dưới khai router đó.
  */
 const wic = new docker.Container(
   dockerResourceName(ns, 'pact-api-wic'),
@@ -515,7 +516,38 @@ const wic = new docker.Container(
       // với `PACT_BROKER_AUTH_ISSUER`. Cùng cơ chế `internalOrigin` của BFF.
       pulumi.interpolate`PACT_BROKER_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:${AUTH_INTERNAL_PORT}`,
     ],
-    labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
+    labels: [
+      ...Object.entries(labels).map(([label, value]) => ({ label, value })),
+      // Host route cho Pact CLI trên máy dev (kết luận #205 quyết định 11, hiện
+      // thực qua #208): `https://api.<rootHostname>:<traefikHostPort>` route vào
+      // WIC này — cùng mẫu `Host(<sub>.${rootHostname})` của auth/pact-app.
+      // CORS KHÔNG mở thêm origin nào (SR-003/SR-005 giữ nguyên): CLI là
+      // non-browser client, không preflight.
+      { label: 'traefik.enable', value: 'true' },
+      {
+        // Bắt buộc với provider docker multi-tenant — chọn IP đúng network và
+        // lọc container vào router của đúng worktree (cùng lý do auth/pact-app).
+        label: 'traefik.docker.network',
+        value: networkName,
+      },
+      {
+        label: `traefik.http.routers.pact-api-${ns}.rule`,
+        value: pulumi.interpolate`Host(\`api.${rootHostname}\`)`,
+      },
+      {
+        label: `traefik.http.routers.pact-api-${ns}.entrypoints`,
+        value: 'websecure',
+      },
+      { label: `traefik.http.routers.pact-api-${ns}.tls`, value: 'true' },
+      {
+        label: `traefik.http.routers.pact-api-${ns}.service`,
+        value: `pact-api-${ns}`,
+      },
+      {
+        label: `traefik.http.services.pact-api-${ns}.loadbalancer.server.port`,
+        value: String(PACT_API_INTERNAL_PORT),
+      },
+    ],
     healthcheck: {
       // `/health` chứ không phải một route nghiệp vụ: probe infra không được
       // phụ thuộc DB (thiết kế của app — `/health` không credential, không
