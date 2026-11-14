@@ -92,7 +92,10 @@ describe('tokens page — create flow error handling', () => {
         { path: '/api/broker/machine-tokens', status: 200, body: { _embedded: { tokens: [] } } },
       ],
     });
+    // Cài mock làm global fetch: assertion no-fetch có giá trị thực, không
+    // phải pass trivially vì mock chưa từng được gán.
     const postThrows = throwingFetch();
+    vi.stubGlobal('fetch', postThrows);
 
     await wrapper.find('[data-testid="pact-broker-token-name"]').setValue('ci-token');
     await wrapper.find('[data-testid="pact-broker-token-submit"]').trigger('submit');

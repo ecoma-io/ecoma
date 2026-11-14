@@ -140,6 +140,8 @@ async function submitCreate(): Promise<void> {
 const copied = ref(false);
 async function copySecret(): Promise<void> {
   if (revealed.value === null) return;
+  // Reset nhãn trước khi thử: lần copy sau lỗi hiện đúng nút Copy, không kẹt "Copied".
+  copied.value = false;
   try {
     await navigator.clipboard.writeText(revealed.value.secret);
     copied.value = true;
