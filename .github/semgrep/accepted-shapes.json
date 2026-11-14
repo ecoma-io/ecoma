@@ -665,21 +665,21 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-app/server/api/broker/machine-tokens.get.ts",
-    "start": 31,
-    "end": 31,
-    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts).",
+    "start": 32,
+    "end": 32,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 31->32 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
-      "31": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+      "32": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-app/server/api/broker/pacticipants.get.ts",
-    "start": 31,
-    "end": 31,
-    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts).",
+    "start": 32,
+    "end": 32,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 31->32 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
-      "31": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+      "32": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
   },
   {
@@ -695,31 +695,31 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-app/server/api/broker/pacts.get.ts",
-    "start": 95,
-    "end": 95,
-    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts).",
+    "start": 100,
+    "end": 100,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 95->100 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
-      "95": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+      "100": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/pact-broker-app-deploy/scripts.ts",
-    "start": 116,
-    "end": 116,
-    "reason": "[Role migrator] Builder thuần của #206: password được percent-encode rồi ghép vào userinfo của URL kết nối, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-api-deploy/scripts.ts` (remediation #42, cùng #206).",
+    "start": 120,
+    "end": 120,
+    "reason": "[Role migrator] Builder thuần của #206: password được percent-encode rồi ghép vào userinfo của URL kết nối, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-api-deploy/scripts.ts` (remediation #42, cùng #206). Re-pin 116->120 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
-      "116": "^  return `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+      "120": "^  return `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/pact-broker-app-deploy/scripts.ts",
-    "start": 125,
-    "end": 125,
-    "reason": "[Role runtime] Builder thuần của #206: password được percent-encode rồi ghép vào userinfo của URL kết nối, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-api-deploy/scripts.ts` (remediation #42, cùng #206).",
+    "start": 129,
+    "end": 129,
+    "reason": "[Role runtime] Builder thuần của #206: password được percent-encode rồi ghép vào userinfo của URL kết nối, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-api-deploy/scripts.ts` (remediation #42, cùng #206). Re-pin 125->129 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
     "lines": {
-      "125": "^  return `postgresql://\\$\\{RUNTIME_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+      "129": "^  return `postgresql://\\$\\{RUNTIME_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
     }
   }
 ]
