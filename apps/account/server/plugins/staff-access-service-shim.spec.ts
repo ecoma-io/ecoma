@@ -16,7 +16,7 @@
  * để import được module mà không dựng runtime.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createNonce, signRequest, verifyRequest } from '@ecoma-io/internal-auth-contracts';
 
@@ -29,6 +29,12 @@ const {
   mountStaffAccessServiceBinding,
   default: plugin,
 } = await import('./staff-access-service-shim');
+
+// Global stub không được rò sang spec khác chạy cùng worker thread — gỡ ngay
+// sau khi module đã import xong (cùng convention `mail.spec.ts`).
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const SECRET = 'test-staff-access-internal-secret-0123456789';
 const ORIGIN = 'http://ecoma-staff-access:4206';
