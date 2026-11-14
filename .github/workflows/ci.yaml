@@ -106,6 +106,21 @@ jobs:
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+      # `@playwright/test` không có postinstall tải browser, nên runner sạch không
+      # có Chromium. Cấp ở **cấp job**, đúng một lượt, trước khi Nx chạy — cùng
+      # hình dạng với job `system-test` bên dưới.
+      #
+      # ⚠️ Vì sao không để từng project tự cấp (issue #253): mỗi app có
+      # `tests/browser/ensure-playwright-browser.sh` chạy `playwright install` và
+      # (khi `CI=true`) `install-deps` — tức `sudo apt-get` — từ **bên trong** Nx
+      # task. Với affected set rộng (ví dụ 27 project, `--parallel=6` trên runner
+      # 4 vCPU), hai script đó chạy đồng thời với 5 task nặng khác: tải song song
+      # vào cùng `~/.cache/ms-playwright` và hai lượt `apt-get`/dpkg chồng nhau
+      # trên cùng máy. Với affected set hẹp (2 project, đúng thứ #247 kiểm) chỉ
+      # một bản chạy nên lỗi không lộ ra. Cấp ở đây thì script của project trở
+      # thành cache hit, không còn `apt-get` nào trong task graph.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
       - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
