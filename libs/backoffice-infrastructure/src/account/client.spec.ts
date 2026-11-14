@@ -101,15 +101,29 @@ describe('accountClientConfig', () => {
     expect(accountClientConfig(env)).toBeNull();
   });
 
-  it('falls back to the generic internal secret when the account-pair secret is absent', () => {
+  it('falls back to the generic internal secret when the account-pair secret is absent', async () => {
     // Workers không đặt `ACCOUNT_INTERNAL_SECRET` — contract hiện có (secret
     // `AUTH_INTERNAL_SECRET` trong `env` của Worker) phải tiếp tục được nhận.
+    // So khớp chữ ký thật (cùng timestamp/nonce) để một refactor đọc sai secret
+    // không lọt qua test.
     const binding = fakeBinding(new Response('{}'));
     const env = {
       [ACCOUNT_SERVICE_BINDING_NAME]: binding,
       [AUTH_INTERNAL_SECRET_ENV]: SECRET,
     };
-    expect(accountClientConfig(env)).not.toBeNull();
+    const config = accountClientConfig(env);
+    expect(config).not.toBeNull();
+
+    const headers = await config?.signHeaders('/internal/account/profiles?subs=sub_x');
+    const expected = await signRequest({
+      method: 'GET',
+      path: '/internal/account/profiles?subs=sub_x',
+      body: new Uint8Array(),
+      secret: SECRET,
+      timestamp: headers?.['x-ecoma-internal-timestamp'] ?? '',
+      nonce: headers?.['x-ecoma-internal-nonce'] ?? '',
+    });
+    expect(headers?.['x-ecoma-internal-signature']).toBe(expected['x-ecoma-internal-signature']);
   });
 
   it('prefers the account-pair secret when both secrets are present', async () => {

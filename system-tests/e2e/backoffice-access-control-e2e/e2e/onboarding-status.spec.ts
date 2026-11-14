@@ -44,9 +44,9 @@ async function readIdentityApis(
   context: import('@playwright/test').BrowserContext,
 ): Promise<{
   meStatus: number;
-  meBody: { sub?: string; displayName?: string | null };
+  meBody: string;
   onboardingStatus: number;
-  onboardingBody: { needsDisplayName?: boolean };
+  onboardingBody: string;
 }> {
   const cookies = await context.cookies(resolveStackOrigin());
   const header = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
@@ -56,10 +56,23 @@ async function readIdentityApis(
   });
   return {
     meStatus: me.status,
-    meBody: JSON.parse(me.body || '{}') as { sub?: string; displayName?: string | null },
+    meBody: me.body,
     onboardingStatus: onboarding.status,
-    onboardingBody: JSON.parse(onboarding.body || '{}') as { needsDisplayName?: boolean },
+    onboardingBody: onboarding.body,
   };
+}
+
+/**
+ * Parse body SAU khi caller đã assert status — nhờ vậy một phản hồi lỗi không
+ * phải JSON (vd 503 text/plain) không ném `SyntaxError` trước assertion status,
+ * và nếu body 200 không phải JSON thì message chỉ rõ route thay vì stack trace thô.
+ */
+function parseJson<T>(label: string, raw: string): T {
+  try {
+    return JSON.parse(raw || '{}') as T;
+  } catch {
+    throw new Error(`${label} did not return JSON: ${raw.slice(0, 200)}`);
+  }
 }
 
 test.describe.serial('onboarding status and display name resolve from account', () => {
@@ -89,11 +102,19 @@ test.describe.serial('onboarding status and display name resolve from account', 
 
     const api = await readIdentityApis(page, context);
     expect(api.onboardingStatus).toBe(200);
-    expect(api.onboardingBody.needsDisplayName).toBe(true);
+    const onboardingBody = parseJson<{ needsDisplayName?: boolean }>(
+      'GET /api/onboarding-status',
+      api.onboardingBody,
+    );
+    expect(onboardingBody.needsDisplayName).toBe(true);
     expect(api.meStatus).toBe(200);
-    expect(api.meBody.sub).toBe(ONBOARDING_UNNAMED_IDENTITY.sub);
+    const meBody = parseJson<{ sub?: string; displayName?: string | null }>(
+      'GET /api/me',
+      api.meBody,
+    );
+    expect(meBody.sub).toBe(ONBOARDING_UNNAMED_IDENTITY.sub);
     // Chưa có tên ⇒ `null` (giá trị thật của contract), KHÔNG phải 5xx.
-    expect(api.meBody.displayName).toBeNull();
+    expect(meBody.displayName).toBeNull();
   });
 
   test('a user with a display name lands on / and needsDisplayName is false', async ({
@@ -121,10 +142,18 @@ test.describe.serial('onboarding status and display name resolve from account', 
 
     const api = await readIdentityApis(page, context);
     expect(api.onboardingStatus).toBe(200);
-    expect(api.onboardingBody.needsDisplayName).toBe(false);
+    const onboardingBody = parseJson<{ needsDisplayName?: boolean }>(
+      'GET /api/onboarding-status',
+      api.onboardingBody,
+    );
+    expect(onboardingBody.needsDisplayName).toBe(false);
     expect(api.meStatus).toBe(200);
-    expect(api.meBody.sub).toBe(ONBOARDING_NAMED_IDENTITY.sub);
+    const meBody = parseJson<{ sub?: string; displayName?: string | null }>(
+      'GET /api/me',
+      api.meBody,
+    );
+    expect(meBody.sub).toBe(ONBOARDING_NAMED_IDENTITY.sub);
     // `displayName` resolve ĐƯỢC từ account — không còn `null` do degrade.
-    expect(api.meBody.displayName).toBe(ONBOARDING_NAMED_DISPLAY_NAME);
+    expect(meBody.displayName).toBe(ONBOARDING_NAMED_DISPLAY_NAME);
   });
 });

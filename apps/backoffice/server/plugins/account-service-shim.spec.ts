@@ -105,13 +105,23 @@ describe('httpAccountServiceBinding', () => {
     );
   });
 
-  it('propagates the init signal of the caller', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('ok'));
+  it('attaches the caller signal to the request the transport builds', async () => {
+    // A `vi.fn` records the arguments whether or not the runtime honours them.
+    // Mirror what the real `fetch(request, init)` does — build the request via
+    // the Request constructor — so this asserts the signal is truly attached,
+    // not merely that a mock saw an argument.
+    const controller = new AbortController();
+    let constructed: Request | undefined;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      constructed = new Request(input, init);
+      return new Response('ok');
+    });
     const binding = httpAccountServiceBinding({ origin: 'http://account:4202', fetchImpl });
 
-    const signal = AbortSignal.timeout(1_000);
-    await binding.fetch(new Request('https://account.internal/x'), { signal });
+    await binding.fetch(new Request('https://account.internal/x'), { signal: controller.signal });
 
-    expect(fetchImpl).toHaveBeenCalledWith(expect.anything(), { signal });
+    expect(constructed?.signal.aborted).toBe(false);
+    controller.abort();
+    expect(constructed?.signal.aborted).toBe(true);
   });
 });
