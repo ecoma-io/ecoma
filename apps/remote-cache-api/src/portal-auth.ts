@@ -211,12 +211,21 @@ export async function verifyPortalIdentity(
         // cung moc do. Lech dong ho thi mot `now` tiem vao (test, hoac mot
         // buoc doi sau nay) bi prune that xoa mat nonce ma replay guard con
         // can. Production: `input.now` chinh la dong ho that.
+        //
+        // ⚠️ `AND expires_at <= now()` (dong ho DB) khong phai dieu kien nghiep
+        // vu moi: trigger `internal_nonce_delete_guard` (0008) tu choi xoa
+        // nonce con trong cua so replay theo `now()` cua DB. Neu dong ho nguoi
+        // goi nhanh hon DB, mot hang roi vao khe lech se lam CA statement claim
+        // loi (503). Rang buoc them nay giu tap hang bi xoa la tap con cua tap
+        // trigger cho phep — hang trong khe lech chi doi lan prune sau.
         const nowSeconds = Number(input.now);
         let rows: readonly { nonce: string }[];
         try {
           rows = await input.db.unsafe(
             `WITH deleted AS (
-               DELETE FROM remote_cache.internal_nonces WHERE expires_at <= to_timestamp($3)
+               DELETE FROM remote_cache.internal_nonces
+                WHERE expires_at <= to_timestamp($3)
+                  AND expires_at <= now()
              )
              INSERT INTO remote_cache.internal_nonces (nonce, expires_at)
              VALUES ($1, to_timestamp($2))

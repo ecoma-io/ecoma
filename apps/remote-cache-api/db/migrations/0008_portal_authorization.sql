@@ -12,7 +12,9 @@
 --    (DELETE hết hạn + INSERT ... ON CONFLICT DO NOTHING RETURNING) chạy ngay
 --    trong đường verify — prune theo lô cùng statement, không cần job riêng
 --    ở M1 (pattern `staff_access.internal_nonces`, migration 0005 của
---    staff-access).
+--    staff-access). Trigger `internal_nonce_delete_guard` giới hạn DELETE ở
+--    hàng đã hết hạn, nên credential runtime bị xâm hại không xoá được nonce
+--    còn trong cửa sổ replay.
 -- 2. Widen CHECK `audit_log_action_check` với vocabulary mutation qua portal:
 --    `project_created`, `api_key_created`, `api_key_revoked` (R15: mọi
 --    administrative mutation qua portal tạo audit entry với actor, action,
@@ -60,20 +62,49 @@ GRANT SELECT, INSERT, DELETE ON remote_cache.internal_nonces TO ecoma_remote_cac
 -- account tồn tại để cho MỘT CRON JOB ngoài chạy prune theo lô — Worker prune
 -- cần principal trung gian vì credential `_migrator_` không bao giờ nằm trong
 -- secret của Worker. Ở remote-cache KHÔNG có job prune nào: prune chạy
--- trong chính statement claim (`DELETE ... WHERE expires_at <= now()`), tức là
--- cùng một transaction với INSERT, trên CHÍNH client của request. Tách
--- DELETE ra role khác sẽ phá vỡ cơ chế này: claim cần xoá hàng hết hạn và
--- insert nonce MỚI trong MỘT statement nguyên tử — hai principal khác nhau
--- không chia được một transaction.
+-- trong chính statement claim, tức là cùng một transaction với INSERT, trên
+-- CHÍNH client của request. Tách DELETE ra role khác sẽ phá vỡ cơ chế này:
+-- claim cần xoá hàng hết hạn và insert nonce MỚI trong MỘT statement nguyên tử
+-- — hai principal khác nhau không chia được một transaction.
 --
--- Ràng buộc thực tế nằm ở câu SQL, không ở grant: DELETE đi kèm điều kiện
--- `expires_at <= now()`, nên hàng còn hiệu lực không bị xoá dù runtime có
--- quyền DELETE — quyền này cho phép *câu lệnh*, không cho phép *xoá nonce
--- còn hiệu lực*. Mọi claim nonce của remote-cache đều nằm trong
--- `src/portal-auth.ts` (`claimNonce`); đường đó là consumer DUY NHẤT.
--- Đây là cùng hình dạng quyền với `staff_access.internal_nonces`
--- (`apps/staff-access/db/migrations/0005_internal_nonces.sql`), nơi cũng không
--- có job prune riêng mà claim tự prune theo lô.
+-- ⚠️ Grant DELETE là KHÔNG ĐIỀU KIỆN ở tầng quyền: bản thân nó không giới hạn
+-- hàng nào bị xoá. Điều kiện `expires_at <= ...` chỉ có trong câu SQL của
+-- `claimNonce` (`src/portal-auth.ts`), nên một credential runtime bị xâm hại
+-- có thể chạy `DELETE FROM remote_cache.internal_nonces` trực tiếp và mở lại
+-- cửa sổ replay cho envelope cũ. Trigger `internal_nonce_delete_guard` bên
+-- dưới chặn đúng thao tác đó ở tầng database (defense-in-depth, cùng idiom
+-- với `api_key_trust_class_guard` ở khối 3): xoá nonce CÒN hiệu lực bị từ
+-- chối bằng `integrity_constraint_violation`, bất kể principal nào chạy.
+-- Đây là hình dạng quyền với `staff_access.internal_nonces`
+-- (`apps/staff-access/db/migrations/0005_internal_nonces.sql`) — nơi claim
+-- cũng tự prune theo lô — cộng thêm ràng buộc cấp DB.
+
+-- Guard phạm vi DELETE: chỉ nonce ĐÃ hết hạn mới xoá được. Xoá nonce còn
+-- trong cửa sổ replay là thao tác duy nhất có thể vô hiệu hoá replay guard mà
+-- không cần biết secret, nên nó bị chặn ở đây thay vì chỉ dựa vào kỷ luật của
+-- câu SQL.
+CREATE OR REPLACE FUNCTION remote_cache.internal_nonce_delete_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.expires_at > now() THEN
+    RAISE EXCEPTION
+      'remote_cache: internal nonce is still inside its replay window; refusing to delete it'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+COMMENT ON FUNCTION remote_cache.internal_nonce_delete_guard() IS
+  'Rejects DELETE of an internal_nonces row whose expires_at is still in the future. The atomic claim statement prunes only expired rows, so it is unaffected; a compromised runtime credential cannot delete live nonces to reopen the replay window. Applications must treat SQLSTATE 23000 (integrity_constraint_violation) as this guard.';
+
+DROP TRIGGER IF EXISTS internal_nonce_delete_guard ON remote_cache.internal_nonces;
+CREATE TRIGGER internal_nonce_delete_guard
+  BEFORE DELETE ON remote_cache.internal_nonces
+  FOR EACH ROW
+  EXECUTE FUNCTION remote_cache.internal_nonce_delete_guard();
 
 -- ---------------------------------------------------------------------------
 -- Audit vocabulary: các mutation qua portal (R15, issue #202)

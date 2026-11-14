@@ -129,8 +129,12 @@ type PortalCreateProjectOutcome =
       readonly projectId: string;
       readonly apiKeyId: string;
       readonly token: string;
-      /** Hang project doc-lai sau commit, tren cung client cua request. */
-      readonly project: ProjectRow;
+      /**
+       * Payload DA validate contract, doc-lai TRONG transaction nhu tren cung
+       * client. Validation that bai la rollback, khong phai 500 cho du lieu
+       * da commit (xem comment trong `db.begin`).
+       */
+      readonly project: RemoteCacheProject;
     };
 
 type PortalProjectDetailOutcome =
@@ -538,9 +542,9 @@ export function portalRoutes(): Hono<AppEnv> {
         const apiKeyId = crypto.randomUUID();
         // Mot transaction: project + key dau tien + audit cung commit — khong
         // ton tai trang thai project khong key, khong co mutation khong audit.
-        let token: string;
+        let committed: { readonly token: string; readonly project: RemoteCacheProject };
         try {
-          token = await db.begin(async (tx) => {
+          committed = await db.begin(async (tx) => {
             await insertProject(tx, { id: projectId, tenantId: ctx.tenantId, name: request.name });
             const freshToken = generateApiToken();
             await insertApiKey(tx, {
@@ -560,7 +564,28 @@ export function portalRoutes(): Hono<AppEnv> {
               // target (target chi mang UUID sau khi tao).
               details: `project name: ${request.name}`,
             });
-            return freshToken;
+            // Doc-lai VA validate TRONG transaction, tren cung mot connection:
+            // hang vua ghi tu thay (created_at chi co tren hang da ghi nen
+            // read-back van la bat buoc de dung response wire). Validate o day
+            // nghia la mot payload khong khop contract se ROLLBACK ca
+            // project + key + audit — khong con kha nang tra 500 cho du lieu da
+            // commit durably (retry cua client se chay lai sach se, khong gap
+            // 409 "ten da ton tai" cho chinh project minh vua tao).
+            const createdRow = await getProjectByTenantAndName(tx, ctx.tenantId, request.name);
+            if (createdRow === null) {
+              throw new Error('project vanished inside its own transaction');
+            }
+            const project: RemoteCacheProject = {
+              id: createdRow.id,
+              tenant_id: createdRow.tenant_id,
+              name: createdRow.name,
+              created_at: toIsoCreatedAt(createdRow.created_at),
+            };
+            const checked = validateRemoteCacheProject(project);
+            if (!checked.ok) {
+              throw new Error(`created project failed contract validation: ${checked.reason}`);
+            }
+            return { token: freshToken, project: checked.payload };
           });
         } catch (error) {
           // Pre-check o tren thay `null` nhung mot request dong thoi da commit
@@ -574,16 +599,7 @@ export function portalRoutes(): Hono<AppEnv> {
             httpError: portalConflict('A project with this name already exists in the tenant.'),
           };
         }
-        // Doc-lai hang project SAU commit nhung TREN CUNG client cua request:
-        // mot client moi request (postgres.ts, issue #289) — mo pool thu hai
-        // chi de doc mot hang la lan mo thua, con commit da xong nen du
-        // connection nao cung thay du lieu. created_at chi co tren hang da
-        // ghi, nen read-back van la bat buoc de dung response wire.
-        const created = await getProjectByTenantAndName(db, ctx.tenantId, request.name);
-        if (created === null) {
-          throw new Error('project vanished after commit');
-        }
-        return { projectId, apiKeyId, token, project: created };
+        return { projectId, apiKeyId, token: committed.token, project: committed.project };
       },
     );
 
@@ -594,24 +610,17 @@ export function portalRoutes(): Hono<AppEnv> {
     if ('httpError' in outcome) {
       return c.json(outcome.httpError.body, outcome.httpError.status);
     }
-    const project: RemoteCacheProject = {
-      id: outcome.project.id,
-      tenant_id: outcome.project.tenant_id,
-      name: outcome.project.name,
-      created_at: toIsoCreatedAt(outcome.project.created_at),
-    };
-    const checked = validateRemoteCacheProject(project);
-    if (!checked.ok) {
-      throw new Error(`created project failed contract validation: ${checked.reason}`);
-    }
     const apiKey: PortalApiKeyCreated = {
       id: outcome.apiKeyId,
       scopes: PORTAL_API_KEY_SCOPES,
       credential_class: portalCredentialClassOf(false),
       token: outcome.token,
     };
+    // `outcome.project` da duoc validate TRUOC commit (ben trong transaction),
+    // nen khong con buoc validation nao o day co the bien mot write da commit
+    // thanh 500.
     // Show-once: token gon chi xuat hien o response nay; DB chi giu hash.
-    return c.json({ project: checked.payload, api_key: apiKey }, 201);
+    return c.json({ project: outcome.project, api_key: apiKey }, 201);
   });
 
   // ------------------------------------------------ chi tiet project --
