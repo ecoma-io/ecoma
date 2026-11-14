@@ -14,7 +14,8 @@ import { describe, expect, it } from 'vitest';
 import { verifyRequest } from '@ecoma-io/internal-auth-contracts';
 
 import { authorizeInvitationIssuance, INVITATION_CREATE_PERMISSION } from './authorization';
-import { STAFF_ACCESS_VERDICT_PATH, type StaffAccessServiceBinding } from './staff-access-client';
+import type { StaffAccessServiceBinding } from './staff-access-client';
+import { AUTHORIZATION_VERDICT_PATH } from '@ecoma-io/staff-access-contracts';
 
 const SECRET = 'test-staff-access-internal-secret-0123456789';
 const CORRELATION_ID = '7d0f0e0a-4b0c-4b6e-9a3e-1e6c1f2b3c4d';
@@ -242,6 +243,6 @@ describe('authorizeInvitationIssuance', () => {
 
   it('posts to the contract path', () => {
     // Path là một phần của chuỗi ký; một hằng sai làm mọi envelope lệch.
-    expect(STAFF_ACCESS_VERDICT_PATH).toBe('/authorization/verdict');
+    expect(AUTHORIZATION_VERDICT_PATH).toBe('/authorization/verdict');
   });
 });

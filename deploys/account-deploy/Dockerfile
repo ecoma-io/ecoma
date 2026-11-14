@@ -20,6 +20,7 @@ COPY apps/account/.npmrc ./apps/account/.npmrc
 COPY libs/account-contracts/package.json ./libs/account-contracts/
 COPY libs/auth-contracts/package.json ./libs/auth-contracts/
 COPY libs/internal-auth-contracts/package.json ./libs/internal-auth-contracts/
+COPY libs/staff-access-contracts/package.json ./libs/staff-access-contracts/
 COPY libs/account-domain/package.json ./libs/account-domain/
 COPY libs/transactional-mail-contracts/package.json ./libs/transactional-mail-contracts/
 
@@ -30,6 +31,7 @@ COPY apps/account/ ./apps/account/
 COPY libs/account-contracts/ ./libs/account-contracts/
 COPY libs/auth-contracts/ ./libs/auth-contracts/
 COPY libs/internal-auth-contracts/ ./libs/internal-auth-contracts/
+COPY libs/staff-access-contracts/ ./libs/staff-access-contracts/
 COPY libs/account-domain/ ./libs/account-domain/
 COPY libs/transactional-mail-contracts/ ./libs/transactional-mail-contracts/
 COPY tsconfig.base.json ./

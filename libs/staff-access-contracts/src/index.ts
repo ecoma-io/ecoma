@@ -171,3 +171,14 @@ export {
   type PermissionListValidation,
   type PermissionStatus,
 } from './management-permission-contract';
+export {
+  AUTHORIZATION_VERDICT_PATH,
+  permissionVerdictResponse,
+  validatePermissionVerdictRequest,
+  validatePermissionVerdictResponse,
+  VERDICT_CORRELATION_ID_MAX_LENGTH,
+  type PermissionVerdict,
+  type PermissionVerdictRequest,
+  type PermissionVerdictRequestValidation,
+  type PermissionVerdictResponse,
+} from './authorization-verdict-contract';

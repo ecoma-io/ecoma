@@ -129,6 +129,10 @@ export default defineNuxtConfig({
       '../../libs/transactional-mail-contracts/src/index.ts',
       import.meta.url,
     ).pathname,
+    '@ecoma-io/staff-access-contracts': new URL(
+      '../../libs/staff-access-contracts/src/index.ts',
+      import.meta.url,
+    ).pathname,
   },
 
   runtimeConfig: {

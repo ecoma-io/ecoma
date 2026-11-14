@@ -51,6 +51,8 @@ import {
   validateStaffListRequest,
   validateStaffRoleAssignment,
   validateRevokeAssignmentRequest,
+  permissionVerdictResponse,
+  validatePermissionVerdictRequest,
   type AuditEntry,
   type AuditQueryRequest,
   type StaffMember,
@@ -86,10 +88,6 @@ import {
 import { staffAccessDomainError } from '@ecoma-io/staff-access-domain';
 import type { AppEnv } from './types';
 import { decodeKeysetCursor, encodeKeysetCursor } from './cursor';
-import {
-  permissionVerdictResponse,
-  validatePermissionVerdictRequest,
-} from './authorization-verdict';
 
 const HIGH_ENTITLEMENT_FRESHNESS_MS = 5_000;
 const NORMAL_ENTITLEMENT_FRESHNESS_MS = 60_000;
