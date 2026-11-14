@@ -1,18 +1,23 @@
 /**
  * Unit test cho hợp đồng `POST /authorization/verdict` (ADR-0033 Quyết định 3).
  *
- * Phạm vi: **hình dạng** request/response. Hành vi authorization (tập permission
- * hiệu lực, hàng audit `denied`) là việc của tầng database + route và được kiểm
- * ở `tests/integrations/authorization-verdict.spec.ts` với PostgreSQL thật.
+ * Phạm vi: **hình dạng** request/response — request validator, response builder
+ * và response validator mà cả provider (`apps/staff-access`) lẫn consumer
+ * (`apps/account`) đều dùng. Hành vi authorization (tập permission hiệu lực,
+ * hàng audit `denied`) là việc của tầng database + route và được kiểm ở
+ * `tests/integrations/authorization-verdict.spec.ts` của `apps/staff-access`
+ * với PostgreSQL thật.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
+  AUTHORIZATION_VERDICT_PATH,
   permissionVerdictResponse,
   validatePermissionVerdictRequest,
+  validatePermissionVerdictResponse,
   VERDICT_CORRELATION_ID_MAX_LENGTH,
-} from './authorization-verdict';
+} from './authorization-verdict-contract';
 
 const CORRELATION_ID = '7d0f0e0a-4b0c-4b6e-9a3e-1e6c1f2b3c4d';
 
@@ -107,5 +112,56 @@ describe('permissionVerdictResponse', () => {
       verdict: 'denied',
       actor_staff_id: 'staff-id',
     });
+  });
+});
+
+describe('AUTHORIZATION_VERDICT_PATH', () => {
+  it('pins the single canonical verdict path', () => {
+    expect(AUTHORIZATION_VERDICT_PATH).toBe('/authorization/verdict');
+  });
+});
+
+describe('validatePermissionVerdictResponse', () => {
+  it('accepts the canonical 200 response for both verdicts', () => {
+    expect(validatePermissionVerdictResponse({ verdict: 'allowed', actor_staff_id: 's1' })).toEqual(
+      { verdict: 'allowed', actor_staff_id: 's1' },
+    );
+    expect(validatePermissionVerdictResponse({ verdict: 'denied', actor_staff_id: 's1' })).toEqual({
+      verdict: 'denied',
+      actor_staff_id: 's1',
+    });
+  });
+
+  it('rejects a payload that is not a JSON object', () => {
+    for (const payload of [null, [], 'allowed', 42]) {
+      expect(validatePermissionVerdictResponse(payload)).toBeNull();
+    }
+  });
+
+  it('rejects keys outside the two-field contract instead of ignoring them', () => {
+    expect(
+      validatePermissionVerdictResponse({
+        verdict: 'allowed',
+        actor_staff_id: 's1',
+        extra: true,
+      }),
+    ).toBeNull();
+    expect(validatePermissionVerdictResponse({ verdict: 'allowed' })).toBeNull();
+    expect(validatePermissionVerdictResponse({ actor_staff_id: 's1' })).toBeNull();
+  });
+
+  it('rejects a verdict outside the closed list', () => {
+    expect(
+      validatePermissionVerdictResponse({ verdict: 'maybe', actor_staff_id: 's1' }),
+    ).toBeNull();
+  });
+
+  it('rejects an empty or non-string actor_staff_id', () => {
+    expect(
+      validatePermissionVerdictResponse({ verdict: 'allowed', actor_staff_id: '' }),
+    ).toBeNull();
+    expect(
+      validatePermissionVerdictResponse({ verdict: 'allowed', actor_staff_id: 42 }),
+    ).toBeNull();
   });
 });

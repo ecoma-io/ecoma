@@ -11,12 +11,10 @@
  * - ADR-0023 Quyết định 6: hàng audit `denied`/`success` commit **trước** khi
  *   trả lời, `action`/`target` NOT NULL, truy được bằng `correlation_id`.
  *
- * ⚠️ Vì sao hình dạng sống ở `apps/staff-access/src/` chứ không ở
- * `@ecoma-io/staff-access-contracts`: consumer hiện tại (`apps/account`) chưa
- * khai lib contracts của provider trong `package.json`, và thêm nó đòi sửa
- * `pnpm-lock.yaml` — ngoài scope lock của #227. Đây là gap đã biết, không phải
- * đích đến: khi `account` được phép phụ thuộc lib đó, module này chuyển vào
- * `libs/staff-access-contracts` và bản mirror phía `account` bị xoá.
+ * Đã chuyển từ `apps/staff-access/src/authorization-verdict.ts` về lib contracts
+ * của scope (issue #262): provider (`apps/staff-access`) và consumer
+ * (`apps/account`) cùng import đúng một nguồn — bản mirror phía consumer đã bị
+ * xoá, không còn đường drift giữa hai bản sao.
  *
  * ⚠️ Verdict **không** phải một trường của permission entry: catalog vẫn là
  * định danh thuần (`FORBIDDEN_PERMISSION_FIELDS` của
@@ -24,7 +22,7 @@
  * ADR-0009 tách "kết quả authorization" khỏi "danh mục permission".
  */
 
-import { isPermissionIdFormat } from '@ecoma-io/staff-access-contracts';
+import { isPermissionIdFormat } from './management-permission-contract';
 
 /** Path của endpoint — caller dựng URL và ký trên chính path này. */
 export const AUTHORIZATION_VERDICT_PATH = '/authorization/verdict';
@@ -116,4 +114,34 @@ export function permissionVerdictResponse(
   actorStaffId: string,
 ): PermissionVerdictResponse {
   return { verdict, actor_staff_id: actorStaffId };
+}
+
+/**
+ * Validate response 200 theo hình dạng canonical — đúng hai khoá, không thừa,
+ * verdict thuộc danh sách đóng, `actor_staff_id` chuỗi khác rỗng. `null` nghĩa
+ * là response không đúng hợp đồng.
+ *
+ * Sự chặt chẽ (đúng hai khoá, không thừa) là chủ đích fail-closed theo
+ * ADR-0033: `staff-access` thêm trường mới thì consumer trả `invalid_response`
+ * (503) thay vì bỏ qua — lộ trình hội hợp là xoá mirror (đã làm ở #262),
+ * không nới validator.
+ */
+export function validatePermissionVerdictResponse(
+  value: unknown,
+): PermissionVerdictResponse | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== 2 || !keys.includes('verdict') || !keys.includes('actor_staff_id')) {
+    return null;
+  }
+  if (record.verdict !== 'allowed' && record.verdict !== 'denied') {
+    return null;
+  }
+  if (typeof record.actor_staff_id !== 'string' || record.actor_staff_id.length === 0) {
+    return null;
+  }
+  return { verdict: record.verdict, actor_staff_id: record.actor_staff_id };
 }

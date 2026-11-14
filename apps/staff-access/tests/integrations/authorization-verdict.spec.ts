@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { signRequest } from '@ecoma-io/internal-auth-contracts';
 
 import { buildApp, resetCachedConfig } from '../../src/main';
-import { AUTHORIZATION_VERDICT_PATH } from '../../src/authorization-verdict';
+import { AUTHORIZATION_VERDICT_PATH } from '@ecoma-io/staff-access-contracts';
 import { type StaffAccessDatabase, startStaffAccessDatabase } from './harness.ts';
 
 const SECRET = 'verdict-endpoint-internal-secret';

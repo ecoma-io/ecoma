@@ -1080,6 +1080,26 @@ describe('allowlists sync with .oxlintrc.json', () => {
     }
   });
 
+  it('allows account to consume staff-access contracts and keeps the reverse direction blocked', () => {
+    // Consumer thật: `apps/account` gọi `POST /authorization/verdict` của
+    // `staff-access` qua Service Binding (ADR-0033 Quyết định 3); hợp đồng thuộc
+    // `libs/staff-access-contracts` của scope provider (issue #262). Cạnh
+    // account → staff-access contracts là consumer đúng vai trò; chiều ngược lại
+    // (staff-access → account contracts) không có entry nào cho phép.
+    const account = node(
+      'account-app',
+      ['scope:account', 'type:composition', 'runtime:edge'],
+      ['staff-access-contracts'],
+    );
+    const state: ArchWorkspaceState = {
+      projects: new Map([
+        [account.name, account],
+        ['staff-access-contracts', contractsNode('staff-access-contracts', 'staff-access')],
+      ]),
+    };
+    expect(validateContractEdgeOwnership(state.projects)).toEqual([]);
+  });
+
   it('keeps messaging out of the default cross-scope contracts policy', async () => {
     // messaging có chính sách riêng: contract chỉ từ self + platform (mục tiêu
     // issue #203). Engine thật phải chặn messaging → contracts của BC khác, kể cả

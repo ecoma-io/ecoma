@@ -10,19 +10,15 @@
  * operator đi trong chuỗi ký (`actorSub`), nên `staff-access` phân giải staff
  * identity từ credential chứ không từ body — đúng ADR-0030 Quyết định 3.
  *
- * ## Vì sao hình dạng wire được validate lại ở đây
+ * ## Hình dạng wire thuộc lib contracts
  *
  * Hình dạng canonical của endpoint sống ở
- * `apps/staff-access/src/authorization-verdict.ts` (provider). `apps/account`
- * chưa khai `@ecoma-io/staff-access-contracts` trong `package.json`, và thêm
- * nó đòi sửa `pnpm-lock.yaml` — ngoài scope lock của #227. Vì vậy đây là bản
- * mirror **chặt**: đúng hai khoá, verdict thuộc danh sách đóng, `actor_staff_id`
- * chuỗi khác rỗng. Khi `account` được phép phụ thuộc lib contracts của provider,
- * bản mirror này bị xoá và `validatePermissionVerdictResponse` được import.
- *
- * Sự chặt chẽ (đúng hai khoá, không thừa) là chủ đích fail-closed theo
- * ADR-0033: `staff-access` thêm trường mới thì phía này trả `invalid_response`
- * (503) thay vì bỏ qua — lộ trình hội hợp là xoá mirror, không nới validator.
+ * `@ecoma-io/staff-access-contracts` (`authorization-verdict-contract`) — một
+ * nguồn duy nhất dùng chung với provider (issue #262): validator response
+ * (`validatePermissionVerdictResponse`) và path được import từ đó thay vì mirror
+ * tại đây. Sự chặt chẽ của validator (đúng hai khoá, không thừa) là chủ đích
+ * fail-closed theo ADR-0033: `staff-access` thêm trường mới thì phía này trả
+ * `invalid_response` (503) thay vì bỏ qua.
  *
  * ## Fail-closed: chỉ 200 mới là verdict
  *
@@ -34,12 +30,14 @@
  */
 
 import { createNonce, signRequest } from '@ecoma-io/internal-auth-contracts';
+import {
+  AUTHORIZATION_VERDICT_PATH,
+  validatePermissionVerdictResponse,
+  type PermissionVerdict,
+} from '@ecoma-io/staff-access-contracts';
 
 /** Tên binding Service Binding tới `staff-access` — code chỉ chứa tên (invariant 4). */
 export const STAFF_ACCESS_SERVICE_BINDING_NAME = 'STAFF_ACCESS_SERVICE';
-
-/** Path của endpoint verdict — ký trên chính path này. */
-export const STAFF_ACCESS_VERDICT_PATH = '/authorization/verdict';
 
 /** Timeout một lần gọi — cùng giá trị với `auth-client` và client của backoffice. */
 export const STAFF_ACCESS_TIMEOUT_MS = 3_000;
@@ -70,7 +68,7 @@ export type PermissionVerdictResult =
     }
   | {
       readonly ok: true;
-      readonly verdict: 'denied';
+      readonly verdict: Extract<PermissionVerdict, 'denied'>;
       readonly actorStaffId: string;
     }
   | { readonly ok: false; readonly reason: StaffAccessCallFailureReason };
@@ -90,34 +88,6 @@ export function staffAccessServiceBinding(
     return null;
   }
   return binding as StaffAccessServiceBinding;
-}
-
-/** Response 200 của endpoint verdict, sau khi validate. */
-interface ValidatedVerdictResponse {
-  readonly verdict: 'allowed' | 'denied';
-  readonly actor_staff_id: string;
-}
-
-/**
- * Validate response 200 theo hình dạng canonical — đúng hai khoá, không thừa,
- * verdict thuộc danh sách đóng, `actor_staff_id` chuỗi khác rỗng.
- */
-function validateVerdictResponse(value: unknown): ValidatedVerdictResponse | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record);
-  if (keys.length !== 2 || !keys.includes('verdict') || !keys.includes('actor_staff_id')) {
-    return null;
-  }
-  if (record.verdict !== 'allowed' && record.verdict !== 'denied') {
-    return null;
-  }
-  if (typeof record.actor_staff_id !== 'string' || record.actor_staff_id.length === 0) {
-    return null;
-  }
-  return { verdict: record.verdict, actor_staff_id: record.actor_staff_id };
 }
 
 /**
@@ -145,7 +115,7 @@ export async function requestPermissionVerdict(params: {
   );
   const headers = await signRequest({
     method: 'POST',
-    path: STAFF_ACCESS_VERDICT_PATH,
+    path: AUTHORIZATION_VERDICT_PATH,
     body,
     secret: params.signingKey,
     timestamp: String(Math.floor((params.nowMs ?? Date.now()) / 1000)),
@@ -161,7 +131,7 @@ export async function requestPermissionVerdict(params: {
   let response: Response;
   try {
     response = await params.binding.fetch(
-      new Request(`https://staff-access.internal${STAFF_ACCESS_VERDICT_PATH}`, {
+      new Request(`https://staff-access.internal${AUTHORIZATION_VERDICT_PATH}`, {
         method: 'POST',
         headers: requestHeaders,
         body,
@@ -186,7 +156,7 @@ export async function requestPermissionVerdict(params: {
   } catch {
     return { ok: false, reason: 'invalid_response' };
   }
-  const validated = validateVerdictResponse(parsed);
+  const validated = validatePermissionVerdictResponse(parsed);
   if (validated === null) {
     return { ok: false, reason: 'invalid_response' };
   }

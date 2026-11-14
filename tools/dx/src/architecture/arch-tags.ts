@@ -480,10 +480,15 @@ export const DEPLOYMENT_DIR = 'deploys';
  * OTP qua `apps/account/server/lib/mail.ts`, ghim dependency direction ở issue
  * #203) — consumer contracts của messaging là đúng vai trò, khác chiều ngược lại
  * (messaging chỉ được contract của self + platform).
+ *
+ * `staff-access` nằm trong tập được phép của `account`: account là consumer của
+ * contract nội bộ `POST /authorization/verdict` (ADR-0033 Quyết định 3, ghim ở
+ * issue #262) — contract đó thuộc `libs/staff-access-contracts` của scope
+ * `staff-access`, account import đúng hợp đồng của provider thay vì mirror tay.
  */
 export const CONTRACT_EDGE_OWNERSHIP: Readonly<Record<string, readonly string[]>> = {
   messaging: ['messaging', 'platform'],
-  account: ['account', 'auth', 'platform', 'messaging'],
+  account: ['account', 'auth', 'platform', 'messaging', 'staff-access'],
   auth: ['auth', 'account', 'platform'],
 };
 

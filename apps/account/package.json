@@ -7,6 +7,7 @@
     "@ecoma-io/account-domain": "workspace:*",
     "@ecoma-io/auth-contracts": "workspace:*",
     "@ecoma-io/internal-auth-contracts": "workspace:*",
+    "@ecoma-io/staff-access-contracts": "workspace:*",
     "@ecoma-io/transactional-mail-contracts": "workspace:*",
     "@simplewebauthn/server": "14.1.0",
     "pg": "^8.23.1"
