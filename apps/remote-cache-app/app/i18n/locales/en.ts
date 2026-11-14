@@ -63,6 +63,8 @@ export default {
   nav: {
     admin: 'Administration',
     overview: 'Overview',
+    projects: 'Projects',
+    onboarding: 'Nx onboarding',
   },
 
   overview: {
@@ -73,5 +75,85 @@ export default {
     scaffoldTitle: 'Shell ready',
     scaffoldBody:
       'The admin shell and localization are ready. Dashboard, cache management, tenants, API keys and other business features are not implemented yet.',
+  },
+
+  // --- Portal (issue #180) ---
+  //
+  // Nhóm key cho các trang quản lý project/API key. Danh từ kỹ thuật giữ tiếng
+  // Anh (project, API key, revoke) đúng quy tắc proper-noun/domain-term của
+  // AGENTS.md.
+
+  projects: {
+    title: 'Projects',
+    description: 'Cache projects of your tenant.',
+    createProject: 'Create project',
+    nameHeader: 'Name',
+    createdAtHeader: 'Created',
+    keysHeader: 'Keys',
+    emptyTitle: 'No projects yet',
+    emptyBody: 'Create your first project to get a cache endpoint and an API key.',
+    loadMore: 'Load more',
+    notFound: 'This project does not exist or you do not have access to it.',
+  },
+
+  projectCreate: {
+    title: 'Create project',
+    description: 'Creates a new cache project and its first API key.',
+    nameLabel: 'Project name',
+    nameHint: 'Lowercase letters, digits and hyphens.',
+    submit: 'Create project',
+    submitting: 'Creating…',
+  },
+
+  showOnce: {
+    title: 'Your API key is ready',
+    body: 'Copy this token now. For security it is shown only this once — after you close this dialog it can never be retrieved again.',
+    tokenLabel: 'API key token',
+    copy: 'Copy',
+    copied: 'Copied',
+    confirm: 'I saved it, close',
+  },
+
+  projectDetail: {
+    backToProjects: 'Back to projects',
+    keysTitle: 'API keys',
+    keysDescription: 'Metadata only — key tokens are never shown here again after creation.',
+    createKey: 'Create API key',
+    creatingKey: 'Creating…',
+    scopesHeader: 'Scopes',
+    classHeader: 'Class',
+    statusHeader: 'Status',
+    createdAtHeader: 'Created',
+    revokedAtHeader: 'Revoked',
+    actionsHeader: 'Actions',
+    activeStatus: 'Active',
+    revokedStatus: 'Revoked',
+    revoke: 'Revoke',
+    revokeConfirmTitle: 'Revoke this API key?',
+    revokeConfirmBody:
+      'Requests signed with this key start failing immediately. This cannot be undone.',
+    revokeConfirmSubmit: 'Revoke key',
+    revoking: 'Revoking…',
+    cancel: 'Cancel',
+    emptyTitle: 'No API keys',
+    emptyBody: 'This project has no API keys yet. Create one to get a token.',
+    developerClass: 'Developer',
+    developerClassHint: 'Read-only key minted from this portal.',
+    trustedCiClass: 'Trusted CI',
+    trustedCiClassHint: 'Key minted by the CI machine flow; can carry write scope.',
+  },
+
+  onboarding: {
+    title: 'Nx onboarding',
+    description: 'Connect your Nx workspace to Remote Cache in two steps.',
+    endpointLabel: 'Cache endpoint',
+    credentialLabel: 'API key',
+    credentialHint: 'Shown once at creation. Revoke and mint a new key if you lost it.',
+    installLabel: '1. Install the Nx Remote Cache plugin',
+    installCommand: "pnpm add -D {'@'}ecoma-io/nx-remote-cache",
+    configureLabel: '2. Configure the cache target',
+    firstUseTitle: 'First use',
+    firstUseBody:
+      'Run any Nx task twice. The second run hits Remote Cache: look for "Remote Cache Hit" in the task output.',
   },
 } as const;

@@ -84,6 +84,10 @@ const navigations: string[] = [];
 const route = reactive({
   path: '/',
   query: {} as Record<string, string | undefined>,
+  // `params` cho trang có tham số route (`pages/projects/[name].vue` đọc
+  // `route.params.name`) — rỗng trên trang tĩnh, test ghi giá trị vào đây khi
+  // mount trang động.
+  params: {} as Record<string, string | undefined>,
 });
 
 const container = globalThis as Record<string, unknown>;

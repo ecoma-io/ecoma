@@ -12,65 +12,84 @@ afterEach(() => {
 });
 
 /**
- * Hợp đồng render của trang overview — trang duy nhất của scaffold.
+ * Hợp đồng render của trang Projects — trang gốc của portal (R19).
  *
- * Ba bất biến:
+ * Bốn bất biến:
  *
  * 1. **Đúng một `<h1>`**, và nó là tiêu đề đã dịch. Shell không render heading
  *    nào, nên hai `h1` là một lỗi a11y thật (đường điều hướng bằng phím H bị
  *    phá), không phải chi tiết trình bày.
- * 2. **Thông báo scaffold hiện đúng theo locale** — kiểm cả `en` và `vi` trên
- *    catalog thật, không phải chuỗi giả, để một bản dịch bị rơi về tiếng Anh là
- *    đỏ ngay.
- * 3. **Không có bảng, không có metric** — trang chưa có dữ liệu nào, nên một
- *    `<table>` hay một con số ở đây chỉ có thể là dữ liệu bịa. Test này là chốt
- *    chặn cho quyết định sản phẩm đó.
- *
- * Locale được đặt trực tiếp trên composer của harness (`i18n.global.locale`) —
- * đúng composer mà `plugins: [i18n]` gắn vào cây mount. `useRemoteCacheAppI18n()`
- * không chạy ở đây vì nó thuộc `app.vue`; trang chỉ đọc `useI18n()`.
+ * 2. **Trạng thái rỗng theo locale** — kiểm cả `en` và `vi` trên catalog thật;
+ *    một bản dịch rơi về tiếng Anh là đỏ ngay.
+ * 3. **Không gọi BFF khi tenant vắng** — tenant name lấy từ runtime config;
+ *    giá trị vắng là trạng thái unavailable, không phải một lần fetch rỗng.
+ * 4. **Bảng project render từ response BFF thật** — stub fetch với body theo
+ *    đúng wire contract của list projects (`{projects, next_cursor}`), trang
+ *    render từng tên như một link tới trang chi tiết.
  */
-describe('overview page', () => {
+describe('projects page', () => {
   it('renders exactly one localized h1', async () => {
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, {
+      runtimeConfig: { remoteCacheTenantName: 'ecoma' },
+    });
 
     const headings = wrapper.findAll('h1');
     expect(headings).toHaveLength(1);
-    expect(headings[0]?.text()).toBe('Overview');
+    expect(headings[0]?.text()).toBe('Projects');
     wrapper.unmount();
   });
 
-  it('renders the scaffold notice in English', async () => {
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
-
-    const notice = wrapper.find('[data-testid="remote-cache-app-scaffold-notice"]');
-    expect(notice.exists()).toBe(true);
-    expect(notice.text()).toContain('Shell ready');
-    // Nói rõ phần **chưa** có — không được hứa hẹn tính năng đã tồn tại.
-    expect(notice.text()).toContain('not implemented yet');
-    wrapper.unmount();
-  });
-
-  it('renders the scaffold notice in Vietnamese when the composer is set to vi', async () => {
+  it('renders the empty state in Vietnamese when the composer is set to vi', async () => {
     i18n.global.locale.value = 'vi';
 
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, {
+      runtimeConfig: { remoteCacheTenantName: 'ecoma' },
+      fetchEndpoints: [
+        {
+          path: '/api/portal/tenants/ecoma/projects',
+          body: { projects: [], next_cursor: null },
+        },
+      ],
+    });
 
-    expect(wrapper.findAll('h1')[0]?.text()).toBe('Tổng quan');
-    const notice = wrapper.find('[data-testid="remote-cache-app-scaffold-notice"]');
-    expect(notice.text()).toContain('Khung ứng dụng đã sẵn sàng');
-    // Không còn câu tiếng Anh nào rơi vào giao diện tiếng Việt.
-    expect(notice.text()).not.toContain('not implemented yet');
+    expect(wrapper.findAll('h1')[0]?.text()).toBe('Dự án');
+    expect(wrapper.text()).toContain('Chưa có dự án nào');
     wrapper.unmount();
   });
 
-  it('renders no table and no numeric metric', async () => {
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
+  it('does not call the BFF when the tenant name is absent', async () => {
+    const fetchSpy = vi.fn<() => Promise<Response>>();
+    vi.stubGlobal('fetch', fetchSpy);
 
-    expect(wrapper.find('table').exists()).toBe(false);
-    // Một metric bịa sẽ là một con số trên trang; trang scaffold không có con
-    // số nào để hiển thị.
-    expect(wrapper.text()).not.toMatch(/\d/u);
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, { runtimeConfig: {} });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // Fail-closed: trạng thái unavailable, không phải trạng thái rỗng nghiệp vụ.
+    expect(wrapper.find('[data-testid="remote-cache-app-unavailable"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('renders project rows from a contract-shaped BFF response', async () => {
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, {
+      runtimeConfig: { remoteCacheTenantName: 'ecoma' },
+      fetchEndpoints: [
+        {
+          path: '/api/portal/tenants/ecoma/projects',
+          body: {
+            projects: [
+              { id: '11111111-1111-4111-8111-111111111111', name: 'orders-cache', created_at: '2026-11-15T00:00:00Z' },
+            ],
+            next_cursor: null,
+          },
+        },
+      ],
+    });
+
+    const table = wrapper.find('[data-testid="remote-cache-app-projects-table"]');
+    expect(table.exists()).toBe(true);
+    expect(table.text()).toContain('orders-cache');
+    // Link tới trang chi tiết — điều hướng portal là việc của router client.
+    expect(table.find('a[href="/projects/orders-cache"]').exists()).toBe(true);
     wrapper.unmount();
   });
 });
