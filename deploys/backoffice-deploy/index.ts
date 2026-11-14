@@ -253,12 +253,12 @@ const backoffice = new docker.Container(
       // Chuỗi issuer vẫn là danh tính `iss`/authorize — chỉ fetch origin đổi.
       // Production Workers KHÔNG đặt biến này (fetch qua issuer như cũ).
       pulumi.interpolate`NUXT_BACKOFFICE_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:${AUTH_INTERNAL_PORT_OF_AUTH_WIC}`,
-      // Data mode `prototype` — bảng adapter của app chỉ có hai factory:
-      // `prototype` (fixture client-side) và unavailable; chưa có mode UI nào
-      // đọc DB thật, còn `/api/**` phục vụ dữ liệu DB thật độc lập với mode
-      // này. `disabled` là app vào trạng thái "không khả dụng" vô ích trên
-      // local. Staging ghim cùng giá trị cùng lý do (`wrangler.jsonc`).
-      `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`,
+      // Data mode `realtime` (#182): các staff pages đọc dữ liệu thật qua
+      // `/api/**` (Staff Access là nguồn authorization sau mốc cutover dưới
+      // đây, #241), nên lane local chạy đường adapter thật như staging
+      // (`wrangler.jsonc`) thay vì fixture. Prototype vẫn tồn tại cho preview
+      // UI (lane browser suite ghim riêng) nhưng không còn là mode của lane.
+      `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=realtime`,
       // Mốc cutover authorization (issue #241): từ mốc này projection của
       // Staff Access là nguồn quyết định permission của BFF thay cho legacy
       // `db-backoffice` rỗng (ADR-0023 Quyết định 2 — verdict do Staff Access
