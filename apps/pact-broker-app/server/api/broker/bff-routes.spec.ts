@@ -173,7 +173,8 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
   it('forwards the session access token, never a machine token of the deploy unit', async () => {
     // ADR-0031 §4: BFF forward access token CỦA CHỦ PHIÊN. Machine token của
     // BFF đã bị retire (§5) — không có header nào mang credential của deploy
-    // unit, và browser không bao giờ thấy token nào.
+    // unit, và browser không bao giờ thấy token nào. Ghim trên MỌI route
+    // (review #254) — forward là luật chung của `/api/broker/**`.
     const seenAuth: string[] = [];
     vi.stubGlobal(
       'fetch',
@@ -183,11 +184,13 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
       }),
     );
 
-    await call('/api/broker/pacts', pactsRoute);
-
-    expect(seenAuth.length).toBeGreaterThan(0);
-    for (const header of seenAuth) {
-      expect(header).toBe(`Bearer ${USER_TOKEN}`);
+    for (const [path, handler] of ALL_ROUTES) {
+      seenAuth.length = 0;
+      await call(path, handler, { methodFor: path });
+      expect(seenAuth.length).toBeGreaterThan(0);
+      for (const header of seenAuth) {
+        expect(header, `route ${path}`).toBe(`Bearer ${USER_TOKEN}`);
+      }
     }
   });
 });

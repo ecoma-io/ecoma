@@ -199,14 +199,21 @@ function parseUserAuthConfig(env: PactBrokerEnv): {
     if (audience === '') {
       throw new Error('audience must not be blank');
     }
+    // Issuer/audience hợp lệ; internal origin parse trong try nhưng giữ đúng
+    // message của nó: catch dưới đây rethrow PactBrokerConfigurationError
+    // nguyên văn thay vì bọc lại thành message sai biến (review #254).
     return {
       authIssuer: issuer,
       authAudience: audience,
       authInternalOrigin: parseInternalOrigin(env.PACT_BROKER_AUTH_INTERNAL_ORIGIN),
     };
   } catch (error) {
-    // Chuỗi `cause` giữ chi tiết lỗi gốc (URL nào sai, check nào fail) cho việc
-    // triage; message công khai vẫn chung chung và KHÔNG BAO GIỜ nhắc giá trị.
+    // Lỗi config có message riêng (đúng biến env) đi thẳng; các lỗi khác được
+    // bọc — chuỗi `cause` giữ chi tiết gốc cho triage, message công khai vẫn
+    // chung chung và KHÔNG BAO GIỜ nhắc giá trị.
+    if (error instanceof PactBrokerConfigurationError) {
+      throw error;
+    }
     throw new PactBrokerConfigurationError(
       'PACT_BROKER_AUTH_ISSUER must be a valid URL origin and PACT_BROKER_AUTH_AUDIENCE a non-empty audience',
       { cause: error },

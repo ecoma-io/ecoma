@@ -47,6 +47,7 @@ import {
 import { createPactBrokerAppPool } from '../../auth/session';
 import { pactBrokerAuthConfig } from '../../auth/config';
 import { poolBinding } from '../../db';
+import { writeLog } from '../../log';
 
 /** Scope xin từ `auth` — hằng số ghim ADR-0031 §2, không nhận từ query. */
 const LOGIN_SCOPE = 'openid offline_access';
@@ -70,11 +71,25 @@ function callbackRedirectUri(event: H3Event): string {
 export default defineEventHandler(async (event: H3Event) => {
   const config = pactBrokerAuthConfig(event);
   if (config === null) {
+    // Log cùng hình với `callback.get.ts`/`logout.post.ts` — sự cố cấu hình
+    // login phải tra cứu được bằng log, không chỉ bằng 503 (review #254).
+    writeLog({
+      event: 'pact_broker_login.failed',
+      route: '/api/auth/login',
+      status: 503,
+      reason: 'config_missing',
+    });
     throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
   }
 
   const binding = poolBinding(event);
   if (binding === null) {
+    writeLog({
+      event: 'pact_broker_login.failed',
+      route: '/api/auth/login',
+      status: 503,
+      reason: 'db_binding_missing',
+    });
     throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
   }
 

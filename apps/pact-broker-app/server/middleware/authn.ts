@@ -128,7 +128,7 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
           throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
         }
         if (verification.outcome === 'verified') {
-          if (CSRF_METHODS.has(event.method) && pathname !== '/api/auth/logout') {
+          if (CSRF_METHODS.has(event.method)) {
             const csrfCookieValue = getCookie(event, CSRF_COOKIE_NAME);
             const csrfHeader = getHeader(event, CSRF_HEADER_NAME);
             if (csrfCookieValue === undefined || csrfHeader === undefined) {

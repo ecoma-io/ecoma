@@ -141,6 +141,11 @@ CREATE TABLE IF NOT EXISTS pact_broker_app.bff_login_flows (
 COMMENT ON TABLE pact_broker_app.bff_login_flows IS
   'The BFF login-in-progress flow: state + PKCE verifier, consumed by DELETE (single-use, 10-minute TTL). ADR-0031 2.';
 
+-- Prune hàng hết hạn không được quét bảng — cùng luật `expires_at` của
+-- `bff_sessions`.
+CREATE INDEX IF NOT EXISTS bff_login_flows_expires_at_idx
+  ON pact_broker_app.bff_login_flows (expires_at);
+
 -- Write-once-consume-once: runtime không cần UPDATE — DELETE là consume, và
 -- DELETE hàng hết hạn là dọn.
 GRANT SELECT, INSERT, DELETE ON TABLE pact_broker_app.bff_login_flows
