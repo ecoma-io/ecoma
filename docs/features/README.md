@@ -48,8 +48,8 @@ docs/features/
   _template.md               # cấu trúc bắt buộc của một Feature document
   public-website/            # homepage public đa ngôn ngữ
   identity/                  # đăng nhập và truy cập application qua OIDC
-  account/                   # self-service của chủ tài khoản
-  internal-access/           # truy cập tài nguyên nội bộ được bảo vệ
+  account/                   # self-service của chủ tài khoản và kênh tạo Account qua lời mời
+  internal-access/           # truy cập tài nguyên nội bộ được bảo vệ và vòng đời administrator
   pact-broker/               # contract testing giữa consumer và provider
   remote-cache/              # build cache theo project cho Nx
   llm-marketplace/           # cung cấp và tiêu thụ model qua marketplace
@@ -71,6 +71,7 @@ Quy tắc đặt tên: tên file là một cụm động từ + đối tượng 
 ### Account
 
 - [Quản lý profile và email](./account/manage-profile-and-emails.md) — xem/cập nhật profile, thêm và xác minh email.
+- [Chấp nhận lời mời tạo Account](./account/invite-and-accept-account-invitations.md) — administrator phát lời mời, người nhận xác minh email bằng OTP và nhận Account mới đã xác minh với session dùng được.
 - [Quản lý tuỳ chọn cá nhân](./account/manage-personal-preferences.md) — locale, timezone, giao diện và tuỳ chọn thông báo.
 - [Quản lý session đang hoạt động](./account/manage-active-sessions.md) — xem và thu hồi session của chính mình.
 - [Gửi yêu cầu về quyền riêng tư](./account/submit-privacy-requests.md) — tạo và theo dõi privacy request.
@@ -78,6 +79,7 @@ Quy tắc đặt tên: tên file là một cụm động từ + đối tượng 
 ### Internal access
 
 - [Truy cập tài nguyên nội bộ được bảo vệ](./internal-access/access-protected-staff-resources.md) — staff đăng nhập và truy cập tài nguyên theo permission.
+- [Bổ nhiệm và thu hồi administrator](./internal-access/manage-staff-access.md) — tạo identity staff cho Account hiện có, bổ nhiệm `system-administrator`, thu hồi assignment với bảo vệ administrator cuối cùng.
 
 ### Pact Broker
 

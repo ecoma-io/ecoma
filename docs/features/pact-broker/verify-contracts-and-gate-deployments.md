@@ -38,13 +38,12 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 
 ### Không bao gồm
 
-- **Không có dashboard hiển thị matrix hay verification.** `apps/pact-broker-app` chỉ có bốn trang đọc (`/`, `/pacts`, `/environments`, `/tokens`); không có trang verification, không có trang matrix, và không có điều khiển ghi nào.
-- **Dashboard không dùng được cho gate.** Route BFF `can-i-deploy.post.ts` và `pacticipants.get.ts` không được trang nào gọi, và màn hình Pacts gọi `/matrix` không kèm tham số nên nhận 400 từ API thật; việc chạy verification và `can-i-deploy` thuộc CLI/CI.
+- **Dashboard hiển thị matrix ở trang `/pacts`** — BFF hợp thành `/pacticipants` + `/matrix` và trang render được hàng matrix thật kèm trạng thái verification (#225). Tuy nhiên: không có trang verification riêng, không có trang matrix chuyên dụng, không có trang environments render từ route nào khác, và route BFF `can-i-deploy.post.ts`/`pacticipants.get.ts` **không được trang nào gọi** — không có điều khiển ghi nào. Việc chạy verification và `can-i-deploy` thuộc CLI/CI.
 - **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
 - **Xoá environment không ghi audit**, và thay đổi tag hay deployment cũng không ghi audit. Chỉ `environment.create` và `environment.update` được ghi.
-- **Chưa có RBAC theo vai trò người dùng.** Chỉ scope của token quyết định; `tenant_members.role` được ghi nhưng không được kiểm tra ở đường request — giới hạn hiện tại. Quyết định đã chấp nhận: đường user qua portal enforce theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `viewer` trở lên đọc được verification/matrix), hiện thực qua #206/#207.
-- **Đọc một verification result hiện đòi scope `write`, không phải `read`.** Quyết định đã chấp nhận: đổi thành scope `read` ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §6 — guard `write` hiện tại tại `apps/pact-broker-api/src/routes/verifications.ts:22-24` là lệch semantic; thay đổi strictly permissive vì `read` ⊂ `write`), hiện thực qua #206.
+- **RBAC theo vai trò người dùng đã hiện thực trên đường đọc.** Đường user qua portal enforce theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `viewer` trở lên đọc được verification/matrix), hiện thực qua #206; đường machine token (CI/CLI) giữ scope-based.
+- **Đọc một verification result đòi scope `read`.** Quyết định đã chấp nhận và đã hiện thực: đổi từ scope `write` sang `read` ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §6, hiện thực qua #206).
 - Không bao gồm publish pact và đọc contract — thuộc [Publish và truy xuất contract](./publish-and-retrieve-contracts.md). Không bao gồm credential — thuộc [Quản lý machine credential](./manage-pact-broker-machine-credentials.md).
 
 ## 4. Acceptance Scenarios
@@ -117,26 +116,28 @@ Thì  nhận 400
 | `apps/pact-broker-api`                                     | Deploy unit phục vụ toàn bộ HTTP API của broker                                                 | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
 | `libs/pact-broker-api-{domain,application,infrastructure}` | Rule phán quyết, chọn kết quả tốt nhất, repository matrix/deployment                            | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
 
-`apps/pact-broker-app` không tham gia: nó không có trang verification hay matrix và không gọi được route gate từ UI.
+`apps/pact-broker-app` tham gia ở vai trò **hiển thị**: trang `/pacts` render được hàng matrix thật (gồm trạng thái verification) qua BFF; các trang khác của portal không có trang verification hay matrix chuyên dụng và không gọi được route gate từ UI.
 
 ## 6. Verification Mapping
 
 Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers) và unit. Không có system E2E nào chạy Pact CLI.
 
-| Scenario                                                                                | Test file / suite                                           | Loại test   | Nx target          |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------- | ------------------ |
-| Ghi verification chỉ vào pact cùng tenant                                               | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration | `test-integration` |
-| Ba nhánh fail-closed của `can-i-deploy` (chưa verify, chưa có pact, không có version)   | cùng file trên                                              | integration | `test-integration` |
-| Ghi deployment vào environment, undeploy, và `/can-i-deploy` nhắm theo environment đích | cùng file trên                                              | integration | `test-integration` |
-| `/matrix` báo version đang deploy và lý do kèm target environment                       | cùng file trên                                              | integration | `test-integration` |
-| `/matrix` sau undeploy: lịch sử còn trong DB, matrix không còn deployment hiệu lực      | cùng file trên                                              | integration | `test-integration` |
-| Ưu tiên target environment → tag → branch; verification tốt nhất theo `verified_at`     | cùng file trên                                              | integration | `test-integration` |
-| 400 khi `/matrix` thiếu `pacticipant`                                                   | cùng file trên                                              | integration | `test-integration` |
-| CRUD environment end-to-end: create, list, read by name, update, delete                 | cùng file trên                                              | integration | `test-integration` |
-| 401 đồng nhất cho missing/unknown/revoked, kể cả `/matrix` và `/can-i-deploy`           | cùng file trên                                              | integration | `test-integration` |
-| Phán quyết ba trạng thái và lý do tương ứng                                             | `libs/pact-broker-api-application/src/can-i-deploy.spec.ts` | unit        | `test`             |
-| Tổng hợp matrix: `failed > 0 → false`, `unknown > 0 → null`, còn lại `true`             | `libs/pact-broker-api-domain/src/matrix-summary.spec.ts`    | unit        | `test`             |
-| Ràng buộc một deployment hiệu lực cho mỗi version + environment; composite-FK tenant    | `apps/pact-broker-api/tests/databases/migrations.spec.ts`   | database    | `test-integration` |
+| Scenario                                                                                | Test file / suite                                           | Loại test          | Nx target          |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------ | ------------------ |
+| Ghi verification chỉ vào pact cùng tenant                                               | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration        | `test-integration` |
+| Ba nhánh fail-closed của `can-i-deploy` (chưa verify, chưa có pact, không có version)   | cùng file trên                                              | integration        | `test-integration` |
+| Ghi deployment vào environment, undeploy, và `/can-i-deploy` nhắm theo environment đích | cùng file trên                                              | integration        | `test-integration` |
+| `/matrix` báo version đang deploy và lý do kèm target environment                       | cùng file trên                                              | integration        | `test-integration` |
+| `/matrix` sau undeploy: lịch sử còn trong DB, matrix không còn deployment hiệu lực      | cùng file trên                                              | integration        | `test-integration` |
+| Ưu tiên target environment → tag → branch; verification tốt nhất theo `verified_at`     | cùng file trên                                              | integration        | `test-integration` |
+| 400 khi `/matrix` thiếu `pacticipant`                                                   | cùng file trên                                              | integration        | `test-integration` |
+| CRUD environment end-to-end: create, list, read by name, update, delete                 | cùng file trên                                              | integration        | `test-integration` |
+| 401 đồng nhất cho missing/unknown/revoked, kể cả `/matrix` và `/can-i-deploy`           | cùng file trên                                              | integration        | `test-integration` |
+| Đường user: viewer trở lên đọc được verification/matrix theo permission matrix          | `apps/pact-broker-api/tests/integrations/user-auth.spec.ts` | integration        | `test-integration` |
+| Trang `/pacts` của portal render hàng matrix thật qua BFF                               | `apps/pact-broker-app/tests/browser/read-pages.spec.ts`     | browser regression | `test-integration` |
+| Phán quyết ba trạng thái và lý do tương ứng                                             | `libs/pact-broker-api-application/src/can-i-deploy.spec.ts` | unit               | `test`             |
+| Tổng hợp matrix: `failed > 0 → false`, `unknown > 0 → null`, còn lại `true`             | `libs/pact-broker-api-domain/src/matrix-summary.spec.ts`    | unit               | `test`             |
+| Ràng buộc một deployment hiệu lực cho mỗi version + environment; composite-FK tenant    | `apps/pact-broker-api/tests/databases/migrations.spec.ts`   | database           | `test-integration` |
 
 **Giới hạn của verification hiện tại:**
 

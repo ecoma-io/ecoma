@@ -15,7 +15,7 @@ Một hệ thống gửi mã qua email cũng tạo ra hai rủi ro: kẻ tấn c
 Người dùng nhập địa chỉ email, nhận một mã dùng một lần, nhập mã đó và trở thành người dùng đã xác thực. Không có mật khẩu ở bất kỳ bước nào.
 
 - Phản hồi cho yêu cầu gửi mã **giống hệt nhau** dù địa chỉ có tài khoản hay không, dù tài khoản đang bị treo, dù yêu cầu bị chặn vì gửi quá nhanh. Người dùng không phân biệt được địa chỉ nào tồn tại.
-- Mã chỉ được gửi khi địa chỉ đã được xác minh và thuộc một tài khoản đang hoạt động.
+- Mã chỉ được gửi khi địa chỉ đã được xác minh và thuộc một tài khoản đang hoạt động; **ngoại lệ duy nhất** là địa chỉ có lời mời còn mở — xem [Chấp nhận lời mời tạo Account](../account/invite-and-accept-account-invitations.md).
 - Mã có thời hạn ngắn, chỉ dùng được một lần, và bị vô hiệu sau số lần nhập sai giới hạn.
 - Mỗi lần xác thực thành công tạo một browser session mới và thu hồi session trước đó của cùng trình duyệt.
 - Người dùng đọc lại được thông tin session của mình và đăng xuất được qua API; UI chưa có điểm vào (xem [Quản lý session đang hoạt động](../account/manage-active-sessions.md)).
@@ -39,7 +39,7 @@ Người dùng nhập địa chỉ email, nhận một mã dùng một lần, nh
 - **Gửi email thật chưa được kiểm chứng.** Ở môi trường local và trong system test, `transactional-mailer-job` chạy với provider giả (`MAIL_PROVIDER_KIND=fake`) và test đọc mã từ D1 sink. Không test nào trong repository chứng minh thư tới hộp thư thật.
 - **Passkey, TOTP và recovery code chưa hiện thực.** Trang bảo mật render các mục này ở trạng thái "chưa khả dụng" theo `securityCapabilities` (hiện đều `false`) — không có điều khiển thao tác nào, và không có đường mock nào thay thế. Không mô tả chúng như capability đã có.
 - **Không có mật khẩu và không có luồng đặt lại mật khẩu.**
-- **Không có đăng ký tài khoản trong phạm vi này.** Tài khoản được tạo ngoài luồng đăng nhập; địa chỉ phải đã được xác minh trước khi nhận được mã. Ngoại lệ đã quyết, chưa hiện thực: địa chỉ có **lời mời** còn mở do administrator phát được gửi mã thật qua đúng luồng này, và việc xác minh mã sinh Account kèm email `verified` — kênh và điều kiện thuộc [ADR-0030](../../domains/account/adr/0030-account-creation-channel-invitation.md), hiện thực thuộc #227.
+- **Không có đăng ký tài khoản trong phạm vi này.** Tài khoản được tạo ngoài luồng đăng nhập; địa chỉ phải đã được xác minh trước khi nhận được mã. Ngoại lệ đã hiện thực: địa chỉ có **lời mời** còn mở do administrator phát được gửi mã thật qua đúng luồng này, và việc xác minh mã sinh Account kèm email `verified` — toàn bộ workflow thuộc [Chấp nhận lời mời tạo Account](../account/invite-and-accept-account-invitations.md) ([ADR-0030](../../domains/account/adr/0030-account-creation-channel-invitation.md)); Feature này chỉ sở hữu luồng OTP mà đường chấp nhận đi qua.
 - **Không có xác thực hai yếu tố ở bước đăng nhập.**
 - Địa chỉ email đang chờ đăng nhập chỉ nằm trong bộ nhớ của trang; tải lại trang giữa lúc yêu cầu mã và lúc nhập mã làm mất trạng thái đó, và người dùng phải yêu cầu mã mới.
 

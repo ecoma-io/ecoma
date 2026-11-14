@@ -32,6 +32,7 @@ Contract của consumer trở thành một artifact có địa chỉ ổn địn
 - Đọc lại contract theo version chính xác, theo content SHA, theo bản `latest` có hoặc không kèm tag, và theo danh sách lựa chọn dùng cho verification (có trần số lựa chọn mỗi lượt).
 - Đọc qua HAL index của broker, gồm compatibility version và link publish.
 - Yêu cầu credential có scope đủ để đọc hoặc ghi (xem [Quản lý machine credential](./manage-pact-broker-machine-credentials.md)).
+- Yêu cầu tiền đề truy cập của con người: developer đăng nhập portal bằng Ecoma Account, portal forward access token tới broker — broker xác thực JWT và resolve membership/role của tenant; đường publish từ portal vẫn đòi quyền ghi theo permission matrix ([ADR-0031](../../domains/pact-broker/adr/0031-developer-portal-authentication-and-identity-propagation.md), [ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1, hiện thực #206). CI dùng machine credential trực tiếp.
 
 Đường dẫn, mã trạng thái và các con số trần chính xác thuộc contract của broker — xem [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md).
 
@@ -109,27 +110,29 @@ Thì  nhận 401 với cùng một hình dạng phản hồi
 | `apps/pact-broker-api`                                     | Deploy unit phục vụ toàn bộ HTTP API của broker                                               | [`applications/pact-broker/01-architecture.md`](../../applications/pact-broker/01-architecture.md) |
 | `libs/pact-broker-api-{domain,application,infrastructure}` | Rule publish/idempotent, HAL, validation, repository trên `db-pact-broker`                    | [`architecture/05-code-architecture.md`](../../architecture/05-code-architecture.md)               |
 
-`apps/pact-broker-app` (dashboard) **không** tham gia: màn hình Pacts của nó gọi `/matrix` không kèm tham số và đọc sai hình dạng phản hồi, nên không hiển thị được danh sách pact. Không mô tả nó như bề mặt đọc hay bề mặt publish contract.
+`apps/pact-broker-app` tham gia ở vai trò **bề mặt đọc**: developer đã đăng nhập thấy danh sách pact qua trang `/pacts`, nhờ BFF hợp thành `/pacticipants` + `/matrix` theo đúng contract ([ADR-0031](../../domains/pact-broker/adr/0031-developer-portal-authentication-and-identity-propagation.md), hiện thực #254/#225). Nó **không** là bề mặt publish: không có trang upload nào; publish đi qua machine credential (CI/CLI).
 
 ## 6. Verification Mapping
 
-Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers. **Không có system E2E** nào chạy Pact CLI hay gọi broker từ ngoài.
+Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers; cộng thêm browser regression cho trang đọc của portal. **Không có system E2E** nào chạy Pact CLI hay gọi broker từ ngoài.
 
-| Scenario                                                                                                | Test file / suite                                           | Loại test   | Nx target          |
-| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------- | ------------------ |
-| `/health` không cần credential; CORS chỉ cho origin cấu hình; 401 đồng nhất cho missing/unknown/revoked | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration | `test-integration` |
-| HAL index có link publish contract (không assert giá trị compatibility `version`)                       | cùng file trên                                              | integration | `test-integration` |
-| Publish 201 rồi publish lại 200, `contentSha` ổn định kèm link verification; trần selector 50           | cùng file trên                                              | integration | `test-integration` |
-| Trần body 1 MiB đo trên stream trả 413, request nhỏ trả 201                                             | cùng file trên                                              | integration | `test-integration` |
-| Cách ly tenant trên mọi đường đọc                                                                       | cùng file trên                                              | integration | `test-integration` |
-| Batch publish kèm branch, tag và `notices`                                                              | cùng file trên                                              | integration | `test-integration` |
-| Batch all-or-nothing: một contract hỏng thì không contract nào được ghi                                 | cùng file trên                                              | integration | `test-integration` |
-| `latest` và `latest/:tag`, kèm 404 cho tag không tồn tại                                                | cùng file trên                                              | integration | `test-integration` |
-| Republish nội dung khác giữ verification result đã ghi                                                  | cùng file trên                                              | integration | `test-integration` |
-| Rule publish/idempotent ở tầng application                                                              | `libs/pact-broker-api-application/src/publish-pact.spec.ts` | unit        | `test`             |
-| Hình dạng HAL và link                                                                                   | `libs/pact-broker-api-domain/src/hal.spec.ts`               | unit        | `test`             |
-| Validation tên, version, branch, tag, SHA                                                               | `libs/pact-broker-api-domain/src/validation.spec.ts`        | unit        | `test`             |
-| Bảng, ràng buộc composite-FK tenant, role runtime chỉ DML, runner idempotent                            | `apps/pact-broker-api/tests/databases/migrations.spec.ts`   | database    | `test-integration` |
+| Scenario                                                                                                | Test file / suite                                           | Loại test          | Nx target          |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------ | ------------------ |
+| `/health` không cần credential; CORS chỉ cho origin cấu hình; 401 đồng nhất cho missing/unknown/revoked | `apps/pact-broker-api/tests/integrations/api.spec.ts`       | integration        | `test-integration` |
+| HAL index có link publish contract (không assert giá trị compatibility `version`)                       | cùng file trên                                              | integration        | `test-integration` |
+| Publish 201 rồi publish lại 200, `contentSha` ổn định kèm link verification; trần selector 50           | cùng file trên                                              | integration        | `test-integration` |
+| Trần body 1 MiB đo trên stream trả 413, request nhỏ trả 201                                             | cùng file trên                                              | integration        | `test-integration` |
+| Cách ly tenant trên mọi đường đọc                                                                       | cùng file trên                                              | integration        | `test-integration` |
+| Batch publish kèm branch, tag và `notices`                                                              | cùng file trên                                              | integration        | `test-integration` |
+| Batch all-or-nothing: một contract hỏng thì không contract nào được ghi                                 | cùng file trên                                              | integration        | `test-integration` |
+| `latest` và `latest/:tag`, kèm 404 cho tag không tồn tại                                                | cùng file trên                                              | integration        | `test-integration` |
+| Republish nội dung khác giữ verification result đã ghi                                                  | cùng file trên                                              | integration        | `test-integration` |
+| Đường user: viewer/member/admin đọc theo permission matrix; user token bị chặn khỏi đường ghi/admin     | `apps/pact-broker-api/tests/integrations/user-auth.spec.ts` | integration        | `test-integration` |
+| Trang `/pacts` của portal render đúng hàng matrix thật qua BFF                                          | `apps/pact-broker-app/tests/browser/read-pages.spec.ts`     | browser regression | `test-integration` |
+| Rule publish/idempotent ở tầng application                                                              | `libs/pact-broker-api-application/src/publish-pact.spec.ts` | unit               | `test`             |
+| Hình dạng HAL và link                                                                                   | `libs/pact-broker-api-domain/src/hal.spec.ts`               | unit               | `test`             |
+| Validation tên, version, branch, tag, SHA                                                               | `libs/pact-broker-api-domain/src/validation.spec.ts`        | unit               | `test`             |
+| Bảng, ràng buộc composite-FK tenant, role runtime chỉ DML, runner idempotent                            | `apps/pact-broker-api/tests/databases/migrations.spec.ts`   | database           | `test-integration` |
 
 **Giới hạn của verification hiện tại:**
 
