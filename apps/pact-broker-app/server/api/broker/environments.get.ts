@@ -8,6 +8,11 @@ import { requirePrincipal } from '../../principal';
  * `GET /api/broker/environments` — danh sách environment của tenant.
  */
 export default defineEventHandler(async (event) => {
+  // Principal TRƯỚC config guard (review #254, nhất quán cả 5 route): request
+  // chưa xác thực luôn nhận 401 bất kể broker có cấu hình hay không — không rò
+  // trạng thái cấu hình cho caller vô danh (contract của `requirePrincipal`).
+  const principal = requirePrincipal(event);
+
   // `useRuntimeConfig(event)` — không phải `event.context.runtimeConfig`: slot
   // đó không ai gắn trên runtime thật (chi tiết ở `pacts.get.ts`).
   const config = pactBrokerBffConfig(useRuntimeConfig(event));
@@ -16,10 +21,6 @@ export default defineEventHandler(async (event) => {
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
   }
 
-  // Principal do middleware authn gắn — mang access token của chủ phiên để
-  // forward tới API (ADR-0031 §4). Không có principal ⇒ 401 (middleware đã
-  // chặn trước; nhánh này là lưới an toàn cho route gọi ngoài middleware).
-  const principal = requirePrincipal(event);
   const result = await brokerCall(config, principal.accessToken, '/environments');
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };

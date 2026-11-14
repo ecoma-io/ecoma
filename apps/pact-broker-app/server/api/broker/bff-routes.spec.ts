@@ -18,24 +18,18 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, createRouter, defineEventHandler, toWebHandler, type WebHandler } from 'h3';
+import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 
-import { PRINCIPAL_CONTEXT_KEY } from '../../principal';
 import canIDeployRoute from './can-i-deploy.post';
 import environmentsRoute from './environments.get';
 import machineTokensRoute from './machine-tokens.get';
 import pacticipantsRoute from './pacticipants.get';
 import pactsRoute from './pacts.get';
+import { USER_TOKEN, principalForTests } from './test-principal';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
 };
-
-/**
- * Access token của chủ phiên — BFF forward nó xuống API (ADR-0031 §4).
- * Không phải machine token của deploy unit: token đó đã bị retire (§5).
- */
-const USER_TOKEN = 'user-access-token-value';
 
 /** [path, route handler] — danh sách là nguồn chạy bảng, không phải bản sao. */
 const GET_ROUTES: readonly (readonly [string, unknown])[] = [
@@ -66,12 +60,9 @@ function buildApp(route: { method: 'GET' | 'POST'; path: string; handler: unknow
   // Middleware authn gắn principal vào `event.context` — route đọc nó qua
   // `requirePrincipal`. Test dựng app h3 thủ công nên phải đóng vai middleware:
   // không có principal ⇒ 401, đúng như runtime thật (h3 chạy tiếp khi handler
-  // trả undefined).
-  app.use(
-    defineEventHandler((event) => {
-      event.context[PRINCIPAL_CONTEXT_KEY] = { actorSub: 'sub-user', accessToken: USER_TOKEN };
-    }),
-  );
+  // trả undefined). Helper dùng chung ở `test-principal.ts` — một nguồn cho cả
+  // hai spec file của thư mục này (review #254).
+  app.use(principalForTests());
   app.use(router.handler);
   return toWebHandler(app);
 }

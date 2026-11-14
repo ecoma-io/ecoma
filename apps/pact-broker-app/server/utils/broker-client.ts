@@ -49,6 +49,13 @@ export async function brokerCall(
 ): Promise<BrokerCallResult> {
   const url = `${config.baseUrl}${path}`;
   const headers = new Headers(init.headers);
+  // Lưới an toàn runtime (review #254): mọi caller lấy token từ
+  // `requirePrincipal` (type đã không rỗng), nhưng principal gắn sai ở một
+  // middleware nào đó là lỗi im lặng khó lần — rỗng thì fail-loud ngay, thay
+  // vì gửi `Bearer ` đi và đọc 401 mờ của API.
+  if (accessToken === '') {
+    throw new Error('brokerCall: access token of the session principal is empty');
+  }
   headers.set('authorization', `Bearer ${accessToken}`);
   if (init.body !== undefined && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');

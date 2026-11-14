@@ -74,6 +74,13 @@ function readAuthEnv(event: H3Event, envKey: string, configKey: string): string 
   // Nitro chặn `useRuntimeConfig` ngoài runtime thật; test dựng h3 app trực
   // tiếp thì gọi nó là ném — bọc try để đường "không có runtimeConfig" trả
   // `null` như mọi nhánh chưa cấu hình khác.
+  //
+  // ⚠️ Trade-off (review #254): nhánh catch này KHÔNG phân biệt loại ném —
+  // mọi lỗi của `useRuntimeConfig` đều về `null` (coi như "chưa cấu hình", và
+  // middleware authn 503 fail-closed). Sai cấu hình deployment không bao giờ
+  // trở thành "cho qua": kịch bản xấu nhất là 503, không phải allow. Phân biệt
+  // kiểu lỗi của Nitro tại đây đòi ghim internal error shape không thuộc hợp
+  // đồng công khai nào — không đáng cho lợi ích log thêm một dòng.
   try {
     const runtimeConfig = useRuntimeConfig(event) as Record<string, unknown>;
     return readString(runtimeConfig[configKey]);

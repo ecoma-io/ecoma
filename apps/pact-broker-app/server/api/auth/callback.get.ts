@@ -73,7 +73,15 @@ interface TokenEndpointResponse {
   readonly refresh_token?: unknown;
 }
 
-/** `redirect_uri` — cùng công thức với login (một nguồn). */
+/**
+ * `redirect_uri` — cùng công thức với login (một nguồn).
+ *
+ * ⚠️ Trust model (review #254): giá trị từ header chỉ đóng vai trò dựng chuỗi —
+ * header giả chỉ dựng được URI **không khớp** exact-match `client_redirect_uris`
+ * đã đăng ký của `auth`, và authorization code không bao giờ được phát hành cho
+ * URI không khớp. Lớp chặn thật sự thuộc `auth`; nơi này không giữ allowlist
+ * origin (cùng hợp đồng `apps/backoffice`).
+ */
 function callbackRedirectUri(event: H3Event): string {
   const host = getHeader(event, 'host') ?? 'localhost';
   const proto = getHeader(event, 'x-forwarded-proto') ?? 'https';
@@ -162,79 +170,103 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
     reject(event, 503, 'no_db');
   }
 
+  // Một pool cho toàn bộ callback (review #254): consume flow và INSERT phiên
+  // dùng chung pool — hai pool riêng chỉ tốn thêm setup mà không mua gì; pool
+  // sống đúng scope handler này, `end()` trong `finally`.
+  // ⚠️ Consume TRƯỚC exchange là chủ đích, không đổi (single-use: rowCount 0 ⇒
+  // replay/lặp/hết hạn ⇒ 401). Hệ quả được chấp nhận: insert phiên thất bại
+  // (503) thì hàng flow đã mất — người dùng login lại từ đầu; đổi thành
+  // "insert trước, consume sau" mở cửa replay của luồng đang dở, tệ hơn.
+  // Khai báo ở scope ngoài vì TS không narrow `reject(...)` là `never` qua
+  // nhánh `consumed === null` trong cùng scope `try`.
   const pool = createPactBrokerAppPool(binding.connectionString);
-  let consumed: { codeVerifier: string } | null;
+  let sessionValue = '';
+  let csrfValue = '';
+  let verifiedSub = '';
   try {
-    const flowIdHash = await hashFlowIdentifier(flowCookie as string);
-    consumed = await consumeLoginFlow(pool, flowIdHash, state);
-  } catch {
-    consumed = null;
-  } finally {
-    void pool.end().catch(() => undefined);
-  }
-  if (consumed === null) {
-    // Hàng không tồn tại / `state` sai / hết hạn / DB lỗi — chung một từ chối.
-    reject(event, 401, 'flow_not_consumable');
-  }
+    let consumed: { codeVerifier: string } | null;
+    try {
+      const flowIdHash = await hashFlowIdentifier(flowCookie as string);
+      consumed = await consumeLoginFlow(pool, flowIdHash, state);
+    } catch {
+      consumed = null;
+    }
+    if (consumed === null) {
+      // Hàng không tồn tại / `state` sai / hết hạn / DB lỗi — chung một từ chối.
+      reject(event, 401, 'flow_not_consumable');
+    }
 
-  // 3. Đổi code → token — fetch origin nội bộ khi cấu hình (local), issuer
-  // khi không (production).
-  const tokens = await exchangeCode(
-    config.internalOrigin ?? config.issuer,
-    config.clientId,
-    callbackRedirectUri(event),
-    code,
-    consumed.codeVerifier,
-  );
-  const accessToken =
-    typeof tokens?.access_token === 'string' && tokens.access_token.length > 0
-      ? tokens.access_token
-      : null;
-  if (accessToken === null) {
-    reject(event, 401, 'exchange_failed');
-  }
-  const refreshToken =
-    typeof tokens?.refresh_token === 'string' && tokens.refresh_token.length > 0
-      ? tokens.refresh_token
-      : null;
+    // 3. Đổi code → token — fetch origin nội bộ khi cấu hình (local), issuer
+    // khi không (production).
+    const tokens = await exchangeCode(
+      config.internalOrigin ?? config.issuer,
+      config.clientId,
+      callbackRedirectUri(event),
+      code,
+      consumed.codeVerifier,
+    );
+    const accessToken =
+      typeof tokens?.access_token === 'string' && tokens.access_token.length > 0
+        ? tokens.access_token
+        : null;
+    if (accessToken === null) {
+      reject(event, 401, 'exchange_failed');
+    }
+    // Refresh token được lưu dự phòng cho đường refresh của #258 (chưa hiện
+    // thực ở M1 — session.ts chỉ có sliding/absolute, không có rotation). Đường
+    // refresh khi hiện thực phải kèm rotation và guard UPDATE của migration
+    // đã cho phép đổi cột này; cho tới lúc đó giá trị nằm bất động trong DB.
+    const refreshToken =
+      typeof tokens?.refresh_token === 'string' && tokens.refresh_token.length > 0
+        ? tokens.refresh_token
+        : null;
 
-  // 4. Verify access token — không lưu token chưa verify.
-  const verified = await verifyAccessToken(accessToken as string, config);
-  if (verified.outcome === 'unavailable') {
-    reject(event, 503, 'jwks_unavailable');
-  }
-  if (verified.outcome === 'invalid') {
-    reject(event, 401, 'access_token_invalid');
-  }
+    // 4. Verify access token — không lưu token chưa verify.
+    const verified = await verifyAccessToken(accessToken as string, config);
+    if (verified.outcome === 'unavailable') {
+      reject(event, 503, 'jwks_unavailable');
+    }
+    if (verified.outcome === 'invalid') {
+      reject(event, 401, 'access_token_invalid');
+    }
 
-  // 5. Tạo phiên — idle TTL là mốc `expires_at` ghi DB; absolute enforce ở
-  // `isSessionLive` tính từ `created_at` (cột default `now()` của DB).
-  // ⚠️ ID token của response bị bỏ qua — ADR-0031 §2 quyết định không verify
-  // trong M1 (xem JSDoc của file).
-  const sessionValue = createSessionIdentifier();
-  const csrfValue = createCsrfToken();
-  const deadlines = sessionDeadlines(Date.now());
-  const sessionPool = createPactBrokerAppPool(binding.connectionString);
-  try {
+    // 5. Tạo phiên — idle TTL là mốc `expires_at` ghi DB; absolute enforce ở
+    // `isSessionLive` tính từ `created_at` (cột default `now()` của DB).
+    // ⚠️ ID token của response bị bỏ qua — ADR-0031 §2 quyết định không verify
+    // trong M1 (xem JSDoc của file).
+    sessionValue = createSessionIdentifier();
+    csrfValue = createCsrfToken();
+    const deadlines = sessionDeadlines(Date.now());
     const idHash = await hashSessionIdentifier(sessionValue);
-    await insertSession(sessionPool, {
+    await insertSession(pool, {
       idHash,
       accountSub: verified.sub,
       accessToken: accessToken as string,
       refreshToken,
       expiresAt: new Date(deadlines.idleExpiresAtMs),
     });
-  } catch {
+    verifiedSub = verified.sub;
+  } catch (error) {
+    // Lỗi nghiệp vụ đã reject() sẵn (H3Error); insert phiên/DB lỗi thật ⇒ 503
+    // chung — không nối message của driver (connection string có thể nằm trong
+    // message).
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      typeof (error as { statusCode?: unknown }).statusCode === 'number'
+    ) {
+      throw error;
+    }
     reject(event, 503, 'session_store_unavailable');
   } finally {
-    void sessionPool.end().catch(() => undefined);
+    void pool.end().catch(() => undefined);
   }
 
   writeLog({
     event: 'pact_broker_login.done',
     route: '/api/auth/callback',
     status: 302,
-    sub: verified.sub,
+    sub: verifiedSub,
   });
 
   setResponseHeader(event, 'Set-Cookie', [

@@ -55,6 +55,11 @@ const LOGIN_SCOPE = 'openid offline_access';
  * `redirect_uri` của callback — path cố định `/api/auth/callback` ghép với
  * origin của request (`x-forwarded-proto`/`host`). Origin lạ ⇒ `auth` từ chối
  * bằng exact-match của `client_redirect_uris` — lớp chặn cuối thuộc `auth`.
+ *
+ * ⚠️ Trust model (review #254): giá trị từ header chỉ dựng chuỗi — header giả
+ * chỉ dựng được URI không khớp exact-match `client_redirect_uris` của `auth`,
+ * nên authorization code không bao giờ về tay attacker qua đường này; lớp chặn
+ * cuối thuộc `auth` (cùng hợp đồng `apps/backoffice`).
  */
 function callbackRedirectUri(event: H3Event): string {
   const host = getHeader(event, 'host') ?? 'localhost';

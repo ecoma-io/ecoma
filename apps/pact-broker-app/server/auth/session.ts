@@ -119,6 +119,17 @@ export function sessionDeadlines(nowMs: number): {
  * ⚠️ `expires_at` là mốc idle được trượt ở mỗi request hợp lệ; absolute
  * deadline = `created_at` + 7d, không bao giờ trượt. Phiên revoked (logout)
  * chết ngay.
+ *
+ * ⚠️ Nguồn đồng hồ (review #254): so sánh là `nowMs` của app server với
+ * `created_at`/`expires_at` của DB. Thiết kế hiện tại cố ý chọn đồng hồ DB làm
+ * nguồn tin duy nhất lúc GHI — `created_at` là default `now()` của DB và
+ * `expires_at` được trượt bằng `UPDATE` với mốc tính từ `Date.now()` của app.
+ * Skew app↔DB chỉ lệch idle/absolute TTL theo đúng lượng skew, trong biên vài
+ * giây của cùng host local; phiên chết sớm/muộn lệch skew không phải nhánh
+ * bảo mật (sai là fail-closed: chết sớm ⇒ login lại). Cột `absolute_expires_at`
+ * cứng lúc INSERT là thiết kế sạch hơn (một mốc, một nguồn) nhưng thêm cột +
+ * migration cho biên lỗi skew nhỏ — không làm trong slice này; nếu M2 hiện
+ * thực refresh (#258) chạm lại bảng này thì cân nhắc thêm cột lúc đó.
  */
 export function isSessionLive(
   row: {

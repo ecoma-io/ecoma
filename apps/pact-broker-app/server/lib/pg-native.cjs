@@ -30,7 +30,7 @@
  */
 module.exports = function PgNativeUnavailable() {
   throw new Error(
-    'pg-native khong dung duoc tren Workers: binding native khong ton tai trong ' +
-      'isolate cua Cloudflare. App phai dung client JS cua pg.',
+    'pg-native is not available on Workers: the native binding does not exist in the ' +
+      'Cloudflare isolate. The app must use the JS client of pg.',
   );
 };

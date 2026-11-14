@@ -45,6 +45,11 @@ function isCanIDeployBody(
  * ba tham số có nghĩa được truyền tiếp, mọi thứ khác bị bỏ.
  */
 export default defineEventHandler(async (event) => {
+  // Principal TRƯỚC config guard (review #254, nhất quán cả 5 route): request
+  // chưa xác thực luôn nhận 401 bất kể broker có cấu hình hay không — không rò
+  // trạng thái cấu hình cho caller vô danh (contract của `requirePrincipal`).
+  const principal = requirePrincipal(event);
+
   // `useRuntimeConfig(event)` — không phải `event.context.runtimeConfig`: slot
   // đó không ai gắn trên runtime thật (chi tiết ở `pacts.get.ts`).
   const config = pactBrokerBffConfig(useRuntimeConfig(event));
@@ -52,11 +57,6 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 503);
     return { error: 'Service Unavailable', code: 'broker_not_configured' };
   }
-
-  // Principal do middleware authn gắn — mang access token của chủ phiên để
-  // forward tới API (ADR-0031 §4). Không có principal ⇒ 401 (middleware đã
-  // chặn trước; nhánh này là lưới an toàn cho route gọi ngoài middleware).
-  const principal = requirePrincipal(event);
 
   const query = await readValidatedBody(event, isCanIDeployBody).catch(() => null);
   if (query === null) {

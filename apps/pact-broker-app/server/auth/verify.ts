@@ -178,6 +178,11 @@ export async function verifyAccessToken(
     if (typeof payload.sub !== 'string') {
       return { outcome: 'invalid' };
     }
+    // `exp` đã được `requiredClaims` đòi và `jwtVerify` của jose kiểm là số
+    // epoch trước khi trả payload — `as number` ở đây chỉ thu hẹp kiểu mà jose
+    // khai rộng (`number | undefined`), không phải tin mù shape ngoài biên
+    // (review #254: schema validation runtime là lớp khác, hiện contract này
+    // ghim bằng `requiredClaims` + check tường minh từng field dùng).
     return { outcome: 'verified', sub: payload.sub, exp: payload.exp as number };
   } catch (error) {
     return classifyJoseError(error);
@@ -187,6 +192,15 @@ export async function verifyAccessToken(
 /**
  * Phân loại lỗi của `jwtVerify` — chỉ lỗi fetch JWKS là `unavailable`; mọi
  * lỗi khác là `invalid` (fail-closed).
+ *
+ * ⚠️ `TypeError` nằm trong nhóm `unavailable` là có chủ đích và được ghim cùng
+ * hợp đồng ở `libs/backoffice-infrastructure/src/auth/verify.ts` (review #254
+ * đề nghị bỏ): fetch network của runtime ném `TypeError: fetch failed`
+ * (undici/workerd), không phải lỗi token — bỏ nó là lỗi JWKS chưa fetch được
+ * rơi vào `invalid` (401) thay vì `unavailable` (503), sai hợp đồng 401/503
+ * của JSDoc phía trên. Mọi lỗi khác (chữ ký, claim, cấu trúc) vẫn fail-closed
+ * về `invalid` — kịch bản "TypeError do lập trình sai" chỉ xảy ra khi token
+ * không phải string, và caller đã ghim `typeof token === 'string'`.
  */
 function classifyJoseError(error: unknown): InvalidTokenResult | UnavailableTokenResult {
   const name = (error as { name?: unknown } | null)?.name;

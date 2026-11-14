@@ -19,17 +19,14 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, createRouter, defineEventHandler, toWebHandler, type WebHandler } from 'h3';
+import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 
-import { PRINCIPAL_CONTEXT_KEY } from '../../principal';
 import pactsRoute, { pacticipantNamesOf } from './pacts.get';
+import { principalForTests } from './test-principal';
 
 const CONFIGURED = {
   pactBrokerApiBaseUrl: 'https://broker-api.test',
 };
-
-/** Access token của chủ phiên — BFF forward nó xuống API (ADR-0031 §4). */
-const USER_TOKEN = 'user-access-token-value';
 
 /** Web handler h3 thật; config được cấp qua stub toàn cục `useRuntimeConfig`. */
 function buildHandler(runtimeConfig: unknown): WebHandler {
@@ -42,11 +39,9 @@ function buildHandler(runtimeConfig: unknown): WebHandler {
   router.get('/api/broker/pacts', pactsRoute);
   // Đóng vai middleware authn: gắn principal vào context để route đọc được
   // access token của chủ phiên (h3 chạy tiếp khi handler trả undefined).
-  app.use(
-    defineEventHandler((event) => {
-      event.context[PRINCIPAL_CONTEXT_KEY] = { actorSub: 'sub-user', accessToken: USER_TOKEN };
-    }),
-  );
+  // Helper dùng chung ở `test-principal.ts` — một nguồn cho cả hai spec file
+  // của thư mục này (review #254).
+  app.use(principalForTests());
   app.use(router.handler);
   return toWebHandler(app);
 }

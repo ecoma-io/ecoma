@@ -20,7 +20,15 @@
  * Chỉ `401` mới là "phiên không còn dùng được ⇒ đi đăng nhập lại".
  */
 
-/** Đường dẫn login của BFF — route không chặn authn (`AUTH_PATHS`). */
+/**
+ * Đường dẫn login của BFF — route không chặn authn (`AUTH_PATHS`).
+ *
+ * ⚠️ Hằng ghim, không nhận từ env (review #254): route là kết quả của Nitro
+ * file-based routing (`server/api/auth/login.get.ts` — tệp là đường dẫn), và
+ * middleware authn ghim cùng giá trị trong `AUTH_PATHS`. Ghi đè qua env chỉ
+ * tạo nguồn thứ hai lệch được khỏi cả hai chỗ đó mà không đổi được route thật.
+ * Đổi đường login = đổi tên tệp route + cập nhật hằng này và `AUTH_PATHS`.
+ */
 export const LOGIN_PATH = '/api/auth/login';
 
 /**
@@ -31,6 +39,10 @@ export const LOGIN_PATH = '/api/auth/login';
  * @returns Response của BFF (kể cả `401` khi không có `window`).
  */
 export async function brokerFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  // Cookie phiên được gửi mặc định: fetch cùng-origin dùng
+  // `credentials: 'same-origin'` — cookie `__Host-` của BFF nằm kèm request mà
+  // không cần `credentials: 'include'` (review #254: bao giờ gọi chéo-origin
+  // mới phải bật tường minh; route `/api/broker/**` luôn cùng origin với trang).
   const response = await fetch(path, init);
   if (response.status === 401 && typeof window !== 'undefined') {
     window.location.assign(LOGIN_PATH);
