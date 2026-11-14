@@ -318,6 +318,37 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     expect((again.body as { contentSha?: string }).contentSha).toBe(firstBody.contentSha);
   });
 
+  it('republishes identical content under a new consumer version instead of failing the unique content-sha index', async () => {
+    // Kịch bản CI chuẩn của Pact CLI: consumer bump version, nội dung contract
+    // không đổi. Semantics upstream: pact theo (consumer version, provider),
+    // nội dung dedup bằng sha — version mới tạo hàng pact riêng, không 500.
+    const first = await publishPact(tenantASecret, 'order-service', 'payment-service', '1.0.0');
+    expect(first.status).toBe(201);
+    const firstSha = (first.body as { contentSha?: string }).contentSha;
+
+    const republish = await publishPact(tenantASecret, 'order-service', 'payment-service', '2.0.0');
+    expect(republish.status).toBe(201);
+    expect((republish.body as { contentSha?: string }).contentSha).toBe(firstSha);
+
+    // Cả hai version đều đọc được pact với nội dung đó.
+    const v1 = await reqJson(
+      '/pacts/provider/payment-service/consumer/order-service/version/1.0.0',
+      {
+        headers: auth(tenantASecret),
+      },
+    );
+    const v2 = await reqJson(
+      '/pacts/provider/payment-service/consumer/order-service/version/2.0.0',
+      {
+        headers: auth(tenantASecret),
+      },
+    );
+    expect(v1.status).toBe(200);
+    expect(v2.status).toBe(200);
+    expect((v1.body as { contentSha?: string }).contentSha).toBe(firstSha);
+    expect((v2.body as { contentSha?: string }).contentSha).toBe(firstSha);
+  });
+
   it('caps consumerVersionSelectors to prevent query amplification on a read token', async () => {
     // 60 selector (trên cap 50): mỗi selector constrained tra tag per-candidate
     // — không cap thì token read đẩy isolate vào chuỗi query dài. Phải 400
