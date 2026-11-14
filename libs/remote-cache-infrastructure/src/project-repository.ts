@@ -82,6 +82,9 @@ export async function listProjectsByTenant(
 /**
  * Tao project — `id` do caller sinh; UNIQUE `(tenant_id, name)` o schema la
  * nguon that cua viec tu choi ten trung, repo khong pre-check (TOCTOU).
+ *
+ * Tra ve hang vua insert qua `RETURNING` — caller khong phai re-query sau
+ * commit de lay `created_at` (timestamp do DB sinh, khong the tu tong hop).
  */
 export async function insertProject(
   db: RemoteCacheQueryable,
@@ -90,10 +93,12 @@ export async function insertProject(
     readonly tenantId: string;
     readonly name: string;
   },
-): Promise<void> {
-  await db.unsafe(
+): Promise<ProjectRow> {
+  const rows = await db.unsafe<ProjectRow>(
     `INSERT INTO remote_cache.projects (id, tenant_id, name)
-     VALUES ($1, $2, $3)`,
+     VALUES ($1, $2, $3)
+     RETURNING id, tenant_id, name, created_at, updated_at`,
     [entry.id, entry.tenantId, entry.name],
   );
+  return rows[0];
 }

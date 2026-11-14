@@ -200,8 +200,12 @@ export function remoteCacheRoutes(): Hono<AppEnv> {
       const apiKeyId = crypto.randomUUID();
       // Mot transaction: project + key mac dinh cung commit — khong ton tai
       // trang thai project khong co key nao (skeleton P4.1).
-      const token = await db.begin(async (tx) => {
-        await insertProject(tx, { id: projectId, tenantId: auth.tenantId, name: request.name });
+      const { inserted, token } = await db.begin(async (tx) => {
+        const row = await insertProject(tx, {
+          id: projectId,
+          tenantId: auth.tenantId,
+          name: request.name,
+        });
         const freshToken = generateApiToken();
         const tokenHash = await sha256Hex(freshToken);
         await insertApiKey(tx, {
@@ -211,9 +215,9 @@ export function remoteCacheRoutes(): Hono<AppEnv> {
           scopes: request.api_key_scopes,
           trusted_ci: request.trusted_ci,
         });
-        return freshToken;
+        return { token: freshToken, inserted: row } as const;
       });
-      return { tenantId: auth.tenantId, projectId, token } as const;
+      return { inserted, projectId, token } as const;
     });
 
     const okOutcome = 'authError' in outcome ? null : outcome;
@@ -228,24 +232,18 @@ export function remoteCacheRoutes(): Hono<AppEnv> {
       );
     }
 
-    const created = await withRemoteCacheClient(c.get('config'), (db) =>
-      getProjectByTenantAndName(db, okOutcome.tenantId, request.name),
-    );
-    if (created === null) {
-      throw new Error('project vanished after commit');
-    }
     const project: RemoteCacheProject = {
-      id: created.id,
-      tenant_id: created.tenant_id,
-      name: created.name,
-      created_at: toIsoCreatedAt(created.created_at),
+      id: okOutcome.inserted.id,
+      tenant_id: okOutcome.inserted.tenant_id,
+      name: okOutcome.inserted.name,
+      created_at: toIsoCreatedAt(okOutcome.inserted.created_at),
     };
     const checked = validateRemoteCacheProject(project);
     if (!checked.ok) {
       throw new Error(`created project failed contract validation: ${checked.reason}`);
     }
     // Show-once: token gon chi xuat hien o response nay; DB chi giu hash.
-    return c.json({ project: checked.payload, api_key: { token: outcome.token } }, 201);
+    return c.json({ project: checked.payload, api_key: { token: okOutcome.token } }, 201);
   });
 
   app.get('/projects', async (c) => {

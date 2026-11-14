@@ -545,7 +545,13 @@ export function portalRoutes(): Hono<AppEnv> {
         let committed: { readonly token: string; readonly project: RemoteCacheProject };
         try {
           committed = await db.begin(async (tx) => {
-            await insertProject(tx, { id: projectId, tenantId: ctx.tenantId, name: request.name });
+            // RETURNING: hang vua ghi la nguon that cua `created_at` — khong
+            // re-query trong cung transaction nua.
+            const inserted = await insertProject(tx, {
+              id: projectId,
+              tenantId: ctx.tenantId,
+              name: request.name,
+            });
             const freshToken = generateApiToken();
             await insertApiKey(tx, {
               id: apiKeyId,
@@ -564,22 +570,16 @@ export function portalRoutes(): Hono<AppEnv> {
               // target (target chi mang UUID sau khi tao).
               details: `project name: ${request.name}`,
             });
-            // Doc-lai VA validate TRONG transaction, tren cung mot connection:
-            // hang vua ghi tu thay (created_at chi co tren hang da ghi nen
-            // read-back van la bat buoc de dung response wire). Validate o day
-            // nghia la mot payload khong khop contract se ROLLBACK ca
-            // project + key + audit — khong con kha nang tra 500 cho du lieu da
-            // commit durably (retry cua client se chay lai sach se, khong gap
-            // 409 "ten da ton tai" cho chinh project minh vua tao).
-            const createdRow = await getProjectByTenantAndName(tx, ctx.tenantId, request.name);
-            if (createdRow === null) {
-              throw new Error('project vanished inside its own transaction');
-            }
+            // Validate hang vua ghi TRONG transaction: mot payload khong khop
+            // contract se ROLLBACK ca project + key + audit — khong con kha nang
+            // tra 500 cho du lieu da commit durably (retry cua client se chay
+            // lai sach se, khong gap 409 "ten da ton tai" cho chinh project
+            // minh vua tao).
             const project: RemoteCacheProject = {
-              id: createdRow.id,
-              tenant_id: createdRow.tenant_id,
-              name: createdRow.name,
-              created_at: toIsoCreatedAt(createdRow.created_at),
+              id: inserted.id,
+              tenant_id: inserted.tenant_id,
+              name: inserted.name,
+              created_at: toIsoCreatedAt(inserted.created_at),
             };
             const checked = validateRemoteCacheProject(project);
             if (!checked.ok) {
