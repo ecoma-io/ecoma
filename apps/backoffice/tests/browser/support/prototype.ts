@@ -1,6 +1,13 @@
 import type { Locator, Page } from '@playwright/test';
 
 /**
+ * Khoảng lặng xác nhận dev server đã thôi thay trang: không có document request
+ * mới trong khoảng này ⇒ cache Vite đã nóng, reload lần sau sẽ phục vụ module
+ * từ cache, không gây `full-reload` nữa.
+ */
+const QUIET_MS = 3_000;
+
+/**
  * Hạ tầng dùng chung cho bộ test browser của backoffice.
  *
  * Không có gì ở đây là "app thứ hai để test": mọi hàm chỉ **đọc DOM đang render**
@@ -54,6 +61,16 @@ const READY_TEST_IDS: Readonly<Record<string, string>> = {
  * optimizer trên CI vượt 30s trong khi trần warm-up chỉ áp cho hai chỗ chờ khác.
  * `globalSetup` truyền phần trần còn lại của cả vế browser để tổng thời gian
  * warm-up có đúng một biên biết trước.
+ *
+ * ⚠️ Vì sao cần reload một lần theo ý định: trên CI runner sạch, cache Vite
+ * nguội ⇒ lần tải đầu của browser kích hoạt `full-reload` của dev server, và
+ * `full-reload` huỷ toàn bộ request module đang bay (`net::ERR_NETWORK_CHANGED`).
+ * Client không bao giờ mount ⇒ `getByTestId(...).waitFor()` chờ mãi đến hết trần.
+ * Sau lần reload đầu, cache Vite đã nóng, nên reload lần thứ hai phục vụ module
+ * từ cache, không gây `full-reload` nữa, và client có thể mount. Đây là **một**
+ * lần reload có chủ đích sau sự kiện thay đổi mạng, không phải "chờ lâu hơn và
+ * hy vọng": nếu phần tử vẫn không xuất hiện sau reload, lỗi được ném ra thay vì
+ * bị nuốt.
  */
 export async function waitForRouteReady(
   page: Page,
@@ -66,7 +83,45 @@ export async function waitForRouteReady(
     throw new Error(`Không có tín hiệu ready cho route "${path}".`);
   }
 
-  await page.getByTestId(testId).waitFor({ state: 'visible', timeout: timeoutMs });
+  const deadline = Date.now() + (timeoutMs ?? 30_000);
+  let reloaded = false;
+  let firstCause: unknown;
+
+  for (;;) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw (
+        firstCause ??
+        new Error(
+          `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; route vẫn chưa render xong.`,
+        )
+      );
+    }
+
+    // Chờ theo lát: `QUIET_MS` mỗi lát để không chờ liên tục 30s một lượt,
+    // và trần còn lại vẫn được tôn trọng (không chờ vượt deadline).
+    const sliceTimeoutMs = Math.min(QUIET_MS, remainingMs);
+
+    try {
+      await page.getByTestId(testId).waitFor({ state: 'visible', timeout: sliceTimeoutMs });
+      return;
+    } catch (cause) {
+      if (firstCause === undefined) {
+        firstCause = cause;
+      }
+
+      const now = Date.now();
+      if (now >= deadline || reloaded) {
+        throw firstCause;
+      }
+
+      // Một lần reload theo ý định: Vite full-reload đã huỷ module graph, nhưng
+      // cache dependency đã nóng sau lần tải đầu. Reload lần thứ hai phục vụ
+      // module từ cache, không gây full-reload nữa.
+      reloaded = true;
+      await page.reload({ waitUntil: 'domcontentloaded' });
+    }
+  }
 }
 
 /** Tiêu đề `<h1>` của trang đang xem. */
