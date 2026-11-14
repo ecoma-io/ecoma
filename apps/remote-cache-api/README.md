@@ -8,12 +8,15 @@ Nx project `@ecoma-io/remote-cache-api`, tags `type:composition`, `scope:remote-
 
 - Worker `ecoma-remote-cache-api` (`wrangler.jsonc`, entry `dist/main.js` sinh bởi `@nx/esbuild`): composition root `src/main.ts` boot fail-closed từ Hyperdrive binding `DB_REMOTE_CACHE`; `/health` không credential và không chạm DB, `/ready` probe DB và báo trạng thái storage config.
 - Control plane (`src/routes.ts`): `POST /projects` tạo project trong tenant của key gọi kèm API key mặc định (scopes do request chọn, token trả một lần show-once), `GET /projects` liệt kê project của tenant với phân trang cursor keyset.
+- Portal control plane (`src/portal-routes.ts`, issue #202): surface cho developer portal (BFF `#180` gọi qua envelope HMAC nội bộ `ecoma-internal-v2`, xác thực qua `src/portal-auth.ts`) — sáu workflow R19: list/tạo project (key đầu tiên show-once), xem chi tiết project, tạo thêm key, list metadata key không bao giờ mang token/hash, revoke. Wire shape định nghĩa app-local trong `src/portal-contract.ts`, được ghim bằng unit spec cho tới khi chuyển sang `@ecoma-io/remote-cache-contracts`.
 - Data plane (`src/cache-routes.ts`): `GET /v1/cache/:hash` và `PUT /v1/cache/:hash` theo Nx remote cache protocol, stream artifact tới object storage S3-compatible qua `src/storage.ts`.
 - Thiết kế boundary, request flow, storage partitioning và invariants là nội dung canonical của `docs/applications/remote-cache/01-architecture.md`.
 
 ## Responsibilities
 
 - **Xác thực API key**: lookup hash-only theo `token_hash` UNIQUE; token gọn không bao giờ chạm DB hay log; phân quyền theo scope `read`/`write` của key.
+- **Xác thực portal developer** (`src/portal-auth.ts`): envelope HMAC nội bộ mang actor sub đã xác thực phía portal BFF; control plane không bao giờ tin identity do browser cung cấp — membership trong `tenant_members` được resolve phía server theo tenant trên path, envelope sai/hết skew/replayed → 401 (nonce consume-and-record trong `internal_nonces`), thiếu actor → 401, non-member → 403, tenant lifecycle vi phạm ở mutation → 409 kèm audit `denied`.
+- **Phân lớp credential** (domain model §2.4): portal chỉ cấp developer credential (`trusted_ci = false`, scope `read` — R20); cột `trusted_ci` được đặt khi tạo và không đổi được (trigger guard, migration 0008).
 - **Lifecycle enforcement** (`src/lifecycle.ts`): trạng thái tenant/project được kiểm trước khi phục vụ — tenant suspended/deleted, project xoá, key revoked được ánh xạ từ domain error sang HTTP status tương ứng.
 - **Quota mặc định**: `DEFAULT_MAX_STORAGE_BYTES`, `DEFAULT_MAX_ENTRY_COUNT` áp cho project không có hàng `quota_limits`; `MAX_ARTIFACT_SIZE` chặn kích thước artifact; `DEFAULT_RETENTION_TTL_SECONDS` cho TTL entry.
 - **Persistence**: `db/` là nguồn sự thật migration của `db-remote-cache` (PostgreSQL, schema `remote_cache`, ba role `ecoma_owner`/`ecoma_remote_cache_migrator`/`ecoma_remote_cache_runtime`); access qua `withRemoteCacheClient` của `@ecoma-io/remote-cache-infrastructure`.
@@ -48,7 +51,7 @@ pnpm nx run @ecoma-io/remote-cache-api:test             # vitest — unit coloca
 pnpm nx run @ecoma-io/remote-cache-api:test-integration # tests/integrations + tests/databases — PostgreSQL thật (testcontainers)
 ```
 
-- `tests/databases/` ghim migration, bootstrap tenant và phân loại classification/plan; `tests/integrations/` ghim control-plane routes, cache protocol, quota/retention (P4.3/P4.5) và roles.
+- `tests/databases/` ghim migration, bootstrap tenant, phân loại classification/plan và guard phân lớp credential của portal authorization; `tests/integrations/` ghim control-plane routes, portal control plane (authorization + lifecycle key qua envelope HMAC thật), cache protocol, quota/retention (P4.3/P4.5) và roles.
 - Phân loại test và canonical target theo `docs/architecture/06-testing.md`.
 
 ## Related Documentation

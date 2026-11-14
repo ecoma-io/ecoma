@@ -85,8 +85,10 @@ interface AuthenticatedKey {
 /**
  * Hash SHA-256 mot chuoi thanh hex chu thuong — ham chuan doc token API key
  * o duong xac thuc. Token gon khong bao gio duoc truyen qua duong khac.
+ * Export: portal surface (`src/portal-routes.ts`) dung DUNG ham nay de hash
+ * token show-once — mot token, mot cach hash, khong co ban sao lech.
  */
-async function sha256Hex(input: string): Promise<string> {
+export async function sha256Hex(input: string): Promise<string> {
   const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -96,8 +98,9 @@ async function sha256Hex(input: string): Promise<string> {
  * (`RemoteCacheProject.created_at: string`) va cursor keyset (`at: string`)
  * deu de nghi chuoi, con postgres.js tra ve DOI TUONG `Date`. Khong chuan hoa
  * thi validator contract tu choi hang hop le (500 thay vi 201/200).
+ * Export: portal surface chuan hoa cung cach cho response wire cua no.
  */
-function toIsoCreatedAt(value: Date | string): string {
+export function toIsoCreatedAt(value: Date | string): string {
   return typeof value === 'string' ? value : value.toISOString();
 }
 
@@ -336,8 +339,9 @@ async function readJsonObject(c: {
 /**
  * Sinh token API key gon — 32 byte ngau nhien base64url. Token gon chi ton
  * tai o bien nay va response show-once; moi duong khac chi giu SHA-256 hex.
+ * Export: portal surface dung dung ham nay cho key portal-cap.
  */
-function generateApiToken(): string {
+export function generateApiToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let binary = '';

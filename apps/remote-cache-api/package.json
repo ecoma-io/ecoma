@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@ecoma-io/internal-auth-contracts": "workspace:*",
     "@ecoma-io/remote-cache-contracts": "workspace:*",
     "@ecoma-io/remote-cache-domain": "workspace:*",
     "@ecoma-io/remote-cache-infrastructure": "workspace:*",
@@ -19,7 +20,10 @@
     "runner chay o CI runner (Node), khong thuoc bundle Worker. Nguon `pg`",
     "runtime cua app la `@ecoma-io/remote-cache-infrastructure` (postgres.js",
     "qua Hyperdrive).",
-    "`hono` la runtime HTTP cua Worker; control-plane routes skeleton P4.1."
+    "`hono` la runtime HTTP cua Worker; control-plane routes skeleton P4.1.",
+    "`@ecoma-io/internal-auth-contracts` la protocol HMAC noi bo cua platform",
+    "(scope:platform) — control plane portal xac thuc human principal bang",
+    "envelope nay, khong phai contract cua bounded context nao."
   ],
   "nx": {
     "tags": [

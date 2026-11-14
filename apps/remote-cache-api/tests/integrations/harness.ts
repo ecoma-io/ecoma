@@ -198,6 +198,7 @@ const DATA_TABLES = [
   'api_keys',
   'audit_log',
   'cache_entries',
+  'internal_nonces',
   'projects',
   'quota_limits',
   'tenant_members',

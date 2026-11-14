@@ -15,6 +15,7 @@ import type { AppEnv } from './types';
 import { loadRemoteCacheConfig, type RemoteCacheConfig, type RemoteCacheEnv } from './config';
 import { isRemoteCacheDomainError } from '@ecoma-io/remote-cache-domain';
 import { remoteCacheRoutes } from './routes';
+import { portalRoutes } from './portal-routes';
 import { remoteCacheDataRoutes } from './cache-routes';
 import { withRemoteCacheClient } from '@ecoma-io/remote-cache-infrastructure';
 
@@ -107,6 +108,12 @@ function createApp(): Hono<AppEnv> {
   // Control-plane skeleton — mount SAU middleware config: moi handler doc
   // `config` da kiem san, loi binding khong bao gio lo qua mot route nghiep vu.
   app.route('/', remoteCacheRoutes());
+
+  // Portal control plane (issue #202) — human principal qua envelope HMAC noi
+  // bo + membership resolve tu DB. Mount cung SAU middleware config; thieu
+  // secret portal thi tung route fail-closed 503 theo request, machine routes
+  // + data plane khong anh huong.
+  app.route('/', portalRoutes());
 
   // Data plane (P4.2) — mount sau control plane, cung middleware config.
   app.route('/', remoteCacheDataRoutes());

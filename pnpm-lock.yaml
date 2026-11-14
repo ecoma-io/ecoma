@@ -659,6 +659,9 @@ importers:
 
   apps/remote-cache-api:
     dependencies:
+      '@ecoma-io/internal-auth-contracts':
+        specifier: workspace:*
+        version: link:../../libs/internal-auth-contracts
       '@ecoma-io/remote-cache-contracts':
         specifier: workspace:*
         version: link:../../libs/remote-cache-contracts
