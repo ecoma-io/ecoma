@@ -15,7 +15,7 @@ Credential đó cũng phải thu hồi được ngay khi CI bị lộ hoặc khi
 Tenant quản lý được credential máy theo vòng đời tạo → dùng → xoay vòng → thu hồi, với quyền hạn tối thiểu và secret chỉ lộ một lần.
 
 - Ba scope theo thứ tự bao hàm: `read` ⊂ `write` ⊂ `admin`.
-- Secret chỉ có trong phản hồi của lần tạo hoặc lần xoay vòng; danh sách chỉ trả metadata (gồm `purpose` và `createdBy` — [ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §2, §8).
+- Secret chỉ có trong phản hồi của lần tạo hoặc lần xoay vòng; danh sách chỉ trả metadata. Hiện trạng đường machine token: danh sách trả `id`/`name`/`scopes`/`createdAt`/`revokedAt` — **chưa có `purpose` hay `createdBy`** (schema `machine_tokens` không có cột `purpose`); việc thêm `purpose` + `createdBy` vào metadata danh sách là mục tiêu đường user của #207 ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §2, §8).
 - Thu hồi có hiệu lực từ request kế tiếp, không cần chờ.
 - Xoay vòng làm secret cũ mất hiệu lực **ngay lập tức**; xoay vòng lần hai làm secret của lần một mất hiệu lực.
 - Mọi thao tác chỉ chạm credential thuộc tenant của caller; credential tenant khác báo không tìm thấy, không phân biệt với credential không tồn tại.
@@ -26,7 +26,7 @@ Tenant quản lý được credential máy theo vòng đời tạo → dùng →
 
 ### Bao gồm
 
-- Liệt kê credential ở dạng metadata (`id`, `name`, `scopes`, `purpose`, `createdBy`, `createdAt`, `revokedAt`); đường machine token cần scope `admin`, đường user đi theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `member` chỉ thấy credential mình tạo, `admin`/owner thấy toàn tenant).
+- Liệt kê credential ở dạng metadata (`id`, `name`, `scopes`, `createdAt`, `revokedAt` trên đường machine token hiện tại; `purpose` và `createdBy` thuộc mục tiêu đường user của #207, chưa có ở hiện trạng); đường machine token cần scope `admin`, đường user đi theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `member` chỉ thấy credential mình tạo, `admin`/owner thấy toàn tenant).
 - Tạo credential với một tên, purpose `developer`/`ci` (bắt buộc trên đường user, tùy chọn trên đường machine) và một đến ba scope; secret trả về đúng một lần. Purpose ràng buộc set scope được phép và role được phép tạo từng purpose, chạy lúc tạo — không bao giờ là input authorization runtime ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §2).
 - Xoay vòng credential: secret mới trả về đúng một lần, secret cũ chết ngay; credential đã thu hồi hoặc không tồn tại báo không tìm thấy.
 - Thu hồi credential; thu hồi lại báo không tìm thấy. Rotate/revoke trên đường user đòi confirmation tường minh ở UI, không đòi step-up re-auth ở M1 ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1g).

@@ -93,6 +93,8 @@ Thì  có hàng `role_assignment.*` kèm actorStaffId/actorSub và outcome; muta
 | `apps/staff-access`              | Worker nội bộ phục vụ route ghi assignment qua envelope HMAC                                | [`applications/staff-access/01-architecture.md`](../../applications/staff-access/01-architecture.md) |
 | `apps/backoffice`                | Chưa tham gia — không có route BFF ghi hay UI quản trị (#191)                               | [`applications/backoffice/README.md`](../../applications/backoffice/README.md)                       |
 
+Bề mặt contract dùng chung: `libs/staff-access-contracts` (publish qua PR #276) là thư viện verdict contract được cả `apps/staff-access` và `apps/backoffice` tiêu thụ.
+
 ## 6. Verification Mapping
 
 | Scenario                                                                                   | Test file / suite                                                    | Loại test   | Nx target          |
