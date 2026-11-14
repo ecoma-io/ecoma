@@ -26,16 +26,21 @@
  *     bao giờ qua argv (cùng kỷ luật với superadmin-resolver của lane).
  *
  * Consumer-side contract test (§7) và browser regression dùng harness này:
- * BFF gọi API server-side qua `NITRO_PACT_BROKER_API_*` (test-only `vars` +
- * `secrets` override của `createTestHarness`, tách kênh như production — base
- * URL qua vars, token qua secrets), token machine scope `admin` đúng như lane
- * provision (`deploys/pact-broker-api-deploy`).
+ * BFF gọi API server-side qua `NITRO_PACT_BROKER_API_*` (test-only `vars`
+ * override của `createTestHarness`, tách kênh như production — base URL qua
+ * vars, cấu hình OIDC qua `PACT_BROKER_AUTH_*`), và xác thực BFF bằng **phiên
+ * user thật** qua fake OIDC local (ADR-0031 §1–§4) — KHÔNG có machine token
+ * nào của BFF (retire, ADR-0031 §5); token machine duy nhất trong stack là
+ * seed của Pact CLI/CI dùng để seed dữ liệu qua public surface của API.
  */
 
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 /** Root repo — mọi đường dẫn tới project khác resolve từ đây (không import). */
 const APP_DIR = resolve(import.meta.dirname, '..', '..');
@@ -79,10 +84,36 @@ const ROLE_PASSWORD = process.env[ROLE_PASSWORD_ENV] ?? randomBytes(16).toString
 const MIGRATOR_ROLE = 'ecoma_pact_broker_migrator';
 const RUNTIME_ROLE = 'ecoma_pact_broker_runtime';
 
-/** Machine token BFF — cùng tên + scope mà lane provision cho deploy unit. */
-const MACHINE_TOKEN_NAME = 'pact-broker-app-bff';
-const MACHINE_TOKEN_SCOPES = 'admin';
+/**
+ * Database riêng của app (ADR-0031 §2, #206) + hai role của nó — stack này
+ * provision CẢ HAI database trong cùng container, đúng hình hai deploy unit
+ * sở hữu database riêng trên lane.
+ */
+const APP_DATABASE = 'db-pact-broker-app';
+const APP_MIGRATOR_ROLE = 'ecoma_pact_broker_app_migrator';
+const APP_RUNTIME_ROLE = 'ecoma_pact_broker_app_runtime';
+
+/**
+ * Machine token **seed** — đại diện machine path của Pact CLI/CI (đường hợp
+ * lệ vẫn tồn tại, ADR-0031 §5), KHÔNG phải credential của BFF: token của BFF
+ * đã retire, và suite BFF auth assert không token máy nào xuất hiện trong
+ * traffic/cookie của app.
+ */
+const SEED_TOKEN_NAME = 'seed-publisher-cli';
+const SEED_TOKEN_SCOPES = 'admin';
 const TENANT_OWNER_SUB = 'pact-broker-app-it-owner';
+
+/**
+ * Hằng fake OIDC (ADR-0031 §1/§2): `kid` của ES256 test key, audience mà API
+ * ghim, `client_id` của client public test. Issuer là origin động của server
+ * HTTP local (`http://127.0.0.1:<port>`) — cả API (verify JWKS qua
+ * `/.well-known/jwks.json`) lẫn BFF (verify qua `/jwks.json`, exchange qua
+ * `/token`) fetch được trực tiếp từ workerd.
+ */
+const FAKE_KEY_ID = 'pact-broker-app-it-key';
+const FAKE_AUDIENCE = 'https://api.test.ecoma.io/pact-broker';
+const FAKE_CLIENT_ID = 'ecoma-pact-broker-app-it';
+const FAKE_SUB = TENANT_OWNER_SUB;
 
 /**
  * Biến môi trường mang kết quả probe Docker từ `globalSetup` sang từng worker
@@ -293,7 +324,12 @@ function psqlSync(containerName: string, sql: string): void {
  * buộc; property an toàn đến từ việc chỉ hai hằng số module-level này được
  * chấp nhận, không bao giờ từ input động.
  */
-const PROVISIONABLE_ROLE_NAMES: ReadonlySet<string> = new Set([MIGRATOR_ROLE, RUNTIME_ROLE]);
+const PROVISIONABLE_ROLE_NAMES: ReadonlySet<string> = new Set([
+  MIGRATOR_ROLE,
+  RUNTIME_ROLE,
+  APP_MIGRATOR_ROLE,
+  APP_RUNTIME_ROLE,
+]);
 
 /**
  * Provision role LOGIN cho migrator/runtime bằng superuser — đúng khối
@@ -328,13 +364,223 @@ function provisionRoles(containerName: string): void {
 }
 
 /**
- * Chạy một CLI vận hành của API bằng tsx subprocess — credential chỉ qua env
- * của process, không bao giờ argv. Import của script (`pg`, libs API) được
- * resolve từ node_modules của API bên trong subprocess.
+ * Provision database riêng của app (ADR-0031 §2, #206) trong cùng container:
+ * hai role `ecoma_pact_broker_app_{migrator,runtime}` + database
+ * `db-pact-broker-app` + grant per-role — cùng khối lệnh với provision script
+ * của `deploys/pact-broker-app-deploy` (`scripts.ts`). Superuser chạy mọi lệnh
+ * (không bước ALTER password vì role tạo sẵn đúng password của run).
  */
-function runApiCliScript(scriptRelativePath: string, env: Record<string, string>): void {
-  const result = spawnSync(TSX_BIN, [resolve(REPO_ROOT, scriptRelativePath)], {
-    cwd: REPO_ROOT,
+function provisionAppDatabase(containerName: string): void {
+  const sqlPassword = ROLE_PASSWORD.split("'").join("''");
+  for (const role of [APP_MIGRATOR_ROLE, APP_RUNTIME_ROLE]) {
+    if (!PROVISIONABLE_ROLE_NAMES.has(role)) {
+      throw new Error(`Refusing to interpolate a non-allowlisted role name into SQL: ${role}`);
+    }
+    psqlSync(
+      containerName,
+      `DO $$ BEGIN
+         IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '${role}') THEN
+           CREATE ROLE ${role} LOGIN PASSWORD '${sqlPassword}'
+             NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+         END IF;
+       END $$;`,
+    );
+  }
+  // `CREATE DATABASE` KHÔNG chạy được trong DO block (PostgreSQL: không
+  // được thực thi trong transaction/function) — nên kiểm tra tồn tại bằng một
+  // lệnh SELECT riêng, rồi mới CREATE ở lệnh sau.
+  const existing = spawnSync(
+    'docker',
+    [
+      'exec',
+      containerName,
+      'psql',
+      '-U',
+      SUPERUSER,
+      '-d',
+      PACT_BROKER_DATABASE,
+      '-t',
+      '-A',
+      '-c',
+      `SELECT 1 FROM pg_catalog.pg_database WHERE datname = '${APP_DATABASE}'`,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (existing.status !== 0) {
+    throw new Error(
+      `psql failed (exit ${String(existing.status)}):\n` +
+        redact(existing.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+    );
+  }
+  if (existing.stdout.trim() !== '1') {
+    psqlSync(containerName, `CREATE DATABASE "${APP_DATABASE}"`);
+  }
+  psqlSync(
+    containerName,
+    `REVOKE CONNECT ON DATABASE "${APP_DATABASE}" FROM PUBLIC;
+     GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "${APP_DATABASE}" TO ${APP_MIGRATOR_ROLE};
+     GRANT CONNECT ON DATABASE "${APP_DATABASE}" TO ${APP_RUNTIME_ROLE};
+     REVOKE ALL ON SCHEMA public FROM PUBLIC;`.replaceAll('\n', ' '),
+  );
+}
+
+/**
+ * Fake OIDC `auth` cho đường BFF (ADR-0031 §2) và đường API (§1): ES256 keypair
+ * test, JWKS phục vụ ở CẢ HAI path mà hai phía fetch (`/jwks.json` của BFF và
+ * `/.well-known/jwks.json` của API), `/token` cấp access token ký sẵn + refresh
+ * token opaque cho MỌI authorization code (code-CAS thuộc `auth` thật; fake này
+ * chỉ cần cấp token hợp lệ để callback đi hết đường verify thật).
+ */
+export interface FakeOidcAuth {
+  readonly issuer: string;
+  /** Ký access token đúng contract verify của hai phía (`at+jwt`, ES256, iss/aud/sub/exp). */
+  signAccessToken(sub: string, expiresInSecondsFromNow?: number): Promise<string>;
+  stop(): Promise<void>;
+}
+
+export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
+  const keyPair = await generateKeyPair('ES256', { extractable: true });
+  const jwk = {
+    kid: FAKE_KEY_ID,
+    alg: 'ES256',
+    use: 'sig',
+    ...(await exportJWK(keyPair.publicKey)),
+  };
+  const server: Server = createServer((req, res) => {
+    const path = req.url?.split('?')[0] ?? '';
+    if (path === '/jwks.json' || path === '/.well-known/jwks.json') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ keys: [jwk] }));
+      return;
+    }
+    if (path === '/authorize') {
+      // `auth` thật trả 302 về `redirect_uri` kèm code single-use. Fake cấp code
+      // cố định cho MỌI request: nó cho phép trình duyệt đi trọn luồng login →
+      // callback thật (state + PKCE vẫn được BFF kiểm), mà không dựng code store.
+      const target = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const redirectUri = target.searchParams.get('redirect_uri');
+      const state = target.searchParams.get('state');
+      if (redirectUri === null || state === null) {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      const next = new URL(redirectUri);
+      // workerd harness phục vụ plain HTTP và KHÔNG gửi `x-forwarded-proto`,
+      // nên BFF dựng `redirect_uri` theo mặc định `https`. `auth` thật không
+      // được sửa redirect_uri (exact-match), nhưng trình duyệt của suite này
+      // điều hướng trên `http://127.0.0.1` — fake hạ scheme cho host loopback
+      // để luồng login chạy được; mọi thứ còn lại (state, code) giữ nguyên.
+      if (next.hostname === '127.0.0.1' && next.protocol === 'https:') {
+        next.protocol = 'http:';
+      }
+      next.searchParams.set('code', 'it-auth-code');
+      next.searchParams.set('state', state);
+      res.writeHead(302, { location: next.toString() });
+      res.end();
+      return;
+    }
+    if (path === '/revocation' && req.method === 'POST') {
+      // RFC 7009 endpoint của `auth` — logout gọi best-effort trước khi hủy
+      // phiên. Fake luôn 200: hành vi logout không phụ thuộc kết quả này, và
+      // test cần log sạch để không bị đọc nhầm là lỗi.
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(200);
+        res.end();
+      });
+      return;
+    }
+    if (path === '/token' && req.method === 'POST') {
+      // Body không được đọc nội dung — chỉ drain để request kết thúc.
+      req.resume();
+      req.on('end', () => {
+        // Fire-and-forget có đuôi (review #254): lỗi của `signAccessToken` hay
+        // của `res.*` (client ngắt kết nối giữa chừng) bị nuốt — harness test
+        // không được biến lỗi dọn dẹp thành unhandled rejection làm đỏ vitest.
+        // `res.headersSent` chặn double-response khi lỗi đến sau khi đã gửi.
+        void (async (): Promise<void> => {
+          // Mã code/verifier KHÔNG được kiểm ở đây: mã code là single-use CAS
+          // ở `auth` thật — fake không có code store; callback BFF vẫn chạy
+          // đúng đường verify offline (ES256 + iss/aud/exp) trước khi lập
+          // phiên, nên token "miễn phí" vẫn không vượt qua phép verify.
+          const accessToken = await signAccessToken(FAKE_SUB);
+          res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+          res.end(
+            JSON.stringify({
+              access_token: accessToken,
+              token_type: 'Bearer',
+              expires_in: 300,
+              refresh_token: randomBytes(32).toString('base64url'),
+              scope: 'openid offline_access',
+            }),
+          );
+        })().catch(() => {
+          if (!res.headersSent) {
+            res.writeHead(500);
+          }
+          res.end();
+        });
+      });
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise<void>((done) => {
+    server.listen(0, '127.0.0.1', done);
+  });
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    server.close();
+    throw new Error('fake auth server did not bind a port');
+  }
+  // Port chụp vào hằng: closure `signAccessToken` dùng sau khi hàm đã trả, mà
+  // `address` là biến `const` mà TS không narrow được trong closure.
+  const issuer = `http://127.0.0.1:${String(address.port)}`;
+
+  async function signAccessToken(sub: string, expiresInSecondsFromNow = 300): Promise<string> {
+    return new SignJWT({
+      scope: 'openid offline_access',
+      client_id: FAKE_CLIENT_ID,
+      jti: randomBytes(8).toString('hex'),
+    })
+      .setProtectedHeader({ alg: 'ES256', typ: 'at+jwt', kid: FAKE_KEY_ID })
+      .setIssuer(issuer)
+      .setAudience(FAKE_AUDIENCE)
+      .setSubject(sub)
+      .setIssuedAt()
+      .setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSecondsFromNow)
+      .sign(keyPair.privateKey);
+  }
+
+  return {
+    issuer,
+    signAccessToken,
+    stop: async (): Promise<void> => {
+      await new Promise<void>((done) => {
+        server.close(() => done());
+      });
+    },
+  };
+}
+
+/**
+ * Chạy một CLI vận hành (của API hay của app) bằng tsx subprocess — credential
+ * chỉ qua env của process, không bao giờ argv. Import của script (`pg`, libs)
+ * được resolve từ node_modules của project chứa script bên trong subprocess.
+ * App migration ghim đúng lệnh mà Nx target `db:migrate` chạy (cwd app +
+ * `tsconfig.db.json`) — cùng runner với lane.
+ */
+function runCliScript(
+  scriptRelativePath: string,
+  env: Record<string, string>,
+  opts: { cwd?: string; tsconfig?: string } = {},
+): void {
+  const args = opts.tsconfig === undefined ? [] : ['--tsconfig', opts.tsconfig];
+  args.push(resolve(REPO_ROOT, scriptRelativePath));
+  const result = spawnSync(TSX_BIN, args, {
+    cwd: opts.cwd ?? REPO_ROOT,
     env: { ...process.env, ...env },
     encoding: 'utf8',
   });
@@ -486,9 +732,14 @@ interface StartedWorker {
   readonly origin: string;
 }
 
-/** Boot workerd cho API với Hyperdrive local emulation trỏ vào container. */
+/**
+ * Boot workerd cho API với Hyperdrive local emulation trỏ vào container và
+ * issuer/audience của fake auth (ADR-0031 §1: API verify access token user
+ * offline qua JWKS của issuer — đường verify user thật, không bypass).
+ */
 async function startApiWorker(
   runtimeConnectionString: string,
+  authIssuer: string,
 ): Promise<StartedWorker & { restoreHdEnv(): void }> {
   const saved = { had: HD_LOCAL_ENV in process.env, value: process.env[HD_LOCAL_ENV] };
   const restoreHdEnv = (): void => {
@@ -507,7 +758,15 @@ async function startApiWorker(
     process.env[HD_LOCAL_ENV] = runtimeConnectionString;
     harness = wranglerCli.createTestHarness({
       root: API_DIR,
-      workers: [{ configPath: resolve(API_DIR, 'wrangler.jsonc') }],
+      workers: [
+        {
+          configPath: resolve(API_DIR, 'wrangler.jsonc'),
+          vars: {
+            PACT_BROKER_AUTH_ISSUER: authIssuer,
+            PACT_BROKER_AUTH_AUDIENCE: FAKE_AUDIENCE,
+          },
+        },
+      ],
     });
     const { url } = await harness.listen();
     await waitFor(async () => (await fetch(`${url.origin}/health`)).status === 200, {
@@ -524,41 +783,78 @@ async function startApiWorker(
 
 /**
  * Boot workerd cho app với config BFF test-only, tách đúng kênh như production:
- * base URL qua `vars`, token qua `secrets` (trên thật là Worker Secrets — xem
- * `wrangler.jsonc`). Cả hai đều chạm cùng đường nối env của workerd, nên probe
- * composition phủ đúng path config mà runtime đọc.
+ * base URL API + cấu hình OIDC qua `vars` (`PACT_BROKER_AUTH_*` là đường Worker
+ * env mà `server/auth/config.ts` đọc trước runtimeConfig), database phiên qua
+ * binding Hyperdrive `DB_PACT_BROKER_APP` mô phỏng local
+ * (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_*` — PHẢI set TRƯỚC
+ * `createTestHarness`, cùng cơ chế lane local dùng cho WIC auth; giá trị cũ
+ * được chụp và khôi phục ở `close()`). KHÔNG có biến token nào: machine token
+ * của BFF đã retire (ADR-0031 §5) — đường xác thực duy nhất của BFF là phiên
+ * user.
  */
-async function startAppWorker(apiOrigin: string, token: string): Promise<StartedWorker> {
-  const harness = wranglerCli.createTestHarness({
-    root: APP_DIR,
-    workers: [
-      {
-        configPath: resolve(APP_DIR, 'wrangler.jsonc'),
-        vars: { NITRO_PACT_BROKER_API_BASE_URL: apiOrigin },
-        secrets: { NITRO_PACT_BROKER_API_TOKEN: token },
-      },
-    ],
-  });
+async function startAppWorker(
+  apiOrigin: string,
+  authIssuer: string,
+  appDbConnectionString: string,
+): Promise<StartedWorker & { restoreHdEnv(): void }> {
+  const appHdEnv = 'CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_PACT_BROKER_APP';
+  const savedAppHd = { had: appHdEnv in process.env, value: process.env[appHdEnv] };
+  const restoreAppHdEnv = (): void => {
+    if (savedAppHd.had) {
+      process.env[appHdEnv] = savedAppHd.value;
+    } else {
+      Reflect.deleteProperty(process.env, appHdEnv);
+    }
+  };
+  let harness: TestHarness | undefined;
   try {
+    process.env[appHdEnv] = appDbConnectionString;
+    harness = wranglerCli.createTestHarness({
+      root: APP_DIR,
+      workers: [
+        {
+          // Inline config thay vì `configPath`: harness chỉ cho override
+          // binding Hyperdrive qua config inline (cùng đường `apps/backoffice`
+          // dùng cho binding `DB_BACKOFFICE`). Nội dung mirror đúng
+          // `wrangler.jsonc` top-level — `main`, asset layer và
+          // `run_worker_first` là shape mà suite browser dựa vào (shell SPA do
+          // Nitro trả, `/_nuxt/**` do asset layer).
+          config: {
+            name: 'ecoma-pact-broker-app-it',
+            main: resolve(APP_DIR, '.output/server/index.mjs'),
+            compatibility_date: '2026-10-05',
+            compatibility_flags: ['nodejs_compat'],
+            assets: {
+              directory: resolve(APP_DIR, '.output/public'),
+              binding: 'ASSETS',
+              not_found_handling: 'none',
+              run_worker_first: ['/api/*', '/health', '/ready'],
+            },
+            vars: {
+              NITRO_PACT_BROKER_API_BASE_URL: apiOrigin,
+              PACT_BROKER_AUTH_ISSUER: authIssuer,
+              PACT_BROKER_AUTH_AUDIENCE: FAKE_AUDIENCE,
+              PACT_BROKER_AUTH_CLIENT_ID: FAKE_CLIENT_ID,
+            },
+            hyperdrive: [
+              {
+                binding: 'DB_PACT_BROKER_APP',
+                id: '00000000000000000000000000000000',
+              },
+            ],
+          },
+        },
+      ],
+    });
     const { url } = await harness.listen();
     await waitFor(async () => (await fetch(`${url.origin}/health`)).status === 200, {
       timeoutMs: 120_000,
       label: 'pact-broker-app /health',
     });
-    // Probe composition: app (workerd) gọi được API (workerd) qua network
-    // thật — hỏng wiring ở đây là chết ngay lúc setup, không phải giữa test.
-    await waitFor(
-      async () =>
-        (
-          await fetch(`${url.origin}/api/broker/pacticipants`, {
-            headers: { accept: 'application/json' },
-          })
-        ).status === 200,
-      { timeoutMs: 120_000, label: 'BFF to API composition probe' },
-    );
-    return { harness, origin: url.origin };
+    return { harness, origin: url.origin, restoreHdEnv: restoreAppHdEnv };
   } catch (error) {
-    await harness.close().catch(() => undefined);
+    await harness?.close().catch(() => undefined);
+    restoreAppHdEnv();
     throw error;
   }
 }
@@ -569,15 +865,118 @@ export interface BrokerStack {
   readonly appUrl: string;
   /** Origin của API workerd — seed/assert hợp đồng trực tiếp khi cần. */
   readonly apiUrl: string;
-  /** Plaintext machine token của BFF — chỉ dùng để assert "không rò vào UI". */
+  /**
+   * Machine token seed của Pact CLI/CI (đường machine hợp lệ vẫn tồn tại,
+   * ADR-0031 §5) — gọi public surface của API trực tiếp khi cần. KHÔNG phải
+   * credential của BFF: suite assert nó KHÔNG xuất hiện trong traffic/cookie.
+   */
   readonly machineToken: string;
+  /**
+   * Connection string role runtime của DB phiên (`db-pact-broker-app`) — CHỈ
+   * để test dựng trạng thái không tạo được qua HTTP (phiên hết hạn, phiên
+   * revoked). Không dùng để đọc dữ liệu mà BFF phải trả về.
+   */
+  readonly appDatabaseUrl: string;
+  /** Fake OIDC của stack — `signAccessToken` cho token hết hạn/ký sai. */
+  readonly fakeAuth: FakeOidcAuth;
+  /**
+   * Đăng nhập một phiên user thật qua đường OIDC của BFF (login → fake authorize
+   * code → callback → cookie `__Host-`); mỗi lần gọi tạo phiên riêng trong DB.
+   */
+  loginSession(): Promise<BrokerSession>;
   close(): Promise<void>;
 }
 
 /**
- * Dựng full stack: container PostgreSQL → provision role → migrations →
- * bootstrap tenant → provision machine token → workerd API → workerd app →
- * seed dữ liệu qua public surface.
+ * Một phiên BFF đã đăng nhập — cookie header hoàn chỉnh cho fetch `/api/**`
+ * và cặp double-submit CSRF của phiên.
+ */
+export interface BrokerSession {
+  /** Giá trị `Cookie` hoàn chỉnh (session + csrf) — gắn thẳng vào fetch. */
+  readonly cookieHeader: string;
+  /** Giá trị cookie CSRF — echo trong header `x-ecoma-csrf` cho mutation. */
+  readonly csrfToken: string;
+  /** Tên header CSRF mà middleware yêu cầu (ghim hợp đồng ở đây). */
+  readonly csrfHeaderName: string;
+  /** Toàn bộ `Set-Cookie` của callback — assert `__Host-` flags + không token. */
+  readonly setCookies: readonly string[];
+}
+
+/** Cờ bắt buộc của cookie phiên `__Host-` (ADR-0031 §2) — assert lúc login. */
+function assertHostCookieFlags(cookie: string, label: string): void {
+  if (!cookie.startsWith('__Host-')) {
+    throw new Error(`${label} is not a __Host- cookie: ${cookie.split(';')[0]?.split('=')[0]}`);
+  }
+  for (const flag of ['Path=/', 'Secure', 'SameSite=Lax'] as const) {
+    if (!cookie.includes(flag)) {
+      throw new Error(`${label} is missing the ${flag} flag`);
+    }
+  }
+}
+
+export async function loginSession(appUrl: string): Promise<BrokerSession> {
+  // Bước 1 — login route dựng authorize URL + lưu login flow server-side, gắn
+  // cookie flow dùng một lần. `redirect: 'manual'` để thấy 302 và Location.
+  const login = await fetch(`${appUrl}/api/auth/login`, { redirect: 'manual' });
+  if (login.status !== 302) {
+    throw new Error(`login route expected 302, got ${String(login.status)}`);
+  }
+  const location = login.headers.get('location');
+  if (location === null) {
+    throw new Error('login redirect is missing the Location header');
+  }
+  const state = new URL(location).searchParams.get('state');
+  if (state === null || state === '') {
+    throw new Error('authorize URL is missing the state parameter');
+  }
+  const flowCookie = login.headers
+    .getSetCookie()
+    .find((cookie) => cookie.startsWith('__Host-pact-broker-login='));
+  if (flowCookie === undefined) {
+    throw new Error('login route did not set the one-time flow cookie');
+  }
+
+  // Bước 2 — callback với code "tự chế" (fake `/token` cấp token cho mọi code)
+  // + cookie flow: callback vẫn chạy ĐỦ đường verify thật (state match → token
+  // exchange → ES256 JWKS verify → insert session) trước khi cấp cookie phiên.
+  const callback = await fetch(
+    `${appUrl}/api/auth/callback?code=${encodeURIComponent('it-auth-code')}&state=${encodeURIComponent(state)}`,
+    { redirect: 'manual', headers: { cookie: flowCookie.split(';')[0] ?? '' } },
+  );
+  if (callback.status !== 302) {
+    throw new Error(`callback expected 302, got ${String(callback.status)}`);
+  }
+  const setCookies = callback.headers.getSetCookie();
+  const sessionCookie = setCookies.find((cookie) =>
+    cookie.startsWith('__Host-pact-broker-session='),
+  );
+  const csrfCookie = setCookies.find((cookie) => cookie.startsWith('__Host-pact-broker-csrf='));
+  if (sessionCookie === undefined || csrfCookie === undefined) {
+    throw new Error('callback did not set both the session and the csrf cookies');
+  }
+  assertHostCookieFlags(sessionCookie, 'session cookie');
+  assertHostCookieFlags(csrfCookie, 'csrf cookie');
+  if (!sessionCookie.includes('HttpOnly')) {
+    throw new Error('session cookie is missing HttpOnly');
+  }
+  if (csrfCookie.includes('HttpOnly')) {
+    throw new Error('csrf cookie must stay readable to same-origin JS (double-submit)');
+  }
+
+  const pair = [sessionCookie, csrfCookie].map((cookie) => cookie.split(';')[0] ?? '');
+  return {
+    cookieHeader: pair.join('; '),
+    csrfToken: (csrfCookie.split(';')[0] ?? '').split('=').slice(1).join('='),
+    csrfHeaderName: 'x-ecoma-csrf',
+    setCookies,
+  };
+}
+
+/**
+ * Dựng full stack: container PostgreSQL → provision role + CẢ HAI database →
+ * migrations của từng unit → bootstrap tenant → machine token seed (CLI/CI) →
+ * fake OIDC → workerd API → workerd app → seed dữ liệu qua public surface →
+ * probe composition bằng một phiên user thật.
  *
  * ⚠️ Mỗi suite tự dựng stack của mình và tự dọn (`close()` trong `afterAll`)
  * — container chứa trạng thái, tái sử dụng giữa các suite làm dữ liệu assert
@@ -587,9 +986,11 @@ export async function startBrokerStack(): Promise<BrokerStack> {
   await probeDocker();
   const postgres = await startPostgresContainer();
   let api: (StartedWorker & { restoreHdEnv(): void }) | undefined;
-  let app: StartedWorker | undefined;
+  let app: (StartedWorker & { restoreHdEnv(): void }) | undefined;
+  let fakeAuth: FakeOidcAuth | undefined;
   try {
     provisionRoles(postgres.name);
+    provisionAppDatabase(postgres.name);
 
     const migratorUrl =
       `postgres://${MIGRATOR_ROLE}:${ROLE_PASSWORD}@127.0.0.1:${String(postgres.port)}/` +
@@ -597,22 +998,37 @@ export async function startBrokerStack(): Promise<BrokerStack> {
     const runtimeUrl =
       `postgres://${RUNTIME_ROLE}:${ROLE_PASSWORD}@127.0.0.1:${String(postgres.port)}/` +
       PACT_BROKER_DATABASE;
+    const appMigratorUrl =
+      `postgres://${APP_MIGRATOR_ROLE}:${ROLE_PASSWORD}@127.0.0.1:${String(postgres.port)}/` +
+      APP_DATABASE;
+    const appRuntimeUrl =
+      `postgres://${APP_RUNTIME_ROLE}:${ROLE_PASSWORD}@127.0.0.1:${String(postgres.port)}/` +
+      APP_DATABASE;
 
-    runApiCliScript('apps/pact-broker-api/db/apply.mts', { DATABASE_URL: migratorUrl });
-    runApiCliScript('apps/pact-broker-api/db/bootstrap-tenant.mts', {
+    runCliScript('apps/pact-broker-api/db/apply.mts', { DATABASE_URL: migratorUrl });
+    runCliScript(
+      'apps/pact-broker-app/db/apply.mts',
+      { DATABASE_URL: appMigratorUrl },
+      {
+        cwd: APP_DIR,
+        tsconfig: 'tsconfig.db.json',
+      },
+    );
+    runCliScript('apps/pact-broker-api/db/bootstrap-tenant.mts', {
       DATABASE_URL: runtimeUrl,
       CANONICAL_TENANT_OWNER_SUB: TENANT_OWNER_SUB,
     });
     const machineToken = randomBytes(24).toString('hex');
-    runApiCliScript('apps/pact-broker-api/db/provision-machine-token.mts', {
+    runCliScript('apps/pact-broker-api/db/provision-machine-token.mts', {
       DATABASE_URL: runtimeUrl,
-      PACT_MACHINE_TOKEN_NAME: MACHINE_TOKEN_NAME,
-      PACT_MACHINE_TOKEN_SCOPES: MACHINE_TOKEN_SCOPES,
+      PACT_MACHINE_TOKEN_NAME: SEED_TOKEN_NAME,
+      PACT_MACHINE_TOKEN_SCOPES: SEED_TOKEN_SCOPES,
       PACT_MACHINE_TOKEN_PLAINTEXT: machineToken,
     });
 
-    api = await startApiWorker(runtimeUrl);
-    app = await startAppWorker(api.origin, machineToken);
+    fakeAuth = await startFakeOidcAuth();
+    api = await startApiWorker(runtimeUrl, fakeAuth.issuer);
+    app = await startAppWorker(api.origin, fakeAuth.issuer, appRuntimeUrl);
 
     try {
       await seedBrokerData(api.origin, machineToken);
@@ -631,14 +1047,21 @@ export async function startBrokerStack(): Promise<BrokerStack> {
 
     const startedApi = api;
     const startedApp = app;
+    const startedFakeAuth = fakeAuth;
     return {
       appUrl: startedApp.origin,
       apiUrl: startedApi.origin,
       machineToken,
+      appDatabaseUrl: appRuntimeUrl,
+      fakeAuth: startedFakeAuth,
+      loginSession: (): Promise<BrokerSession> => loginSession(startedApp.origin),
       close: async (): Promise<void> => {
-        // Dọn ngược thứ tự boot — workerd trước (đóng socket runtime), rồi DB.
+        // Dọn ngược thứ tự boot — workerd trước (đóng socket runtime), rồi fake
+        // auth, rồi DB; env emulation khôi phục sau khi harness đóng.
         await startedApp.harness.close().catch(() => undefined);
         await startedApi.harness.close().catch(() => undefined);
+        await startedFakeAuth.stop().catch(() => undefined);
+        startedApp.restoreHdEnv();
         startedApi.restoreHdEnv();
         postgres.stop();
       },
@@ -649,6 +1072,10 @@ export async function startBrokerStack(): Promise<BrokerStack> {
       await api.harness.close().catch(() => undefined);
       api.restoreHdEnv();
     }
+    if (app !== undefined) {
+      app.restoreHdEnv();
+    }
+    await fakeAuth?.stop().catch(() => undefined);
     postgres.stop();
     throw error;
   }

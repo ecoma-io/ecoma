@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "types": ["node"],
+    "lib": ["es2023"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["db/**/*.mts", "tests/integrations/**/*.ts"]
+}

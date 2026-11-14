@@ -1,11 +1,13 @@
 /**
  * Test cho hợp đồng không-log của `server/utils/broker-client.ts` (SR-007).
  *
- * Hai bất biến được ghim ở đây:
+ * Ba bất biến được ghim ở đây:
  *
- * 1. `brokerCall` luôn set `authorization` từ config, **server-side** — browser
- *    không bao giờ tự mang token.
- * 2. Khi fetch ném (transport lỗi), log chỉ chứa **mã ổn định**
+ * 1. `brokerCall` set `authorization` bằng access token **của chủ phiên** — BFF
+ *    forward danh tính người dùng (ADR-0031 §4), không phải machine token của
+ *    deploy unit (token đó đã bị retire — ADR-0031 §5).
+ * 2. Browser không bao giờ mang token: token chỉ đi qua header server-side.
+ * 3. Khi fetch ném (transport lỗi), log chỉ chứa **mã ổn định**
  *    (`broker_unreachable`) — message gốc của driver, URL đích, token không
  *    được xuất hiện ở bất kỳ đâu trong stdout/stderr.
  */
@@ -13,7 +15,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { brokerCall } from '../server/utils/broker-client';
 
-const CONFIG = { baseUrl: 'https://broker-api.test', token: 'secret-token-value' };
+const CONFIG = { baseUrl: 'https://broker-api.test' };
+const USER_TOKEN = 'user-access-token-value';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -21,7 +24,7 @@ afterEach(() => {
 });
 
 describe('brokerCall', () => {
-  it('sends the bearer token from config as the authorization header', async () => {
+  it('sends the session access token as the authorization header', async () => {
     let seenHeaders: Headers | undefined;
     vi.stubGlobal(
       'fetch',
@@ -34,8 +37,8 @@ describe('brokerCall', () => {
       }),
     );
 
-    const result = await brokerCall(CONFIG, '/pacticipants');
-    expect(seenHeaders?.get('authorization')).toBe(`Bearer ${CONFIG.token}`);
+    const result = await brokerCall(CONFIG, USER_TOKEN, '/pacticipants');
+    expect(seenHeaders?.get('authorization')).toBe(`Bearer ${USER_TOKEN}`);
     expect(result).toEqual({ status: 200, body: { ok: true }, errorCode: null });
   });
 
@@ -44,7 +47,7 @@ describe('brokerCall', () => {
       'fetch',
       vi.fn(async () => new Response('{"_embedded":{}}', { status: 403 })),
     );
-    const result = await brokerCall(CONFIG, '/admin/machine-tokens');
+    const result = await brokerCall(CONFIG, USER_TOKEN, '/admin/machine-tokens');
     // 403 phải truyền nguyên văn — BFF không hiện hoá lỗi quyền của API thành 500.
     expect(result.status).toBe(403);
     expect(result.body).toEqual({ _embedded: {} });
@@ -53,7 +56,7 @@ describe('brokerCall', () => {
 
   it('never logs the URL, token, or driver message when fetch throws', async () => {
     const noisyError = new Error(
-      'fetch failed: https://broker-api.test/pacticipants?token=secret-token-value',
+      `fetch failed: https://broker-api.test/pacticipants?token=${USER_TOKEN}`,
     );
     vi.stubGlobal(
       'fetch',
@@ -65,7 +68,7 @@ describe('brokerCall', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const logSpyInfo = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    const result = await brokerCall(CONFIG, '/pacticipants');
+    const result = await brokerCall(CONFIG, USER_TOKEN, '/pacticipants');
 
     // Kết quả: status 0 + mã ổn định — không ném, không rò token.
     expect(result).toEqual({ status: 0, body: null, errorCode: 'broker_unreachable' });
@@ -76,7 +79,7 @@ describe('brokerCall', () => {
       .map((call) => call.map(String).join(' '))
       .join('\n');
     expect(allOutput).toContain('broker_unreachable');
-    expect(allOutput).not.toContain(CONFIG.token);
+    expect(allOutput).not.toContain(USER_TOKEN);
     expect(allOutput).not.toContain('fetch failed');
     expect(allOutput).not.toContain('https://');
   });
@@ -89,14 +92,14 @@ describe('brokerCall', () => {
       'fetch',
       vi.fn(async () => new Response(null, { status: 204 })),
     );
-    const empty = await brokerCall(CONFIG, '/pacticipants');
+    const empty = await brokerCall(CONFIG, USER_TOKEN, '/pacticipants');
     expect(empty).toEqual({ status: 204, body: null, errorCode: null });
 
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('<html>oops</html>', { status: 500 })),
     );
-    const html = await brokerCall(CONFIG, '/pacticipants');
+    const html = await brokerCall(CONFIG, USER_TOKEN, '/pacticipants');
     expect(html).toEqual({ status: 500, body: null, errorCode: null });
   });
 
@@ -110,8 +113,11 @@ describe('brokerCall', () => {
       }),
     );
 
-    await brokerCall(CONFIG, '/can-i-deploy', { method: 'GET' });
-    await brokerCall(CONFIG, '/pacts', { method: 'POST', body: JSON.stringify({ a: 1 }) });
+    await brokerCall(CONFIG, USER_TOKEN, '/can-i-deploy', { method: 'GET' });
+    await brokerCall(CONFIG, USER_TOKEN, '/pacts', {
+      method: 'POST',
+      body: JSON.stringify({ a: 1 }),
+    });
 
     expect(seen[0]).toBe('');
     expect(seen[1]).toBe('application/json');

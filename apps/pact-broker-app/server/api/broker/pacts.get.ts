@@ -2,6 +2,7 @@ import { defineEventHandler, setResponseStatus } from 'h3';
 
 import { brokerCall } from '../../utils/broker-client';
 import { pactBrokerBffConfig } from '../../utils/broker-config';
+import { requirePrincipal } from '../../principal';
 
 /**
  * `GET /api/broker/pacts` — ma trận consumer/provider/version cho trang Pacts,
@@ -52,6 +53,11 @@ export function pacticipantNamesOf(body: unknown): string[] {
 const EMPTY_MATRIX = { matrix: [] } as const;
 
 export default defineEventHandler(async (event) => {
+  // Principal TRƯỚC config guard (review #254, nhất quán cả 5 route): request
+  // chưa xác thực luôn nhận 401 bất kể broker có cấu hình hay không — không rò
+  // trạng thái cấu hình cho caller vô danh (contract của `requirePrincipal`).
+  const principal = requirePrincipal(event);
+
   // ⚠️ `useRuntimeConfig(event)` (auto-import của Nitro), KHÔNG phải
   // `event.context.runtimeConfig`: slot đó không ai gắn trên runtime thật —
   // dùng nó là 503 vĩnh viễn kể cả khi đã cấu hình (sửa trong issue #181).
@@ -65,7 +71,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Hop 1 — liệt kê pacticipants của tenant.
-  const list = await brokerCall(config, '/pacticipants');
+  const list = await brokerCall(config, principal.accessToken, '/pacticipants');
   if (list.errorCode !== null || list.status !== 200) {
     setResponseStatus(event, list.errorCode !== null ? 502 : list.status);
     return list.body ?? { error: 'broker_unreachable' };
@@ -80,11 +86,16 @@ export default defineEventHandler(async (event) => {
   }
 
   // Hop 2 — một lần `/matrix` với selector lặp cho từng pacticipant.
+  // ⚠️ Hai hop dùng chung access token của phiên (review #254): TTL token 300s
+  // (ADR-0031), giữa hai hop có thể hết hạn — API trả 401 cho hop 2 và status
+  // đó truyền NGUYÊN VĂN về UI (luật chung của route, không hiện hoá 502);
+  // wrapper `brokerFetch` của UI dịch 401 thành điều hướng login. Không refresh
+  // token tại đây: đường refresh là #258, chưa hiện thực ở M1.
   const params = new URLSearchParams();
   for (const name of names) {
     params.append('q[][pacticipant]', name);
   }
-  const result = await brokerCall(config, `/matrix?${params.toString()}`);
+  const result = await brokerCall(config, principal.accessToken, `/matrix?${params.toString()}`);
   setResponseStatus(event, result.errorCode !== null ? 502 : result.status);
   return result.body ?? { error: 'broker_unreachable' };
 });

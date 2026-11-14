@@ -14,6 +14,7 @@
 import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
+import { brokerFetch } from '../utils/broker-fetch';
 
 const { t } = useI18n();
 
@@ -26,7 +27,7 @@ interface TokenRow {
 }
 
 const { state, reload } = useAsyncState(async () => {
-  const res = await fetch('/api/broker/machine-tokens');
+  const res = await brokerFetch('/api/broker/machine-tokens');
   const body: unknown = await res.json().catch(() => null);
   if (res.status === 503) {
     return { kind: 'unavailable' as const };

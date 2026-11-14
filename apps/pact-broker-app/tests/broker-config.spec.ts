@@ -3,30 +3,44 @@
  *
  * Đây là chốt fail-closed của dashboard: mọi route `/api/broker/**` và `/ready`
  * đi qua `pactBrokerBffConfig()`, và `null` của nó là tín hiệu 503. Một lỗ
- * hổng ở đây (chấp nhận URL có path, chấp nhận token rỗng, mis-read shape) là
- * lỗ hổng của cả dashboard — nên test này không mô tả "hành vi đẹp" mà ghim
- * từng nhánh từ chối.
+ * hổng ở đây (chấp nhận URL có path, mis-read shape) là lỗ hổng của cả
+ * dashboard — nên test này không mô tả "hành vi đẹp" mà ghim từng nhánh từ
+ * chối.
+ *
+ * ⚠️ Không còn khoá token (ADR-0031 §5): machine token của BFF bị **retire
+ * hoàn toàn**, nên config chỉ còn base URL. Test ghim luôn rằng accessor
+ * **không** đọc bất kỳ khoá token nào — một khoá token còn sót trong
+ * runtimeConfig là credential thừa phải revoke sau này (đúng lý do ADR-0031
+ * §5 nêu).
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  PACT_BROKER_API_BASE_URL_KEY,
-  PACT_BROKER_API_TOKEN_KEY,
-  pactBrokerBffConfig,
-} from '../server/utils/broker-config';
+import { PACT_BROKER_API_BASE_URL_KEY, pactBrokerBffConfig } from '../server/utils/broker-config';
 
 /** Shape đầy đủ, hợp lệ — điểm khởi phát của mọi test biến thể. */
 const VALID = {
   pactBrokerApiBaseUrl: 'https://stg-ecoma-pact-broker-api.workers.dev',
-  pactBrokerApiToken: 'token-value-for-test',
 };
 
 describe('pactBrokerBffConfig', () => {
-  it('accepts an absolute http(s) origin plus a non-empty token', () => {
+  it('accepts an absolute http(s) origin', () => {
     expect(pactBrokerBffConfig(VALID)).toEqual({
       baseUrl: 'https://stg-ecoma-pact-broker-api.workers.dev',
-      token: 'token-value-for-test',
     });
+  });
+
+  it('exposes no token in the resolved config', () => {
+    // Machine token của BFF đã bị retire (ADR-0031 §5) — config trả về không
+    // được chứa field credential nào.
+    expect(Object.keys(pactBrokerBffConfig(VALID) ?? {}).toSorted()).toEqual(['baseUrl']);
+  });
+
+  it('ignores a leftover token key instead of resolving it', () => {
+    // Một khoá token còn sót trong runtimeConfig không được biến thành
+    // credential của BFF — accessor chỉ đọc base URL.
+    const config = pactBrokerBffConfig({ ...VALID, pactBrokerApiToken: 'stale-token' });
+    expect(config).toEqual({ baseUrl: VALID.pactBrokerApiBaseUrl });
+    expect(JSON.stringify(config)).not.toContain('stale-token');
   });
 
   it('normalizes trailing casing of the scheme and keeps the origin only', () => {
@@ -39,25 +53,22 @@ describe('pactBrokerBffConfig', () => {
     expect(config?.baseUrl).toBe('https://broker.api.test:8443');
   });
 
-  it('returns null when either key is missing', () => {
+  it('returns null when the base URL key is missing', () => {
     // Spread + ghi đè `undefined` thay vì `delete` — cùng hiệu ứng với key vắng
     // mặt mà không dùng xoá khoá động (bị lint cấm).
     expect(pactBrokerBffConfig({ ...VALID, [PACT_BROKER_API_BASE_URL_KEY]: undefined })).toBeNull();
-    expect(pactBrokerBffConfig({ ...VALID, [PACT_BROKER_API_TOKEN_KEY]: undefined })).toBeNull();
   });
 
   it('returns null on empty-string values — the build-time defaults', () => {
     // Default trong nuxt.config.ts là chuỗi rỗng: "chưa cấu hình" phải thành
-    // 503, không phải "chạy được với base rỗng/token rỗng".
+    // 503, không phải "chạy được với base rỗng".
     expect(pactBrokerBffConfig({ ...VALID, pactBrokerApiBaseUrl: '' })).toBeNull();
-    expect(pactBrokerBffConfig({ ...VALID, pactBrokerApiToken: '' })).toBeNull();
   });
 
   it('returns null when a value has the wrong type', () => {
     // Secret nối vào runtime config ở request trên Workers — shape sai là
     // trạng thái thật, không phải giả định; accessor không được ném.
     expect(pactBrokerBffConfig({ ...VALID, pactBrokerApiBaseUrl: 123 })).toBeNull();
-    expect(pactBrokerBffConfig({ ...VALID, pactBrokerApiToken: null })).toBeNull();
     expect(pactBrokerBffConfig(undefined)).toBeNull();
     expect(pactBrokerBffConfig(null)).toBeNull();
   });

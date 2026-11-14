@@ -21,12 +21,18 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { startBrokerStack, type BrokerStack } from './broker-stack';
+import { startBrokerStack, type BrokerSession, type BrokerStack } from './broker-stack';
 
 let stack: BrokerStack;
+/**
+ * Phiên user đã đăng nhập (ADR-0031 §2) — mọi call BFF trong suite này phải
+ * mang cookie phiên, vì middleware authn chặn `/api/**` không có phiên.
+ */
+let session: BrokerSession;
 
 beforeAll(async () => {
   stack = await startBrokerStack();
+  session = await stack.loginSession();
 }, 300_000);
 
 afterAll(async () => {
@@ -49,7 +55,7 @@ interface MatrixWire {
 
 async function fetchBffPacts(): Promise<{ status: number; body: MatrixWire }> {
   const response = await fetch(`${stack.appUrl}/api/broker/pacts`, {
-    headers: { accept: 'application/json' },
+    headers: { accept: 'application/json', cookie: session.cookieHeader },
   });
   const body = (await response.json().catch(() => null)) as MatrixWire | null;
   return { status: response.status, body: body ?? {} };
@@ -157,7 +163,7 @@ describe('pact-broker-app BFF to pact-broker-api matrix contract', () => {
     // Hop 1 của composition — contract của /pacticipants: danh sách tên là
     // nguồn mà selector lặp của hop 2 được dựng từ đó.
     const response = await fetch(`${stack.appUrl}/api/broker/pacticipants`, {
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', cookie: session.cookieHeader },
     });
     expect(response.status).toBe(200);
     // Bracket-string cho khoá HAL — `_embedded` ở dot notation là
