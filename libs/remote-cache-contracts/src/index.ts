@@ -12,7 +12,6 @@
  * KHÔNG có data plane, KHÔNG có quota, KHÔNG có hardening (P4.2/P4.3/P4.4).
  */
 
-} from './portal-contract';
 export {
   FORBIDDEN_PORTAL_KEY_CREDENTIAL_FIELDS,
   PORTAL_API_KEY_SCOPES,
