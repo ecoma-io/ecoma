@@ -69,6 +69,9 @@ afterEach(async () => {
  * nơi người dùng đăng nhập một lần cho cả phiên làm việc).
  */
 async function openAuthenticatedPage(): Promise<{ context: BrowserContext; page: Page }> {
+  // Gọi lần thứ hai trong cùng test (logout → login lại) thì đóng context cũ:
+  // ghi đè `lastContext` mà không đóng thì context cũ chỉ được dọn ở `afterAll`.
+  await lastContext?.close().catch(() => undefined);
   const context = await browser.newContext();
   const opened = await context.newPage();
   page = opened;
