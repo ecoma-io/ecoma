@@ -46,7 +46,7 @@ describe('BFF broker routes expose no write-domain surface', () => {
     const files = routeFiles(BROKER_API_DIR);
     // Cấu trúc thay đổi phải cập nhật test — không cho phép route mới lọt
     // qua im lặng khi quét.
-    expect(files.length).toBeGreaterThanOrEqual(7);
+    expect(files.length).toBeGreaterThanOrEqual(11);
 
     for (const file of files) {
       if (isReadRoute(file)) continue;
