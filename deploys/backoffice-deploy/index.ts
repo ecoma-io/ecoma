@@ -55,13 +55,14 @@ const AUTH_INTERNAL_PORT_OF_AUTH_WIC = 4203;
 const STAFF_ACCESS_INTERNAL_PORT = 4206;
 
 /**
- * Cổng HTTP nội bộ của container `ecoma-account` của account-deploy — `dev.port`
- * của `apps/account/wrangler.jsonc`. Giá trị này được copy vì hai stack là hai
- * Pulumi program độc lập. Alias `ecoma-account` + port này là đường duy nhất
- * container Node backoffice tới được account trên platform network (cùng lý
- * luận `STAFF_ACCESS_INTERNAL_PORT` ở trên).
+ * Cổng HTTP nội bộ của container `ecoma-account` của account-deploy —
+ * `ACCOUNT_INTERNAL_PORT` của stack đó (Nitro `node-server` mặc định 3000, không
+ * phải `dev.port` của wrangler: account ở đây là container Node, không phải WIC).
+ * Giá trị này được copy vì hai stack là hai Pulumi program độc lập. Alias
+ * `ecoma-account` + port này là đường duy nhất container Node backoffice tới được
+ * account trên platform network (cùng lý luận `STAFF_ACCESS_INTERNAL_PORT` ở trên).
  */
-const ACCOUNT_INTERNAL_PORT = 4202;
+const ACCOUNT_INTERNAL_PORT = 3000;
 
 const traefikPrefix = (ns: string): string => `backoffice-${ns}`;
 
@@ -236,7 +237,8 @@ const backoffice = new docker.Container(
       // account verify.
       pulumi.interpolate`ACCOUNT_INTERNAL_SECRET=${pulumi.secret(accountInternalHmacSecret)}`,
       // Origin fetch server-side tới account qua alias DNS nội bộ
-      // `ecoma-account` của WIC account-deploy (port 4202). Cùng lý luật với
+      // `ecoma-account` của container account-deploy (port 3000). Cùng lý luật
+      // với
       // `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL` bên trên: container Node
       // không resolve được hostname `account.<rootHostname>` — đường duy nhất
       // là alias Docker trên platform network. Shim Nitro biến URL này thành

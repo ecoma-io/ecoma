@@ -94,7 +94,7 @@ export default defineNuxtConfig({
     // `accountClientConfig()` trả `null` ⇒ mọi gọi account fail-closed
     // `binding_missing` (`/api/onboarding-status` 503, `/api/me` trả
     // `displayName: null`), đúng trạng thái production khi hạ tầng chưa
-    // provision. Có giá trị (local: `http://ecoma-account:4202` do
+    // provision. Có giá trị (local: `http://ecoma-account:3000` do
     // backoffice-deploy cấp) = fetch từ origin nội bộ vì container không
     // resolve được hostname `account` và không đi ra host loopback được. Xem
     // `server/plugins/account-service-shim.ts`.
