@@ -53,7 +53,10 @@ export class PgVerificationRepo {
       try {
         await client.query('BEGIN');
 
-        // Pact theo 4 cột — khác upstream chỉ tra sha.
+        // Pact theo 4 cột — khác upstream chỉ tra sha. #221 cho phép nhiều hàng
+        // pact cùng (tenant, provider, consumer, sha) — ORDER BY ghim việc gắn
+        // verification vào hàng pact MỚI NHẤT (cùng quy ước tie-break với mọi
+        // truy vấn latest của broker); thiếu ORDER BY, LIMIT 1 là tuỳ ý.
         const pact = await client.query<{ id: string }>(
           `SELECT p.id
              FROM pact.pacts p
@@ -64,6 +67,7 @@ export class PgVerificationRepo {
               AND p.content_sha = $2
               AND prov.name = $3
               AND pc.name = $4
+            ORDER BY p.created_at DESC, p.id DESC
             LIMIT 1`,
           [tenantId, pactSha, providerName, consumerName],
         );
