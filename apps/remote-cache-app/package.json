@@ -3,12 +3,36 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "@ecoma-io/internal-auth-contracts": "workspace:*",
     "@ecoma-io/ui-app-shell": "workspace:*",
-    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+    "@ecoma-io/ui-ecoma-logo": "workspace:*",
+    "jose": "6.2.17"
   },
   "devDependencies": {
-    "@nuxtjs/i18n": "10.6.0"
+    "@nuxtjs/i18n": "10.6.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   },
+  "//": [
+    "`pg` + `@types/pg` ở devDependencies: driver PostgreSQL chỉ dùng ở",
+    "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
+    "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
+    "(không external). `jose` ở dependencies: verify access token offline trong",
+    "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice` và",
+    "`apps/pact-broker-app`.",
+    "",
+    "`@ecoma-io/internal-auth-contracts`: ký envelope HMAC nội bộ khi BFF gọi",
+    "control plane `remote-cache-api` (ADR-0034).",
+    "",
+    "Vì sao devDependencies là đủ cho `pg` (review #254 của pact-broker-app):",
+    "Worker bundle KHÔNG có node_modules lúc chạy — Nitro đóng gói toàn bộ `pg`",
+    "vào artifact (`noExternals` của preset `cloudflare-module`), nên việc cài",
+    "hay không cài dependency này ở 'môi trường production' không tồn tại như",
+    "một khái niệm; artifact chỉ được dựng từ workspace install đầy đủ. Cùng vị",
+    "trí devDependencies với `apps/backoffice`/`apps/pact-broker-app`.",
+    "`@types/pg` là compile-time types, devDependencies đúng theo nghĩa thông",
+    "thường."
+  ],
   "nx": {
     "tags": [
       "type:composition",
@@ -51,6 +75,22 @@
           "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
           "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
         ]
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/remote-cache-app",
+          "command": "npx tsc --project tsconfig.db.json"
+        }
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/remote-cache-app",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        }
       },
       "test": {
         "executor": "nx:run-commands",
@@ -155,7 +195,13 @@
           "",
           "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
           "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
-          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
+          "suite này đo, nên cache phải mất hiệu lực khi nó đổi.",
+          "",
+          "`command` giữ path filter `tests/integrations`: suite browser",
+          "`tests/browser/**` (regression trên local lane thật) thuộc",
+          "`test-integration` về tầng nhưng cần Docker + local lane đang chạy;",
+          "config integration hiện chỉ include `tests/integrations/**` cho đến",
+          "khi suite browser của app này được nối vào."
         ]
       },
       "lint": {

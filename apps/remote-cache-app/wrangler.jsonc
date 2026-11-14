@@ -7,13 +7,42 @@
   // Worker identity lâu dài — PR không tạo Worker mới, Preview chạy dưới
   // identity này. Reference: docs/architecture/02-delivery.md §5.
   //
-  // `remote-cache-app` là composition UI consumer + BFF (`docs/applications/remote-cache/01-architecture.md`),
-  // KHÔNG sở hữu database và KHÔNG có Hyperdrive binding nào — mọi dữ liệu
-  // nghiệp vụ đi qua contract/API của context owning.
+  // `remote-cache-app` là composition UI consumer + BFF (`docs/applications/remote-cache/01-architecture.md`).
+  // Từ ADR-0035, BFF **sở hữu database riêng** `db-remote-cache-app` — nơi lưu
+  // phiên BFF (`remote_cache_app.bff_sessions`) và luồng login-in-progress
+  // (`bff_login_flows`). Binding Hyperdrive `DB_REMOTE_CACHE_APP` trỏ tới đúng
+  // database đó; control plane `remote-cache-api` được gọi qua HTTP + HMAC
+  // (ADR-0034), KHÔNG qua database.
+  //
+  // ⚠️ Đây KHÔNG phải "một service, hai database": invariant 1 của
+  // `01-architecture.md` §9 là **mỗi service sở hữu một** database — app này
+  // sở hữu `db-remote-cache-app`, API sở hữu `db-remote-cache`. App không bao
+  // giờ chạm database của API (cross-service đi qua HTTP + contract).
+  //
+  // ⚠️ **CHỈ tên binding — không host, không port, không user, không
+  // password.** `id` là định danh Hyperdrive config **theo môi trường** (thuộc
+  // hạ tầng), không phải thông tin kết nối; connection string thật lấy ở
+  // runtime qua `binding.connectionString`. `id` dưới đây là placeholder toàn
+  // số 0 — deploy layer sẽ thay. Migration KHÔNG chạy qua binding này: nó chạy
+  // từ CI runner bằng chuỗi kết nối trực tiếp (platform facts HD6 — Hyperdrive
+  // không hỗ trợ advisory lock).
+  //
+  // ⚠️ **Binding này KHÔNG được Preview dùng** (invariant 2): Worker đích giữ
+  // Hyperdrive production nên một Preview gọi binding là **ghi vào dữ liệu
+  // production qua một Worker production**. Wrangler không inherit binding giữa
+  // các `env.<lane>` (đo trên `wrangler` 4.151.0), nên mỗi `env` phải khai
+  // binding của chính nó — staging tuyệt đối không trỏ vào Hyperdrive
+  // production.
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-remote-cache-app",
   "main": ".output/server/index.mjs",
   "compatibility_date": "2026-10-05",
+  "hyperdrive": [
+    {
+      "binding": "DB_REMOTE_CACHE_APP",
+      "id": "00000000000000000000000000000000",
+    },
+  ],
   // Nitro dựa vào một số Node.js API qua shim nội bộ (stream, buffer).
   // App này là Nuxt app, không phải Worker thuần, nên `nodejs_compat` ở đây là
   // do Nitro yêu cầu chứ không phải nới lỏng boundary của `runtime:edge`.
@@ -72,6 +101,22 @@
   "env": {
     "staging": {
       "name": "stg-ecoma-remote-cache-app",
+      // Hyperdrive binding tới `db-remote-cache-app` — database của chính app
+      // này (xem ghi chú binding ở top-level). `id` là placeholder toàn số 0 —
+      // deploy layer sẽ thay.
+      //
+      // ⚠️ **QUERY CACHE OFF — bắt buộc.** Cache được đặt ở **config
+      // Hyperdrive**, không phải ở file này, nên không có key nào ở đây tắt
+      // được nó; việc tắt là thao tác vận hành trên `db-remote-cache-app`.
+      // Lý do: cache bật mặc định + cache **không** invalidate khi ghi ⇒ một
+      // phiên vừa bị revoke vẫn được đọc là còn sống trong tối đa 60s. Đây là
+      // đường correctness (ADR-0035, theo ADR-0031 §3) nên không có ngoại lệ.
+      "hyperdrive": [
+        {
+          "binding": "DB_REMOTE_CACHE_APP",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
       // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
       // deploy unit mà không phải suy đoán từ `account_id` (subdomain
@@ -83,6 +128,15 @@
       // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
       // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý.
       "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Base URL của control plane mà BFF gọi qua HMAC (ADR-0034). `vars`
+      // KHÔNG inherit từ top-level, nên khai tường minh cho từng env. Giá trị
+      // `https://` này là placeholder **có cấu trúc hợp lệ** — BFF chấp nhận
+      // nó (origin parse được) nhưng API ở đó chưa tồn tại. Issuer/audience
+      // của OIDC, `client_id` và `INTERNAL_AUTH_SECRET` đi qua Worker Secrets
+      // (`REMOTE_CACHE_AUTH_*`, `INTERNAL_AUTH_SECRET`) — deploy layer cấp.
+      "vars": {
+        "NITRO_REMOTE_CACHE_API_BASE_URL": "https://stg-ecoma-remote-cache-api.workers.dev",
+      },
       // Bề mặt public — xem ghi chú cùng khoá ở `apps/backoffice`.
       "smokeSurface": {},
     },
@@ -90,6 +144,16 @@
       "name": "ecoma-remote-cache-app",
       // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
       "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Cùng quy tắc với staging; production trỏ control plane production.
+      "hyperdrive": [
+        {
+          "binding": "DB_REMOTE_CACHE_APP",
+          "id": "00000000000000000000000000000000",
+        },
+      ],
+      "vars": {
+        "NITRO_REMOTE_CACHE_API_BASE_URL": "https://ecoma-remote-cache-api.workers.dev",
+      },
       "smokeSurface": {},
     },
   },
