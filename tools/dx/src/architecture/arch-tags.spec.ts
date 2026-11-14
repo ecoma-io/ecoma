@@ -955,8 +955,8 @@ describe('allowlists sync with .oxlintrc.json', () => {
    * chính wildcard đó.
    *
    * `account`/`auth` vẫn thuộc nhóm mặc định: constraint lint cho phép chéo scope
-   * qua `type:contracts` đúng như thiết kế — chiều ngược lại (một chiều bị chặn
-   * riêng cho cặp này) là việc của `CONTRACT_EDGE_OWNERSHIP`, không của allowlist.
+   * qua `type:contracts` đúng như thiết kế — chiều ngược lại (giới hạn riêng cho
+   * cặp này) là việc của `CONTRACT_EDGE_OWNERSHIP`, không của allowlist.
    */
   /**
    * Scope nghiệp vụ theo CHÍNH SÁCH MẶC ĐỊNH: tự do chéo scope qua
@@ -1080,12 +1080,15 @@ describe('allowlists sync with .oxlintrc.json', () => {
     }
   });
 
-  it('allows account to consume staff-access contracts and keeps the reverse direction blocked', () => {
+  it('allows account to consume staff-access contracts with no entry permitting the reverse direction', () => {
     // Consumer thật: `apps/account` gọi `POST /authorization/verdict` của
     // `staff-access` qua Service Binding (ADR-0033 Quyết định 3); hợp đồng thuộc
     // `libs/staff-access-contracts` của scope provider (issue #262). Cạnh
-    // account → staff-access contracts là consumer đúng vai trò; chiều ngược lại
-    // (staff-access → account contracts) không có entry nào cho phép.
+    // account → staff-access contracts là consumer đúng vai trò. `staff-access`
+    // chưa có entry trong `CONTRACT_EDGE_OWNERSHIP` nên lượt kiểm bỏ qua scope
+    // nguồn đó: chiều ngược lại (staff-access → account contracts) KHÔNG bị
+    // chặn chủ động bởi chính sách này — chỉ là chưa được phép; chính sách của
+    // từng scope bổ sung dần (xem JSDoc của validator).
     const account = node(
       'account-app',
       ['scope:account', 'type:composition', 'runtime:edge'],
