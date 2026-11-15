@@ -18,7 +18,9 @@
 import type {
   AuditEntry,
   BackofficeDataAdapter,
+  BackofficeWriteResult,
   Permission,
+  StaffAssignment,
   StaffEntitlementSummary,
   StaffMember,
   SystemRole,
@@ -108,6 +110,26 @@ export function createFakeBackofficeAdapter(data: FakeAdapterData = {}): FakeBac
     listPermissions: () => makeCall(permissionsCalls).promise,
     listEntitlements: () => makeCall(entitlementsCalls).promise,
     listAuditEntries: () => makeCall(auditEntriesCalls).promise,
+    listAssignments: () => Promise.resolve([] as readonly StaffAssignment[]),
+    // Ghi reject: fake chỉ phục vụ test đường đọc; test đường ghi dùng fake riêng.
+    createStaff: () =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        message: 'not supported by fake adapter',
+      } as BackofficeWriteResult<StaffMember>),
+    assignRole: () =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        message: 'not supported by fake adapter',
+      } as BackofficeWriteResult<StaffAssignment>),
+    revokeRole: () =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        message: 'not supported by fake adapter',
+      } as BackofficeWriteResult<StaffAssignment>),
   };
 
   return {

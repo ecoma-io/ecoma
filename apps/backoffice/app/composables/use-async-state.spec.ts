@@ -22,6 +22,7 @@ import { at, flushPromises } from '../../tests/harness';
 
 const OLDER: readonly StaffMember[] = [
   {
+    staffId: '',
     accountId: 'acct_00000000000000000000000000',
     displayName: 'Bản Cũ',
     status: 'active',
@@ -31,6 +32,7 @@ const OLDER: readonly StaffMember[] = [
 ];
 const NEWER: readonly StaffMember[] = [
   {
+    staffId: '',
     accountId: 'acct_11111111111111111111111111',
     displayName: 'Bản Mới',
     status: 'active',

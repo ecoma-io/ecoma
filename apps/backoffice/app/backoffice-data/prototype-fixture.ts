@@ -103,6 +103,7 @@ const ROLES: readonly SystemRole[] = [
  */
 const STAFF: readonly StaffMember[] = [
   {
+    staffId: '',
     accountId: ACCOUNT_IDS.linh,
     displayName: 'Linh Trần',
     status: 'active',
@@ -110,6 +111,7 @@ const STAFF: readonly StaffMember[] = [
     entitlements: [{ product: 'backoffice', status: 'entitled' }],
   },
   {
+    staffId: '',
     accountId: ACCOUNT_IDS.minh,
     displayName: 'Minh Nguyễn',
     status: 'active',
@@ -117,6 +119,7 @@ const STAFF: readonly StaffMember[] = [
     entitlements: [{ product: 'backoffice', status: 'entitled' }],
   },
   {
+    staffId: '',
     accountId: ACCOUNT_IDS.an,
     displayName: 'An Lê',
     status: 'suspended',
@@ -124,6 +127,7 @@ const STAFF: readonly StaffMember[] = [
     entitlements: [{ product: 'backoffice', status: 'entitled' }],
   },
   {
+    staffId: '',
     accountId: ACCOUNT_IDS.quang,
     displayName: 'Quang Phạm',
     status: 'terminated',
@@ -133,6 +137,7 @@ const STAFF: readonly StaffMember[] = [
   {
     // Staff **không** có role nào: tập role rỗng là trạng thái hợp lệ, và một
     // fixture nơi mọi người đều có role sẽ che mất nhánh "chưa gán gì" của UI.
+    staffId: '',
     accountId: ACCOUNT_IDS.thu,
     displayName: 'Thu Vũ',
     status: 'active',

@@ -31,7 +31,9 @@ import {
 import type {
   AuditEntry,
   BackofficeDataAdapter,
+  BackofficeWriteResult,
   Permission,
+  StaffAssignment,
   StaffEntitlementSummary,
   StaffMember,
   SystemRole,
@@ -87,6 +89,28 @@ function createPrototypeBackofficeAdapter(): BackofficeDataAdapter {
 
     async listAuditEntries(query: Record<string, string>): Promise<readonly AuditEntry[]> {
       return (await load()).listAuditEntries(query);
+    },
+
+    async createStaff(request: {
+      readonly sub: string;
+      readonly displayName: string;
+    }): Promise<BackofficeWriteResult<StaffMember>> {
+      return (await load()).createStaff(request);
+    },
+
+    async assignRole(request: {
+      readonly staffId: string;
+      readonly roleId: string;
+    }): Promise<BackofficeWriteResult<StaffAssignment>> {
+      return (await load()).assignRole(request);
+    },
+
+    async revokeRole(assignmentId: string): Promise<BackofficeWriteResult<StaffAssignment>> {
+      return (await load()).revokeRole(assignmentId);
+    },
+
+    async listAssignments(staffInternalId: string): Promise<readonly StaffAssignment[]> {
+      return (await load()).listAssignments(staffInternalId);
     },
   };
 }

@@ -3,6 +3,7 @@ import type {
   BackofficeDataAdapter,
   BackofficePrototypeData,
   Permission,
+  StaffAssignment,
   StaffEntitlementSummary,
   StaffMember,
   SystemRole,
@@ -64,6 +65,31 @@ export function createMockBackofficeAdapter(
     async listAuditEntries(_query: Record<string, string>): Promise<readonly AuditEntry[]> {
       // Prototype không đồng bộ bản ghi audit từ Staff Access: trả tập rỗng.
       return [];
+    },
+
+    async listAssignments(_staffInternalId: string): Promise<readonly StaffAssignment[]> {
+      // Prototype không đồng bộ assignment từ Staff Access: trả tập rỗng.
+      return [];
+    },
+
+    async createStaff(_request: {
+      readonly sub: string;
+      readonly displayName: string;
+    }): Promise<never> {
+      // Prototype không bao giờ ghi (S11): UI không render control ghi ở
+      // preview, nhưng phương thức vẫn phải reject nếu bị gọi.
+      throw new Error('Write operations are not available in preview mode');
+    },
+
+    async assignRole(_request: {
+      readonly staffId: string;
+      readonly roleId: string;
+    }): Promise<never> {
+      throw new Error('Write operations are not available in preview mode');
+    },
+
+    async revokeRole(_assignmentId: string): Promise<never> {
+      throw new Error('Write operations are not available in preview mode');
     },
   };
 }
