@@ -45,14 +45,59 @@ export default {
     broker: 'Pact Broker',
     overview: 'Tổng quan',
     pacts: 'Pacts',
+    verifications: 'Xác minh',
     matrix: 'Ma trận',
     environments: 'Môi trường',
     tokens: 'API tokens',
+    onboarding: 'Hướng dẫn CLI',
   },
 
   overview: {
     title: 'Tổng quan',
     description: 'Hợp đồng consumer-driven giữa các service của workspace này.',
+    empty: 'Chưa có pact nào được publish. Xem hướng dẫn CLI để publish hợp đồng đầu tiên.',
+    statParticipants: 'Pacticipants',
+    statIntegrations: 'Quan hệ tích hợp',
+    statVerifications: 'Kết quả xác minh',
+  },
+
+  verifications: {
+    title: 'Xác minh',
+    description: 'Kết quả xác minh mới nhất cho từng cặp consumer/provider.',
+    consumer: 'Consumer',
+    consumerVersion: 'Phiên bản consumer',
+    provider: 'Provider',
+    outcome: 'Kết quả',
+    verifiedAt: 'Xác minh lúc',
+  },
+
+  matrix: {
+    title: 'Ma trận',
+    description:
+      'Phán quyết can-i-deploy cho một phiên bản pacticipant nhắm tới một môi trường. "Chưa rõ" nghĩa là chưa được xác minh — không an toàn.',
+    pacticipant: 'Pacticipant',
+    choosePacticipant: 'Chọn một pacticipant',
+    version: 'Phiên bản',
+    environment: 'Môi trường đích',
+    environmentPlaceholder: 'vd. test',
+    ask: 'Kiểm tra',
+    verdict: {
+      deployable: 'Được phép deploy: mọi xác minh của phiên bản này đều đạt.',
+      'not-deployable': 'Không được phép deploy: có ít nhất một xác minh thất bại.',
+      unknown: 'Chưa rõ: thiếu kết quả xác minh. Không deploy khi thiếu bằng chứng.',
+    },
+  },
+
+  onboarding: {
+    title: 'Hướng dẫn CLI',
+    description: 'Cấu hình Pact CLI cho local dev và CI/CD với broker này.',
+    pinPrefix: 'Mọi lệnh được kiểm chứng với phiên bản CLI đã ghim:',
+    localTitle: 'Phát triển cục bộ',
+    ciTitle: 'Pipeline CI/CD',
+    copy: 'Sao chép',
+    credentialsTitle: 'Credential và xoay vòng',
+    credentialsBody:
+      'Machine token do quản trị viên tạo (hoặc qua API với credential scope admin). Giá trị token chỉ hiển thị đúng một lần lúc tạo — lưu vào secret store của CI. Để xoay vòng: tạo token mới, cập nhật secret của CI, rồi thu hồi token cũ. Không bao giờ commit token vào repository.',
   },
 
   pacts: {
@@ -73,7 +118,18 @@ export default {
     description: 'Các môi trường triển khai mà broker biết đến.',
     name: 'Tên',
     displayName: 'Tên hiển thị',
+    production: 'Production',
+    productionTrue: 'Production',
+    productionFalse: 'Không phải production',
     createdAt: 'Tạo lúc',
+    deploymentsTitle: 'Lượt triển khai (phiên bản mới nhất của mỗi pacticipant)',
+    deploymentsEmpty: 'Chưa có lượt triển khai nào được ghi.',
+    deploymentsUnavailable: 'Không xem được bản ghi triển khai lúc này.',
+    deployedPacticipant: 'Pacticipant',
+    deployedVersion: 'Phiên bản',
+    deployedEnvironment: 'Môi trường',
+    deployedAt: 'Triển khai lúc',
+    undeployedAt: 'Gỡ lúc',
   },
 
   tokens: {

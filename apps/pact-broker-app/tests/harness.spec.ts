@@ -62,13 +62,39 @@ describe('test harness bridge', () => {
 });
 
 describe('index page', () => {
-  it('renders exactly one h1 and real links to the three areas', async () => {
+  it('renders exactly one h1 and real links to the areas', async () => {
+    // Overview (#208) fetch ma trận compose trước khi render link khu vực —
+    // stub endpoint BFF thật của trang. `/api/broker/pacts` là endpoint DUY
+    // NHẤT mà index.vue gọi, nên một stub là đủ.
+    vi.stubGlobal(
+      'fetch',
+      stubFetch([
+        {
+          path: '/api/broker/pacts',
+          status: 200,
+          body: {
+            matrix: [
+              {
+                consumer: { name: 'svc-a', version: { number: '1.0.0' } },
+                provider: { name: 'svc-b' },
+                pact: { createdAt: '2026-11-13T00:00:00Z' },
+                verificationResult: null,
+              },
+            ],
+          },
+        },
+      ]),
+    );
     const wrapper = await mountPactBrokerPage(IndexPage);
+    await flush();
     expect(wrapper.findAll('h1')).toHaveLength(1);
     const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'));
     expect(hrefs).toContain('/pacts');
+    expect(hrefs).toContain('/verifications');
+    expect(hrefs).toContain('/matrix');
     expect(hrefs).toContain('/environments');
     expect(hrefs).toContain('/tokens');
+    expect(hrefs).toContain('/onboarding');
     wrapper.unmount();
   });
 

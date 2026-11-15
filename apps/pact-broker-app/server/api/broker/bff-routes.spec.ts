@@ -21,13 +21,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 
 import canIDeployRoute from './can-i-deploy.post';
+import deploymentsRoute from './deployments.get';
 import environmentsRoute from './environments.get';
 import machineTokensDeleteRoute from './machine-tokens/[id]/index.delete';
 import machineTokensCreateRoute from './machine-tokens.post';
 import machineTokensRotateRoute from './machine-tokens/[id]/rotate.post';
 import machineTokensRoute from './machine-tokens.get';
+import matrixRoute from './matrix.get';
 import pacticipantsRoute from './pacticipants.get';
 import pactsRoute from './pacts.get';
+import verificationsRoute from './verifications.get';
 import { USER_TOKEN, principalForTests } from './test-principal';
 
 const CONFIGURED = {
@@ -42,6 +45,9 @@ const GET_ROUTES: readonly (readonly [string, unknown])[] = [
   ['/api/broker/pacticipants', pacticipantsRoute],
   ['/api/broker/environments', environmentsRoute],
   ['/api/broker/machine-tokens', machineTokensRoute],
+  ['/api/broker/matrix', matrixRoute],
+  ['/api/broker/verifications', verificationsRoute],
+  ['/api/broker/deployments', deploymentsRoute],
 ];
 
 /**
@@ -70,6 +76,18 @@ const ALL_ROUTES: readonly (readonly [string, unknown])[] = [
   ...DELETE_ROUTES,
 ];
 
+/**
+ * Query bắt buộc cho các route có validate đầu vào trước khi gọi API — bảng
+ * chung kiểm hợp đồng forward, không phải nhánh validate (được phủ riêng ở
+ * describe cuối từng route).
+ */
+const ROUTE_QUERY: Record<string, string> = {
+  '/api/broker/matrix': 'pacticipant=svc-a&version=1.0.0',
+  // Có provider, KHÔNG có version → hop 1 resolve latest pact (đúng first hop
+  // khai ở expectedFirstHop); status 403/502 của hop 1 được truyền nguyên văn.
+  '/api/broker/verifications': 'consumer=svc-a&provider=svc-b',
+};
+
 /** Method thật của route theo bảng khai — GET/POST/DELETE. */
 function methodOf(path: string): 'GET' | 'POST' | 'DELETE' {
   if (DELETE_ROUTES.some(([p]) => p === path)) return 'DELETE';
@@ -82,14 +100,17 @@ function buildApp(route: {
   path: string;
   handler: unknown;
 }): WebHandler {
+  // Đường dẫn đăng ký route không chứa query — `call` nhận URL đầy đủ (kèm
+  // query cho các route validate đầu vào) nên tách search trước khi đăng ký.
+  const routePath = route.path.split('?')[0] ?? route.path;
   const app = createApp();
   const router = createRouter();
   if (route.method === 'POST') {
-    router.post(route.path, route.handler as never);
+    router.post(routePath, route.handler as never);
   } else if (route.method === 'DELETE') {
-    router.delete(route.path, route.handler as never);
+    router.delete(routePath, route.handler as never);
   } else {
-    router.get(route.path, route.handler as never);
+    router.get(routePath, route.handler as never);
   }
   // Middleware authn gắn principal vào `event.context` — route đọc nó qua
   // `requirePrincipal`. Test dựng app h3 thủ công nên phải đóng vai middleware:
@@ -159,31 +180,32 @@ describe('every /api/broker route fails closed when the BFF is unconfigured', ()
 describe('every /api/broker route forwards upstream status verbatim', () => {
   for (const [path, handler] of ALL_ROUTES) {
     it(`passes a 403 from the API through as 403: ${path}`, async () => {
-      let calledPath = '';
       vi.stubGlobal(
         'fetch',
-        vi.fn(async (input: RequestInfo | URL) => {
-          calledPath = new URL(String(input)).pathname;
-          return new Response('{"detail":"forbidden"}', {
-            status: 403,
-            headers: { 'content-type': 'application/json' },
-          });
-        }),
+        vi.fn(
+          async () =>
+            new Response('{"detail":"forbidden"}', {
+              status: 403,
+              headers: { 'content-type': 'application/json' },
+            }),
+        ),
       );
 
-      const response = await call(path, handler);
+      const response = await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
 
       expect(response.status).toBe(403);
-      // BFF gọi đúng endpoint upstream mà route khai (không route nào dựng
-      // lại logic liệt kê của API).
-      expect(calledPath.length).toBeGreaterThan(0);
     });
   }
 
   it('keeps the exact upstream first hop per route — each route owns its endpoint', async () => {
-    // `/api/broker/pacts` compose từ `/pacticipants` + `/matrix` (issue #181):
-    // hop ĐẦU là listing, hop ma trận được phủ riêng ở describe cuối.
-    const expectedFirstHop: Record<string, string> = {
+    // `/verifications` resolve version từ latest pact trước khi hỏi matrix.
+    // Query hợp lệ: bảng chung giờ truyền `ROUTE_QUERY` để route validate
+    // đầu vào (matrix/verifications) tới được hop upstream thay vì 400 sớm —
+    // nhánh 400 rỗng được phủ riêng ở describe cuối từng route.
+    const firstHopQuery = {
       '/api/broker/pacts': '/pacticipants',
       '/api/broker/pacticipants': '/pacticipants',
       '/api/broker/environments': '/environments',
@@ -192,6 +214,9 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
       '/api/broker/machine-tokens/:id/rotate': `/admin/machine-tokens/${UUID_PATH}/rotate`,
       '/api/broker/machine-tokens/:id': `/admin/machine-tokens/${UUID_PATH}`,
       '/api/broker/can-i-deploy': '/can-i-deploy',
+      '/api/broker/matrix': '/matrix',
+      '/api/broker/verifications': '/pacts/provider/svc-b/consumer/svc-a/latest',
+      '/api/broker/deployments': '/pacticipants',
     };
 
     for (const [path, handler] of ALL_ROUTES) {
@@ -204,8 +229,11 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
         }),
       );
 
-      await call(path, handler);
-      expect(calledPaths[0], `route: ${path}`).toBe(expectedFirstHop[path]);
+      await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
+      expect(calledPaths[0], `route: ${path}`).toBe(firstHopQuery[path]);
     }
   });
 
@@ -225,7 +253,10 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
 
     for (const [path, handler] of ALL_ROUTES) {
       seenAuth.length = 0;
-      await call(path, handler);
+      await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
       expect(seenAuth.length).toBeGreaterThan(0);
       for (const header of seenAuth) {
         expect(header, `route ${path}`).toBe(`Bearer ${USER_TOKEN}`);
@@ -350,7 +381,10 @@ describe('every /api/broker route maps a transport failure to 502', () => {
       );
       const logSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-      const response = await call(path, handler);
+      const response = await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
 
       expect(response.status).toBe(502);
       await expect(response.json()).resolves.toEqual({ error: 'broker_unreachable' });
@@ -420,5 +454,200 @@ describe('can-i-deploy — body validation before forward', () => {
     });
 
     expect(new URL(calledUrl).searchParams.has('to')).toBe(false);
+  });
+});
+
+describe('matrix — forward query with only the three meaningful parameters (issue #208)', () => {
+  it('forwards pacticipant, version and to and drops everything else', async () => {
+    let calledUrl = '';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        calledUrl = String(input);
+        return new Response('{"summary":{},"matrix":[]}', { status: 200 });
+      }),
+    );
+
+    const response = await call(
+      '/api/broker/matrix?pacticipant=svc-a&version=1.0.0&to=test&junk=x',
+      matrixRoute,
+    );
+
+    expect(response.status).toBe(200);
+    const params = new URL(calledUrl).searchParams;
+    expect([...params.keys()].toSorted()).toEqual(['pacticipant', 'to', 'version']);
+    expect(params.get('pacticipant')).toBe('svc-a');
+    expect(params.get('version')).toBe('1.0.0');
+    expect(params.get('to')).toBe('test');
+  });
+
+  it('rejects a request without pacticipant with 400 and never calls the API', async () => {
+    const fetchSpy = vi.fn<(...args: unknown[]) => Promise<Response>>();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const response = await call('/api/broker/matrix?version=1.0.0', matrixRoute);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Bad Request',
+      code: 'pacticipant_required',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('verifications — composition from latest pact + matrix (issue #208)', () => {
+  it('resolves the consumer version from the latest pact, then queries the matrix', async () => {
+    const calledUrls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        calledUrls.push(`${url.pathname}?${url.searchParams.toString()}`);
+        if (url.pathname === '/pacts/provider/svc-b/consumer/svc-a/latest') {
+          return new Response(
+            JSON.stringify({ consumer: { name: 'svc-a' }, consumerVersion: '2.0.0' }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ summary: {}, matrix: [] }), { status: 200 });
+      }),
+    );
+
+    const response = await call(
+      '/api/broker/verifications?consumer=svc-a&provider=svc-b',
+      verificationsRoute,
+    );
+
+    expect(response.status).toBe(200);
+    expect(calledUrls).toHaveLength(2);
+    const matrixQuery = new URL(`https://broker.test${calledUrls[1]}`).searchParams;
+    expect(matrixQuery.get('q[][pacticipant]')).toBe('svc-a');
+    expect(matrixQuery.getAll('q[][version]')).toEqual(['2.0.0']);
+    await expect(response.json()).resolves.toEqual({ summary: {}, matrix: [] });
+  });
+
+  it('skips the latest-pact hop when the query carries an explicit version', async () => {
+    const calledPaths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        calledPaths.push(new URL(String(input)).pathname);
+        return new Response(JSON.stringify({ matrix: [] }), { status: 200 });
+      }),
+    );
+
+    const response = await call(
+      '/api/broker/verifications?consumer=svc-a&version=3.1.0',
+      verificationsRoute,
+    );
+
+    expect(response.status).toBe(200);
+    expect(calledPaths).toEqual(['/matrix']);
+  });
+
+  it('rejects a request without consumer with 400 and never calls the API', async () => {
+    const fetchSpy = vi.fn<(...args: unknown[]) => Promise<Response>>();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const response = await call('/api/broker/verifications', verificationsRoute);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Bad Request',
+      code: 'consumer_required',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('deployments — composition from pacticipants + versions + deployed (issue #208)', () => {
+  it('walks every pacticipant and merges the deployments of its latest version', async () => {
+    const calledPaths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        calledPaths.push(path);
+        if (path === '/pacticipants') {
+          return new Response(
+            JSON.stringify({ _embedded: { pacticipants: [{ name: 'svc-a' }, { name: 'svc-b' }] } }),
+            { status: 200 },
+          );
+        }
+        if (path === '/pacticipants/svc-a/versions') {
+          return new Response(
+            JSON.stringify({ _embedded: { versions: [{ number: '2.0.0' }, { number: '1.0.0' }] } }),
+            { status: 200 },
+          );
+        }
+        if (path === '/pacticipants/svc-a/versions/2.0.0/deployed') {
+          return new Response(
+            JSON.stringify({
+              _embedded: {
+                deployments: [
+                  { environment: 'test', deployedAt: '2026-11-13T00:00:00Z', undeployedAt: null },
+                ],
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        // svc-b: versions OK nhưng không deployment nào.
+        return new Response(JSON.stringify({ _embedded: { deployments: [] } }), { status: 200 });
+      }),
+    );
+
+    const response = await call('/api/broker/deployments', deploymentsRoute);
+
+    expect(response.status).toBe(200);
+    expect(calledPaths).toContain('/pacticipants/svc-a/versions');
+    expect(calledPaths).toContain('/pacticipants/svc-a/versions/2.0.0/deployed');
+    const body = (await response.json()) as {
+      deployments: Array<{ pacticipant: string; version: string; environment: string }>;
+    };
+    expect(body.deployments).toEqual([
+      {
+        pacticipant: 'svc-a',
+        version: '2.0.0',
+        environment: 'test',
+        deployedAt: '2026-11-13T00:00:00Z',
+        undeployedAt: null,
+      },
+    ]);
+  });
+
+  it('filters to one pacticipant when the query asks for it', async () => {
+    const calledPaths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        calledPaths.push(path);
+        if (path === '/pacticipants') {
+          return new Response(
+            JSON.stringify({ _embedded: { pacticipants: [{ name: 'svc-a' }, { name: 'svc-b' }] } }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ _embedded: { versions: [] } }), { status: 200 });
+      }),
+    );
+
+    await call('/api/broker/deployments?pacticipant=svc-b', deploymentsRoute);
+
+    expect(calledPaths).not.toContain('/pacticipants/svc-a/versions');
+    expect(calledPaths).toContain('/pacticipants/svc-b/versions');
+  });
+
+  it('forwards the pacticipants listing status verbatim when the first hop fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"detail":"forbidden"}', { status: 403 })),
+    );
+
+    const response = await call('/api/broker/deployments', deploymentsRoute);
+
+    expect(response.status).toBe(403);
   });
 });

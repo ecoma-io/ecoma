@@ -20,6 +20,7 @@ import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
 import { brokerFetch } from '../utils/broker-fetch';
+import { arrayField } from '../utils/broker-body';
 
 const { t } = useI18n();
 
@@ -42,9 +43,7 @@ const { state, reload } = useAsyncState(async () => {
   if (!res.ok) {
     throw new Error(`broker api ${String(res.status)}`);
   }
-  const rows = Array.isArray((body as { matrix?: unknown }).matrix)
-    ? ((body as { matrix: unknown[] }).matrix as MatrixRow[])
-    : [];
+  const rows = arrayField(body, 'matrix') as MatrixRow[];
   return { kind: 'rows' as const, rows: rows.slice(0, MAX_ROWS), total: rows.length };
 });
 

@@ -765,5 +765,45 @@
     "lines": {
       "39": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/deployments.get.ts",
+    "start": 46,
+    "end": 46,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin bởi #208: cùng hop/dòng return pass-through được khai thêm cho ba route mới của trang visibility.",
+    "lines": {
+      "46": "^    return list\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/matrix.get.ts",
+    "start": 45,
+    "end": 45,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin bởi #208: cùng hop/dòng return pass-through được khai thêm cho ba route mới của trang visibility.",
+    "lines": {
+      "45": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/verifications.get.ts",
+    "start": 59,
+    "end": 59,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin bởi #208: cùng hop/dòng return pass-through được khai thêm cho ba route mới của trang visibility.",
+    "lines": {
+      "59": "^      return latest\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/api/broker/verifications.get.ts",
+    "start": 76,
+    "end": 76,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin bởi #208: cùng hop/dòng return pass-through được khai thêm cho ba route mới của trang visibility.",
+    "lines": {
+      "76": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
   }
 ]

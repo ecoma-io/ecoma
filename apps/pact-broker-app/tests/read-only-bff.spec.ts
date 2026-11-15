@@ -45,8 +45,10 @@ describe('BFF broker routes expose no write-domain surface', () => {
   it('declares no write-method route file outside the credential-management allowlist', () => {
     const files = routeFiles(BROKER_API_DIR);
     // Cấu trúc thay đổi phải cập nhật test — không cho phép route mới lọt
-    // qua im lặng khi quét.
-    expect(files.length).toBeGreaterThanOrEqual(7);
+    // qua im lặng khi quét. `readdirSync(recursive)` đếm mọi .ts, kể cả spec
+    // colocated và helper: hiện tại là 11 route + 2 spec colocated +
+    // `test-principal.ts` (helper chung) = 14 file.
+    expect(files).toHaveLength(14);
 
     for (const file of files) {
       if (isReadRoute(file)) continue;
