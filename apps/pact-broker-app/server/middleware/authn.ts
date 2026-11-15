@@ -20,12 +20,16 @@
  * 2. Load phiên từ `db-pact-broker-app` theo hash — hàng không sống (hết hạn
  *    idle, hết absolute, revoked) ⇒ **401**. Lỗi DB ⇒ **503**.
  * 3. Verify access token của phiên offline (ES256/`iss`/`aud`/`exp` —
- *    `server/auth/verify.ts`): `invalid` ⇒ **401** (caller phải đăng nhập
- *    lại); `unavailable` ⇒ **503** (JWKS không fetch được).
+ *    `server/auth/verify.ts`): `invalid` ⇒ gia hạn thử **một lần** từ refresh
+ *    token đã lưu (#258 — `server/auth/refresh.ts`, single-flight theo phiên);
+ *    `unavailable` ⇒ **503** — JWKS không fetch được.
  * 4. CSRF double-submit cho **mutation** (`POST`/`PUT`/`PATCH`/`DELETE` —
- *    ADR-0031 §3): cookie `__Host-pact-broker-csrf` và header `x-ecoma-csrf`
- *    thiếu một trong hai ⇒ **401** (không chứng minh được là cùng client đã
- *    xác thực); có mặt nhưng không khớp ⇒ **403** (nỗ lực giả mạo).
+ *    ADR-0031 §3) chạy **mọi nhánh sẽ gắn principal** — cả nhánh token hợp lệ
+ *    lẫn nhánh `renewed` (token hết hạn không phải lối đi vòng qua CSRF —
+ *    security review #258): cookie `__Host-pact-broker-csrf` và header
+ *    `x-ecoma-csrf` thiếu một trong hai ⇒ **401** (không chứng minh được là
+ *    cùng client đã xác thực); có mặt nhưng không khớp ⇒ **403** (nỗ lực giả
+ *    mạo).
  * 5. Trượt idle expiry (sliding), gắn principal `{ actorSub, accessToken }`.
  *
  * ## Fail-closed khi cấu hình thiếu
@@ -47,9 +51,19 @@
  * chỉ trả mã status.
  */
 
-import { createError, defineEventHandler, getCookie, getHeader, type H3Event } from 'h3';
+import {
+  createError,
+  defineEventHandler,
+  getCookie,
+  getHeader,
+  setResponseHeader,
+  type H3Event,
+} from 'h3';
+
+import type { Pool } from 'pg';
 
 import {
+  clearSessionCookie,
   createPactBrokerAppPool,
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
@@ -57,13 +71,17 @@ import {
   hashSessionIdentifier,
   isSessionLive,
   loadSessionByHash,
+  revokeSessionByHash,
   SESSION_COOKIE_NAME,
   SESSION_IDLE_SECONDS,
   touchSession,
 } from '../auth/session';
+
 import { verifyAccessToken } from '../auth/verify';
 import { pactBrokerAuthConfig } from '../auth/config';
+import { renewSessionTokensOnce } from '../auth/refresh';
 import { poolBinding } from '../db';
+import { writeLog } from '../log';
 import { PRINCIPAL_CONTEXT_KEY, type PactBrokerAppPrincipal } from '../principal';
 
 /**
@@ -86,6 +104,56 @@ const AUTH_PATHS = new Set([
 
 /** Method cần CSRF double-submit — mọi method đổi state. */
 const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/**
+ * Kiểm CSRF double-submit cho **mutation** (ADR-0031 §3): cookie
+ * `__Host-pact-broker-csrf` và header `x-ecoma-csrf` thiếu một trong hai ⇒
+ * **401** (không chứng minh được là cùng client đã xác thực); có mặt nhưng
+ * không khớp ⇒ **403** (nỗ lực giả mạo).
+ *
+ * Chạy cho **mọi** request sắp gắn principal — kể cả nhánh `renewed` (token
+ * mới): việc token hết hạn không được biến thành một lối đi vòng qua CSRF
+ * (security review #258).
+ */
+function enforceCsrf(event: H3Event): void {
+  if (!CSRF_METHODS.has(event.method)) {
+    return;
+  }
+  const csrfCookieValue = getCookie(event, CSRF_COOKIE_NAME);
+  const csrfHeader = getHeader(event, CSRF_HEADER_NAME);
+  if (csrfCookieValue === undefined || csrfHeader === undefined) {
+    throw createError({ statusCode: 401, statusMessage: 'unauthorized' });
+  }
+  if (!csrfMatches(csrfCookieValue, csrfHeader)) {
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden' });
+  }
+}
+
+/**
+ * Huỷ phiên server-side và xoá cookie — exception-safe (security review #258):
+ * revoke DB hỏng (driver lỗi) không được bọc thành 503 để cookie còn nguyên
+ * trên client. Luôn thử xoá cookie và ghi `reuse_detected_revoke_failed` khi
+ * revoke không thành — request vẫn kết thúc 401 ở caller.
+ */
+async function revokeSessionAndClearCookie(
+  pool: Pool,
+  idHash: string,
+  event: H3Event,
+  pathname: string,
+  sub: string,
+): Promise<void> {
+  try {
+    await revokeSessionByHash(pool, idHash);
+  } catch {
+    writeLog({
+      event: 'pact_broker_session.reuse_detected_revoke_failed',
+      route: pathname,
+      status: 401,
+      sub,
+    });
+  }
+  setResponseHeader(event, 'Set-Cookie', clearSessionCookie());
+}
 
 export default defineEventHandler(async (event: H3Event): Promise<void> => {
   // Tách query trước khi so: `event.path` gồm cả query string, allowlist là
@@ -127,21 +195,80 @@ export default defineEventHandler(async (event: H3Event): Promise<void> => {
         if (verification.outcome === 'unavailable') {
           throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
         }
-        if (verification.outcome === 'verified') {
-          if (CSRF_METHODS.has(event.method)) {
-            const csrfCookieValue = getCookie(event, CSRF_COOKIE_NAME);
-            const csrfHeader = getHeader(event, CSRF_HEADER_NAME);
-            if (csrfCookieValue === undefined || csrfHeader === undefined) {
-              // Thiếu một trong hai mảnh double-submit ⇒ không chứng minh được
-              // request xuất phát từ client đã xác thực ⇒ 401 (ADR-0031 §3).
-              throw createError({ statusCode: 401, statusMessage: 'unauthorized' });
-            }
-            if (!csrfMatches(csrfCookieValue, csrfHeader)) {
-              // Có cả hai mảnh nhưng không khớp ⇒ nỗ lực giả mạo ⇒ 403.
-              throw createError({ statusCode: 403, statusMessage: 'Forbidden' });
+        if (verification.outcome === 'invalid') {
+          if (row.refresh_token !== null) {
+            const renewed = await renewSessionTokensOnce(pool, idHash, config, row.refresh_token);
+            if (renewed.outcome === 'renewed') {
+              // `sub` của access token mới — phải khớp hàng phiên (refresh của
+              // auth giữ nguyên subject); dùng sub đã verify là fail-closed.
+              if (renewed.sub === row.account_sub) {
+                // CSRF kiểm TRƯỚC khi gắn principal — nhánh renewed không được
+                // bỏ qua double-submit (security review #258). Throw ở đây đi
+                // 401/403 ra ngoài, token đã persist nhưng không dùng.
+                enforceCsrf(event);
+                try {
+                  await touchSession(pool, idHash, now + SESSION_IDLE_SECONDS * 1000);
+                } catch {
+                  // Token mới đã persist; trượt idle hỏng không được biến một lần
+                  // gia hạn thành công thành 503 — request kế đi nhánh verify
+                  // thành công và tự trượt idle. Ghi lại để phiên hết hạn sớm
+                  // hơn dự kiến không mất dấu vết.
+                  writeLog({
+                    event: 'pact_broker_session.idle_touch_failed',
+                    route: pathname,
+                    status: 200,
+                    sub: row.account_sub,
+                  });
+                }
+                writeLog({
+                  event: 'pact_broker_session.renewed',
+                  route: pathname,
+                  status: 200,
+                  sub: row.account_sub,
+                });
+                principal = { actorSub: renewed.sub, accessToken: renewed.accessToken };
+              } else {
+                // Sub lệch hàng phiên: token MỚI đã persist ở refresh — fail
+                // closed bằng cách huỷ phiên (cùng đường exception-safe của
+                // invalid_grant), không chỉ log (security review #258).
+                await revokeSessionAndClearCookie(pool, idHash, event, pathname, row.account_sub);
+                writeLog({
+                  event: 'pact_broker_session.renewal_sub_mismatch',
+                  route: pathname,
+                  status: 401,
+                  sub: row.account_sub,
+                });
+              }
+            } else if (renewed.outcome === 'unavailable') {
+              // Không gia hạn được LÚC NÀY (mạng/timeout/JWKS) ⇒ 503 — khác
+              // "token sai": không âm thầm coi là phiên hợp lệ cũng không ép
+              // đăng nhập lại vì một cú lỗi hạ tầng.
+              throw createError({ statusCode: 503, statusMessage: 'authorization unavailable' });
+            } else if (renewed.outcome === 'invalid_grant') {
+              // Reuse detected / grant family chết ⇒ huỷ phiên server-side và
+              // ép đăng nhập lại; không retry. Cookie được xoá kèm 401 — revoke
+              // hỏng vẫn xoá cookie (exception-safe, security review #258).
+              await revokeSessionAndClearCookie(pool, idHash, event, pathname, row.account_sub);
+              writeLog({
+                event: 'pact_broker_session.reuse_detected',
+                route: pathname,
+                status: 401,
+                sub: row.account_sub,
+              });
+            } else {
+              // `failed` — refresh token revoked/contract hỏng/DB lỗi ⇒ 401 như
+              // phiên chết; một lý do chung, không loop (cùng quyết định #244).
+              writeLog({
+                event: 'pact_broker_session.renewal_failed',
+                route: pathname,
+                status: 401,
+                sub: row.account_sub,
+              });
             }
           }
-
+        } else {
+          // Token hợp lệ: CSRF cho mutation trước khi trượt idle/gắn principal.
+          enforceCsrf(event);
           await touchSession(pool, idHash, now + SESSION_IDLE_SECONDS * 1000);
           principal = { actorSub: row.account_sub, accessToken: row.access_token };
         }

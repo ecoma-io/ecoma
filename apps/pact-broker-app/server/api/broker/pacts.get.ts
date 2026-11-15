@@ -89,8 +89,9 @@ export default defineEventHandler(async (event) => {
   // ⚠️ Hai hop dùng chung access token của phiên (review #254): TTL token 300s
   // (ADR-0031), giữa hai hop có thể hết hạn — API trả 401 cho hop 2 và status
   // đó truyền NGUYÊN VĂN về UI (luật chung của route, không hiện hoá 502);
-  // wrapper `brokerFetch` của UI dịch 401 thành điều hướng login. Không refresh
-  // token tại đây: đường refresh là #258, chưa hiện thực ở M1.
+  // wrapper `brokerFetch` của UI dịch 401 thành điều hướng login. Refresh
+  // token (#258) chạy ở middleware authn trước route — giữa hai hop của cùng
+  // request không có đường mint lại, TTL 300s cho hai hop là đủ.
   const params = new URLSearchParams();
   for (const name of names) {
     params.append('q[][pacticipant]', name);
