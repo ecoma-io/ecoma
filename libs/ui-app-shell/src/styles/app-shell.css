@@ -277,8 +277,11 @@
  * này; giá trị dưới đây lấy từ ví dụ chính thức của reka-ui
  * (https://reka-ui.com/docs/components/drawer).
  *
- * `translate` (property riêng) cho animation open/close, `transform` mang offset
- * vuốt thời gian thực — hai cơ chế cộng lại nên không giẫm nhau.
+ * Animation open/close đi qua `transform` trong `@keyframes`: keyframe ghi đè
+ * `transform` trong lúc chạy (nên offset vuốt đóng băng ở giá trị gốc — đúng
+ * ý vì animation chỉ chạy lúc KHÔNG vuốt), và `transform` được hỗ trợ phổ quát
+ * thay vì property riêng `translate` (Chrome 104+/Safari 14.1+). Offset vuốt
+ * thời gian thực cũng trên `transform`, cùng bộ easing/transition.
  */
 [data-slot='drawer-content'] {
   transition: transform 450ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -289,60 +292,66 @@
   transition-duration: 0ms;
 }
 
+/* "Bleed" 96px dưới đáy drawer bottom: reka-ui khuyến nghị chặn việc drawer
+ * tách khỏi mép khi người dùng kéo quá (thanh handle có nền trắng lộ ra).
+ * `top: 100%` + height, không dùng `bottom` — top/bottom/height cùng lúc là
+ * over-constraint. */
 [data-slot='drawer-content'][data-swipe-direction='bottom'] {
   &::before {
     content: '';
     position: absolute;
-    inset: 100% 0 0 0;
+    top: 100%;
+    left: 0;
+    right: 0;
     height: 96px;
   }
 }
 
 @keyframes drawer-slide-in-bottom {
   from {
-    translate: 0 100%;
+    transform: translate(0, 100%);
   }
 }
 
 @keyframes drawer-slide-out-bottom {
   to {
-    translate: 0 100%;
+    transform: translate(0, 100%);
   }
 }
 
 @keyframes drawer-slide-in-top {
   from {
-    translate: 0 -100%;
+    transform: translate(0, -100%);
   }
 }
 
 @keyframes drawer-slide-out-top {
   to {
-    translate: 0 -100%;
+    transform: translate(0, -100%);
   }
 }
 
 @keyframes drawer-slide-in-left {
   from {
-    translate: -100% 0;
+    transform: translate(-100%, 0);
   }
 }
 
 @keyframes drawer-slide-out-left {
   to {
-    translate: -100% 0;
+    transform: translate(-100%, 0);
   }
 }
 
 @keyframes drawer-slide-in-right {
   from {
-    translate: 100% 0;
+    transform: translate(100%, 0);
   }
 }
 
 @keyframes drawer-slide-out-right {
   to {
-    translate: 100% 0;
+    transform: translate(100%, 0);
   }
 }
 
