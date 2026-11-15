@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,10 +51,27 @@ function readCiKeyPlaintext(): string {
   // ESM: __dirname không tồn tại — dùng import.meta.url. Spec nằm ở `e2e/`:
   // BỐN mức `../` về repo root (e2e → suite → e2e category → system-tests → root).
   const specDir = dirname(fileURLToPath(import.meta.url));
-  const deployDir = join(specDir, '../../../../deploys/remote-cache-api-deploy');
+  const workspaceRoot = join(specDir, '../../../..');
+  const deployDir = join(workspaceRoot, 'deploys/remote-cache-api-deploy');
+  // Stack name theo worktree (`local-w<hash>`) — hardcode một worktree id sẽ
+  // gãy trên worktree khác. Backend là `.pulumi-local-state` của chính worktree
+  // này nên chỉ có MỘT stack json cho project; suy tên từ đó.
+  const stacksDir = join(
+    workspaceRoot,
+    '.pulumi-local-state/.pulumi/stacks/remote-cache-api-deploy',
+  );
+  const stackFile = readdirSync(stacksDir).find(
+    (name) => name.endsWith('.json') && !name.endsWith('.bak.json'),
+  );
+  if (stackFile === undefined) {
+    throw new Error(
+      'no remote-cache-api-deploy stack json in .pulumi-local-state — run local-up first',
+    );
+  }
+  const stackName = stackFile.replace(/\.json$/u, '');
   const stdout = execFileSync(
     'pulumi',
-    ['config', 'get', 'namespace:ciKeyPlaintext', '--stack', 'local-w0759c331f43f'],
+    ['config', 'get', 'namespace:ciKeyPlaintext', '--stack', stackName],
     {
       cwd: deployDir,
       encoding: 'utf8',
