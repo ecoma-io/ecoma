@@ -402,7 +402,15 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
     }
   });
 
-  test('PB-8: revoked credential is rejected immediately by the broker API', async ({ page }) => {
+  test('PB-8: revoked credential is rejected immediately by the broker API', async ({
+    page,
+    identity,
+  }) => {
+    // Context browser riêng — login lại với cùng identity admin trước khi vào UI.
+    await performBrowserLogin(page, {
+      email: identity.email,
+      readOtp: () => identity.readOtp(Date.now() - 5_000),
+    });
     // API surface với secret cũ: trước revoke, index là 200 (credential sống).
     const before = await stackGet(`${apiOrigin()}/`, { authorization: `Bearer ${devSecret}` });
     expect(before.status).toBe(200);
