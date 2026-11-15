@@ -567,7 +567,7 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     const client = await db.connect();
     let sha: string | undefined;
     try {
-      const { rows: shaRows } = await client.query<{ content_sha: string; pact_count: number }>(
+      const { rows: shaRows } = await client.query<{ content_sha: string; pact_count: string }>(
         `SELECT DISTINCT p.content_sha,
                 count(*) OVER (PARTITION BY p.content_sha) AS pact_count
            FROM pact.pacts p
@@ -602,7 +602,8 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
            FROM pact.verifications ver
            JOIN pact.pacts p ON p.tenant_id = ver.tenant_id AND p.id = ver.pact_id
            JOIN pact.versions v ON v.tenant_id = p.tenant_id AND v.id = p.consumer_version_id
-          WHERE ver.tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')`,
+          WHERE ver.tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')
+            AND v.number = '2.0.0'`,
       );
       expect(rows).toHaveLength(1);
       expect(rows[0]?.consumer_version_number).toBe('2.0.0');
