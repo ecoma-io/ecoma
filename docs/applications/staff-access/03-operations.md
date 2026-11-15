@@ -29,7 +29,7 @@
 
 **Thứ tự bắt buộc:** A1 → A2 → S1 → S2 → S3. Mỗi bước commit độc lập; không có transaction xuyên database.
 
-⚠️ **Cửa sổ một administrator là cửa sổ rủi ro, và hôm nay nó là trạng thái thực tế.** Mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery chưa chạy được (§3.2, §3.3). Administrator thứ hai chỉ tạo được qua bổ nhiệm thường, mà đường đó chưa tồn tại — thiếu permission ghi trong catalog, thiếu enforcement, thiếu đường tạo staff, thiếu đường tạo Account (§3.1, #44, #48). Không được báo cáo "nhiều Superadmin được phép" mà bỏ vế "nhưng chưa có đường tạo" (ADR-0023 Quyết định 8).
+⚠️ **Cửa sổ một administrator là cửa sổ rủi ro, và hôm nay nó là trạng thái thực tế.** Mất hoặc suspend staff identity duy nhất đưa hệ thống về trạng thái chỉ recovery mới sửa được, và recovery chưa chạy được (§3.2, §3.3). Cập nhật 2026-11-15 sau #44/#191: đường bổ nhiệm thường **đã hiện thực** — permission ghi trong catalog, enforcement, đường tạo staff, bề mặt operator UI (§3.1); còn thiếu bằng chứng là **lần bổ nhiệm thật đầu tiên trên lane** và kênh tạo Account thứ hai qua UI (lời mời hiện chỉ qua API nội bộ — #227). Không được báo cáo "nhiều Superadmin được phép" mà bỏ vế "chưa có lần bổ nhiệm thật làm bằng chứng" (ADR-0023 Quyết định 8).
 
 ### Bước 1 — Chọn cấu hình môi trường đích
 
@@ -223,19 +223,19 @@ Từ đây Account thuộc về người dùng: đổi email, MFA/passkey, sessi
 
 Ba đường tách biệt, mỗi đường có authorization riêng và **không** đường nào được "nâng cấp" im lặng thành đường khác (ADR-0023 Quyết định 1):
 
-| Đường                | Tiền đề                                                                               | Authorization                    | Bề mặt                                                              |
-| -------------------- | ------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
-| Bootstrap            | `admins_before = 0` **và** `admins_ever = 0`                                          | Không approval                   | §2                                                                  |
-| Bổ nhiệm thường (2+) | Đã có administrator; target là staff `active`                                         | Permission ghi, qua route thật   | `POST /staff/:id/assignments` — **chưa enforce, chưa có catalog**   |
-| Emergency recovery   | Identity còn sống (`verified`) và **đã từng** là administrator; assignment đã thu hồi | Hai-phím có bằng chứng kiểm được | §3.2 — **chưa hiện thực** (đường) và **chưa cấu hình** (bằng chứng) |
+| Đường                | Tiền đề                                                                               | Authorization                    | Bề mặt                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| Bootstrap            | `admins_before = 0` **và** `admins_ever = 0`                                          | Không approval                   | §2                                                                                          |
+| Bổ nhiệm thường (2+) | Đã có administrator; target là staff `active`                                         | Permission ghi, qua route thật   | `POST /staff/:id/assignments` — **đã enforce, đã có catalog** (cập nhật 2026-11-15 sau #44) |
+| Emergency recovery   | Identity còn sống (`verified`) và **đã từng** là administrator; assignment đã thu hồi | Hai-phím có bằng chứng kiểm được | §3.2 — **chưa hiện thực** (đường) và **chưa cấu hình** (bằng chứng)                         |
 
 ### 3.1 Bổ nhiệm thường — đường hợp lệ duy nhất cho administrator thứ hai
 
 Gán canonical administrator role cho một staff identity **đã tồn tại**, bởi một actor **đang có** permission ghi; không cần và **không** được dùng hai-phím (ADR-0023 Quyết định 2).
 
-⚠️ **Đường này chưa chạy được, và thiếu ba thứ độc lập:** catalog chưa có permission ghi nào (`role.assign`/`role.revoke` chỉ có trong prototype fixture); `apps/staff-access/src/routes.ts` mở `POST /staff/:id/assignments` nhưng **không** enforce permission, và actor có thể là `null`; không có caller nào gọi `insertStaff`, nên không có đường tạo staff identity cho người thứ hai. Ngoài ra Account cho người thứ hai chưa có đường tạo (#48). Theo dõi ở #44 và #48. Cho tới khi cả ba xong, **cảnh báo vận hành là: hệ thống chạy trong cửa sổ một administrator** — không có đường hợp lệ nào thêm người thứ hai, và khi identity của administrator cuối cùng không còn dùng được (staff `terminated`, Account `deleted`) thì không khôi phục được — còn assignment bị thu hồi thì khôi phục được qua §3.2 khi #45/#46 xong.
+Cập nhật 2026-11-15 sau #44 (PR #292) và #191 (PR #301): **đường này đã hiện thực.** Catalog có ba permission ghi (`role.assign`, `role.revoke`, `staff.create` — migration `0011_permission_catalog_write_actions.sql`, ADR-0034); `apps/staff-access/src/routes.ts` enforce permission server-side trên từng request, actor chỉ lấy từ envelope đã xác thực; `POST /staff` tạo staff identity từ Account hiện có; caller thật là route BFF backoffice (`apps/backoffice/server/api/staff.post.ts`, `apps/backoffice/server/api/staff/[id]/assignments/index.post.ts`, `apps/backoffice/server/api/assignments/revoke.post.ts`) với UI quản trị trên `/staff`. Kênh tạo Account cho người thứ hai là lời mời (#227, ADR-0030) — API nội bộ Worker-to-Worker, **không có UI phát lời mời**; từ góc operator, tạo Account thứ hai qua UI vẫn chưa dùng được. Bằng chứng còn thiếu cho acceptance: một lần bổ nhiệm thật trên lane qua supported interface (run record của #27/#182). Cảnh báo vận hành "cửa sổ một administrator" (§2) giữ nguyên cho tới khi lần bổ nhiệm đó có bằng chứng; khi identity của administrator cuối cùng không còn dùng được (staff `terminated`, Account `deleted`) thì không khôi phục được — còn assignment bị thu hồi thì khôi phục được qua §3.2 khi #45/#46 xong (đã chuyển M3).
 
-Điều kiện route phải giữ khi được hiện thực: principal lấy từ credential đã xác thực, không từ body; self-assignment bị từ chối (SR-005); target không `active` bị từ chối; assignment đã còn hiệu lực là no-op có audit, không tạo hàng trùng; audit actor là actor staff thật (SR-013).
+Điều kiện route đã hiện thực và phải giữ: principal lấy từ credential đã xác thực, không từ body; self-assignment bị từ chối (SR-005); target không `active` bị từ chối; assignment đã còn hiệu lực là no-op có audit, không tạo hàng trùng; audit actor là actor staff thật (SR-013); self-revocation của administrator cuối cùng bị chặn (`self_revocation_last_administrator`).
 
 ### 3.2 Emergency recovery — identity còn sống, chỉ khôi phục authority
 
@@ -250,7 +250,7 @@ Recovery chạy trên **một** database (`db-staff-access`) và **không** có 
 7. **Phép ghi duy nhất:** trong một transaction của `db-staff-access`, insert **một assignment mới** trỏ canonical role, `granted_by` NULL, rồi ghi audit `success` với số đo.
 
 - **Không hồi sinh hàng đã thu hồi.** `revoked_at` giữ nguyên; assignment mới có `id` mới. Lịch sử thể hiện một lần thu hồi và một lần cấp lại, và trigger `role_assignment_revoke_only` chặn runtime un-revoke. Bước 5 đảm bảo một lần chạy lại sau khi commit **không** tạo hàng thứ hai.
-- **Chưa từng giữ canonical administrator role → từ chối `not_a_recovery_target`.** Recovery chỉ khôi phục authority đã từng có, không cấp lần đầu; cấp lần đầu là §3.1, và khi §3.1 chưa chạy được thì fail closed.
+- **Chưa từng giữ canonical administrator role → từ chối `not_a_recovery_target`.** Recovery chỉ khôi phục authority đã từng có, không cấp lần đầu; cấp lần đầu là §3.1 (đã hiện thực — cập nhật 2026-11-15 sau #44).
 - **Fail-closed, mỗi trường hợp một mã:** Account `suspended`/`deleted` → `account_not_active`; staff `suspended`/`terminated` → `staff_not_active`; nhiều hơn một Account hoặc nhiều hơn một hàng `email_addresses` cho `address_hash` → `address_ambiguous`; không có hàng `verified` → `address_not_verified`; role không phân giải được → `role_identity_ambiguous`; `mode` không khớp → `mode_mismatch`. Mỗi trường hợp dừng, exit khác 0, một audit row `denied` mang đúng mã đó — không bỏ trống `reason`, vì alert và điều tra dựa vào nó (ADR-0023 Quyết định 3, 6).
 - **Retry:** lỗi trước commit không để lại gì; commit rồi thì chạy lại thấy assignment còn hiệu lực và từ chối. Không có trạng thái nửa vời xuyên database — đây là khác biệt cấu trúc so với bootstrap.
 - **Account bị suspend sau lần đọc không tự thu hồi assignment.** Hai trục độc lập ([`domain-model.md`](../../domains/staff-access/domain-model.md) §8 invariant 8); đảo suspend là thao tác có audit của `account`, không phải một bước của recovery.

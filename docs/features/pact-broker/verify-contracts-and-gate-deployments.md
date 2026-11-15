@@ -38,7 +38,7 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 
 ### Không bao gồm
 
-- **Dashboard hiển thị matrix ở trang `/pacts`** — BFF hợp thành `/pacticipants` + `/matrix` và trang render được hàng matrix thật kèm trạng thái verification (#225). Tuy nhiên: không có trang verification riêng, không có trang matrix chuyên dụng, không có trang environments render từ route nào khác, và route BFF `can-i-deploy.post.ts`/`pacticipants.get.ts` **không được trang nào gọi** — không có điều khiển ghi nào. Việc chạy verification và `can-i-deploy` thuộc CLI/CI.
+- **Dashboard hiển thị matrix ở trang `/pacts`** — BFF hợp thành `/pacticipants` + `/matrix` và trang render được hàng matrix thật kèm trạng thái verification (#225). Cập nhật 2026-11-15 sau #208 (PR #293): có thêm trang verification riêng (`/verifications`), trang matrix chuyên dụng (`/matrix`, truy vấn verdict `can-i-deploy` qua `POST /api/broker/can-i-deploy`) và trang environments (`/environments`) — các route BFF `can-i-deploy.post.ts`/`verifications.get.ts`/`matrix.get.ts` đã được trang gọi. Vẫn không có điều khiển ghi nào từ dashboard: việc chạy verification và `can-i-deploy` trong CI thuộc CLI/CI; `can-i-deploy` trên portal là truy vấn đọc, không ghi.
 - **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
 - Xoá environment **có ghi audit** (`environment.delete`, kèm tên environment bị xoá), và có test assert hàng audit tương ứng; thay đổi tag hay deployment không ghi audit. `environment.create`, `environment.update` và `environment.delete` đều được ghi.
