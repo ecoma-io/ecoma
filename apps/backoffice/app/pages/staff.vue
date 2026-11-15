@@ -167,15 +167,24 @@ const createStaff = async (): Promise<void> => {
         text: result.message ?? i18n.t('staff.write.failed', { status: result.status ?? '' }),
       };
     }
+  } catch (error) {
+    // Network failure (fetch throws) hoặc response body hỏng — `postJson` reject.
+    writeNotice.value = {
+      kind: 'error',
+      text: error instanceof Error ? error.message : String(error),
+    };
   } finally {
     busy.value = false;
   }
 };
 
-const selectedRoleId = ref('');
+// Một select role cho từng staff (không chia sẻ giữa các hàng — chọn ở hàng A
+// không được lộ sang hàng B vừa expand).
+const selectedRoleIds = ref<Record<string, string>>({});
 
 const assignRole = async (member: StaffMember): Promise<void> => {
-  if (busy.value || selectedRoleId.value === '') {
+  const roleId = selectedRoleIds.value[member.staffId] ?? '';
+  if (busy.value || member.staffId === '' || roleId === '') {
     return;
   }
   busy.value = true;
@@ -183,10 +192,12 @@ const assignRole = async (member: StaffMember): Promise<void> => {
   try {
     const result = await adapter.assignRole({
       staffId: member.staffId,
-      roleId: selectedRoleId.value,
+      roleId,
     });
     if (result.ok) {
       writeNotice.value = { kind: 'success', text: i18n.t('staff.write.assigned') };
+      // Xoá lựa chọn của staff này — gán về '' là reset, không cần delete.
+      selectedRoleIds.value[member.staffId] = '';
       await loadAssignments(member);
     } else {
       writeNotice.value = {
@@ -194,13 +205,19 @@ const assignRole = async (member: StaffMember): Promise<void> => {
         text: result.message ?? i18n.t('staff.write.failed', { status: result.status ?? '' }),
       };
     }
+  } catch (error) {
+    // `loadAssignments` → `fetchJson` throws `BackofficeRouteError` trên non-OK.
+    writeNotice.value = {
+      kind: 'error',
+      text: error instanceof Error ? error.message : String(error),
+    };
   } finally {
     busy.value = false;
   }
 };
 
 const revokeAssignment = async (member: StaffMember, assignmentId: string): Promise<void> => {
-  if (busy.value) {
+  if (busy.value || member.staffId === '' || assignmentId === '') {
     return;
   }
   busy.value = true;
@@ -209,13 +226,18 @@ const revokeAssignment = async (member: StaffMember, assignmentId: string): Prom
     const result = await adapter.revokeRole(assignmentId);
     if (result.ok) {
       writeNotice.value = { kind: 'success', text: i18n.t('staff.write.revoked') };
+      await loadAssignments(member);
     } else {
       writeNotice.value = {
         kind: 'error',
         text: result.message ?? i18n.t('staff.write.failed', { status: result.status ?? '' }),
       };
     }
-    await loadAssignments(member);
+  } catch (error) {
+    writeNotice.value = {
+      kind: 'error',
+      text: error instanceof Error ? error.message : String(error),
+    };
   } finally {
     busy.value = false;
   }
@@ -412,7 +434,7 @@ const revokeAssignment = async (member: StaffMember, assignmentId: string): Prom
                       :data-testid="`staff-roles-${member.staffId}`"
                     >
                       <select
-                        v-model="selectedRoleId"
+                        v-model="selectedRoleIds[member.staffId]"
                         class="border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs outline-none"
                         :aria-label="i18n.t('staff.write.roleSelectLabel')"
                         data-testid="staff-role-select"
@@ -427,7 +449,7 @@ const revokeAssignment = async (member: StaffMember, assignmentId: string): Prom
                       <Button
                         size="sm"
                         data-testid="staff-assign-role"
-                        :disabled="busy || selectedRoleId === ''"
+                        :disabled="busy || (selectedRoleIds[member.staffId] ?? '') === ''"
                         @click="assignRole(member)"
                       >
                         {{ i18n.t('staff.write.assign') }}
