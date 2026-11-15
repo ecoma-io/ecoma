@@ -91,7 +91,9 @@ async function resolvePlatformNetwork(origin: string): Promise<string> {
 }
 
 test.describe('Nx CLI self-hosted remote cache journey', () => {
-  test('a real nx run stores to and retrieves from the lane remote cache', async (_fixtures, testInfo) => {
+  test('a real nx run stores to and retrieves from the lane remote cache', async ({
+    page: _unusedPage,
+  }, testInfo) => {
     testInfo.setTimeout(300_000);
     const network = await resolvePlatformNetwork(resolveStackOrigin());
     const ciKey = readCiKeyPlaintext();

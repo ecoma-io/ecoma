@@ -64,7 +64,7 @@ interface Fixtures {
 
 export const test = base.extend<Fixtures>({
   // Scope mặc định per test: seed idempotent, mỗi test tự sở hữu challenge OTP.
-  identity: async (_fixtures, use, testInfo) => {
+  identity: async ({ page: _unusedPage }, use, testInfo) => {
     const token = testToken(testInfo.file, testInfo.title);
     const sub = makeSub(token);
     const email = makeEmail(token);
