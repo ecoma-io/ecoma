@@ -435,6 +435,12 @@ export interface FakeOidcAuth {
   readonly issuer: string;
   /** Ký access token đúng contract verify của hai phía (`at+jwt`, ES256, iss/aud/sub/exp). */
   signAccessToken(sub: string, expiresInSecondsFromNow?: number): Promise<string>;
+  /**
+   * Chế độ của `/token` cho test refresh (#258): `'ok'` cấp token như thường;
+   * `'invalid_grant'` trả 400 RFC 6749 §5.2 (reuse detection); `'down'` ngắt
+   * kết nối (mạng hỏng). Mặc định `'ok'` — test có trách nhiệm trả về `'ok'`.
+   */
+  setTokenMode(mode: 'ok' | 'invalid_grant' | 'down'): void;
   stop(): Promise<void>;
 }
 
@@ -495,6 +501,16 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
       // Body không được đọc nội dung — chỉ drain để request kết thúc.
       req.resume();
       req.on('end', () => {
+        if (tokenMode === 'down') {
+          // Mạng hỏng: ngắt kết nối không response — fetch của app phải ném.
+          req.socket.destroy();
+          return;
+        }
+        if (tokenMode === 'invalid_grant') {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid_grant', error_description: 'grant revoked' }));
+          return;
+        }
         // Fire-and-forget có đuôi (review #254): lỗi của `signAccessToken` hay
         // của `res.*` (client ngắt kết nối giữa chừng) bị nuốt — harness test
         // không được biến lỗi dọn dẹp thành unhandled rejection làm đỏ vitest.
@@ -530,6 +546,9 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
   await new Promise<void>((done) => {
     server.listen(0, '127.0.0.1', done);
   });
+  // Chế độ `/token` có thể đổi giữa chừng — test refresh (#258) xếp hàng nhánh
+  // invalid_grant / mạng hỏng rồi trả về 'ok'.
+  let tokenMode: 'ok' | 'invalid_grant' | 'down' = 'ok';
   const address = server.address();
   if (address === null || typeof address === 'string') {
     server.close();
@@ -557,6 +576,9 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
   return {
     issuer,
     signAccessToken,
+    setTokenMode: (mode: 'ok' | 'invalid_grant' | 'down'): void => {
+      tokenMode = mode;
+    },
     stop: async (): Promise<void> => {
       await new Promise<void>((done) => {
         server.close(() => done());

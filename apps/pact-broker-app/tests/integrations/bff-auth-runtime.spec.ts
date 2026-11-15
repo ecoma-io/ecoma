@@ -17,7 +17,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { Client } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { startBrokerStack, type BrokerSession, type BrokerStack } from './broker-stack';
 
@@ -310,5 +310,109 @@ describe('pact-broker-app BFF authentication contract (#206)', () => {
     expect(response.body).not.toContain(stack.machineToken);
     // Chỉ metadata HAL — không khoá nào mang vật liệu token.
     expect(response.body).not.toMatch(/[0-9a-f]{64}/u);
+  });
+});
+
+/**
+ * Dựng phiên với access token ĐÃ HẾT HẠN và refresh token cho trước — hàng
+ * insert thẳng vào DB (idle expiry do app trượt, chỉ có đường này dựng được
+ * "phiên sống, token chết").
+ */
+async function expiredTokenSession(refreshToken: string): Promise<string> {
+  const identifier = randomBytes(32).toString('base64url');
+  const expired = await stack.fakeAuth.signAccessToken('pact-broker-app-it-owner', -60);
+  await withAppDb(async (client) => {
+    await client.query(
+      `INSERT INTO pact_broker_app.bff_sessions
+         (id_hash, account_sub, access_token, refresh_token, created_at, expires_at)
+       VALUES ($1, $2, $3, $4, now(), now() + interval '1 hour')`,
+      [hashIdentifier(identifier), 'pact-broker-app-it-owner', expired, refreshToken],
+    );
+  });
+  return identifier;
+}
+
+/** Đọc token hiện hành của phiên từ DB (assert rotation đã persist). */
+async function sessionTokens(identifier: string): Promise<{ access: string; refresh: string }> {
+  return withAppDb(async (client) => {
+    const result = await client.query<{ access_token: string; refresh_token: string }>(
+      `SELECT access_token, refresh_token FROM pact_broker_app.bff_sessions
+        WHERE id_hash = $1`,
+      [hashIdentifier(identifier)],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('session row vanished during refresh test');
+    }
+    return { access: row.access_token, refresh: row.refresh_token };
+  });
+}
+
+describe('pact-broker-app BFF access-token refresh (#258)', () => {
+  afterEach(() => {
+    // Test có trách nhiệm trả `/token` về chế độ bình thường — suite còn lại
+    // (login/logout) phụ thuộc grant thành công.
+    stack.fakeAuth.setTokenMode('ok');
+  });
+  it('renews an expired token on the next request and persists the rotated refresh token', async () => {
+    const identifier = await expiredTokenSession('old-refresh-token');
+    const expired = (await sessionTokens(identifier)).access;
+
+    const response = await callBff('/api/broker/pacts', {
+      cookie: `${SESSION_COOKIE}=${identifier}`,
+    });
+
+    expect(response.status).toBe(200);
+    // Token cũ không bao giờ còn ở bất kỳ đâu trong response (SR-007).
+    expect(response.body).not.toContain(expired);
+    // Rotation của auth: CẢ HAI token mới đã persist — refresh token cũ đã bị
+    // tiêu thụ, bỏ nó là phá phiên ngay sau lần gia hạn đầu.
+    const tokens = await sessionTokens(identifier);
+    expect(tokens.access).not.toBe(expired);
+    expect(tokens.refresh).not.toBe('old-refresh-token');
+
+    // Phiên tiếp tục sống với token đã rotate: request kế thành công và
+    // KHÔNG gọi /token thêm lần nào (on-demand — không scheduler).
+    stack.fakeAuth.setTokenMode('down');
+    const next = await callBff('/api/broker/pacts', {
+      cookie: `${SESSION_COOKIE}=${identifier}`,
+    });
+    expect(next.status).toBe(200);
+  });
+
+  it('answers 503 when the token endpoint is unreachable — never a silent valid session', async () => {
+    const identifier = await expiredTokenSession('old-refresh-token');
+    stack.fakeAuth.setTokenMode('down');
+
+    const response = await callBff('/api/broker/pacts', {
+      cookie: `${SESSION_COOKIE}=${identifier}`,
+    });
+
+    expect(response.status).toBe(503);
+  });
+
+  it('destroys the session and clears the cookie on invalid_grant (reuse detected)', async () => {
+    const identifier = await expiredTokenSession('old-refresh-token');
+    stack.fakeAuth.setTokenMode('invalid_grant');
+
+    const response = await callBff('/api/broker/pacts', {
+      cookie: `${SESSION_COOKIE}=${identifier}`,
+    });
+
+    expect(response.status).toBe(401);
+    // Cookie phiên bị xoá — expiry quá khứ.
+    const cleared = response.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`));
+    expect(cleared).toContain('Max-Age=0');
+    // Phiên bị revoke server-side — hàng không còn sống, không re-auth loop.
+    const row = await withAppDb(async (client) => {
+      const result = await client.query<{ revoked_at: string | null }>(
+        `SELECT revoked_at FROM pact_broker_app.bff_sessions WHERE id_hash = $1`,
+        [hashIdentifier(identifier)],
+      );
+      return result.rows[0];
+    });
+    expect(row?.revoked_at).not.toBeNull();
   });
 });
