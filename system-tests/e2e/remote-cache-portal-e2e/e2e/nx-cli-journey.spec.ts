@@ -154,6 +154,10 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
 
       // ⚠️ `-v <ws>:/ws` theo trị số của môi trường Linux host — đẻ stdout
       // password prompt không xảy ra vì docker không hỏi.
+      // KHÔNG `--user`: daemon local là rootless (container root = uid worktree),
+      // còn CI là rootful — container root ghi được mount trên cả hai. Đổi lại,
+      // file mà npm/nx tạo có thể thuộc root trên rootful, nên cleanup xoá nội
+      // dung mount bằng container root trước khi `rmSync` (lỗi CI thật #314).
       const runNx = async (label: string): Promise<string> => {
         const { stdout } = await execFileAsync(
           'docker',
@@ -197,6 +201,21 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
       const secondRun = await runNx('run2');
       expect(secondRun).toMatch(/Cache:\s*1\/1 hit/u);
     } finally {
+      // Trên daemon rootful (CI), npm/nx ghi file thuộc root vào mount và
+      // `rmSync` của host bị EACCES. Xoá nội dung mount bằng container root
+      // (root xoá được mọi file trong mount trên CẢ rootless lẫn rootful),
+      // rồi `rmSync` chỉ còn phải xoá thư mục rỗng. Best-effort: một lần
+      // xoá hiếm hoi thất bại chỉ để lại thư mục tmp.
+      await execFileAsync('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${ws}:/ws`,
+        NODE_IMAGE,
+        'sh',
+        '-c',
+        'rm -rf /ws/* /ws/.[!.]* /ws/..?* 2>/dev/null || true',
+      ]).catch(() => undefined);
       rmSync(ws, { recursive: true, force: true });
     }
   });

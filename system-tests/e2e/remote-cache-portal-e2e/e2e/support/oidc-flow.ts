@@ -155,7 +155,9 @@ export async function performBrowserLogin(
   // auth rồi 302 về `/login/continue`; bấm `login-continue-target` để chạy
   // handoff push và điều hướng sang auth (consent lần đầu hoặc resume trực tiếp).
   const continueTarget = page.getByTestId('login-continue-target');
-  await expect(continueTarget).toBeVisible();
+  // BFF cold start (CI): trang /login/continue có thể mất lâu hơn 15s mặc định
+  // để render nút — nới timeout thay vì retry (OTP đã tiêu một challenge).
+  await expect(continueTarget).toBeVisible({ timeout: 30_000 });
   await continueTarget.click();
 
   // Lần đầu login ⇒ trang consent với nút approve; grant của identity tồn tại
