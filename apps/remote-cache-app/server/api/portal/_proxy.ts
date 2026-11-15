@@ -36,7 +36,14 @@
  *   nghiệp vụ (401/403/404/409 từ control plane giữ nguyên status + body).
  */
 
-import { createError, defineEventHandler, readRawBody, setResponseStatus, type H3Event } from 'h3';
+import {
+  createError,
+  defineEventHandler,
+  readRawBody,
+  setHeader,
+  setResponseStatus,
+  type H3Event,
+} from 'h3';
 
 import {
   callControlPlane,
@@ -51,7 +58,13 @@ function controlPlanePath(event: H3Event): string {
   // `event.path` của request BFF là `/api/portal/tenants/...`; control plane
   // mount cùng subtree KHÔNG có tiền tố `/api/portal`.
   const { pathname, search } = new URL(event.path, 'http://remote-cache-app.invalid');
-  return `${pathname.replace(/^\/api\/portal/u, '')}${search}`;
+  const stripped = pathname.replace(/^\/api\/portal/u, '');
+  // Defense-in-depth: dot-segment không bao giờ được forward lên control plane
+  // — fetch client có thể normalize `..` thành segment ngoài subtree đã ký.
+  if (stripped.includes('..')) {
+    reject(event, 503, 'control_plane_path_invalid');
+  }
+  return `${stripped}${search}`;
 }
 
 /**
@@ -160,6 +173,10 @@ async function portalProxy(event: H3Event): Promise<unknown> {
   }
 
   setResponseStatus(event, result.status);
+  if (event.method !== 'GET') {
+    // Response POST tạo key/project mang token show-once — cấm mọi tầng cache.
+    setHeader(event, 'Cache-Control', 'no-store');
+  }
   // Bóc khoá secret CHỈ trên GET (metadata list/detail): response của POST tạo
   // là show-once — `api_key.token` là nội dung ĐÚNG hợp đồng phải tới browser.
   return event.method === 'GET' ? stripForbiddenKeys(result.json) : result.json;

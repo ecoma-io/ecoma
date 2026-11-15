@@ -43,8 +43,12 @@ function copyables(): readonly { readonly key: string; readonly value: string }[
 
 async function copy(key: string, value: string): Promise<void> {
   if (typeof navigator === 'undefined' || navigator.clipboard === undefined) return;
-  await navigator.clipboard.writeText(value);
-  copied.value = key;
+  try {
+    await navigator.clipboard.writeText(value);
+    copied.value = key;
+  } catch {
+    // Clipboard bị từ chối (quyền hạn…) — giá trị vẫn hiển thị để copy tay.
+  }
 }
 </script>
 

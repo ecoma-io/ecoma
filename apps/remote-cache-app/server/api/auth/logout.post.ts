@@ -28,7 +28,14 @@
  * POST (RFC 7009 §2.1), không trong URL (invariant 27).
  */
 
-import { createError, defineEventHandler, getCookie, getHeader, setResponseHeader } from 'h3';
+import {
+  createError,
+  defineEventHandler,
+  getCookie,
+  getHeader,
+  setResponseHeader,
+  type H3Event,
+} from 'h3';
 
 import {
   clearCsrfCookie,
@@ -69,7 +76,7 @@ async function revokeAtAuth(issuer: string, clientId: string, token: string): Pr
   }
 }
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
   setResponseHeader(event, 'Cache-Control', 'no-store');
 
   const cookieValue = getCookie(event, SESSION_COOKIE_NAME);

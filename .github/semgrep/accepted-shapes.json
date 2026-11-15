@@ -483,26 +483,6 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
-    "path": "deploys/remote-cache-api-deploy/local.ts",
-    "start": 130,
-    "end": 130,
-    "reason": "Deploy-unit nội bộ: password là secret migrator đọc từ stack config Pulumi của chính unit, truyền tiếp trong cùng process vào env của container migrate; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts.",
-    "lines": {
-      "130": "\\ \\ return\\ password;"
-    }
-  },
-  {
-    "rule": "security-sensitive-value-in-http-response",
-    "path": "deploys/remote-cache-api-deploy/local.ts",
-    "start": 164,
-    "end": 164,
-    "reason": "Deploy-unit nội bộ: secret là secret object storage đọc lại từ stack config của platform (cross-stack, platform up trước theo dependsOn), truyền tiếp trong cùng process cho provisioning bucket; không có HTTP response.",
-    "lines": {
-      "164": "\\ \\ \\ \\ return\\ secret;"
-    }
-  },
-  {
-    "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/remote-cache-api-deploy/superadmin-resolver.ts",
     "start": 62,
     "end": 62,

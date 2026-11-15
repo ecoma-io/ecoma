@@ -45,7 +45,7 @@ import { writeLog } from '../../log';
 /** Kết quả phép đo trên một phiên có cookie — cần cả hai nguồn cấu hình + DB. */
 type ProbeOutcome = { readonly authenticated: boolean; readonly degradedReason?: string };
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
   setResponseHeader(event, 'Cache-Control', 'no-store');
 
   // 1. Cookie vắng ⇒ kết luận được ngay — không chạm cấu hình hay DB.

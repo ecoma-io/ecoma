@@ -75,6 +75,8 @@ const projects = computed(() =>
 );
 
 const createdAtOf = (project: ProjectWire): string => {
+  // `new Date(null)` trả epoch — guard trước để giá trị thiếu hiển thị '—'.
+  if (project.created_at === null || project.created_at === undefined) return '—';
   const date = new Date(project.created_at);
   return Number.isNaN(date.getTime()) ? '—' : date.toISOString().slice(0, 10);
 };

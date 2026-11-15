@@ -17,6 +17,8 @@
  * Browser regression app-owned (`tests/browser/`, 06-testing.md §2, §3).
  */
 
+import { randomUUID } from 'node:crypto';
+
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -85,6 +87,9 @@ describe('remote-cache-app portal admin workflows on a real browser against the 
 
   it('creates a project, shows the token exactly once, and never in the metadata list', async () => {
     const { page: authenticated } = await openAuthenticatedPage();
+    // Tên project riêng từng lần chạy — test revoke bên dưới tự tạo project của
+    // nó, không phụ thuộc kết quả của test này.
+    const projectName = `browser-created-cache-${randomUUID().slice(0, 8)}`;
 
     // Tạo project từ trang danh sách — đi qua link, đúng luồng người dùng.
     await authenticated.waitForSelector('[data-testid="remote-cache-app-projects-table"]', {
@@ -93,7 +98,7 @@ describe('remote-cache-app portal admin workflows on a real browser against the 
     await authenticated.locator('[data-testid="remote-cache-app-create-project-link"]').click();
     await authenticated
       .locator('[data-testid="remote-cache-app-create-project-name"]')
-      .fill('browser-created-cache');
+      .fill(projectName);
     await authenticated.locator('[data-testid="remote-cache-app-create-project-submit"]').click();
 
     // Show-once: token hiện đúng một lần trong hộp thoại.
@@ -111,7 +116,7 @@ describe('remote-cache-app portal admin workflows on a real browser against the 
     });
 
     // Metadata list của project đó: KHÔNG có token nào.
-    await authenticated.goto(`${stack.appUrl}/projects/browser-created-cache`, {
+    await authenticated.goto(`${stack.appUrl}/projects/${projectName}`, {
       waitUntil: 'load',
     });
     await authenticated.waitForSelector('[data-testid="remote-cache-app-keys-table"]', {
@@ -153,7 +158,27 @@ describe('remote-cache-app portal admin workflows on a real browser against the 
   it('revokes an active key through the confirm dialog and keeps it in the list as revoked', async () => {
     const { page: authenticated } = await openAuthenticatedPage();
 
-    await authenticated.goto(`${stack.appUrl}/projects/browser-created-cache`, {
+    // Tự seeding project + key của test này — không phụ thuộc test trước
+    // (độc lập thứ tự chạy, chạy lẻ được).
+    const projectName = `browser-revoked-cache-${randomUUID().slice(0, 8)}`;
+    await authenticated.waitForSelector('[data-testid="remote-cache-app-projects-table"]', {
+      timeout: 30_000,
+    });
+    await authenticated.locator('[data-testid="remote-cache-app-create-project-link"]').click();
+    await authenticated
+      .locator('[data-testid="remote-cache-app-create-project-name"]')
+      .fill(projectName);
+    await authenticated.locator('[data-testid="remote-cache-app-create-project-submit"]').click();
+    await authenticated.waitForSelector('[data-testid="remote-cache-app-show-once-token"]', {
+      timeout: 30_000,
+    });
+    await authenticated.locator('[data-testid="remote-cache-app-show-once-confirm"]').click();
+    await authenticated.waitForSelector('[data-testid="remote-cache-app-show-once-token"]', {
+      state: 'detached',
+      timeout: 15_000,
+    });
+
+    await authenticated.goto(`${stack.appUrl}/projects/${projectName}`, {
       waitUntil: 'load',
     });
     await authenticated.waitForSelector('[data-testid="remote-cache-app-keys-table"]', {

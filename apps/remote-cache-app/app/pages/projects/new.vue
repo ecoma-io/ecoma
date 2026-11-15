@@ -40,7 +40,9 @@ const PROJECT_NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/u;
 const nameValid = computed(() => PROJECT_NAME_PATTERN.test(name.value));
 
 async function submit(): Promise<void> {
-  if (!nameValid.value || submitting.value) return;
+  // Tenant vắng ⇒ URL sai hình `/tenants//projects` — guard sớm, cùng luật
+  // fail-closed với trang danh sách và trang chi tiết.
+  if (!nameValid.value || submitting.value || tenantName.value.length === 0) return;
   submitting.value = true;
   formError.value = null;
   loadError.value = null;

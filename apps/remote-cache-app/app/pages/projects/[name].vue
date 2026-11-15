@@ -131,7 +131,13 @@ async function createKey(): Promise<void> {
       const token = (body as { api_key?: { token?: unknown } } | null)?.api_key?.token;
       if (typeof token === 'string' && token.length > 0) {
         showOnceToken.value = token;
-        await reload();
+        // Key đã tạo thành công — lỗi làm mới list chỉ là mất đồng bộ hiển thị,
+        // không được ghi đè banner thành công (dialog show-once) bằng lỗi.
+        try {
+          await reload();
+        } catch {
+          /* làm mới thất bại — user còn nút retry ở trang */
+        }
       } else {
         createKeyError.value = 'unexpected create-key response shape';
       }

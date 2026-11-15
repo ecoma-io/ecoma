@@ -169,8 +169,10 @@ describe('remote-cache-app catalog coverage of app usage', () => {
   it('finds the keys the app actually calls', () => {
     // Chống test rỗng: regex hỏng thì `usedKeys` rỗng và mọi khẳng định dưới
     // đây tự động xanh mà không kiểm gì. Sàn thấp hơn số key tĩnh hiện tại
-    // một khoảng đủ để regex hỏng cục bộ vẫn đỏ. Ba key dưới đây đến từ ba
-    // bề mặt khác nhau của app — page, nav của shell, và language selector.
+    // một khoảng đủ để regex hỏng cục bộ vẫn đỏ — số key giảm có chủ đích khi
+    // bảng settings (8 key) được thay bằng color mode (4 key), issue #213. Ba
+    // key dưới đây đến từ ba bề mặt khác nhau của app — page, nav của shell,
+    // và language selector.
     expect(usedKeys.size).toBeGreaterThanOrEqual(16);
     expect([...usedKeys]).toContain('projects.title');
     expect([...usedKeys]).toContain('nav.projects');

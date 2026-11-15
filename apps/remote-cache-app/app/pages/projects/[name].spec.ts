@@ -35,7 +35,7 @@ function keysEndpoint(): { path: string; body: unknown } {
   };
 }
 
-function mountDetail(): ReturnType<typeof Object> {
+function mountDetail(): typeof DetailPage {
   remoteCacheAppStores.route.params = { name: 'orders-cache' };
   return DetailPage;
 }

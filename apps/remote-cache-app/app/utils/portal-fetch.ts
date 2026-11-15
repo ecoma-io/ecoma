@@ -52,7 +52,12 @@ function readCsrfCookie(): string | null {
   for (const part of document.cookie.split(';')) {
     const [name, ...rest] = part.trim().split('=');
     if (name === CSRF_COOKIE_NAME) {
-      return decodeURIComponent(rest.join('='));
+      // Cookie hỏng percent-encoding không được chặn cả trang — coi như không có.
+      try {
+        return decodeURIComponent(rest.join('='));
+      } catch {
+        return null;
+      }
     }
   }
   return null;
@@ -77,8 +82,12 @@ export async function portalFetch(path: string, init: RequestInit = {}): Promise
   // Cookie phiên được gửi mặc định: fetch cùng-origin dùng
   // `credentials: 'same-origin'` — cookie `__Host-` của BFF nằm kèm request mà
   // không cần `credentials: 'include'` (route `/api/portal/**` luôn cùng origin
-  // với trang).
-  const response = await fetch(path, { ...init, headers });
+  // với trang). Ghim tường minh để không phụ thuộc default của platform.
+  const response = await fetch(path, {
+    ...init,
+    headers,
+    credentials: init.credentials ?? 'same-origin',
+  });
   if (response.status === 401 && typeof window !== 'undefined') {
     window.location.assign(LOGIN_PATH);
   }
