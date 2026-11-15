@@ -305,7 +305,11 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     // 404 (chạy thật CLI 18.10.9, #208/#294).
     const index = await reqJson('/', { headers: auth(tenantASecret) });
     expect(index.status).toBe(200);
-    const links = (index.body as { _links: Record<string, { href: string }> })['_links'];
+    const links = (
+      index.body as {
+        _links: Record<string, { href: string; templated?: boolean }>;
+      }
+    )['_links'];
     const discovery = links['pb:latest-provider-pacts'];
     expect(discovery).toBeDefined();
     expect(discovery.href).toContain('/pacts/provider/{provider}/latest');
