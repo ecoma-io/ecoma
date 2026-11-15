@@ -709,11 +709,11 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/pact-broker-app/server/api/broker/pacts.get.ts",
-    "start": 100,
-    "end": 100,
-    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 95->100 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin).",
+    "start": 101,
+    "end": 101,
+    "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin 95->100 khi sua #254 review: thay doi comment/commit o phia tren dong pin (khong doi noi dung dong pin). Re-pin 100->101 by #258: refresh note +1 line in the hop-2 comment; code unchanged.",
     "lines": {
-      "100": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+      "101": "\\ \\ return\\ result\\.body\\ \\?\\?\\ \\{\\ error:\\ 'broker_unreachable'\\ \\};"
     }
   },
   {
@@ -804,6 +804,26 @@
     "reason": "BFF proxy của #206 (ADR-0031 §4): handler trả NGUYÊN VĂN body JSON của pact-broker-api về trình duyệt sau khi middleware authn đã verify phiên. Body là dữ liệu nghiệp vụ (pacts/environments/machine-token metadata), KHÔNG chứa credential nào. Rule flag vì taint engine lan giá trị tên `accessToken` từ tham số của `brokerCall` vào `fetch` (url/headers/body đều lan) sang response body của CHÍNH fetch đó — đã đo bằng probe trên 1.185.0, không phải suy đoán. Đây là FP cùng lớp naming/taint với token-auth.ts, không phải rò rỉ: access token chỉ rời process qua header Authorization của request BFF→API, không bao giờ nằm trong body trả về browser (401/403 không echo token — chốt bởi bff-auth-runtime.spec.ts và user-auth.spec.ts). Re-pin bởi #208: cùng hop/dòng return pass-through được khai thêm cho ba route mới của trang visibility.",
     "lines": {
       "76": "^  return result\\.body \\?\\? \\{ error: 'broker_unreachable' \\};$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/auth/refresh.ts",
+    "start": 169,
+    "end": 169,
+    "reason": "#258 (ADR-0031 section 2 muc 3): outcome 'renewed' cua refresh grant tra access token MOI da verify cho middleware authn gan vao event.context cua request - gia tri chi song trong bo nho cua request, khong bao gio vao HTTP response, cookie hay log (SR-007, assert o suite runtime va browser). Return nay la hop dong noi bo giua refresh.ts va authn.ts, khong phai HTTP surface.",
+    "lines": {
+      "169": "\\ \\ return\\ \\{\\ outcome:\\ 'renewed',\\ sub:\\ verified\\.sub,\\ accessToken:\\ newAccess\\ \\};"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/pact-broker-app/server/auth/refresh.ts",
+    "start": 193,
+    "end": 193,
+    "reason": "#258: single-flight per session - return promise in-flight (dang chay) cho request dong thoi cung phien; promise chua token moi khi resolve nhung nguoi tieu thieu duy nhat la renewSessionTokens' caller trong middleware authn (bo nho request, SR-007). Khong co HTTP response nao nhan gia tri nay.",
+    "lines": {
+      "193": "\\ \\ return\\ pending;"
     }
   }
 ]
