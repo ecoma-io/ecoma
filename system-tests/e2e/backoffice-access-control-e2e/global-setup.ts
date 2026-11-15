@@ -144,8 +144,12 @@ function traefikNamespace(port: string): string {
       timeout: 10_000,
     });
   } catch (error) {
+    // `error` là `unknown` — `execFileSync` thường ném `ErrnoException` nhưng
+    // đừng ép kiểu mù quáng: extract message qua `instanceof` để thông báo lỗi
+    // không bao giờ lọt đoạn `undefined` dù thrown value là chuỗi.
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `docker ps failed while discovering the worktree namespace (${(error as Error).message}) — ` +
+      `docker ps failed while discovering the worktree namespace (${message}) — ` +
         'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
       { cause: error },
     );
