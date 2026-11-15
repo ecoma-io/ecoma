@@ -420,6 +420,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
     const cliAfter = await runPactCli('pact-broker', ['list-latest-pact-versions'], devSecret);
     expect(cliAfter.status).not.toBe(0);
     expect(cliAfter.stdout).toContain('401');
+    assertNoTokenInOutput(cliAfter.stdout, devSecret);
   });
 
   test('PB-9: tenant isolation is two-way — same pacticipant names, distinct content, no data leak', async ({

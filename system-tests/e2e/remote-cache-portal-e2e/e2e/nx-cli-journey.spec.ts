@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from './support/fixtures';
 import { resolveStackOrigin } from './support/local-origin';
+import { resolvePlatformNetwork } from './support/network';
 
 /**
  * Journey Nx CLI thật với self-hosted remote cache (issue #299, #27 journey 2).
@@ -87,24 +88,6 @@ function readCiKeyPlaintext(): string {
     throw new Error('bootstrap CI key is empty — check the Pulumi local state of this worktree');
   }
   return value;
-}
-
-/** Network platform của stack — cùng phép map với `portal-journey.spec.ts`. */
-async function resolvePlatformNetwork(origin: string): Promise<string> {
-  const port = new URL(origin).port;
-  const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}']);
-  for (const line of stdout.split('\n')) {
-    const [name, ports] = line.split('\t');
-    if (name === undefined || ports === undefined || !name.includes('traefik')) {
-      continue;
-    }
-    if (new RegExp(`127\\.0\\.0\\.1:${port}->443/tcp`, 'u').test(ports)) {
-      return `ecoma-${name.replace(/^ecoma-(.+)-traefik$/u, '$1')}-network`;
-    }
-  }
-  throw new Error(
-    `no traefik container publishes host port ${port} — the local stack is not running`,
-  );
 }
 
 test.describe('Nx CLI self-hosted remote cache journey', () => {

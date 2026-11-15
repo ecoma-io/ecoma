@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { SECOND_TENANT_NAME, expect, seedOutsiderIdentity, test } from './support/fixtures';
 import { performBrowserLogin } from './support/oidc-flow';
 import { LOCAL_CERT_PATH, resolveStackOrigin } from './support/local-origin';
+import { resolvePlatformNetwork } from './support/network';
 
 /**
  * Journey portal của developer trong tenant `ecoma` (issue #299):
@@ -33,28 +34,6 @@ const execFileAsync = promisify(execFile);
 /** Alias nội bộ của data-plane trên network platform — hằng theo deploy (#238). */
 const DATA_PLANE_ALIAS = 'ecoma-remote-cache-api';
 const DATA_PLANE_PORT = 4207;
-
-/**
- * Network platform của stack — resolve theo port Traefik publish, cùng phép
- * map với `resolvePostgresContainer` nhưng trả tên network.
- */
-async function resolvePlatformNetwork(origin: string): Promise<string> {
-  const port = new URL(origin).port;
-  const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}']);
-  for (const line of stdout.split('\n')) {
-    const [name, ports] = line.split('\t');
-    if (name === undefined || ports === undefined || !name.includes('traefik')) {
-      continue;
-    }
-    if (new RegExp(`127\\.0\\.0\\.1:${port}->443/tcp`, 'u').test(ports)) {
-      const namespace = name.replace(/^ecoma-(.+)-traefik$/u, '$1');
-      return `ecoma-${namespace}-network`;
-    }
-  }
-  throw new Error(
-    `no traefik container publishes host port ${port} — the local stack is not running`,
-  );
-}
 
 /** Chạy `curl` trong network platform, trả `{status, body}`. */
 async function curlInNetwork(
