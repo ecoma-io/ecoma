@@ -13,6 +13,21 @@
  */
 
 export {
+  FORBIDDEN_PORTAL_KEY_CREDENTIAL_FIELDS,
+  PORTAL_API_KEY_SCOPES,
+  PORTAL_CREDENTIAL_CLASSES,
+  portalCredentialClassOf,
+  validatePortalApiKeyMetadata,
+  validatePortalCreateApiKeyRequest,
+  validatePortalCreateProjectRequest,
+  type PortalApiKeyCreated,
+  type PortalApiKeyMetadata,
+  type PortalApiKeyRevoked,
+  type PortalCreateApiKeyRequest,
+  type PortalCreateProjectRequest,
+  type PortalCredentialClass,
+} from './portal-contract';
+export {
   FORBIDDEN_PROJECT_CREDENTIAL_FIELDS,
   isRemoteCacheApiKeyScope,
   isRemoteCacheProjectName,

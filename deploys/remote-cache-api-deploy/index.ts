@@ -130,6 +130,12 @@ const objectStorageAccessKeyId = requirePlatformOutput('objectStorageAccessKeyId
 // --config (stdin, không argv).
 const runtimePassword = conf.requireSecret('runtimePassword');
 const migratorPassword = conf.requireSecret('migratorPassword');
+// Secret HMAC envelope nội bộ `ecoma-internal-v2` cho portal surface (ADR-0034,
+// issue #180) — persist bởi `local.ts` (sinh mỗi lần up của unit này) và dùng
+// chung cho BFF `remote-cache-app` qua cross-stack config; thiếu giá trị là
+// portal routes fail-closed 503 từng request (src/config.ts), không ảnh hưởng
+// machine routes + data plane.
+const internalHmacSecret = conf.requireSecret('internalHmacSecret');
 // Secret key object storage — platform sinh và persist khi up SeaweedFS;
 // `local.ts` đọc cross-stack và set vào stack config NÀY (stdin, không argv).
 // `requireSecret` như hai mật khẩu: giá trị chỉ sống dưới dạng secret trong
@@ -506,6 +512,10 @@ const wic = new docker.Container(
       objectStorageEnvs.apply((envs) => `S3_BUCKET=${envs.S3_BUCKET}`),
       objectStorageEnvs.apply((envs) => `S3_ACCESS_KEY_ID=${envs.S3_ACCESS_KEY_ID}`),
       pulumi.interpolate`S3_SECRET_ACCESS_KEY=${pulumi.secret(objectStorageSecretKey)}`,
+      // Portal surface (ADR-0034, #180): giá trị qua KÊNH CONTAINER ENV (entrypoint
+      // bật `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` nên biến này trở thành Worker
+      // env `INTERNAL_AUTH_SECRET` — cùng cơ chế với Hyperdrive connection string).
+      pulumi.interpolate`INTERNAL_AUTH_SECRET=${pulumi.secret(internalHmacSecret)}`,
     ],
     labels: Object.entries(labels).map(([label, value]) => ({ label, value })),
     healthcheck: {

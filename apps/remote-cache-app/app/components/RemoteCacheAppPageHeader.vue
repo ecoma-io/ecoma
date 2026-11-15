@@ -26,9 +26,14 @@ const { title, description = undefined } =
 
 <template>
   <div class="mb-6">
-    <h1 class="text-2xl font-semibold tracking-tight" data-testid="remote-cache-app-page-title">
-      {{ title }}
-    </h1>
+    <div class="flex items-start justify-between gap-4">
+      <h1 class="text-2xl font-semibold tracking-tight" data-testid="remote-cache-app-page-title">
+        {{ title }}
+      </h1>
+      <!-- Slot hành động (nút tạo project...) — nằm cùng hàng tiêu đề vì hành
+           động cấp trang là thuộc tính của trang, không của nội dung dưới. -->
+      <slot name="actions" />
+    </div>
     <p v-if="description" class="mt-2 max-w-2xl text-sm text-muted-foreground">
       {{ description }}
     </p>

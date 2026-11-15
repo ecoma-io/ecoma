@@ -3,13 +3,41 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
+    "@ecoma-io/internal-auth-contracts": "workspace:*",
     "@ecoma-io/ui-app-shell": "workspace:*",
-    "@ecoma-io/ui-ecoma-logo": "workspace:*"
+    "@ecoma-io/ui-ecoma-logo": "workspace:*",
+    "jose": "6.2.17"
   },
   "devDependencies": {
-    "@nuxtjs/i18n": "10.6.0"
+    "@nuxtjs/i18n": "10.6.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   },
+  "//": [
+    "`pg` + `@types/pg` ở devDependencies: driver PostgreSQL chỉ dùng ở",
+    "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
+    "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
+    "(không external). `jose` ở dependencies: verify access token offline trong",
+    "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice` và",
+    "`apps/pact-broker-app`.",
+    "",
+    "`@ecoma-io/internal-auth-contracts`: ký envelope HMAC nội bộ khi BFF gọi",
+    "control plane `remote-cache-api` (ADR-0034).",
+    "",
+    "Vì sao devDependencies là đủ cho `pg` (review #254 của pact-broker-app):",
+    "Worker bundle KHÔNG có node_modules lúc chạy — Nitro đóng gói toàn bộ `pg`",
+    "vào artifact (`noExternals` của preset `cloudflare-module`), nên việc cài",
+    "hay không cài dependency này ở 'môi trường production' không tồn tại như",
+    "một khái niệm; artifact chỉ được dựng từ workspace install đầy đủ. Cùng vị",
+    "trí devDependencies với `apps/backoffice`/`apps/pact-broker-app`.",
+    "`@types/pg` là compile-time types, devDependencies đúng theo nghĩa thông",
+    "thường."
+  ],
   "nx": {
+    "//": "implicitDependencies — suite browser tests/browser/ dựng full stack thật với cạnh control plane (remote-cache-api): boot workerd của API từ dist/, chạy CLI vận hành (migrations/bootstrap) qua tsx subprocess. Không phải import code (module boundary cấm), nhưng kết quả suite phụ thuộc thật vào project đó — cùng luật implicitDependencies của pact-broker-app.",
+    "implicitDependencies": [
+      "@ecoma-io/remote-cache-api"
+    ],
     "tags": [
       "type:composition",
       "scope:remote-cache",
@@ -51,6 +79,22 @@
           "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
           "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
         ]
+      },
+      "typecheck-db": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "cwd": "apps/remote-cache-app",
+          "command": "npx tsc --project tsconfig.db.json"
+        }
+      },
+      "db:migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/remote-cache-app",
+          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
+        }
       },
       "test": {
         "executor": "nx:run-commands",
@@ -117,11 +161,23 @@
         "executor": "nx:run-commands",
         "cache": true,
         "dependsOn": [
-          "build"
+          "build",
+          {
+            "projects": [
+              "@ecoma-io/remote-cache-api"
+            ],
+            "target": "build"
+          }
         ],
         "inputs": [
           "default",
           "^production",
+          {
+            "fileset": "{workspaceRoot}/apps/remote-cache-api/db/**"
+          },
+          {
+            "fileset": "{workspaceRoot}/apps/remote-cache-api/wrangler.jsonc"
+          },
           {
             "externalDependencies": [
               "vitest",
@@ -141,7 +197,7 @@
         ],
         "options": {
           "cwd": "apps/remote-cache-app",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
@@ -150,12 +206,27 @@
           "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
           "ném ngay, đỏ thay vì pass rỗng.",
           "",
-          "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
-          "suite assert trên asset do build emit, không chỉ trên `.js`.",
+          "`dependsOn` thứ hai là cạnh cross-project (mirror cách pact-broker-app",
+          "khai với `pact-broker-api`): suite browser `tests/browser/` boot",
+          "workerd cho `remote-cache-api` từ `dist/main.js` của nó và chạy CLI",
+          "migrations/bootstrap qua tsx subprocess — KHÔNG import code API (module",
+          "boundary cấm), nhưng execution phụ thuộc artifact build của API.",
+          "",
+          "`inputs` khai thêm `db/**` + `wrangler.jsonc` của API: suite chạy CLI",
+          "migrations/bootstrap từ thư mục đó qua tsx subprocess — đổi script hay",
+          "config Hyperdrive phải mất hiệu lực cache dù build có thể không đổi.",
           "",
           "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
           "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
-          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
+          "suite này đo, nên cache phải mất hiệu lực khi nó đổi.",
+          "",
+          "`command` KHÔNG còn path filter: `include` của config integration là",
+          "nguồn chọn suite duy nhất (tests/integrations/** + tests/browser/**).",
+          "Suite browser dựng full stack thật (Docker + workerd ×2) — Docker là",
+          "phụ thuộc cứng của target qua globalSetup probe fail-loud; thiếu",
+          "Chromium là đỏ tại `chromium.launch()` của suite, không có đường skip.",
+          "Target không tự cài Playwright chromium — cùng chủ ý với",
+          "pact-broker-app (#253): CI job cấp browser một lần ở cấp job."
         ]
       },
       "lint": {

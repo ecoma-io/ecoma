@@ -174,8 +174,8 @@ describe('remote-cache-app catalog coverage of app usage', () => {
     // key dưới đây đến từ ba bề mặt khác nhau của app — page, nav của shell,
     // và language selector.
     expect(usedKeys.size).toBeGreaterThanOrEqual(16);
-    expect([...usedKeys]).toContain('overview.title');
-    expect([...usedKeys]).toContain('nav.overview');
+    expect([...usedKeys]).toContain('projects.title');
+    expect([...usedKeys]).toContain('nav.projects');
     expect([...usedKeys]).toContain('shell.language.label');
   });
 

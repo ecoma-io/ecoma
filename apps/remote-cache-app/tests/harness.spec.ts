@@ -62,17 +62,42 @@ describe('test harness bridge', () => {
 });
 
 describe('index page', () => {
-  it('renders exactly one h1 and the scaffold notice card', async () => {
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
+  it('renders exactly one h1 and the projects table', async () => {
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, {
+      runtimeConfig: { remoteCacheTenantName: 'ecoma' },
+      fetchEndpoints: [
+        {
+          path: '/api/portal/tenants/ecoma/projects',
+          body: {
+            projects: [
+              {
+                id: '11111111-1111-4111-8111-111111111111',
+                name: 'orders-cache',
+                created_at: '2026-11-15T00:00:00Z',
+              },
+            ],
+            next_cursor: null,
+          },
+        },
+      ],
+    });
     expect(wrapper.findAll('h1')).toHaveLength(1);
-    expect(wrapper.find('[data-testid="remote-cache-app-scaffold-notice"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="remote-cache-app-projects-table"]').exists()).toBe(true);
     wrapper.unmount();
   });
 
   it('flush() settles onMounted data loads before assertions', async () => {
-    // Trang index không fetch, nhưng hợp đồng của flush vẫn được ghim: một
-    // page có fetch sẽ treo ở loading nếu flush thiếu.
-    const wrapper = await mountRemoteCacheAppPage(IndexPage);
+    // Trang index fetch qua BFF ngay ở mounted, nhưng hợp đồng của flush vẫn
+    // được ghim: một page có fetch sẽ treo ở loading nếu flush thiếu.
+    const wrapper = await mountRemoteCacheAppPage(IndexPage, {
+      runtimeConfig: { remoteCacheTenantName: 'ecoma' },
+      fetchEndpoints: [
+        {
+          path: '/api/portal/tenants/ecoma/projects',
+          body: { projects: [], next_cursor: null },
+        },
+      ],
+    });
     await flush();
     expect(wrapper.text()).not.toContain('Loading');
     wrapper.unmount();

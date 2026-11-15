@@ -483,26 +483,6 @@
   },
   {
     "rule": "security-sensitive-value-in-http-response",
-    "path": "deploys/remote-cache-api-deploy/local.ts",
-    "start": 130,
-    "end": 130,
-    "reason": "Deploy-unit nội bộ: password là secret migrator đọc từ stack config Pulumi của chính unit, truyền tiếp trong cùng process vào env của container migrate; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts.",
-    "lines": {
-      "130": "\\ \\ return\\ password;"
-    }
-  },
-  {
-    "rule": "security-sensitive-value-in-http-response",
-    "path": "deploys/remote-cache-api-deploy/local.ts",
-    "start": 164,
-    "end": 164,
-    "reason": "Deploy-unit nội bộ: secret là secret object storage đọc lại từ stack config của platform (cross-stack, platform up trước theo dependsOn), truyền tiếp trong cùng process cho provisioning bucket; không có HTTP response.",
-    "lines": {
-      "164": "\\ \\ \\ \\ return\\ secret;"
-    }
-  },
-  {
-    "rule": "security-sensitive-value-in-http-response",
     "path": "deploys/remote-cache-api-deploy/superadmin-resolver.ts",
     "start": 62,
     "end": 62,
@@ -824,6 +804,66 @@
     "reason": "#258: single-flight per session - return promise in-flight (dang chay) cho request dong thoi cung phien; promise chua token moi khi resolve nhung nguoi tieu thieu duy nhat la renewSessionTokens' caller trong middleware authn (bo nho request, SR-007). Khong co HTTP response nao nhan gia tri nay. Re-pin boi security review #258: persist chay TRUOC verify nen dong return chuyen tu 193 xuong 218, cung hop dong.",
     "lines": {
       "218": "\\ \\ return\\ pending;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/local.ts",
+    "start": 131,
+    "end": 131,
+    "reason": "Deploy-unit nội bộ: password là secret migrator đọc từ stack config Pulumi của chính unit, truyền tiếp trong cùng process vào env của container migrate; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts. Pin 130->131 khi thêm import generateInternalHmacSecret cho portal secret (#180) - code tại pin không đổi.",
+    "lines": {
+      "131": "\\ \\ return\\ password;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-api-deploy/local.ts",
+    "start": 165,
+    "end": 165,
+    "reason": "Deploy-unit nội bộ: secret là secret object storage đọc lại từ stack config của platform (cross-stack, platform up trước theo dependsOn), truyền tiếp trong cùng process cho provisioning bucket; không có HTTP response. Pin 164->165 khi thêm import generateInternalHmacSecret cho portal secret (#180) - code tại pin không đổi.",
+    "lines": {
+      "165": "\\ \\ \\ \\ return\\ secret;"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-app-deploy/local.ts",
+    "start": 120,
+    "end": 120,
+    "reason": "Deploy-unit nội bộ của #180 (ADR-0035): secret là secret HMAC nội bộ đọc cross-stack từ stack remote-cache-api-deploy (producer up trước theo dependsOn), truyền tiếp trong cùng process vào stack config rồi env container BFF; không có HTTP surface, không log giá trị. FP cùng lớp taint/naming với pin đã accept tại deploys/pact-broker-api-deploy/local.ts và deploys/remote-cache-api-deploy/local.ts:131.",
+    "lines": {
+      "120": "^  return secret;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-app-deploy/scripts.ts",
+    "start": 119,
+    "end": 119,
+    "reason": "[Role migrator] Builder thuần của #180 (ADR-0035): password được percent-encode rồi ghép vào userinfo của URL kết nối db-remote-cache-app, wiring chỉ truyền URL này qua map `environment` của `local.Command` bọc `pulumi.secret`; script trong container chỉ nhận TÊN biến môi trường, không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-app-deploy/scripts.ts` (#206) và `deploys/remote-cache-api-deploy/scripts.ts` (#42).",
+    "lines": {
+      "119": "^  return `postgresql://\\$\\{MIGRATOR_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "deploys/remote-cache-app-deploy/scripts.ts",
+    "start": 128,
+    "end": 128,
+    "reason": "[Role runtime] Builder thuần của #180 (ADR-0035): password được percent-encode rồi ghép vào userinfo của URL kết nối db-remote-cache-app, wiring chỉ truyền URL này qua env `NITRO_REMOTE_CACHE_APP_DATABASE_URL` của container BFF bọc `pulumi.secret`; không có HTTP surface, không log giá trị. Cùng hình dạng đã accept tại `deploys/pact-broker-app-deploy/scripts.ts` (#206) và `deploys/remote-cache-api-deploy/scripts.ts` (#42).",
+    "lines": {
+      "128": "^  return `postgresql://\\$\\{RUNTIME_ROLE\\}:\\$\\{encodeURIComponent\\(inputs\\.password\\)\\}@\\$\\{POSTGRES_HOST\\}:5432/\\$\\{DATABASE_NAME\\}`;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "apps/remote-cache-app/app/utils/portal-fetch.ts",
+    "start": 99,
+    "end": 99,
+    "reason": "portalFetch tra ve Response cua fetch BFF (issue #180): taint nhap tu document.cookie (CSRF token, KHONG phai secret — CSRF la double-submit token cong khai) chay qua headers cua request DI RA, roi engine coi response cua chinh fetch do bi nhiem. Request chi roi cookie qua thuoc tinh credentials/headers cua request di ra; response body la du lieu tra ve cua BFF, khong echo cookie nao (401/403 khong echo token). FP cung lop request→response voi cac pin BFF proxy da accept cua pact-broker (#206/#208). Re-pin 94->99: khoi phuc redirect 401 (dung location.replace)",
+    "lines": {
+      "99": "^  return response;$"
     }
   }
 ]

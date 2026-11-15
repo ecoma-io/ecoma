@@ -8,27 +8,23 @@ import readyRoute from '../server/routes/ready.get';
 import { stripComments } from './source-code';
 
 /**
- * Hợp đồng của hai route vận hành của scaffold `remote-cache-app`.
+ * Hợp đồng của hai route vận hành của `remote-cache-app` (ADR-0035).
  *
- * Ba bất biến được ghim ở đây:
+ * Các bất biến được ghim ở đây:
  *
  * 1. **`/health` là liveness** — trả JSON ổn định và không đọc gì từ event.
- * 2. **`/ready` là readiness của một scaffold không có downstream** — trả JSON
- *    ổn định, không đọc gì từ event, không tự đổi response status.
- * 3. **Không có downstream nào trong `ready.get.ts`** — phần **code** (comment đã
- *    bị bóc) không được tham chiếu `remote-cache-api`/`REMOTE_CACHE_API`/hyperdrive/`D1`/`fetch(`.
- *    Đây là bất biến "fail-closed, không phụ thuộc serving-path": khi một phụ
- *    thuộc thật xuất hiện, nó phải được thêm cùng nhánh 503 — không được lén
- *    thêm một lần gọi mạng vào route này để "cho có kiểm".
+ * 2. **`/ready` là readiness fail-closed theo cấu hình** — đủ cấu hình OIDC +
+ *    control plane ⇒ `200 { status: 'ready' }`; thiếu nhóm nào ⇒ `503` kèm mã
+ *    ổn định `*_not_configured`. Route đọc **cấu hình** qua event, không gọi
+ *    mạng — readiness không là serving-path dependency của service khác.
+ * 3. **Không có lệnh gọi mạng nào trong `ready.get.ts`** — phần **code** (comment
+ *    đã bị bóc) không được tham chiếu `fetch(`: kiểm env là đủ, vì middleware
+ *    authn và proxy portal fail closed trên đúng các env đó.
  *
- * ⚠️ Event được thay bằng một `Proxy` **ném khi bị đọc bất kỳ thuộc tính nào**:
- * nếu route lỡ chạm `event.context`, `event.node` hay bất cứ thứ gì, test đỏ
- * ngay tại đó. Một object rỗng chỉ chứng minh "không ném với event rỗng", không
- * chứng minh route không đọc event.
- *
- * ⚠️ Vì cùng lý do, không có `vi.mock('h3')` nào: route chỉ dùng
- * `defineEventHandler`, và việc import `h3` thật chứng minh route không kéo
- * dependency lạ vào.
+ * ⚠️ Cho `/health`, event được thay bằng một `Proxy` **ném khi bị đọc bất kỳ
+ * thuộc tính nào**: nếu route lỡ chạm `event.context`, test đỏ ngay tại đó.
+ * `/ready` đọc cấu hình từ event (đó là hợp đồng mới của nó), nên phép Proxy
+ * chỉ áp cho `/health` và cho phép kiểm source của `/ready`.
  */
 
 /** Event cấm đọc — mọi truy cập thuộc tính đều ném. */
@@ -64,42 +60,79 @@ describe('/health — liveness', () => {
   });
 });
 
-describe('/ready — readiness for a scaffold with no downstream', () => {
-  it('returns ready with no thrown error', () => {
-    const result = readyRoute(FORBIDDEN_EVENT as never);
+/**
+ * Event giả đủ hình cho `setResponseStatus` của h3 (`event.node.res
+ * .statusCode`) và đọc cấu hình qua `context.cloudflare.env`.
+ */
+function fakeEvent(env: Record<string, string>): { node: { res: { statusCode?: number } } } {
+  return { node: { res: {} } as never, context: { cloudflare: { env } } } as never;
+}
+
+describe('/ready — fail-closed on BFF configuration', () => {
+  it('returns ready with 200 when both config groups are present', () => {
+    const event = fakeEvent({
+      REMOTE_CACHE_AUTH_ISSUER: 'https://auth.example.com',
+      REMOTE_CACHE_AUTH_AUDIENCE: 'ecoma-control-plane',
+      REMOTE_CACHE_AUTH_CLIENT_ID: 'ecoma-remote-cache-app',
+      REMOTE_CACHE_API_BASE_URL: 'http://ecoma-remote-cache-api:4207',
+      INTERNAL_AUTH_SECRET: 'shared-secret',
+    });
+    const result = readyRoute(event as never);
 
     expect(result).toEqual({ status: 'ready' });
+    expect(event.node.res.statusCode).toBeUndefined();
   });
 
-  it('does not set a response status — a ready scaffold is a 200', () => {
+  it('sets 503 with a stable code when OIDC config is missing', () => {
+    const event = fakeEvent({
+      REMOTE_CACHE_API_BASE_URL: 'http://ecoma-remote-cache-api:4207',
+      INTERNAL_AUTH_SECRET: 'shared-secret',
+    });
+    const result = readyRoute(event as never);
+
+    expect(result).toEqual({ status: 'not_ready', code: 'oidc_not_configured' });
+    expect(event.node.res.statusCode).toBe(503);
+  });
+
+  it('sets 503 with a stable code when control-plane config is missing', () => {
+    const event = fakeEvent({
+      REMOTE_CACHE_AUTH_ISSUER: 'https://auth.example.com',
+      REMOTE_CACHE_AUTH_AUDIENCE: 'ecoma-control-plane',
+      REMOTE_CACHE_AUTH_CLIENT_ID: 'ecoma-remote-cache-app',
+    });
+    const result = readyRoute(event as never);
+
+    expect(result).toEqual({ status: 'not_ready', code: 'control_plane_not_configured' });
+    expect(event.node.res.statusCode).toBe(503);
+  });
+
+  it('fails closed when nothing is configured (empty worker env)', () => {
+    const event = fakeEvent({});
+    const result = readyRoute(event as never);
+
+    expect(result).toEqual({ status: 'not_ready', code: 'oidc_not_configured' });
+    expect(event.node.res.statusCode).toBe(503);
+  });
+
+  it('keeps the fail-closed contract documented', () => {
     const source = readFileSync(resolve(ROUTES_DIR, 'ready.get.ts'), 'utf8');
 
-    expect(codeOf(source)).not.toMatch(/\bsetResponseStatus\b/u);
+    expect(source).toMatch(/fail.?closed/iu);
+    expect(source).toMatch(/503/u);
   });
 });
 
-describe('ready route has no downstream of any kind', () => {
+describe('ready route makes no network call of any kind', () => {
   const source = readFileSync(resolve(ROUTES_DIR, 'ready.get.ts'), 'utf8');
-  // Bóc comment trước khi kiểm: comment **phải** được phép nói "không phụ thuộc
-  // remote-cache-api" — chính câu đó là tài liệu của bất biến này. Thứ bị cấm là một
-  // tham chiếu trong code chạy được.
+  // Bóc comment trước khi kiểm: comment **phải** được phép nói "không gọi mạng" —
+  // chính câu đó là tài liệu của bất biến này. Thứ bị cấm là một lệnh gọi mạng
+  // trong code chạy được.
   const code = codeOf(source);
 
   it.each([
-    ['remote-cache-api', /\bremote-cache-api\b/u],
-    ['REMOTE_CACHE_API', /\bREMOTE_CACHE_API\b/u],
-    ['hyperdrive', /\bhyperdrive\b/iu],
-    ['D1', /\bD1\b/u],
     ['fetch(', /\bfetch\s*\(/u],
+    ['remote-cache-api host literal', /ecoma-remote-cache-api/u],
   ])('does not reference %s', (_label, pattern) => {
     expect(code).not.toMatch(pattern);
-  });
-
-  it('keeps the fail-closed requirement documented for a future dependency', () => {
-    // Khi một phụ thuộc cấu hình thật được thêm, route phải fail closed
-    // (503 + mã ổn định) thay vì mặc định ready. Comment là nơi hợp đồng đó
-    // sống cho tới khi có code thật.
-    expect(source).toMatch(/fail closed/u);
-    expect(source).toMatch(/503/u);
   });
 });

@@ -8,7 +8,7 @@
   },
   "ecoma": {
     "deployment": {
-      "status": "scaffold"
+      "status": "implemented"
     }
   },
   "nx": {
@@ -37,6 +37,20 @@
           {
             "projects": [
               "platform-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "//": "#180: BFF fetch control plane qua alias nội bộ — container remote-cache-api phải có trong network trước khi app lên (health container app không phụ thuộc control plane, nhưng request portal đầu tiên thì có).",
+            "projects": [
+              "remote-cache-api-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "//": "#180: đọc client id `remote-cache-app` cross-stack từ stack auth (auth seed client + persist config khi up của nó) — auth phải up trước.",
+            "projects": [
+              "auth-deploy"
             ],
             "target": "local-up"
           }
@@ -140,6 +154,60 @@
         "options": {
           "cwd": "deploys/remote-cache-app-deploy",
           "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/remote-cache-app-deploy",
+          "command": "vitest"
         },
         "configurations": {},
         "parallelism": true

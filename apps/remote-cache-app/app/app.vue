@@ -91,12 +91,15 @@ const shellLabels = computed(() => appShellLabels((key) => t(key)));
 
 const homeLabel = computed(() => t('shell.home'));
 
-// Chỉ **một** mục nav, trỏ tới route duy nhất đang tồn tại. Thêm mục cho một
-// route chưa có là dựng một liên kết chết trên giao diện.
+// Ba mục nav — mỗi mục trỏ tới một route thực sự tồn tại (`pages/`); thêm mục
+// cho route chưa có là dựng một liên kết chết trên giao diện.
 const nav = computed<AppShellNavSection[]>(() => [
   {
     heading: t('nav.admin'),
-    items: [{ title: t('nav.overview'), href: '/' }],
+    items: [
+      { title: t('nav.projects'), href: '/' },
+      { title: t('nav.onboarding'), href: '/onboarding' },
+    ],
   },
 ]);
 </script>

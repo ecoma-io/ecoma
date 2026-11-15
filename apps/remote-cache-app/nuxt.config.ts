@@ -56,6 +56,13 @@ export default defineNuxtConfig({
       .pathname,
     '@ecoma-io/ui-ecoma-logo': new URL('../../libs/ui-ecoma-logo/src/index.ts', import.meta.url)
       .pathname,
+    // Contracts của envelope HMAC nội bộ (`server/control-plane.ts`) — lib
+    // `runtime:universal` không đi qua Nuxt build pipeline tự động; alias tường
+    // minh là bắt buộc, cùng lý do với hai lib UI phía trên.
+    '@ecoma-io/internal-auth-contracts': new URL(
+      '../../libs/internal-auth-contracts/src/index.ts',
+      import.meta.url,
+    ).pathname,
   },
   css: ['~/assets/css/styles.css'],
   vite: {
@@ -83,9 +90,28 @@ export default defineNuxtConfig({
     restructureDir: 'app/i18n',
     vueI18n: './vue-i18n.config.ts',
   },
-  // Không có `runtimeConfig`: app này chưa có BFF route nào cần cấu hình hay
-  // secret (chỉ `/health`, `/ready` và static asset). Khi BFF thật xuất hiện,
-  // khai key tường minh ở đây và `vars` cho từng env trong `wrangler.jsonc` —
-  // không default một giá trị đoán được, vì default rỗng biến "chưa cấu hình"
-  // thành "chạy được với giá trị rỗng" thay vì fail closed.
+  // RuntimeConfig private của BFF (ADR-0035): mọi key đều **không default** —
+  // vắng mặt là trạng thái "chưa cấu hình" mà middleware authn / proxy portal /
+  // `/ready` fail closed (503), không bao giờ là "chạy được với giá trị rỗng".
+  // Trên Workers giá trị đi qua `env` của Worker (`REMOTE_CACHE_AUTH_*`,
+  // `REMOTE_CACHE_API_BASE_URL`, `INTERNAL_AUTH_SECRET`); trên Node container
+  // local đi qua `NITRO_*` ở đây. Secret không bao giờ nằm trong Git.
+  runtimeConfig: {
+    remoteCacheAuthIssuer: '',
+    remoteCacheAuthAudience: '',
+    remoteCacheAuthClientId: '',
+    remoteCacheAuthInternalOrigin: '',
+    remoteCacheApiBaseUrl: '',
+    internalAuthSecret: '',
+    remoteCacheAppDatabaseUrl: '',
+    // Public cho client (SPA đọc qua `useRuntimeConfig().public`): tên tenant
+    // canonical (ADR-0020 Q9) và cache endpoint hiển thị ở trang onboarding
+    // (R21). Vắng mặt ⇒ trang trả trạng thái unavailable — fail-closed, không
+    // bao giờ đoán tên tenant. Trên Workers đi qua `NUXT_PUBLIC_*` của Worker
+    // env; không nằm trong nhánh private vì client cần đọc.
+    public: {
+      remoteCacheTenantName: '',
+      remoteCacheCacheEndpoint: '',
+    },
+  },
 });

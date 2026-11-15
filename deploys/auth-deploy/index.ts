@@ -66,7 +66,12 @@ import {
   worktreeNamespace,
 } from '@ecoma-io/deployment';
 
-import { LOCAL_PACT_BROKER_CLIENT_ID, LOCAL_PACT_BROKER_CLIENT_NAME } from './local-clients.js';
+import {
+  LOCAL_PACT_BROKER_CLIENT_ID,
+  LOCAL_PACT_BROKER_CLIENT_NAME,
+  LOCAL_REMOTE_CACHE_APP_CLIENT_ID,
+  LOCAL_REMOTE_CACHE_APP_CLIENT_NAME,
+} from './local-clients.js';
 
 import {
   MIGRATOR_PASSWORD_ENV_VAR,
@@ -281,6 +286,14 @@ const redirectUriLocal = pulumi.interpolate`https://office.${rootHostname}:${tra
 const redirectUriPactLocal = pulumi.interpolate`https://pact.${rootHostname}:${traefikHostPort}/api/auth/callback`;
 
 /**
+ * Redirect URI của client `remote-cache-app` (issue #180, ADR-0031 §4) — callback
+ * BFF của `remote-cache-app` (route `/api/auth/callback`). Cùng luật port động +
+ * exact-match với hai URI phía trên; origin ghim này phải khớp origin Traefik
+ * route `Host(remote-cache-app.<rootHostname>)` của unit remote-cache-app.
+ */
+const redirectUriRemoteCacheAppLocal = pulumi.interpolate`https://remote-cache-app.${rootHostname}:${traefikHostPort}/api/auth/callback`;
+
+/**
  * Seed client public `backoffice` cho authorize endpoint sống lại trên local
  * (issue #194, phần local): `oauth_clients` rỗng là `createProvider` ném lúc
  * dựng provider — mọi `/authorize` 500 trong khi `/ready` vẫn xanh.
@@ -345,6 +358,13 @@ VALUES (${sqlQuote(LOCAL_PACT_BROKER_CLIENT_ID)}, ${sqlQuote(LOCAL_PACT_BROKER_C
 ON CONFLICT (client_id) DO UPDATE SET allowed_scopes = EXCLUDED.allowed_scopes;
 INSERT INTO auth.client_redirect_uris (client_id, redirect_uri)
 VALUES (${sqlQuote(LOCAL_PACT_BROKER_CLIENT_ID)}, ${redirectUriPactLocal.apply(sqlQuote)})
+ON CONFLICT DO NOTHING;
+INSERT INTO auth.oauth_clients (client_id, client_name, client_type, allowed_scopes)
+VALUES (${sqlQuote(LOCAL_REMOTE_CACHE_APP_CLIENT_ID)}, ${sqlQuote(LOCAL_REMOTE_CACHE_APP_CLIENT_NAME)}, 'public',
+        ARRAY['openid', 'offline_access']::text[])
+ON CONFLICT (client_id) DO UPDATE SET allowed_scopes = EXCLUDED.allowed_scopes;
+INSERT INTO auth.client_redirect_uris (client_id, redirect_uri)
+VALUES (${sqlQuote(LOCAL_REMOTE_CACHE_APP_CLIENT_ID)}, ${redirectUriRemoteCacheAppLocal.apply(sqlQuote)})
 ON CONFLICT DO NOTHING;`;
 
 const seedScript = pulumi.interpolate`set -e
