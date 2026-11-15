@@ -55,9 +55,6 @@ import type {
  *   tooltip, sub-menu) do reka quyết định theo `dir` nhận được, chứ không tự
  *   đọc thuộc tính `dir` trên `<html>`. Thiếu nó, đổi locale sang ngôn ngữ RTL
  *   chỉ đổi hướng chữ còn menu vẫn bung về bên trái.
- * - `vaul-drawer-wrapper` trên phần tử bao ngoài: Drawer trên mobile thu nhỏ
- *   phần nội dung phía sau theo attribute này; không có nó thì drawer mở ra
- *   nhưng không có hiệu ứng lùi nền của nguồn.
  *
  * `labels` là prop duy nhất shell nhận về **hiển thị**: các chuỗi người dùng
  * thấy ở nút đổi mode và ô tìm kiếm. Shell không biết locale, không gọi API dịch
@@ -125,7 +122,7 @@ provideAppShellContext({
 
 <template>
   <ConfigProvider :dir="dir">
-    <div vaul-drawer-wrapper class="relative">
+    <div class="relative">
       <SidebarProvider>
         <AppShellSidebar
           :nav="nav"

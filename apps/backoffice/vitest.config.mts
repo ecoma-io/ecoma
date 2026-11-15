@@ -77,33 +77,6 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
-    // `DrawerRoot` của `vaul-vue` (qua primitive `Drawer` của shell → `AppShell` →
-    // `app.vue`) đăng ký một `setTimeout(…, 200)` chạm `document.body` bên trong
-    // một `watchEffect` và "dọn" nó bằng cách **return** cleanup từ callback.
-    // Vue chỉ nhận cleanup qua tham số `onCleanup` của `watchEffect` — giá trị
-    // return bị bỏ qua (xem `@vue/reactivity` `doWatch`, nhánh `isFunction(source)`
-    // không có `cb`) — nên timer KHÔNG BAO GIỜ được hủy lúc unmount. jsdom teardown
-    // gỡ `document` khỏi global mà không hủy timer Node trần, và trên CI chậm
-    // (toàn file ~2.3s so với ~0.5s local) timer bắn sau teardown:
-    // `ReferenceError: document is not defined` — 169/169 test vẫn xanh nhưng run
-    // exit 1. Lọc ĐÚNG MỘT hình dạng đó: cùng message, cùng frame vaul-vue trong
-    // stack. Bất kỳ lỗi nào khác (hay vaul-vue đổi code) vẫn làm run đỏ.
-    // Không thể sửa ở nguồn: file nằm trong store pnpm (hardlink với node_modules).
-    //
-    // ⚠️ error qua RPC là object ĐÃ serialize, không phải Error: đọc thẳng
-    // `error.message`/`error.stack` như dưới. `String(error)` NÉM
-    // "Cannot convert object to primitive value", exception trong callback này
-    // làm `StateManager.catchError` chết TRƯỚC khi add — tức nuốt luôn mọi
-    // unhandled error khác (đã đo: phiên `String(error)` làm TypeError control
-    // thoát exit 0). Đây là phép đo, không phải suy đoán.
-    onUnhandledError(error): boolean {
-      const message = (error as { message?: unknown }).message;
-      if (message !== 'document is not defined') {
-        return true;
-      }
-      const stack = (error as { stack?: unknown }).stack;
-      return !(typeof stack === 'string' && stack.includes('/vaul-vue/dist/index.js'));
-    },
     // `tests/setup.ts` cài global của Nuxt **trước** mọi test file: `app.vue` và
     // `useAsyncState()` gọi tên trần (`useRoute`, `useHead`, `onMounted`) lúc `setup()`,
     // và global phải có mặt trước lần render đầu.
