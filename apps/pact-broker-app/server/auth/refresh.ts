@@ -24,9 +24,12 @@
  *   không retry.
  * - `unavailable` — fetch ném (mất mạng, timeout 10s) hay JWKS không verify
  *   được ⇒ caller trả **503**: "không gia hạn được lúc này" khác "token sai"
- *   — không bao giờ âm thầm coi là phiên hợp lệ.
+ *   — không bao giờ âm thầm coi là phiên hợp lệ. Persist luôn chạy TRƯỚC verify
+ *   (security review #258): auth đã rotate refresh token cũ ngay khi `/token`
+ *   trả 200, nên JWKS degrade phải vẫn lưu cả hai token mới — không thì request
+ *   kế replay một grant đã tiêu thụ ⇒ invalid_grant ⇒ forced logout.
  * - `failed` — mọi nhánh fail-closed còn lại (non-2xx khác, thiếu token trong
- *   response, token mới không verify được, DB lỗi) ⇒ caller trả 401 như phiên
+ *   response, token mới verify ra `invalid`, DB lỗi) ⇒ caller trả 401 như phiên
  *   chết, không loop.
  *
  * ## Single-flight theo phiên (#258)
@@ -112,7 +115,21 @@ export async function renewSessionTokens(
     // hỏng (connection reset/refused/DNS) — nó tổng hợp một Response giả
     // `500` với body `TypeError: fetch failed`. Đây là lỗi hạ tầng, không
     // phải lời phán về grant ⇒ `unavailable` (503), cùng nhánh với exception.
-    if (response.status === 500 && raw !== null && raw.startsWith('TypeError: ')) {
+    //
+    // ⚠️ Discriminator này là chi tiết triển khai của workerd: Response tổng
+    // hợp có `statusText` RỖNG và body luôn bắt đầu `TypeError: ` — một 500
+    // thật từ `auth` không bao giờ trông như vậy (body là JSON lỗi RFC 6749,
+    // statusText là reason phrase thật). Nếu heuristic đoán sai (workerd đổi
+    // shape, hay 500 thật nào dính hai dấu hiệu này), hệ quả là fail-closed
+    // về phía an toàn: một 500 thật của auth bị coi `unavailable` (503, thử
+    // lại sau) thay vì `failed` (401) — không phiên nào bị âm thầm coi là
+    // hợp lệ, và không grant nào bị thu hồi oan.
+    if (
+      response.status === 500 &&
+      response.statusText === '' &&
+      raw !== null &&
+      raw.startsWith('TypeError: ')
+    ) {
       return { outcome: 'unavailable' };
     }
     // RFC 6749 §5.2: lỗi grant là JSON `error` — `invalid_grant` là reuse
@@ -139,15 +156,12 @@ export async function renewSessionTokens(
     return { outcome: 'failed' };
   }
 
-  // Không lưu token chưa verify (cùng hợp đồng callback).
-  const verified = await verifyAccessToken(newAccess, config);
-  if (verified.outcome === 'unavailable') {
-    return { outcome: 'unavailable' };
-  }
-  if (verified.outcome !== 'verified') {
-    return { outcome: 'failed' };
-  }
-
+  // Persist TRƯỚC verify (security review #258): auth đã rotate — refresh token
+  // cũ đã tiêu thụ ngay khi `/token` trả 200, nên bỏ persist khi JWKS degrade
+  // (`unavailable`) là bắt request kế phải replay token đã dùng ⇒ invalid_grant
+  // ⇒ forced logout. Single UPDATE ghi cả hai token nguyên tử — không persist
+  // nửa vời; token chưa verify nằm trong DB chỉ khiến verify của request kế
+  // từ chối/fail-closed, không phải replay một grant đã chết.
   try {
     // `rowCount === 0` (phiên bị revoke giữa lúc load và UPDATE — logout song
     // song, reuse-detection) là thất bại: không gắn principal cho phiên đã chết.
@@ -164,6 +178,17 @@ export async function renewSessionTokens(
     // DB lỗi ⇒ không persist được ⇒ fail-closed về `failed` (401), không ném
     // ra ngoài — một cú lỗi DB không được biến thành 503 cho một request chỉ
     // cần re-login.
+    return { outcome: 'failed' };
+  }
+
+  // Verify SAU persist: `unavailable` (JWKS degrade) ⇒ 503 cho request này nhưng
+  // token mới đã an toàn trong DB — request kế verify lại từ token đã lưu;
+  // `invalid` ⇒ `failed` (401) như contract, không rollback.
+  const verified = await verifyAccessToken(newAccess, config);
+  if (verified.outcome === 'unavailable') {
+    return { outcome: 'unavailable' };
+  }
+  if (verified.outcome !== 'verified') {
     return { outcome: 'failed' };
   }
   return { outcome: 'renewed', sub: verified.sub, accessToken: newAccess };

@@ -71,9 +71,17 @@ interface FetchCall {
   readonly init: RequestInit | undefined;
 }
 
-/** Response kế tiếp fetch mock trả — xếp hàng trước mỗi lần gọi renew. */
-let nextResponse: { status: number; payload: Record<string, unknown> | null };
-let fetchCalls: FetchCall[];
+/**
+ * Response kế tiếp fetch mock trả — xếp hàng trước mỗi lần gọi renew. Module
+ * scope có chủ đích: vitest chạy file này SERIAL (một file = một worker, không
+ * `concurrent`), nên mutate-before-renew của test trước không rỉ vào test sau —
+ * `beforeEach` reset đủ để không phụ thuộc thứ tự khai báo test.
+ */
+let nextResponse: { status: number; payload: Record<string, unknown> | null } = {
+  status: 200,
+  payload: { access_token: NEW_ACCESS, refresh_token: NEW_REFRESH },
+};
+let fetchCalls: FetchCall[] = [];
 
 /**
  * Pool mock thuần — `queries` ghi lại mọi lệnh để assert; `updateRowCount`
@@ -169,14 +177,17 @@ describe('renewSessionTokens — success persists both rotated tokens', () => {
     expect(update?.values).toEqual([ID_HASH, NEW_ACCESS, NEW_REFRESH]);
   });
 
-  it('does not persist when the new access token fails verification', async () => {
+  it('persists before verification and returns failed when the new access token is invalid', async () => {
+    // Persist chạy trước verify (security review #258): token `invalid` vẫn
+    // nằm trong DB nhưng outcome là `failed` (401) — request kế verify lại từ
+    // token đã lưu, không replay grant cũ.
     verifyOutcome.result = { outcome: 'invalid' as const };
     const db = createPoolMock();
 
     const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toEqual({ outcome: 'failed' });
-    expect(db.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(1);
   });
 });
 
@@ -210,8 +221,8 @@ describe('renewSessionTokens — outcome classification', () => {
 
   it('returns unavailable for the synthetic 500 workerd emits on transport failure', async () => {
     // workerd KHÔNG ném khi transport hỏng (reset/refused/DNS) — nó tổng hợp
-    // `Response(500, "TypeError: fetch failed")`. Đây là lỗi hạ tầng ⇒ cùng
-    // nhánh 503 với exception, không được rơi vào `failed` (401).
+    // `Response(500, "TypeError: fetch failed", statusText rỗng)`. Đây là lỗi
+    // hạ tầng ⇒ cùng nhánh 503 với exception, không được rơi vào `failed` (401).
     nextResponse = { status: 500, payload: { error: 'TypeError: fetch failed' } };
     vi.stubGlobal(
       'fetch',
@@ -219,6 +230,7 @@ describe('renewSessionTokens — outcome classification', () => {
         async () =>
           new Response('TypeError: fetch failed', {
             status: 500,
+            statusText: '',
             headers: { 'content-type': 'text/plain;charset=UTF-8' },
           }),
       ),
@@ -231,14 +243,18 @@ describe('renewSessionTokens — outcome classification', () => {
     expect(db.queries).toHaveLength(0);
   });
 
-  it('returns unavailable when the renewed token cannot be verified for lack of JWKS', async () => {
+  it('persists both rotated tokens and returns unavailable when JWKS cannot verify the new token', async () => {
+    // Persist TRƯỚC verify (security review #258): auth đã rotate refresh token
+    // cũ — JWKS degrade phải vẫn lưu cả hai token mới, không thì request kế
+    // replay grant đã tiêu thụ ⇒ invalid_grant ⇒ forced logout.
     verifyOutcome.result = { outcome: 'unavailable' as const };
     const db = createPoolMock();
 
     const result = await renewSessionTokens(db.pool, ID_HASH, CONFIG, OLD_REFRESH);
 
     expect(result).toEqual({ outcome: 'unavailable' });
-    expect(db.queries).toHaveLength(0);
+    expect(db.queries).toHaveLength(1);
+    expect(db.queries[0]?.values).toEqual([ID_HASH, NEW_ACCESS, NEW_REFRESH]);
   });
 
   it('returns failed on a non-2xx response that is not invalid_grant', async () => {
