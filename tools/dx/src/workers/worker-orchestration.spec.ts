@@ -1620,13 +1620,27 @@ describe('statusWorkerRuntime', () => {
     // fixture phải khai app đúng tên trong apps/ thì row mới chuẩn.
     writeCommittedConfig(root, 'transactional-mail');
     writeLocalWorkerMarker(root, 'transactional-mail', 'http-health');
+    // PID cho row `stale` KHÔNG được hard-code (issue #261): stale được phân
+    // loại bằng `process.kill(pid, 0)` (`isPidAlive`), nên một PID cố định có
+    // thể trùng process sống trên runner → đỏ flake. Spawn một child thật,
+    // chờ nó exit rồi dùng PID thật của nó — chết chắc chắn, giữ nguyên điều
+    // test chứng minh (metadata trỏ tới process không còn sống → stale).
+    const deadChild = spawn(process.execPath, ['-e', 'process.exit(0);']);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('fixture child did not exit')), 5000);
+      deadChild.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+    expect(deadChild.pid).toBeGreaterThan(0);
     const args = [process.execPath, 'x.js'];
     writeFileSync(
       metadataPathOf(stateDir, 'transactional-mail'),
       JSON.stringify({
         version: 1,
         name: 'transactional-mail',
-        pid: 999,
+        pid: deadChild.pid,
         argv: args,
         identityHash: identityHashOf(args),
         startedAt: 1234,
@@ -1640,7 +1654,7 @@ describe('statusWorkerRuntime', () => {
     const standard = rows.find((row) => row.name === 'transactional-mail');
     expect(standard).toMatchObject({
       state: 'stale',
-      pid: 999,
+      pid: deadChild.pid,
       startedAt: 1234,
       generatedConfigExists: false,
       standard: true,
