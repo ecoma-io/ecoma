@@ -1527,7 +1527,10 @@ describe('CLI wire shapes', () => {
       status: 'denied',
       reason: 'mode_mismatch',
     });
-  });
+    // Trần 10s: ba lượt spawn CLI tuần tự (provision → assign → assign-denied),
+    // mỗi lượt nạp tsx ~1.0–1.4s dưới tải CI — cùng lý do với test resolve-mode
+    // kế bên; không phải chỗ che test chậm.
+  }, 10_000);
 
   it('rejects a malformed sub before opening a write transaction', async () => {
     const result = await runCli('staff-provision', {
