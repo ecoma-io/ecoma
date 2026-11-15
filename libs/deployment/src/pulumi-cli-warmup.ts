@@ -55,12 +55,17 @@ let warmupPromise: Promise<void> | null = null;
 
 /**
  * Idempotent trong một process vitest worker — an toàn gọi ở mọi `beforeAll`.
- * Một lần probe thành công là đủ cho process; caller muốn tự kiểm soát lần
- * thử/delay dùng `warmPulumiCliOnce`.
+ *
+ * Đường mặc định (`options` rỗng) cache promise: một process chỉ probe một
+ * lần. Gọi kèm `options` là YÊU CẦU RÕ một lượt warm-up mới với tham số riêng
+ * — KHÔNG đi qua cache, mỗi lần gọi chạy `warmPulumiCliOnce(options)` đầy đủ
+ * (cùng ngữ nghĩa gọi thẳng `warmPulumiCliOnce`). Caller cần tự kiểm soát
+ * lần thử/delay nhưng vẫn muốn cache dùng `warmupPromise` pattern tự quản.
  */
 export function warmPulumiCli(options?: WarmPulumiCliOptions): Promise<void> {
-  if (!options) warmupPromise ??= warmPulumiCliOnce();
-  return warmupPromise ?? warmPulumiCliOnce();
+  if (options) return warmPulumiCliOnce(options);
+  warmupPromise ??= warmPulumiCliOnce();
+  return warmupPromise;
 }
 
 /** Một lượt warm-up đầy đủ với số lần thử có giới hạn. */
@@ -70,18 +75,22 @@ export async function warmPulumiCliOnce(options?: WarmPulumiCliOptions): Promise
   const probe = options?.probe ?? defaultProbe;
   const sleep = options?.sleep ?? defaultSleep;
 
+  let lastError: unknown = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const { stdout } = await probe();
       if (CLI_VERSION_PATTERN.test(stdout.trim())) return;
-    } catch {
+    } catch (error) {
       // Binary đang giữa chừng cài/ghi (ETXTBSY cửa sổ hẹp) hoặc banner chưa
-      // hết — thử lại.
+      // hết — thử lại. Lỗi cuối được giữ lại để báo nguyên nhân gốc khi hết
+      // lượt thay vì nuốt vào void.
+      lastError = error;
     }
     if (attempt < attempts) await sleep(retryDelayMs);
   }
   throw new Error(
     `pulumi CLI did not return a parseable version after ${attempts} attempts — ` +
       'automation preview requires a resolvable CLI version; inspect the pulumi npm shim cache',
+    { cause: lastError },
   );
 }

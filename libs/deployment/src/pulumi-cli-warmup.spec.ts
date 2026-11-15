@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { warmPulumiCliOnce } from './pulumi-cli-warmup.js';
+import { warmPulumiCli, warmPulumiCliOnce } from './pulumi-cli-warmup.js';
 
 // Sleep no-op cho test: retryDelayMs không được phép trôi thật.
 const instantSleep = (): Promise<void> => Promise.resolve();
@@ -76,5 +76,36 @@ describe('warmPulumiCliOnce', () => {
       }),
     ).rejects.toThrow(/after 2 attempts/u);
     expect(sleeps).toBe(1);
+  });
+});
+
+describe('warmPulumiCli', () => {
+  it('runs the probe once across repeated calls on the default path (promise cache)', async () => {
+    let calls = 0;
+    const probe = async (): Promise<{ stdout: string }> => {
+      calls++;
+      return { stdout: 'v3.276.0\n' };
+    };
+    // Module-level cache: trong cùng process, lượt gọi đầu tạo promise, các
+    // lượt sau tái dùng — probe KHÔNG chạy lại. (Cache là state module: test
+    // này chạy sau mọi test khác trong file nên không đụng cache đã có.)
+    await warmPulumiCli({ probe, sleep: instantSleep });
+    await warmPulumiCli();
+    await warmPulumiCli();
+    expect(calls).toBe(1);
+  });
+
+  it('treats an options call as an explicit fresh warmup that bypasses the cache', async () => {
+    let calls = 0;
+    const probe = async (): Promise<{ stdout: string }> => {
+      calls++;
+      return { stdout: 'v3.276.0\n' };
+    };
+    // Gọi kèm options = yêu cầu rõ một lượt warm-up mới (đúng semantics của
+    // `warmPulumiCliOnce(options)`) — không tái dùng cache, không ghi đè nó.
+    await warmPulumiCli({ probe, sleep: instantSleep });
+    const before = calls;
+    await warmPulumiCli({ probe, sleep: instantSleep });
+    expect(calls).toBe(before + 1);
   });
 });
