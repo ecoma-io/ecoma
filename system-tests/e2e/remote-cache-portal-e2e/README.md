@@ -1,6 +1,6 @@
 # remote-cache-portal-e2e
 
-## Mục đích
+## Purpose
 
 System E2E suite cho journey portal `remote-cache-app` trên stack local thật —
 đóng vấn đề "portal + Nx CLI e2e compat chưa bao giờ được verify" (issue #299,
@@ -8,7 +8,7 @@ một phần của #27 journey 2). Suite chạy browser thật (Playwright Chrom
 thật (`nx` 23.3.2 từ npm registry) và data-plane thật của `remote-cache-api`,
 không mock HTTP nào.
 
-## Trách nhiệm
+## Responsibilities
 
 - Verify các điều kiện chấp nhận của portal (A27, A29, A30, A31, A32):
   tạo project qua UI, key đầu tiên show-once đúng một lần, metadata không lộ
@@ -18,7 +18,7 @@ không mock HTTP nào.
   - trusted-CI key của lane phải store và retrieve cache trên lane.
 - Giữ stack gate fail-closed: stack vắng mặt là kết quả ĐỎ, không bao giờ skip.
 
-## Ranh giới
+## Boundaries
 
 - Suite KHÔNG sửa bất kỳ ứng dụng, thư viện hay deploy nào; chỉ kiểm từ ngoài.
 - KHÔNG assert bằng cách đọc DB — DB chỉ phục vụ seed fixture (identity account,
@@ -29,7 +29,7 @@ không mock HTTP nào.
   có router Traefik, quyết định #238): mọi assertion data-plane chạy `curl` /
   `nx` trong container dùng chung network với stack.
 
-## Phát triển
+## Development
 
 Cấu trúc: `playwright.config.ts` (SPKI pin cho cert local, không
 `ignoreHTTPSErrors`), `global-setup.ts` (gate fail-closed — probe
@@ -41,7 +41,7 @@ Suite copy skeleton của `backoffice-access-control-e2e` và giữ nguyên các
 định đã kiểm chứng ở đó: retry chỉ cho chữ ký "chưa sẵn sàng", `retries: 0`,
 `workers: 2`, không `webServer`.
 
-## Kiểm thử
+## Testing
 
 ```sh
 pnpm nx run remote-cache-portal-e2e:system-test -c local
@@ -53,7 +53,7 @@ remote-cache-app/api, auth, account, transactional-mail). Stack phải sống tr
 khi chạy — gate fail-closed trong `global-setup.ts` sẽ làm suite ĐỎ nếu stack
 vắng mặt.
 
-## Tài liệu liên quan
+## Related Documentation
 
 - `docs/architecture/06-testing.md` — phân tầng test và placement của system-test.
 - `docs/engineering/contribution-workflow.md` — quy trình chạy validation.

@@ -1,6 +1,6 @@
 # pact-broker-portal-e2e
 
-## Mục đích
+## Purpose
 
 Suite system E2E kiểm journey developer/CI của portal `pact-broker-app` trên
 stack local thật (issue #300, đối chiếu #27 journey 3 và các hàng PB-1..PB-12
@@ -14,7 +14,7 @@ Suite này KHÔNG nhân bản các machine-path credential scenario đã có ở
 integration của `pact-broker-api` — giá trị của nó là portal UI thật + OIDC
 login thật + Pact CLI thật trên lane.
 
-## Trách nhiệm
+## Responsibilities
 
 - Chứng minh PB-4/PB-10: Developer credential tạo qua UI dùng publish contract
   bằng Pact CLI thật (không phải payload mô phỏng).
@@ -28,7 +28,7 @@ login thật + Pact CLI thật trên lane.
 - Fail-closed khi stack không chạy: gate probe trong `global-setup.ts` phải
   thấy đúng hợp đồng unauthenticated 401 của BFF, nếu không suite ĐỎ.
 
-## Ranh giới
+## Boundaries
 
 - Suite chỉ đọc DB cho **fixture prep** (`account.users`,
   `account.email_addresses`, `pact.tenant_members`, `pact.tenants`) và đọc OTP
@@ -41,7 +41,7 @@ login thật + Pact CLI thật trên lane.
 - Không sửa product code để test pass — gap product thật là blocker, không
   phải workaround.
 
-## Phát triển
+## Development
 
 - Skeleton copy từ `remote-cache-portal-e2e` (#299) — cùng mọi quyết định
   kiến trúc: gate fail-closed, TLS scoped (SPKI pin cho browser, `ca` scoped
@@ -54,7 +54,7 @@ login thật + Pact CLI thật trên lane.
 - Binary CLI đến từ devDependency `@pact-foundation/pact-cli@18.10.9` pin
   chính xác (per #205).
 
-## Kiểm thử
+## Testing
 
 ```sh
 pnpm nx run pact-broker-portal-e2e:system-test -c local
@@ -64,7 +64,7 @@ Nx kéo `local-up` của sáu deploy project mà suite phụ thuộc trước kh
 Playwright (xem `implicitDependencies` trong `package.json`). Typecheck:
 `pnpm nx run pact-broker-portal-e2e:typecheck`.
 
-## Tài liệu liên quan
+## Related Documentation
 
 - Issue #300 — design và điều kiện hoàn thành của suite.
 - `docs/architecture/06-testing.md` — tầng test và target canonical.

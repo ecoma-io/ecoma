@@ -158,7 +158,7 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
       // còn CI là rootful — container root ghi được mount trên cả hai. Đổi lại,
       // file mà npm/nx tạo có thể thuộc root trên rootful, nên cleanup xoá nội
       // dung mount bằng container root trước khi `rmSync` (lỗi CI thật #314).
-      const runNx = async (label: string): Promise<string> => {
+      const runNx = async (_label: string): Promise<string> => {
         const { stdout } = await execFileAsync(
           'docker',
           [
@@ -180,7 +180,9 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
           ],
           { timeout: 240_000, maxBuffer: 16 * 1024 * 1024 },
         );
-        testInfo.attach(`${label}-nx-output`, { body: stdout, contentType: 'text/plain' });
+        // KHÔNG attach stdout vào test artifacts: env truyền trusted-CI key
+        // vào container và output của nx khi lỗi có thể in giá trị env —
+        // artifact Playwright tải được về, secret không được nằm ở đó.
         return stdout;
       };
 

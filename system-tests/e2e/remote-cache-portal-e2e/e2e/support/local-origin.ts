@@ -25,15 +25,32 @@ import { fileURLToPath } from 'node:url';
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Tên cert TLS của stack — SUY từ `ROOT_HOST` (host trước `:`), KHÔNG hardcode.
+ *
+ * Deploy đặt tên cert theo `LOCAL_ROOT_HOSTNAME` (hằng số platform, hiện
+ * `fbi.com`) và ghi host:port động vào `.env`; hai giá trị này nhất quán với
+ * nhau khi deploy thành công, nên host từ `ROOT_HOST` là nguồn đúng cho tên
+ * file cert (`<root>.crt` trong `deploys/platform-deploy/local-certs/`).
+ */
+function localCertName(): string {
+  const raw = rootHostRaw();
+  return `${raw.split(':')[0]}.crt`;
+}
+
 // File này nằm ở `e2e/support/` — NĂM mức `../` về repo root (support → e2e →
 // suite → category → system-tests → root). Sai một mức là ENOENT ngay lúc
 // module load.
-const LOCAL_CERT_PATH = join(
+const LOCAL_CERT_FILE = join(
   SUITE_DIR,
-  '../../../../../deploys/platform-deploy/local-certs/fbi.com.crt',
+  '../../../../../deploys/platform-deploy/local-certs',
+  localCertName(),
 );
 
-export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
+export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_FILE, 'utf8');
+
+/** Đường dẫn cert đã suy — tái dùng bởi spec (SSL_CERT_FILE của Pact CLI). */
+export const LOCAL_CERT_PATH = LOCAL_CERT_FILE;
 
 /**
  * Origin portal của stack local — `https://remote-cache-app.<root>:<port>`.
@@ -47,16 +64,21 @@ export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
  * `npx playwright test` trực tiếp thì fallback parse `.env`.
  */
 export function resolveStackOrigin(): string {
+  return portalOrigin(rootHostRaw());
+}
+
+/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
+function rootHostRaw(): string {
   const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return portalOrigin(fromEnv.trim());
+    return fromEnv.trim();
   }
   try {
     const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
     for (const line of text.split(/\r?\n/u)) {
       const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
       if (match && match[1].trim().length > 0) {
-        return portalOrigin(match[1].trim());
+        return match[1].trim();
       }
     }
   } catch {

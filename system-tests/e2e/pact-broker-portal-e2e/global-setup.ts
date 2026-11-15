@@ -36,8 +36,34 @@ import { fileURLToPath } from 'node:url';
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Path cert local — cùng nguồn với `playwright.config.ts`. */
-const LOCAL_CERT_PATH = join(SUITE_DIR, '../../../deploys/platform-deploy/local-certs/fbi.com.crt');
+/** Path cert local — tên file suy từ `ROOT_HOST` (cùng nguồn với `.env`). */
+const LOCAL_CERT_PATH = join(
+  SUITE_DIR,
+  '../../../deploys/platform-deploy/local-certs',
+  `${rootHostRaw().split(':')[0]}.crt`,
+);
+
+/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
+function rootHostRaw(): string {
+  const fromEnv = process.env.ROOT_HOST;
+  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
+    return fromEnv.trim();
+  }
+  try {
+    const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
+    for (const line of text.split(/\r?\n/u)) {
+      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
+      if (match && match[1].trim().length > 0) {
+        return match[1].trim();
+      }
+    }
+  } catch {
+    // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
+  }
+  throw new Error(
+    'ROOT_HOST is not set and no .env file defines it - deploy the local stack first.',
+  );
+}
 
 /** Tổng budget retry: đủ cho cold start của stack, không đủ để treo CI. */
 const BUDGET_MS = 30_000;

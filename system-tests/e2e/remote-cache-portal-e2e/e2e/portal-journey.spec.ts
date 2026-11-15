@@ -2,12 +2,10 @@ import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { SECOND_TENANT_NAME, expect, seedOutsiderIdentity, test } from './support/fixtures';
 import { performBrowserLogin } from './support/oidc-flow';
-import { resolveStackOrigin } from './support/local-origin';
+import { LOCAL_CERT_PATH, resolveStackOrigin } from './support/local-origin';
 
 /**
  * Journey portal của developer trong tenant `ecoma` (issue #299):
@@ -308,12 +306,6 @@ test.describe.serial('remote-cache portal developer journey', () => {
 // Node https helper — GET JSON qua portal origin với ca scoped (import tách
 // `stackGet` vì spec cần trả body thuần để assert "no data leak").
 // -------------------------------------------------------------------------------------------
-
-const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
-const LOCAL_CERT_PATH = join(
-  SUITE_DIR,
-  '../../../../deploys/platform-deploy/local-certs/fbi.com.crt',
-);
 
 /** GET một URL https với `ca` scoped, trả `{status, body}`. */
 function fetchViaNode(

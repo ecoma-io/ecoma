@@ -171,11 +171,24 @@ export async function performBrowserLogin(
     .catch(() => false);
   const sawConsent = await Promise.race([consentShown, backAtDestination.then(() => false)]);
   if (sawConsent) {
-    await page.getByTestId('consent-approve').click();
+    // Race giữa nút approve xuất hiện và trang tự điều hướng về đích: auth có
+    // thể resolve grant NGAY SAU khi render card (hoặc render trang lỗi rồi
+    // redirect) — nếu URL đã về đích thì KHÔNG bấm nữa, coi là path granted.
+    const approve = page.getByTestId('consent-approve');
+    const approveOrLanded = await Promise.race([
+      approve
+        .waitFor({ state: 'visible', timeout: 15_000 })
+        .then(() => 'approve' as const)
+        .catch(() => 'none' as const),
+      backAtDestination.then(() => 'landed' as const).catch(() => 'none' as const),
+    ]);
+    if (approveOrLanded === 'approve') {
+      await approve.click();
 
-    const consentContinue = page.getByTestId('consent-continue');
-    await expect(consentContinue).toBeVisible();
-    await consentContinue.click();
+      const consentContinue = page.getByTestId('consent-continue');
+      await expect(consentContinue).toBeVisible();
+      await consentContinue.click();
+    }
   }
 
   // Callback → 302 `/`: portal không có gate onboarding.

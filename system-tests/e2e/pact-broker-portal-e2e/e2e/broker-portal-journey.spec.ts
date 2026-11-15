@@ -14,6 +14,7 @@ import {
   resolvePortalOrigin,
   stackGet,
   stackRequest,
+  LOCAL_CERT_PATH,
 } from './support/local-origin';
 
 const execFileAsync = promisify(execFile);
@@ -44,12 +45,6 @@ const execFileAsync = promisify(execFile);
  */
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
-
-/** Path cert local — SSL_CERT_FILE cho Pact CLI (Node/Rust đọc biến này). */
-const LOCAL_CERT_PATH = join(
-  SUITE_DIR,
-  '../../../../deploys/platform-deploy/local-certs/fbi.com.crt',
-);
 
 /** Đường dẫn binary `pact-broker`/`pact-verifier` của devDependency pin 18.10.9. */
 const PACT_BIN = join(SUITE_DIR, '../node_modules/.bin');

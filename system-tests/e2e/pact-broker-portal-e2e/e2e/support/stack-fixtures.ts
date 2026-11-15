@@ -33,7 +33,10 @@ const execFileAsync = promisify(execFile);
 
 /** Chạy một lệnh trong container, trả stdout. Lỗi docker được ném nguyên văn. */
 async function dockerExec(container: string, command: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('docker', ['exec', container, ...command]);
+  const { stdout } = await execFileAsync('docker', ['exec', container, ...command], {
+    // Daemon treo / container chết không được giữ worker Playwright vô hạn.
+    timeout: 30_000,
+  });
   return stdout;
 }
 
