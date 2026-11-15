@@ -34,6 +34,7 @@ import {
   validatePermissionListResponse,
   validateRoleListResponse,
   validateStaffListResponse,
+  validateStaffMember,
   type AssignmentListResponse,
   validateStaffRoleAssignment,
   type AuditEntry,
@@ -41,6 +42,7 @@ import {
   type Permission,
   type StaffEntitlementEntry,
   type CreateAssignmentRequest,
+  type CreateStaffRequest,
   type StaffMember,
   type StaffRole,
   type StaffRoleAssignment,
@@ -134,6 +136,22 @@ export interface StaffAccessClientConfig {
 /** `readString` — `null` khi không phải chuỗi khác rỗng. */
 function readString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * Đọc `message` từ một error body JSON của staff-access (`{error, message}`).
+ * Body sai hình hoặc JSON hỏng trả `undefined` — caller dùng message mặc định.
+ * Message chỉ là lý do domain (không chứa secret — route lỗi của staff-access
+ * không nhét giá trị caller vào message).
+ */
+async function readErrorMessage(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as { message?: unknown };
+    const message = readString(body.message);
+    return message === null ? undefined : message;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -375,7 +393,71 @@ export async function fetchAuditEntries(
 
 export type StaffAssignmentWriteResult =
   | { readonly ok: true; readonly assignment: StaffRoleAssignment }
-  | { readonly ok: false; readonly reason: StaffAccessCallFailureReason };
+  | {
+      readonly ok: false;
+      readonly reason: StaffAccessCallFailureReason;
+      /** Mã HTTP staff-access trả — chỉ có khi `reason === 'http_error'`. */
+      readonly status?: number;
+      /** Message staff-access trả — lý do từ chối domain (denial/conflict). */
+      readonly message?: string;
+    };
+
+/** Kết quả một lần gọi tạo staff — discriminated union, không ném. */
+export type StaffCreateWriteResult =
+  | { readonly ok: true; readonly staff: StaffMember }
+  | {
+      readonly ok: false;
+      readonly reason: StaffAccessCallFailureReason;
+      readonly status?: number;
+      readonly message?: string;
+    };
+
+/**
+ * Gọi `POST /staff` — tạo staff identity cho một Account đã tồn tại (issue
+ * #191). Cùng hình fail-closed với hai hàm ghi assignment: mọi nhánh lỗi trả
+ * `{ ok: false, reason }`, không ném. `actorSub` đi vào envelope HMAC (A3) —
+ * staff-access phân giải actor từ envelope, không từ body.
+ */
+export async function createStaff(
+  config: StaffAccessClientConfig,
+  request: CreateStaffRequest,
+  actorSub: string,
+): Promise<StaffCreateWriteResult> {
+  const path = '/staff';
+  const body = new TextEncoder().encode(JSON.stringify(request));
+  let response: Response;
+  try {
+    response = await config.binding.fetch(
+      new Request(`https://staff-access.internal${path}`, {
+        method: 'POST',
+        body,
+        headers: await config.signHeaders(path, { method: 'POST', body, actorSub }),
+        signal: AbortSignal.timeout(STAFF_ACCESS_TIMEOUT_MS),
+      }),
+    );
+  } catch {
+    return { ok: false, reason: 'unreachable' };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: 'http_error',
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
+  }
+  let parsed: unknown;
+  try {
+    parsed = await response.json();
+  } catch {
+    return { ok: false, reason: 'invalid_response' };
+  }
+  const validation = validateStaffMember(parsed);
+  if (!validation.ok) {
+    return { ok: false, reason: 'invalid_response' };
+  }
+  return { ok: true, staff: validation.payload };
+}
 
 export async function createStaffAssignment(
   config: StaffAccessClientConfig,
@@ -398,7 +480,12 @@ export async function createStaffAssignment(
     return { ok: false, reason: 'unreachable' };
   }
   if (!response.ok) {
-    return { ok: false, reason: 'http_error' };
+    return {
+      ok: false,
+      reason: 'http_error',
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
   }
   let parsed: unknown;
   try {
@@ -435,7 +522,12 @@ export async function revokeStaffAssignment(
     return { ok: false, reason: 'unreachable' };
   }
   if (!response.ok) {
-    return { ok: false, reason: 'http_error' };
+    return {
+      ok: false,
+      reason: 'http_error',
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
   }
   let parsed: unknown;
   try {
