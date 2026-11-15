@@ -1,6 +1,6 @@
 /**
  * Ba global trình duyệt mà jsdom **không** có, nhưng `AppShell` và các dependency
- * của nó (`reka-ui`, `vaul-vue`) cần để mount được:
+ * của nó (`reka-ui`) cần để mount được:
  *
  * - `window.matchMedia` — `useAppShellMediaQuery` gọi nó trong `onMounted`; thiếu
  *   thì mọi test mount shell đổ ở `TypeError: window.matchMedia is not a function`.

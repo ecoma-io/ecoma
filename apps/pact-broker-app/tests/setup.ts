@@ -16,7 +16,7 @@
  *   đúng loại false-green mà setup này tồn tại để chặn.
  * - Cài ba global trình duyệt mà jsdom thiếu (`matchMedia`, `ResizeObserver`,
  *   `IntersectionObserver`) — xem `tests/browser-globals.ts` — vì `AppShell` và
- *   dependency của nó (`reka-ui`, `vaul-vue`) cần chúng để mount được.
+ *   dependency của nó (`reka-ui`) cần chúng để mount được.
  *
  * Giới hạn còn lại, đã đo (kế thừa phân tích của `apps/backoffice`):
  * - Chỉ cookie đi qua phép gán `document.cookie = ...` mới được ghi nhận. Cookie

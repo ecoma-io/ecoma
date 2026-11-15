@@ -42,9 +42,3 @@ allowBuilds:
   # so với bỏ qua — đổi lấy việc không phải đoán xem `ssh2` có chịu được khi thiếu.
   ssh2: true
   cpu-features: true
-  # Kéo theo bởi `vaul-vue` (Drawer của `ui-app-shell`) → `@vueuse/core@10`
-  # → `vue-demi`. `vue-demi` có postinstall để chọn đúng shim Vue 2/Vue 3 khi
-  # cài; thiếu bước này, import của nó vẫn chạy nhưng ở nhánh Vue 3 detection
-  # chưa được ghim. Đây là dependency của library dùng chung nên có mặt ở cả
-  # bundle app lẫn test.
-  vue-demi: true

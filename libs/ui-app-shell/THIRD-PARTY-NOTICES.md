@@ -61,7 +61,6 @@ Phiên bản ghi kèm là phiên bản đã resolve trong lockfile tại thời 
 | `reka-ui`                  | 2.11.0  | MIT                            |
 | `tailwind-merge`           | 3.7.0   | MIT                            |
 | `tw-animate-css`           | 1.4.0   | MIT                            |
-| `vaul-vue`                 | 0.4.1   | MIT (xem mục 3)                |
 
 ### `class-variance-authority` (Apache-2.0)
 
@@ -138,26 +137,7 @@ bản cũ thêm `lucide-<tên>-icon`, bản mới thêm `lucide-<tên>` (kèm cl
 Không có CSS nào trong repository đọc các class đó, nên việc chuyển gói không đổi kích thước,
 khoảng cách hay cấu trúc layout.
 
-## 3. `vaul-vue` — giấy phép không có trong tarball
-
-Gói `vaul-vue@0.4.1` là dependency runtime thật (các component `Drawer*` trong `src/lib/ui/drawer/`
-gọi trực tiếp). Bản phát hành trên npm **không có** trường `license` trong `package.json` và
-**không kèm** tệp LICENSE nào — nên không thể xác minh giấy phép chỉ từ artifact đã cài.
-
-Đối chiếu với repository thượng nguồn (nguồn có thẩm quyền cho gói này):
-
-- Repository: https://github.com/Elliot-Alexander/vaul-vue (trường `repository.url` trong tarball
-  trỏ tới đây)
-- Repository này có tệp `LICENSE` ở gốc, nội dung là **MIT License**,
-  `Copyright (c) 2025 unovue`
-- README của gói không nhắc gì tới giấy phép
-
-Kết luận: ghi nhận **MIT** theo khai báo của repository thượng nguồn. Đây là điểm chưa được
-artifact đã cài xác nhận; nếu cần độ chắc chắn pháp lý cao hơn, nên lấy trực tiếp tệp `LICENSE`
-từ repository thượng nguồn và lưu kèm khi phân phối. Gói này cũng là peer của `reka-ui ^2.0.0`
-(đã có trong danh sách trên).
-
-## 4. Fonts và assets
+## 3. Fonts và assets
 
 - **Fonts**: thư viện **không** đóng gói font nào. `--font-sans` và `--font-mono` chỉ trỏ tới
   `Geist` / `Geist Mono`, do ứng dụng tiêu thụ cung cấp (ví dụ qua `@nuxt/fonts`). Nghĩa vụ giấy
@@ -167,8 +147,7 @@ từ repository thượng nguồn và lưu kèm khi phân phối. Gói này cũn
 - **Logo thương hiệu**: `AppShell` nhận logo/thương hiệu qua slot, không nhúng asset thương hiệu.
   Nội dung slot do ứng dụng tiêu thụ chịu trách nhiệm về quyền sử dụng.
 
-## 5. Cách xác minh
+## 4. Cách xác minh
 
 Mọi trường giấy phép ở mục 2 đọc trực tiếp từ `package.json` và tệp `LICENSE` trong
-`node_modules`, không sao chép từ tài liệu bên thứ ba. Riêng `vaul-vue` được đối chiếu thượng
-nguồn vì artifact thiếu thông tin (mục 3).
+`node_modules`, không sao chép từ tài liệu bên thứ ba. Không có gói nào cần đối chiếu ngoài artifact đã cài.
