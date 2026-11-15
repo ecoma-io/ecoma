@@ -14,8 +14,6 @@
   "nx": {
     "implicitDependencies": [
       "platform-deploy",
-      "auth-deploy",
-      "remote-cache-api-deploy",
       "@ecoma-io/deployment",
       "@ecoma-io/remote-cache-app"
     ],
