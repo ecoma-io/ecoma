@@ -35,9 +35,9 @@ function makeSub(seed: string): string {
   return sub;
 }
 
-/** Email fixture — duy nhất theo token, routed về domain test của stack. */
-function makeEmail(token: string): string {
-  return `pact-broker-portal-e2e.${token}@test.ecoma.local`;
+/** Email fixture — duy nhất theo seed, routed về domain test của stack. */
+function makeEmail(seed: string): string {
+  return `pact-broker-portal-e2e.${seed}@test.ecoma.local`;
 }
 
 export interface Identity {
@@ -47,7 +47,7 @@ export interface Identity {
   readonly readOtp: (sinceMs: number) => Promise<string>;
 }
 
-/** Slug hoá tiêu đề test thành token filesystem-safe cho identity. */
+/** Slug hoá tiêu đề test thành seed filesystem-safe cho identity. */
 function testToken(file: string, title: string): string {
   const fileName = file.split('/').pop() ?? 'spec';
   const raw = `${fileName.replace(/\.spec\.ts$/u, '')}-${title}`;
@@ -66,9 +66,9 @@ interface Fixtures {
 export const test = base.extend<Fixtures>({
   // Scope mặc định per test: seed idempotent, mỗi test tự sở hữu challenge OTP.
   identity: async ({ page: _unusedPage }, use, testInfo) => {
-    const token = testToken(testInfo.file, testInfo.title);
-    const sub = makeSub(token);
-    const email = makeEmail(token);
+    const seed = testToken(testInfo.file, testInfo.title);
+    const sub = makeSub(seed);
+    const email = makeEmail(seed);
 
     const postgresContainer = await resolvePostgresContainer(resolvePortalOrigin());
     await seedAccountIdentity(postgresContainer, { sub, email });
@@ -107,9 +107,9 @@ export const SECOND_TENANT_OWNER_SUB = 'sub_owner_of_outsider_tenant_fixture_000
  * (UNIQUE `(tenant_id, name)`), nên assertion đúng là "nội dung nhìn thấy là
  * của tenant mình", không phải "tên 404".
  */
-export async function seedSecondTenantIdentity(origin: string, token: string): Promise<Identity> {
-  const sub = makeSub(token);
-  const email = makeEmail(token);
+export async function seedSecondTenantIdentity(origin: string, seed: string): Promise<Identity> {
+  const sub = makeSub(seed);
+  const email = makeEmail(seed);
   const postgresContainer = await resolvePostgresContainer(resolvePortalOrigin());
   await seedAccountIdentity(postgresContainer, { sub, email });
   await seedSecondTenant(postgresContainer, {
