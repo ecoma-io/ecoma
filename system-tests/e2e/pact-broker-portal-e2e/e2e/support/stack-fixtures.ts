@@ -229,43 +229,6 @@ export async function seedSecondTenant(
   ]);
 }
 
-/**
- * Seed machine token HASH-ONLY của tenant đã cho: `token_hash` = SHA-256 hex
- * của plaintext mà test giữ trong bộ nhớ (không plaintext nào đi vào SQL).
- * Scopes 'read write' — đủ publish + verification + can-i-deploy; purpose
- * developer vì token này được coi như credential của một developer tenant khác.
- * Idempotent theo tên token.
- */
-export async function seedSecondTenantToken(
-  postgresContainer: string,
-  params: {
-    readonly tenantName: string;
-    readonly tokenName: string;
-    /** Plaintext sinh trong bộ nhớ test — CHỈ hash đi vào DB. */
-    readonly plainToken: string;
-  },
-): Promise<void> {
-  const tokenHash = createHash('sha256').update(params.plainToken).digest('hex');
-  const sql = [
-    `INSERT INTO pact.machine_tokens (token_hash, tenant_id, name, scopes, purpose)
-     SELECT ${sqlQuote(tokenHash)}, t.id, ${sqlQuote(params.tokenName)}, 'read write', 'developer'
-       FROM pact.tenants t
-      WHERE t.name = ${sqlQuote(params.tenantName)}
-     ON CONFLICT DO NOTHING;`,
-  ].join('\n');
-  await dockerExec(postgresContainer, [
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    'db-pact-broker',
-    '-v',
-    'ON_ERROR_STOP=1',
-    '-c',
-    sql,
-  ]);
-}
-
 // -------------------------------------------------------------------------------------------
 // OTP từ mail sink
 // -------------------------------------------------------------------------------------------

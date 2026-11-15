@@ -343,8 +343,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
           providerVersion,
           '--broker-url',
           apiOrigin(),
-          '--token',
-          ciSecret,
+          // Token KHÔNG qua argv (`ps` lộ): PACT_BROKER_TOKEN env của runPactCli.
           '--consumer-version-selectors',
           '{"main":true}',
           '--publish',
