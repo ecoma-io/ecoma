@@ -536,7 +536,6 @@ describe('temporary allowlist mechanics', () => {
   });
 });
 
-
 /** Package.json khai test-integration qua nx target với lệnh `playwright test`. */
 function playwrightApp(commandShape: 'command' | 'commands' | 'script'): Record<string, string> {
   const { files } = goodApp();
@@ -646,6 +645,8 @@ describe('validateTestTargets — Playwright-executed browser suite', () => {
     const violations = run(files, [node('@ecoma-io/widget', 'apps/widget')]);
     expect(violations.some((v) => v.kind === 'integration-config-missing-dir')).toBe(true);
     expect(violations.some((v) => v.kind === 'missing-integration-target')).toBe(true);
+  });
+});
 
 describe('collectCiTargets', () => {
   it('extracts run-nx-target step target values in order', () => {
@@ -767,7 +768,6 @@ describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
     expect(
       run(files, [node('system-tests/e2e/x', 'system-tests/e2e/x'), node('dx', 'tools/dx')]),
     ).toEqual([]);
-
   });
 });
 
