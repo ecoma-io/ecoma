@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname, localServiceOrigin } from '@ecoma-io/deployment';
 
 /**
  * Scoped TLS + origin + POST cho các API assertion của suite.
@@ -40,16 +43,16 @@ const LOCAL_CERT_PATH = join(
 export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
 
 /**
- * Origin backoffice của stack local — `https://office.<root>:<port>`.
+ * Origin backoffice của stack local — `https://office-<ns>.<root>:<port>`.
  *
  * `ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) —
  * hợp đồng chung của mọi system suite (#392): `home-public-e2e` dùng nguyên
- * hostname gốc, còn `identity-login-e2e`/`identity-oidc-e2e` tự ghép subdomain
- * (`account.`, `auth.`); suite này ghép `office.` vì router Traefik của
- * backoffice match `Host(office.<root>)`. Giá trị raw KHÔNG bao giờ được dùng
- * làm origin — đó là hostname gốc, không router nào serve nó cho backoffice.
- * (`login-kickoff.spec.ts` ghép tiếp `auth.` từ hostname `office.` đã có —
- * cùng hình dạng suy diễn của `identity-oidc-e2e`.)
+ * hostname gốc, còn các suite khác ghép sub per-service. Suite này ghép
+ * `office-<ns>` qua contract `localServiceHostname` của `@ecoma-io/deployment`
+ * (#316) — hostname per-worktree, namespace dò từ container Traefik publish
+ * đúng port (cùng phép dò của `resolvePostgresContainer` trong
+ * `stack-fixtures.ts`). Giá trị raw KHÔNG bao giờ được dùng làm origin — đó là
+ * hostname gốc, không router nào serve nó cho backoffice.
  *
  * Khi chạy qua Nx, `.env` repo root đã nằm trong env của task; chạy
  * `npx playwright test` trực tiếp thì fallback parse `.env`.
@@ -76,11 +79,56 @@ export function resolveStackOrigin(): string {
   );
 }
 
-/** Ghép hostname gốc (dạng `hostname:port`) thành origin `office.` của backoffice. */
+/**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
+ * public Traefik. Không tìm thấy là lỗi cài đặt — throw thay vì đoán.
+ */
+function traefikNamespace(port: string): string {
+  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} — the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.`,
+  );
+}
+
+/** Ghép hostname gốc (dạng `hostname:port`) thành origin `office-<ns>` của backoffice. */
 function officeOrigin(raw: string): string {
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `https://office.${hostname}:${port}`;
+  const rootHostname = raw.split(':')[0];
+  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  return localServiceOrigin('office', rootHostname, traefikNamespace(port), Number(port));
+}
+
+/**
+ * Hostname `auth-<ns>` của issuer — cùng namespace, cùng port với origin
+ * backoffice ở trên (mọi service của một worktree chia sẻ namespace), thay cho
+ * phép thay prefix bằng regex từng dùng khi sub còn là `office.` (#316).
+ */
+export function authHostname(): string {
+  const origin = resolveStackOrigin();
+  const url = new URL(origin);
+  const rootHostname = url.hostname.split('-').slice(1).join('-');
+  return localServiceHostname(
+    'auth',
+    rootHostname,
+    traefikNamespace(url.port === '' ? '443' : url.port),
+  );
 }
 
 /** Headers + body thô của một response — đủ cho mọi assertion của suite. */

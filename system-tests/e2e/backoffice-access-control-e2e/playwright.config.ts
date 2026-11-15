@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { X509Certificate, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Cấu hình Playwright cho suite system E2E `backoffice-access-control-e2e` —
@@ -86,11 +89,12 @@ const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 
 /**
  * Origin backoffice từ hostname gốc (`ROOT_HOST`, dạng
- * `hostname:port`): GHÉP PREFIX `office.` — router Traefik của backoffice match
- * `Host(office.<root>)`, và port giữ nguyên vì Traefik local nghe port ĐỘNG map
- * ra loopback (#392 — cùng hợp đồng mà `e2e/support/local-origin.ts` của suite
- * đã suy). Giá trị raw của `ROOT_HOST` là hostname gốc, không router nào
- * serve backoffice trên đó.
+ * `hostname:port`): ghép sub per-worktree `office-<ns>.` — router Traefik của
+ * backoffice match `Host(office-<ns>.<root>)`, và port giữ nguyên vì Traefik
+ * local nghe port ĐỘNG map ra loopback (#392, #316 — cùng hợp đồng mà
+ * `e2e/support/local-origin.ts` của suite đã suy). Namespace dò từ container
+ * Traefik publish đúng port. Giá trị raw của `ROOT_HOST` là hostname gốc,
+ * không router nào serve backoffice trên đó.
  *
  * ⚠️ KHÔNG throw khi thiếu (xem khối đầu file): trả placeholder `.invalid`
  * (RFC 2606) không resolve được — nếu gate global-setup bị bỏ qua thì mọi test
@@ -118,11 +122,42 @@ function resolveStackOrigin(): string {
   return 'office.placeholder.invalid:443';
 }
 
-/** Ghép hostname gốc (dạng `hostname:port`) thành `office.<hostname>:<port>`. */
+/**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
+ * public Traefik (cùng phép dò của `resolvePostgresContainer` trong
+ * `e2e/support/stack-fixtures.ts`). Không tìm thấy là lỗi cài đặt — throw thay
+ * vì đoán.
+ */
+function traefikNamespace(port: string): string {
+  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} — the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.`,
+  );
+}
+
+/** Ghép hostname gốc (dạng `hostname:port`) thành `office-<ns>.<hostname>:<port>`. */
 function withOfficeOrigin(raw: string): string {
   const rootHostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `office.${rootHostname}:${port}`;
+  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  return `${localServiceHostname('office', rootHostname, traefikNamespace(port))}:${port}`;
 }
 
 const ROOT_ORIGIN = resolveStackOrigin();
@@ -150,7 +185,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     // Backoffice phục vụ ở subdomain `office` — mọi browser navigation mặc định
-    // trỏ đây (rule router Traefik là `Host(office.<rootHostname>)`).
+    // trỏ đây (rule router Traefik là `Host(office-<ns>.<rootHostname>)`).
     baseURL: `https://${ROOT_ORIGIN}`,
     // ⚠️ KHÔNG BAO GIỜ `ignoreHTTPSErrors: true` — browser test nào cần cert
     // local phải qua project-level `launchOptions` bên dưới.

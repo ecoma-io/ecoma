@@ -6,6 +6,8 @@ import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { localServiceOrigin } from '@ecoma-io/deployment';
+
 /**
  * Scoped TLS + origin + stack helpers cho các API assertion và seeding của suite.
  *
@@ -103,19 +105,53 @@ export function resolveTraefikPort(): string {
   );
 }
 
+/**
+ * Namespace worktree của stack đang chạy — cần cho hostname per-worktree
+ * (#316): helper `localServiceHostname` của `@ecoma-io/deployment` ghép
+ * `<sub>-<ns>.<root>`, và suite phải ghép đúng namespace của stack mà ROOT_HOST
+ * đang trỏ tới (suite có thể chạy ở worktree khác worktree chạy stack, nên
+ * KHÔNG tự hash path — đi qua `discoverNamespace()` dò container Traefik).
+ */
+function stackNamespace(): string {
+  const namespace = discoverNamespace();
+  if (namespace === undefined) {
+    throw new Error(
+      'could not discover the Docker namespace of the stack behind ROOT_HOST ' +
+        '(no ecoma-*-traefik container with the ROOT_HOST port). ' +
+        'Run `pnpm nx affected -t system-test -c local` first.',
+    );
+  }
+  return namespace;
+}
+
 /** Origin của service `auth` — mọi URL protocol của suite quy về đây. */
 export function authOrigin(): string {
-  return `https://auth.${resolveRootHostname()}:${resolveTraefikPort()}`;
+  return localServiceOrigin(
+    'auth',
+    resolveRootHostname(),
+    stackNamespace(),
+    Number(resolveTraefikPort()),
+  );
 }
 
 /** Origin của service `account` — UI login/consent. */
 export function accountOrigin(): string {
-  return `https://account.${resolveRootHostname()}:${resolveTraefikPort()}`;
+  return localServiceOrigin(
+    'account',
+    resolveRootHostname(),
+    stackNamespace(),
+    Number(resolveTraefikPort()),
+  );
 }
 
-/** Audience mặc định (primary resource indicator) — `https://api.<root>:<port>`. */
+/** Audience mặc định (primary resource indicator) — `https://api-<ns>.<root>:<port>`. */
 export function primaryAudience(): string {
-  return `https://api.${resolveRootHostname()}:${resolveTraefikPort()}`;
+  return localServiceOrigin(
+    'api',
+    resolveRootHostname(),
+    stackNamespace(),
+    Number(resolveTraefikPort()),
+  );
 }
 
 /** Client OIDC local duy nhất được seed bởi deploy (backoffice). */
@@ -123,11 +159,12 @@ export const LOCAL_CLIENT_ID = 'ecoma-backoffice-local';
 
 /**
  * Callback URI của client local — seed exact-string theo port Traefik hiện hành
- * (`deploys/auth-deploy/index.ts`). Một port đổi là URI seed khác; suite ghép
- * từ cùng nguồn chân lý (port trong ROOT_HOST) thay vì hardcode.
+ * (`deploys/auth-deploy/index.ts` dựng cùng helper `localServiceOrigin`). Một
+ * port đổi là URI seed khác; suite ghép từ cùng nguồn chân lý (port trong
+ * ROOT_HOST) thay vì hardcode.
  */
 export function localRedirectUri(): string {
-  return `https://office.${resolveRootHostname()}:${resolveTraefikPort()}/api/auth/callback`;
+  return `${localServiceOrigin('office', resolveRootHostname(), stackNamespace(), Number(resolveTraefikPort()))}/api/auth/callback`;
 }
 
 // ---------------------------------------------------------------------------

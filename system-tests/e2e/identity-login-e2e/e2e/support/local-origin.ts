@@ -4,6 +4,10 @@ import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { localServiceOrigin } from '@ecoma-io/deployment';
+
+import { resolveStackNamespace } from './local-stack';
+
 /**
  * Scoped TLS + origin cho các API assertion của suite.
  *
@@ -85,17 +89,17 @@ export function readRootHostPort(): string {
 }
 
 /**
- * Origin ACCOUNT của stack local, dạng `https://account.<host>:<port>` — đọc
- * `ROOT_HOST` (alias `ROOT_DOMAIN` từng tồn tại đã bị xoá khỏi contract, #210).
+ * Origin ACCOUNT của stack local, dạng `https://account-<ns>.<host>:<port>` —
+ * hostname per-worktree qua contract `localServiceOrigin` của
+ * `@ecoma-io/deployment` (#316); `readRootHostPort` (alias `ROOT_DOMAIN` từng
+ * tồn tại đã bị xoá khỏi contract, #210) cho hostname gốc + port, namespace từ
+ * `resolveStackNamespace()` dò container Traefik theo port.
  */
 export function resolveAccountOrigin(): string {
-  return withPort(readRootHostPort());
-}
-
-function withPort(raw: string): string {
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `https://account.${hostname}:${port}`;
+  const hostPort = readRootHostPort();
+  const hostname = hostPort.split(':')[0];
+  const port = hostPort.includes(':') ? (hostPort.split(':')[1] ?? '443') : '443';
+  return localServiceOrigin('account', hostname, resolveStackNamespace(), Number(port));
 }
 
 /** Kết quả một request — đủ cho mọi assertion status/header/cookie/body của suite. */

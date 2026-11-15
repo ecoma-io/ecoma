@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@ecoma-io/deployment": "workspace:*",
     "@playwright/test": "^1.37.0",
     "jose": "^6"
   },
