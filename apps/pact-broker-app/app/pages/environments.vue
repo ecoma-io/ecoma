@@ -17,6 +17,7 @@ import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
 import { brokerFetch } from '../utils/broker-fetch';
+import { arrayField } from '../utils/broker-body';
 
 const { t } = useI18n();
 
@@ -27,6 +28,11 @@ interface EnvironmentRow {
   production?: unknown;
 }
 
+/**
+ * Các field giữ `unknown`: shape thật do API quyết định, còn mọi ô hiển thị
+ * đã qua `textOf` (hoặc kiểm tra null tường minh của `undeployedAt`) nên
+ * không giá trị nào render vỡ — không cần narrow trước ở loader.
+ */
 interface DeploymentRow {
   pacticipant?: unknown;
   version?: unknown;
@@ -44,10 +50,7 @@ const { state, reload } = useAsyncState(async () => {
   if (!res.ok) {
     throw new Error(`broker api ${String(res.status)}`);
   }
-  const embedded = (body as { _embedded?: { environments?: unknown } })['_embedded'];
-  const rows = Array.isArray(embedded?.environments)
-    ? (embedded.environments as EnvironmentRow[])
-    : [];
+  const rows = arrayField(body, '_embedded', 'environments') as EnvironmentRow[];
   return { kind: 'rows' as const, rows };
 });
 
@@ -67,9 +70,7 @@ const { state: deploymentsState } = useAsyncState(async () => {
     // environment — hiển thị trạng thái riêng của section.
     return { kind: 'unavailable' as const };
   }
-  const list = Array.isArray((body as { deployments?: unknown }).deployments)
-    ? ((body as { deployments: unknown[] }).deployments as DeploymentRow[])
-    : [];
+  const list = arrayField(body, 'deployments') as DeploymentRow[];
   return { kind: 'rows' as const, rows: list };
 });
 

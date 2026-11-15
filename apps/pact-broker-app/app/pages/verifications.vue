@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Verifications — kết quả verification mới nhất cho các cặp consumer/provider
- * (issue #208), đọc qua BFF (`/api/broker/verifications`).
+ * (issue #208), đọc qua BFF (`/api/broker/pacts`).
  *
  * BFF compose từ `/pacticipants` + `/matrix` (selector version cụ thể), nên
  * body trang nhận là **matrix HAL thật**: mỗi row có `consumer.name`,
@@ -13,11 +13,12 @@
  * ⚠️ Chỉ đọc. Publish verification là việc của provider CI qua Pact CLI —
  * dashboard không có nút ghi nào (cùng tinh thần trang Pacts).
  */
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
 import { brokerFetch } from '../utils/broker-fetch';
+import { arrayField } from '../utils/broker-body';
 
 const { t } = useI18n();
 
@@ -36,9 +37,7 @@ const { state, reload } = useAsyncState(async () => {
   if (!res.ok) {
     throw new Error(`broker api ${String(res.status)}`);
   }
-  const rows = Array.isArray((body as { matrix?: unknown }).matrix)
-    ? ((body as { matrix: unknown[] }).matrix as MatrixRow[])
-    : [];
+  const rows = arrayField(body, 'matrix') as MatrixRow[];
   return { kind: 'rows' as const, rows };
 });
 
@@ -66,6 +65,15 @@ const effectiveConsumer = computed(() => {
   return consumers.value[0] ?? '';
 });
 
+// Consumer đang chọn biến mất khỏi danh sách (reload sau khi broker đổi dữ
+// liệu) ⇒ reset select: fallback của `effectiveConsumer` giữ dữ liệu đúng,
+// còn select không được kẹt hiển thị giá trị đã không còn trong dropdown.
+watch(selectedConsumer, (value) => {
+  if (value !== '' && !consumers.value.includes(value)) {
+    selectedConsumer.value = '';
+  }
+});
+
 /**
  * Rows của consumer đang chọn, gộp theo provider: một provider có nhiều row
  * (nhiều version consumer) thì lấy row có verification mới nhất theo
@@ -80,7 +88,13 @@ const providerRows = computed(() => {
     }
     const provider = nameOf(row.provider?.name);
     const existing = byProvider.get(provider);
-    if (existing === undefined || verifiedAtOf(row) > verifiedAtOf(existing)) {
+    // `verifiedAt` là ISO-8601 UTC nên so sánh chuỗi (lexicographic) đúng thứ
+    // tự thời gian; `''` (chưa verify) xếp cũ nhất — không bao giờ thắng một
+    // row đã có timestamp.
+    if (
+      existing === undefined ||
+      (verifiedAtOf(row) !== '' && verifiedAtOf(row) > verifiedAtOf(existing))
+    ) {
       byProvider.set(provider, row);
     }
   }

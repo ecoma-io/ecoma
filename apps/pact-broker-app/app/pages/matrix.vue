@@ -16,6 +16,7 @@ import { useI18n } from '#i18n';
 
 import { useAsyncState } from '../composables/use-async-state';
 import { brokerFetch } from '../utils/broker-fetch';
+import { arrayField } from '../utils/broker-body';
 
 const { t } = useI18n();
 
@@ -30,7 +31,6 @@ interface MatrixRow {
 
 interface Summary {
   deployable?: unknown;
-  reason?: unknown;
 }
 
 /** Tải danh sách pacticipant cho dropdown truy vấn. */
@@ -43,8 +43,7 @@ const { state: pacticipantsState, reload: reloadPacticipants } = useAsyncState(a
   if (!res.ok) {
     throw new Error(`broker api ${String(res.status)}`);
   }
-  const embedded = (body as { _embedded?: { pacticipants?: unknown } })['_embedded'];
-  const rows = Array.isArray(embedded?.pacticipants) ? embedded.pacticipants : [];
+  const rows = arrayField(body, '_embedded', 'pacticipants');
   const names = rows
     .map((row) => (row as { name?: unknown } | null)?.name)
     .filter((name): name is string => typeof name === 'string' && name !== '');
@@ -66,11 +65,10 @@ const names = computed(() =>
 const selectedPacticipant = ref('');
 const versionInput = ref('');
 const environmentInput = ref('');
-const asked = ref(false);
 
 /**
  * Kết quả truy vấn can-i-deploy: tri-state nguyên văn của API
- * (`summary.deployable: boolean | null`) + matrix rows kèm reason.
+ * (`summary.deployable: boolean | null`) + matrix rows.
  */
 const verdict = ref<
   | { kind: 'deployable'; rows: MatrixRow[] }
@@ -117,7 +115,6 @@ async function ask(): Promise<void> {
     return;
   }
   busy.value = true;
-  asked.value = true;
   verdict.value = null;
   csrfMissing.value = false;
   try {
@@ -150,9 +147,7 @@ async function ask(): Promise<void> {
       return;
     }
     const summary = (body as { summary?: unknown })?.summary as Summary | undefined;
-    const rows = Array.isArray((body as { matrix?: unknown }).matrix)
-      ? ((body as { matrix: unknown[] }).matrix as MatrixRow[])
-      : [];
+    const rows = arrayField(body, 'matrix') as MatrixRow[];
     verdict.value = { kind: kindOf(summary?.deployable), rows };
   } catch (error) {
     verdict.value = {

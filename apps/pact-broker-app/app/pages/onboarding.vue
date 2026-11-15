@@ -99,8 +99,14 @@ async function copyCode(event: MouseEvent): Promise<void> {
   const button = event.currentTarget as HTMLElement | null;
   const block = button?.closest('[data-onboarding-block]');
   const code = block?.querySelector('code')?.textContent ?? '';
-  if (code !== '') {
+  if (code === '') {
+    return;
+  }
+  try {
     await navigator.clipboard.writeText(code);
+  } catch {
+    // Clipboard bị từ chối (permission/HTTP không secure) — người dùng vẫn
+    // đọc/copy plaintext trực tiếp; không crash trang.
   }
 }
 </script>
