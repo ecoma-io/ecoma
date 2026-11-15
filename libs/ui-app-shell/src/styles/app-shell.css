@@ -269,4 +269,130 @@
   }
 }
 
+/*
+ * Motion cho Drawer của reka-ui (primitive `ui/drawer`). reka-ui Drawer là
+ * headless: nó publish offset vuốt qua CSS vars (`--drawer-swipe-movement-x/y`)
+ * và trạng thái qua `data-state`/`data-swiping`/`data-swipe-direction`, còn
+ * transform/animation là trách nhiệm consumer. Vaul-vue (bị gỡ) tự làm phần
+ * này; giá trị dưới đây lấy từ ví dụ chính thức của reka-ui
+ * (https://reka-ui.com/docs/components/drawer).
+ *
+ * Animation open/close đi qua `transform` trong `@keyframes`: keyframe ghi đè
+ * `transform` trong lúc chạy (nên offset vuốt đóng băng ở giá trị gốc — đúng
+ * ý vì animation chỉ chạy lúc KHÔNG vuốt), và `transform` được hỗ trợ phổ quát
+ * thay vì property riêng `translate` (Chrome 104+/Safari 14.1+). Offset vuốt
+ * thời gian thực cũng trên `transform`, cùng bộ easing/transition.
+ */
+[data-slot='drawer-content'] {
+  transition: transform 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  transform: translate(var(--drawer-swipe-movement-x, 0px), var(--drawer-swipe-movement-y, 0px));
+}
+
+[data-slot='drawer-content'][data-swiping] {
+  transition-duration: 0ms;
+}
+
+/* "Bleed" 96px dưới đáy drawer bottom: reka-ui khuyến nghị chặn việc drawer
+ * tách khỏi mép khi người dùng kéo quá (thanh handle có nền trắng lộ ra).
+ * `top: 100%` + height, không dùng `bottom` — top/bottom/height cùng lúc là
+ * over-constraint. */
+[data-slot='drawer-content'][data-swipe-direction='bottom'] {
+  &::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 96px;
+  }
+}
+
+@keyframes drawer-slide-in-bottom {
+  from {
+    transform: translate(0, 100%);
+  }
+}
+
+@keyframes drawer-slide-out-bottom {
+  to {
+    transform: translate(0, 100%);
+  }
+}
+
+@keyframes drawer-slide-in-top {
+  from {
+    transform: translate(0, -100%);
+  }
+}
+
+@keyframes drawer-slide-out-top {
+  to {
+    transform: translate(0, -100%);
+  }
+}
+
+@keyframes drawer-slide-in-left {
+  from {
+    transform: translate(-100%, 0);
+  }
+}
+
+@keyframes drawer-slide-out-left {
+  to {
+    transform: translate(-100%, 0);
+  }
+}
+
+@keyframes drawer-slide-in-right {
+  from {
+    transform: translate(100%, 0);
+  }
+}
+
+@keyframes drawer-slide-out-right {
+  to {
+    transform: translate(100%, 0);
+  }
+}
+
+[data-slot='drawer-content'][data-swipe-direction='bottom'] {
+  &[data-state='open'] {
+    animation: drawer-slide-in-bottom 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  &[data-state='closed'] {
+    animation: drawer-slide-out-bottom 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+[data-slot='drawer-content'][data-swipe-direction='top'] {
+  &[data-state='open'] {
+    animation: drawer-slide-in-top 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  &[data-state='closed'] {
+    animation: drawer-slide-out-top 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+[data-slot='drawer-content'][data-swipe-direction='left'] {
+  &[data-state='open'] {
+    animation: drawer-slide-in-left 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  &[data-state='closed'] {
+    animation: drawer-slide-out-left 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+[data-slot='drawer-content'][data-swipe-direction='right'] {
+  &[data-state='open'] {
+    animation: drawer-slide-in-right 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  &[data-state='closed'] {
+    animation: drawer-slide-out-right 450ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
 @source '../**/*.{vue,ts}';

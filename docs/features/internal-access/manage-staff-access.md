@@ -14,8 +14,8 @@ Một administrator hiện hành bổ nhiệm role `system-administrator` qua m�
 
 - Bổ nhiệm tạo đúng một assignment cho role canonical `system-administrator`, `granted_by` = actor staff.
 - Thu hồi assignment làm assignment mất hiệu lực; thu hồi lại trả xung đột.
-- Bảo vệ administrator cuối cùng là **invariant mục tiêu**: không actor nào tự thu hồi assignment administrator cuối cùng của chính mình, và không đường nào làm số administrator hiệu lực rơi về 0 ([ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) — đếm administrator **tại write time**). **Chưa hiện thực ở route** — guard hiện chỉ có ở thời điểm bootstrap (ADR-0022); hiện thực thuộc #44.
-- Permission bổ nhiệm/thu hồi được enforce **trên server, tại `staff-access`, theo từng request** (SR-002/SR-003); principal lấy từ credential đã xác thực, không từ body (SR-001/T-10). **Enforce permission trên đường ghi chưa hiện thực** — literal chưa được seed; thuộc #44.
+- Bảo vệ administrator cuối cùng là **invariant mục tiêu**: không actor nào tự thu hồi assignment administrator cuối cùng của chính mình, và không đường nào làm số administrator hiệu lực rơi về 0 ([ADR-0021](../../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) — đếm administrator **tại write time**). **Đã hiện thực ở route** (cập nhật 2026-11-15 sau #44): route thu hồi đếm administrator hiệu lực và từ chối self-revocation của administrator cuối cùng (`self_revocation_last_administrator`).
+- Permission bổ nhiệm/thu hồi được enforce **trên server, tại `staff-access`, theo từng request** (SR-002/SR-003); principal lấy từ credential đã xác thực, không từ body (SR-001/T-10). **Đã hiện thực** (cập nhật 2026-11-15 sau #44): literal `role.assign`/`role.revoke`/`staff.create` được seed qua migration `0011_permission_catalog_write_actions.sql` (ADR-0034) và enforce server-side trên từng request ghi.
 - Mỗi lần bổ nhiệm hay thu hồi thành công để lại một audit row `role_assignment.*` — **mutation không tồn tại nếu không có audit** ([SR-013]; cùng transaction).
 - Identity đã `terminated` không bổ nhiệm được; role không `active` không gán được.
 
@@ -32,10 +32,9 @@ Một administrator hiện hành bổ nhiệm role `system-administrator` qua m�
 
 ### Không bao gồm
 
-- **Tạo identity staff chưa có route.** Identity staff hiện chỉ sinh qua bootstrap seed; không có route nào tạo staff từ một Account hiện có. Quyền sở hữu đường tạo identity thuộc quyết định của #44 — Feature này không mô tả nó như capability đã có.
-- **Đường permission bổ nhiệm/thu hồi chưa hoàn chỉnh.** Route ghi hiện xác thực envelope và kiểm tra actor là staff `active`, nhưng chưa enforce literal permission nào trên đường ghi; literal `role.assign`/`role.revoke` chưa được seed vì catalog thay đổi cần ADR riêng ([ADR-0023](../../domains/staff-access/adr/0023-administrator-lifecycle-paths.md) Quyết định 2). Khoảng trống này là yêu cầu hiện thực của #44, không phải hành vi đã có.
-- **Bảo vệ administrator cuối cùng chưa hiện thực ở route.** Guard hiện chỉ tồn tại ở thời điểm bootstrap (đo `admins_before`/`admins_ever`, ADR-0022); route thu hồi hiện chưa đếm administrator còn hiệu lực và chưa chặn self-revocation. Đó là yêu cầu hiện thực của #44 (xuất phát từ ADR-0021), không phải hành vi đã có.
-- **Không có bề mặt operator.** Không route BFF backoffice nào gọi đường ghi, không trang UI quản trị administrator nào — hai hàm client ghi tồn tại nhưng không có call site. Bề mặt operator thuộc #191, chưa hiện thực; từ góc operator, workflow quản trị chỉ dùng được qua API nội bộ trực tiếp.
+- **Tạo identity staff đã có route** (cập nhật 2026-11-15 sau #44): `POST /staff` tạo staff từ một Account hiện có, permission `staff.create` enforce server-side. Route chỉ chấp nhận `sub` đã tồn tại bên `account` — đường tạo Account thứ hai vẫn là kênh lời mời API-only (#227, ADR-0030); không có UI phát lời mời.
+- **Bảo vệ administrator cuối cùng đã hiện thực ở route** (cập nhật 2026-11-15 sau #44): route thu hồi đếm administrator hiệu lực, chặn self-revocation của administrator cuối cùng; self-assignment cũng bị từ chối.
+- **Không có bề mặt operator — đã có** (cập nhật 2026-11-15 sau #191): route BFF backoffice (`POST /api/staff`, `POST /api/staff/:id/assignments`, `POST /api/assignments/revoke`) và UI quản trị trên `/staff` đã hiện thực; verdict permission vẫn do Staff Access enforce server-side. Trải nghiệm write end-to-end trên browser với phiên đăng nhập thật chưa có test (thuộc lane Playwright realtime của #182).
 - **Không có custom role, custom permission management, approval workflow, recovery hay replacement identity.** Đó là capability M3; role duy nhất trong M1 là `system-administrator` seeded.
 - **Không có thay đổi trạng thái staff qua route ghi này.** Suspend/terminate staff là bề mặt khác; ADR-0023 ghi khoảng trống "administrator cuối cùng bị terminated không khôi phục được" là giới hạn hiện tại.
 - Emergency recovery hai-phím thuộc đường bootstrap/recovery riêng ([ADR-0003](../../domains/staff-access/adr/0003-bootstrap-first-admin-recovery.md), ADR-0023) — không thuộc Feature này.
@@ -67,7 +66,7 @@ Thì  nhận xung đột — thao tác không lặp được
 ```
 
 ```text
-Cho  administrator cuối cùng đang hiệu lực (invariant mục tiêu — chưa hiện thực ở route, thuộc #44)
+Cho  administrator cuối cùng đang hiệu lực (invariant đã hiện thực ở route — cập nhật 2026-11-15 sau #44)
 Khi  actor tự thu hồi assignment của chính mình, hoặc thu hồi làm số administrator hiệu lực rơi về 0
 Thì  bị chặn — assignment vẫn còn hiệu lực
 ```
@@ -91,26 +90,24 @@ Thì  có hàng `role_assignment.*` kèm actorStaffId/actorSub và outcome; muta
 | `staff-access` (bounded context) | Sở hữu staff identity, role catalog, assignment, audit và invariant administrator cuối cùng | [`domains/staff-access/`](../../domains/staff-access/README.md)                                      |
 | `account` (bounded context)      | Cung cấp Account là điều kiện tiên quyết của identity staff (kênh lời mời/bootstrap)        | [`domains/account/`](../../domains/account/README.md)                                                |
 | `apps/staff-access`              | Worker nội bộ phục vụ route ghi assignment qua envelope HMAC                                | [`applications/staff-access/01-architecture.md`](../../applications/staff-access/01-architecture.md) |
-| `apps/backoffice`                | Chưa tham gia — không có route BFF ghi hay UI quản trị (#191)                               | [`applications/backoffice/README.md`](../../applications/backoffice/README.md)                       |
+| `apps/backoffice`                | BFF ghi + UI quản trị administrator (#191, hiện thực qua PR #301)                           | [`applications/backoffice/README.md`](../../applications/backoffice/README.md)                       |
 
 Bề mặt contract dùng chung: `libs/staff-access-contracts` (publish qua PR #276) là thư viện verdict contract được cả `apps/staff-access` và `apps/backoffice` tiêu thụ.
 
 ## 6. Verification Mapping
 
-| Scenario                                                                                   | Test file / suite                                                    | Loại test   | Nx target          |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ----------- | ------------------ |
-| Audit `role_assignment.create`/`.revoke` ghi cùng transaction, correlationId từ request    | `apps/staff-access/src/routes.spec.ts`                               | unit        | `test`             |
-| Thu hồi: body thiếu `id` trả 400 trước khi chạm database                                   | `apps/staff-access/src/routes.spec.ts`                               | unit        | `test`             |
-| Xác thực envelope nội bộ: thiếu/sai bị từ chối                                             | `apps/staff-access/tests/integrations/internal-auth.spec.ts`         | integration | `test-integration` |
-| Verdict permission cho đường đọc và `invitation.create`                                    | `apps/staff-access/tests/integrations/authorization-verdict.spec.ts` | integration | `test-integration` |
-| Bootstrap first-admin: measured guard `admins_before`/`admins_ever`, mode_mismatch bị chặn | `apps/staff-access/tests/integrations/bootstrap-superadmin.spec.ts`  | integration | `test-integration` |
-| Schema assignment, composite-FK tenant, migration idempotent                               | `apps/staff-access/tests/databases/migrations.spec.ts`               | database    | `test-integration` |
+| Scenario                                                                                                                                               | Test file / suite                                                    | Loại test   | Nx target          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ----------- | ------------------ |
+| Audit `role_assignment.create`/`.revoke` ghi cùng transaction, correlationId từ request                                                                | `apps/staff-access/src/routes.spec.ts`                               | unit        | `test`             |
+| Thu hồi: body thiếu `id` trả 400 trước khi chạm database                                                                                               | `apps/staff-access/src/routes.spec.ts`                               | unit        | `test`             |
+| Bổ nhiệm/thu hồi qua request thật: 403 thiếu permission, self-assignment, self-revocation administrator cuối cùng, target không `active`, staff create | `apps/staff-access/tests/integrations/admin-appointment.spec.ts`     | integration | `test-integration` |
+| Xác thực envelope nội bộ: thiếu/sai bị từ chối                                                                                                         | `apps/staff-access/tests/integrations/internal-auth.spec.ts`         | integration | `test-integration` |
+| Verdict permission cho đường đọc và `invitation.create`                                                                                                | `apps/staff-access/tests/integrations/authorization-verdict.spec.ts` | integration | `test-integration` |
+| Bootstrap first-admin: measured guard `admins_before`/`admins_ever`, mode_mismatch bị chặn                                                             | `apps/staff-access/tests/integrations/bootstrap-superadmin.spec.ts`  | integration | `test-integration` |
+| Schema assignment, composite-FK tenant, migration idempotent                                                                                           | `apps/staff-access/tests/databases/migrations.spec.ts`               | database    | `test-integration` |
 
 **Giới hạn của verification hiện tại:**
 
-- **Chưa có test hành vi cho các tiền đề bổ nhiệm** (staff `terminated`, role không `active`), **xung đột thu hồi 409**, và **audit-in-transaction qua request thật** ở tầng integration — các spec hiện chỉ phủ unit (repository giả) và envelope. Test của chúng thuộc điều kiện hoàn thành #44.
-- **Chưa có test cho bảo vệ administrator cuối cùng ở route** — hành vi đó chưa hiện thực (khoảng trống đã nêu ở §3); test của nó thuộc #44.
-- **Chưa có test enforce permission trên đường ghi** — literal chưa được seed; test của nó thuộc #44.
+- **Chưa có test nào ở tầng browser hay system cho đường ghi** — UI ghi đã có (#191) nhưng luồng write end-to-end trên browser với phiên đăng nhập thật chưa được test (lane Playwright realtime thuộc #182); không có system suite nào chạm Staff Access ghi. (cập nhật 2026-11-15)
 - **Trigger `role_assignment_no_self_elevation` không có test nào chạy** — chỉ xuất hiện trong SQL migration; chưa được assert ở tầng nào.
-- **Không có test nào ở tầng browser hay system cho đường ghi** — không có UI, không có system suite nào chạm Staff Access ghi.
 - Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass. Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.

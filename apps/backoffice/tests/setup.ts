@@ -17,7 +17,7 @@
  *   loại false-green mà setup này tồn tại để chặn.
  * - Cài ba global trình duyệt mà jsdom thiếu (`matchMedia`, `ResizeObserver`,
  *   `IntersectionObserver`) — xem `tests/browser-globals.ts` — vì `AppShell` và
- *   dependency của nó (`reka-ui`, `vaul-vue`) cần chúng để mount được. Chỉ đường
+ *   dependency của nó (`reka-ui`) cần chúng để mount được. Chỉ đường
  *   mount `app.vue` cần (xem `mountBackofficeApp()` trong `tests/harness.ts`);
  *   mount page không đụng tới chúng.
  *

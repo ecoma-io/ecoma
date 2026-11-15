@@ -20,7 +20,7 @@ Contract của consumer trở thành một artifact có địa chỉ ổn địn
 - Publish hàng loạt (nhiều contract trong một request) kiểm tra **toàn bộ trước khi ghi**: một contract sai cấu trúc thì không contract nào được ghi.
 - Đọc lại được theo version chính xác, theo content SHA, theo `latest` có hoặc không kèm tag, và theo danh sách selector dùng cho verification.
 - Mọi truy vấn bị giới hạn theo tenant của credential gọi nó; tenant khác không thấy gì.
-- Phản hồi mang HAL link để client đi tiếp được (publish verification result, publish contract, danh sách pact cần verify).
+- Phản hồi mang HAL link để client đi tiếp được (publish verification result, publish contract). **Giới hạn hiện tại** (cập nhật 2026-11-15): HAL index **chưa** phát link `pb:latest-provider-pacts` mà verifier mặc định của Pact CLI cần để khám phá pact — lệnh publish-verification chuẩn trả 404 trên đường mặc định; gap được theo dõi ở [#294](https://github.com/ecoma-io/ecoma/issues/294). Các HAL link khác (`pb:latest-pact-versions`, `pb:latest-pact-version`, …) đã phát (`libs/pact-broker-api-domain/src/hal.ts`).
 
 ## 3. Scope
 
