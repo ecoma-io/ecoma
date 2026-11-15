@@ -691,6 +691,16 @@ describe('collectCiTargets', () => {
   it('returns an empty list when no run-nx-target step declares targets', () => {
     expect(collectCiTargets('jobs: {}')).toEqual([]);
   });
+
+  it('strips inline YAML comments from targets values', () => {
+    const yaml = [
+      '      - name: DB migration type check',
+      '        uses: ./.github/actions/run-nx-target',
+      '        with:',
+      '          targets: typecheck-db # migration check',
+    ].join('\n');
+    expect(collectCiTargets(yaml)).toEqual(['typecheck-db']);
+  });
 });
 
 /** CI yaml theo hình thật của ci.yaml: mọi target mà CI gọi. */
@@ -759,6 +769,23 @@ describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
     expect(violations.find((v) => v.kind === 'unreadable-test-config')?.detail).toContain(
       'ci.yaml',
     );
+    // Workflow không thuộc project nào — project rỗng như lượt deployment map,
+    // path nằm trong detail.
+    expect(violations.find((v) => v.kind === 'unreadable-test-config')?.project).toBe('');
+  });
+
+  it('fails closed when a package.json is malformed and reports the project', () => {
+    // JSON hỏng tức không chứng minh được target nào được khai — nuốt thành
+    // "không khai gì" là đúng hình im lặng mà #265 phê phán.
+    const { files, project } = goodApp();
+    files['apps/widget/package.json'] = pkg(['test', 'typecheck-db']);
+    files['.github/workflows/ci.yaml'] = ciYaml(['test']);
+    files['apps/widget/package.json'] = '{ broken json';
+    const violations = run(files, [project]);
+    expect(violations.some((v) => v.kind === 'unreadable-test-config')).toBe(true);
+    const unreadable = violations.find((v) => v.kind === 'unreadable-test-config');
+    expect(unreadable?.project).toBe('@ecoma-io/widget');
+    expect(unreadable?.detail).toContain('apps/widget/package.json');
   });
 
   it('ignores projects without package.json for the orphan check', () => {

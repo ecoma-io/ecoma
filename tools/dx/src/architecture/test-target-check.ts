@@ -637,7 +637,10 @@ export function validateTestTargets(input: {
       ciTargets = collectCiTargets(fs.readFile(ciYamlPath));
     } catch {
       violations.push({
-        project: '.github/workflows/ci.yaml',
+        // File workflow không thuộc project nào — dùng chuỗi rỗng như lượt
+        // deployment map làm với vi phạm ngoài project (`stale-allowlist-entry`);
+        // path nằm trong detail.
+        project: '',
         kind: 'unreadable-test-config',
         detail:
           `${ciYamlPath} could not be read; arch-check cannot verify that required Nx targets ` +
@@ -651,7 +654,7 @@ export function validateTestTargets(input: {
       if (root === undefined || !(root.startsWith('apps/') || root.startsWith('libs/'))) continue;
       const pkgPath = `${root}/package.json`;
       if (!fs.exists(pkgPath)) continue;
-      const declared = declaredTargets(fs, pkgPath);
+      const declared = declaredTargets(fs, pkgPath, report, project.name);
       for (const target of REQUIRED_INVOKED_TARGETS) {
         if (declared.has(target) && !ciTargets.includes(target)) {
           violations.push({
@@ -766,7 +769,9 @@ export const REQUIRED_INVOKED_TARGETS: readonly string[] = ['typecheck-db'];
  */
 export function collectCiTargets(ciYamlText: string): readonly string[] {
   const targets: string[] = [];
-  for (const match of ciYamlText.matchAll(/^\s{10}targets:\s*(\S.*)$/gmu)) {
+  // Bỏ inline YAML comment: `targets: typecheck-db # comment` phải ra
+  // `typecheck-db`, không phải bốn token trong đó có `#`.
+  for (const match of ciYamlText.matchAll(/^\s{10}targets:\s*([^#].*?)(?:\s+#.*)?$/gmu)) {
     for (const word of match[1].split(/[,\s]+/u)) {
       if (word !== '') targets.push(word);
     }
@@ -775,13 +780,25 @@ export function collectCiTargets(ciYamlText: string): readonly string[] {
 }
 
 /** Package.json của project khai target Nx nào, theo tên target. */
-function declaredTargets(fs: TestTargetFs, pkgPath: string): ReadonlySet<string> {
+function declaredTargets(
+  fs: TestTargetFs,
+  pkgPath: string,
+  report: (violation: ArchTagViolation) => void,
+  project: string,
+): ReadonlySet<string> {
   const targets = new Set<string>();
   let pkg: { nx?: { targets?: Record<string, unknown> } };
   try {
     pkg = JSON.parse(fs.readFile(pkgPath));
   } catch {
-    return targets; // file hỏng đã được các nhóm khác báo — không nhân lỗi
+    // JSON hỏng: không xác minh được target nào được khai ⇒ không được nuốt
+    // thành "không khai gì" — fail-closed cùng hình với các nhóm khác.
+    report({
+      project,
+      kind: 'unreadable-test-config',
+      detail: `${pkgPath} exists but could not be parsed; arch-check fails closed on unreadable test configs`,
+    });
+    return targets;
   }
   for (const name of Object.keys(pkg.nx?.targets ?? {})) targets.add(name);
   return targets;
