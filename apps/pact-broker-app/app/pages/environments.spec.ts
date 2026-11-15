@@ -84,6 +84,16 @@ describe('environments page — deployment records', () => {
     wrapper.unmount();
   });
 
+  it('treats any non-ok deployments status as the section unavailable state', async () => {
+    vi.stubGlobal('fetch', stubFetch([environmentsEndpoint(), deploymentsEndpoint({}, 500)]));
+    const wrapper = await mountPactBrokerPage(EnvironmentsPage);
+    await flush();
+
+    expect(wrapper.find('[data-testid="pact-broker-environments-table"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="pact-broker-deployments-unavailable"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
   it('shows the deployments empty state when no deployment is recorded', async () => {
     vi.stubGlobal(
       'fetch',

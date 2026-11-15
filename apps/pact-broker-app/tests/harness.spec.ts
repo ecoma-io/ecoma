@@ -64,7 +64,8 @@ describe('test harness bridge', () => {
 describe('index page', () => {
   it('renders exactly one h1 and real links to the areas', async () => {
     // Overview (#208) fetch ma trận compose trước khi render link khu vực —
-    // stub endpoint BFF thật của trang.
+    // stub endpoint BFF thật của trang. `/api/broker/pacts` là endpoint DUY
+    // NHẤT mà index.vue gọi, nên một stub là đủ.
     vi.stubGlobal(
       'fetch',
       stubFetch([

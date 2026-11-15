@@ -98,7 +98,7 @@ async function openPage(target: Page, path: string): Promise<void> {
  * `provider.json` kiểu đó sẽ khớp regex generic gây âm giả).
  */
 const I18N_RAW_KEY_PATTERN =
-  /\b(?:verifications|matrix|onboarding|states|pacts|overview|tokens|environments|nav)\.[a-zA-Z]/u;
+  /\b(?:deployments|verifications|matrix|onboarding|states|pacts|overview|tokens|environments|nav)\.[a-zA-Z]/u;
 
 /**
  * Ghi nhận lỗi trình duyệt của một page: console mức `error` và `pageerror`
@@ -403,6 +403,11 @@ describe('pact-broker-app read pages on a real browser against the real broker',
     expect(bodyText).not.toContain(stack.machineToken);
     // Placeholder của token trong khối lệnh là chủ ý (show-once), giữ nguyên.
     expect(bodyText).toContain('$PACT_BROKER_TOKEN');
+
+    // SR-002 trên toàn HTML (không chỉ innerText): attribute/CDATA/comment
+    // ẩn cũng không được mang token thật.
+    const bodyHtml = await authenticated.locator('body').innerHTML();
+    expect(bodyHtml).not.toContain(stack.machineToken);
 
     await expectCleanPage(authenticated, errors);
   });

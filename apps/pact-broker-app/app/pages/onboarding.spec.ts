@@ -72,23 +72,34 @@ describe('onboarding page — pinned CLI and copyable commands', () => {
 
     const text = wrapper.text();
     expect(text).toContain('$PACT_BROKER_TOKEN');
-    // Không giá trị nào trông như token thật (base64url 32+ ký tự không khoảng).
-    expect(text).not.toMatch(/[A-Za-z0-9_-]{32,}/u);
+    // Không giá trị nào trông như token thật (base64url 32+ ký tự không khoảng;
+    // chấm phủ cả hình dạng JWT — phần header/payload của JWT cũng khớp).
+    expect(text).not.toMatch(/[A-Za-z0-9_.-]{32,}/u);
     wrapper.unmount();
   });
 
   it('copies the block code through the real clipboard control', async () => {
     const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
     });
 
-    const wrapper = await mountPactBrokerPage(OnboardingPage);
+    try {
+      const wrapper = await mountPactBrokerPage(OnboardingPage);
 
-    const code = wrapper.find('[data-testid="pact-broker-onboarding-publish"]').text();
-    await wrapper.find('[data-testid="pact-broker-onboarding-publish-copy"]').trigger('click');
-    expect(writeText).toHaveBeenCalledWith(code);
-    wrapper.unmount();
+      const code = wrapper.find('[data-testid="pact-broker-onboarding-publish"]').text();
+      await wrapper.find('[data-testid="pact-broker-onboarding-publish-copy"]').trigger('click');
+      expect(writeText).toHaveBeenCalledWith(code);
+      wrapper.unmount();
+    } finally {
+      // Khôi phục descriptor gốc: navigator là global dùng chung giữa các test.
+      if (originalClipboard === undefined) {
+        delete (navigator as { clipboard?: unknown }).clipboard;
+      } else {
+        Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      }
+    }
   });
 });

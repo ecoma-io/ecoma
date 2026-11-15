@@ -169,8 +169,9 @@ describe('matrix page — verdict tri-state', () => {
 
   it('skips the fetch and shows the error when the CSRF cookie is missing', async () => {
     const wrapper = await mountWith([pacticipantsEndpoint(['svc-a'])]);
-    // Bọc fetch đã stub sau mount: GET nạp danh sách đi qua bình thường, còn
-    // POST can-i-deploy được đếm để assert không bao giờ rời trang.
+    // Bọc fetch đã stub sau mount: KHÔNG phải double-stub xung đột — fetch
+    // gốc của mountWith vẫn phục vụ GET/POST, còn wrapper này chỉ chặn và
+    // đếm POST can-i-deploy rồi ủy quyền cho nó.
     const base = globalThis.fetch;
     const postCalls: string[] = [];
     vi.stubGlobal(

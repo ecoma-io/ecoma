@@ -47,9 +47,11 @@ describe('overview page — real stats from the composed matrix', () => {
 
     const stats = wrapper.find('[data-testid="pact-broker-overview-stats"]');
     expect(stats.exists()).toBe(true);
-    const text = stats.text();
-    // 2 pacticipant, 2 cặp consumer/provider, 2 verification có kết quả.
-    expect(text).toContain('2');
+    // Ba stat card render theo thứ tự label + value (index.vue) — assert value
+    // từng card riêng biệt: 3 pacticipants, 2 pairs, 2 verifications có kết quả.
+    const dd = stats.findAll('dd');
+    expect(dd).toHaveLength(3);
+    expect(dd.map((card) => card.text())).toEqual(['3', '2', '2']);
     wrapper.unmount();
   });
 
