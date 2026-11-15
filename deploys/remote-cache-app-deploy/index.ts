@@ -8,7 +8,7 @@
  * với builder `default` + `load: true`) và cùng sở hữu database phiên BFF:
  * #180 (ADR-0035) unit SỞ HỮU `db-remote-cache-app` — provision hai role +
  * database + migration của app qua `scripts.ts`, cùng mô hình kênh secret với
- * pact-broker-app-deploy. Router rule `Host(remote-cache-app.<rootHostname>)`.
+ * pact-broker-app-deploy. Router rule `Host(remote-cache-app-<ns>.<rootHostname>)`.
  *
  * Wiring BFF (ADR-0034/0035, #180):
  * - OIDC issuer/audience ghim từ platform outputs (structural exact match với
@@ -45,6 +45,8 @@ import {
   type DeployResourceKind,
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -63,7 +65,7 @@ import {
 const APP_INTERNAL_PORT = 3000;
 
 /**
- * Entrypoint HTTPS của Traefik — nơi client gõ `https://remote-cache-app.<rootHostname>`.
+ * Entrypoint HTTPS của Traefik — nơi client gõ `https://remote-cache-app-<ns>.<rootHostname>`.
  * Tên router/service mang namespace vì Traefik đọc label toàn cục (multi-tenant
  * giữa các worktree) — xem `pact-broker-app-deploy`.
  */
@@ -131,6 +133,23 @@ const rootHostname = requirePlatformOutput('rootHostname');
 // nên exact match là cấu trúc (cùng hai outputs, cùng format), không phải hiệp
 // bằng tay giữa hai stack.
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316) — issuer/audience ghim
+// qua contract `@ecoma-io/deployment`, cùng nguồn với auth-deploy. Cache
+// endpoint qua helper cùng công thức cho nhất quán (router gap của
+// `cache.` là #238, ngoài phạm vi); router rule dùng biến hostname riêng.
+// `rootHostname`/`traefikHostPort` là Output (StackReference) nên công thức
+// apply một lần qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const authOrigin = serviceOrigin('auth');
+const audienceOrigin = serviceOrigin('api');
+const cacheOrigin = serviceOrigin('cache');
+const remoteCacheAppHostname = rootHostname.apply((rh) =>
+  localServiceHostname('remote-cache-app', rh, ns),
+);
 
 // Mật khẩu hai role của db-remote-cache-app — orchestration sinh và truyền qua
 // --config (stdin, không argv); `requireSecret` như api-deploy: đánh dấu output
@@ -297,14 +316,14 @@ const remoteCacheApp = new docker.Container(
       // Issuer/audience ghim từ platform outputs — cùng nguồn với auth-deploy
       // (structural exact match); client_id từ stack config; origin fetch nội bộ
       // trỏ thẳng container auth trong network (local-only, production vắng mặt).
-      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
-      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_ISSUER=${authOrigin}`,
+      pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_AUDIENCE=${audienceOrigin}`,
       pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_CLIENT_ID=${remoteCacheAppClientId}`,
       pulumi.interpolate`NITRO_REMOTE_CACHE_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:4203`,
       // Public runtimeConfig cho SPA: tenant canonical + cache endpoint hiển thị
       // ở trang onboarding (R21). Non-secret — cấu hình hiển thị, không credential.
       pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_TENANT_NAME=ecoma`,
-      pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_CACHE_ENDPOINT=https://cache.${rootHostname}`,
+      pulumi.interpolate`NUXT_PUBLIC_REMOTE_CACHE_CACHE_ENDPOINT=${cacheOrigin}`,
     ],
     labels: [
       ...Object.entries(labels).map(([label, value]) => ({ label, value })),
@@ -318,7 +337,7 @@ const remoteCacheApp = new docker.Container(
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-        value: pulumi.interpolate`Host(\`remote-cache-app.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${remoteCacheAppHostname}\`)`,
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,
