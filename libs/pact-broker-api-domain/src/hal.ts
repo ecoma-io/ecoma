@@ -39,6 +39,14 @@ export class HalBuilder {
         'Pact versions to verify for the specified provider',
         true,
       ),
+      // Verifier mặc định của Pact CLI (pact-verifier-rust) fetch root document
+      // rồi follow relation này (expand {provider}) để khám phá pact cần verify
+      // — thiếu link thì lệnh verify chuẩn 404 (chạy thật CLI 18.10.9, #208).
+      'pb:latest-provider-pacts': this.link(
+        '/pacts/provider/{provider}/latest',
+        'Latest pacts for the specified provider',
+        true,
+      ),
       'pb:environments': this.link('/environments', 'Environments'),
       'pb:environment': this.link('/environments/{uuid}', 'Environment', true),
       'pb:publish-contracts': this.link('/contracts/publish', 'Publish contracts'),
