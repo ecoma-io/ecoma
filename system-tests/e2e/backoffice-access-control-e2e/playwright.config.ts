@@ -128,11 +128,19 @@ function resolveStackOrigin(): string {
  * `e2e/support/stack-fixtures.ts`). Không tìm thấy là lỗi cài đặt — throw thay
  * vì đoán.
  */
-function traefikNamespace(port: string): string {
-  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  });
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    // Docker vắng mặt — trả `undefined` thay vì ném: config KHÔNG BAO GIỜ
+    // throw (khối quyết định graph-eval ở đầu file), gate fail-closed thuộc
+    // global-setup.
+    return undefined;
+  }
   for (const line of ps.split(/\r?\n/u)) {
     const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
     if (match === null) {
@@ -143,7 +151,8 @@ function traefikNamespace(port: string): string {
       namespace !== undefined &&
       /^w[a-z0-9]{12}$/u.test(namespace) &&
       ports !== undefined &&
-      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
       return namespace;
     }
@@ -157,7 +166,13 @@ function traefikNamespace(port: string): string {
 function withOfficeOrigin(raw: string): string {
   const rootHostname = raw.split(':')[0];
   const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
-  return `${localServiceHostname('office', rootHostname, traefikNamespace(port))}:${port}`;
+  // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+  // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+  const namespace = traefikNamespace(port);
+  if (namespace === undefined) {
+    return `office.placeholder.invalid:${port}`;
+  }
+  return `${localServiceHostname('office', rootHostname, namespace)}:${port}`;
 }
 
 const ROOT_ORIGIN = resolveStackOrigin();

@@ -117,6 +117,30 @@ export function buildRootHost(traefikHostPort: number): string {
  * Local-only: staging/production không dùng hostname dạng này.
  */
 export function localServiceHostname(sub: string, rootHostname: string, namespace: string): string {
+  // Ranh giới contract: đầu vào xấu sinh hostname invalid (router `Host()` lệch,
+  // cookie `__Host-` scope sai) — fail-loud thay vì ghép chuỗi hỏng lặng lẽ.
+  // `sub`/`namespace` chỉ được phép là ĐÚNG MỘT DNS label (không dấu chấm): lệch
+  // hợp đồng này là lỗi của caller, không phải dữ liệu cần phiên dịch.
+  for (const [name, value] of [
+    ['sub', sub],
+    ['rootHostname', rootHostname],
+    ['namespace', namespace],
+  ] as const) {
+    if (value.length === 0) {
+      throw new Error(`localServiceHostname: ${name} must not be empty`);
+    }
+  }
+  for (const [name, value] of [
+    ['sub', sub],
+    ['namespace', namespace],
+  ] as const) {
+    if (value.includes('.')) {
+      throw new Error(
+        `localServiceHostname: ${name} "${value}" must be a single DNS label (no dots) — ` +
+          'the helper adds exactly one extra label to the root hostname',
+      );
+    }
+  }
   return `${sub}-${namespace}.${rootHostname}`;
 }
 
@@ -135,6 +159,11 @@ export function localServiceOrigin(
   namespace: string,
   traefikHostPort: number,
 ): string {
+  if (!Number.isInteger(traefikHostPort) || traefikHostPort < 1 || traefikHostPort > 65535) {
+    throw new Error(
+      `localServiceOrigin: traefikHostPort ${traefikHostPort} is not a valid TCP port (1-65535)`,
+    );
+  }
   return `https://${localServiceHostname(sub, rootHostname, namespace)}:${traefikHostPort}`;
 }
 

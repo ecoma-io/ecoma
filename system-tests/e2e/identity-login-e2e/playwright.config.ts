@@ -66,15 +66,21 @@ const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 /**
  * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
  * dò của `resolveStackNamespace()` trong `e2e/support/local-stack.ts`, hai bản
- * cố ý vì config eval không import support). Không thấy container khớp là lỗi
- * cài đặt — throw thay vì đoán. KHÔNG được gọi khi `ROOT_HOST` vắng mặt
- * (placeholder path) để project graph eval trên CI (không Docker) không nổ.
+ * cố ý vì config eval không import support). KHÔNG được gọi khi `ROOT_HOST`
+ * vắng mặt (placeholder path). Docker vắng mặt thì trả `undefined` thay vì ném
+ * — config KHÔNG BAO GIỜ throw (khối quyết định graph-eval ở đầu file);
+ * fail-closed thật thuộc global-setup.
  */
-function traefikNamespace(port: string): string {
-  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  });
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    return undefined;
+  }
   for (const line of ps.split(/\r?\n/u)) {
     const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
     if (match === null) {
@@ -85,14 +91,13 @@ function traefikNamespace(port: string): string {
       namespace !== undefined &&
       /^w[a-z0-9]{12}$/u.test(namespace) &&
       ports !== undefined &&
-      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
       return namespace;
     }
   }
-  throw new Error(
-    `no ecoma Traefik container publishes loopback port ${port} — the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.`,
-  );
+  return undefined;
 }
 
 /**
@@ -121,7 +126,13 @@ function resolveStackOrigin(): string {
   if (raw !== undefined && raw.trim().length > 0) {
     const rootHostname = raw.trim().split(':')[0];
     const port = raw.includes(':') ? (raw.trim().split(':')[1] ?? '443') : '443';
-    return `${localServiceHostname('account', rootHostname, traefikNamespace(port))}:${port}`;
+    // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+    // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+    const namespace = traefikNamespace(port);
+    if (namespace === undefined) {
+      return `account.placeholder.invalid:${port}`;
+    }
+    return `${localServiceHostname('account', rootHostname, namespace)}:${port}`;
   }
   return 'account.placeholder.invalid:443';
 }

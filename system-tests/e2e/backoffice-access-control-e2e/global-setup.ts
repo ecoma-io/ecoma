@@ -137,10 +137,19 @@ function readOfficeHostPort(raw: string): { hostname: string; port: string } {
  * vì đoán.
  */
 function traefikNamespace(port: string): string {
-  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  });
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch (error) {
+    throw new Error(
+      `docker ps failed while discovering the worktree namespace (${(error as Error).message}) — ` +
+        'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
+      { cause: error },
+    );
+  }
   for (const line of ps.split(/\r?\n/u)) {
     const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
     if (match === null) {
@@ -151,7 +160,8 @@ function traefikNamespace(port: string): string {
       namespace !== undefined &&
       /^w[a-z0-9]{12}$/u.test(namespace) &&
       ports !== undefined &&
-      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
       return namespace;
     }

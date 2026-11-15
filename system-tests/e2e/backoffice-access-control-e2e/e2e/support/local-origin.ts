@@ -98,7 +98,8 @@ function traefikNamespace(port: string): string {
       namespace !== undefined &&
       /^w[a-z0-9]{12}$/u.test(namespace) &&
       ports !== undefined &&
-      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
       return namespace;
     }

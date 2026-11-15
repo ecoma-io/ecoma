@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { localServiceOrigin } from '@ecoma-io/deployment';
 
 import { resolveStackNamespace } from './local-stack';
+import { readRootHostPort } from './root-host';
 
 /**
  * Scoped TLS + origin cho các API assertion của suite.
@@ -53,40 +54,12 @@ const LOCAL_CERT_PATH = join(
 export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
 
 /**
- * Giá trị `host:port` của stack local — ENV trước, fallback parse `.env` repo
- * root TẠI THỜI ĐIỂM ĐỌC. Fallback không phải chỉ cho CLI ngoài Nx: orchestrator
- * của Nx snapshot env của MỌI task đã schedule ngay vòng lặp đầu, TRƯỚC khi
- * `platform-deploy:local-up` kịp ghi `.env` — env-process của task suite không
- * bao giờ chứa `ROOT_HOST` trong đường một-invocation
- * (`nx affected -t system-test -c local`) dù `.env` mới nhất đã có key đó. Đọc
- * FILE lúc helper chạy thì luôn thấy giá trị platform vừa ghi — cùng rationale
- * với fallback trong `global-setup.ts` và `playwright.config.ts` của các suite.
- * ENV đã có (export tay, hoặc chạy lại suite sau khi invocation đầu đã deploy)
- * thì thắng fallback — nguồn ưu tiên như trước.
+ * Giá trị `host:port` của stack local — chuyển sang `root-host.ts` (module lá)
+ * để cắt vòng import `local-origin` ↔ `local-stack`: local-stack cần hàm này,
+ * local-origin cần `resolveStackNamespace` của local-stack. Re-export giữ mặt
+ * API cho caller cũ.
  */
-export function readRootHostPort(): string {
-  const fromEnv = process.env.ROOT_HOST;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
-  }
-  try {
-    const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return match[1].trim();
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — throw bên dưới với message chỉ đúng remedy.
-  }
-  throw new Error(
-    'ROOT_HOST is neither set in the environment nor defined in the repo-root .env. ' +
-      'Run this suite through `nx affected -t system-test -c local` (Nx provisions the local-up prerequisites, ' +
-      'and platform-deploy writes the dynamic Traefik host:port into the repo-root .env before the suite runs), ' +
-      'or export ROOT_HOST=<host>:<port> explicitly.',
-  );
-}
+export { readRootHostPort } from './root-host';
 
 /**
  * Origin ACCOUNT của stack local, dạng `https://account-<ns>.<host>:<port>` —
@@ -98,8 +71,14 @@ export function readRootHostPort(): string {
 export function resolveAccountOrigin(): string {
   const hostPort = readRootHostPort();
   const hostname = hostPort.split(':')[0];
-  const port = hostPort.includes(':') ? (hostPort.split(':')[1] ?? '443') : '443';
-  return localServiceOrigin('account', hostname, resolveStackNamespace(), Number(port));
+  const portStr = hostPort.includes(':') ? (hostPort.split(':')[1] ?? '443') : '443';
+  const port = Number(portStr);
+  // Ranh giới ROOT_HOST: port không phải số hợp lệ là lỗi cấu hình — throw với
+  // message rõ thay vì sinh origin `:NaN` hỏng lặng lẽ.
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`invalid port in ROOT_HOST: "${portStr}" — expected <hostname>:<1-65535>.`);
+  }
+  return localServiceOrigin('account', hostname, resolveStackNamespace(), port);
 }
 
 /** Kết quả một request — đủ cho mọi assertion status/header/cookie/body của suite. */

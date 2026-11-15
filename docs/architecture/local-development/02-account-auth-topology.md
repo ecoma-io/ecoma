@@ -11,7 +11,7 @@
 | account | `account-<ns>.fbi.com` | `account.ecoma.io`      |
 | auth    | `auth-<ns>.fbi.com`    | `auth.ecoma.io`         |
 
-Cả hai hostname thuộc wildcard cert `*.fbi.com` hiện có — không thêm cert, không thêm DNS: hostname local là `<sub>-<namespace>.<rootHostname>` với `<ns>` là namespace worktree (`worktreeNamespace()`, một nhãn DNS thêm — wildcard chỉ phủ đúng một nhãn). Router Traefik của mỗi unit theo mẫu `Host(<sub>-<ns>.${rootHostname})` như backoffice với `office-<ns>.fbi.com`.Hostname per-worktree là quyết định #316: cookie scope theo hostname chứ không theo port, hai worktree deploy song song trên cùng browser profile cần cookie jar độc lập; mọi origin browser-facing suy qua contract `localServiceHostname`/`localServiceOrigin` của `@ecoma-io/deployment` — issuer, audience, redirect URI và router rule khớp exact-string với nhau. Apex `fbi.com` (home) giữ chia sẻ giữa các worktree — home không set cookie.
+Cả hai hostname thuộc wildcard cert `*.fbi.com` hiện có — không thêm cert, không thêm DNS: hostname local là `<sub>-<namespace>.<rootHostname>` với `<ns>` là namespace worktree (`worktreeNamespace()`, một nhãn DNS thêm — wildcard chỉ phủ đúng một nhãn). Router Traefik của mỗi unit theo mẫu `Host(<sub>-<ns>.${rootHostname})` như backoffice với `office-<ns>.fbi.com`. Hostname per-worktree là quyết định #316: cookie scope theo hostname chứ không theo port, hai worktree deploy song song trên cùng browser profile cần cookie jar độc lập; mọi origin browser-facing suy qua contract `localServiceHostname`/`localServiceOrigin` của `@ecoma-io/deployment` — issuer, audience, redirect URI và router rule khớp exact-string với nhau. Apex `fbi.com` (home) giữ chia sẻ giữa các worktree — home không set cookie.
 
 ## Topology và ownership
 

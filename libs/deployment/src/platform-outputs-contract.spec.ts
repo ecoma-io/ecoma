@@ -69,8 +69,37 @@ describe('localServiceOrigin', () => {
   });
 
   it('differs per namespace for the same service', () => {
-    expect(localServiceOrigin('account', 'fbi.com', 'w1a2b3c4d5e6f', 33118)).not.toBe(
+    expect(localServiceOrigin('account', 'fbi.com', 'w1a2b3c4d5e6f', 33118)).not.toEqual(
       localServiceOrigin('account', 'fbi.com', 'wffffffffffff', 33118),
+    );
+  });
+
+  it('rejects empty sub, rootHostname and namespace, and a dot inside sub or namespace', () => {
+    // Ranh giới contract: đầu vào xấu phải fail-loud — hostname invalid làm
+    // router `Host()` lệch và cookie `__Host-` scope sai, lặng lẽ là tệ nhất.
+    expect(() => localServiceHostname('', 'fbi.com', 'w1a2b3c4d5e6f')).toThrow(/sub/u);
+    expect(() => localServiceHostname('auth', '', 'w1a2b3c4d5e6f')).toThrow(/rootHostname/u);
+    expect(() => localServiceHostname('auth', 'fbi.com', '')).toThrow(/namespace/u);
+    expect(() => localServiceHostname('auth.x', 'fbi.com', 'w1a2b3c4d5e6f')).toThrow(
+      /single DNS label/u,
+    );
+    expect(() => localServiceHostname('auth', 'fbi.com', 'w1a.3c4d5e6f')).toThrow(
+      /single DNS label/u,
+    );
+  });
+
+  it('rejects a non-integer or out-of-range Traefik port', () => {
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', Number.NaN)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 0)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 70000)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 3.5)).toThrow(
+      /valid TCP port/u,
     );
   });
 });

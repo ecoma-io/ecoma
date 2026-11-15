@@ -130,30 +130,44 @@ function resolveStackOrigin(): string {
 }
 
 /**
- * Hostname browser-facing của `auth` theo worktree — `auth-<ns>.<root>` qua
- * contract `localServiceHostname` (#316). Namespace dò từ container Traefik
- * publish đúng port; khi ROOT_HOST là placeholder (`.env` vắng mặt — CI graph
- * build) thì KHÔNG chạy docker, trả placeholder nguyên vẹn: fail-closed thật
- * nằm ở global-setup.
+ * Origin browser-facing của `auth` theo worktree — `https://auth-<ns>.<root>:<port>`
+ * qua contract `localServiceHostname` (#316). Port PHẢI giữ trong baseURL
+ * (Traefik nghe port động — khối quyết định port ở đầu file); namespace dò từ
+ * container Traefik publish đúng port (wrapped try/catch): khi Docker không sẵn
+ * sàng (CI graph eval) namespace trả `undefined` — hostname giữ dạng placeholder
+ * nguyên vẹn, fail-closed thật nằm ở global-setup.
  */
-function authServiceHostname(): string {
+function authBaseOrigin(): string {
   const rootHostname = ROOT_ORIGIN.split(':')[0] ?? '';
   const port = ROOT_ORIGIN.includes(':') ? (ROOT_ORIGIN.split(':')[1] ?? '443') : '443';
   if (rootHostname.endsWith('.invalid')) {
-    return `auth.${ROOT_ORIGIN}`;
+    return `https://auth.${ROOT_ORIGIN}`;
   }
-  return localServiceHostname('auth', rootHostname, traefikNamespace(port));
+  // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+  // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+  const namespace = traefikNamespace(port);
+  if (namespace === undefined) {
+    return `https://auth.placeholder.invalid:${port}`;
+  }
+  return `https://${localServiceHostname('auth', rootHostname, namespace)}:${port}`;
 }
 
 /**
  * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
- * public Traefik (cùng phép dò của `e2e/support/local-origin.ts`).
+ * public Traefik (cùng phép dò của `e2e/support/local-origin.ts`). Trả
+ * `undefined` thay vì ném khi Docker vắng mặt: config không bao giờ throw
+ * (khối quyết định graph-eval ở đầu file), gate fail-closed thuộc global-setup.
  */
-function traefikNamespace(port: string): string {
-  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-    encoding: 'utf8',
-    timeout: 10_000,
-  });
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    return undefined;
+  }
   for (const line of ps.split(/\r?\n/u)) {
     const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
     if (match === null) {
@@ -164,12 +178,13 @@ function traefikNamespace(port: string): string {
       namespace !== undefined &&
       /^w[a-z0-9]{12}$/u.test(namespace) &&
       ports !== undefined &&
-      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
       return namespace;
     }
   }
-  return `missing-namespace-${port}`;
+  return undefined;
 }
 
 const ROOT_ORIGIN = resolveStackOrigin();
@@ -201,8 +216,9 @@ export default defineConfig({
     // Suite chủ yếu nói chuyện với origin `auth-<ns>` — mọi browser navigation
     // mặc định trỏ đây; các origin khác (account/office) được navigate tường
     // minh bằng URL tuyệt đối. Hostname per-worktree (#316) qua cùng helper
-    // phía trên; placeholder `.invalid` giữ nguyên dạng cũ khi .env vắng mặt.
-    baseURL: `https://${authServiceHostname()}`,
+    // phía trên, port giữ trong URL; placeholder `.invalid` giữ nguyên dạng cũ
+    // khi .env vắng mặt.
+    baseURL: authBaseOrigin(),
     // ⚠️ KHÔNG BAO GIỜ `ignoreHTTPSErrors: true` — xem khối quyết định TLS ở
     // đầu file.
     trace: 'retain-on-failure',
