@@ -23,7 +23,7 @@
  * wrangler từ đó. Secrets đi qua `envs` của container (kênh
  * container env — không argv, không label, không log), `pulumi.secret` bọc
  * trước khi interpolate để redact trong diff/log. Traefik route
- * `Host(auth.<rootHostname>)` theo bảng hostname của `02-account-auth.md`; router
+ * `Host(<auth>-<ns>.<rootHostname>)` theo bảng hostname của `02-account-auth.md`; router
  * đọc HTTP từ workerd (workerd chỉ nghe plain HTTP — TLS do Traefik chấm dứt
  * phía trước, cùng model home/backoffice; `x-forwarded-proto` được bridge
  * provider ghi lại từ URL scheme của request Worker, runtime.ts).
@@ -59,6 +59,8 @@ import {
   LOCAL_BACKOFFICE_CLIENT_ID,
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   shellQuote,
@@ -147,6 +149,30 @@ const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
 const rootHostname = requirePlatformOutput('rootHostname');
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316). Namespace của MỌI stack
+// trong worktree là CÙNG MỘT giá trị (xxHash64 trên worktree root — `ns` bên
+// trên), nên các hostname của service KHÁC (account/office/pact/remote-cache-app
+// /api) cũng suy được tại đây qua cùng contract `@ecoma-io/deployment` — không
+// cần output chéo stack mới; issuer/audience/redirect URI ghim ở đây phải khớp
+// exact-string với cấu hình verify của từng consumer (backoffice, account,
+// pact, remote-cache-app) vì mọi bên đều dựng từ cùng helper này.
+// `rootHostname`/`traefikHostPort` là Output (StackReference) nên công thức
+// apply một lần qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const serviceHostname = (sub: string): pulumi.Output<string> =>
+  rootHostname.apply((rh) => localServiceHostname(sub, rh, ns));
+const authOrigin = serviceOrigin('auth');
+const audienceOrigin = serviceOrigin('api');
+const accountOrigin = serviceOrigin('account');
+const officeOrigin = serviceOrigin('office');
+const pactOrigin = serviceOrigin('pact');
+const remoteCacheAppOrigin = serviceOrigin('remote-cache-app');
+// Router rule `Host()` match hostname KHÔNG port — dùng biến hostname riêng.
+const authHostname = serviceHostname('auth');
 
 // Mật khẩu ba role của db-auth — do orchestration sinh và truyền qua --config
 // (stdin, không argv). KHÔNG có ownerPassword ở đây: password của `ecoma_owner`
@@ -267,31 +293,31 @@ const migrate = new command.local.Command(
  * path cố định `/api/auth/callback` của chính app backoffice
  * (`apps/backoffice/server/api/auth/login.get.ts` — `callbackRedirectUri` ghép
  * header `Host` của request với path này), nên URI đăng ký là
- * `https://office.<rootHostname>:<traefikHostPort>/api/auth/callback` — đúng
- * origin Traefik serve (`office.<rootHostname>`, cùng bảng hostname của
- * `02-account-auth.md`). So khớp ở `auth` là exact string, và `Host` mà browser
- * gửi luôn mang port (`fbi.com:<port>` — port là một phần của URL client,
- * Traefik vẫn match rule `Host(office.fbi.com)` không port) — bỏ port là
+ * `${officeOrigin}/api/auth/callback` — đúng origin Traefik serve
+ * (hostname `office-<ns>.<rootHostname>` theo worktree, #316, qua contract
+ * `localServiceOrigin` của `02-account-auth.md`). So khớp ở `auth` là exact
+ * string, và `Host` mà browser gửi luôn mang port (port là một phần của URL
+ * client, Traefik vẫn match rule `Host(...)` không port) — bỏ port là
  * exact-match fail ở bước authorize. URI theo output platform là cách duy nhất
  * khớp exact-match mà không seed dải port đoán trước.
  */
-const redirectUriLocal = pulumi.interpolate`https://office.${rootHostname}:${traefikHostPort}/api/auth/callback`;
+const redirectUriLocal = pulumi.interpolate`${officeOrigin}/api/auth/callback`;
 
 /**
  * Redirect URI của client `pact-broker-app` — callback BFF của
  * `pact-broker-app` (route `/api/auth/callback`, ADR-0031 §4). Cùng luật port
  * động + exact-match với `redirectUriLocal` phía trên; origin ghim này phải
- * khớp origin Traefik route `Host(pact.<rootHostname>)` của unit pact-app.
+ * khớp origin Traefik route `Host(pact-<ns>.<rootHostname>)` của unit pact-app.
  */
-const redirectUriPactLocal = pulumi.interpolate`https://pact.${rootHostname}:${traefikHostPort}/api/auth/callback`;
+const redirectUriPactLocal = pulumi.interpolate`${pactOrigin}/api/auth/callback`;
 
 /**
  * Redirect URI của client `remote-cache-app` (issue #180, ADR-0031 §4) — callback
  * BFF của `remote-cache-app` (route `/api/auth/callback`). Cùng luật port động +
  * exact-match với hai URI phía trên; origin ghim này phải khớp origin Traefik
- * route `Host(remote-cache-app.<rootHostname>)` của unit remote-cache-app.
+ * route `Host(remote-cache-app-<ns>.<rootHostname>)` của unit remote-cache-app.
  */
-const redirectUriRemoteCacheAppLocal = pulumi.interpolate`https://remote-cache-app.${rootHostname}:${traefikHostPort}/api/auth/callback`;
+const redirectUriRemoteCacheAppLocal = pulumi.interpolate`${remoteCacheAppOrigin}/api/auth/callback`;
 
 /**
  * Seed client public `backoffice` cho authorize endpoint sống lại trên local
@@ -300,8 +326,8 @@ const redirectUriRemoteCacheAppLocal = pulumi.interpolate`https://remote-cache-a
  *
  * ⚠️ Vì sao seed ở deploy program mà KHÔNG phải migration `apps/auth/migrations/`:
  * redirect URI được so **exact string** (`client_redirect_uris`, FR-002), và
- * origin thật của callback BFF trên local là `https://office.<rootHostname>` với
- * `<rootHostname>` mang port Docker cấp động lúc create (`buildRootHost` — port
+ * origin thật của callback BFF trên local là `https://office-<ns>.<rootHostname>`
+ * với port Docker cấp động lúc create (port chỉ có SAU khi platform up —
  * chỉ có SAU khi platform up). Migration là tài sản dùng chung mọi môi trường,
  * không thể mang một URI theo môi trường — đường đúng là seed per-environment
  * thuộc deployment, cùng pattern seed machine token của `pact-broker-api-deploy`
@@ -336,7 +362,7 @@ const redirectUriRemoteCacheAppLocal = pulumi.interpolate`https://remote-cache-a
  * #206 (ADR-0031 §4) seed thêm client public thứ hai `pact-broker-app` trong
  * CÙNG script idempotent — BFF của pact-broker-app chạy authorization-code +
  * PKCE với scope `openid offline_access`, redirect URI callback
- * `/api/auth/callback` trên origin `https://pact.<rootHostname>:<port>`. Cùng
+ * `/api/auth/callback` trên origin `https://pact-<ns>.<rootHostname>:<port>`. Cùng
  * idempotency hai mệnh đề với backoffice; `client_id` sống ở
  * `./local-clients.js` và được `pact-broker-app-deploy` đọc cross-stack qua
  * stack config `namespace:pactBrokerAppClientId`.
@@ -412,7 +438,8 @@ const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_au
 
 /**
  * Cặp AUTH_ISSUER/AUTH_AUDIENCE giá trị local: issuer là origin HTTPS mà
- * Traefik serve (`auth.<rootHostname>:<traefikHostPort>`) — provider khởi tạo
+ * Traefik serve (`authOrigin` — `https://auth-<ns>.<rootHostname>:<traefikHostPort>`,
+ * qua contract `localServiceOrigin`) — provider khởi tạo
  * với ĐÚNG origin này (resume URL, JWKS `iss`, cookies scope đều quy về origin
  * ấy, xem `oidc-fullflow.spec.ts` §bootProvider); audience là resource
  * indicator chỉ cần nhất quán trong local (config requireSecret, không
@@ -423,15 +450,15 @@ const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_au
  * (a) **Browser flows cần port trong URL** — port 443 KHÔNG listen trên host
  *     (Traefik chỉ publish MỘT host port động, bind 127.0.0.1); mọi URL browser
  *     dùng (`/authorize` redirect, discovery, JWKS) đều đi qua
- *     `https://auth.<host>:<port>`. Issuer thiếu port là browser bị redirect về
- *     một origin không tồn tại.
+ *     `https://auth-<ns>.<host>:<port>`. Issuer thiếu port là browser bị
+ *     redirect về một origin không tồn tại.
  *
  * (b) **oidc-provider mint `iss` từ hằng này** (`AUTH_ISSUER` → `config.issuer`)
- *     — verifier phía `backoffice` cấu hình ĐÚNG chuỗi (cùng output
- *     `rootHostname`/`traefikHostPort` qua `NUXT_BACKOFFICE_AUTH_*`) thì phép so
+ *     — verifier phía `backoffice` cấu hình ĐÚNG chuỗi (cùng contract
+ *     `localServiceOrigin` qua `NUXT_BACKOFFICE_AUTH_*`) thì phép so
  *     `iss` exact khớp. Hai bên lệch một chữ (thiếu port) là mọi token `invalid`.
  *
- * (c) **Traefik match `Host()` bỏ qua port** — rule `Host(auth.<rootHostname>)`
+ * (c) **Traefik match `Host()` bỏ qua port** — rule `Host(auth-<ns>.<rootHostname>)`
  *     không đổi; port của Host header không tham gia so khớp, nên routing chưa
  *     cần biết issuer có port.
  *
@@ -441,8 +468,8 @@ const hyperdriveLocalConnectionString = pulumi.interpolate`postgresql://ecoma_au
  *     (issuer production là origin ổn định không port). Cùng hệ quả với
  *     redirect URI đã seed: port mới là URI mới, URI cũ vô hại còn trong bảng.
  */
-const issuerLocal = pulumi.interpolate`https://auth.${rootHostname}:${traefikHostPort}`;
-const audienceLocal = pulumi.interpolate`https://api.${rootHostname}:${traefikHostPort}`;
+const issuerLocal = authOrigin;
+const audienceLocal = audienceOrigin;
 
 /**
  * Volume RW duy nhất của WIC: state wrangler (`--persist-to` của HAI worker —
@@ -665,7 +692,7 @@ const wic = new docker.Container(
       // browser là bên đi theo URL, nên thiếu port là browser rơi vào origin
       // không listen. Account container chỉ nhìn `Host()` (bỏ port) nên
       // routing không đổi.
-      pulumi.interpolate`AUTH_ACCOUNT_BASE_URL=https://account.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`AUTH_ACCOUNT_BASE_URL=${accountOrigin}`,
       pulumi.interpolate`BRIDGE_TARGET_ORIGIN=http://${dockerResourceName(ns, 'account')}:3000`,
     ],
     labels: [
@@ -685,7 +712,7 @@ const wic = new docker.Container(
       { label: 'traefik.docker.network', value: networkName },
       {
         label: `traefik.http.routers.auth-${ns}.rule`,
-        value: pulumi.interpolate`Host(\`auth.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${authHostname}\`)`,
       },
       {
         label: `traefik.http.routers.auth-${ns}.entrypoints`,

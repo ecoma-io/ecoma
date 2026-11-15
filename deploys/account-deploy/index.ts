@@ -5,7 +5,7 @@
  * Đủ vòng đời theo `02-account-auth.md` §Dependency graph: provision `db-account`
  * + bộ 4 role chuẩn (owner/migrator/runtime/pruner) → migration đường canonical
  * (`apps/account/db/apply.mts`) → image `node-server` → container trên platform
- * network với Traefik router `Host(account.<rootHostname>)` → readiness qua
+ * network với Traefik router `Host(account-<ns>.<rootHostname>)` → readiness qua
  * `GET /ready` (chạm DB thật, không phải `/health`).
  *
  * Mirror `deploys/backoffice-deploy/index.ts` (cùng ownership labels, namespace,
@@ -46,6 +46,8 @@ import * as pulumi from '@pulumi/pulumi';
 import {
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -129,6 +131,18 @@ const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
 const rootHostname = requirePlatformOutput('rootHostname');
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316) — issuer auth ghim qua
+// contract `@ecoma-io/deployment`, cùng nguồn với auth-deploy (so khớp `iss`
+// cấu trúc ở bên nhận token) và rule router account. `rootHostname`/
+// `traefikHostPort` là Output (StackReference) nên công thức apply một lần
+// qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const authIssuerOrigin = serviceOrigin('auth');
+const accountHostname = rootHostname.apply((rh) => localServiceHostname('account', rh, ns));
 
 // Mật khẩu bốn role — do orchestration sinh và truyền qua --config (stdin, không argv).
 const ownerPassword = conf.require('ownerPassword');
@@ -403,11 +417,11 @@ const account = new docker.Container(
       // browser tự theo URL nên origin PHẢI mang port Traefik publish (443 không
       // listen). Ghim chuỗi (`iss` pin) KHÔNG cần ở đây vì account không verify
       // `iss` — nó chỉ dựng redirect target; nhưng giá trị vẫn PHẢI khớp cấu trúc
-      // với issuer auth mint (`AUTH_ISSUER` của auth-deploy: cùng
-      // `rootHostname` + `traefikHostPort`) — lệch một chữ là hop confirm gõ sai
+      // với issuer auth mint (`AUTH_ISSUER` của auth-deploy: cùng contract
+      // `localServiceOrigin`) — lệch một chữ là hop confirm gõ sai
       // origin. Precedent đối xứng: `AUTH_ACCOUNT_BASE_URL` bên auth-deploy trỏ
       // ngược origin account, cùng công thức output.
-      pulumi.interpolate`NUXT_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NUXT_AUTH_ISSUER=${authIssuerOrigin}`,
     ],
     labels: [
       ...Object.entries(labels).map(([label, value]) => ({ label, value })),
@@ -418,7 +432,7 @@ const account = new docker.Container(
       { label: 'traefik.docker.network', value: networkName },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-        value: pulumi.interpolate`Host(\`account.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${accountHostname}\`)`,
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,

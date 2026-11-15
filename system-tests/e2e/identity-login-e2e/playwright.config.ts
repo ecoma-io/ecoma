@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { X509Certificate, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Cấu hình Playwright cho suite system E2E `identity-login-e2e` — suite kiểm
@@ -60,16 +63,49 @@ function computeSpkiHash(pem: string): string {
 
 const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
 
-/** Tách `host:port` từ giá trị `ROOT_HOST`, mặc định port 443. */
-function withOrigin(raw: string): string {
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `${hostname}:${port}`;
+/**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
+ * dò của `resolveStackNamespace()` trong `e2e/support/local-stack.ts`, hai bản
+ * cố ý vì config eval không import support). KHÔNG được gọi khi `ROOT_HOST`
+ * vắng mặt (placeholder path). Docker vắng mặt thì trả `undefined` thay vì ném
+ * — config KHÔNG BAO GIỜ throw (khối quyết định graph-eval ở đầu file);
+ * fail-closed thật thuộc global-setup.
+ */
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    return undefined;
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
+    ) {
+      return namespace;
+    }
+  }
+  return undefined;
 }
 
 /**
- * Origin ACCOUNT của stack local — `account.<host>:<port>`, giữ nguyên port
- * (khối "KHÔNG cắt port" ở đầu file).
+ * Origin ACCOUNT của stack local — `account-<ns>.<host>:<port>`, giữ nguyên port
+ * (khối "KHÔNG cắt port" ở đầu file). Namespace per-worktree (#316) dò bằng
+ * container Traefik publish đúng port (cùng phép dò của `resolveStackNamespace()`
+ * trong `e2e/support/local-stack.ts` — hai bản cố ý); khi placeholder (`ROOT_HOST`
+ * vắng mặt) thì KHÔNG chạy docker — trả placeholder như cũ.
  *
  * Nguồn giá trị: `ROOT_HOST` env (Nx load `.env` repo root ngay
  * lúc CLI boot, nên qua `nx run`/`npx playwright test` dưới target Nx thì
@@ -88,7 +124,15 @@ function withOrigin(raw: string): string {
 function resolveStackOrigin(): string {
   const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
-    return `account.${withOrigin(raw.trim())}`;
+    const rootHostname = raw.trim().split(':')[0];
+    const port = raw.includes(':') ? (raw.trim().split(':')[1] ?? '443') : '443';
+    // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+    // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+    const namespace = traefikNamespace(port);
+    if (namespace === undefined) {
+      return `account.placeholder.invalid:${port}`;
+    }
+    return `${localServiceHostname('account', rootHostname, namespace)}:${port}`;
   }
   return 'account.placeholder.invalid:443';
 }

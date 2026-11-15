@@ -98,6 +98,76 @@ export function buildRootHost(traefikHostPort: number): string {
 }
 
 /**
+ * Hostname browser-facing của một service local THEO worktree:
+ * `<sub>-<namespace>.<rootHostname>`.
+ *
+ * #316: hai worktree chạy song song trên cùng browser profile không được chia
+ * sẻ cookie — cookie scoping theo hostname (không theo port), nên mọi service
+ * browser-facing cần hostname riêng theo namespace worktree. Một nhãn DNS
+ * thêm vào (ví dụ `auth-w1a2b3c4d5e6f.fbi.com`) khớp đúng wildcard cert
+ * (`*.fbi.com` — SAN chỉ phủ MỘT nhãn thêm) và wildcard DNS public
+ * (`*.fbi.com → 127.0.0.1`); apex `fbi.com` (home) KHÔNG qua helper này —
+ * home không set cookie nào nên apex giữ chia sẻ giữa các worktree.
+ *
+ * `namespace` đến từ `worktreeNamespace()` — cơ chế namespace DUY NHẤT; mọi
+ * deploy program lẫn E2E helper phải suy origin qua helper này thay vì ghép
+ * `<sub>.<rootHostname>` riêng lẻ, để issuer/audience/redirect URI/router
+ * rule khớp exact-string với nhau theo cấu trúc.
+ *
+ * Local-only: staging/production không dùng hostname dạng này.
+ */
+export function localServiceHostname(sub: string, rootHostname: string, namespace: string): string {
+  // Ranh giới contract: đầu vào xấu sinh hostname invalid (router `Host()` lệch,
+  // cookie `__Host-` scope sai) — fail-loud thay vì ghép chuỗi hỏng lặng lẽ.
+  // `sub`/`namespace` chỉ được phép là ĐÚNG MỘT DNS label (không dấu chấm): lệch
+  // hợp đồng này là lỗi của caller, không phải dữ liệu cần phiên dịch.
+  for (const [name, value] of [
+    ['sub', sub],
+    ['rootHostname', rootHostname],
+    ['namespace', namespace],
+  ] as const) {
+    if (value.length === 0) {
+      throw new Error(`localServiceHostname: ${name} must not be empty`);
+    }
+  }
+  for (const [name, value] of [
+    ['sub', sub],
+    ['namespace', namespace],
+  ] as const) {
+    if (value.includes('.')) {
+      throw new Error(
+        `localServiceHostname: ${name} "${value}" must be a single DNS label (no dots) — ` +
+          'the helper adds exactly one extra label to the root hostname',
+      );
+    }
+  }
+  return `${sub}-${namespace}.${rootHostname}`;
+}
+
+/**
+ * Origin HTTPS browser-facing của một service local theo worktree — ghép
+ * hostname qua `localServiceHostname` với port Traefik publish.
+ *
+ * Dành cho các chuỗi origin browser thực sự mang port (issuer, audience,
+ * redirect URI — port 443 không listen nên browser chỉ tới được origin có
+ * port). Router rule `Host()` thì match hostname KHÔNG port — dùng
+ * `localServiceHostname` cho rule đó, đừng cắt port từ origin.
+ */
+export function localServiceOrigin(
+  sub: string,
+  rootHostname: string,
+  namespace: string,
+  traefikHostPort: number,
+): string {
+  if (!Number.isInteger(traefikHostPort) || traefikHostPort < 1 || traefikHostPort > 65535) {
+    throw new Error(
+      `localServiceOrigin: traefikHostPort ${traefikHostPort} is not a valid TCP port (1-65535)`,
+    );
+  }
+  return `https://${localServiceHostname(sub, rootHostname, namespace)}:${traefikHostPort}`;
+}
+
+/**
  * Đọc `traefikHostPort` từ output của Pulumi.
  *
  * `@pulumi/docker@5.2.0` không cho "ask" host port trước create: khi

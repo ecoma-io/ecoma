@@ -9,6 +9,8 @@ import {
   LOCAL_ENV_OWNED_KEYS,
   LOCAL_ENV_RETIRED_KEYS,
   LOCAL_ROOT_HOSTNAME,
+  localServiceHostname,
+  localServiceOrigin,
   POSTGRES_PASSWORD_ENV_KEY,
   ROOT_HOST_ENV_KEY,
   TRAEFIK_INTERNAL_PORT,
@@ -22,6 +24,83 @@ describe('buildRootHost', () => {
 
   it('the hostname is the agreed local constant', () => {
     expect(LOCAL_ROOT_HOSTNAME).toBe('fbi.com');
+  });
+});
+
+describe('localServiceHostname', () => {
+  it('embeds the namespace so different worktrees get different hostnames for the same service', () => {
+    // #316: hai worktree song song phải có cookie jar độc lập — cùng service,
+    // namespace khác là hostname khác, cookies `__Host-` theo hostname.
+    expect(localServiceHostname('auth', 'fbi.com', 'w1a2b3c4d5e6f')).toBe(
+      'auth-w1a2b3c4d5e6f.fbi.com',
+    );
+    expect(localServiceHostname('auth', 'fbi.com', 'wffffffffffff')).toBe(
+      'auth-wffffffffffff.fbi.com',
+    );
+  });
+
+  it('always produces exactly one extra DNS label — the wildcard `*.fbi.com` covers it', () => {
+    // Cert SAN là `fbi.com` + `*.fbi.com` — wildcard chỉ match MỘT nhãn thêm.
+    // Ghim hình dạng: không dot trong sub, không dot trong namespace (cả hai
+    // theo `worktreeNamespace`: prefix `w` + 12 hex), nên `<sub>-<ns>.<root>`
+    // luôn một nhãn duy nhất trước apex.
+    const services = ['auth', 'account', 'office', 'api', 'pact', 'llm-console'];
+    for (const sub of services) {
+      expect(localServiceHostname(sub, 'fbi.com', 'w1a2b3c4d5e6f')).toMatch(
+        /^[a-z0-9-]+\.fbi\.com$/u,
+      );
+      expect(localServiceHostname(sub, 'fbi.com', 'w1a2b3c4d5e6f').split('.')).toHaveLength(3);
+    }
+  });
+
+  it('does not touch the apex hostname — home stays shared across worktrees', () => {
+    // Apex (home) không qua helper: contract giữ `LOCAL_ROOT_HOSTNAME` nguyên
+    // và `buildRootHost` không nhận namespace.
+    expect(LOCAL_ROOT_HOSTNAME).toBe('fbi.com');
+    expect(buildRootHost(32768)).toBe('fbi.com:32768');
+  });
+});
+
+describe('localServiceOrigin', () => {
+  it('keeps the dynamic Traefik port in the origin — browsers can only reach the published port', () => {
+    expect(localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 33118)).toBe(
+      'https://auth-w1a2b3c4d5e6f.fbi.com:33118',
+    );
+  });
+
+  it('differs per namespace for the same service', () => {
+    expect(localServiceOrigin('account', 'fbi.com', 'w1a2b3c4d5e6f', 33118)).not.toEqual(
+      localServiceOrigin('account', 'fbi.com', 'wffffffffffff', 33118),
+    );
+  });
+
+  it('rejects empty sub, rootHostname and namespace, and a dot inside sub or namespace', () => {
+    // Ranh giới contract: đầu vào xấu phải fail-loud — hostname invalid làm
+    // router `Host()` lệch và cookie `__Host-` scope sai, lặng lẽ là tệ nhất.
+    expect(() => localServiceHostname('', 'fbi.com', 'w1a2b3c4d5e6f')).toThrow(/sub/u);
+    expect(() => localServiceHostname('auth', '', 'w1a2b3c4d5e6f')).toThrow(/rootHostname/u);
+    expect(() => localServiceHostname('auth', 'fbi.com', '')).toThrow(/namespace/u);
+    expect(() => localServiceHostname('auth.x', 'fbi.com', 'w1a2b3c4d5e6f')).toThrow(
+      /single DNS label/u,
+    );
+    expect(() => localServiceHostname('auth', 'fbi.com', 'w1a.3c4d5e6f')).toThrow(
+      /single DNS label/u,
+    );
+  });
+
+  it('rejects a non-integer or out-of-range Traefik port', () => {
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', Number.NaN)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 0)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 70000)).toThrow(
+      /valid TCP port/u,
+    );
+    expect(() => localServiceOrigin('auth', 'fbi.com', 'w1a2b3c4d5e6f', 3.5)).toThrow(
+      /valid TCP port/u,
+    );
   });
 });
 

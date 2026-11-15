@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Stack gate fail-closed — probe TRƯỚC KHI suite chạy, không phải trong từng test.
@@ -79,6 +82,55 @@ function readHostPort(raw: string): { hostname: string; port: string } {
   return { hostname, port };
 }
 
+/**
+ * Namespace worktree của stack mà ROOT_HOST đang trỏ tới — dò bằng `docker ps`:
+ * container `ecoma-<ns>-traefik` publish đúng port trong ROOT_HOST (cùng phép
+ * dò của `resolveStackNamespace()` trong `e2e/support/local-stack.ts`, hai bản
+ * cố ý vì global-setup không import support). Không tìm thấy là lỗi cài đặt
+ * stack — gate fail với remedy thay vì đoán namespace. Port truyền vào từ
+ * caller (`main` đã resolve gốc rồi — không đọc lại cert/.env ở đây).
+ */
+function traefikNamespace(hostname: string, port: string): string {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch (error) {
+    // `error` là `unknown` — `execFileSync` thường ném `ErrnoException` nhưng
+    // đừng ép kiểu mù quáng: extract message qua `instanceof` để thông báo lỗi
+    // không bao giờ lọt đoạn `undefined` dù thrown value là chuỗi.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `docker ps failed while discovering the worktree namespace (${message}) — ` +
+        'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
+      { cause: error },
+    );
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    // Docker in `127.0.0.1:33118->443/tcp` — match port public Traefik.
+    // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+    const [, namespace, ports] = match;
+    if (
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) &&
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace)
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} of ${hostname} — ` +
+      'the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.',
+  );
+}
+
 function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
   const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
   const raw = process.env.ROOT_HOST;
@@ -116,25 +168,23 @@ function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
  * Request Node thuần với `ca` scoped — TƯỜNG MINH về TLS verify: sau response,
  * khẳng định `socket.authorized === true` thay vì tin rằng "request thành công
  * nghĩa là TLS đã verify". Nếu sau này ai thêm `rejectUnauthorized: false`,
- * probe phải ĐỎ ở đây ngay (pattern của `local-smoke.mjs`).
+ * probe phải ĐỎ ở đây ngay (pattern của `local-smoke.mjs`). `targetHostname` là
+ * hostname ĐẦY ĐỦ per-worktree (`account-<ns>.<host>`) — khác `hostname` gốc
+ * của module scope.
  */
-function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeResult> {
-  // Probe tới ĐÚNG hostname mà suite dùng (`account.<host>`) — SNI + TCP cùng
-  // đường với request thật: gate sẽ đỏ nếu chỉ root host resolve được còn
-  // subdomain không (xanh giả thì test vẫn chết DNS ở bước sau, muộn hơn cần).
-  const probeHost = `account.${hostname}`;
+function probeOnce(targetHostname: string, port: string, ca: string): Promise<ProbeResult> {
   return new Promise((resolve, reject) => {
     const request = https.get(
       {
-        host: probeHost,
+        host: targetHostname,
         port,
         path: '/api/auth/session',
         ca,
-        servername: probeHost,
+        servername: targetHostname,
         headers: {
           // `Host` tường minh cùng dạng `hostname:port` — khớp đúng rule
-          // `Host(\`account.<host>\`)` của Traefik (xem `local-smoke.mjs`).
-          Host: `account.${hostname}:${port}`,
+          // `Host(\`account-<ns>.<host>\`)` của Traefik (xem `local-smoke.mjs`).
+          Host: `${targetHostname}:${port}`,
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       },
@@ -194,7 +244,22 @@ function fail(origin: string, elapsedMs: number, error: Error): never {
 
 async function main(): Promise<void> {
   const { hostname, port, ca } = resolveRootOrigin();
-  const origin = `https://account.${hostname}:${port}`;
+  // Hostname per-worktree (#316): namespace dò từ container Traefik publish
+  // đúng port trong ROOT_HOST — cùng phép dò của `resolveStackNamespace()` trong
+  // `e2e/support/local-stack.ts` (hai bản cố ý: global-setup không import support).
+  // Lỗi dò (Docker vắng mặt, container không khớp) là lỗi cài đặt stack — đưa
+  // vào đường `fail()` của gate thay vì unhandled rejection.
+  let namespace: string;
+  try {
+    namespace = traefikNamespace(hostname, port);
+  } catch (error) {
+    console.error(
+      `stack gate FAILED while discovering the per-worktree namespace: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
+  const probeHostname = localServiceHostname('account', hostname, namespace);
+  const origin = `https://${probeHostname}:${port}`;
   const startedAt = Date.now();
   let backoffMs = BACKOFF_INITIAL_MS;
   let lastFailure = new Error('probe never ran');
@@ -202,7 +267,7 @@ async function main(): Promise<void> {
   for (;;) {
     let result: ProbeResult | undefined;
     try {
-      result = await probeOnce(hostname, port, ca);
+      result = await probeOnce(probeHostname, port, ca);
     } catch (error) {
       if (!(error instanceof RetryableError)) {
         fail(origin, Date.now() - startedAt, error as Error);

@@ -32,6 +32,7 @@ import {
   type DeployResourceKind,
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -89,6 +90,11 @@ function requirePlatformOutput<K extends keyof PlatformOutputs>(
 const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
 const rootHostname = requirePlatformOutput('rootHostname');
+// Hostname browser-facing theo worktree (#316) — qua contract
+// `@ecoma-io/deployment`, cùng công thức với mọi router browser-facing khác.
+// `rootHostname` là Output (StackReference) — apply một lần qua lambda;
+// helper trong lib giữ thuần string.
+const appHostname = rootHostname.apply((rh) => localServiceHostname('llm-seller', rh, ns));
 
 // Fail-closed khi hai stack không thuộc cùng một worktree — export ở cuối file
 // để throw trong `apply` làm `pulumi up` fail. Xem `pact-broker-app-deploy`.
@@ -164,7 +170,7 @@ const llmSeller = new docker.Container(dockerResourceName(ns, sellerKind), {
     },
     {
       label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-      value: pulumi.interpolate`Host(\`llm-seller.${rootHostname}\`)`,
+      value: pulumi.interpolate`Host(\`${appHostname}\`)`,
     },
     {
       label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,
