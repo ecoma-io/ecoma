@@ -351,8 +351,9 @@ async function sessionTokens(identifier: string): Promise<{ access: string; refr
 describe('pact-broker-app BFF access-token refresh (#258)', () => {
   afterEach(() => {
     // Test có trách nhiệm trả `/token` về chế độ bình thường — suite còn lại
-    // (login/logout) phụ thuộc grant thành công.
-    stack.fakeAuth.setTokenMode('ok');
+    // (login/logout) phụ thuộc grant thành công. Optional-chain khớp style
+    // afterAll (stack có thể undefined nếu beforeAll hỏng).
+    stack?.fakeAuth?.setTokenMode('ok');
   });
   it('renews an expired token on the next request and persists the rotated refresh token', async () => {
     const identifier = await expiredTokenSession('old-refresh-token');
@@ -413,6 +414,7 @@ describe('pact-broker-app BFF access-token refresh (#258)', () => {
       );
       return result.rows[0];
     });
+    expect(row).toBeDefined();
     expect(row?.revoked_at).not.toBeNull();
   });
 });
