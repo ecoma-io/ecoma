@@ -6,12 +6,12 @@
 
 ## Hostname
 
-| Unit    | URL local         | Production (tham chiếu) |
-| ------- | ----------------- | ----------------------- |
-| account | `account.fbi.com` | `account.ecoma.io`      |
-| auth    | `auth.fbi.com`    | `auth.ecoma.io`         |
+| Unit    | URL local              | Production (tham chiếu) |
+| ------- | ---------------------- | ----------------------- |
+| account | `account-<ns>.fbi.com` | `account.ecoma.io`      |
+| auth    | `auth-<ns>.fbi.com`    | `auth.ecoma.io`         |
 
-Cả hai hostname thuộc wildcard cert `*.fbi.com` hiện có — không thêm cert, không thêm DNS. Router Traefik của mỗi unit theo mẫu `Host(<sub>.${rootHostname})` như backoffice với `office.fbi.com`.
+Cả hai hostname thuộc wildcard cert `*.fbi.com` hiện có — không thêm cert, không thêm DNS: hostname local là `<sub>-<namespace>.<rootHostname>` với `<ns>` là namespace worktree (`worktreeNamespace()`, một nhãn DNS thêm — wildcard chỉ phủ đúng một nhãn). Router Traefik của mỗi unit theo mẫu `Host(<sub>-<ns>.${rootHostname})` như backoffice với `office-<ns>.fbi.com`.Hostname per-worktree là quyết định #316: cookie scope theo hostname chứ không theo port, hai worktree deploy song song trên cùng browser profile cần cookie jar độc lập; mọi origin browser-facing suy qua contract `localServiceHostname`/`localServiceOrigin` của `@ecoma-io/deployment` — issuer, audience, redirect URI và router rule khớp exact-string với nhau. Apex `fbi.com` (home) giữ chia sẻ giữa các worktree — home không set cookie.
 
 ## Topology và ownership
 
@@ -43,7 +43,7 @@ Hệ quả, áp dụng cho cả auth lẫn shim bridge:
 - Hai process `wrangler dev` khởi động đồng thời đua dò port inspector từ 9229 (devtools, không dùng trong WIC) và chết vì race `Address already in use` — entrypoint ghim `--inspector-port` khác nhau cho mỗi process.
 - Secrets của worker đi vào bằng **container envs** (kênh duy nhất — không argv, không labels, không log): orchestration sinh giá trị qua `pulumi.secret` → envs của resource Docker; entrypoint bật `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` để wrangler nạp process env thành bindings của worker (mặc định wrangler dev bỏ qua process env, chỉ đọc `.dev.vars`).
 - Volume `/state` là named volume ephemeral của stack (không `retainOnDelete` — chỉ là working dir wrangler, không phải dữ liệu); một container init một-shot `chown 1000:1000` chạy trước WIC vì named volume mới thuộc root.
-- Container WIC gia nhập platform network với alias DNS `ecoma-<ns>-auth`; Traefik route `Host(auth.<rootHostname>)` trỏ port trong `4203`.
+- Container WIC gia nhập platform network với alias DNS `ecoma-<ns>-auth`; Traefik route `Host(auth-<ns>.<rootHostname>)` trỏ port trong `4203`.
 - `WRANGLER_ENV_ALLOWLIST` trong `tools/dx` phải cho `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_*` đi xuống process wrangler — hiện allowlist chặn (sửa thuộc PR Worker runtime).
 
 ## Service bindings (Problem B — đã chốt)
