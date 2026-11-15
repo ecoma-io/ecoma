@@ -104,6 +104,9 @@ export {
   fetchStaffEntitlements,
   fetchStaffAssignments,
   fetchAuditEntries,
+  createStaff,
+  createStaffAssignment,
+  revokeStaffAssignment,
 } from './staff-access/client';
 export type { StaffServiceBinding } from './staff-access/client';
 export type {
@@ -114,4 +117,6 @@ export type {
   StaffAssignmentsCallResult,
   AuditListCallResult,
   StaffAccessCallFailureReason,
+  StaffAssignmentWriteResult,
+  StaffCreateWriteResult,
 } from './staff-access/client';

@@ -24,6 +24,14 @@ import {
  *
  * Đây là danh sách đóng: test đối chiếu cả tổng số điều khiển tương tác trong phần
  * nội dung, nên thêm một nút hay một form mới sẽ đỏ ngay, chứ không lặng lẽ lọt qua.
+ *
+ * ⚠️ Phạm vi mode (issue #191): danh sách này áp dụng cho **lane prototype** —
+ * lane duy nhất chạy suite này (config gắn `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=
+ * prototype`). Ở data mode realtime, trang `/staff` được phép render control ghi
+ * (form tạo staff, gán/thu hồi role — #191); các control đó không được xuất hiện
+ * ở đây vì prototype cố ý không render chúng (`isPreview === true` ⇒ không
+ * control ghi nào). Lane Playwright realtime với regression luồng write chưa
+ * tồn tại — thuộc #182 (lane + luồng login thật).
  */
 const READ_ONLY_CONTROLS = [
   {

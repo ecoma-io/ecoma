@@ -54,6 +54,7 @@ afterEach(() => {
 /** Dữ liệu cố ý khác fixture: xem ghi chú (3) ở đầu file. */
 const STAFF: readonly [StaffMember] = [
   {
+    staffId: '',
     accountId: 'acct_5T3STX00000000000000000AHJ',
     displayName: 'Nhân Viên Kiểm Thử',
     status: 'active',
@@ -378,6 +379,7 @@ describe('staff — tells an empty result set apart from a search miss', () => {
     const staff: readonly [StaffMember, StaffMember] = [
       at(STAFF),
       {
+        staffId: '',
         accountId: 'acct_6T3STX00000000000000000BKM',
         displayName: 'Nhân Viên Bị Đình Chỉ',
         status: 'suspended',

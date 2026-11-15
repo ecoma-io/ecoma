@@ -57,6 +57,12 @@ export type StaffEntitlementSummary = {
 export type StaffMember = {
   /** Account ID (`sub`) — reference ổn định, không tái phát hành/không tái sử dụng. */
   readonly accountId: string;
+  /**
+   * UUID nội bộ của staff trong Staff Access — tham chiếu cho đường
+   * assignment (gán/thu hồi role). `''` khi adapter không đồng bộ nó
+   * (prototype).
+   */
+  readonly staffId: string;
   readonly displayName: string;
   readonly status: StaffStatus;
   /** Các role đã gán — tập rỗng là hợp lệ: một Account tồn tại không hàm ý là staff. */
@@ -111,20 +117,50 @@ export type BackofficePrototypeData = {
 };
 
 /**
+ * Một role assignment đang hiệu lực của một staff — dùng cho control thu hồi.
+ *
+ * ⚠️ `roleId` là **UUID catalog** của Staff Access (không phải nhãn hiển thị);
+ * nhãn đi qua i18n/catalog theo `id`.
+ */
+export type StaffAssignment = {
+  readonly assignmentId: string;
+  readonly roleId: string;
+  /** `null` = còn hiệu lực. */
+  readonly revokedAt: string | null;
+};
+
+/**
+ * Kết quả một thao tác ghi qua adapter — discriminated union, không ném.
+ *
+ * `message` là lý do từ chối domain mà staff-access trả (403 denial,
+ * 409 conflict) — forward nguyên vẹn để UI hiện đúng lý do, ví dụ
+ * `self_revocation_last_administrator`. Lỗi hạ tầng (`unreachable`,
+ * `invalid_response`) không mang `message` hiển thị được.
+ */
+export type BackofficeWriteResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly status?: number; readonly message?: string };
+
+/**
  * Adapter dữ liệu backoffice — ranh giới duy nhất giữa UI và dữ liệu.
  *
  * Mọi phương thức **đọc** trả `Promise` dù hôm nay dữ liệu đến từ một fixture
  * cục bộ: đó là hình dạng mà một adapter thật sẽ có, và giữ nó từ đầu nghĩa là
  * đổi sang API thật là **thay thân một file**, không phải viết lại bốn trang.
  *
- * ⚠️ **Không có phương thức ghi nào**, và đó là thiết kế có chủ đích, không phải
- * phần chưa làm xong. Một thao tác ghi vào staff directory / role assignment /
- * catalog là **privileged operation** phải được enforce server-side
- * (`01-architecture.md` §7 cấm cả self-assignment lẫn self-elevation), và chưa có
- * server nào tồn tại. Thêm `assignRole()` vào đây hôm nay sẽ tạo đúng thứ mà
- * task cấm: một nút bấm làm state trong bộ nhớ đổi màu và người dùng tin rằng
- * quyền đã được cấp. Việc thêm nó sau này đi kèm contract + enforcement, không
- * đi trước.
+ * ## Phương thức ghi (#191)
+ *
+ * Ba phương thức ghi (`createStaff`, `assignRole`, `revokeRole`) thuộc cùng
+ * ranh giới adapter này, nhưng chỉ có nghĩa ở adapter **realtime**
+ * (`isPreview === false`): chúng gọi route BFF ghi, nơi staff-access enforce
+ * permission server-side trên từng request (ADR-0023 Quyết định 2 — BFF không
+ * phải nguồn quyết định quyền thứ hai). Hai adapter preview/mock và
+ * unavailable **reject** mọi thao tác ghi — prototype không bao giờ tạo cảm
+ * giác đã ghi được vào backend (S11).
+ *
+ * Ghi trả `BackofficeWriteResult` thay vì ném: một denial quyền (403) hay
+ * conflict (409) là **kết quả nghiệp vụ** UI phải hiện cho operator, không
+ * phải lỗi hiển thị trần như một lần đọc fail.
  *
  * ⚠️ `isPreview` là **cờ bắt buộc**, không phải gợi ý: UI bắt buộc phải hiển thị
  * banner "dữ liệu mẫu" chừng nào cờ này còn `true`, và một adapter thật phải trả
@@ -149,4 +185,23 @@ export type BackofficeDataAdapter = {
    * thời gian, correlation_id...). Chỉ đọc, append-only phía server.
    */
   listAuditEntries(query: Record<string, string>): Promise<readonly AuditEntry[]>;
+  /** Tạo staff identity cho một Account đã tồn tại (`POST /api/staff`). */
+  createStaff(request: {
+    readonly sub: string;
+    readonly displayName: string;
+  }): Promise<BackofficeWriteResult<StaffMember>>;
+  /** Gán một role cho staff member (`POST /api/staff/:id/assignments`). */
+  assignRole(request: {
+    readonly staffId: string;
+    readonly roleId: string;
+  }): Promise<BackofficeWriteResult<StaffAssignment>>;
+  /** Thu hồi một assignment theo id (`POST /api/assignments/revoke`). */
+  revokeRole(assignmentId: string): Promise<BackofficeWriteResult<StaffAssignment>>;
+  /**
+   * Đọc assignments của một staff member — đường đọc riêng cho control thu hồi
+   * (`GET /api/staff/:id/assignments`), dùng id nội bộ của Staff Access trả về
+   * trong sổ staff (`StaffMember.accountId` ở đây là `sub`; id nội bộ UUID là
+   * tham chiếu assignment).
+   */
+  listAssignments(staffInternalId: string): Promise<readonly StaffAssignment[]>;
 };

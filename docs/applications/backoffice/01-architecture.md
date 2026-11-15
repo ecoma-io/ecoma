@@ -55,7 +55,9 @@ Browser ──► GET /onboarding ─────────────► onb
 
 ## 3. API/protocol surfaces
 
-- BFF routes: `/api/staff`, `/api/onboarding-status`, `/api/me`, `/onboarding` (page đọc `/api/onboarding-status`).
+- BFF routes đọc: `/api/staff`, `/api/onboarding-status`, `/api/me`, `/onboarding` (page đọc `/api/onboarding-status`), và `/api/staff/:id/assignments` (GET — assignments của một staff, phục vụ control thu hồi trên `/staff`).
+- BFF routes ghi (#191): `POST /api/staff` (tạo staff identity), `POST /api/staff/:id/assignments` (gán role), `POST /api/assignments/revoke` (thu hồi assignment). Mỗi route kiểm session (principal từ middleware authn) + CSRF double-submit (`__Host-backoffice-csrf` echo trong header `x-ecoma-csrf`), rồi gọi write client đã ký envelope HMAC của Staff Access. **BFF không phải nguồn quyết định quyền thứ hai** (ADR-0023 Quyết định 2): verdict `staff.create` / `role.assign` / `role.revoke` do Staff Access enforce server-side trên từng request; 403 denial + audit `denied` và message domain (ví dụ `self_revocation_last_administrator`) được forward nguyên vẹn tới UI.
+- UI write controls (#191): form tạo staff và control gán/thu hồi role trên `/staff` chỉ render ở data mode realtime (`isPreview === false`); prototype không render control ghi nào (bảo vệ readonly-boundary/S11).
 - Internal contract: `GET /internal/account/profiles` của `account` qua Service Binding `ecoma-account-bridge` + envelope HMAC (signature + timestamp + nonce).
 - Authn boundary: principal lấy từ server-side verified token (`sub` là khóa tra cứu), không từ request body/param.
 
