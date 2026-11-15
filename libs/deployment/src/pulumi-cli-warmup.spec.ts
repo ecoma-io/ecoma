@@ -138,23 +138,35 @@ describe('warmPulumiCli', () => {
     // Bộ đếm nối tiếp qua các bản fresh module: bản thứ hai phải probe LẠI từ
     // đầu sau khi lần warm-up đầu thất bại (cache bị xoá khi reject), chứ không
     // truyền lại lỗi cũ của cache đã nhiễm. Default path dùng defaultSleep thật
-    // (2s/lượt) nên mock luôn-thất-bại trong lúc bản đầu sống để nó fail nhanh
-    // — nếu chỉ fail một lượt, 29 lượt retry thật vẫn chạy hết 58s.
+    // (2s/lượt) nên fake timers + advanceTimersByTime giúp 30 lượt retry chạy
+    // trong vài ms thay vì ~58s wall-clock.
     vi.doMock('node:child_process', () => ({ execFile: execFileMock }));
     execFileMock.mockImplementation((_file, _args, _opts, cb) => cb(new Error('spawn ETXTBSY')));
-    const first = await importFreshModule();
-    await expect(first.warmPulumiCli()).rejects.toThrow(/after 30 attempts/u);
-    // 30 lượt của module fail + 1 lượt của lần warm-up đầu (top-level default
-    // mock vẫn tính vào cùng mock dùng chung qua các test).
-    expect(execFileMock).toHaveBeenCalledTimes(31);
+    vi.useFakeTimers();
+    try {
+      const first = await importFreshModule();
+      const firstAttempt = first.warmPulumiCli();
+      // Gắn `.catch` no-op song song: assertion `rejects.toThrow` ở dưới vẫn
+      // chiếm rejection, còn bản này giữ promise không bị Unhandled Rejection
+      // trong lúc advanceTimersByTimeAsync chạy trước assertion.
+      firstAttempt.catch(() => undefined);
+      // Kéo hết 30 lượt retry (2s delay mỗi lượt) mà không chờ wall-clock.
+      await vi.advanceTimersByTimeAsync(31 * 2_000);
+      await expect(firstAttempt).rejects.toThrow(/after 30 attempts/u);
+      // 30 lượt của module fail + 1 lượt của lần warm-up đầu (top-level default
+      // mock vẫn tính vào cùng mock dùng chung qua các test).
+      expect(execFileMock).toHaveBeenCalledTimes(31);
 
-    execFileMock.mockImplementation((_file, _args, _opts, cb) =>
-      cb(null, { stdout: 'v3.276.0\n', stderr: '' }),
-    );
-    const second = await importFreshModule();
-    await second.warmPulumiCli();
-    expect(execFileMock).toHaveBeenCalledTimes(32);
-    // Default path dùng defaultSleep thật (2s/lượt retry) — 30 lượt fail + 1
-    // lượt pass tốn ~58s wall-clock, xa hơn default testTimeout 5s.
-  }, 70_000);
+      execFileMock.mockImplementation((_file, _args, _opts, cb) =>
+        cb(null, { stdout: 'v3.276.0\n', stderr: '' }),
+      );
+      const second = await importFreshModule();
+      const secondAttempt = second.warmPulumiCli();
+      await vi.advanceTimersByTimeAsync(2_000);
+      await secondAttempt;
+      expect(execFileMock).toHaveBeenCalledTimes(32);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
