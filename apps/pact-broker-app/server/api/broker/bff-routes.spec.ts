@@ -229,7 +229,10 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
         }),
       );
 
-      await call(`${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`, handler);
+      await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
       expect(calledPaths[0], `route: ${path}`).toBe(firstHopQuery[path]);
     }
   });
@@ -250,7 +253,10 @@ describe('every /api/broker route forwards upstream status verbatim', () => {
 
     for (const [path, handler] of ALL_ROUTES) {
       seenAuth.length = 0;
-      await call(`${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`, handler);
+      await call(
+        `${path}${ROUTE_QUERY[path] === undefined ? '' : `?${ROUTE_QUERY[path]}`}`,
+        handler,
+      );
       expect(seenAuth.length).toBeGreaterThan(0);
       for (const header of seenAuth) {
         expect(header, `route ${path}`).toBe(`Bearer ${USER_TOKEN}`);
