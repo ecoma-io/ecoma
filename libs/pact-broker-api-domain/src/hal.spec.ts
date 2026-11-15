@@ -87,6 +87,20 @@ describe('HalBuilder', () => {
     );
     expect(links[1]?.name).toBe('staging');
   });
+
+  // index() must advertise pb:latest-provider-pacts — the default
+  // pact-verifier-rust discovery relation; without it the standard verify
+  // command 404s (real CLI 18.10.9 run, #208/#294).
+  it('index() advertises a templated pb:latest-provider-pacts link', () => {
+    const hal = new HalBuilder('https://broker.example.com');
+    const links = hal.index();
+
+    expect(links['pb:latest-provider-pacts']).toEqual({
+      href: 'https://broker.example.com/pacts/provider/{provider}/latest',
+      title: 'Latest pacts for the specified provider',
+      templated: true,
+    });
+  });
 });
 
 describe('getBaseUrl', () => {
