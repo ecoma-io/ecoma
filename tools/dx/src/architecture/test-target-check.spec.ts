@@ -778,7 +778,6 @@ describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
     // JSON hỏng tức không chứng minh được target nào được khai — nuốt thành
     // "không khai gì" là đúng hình im lặng mà #265 phê phán.
     const { files, project } = goodApp();
-    files['apps/widget/package.json'] = pkg(['test', 'typecheck-db']);
     files['.github/workflows/ci.yaml'] = ciYaml(['test']);
     files['apps/widget/package.json'] = '{ broken json';
     const violations = run(files, [project]);
