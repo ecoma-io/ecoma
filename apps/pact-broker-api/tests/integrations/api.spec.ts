@@ -557,6 +557,78 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     }
   });
 
+  it('pins verification attachment to the newest pact when two versions share one content sha', async () => {
+    // #280: migration 0005 bỏ UNIQUE (tenant, provider, consumer, sha) — hai
+    // consumer version có nội dung byte-identical tạo hai hàng pact cùng sha.
+    // publishVerification tra LIMIT 1: không ORDER BY thì hàng gắn tuỳ ý, để
+    // version sibling flakily unverified trong can-i-deploy/matrix. Ghim: hàng
+    // MỚI NHẤT (created_at DESC, id DESC — cùng quy ước mọi truy vấn latest).
+    const first = await publishPact(tenantASecret, 'dup-c', 'dup-p', '1.0.0');
+    expect(first.status).toBe(201);
+    const second = await publishPact(tenantASecret, 'dup-c', 'dup-p', '2.0.0');
+    expect(second.status).toBe(201);
+
+    // Hai hàng pact cùng content sha đã tồn tại; SHA lấy từ DB.
+    const client = await db.connect();
+    let sha: string | undefined;
+    try {
+      const { rows: shaRows } = await client.query<{ content_sha: string; pact_count: string }>(
+        `SELECT DISTINCT p.content_sha,
+                count(*) OVER (PARTITION BY p.content_sha) AS pact_count
+           FROM pact.pacts p
+           JOIN pact.versions v ON v.tenant_id = p.tenant_id AND v.id = p.consumer_version_id
+           JOIN pact.pacticipants pc ON pc.tenant_id = p.tenant_id AND pc.id = v.pacticipant_id
+          WHERE pc.name = 'dup-c'`,
+      );
+      expect(shaRows).toHaveLength(1);
+      expect(shaRows[0]?.pact_count).toBe('2');
+      sha = shaRows[0]?.content_sha;
+      expect(sha).toBeDefined();
+    } finally {
+      await client.end();
+    }
+
+    // Verify qua route đúng SHA chung.
+    const ver = await reqJson(
+      `/pacts/provider/dup-p/consumer/dup-c/pact-version/${sha}/verification-results`,
+      {
+        method: 'POST',
+        headers: auth(tenantASecret),
+        body: JSON.stringify({ success: true, providerApplicationVersion: '9.9.9' }),
+      },
+    );
+    expect(ver.status).toBe(201);
+
+    // Verification gắn ĐÚNG MỘT hàng — hàng pact mới nhất (version 2.0.0).
+    const client2 = await db.connect();
+    try {
+      const { rows } = await client2.query<{ consumer_version_number: string }>(
+        `SELECT v.number AS consumer_version_number
+           FROM pact.verifications ver
+           JOIN pact.pacts p ON p.tenant_id = ver.tenant_id AND p.id = ver.pact_id
+           JOIN pact.versions v ON v.tenant_id = p.tenant_id AND v.id = p.consumer_version_id
+           JOIN pact.pacticipants pc ON pc.tenant_id = v.tenant_id AND pc.id = v.pacticipant_id
+          WHERE ver.tenant_id = (SELECT id FROM pact.tenants WHERE name = 'tenant-a')
+            AND pc.name = 'dup-c'`,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.consumer_version_number).toBe('2.0.0');
+    } finally {
+      await client2.end();
+    }
+
+    // can-i-deploy của consumer version 2.0.0 thấy verification (verified) —
+    // sibling byte-identical 1.0.0 không bị flakily unverified bởi attachment
+    // tuỳ ý; ngược lại (gắn vào 1.0.0) thì 2.0.0 không bao giờ verified.
+    const deployable = await reqJson('/can-i-deploy?pacticipant=dup-c&version=2.0.0', {
+      headers: auth(tenantASecret),
+    });
+    expect(deployable.status).toBe(200);
+    expect(
+      (deployable.body as { summary: { deployable: boolean | null } }).summary.deployable,
+    ).toBe(true);
+  });
+
   it('can-i-deploy fails closed (tri-state) when nothing is verified and deployed', async () => {
     await publishPact(tenantASecret, 'svc-c', 'svc-p', '1.0.0', {
       branch: 'main',
