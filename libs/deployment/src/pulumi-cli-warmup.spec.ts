@@ -133,4 +133,28 @@ describe('warmPulumiCli', () => {
     await freshMocked();
     expect(execFileMock).toHaveBeenCalledTimes(1);
   });
+
+  it('retries a fresh warmup on the next default-path call after a failed one instead of replaying the cached rejection', async () => {
+    // Bộ đếm nối tiếp qua các bản fresh module: bản thứ hai phải probe LẠI từ
+    // đầu sau khi lần warm-up đầu thất bại (cache bị xoá khi reject), chứ không
+    // truyền lại lỗi cũ của cache đã nhiễm. Default path dùng defaultSleep thật
+    // (2s/lượt) nên mock luôn-thất-bại trong lúc bản đầu sống để nó fail nhanh
+    // — nếu chỉ fail một lượt, 29 lượt retry thật vẫn chạy hết 58s.
+    vi.doMock('node:child_process', () => ({ execFile: execFileMock }));
+    execFileMock.mockImplementation((_file, _args, _opts, cb) => cb(new Error('spawn ETXTBSY')));
+    const first = await importFreshModule();
+    await expect(first.warmPulumiCli()).rejects.toThrow(/after 30 attempts/u);
+    // 30 lượt của module fail + 1 lượt của lần warm-up đầu (top-level default
+    // mock vẫn tính vào cùng mock dùng chung qua các test).
+    expect(execFileMock).toHaveBeenCalledTimes(31);
+
+    execFileMock.mockImplementation((_file, _args, _opts, cb) =>
+      cb(null, { stdout: 'v3.276.0\n', stderr: '' }),
+    );
+    const second = await importFreshModule();
+    await second.warmPulumiCli();
+    expect(execFileMock).toHaveBeenCalledTimes(32);
+    // Default path dùng defaultSleep thật (2s/lượt retry) — 30 lượt fail + 1
+    // lượt pass tốn ~58s wall-clock, xa hơn default testTimeout 5s.
+  }, 70_000);
 });

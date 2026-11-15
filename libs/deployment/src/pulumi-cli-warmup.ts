@@ -64,7 +64,15 @@ let warmupPromise: Promise<void> | null = null;
  */
 export function warmPulumiCli(options?: WarmPulumiCliOptions): Promise<void> {
   if (options) return warmPulumiCliOnce(options);
-  warmupPromise ??= warmPulumiCliOnce();
+  // Một lần warm-up fail KHÔNG được nhiễm cache vĩnh viễn: xoá cache khi
+  // reject để lần gọi sau retry từ đầu — nếu không, một lần ETXTBSY/cài đặt
+  // dang dở sẽ truyền lại cùng lỗi mãi mãi và phủ định cơ chế retry của module.
+  if (!warmupPromise) {
+    warmupPromise = warmPulumiCliOnce().catch((error: unknown) => {
+      warmupPromise = null;
+      throw error;
+    });
+  }
   return warmupPromise;
 }
 
