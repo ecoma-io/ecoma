@@ -15,7 +15,7 @@ export default defineConfig(() => ({
     // nếu không, suite PostgreSQL thật chạy HAI lần (cả `test` lẫn
     // `test-integration`) và target unit phải có Docker mới xanh (06-testing.md §4).
     exclude: [...defaultExclude, 'tests/integrations/**'],
-    passWithNoTests: true,
+    passWithNoTests: false,
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

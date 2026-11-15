@@ -20,7 +20,7 @@
         "dependsOn": [],
         "options": {
           "cwd": "apps/transactional-mail",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "KHÔNG `build`: suite D1 chạy qua `getPlatformProxy` (workerd in-process) và",

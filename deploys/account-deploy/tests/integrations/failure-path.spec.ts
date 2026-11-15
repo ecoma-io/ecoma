@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { LocalWorkspace } from '@pulumi/pulumi/automation';
 import * as pulumi from '@pulumi/pulumi';
 import * as command from '@pulumi/command';
+import { warmPulumiCli } from '@ecoma-io/deployment';
 
 /**
  * Failure-path regression cho Issue #42: khi một provisioning operation THẤT BẠI
@@ -132,7 +133,13 @@ async function runStack(
 describe('local.Command failure-path hygiene (real @pulumi/command engine)', () => {
   let workDir: string;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    // Cache CLI lạnh trên runner: shim npm cài binary bằng ghi đè tại chỗ ⇒
+    // cửa sổ ETXTBSY, và banner cài đặt làm Automation API không parse được
+    // version (cơ chế đầy đủ trong `pulumi-cli-warmup.ts`). Phải ấm TRƯỚC khi
+    // dựng workspace — retry là điều kiện hội tụ, không phải che lỗi (issue #250).
+    await warmPulumiCli();
+
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue42-failure-path-'));
     fs.writeFileSync(
       path.join(workDir, 'Pulumi.yaml'),
