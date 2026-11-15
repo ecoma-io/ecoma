@@ -22,7 +22,10 @@ export default defineConfig(() => ({
     // HAI lần (cả `test` lẫn `test-integration`) (06-testing.md §4).
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: [...defaultExclude, 'tests/integrations/**'],
-    passWithNoTests: false,
+    // Legitimately zero unit tests today: real suites live in the owning app's
+    // integration tier (tests/integrations/ of the owning app). passWithNoTests:
+    // true is deliberate until the first unit spec lands; delete this flag then.
+    passWithNoTests: true,
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
