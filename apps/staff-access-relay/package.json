@@ -26,7 +26,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/staff-access-relay",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         }
       },
       "build": {

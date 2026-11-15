@@ -192,7 +192,7 @@
         ],
         "options": {
           "cwd": "apps/llm-api",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "Suite integration app-owned (PostgreSQL that qua testcontainers):",

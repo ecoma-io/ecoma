@@ -22,10 +22,9 @@ import { defineConfig } from 'vitest/config';
  * `playwright test` riêng (xem `package.json`). Cơ chế nhận diện của
  * `pnpm dx arch-check` (`integration-config-missing-dir`): target khai lệnh
  * `playwright test` ⇒ purpose dir `tests/browser` được coi là đã declared qua
- * runner đó, không cần include hình thức. Lệnh vitest của target vẫn giới hạn
- * path filter (`tests/integrations tests/databases`) nên lane vitest không
- * đụng tới file Playwright; chạy config này không filter thì không thu được
- * gì ngoài phần vitest — file Playwright nằm ngoài include.
+ * runner đó, không cần include hình thức. Lệnh vitest của target không truyền
+ * path filter vị trí — `include` dưới đây là nguồn chọn duy nhất, nên file
+ * Playwright (nằm ngoài include) không bao giờ bị vitest thu.
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,

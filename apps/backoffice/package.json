@@ -167,7 +167,7 @@
         "options": {
           "cwd": "apps/backoffice",
           "commands": [
-            "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases",
+            "npx vitest run -c vitest.integration.config.mts",
             "bash tests/browser/ensure-playwright-browser.sh",
             "npx playwright test -c playwright.config.ts",
             "npx playwright test -c playwright.unavailable.config.ts"

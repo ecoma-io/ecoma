@@ -153,7 +153,7 @@
         "dependsOn": [],
         "options": {
           "cwd": "apps/auth",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "KHÔNG `build`: suite integration import thẳng TS nguồn — `../../src/main`,",

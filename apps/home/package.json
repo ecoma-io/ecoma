@@ -182,7 +182,7 @@
         ],
         "options": {
           "cwd": "apps/home",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "`build` vào `dependsOn`: cả hai suite dưới `tests/integrations/`",
