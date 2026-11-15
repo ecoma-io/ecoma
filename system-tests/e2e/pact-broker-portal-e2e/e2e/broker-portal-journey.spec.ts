@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -14,6 +15,8 @@ import {
   stackGet,
   stackRequest,
 } from './support/local-origin';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Journey developer/CI của Pact Broker portal trên stack local thật (issue
@@ -67,12 +70,12 @@ interface CliResult {
  * process của CLI — không bao giờ ghép vào argv (argv lộ qua `ps`), không
  * bao giờ nằm trong message lỗi của test.
  */
-function runPactCli(
+async function runPactCli(
   binary: 'pact-broker' | 'pact-verifier',
   args: string[],
   token: string,
   extraEnv: Record<string, string> = {},
-): CliResult {
+): Promise<CliResult> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined) {
@@ -85,19 +88,21 @@ function runPactCli(
   env.PACT_DO_NOT_TRACK = 'true';
   Object.assign(env, extraEnv);
 
+  // execFile BẤT ĐỒNG BỘ — execFileSync chặn event loop của worker, và provider
+  // app thật chạy trong CÙNG process: server không thể trả lời khi loop bị chặn
+  // (verifier timeout đúng 5s — lỗi đã gặp).
   try {
-    const stdout = execFileSync(join(PACT_BIN, binary), args, {
+    const { stdout } = await execFileAsync(join(PACT_BIN, binary), args, {
       env,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
     });
     return { stdout, status: 0 };
   } catch (error) {
-    const err = error as { status?: number; stdout?: string; stderr?: string };
-    if (typeof err.status !== 'number') {
+    const err = error as { code?: number; stdout?: string; stderr?: string };
+    if (typeof err.code !== 'number') {
       throw error;
     }
-    return { stdout: `${err.stdout ?? ''}\n${err.stderr ?? ''}`, status: err.status };
+    return { stdout: `${err.stdout ?? ''}\n${err.stderr ?? ''}`, status: err.code };
   }
 }
 
@@ -282,7 +287,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       provider,
       `request GET / succeeds ${runToken()}`,
     );
-    const publish = runPactCli(
+    const publish = await runPactCli(
       'pact-broker',
       ['publish', pactFile, '--consumer-app-version', consumerVersion, '--branch', 'main'],
       devSecret,
@@ -323,7 +328,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
 
     // Môi trường test + record-deployment của provider (verifier cần một
     // provider version đã deployed để `--to-environment` resolve được).
-    const createEnv = runPactCli(
+    const createEnv = await runPactCli(
       'pact-broker',
       ['create-environment', '--name', environmentName, '--production'],
       ciSecret,
@@ -334,7 +339,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
     // publish verification result bằng CI credential.
     const providerApp = await startProviderApp();
     try {
-      const verify = runPactCli(
+      const verify = await runPactCli(
         'pact-verifier',
         [
           '--provider-name',
@@ -361,7 +366,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
 
       // PB-11: record-deployment của provider version vào environment, rồi
       // can-i-deploy của consumer phải trả lời YES.
-      const record = runPactCli(
+      const record = await runPactCli(
         'pact-broker',
         [
           'record-deployment',
@@ -376,7 +381,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       );
       expect(record.status, record.stdout.slice(0, 600)).toBe(0);
 
-      const deploy = runPactCli(
+      const deploy = await runPactCli(
         'pact-broker',
         [
           'can-i-deploy',
@@ -410,7 +415,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
     expect(after.status).toBe(401);
 
     // CLI cũng thấy cùng 401 (cùng hợp đồng auth cho machine path).
-    const cliAfter = runPactCli('pact-broker', ['list-latest-pact-versions'], devSecret);
+    const cliAfter = await runPactCli('pact-broker', ['list-latest-pact-versions'], devSecret);
     expect(cliAfter.status).not.toBe(0);
     expect(cliAfter.stdout).toContain('401');
   });
@@ -452,13 +457,13 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       `tenant B unique interaction ${runToken()}`,
     );
 
-    const publishA = runPactCli(
+    const publishA = await runPactCli(
       'pact-broker',
       ['publish', pactA, '--consumer-app-version', consumerVersion],
       ciSecret,
     );
     expect(publishA.status, publishA.stdout.slice(0, 600)).toBe(0);
-    const publishB = runPactCli(
+    const publishB = await runPactCli(
       'pact-broker',
       ['publish', pactB, '--consumer-app-version', consumerVersion],
       secretB,
