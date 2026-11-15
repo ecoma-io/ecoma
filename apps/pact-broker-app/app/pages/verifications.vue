@@ -68,7 +68,7 @@ const effectiveConsumer = computed(() => {
 // Consumer đang chọn biến mất khỏi danh sách (reload sau khi broker đổi dữ
 // liệu) ⇒ reset select: fallback của `effectiveConsumer` giữ dữ liệu đúng,
 // còn select không được kẹt hiển thị giá trị đã không còn trong dropdown.
-watch(selectedConsumer, (value) => {
+watch([selectedConsumer, consumers], ([value]) => {
   if (value !== '' && !consumers.value.includes(value)) {
     selectedConsumer.value = '';
   }
