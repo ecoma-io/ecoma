@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Stack gate fail-closed — probe TRƯỚC KHI suite chạy, không phải trong từng test.
@@ -99,6 +102,41 @@ function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
 }
 
 /**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
+ * public Traefik (cùng phép dò của `e2e/support/local-origin.ts`). Không tìm
+ * thấy là lỗi cài đặt — throw thay vì đoán (#316).
+ */
+function traefikNamespace(port: string): string {
+  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} — the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.`,
+  );
+}
+
+/** Hostname browser-facing của `auth` theo worktree — `auth-<ns>.<root>` (#316). */
+function authServiceHostname(rootHostname: string, port: string): string {
+  return localServiceHostname('auth', rootHostname, traefikNamespace(port));
+}
+
+/**
  * Request Node thuần với `ca` scoped — TƯỜNG MINH về TLS verify: sau response,
  * khẳng định `socket.authorized === true` thay vì tin rằng "request thành công
  * nghĩa là TLS đã verify" (pattern của `local-smoke.mjs`).
@@ -114,9 +152,9 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
         servername: hostname,
         headers: {
           // `Host` tường minh cùng dạng `hostname:port` — khớp đúng rule
-          // `Host(\`auth.fbi.com\`)` của Traefik. Subdomain đi thẳng vào Host:
-          // một cặp (cert, port) phục vụ mọi hostname của stack.
-          Host: `auth.${hostname}:${port}`,
+          // `Host(\`auth-<ns>.fbi.com\`)` của Traefik (hostname per-worktree,
+          // #316). Một cặp (cert, port) phục vụ mọi hostname của stack.
+          Host: `${hostname}:${port}`,
           Accept: 'application/json',
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -196,7 +234,11 @@ function describeMismatch(result: ProbeResult, expectedIssuer: string): string {
 async function main(): Promise<void> {
   const { hostname, port, ca } = resolveRootOrigin();
   const hostPort = `${hostname}:${port}`;
-  const authOrigin = `https://auth.${hostPort}`;
+  // Issuer là origin per-worktree: hostname `auth-<ns>.<root>` + port (#316) —
+  // probe request dùng ĐÚng hostname này (cả SNI lẫn Host) nên so khớp issuer
+  // nguyên văn ở đây phát hiện stack đang chạy cấu hình của worktree khác.
+  const authHostname = authServiceHostname(hostname, port);
+  const authOrigin = `https://${authHostname}:${port}`;
   const expectedIssuer = authOrigin;
   const startedAt = Date.now();
   let backoffMs = BACKOFF_INITIAL_MS;
@@ -205,7 +247,7 @@ async function main(): Promise<void> {
   for (;;) {
     let result: ProbeResult | undefined;
     try {
-      result = await probeOnce(hostname, port, ca);
+      result = await probeOnce(authHostname, port, ca);
     } catch (error) {
       if (!(error instanceof RetryableError)) {
         fail(hostPort, Date.now() - startedAt, error as Error);

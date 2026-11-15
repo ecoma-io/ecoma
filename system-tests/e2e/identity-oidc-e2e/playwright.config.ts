@@ -1,8 +1,11 @@
 import { X509Certificate, createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Cấu hình Playwright cho suite system E2E `identity-oidc-e2e` — suite kiểm
@@ -126,6 +129,49 @@ function resolveStackOrigin(): string {
   return 'placeholder.invalid:443';
 }
 
+/**
+ * Hostname browser-facing của `auth` theo worktree — `auth-<ns>.<root>` qua
+ * contract `localServiceHostname` (#316). Namespace dò từ container Traefik
+ * publish đúng port; khi ROOT_HOST là placeholder (`.env` vắng mặt — CI graph
+ * build) thì KHÔNG chạy docker, trả placeholder nguyên vẹn: fail-closed thật
+ * nằm ở global-setup.
+ */
+function authServiceHostname(): string {
+  const rootHostname = ROOT_ORIGIN.split(':')[0] ?? '';
+  const port = ROOT_ORIGIN.includes(':') ? (ROOT_ORIGIN.split(':')[1] ?? '443') : '443';
+  if (rootHostname.endsWith('.invalid')) {
+    return `auth.${ROOT_ORIGIN}`;
+  }
+  return localServiceHostname('auth', rootHostname, traefikNamespace(port));
+}
+
+/**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
+ * public Traefik (cùng phép dò của `e2e/support/local-origin.ts`).
+ */
+function traefikNamespace(port: string): string {
+  const ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || new RegExp(`[::]:${port}->443`, 'u').test(ports))
+    ) {
+      return namespace;
+    }
+  }
+  return `missing-namespace-${port}`;
+}
+
 const ROOT_ORIGIN = resolveStackOrigin();
 
 export default defineConfig({
@@ -152,10 +198,11 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
-    // Suite chủ yếu nói chuyện với origin `auth.` — mọi browser navigation
+    // Suite chủ yếu nói chuyện với origin `auth-<ns>` — mọi browser navigation
     // mặc định trỏ đây; các origin khác (account/office) được navigate tường
-    // minh bằng URL tuyệt đối.
-    baseURL: `https://auth.${ROOT_ORIGIN}`,
+    // minh bằng URL tuyệt đối. Hostname per-worktree (#316) qua cùng helper
+    // phía trên; placeholder `.invalid` giữ nguyên dạng cũ khi .env vắng mặt.
+    baseURL: `https://${authServiceHostname()}`,
     // ⚠️ KHÔNG BAO GIỜ `ignoreHTTPSErrors: true` — xem khối quyết định TLS ở
     // đầu file.
     trace: 'retain-on-failure',

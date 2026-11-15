@@ -123,7 +123,10 @@ function officeOrigin(raw: string): string {
 export function authHostname(): string {
   const origin = resolveStackOrigin();
   const url = new URL(origin);
-  const rootHostname = url.hostname.split('-').slice(1).join('-');
+  // Origin đã là `office-<ns>.<root>` — root hostname là phần sau dấu chấm
+  // ĐẦU TIÊN (tách trên `-` sẽ lẫn namespace vào root vì `office-<ns>` chứa
+  // chính dấu gạch nối đó — bug thật đã lộ trên CI, #316).
+  const rootHostname = url.hostname.split('.').slice(1).join('.');
   return localServiceHostname(
     'auth',
     rootHostname,
