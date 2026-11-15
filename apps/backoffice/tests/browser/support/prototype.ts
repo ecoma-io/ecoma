@@ -85,16 +85,12 @@ export async function waitForRouteReady(
 
   const deadline = Date.now() + (timeoutMs ?? 30_000);
   let reloaded = false;
-  let firstCause: unknown;
 
   for (;;) {
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
-      throw (
-        firstCause ??
-        new Error(
-          `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; route vẫn chưa render xong.`,
-        )
+      throw new Error(
+        `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; route vẫn chưa render xong.`,
       );
     }
 
@@ -106,13 +102,17 @@ export async function waitForRouteReady(
       await page.getByTestId(testId).waitFor({ state: 'visible', timeout: sliceTimeoutMs });
       return;
     } catch (cause) {
-      if (firstCause === undefined) {
-        firstCause = cause;
+      // Chỉ reload khi lỗi là hết trần của một lát chờ — đúng cơ chế đã đo được
+      // (full-reload của Vite làm lượt chờ cạn lát). Lỗi khác (element detach,
+      // navigation hỏng, frame đóng) là lỗi thật của app/trang: đẩy lên ngay
+      // thay vì reload che nó, và luôn ném lỗi mới nhất thay vì một lỗi cũ
+      // trước reload đã lỗi thời.
+      if (!(cause instanceof Error) || cause.name !== 'TimeoutError') {
+        throw cause;
       }
 
-      const now = Date.now();
-      if (now >= deadline) {
-        throw firstCause;
+      if (Date.now() >= deadline) {
+        throw cause;
       }
 
       // Một lần reload theo ý định: Vite full-reload đã huỷ module graph, nhưng
