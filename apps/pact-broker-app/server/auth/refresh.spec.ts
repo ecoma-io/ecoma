@@ -188,6 +188,8 @@ describe('renewSessionTokens — success persists both rotated tokens', () => {
 
     expect(result).toEqual({ outcome: 'failed' });
     expect(db.queries).toHaveLength(1);
+    const update = db.queries[0];
+    expect(update?.values).toEqual([ID_HASH, NEW_ACCESS, NEW_REFRESH]);
   });
 });
 
@@ -223,7 +225,6 @@ describe('renewSessionTokens — outcome classification', () => {
     // workerd KHÔNG ném khi transport hỏng (reset/refused/DNS) — nó tổng hợp
     // `Response(500, "TypeError: fetch failed", statusText rỗng)`. Đây là lỗi
     // hạ tầng ⇒ cùng nhánh 503 với exception, không được rơi vào `failed` (401).
-    nextResponse = { status: 500, payload: { error: 'TypeError: fetch failed' } };
     vi.stubGlobal(
       'fetch',
       vi.fn(
