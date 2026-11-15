@@ -90,12 +90,21 @@ let sessionRow: Record<string, unknown> | null;
 /** Ghi lại mọi lệnh SQL của pool mock — assert UPDATE revoke/rotate. */
 let executedQueries: { text: string; values: readonly unknown[] }[];
 
+/**
+ * Fault injection: `true` ⇒ pool mock ném trên mọi lệnh KHÔNG phải SELECT —
+ * dùng để dựng "DB hỏng đúng lúc revoke" mà không đụng SELECT load phiên.
+ */
+let throwOnWrite = false;
+
 function createPoolMock(): Pool {
   executedQueries = [];
   return {
     query: async (text: string, values?: readonly unknown[]) => {
-      executedQueries.push({ text, values: values ?? [] });
       const first = String(text).trim().split(/\s+/u)[0]?.toUpperCase() ?? '';
+      if (first !== 'SELECT' && throwOnWrite) {
+        throw new Error('db connection lost');
+      }
+      executedQueries.push({ text, values: values ?? [] });
       if (first === 'SELECT') {
         return { rows: sessionRow === null ? [] : [sessionRow], rowCount: 1 };
       }
@@ -115,7 +124,8 @@ function buildApp(env: Record<string, unknown>): (request: Request) => Promise<R
   );
   app.use(authnMiddleware);
   const router = createRouter();
-  router.get(
+  // Cả GET lẫn POST: test CSRF mutation đi cùng method POST qua route này.
+  router.use(
     '/api/broker/pacts',
     defineEventHandler((event) => {
       const principal = (event.context as Record<string, unknown>)['pactBrokerAppPrincipal'] as
@@ -158,14 +168,23 @@ function envWithDb(): Record<string, unknown> {
   };
 }
 
-async function probe(app: (request: Request) => Promise<Response>): Promise<{
+async function probe(
+  app: (request: Request) => Promise<Response>,
+  init: { method?: string; csrf?: string } = {},
+): Promise<{
   status: number;
   body: unknown;
   setCookie: string[];
 }> {
+  const headers: Record<string, string> = { cookie: `${SESSION_COOKIE}=opaque-session-id` };
+  if (init.csrf !== undefined) {
+    headers['cookie'] = `${headers.cookie}; __Host-pact-broker-csrf=${init.csrf}`;
+    headers['x-ecoma-csrf'] = init.csrf;
+  }
   const response = await app(
     new Request('https://pact-broker-app.test/api/broker/pacts', {
-      headers: { cookie: `${SESSION_COOKIE}=opaque-session-id` },
+      method: init.method ?? 'GET',
+      headers,
     }),
   );
   const text = await response.text();
@@ -178,6 +197,7 @@ async function probe(app: (request: Request) => Promise<Response>): Promise<{
 
 beforeEach(() => {
   resetInflightRefreshForTests();
+  throwOnWrite = false;
   verifyOutcome.result = { outcome: 'verified', sub: verifyOutcome.result.sub, exp: 0 };
   sessionRow = liveRow();
   vi.stubGlobal(
@@ -192,6 +212,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // `vi.unstubAllGlobals` ở afterEach là đủ chống rỉ stub: vitest chạy afterEach
+  // kể cả khi thân test hay hook trước đó ném — test throw không bỏ lại fetch
+  // stub cho test kế (review #258: không cần try/finally trong từng test).
   vi.unstubAllGlobals();
 });
 
@@ -306,5 +329,49 @@ describe('authn middleware refresh path (#258)', () => {
     expect(result.status).toBe(401);
     expect(result.body).toMatchObject({ statusCode: 401, statusMessage: 'unauthorized' });
     expect(result.body).not.toHaveProperty('accessToken');
+    // Token mới đã persist ở refresh ⇒ fail closed: phiên bị revoke server-side.
+    const revoke = executedQueries.find((query) => query.text.includes('revoked_at = now()'));
+    expect(revoke?.values).toEqual([ID_HASH]);
+  });
+
+  it('still enforces CSRF on a mutation that goes through the renewal path (no bypass on expired token)', async () => {
+    // Security review #258: token hết hạn ⇒ nhánh renewed — CSRF double-submit
+    // vẫn phải chạy trước khi gắn principal, không được bỏ qua.
+    verifyOutcome.result = { outcome: 'invalid', sub: verifyOutcome.result.sub, exp: 0 };
+    const app = buildApp(envWithDb());
+
+    const missingHeader = await probe(app, { method: 'POST', csrf: undefined });
+    const matching = await probe(app, { method: 'POST', csrf: 'csrf-token-1' });
+
+    // Thiếu header (dù cookie CSRF có mặt qua helper không gắn) ⇒ 401, không
+    // phải 200-bypass — đúng luật double-submit của nhánh verified.
+    expect(missingHeader.status).toBe(401);
+    expect(matching.status).toBe(200);
+  });
+
+  it('answers 401 and clears the cookie even when the revoke query throws (invalid_grant is exception-safe)', async () => {
+    // Security review #258: revoke DB hỏng không được bọc thành 503 để cookie
+    // còn nguyên trên client — luôn xoá cookie và kết thúc 401 (principal null).
+    verifyOutcome.result = { outcome: 'invalid', sub: verifyOutcome.result.sub, exp: 0 };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: 'invalid_grant' }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+    throwOnWrite = true;
+    const app = buildApp(envWithDb());
+
+    const result = await probe(app);
+
+    expect(result.status).toBe(401);
+    const cleared = result.setCookie.find((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`));
+    expect(cleared).toContain('Max-Age=0');
+    // Không lộ payload lỗi driver — outer catch không bọc thành 503.
+    expect(result.body).toMatchObject({ statusCode: 401 });
   });
 });
