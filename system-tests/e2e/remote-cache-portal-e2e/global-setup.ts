@@ -1,0 +1,241 @@
+import { readFileSync } from 'node:fs';
+import https from 'node:https';
+import tls from 'node:tls';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * Stack gate fail-closed của suite `remote-cache-portal-e2e` — probe TRƯỚC KHI
+ * suite chạy, không phải trong từng test.
+ *
+ * Hợp đồng: stack không có là KẾT QUẢ ĐỎ, không bao giờ là skip (cùng triết lý
+ * fail-closed của `backoffice-access-control-e2e`).
+ *
+ * ## Probe kiểm ĐÚNG hợp đồng của suite này
+ *
+ * `GET /api/portal/tenants/ecoma/projects` KHÔNG cookie phải trả **401** —
+ * middleware `apps/remote-cache-app/server/middleware/authn.ts` chặn mọi route
+ * BFF trước khi tới proxy: cookie `__Host-remote-cache-app-session` vắng ⇒ 401.
+ * Đây là hợp đồng nhận diện "stack có đủ wiring BFF + OIDC":
+ *
+ * - **401** ⇒ middleware authn chạy và từ chối caller chưa đăng nhập — stack
+ *   sẵn sàng cho phần còn lại của suite.
+ * - **200** là SAI HỢP ĐỒNG (unauthenticated bị nhận vào) — fail tức thời.
+ *
+ * ## Retry chỉ dành cho chữ ký "chưa sẵn sàng"
+ *
+ * Ngay sau `pulumi up`, container portal và router Traefik cần thời gian lên:
+ * ECONNREFUSED / ECONNRESET / ETIMEDOUT, timeout từng request, và
+ * 404/502/503/504 (404 hẹp: cửa sổ đăng ký router Traefik). Lỗi TLS và 4xx
+ * khác là lỗi thật — fail tức thời.
+ *
+ * ⚠️ Node `https` thay vì global `fetch`: `fetch` của Node (undici) không nhận
+ * `node:https.Agent` làm `dispatcher` — `https.get` với `ca` scoped là đường đã
+ * chạy thật ở các suite cùng nhóm.
+ */
+
+const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
+
+/** Path cert local — cùng nguồn với `playwright.config.ts`. */
+const LOCAL_CERT_PATH = join(SUITE_DIR, '../../../deploys/platform-deploy/local-certs/fbi.com.crt');
+
+/** Tổng budget retry: đủ cho cold start của stack, không đủ để treo CI. */
+const BUDGET_MS = 30_000;
+/** Timeout mỗi request — request treo coi là "chưa sẵn sàng" và được thử lại. */
+const REQUEST_TIMEOUT_MS = 5_000;
+const BACKOFF_INITIAL_MS = 1_000;
+const BACKOFF_MAX_MS = 5_000;
+
+const RETRYABLE_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
+// 404 hẹp: cửa sổ router Traefik cũ gỡ — mới đăng ký. 502/503/504 là upstream
+// chưa sẵn sàng — retry. 4xx khác (đặc biệt 401 là hợp đồng mong đợi) không retry.
+const RETRYABLE_STATUSES = new Set([404, 502, 503, 504]);
+// Lỗi TLS/certificate: verification bị vi phạm — không bao giờ retry, không nuốt.
+const TLS_ERROR_CODES = new Set([
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'CERT_HAS_EXPIRED',
+  'CERT_NOT_YET_VALID',
+  'ERR_INVALID_CERTIFICATE',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+]);
+
+/** Lỗi retry-được: có khả năng tự hết khi cold start kết thúc. */
+class RetryableError extends Error {}
+/** Lỗi chốt: routing/app/TLS thực sự sai — retry chỉ che lỗi. */
+class VerificationFailure extends Error {}
+
+interface ProbeResult {
+  readonly status: number;
+  readonly body: string;
+}
+
+/**
+ * Origin portal mà gate probe — hostname gốc (giá trị `ROOT_HOST`, dạng
+ * `hostname:port`) GHÉP PREFIX `remote-cache-app.`: router Traefik của portal
+ * match `Host(remote-cache-app.<root>)`, probe hostname gốc là 404 chắc chắn.
+ */
+function resolvePortalOrigin(): { hostname: string; port: string; ca: string } {
+  const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
+  const raw = process.env.ROOT_HOST;
+  if (raw !== undefined && raw.trim().length > 0) {
+    return { ...readPortalHostPort(raw.trim()), ca };
+  }
+  // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root.
+  try {
+    const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
+    for (const line of text.split(/\r?\n/u)) {
+      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
+      if (match && match[1].trim().length > 0) {
+        return { ...readPortalHostPort(match[1].trim()), ca };
+      }
+    }
+  } catch {
+    // `.env` vắng mặt — throw bên dưới với message chỉ đúng remedy.
+  }
+  throw new Error(
+    'remote-cache-portal-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
+      'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
+  );
+}
+
+/** Tách `hostname`/`port` từ hostname gốc rồi ghép prefix `remote-cache-app.` của portal. */
+function readPortalHostPort(raw: string): { hostname: string; port: string } {
+  const rootHostname = raw.split(':')[0];
+  const port = raw.includes(':') ? raw.split(':')[1] : '443';
+  return { hostname: `remote-cache-app.${rootHostname}`, port };
+}
+
+/**
+ * Request Node thuần với `ca` scoped — TƯỜNG MINH về TLS verify: sau response,
+ * khẳng định `socket.authorized === true` thay vì tin rằng "request thành công
+ * nghĩa là TLS đã verify".
+ */
+function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeResult> {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      {
+        host: hostname,
+        port,
+        path: '/api/portal/tenants/ecoma/projects',
+        ca,
+        servername: hostname,
+        headers: {
+          // `Host` tường minh `hostname:port` — khớp rule
+          // `Host(remote-cache-app.<rootHostname>)` của router Traefik (Traefik
+          // match hostname không port).
+          Host: `${hostname}:${port}`,
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+      (response) => {
+        const tlsSocket = response.socket instanceof tls.TLSSocket ? response.socket : undefined;
+        if (tlsSocket?.authorized !== true) {
+          reject(
+            new VerificationFailure(
+              `TLS not verified — ${tlsSocket?.authorizationError?.message ?? 'socket has no verify status'}`,
+            ),
+          );
+          return;
+        }
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        // Response stream không có listener 'error' thì Node ném uncaught
+        // exception giữa chừng (socket reset sau khi response bắt đầu).
+        response.on('error', (error: NodeJS.ErrnoException) => reject(classify(error)));
+        response.on('end', () => {
+          resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      },
+    );
+    request.on('error', (error: NodeJS.ErrnoException) => reject(classify(error)));
+  });
+}
+
+function classify(error: NodeJS.ErrnoException): Error {
+  const code = error?.code;
+  if (
+    typeof code === 'string' &&
+    (code.startsWith('ERR_TLS_') || code.startsWith('ERR_SSL_') || TLS_ERROR_CODES.has(code))
+  ) {
+    return new VerificationFailure(`invalid TLS/certificate — ${error.message}`);
+  }
+  // AbortSignal.timeout hủy request: Node báo AbortError/ABORT_ERR với cause
+  // TimeoutError — đây là request timeout của ta, không phải lỗi server.
+  if (error.name === 'TimeoutError' || error.name === 'AbortError' || code === 'ABORT_ERR') {
+    return new RetryableError(`timeout after ${REQUEST_TIMEOUT_MS}ms — server did not respond`);
+  }
+  if (typeof code === 'string' && RETRYABLE_ERROR_CODES.has(code)) {
+    return new RetryableError(`${code} — server not listening/not ready yet`);
+  }
+  // Mọi lỗi ngoài danh sách retry là fail-closed — không đoán thêm chữ ký nào.
+  return new VerificationFailure(error.message);
+}
+
+/** In lỗi + remedy rồi exit 1. Console/exit là output chương trình → English. */
+function fail(origin: string, elapsedMs: number, error: Error): never {
+  console.error(
+    `stack gate FAILED after ${elapsedMs}ms: ${origin}/api/portal/tenants/ecoma/projects is not serving the expected unauthenticated contract — ${error.message}. ` +
+      'The local stack is not reachable or not ready. Start it with `pnpm nx affected -t system-test -c local` (Nx provisions the local-up prerequisites first), then rerun the suite. ' +
+      'This suite must FAIL when the stack is down; skipping is never an acceptable result.',
+  );
+  process.exit(1);
+}
+
+async function main(): Promise<void> {
+  const { hostname, port, ca } = resolvePortalOrigin();
+  const origin = `https://${hostname}:${port}`;
+  const startedAt = Date.now();
+  let backoffMs = BACKOFF_INITIAL_MS;
+  let lastFailure = new Error('probe never ran');
+  // Luôn chạy ít nhất một lần; các lần sau chỉ khi lỗi retry-được và còn budget.
+  for (;;) {
+    let result: ProbeResult | undefined;
+    try {
+      result = await probeOnce(hostname, port, ca);
+    } catch (error) {
+      if (!(error instanceof RetryableError)) {
+        fail(origin, Date.now() - startedAt, error as Error);
+      }
+      lastFailure = error as Error;
+    }
+    if (result) {
+      // Hợp đồng unauthenticated của BFF portal (middleware authn).
+      if (result.status === 401) {
+        console.log(
+          `stack gate OK: ${origin}/api/portal/tenants/ecoma/projects -> 401 unauthenticated (portal authn middleware active) after ${Date.now() - startedAt}ms`,
+        );
+        return;
+      }
+      if (!RETRYABLE_STATUSES.has(result.status)) {
+        fail(
+          origin,
+          Date.now() - startedAt,
+          new Error(
+            `expected 401 for an unauthenticated GET /api/portal/tenants/ecoma/projects, got ${result.status} ` +
+              `with body ${JSON.stringify(result.body.slice(0, 200))}`,
+          ),
+        );
+      }
+      lastFailure = new Error(
+        `status ${result.status} — upstream not ready yet (retryable window, e.g. Traefik router registration)`,
+      );
+    }
+    const remainingMs = BUDGET_MS - (Date.now() - startedAt);
+    if (remainingMs <= 0) {
+      fail(origin, Date.now() - startedAt, lastFailure);
+    }
+    const sleepMs = Math.min(backoffMs, remainingMs);
+    console.error(`stack gate RETRY after ${Date.now() - startedAt}ms: ${lastFailure.message}`);
+    await new Promise((resolve) => {
+      setTimeout(resolve, sleepMs);
+    });
+    backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+  }
+}
+
+export default main;
