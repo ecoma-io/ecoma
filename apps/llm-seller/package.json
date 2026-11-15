@@ -141,7 +141,7 @@
         ],
         "options": {
           "cwd": "apps/llm-seller",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",

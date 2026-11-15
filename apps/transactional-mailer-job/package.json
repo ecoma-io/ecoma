@@ -17,7 +17,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/transactional-mailer-job",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         }
       },
       "build": {

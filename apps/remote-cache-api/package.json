@@ -139,7 +139,7 @@
         "dependsOn": [],
         "options": {
           "cwd": "apps/remote-cache-api",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
           "KHONG `build`: suite integration import thang TS nguon — `../../db/apply.mts`,",

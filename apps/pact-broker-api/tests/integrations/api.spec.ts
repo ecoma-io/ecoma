@@ -299,6 +299,44 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     expect(links['pb:provider-pacts-for-verification']).toBeDefined();
   });
 
+  it('publishes the pb:latest-provider-pacts index link the default verifier follows to discovery', async () => {
+    // Verifier mặc định của Pact CLI (pact-verifier-rust) fetch root document
+    // rồi expand relation này với {provider}; thiếu link thì lệnh verify chuẩn
+    // 404 (chạy thật CLI 18.10.9, #208/#294).
+    const index = await reqJson('/', { headers: auth(tenantASecret) });
+    expect(index.status).toBe(200);
+    const links = (
+      index.body as {
+        _links: Record<string, { href: string; templated?: boolean }>;
+      }
+    )['_links'];
+    const discovery = links['pb:latest-provider-pacts'];
+    expect(discovery).toBeDefined();
+    expect(discovery.href).toContain('/pacts/provider/{provider}/latest');
+    expect(discovery.templated).toBe(true);
+
+    // Link phải dẫn tới resource sống: publish một pact rồi GET theo href đã
+    // expand — đúng bước thứ hai của flow discovery của verifier.
+    await publishPact(tenantASecret, 'disc-c', 'disc-p', '1.0.0', { branch: 'main' });
+    const followed = await reqJson('/pacts/provider/disc-p/latest', {
+      headers: auth(tenantASecret),
+    });
+    expect(followed.status).toBe(200);
+    // HAL dùng `_links`/`_embedded` — truy cập bằng bracket để không vi phạm
+    // no-underscore-dangle.
+    const followBody = followed.body as {
+      _links?: Record<string, unknown>;
+      _embedded?: { pacts?: unknown[] };
+    };
+    expect(followBody['_embedded']?.pacts).toHaveLength(1);
+    // Bước thứ ba của verifier: follow relation KHÔNG prefix `pacts` trên
+    // collection tới từng pact (chạy thật 18.10.9: thiếu là "Link 'pacts' was
+    // not found").
+    const pactsLink = followBody['_links']?.['pacts'];
+    expect(Array.isArray(pactsLink)).toBe(true);
+    expect(pactsLink).toHaveLength(1);
+  });
+
   it('publishes a pact: 201 first, 200 on re-publish, content sha stable', async () => {
     const first = await publishPact(tenantASecret, 'order-service', 'payment-service', '1.0.0', {
       branch: 'main',

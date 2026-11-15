@@ -19,6 +19,8 @@
  * - `pulumi-context` — CLI/backend context Pulumi cô lập theo worktree.
  * - `local-entry` — nền tảng entry lifecycle colocated (`up`/`down` mỗi unit).
  * - `local-env` — secret primitives dùng chung + đọc `ROOT_HOST` từ `.env`.
+ * - `pulumi-cli-warmup` — làm ấm CLI `pulumi` trước khi Automation API dựng
+ *   workspace (banner cài shim npm + cửa sổ ETXTBSY trên cache lạnh).
  */
 
 export {
@@ -100,3 +102,9 @@ export {
   isConfigKeyMissing,
   readRootHostFromEnv,
 } from './local-env.js';
+
+export {
+  type WarmPulumiCliOptions,
+  warmPulumiCli,
+  warmPulumiCliOnce,
+} from './pulumi-cli-warmup.js';

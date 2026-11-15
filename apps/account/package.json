@@ -114,7 +114,7 @@
         ],
         "options": {
           "cwd": "apps/account",
-          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations tests/databases"
+          "command": "npx vitest run -c vitest.integration.config.mts"
         }
       },
       "typecheck-db": {
