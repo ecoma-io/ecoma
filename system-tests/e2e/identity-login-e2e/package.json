@@ -68,6 +68,32 @@
           "(task id `...:local-up:local`)."
         ]
       },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.json"
+          },
+          {
+            "externalDependencies": [
+              "typescript"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "system-tests/e2e/identity-login-e2e",
+          "command": "tsc --noEmit -p tsconfig.json"
+        },
+        "//": [
+          "Suite KHÔNG build artifact nào — chạy qua playwright trực tiếp, nên typecheck là",
+          "`tsc --noEmit` một lần cho toàn bộ TS nguồn (spec + support + global-setup)."
+        ],
+        "configurations": {},
+        "parallelism": true
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,

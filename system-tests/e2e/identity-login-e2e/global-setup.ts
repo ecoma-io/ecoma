@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
+import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -139,10 +140,11 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
       },
       (response) => {
         // INVARIANT TLS: khẳng định trực tiếp trạng thái verify của socket.
-        if (response.socket?.authorized !== true) {
+        const tlsSocket = response.socket instanceof tls.TLSSocket ? response.socket : undefined;
+        if (tlsSocket?.authorized !== true) {
           reject(
             new VerificationFailure(
-              `TLS not verified — ${response.socket?.authorizationError?.message ?? 'socket has no verify status'}`,
+              `TLS not verified — ${tlsSocket?.authorizationError?.message ?? 'socket has no verify status'}`,
             ),
           );
           return;

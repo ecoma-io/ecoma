@@ -147,10 +147,15 @@ test('completes the full browser authorize → OTP login → consent → token f
   // đọc lại biến mỗi khoảng poll cho tới budget 30s.
   await expect.poll(() => confirmHop, { timeout: 30_000 }).toBeDefined();
   expect(confirmHop?.status).toBe(302);
-  expect(confirmHop?.location.origin + confirmHop?.location.pathname).toBe(
-    `${account}/login/continue`,
-  );
-  expect(confirmHop?.location.searchParams.get('handle')).toBe(handleX);
+  // Narrow sau `expect.poll(...).toBeDefined()`: TS không biết poll đã pass —
+  // guard này chỉ lặp lại hợp đồng assertion ngay trên, không phải logic mới.
+  const hop =
+    confirmHop ??
+    (() => {
+      throw new Error('confirmHop still undefined after expect.poll');
+    })();
+  expect(hop.location.origin + hop.location.pathname).toBe(`${account}/login/continue`);
+  expect(hop.location.searchParams.get('handle')).toBe(handleX);
 
   // `/login/continue` là click-to-continue: push handoff chỉ chạy khi người
   // dùng bấm nút relay — bấm nó rồi mới đến continueUrl của auth (consent
