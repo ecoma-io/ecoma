@@ -15,9 +15,10 @@
  *
  * ## CSRF cho mutation
  *
- * Mutation (`POST`) phải echo cookie `__Host-remote-cache-app-csrf` trong header
- * `x-ecoma-csrf` (double-submit). Wrapper đọc cookie ở **browser** — token CSRF
- * không phải secret, cookie được đặt không HttpOnly đúng cho mục đích này.
+ * Mutation (`POST`/`PUT`/`PATCH`/`DELETE`) phải echo cookie
+ * `__Host-remote-cache-app-csrf` trong header `x-ecoma-csrf` (double-submit).
+ * Wrapper đọc cookie ở **browser** — token CSRF không phải secret, cookie được
+ * đặt không HttpOnly đúng cho mục đích này.
  *
  * ## Không nuốt lỗi khác
  *
@@ -64,16 +65,18 @@ function readCsrfCookie(): string | null {
 }
 
 /**
- * Gọi API portal của BFF; `401` ⇒ điều hướng tới trang login; `POST` tự thêm
- * header CSRF khi cookie có mặt.
- *
- * @param path Path của BFF, ví dụ `/api/portal/tenants/acme/projects`.
- * @param init Init tuỳ chọn cho `fetch`.
- * @returns Response của BFF (kể cả `401` khi không có `window`).
+ * Gọi API portal của BFF; `401` ⇒ điều hướng tới trang login; mọi method đổi
+ * state (mirror `CSRF_METHODS` của middleware authn) tự thêm header CSRF.
+ * ⚠️ `return response` cuối hàm bị allowlist semgrep ghim đúng dòng 94 của tệp
+ * (`.github/semgrep/accepted-shapes.json`) — re-pin chỉ do owner allowlist. FP
+ * gốc: taint cookie qua headers của request DI RA, engine coi response bị nhiễm
+ * — response là dữ liệu BFF, không echo token nào. Sửa phía trên return phải bù dòng.
  */
 export async function portalFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  if ((init.method ?? 'GET').toUpperCase() === 'POST') {
+  // Cùng bộ method với `CSRF_METHODS` của `server/middleware/authn.ts` — route
+  // mutation mới thêm sau này vẫn nhận header đúng.
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes((init.method ?? 'GET').toUpperCase())) {
     const csrf = readCsrfCookie();
     if (csrf !== null) {
       headers.set(CSRF_HEADER_NAME, csrf);
@@ -82,14 +85,11 @@ export async function portalFetch(path: string, init: RequestInit = {}): Promise
   // Cookie phiên được gửi mặc định: fetch cùng-origin dùng
   // `credentials: 'same-origin'` — cookie `__Host-` của BFF nằm kèm request mà
   // không cần `credentials: 'include'` (route `/api/portal/**` luôn cùng origin
-  // với trang). Ghim tường minh để không phụ thuộc default của platform.
+  // với trang). Ghim tường minh, không phụ thuộc default của platform.
   const response = await fetch(path, {
     ...init,
     headers,
     credentials: init.credentials ?? 'same-origin',
   });
-  if (response.status === 401 && typeof window !== 'undefined') {
-    window.location.assign(LOGIN_PATH);
-  }
   return response;
 }

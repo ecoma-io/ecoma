@@ -27,19 +27,18 @@ const cacheEndpoint = computed(() =>
 
 const copied = ref<string | null>(null);
 
-function copyables(): readonly { readonly key: string; readonly value: string }[] {
-  return [
-    {
-      key: 'nx.remoteCacheServer',
-      value: `NX_SELF_HOSTED_REMOTE_CACHE_SERVER=${cacheEndpoint.value}`,
-    },
-    {
-      key: 'nx.remoteCacheAccessToken',
-      value: 'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=<project-scoped-key>',
-    },
-    { key: 'nx.install', value: t('onboarding.installCommand') },
-  ];
-}
+// `computed` thay vì gọi hàm trong template — mỗi lần render lại không dựng lại
+// mảng hay gọi `t()` thừa.
+const nxCopyables = computed(() => [
+  {
+    key: 'nx.remoteCacheServer',
+    value: `NX_SELF_HOSTED_REMOTE_CACHE_SERVER=${cacheEndpoint.value}`,
+  },
+  {
+    key: 'nx.remoteCacheAccessToken',
+    value: 'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=<project-scoped-key>',
+  },
+]);
 
 async function copy(key: string, value: string): Promise<void> {
   if (typeof navigator === 'undefined' || navigator.clipboard === undefined) return;
@@ -106,11 +105,7 @@ async function copy(key: string, value: string): Promise<void> {
         <div>
           <Label>{{ t('onboarding.configureLabel') }}</Label>
           <div class="mt-2 flex flex-col gap-2">
-            <div
-              v-for="entry in copyables().filter((item) => item.key !== 'nx.install')"
-              :key="entry.key"
-              class="flex items-center gap-2"
-            >
+            <div v-for="entry in nxCopyables" :key="entry.key" class="flex items-center gap-2">
               <code
                 class="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs"
                 >{{ entry.value }}</code

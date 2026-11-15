@@ -50,6 +50,7 @@ import {
   ControlPlaneUnavailableError,
   remoteCacheControlPlaneConfig,
 } from '../../control-plane';
+import { INTERNAL_BODY_LIMIT_BYTES } from '@ecoma-io/internal-auth-contracts';
 import { requirePrincipal } from '../../principal';
 import { writeLog } from '../../log';
 
@@ -61,7 +62,10 @@ function controlPlanePath(event: H3Event): string {
   const stripped = pathname.replace(/^\/api\/portal/u, '');
   // Defense-in-depth: dot-segment không bao giờ được forward lên control plane
   // — fetch client có thể normalize `..` thành segment ngoài subtree đã ký.
-  if (stripped.includes('..')) {
+  // Percent-encoding cũng bị từ chối: `%2e%2e` decode ra `..` ở upstream, nên
+  // chữ ký `%` trần là đường chặn duy nhất không phụ thuộc hành vi decode của
+  // phía nhận. Giá trị thật của tên tenant/project/key không chứa `..` lẫn `%`.
+  if (stripped.includes('..') || stripped.includes('%')) {
     reject(event, 503, 'control_plane_path_invalid');
   }
   return `${stripped}${search}`;
@@ -110,6 +114,9 @@ function reject(event: H3Event, status: 502 | 503, reason: string): never {
   throw createError({
     statusCode: status,
     statusMessage: status === 502 ? 'Bad Gateway' : 'Service Unavailable',
+    // Mã lý do ổn định (không phải secret) đi kèm response — caller/soi log
+    // phân biệt được `control_plane_not_configured` với `control_plane_unreachable`.
+    data: { reason },
   });
 }
 
@@ -136,18 +143,25 @@ async function portalProxy(event: H3Event): Promise<unknown> {
   // ⚠️ `readRawBody` của h3 1.15 assert method PayloadMethods (POST/PUT/PATCH/
   // DELETE) trước khi đọc — một GET đi qua đây nhận 405 dù không có body.
   // GET của portal không mang body, nên chỉ đọc khi method là payload method.
+  // Giới hạn `INTERNAL_BODY_LIMIT_BYTES` (64 KiB, cùng hằng với middleware
+  // internal của `account`) chặn DoS body lớn trên đường nóng của BFF ⇒ 413.
   const body =
     event.method === 'GET'
       ? null
       : await (async (): Promise<Uint8Array | null> => {
           const rawBody = await readRawBody(event, false);
           if (rawBody === undefined || rawBody === null) return null;
-          return typeof rawBody === 'string'
-            ? new TextEncoder().encode(rawBody)
-            : new Uint8Array(rawBody);
+          const bytes =
+            typeof rawBody === 'string'
+              ? new TextEncoder().encode(rawBody)
+              : new Uint8Array(rawBody);
+          if (bytes.byteLength > INTERNAL_BODY_LIMIT_BYTES) {
+            throw createError({ statusCode: 413, statusMessage: 'Payload Too Large' });
+          }
+          return bytes;
         })();
 
-  let result;
+  let result: Awaited<ReturnType<typeof callControlPlane>>;
   try {
     result = await callControlPlane(config, {
       method: event.method === 'GET' ? 'GET' : 'POST',

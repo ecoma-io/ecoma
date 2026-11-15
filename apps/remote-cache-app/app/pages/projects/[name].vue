@@ -31,6 +31,7 @@ import {
 
 import RemoteCacheAppShowOnceDialog from '../../components/RemoteCacheAppShowOnceDialog.vue';
 import { useAsyncState } from '../../composables/use-async-state';
+import { isUnavailableState } from '../../composables/unavailable-state';
 import { portalFetch } from '../../utils/portal-fetch';
 
 const { t } = useI18n();
@@ -99,11 +100,7 @@ const { state, reload } = useAsyncState(async (): Promise<KeysPage | typeof UNAV
   return body as KeysPage;
 });
 
-const isUnavailable = computed(
-  () =>
-    state.value.kind === 'ready' &&
-    (state.value.value as unknown as KeysPage | typeof UNAVAILABLE) === UNAVAILABLE,
-);
+const isUnavailable = computed(() => isUnavailableState(state.value, UNAVAILABLE));
 
 const keys = computed(() =>
   state.value.kind === 'ready' && Array.isArray((state.value.value as KeysPage).api_keys)
@@ -255,7 +252,7 @@ const isDeveloper = (key: KeyMetadataWire): boolean => key.credential_class === 
 
       <RemoteCacheAppEmptyState
         v-if="keys.length === 0"
-        :message="t('projectDetail.emptyTitle') + ' ' + t('projectDetail.emptyBody')"
+        :message="t('projectDetail.emptyMessage')"
       />
 
       <div

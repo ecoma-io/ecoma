@@ -7,7 +7,7 @@
  * khi hộp thoại đóng (`confirm`), token biến mất vĩnh viễn vì parent cũng thả
  * response gốc. Không có nút "xem lại" — không thể, vì không bên nào giữ token.
  */
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useI18n } from '#i18n';
 import {
   Button,
@@ -33,6 +33,15 @@ const { token, open } =
 const emit = defineEmits<{ confirm: [] }>();
 
 const copied = ref(false);
+
+// Dialog mở lại với token mới phải hiện nút Copy, không phải trạng thái cũ —
+// reset khi `open` bật lên (component có thể được giữ mounted giữa hai lần mở).
+watch(
+  () => open,
+  (value) => {
+    if (value) copied.value = false;
+  },
+);
 
 // `navigator.clipboard` chỉ tồn tại ở secure context; app chạy HTTPS trên cả
 // local (Traefik TLS) lẫn Workers, nhưng test environment (jsdom) không có —

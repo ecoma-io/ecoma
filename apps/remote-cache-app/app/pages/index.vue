@@ -15,6 +15,7 @@ import { useI18n } from '#i18n';
 import { Button } from '@ecoma-io/ui-app-shell';
 
 import { useAsyncState } from '../composables/use-async-state';
+import { isUnavailableState } from '../composables/unavailable-state';
 import { portalFetch } from '../utils/portal-fetch';
 
 const { t } = useI18n();
@@ -64,9 +65,7 @@ const { state, reload } = useAsyncState(async (): Promise<ProjectsPage | typeof 
   return body as ProjectsPage;
 });
 
-const isUnavailable = computed(
-  () => state.value.kind === 'ready' && (state.value.value as unknown as symbol) === UNAVAILABLE,
-);
+const isUnavailable = computed(() => isUnavailableState(state.value, UNAVAILABLE));
 
 const projects = computed(() =>
   state.value.kind === 'ready' && Array.isArray((state.value.value as ProjectsPage).projects)
@@ -111,7 +110,7 @@ const createdAtOf = (project: ProjectWire): string => {
 
     <RemoteCacheAppEmptyState
       v-else-if="projects.length === 0"
-      :message="t('projects.emptyTitle') + ' ' + t('projects.emptyBody')"
+      :message="t('projects.emptyMessage')"
     />
 
     <div
