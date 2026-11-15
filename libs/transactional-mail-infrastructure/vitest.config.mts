@@ -11,6 +11,9 @@ export default defineConfig(() => ({
     environment: 'node',
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     passWithNoTests: true,
+    // Legitimately zero unit tests today: real suites live in the owning app's
+    // integration tier (tests/integrations/ of the owning app). passWithNoTests:
+    // true is deliberate until the first unit spec lands; delete this flag then.
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',

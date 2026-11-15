@@ -40,7 +40,7 @@ export default defineConfig(() => ({
     css: true,
     setupFiles: ['./src/lib/testing/nuxt-env.ts'],
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    passWithNoTests: true,
+    passWithNoTests: false,
     reporters: ['default'],
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
