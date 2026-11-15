@@ -2,7 +2,7 @@
 
 > 📌 Thư mục này là bounded context **Staff Access** (xem [`../README.md`](../README.md) §4): ADR này chốt cơ chế đáp ứng revocation latency của [ADR-0002](./0002-revocation-latency-risk-class.md), và đặt ràng buộc bắt buộc lên relay/consumer.
 
-> **Trạng thái:** Accepted · **Ngày:** 2026-10-30 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §10 (hàng "Bounded revocation latency", A24) · [ADR-0002](./0002-revocation-latency-risk-class.md), `roadmap.md` Phase 2 (P2.5) — file đã bị xoá theo #553 · **Issue:** #438
+> **Trạng thái:** Accepted · **Ngày:** 2026-10-30 · **Quyết định từ:** [`architecture/01-architecture.md`](../../../architecture/01-architecture.md) §10 (hàng "Bounded revocation latency", A24) · [ADR-0002](./0002-revocation-latency-risk-class.md), kế hoạch Phase 2 (P2.5) — kế hoạch đó không còn tồn tại dưới dạng file; tham chiếu issue gốc (#553) không tồn tại trong repo (đính chính 2026-11-15) · **Issue:** #438
 
 ## Bối cảnh
 
