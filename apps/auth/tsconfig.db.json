@@ -4,15 +4,17 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "target": "es2022",
-    "types": ["node"],
+    "types": ["node", "vitest/globals"],
     // `toSorted` cần `es2023`; base đặt `es2022` vì app chạy edge và không cần
     // nó. Thư mục `db/` chạy ở CI runner nên không kế thừa ràng buộc đó.
-    "lib": ["es2023"],
+    // `dom` cần cho `CryptoKey`/`BufferSource` mà libs/auth-domain và
+    // libs/auth-infrastructure (được src/ và db/ import) dùng.
+    "lib": ["es2023", "dom"],
     // Runner và spec import lẫn nhau bằng phần mở rộng thật (`.mts`, `.ts`):
     // Vitest và `tsx` đều cần nó, và đây là điều kiện để `import.meta.dirname`
     // được type đúng.
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["db/**/*.mts", "tests/**/*.ts"]
+  "include": ["db/**/*.mts", "tests/**/*.ts", "src/**/*.d.ts"]
 }
