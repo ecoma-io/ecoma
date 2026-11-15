@@ -276,7 +276,10 @@ export function pactRoutes(
       _links: {
         self: hal.link(`/pacts/provider/${encodeURIComponent(providerName)}/latest`),
         provider: hal.link(`/pacticipants/${encodeURIComponent(providerName)}`),
-        'pb:pacts': pacts.map((p) => ({
+        // Verifier mặc định của Pact CLI (pact-verifier-rust) follow relation
+        // KHÔNG prefix `pacts` trên collection này (chạy thật 18.10.9: thiếu
+        // là "Link 'pacts' was not found"); `pb:pacts` giữ cho client khác.
+        pacts: pacts.map((p) => ({
           href: `${hal.baseUrl}/pacts/provider/${encodeURIComponent(providerName)}/consumer/${encodeURIComponent(p.consumer.name)}/latest`,
           title: `Latest pact between ${p.consumer.name} and ${providerName}`,
           name: p.consumer.name,
