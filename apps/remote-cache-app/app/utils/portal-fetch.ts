@@ -67,7 +67,7 @@ function readCsrfCookie(): string | null {
 /**
  * Gọi API portal của BFF; `401` ⇒ điều hướng tới trang login; mọi method đổi
  * state (mirror `CSRF_METHODS` của middleware authn) tự thêm header CSRF.
- * ⚠️ `return response` cuối hàm bị allowlist semgrep ghim đúng dòng 94 của tệp
+ * ⚠️ `return response` cuối hàm bị allowlist semgrep ghim đúng dòng 99 của tệp
  * (`.github/semgrep/accepted-shapes.json`) — re-pin chỉ do owner allowlist. FP
  * gốc: taint cookie qua headers của request DI RA, engine coi response bị nhiễm
  * — response là dữ liệu BFF, không echo token nào. Sửa phía trên return phải bù dòng.
@@ -91,5 +91,10 @@ export async function portalFetch(path: string, init: RequestInit = {}): Promise
     headers,
     credentials: init.credentials ?? 'same-origin',
   });
+  // `replace` thay `assign`: back-button của browser không quay lại trang đã
+  // chết 401 (tránh vòng login⇄trang).
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.location.replace(LOGIN_PATH);
+  }
   return response;
 }

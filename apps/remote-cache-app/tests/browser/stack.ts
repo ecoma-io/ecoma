@@ -224,7 +224,7 @@ async function startPostgresContainer(): Promise<PostgresContainer> {
   }
 }
 
-function psqlSync(containerName: string, sql: string): void {
+function psqlSync(containerName: string, sql: string, targetDatabase: string = API_DATABASE): void {
   const result = spawnSync(
     'docker',
     [
@@ -234,7 +234,7 @@ function psqlSync(containerName: string, sql: string): void {
       '-U',
       SUPERUSER,
       '-d',
-      API_DATABASE,
+      targetDatabase,
       '-v',
       'ON_ERROR_STOP=1',
       '-c',
@@ -304,12 +304,15 @@ function provisionDatabases(containerName: string): void {
     [API_DATABASE, API_MIGRATOR_ROLE, API_RUNTIME_ROLE],
     [APP_DATABASE, APP_MIGRATOR_ROLE, APP_RUNTIME_ROLE],
   ] as const) {
+    // REVOKE ALL ON SCHEMA public phải chạy đúng database của vòng lặp, không
+    // mặc định API db — nếu không APP_DATABASE giữ nguyên default PUBLIC.
     psqlSync(
       containerName,
       `REVOKE CONNECT ON DATABASE "${database}" FROM PUBLIC;
        GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "${database}" TO ${migratorRole};
        GRANT CONNECT ON DATABASE "${database}" TO ${runtimeRole};
        REVOKE ALL ON SCHEMA public FROM PUBLIC;`.replaceAll('\n', ' '),
+      database,
     );
   }
 }

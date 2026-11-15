@@ -859,11 +859,11 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "apps/remote-cache-app/app/utils/portal-fetch.ts",
-    "start": 94,
-    "end": 94,
-    "reason": "portalFetch tra ve Response cua fetch BFF (issue #180): taint nhap tu document.cookie (CSRF token, KHONG phai secret — CSRF la double-submit token cong khai) chay qua headers cua request DI RA, roi engine coi response cua chinh fetch do bi nhiem. Request chi roi cookie qua thuoc tinh credentials/headers cua request di ra; response body la du lieu tra ve cua BFF, khong echo cookie nao (401/403 khong echo token). FP cung lop request→response voi cac pin BFF proxy da accept cua pact-broker (#206/#208).",
+    "start": 99,
+    "end": 99,
+    "reason": "portalFetch tra ve Response cua fetch BFF (issue #180): taint nhap tu document.cookie (CSRF token, KHONG phai secret — CSRF la double-submit token cong khai) chay qua headers cua request DI RA, roi engine coi response cua chinh fetch do bi nhiem. Request chi roi cookie qua thuoc tinh credentials/headers cua request di ra; response body la du lieu tra ve cua BFF, khong echo cookie nao (401/403 khong echo token). FP cung lop request→response voi cac pin BFF proxy da accept cua pact-broker (#206/#208). Re-pin 94->99: khoi phuc redirect 401 (dung location.replace)",
     "lines": {
-      "94": "^  return response;$"
+      "99": "^  return response;$"
     }
   }
 ]
