@@ -29,12 +29,19 @@ import { defineConfig, devices } from '@playwright/test';
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Path cert local — tên file suy từ `ROOT_HOST`; thiếu là config load fail (ENOENT), đúng ý. */
-const LOCAL_CERT_PATH = join(
-  SUITE_DIR,
-  '../../../deploys/platform-deploy/local-certs',
-  `${rootHostRaw().split(':')[0]}.crt`,
-);
+/**
+ * Path cert local — tên file suy từ `ROOT_HOST`. LAZY: tính lúc bị cần, KHÔNG
+ * lúc module load — thiếu env/.env thì `resolveStackOrigin()` vẫn trả
+ * placeholder `.invalid` đúng hợp đồng "config không bao giờ throw", thay vì
+ * crash import trước khi global-setup kịp báo lỗi rõ ràng.
+ */
+function resolveLocalCertPath(): string {
+  return join(
+    SUITE_DIR,
+    '../../../deploys/platform-deploy/local-certs',
+    `${rootHostRaw().split(':')[0]}.crt`,
+  );
+}
 
 /** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
 function rootHostRaw(): string {
@@ -58,8 +65,12 @@ function rootHostRaw(): string {
   );
 }
 
-/** PEM của cert local — dùng cho mọi Node request của suite. */
-export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_PATH, 'utf8');
+/** PEM của cert local — dùng cho mọi Node request của suite. Lazy như cert path. */
+let localCaPemCache: string | undefined;
+export function localCaPem(): string {
+  localCaPemCache ??= readFileSync(resolveLocalCertPath(), 'utf8');
+  return localCaPemCache;
+}
 
 /**
  * SPKI hash (base64 SHA-256 của DER SubjectPublicKeyInfo) — pin public key của
@@ -72,7 +83,21 @@ function computeSpkiHash(pem: string): string {
   return createHash('sha256').update(spkiDer).digest('base64');
 }
 
-const SPKI_HASH = computeSpkiHash(LOCAL_CA_PEM);
+/** SPKI hash — lazy: hash cert một lần khi Chromium cần cờ SPKI pin. */
+let spkiHashCache: string | undefined;
+function spkiHashOrEmpty(): string {
+  if (spkiHashCache !== undefined) {
+    return spkiHashCache;
+  }
+  try {
+    spkiHashCache = computeSpkiHash(localCaPem());
+  } catch {
+    // Cert chưa có (worktree chưa deploy): hash rỗng — config load vẫn OK theo
+    // hợp đồng; test thật sẽ đỏ qua global-setup gate hoặc TLS failure.
+    spkiHashCache = '';
+  }
+  return spkiHashCache;
+}
 
 /**
  * Origin portal từ hostname gốc (`ROOT_HOST`, dạng `hostname:port`): GHÉP PREFIX
@@ -149,7 +174,10 @@ export default defineConfig({
         // SPKI pin scoped cho cert local — "tin ĐÚNG public key này", không
         // phải "tin mọi certificate".
         launchOptions: {
-          args: [`--ignore-certificate-errors-spki-list=${SPKI_HASH}`],
+          // Playwright đọc `launchOptions.args` một lần khi CONFIG LOAD — không
+          // có hook "chỉ khi launch". spkiHashOrEmpty() degrade thành hash rỗng
+          // khi cert chưa có: test thật sẽ đỏ qua global-setup gate/TLS.
+          args: [`--ignore-certificate-errors-spki-list=${spkiHashOrEmpty()}`],
         },
       },
     },

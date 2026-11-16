@@ -33,49 +33,21 @@ const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
  * nhau khi deploy thành công, nên host từ `ROOT_HOST` là nguồn đúng cho tên
  * file cert (`<root>.crt` trong `deploys/platform-deploy/local-certs/`).
  */
-function localCertName(): string {
-  const raw = rootHostRaw();
-  return `${raw.split(':')[0]}.crt`;
-}
 
 // File này nằm ở `e2e/support/` — NĂM mức `../` về repo root (support → e2e →
 // suite → category → system-tests → root). Sai một mức là ENOENT ngay lúc
 // module load.
-const LOCAL_CERT_FILE = join(
-  SUITE_DIR,
-  '../../../../../deploys/platform-deploy/local-certs',
-  localCertName(),
-);
-
-export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_FILE, 'utf8');
-
-/** Đường dẫn cert đã suy — tái dùng bởi spec (SSL_CERT_FILE của Pact CLI). */
-export const LOCAL_CERT_PATH = LOCAL_CERT_FILE;
+const CERT_DIR = join(SUITE_DIR, '../../../../../deploys/platform-deploy/local-certs');
 
 /**
- * Origin portal của stack local — `https://pact.<root>:<port>`.
- *
- * `ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) — hợp đồng chung
- * của mọi system suite: suite này ghép `pact.` vì router Traefik của portal
- * match `Host(pact.<root>)`. Giá trị raw KHÔNG bao giờ được dùng làm origin.
- *
- * Khi chạy qua Nx, `.env` repo root đã nằm trong env của task; chạy
- * `npx playwright test` trực tiếp thì fallback parse `.env`.
+ * Cert + path cert — LAZY: đọc lúc bị cần, KHÔNG lúc module load. Thiếu
+ * `ROOT_HOST`/cert thì module vẫn nạp (placeholder `.invalid` của
+ * `resolvePortalOrigin()`/`resolveApiOrigin()` vẫn trả được), để
+ * `--list`/graph evaluation không crash trên worktree chưa deploy; test thật
+ * đi qua global-setup gate fail-closed.
  */
-export function resolvePortalOrigin(): string {
-  return originWithPrefix('pact.');
-}
 
-/** Origin API broker — `https://api.<root>:<port>`, broker-base-url của Pact CLI. */
-export function resolveApiOrigin(): string {
-  return originWithPrefix('api.');
-}
-
-function originWithPrefix(prefix: string): string {
-  return withOrigin(prefix, rootHostRaw());
-}
-
-/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
+/** Hostname gốc từ env hoặc `.env` — raw throw khi thiếu cả hai (cert path cần host thật). */
 function rootHostRaw(): string {
   const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
@@ -96,6 +68,60 @@ function rootHostRaw(): string {
     'ROOT_HOST is not set and no .env file defines it. ' +
       'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
   );
+}
+
+let localCaPemCache: string | undefined;
+function localCaPem(): string {
+  if (localCaPemCache === undefined) {
+    const certFile = join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
+    localCaPemCache = readFileSync(certFile, 'utf8');
+  }
+  return localCaPemCache;
+}
+
+/** Đường dẫn cert đã suy — tái dùng bởi spec (SSL_CERT_FILE của Pact CLI). */
+export function localCertPath(): string {
+  return join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
+}
+
+/**
+ * Origin portal của stack local — `https://pact.<root>:<port>`.
+ *
+ * `ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) — hợp đồng chung
+ * của mọi system suite: suite này ghép `pact.` vì router Traefik của portal
+ * match `Host(pact.<root>)`. Giá trị raw KHÔNG bao giờ được dùng làm origin.
+ *
+ * Khi chạy qua Nx, `.env` repo root đã nằm trong env của task; chạy
+ * `npx playwright test` trực tiếp thì fallback parse `.env`. KHÔNG có env nào
+ * ⇒ placeholder `.invalid` (RFC 2606) — mọi request đỏ với DNS failure, không
+ * bao giờ xanh giả; module-load vẫn thành công cho `--list`/graph evaluation.
+ */
+export function resolvePortalOrigin(): string {
+  return originWithPrefix('pact.');
+}
+
+/** Origin API broker — `https://api.<root>:<port>`, broker-base-url của Pact CLI. */
+export function resolveApiOrigin(): string {
+  return originWithPrefix('api.');
+}
+
+function originWithPrefix(prefix: string): string {
+  const fromEnv = process.env.ROOT_HOST;
+  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
+    return withOrigin(prefix, fromEnv.trim());
+  }
+  try {
+    const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
+    for (const line of text.split(/\r?\n/u)) {
+      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
+      if (match && match[1].trim().length > 0) {
+        return withOrigin(prefix, match[1].trim());
+      }
+    }
+  } catch {
+    // `.env` vắng mặt — placeholder bên dưới; gate global-setup là đường fail-closed.
+  }
+  return `https://${prefix}placeholder.invalid:443`;
 }
 
 /** Ghép hostname gốc (dạng `hostname:port`) thành origin `<prefix><hostname>:<port>`. */
@@ -132,7 +158,7 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
         port: target.port || '443',
         path: `${target.pathname}${target.search}`,
         method: options.method ?? 'GET',
-        ca: LOCAL_CA_PEM,
+        ca: localCaPem(),
         servername: target.hostname,
         headers: {
           // `Host` tường minh `hostname:port` — đúng dạng mà rule `Host(...)`
@@ -148,7 +174,7 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
           reject(
             new Error(
               `TLS not verified for ${url} — ${
-                tlsSocket?.authorizationError?.message ?? 'socket has no verify status'
+                tlsSocket?.authorizationError ?? 'socket has no verify status'
               }`,
             ),
           );

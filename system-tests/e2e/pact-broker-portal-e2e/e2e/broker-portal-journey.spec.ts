@@ -14,7 +14,7 @@ import {
   resolvePortalOrigin,
   stackGet,
   stackRequest,
-  LOCAL_CERT_PATH,
+  localCertPath,
 } from './support/local-origin';
 
 const execFileAsync = promisify(execFile);
@@ -77,7 +77,7 @@ async function runPactCli(
       env[key] = value;
     }
   }
-  env.SSL_CERT_FILE = LOCAL_CERT_PATH;
+  env.SSL_CERT_FILE = localCertPath();
   env.PACT_BROKER_BASE_URL = apiOrigin();
   env.PACT_BROKER_TOKEN = token;
   env.PACT_DO_NOT_TRACK = 'true';
@@ -110,6 +110,22 @@ function assertNoTokenInOutput(output: string, token: string): void {
   if (token.length > 8 && output.includes(token)) {
     throw new Error('pact CLI output unexpectedly contains the token plaintext');
   }
+}
+
+/**
+ * Chuẩn bị stdout CLI làm message assert: scrub MỌI token đang còn sống trước
+ * khi stdout chạm vào lỗi của `expect` — message assert nằm trong log/artifact
+ * Playwright, secret không được nằm ở đó. Token đã revoke ở PB-8 được giữ
+ * nguyên vì caller cần assert trên output đó.
+ */
+function scrubForAssertion(output: string, ...tokens: string[]): string {
+  let scrubbed = output;
+  for (const token of tokens) {
+    if (token.length > 8) {
+      scrubbed = scrubbed.split(token).join('[REDACTED]');
+    }
+  }
+  return scrubbed.slice(0, 600);
 }
 
 /** Ghi một pact JSON với interaction description duy nhất. */
@@ -161,7 +177,12 @@ function startProviderApp(): Promise<{ url: string; close: () => void }> {
       }
       resolve({
         url: `http://127.0.0.1:${address.port}`,
-        close: () => server.close(),
+        // Chờ sự kiện 'close' — test kế tiếp trong worker không rơi vào cổng
+        // chưa được giải phóng.
+        close: () =>
+          new Promise<void>((resolveClosed) => {
+            server.close(() => resolveClosed());
+          }),
       });
     });
   });
@@ -287,7 +308,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       ['publish', pactFile, '--consumer-app-version', consumerVersion, '--branch', 'main'],
       devSecret,
     );
-    expect(publish.status, publish.stdout.slice(0, 600)).toBe(0);
+    expect(publish.status, scrubForAssertion(publish.stdout, devSecret)).toBe(0);
     assertNoTokenInOutput(publish.stdout, devSecret);
     expect(publish.stdout).toContain('Pact published successfully');
 
@@ -328,7 +349,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       ['create-environment', '--name', environmentName, '--production'],
       ciSecret,
     );
-    expect(createEnv.status, createEnv.stdout.slice(0, 600)).toBe(0);
+    expect(createEnv.status, scrubForAssertion(createEnv.stdout, ciSecret)).toBe(0);
 
     // Verifier thật: fetch pact từ broker, verify với provider app thật,
     // publish verification result bằng CI credential.
@@ -354,7 +375,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
         ],
         ciSecret,
       );
-      expect(verify.status, verify.stdout.slice(0, 600)).toBe(0);
+      expect(verify.status, scrubForAssertion(verify.stdout, ciSecret)).toBe(0);
       assertNoTokenInOutput(verify.stdout, ciSecret);
       expect(verify.stdout).toContain('Verifying a pact');
 
@@ -373,7 +394,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
         ],
         ciSecret,
       );
-      expect(record.status, record.stdout.slice(0, 600)).toBe(0);
+      expect(record.status, scrubForAssertion(record.stdout, ciSecret)).toBe(0);
 
       const deploy = await runPactCli(
         'pact-broker',
@@ -388,7 +409,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
         ],
         ciSecret,
       );
-      expect(deploy.status, deploy.stdout.slice(0, 600)).toBe(0);
+      expect(deploy.status, scrubForAssertion(deploy.stdout, ciSecret)).toBe(0);
       assertNoTokenInOutput(deploy.stdout, ciSecret);
       expect(deploy.stdout).toContain('Computer says yes');
     } finally {
@@ -465,13 +486,13 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       ['publish', pactA, '--consumer-app-version', consumerVersion],
       ciSecret,
     );
-    expect(publishA.status, publishA.stdout.slice(0, 600)).toBe(0);
+    expect(publishA.status, scrubForAssertion(publishA.stdout, ciSecret)).toBe(0);
     const publishB = await runPactCli(
       'pact-broker',
       ['publish', pactB, '--consumer-app-version', consumerVersion],
       secretB,
     );
-    expect(publishB.status, publishB.stdout.slice(0, 600)).toBe(0);
+    expect(publishB.status, scrubForAssertion(publishB.stdout, secretB)).toBe(0);
 
     // B nhìn thấy NỘI DUNG của B (không phải của A) tại cùng (tên, version).
     const fetchedByB = await stackGet(
