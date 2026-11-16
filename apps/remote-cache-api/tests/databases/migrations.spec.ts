@@ -110,6 +110,48 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
     }
   });
 
+  it('re-runs every file row-safely after 0008-vocabulary audit rows exist (the 0007 regression)', async () => {
+    // Đúng tình huống escalated của lane local: runner không có ledger nên
+    // re-apply chạy lại 0007 với DROP + re-ADD constraint. Trên DB đã có audit
+    // rows mang vocabulary 0008 (project_created/api_key_created/
+    // api_key_revoked — do 0008 nới rộng trước đó), bản 0007 chỉ có 5 action
+    // re-ADD constraint NGẸN hơn các hàng đang tồn tại ⇒ ADD CONSTRAINT chết
+    // với check violation ⇒ remote-cache-api-deploy:local-up đỏ trên mọi
+    // worktree có dữ liệu suite cũ. 0007 giờ khai đúng tập 0008 nên re-run
+    // row-safe; 0008 vẫn là mệnh đề chốt (narrowest) cuối chuỗi.
+    const migrator = await db.connectAsMigrator();
+    try {
+      // Hàng audit mang ĐẦY ĐỦ vocabulary 0008 — cả ba action mà 0007 bản cũ
+      // bỏ sót, kèm tenant_bootstrap của chính 0007.
+      await migrator.query(
+        `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
+         VALUES ('project_created', 'portal', 'project:rerun-proof', 'allowed'),
+                ('api_key_created', 'portal', 'project:rerun-proof', 'allowed'),
+                ('api_key_revoked', 'portal', 'api-key:rerun-proof', 'allowed'),
+                ('tenant_bootstrap', 'bootstrap', 'tenant:ecoma', 'allowed')`,
+      );
+
+      const result = await applyAllMigrations(migrator);
+      expect(result.applied).toBe(listMigrations().length);
+      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
+
+      // Constraint sống sót qua re-run và giữ đúng vocabulary: các action
+      // 0008 vẫn hợp lệ, action lạ vẫn bị chặn (vocabulary KHÔNG bị nới lỏng).
+      await migrator.query(
+        `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
+         VALUES ('project_created', 'portal', 'project:rerun-proof-2', 'allowed')`,
+      );
+      await expect(
+        migrator.query(
+          `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
+           VALUES ('nonexistent_action', 'portal', 'project:rerun-proof', 'allowed')`,
+        ),
+      ).rejects.toThrow(/audit_log_action_check|violates check constraint/iu);
+    } finally {
+      await migrator.end();
+    }
+  });
+
   it('refuses to run against a different database (current_database guard)', async () => {
     // Guard #101 (pattern staff-access): runner pin tên database — `DATABASE_URL`
     // trỏ nhầm database khác phải fail-loud trước khi một DDL nào chạm đích.

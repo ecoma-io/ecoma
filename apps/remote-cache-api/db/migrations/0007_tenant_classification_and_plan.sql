@@ -17,9 +17,18 @@
 --     their plan is NULL.
 --
 -- Widens audit_log_action_check with the bootstrap action 'tenant_bootstrap'
--- (snake_case, matching the existing vocabulary style). The constraint name
--- is unchanged; drop-then-add keeps the statement re-runnable. 0005 is never
--- edited in place (forward-fix, invariant 10).
+-- (snake_case, matching the existing vocabulary style) AND the portal
+-- mutation actions 'project_created', 'api_key_created' and 'api_key_revoked'
+-- that 0008 adds later. The vocabulary here covers the FULL 0008 set because
+-- the migration runner has no ledger and re-applies every file: on a database
+-- that already carries 0008-vocabulary audit rows, a re-run of 0007 with only
+-- the five 0007 actions would re-ADD a narrower constraint that the existing
+-- rows violate, failing remote-cache-api-deploy:local-up on any worktree whose
+-- database has prior suite runs. A WIDER intermediate constraint (superset of
+-- both files' vocabularies) is row-safe: 0008's drop-then-re-ADD is unchanged
+-- and remains the narrowest statement of the final contract. The constraint
+-- name is unchanged; drop-then-add keeps the statement re-runnable. 0005 is
+-- never edited in place (forward-fix, invariant 10).
 --
 -- Defense in depth: the runtime role's table-level UPDATE on tenants is
 -- revoked and re-granted at column scope (status only) — the lifecycle path
@@ -114,10 +123,19 @@ ALTER TABLE remote_cache.audit_log
 
 ALTER TABLE remote_cache.audit_log
   ADD CONSTRAINT audit_log_action_check
-  CHECK (action IN ('quota_exceeded', 'quota_limit_set', 'retention_cleanup', 'cache_put', 'tenant_bootstrap'));
+  CHECK (action IN (
+    'quota_exceeded',
+    'quota_limit_set',
+    'retention_cleanup',
+    'cache_put',
+    'tenant_bootstrap',
+    'project_created',
+    'api_key_created',
+    'api_key_revoked'
+  ));
 
 COMMENT ON CONSTRAINT audit_log_action_check ON remote_cache.audit_log IS
-  'Closed action vocabulary of the audit log; widened by 0007 with tenant_bootstrap for the provisioning bootstrap run.';
+  'Closed action vocabulary of the audit log; widened by 0007 with tenant_bootstrap plus the portal mutations project_created, api_key_created and api_key_revoked (the 0008 set, included here so a ledger-less re-run of 0007 stays row-safe on databases that already carry 0008-vocabulary audit rows), and narrowed to its final statement by 0008 (issue #202, R15).';
 
 -- ---------------------------------------------------------------------------
 -- Defense in depth: scope the runtime UPDATE grant on tenants to (status)
