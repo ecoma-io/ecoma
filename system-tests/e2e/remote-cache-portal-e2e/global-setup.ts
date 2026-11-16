@@ -10,6 +10,8 @@ import {
   traefikNamespaceOrNull,
 } from './e2e/support/stack-env';
 
+const execFileAsync = promisify(execFile);
+
 /**
  * Stack gate fail-closed của suite `remote-cache-portal-e2e` — probe TRƯỚC KHI
  * suite chạy, không phải trong từng test.
@@ -180,6 +182,50 @@ function classify(error: NodeJS.ErrnoException): Error {
 }
 
 /** In lỗi + remedy rồi exit 1. Console/exit là output chương trình → English. */
+/**
+ * Chẩn đoán chỉ-chạy-khi-đỏ: trạng thái container/label router Traefik của
+ * namespace worktree. Gọi docker CLI qua execFile; mọi lỗi đọc thành chuỗi —
+ * đường diagnostic không bao giờ ném và không che lỗi gate.
+ */
+async function stackDiagnostics(hostname: string, port: string): Promise<string | undefined> {
+  const nsPrefix = 'ecoma-';
+  const commands: ReadonlyArray<{ readonly label: string; readonly argv: string[] }> = [
+    {
+      label: 'docker ps (stack containers, state + ports)',
+      argv: [
+        'docker',
+        'ps',
+        '-a',
+        '--format',
+        `{{.Names}}\\t{{.State}}\\t{{.Status}}\\t{{.Ports}}`,
+      ],
+    },
+    {
+      label: 'containers exposing traefik routers',
+      argv: ['docker', 'ps', '--format', `{{.Names}}`, '--filter', `label=traefik.enable=true`],
+    },
+  ];
+  const sections: string[] = [`gate target: ${hostname}:${port}`];
+  for (const command of commands) {
+    try {
+      const { stdout } = await execFileAsync(command.argv[0], command.argv.slice(1), {
+        timeout: 10_000,
+      });
+      const lines = stdout
+        .trim()
+        .split(/\r?\n/u)
+        .filter((line) => line.length > 0);
+      const relevant = lines.filter((line) => line.includes(nsPrefix) || line.includes('traefik'));
+      sections.push(
+        `## ${command.label}\n${relevant.length > 0 ? relevant.join('\n') : '(no matching containers)'}`,
+      );
+    } catch (error) {
+      sections.push(`## ${command.label}\n(diagnostic failed: ${String(error)})`);
+    }
+  }
+  return sections.join('\n');
+}
+
 function fail(origin: string, elapsedMs: number, error: Error): never {
   console.error(
     `stack gate FAILED after ${elapsedMs}ms: ${origin}/api/portal/tenants/ecoma/projects is not serving the expected unauthenticated contract — ${error.message}. ` +
@@ -256,6 +302,13 @@ async function main(): Promise<void> {
     }
     const remainingMs = BUDGET_MS - (Date.now() - startedAt);
     if (remainingMs <= 0) {
+      // Diagnostic chỉ chạy trên đường thất bại — chứng cứ gốc khi probe 404
+      // suốt cửa sổ vẫn đỏ (runs 43794652419, 43799470720): router portal có
+      // đăng ký hay không chỉ trả lời được bằng trạng thái container/label.
+      const diagnostics = await stackDiagnostics(hostname, port);
+      if (diagnostics) {
+        console.error(`stack gate diagnostic on failure:\n${diagnostics}`);
+      }
       fail(origin, Date.now() - startedAt, lastFailure);
     }
     const sleepMs = Math.min(backoffMs, remainingMs);
