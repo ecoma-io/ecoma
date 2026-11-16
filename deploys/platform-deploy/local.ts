@@ -178,7 +178,7 @@ async function main(command: string): Promise<number> {
     // nguồn với router rule Traefik của từng deploy, script smoke không tự ghép
     // hostname. worktreeRoot là config canonical của platform stack.
     const namespace = worktreeNamespace(foundation?.ctx.worktreeRoot ?? WORKSPACE_ROOT);
-    const rootHostname = rootHost.split(':')[0] ?? '';
+    const rootHostname = rootHost.split(':')[0];
     const portalArgs = ['account', 'pact', 'remote-cache-app'].flatMap((sub) => [
       '--portal',
       `${sub}=${localServiceHostname(sub, rootHostname, namespace)}`,
