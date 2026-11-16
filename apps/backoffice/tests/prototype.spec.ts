@@ -109,56 +109,98 @@ describe('waitForRouteReady', () => {
     expect(reloadCalls).toHaveLength(0);
   });
 
-  it('ném lỗi nếu phần tử chưa xuất hiện và hết trần, chỉ reload tối đa một lần', async () => {
+  it('reload lặp lại ở mỗi lát hết trần cho tới khi phần tử xuất hiện (#323)', async () => {
     const reloadCalls: Array<{ waitUntil: string }> = [];
     const page = fakePage(
       [
         async () => {
           throw timeoutError(3_000);
         },
+        async () => {
+          throw timeoutError(3_000);
+        },
+        async () => {
+          // phần tử xuất hiện sau hai vòng full-reload
+        },
       ],
       reloadCalls,
     );
 
-    await expect(waitForRouteReady(page, '/', 1_000)).rejects.toThrow(/Timeout \d+ms exceeded/u);
-    expect(reloadCalls).toHaveLength(1);
+    await waitForRouteReady(page, '/', 30_000);
+
+    expect(reloadCalls).toHaveLength(2);
+    expect(reloadCalls[0].waitUntil).toBe('domcontentloaded');
   });
 
-  it('reload một lần khi lần chờ đầu hết trần, rồi chờ tiếp', async () => {
+  it('hết trần sau nhiều lần reload lặp thì ném lỗi thay vì chờ vô hạn (#323)', async () => {
+    const reloadCalls: Array<{ waitUntil: string }> = [];
+    // Mọi lần chờ đều hết trần: vòng lặp phải reload lại mỗi lát cho tới deadline.
+    const page = fakePage(
+      [
+        async () => {
+          throw timeoutError(3_000);
+        },
+      ],
+      reloadCalls,
+    );
+
+    await expect(waitForRouteReady(page, '/', 60)).rejects.toThrow(/Timeout \d+ms exceeded/u);
+    // Trần 60 ms với mỗi lát giả tốn ~1-2 ms thời gian thực ⇒ nhiều lần reload
+    // trước khi dừng — đúng hợp đồng reload lặp, không phải reload một lần.
+    expect(reloadCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('reload bị abort do dev server thay trang thì thử lại, không ném (#323)', async () => {
     const reloadCalls: Array<{ waitUntil: string }> = [];
     const page = fakePage(
       [
         async () => {
           throw timeoutError(3_000);
         },
-        async () => {
-          // phần tử xuất hiện sau reload
-        },
       ],
       reloadCalls,
     );
+    page.reload = async (options) => {
+      reloadCalls.push(options);
+      throw new Error(
+        'page.reload: net::ERR_ABORTED: navigation to "http://127.0.0.1:4311/" was canceled by another one',
+      );
+    };
+    // Lượt chờ kế tiếp thành công sau lần reload bị abort.
+    page.getByTestId = () => ({
+      waitFor: async (options) => {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 1);
+        });
+        if (reloadCalls.length === 0) {
+          throw timeoutError(options.timeout);
+        }
+      },
+    });
 
     await waitForRouteReady(page, '/', 5_000);
 
     expect(reloadCalls).toHaveLength(1);
-    expect(reloadCalls[0].waitUntil).toBe('domcontentloaded');
   });
 
-  it('không reload lần hai nếu lần chờ sau reload cũng hết trần', async () => {
+  it('reload ném lỗi thật (không phải abort do reload) thì đẩy lên ngay (#323)', async () => {
     const reloadCalls: Array<{ waitUntil: string }> = [];
     const page = fakePage(
       [
         async () => {
           throw timeoutError(3_000);
         },
-        async () => {
-          throw timeoutError(3_000);
-        },
       ],
       reloadCalls,
     );
+    page.reload = async (options) => {
+      reloadCalls.push(options);
+      throw new Error('net::ERR_CONNECTION_REFUSED');
+    };
 
-    await expect(waitForRouteReady(page, '/', 1_000)).rejects.toThrow(/Timeout \d+ms exceeded/u);
+    await expect(waitForRouteReady(page, '/', 5_000)).rejects.toThrow(
+      'net::ERR_CONNECTION_REFUSED',
+    );
     expect(reloadCalls).toHaveLength(1);
   });
 
