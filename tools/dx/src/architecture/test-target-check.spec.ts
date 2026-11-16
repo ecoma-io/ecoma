@@ -270,14 +270,44 @@ describe('validateTestTargets — passWithNoTests policy', () => {
     expect(violations[0].detail).toContain('passWithNoTests: true');
   });
 
-  it('does not police passWithNoTests in unit configs', () => {
-    // Chính sách PR này: giữ nguyên giá trị unit hiện có, không flip — lượt
-    // kiểm không biến unit `passWithNoTests: true` thành lỗi.
+  it('accepts passWithNoTests true in a unit config whose project has zero unit specs', () => {
+    // Hình thật của 4 project #266: flag giữ vì project THẬT SỰ chưa có spec
+    // unit nào dưới include — hợp lệ, không bị đụng.
+    const files = {
+      'libs/pure/package.json': pkg(['test']),
+      'libs/pure/vitest.config.mts': unitConfig(['src/**/*.spec.ts'], 'passWithNoTests: true,'),
+      'libs/pure/src/index.ts': 'export const x = 1;\n',
+    };
+    expect(run(files, [node('@ecoma-io/pure', 'libs/pure')])).toEqual([]);
+  });
+
+  it('reports passWithNoTests true in a unit config once a unit spec exists (#266)', () => {
+    // Flag chỉ được cấp cho project 0-spec: spec đầu tiên xuất hiện mà flag
+    // chưa gỡ là include trượt khỏi spec sẽ chạy 0 file im lặng — arch-check
+    // đỏ ngay, buộc gỡ flag cùng lúc spec vào.
+    const files = {
+      'libs/pure/package.json': pkg(['test']),
+      'libs/pure/vitest.config.mts': unitConfig(['src/**/*.spec.ts'], 'passWithNoTests: true,'),
+      'libs/pure/src/index.ts': 'export const x = 1;\n',
+      'libs/pure/src/index.spec.ts': 'import { it } from "vitest"; it("adds", () => {});\n',
+    };
+    const violations = run(files, [node('@ecoma-io/pure', 'libs/pure')]);
+    expect(kinds(violations)).toEqual(['unit-pass-with-no-tests-with-specs']);
+    expect(violations[0].project).toBe('@ecoma-io/pure');
+    expect(violations[0].detail).toContain('1 spec file');
+    expect(violations[0].detail).toContain('libs/pure/src/index.spec.ts');
+  });
+
+  it('does not report passWithNoTests true when the only spec is in an integration purpose dir', () => {
+    // Spec duy nhất thuộc tier integration (nhà hợp lệ của nó): project vẫn
+    // THẬT SỰ 0 spec unit — dò spec unit đã bỏ thư mục mục đích nên check
+    // cũng phải bỏ, không báo giả.
     const { files, project } = goodApp();
     files['apps/widget/vitest.config.mts'] = unitConfig(
       ['{src,tests}/**/*.{test,spec}.ts'],
       `exclude: [...defaultExclude, 'tests/integrations/**'], passWithNoTests: true,`,
     );
+    delete files['apps/widget/src/thing.spec.ts'];
     expect(run(files, [project])).toEqual([]);
   });
 });
