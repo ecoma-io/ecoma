@@ -12,15 +12,11 @@
       "- account-deploy + staff-access-deploy: gap #113 — `local-up` của llm-api-deploy đọc",
       "  credential migrator cross-stack từ hai stack này mà không khai dependsOn; suite bù",
       "  cạnh ở cấp `system-test` để một lần chạy mới trên worktree sạch có thứ tự đúng.",
-      "KHÔNG khai llm-api-deploy ở đây dù lane thuộc nó: hợp đồng",
-      "local-lifecycle-graph.spec của dx đòi implicitDependencies BẰNG ĐÚNG tập project",
-      "của các entry dependsOn target `local-up` (selection và prerequisite là một tập;",
-      "entry `test-lane-up` dưới đây không nằm trong phép so). Cạnh lane vẫn thật ở task",
-      "graph — `test-lane-up` kéo toàn bộ hạ tầng (worker `ecoma-llm-api`, ba database LLM,",
-      "bootstrap, container mock upstream, kênh `LANE_STATE` qua `lane.ts state`). Hệ quả",
-      "đã biết: `nx affected` KHÔNG chọn suite này khi chỉ llm-api-deploy đổi — khoảng",
-      "trống hiện tại của hợp đồng dx (chỉ biết prerequisite target `local-up`), ghi nhận",
-      "cho chủ sở hữu tools/dx, không tự xử tại đây.",
+      "- llm-api-deploy (#332): cạnh lane qua dependsOn `test-lane-up` — chọn ở project",
+      "  graph vì `nx affected` chỉ đọc project graph; thiếu cạnh này thì PR chỉ chạm",
+      "  llm-api-deploy chạy 0 task system-test (regression lane vào main không được",
+      "  verify e2e). Hợp đồng local-lifecycle-graph.spec yêu cầu implicitDependencies",
+      "  PHỦ mọi deploy project mà dependsOn của system-test trỏ tới.",
       "KHÔNG khai apps/llm-api (`@ecoma-io/llm-api`): suite không import gì từ project app",
       "và KHÔNG build nó — worker bundle là prerequisite của `test-lane-up` (Nx kéo qua",
       "dependsOn), còn cạnh implicit ngoài deploys/* bị hợp đồng dx cấm.",
@@ -29,7 +25,8 @@
     "implicitDependencies": [
       "platform-deploy",
       "account-deploy",
-      "staff-access-deploy"
+      "staff-access-deploy",
+      "llm-api-deploy"
     ],
     "tags": [
       "type:tooling",
