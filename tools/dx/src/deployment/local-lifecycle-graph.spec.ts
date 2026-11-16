@@ -81,6 +81,8 @@ interface SuiteContract {
   /** Số entry `dependsOn` trỏ đúng target `local-up`. */
   localUpEntryCount: number;
   implicit: string[];
+  /** Mọi project mà BẤT KỲ entry dependsOn nào của target system-test trỏ tới. */
+  allDependsOnProjects: string[];
   dependsOnProjects: string[];
   dependsOnTargets: string[];
   hasLocalConfig: boolean;
@@ -122,6 +124,7 @@ function readSuiteContract(root: string): SuiteContract {
     hasSystemTestTarget: target !== undefined,
     localUpEntryCount: dependsOn.filter((d) => d.target === 'local-up').length,
     implicit: nx.implicitDependencies ?? [],
+    allDependsOnProjects: dependsOn.flatMap((d) => d.projects ?? []),
     dependsOnProjects: dependsOn
       .filter((d) => d.target === 'local-up')
       .flatMap((d) => d.projects ?? []),
@@ -204,17 +207,31 @@ describe('system-tests/e2e/* prerequisite contract', () => {
     expect(violations, 'suite target structure').toEqual([]);
   });
 
-  it('implicitDependencies and system-test local-up dependsOn declare the same deployment set', () => {
-    // Selection (project graph) và prerequisite (task graph) phải là MỘT tập:
-    // lệch nhau nghĩa là `nx affected` chọn suite theo một đường nhưng stack
-    // được dựng theo một đường khác.
+  it('implicitDependencies cover every deployment project the system-test dependsOn references', () => {
+    // Selection (project graph) và prerequisite (task graph) không nhất thiết
+    // là MỘT tập, nhưng selection phải PHỦ prerequisite (issue #332): `nx
+    // affected` suy tập chọn từ project graph (implicitDependencies) — một
+    // dependsOn trỏ vào deploy project KHÔNG nằm trong implicitDependencies là
+    // thay đổi ở project đó KHÔNG kéo suite, dù task graph có chạy nó. Hình
+    // thật: llm-inference-e2e dependsOn test-lane-up của llm-api-deploy —
+    // trước #332 thiếu cạnh implicit này nên PR chỉ chạm llm-api-deploy chạy
+    // 0 task system-test.
+    // Thông báo lỗi gom qua biến (vitest(valid-expect): expect tối đa 1 đối số).
+    const violations: string[] = [];
     for (const root of suiteRoots) {
       const contract = readSuiteContract(root);
-      expect(
-        new Set(contract.implicit),
-        `${contract.name}: implicitDependencies must equal the local-up dependsOn projects`,
-      ).toEqual(new Set(contract.dependsOnProjects));
+      const implicit = new Set(contract.implicit);
+      const missing = [...new Set(contract.allDependsOnProjects)].filter(
+        (dep) => !implicit.has(dep),
+      );
+      if (missing.length > 0) {
+        violations.push(
+          `${contract.name}: implicitDependencies must cover every dependsOn deployment project ` +
+            `— missing: ${missing.join(', ')} (nx affected selects from the project graph only)`,
+        );
+      }
     }
+    expect(violations, 'selection must cover the prerequisite set').toEqual([]);
   });
 
   it('suite dependencies point only at existing deployment projects that implement local-up', () => {
