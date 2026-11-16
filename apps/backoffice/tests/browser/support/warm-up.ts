@@ -164,7 +164,7 @@ export async function gotoWithReloadRetry(
  * điều mà `full-reload` làm, và đúng chữ "navigation to <url> was canceled by another one"
  * của Playwright.
  */
-function isNavigationAborted(cause: unknown): boolean {
+export function isNavigationAborted(cause: unknown): boolean {
   const message = cause instanceof Error ? cause.message : String(cause);
 
   return message.includes('net::ERR_ABORTED') && message.includes('was canceled by another one');
