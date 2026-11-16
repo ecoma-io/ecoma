@@ -65,8 +65,16 @@ function rootHostRaw(): string {
   );
 }
 
-/** Tổng budget retry: đủ cho cold start của stack, không đủ để treo CI. */
-const BUDGET_MS = 30_000;
+/**
+ * Tổng budget retry: đủ cho cold start của stack dưới tải CI, không đủ để treo CI.
+ *
+ * Đo được trên merge queue: Traefik đăng ký router chậm hơn 30s khi runner đang
+ * chạy các deploy local-up cạnh nhau - 3 lần đỏ đều đốt đúng toàn bộ 30004ms
+ * trên 404 (runs 43775477815, 43778400309, 43780675091). 90s = 3 lan cua so cu,
+ * van fail-closed: het budget van exit 1, chi la cua so san sang rong hon.
+ * Xac nhan xanh tren CI: run 43785998930 (system-test SUCCESS, ca hai suite).
+ */
+const BUDGET_MS = 90_000;
 /** Timeout mỗi request — request treo coi là "chưa sẵn sàng" và được thử lại. */
 const REQUEST_TIMEOUT_MS = 5_000;
 const BACKOFF_INITIAL_MS = 1_000;
