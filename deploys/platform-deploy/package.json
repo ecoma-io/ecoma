@@ -33,7 +33,7 @@
         }
       },
       "local-smoke": {
-        "//": "Smoke HTTPS qua Traefik (`local.ts smoke`, script `local-smoke.mjs`): kiểm đúng MỘT chuỗi — `/` của home trả 302 `/en`, `/en` trả 2xx HTML title Ecoma.io, TLS verify bằng certificate local. Prerequisite duy nhất là `home-deploy:local-up` — cạnh có căn cứ kỹ thuật (smoke đo hành vi của home); KHÔNG kéo auth/pact/mail/push vì smoke không đo chúng và cạnh đó chỉ tạo thứ tự. `nx run-many -t local-up -c local` vẫn dựng đủ lane vì mỗi unit khai `dependsOn` riêng; smoke chỉ dành cho bước xác minh cuối lane. Là node lá (không ai dependsOn nó).",
+        "//": "Smoke HTTPS qua Traefik (`local.ts smoke`, script `local-smoke.mjs`): chuỗi home `/` → 302 `/en` → 2xx HTML title Ecoma.io TLS verify bằng certificate local, cộng ba probe portal `/health` cho account/pact/remote-cache-app trên hostname namespaced #26 (suy qua `worktreeNamespace` + `localServiceHostname` trong `local.ts`). Prerequisite duy nhất là `home-deploy:local-up` — cạnh có căn cứ kỹ thuật (chuỗi home là phần chính của smoke); các portal KHÔNG được kéo vào dependsOn vì smoke chỉ xác minh phản hồi đúng của router (assertion sâu thuộc #27). `nx run-many -t local-up -c local` vẫn dựng đủ lane vì mỗi unit khai `dependsOn` riêng; smoke chỉ dành cho bước xác minh cuối lane. Là node lá (không ai dependsOn nó).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/platform-deploy",

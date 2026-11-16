@@ -25,8 +25,10 @@
  *
  * `smoke` có đúng một prerequisite (`home-deploy:local-up`): smoke kiểm chuỗi
  * redirect `/` → `/en` của home qua Traefik với certificate local (script
- * `.mjs` cùng bản với orchestration cũ) — không đo unit nào khác nên không
- * kéo chúng vào.
+ * `.mjs` cùng bản với orchestration cũ) — #26 mở rộng thêm ba probe portal
+ * (`/health` của account/pact/remote-cache-app trên hostname namespaced) nhưng
+ * prerequisite thật của chuỗi home vẫn chỉ home; các portal không được kéo vào
+ * dependsOn vì smoke không đo hành vi serving đầy đủ của chúng (#27).
  *
  * `down` xoá volume PostgreSQL VÔ ĐIỀU KIỆN sau khi destroy — không có tuỳ
  * chọn nào để giữ lại dữ liệu local (cờ opt-in giữ dữ liệu cũ đã bị xoá hoàn
@@ -47,9 +49,11 @@ import {
   ROOT_HOST_ENV_KEY,
   ensureStackForEntry,
   exec,
+  localServiceHostname,
   pulumiUpForEntry,
   readRootHostFromEnv,
   resolveEntryFoundation,
+  worktreeNamespace,
   type EntryFoundation,
 } from '@ecoma-io/deployment';
 import {
@@ -169,9 +173,23 @@ async function main(command: string): Promise<number> {
       );
       return 1;
     }
+    // #26: hostname portal namespaced (`<sub>-<ns>.<root>`) suy qua CƠ CHẾ
+    // namespace DUY NHẤT (`worktreeNamespace` + `localServiceHostname`) — cùng
+    // nguồn với router rule Traefik của từng deploy, script smoke không tự ghép
+    // hostname. worktreeRoot là config canonical của platform stack.
+    const namespace = worktreeNamespace(foundation?.ctx.worktreeRoot ?? WORKSPACE_ROOT);
+    const rootHostname = rootHost.split(':')[0] ?? '';
+    const portalArgs = ['account', 'pact', 'remote-cache-app'].flatMap((sub) => [
+      '--portal',
+      `${sub}=${localServiceHostname(sub, rootHostname, namespace)}`,
+    ]);
     const smoke = exec(
       'node',
-      [join(WORKSPACE_ROOT, 'system-tests/local-smoke/src/local-smoke.mjs'), rootHost],
+      [
+        join(WORKSPACE_ROOT, 'system-tests/local-smoke/src/local-smoke.mjs'),
+        rootHost,
+        ...portalArgs,
+      ],
       WORKSPACE_ROOT,
       process.env,
     );
@@ -179,7 +197,7 @@ async function main(command: string): Promise<number> {
       console.error(`[platform-deploy] smoke HTTPS failed:\n${smoke.stdout}\n${smoke.stderr}`);
       return 1;
     }
-    console.log(`[platform-deploy] smoke OK: https://${rootHost}/`);
+    console.log(`[platform-deploy] smoke OK: https://${rootHost}/ (3 portals via /health)`);
     return 0;
   }
   console.error(`[platform-deploy] unknown command: ${command} (expected: up | down | smoke)`);

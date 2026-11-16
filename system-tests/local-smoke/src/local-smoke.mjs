@@ -30,7 +30,12 @@
  * chọn: `--connect <host:port>` dial địa chỉ đó thay vì resolve DNS của
  * hostname (hook cho test — SNI/`Host` vẫn dùng hostname của positional),
  * `--budget-ms <n>` tổng budget retry (mặc định 90000), `--request-timeout-ms
- * <n>` timeout mỗi request (mặc định 10000).
+ * <n>` timeout mỗi request (mặc định 10000), `--portal <sub>=<hostname>` lặp
+ * được — thêm một probe portal (`GET /health` trên hostname namespaced của
+ * unit đó, #26): hostname do caller (`local.ts smoke`) suy qua
+ * `worktreeNamespace` + `localServiceHostname` của `@ecoma-io/deployment` nên
+ * script không nhân đôi cơ chế namespace; probe xác minh đúng hợp đồng router
+ * Traefik namespaced phục vụ unit ở mức "phản hồi đúng".
  */
 
 import { readFileSync } from 'node:fs';
@@ -52,6 +57,8 @@ const REDIRECT_PATH = '/en';
 // Đánh dấu ổn định của trang /en — đủ để khẳng định đúng trang home mà không
 // khoá smoke vào toàn bộ nội dung document.
 const TITLE_MARKER = '<title>Ecoma.io';
+// Cờ `--portal` lặp được: mỗi giá trị `sub=hostname` thêm một probe portal.
+const PORTAL_FLAG = '--portal';
 
 // 502/503/504 là "chưa sẵn sàng" (Traefik chưa thấy router/upstream); 500 là
 // lỗi SSR thật — fail tức thời.
@@ -82,7 +89,7 @@ class RetryableError extends Error {}
 class VerificationFailure extends Error {}
 
 const USAGE =
-  'Usage: node system-tests/local-smoke/src/local-smoke.mjs <rootHost> [--connect <host:port>] [--budget-ms <n>] [--request-timeout-ms <n>]   # vd: fbi.com:32768';
+  'Usage: node system-tests/local-smoke/src/local-smoke.mjs <rootHost> [--connect <host:port>] [--budget-ms <n>] [--request-timeout-ms <n>] [--portal <sub>=<hostname>]...   # vd: fbi.com:32768';
 
 function usageError(message) {
   console.error(message);
@@ -119,6 +126,8 @@ let rootHostArg;
 let connectArg;
 let budgetMs = BUDGET_MS_DEFAULT;
 let requestTimeoutMs = REQUEST_TIMEOUT_MS_DEFAULT;
+/** Mục `--portal` theo thứ tự CLI: `{ sub, hostname }`. */
+const portals = [];
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -141,6 +150,20 @@ for (let i = 0; i < args.length; i++) {
     case '--request-timeout-ms':
       requestTimeoutMs = parsePositiveInt(takeValue(), flag);
       break;
+    case PORTAL_FLAG: {
+      const value = takeValue();
+      const separator = value.indexOf('=');
+      if (separator === -1 || separator === 0 || separator === value.length - 1) {
+        usageError(`${PORTAL_FLAG} must be in <sub>=<hostname> form: ${value}`);
+      }
+      const sub = value.slice(0, separator);
+      const portalHostname = value.slice(separator + 1);
+      if (sub.includes('.') || portalHostname.length === 0) {
+        usageError(`${PORTAL_FLAG} sub must be a single DNS label: ${value}`);
+      }
+      portals.push({ sub, hostname: portalHostname });
+      break;
+    }
     default:
       if (flag.startsWith('--')) usageError(`unsupported flag: ${flag}`);
       if (rootHostArg !== undefined) usageError(`unexpected argument: ${flag}`);
@@ -187,18 +210,23 @@ function classifyRequestError(error, pathname) {
   return new VerificationFailure(`GET ${pathname}: ${error.message}`);
 }
 
-function requestStep(pathname) {
+function requestStep(pathname, targetHostname) {
+  // Hostname của request: home dùng positional root; portal dùng hostname
+  // namespaced của unit đó (`--portal`). SNI/`Host` luôn theo hostname của
+  // chính request — đúng những gì Traefik rule `Host()` và certificate check
+  // nhìn (wildcard `*.<root>` phủ mọi portal namespaced).
+  const host = targetHostname ?? hostname;
   return new Promise((resolve, reject) => {
     const request = https.get(
       {
         // `--connect`: dial địa chỉ fixture thay vì DNS, còn hostname thật vẫn
         // đi qua SNI (`servername` — cũng là tên Node dùng để kiểm certificate)
         // và header `Host` — đúng những gì Traefik và certificate check nhìn.
-        host: connect?.hostname ?? hostname,
+        host: connect?.hostname ?? host,
         port: connect?.port ?? port,
         path: pathname,
         ca,
-        servername: hostname,
+        servername: host,
         headers: {
           // `Host` ĐẶT TƯỜNG MINH ở CẢ HAI nhánh và cùng một dạng
           // `hostname:port` — khớp đúng `ROOT_HOST` mà entry up của platform ghi `.env`
@@ -207,7 +235,7 @@ function requestStep(pathname) {
           // minh giữ đường test (fixture) và đường thật giống hệt nhau — spec
           // chỉ chạy qua `--connect`, thiếu dòng này là test không chạm dạng
           // header production gửi.
-          Host: `${hostname}:${port}`,
+          Host: `${host}:${port}`,
           // Header giữ shape request production (browser thật luôn gửi Accept).
           Accept: ACCEPT_HTML,
           'Accept-Language': ACCEPT_LANGUAGE,
@@ -272,7 +300,7 @@ async function verifyChain() {
   // Bước 1 — `/` phải 302 → `/en` đúng literal. Đây kiểm routing và hành vi
   // app cùng lúc: sai status hoặc sai location (vd `/fr`, absolute khác /en)
   // đều là broken và không được nuốt.
-  const root = await requestStep('/');
+  const root = await requestStep('/', hostname);
   if (root.status !== 302) {
     throw new VerificationFailure(`GET /: expected status 302, got ${root.status}`);
   }
@@ -283,7 +311,7 @@ async function verifyChain() {
   }
 
   // Bước 2 — `/en` phải là HTML thật, đánh dấu bằng title ổn định của home.
-  const en = await requestStep(REDIRECT_PATH);
+  const en = await requestStep(REDIRECT_PATH, hostname);
   if (!(en.status >= 200 && en.status < 300)) {
     throw new VerificationFailure(`GET ${REDIRECT_PATH}: expected 2xx, got ${en.status}`);
   }
@@ -298,6 +326,28 @@ async function verifyChain() {
   }
 }
 
+/**
+ * Probe portal (#26) — mức "phản hồi đúng" của từng sản phẩm MVP, KHÔNG sâu
+ * hơn: `GET /health` trên hostname namespaced (`<sub>-<ns>.<root>`) phải 2xx.
+ * `/health` là liveness — không phụ thuộc dịch vụ ngoài theo thiết kế từng app,
+ * nên 2xx là chữ ký "router Traefik namespaced phục vụ đúng unit"; assertion
+ * nghiệp vụ sâu (authn, tenant) thuộc #27, không ở đây.
+ *
+ * Chạy SAU khi home chain xanh: thứ tự chỉ để báo cáo lỗi theo lớp (platform +
+ * home trước, portal sau), không phải cửa ngõ nghiệp vụ — portal fail là fail
+ * tức thời như mọi VerificationFailure.
+ */
+async function verifyPortals() {
+  for (const portal of portals) {
+    const health = await requestStep('/health', portal.hostname);
+    if (!(health.status >= 200 && health.status < 300)) {
+      throw new VerificationFailure(
+        `GET /health on ${portal.hostname} (portal '${portal.sub}'): expected 2xx, got ${health.status}`,
+      );
+    }
+  }
+}
+
 const startedAt = Date.now();
 let backoffMs = BACKOFF_INITIAL_MS;
 // Luôn chạy ít nhất một lần; các lần sau chỉ khi lỗi retry-được và còn budget.
@@ -305,11 +355,13 @@ for (;;) {
   let failure;
   try {
     await verifyChain();
+    await verifyPortals();
     // In NGAY SAU khi chain xanh và trước khi thoát loop — không có đường nào
     // đi qua `smoke FAILED` rồi vẫn kịp in `smoke OK` (exit code != 0 nhưng
     // stdout vẫn khen là bug từng khiến log mâu thuẫn với nhau).
     console.log(
-      `smoke OK: 302 → 200 after ${Date.now() - startedAt}ms — TLS valid with the local certificate`,
+      `smoke OK: 302 → 200 after ${Date.now() - startedAt}ms — TLS valid with the local certificate` +
+        (portals.length > 0 ? ` — portals OK: ${portals.map((p) => p.sub).join(', ')}` : ''),
     );
     break;
   } catch (error) {

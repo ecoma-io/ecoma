@@ -20,14 +20,14 @@ Mọi lệnh Pulumi của luồng này chạy với `PULUMI_BACKEND_URL=file://<
 
 ```bash
 pnpm nx run-many -t local-up -c local             # up cả 15 lane project theo đúng thứ tự phụ thuộc
-pnpm nx run platform-deploy:local-smoke -c local  # smoke HTTPS của home qua Traefik (tự up home trước)
+pnpm nx run platform-deploy:local-smoke -c local  # smoke home + 3 portal /health (#26) qua Traefik (tự up home trước)
 pnpm nx run-many -t local-down -c local           # down từng project, KHÔNG có thứ tự teardown toàn cục
 pnpm dx local-status                              # namespace, stack, resource names, trạng thái platform
 ```
 
 Lane gồm **15 project**: platform, home, backoffice, account, auth, pact-broker-api, pact-broker-app, transactional-mail, push-notification, staff-access, remote-cache-api, remote-cache-app, llm-console, llm-seller, llm-api. Hai project job-deploy (`transactional-mailer-job-deploy`, `web-push-notification-job-deploy`) không có target local — cặp worker mail đã chạy trong MỘT WIC container của `transactional-mail-deploy`, và worker web-push chạy trong WIC của `push-notification-deploy`.
 
-Hình dạng graph `local-up` (nguồn sự thật là `dependsOn` trong `package.json` của từng project, không phải mục này): `platform-deploy:local-up` là node gốc duy nhất (network, Traefik, PostgreSQL) — mọi lane project đọc outputs platform qua StackReference; `auth` và `transactional-mail` phụ thuộc thêm `account-deploy` (secret cross-stack, xem bất biến dưới đây); `pact-broker-api` phụ thuộc thêm `account-deploy` và `staff-access-deploy` (bước resolve-or-bootstrap superadmin ghi hai DB đó trên môi trường chưa bootstrap và chỉ đọc khi môi trường đã hội tụ, trước khi provision tenant `ecoma` — xem bất biến dưới đây); `pact-broker-app` phụ thuộc thêm `pact-broker-api-deploy` (machine token); `backoffice` phụ thuộc thêm `staff-access-deploy` và `account-deploy` (secret cặp backoffice ↔ account, #242); `home`, `account`, `staff-access`, `push-notification`, `remote-cache-api`, `remote-cache-app`, `llm-console`, `llm-seller`, `llm-api` phụ thuộc duy nhất `platform-deploy`. Build image/app của từng unit là task dependency của `local-up` unit đó. `platform-deploy:local-smoke` phụ thuộc duy nhất `home-deploy:local-up` — smoke kiểm chuỗi redirect `/` → `/en` của home qua Traefik, nên home là prerequisite thật; các unit khác không được kéo vào vì smoke không đo chúng.
+Hình dạng graph `local-up` (nguồn sự thật là `dependsOn` trong `package.json` của từng project, không phải mục này): `platform-deploy:local-up` là node gốc duy nhất (network, Traefik, PostgreSQL) — mọi lane project đọc outputs platform qua StackReference; `auth` và `transactional-mail` phụ thuộc thêm `account-deploy` (secret cross-stack, xem bất biến dưới đây); `pact-broker-api` phụ thuộc thêm `account-deploy` và `staff-access-deploy` (bước resolve-or-bootstrap superadmin ghi hai DB đó trên môi trường chưa bootstrap và chỉ đọc khi môi trường đã hội tụ, trước khi provision tenant `ecoma` — xem bất biến dưới đây); `pact-broker-app` phụ thuộc thêm `pact-broker-api-deploy` (machine token); `backoffice` phụ thuộc thêm `staff-access-deploy` và `account-deploy` (secret cặp backoffice ↔ account, #242); `home`, `account`, `staff-access`, `push-notification`, `remote-cache-api`, `remote-cache-app`, `llm-console`, `llm-seller`, `llm-api` phụ thuộc duy nhất `platform-deploy`. Build image/app của từng unit là task dependency của `local-up` unit đó. `platform-deploy:local-smoke` phụ thuộc duy nhất `home-deploy:local-up` — chuỗi redirect `/` → `/en` của home là phần chính của smoke nên home là prerequisite thật; smoke còn probe `/health` của ba portal MVP (account, pact, remote-cache-app — #26) nhưng các unit đó không được kéo vào dependsOn vì smoke chỉ xác minh phản hồi đúng của router, không đo hành vi serving đầy đủ (assertion sâu thuộc #27).
 
 Mỗi entry `local.ts up` làm hai việc, tự chứa trong project của mình:
 
@@ -83,7 +83,7 @@ Read-only. Phân biệt năm trạng thái, mỗi trạng thái một dòng:
 
 ## URL và smoke
 
-Port thật nằm trong `.env` (`ROOT_HOST=fbi.com:<port>`) và trong output `traefikHostPort` của platform stack. Xác minh end-to-end bằng target smoke (đọc `ROOT_HOST` từ `.env`, chỉ chạy HTTPS): smoke phụ thuộc `home-deploy:local-up` nên Nx tự up platform + home trước, rồi kiểm chuỗi redirect `/` → `/en` qua Traefik — bằng chứng serving path ngoài internet hoạt động; smoke không đo unit nào khác.
+Port thật nằm trong `.env` (`ROOT_HOST=fbi.com:<port>`) và trong output `traefikHostPort` của platform stack. Xác minh end-to-end bằng target smoke (đọc `ROOT_HOST` từ `.env`, chỉ chạy HTTPS): smoke phụ thuộc `home-deploy:local-up` nên Nx tự up platform + home trước, rồi kiểm chuỗi redirect `/` → `/en` qua Traefik — bằng chứng serving path ngoài internet hoạt động; smoke còn probe `GET /health` của ba portal MVP (#26) trên hostname namespaced `<sub>-<ns>.<root>` suy qua `worktreeNamespace` + `localServiceHostname` (account, pact, remote-cache-app), mức xác minh là "phản hồi đúng" của router Traefik namespaced, không phải assertion nghiệp vụ sâu (#27).
 
 ```bash
 pnpm nx run platform-deploy:local-smoke -c local
@@ -95,7 +95,7 @@ Kiểm thử nhanh một hostname cụ thể, không cần trust certificate:
 node system-tests/local-smoke/src/local-smoke.mjs fbi.com:<port>
 ```
 
-Smoke xác nhận đúng hành vi ứng dụng qua Traefik, không chỉ "server còn sống": `GET /` (kèm header `Accept: text/html`) phải **302 → `/en`**, sau đó `GET /en` phải **200 HTML** chứa title của home. Retry chỉ áp dụng cho dấu hiệu "chưa sẵn sàng" (`ECONNREFUSED`, `ECONNRESET`, `EPIPE`, `ETIMEDOUT`, 404/502/503/504 — 404 là cửa sổ registration router khi container bị recreate) trong budget mặc định 90s; 4xx còn lại/500, lỗi TLS/cert, redirect sai đích hay thiếu title là fail ngay. TLS bắt buộc hợp lệ — script chỉ trust certificate local **cho đúng request này** (tham số `ca` scoped), không đụng trust store hệ điều hành, không tắt verification. Cờ tuỳ chọn cho test: `--connect <host:port>` (dial địa chỉ khác hostname), `--budget-ms`, `--request-timeout-ms`.
+Smoke xác nhận đúng hành vi ứng dụng qua Traefik, không chỉ "server còn sống": `GET /` (kèm header `Accept: text/html`) phải **302 → `/en`**, sau đó `GET /en` phải **200 HTML** chứa title của home. Retry chỉ áp dụng cho dấu hiệu "chưa sẵn sàng" (`ECONNREFUSED`, `ECONNRESET`, `EPIPE`, `ETIMEDOUT`, 404/502/503/504 — 404 là cửa sổ registration router khi container bị recreate) trong budget mặc định 90s; 4xx còn lại/500, lỗi TLS/cert, redirect sai đích hay thiếu title là fail ngay. TLS bắt buộc hợp lệ — script chỉ trust certificate local **cho đúng request này** (tham số `ca` scoped), không đụng trust store hệ điều hành, không tắt verification. Cờ tuỳ chọn cho test: `--connect <host:port>` (dial địa chỉ khác hostname), `--budget-ms`, `--request-timeout-ms`, `--portal <sub>=<hostname>` (lặp được — thêm probe `/health` portal, #26).
 
 ## Vòng đời dữ liệu
 
