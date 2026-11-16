@@ -177,6 +177,27 @@ describe('local-smoke.mjs input contract', () => {
     expect(result.stderr).toContain('Usage');
   });
 
+  it('--portal without = separator → exit 2', async () => {
+    const result = await run(['fbi.com:1', '--portal', 'pact.example.com', ...FAST]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('--portal');
+    expect(result.stderr).toContain('<sub>=<hostname>');
+  });
+
+  it('--portal with empty sub or hostname → exit 2', async () => {
+    for (const bad of ['=pact.example.com', 'pact=']) {
+      const result = await run(['fbi.com:1', '--portal', bad, ...FAST]);
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('--portal');
+    }
+  });
+
+  it('--portal with dotted sub → exit 2 (sub must be one DNS label)', async () => {
+    const result = await run(['fbi.com:1', '--portal', 'a.b=pact.example.com', ...FAST]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('--portal');
+  });
+
   it('rootHost without port → exit 2 with format error', async () => {
     const result = await run(['fbi.com']);
     expect(result.status).toBe(2);
@@ -401,6 +422,110 @@ describe('local-smoke.mjs HTTPS verification chain', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('smoke FAILED');
     expect(result.stderr).not.toMatch(/at .*\n.*at /u); // không stack trace Node
+  });
+});
+
+/**
+ * #26 — probe portal qua cờ `--portal` (lặp được): mỗi `sub=hostname` thêm một
+ * `GET /health` trên hostname namespaced. `--connect` chỉ dial MỘT địa chỉ nên
+ * fixture duy nhất phục vụ cả positional lẫn mọi portal — SNI/`Host` của từng
+ * request vẫn theo hostname của portal, đúng hình dạng request thật (wildcard
+ * cert `*.<root>` khớp mọi namespaced hostname của cùng certificate fixture).
+ */
+describe('local-smoke.mjs portal probes (#26)', () => {
+  it('happy path with two portals: /health 2xx on each → exit 0, portals listed on stdout', async () => {
+    const port = await startHttpsFixture((pathname, req, res) => {
+      const host = (req.headers.host ?? '').split(':')[0] ?? '';
+      if (host.startsWith('pact-') || host.startsWith('remote-cache-app-')) {
+        if (pathname === '/health') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok' }));
+          return;
+        }
+      }
+      homeHandler(pathname, req, res);
+    });
+    const result = await run([
+      ...fixtureArgs(port),
+      '--portal',
+      `pact=pact-abc123456789.fbi.com`,
+      '--portal',
+      `remote-cache-app=remote-cache-app-abc123456789.fbi.com`,
+      ...FAST,
+    ]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('smoke OK');
+    expect(result.stdout).toContain('portals OK: pact, remote-cache-app');
+    expect(result.stderr).not.toContain('smoke FAILED');
+  });
+
+  it('portal /health returns 500 → exit 1 immediately (verification failure, not retry)', async () => {
+    const port = await startHttpsFixture((pathname, req, res) => {
+      const host = (req.headers.host ?? '').split(':')[0] ?? '';
+      if (host.startsWith('pact-') && pathname === '/health') {
+        res.writeHead(500);
+        res.end();
+        return;
+      }
+      homeHandler(pathname, req, res);
+    });
+    const result = await run([
+      ...fixtureArgs(port),
+      '--portal',
+      'pact=pact-abc123456789.fbi.com',
+      ...FAST,
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("portal 'pact'");
+    expect(result.stderr).toContain('expected 2xx, got 500');
+    expect(result.stderr).not.toContain('smoke RETRY');
+    expect(result.stdout).not.toContain('smoke OK');
+  });
+
+  it('portal /health returns 502 → retried, then exit 1 at budget exhaustion', async () => {
+    const port = await startHttpsFixture((pathname, req, res) => {
+      const host = (req.headers.host ?? '').split(':')[0] ?? '';
+      if (host.startsWith('pact-') && pathname === '/health') {
+        res.writeHead(502);
+        res.end();
+        return;
+      }
+      homeHandler(pathname, req, res);
+    });
+    const result = await run([
+      ...fixtureArgs(port),
+      '--portal',
+      'pact=pact-abc123456789.fbi.com',
+      '--budget-ms',
+      '500',
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('budget exhausted 500ms');
+    expect(result.stderr).toContain('status 502');
+  });
+
+  it('portal request sends SNI/Host of the portal hostname (server saw pact- namespaced Host)', async () => {
+    const seenHosts: string[] = [];
+    const port = await startHttpsFixture((pathname, req, res) => {
+      seenHosts.push((req.headers.host ?? '').split(':')[0] ?? '');
+      if (pathname === '/health') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+        return;
+      }
+      homeHandler(pathname, req, res);
+    });
+    const result = await run([
+      ...fixtureArgs(port),
+      '--portal',
+      'pact=pact-abc123456789.fbi.com',
+      ...FAST,
+    ]);
+    expect(result.status).toBe(0);
+    // Home chain dùng positional hostname; portal probe phải dùng hostname của
+    // portal — Traefik match `Host()` theo từng request.
+    expect(seenHosts).toContain('fbi.com');
+    expect(seenHosts).toContain('pact-abc123456789.fbi.com');
   });
 });
 

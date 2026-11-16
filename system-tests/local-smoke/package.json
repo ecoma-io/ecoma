@@ -9,7 +9,9 @@
       "- platform-deploy: certificate local `deploys/platform-deploy/local-certs/fbi.com.crt` script đọc trực tiếp,",
       "  và target `local-smoke` của platform là consumer duy nhất của script này (`local.ts smoke`).",
       "- home-deploy: chuỗi redirect `/` → `/en` + title `Ecoma.io` mà script verify là hành vi serving của home",
-      "  qua Traefik — smoke đo đúng MỘT chuỗi đó nên khai đúng hai cạnh này, không kéo unit nào khác."
+      "  qua Traefik. #26: script còn probe `/health` của ba portal (account/pact/remote-cache-app) nhưng",
+      "  hostname đó do caller suy qua `worktreeNamespace` + `localServiceHostname` — script không đọc",
+      "  code deploy của portal nào nên implicitDependencies giữ đúng hai cạnh này."
     ],
     "implicitDependencies": [
       "platform-deploy",
