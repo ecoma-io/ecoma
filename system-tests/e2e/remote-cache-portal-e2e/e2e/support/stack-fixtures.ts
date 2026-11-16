@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 
+import { traefikNamespaceOrNull } from './stack-env';
+
 /**
  * Seed DB thật + đọc OTP từ mail sink của stack local — phần fixtures của suite.
  *
@@ -45,41 +47,22 @@ async function dockerExec(container: string, command: string[]): Promise<string>
  * Tên đầy đủ container Postgres của stack mà `origin` đang chạy.
  *
  * Nhiều stack local có thể sống song song (mỗi worktree một namespace), nên
- * phép map là: tìm container traefik CÓ publish port khớp port của origin.
- * Không khớp hoặc khớp nhiều ⇒ fail với danh sách candidate — đoán là đường
- * seed nhầm DB của stack khác.
+ * phép map là: tìm container traefik CÓ publish port khớp port của origin —
+ * qua `traefikNamespaceOrNull` của `stack-env` (một bản duy nhất trong suite;
+ * nó chỉ trả namespace worktree pattern `w<12 hex>`, nên "khớp nhiều" không
+ * thể xảy ra trên một port duy nhất). Không khớp ⇒ fail với detail — đoán là
+ * đường seed nhầm DB của stack khác.
  */
 export async function resolvePostgresContainer(origin: string): Promise<string> {
   const port = new URL(origin).port;
-  const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-    timeout: 10_000,
-  });
-  const candidates: string[] = [];
-  for (const line of stdout.split('\n')) {
-    const [name, ports] = line.split('\t');
-    if (name === undefined || ports === undefined || !name.includes('traefik')) {
-      continue;
-    }
-    // Cột Ports dạng `80/tcp, 127.0.0.1:32768->443/tcp` — publish có thể bind
-    // 127.0.0.1, 0.0.0.0 hoặc `[::]`; match port trước mốc `->443/tcp` (chuỗi
-    // tĩnh, không RegExp động từ input không tin cậy).
-    if (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) {
-      candidates.push(name);
-    }
-  }
-  if (candidates.length === 0) {
+  const { namespace, failureDetail } = traefikNamespaceOrNull(port);
+  if (namespace === undefined) {
     throw new Error(
-      `no traefik container publishes host port ${port} — the stack behind ${origin} is not running. ` +
+      `no traefik container publishes host port ${port} (${failureDetail}) — ` +
+        `the stack behind ${origin} is not running. ` +
         'Start it with `pnpm nx affected -t system-test -c local` first.',
     );
   }
-  if (candidates.length > 1) {
-    throw new Error(
-      `host port ${port} is published by ${candidates.length} traefik containers (${candidates.join(', ')}) — ` +
-        'cannot determine which namespace to seed. Stop the stale stack and redeploy.',
-    );
-  }
-  const namespace = (candidates[0] ?? '').replace(/^ecoma-(.+)-traefik$/u, '$1');
   return `ecoma-${namespace}-postgres`;
 }
 

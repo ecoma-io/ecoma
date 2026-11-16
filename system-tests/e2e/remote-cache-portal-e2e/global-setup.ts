@@ -123,10 +123,10 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
         ca,
         servername: hostname,
         headers: {
-          // `Host` tường minh `hostname:port` — khớp rule
-          // `Host(\`remote-cache-app-<ns>.<rootHostname>\`)` của router
-          // Traefik (Traefik match hostname không port).
-          Host: `${hostname}:${port}`,
+          // `Host` tường minh hostname KHÔNG port — cùng hình dạng mà
+          // `stackRequest` (support) gửi; Traefik match hostname, routing port
+          // nằm ở option `port` của request.
+          Host: hostname,
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       },

@@ -15,12 +15,17 @@ import { fileURLToPath } from 'node:url';
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Repo root — walk up from this file until `pnpm-workspace.yaml` appears. */
+/** Repo root — walk up from this file until `pnpm-workspace.yaml` appears. Memoized. */
+let repoRootCache: string | undefined;
 function repoRoot(): string {
+  if (repoRootCache !== undefined) {
+    return repoRootCache;
+  }
   let dir = SUITE_DIR;
   for (;;) {
     try {
       readFileSync(join(dir, 'pnpm-workspace.yaml'));
+      repoRootCache = dir;
       return dir;
     } catch {
       const parent = dirname(dir);
@@ -74,7 +79,7 @@ function readRootHostFromDotEnv(text: string): string | undefined {
  * (`[::1]:443`) is honored via `URL`; a bare host gets the `443` default.
  */
 export function splitHostPort(raw: string): { hostname: string; port: string } {
-  const withScheme = raw.includes('://') ? raw : `//${raw}`;
+  const withScheme = raw.includes('://') ? raw : `https://${raw}`;
   try {
     const url = new URL(withScheme);
     if (url.hostname.length > 0) {
@@ -83,10 +88,13 @@ export function splitHostPort(raw: string): { hostname: string; port: string } {
   } catch {
     // fall through to loopback-only split below
   }
-  // Non-URL-parseable input — keep the historical loopback split.
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
-  return { hostname, port };
+  // Non-URL-parseable input — historical loopback split, guarded: an empty
+  // hostname (malformed input) falls back to the raw value so the caller's
+  // error/placeholder path names what it actually saw.
+  const colon = raw.indexOf(':');
+  const hostname = colon === -1 ? raw : raw.slice(0, colon);
+  const port = colon !== -1 ? raw.slice(colon + 1).split(':')[0] || '443' : '443';
+  return { hostname: hostname.length > 0 ? hostname : raw, port };
 }
 
 /** Path of the committed local TLS cert, named after the resolved root host. */
