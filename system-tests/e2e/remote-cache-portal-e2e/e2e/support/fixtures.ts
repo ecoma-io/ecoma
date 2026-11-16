@@ -65,7 +65,9 @@ interface Fixtures {
 export const test = base.extend<Fixtures>({
   // Scope mặc định per test: seed idempotent, mỗi test tự sở hữu challenge OTP.
   identity: async ({ page: _unusedPage }, use, testInfo) => {
-    const seed = testToken(testInfo.file, testInfo.title);
+    // `workerIndex` vào seed: hai worker chạy song song không được sinh cùng
+    // sub/email (per-test OTP challenge delete sẽ xoá challenge của nhau).
+    const seed = `${testToken(testInfo.file, testInfo.title)}-w${testInfo.workerIndex}`;
     const sub = makeSub(seed);
     const email = makeEmail(seed);
 
