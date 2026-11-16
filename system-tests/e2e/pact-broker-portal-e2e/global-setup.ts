@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Stack gate fail-closed của suite `pact-broker-portal-e2e` — probe TRƯỚC KHI
@@ -112,9 +115,54 @@ interface ProbeResult {
 }
 
 /**
- * Origin portal mà gate probe — hostname gốc (giá trị `ROOT_HOST`, dạng
- * `hostname:port`) GHÉP PREFIX `pact.`: router Traefik của portal match
- * `Host(pact.<root>)`, probe hostname gốc là 404 chắc chắn.
+ * Namespace worktree của stack mà ROOT_HOST đang trỏ tới — dò bằng `docker ps`
+ * (cùng phép dò của `traefikNamespace` trong `identity-login-e2e/global-setup.ts`
+ * — hai bản cố ý vì suite này không import support của suite khác). Không tìm
+ * thấy là lỗi cài đặt stack — gate fail với remedy thay vì đoán namespace.
+ */
+function traefikNamespace(hostname: string, port: string): string {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `docker ps failed while discovering the worktree namespace (${message}) — ` +
+        'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
+      { cause: error },
+    );
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    // Docker in `127.0.0.1:33118->443/tcp` — match port public Traefik.
+    // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+    const [, namespace, ports] = match;
+    if (
+      ports !== undefined &&
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) &&
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace)
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} of ${hostname} — ` +
+      'the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.',
+  );
+}
+
+/**
+ * Origin portal mà gate probe — hostname per-worktree (#316):
+ * `pact-<ns>.<root>` từ `localServiceHostname('pact', …)`, cùng tên mà router
+ * Traefik của deploy đăng ký (`deploys/pact-broker-app-deploy/index.ts`). Port
+ * và cert đọc sau khi host gốc đã resolve.
  */
 function resolvePortalOrigin(): { hostname: string; port: string; ca: string } {
   const raw = process.env.ROOT_HOST;
@@ -140,11 +188,11 @@ function readLocalCa(): string {
   return readFileSync(resolveLocalCertPath(), 'utf8');
 }
 
-/** Tách `hostname`/`port` từ hostname gốc rồi ghép prefix `pact.` của portal. */
+/** Tách `hostname` gốc và `port` từ giá trị `ROOT_HOST` — chưa ghép prefix. */
 function readPortalHostPort(raw: string): { hostname: string; port: string } {
-  const rootHostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return { hostname: `pact.${rootHostname}`, port };
+  const hostname = raw.split(':')[0];
+  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  return { hostname, port };
 }
 
 /**
@@ -163,7 +211,7 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
         servername: hostname,
         headers: {
           // `Host` tường minh `hostname:port` — khớp rule
-          // `Host(pact.<rootHostname>)` của router Traefik (Traefik
+          // `Host(\`pact-<ns>.<rootHostname>\`)` của router Traefik (Traefik
           // match hostname không port).
           Host: `${hostname}:${port}`,
         },
@@ -228,7 +276,20 @@ function fail(origin: string, elapsedMs: number, error: Error): never {
 
 async function main(): Promise<void> {
   const { hostname, port, ca } = resolvePortalOrigin();
-  const origin = `https://${hostname}:${port}`;
+  // Hostname per-worktree (#316): namespace dò từ container Traefik publish
+  // đúng port trong ROOT_HOST — lỗi dò là lỗi cài đặt stack, đưa vào đường
+  // `fail()` của gate thay vì unhandled rejection.
+  let namespace: string;
+  try {
+    namespace = traefikNamespace(hostname, port);
+  } catch (error) {
+    console.error(
+      `stack gate FAILED while discovering the per-worktree namespace: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
+  const probeHostname = localServiceHostname('pact', hostname, namespace);
+  const origin = `https://${probeHostname}:${port}`;
   const startedAt = Date.now();
   let backoffMs = BACKOFF_INITIAL_MS;
   let lastFailure = new Error('probe never ran');
@@ -236,7 +297,7 @@ async function main(): Promise<void> {
   for (;;) {
     let result: ProbeResult | undefined;
     try {
-      result = await probeOnce(hostname, port, ca);
+      result = await probeOnce(probeHostname, port, ca);
     } catch (error) {
       if (!(error instanceof RetryableError)) {
         fail(origin, Date.now() - startedAt, error as Error);

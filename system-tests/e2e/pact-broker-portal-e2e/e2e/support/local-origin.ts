@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Scoped TLS + origin cho các API assertion của suite.
@@ -85,11 +88,47 @@ export function localCertPath(): string {
 }
 
 /**
- * Origin portal của stack local — `https://pact.<root>:<port>`.
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
+ * dò của `identity-login-e2e`). Helper runtime (khác bản non-throw của
+ * `playwright.config.ts`): bị gọi khi test đã chạy thật nên Docker phải có.
+ */
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    return undefined;
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
+    ) {
+      return namespace;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Origin portal của stack local — `https://pact-<ns>.<root>:<port>` (#316).
  *
  * `ROOT_HOST` là HOSTNAME GỐC của stack (dạng `hostname:port`) — hợp đồng chung
- * của mọi system suite: suite này ghép `pact.` vì router Traefik của portal
- * match `Host(pact.<root>)`. Giá trị raw KHÔNG bao giờ được dùng làm origin.
+ * của mọi system suite: suite này suy hostname portal qua `localServiceHostname`
+ * vì router Traefik của portal match `Host(\`pact-<ns>.<root>\`)` — cùng hàm mà
+ * deploy dùng khi đăng ký router (`deploys/pact-broker-app-deploy/index.ts`).
+ * Giá trị raw KHÔNG bao giờ được dùng làm origin.
  *
  * Khi chạy qua Nx, `.env` repo root đã nằm trong env của task; chạy
  * `npx playwright test` trực tiếp thì fallback parse `.env`. KHÔNG có env nào
@@ -97,38 +136,47 @@ export function localCertPath(): string {
  * bao giờ xanh giả; module-load vẫn thành công cho `--list`/graph evaluation.
  */
 export function resolvePortalOrigin(): string {
-  return originWithPrefix('pact.');
+  return namespacedOrigin('pact');
 }
 
-/** Origin API broker — `https://api.<root>:<port>`, broker-base-url của Pact CLI. */
+/** Origin API broker — `https://api-<ns>.<root>:<port>`, broker-base-url của Pact CLI. */
 export function resolveApiOrigin(): string {
-  return originWithPrefix('api.');
+  return namespacedOrigin('api');
 }
 
-function originWithPrefix(prefix: string): string {
+function namespacedOrigin(sub: string): string {
   const fromEnv = process.env.ROOT_HOST;
   if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return withOrigin(prefix, fromEnv.trim());
+    return originFor(sub, fromEnv.trim());
   }
   try {
     const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
     for (const line of text.split(/\r?\n/u)) {
       const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
       if (match && match[1].trim().length > 0) {
-        return withOrigin(prefix, match[1].trim());
+        return originFor(sub, match[1].trim());
       }
     }
   } catch {
     // `.env` vắng mặt — placeholder bên dưới; gate global-setup là đường fail-closed.
   }
-  return `https://${prefix}placeholder.invalid:443`;
+  return `https://${sub}.placeholder.invalid:443`;
 }
 
-/** Ghép hostname gốc (dạng `hostname:port`) thành origin `<prefix><hostname>:<port>`. */
-function withOrigin(prefix: string, raw: string): string {
+/**
+ * Ghép hostname gốc (dạng `hostname:port`) thành origin per-worktree
+ * `<sub>-<ns>.<hostname>:<port>` qua `localServiceHostname`. Namespace không dò
+ * được (Docker vắng mặt) ⇒ placeholder `.invalid` — fail đỏ với DNS failure
+ * thay vì xanh giả (cùng triết lý placeholder ở đầu file).
+ */
+function originFor(sub: string, raw: string): string {
   const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `https://${prefix}${hostname}:${port}`;
+  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  const namespace = traefikNamespace(port);
+  if (namespace === undefined) {
+    return `https://${sub}.placeholder.invalid:${port}`;
+  }
+  return `https://${localServiceHostname(sub, hostname, namespace)}:${port}`;
 }
 
 /** Headers + body thô của một response — đủ cho mọi assertion của suite. */

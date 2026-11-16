@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@ecoma-io/deployment": "workspace:*",
     "@pact-foundation/pact-cli": "18.10.9",
     "@playwright/test": "^1.37.0"
   },

@@ -1318,6 +1318,9 @@ importers:
 
   system-tests/e2e/pact-broker-portal-e2e:
     devDependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../../libs/deployment
       '@pact-foundation/pact-cli':
         specifier: 18.10.9
         version: 18.10.9
@@ -1327,6 +1330,9 @@ importers:
 
   system-tests/e2e/remote-cache-portal-e2e:
     devDependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../../libs/deployment
       '@playwright/test':
         specifier: ^1.37.0
         version: 1.65.1
