@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import https from 'node:https';
 import tls from 'node:tls';
 
@@ -9,6 +11,8 @@ import {
   splitHostPort,
   traefikNamespaceOrNull,
 } from './e2e/support/stack-env';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Stack gate fail-closed của suite `pact-broker-portal-e2e` — probe TRƯỚC KHI
@@ -185,6 +189,51 @@ function classify(error: NodeJS.ErrnoException): Error {
   return new VerificationFailure(error.message);
 }
 
+/**
+ * Chẩn đoán chỉ-chạy-khi-đỏ: trạng thái container/label router Traefik của
+ * namespace worktree. `docker` KHÔNG nằm trong dependency của suite — gọi qua
+ * CLI có sẵn trong môi trường CI/local; mọi lỗi đọc thành chuỗi, không bao giờ
+ * ném từ đường diagnostic.
+ */
+async function stackDiagnostics(hostname: string, port: string): Promise<string | undefined> {
+  const nsPrefix = `ecoma-`;
+  const commands: ReadonlyArray<{ readonly label: string; readonly argv: string[] }> = [
+    {
+      label: 'docker ps (stack containers, state + ports)',
+      argv: [
+        'docker',
+        'ps',
+        '-a',
+        '--format',
+        `{{.Names}}\\t{{.State}}\\t{{.Status}}\\t{{.Ports}}`,
+      ],
+    },
+    {
+      label: 'traefik routers from container labels',
+      argv: ['docker', 'ps', '--format', `{{.Names}}`, '--filter', `label=traefik.enable=true`],
+    },
+  ];
+  const sections: string[] = [`gate target: ${hostname}:${port}`];
+  for (const command of commands) {
+    try {
+      const { stdout } = await execFileAsync(command.argv[0], command.argv.slice(1), {
+        timeout: 10_000,
+      });
+      const lines = stdout
+        .trim()
+        .split(/\r?\n/u)
+        .filter((line) => line.length > 0);
+      const relevant = lines.filter((line) => line.includes(nsPrefix) || line.includes('traefik'));
+      sections.push(
+        `## ${command.label}\n${relevant.length > 0 ? relevant.join('\n') : '(no matching containers)'}`,
+      );
+    } catch (error) {
+      sections.push(`## ${command.label}\n(diagnostic failed: ${String(error)})`);
+    }
+  }
+  return sections.join('\n');
+}
+
 /** In lỗi + remedy rồi exit 1. Console/exit là output chương trình → English. */
 function fail(origin: string, elapsedMs: number, error: Error): never {
   console.error(
@@ -262,6 +311,13 @@ async function main(): Promise<void> {
     }
     const remainingMs = BUDGET_MS - (Date.now() - startedAt);
     if (remainingMs <= 0) {
+      // Diagnostic chỉ chạy trên đường thất bại: khi probe 404 suốt cửa sổ mà
+      // vẫn đỏ, in trạng thái Docker/Traefik để lần sau có evidence gốc thay
+      // vì chỉ chữ ký "404 x N". Lỗi của diagnostic KHÔNG che lỗi gate.
+      const diagnostics = await stackDiagnostics(hostname, port);
+      if (diagnostics) {
+        console.error(`stack gate diagnostic on failure:\n${diagnostics}`);
+      }
       fail(origin, Date.now() - startedAt, lastFailure);
     }
     const sleepMs = Math.min(backoffMs, remainingMs);
