@@ -6,7 +6,7 @@
  * Mirror `deploys/home-deploy/index.ts` và `deploys/backoffice-deploy/index.ts`
  * (cùng ownership labels, namespace, stack reference fail-closed, image build
  * qua `@pulumi/docker-build` với builder `default` + `load: true`). Khác biệt:
- * router rule `Host(pact.<rootHostname>)` và container cần:
+ * router rule `Host(pact-<ns>.<rootHostname>)` và container cần:
  * - **database riêng của unit** `db-pact-broker-app` (ADR-0031 §2, #206): hai
  *   role + database được provision bằng script của unit này (`scripts.ts`) và
  *   migration của `apps/pact-broker-app` chạy qua container ephemeral trên
@@ -43,6 +43,8 @@ import * as pulumi from '@pulumi/pulumi';
 import {
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -90,7 +92,7 @@ const NODE_IMAGE =
 const AUTH_INTERNAL_PORT = 4203;
 
 /**
- * Entrypoint HTTPS của Traefik — nơi client gõ `https://pact.<rootHostname>`.
+ * Entrypoint HTTPS của Traefik — nơi client gõ `https://pact-<ns>.<rootHostname>`.
  * Tên router/service mang namespace vì Traefik đọc label toàn cục (multi-tenant
  * giữa các worktree) — xem `home-deploy`.
  */
@@ -142,6 +144,19 @@ const rootHostname = requirePlatformOutput('rootHostname');
 // exact match là cấu trúc (cùng hai outputs, cùng format), không phải hiệp
 // bằng tay giữa hai stack.
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316) — issuer/audience ghim
+// qua contract `@ecoma-io/deployment`, cùng nguồn với auth-deploy; router rule
+// match hostname không port nên dùng biến hostname riêng.
+// `rootHostname`/`traefikHostPort` là Output (StackReference) nên công thức
+// apply một lần qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const authOrigin = serviceOrigin('auth');
+const audienceOrigin = serviceOrigin('api');
+const pactHostname = rootHostname.apply((rh) => localServiceHostname('pact', rh, ns));
 
 // Mật khẩu hai role của db-pact-broker-app — orchestration sinh và truyền qua
 // --config (stdin, không argv); `requireSecret` như api-deploy: đánh dấu output
@@ -297,8 +312,8 @@ const pactApp = new docker.Container(
       // Issuer/audience ghim từ platform outputs — cùng nguồn với auth-deploy
       // (structural exact match); client_id từ stack config; origin fetch nội bộ
       // trỏ thẳng container auth trong network (local-only, production vắng mặt).
-      pulumi.interpolate`NITRO_PACT_BROKER_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
-      pulumi.interpolate`NITRO_PACT_BROKER_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NITRO_PACT_BROKER_AUTH_ISSUER=${authOrigin}`,
+      pulumi.interpolate`NITRO_PACT_BROKER_AUTH_AUDIENCE=${audienceOrigin}`,
       pulumi.interpolate`NITRO_PACT_BROKER_AUTH_CLIENT_ID=${pactBrokerAppClientId}`,
       pulumi.interpolate`NITRO_PACT_BROKER_AUTH_INTERNAL_ORIGIN=http://ecoma-${ns}-auth:${AUTH_INTERNAL_PORT}`,
     ],
@@ -314,7 +329,7 @@ const pactApp = new docker.Container(
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-        value: pulumi.interpolate`Host(\`pact.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${pactHostname}\`)`,
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,

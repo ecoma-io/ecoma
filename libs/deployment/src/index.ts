@@ -60,6 +60,8 @@ export {
   TRAEFIK_INTERNAL_PORT,
   buildRootHost,
   extractTraefikHostPort,
+  localServiceHostname,
+  localServiceOrigin,
   type PlatformOutputs,
 } from './platform-outputs-contract.js';
 

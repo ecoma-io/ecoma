@@ -13,9 +13,9 @@
  * không label, không log), `pulumi.secret` bọc trước khi interpolate để redact
  * trong diff/log.
  *
- * Có Traefik router `Host(api.<rootHostname>)` (kết luận #205 quyết định 11,
+ * Có Traefik router `Host(api-<ns>.<rootHostname>)` (kết luận #205 quyết định 11,
  * hiện thực qua #208): Pact CLI trên máy dev gọi API qua host route public
- * `https://api.<rootHostname>:<traefikHostPort>`. Consumer trong network vẫn
+ * `https://api-<ns>.<rootHostname>:<traefikHostPort>`. Consumer trong network vẫn
  * (a) `pact-broker-app` (BFF Nuxt) fetch server-side qua alias DNS nội bộ
  * `ecoma-pact-api` — fetch server-side không preflight nên không cần CORS;
  * (b) Pact CLI trong network. CORS KHÔNG mở thêm origin nào (SR-003/SR-005).
@@ -62,6 +62,8 @@ import * as pulumi from '@pulumi/pulumi';
 import {
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -158,6 +160,19 @@ const platformNamespace = requirePlatformOutput('namespace');
 // (điều kiện verify offline của API, ADR-0031 §1).
 const rootHostname = requirePlatformOutput('rootHostname');
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316) — issuer/audience ghim
+// qua contract `@ecoma-io/deployment`, cùng nguồn với auth-deploy; audience và
+// router `Host()` CẢ HAI qua helper vì hai bên phải trỏ cùng service.
+// `rootHostname`/`traefikHostPort` là Output (StackReference) nên công thức
+// apply một lần qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const authOrigin = serviceOrigin('auth');
+const audienceOrigin = serviceOrigin('api');
+const apiHostname = rootHostname.apply((rh) => localServiceHostname('api', rh, ns));
 
 // Mật khẩu hai role của db-pact-broker — do orchestration sinh và truyền qua
 // --config (stdin, không argv). `requireSecret` như remote-cache/staff-access:
@@ -504,12 +519,12 @@ const wic = new docker.Container(
       pulumi.interpolate`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=${pulumi.secret(hyperdriveLocalConnectionString)}`,
       // Cấu hình đường user (ADR-0031 §1.2): issuer + audience mà access token
       // OIDC forward bởi BFF phải khớp. GHIM CÙNG CHUỖI với auth-deploy (cả hai
-      // stack dựng từ cùng hai output platform `rootHostname` + `traefikHostPort`),
-      // nên phép so `iss`/`aud` exact khớp theo cấu trúc. Thiếu MỘT biến là đường
+      // stack dựng chuỗi qua cùng contract `localServiceOrigin`), nên phép so
+      // `iss`/`aud` exact khớp theo cấu trúc. Thiếu MỘT biến là đường
       // user 503 fail-closed từng request (src/config.ts) — machine path không bị
       // ảnh hưởng. KHÔNG có secret nào ở đây: JWKS được fetch công khai.
-      pulumi.interpolate`PACT_BROKER_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
-      pulumi.interpolate`PACT_BROKER_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`PACT_BROKER_AUTH_ISSUER=${authOrigin}`,
+      pulumi.interpolate`PACT_BROKER_AUTH_AUDIENCE=${audienceOrigin}`,
       // Origin NỘI BỘ để fetch JWKS — issuer ở trên là URL public, không
       // resolve được từ trong container (Traefik chỉ publish host port trên
       // loopback host). Origin này chỉ đổi NƠI lấy JWKS; claim `iss` vẫn so
@@ -519,8 +534,8 @@ const wic = new docker.Container(
     labels: [
       ...Object.entries(labels).map(([label, value]) => ({ label, value })),
       // Host route cho Pact CLI trên máy dev (kết luận #205 quyết định 11, hiện
-      // thực qua #208): `https://api.<rootHostname>:<traefikHostPort>` route vào
-      // WIC này — cùng mẫu `Host(<sub>.${rootHostname})` của auth/pact-app.
+      // thực qua #208): `https://api-<ns>.<rootHostname>:<traefikHostPort>` route vào
+      // WIC này — cùng mẫu `Host(<sub>-<ns>.<rootHostname>)` của auth/pact-app.
       // CORS KHÔNG mở thêm origin nào (SR-003/SR-005 giữ nguyên): CLI là
       // non-browser client, không preflight.
       { label: 'traefik.enable', value: 'true' },
@@ -532,7 +547,7 @@ const wic = new docker.Container(
       },
       {
         label: `traefik.http.routers.pact-api-${ns}.rule`,
-        value: pulumi.interpolate`Host(\`api.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${apiHostname}\`)`,
       },
       {
         label: `traefik.http.routers.pact-api-${ns}.entrypoints`,

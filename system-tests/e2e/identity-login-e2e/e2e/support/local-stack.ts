@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
-import { readRootHostPort } from './local-origin';
+import { readRootHostPort } from './root-host';
 
 /**
  * Fixture layer của suite — NỘI BỘ local stack, truy cập QUA Docker CLI.

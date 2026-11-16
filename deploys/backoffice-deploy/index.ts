@@ -27,6 +27,8 @@ import {
   LOCAL_BACKOFFICE_CLIENT_ID,
   type PlatformOutputs,
   dockerResourceName,
+  localServiceHostname,
+  localServiceOrigin,
   normalizeWorktreeRoot,
   ownershipLabels,
   worktreeNamespace,
@@ -40,7 +42,7 @@ const BACKOFFICE_INTERNAL_PORT = 3000;
  * `apps/auth/wrangler.jsonc`), copy tại đây vì hai stack là hai Pulumi program
  * độc lập; lệch giá trị là connection refused ở lần fetch JWKS/token đầu tiên.
  * Alias `ecoma-<ns>-auth` + port này là đường duy nhất container Node tới được
- * auth: hostname `auth.<rootHostname>` KHÔNG resolve được trong container
+ * auth: hostname `auth-<ns>.<rootHostname>` KHÔNG resolve được trong container
  * (không có /etc/hosts entry) và host port của Traefik chỉ bind 127.0.0.1 trên
  * host — cùng pattern `AUTH_INTERNAL_PORT_OF_AUTH_WIC` mà account-deploy dùng
  * cho `NUXT_AUTH_SERVICE_URL`.
@@ -92,6 +94,19 @@ const networkName = requirePlatformOutput('networkName');
 const platformNamespace = requirePlatformOutput('namespace');
 const rootHostname = requirePlatformOutput('rootHostname');
 const traefikHostPort = requirePlatformOutput('traefikHostPort');
+
+// Hostname/origin browser-facing theo worktree (#316) — mọi chuỗi OIDC ghim
+// qua contract `@ecoma-io/deployment`, cùng nguồn với auth-deploy và các
+// consumer khác; lệch một chữ giữa issuer/audience/router là token invalid.
+// `rootHostname`/`traefikHostPort` là Output (StackReference) nên công thức
+// apply một lần qua lambda cục bộ; helper trong lib giữ thuần string.
+const serviceOrigin = (sub: string): pulumi.Output<string> =>
+  pulumi
+    .all([rootHostname, traefikHostPort])
+    .apply(([rh, port]) => localServiceOrigin(sub, rh, ns, port));
+const authOrigin = serviceOrigin('auth');
+const audienceOrigin = serviceOrigin('api');
+const officeHostname = rootHostname.apply((rh) => localServiceHostname('office', rh, ns));
 
 // Secret `internalHmacSecret` sinh bởi staff-access-deploy (envelope HMAC
 // staff-access ↔ backoffice). Đọc lại từ stack config của staff-access-deploy
@@ -202,16 +217,16 @@ const backoffice = new docker.Container(
       // Ba biến OIDC (ADR-0012) — thiếu MỘT biến là middleware authn 503 cho
       // mọi `/api/**` (fail-closed, `server/auth/config.ts` trả `null`).
       //
-      // Issuer/audience GHIM CÙNG CHUỖI với auth-deploy: cả hai stack dựng từ
-      // cùng hai output platform (`rootHostname` + `traefikHostPort`), nên phép
+      // Issuer/audience GHIM CÙNG CHUỖI với auth-deploy: cả hai stack dựng chuỗi
+      // qua cùng contract `localServiceOrigin` (`@ecoma-io/deployment`), nên phép
       // so `iss`/`aud` exact giữa token do auth mint và cấu hình verify của
       // backoffice khớp theo cấu trúc, không phải theo may mắn. Port động là
       // BẮT BUỘC trong chuỗi: browser chỉ tới được origin có port (443 không
       // listen), và oidc-provider mint `iss` từ chính chuỗi này. Trade-off
       // local-only (port đổi là issuer đổi) được ghi ở JSDoc `issuerLocal` của
       // auth-deploy — không lặp lại ở đây.
-      pulumi.interpolate`NUXT_BACKOFFICE_AUTH_ISSUER=https://auth.${rootHostname}:${traefikHostPort}`,
-      pulumi.interpolate`NUXT_BACKOFFICE_AUTH_AUDIENCE=https://api.${rootHostname}:${traefikHostPort}`,
+      pulumi.interpolate`NUXT_BACKOFFICE_AUTH_ISSUER=${authOrigin}`,
+      pulumi.interpolate`NUXT_BACKOFFICE_AUTH_AUDIENCE=${audienceOrigin}`,
       // client_id public đã seed bên auth-deploy — MỘT nguồn sự thật trong
       // `local-auth-contract`, hai stack import cùng hằng; lệch giá trị là
       // authorize `invalid_client` nên không copy chuỗi.
@@ -224,7 +239,7 @@ const backoffice = new docker.Container(
       pulumi.interpolate`AUTH_INTERNAL_SECRET=${pulumi.secret(internalHmacSecret)}`,
       // Origin fetch server-side tới staff-access qua alias DNS nội bộ
       // `ecoma-staff-access` của WIC staff-access-deploy (port 4206). Container
-      // Node không resolve được hostname `staff-access.<rootHostname>` và không đi
+      // Node không resolve được hostname `staff-access-<ns>.<rootHostname>` và không đi
       // ra host loopback được — đường duy nhất là alias Docker trên platform network.
       // Shim Nitro trong backoffice biến URL này thành binding `STAFF_ACCESS_SERVICE`
       // lúc runtime (xem `server/plugins/staff-access-service-shim.ts`).
@@ -240,14 +255,14 @@ const backoffice = new docker.Container(
       // `ecoma-account` của container account-deploy (port 3000). Cùng lý luật
       // với
       // `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL` bên trên: container Node
-      // không resolve được hostname `account.<rootHostname>` — đường duy nhất
+      // không resolve được hostname `account-<ns>.<rootHostname>` — đường duy nhất
       // là alias Docker trên platform network. Shim Nitro biến URL này thành
       // binding `ACCOUNT_SERVICE` lúc runtime, bật đường onboarding-status/
       // displayName (#242); rỗng/vắng ⇒ client fail-closed như production.
       pulumi.interpolate`NUXT_BACKOFFICE_ACCOUNT_SERVICE_URL=http://ecoma-account:${ACCOUNT_INTERNAL_PORT}`,
       // Origin fetch server-side: JWKS (`/jwks.json`) và token exchange
       // (`/token`) chạy TRONG container Node, mà container không resolve được
-      // `auth.<rootHostname>` và không đi ra host loopback được — đường duy
+      // `auth-<ns>.<rootHostname>` và không đi ra host loopback được — đường duy
       // nhất là alias Docker của WIC auth trên platform network (plain HTTP;
       // TLS không có trên chặng này, cùng ngữ nghĩa service binding production).
       // Chuỗi issuer vẫn là danh tính `iss`/authorize — chỉ fetch origin đổi.
@@ -276,7 +291,7 @@ const backoffice = new docker.Container(
       { label: 'traefik.docker.network', value: networkName },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.rule`,
-        value: pulumi.interpolate`Host(\`office.${rootHostname}\`)`,
+        value: pulumi.interpolate`Host(\`${officeHostname}\`)`,
       },
       {
         label: `traefik.http.routers.${traefikPrefix(ns)}.entrypoints`,

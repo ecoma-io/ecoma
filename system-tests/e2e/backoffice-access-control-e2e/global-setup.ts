@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Stack gate fail-closed của suite `backoffice-access-control-e2e` — probe
@@ -91,9 +94,10 @@ interface ProbeResult {
 
 /**
  * Origin backoffice mà gate probe — hostname gốc (giá trị `ROOT_HOST`,
- * dạng `hostname:port`) GHÉP PREFIX `office.`: router Traefik của
- * backoffice match `Host(office.<root>)`, probe hostname gốc là 404 chắc chắn
- * (#392 — cùng hợp đồng mà `e2e/support/local-origin.ts` của suite đã suy).
+ * dạng `hostname:port`) ghép sub per-worktree `office-<ns>.`: router Traefik
+ * của backoffice match `Host(office-<ns>.<root>)`, probe hostname gốc là 404
+ * chắc chắn (#392, #316 — cùng hợp đồng mà `e2e/support/local-origin.ts` của
+ * suite đã suy).
  */
 function resolveBackofficeOrigin(): { hostname: string; port: string; ca: string } {
   const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
@@ -122,8 +126,53 @@ function resolveBackofficeOrigin(): { hostname: string; port: string; ca: string
 /** Tách `hostname`/`port` từ hostname gốc rồi ghép prefix `office.` của backoffice. */
 function readOfficeHostPort(raw: string): { hostname: string; port: string } {
   const rootHostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return { hostname: `office.${rootHostname}`, port };
+  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  return { hostname: localServiceHostname('office', rootHostname, traefikNamespace(port)), port };
+}
+
+/**
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` theo port
+ * public Traefik (cùng phép dò của `resolvePostgresContainer` trong
+ * `e2e/support/stack-fixtures.ts`). Không tìm thấy là lỗi cài đặt — throw thay
+ * vì đoán.
+ */
+function traefikNamespace(port: string): string {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch (error) {
+    // `error` là `unknown` — `execFileSync` thường ném `ErrnoException` nhưng
+    // đừng ép kiểu mù quáng: extract message qua `instanceof` để thông báo lỗi
+    // không bao giờ lọt đoạn `undefined` dù thrown value là chuỗi.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `docker ps failed while discovering the worktree namespace (${message}) — ` +
+        'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
+      { cause: error },
+    );
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
+    ) {
+      return namespace;
+    }
+  }
+  throw new Error(
+    `no ecoma Traefik container publishes loopback port ${port} — the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.`,
+  );
 }
 
 /**
@@ -141,7 +190,7 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
         ca,
         servername: hostname,
         headers: {
-          // `Host` tường minh `hostname:port` — khớp rule `Host(office.<rootHostname>)`
+          // `Host` tường minh `hostname:port` — khớp rule `Host(office-<ns>.<rootHostname>)`
           // của router Traefik (Traefik match hostname không port).
           Host: `${hostname}:${port}`,
         },

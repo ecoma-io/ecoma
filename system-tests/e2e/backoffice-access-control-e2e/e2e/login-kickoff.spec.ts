@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 import { EXPECTED_CLIENT_ID } from './support/fixtures';
-import { resolveStackOrigin, stackGet } from './support/local-origin';
+import { authHostname, resolveStackOrigin, stackGet } from './support/local-origin';
 
 /**
  * Contract của login kickoff — `GET /api/auth/login` khi CHƯA đăng nhập.
@@ -32,11 +32,10 @@ test.describe('login kickoff contract', () => {
     expect(location).toBeDefined();
     const target = new URL(location ?? 'about:invalid');
 
-    // Đích là authorize của issuer local — host `auth.<rootHostname>` với port
-    // động của stack (issuer GHIM chuỗi có port, xem `backoffice-deploy`).
-    expect(target.hostname).toBe(
-      new URL(resolveStackOrigin()).hostname.replace(/^office\./u, 'auth.'),
-    );
+    // Đích là authorize của issuer local — host `auth-<ns>.<rootHostname>` với
+    // port động của stack (issuer GHIM chuỗi có port, xem `backoffice-deploy`);
+    // hostname suy qua cùng contract per-worktree với origin backoffice (#316).
+    expect(target.hostname).toBe(authHostname());
     expect(target.pathname).toBe('/authorize');
 
     expect(target.searchParams.get('response_type')).toBe('code');

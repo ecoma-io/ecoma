@@ -1,5 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 
+import { isNavigationAborted } from './warm-up';
+
 /**
  * Khoảng lặng xác nhận dev server đã thôi thay trang: không có document request
  * mới trong khoảng này ⇒ cache Vite đã nóng, reload lần sau sẽ phục vụ module
@@ -62,15 +64,15 @@ const READY_TEST_IDS: Readonly<Record<string, string>> = {
  * `globalSetup` truyền phần trần còn lại của cả vế browser để tổng thời gian
  * warm-up có đúng một biên biết trước.
  *
- * ⚠️ Vì sao cần reload một lần theo ý định: trên CI runner sạch, cache Vite
- * nguội ⇒ lần tải đầu của browser kích hoạt `full-reload` của dev server, và
- * `full-reload` huỷ toàn bộ request module đang bay (`net::ERR_NETWORK_CHANGED`).
- * Client không bao giờ mount ⇒ `getByTestId(...).waitFor()` chờ mãi đến hết trần.
- * Sau lần reload đầu, cache Vite đã nóng, nên reload lần thứ hai phục vụ module
- * từ cache, không gây `full-reload` nữa, và client có thể mount. Đây là **một**
- * lần reload có chủ đích sau sự kiện thay đổi mạng, không phải "chờ lâu hơn và
- * hy vọng": nếu phần tử vẫn không xuất hiện sau reload, lỗi được ném ra thay vì
- * bị nuốt.
+ * ⚠️ Vì sao cần reload **lặp theo ý định** (issue #323): trên CI runner sạch, cache
+ * Vite nguội ⇒ lần tải đầu của browser kích hoạt pre-bundle của dev server, và
+ * mỗi vòng pre-bundle phát một `full-reload` huỷ toàn bộ request module đang bay
+ * (`net::ERR_NETWORK_CHANGED`). Đo được tối thiểu 3 vòng: một lần reload duy nhất
+ * không đủ — client vẫn có thể bị huỷ mount ở vòng pre-bundle kế tiếp. Vì vậy ở
+ * đây reload **mỗi** lần một lát chờ hết trần, cho tới khi hết deadline: reload
+ * thứ hai phục vụ module từ cache nóng của vòng trước, tiến dần tới mount. Đây là
+ * cùng pattern deadline-bounded với `gotoWithReloadRetry`: nếu phần tử vẫn không
+ * xuất hiện sau khi hết trần, lỗi được ném ra thay vì bị nuốt.
  */
 export async function waitForRouteReady(
   page: Page,
@@ -84,7 +86,6 @@ export async function waitForRouteReady(
   }
 
   const deadline = Date.now() + (timeoutMs ?? 30_000);
-  let reloaded = false;
 
   for (;;) {
     const remainingMs = deadline - Date.now();
@@ -115,13 +116,25 @@ export async function waitForRouteReady(
         throw cause;
       }
 
-      // Một lần reload theo ý định: Vite full-reload đã huỷ module graph, nhưng
-      // cache dependency đã nóng sau lần tải đầu. Reload lần thứ hai phục vụ
-      // module từ cache, không gây full-reload nữa. Chỉ reload một lần; sau đó
-      // tiếp tục chờ theo lát cho đến hết trần thay vì ném ngay sau một lát.
-      if (!reloaded) {
-        reloaded = true;
+      // Reload lại mỗi lát hết trần (issue #323): Vite pre-bundle chạy nhiều vòng,
+      // mỗi vòng một `full-reload`; deadline ở đầu vòng lặp chặn lặp vô hạn.
+      try {
         await page.reload({ waitUntil: 'domcontentloaded' });
+      } catch (reloadCause) {
+        // Lỗi thật (không phải abort do dev server thay trang): đẩy lên ngay.
+        if (!isNavigationAborted(reloadCause)) {
+          throw reloadCause;
+        }
+        // Abort là race warm-up "ăn" - nhưng hết trần thì ném lỗi trần, không ném
+        // lỗi abort: nguyên nhân thật là hết ngân sách, nguyên nhân abort chỉ là
+        // cách lượt chờ cuối kết thúc (issue #323, OCR thread 4581181376).
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; lần reload cuối bị dev server thay trang huỷ.`,
+            { cause: reloadCause },
+          );
+        }
+        console.log(`[warm-up] reload ${path} aborted by dev server full-reload, retrying`);
       }
     }
   }
