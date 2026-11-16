@@ -42,7 +42,10 @@
  * 4. **`passWithNoTests: false` trong mọi `vitest.integration.config.mts`.**
  *    Target integration tìm thấy 0 test phải đỏ lớn, không pass im lặng
  *    (`integration-pass-with-no-tests`). Unit config không bị lượt này đụng
- *    tới: giá trị hiện tại được giữ nguyên, danh sách exception nằm ở PR mô tả.
+ *    tới giá trị flag: `passWithNoTests: true` chỉ hợp lệ khi project THẬT SỰ
+ *    0 spec unit dưới include — spec xuất hiện mà flag chưa gỡ là
+ *    `unit-pass-with-no-tests-with-specs` (issue #266), vì flag đó biến include
+ *    trượt khỏi spec thành zero-run xanh im lặng.
  *
  * 5. **Config không đọc được là lỗi, không phải skip.** Thiếu mảng include,
  *    JSON hỏng, file không đọc được ⇒ `unreadable-test-config` — fail-closed,
@@ -573,6 +576,24 @@ export function validateTestTargets(input: {
       // phòng) — không phải lỗi layout, chỉ không có gì để dò.
       if (!fs.exists(dirRel)) continue;
       collectSpecFiles(fs, dirRel, skipDirPaths, specFiles);
+    }
+    // (6) `passWithNoTests: true` ở tier unit chỉ hợp lệ khi project THẬT SỰ
+    // 0 spec unit (issue #266): 4 project hôm nay giữ flag vì chưa có spec nào.
+    // Flag đó biến include trượt khỏi spec (đổi tên, chuyển thư mục) thành
+    // zero-run xanh im lặng — đúng lớp lỗi mà tier integration đã được bảo vệ
+    // khỏi. Spec xuất hiện dưới thư mục nguồn mà flag chưa gỡ là arch-check đỏ,
+    // buộc gỡ flag cùng lúc spec đầu vào (flags trên config của lib có spec
+    // colocated đã bị lượt này chặn ngay từ đầu).
+    if (unit.passWithNoTestsExplicitTrue && specFiles.length > 0) {
+      report({
+        project: project.name,
+        kind: 'unit-pass-with-no-tests-with-specs',
+        detail:
+          `${unitConfigPath} sets passWithNoTests: true but the unit tier matches ` +
+          `${String(specFiles.length)} spec file(s) (first: ${specFiles[0]}); the flag was only ` +
+          `allowed for genuinely zero-spec projects — remove it now that unit specs exist ` +
+          `(docs/architecture/06-testing.md §4, issue #266)`,
+      });
     }
     for (const file of specFiles) {
       let text: string;
