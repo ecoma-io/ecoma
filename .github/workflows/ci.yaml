@@ -19,7 +19,11 @@ on:
   # trên một tập affected không chứng minh được gì về toàn bộ repository - một
   # lỗ hổng trong tính affected set chỉ lộ ở lần chạy đầy đủ này.
   schedule:
-    - cron: '0 3 * * *'
+    # Tránh phút đúng giờ (00): tài liệu GitHub ("Troubleshooting scheduled
+    # workflows") nêu schedule có thể bị delay/trượt bỏ hoàn toàn lúc tải cao,
+    # và khuyến nghị tránh giờ tròn — cron `0 3 * * *` chưa bao giờ kích kể từ
+    # khi landed (#296); PM workflow của repo này cũng đo được độ trễ 7-8 giờ.
+    - cron: '17 3 * * *'
 
 permissions:
   contents: read
