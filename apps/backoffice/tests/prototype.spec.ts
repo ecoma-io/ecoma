@@ -196,7 +196,7 @@ describe('waitForRouteReady', () => {
       ],
       reloadCalls,
     );
-    page.reload = async (options) => {
+    page.reload = async (options: { readonly waitUntil: string }) => {
       reloadCalls.push(options);
       throw new Error('net::ERR_CONNECTION_REFUSED');
     };
