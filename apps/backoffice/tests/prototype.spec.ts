@@ -160,19 +160,22 @@ describe('waitForRouteReady', () => {
       ],
       reloadCalls,
     );
-    page.reload = async (options) => {
+    page.reload = async (options: { readonly waitUntil: string }) => {
       reloadCalls.push(options);
       throw new Error(
         'page.reload: net::ERR_ABORTED: navigation to "http://127.0.0.1:4311/" was canceled by another one',
       );
     };
-    // Lượt chờ kế tiếp thành công sau lần reload bị abort.
+    // Lượt chờ kế tiếp thành công sau lần reload bị abort. Trạng thái mock là
+    // cờ tường minh trong closure, không đọc độ dài mảng side-effect.
+    let firstWaitSeen = false;
     page.getByTestId = () => ({
       waitFor: async (options) => {
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 1);
         });
-        if (reloadCalls.length === 0) {
+        if (!firstWaitSeen) {
+          firstWaitSeen = true;
           throw timeoutError(options.timeout);
         }
       },

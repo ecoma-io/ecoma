@@ -116,17 +116,25 @@ export async function waitForRouteReady(
         throw cause;
       }
 
-      // Reload theo ý định **mỗi** lát hết trần (issue #323): pre-bundle của Vite
-      // chạy nhiều vòng, mỗi vòng một `full-reload`; reload này ăn vòng đã xảy ra
-      // và nạp module từ cache nóng của vòng đó. Deadline ở đầu vòng lặp chặn
-      // việc lặp vô hạn. Lỗi abort do dev server tự thay trang giữa lần reload
-      // này là đúng race warm-up "ăn": thử lại thay vì ném.
+      // Reload lại mỗi lát hết trần (issue #323): Vite pre-bundle chạy nhiều vòng,
+      // mỗi vòng một `full-reload`; deadline ở đầu vòng lặp chặn lặp vô hạn.
       try {
         await page.reload({ waitUntil: 'domcontentloaded' });
       } catch (reloadCause) {
-        if (!isNavigationAborted(reloadCause) || Date.now() >= deadline) {
+        // Lỗi thật (không phải abort do dev server thay trang): đẩy lên ngay.
+        if (!isNavigationAborted(reloadCause)) {
           throw reloadCause;
         }
+        // Abort là race warm-up "ăn" - nhưng hết trần thì ném lỗi trần, không ném
+        // lỗi abort: nguyên nhân thật là hết ngân sách, nguyên nhân abort chỉ là
+        // cách lượt chờ cuối kết thúc (issue #323, OCR thread 4581181376).
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; lần reload cuối bị dev server thay trang huỷ.`,
+            { cause: reloadCause },
+          );
+        }
+        console.log(`[warm-up] reload ${path} aborted by dev server full-reload, retrying`);
       }
     }
   }
