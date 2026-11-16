@@ -195,8 +195,17 @@ function classify(error: NodeJS.ErrnoException): Error {
  * CLI có sẵn trong môi trường CI/local; mọi lỗi đọc thành chuỗi, không bao giờ
  * ném từ đường diagnostic.
  */
-async function stackDiagnostics(hostname: string, port: string): Promise<string | undefined> {
-  const nsPrefix = `ecoma-`;
+async function stackDiagnostics(
+  hostname: string,
+  port: string,
+  namespace: string,
+): Promise<string | undefined> {
+  // Namespace của stack được probe (đã dò ở `main`) — dùng cho filter và cho
+  // tên router thật; prefix `ecoma-` không được hardcode ở đây nữa. Router
+  // prefix `pact-app-<ns>` khớp label mà deploy đăng ký
+  // (`deploys/pact-broker-app-deploy/index.ts`, `traefikPrefix`).
+  const nsPrefix = `ecoma-${namespace}`;
+  const routerLabel = `traefik.http.routers.pact-app-${namespace}.rule`;
   const commands: ReadonlyArray<{ readonly label: string; readonly argv: string[] }> = [
     {
       label: 'docker ps (stack containers, state + ports)',
@@ -216,14 +225,15 @@ async function stackDiagnostics(hostname: string, port: string): Promise<string 
       // Router labels CỦA container portal — chứng cứ "router khai đủ
       // rule/network/port chưa": `traefik.docker.network` lệch network thật
       // là đúng lỗi bị constraint của Traefik lọc văng (404 vĩnh viễn).
-      // Tên container có ns động, lọc theo suffix `-pact-app`.
+      // Tên router theo đúng label mà deploy đăng ký (`pact-app-<ns>`,
+      // `deploys/pact-broker-app-deploy/index.ts`).
       label: 'pact-app router labels + networks (inspect)',
       argv: [
         '/bin/sh',
         '-c',
         `c=$(docker ps --format '{{.Names}}' | grep -- '-pact-app$' | head -1); ` +
           `if [ -n "$c" ]; then docker inspect --format ` +
-          `'network-label={{index .Config.Labels "traefik.docker.network"}} | networks={{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}} | rule={{index .Config.Labels "traefik.http.routers.pact-app-wa12b51837754.rule"}}' "$c"` +
+          `'network-label={{index .Config.Labels "traefik.docker.network"}} | networks={{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}} | rule={{index .Config.Labels "${routerLabel}"}}' "$c"` +
           `; else echo 'no pact-app container'; fi`,
       ],
     },
@@ -329,7 +339,7 @@ async function main(): Promise<void> {
       // Diagnostic chỉ chạy trên đường thất bại: khi probe 404 suốt cửa sổ mà
       // vẫn đỏ, in trạng thái Docker/Traefik để lần sau có evidence gốc thay
       // vì chỉ chữ ký "404 x N". Lỗi của diagnostic KHÔNG che lỗi gate.
-      const diagnostics = await stackDiagnostics(hostname, port);
+      const diagnostics = await stackDiagnostics(hostname, port, namespace);
       if (diagnostics) {
         console.error(`stack gate diagnostic on failure:\n${diagnostics}`);
       }

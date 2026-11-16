@@ -183,14 +183,19 @@ function classify(error: NodeJS.ErrnoException): Error {
   return new VerificationFailure(error.message);
 }
 
-/** In lỗi + remedy rồi exit 1. Console/exit là output chương trình → English. */
 /**
  * Chẩn đoán chỉ-chạy-khi-đỏ: trạng thái container/label router Traefik của
  * namespace worktree. Gọi docker CLI qua execFile; mọi lỗi đọc thành chuỗi —
  * đường diagnostic không bao giờ ném và không che lỗi gate.
  */
-async function stackDiagnostics(hostname: string, port: string): Promise<string | undefined> {
-  const nsPrefix = 'ecoma-';
+async function stackDiagnostics(
+  hostname: string,
+  port: string,
+  namespace: string,
+): Promise<string | undefined> {
+  // Namespace của stack được probe (đã dò ở `main`) — filter theo đúng stack,
+  // không hardcode prefix.
+  const nsPrefix = `ecoma-${namespace}`;
   const commands: ReadonlyArray<{ readonly label: string; readonly argv: string[] }> = [
     {
       label: 'docker ps (stack containers, state + ports)',
@@ -307,7 +312,7 @@ async function main(): Promise<void> {
       // Diagnostic chỉ chạy trên đường thất bại — chứng cứ gốc khi probe 404
       // suốt cửa sổ vẫn đỏ (runs 43794652419, 43799470720): router portal có
       // đăng ký hay không chỉ trả lời được bằng trạng thái container/label.
-      const diagnostics = await stackDiagnostics(hostname, port);
+      const diagnostics = await stackDiagnostics(hostname, port, namespace);
       if (diagnostics) {
         console.error(`stack gate diagnostic on failure:\n${diagnostics}`);
       }
