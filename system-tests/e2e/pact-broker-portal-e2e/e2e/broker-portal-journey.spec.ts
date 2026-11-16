@@ -428,7 +428,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
   }) => {
     // Tenant B: identity riêng, admin của tenant riêng, KHÔNG member của ecoma.
     const tokenB = `tenant-b-${runToken()}`;
-    const identityB: Identity = await seedSecondTenantIdentity(ORIGIN, tokenB);
+    const identityB: Identity = await seedSecondTenantIdentity(tokenB);
 
     // Login B và tạo credential cho tenant B qua UI.
     await performBrowserLogin(page, {

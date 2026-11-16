@@ -107,7 +107,7 @@ export const SECOND_TENANT_OWNER_SUB = 'sub_owner_of_outsider_tenant_fixture_000
  * (UNIQUE `(tenant_id, name)`), nên assertion đúng là "nội dung nhìn thấy là
  * của tenant mình", không phải "tên 404".
  */
-export async function seedSecondTenantIdentity(origin: string, seed: string): Promise<Identity> {
+export async function seedSecondTenantIdentity(seed: string): Promise<Identity> {
   const sub = makeSub(seed);
   const email = makeEmail(seed);
   const postgresContainer = await resolvePostgresContainer(resolvePortalOrigin());
