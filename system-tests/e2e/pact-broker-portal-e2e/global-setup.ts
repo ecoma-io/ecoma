@@ -212,6 +212,21 @@ async function stackDiagnostics(hostname: string, port: string): Promise<string 
       label: 'traefik routers from container labels',
       argv: ['docker', 'ps', '--format', `{{.Names}}`, '--filter', `label=traefik.enable=true`],
     },
+    {
+      // Router labels CỦA container portal — chứng cứ "router khai đủ
+      // rule/network/port chưa": `traefik.docker.network` lệch network thật
+      // là đúng lỗi bị constraint của Traefik lọc văng (404 vĩnh viễn).
+      // Tên container có ns động, lọc theo suffix `-pact-app`.
+      label: 'pact-app router labels + networks (inspect)',
+      argv: [
+        '/bin/sh',
+        '-c',
+        `c=$(docker ps --format '{{.Names}}' | grep -- '-pact-app$' | head -1); ` +
+          `if [ -n "$c" ]; then docker inspect --format ` +
+          `'network-label={{index .Config.Labels "traefik.docker.network"}} | networks={{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}} | rule={{index .Config.Labels "traefik.http.routers.pact-app-wa12b51837754.rule"}}' "$c"` +
+          `; else echo 'no pact-app container'; fi`,
+      ],
+    },
   ];
   const sections: string[] = [`gate target: ${hostname}:${port}`];
   for (const command of commands) {
