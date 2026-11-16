@@ -1,6 +1,3 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import { traefikNamespaceOrNull } from './stack-env';
 
 /**
@@ -13,16 +10,12 @@ import { traefikNamespaceOrNull } from './stack-env';
  * thay vì đoán.
  */
 
-const execFileAsync = promisify(execFile);
-
 /** Tên network platform của stack mà `origin` đang chạy. */
 export async function resolvePlatformNetwork(origin: string): Promise<string> {
   const port = new URL(origin).port;
-  // Timeout đề phòng daemon treo giữ worker Playwright vô hạn (phép dò dùng
-  // `docker ps` phía trong `traefikNamespaceOrNull` đã có timeout riêng).
-  await execFileAsync('docker', ['info', '--format', '{{.ServerVersion}}'], {
-    timeout: 10_000,
-  });
+  // `traefikNamespaceOrNull` tự chạy `docker ps` với timeout 10s — vừa chứng tỏ
+  // daemon sống, vừa resolve namespace; mọi lỗi đều đi qua `failureDetail`
+  // có cấu trúc thay vì lỗi docker thô.
   const { namespace, failureDetail } = traefikNamespaceOrNull(port);
   if (namespace !== undefined) {
     return `ecoma-${namespace}-network`;

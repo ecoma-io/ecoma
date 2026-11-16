@@ -150,6 +150,7 @@ export function traefikNamespaceOrNull(port: string): {
     return { namespace: undefined, failureDetail: `docker ps failed (${message})` };
   }
   const traefikContainers: string[] = [];
+  const matchingNamespaces: string[] = [];
   for (const line of ps.split(/\r?\n/u)) {
     const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
     if (match === null) {
@@ -166,8 +167,20 @@ export function traefikNamespaceOrNull(port: string): {
       // Static strings on both sides — no RegExp built from untrusted input.
       (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
     ) {
-      return { namespace, failureDetail: '' };
+      matchingNamespaces.push(namespace);
     }
+  }
+  if (matchingNamespaces.length === 1) {
+    return { namespace: matchingNamespaces[0] ?? undefined, failureDetail: '' };
+  }
+  if (matchingNamespaces.length > 1) {
+    // Fail-closed on ambiguity: a stale stack publishing the same host port
+    // would make "first match" seed/route the WRONG stack. Callers must see
+    // the conflict instead of an arbitrary pick.
+    return {
+      namespace: undefined,
+      failureDetail: `host port ${port} is published by ${matchingNamespaces.length} traefik containers (${matchingNamespaces.join(', ')}) — stop the stale stack and redeploy`,
+    };
   }
   return {
     namespace: undefined,
