@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import https from 'node:https';
 import tls from 'node:tls';
 
