@@ -41,7 +41,7 @@ function repoDotEnv(): string | undefined {
   }
 }
 
-let rootHostCache: string | undefined | null;
+let rootHostCache: string | undefined | null = null;
 /**
  * `ROOT_HOST` from env or repo-root `.env` (trimmed), or `undefined` when
  * neither defines it. Memoized.
