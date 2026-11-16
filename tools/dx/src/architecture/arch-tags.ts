@@ -184,6 +184,10 @@ export interface ArchTagViolation {
     | 'integration-config-missing-dir'
     | 'integration-dir-in-unit-config'
     | 'integration-pass-with-no-tests'
+    // Unit config đặt passWithNoTests: true nhưng project còn spec unit dưới
+    // thư mục nguồn mà include phủ — flag đó biến include trượt khỏi spec thành
+    // zero-run im lặng (issue #266).
+    | 'unit-pass-with-no-tests-with-specs'
     | 'unit-real-dependency-spec'
     | 'lib-real-dependency-spec'
     | 'unreadable-test-config'
