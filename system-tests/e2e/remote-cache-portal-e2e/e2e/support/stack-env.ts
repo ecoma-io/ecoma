@@ -171,7 +171,7 @@ export function traefikNamespaceOrNull(port: string): {
     }
   }
   if (matchingNamespaces.length === 1) {
-    return { namespace: matchingNamespaces[0] ?? undefined, failureDetail: '' };
+    return { namespace: matchingNamespaces[0], failureDetail: '' };
   }
   if (matchingNamespaces.length > 1) {
     // Fail-closed on ambiguity: a stale stack publishing the same host port
