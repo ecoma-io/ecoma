@@ -27,10 +27,7 @@ export async function resolvePlatformNetwork(origin: string): Promise<string> {
     }
     // Cột Ports dạng `80/tcp, 127.0.0.1:32768->443/tcp` — publish có thể bind
     // 127.0.0.1, 0.0.0.0 hoặc `[::]`; match port trước mốc `->443/tcp`.
-    if (
-      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) &&
-      !ports.includes(`:${port}->`)
-    ) {
+    if (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) {
       const namespace = name.replace(/^ecoma-(.+)-traefik$/u, '$1');
       return `ecoma-${namespace}-network`;
     }
