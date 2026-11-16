@@ -33,24 +33,30 @@ const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
  * nhau khi deploy thành công, nên host từ `ROOT_HOST` là nguồn đúng cho tên
  * file cert (`<root>.crt` trong `deploys/platform-deploy/local-certs/`).
  */
-function localCertName(): string {
-  const raw = rootHostRaw();
-  return `${raw.split(':')[0]}.crt`;
-}
-
 // File này nằm ở `e2e/support/` — NĂM mức `../` về repo root (support → e2e →
 // suite → category → system-tests → root). Sai một mức là ENOENT ngay lúc
 // module load.
-const LOCAL_CERT_FILE = join(
-  SUITE_DIR,
-  '../../../../../deploys/platform-deploy/local-certs',
-  localCertName(),
-);
+const CERT_DIR = join(SUITE_DIR, '../../../../../deploys/platform-deploy/local-certs');
 
-export const LOCAL_CA_PEM = readFileSync(LOCAL_CERT_FILE, 'utf8');
+/**
+ * Cert + path cert — LAZY: đọc lúc bị cần, KHÔNG lúc module load. Thiếu
+ * `ROOT_HOST`/cert thì module vẫn nạp (placeholder `.invalid` của
+ * `resolveStackOrigin()` vẫn trả được), để `--list`/graph evaluation không crash
+ * trên worktree chưa deploy; test thật đi qua global-setup gate fail-closed.
+ */
+let localCaPemCache: string | undefined;
+function localCaPem(): string {
+  if (localCaPemCache === undefined) {
+    const certFile = join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
+    localCaPemCache = readFileSync(certFile, 'utf8');
+  }
+  return localCaPemCache;
+}
 
 /** Đường dẫn cert đã suy — tái dùng bởi spec (SSL_CERT_FILE của Pact CLI). */
-export const LOCAL_CERT_PATH = LOCAL_CERT_FILE;
+export function localCertPath(): string {
+  return join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
+}
 
 /**
  * Origin portal của stack local — `https://remote-cache-app.<root>:<port>`.
@@ -61,10 +67,27 @@ export const LOCAL_CERT_PATH = LOCAL_CERT_FILE;
  * được dùng làm origin.
  *
  * Khi chạy qua Nx, `.env` repo root đã nằm trong env của task; chạy
- * `npx playwright test` trực tiếp thì fallback parse `.env`.
+ * `npx playwright test` trực tiếp thì fallback parse `.env`. KHÔNG có env nào
+ * ⇒ placeholder `.invalid` (RFC 2606) — mọi request đỏ với DNS failure, không
+ * bao giờ xanh giả; module-load vẫn thành công cho `--list`/graph evaluation.
  */
 export function resolveStackOrigin(): string {
-  return portalOrigin(rootHostRaw());
+  const fromEnv = process.env.ROOT_HOST;
+  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
+    return portalOrigin(fromEnv.trim());
+  }
+  try {
+    const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
+    for (const line of text.split(/\r?\n/u)) {
+      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
+      if (match && match[1].trim().length > 0) {
+        return portalOrigin(match[1].trim());
+      }
+    }
+  } catch {
+    // `.env` vắng mặt — placeholder bên dưới; gate global-setup là đường fail-closed.
+  }
+  return 'https://remote-cache-app.placeholder.invalid:443';
 }
 
 /** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
@@ -124,7 +147,7 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
         port: target.port || '443',
         path: `${target.pathname}${target.search}`,
         method: options.method ?? 'GET',
-        ca: LOCAL_CA_PEM,
+        ca: localCaPem(),
         servername: target.hostname,
         headers: {
           // `Host` tường minh `hostname:port` — đúng dạng mà rule `Host(...)`
@@ -140,7 +163,7 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
           reject(
             new Error(
               `TLS not verified for ${url} — ${
-                tlsSocket?.authorizationError?.message ?? 'socket has no verify status'
+                tlsSocket?.authorizationError ?? 'socket has no verify status'
               }`,
             ),
           );

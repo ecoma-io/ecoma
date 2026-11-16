@@ -5,7 +5,7 @@ import tls from 'node:tls';
 import { promisify } from 'node:util';
 import { SECOND_TENANT_NAME, expect, seedOutsiderIdentity, test } from './support/fixtures';
 import { performBrowserLogin } from './support/oidc-flow';
-import { LOCAL_CERT_PATH, resolveStackOrigin } from './support/local-origin';
+import { localCertPath, resolveStackOrigin } from './support/local-origin';
 import { resolvePlatformNetwork } from './support/network';
 
 /**
@@ -298,7 +298,7 @@ function fetchViaNode(
         host: target.hostname,
         port: target.port || '443',
         path: target.pathname,
-        ca: readFileSync(LOCAL_CERT_PATH, 'utf8'),
+        ca: readFileSync(localCertPath(), 'utf8'),
         servername: target.hostname,
         headers: { Host: target.host, ...headers },
         signal: AbortSignal.timeout(10_000),

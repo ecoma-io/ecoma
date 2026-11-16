@@ -36,12 +36,18 @@ import { fileURLToPath } from 'node:url';
 
 const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Path cert local — tên file suy từ `ROOT_HOST` (cùng nguồn với `.env`). */
-const LOCAL_CERT_PATH = join(
-  SUITE_DIR,
-  '../../../deploys/platform-deploy/local-certs',
-  `${rootHostRaw().split(':')[0]}.crt`,
-);
+/**
+ * Path cert local — tên file suy từ `ROOT_HOST`. LAZY: tính trong
+ * `resolvePortalOrigin()` lúc gate chạy, KHÔNG lúc module load — module luôn
+ * nạp được, để `main()` tự báo lỗi remedy đầy đủ (thay vì crash import).
+ */
+function resolveLocalCertPath(): string {
+  return join(
+    SUITE_DIR,
+    '../../../deploys/platform-deploy/local-certs',
+    `${rootHostRaw().split(':')[0]}.crt`,
+  );
+}
 
 /** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
 function rootHostRaw(): string {
@@ -111,27 +117,27 @@ interface ProbeResult {
  * match `Host(remote-cache-app.<root>)`, probe hostname gốc là 404 chắc chắn.
  */
 function resolvePortalOrigin(): { hostname: string; port: string; ca: string } {
-  const ca = readFileSync(LOCAL_CERT_PATH, 'utf8');
   const raw = process.env.ROOT_HOST;
-  if (raw !== undefined && raw.trim().length > 0) {
-    return { ...readPortalHostPort(raw.trim()), ca };
-  }
-  // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root.
-  try {
+  if (raw === undefined || raw.trim().length === 0) {
+    // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root.
     const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
     for (const line of text.split(/\r?\n/u)) {
       const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
       if (match && match[1].trim().length > 0) {
-        return { ...readPortalHostPort(match[1].trim()), ca };
+        return { ...readPortalHostPort(match[1].trim()), ca: readLocalCa() };
       }
     }
-  } catch {
-    // `.env` vắng mặt — throw bên dưới với message chỉ đúng remedy.
+    throw new Error(
+      'remote-cache-portal-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
+        'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
+    );
   }
-  throw new Error(
-    'remote-cache-portal-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
-      'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
-  );
+  return { ...readPortalHostPort(raw.trim()), ca: readLocalCa() };
+}
+
+/** PEM cert local — đọc trong `resolvePortalOrigin()` sau khi host đã resolve. */
+function readLocalCa(): string {
+  return readFileSync(resolveLocalCertPath(), 'utf8');
 }
 
 /** Tách `hostname`/`port` từ hostname gốc rồi ghép prefix `remote-cache-app.` của portal. */
@@ -168,7 +174,8 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
         if (tlsSocket?.authorized !== true) {
           reject(
             new VerificationFailure(
-              `TLS not verified — ${tlsSocket?.authorizationError?.message ?? 'socket has no verify status'}`,
+              // authorizationError là string (reason code), không phải Error.
+              `TLS not verified — ${tlsSocket?.authorizationError ?? 'socket has no verify status'}`,
             ),
           );
           return;

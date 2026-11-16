@@ -163,10 +163,12 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
           ],
           { timeout: 240_000, maxBuffer: 16 * 1024 * 1024 },
         );
-        // KHÔNG attach stdout vào test artifacts: env truyền trusted-CI key
-        // vào container và output của nx khi lỗi có thể in giá trị env —
-        // artifact Playwright tải được về, secret không được nằm ở đó.
-        return stdout;
+        // Scrub trước khi trả: stdout có thể in lại giá trị env (nx in env khi
+        // lỗi) — trusted-CI key không được chạm vào message assert/artifact.
+        return stdout.replace(
+          new RegExp(`NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=\\S+`, 'gu'),
+          'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=[REDACTED]',
+        );
       };
 
       // Run 1: workspace nội dung giống hệt các lần chạy trước của suite ⇒
@@ -200,7 +202,13 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
         'sh',
         '-c',
         'rm -rf /ws/* /ws/.[!.]* /ws/..?* 2>/dev/null || true',
-      ]).catch(() => undefined);
+      ]).catch((error: unknown) => {
+        // best-effort nhưng KHÔNG im lặng hoàn toàn — cleanup fail trên daemon
+        // rootful khiến rmSync kế tiếp EACCES, dấu vết cần nằm trong log.
+        console.warn(
+          `cleanup container failed, host rmSync may fail: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
       rmSync(ws, { recursive: true, force: true });
     }
   });
