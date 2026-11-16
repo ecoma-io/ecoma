@@ -1,11 +1,15 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { localServiceHostname } from '@ecoma-io/deployment';
+
+import {
+  localCertPem,
+  localCertPath as sharedLocalCertPath,
+  rootHostRaw as sharedRootHostRaw,
+  splitHostPort,
+  traefikNamespaceOrNull,
+} from './stack-env';
 
 /**
  * Scoped TLS + origin cho các API assertion của suite.
@@ -24,75 +28,29 @@ import { localServiceHostname } from '@ecoma-io/deployment';
  * ⚠️ Node `https` thay vì global `fetch`: `fetch` của Node (undici) không nhận
  * `node:https.Agent` làm `dispatcher` (đã thử thật — request fail im lặng),
  * còn `undici.Agent` thì không phải dependency của workspace.
- */
-
-const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Tên cert TLS của stack — SUY từ `ROOT_HOST` (host trước `:`), KHÔNG hardcode.
  *
- * Deploy đặt tên cert theo `LOCAL_ROOT_HOSTNAME` (hằng số platform, hiện
- * `fbi.com`) và ghi host:port động vào `.env`; hai giá trị này nhất quán với
- * nhau khi deploy thành công, nên host từ `ROOT_HOST` là nguồn đúng cho tên
- * file cert (`<root>.crt` trong `deploys/platform-deploy/local-certs/`).
+ * `ROOT_HOST`/cert/namespace thuộc về `stack-env.ts` (một bản duy nhất trong
+ * suite) — file này chỉ giữ logic request/assertion.
  */
-// File này nằm ở `e2e/support/` — NĂM mức `../` về repo root (support → e2e →
-// suite → category → system-tests → root). Sai một mức là ENOENT ngay lúc
-// module load.
-const CERT_DIR = join(SUITE_DIR, '../../../../../deploys/platform-deploy/local-certs');
 
-/**
- * Cert + path cert — LAZY: đọc lúc bị cần, KHÔNG lúc module load. Thiếu
- * `ROOT_HOST`/cert thì module vẫn nạp (placeholder `.invalid` của
- * `resolveStackOrigin()` vẫn trả được), để `--list`/graph evaluation không crash
- * trên worktree chưa deploy; test thật đi qua global-setup gate fail-closed.
- */
 let localCaPemCache: string | undefined;
 function localCaPem(): string {
-  if (localCaPemCache === undefined) {
-    const certFile = join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
-    localCaPemCache = readFileSync(certFile, 'utf8');
-  }
+  localCaPemCache ??= localCertPem();
   return localCaPemCache;
 }
 
 /** Đường dẫn cert đã suy — tái dùng bởi spec (SSL_CERT_FILE của Pact CLI). */
 export function localCertPath(): string {
-  return join(CERT_DIR, `${rootHostRaw().split(':')[0]}.crt`);
+  return sharedLocalCertPath();
 }
 
 /**
- * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
- * dò của `identity-login-e2e`). Helper runtime (khác bản non-throw của
- * `playwright.config.ts`): bị gọi khi test đã chạy thật nên Docker phải có.
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` qua
+ * `traefikNamespaceOrNull` của `stack-env` (một bản duy nhất trong suite).
+ * Helper runtime: bị gọi khi test đã chạy thật nên Docker phải có.
  */
 function traefikNamespace(port: string): string | undefined {
-  let ps: string;
-  try {
-    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-      encoding: 'utf8',
-      timeout: 10_000,
-    });
-  } catch {
-    return undefined;
-  }
-  for (const line of ps.split(/\r?\n/u)) {
-    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
-    if (match === null) {
-      continue;
-    }
-    const [, namespace, ports] = match;
-    if (
-      namespace !== undefined &&
-      /^w[a-z0-9]{12}$/u.test(namespace) &&
-      ports !== undefined &&
-      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
-      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
-    ) {
-      return namespace;
-    }
-  }
-  return undefined;
+  return traefikNamespaceOrNull(port).namespace;
 }
 
 /**
@@ -112,20 +70,9 @@ function traefikNamespace(port: string): string | undefined {
  * bao giờ xanh giả; module-load vẫn thành công cho `--list`/graph evaluation.
  */
 export function resolveStackOrigin(): string {
-  const fromEnv = process.env.ROOT_HOST;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return stackOrigin(fromEnv.trim());
-  }
-  try {
-    const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return stackOrigin(match[1].trim());
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — placeholder bên dưới; gate global-setup là đường fail-closed.
+  const raw = sharedRootHostRaw();
+  if (raw !== undefined) {
+    return stackOrigin(raw);
   }
   return 'https://remote-cache-app.placeholder.invalid:443';
 }
@@ -137,36 +84,12 @@ export function resolveStackOrigin(): string {
  * với DNS failure thay vì xanh giả.
  */
 function stackOrigin(raw: string): string {
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
+  const { hostname, port } = splitHostPort(raw);
   const namespace = traefikNamespace(port);
   if (namespace === undefined) {
     return `https://remote-cache-app.placeholder.invalid:${port}`;
   }
   return `https://${localServiceHostname('remote-cache-app', hostname, namespace)}:${port}`;
-}
-
-/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
-function rootHostRaw(): string {
-  const fromEnv = process.env.ROOT_HOST;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
-  }
-  try {
-    const text = readFileSync(join(SUITE_DIR, '../../../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return match[1].trim();
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
-  }
-  throw new Error(
-    'ROOT_HOST is not set and no .env file defines it. ' +
-      'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
-  );
 }
 
 /** Headers + body thô của một response — đủ cho mọi assertion của suite. */
@@ -199,9 +122,9 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
         ca: localCaPem(),
         servername: target.hostname,
         headers: {
-          // `Host` tường minh `hostname:port` — đúng dạng mà rule `Host(...)`
-          // của Traefik nhìn (Traefik match hostname không port).
-          Host: target.host,
+          // `Host` tường minh hostname KHÔNG port — Traefik match hostname;
+          // routing port đã nằm ở option `port` của request.
+          Host: target.hostname,
           ...options.headers,
         },
         signal: AbortSignal.timeout(10_000),
@@ -216,6 +139,9 @@ export function stackRequest(url: string, options: RequestOptions = {}): Promise
               }`,
             ),
           );
+          // Response stream bị bỏ lại không tiêu thụ thì socket reset sau đó
+          // ném uncaught 'error' — drain trước khi bỏ.
+          response.resume();
           return;
         }
         const chunks: Buffer[] = [];

@@ -48,7 +48,9 @@ const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
 
 /** Đường dẫn binary `pact-broker`/`pact-verifier` của devDependency pin 18.10.9. */
 const PACT_BIN = join(SUITE_DIR, '../node_modules/.bin');
-const apiOrigin = resolveApiOrigin;
+// Cả hai origin resolve EAGER tại module load — nhất quán với nhau (module
+// load luôn OK nhờ placeholder của support; gate fail-closed là global-setup).
+const apiOrigin = resolveApiOrigin();
 const ORIGIN = resolvePortalOrigin();
 /** Pacticipant names duy nhất cho run — tránh đụng dữ liệu của run trước. */
 function runToken(): string {
@@ -78,7 +80,7 @@ async function runPactCli(
     }
   }
   env.SSL_CERT_FILE = localCertPath();
-  env.PACT_BROKER_BASE_URL = apiOrigin();
+  env.PACT_BROKER_BASE_URL = apiOrigin;
   env.PACT_BROKER_TOKEN = token;
   env.PACT_DO_NOT_TRACK = 'true';
   Object.assign(env, extraEnv);
@@ -107,7 +109,7 @@ async function runPactCli(
  * rào chắn phòng CLI đổi hình dạng in log.
  */
 function assertNoTokenInOutput(output: string, token: string): void {
-  if (token.length > 8 && output.includes(token)) {
+  if (token.length > 0 && output.includes(token)) {
     throw new Error('pact CLI output unexpectedly contains the token plaintext');
   }
 }
@@ -121,7 +123,7 @@ function assertNoTokenInOutput(output: string, token: string): void {
 function scrubForAssertion(output: string, ...tokens: string[]): string {
   let scrubbed = output;
   for (const token of tokens) {
-    if (token.length > 8) {
+    if (token.length > 0) {
       scrubbed = scrubbed.split(token).join('[REDACTED]');
     }
   }
@@ -350,6 +352,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       ciSecret,
     );
     expect(createEnv.status, scrubForAssertion(createEnv.stdout, ciSecret)).toBe(0);
+    assertNoTokenInOutput(createEnv.stdout, ciSecret);
 
     // Verifier thật: fetch pact từ broker, verify với provider app thật,
     // publish verification result bằng CI credential.
@@ -363,7 +366,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
           '--provider-version',
           providerVersion,
           '--broker-url',
-          apiOrigin(),
+          apiOrigin,
           // Token KHÔNG qua argv (`ps` lộ): PACT_BROKER_TOKEN env của runPactCli.
           '--consumer-version-selectors',
           '{"main":true}',
@@ -395,6 +398,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
         ciSecret,
       );
       expect(record.status, scrubForAssertion(record.stdout, ciSecret)).toBe(0);
+      assertNoTokenInOutput(record.stdout, ciSecret);
 
       const deploy = await runPactCli(
         'pact-broker',
@@ -413,7 +417,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       assertNoTokenInOutput(deploy.stdout, ciSecret);
       expect(deploy.stdout).toContain('Computer says yes');
     } finally {
-      providerApp.close();
+      await providerApp.close();
     }
   });
 
@@ -427,14 +431,14 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       readOtp: () => identity.readOtp(Date.now() - 5_000),
     });
     // API surface với secret cũ: trước revoke, index là 200 (credential sống).
-    const before = await stackGet(`${apiOrigin()}/`, { authorization: `Bearer ${devSecret}` });
+    const before = await stackGet(`${apiOrigin}/`, { authorization: `Bearer ${devSecret}` });
     expect(before.status).toBe(200);
 
     // Revoke qua UI (đúng kênh người dùng).
     await revokeCredentialViaUi(page, developerTokenName);
 
     // PB-8: request KẾ TIẾP bằng secret cũ bị từ chối NGAY — 401 đồng nhất.
-    const after = await stackGet(`${apiOrigin()}/`, { authorization: `Bearer ${devSecret}` });
+    const after = await stackGet(`${apiOrigin}/`, { authorization: `Bearer ${devSecret}` });
     expect(after.status).toBe(401);
 
     // CLI cũng thấy cùng 401 (cùng hợp đồng auth cho machine path).
@@ -487,16 +491,18 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
       ciSecret,
     );
     expect(publishA.status, scrubForAssertion(publishA.stdout, ciSecret)).toBe(0);
+    assertNoTokenInOutput(publishA.stdout, ciSecret);
     const publishB = await runPactCli(
       'pact-broker',
       ['publish', pactB, '--consumer-app-version', consumerVersion],
       secretB,
     );
     expect(publishB.status, scrubForAssertion(publishB.stdout, secretB)).toBe(0);
+    assertNoTokenInOutput(publishB.stdout, secretB);
 
     // B nhìn thấy NỘI DUNG của B (không phải của A) tại cùng (tên, version).
     const fetchedByB = await stackGet(
-      `${apiOrigin()}/pacts/provider/${encodeURIComponent(provider)}/consumer/${encodeURIComponent(consumer)}/version/${consumerVersion}`,
+      `${apiOrigin}/pacts/provider/${encodeURIComponent(provider)}/consumer/${encodeURIComponent(consumer)}/version/${consumerVersion}`,
       { authorization: `Bearer ${secretB}` },
     );
     expect(fetchedByB.status).toBe(200);
@@ -505,7 +511,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
 
     // A nhìn thấy NỘI DUNG của A — hai chiều.
     const fetchedByA = await stackGet(
-      `${apiOrigin()}/pacts/provider/${encodeURIComponent(provider)}/consumer/${encodeURIComponent(consumer)}/version/${consumerVersion}`,
+      `${apiOrigin}/pacts/provider/${encodeURIComponent(provider)}/consumer/${encodeURIComponent(consumer)}/version/${consumerVersion}`,
       { authorization: `Bearer ${ciSecret}` },
     );
     expect(fetchedByA.status).toBe(200);
@@ -513,7 +519,7 @@ test.describe.serial('pact-broker portal developer/CI journey', () => {
     expect(fetchedByA.body).not.toContain('tenant B unique interaction');
 
     // Environment của A không lộ sang B: danh sách environment của B rỗng.
-    const envsByB = await stackGet(`${apiOrigin()}/environments`, {
+    const envsByB = await stackGet(`${apiOrigin}/environments`, {
       authorization: `Bearer ${secretB}`,
     });
     expect(envsByB.status).toBe(200);

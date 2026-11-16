@@ -1,11 +1,14 @@
-import { execFileSync } from 'node:child_process';
 import { X509Certificate, createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 import { localServiceHostname } from '@ecoma-io/deployment';
+
+import {
+  localCertPemOrEmpty,
+  rootHostRaw,
+  splitHostPort,
+  traefikNamespaceOrNull,
+} from './e2e/support/stack-env';
 
 /**
  * Cấu hình Playwright cho suite system E2E `remote-cache-portal-e2e` —
@@ -30,48 +33,10 @@ import { localServiceHostname } from '@ecoma-io/deployment';
  *   backoffice: retry che flake thật, worker lớn làm upstream đói.
  */
 
-const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Path cert local — tên file suy từ `ROOT_HOST`. LAZY: tính lúc bị cần, KHÔNG
- * lúc module load — nếu thiếu env/.env thì `resolveStackOrigin()` bên dưới vẫn
- * trả placeholder `.invalid` đúng hợp đồng "config không bao giờ throw", thay
- * vì crash import trước khi global-setup kịp báo lỗi rõ ràng.
- */
-function resolveLocalCertPath(): string {
-  return join(
-    SUITE_DIR,
-    '../../../deploys/platform-deploy/local-certs',
-    `${rootHostRaw().split(':')[0]}.crt`,
-  );
-}
-
-/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
-function rootHostRaw(): string {
-  const fromEnv = process.env.ROOT_HOST;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
-  }
-  try {
-    const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return match[1].trim();
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
-  }
-  throw new Error(
-    'ROOT_HOST is not set and no .env file defines it - deploy the local stack first.',
-  );
-}
-
-/** PEM của cert local — dùng cho mọi Node request của suite. Lazy như cert path. */
+/** PEM của cert local — rỗng khi host/cert chưa có; spkiHash degrade theo. */
 let localCaPemCache: string | undefined;
-export function localCaPem(): string {
-  localCaPemCache ??= readFileSync(resolveLocalCertPath(), 'utf8');
+function localCaPemOrEmpty(): string {
+  localCaPemCache ??= localCertPemOrEmpty();
   return localCaPemCache;
 }
 
@@ -92,51 +57,19 @@ function spkiHashOrEmpty(): string {
   if (spkiHashCache !== undefined) {
     return spkiHashCache;
   }
-  try {
-    spkiHashCache = computeSpkiHash(localCaPem());
-  } catch {
+  const pem = localCaPemOrEmpty();
+  if (pem.length === 0) {
     // Cert chưa có (worktree chưa deploy): hash rỗng — config load vẫn OK theo
     // hợp đồng; test thật sẽ đỏ qua global-setup gate hoặc TLS failure.
     spkiHashCache = '';
+    return spkiHashCache;
+  }
+  try {
+    spkiHashCache = computeSpkiHash(pem);
+  } catch {
+    spkiHashCache = '';
   }
   return spkiHashCache;
-}
-
-/**
- * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
- * dò của `identity-login-e2e/playwright.config.ts` — hai bản cố ý vì config
- * eval không import support của suite khác). KHÔNG được gọi khi `ROOT_HOST`
- * vắng mặt (placeholder path). Docker vắng mặt thì trả `undefined` thay vì ném
- * — config KHÔNG BAO GIỜ throw (khối quyết định graph-eval ở đầu file);
- * fail-closed thật thuộc global-setup.
- */
-function traefikNamespace(port: string): string | undefined {
-  let ps: string;
-  try {
-    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-      encoding: 'utf8',
-      timeout: 10_000,
-    });
-  } catch {
-    return undefined;
-  }
-  for (const line of ps.split(/\r?\n/u)) {
-    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
-    if (match === null) {
-      continue;
-    }
-    const [, namespace, ports] = match;
-    if (
-      namespace !== undefined &&
-      /^w[a-z0-9]{12}$/u.test(namespace) &&
-      ports !== undefined &&
-      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
-      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
-    ) {
-      return namespace;
-    }
-  }
-  return undefined;
 }
 
 /**
@@ -151,40 +84,18 @@ function traefikNamespace(port: string): string | undefined {
  * nếu gate global-setup bị bỏ qua thì mọi test đỏ với DNS failure thay vì xanh giả.
  */
 function resolveStackOrigin(): string {
-  const raw = process.env.ROOT_HOST;
-  if (raw !== undefined && raw.trim().length > 0) {
-    const rootHostname = raw.trim().split(':')[0];
-    const port = raw.includes(':') ? (raw.trim().split(':')[1] ?? '443') : '443';
-    // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
-    // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
-    const namespace = traefikNamespace(port);
-    if (namespace === undefined) {
-      return `remote-cache-app.placeholder.invalid:${port}`;
-    }
-    return `${localServiceHostname('remote-cache-app', rootHostname, namespace)}:${port}`;
+  const raw = rootHostRaw();
+  if (raw === undefined) {
+    return 'remote-cache-app.placeholder.invalid:443';
   }
-  // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root (Nx load `.env` vào
-  // env của task qua `nx run`, còn CLI trực tiếp thì không).
-  const envPath = join(SUITE_DIR, '../../../.env');
-  try {
-    const text = readFileSync(envPath, 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        const rawEnv = match[1].trim();
-        const rootHostname = rawEnv.split(':')[0];
-        const port = rawEnv.includes(':') ? (rawEnv.split(':')[1] ?? '443') : '443';
-        const namespace = traefikNamespace(port);
-        if (namespace === undefined) {
-          return `remote-cache-app.placeholder.invalid:${port}`;
-        }
-        return `${localServiceHostname('remote-cache-app', rootHostname, namespace)}:${port}`;
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — placeholder bên dưới thay thế; gate là đường fail-closed thật.
+  const { hostname, port } = splitHostPort(raw);
+  // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+  // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+  const { namespace } = traefikNamespaceOrNull(port);
+  if (namespace === undefined) {
+    return `remote-cache-app.placeholder.invalid:${port}`;
   }
-  return 'remote-cache-app.placeholder.invalid:443';
+  return `${localServiceHostname('remote-cache-app', hostname, namespace)}:${port}`;
 }
 
 const ROOT_ORIGIN = resolveStackOrigin();

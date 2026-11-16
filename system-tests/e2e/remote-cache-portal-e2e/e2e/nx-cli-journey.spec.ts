@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +43,17 @@ const execFileAsync = promisify(execFile);
 const DATA_PLANE_ALIAS = 'ecoma-remote-cache-api';
 const DATA_PLANE_PORT = 4207;
 /** Phiên bản Nx ghim — cùng version với workspace chính của repo. */
-const NX_VERSION = '23.3.2';
+const NX_VERSION = (
+  JSON.parse(
+    readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../../..', 'package.json'),
+      'utf8',
+    ) as string,
+  ) as { devDependencies?: Record<string, string> }
+).devDependencies?.nx;
+if (NX_VERSION === undefined) {
+  throw new Error('nx version not found in repo-root package.json devDependencies');
+}
 /** Image Node dùng cho container journey — cùng image deploy dùng. */
 const NODE_IMAGE = 'node:24-bookworm-slim';
 
@@ -164,11 +174,15 @@ test.describe('Nx CLI self-hosted remote cache journey', () => {
           { timeout: 240_000, maxBuffer: 16 * 1024 * 1024 },
         );
         // Scrub trước khi trả: stdout có thể in lại giá trị env (nx in env khi
-        // lỗi) — trusted-CI key không được chạm vào message assert/artifact.
-        return stdout.replace(
-          new RegExp(`NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=\\S+`, 'gu'),
-          'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=[REDACTED]',
-        );
+        // lỗi) hoặc nhúng token vào JSON ("KEY":"value") — trusted-CI key
+        // không được chạm vào message assert/artifact dưới bất kỳ hình dạng nào.
+        const redacted = 'NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=[REDACTED]';
+        return stdout
+          .replace(new RegExp('NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=\\S+', 'gu'), redacted)
+          .replace(
+            new RegExp('"NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN"\\s*:\\s*"[^"]*"', 'gu'),
+            '"NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN":"[REDACTED]"',
+          );
       };
 
       // Run 1: workspace nội dung giống hệt các lần chạy trước của suite ⇒

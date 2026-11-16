@@ -160,6 +160,26 @@ export async function performBrowserLogin(
   await expect(continueTarget).toBeVisible({ timeout: 30_000 });
   await continueTarget.click();
 
+  // BFF cold start có thể làm push handoff lỗi ở lần bấm đầu: trang render
+  // thẻ lỗi với nút `login-continue-retry`. Retry ĐÚNG MỘT lần — push idempotent
+  // (`event_id` từ `session_ref`, retry nhận `already_processed`), nên bấm lại
+  // an toàn. Lỗi hai lần là lỗi thật — bỏ qua nó chỉ che defect.
+  const retry = page.getByTestId('login-continue-retry');
+  const retryOrMoved = await Promise.race([
+    retry
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => 'retry' as const)
+      .catch(() => 'none' as const),
+    page
+      .waitForURL(/\/(authorize|login\/continue)/u, { timeout: 5_000 })
+      .then(() => 'navigated' as const)
+      .catch(() => 'none' as const),
+  ]);
+  if (retryOrMoved === 'retry') {
+    await retry.click();
+    await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+  }
+
   // Lần đầu login ⇒ trang consent với nút approve; grant của identity tồn tại
   // qua các run (persist trong `oauth_grants`) ⇒ run sau đi path `granted`.
   // `Promise.race` chấp nhận cả hai hình dạng.
@@ -169,7 +189,12 @@ export async function performBrowserLogin(
     .waitFor({ state: 'visible', timeout: 30_000 })
     .then(() => true)
     .catch(() => false);
-  const sawConsent = await Promise.race([consentShown, backAtDestination.then(() => false)]);
+  // `.catch` trên backAtDestination: nếu consentShown thắng race, rejection
+  // muộn của waitForURL không được trở thành unhandled rejection.
+  const sawConsent = await Promise.race([
+    consentShown,
+    backAtDestination.then(() => false).catch(() => false),
+  ]);
   if (sawConsent) {
     // Race giữa nút approve xuất hiện và trang tự điều hướng về đích: auth có
     // thể resolve grant NGAY SAU khi render card (hoặc render trang lỗi rồi

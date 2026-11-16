@@ -1,11 +1,14 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import https from 'node:https';
 import tls from 'node:tls';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { localServiceHostname } from '@ecoma-io/deployment';
+
+import {
+  localCertPem,
+  rootHostRaw,
+  splitHostPort,
+  traefikNamespaceOrNull,
+} from './e2e/support/stack-env';
 
 /**
  * Stack gate fail-closed của suite `remote-cache-portal-e2e` — probe TRƯỚC KHI
@@ -37,51 +40,14 @@ import { localServiceHostname } from '@ecoma-io/deployment';
  * chạy thật ở các suite cùng nhóm.
  */
 
-const SUITE_DIR = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Path cert local — tên file suy từ `ROOT_HOST`. LAZY: tính trong
- * `resolvePortalOrigin()` lúc gate chạy, KHÔNG lúc module load — module luôn
- * nạp được, để `main()` tự báo lỗi remedy đầy đủ (thay vì crash import).
- */
-function resolveLocalCertPath(): string {
-  return join(
-    SUITE_DIR,
-    '../../../deploys/platform-deploy/local-certs',
-    `${rootHostRaw().split(':')[0]}.crt`,
-  );
-}
-
-/** `ROOT_HOST` từ env hoặc `.env` repo root (đã trim, không rỗng). */
-function rootHostRaw(): string {
-  const fromEnv = process.env.ROOT_HOST;
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
-  }
-  try {
-    const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return match[1].trim();
-      }
-    }
-  } catch {
-    // `.env` vắng mặt — throw bên dưới với message nêu đúng remedy.
-  }
-  throw new Error(
-    'ROOT_HOST is not set and no .env file defines it - deploy the local stack first.',
-  );
-}
-
 /**
  * Tổng budget retry: đủ cho cold start của stack dưới tải CI, không đủ để treo CI.
  *
  * Đo được trên merge queue: Traefik đăng ký router chậm hơn 30s khi runner đang
- * chạy các deploy local-up cạnh nhau - 3 lần đỏ đều đốt đúng toàn bộ 30004ms
- * trên 404 (runs 43775477815, 43778400309, 43780675091). 90s = 3 lan cua so cu,
- * van fail-closed: het budget van exit 1, chi la cua so san sang rong hon.
- * Xac nhan xanh tren CI: run 43785998930 (system-test SUCCESS, ca hai suite).
+ * chạy các deploy local-up cạnh nhau — 3 lần đỏ đều đốt đúng toàn bộ 30004ms
+ * trên 404 (runs 43775477815, 43778400309, 43780675091). 90s = 3 lần cửa sổ cũ,
+ * vẫn fail-closed: hết budget vẫn exit 1, chỉ là cửa sổ sẵn sàng rộng hơn.
+ * Xác nhận xanh trên CI: run 43785998930 (system-test SUCCESS, cả hai suite).
  */
 const BUDGET_MS = 90_000;
 /** Timeout mỗi request — request treo coi là "chưa sẵn sàng" và được thử lại. */
@@ -115,83 +81,31 @@ interface ProbeResult {
 }
 
 /**
- * Origin portal mà gate probe — hostname gốc (giá trị `ROOT_HOST`, dạng
- * `hostname:port`) GHÉP PREFIX `remote-cache-app.`: router Traefik của portal
- * match `Host(remote-cache-app.<root>)`, probe hostname gốc là 404 chắc chắn.
- */
-/**
  * Namespace worktree của stack mà ROOT_HOST đang trỏ tới — dò bằng `docker ps`
- * (cùng phép dò của `traefikNamespace` trong `identity-login-e2e/global-setup.ts`
- * — hai bản cố ý vì suite này không import support của suite khác). Không tìm
- * thấy là lỗi cài đặt stack — gate fail với remedy thay vì đoán namespace.
+ * qua `traefikNamespaceOrNull` của `e2e/support/stack-env` (một bản duy nhất
+ * trong suite). Không tìm thấy là lỗi cài đặt stack — gate fail với remedy
+ * (kèm danh sách container đã dò) thay vì đoán namespace.
  */
 function traefikNamespace(hostname: string, port: string): string {
-  let ps: string;
-  try {
-    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
-      encoding: 'utf8',
-      timeout: 10_000,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `docker ps failed while discovering the worktree namespace (${message}) — ` +
-        'Docker CLI/daemon is required to identify the per-worktree stack behind ROOT_HOST.',
-      { cause: error },
-    );
-  }
-  for (const line of ps.split(/\r?\n/u)) {
-    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
-    if (match === null) {
-      continue;
-    }
-    // Docker in `127.0.0.1:33118->443/tcp` — match port public Traefik.
-    // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
-    const [, namespace, ports] = match;
-    if (
-      ports !== undefined &&
-      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) &&
-      namespace !== undefined &&
-      /^w[a-z0-9]{12}$/u.test(namespace)
-    ) {
-      return namespace;
-    }
+  const { namespace, failureDetail } = traefikNamespaceOrNull(port);
+  if (namespace !== undefined) {
+    return namespace;
   }
   throw new Error(
-    `no ecoma Traefik container publishes loopback port ${port} of ${hostname} — ` +
+    `no ecoma Traefik container publishes loopback port ${port} of ${hostname} — ${failureDetail}; ` +
       'the stack behind ROOT_HOST is not running or was not deployed by the Nx local lane.',
   );
 }
 
 function resolveRootOrigin(): { hostname: string; port: string; ca: string } {
-  const raw = process.env.ROOT_HOST;
-  if (raw === undefined || raw.trim().length === 0) {
-    // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root.
-    const text = readFileSync(join(SUITE_DIR, '../../../.env'), 'utf8');
-    for (const line of text.split(/\r?\n/u)) {
-      const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
-      if (match && match[1].trim().length > 0) {
-        return { ...readPortalHostPort(match[1].trim()), ca: readLocalCa() };
-      }
-    }
+  const raw = rootHostRaw();
+  if (raw === undefined) {
     throw new Error(
       'remote-cache-portal-e2e global setup failed: ROOT_HOST is not set and no .env file defines it. ' +
         'Deploy the local stack first (Nx provisions the `local-up` prerequisites) — deploying writes the dynamic Traefik host:port into the repo-root .env.',
     );
   }
-  return { ...readPortalHostPort(raw.trim()), ca: readLocalCa() };
-}
-
-/** PEM cert local — đọc trong `resolveRootOrigin()` sau khi host đã resolve. */
-function readLocalCa(): string {
-  return readFileSync(resolveLocalCertPath(), 'utf8');
-}
-
-/** Tách `hostname` gốc và `port` từ giá trị `ROOT_HOST` — chưa ghép prefix. */
-function readPortalHostPort(raw: string): { hostname: string; port: string } {
-  const hostname = raw.split(':')[0];
-  const port = raw.includes(':') ? (raw.split(':')[1] ?? '443') : '443';
-  return { hostname, port };
+  return { ...splitHostPort(raw), ca: localCertPem() };
 }
 
 /**
@@ -225,6 +139,7 @@ function probeOnce(hostname: string, port: string, ca: string): Promise<ProbeRes
               `TLS not verified — ${tlsSocket?.authorizationError ?? 'socket has no verify status'}`,
             ),
           );
+          response.resume();
           return;
         }
         const chunks: Buffer[] = [];
@@ -275,7 +190,20 @@ function fail(origin: string, elapsedMs: number, error: Error): never {
 }
 
 async function main(): Promise<void> {
-  const { hostname, port, ca } = resolveRootOrigin();
+  // resolveRootOrigin() có thể ném khi thiếu ROOT_HOST/.env/cert — đây là lỗi
+  // cài đặt stack, phải đi qua đường `fail()` của gate với remedy, không phải
+  // unhandled rejection.
+  let root: { hostname: string; port: string; ca: string };
+  try {
+    root = resolveRootOrigin();
+  } catch (error) {
+    fail(
+      'https://<unresolved ROOT_HOST>',
+      0,
+      error instanceof Error ? error : new Error(String(error)),
+    );
+  }
+  const { hostname, port, ca } = root;
   // Hostname per-worktree (#316): namespace dò từ container Traefik publish
   // đúng port trong ROOT_HOST — lỗi dò là lỗi cài đặt stack, đưa vào đường
   // `fail()` của gate thay vì unhandled rejection.

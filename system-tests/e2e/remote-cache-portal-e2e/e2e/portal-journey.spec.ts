@@ -1,11 +1,8 @@
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import https from 'node:https';
-import tls from 'node:tls';
 import { promisify } from 'node:util';
 import { SECOND_TENANT_NAME, expect, seedOutsiderIdentity, test } from './support/fixtures';
 import { performBrowserLogin } from './support/oidc-flow';
-import { localCertPath, resolveStackOrigin } from './support/local-origin';
+import { resolveStackOrigin, stackGet } from './support/local-origin';
 import { resolvePlatformNetwork } from './support/network';
 
 /**
@@ -136,7 +133,7 @@ test.describe.serial('remote-cache portal developer journey', () => {
     if (session === undefined || csrf === undefined) {
       throw new Error('portal session cookies missing after login — auth flow did not complete');
     }
-    const list = await fetchViaNode(
+    const list = await stackGet(
       `${PORTAL_ORIGIN}/api/portal/tenants/ecoma/projects/${projectName}/api-keys`,
       {
         cookie: `__Host-remote-cache-app-session=${session.value}; __Host-remote-cache-app-csrf=${csrf.value}`,
@@ -207,119 +204,83 @@ test.describe.serial('remote-cache portal developer journey', () => {
     identity,
   }, testInfo) => {
     testInfo.setTimeout(150_000);
-
     // Insider = fixture `identity` (member của `ecoma`) tạo project + key qua UI.
+    // Contexts đóng trong finally — assert nào đỏ vẫn không rò rỉ context.
     const insiderContext = await browser.newContext();
-    const insiderPage = await insiderContext.newPage();
-    await insiderPage.goto('/');
-    await performBrowserLogin(insiderPage, {
-      email: identity.email,
-      readOtp: () => identity.readOtp(Date.now() - 60_000),
-    });
-    const a32Project = `e2e-a32-${testInfo.workerIndex}-${Date.now().toString(36)}`;
-    await insiderPage.getByTestId('remote-cache-app-create-project-link').click();
-    await insiderPage.getByTestId('remote-cache-app-create-project-name').fill(a32Project);
-    await insiderPage.getByTestId('remote-cache-app-create-project-submit').click();
-    // Tạo project OK trả show-once key bootstrap ngay trên trang create.
-    await expect(insiderPage.getByTestId('remote-cache-app-show-once')).toBeVisible();
-    const devToken = (
-      await insiderPage.getByTestId('remote-cache-app-show-once-token').innerText()
-    ).trim();
-    await insiderPage.getByTestId('remote-cache-app-show-once-confirm').click();
+    try {
+      const insiderPage = await insiderContext.newPage();
+      await insiderPage.goto('/');
+      await performBrowserLogin(insiderPage, {
+        email: identity.email,
+        readOtp: () => identity.readOtp(Date.now() - 60_000),
+      });
+      const a32Project = `e2e-a32-${testInfo.workerIndex}-${Date.now().toString(36)}`;
+      await insiderPage.getByTestId('remote-cache-app-create-project-link').click();
+      await insiderPage.getByTestId('remote-cache-app-create-project-name').fill(a32Project);
+      await insiderPage.getByTestId('remote-cache-app-create-project-submit').click();
+      // Tạo project OK trả show-once key bootstrap ngay trên trang create.
+      await expect(insiderPage.getByTestId('remote-cache-app-show-once')).toBeVisible();
+      const devToken = (
+        await insiderPage.getByTestId('remote-cache-app-show-once-token').innerText()
+      ).trim();
+      await insiderPage.getByTestId('remote-cache-app-show-once-confirm').click();
 
-    // A32a: developer key (untrusted, read-only) PUT cache ⇒ 403.
-    const put = await curlInNetwork(network, [
-      '-X',
-      'PUT',
-      '--data-binary',
-      'e2e',
-      '-H',
-      `Authorization: Bearer ${devToken}`,
-      `http://${DATA_PLANE_ALIAS}:${DATA_PLANE_PORT}/v1/cache/a32${'0'.repeat(61)}`,
-    ]);
-    expect(put.status).toBe(403);
+      // A32a: developer key (untrusted, read-only) PUT cache ⇒ 403.
+      const put = await curlInNetwork(network, [
+        '-X',
+        'PUT',
+        '--data-binary',
+        'e2e',
+        '-H',
+        `Authorization: Bearer ${devToken}`,
+        `http://${DATA_PLANE_ALIAS}:${DATA_PLANE_PORT}/v1/cache/a32${'0'.repeat(61)}`,
+      ]);
+      expect(put.status).toBe(403);
 
-    // Outsider: identity của tenant khác login bằng context riêng và gọi
-    // portal của `ecoma`.
-    const outsider = await seedOutsiderIdentity(
-      PORTAL_ORIGIN,
-      `a32-outsider-${testInfo.workerIndex}`,
-    );
-    const outsiderContext = await browser.newContext();
-    const outsiderPage = await outsiderContext.newPage();
-    await outsiderPage.goto('/');
-    await performBrowserLogin(outsiderPage, {
-      email: outsider.email,
-      readOtp: () => outsider.readOtp(Date.now() - 60_000),
-    });
-    const outsiderCookies = await outsiderPage.context().cookies();
-    const session = outsiderCookies.find((c) => c.name === '__Host-remote-cache-app-session');
-    const csrf = outsiderCookies.find((c) => c.name === '__Host-remote-cache-app-csrf');
-    if (session === undefined || csrf === undefined) {
-      throw new Error('outsider session cookies missing after login — auth flow did not complete');
+      // Outsider: identity của tenant khác login bằng context riêng và gọi
+      // portal của `ecoma`.
+      const outsider = await seedOutsiderIdentity(
+        PORTAL_ORIGIN,
+        `a32-outsider-${testInfo.workerIndex}`,
+      );
+      const outsiderContext = await browser.newContext();
+      try {
+        const outsiderPage = await outsiderContext.newPage();
+        await outsiderPage.goto('/');
+        await performBrowserLogin(outsiderPage, {
+          email: outsider.email,
+          readOtp: () => outsider.readOtp(Date.now() - 60_000),
+        });
+        const outsiderCookies = await outsiderPage.context().cookies();
+        const session = outsiderCookies.find((c) => c.name === '__Host-remote-cache-app-session');
+        const csrf = outsiderCookies.find((c) => c.name === '__Host-remote-cache-app-csrf');
+        if (session === undefined || csrf === undefined) {
+          throw new Error(
+            'outsider session cookies missing after login — auth flow did not complete',
+          );
+        }
+        const cookieHeader = `__Host-remote-cache-app-session=${session.value}; __Host-remote-cache-app-csrf=${csrf.value}`;
+
+        // Tenant `ecoma` tồn tại nhưng outsider không phải member ⇒ 403.
+        const ecomaList = await stackGet(`${PORTAL_ORIGIN}/api/portal/tenants/ecoma/projects`, {
+          cookie: cookieHeader,
+        });
+        expect(ecomaList.status).toBe(403);
+        expect(ecomaList.body).not.toContain(a32Project);
+
+        // Tenant của chính outsider được resolve riêng — KHÔNG thấy data `ecoma`.
+        const ownList = await stackGet(
+          `${PORTAL_ORIGIN}/api/portal/tenants/${SECOND_TENANT_NAME}/projects`,
+          { cookie: cookieHeader },
+        );
+        expect(ownList.status).toBe(200);
+        expect(ownList.body).not.toContain(a32Project);
+        expect(ownList.body).not.toContain('ecoma');
+      } finally {
+        await outsiderContext.close();
+      }
+    } finally {
+      await insiderContext.close();
     }
-    const cookieHeader = `__Host-remote-cache-app-session=${session.value}; __Host-remote-cache-app-csrf=${csrf.value}`;
-
-    // Tenant `ecoma` tồn tại nhưng outsider không phải member ⇒ 403.
-    const ecomaList = await fetchViaNode(`${PORTAL_ORIGIN}/api/portal/tenants/ecoma/projects`, {
-      cookie: cookieHeader,
-    });
-    expect(ecomaList.status).toBe(403);
-    expect(ecomaList.body).not.toContain(a32Project);
-
-    // Tenant của chính outsider được resolve riêng — KHÔNG thấy data `ecoma`.
-    const ownList = await fetchViaNode(
-      `${PORTAL_ORIGIN}/api/portal/tenants/${SECOND_TENANT_NAME}/projects`,
-      { cookie: cookieHeader },
-    );
-    expect(ownList.status).toBe(200);
-    expect(ownList.body).not.toContain(a32Project);
-    expect(ownList.body).not.toContain('ecoma');
-
-    await insiderContext.close();
-    await outsiderContext.close();
   });
 });
-
-// -------------------------------------------------------------------------------------------
-// Node https helper — GET JSON qua portal origin với ca scoped (import tách
-// `stackGet` vì spec cần trả body thuần để assert "no data leak").
-// -------------------------------------------------------------------------------------------
-
-/** GET một URL https với `ca` scoped, trả `{status, body}`. */
-function fetchViaNode(
-  url: string,
-  headers: Record<string, string>,
-): Promise<{ status: number; body: string }> {
-  const target = new URL(url);
-  return new Promise((resolve, reject) => {
-    const request = https.get(
-      {
-        host: target.hostname,
-        port: target.port || '443',
-        path: target.pathname,
-        ca: readFileSync(localCertPath(), 'utf8'),
-        servername: target.hostname,
-        headers: { Host: target.host, ...headers },
-        signal: AbortSignal.timeout(10_000),
-      },
-      (response) => {
-        const tlsSocket = response.socket instanceof tls.TLSSocket ? response.socket : undefined;
-        if (tlsSocket?.authorized !== true) {
-          reject(new Error(`TLS not verified for ${url}`));
-          return;
-        }
-        const chunks: Buffer[] = [];
-        response.on('data', (chunk: Buffer) => chunks.push(chunk));
-        response.on('error', (error: Error) => reject(error));
-        response.on('end', () => {
-          resolve({
-            status: response.statusCode ?? 0,
-            body: Buffer.concat(chunks).toString('utf8'),
-          });
-        });
-      },
-    );
-    request.on('error', (error: Error) => reject(error));
-  });
-}

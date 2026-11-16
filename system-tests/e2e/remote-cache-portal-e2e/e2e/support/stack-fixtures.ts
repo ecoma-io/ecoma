@@ -51,16 +51,19 @@ async function dockerExec(container: string, command: string[]): Promise<string>
  */
 export async function resolvePostgresContainer(origin: string): Promise<string> {
   const port = new URL(origin).port;
-  const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}']);
+  const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+    timeout: 10_000,
+  });
   const candidates: string[] = [];
   for (const line of stdout.split('\n')) {
     const [name, ports] = line.split('\t');
     if (name === undefined || ports === undefined || !name.includes('traefik')) {
       continue;
     }
-    // Cột Ports dạng `80/tcp, 127.0.0.1:32768->443/tcp` — match `->443/tcp`.
-    const published = new RegExp(`127\\.0\\.0\\.1:(\\d+)->443/tcp`, 'u').exec(ports);
-    if (published?.[1] === port) {
+    // Cột Ports dạng `80/tcp, 127.0.0.1:32768->443/tcp` — publish có thể bind
+    // 127.0.0.1, 0.0.0.0 hoặc `[::]`; match port trước mốc `->443/tcp` (chuỗi
+    // tĩnh, không RegExp động từ input không tin cậy).
+    if (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`)) {
       candidates.push(name);
     }
   }
