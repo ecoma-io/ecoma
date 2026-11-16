@@ -1,8 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { X509Certificate, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+
+import { localServiceHostname } from '@ecoma-io/deployment';
 
 /**
  * Cấu hình Playwright cho suite system E2E `remote-cache-portal-e2e` —
@@ -100,20 +103,65 @@ function spkiHashOrEmpty(): string {
 }
 
 /**
- * Origin portal từ hostname gốc (`ROOT_HOST`, dạng `hostname:port`): GHÉP PREFIX
- * `remote-cache-app.` — router Traefik của portal match
- * `Host(remote-cache-app.<root>)`, port giữ nguyên vì Traefik local nghe port
- * ĐỘNG map ra loopback. Giá trị raw của `ROOT_HOST` là hostname gốc, không
- * router nào serve portal trên đó.
+ * Namespace worktree của stack publish `port` — dò bằng `docker ps` (cùng phép
+ * dò của `identity-login-e2e/playwright.config.ts` — hai bản cố ý vì config
+ * eval không import support của suite khác). KHÔNG được gọi khi `ROOT_HOST`
+ * vắng mặt (placeholder path). Docker vắng mặt thì trả `undefined` thay vì ném
+ * — config KHÔNG BAO GIỜ throw (khối quyết định graph-eval ở đầu file);
+ * fail-closed thật thuộc global-setup.
+ */
+function traefikNamespace(port: string): string | undefined {
+  let ps: string;
+  try {
+    ps = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Ports}}'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+  } catch {
+    return undefined;
+  }
+  for (const line of ps.split(/\r?\n/u)) {
+    const match = /^ecoma-([a-z0-9]+)-traefik\t(.*)$/u.exec(line.trim());
+    if (match === null) {
+      continue;
+    }
+    const [, namespace, ports] = match;
+    if (
+      namespace !== undefined &&
+      /^w[a-z0-9]{12}$/u.test(namespace) &&
+      ports !== undefined &&
+      // Chuỗi tĩnh cả hai nhánh — không RegExp động từ input không tin cậy.
+      (ports.includes(`:${port}->443`) || ports.includes(`[::]:${port}->443`))
+    ) {
+      return namespace;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Origin portal từ hostname gốc (`ROOT_HOST`, dạng `hostname:port`):
+ * hostname per-worktree (#316) `remote-cache-app-<ns>.<root>` từ
+ * `localServiceHostname` — cùng tên mà router Traefik của deploy đăng ký
+ * (`deploys/remote-cache-app-deploy/index.ts`); port giữ nguyên vì Traefik
+ * local nghe port ĐỘNG map ra loopback.
  *
- * ⚠️ KHÔNG throw khi thiếu: trả placeholder `.invalid` (RFC 2606) không resolve
- * được — nếu gate global-setup bị bỏ qua thì mọi test đỏ với DNS failure thay
- * vì xanh giả.
+ * ⚠️ KHÔNG throw khi thiếu: Docker vắng mặt ⇒ placeholder
+ * `remote-cache-app.placeholder.invalid:port` (RFC 2606) không resolve được —
+ * nếu gate global-setup bị bỏ qua thì mọi test đỏ với DNS failure thay vì xanh giả.
  */
 function resolveStackOrigin(): string {
   const raw = process.env.ROOT_HOST;
   if (raw !== undefined && raw.trim().length > 0) {
-    return withPortalOrigin(raw.trim());
+    const rootHostname = raw.trim().split(':')[0];
+    const port = raw.includes(':') ? (raw.trim().split(':')[1] ?? '443') : '443';
+    // Docker vắng mặt → namespace `undefined` → giữ placeholder gốc, không throw
+    // (hợp đồng graph-eval ở đầu file; gate fail-closed thuộc global-setup).
+    const namespace = traefikNamespace(port);
+    if (namespace === undefined) {
+      return `remote-cache-app.placeholder.invalid:${port}`;
+    }
+    return `${localServiceHostname('remote-cache-app', rootHostname, namespace)}:${port}`;
   }
   // Fallback cho lệnh gọi ngoài Nx: parse `.env` repo root (Nx load `.env` vào
   // env của task qua `nx run`, còn CLI trực tiếp thì không).
@@ -123,20 +171,20 @@ function resolveStackOrigin(): string {
     for (const line of text.split(/\r?\n/u)) {
       const match = /^ROOT_(?:DOMAIN|HOST)=(.*)$/u.exec(line.trim());
       if (match && match[1].trim().length > 0) {
-        return withPortalOrigin(match[1].trim());
+        const rawEnv = match[1].trim();
+        const rootHostname = rawEnv.split(':')[0];
+        const port = rawEnv.includes(':') ? (rawEnv.split(':')[1] ?? '443') : '443';
+        const namespace = traefikNamespace(port);
+        if (namespace === undefined) {
+          return `remote-cache-app.placeholder.invalid:${port}`;
+        }
+        return `${localServiceHostname('remote-cache-app', rootHostname, namespace)}:${port}`;
       }
     }
   } catch {
     // `.env` vắng mặt — placeholder bên dưới thay thế; gate là đường fail-closed thật.
   }
   return 'remote-cache-app.placeholder.invalid:443';
-}
-
-/** Ghép hostname gốc (dạng `hostname:port`) thành `remote-cache-app.<hostname>:<port>`. */
-function withPortalOrigin(raw: string): string {
-  const rootHostname = raw.split(':')[0];
-  const port = raw.includes(':') ? raw.split(':')[1] : '443';
-  return `remote-cache-app.${rootHostname}:${port}`;
 }
 
 const ROOT_ORIGIN = resolveStackOrigin();
@@ -159,8 +207,9 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
-    // Portal phục vụ ở subdomain `remote-cache-app` — mọi browser navigation
-    // mặc định trỏ đây (rule router Traefik là `Host(remote-cache-app.<root>)`).
+    // Portal phục vụ ở hostname per-worktree `remote-cache-app-<ns>.<root>`
+    // (#316) — mọi browser navigation mặc định trỏ đây (rule router Traefik là
+    // `Host(\`remote-cache-app-<ns>.<root>\`)`).
     baseURL: `https://${ROOT_ORIGIN}`,
     // ⚠️ KHÔNG BAO GIỜ `ignoreHTTPSErrors: true` — browser test nào cần cert
     // local phải qua project-level `launchOptions` bên dưới.
