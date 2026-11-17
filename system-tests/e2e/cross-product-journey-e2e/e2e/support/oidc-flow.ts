@@ -156,8 +156,26 @@ export async function performBrowserLogin(
   await page.getByTestId('login-email').fill(params.email);
   await page.getByTestId('login-submit').click();
 
-  // Challenge mode `code` — OTP đã được account gửi qua transactional-mail.
+  // Flake `ERR_NETWORK_CHANGED` trên CI (run 44048970766): POST challenge chết
+  // ở tầng mạng trước khi tới server → trang render `login-request-failed` và
+  // GIỮ NGUYÊN form email (`challenge` không được set). Challenge chưa được cấp
+  // nên bấm submit lại ĐÚNG MỘT LẦN là an toàn (rate limit 3 challenge/15 phút
+  // không bị tiêu). Lỗi lần hai là lỗi thật — không che defect.
   const codeForm = page.getByTestId('login-code-form');
+  const requestFailed = page.getByTestId('login-request-failed');
+  const challengeShown = codeForm
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const challengeFailed = requestFailed
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (await Promise.race([challengeShown, challengeFailed])) {
+    if (!(await challengeShown)) {
+      await page.getByTestId('login-submit').click();
+    }
+  }
   await expect(codeForm).toBeVisible();
   const otp = await params.readOtp();
   await page.getByTestId('login-code').fill(otp);
@@ -169,7 +187,27 @@ export async function performBrowserLogin(
   const continueTarget = page.getByTestId('login-continue-target');
   // BFF cold start (CI): trang /login/continue có thể mất lâu hơn 15s mặc định
   // để render nút — nới timeout thay vì retry (OTP đã tiêu một challenge).
-  await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+  // Flake `ERR_NETWORK_CHANGED` trên CI (#335, run 44000010697): handoff TỰ ĐỘNG
+  // (`POST /api/auth/handoff`, fire lúc mount TRƯỚC khi bấm) chết ở tầng mạng →
+  // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
+  // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
+  const retryButton = page.getByTestId('login-continue-retry');
+  const continueOrRetry = await Promise.race([
+    continueTarget
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'continue' as const)
+      .catch(() => 'none' as const),
+    retryButton
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'retry' as const)
+      .catch(() => 'none' as const),
+  ]);
+  if (continueOrRetry === 'retry') {
+    await retryButton.click();
+    await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+  } else if (continueOrRetry === 'none') {
+    await expect(continueTarget).toBeVisible({ timeout: 0 });
+  }
   await continueTarget.click();
 
   // BFF cold start có thể làm push handoff lỗi ở lần bấm đầu: trang render
@@ -223,16 +261,70 @@ export async function performBrowserLogin(
       await approve.click();
 
       const consentContinue = page.getByTestId('consent-continue');
-      await expect(consentContinue).toBeVisible();
+      // Flake `ERR_NETWORK_CHANGED` trên CI (#335): POST decide thất bại ở tầng
+      // mạng trước khi tới server (status -1), trang render thẻ lỗi — handle
+      // chưa bị tiêu thụ nên bấm lại approve an toàn, không nguy cơ double-grant.
+      // Retry ĐÚNG MỘT LẦN: lỗi lần hai là lỗi thật — không che defect.
+      const decideFailed = page
+        .locator('[data-testid="account-result"][data-tone="danger"]')
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => 'failed' as const)
+        .catch(() => 'none' as const);
+      const continueShown = consentContinue
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => 'continue' as const)
+        .catch(() => 'none' as const);
+      const outcome = await Promise.race([decideFailed, continueShown]);
+      if (outcome === 'failed') {
+        await page.getByTestId('consent-approve').click();
+        await expect(consentContinue).toBeVisible({ timeout: 30_000 });
+      } else if (outcome === 'none') {
+        // Không lỗi hiện ra trong 5s: chờ nửa mặc định còn lại trước khi fail.
+        await expect(consentContinue).toBeVisible({ timeout: 15_000 });
+      }
       await consentContinue.click();
     }
   }
 
   // Callback → 302: `/` hoặc `/onboarding` (Backoffice — gate onboarding của
-  // #325/#242 quyết định ở server); portal luôn đáp `/`.
-  await expect(page).toHaveURL(LANDED_PATH_PATTERN);
-  if (finalHop === undefined) {
+  // #325/#242 quyết định ở server); portal luôn đáp `/`. Phát hiện hop cuối qua
+  // listener `finalHop`, KHÔNG qua `toHaveURL`: run 44006332081 (#335) chứng minh
+  // URL có thể match trong 21ms TRƯỚC khi `chrome-error://chromewebdata/` kịp
+  // render, khi hop auth→callback cuối chết `-1 net::ERR_NETWORK_CHANGED` —
+  // callback không bao giờ xảy ra dù URL trông "hợp lệ".
+  let waited = await waitForCallbackOrTimeout(page, () => finalHop, 5_000);
+  if (!waited) {
+    // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
+    // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
+    // điểm vào BFF đi path granted auto và callback xảy ra. Retry ĐÚNG MỘT LẦN;
+    // lần hai fail thật (finalHop vẫn undefined ⇒ throw ở dưới).
+    await page.goto(params.entryUrl ?? '/api/auth/login', { waitUntil: 'load' });
+    waited = await waitForCallbackOrTimeout(page, () => finalHop, 15_000);
+  }
+  if (!waited) {
     throw new Error('login flow finished but no /api/auth/callback response was observed');
   }
+  if (finalHop === undefined) {
+    // Không thể xảy ra sau `waited === true` — bước kiểm cho TS thu hẹp kiểu.
+    throw new Error('callback observed but finalHop is undefined');
+  }
+  // Callback đã xảy ra — browser đứng ở đích của BFF.
+  await expect(page).toHaveURL(LANDED_PATH_PATTERN, { timeout: 5_000 });
   return { finalHop, finalPath: new URL(page.url()).pathname };
+}
+
+/** Chờ callback `/api/auth/callback` được quan sát trong `budgetMs`. */
+async function waitForCallbackOrTimeout(
+  page: Page,
+  observed: () => { status: number; setCookie: string | undefined } | undefined,
+  budgetMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    if (observed() !== undefined) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  return false;
 }
