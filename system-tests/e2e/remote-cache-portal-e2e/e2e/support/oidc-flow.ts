@@ -157,7 +157,27 @@ export async function performBrowserLogin(
   const continueTarget = page.getByTestId('login-continue-target');
   // BFF cold start (CI): trang /login/continue có thể mất lâu hơn 15s mặc định
   // để render nút — nới timeout thay vì retry (OTP đã tiêu một challenge).
-  await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+  // Flake `ERR_NETWORK_CHANGED` trên CI (#335, run 44000010697): handoff TỰ ĐỘNG
+  // (`POST /api/auth/handoff`, fire lúc mount TRƯỚC khi bấm) chết ở tầng mạng →
+  // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
+  // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
+  const retryButton = page.getByTestId('login-continue-retry');
+  const continueOrRetry = await Promise.race([
+    continueTarget
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'continue' as const)
+      .catch(() => 'none' as const),
+    retryButton
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => 'retry' as const)
+      .catch(() => 'none' as const),
+  ]);
+  if (continueOrRetry === 'retry') {
+    await retryButton.click();
+    await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+  } else if (continueOrRetry === 'none') {
+    await expect(continueTarget).toBeVisible({ timeout: 0 });
+  }
   await continueTarget.click();
 
   // BFF cold start có thể làm push handoff lỗi ở lần bấm đầu: trang render
