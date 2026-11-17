@@ -146,8 +146,26 @@ export async function performBrowserLogin(
   await page.getByTestId('login-email').fill(params.email);
   await page.getByTestId('login-submit').click();
 
-  // Challenge mode `code` — OTP đã được account gửi qua transactional-mail.
+  // Flake `ERR_NETWORK_CHANGED` trên CI (run 44069058685): POST challenge chết
+  // ở tầng mạng trước khi tới server → trang render `login-request-failed` và
+  // GIỮ NGUYÊN form email (`challenge` không được set). Challenge chưa được cấp
+  // nên bấm submit lại ĐÚNG MỘT LẦN là an toàn (rate limit 3 challenge/15 phút
+  // không bị tiêu). Lỗi lần hai là lỗi thật — không che defect.
   const codeForm = page.getByTestId('login-code-form');
+  const requestFailed = page.getByTestId('login-request-failed');
+  const challengeShown = codeForm
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const challengeFailed = requestFailed
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (await Promise.race([challengeShown, challengeFailed])) {
+    if (!(await challengeShown)) {
+      await page.getByTestId('login-submit').click();
+    }
+  }
   await expect(codeForm).toBeVisible();
   const otp = await params.readOtp();
   await page.getByTestId('login-code').fill(otp);

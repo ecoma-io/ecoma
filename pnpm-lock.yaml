@@ -1287,6 +1287,18 @@ importers:
         specifier: ^1.37.0
         version: 1.65.1
 
+  system-tests/e2e/cross-product-journey-e2e:
+    devDependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../../libs/deployment
+      '@pact-foundation/pact-cli':
+        specifier: 18.10.9
+        version: 18.10.9
+      '@playwright/test':
+        specifier: ^1.37.0
+        version: 1.65.1
+
   system-tests/e2e/home-public-e2e:
     devDependencies:
       '@playwright/test':

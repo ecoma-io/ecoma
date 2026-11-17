@@ -1,0 +1,5 @@
+# Output Playwright của suite này — artifact chạy-thật, không phải source.
+# Repo root .gitignore đã chặn `test-results/` và `playwright-report/` ở MỌI
+# cấp (pattern không có `/` prefix), nên entry này chỉ là Documentation.
+test-results/
+playwright-report/
