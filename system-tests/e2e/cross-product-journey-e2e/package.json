@@ -1,0 +1,171 @@
+{
+  "name": "@ecoma-io/cross-product-journey-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@ecoma-io/deployment": "workspace:*",
+    "@pact-foundation/pact-cli": "18.10.9",
+    "@playwright/test": "^1.37.0"
+  },
+  "nx": {
+    "//": [
+      "implicitDependencies — tập deploy unit mà kết quả test phụ thuộc, suy từ code suite:",
+      "- platform-deploy: cert local `deploys/platform-deploy/local-certs/fbi.com.crt` (global-setup.ts +",
+      "  e2e/support/local-origin.ts + playwright.config.ts đọc trực tiếp), `ROOT_HOST` do `local-up` của",
+      "  platform ghi vào `.env`, router Traefik route office/pact/api/remote-cache-app, network platform",
+      "  (container llm + data-plane remote-cache chạy trong đó), và container `ecoma-<ns>-postgres` mà",
+      "  e2e/support/stack-fixtures.ts seed nằm trong namespace của platform.",
+      "- backoffice-deploy: origin `office.<host>` là điểm đến của bước 1 chuỗi — superadmin login Backoffice",
+      "  qua OIDC/OTP UI thật; gate probe `/api/me` không cookie phải 401 (middleware authn).",
+      "- remote-cache-app-deploy + remote-cache-api-deploy: bước 2 chuỗi — RC token lấy qua control plane",
+      "  đã xác thực, Nx CLI thật PUT/HIT qua data-plane nội bộ `ecoma-remote-cache-api:4207`.",
+      "- pact-broker-app-deploy + pact-broker-api-deploy: bước 3 chuỗi — developer/CI credential lấy qua",
+      "  portal UI, Pact CLI thật publish/verify/can-i-deploy qua origin `api.<host>`.",
+      "- llm-api-deploy: bước 4 chuỗi — inference qua `/llm` với consumer key từ lane (runner đọc",
+      "  `lane.ts state` như llm-inference-e2e); dependsOn `test-lane-up` vì lane hội tụ mock upstream",
+      "  + serving trước khi suite chạy.",
+      "- auth-deploy + account-deploy + transactional-mail-deploy: luồng login browser của bước 1 và các",
+      "  portal login phụ; client OIDC per-service seed bởi chính `local-up` của auth.",
+      "KHÔNG khai home: suite không chạm apex. Staff-access-deploy không cần — backoffice superadmin",
+      "  bootstrap do `local-up` dựng; suite chỉ assert session + route backoffice."
+    ],
+    "implicitDependencies": [
+      "platform-deploy",
+      "backoffice-deploy",
+      "remote-cache-app-deploy",
+      "remote-cache-api-deploy",
+      "pact-broker-app-deploy",
+      "pact-broker-api-deploy",
+      "llm-api-deploy",
+      "auth-deploy",
+      "account-deploy",
+      "transactional-mail-deploy"
+    ],
+    "tags": [
+      "type:tooling",
+      "scope:local",
+      "runtime:native"
+    ],
+    "targets": {
+      "system-test": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "platform-deploy",
+              "backoffice-deploy",
+              "remote-cache-app-deploy",
+              "remote-cache-api-deploy",
+              "pact-broker-app-deploy",
+              "pact-broker-api-deploy",
+              "auth-deploy",
+              "account-deploy",
+              "transactional-mail-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "llm-api-deploy"
+            ],
+            "target": "test-lane-up"
+          }
+        ],
+        "configurations": {
+          "local": {}
+        },
+        "options": {
+          "cwd": "system-tests/e2e/cross-product-journey-e2e",
+          "command": "node bin/run-system-test.mjs"
+        },
+        "//": [
+          "Target canonical `system-test` của system-test suite (docs/architecture/06-testing.md §4).",
+          "`cache: false` là CONTRACT: stack local phía sau là external state sống ngoài inputs của Nx.",
+          "`dependsOn` kéo `local-up` của chín deploy project + `test-lane-up` của llm-api-deploy (lane",
+          "hội tụ mock upstream + serving). Runner `bin/run-system-test.mjs` đọc `lane.ts state` để nạp",
+          "env `LLM_E2E_*` cho Playwright rồi GIỮ fence: plaintext key consumer không được xuất hiện",
+          "trong captured output của suite.",
+          "Hợp đồng `local-lifecycle-graph.spec` đòi: đúng MỘT entry dependsOn -> local-up,",
+          "configurations.local tồn tại, cache=false, và implicitDependencies PHỦ mọi deploy project",
+          "mà dependsOn trỏ tới."
+        ]
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.json"
+          },
+          {
+            "externalDependencies": [
+              "typescript"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "system-tests/e2e/cross-product-journey-e2e",
+          "command": "tsc --noEmit -p tsconfig.json"
+        },
+        "//": [
+          "Suite KHÔNG build artifact nào — chạy qua playwright trực tiếp, nên typecheck là",
+          "`tsc --noEmit` một lần cho toàn bộ TS nguồn (spec + support + global-setup)."
+        ],
+        "configurations": {},
+        "parallelism": true
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/system-tests/e2e/.eslintignore",
+          "{workspaceRoot}/system-tests/e2e/.gitignore",
+          "{workspaceRoot}/system-tests/.eslintignore",
+          "{workspaceRoot}/system-tests/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      }
+    }
+  }
+}
