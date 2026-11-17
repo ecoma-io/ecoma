@@ -194,7 +194,10 @@ function psqlQuery(namespace: string, database: string, sql: string): string {
       '-d',
       database,
       '-tAc',
-      sql,
+      // Literal SQL (không qua shell) — nhưng id nội suy vẫn được nháy-trích để
+      // một giá trị tương lai chứa `'` không đổi ngữ nghĩa câu SELECT (mẫu
+      // `shellQuoteForTest` của argv-hygiene specs).
+      sql.replace(/'/gu, `''`),
     ],
     { encoding: 'utf8', timeout: 30_000 },
   );
