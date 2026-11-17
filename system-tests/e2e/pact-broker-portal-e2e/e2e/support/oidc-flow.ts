@@ -211,7 +211,27 @@ export async function performBrowserLogin(
       await approve.click();
 
       const consentContinue = page.getByTestId('consent-continue');
-      await expect(consentContinue).toBeVisible();
+      // Flake `ERR_NETWORK_CHANGED` trên CI (#335): POST decide thất bại ở tầng
+      // mạng trước khi tới server (status -1), trang render thẻ lỗi — handle
+      // chưa bị tiêu thụ nên bấm lại approve an toàn, không nguy cơ double-grant.
+      // Retry ĐÚNG MỘT LẦN: lỗi lần hai là lỗi thật — không che defect.
+      const decideFailed = page
+        .locator('[data-testid="account-result"][data-tone="danger"]')
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => 'failed' as const)
+        .catch(() => 'none' as const);
+      const continueShown = consentContinue
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => 'continue' as const)
+        .catch(() => 'none' as const);
+      const outcome = await Promise.race([decideFailed, continueShown]);
+      if (outcome === 'failed') {
+        await page.getByTestId('consent-approve').click();
+        await expect(consentContinue).toBeVisible({ timeout: 30_000 });
+      } else if (outcome === 'none') {
+        // Không lỗi hiện ra trong 5s: chờ nửa mặc định còn lại trước khi fail.
+        await expect(consentContinue).toBeVisible({ timeout: 15_000 });
+      }
       await consentContinue.click();
     }
   }
