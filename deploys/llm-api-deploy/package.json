@@ -24,7 +24,7 @@
     ],
     "targets": {
       "local-up": {
-        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `build/` (`build/index.js` do target `build` của Nx sinh) mount lúc container start — bundle chưa build là entrypoint fail `bundle_missing` và container restart loop. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
+        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. dependsOn staff-access-deploy:local-up + account-deploy:local-up — bước superadmin resolver đọc credential migrator và xác minh superadmin qua DB của hai service này; không có cạnh này thì lane `run-many` chạy llm-api song song với hai deploy đó và resolver đọc DB trước khi database/role được provision (database_unreachable, fail-closed) — gap #113 từng để suite system-test bù, nhưng gate #26 đòi `run-many -t local-up` xanh nên cạnh được khai tường minh. Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `build/` (`build/index.js` do target `build` của Nx sinh) mount lúc container start — bundle chưa build là entrypoint fail `bundle_missing` và container restart loop. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -37,6 +37,13 @@
           {
             "projects": [
               "platform-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "staff-access-deploy",
+              "account-deploy"
             ],
             "target": "local-up"
           },
@@ -73,9 +80,9 @@
           "(show-once; chạy lại `local.ts up` sẽ xoay password và thay stdout",
           "ghi nhận, mất plaintext; row bị xoá ngoài băng thì rơi xuống path",
           "converge đầy đủ để runner bước 9 phát hành lại). dependsOn GIỐNG",
-          "`local-up` (platform:local-up + bundle",
-          "build của app); gap #113 (đọc stack account/staff-access không khai",
-          "dependsOn) được suite bù ở cấp `system-test`. Cache bị tắt ở",
+          "`local-up` (platform + staff-access + account:local-up + bundle",
+          "build của app); gap #113 (đọc stack account/staff-access) đã đóng:",
+          "cạnh dependsOn được khai tường minh theo lane graph. Cache bị tắt ở",
           "targetDefaults `nx.json` (CONTRACT: mutate Docker/Pulumi state thật)."
         ],
         "executor": "nx:run-commands",
@@ -90,6 +97,13 @@
           {
             "projects": [
               "platform-deploy"
+            ],
+            "target": "local-up"
+          },
+          {
+            "projects": [
+              "staff-access-deploy",
+              "account-deploy"
             ],
             "target": "local-up"
           },
