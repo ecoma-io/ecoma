@@ -1,5 +1,7 @@
 import { expect, type Page, type Response } from '@playwright/test';
 
+import { resolveStackOrigin } from './local-origin';
+
 /**
  * Luồng login browser đầy đủ của suite — quay OTP qua mail sink thật.
  *
@@ -256,10 +258,45 @@ export async function performBrowserLogin(
     }
   }
 
-  // Callback → 302 `/`: portal không có gate onboarding.
-  await expect(page).toHaveURL(LANDED_PATH_PATTERN);
-  if (finalHop === undefined) {
+  // Callback → 302 `/`: portal không có gate onboarding. Phát hiện hop cuối qua
+  // listener `finalHop`, KHÔNG qua `toHaveURL`: run 44006332081 (#335) chứng minh
+  // URL có thể match trong 21ms TRƯỚC khi `chrome-error://chromewebdata/` kịp
+  // render, khi hop auth→callback cuối chết `-1 net::ERR_NETWORK_CHANGED` —
+  // callback không bao giờ xảy ra dù URL trông "hợp lệ".
+  const origin = resolveStackOrigin();
+  let waited = await waitForCallbackOrTimeout(page, () => finalHop, 5_000);
+  if (!waited) {
+    // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
+    // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
+    // portal `/` đi path granted auto và callback xảy ra. Retry ĐÚNG MỘT LẦN;
+    // lần hai fail thật (finalHop vẫn undefined ⇒ throw ở dưới).
+    await page.goto(origin, { waitUntil: 'load' });
+    waited = await waitForCallbackOrTimeout(page, () => finalHop, 15_000);
+  }
+  if (!waited) {
     throw new Error('login flow finished but no /api/auth/callback response was observed');
   }
+  if (finalHop === undefined) {
+    // Không thể xảy ra sau `waited === true` — bước kiểm cho TS thu hẹp kiểu.
+    throw new Error('callback observed but finalHop is undefined');
+  }
+  // Callback đã xảy ra — browser đứng ở `/`.
+  await expect(page).toHaveURL(LANDED_PATH_PATTERN, { timeout: 5_000 });
   return { finalHop, finalPath: new URL(page.url()).pathname };
+}
+
+/** Chờ callback `/api/auth/callback` được quan sát trong `budgetMs`. */
+async function waitForCallbackOrTimeout(
+  page: Page,
+  observed: () => { status: number; setCookie: string | undefined } | undefined,
+  budgetMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    if (observed() !== undefined) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  return false;
 }
