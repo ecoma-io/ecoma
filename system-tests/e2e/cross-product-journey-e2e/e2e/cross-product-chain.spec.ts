@@ -181,6 +181,15 @@ async function curlStatusInNetwork(network: string, args: string[]): Promise<str
 // Support — observer psql + đọc bootstrap key từ Pulumi state + env lane
 // -------------------------------------------------------------------------------------------
 
+/** Nháy-trích một giá trị nội suy vào SQL literal — mẫu `shellQuoteForTest`
+ * của argv-hygiene specs: một giá trị chứa `'` không thể đổi ngữ nghĩa câu
+ * SELECT read-only. Áp dụng TỪNG GIÁ TRỊ nội suy, không áp cho cả câu query
+ * (query đã chứa nháy của literal — escape cả câu làm vỡ nó, lỗi này đã xảy
+ * ra ở run CI 44066572405). */
+function sqlLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
 /** Chạy psql SELECT read-only trong container Postgres của namespace lane. */
 function psqlQuery(namespace: string, database: string, sql: string): string {
   const result = execFileSync(
@@ -194,10 +203,7 @@ function psqlQuery(namespace: string, database: string, sql: string): string {
       '-d',
       database,
       '-tAc',
-      // Literal SQL (không qua shell) — nhưng id nội suy vẫn được nháy-trích để
-      // một giá trị tương lai chứa `'` không đổi ngữ nghĩa câu SELECT (mẫu
-      // `shellQuoteForTest` của argv-hygiene specs).
-      sql.replace(/'/gu, `''`),
+      sql,
     ],
     { encoding: 'utf8', timeout: 30_000 },
   );
@@ -777,7 +783,7 @@ test.describe.serial('cross-product chained MVP journey', () => {
       namespace,
       GATEWAY_DATABASE,
       `SELECT count(*), status, usage_status, charge_minor IS NOT NULL AND charge_minor > 0 ` +
-        `FROM llm_gateway.logical_requests WHERE request_id = '${llmRequestId}' ` +
+        `FROM llm_gateway.logical_requests WHERE request_id = ${sqlLiteral(llmRequestId)} ` +
         `GROUP BY status, usage_status, charge_minor`,
     );
     const fields = row.split('|');
@@ -791,7 +797,7 @@ test.describe.serial('cross-product chained MVP journey', () => {
     const charge = psqlQuery(
       namespace,
       GATEWAY_DATABASE,
-      `SELECT state, count(*) FROM llm_financial.customer_charges WHERE charge_id = '${llmChargeId}' GROUP BY state`,
+      `SELECT state, count(*) FROM llm_financial.customer_charges WHERE charge_id = ${sqlLiteral(llmChargeId)} GROUP BY state`,
     );
     expect(charge).toBe('posted|1');
 
@@ -799,12 +805,12 @@ test.describe.serial('cross-product chained MVP journey', () => {
     const requestsBefore = psqlQuery(
       namespace,
       GATEWAY_DATABASE,
-      `SELECT count(*) FROM llm_gateway.logical_requests WHERE request_id = '${llmRequestId}'`,
+      `SELECT count(*) FROM llm_gateway.logical_requests WHERE request_id = ${sqlLiteral(llmRequestId)}`,
     );
     const chargesBefore = psqlQuery(
       namespace,
       GATEWAY_DATABASE,
-      `SELECT count(*) FROM llm_financial.customer_charges WHERE charge_id = '${llmChargeId}'`,
+      `SELECT count(*) FROM llm_financial.customer_charges WHERE charge_id = ${sqlLiteral(llmChargeId)}`,
     );
     const replayResponse = requestInNetwork(laneNetwork, {
       url: `${WORKER_BASE_URL}/v1/chat/completions`,
@@ -824,14 +830,14 @@ test.describe.serial('cross-product chained MVP journey', () => {
       psqlQuery(
         namespace,
         GATEWAY_DATABASE,
-        `SELECT count(*) FROM llm_gateway.logical_requests WHERE request_id = '${llmRequestId}'`,
+        `SELECT count(*) FROM llm_gateway.logical_requests WHERE request_id = ${sqlLiteral(llmRequestId)}`,
       ),
     ).toBe(requestsBefore);
     expect(
       psqlQuery(
         namespace,
         GATEWAY_DATABASE,
-        `SELECT count(*) FROM llm_financial.customer_charges WHERE charge_id = '${llmChargeId}'`,
+        `SELECT count(*) FROM llm_financial.customer_charges WHERE charge_id = ${sqlLiteral(llmChargeId)}`,
       ),
     ).toBe(chargesBefore);
 
