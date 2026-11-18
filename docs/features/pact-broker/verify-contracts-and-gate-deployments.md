@@ -39,7 +39,7 @@ Kết quả verification trở thành dữ liệu broker lưu và pipeline đọ
 ### Không bao gồm
 
 - **Dashboard hiển thị matrix ở trang `/pacts`** — BFF hợp thành `/pacticipants` + `/matrix` và trang render được hàng matrix thật kèm trạng thái verification (#225). Cập nhật 2026-11-15 sau #208 (PR #293): có thêm trang verification riêng (`/verifications`), trang matrix chuyên dụng (`/matrix`, truy vấn verdict `can-i-deploy` qua `POST /api/broker/can-i-deploy`) và trang environments (`/environments`) — các route BFF `can-i-deploy.post.ts`/`verifications.get.ts`/`matrix.get.ts` đã được trang gọi. Vẫn không có điều khiển ghi nào từ dashboard: việc chạy verification và `can-i-deploy` trong CI thuộc CLI/CI; `can-i-deploy` trên portal là truy vấn đọc, không ghi.
-- **Không có kiểm chứng end to end bằng Pact CLI.** Không có system test nào chạy `pact-broker verify` hay `can-i-deploy` thật; bằng chứng chỉ ở tầng integration gọi route trong process.
+- **Kiểm chứng end to end bằng Pact CLI có ở tầng system E2E** (cập nhật 2026-11-18 sau #27): suite `system-tests/e2e/cross-product-journey-e2e` chạy `pact-broker publish`, `pact-verifier` và `can-i-deploy` thật (`@pact-foundation/pact-cli@18.10.9`) trên lane local, đã xanh trên CI main (schedule run 44297959838, 2026-11-18). Tầng integration gọi route trong process vẫn là bằng chứng cấp app-owned của feature này.
 - **Không có xoá kết quả verification.** Kết quả append-only, không có route sửa hay xoá.
 - Xoá environment **có ghi audit** (`environment.delete`, kèm tên environment bị xoá), và có test assert hàng audit tương ứng; thay đổi tag hay deployment không ghi audit. `environment.create`, `environment.update` và `environment.delete` đều được ghi.
 - **RBAC theo vai trò người dùng đã hiện thực trên đường đọc.** Đường user qua portal enforce theo permission matrix ([ADR-0032](../../domains/pact-broker/adr/0032-developer-authorization-matrix-and-credential-policy.md) §1 — `viewer` trở lên đọc được verification/matrix), hiện thực qua #206; đường machine token (CI/CLI) giữ scope-based.
@@ -120,7 +120,7 @@ Thì  nhận 400
 
 ## 6. Verification Mapping
 
-Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers) và unit. Không có system E2E nào chạy Pact CLI.
+Bằng chứng ở tầng integration app-owned (Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers) và unit. System E2E chạy Pact CLI thật có tại `system-tests/e2e/cross-product-journey-e2e` (#27, cập nhật 2026-11-18), đã xanh trên CI main (schedule run 44297959838).
 
 | Scenario                                                                                | Test file / suite                                           | Loại test          | Nx target          |
 | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------ | ------------------ |
@@ -142,5 +142,5 @@ Toàn bộ bằng chứng ở tầng integration app-owned (Hono `app.request()`
 **Giới hạn của verification hiện tại:**
 
 - **Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass.** Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
-- Không có test nào chạy Pact CLI; tương thích với `pact-broker verify` hay `can-i-deploy` của CLI chỉ được suy ra từ hình dạng route và compatibility version. CLI làm chuẩn là npm `@pact-foundation/pact-cli` ghim theo bằng chứng chạy thật (kết luận #205 quyết định 12 — #208 sở hữu evidence publish/verify/can-i-deploy trên lane; system E2E thuộc #27).
+- Pact CLI được chạy thật trong system E2E (#27): `pact-verifier` và `can-i-deploy` qua npm `@pact-foundation/pact-cli@18.10.9` trên lane local, xanh trên CI main (schedule run 44297959838, 2026-11-18) — đóng khoảng trống "tương thích chỉ suy từ hình dạng route" của ghi chú trước.
 - Không có test nào chứng minh thay đổi tag hay deployment là hành vi không ghi audit mong muốn; đó là khoảng trống đã biết. Xoá environment thì ngược lại: hàng audit `environment.delete` được assert trong test (`apps/pact-broker-api/tests/integrations/user-auth.spec.ts:493`).

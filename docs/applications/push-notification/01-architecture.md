@@ -16,6 +16,8 @@
 - Cung cấp `Admin API` cho `Backoffice` (quản lý provider, credential, app-provider mapping, subscription, device, delivery).
 - Cung cấp private delivery runtime API cho delivery worker `web-push-notification-job` (`claim`/`release`/`outcome`/`invalidate`, không có `GET`).
 
+**Trạng thái hiện thực (cập nhật 2026-11-18):** tài liệu này mô tả **target design, chưa phải hiện thực M1**. `apps/push-notification` và `apps/web-push-notification-job` tồn tại trên cây (queue consumer đã wire) nhưng push-notification **không thuộc 3 sản phẩm M1** (`llm-marketplace`, `pact-broker`, `remote-cache`) — xem ma trận nghiệm thu [#7](https://github.com/ecoma-io/ecoma/issues/7) — và không chạy trên lane local. Đọc tài liệu này như specification, không phải bằng chứng hoạt động.
+
 Thành phần này **không** thực hiện transport delivery (`Web Push`, `APNs`, `FCM`) — đó là trách nhiệm của delivery plane `web-push-notification-job` (component riêng). Giai đoạn đầu hỗ trợ `Web Push`; kiến trúc cho phép mở rộng `App Push` mà không đổi contract của caller (§13).
 
 ---

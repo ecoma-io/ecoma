@@ -16,7 +16,7 @@
 2. BFF đọc `displayName` từ contract `GET /internal/account/profiles` của `account` (displayName là dữ liệu hồ sơ thuộc `account`; `backoffice` không lưu bản sao bền vững, chỉ cache và đọc qua contract).
 3. UI visibility ẩn nút/route/menu là trải nghiệm, không phải chốt chặn; gọi trực tiếp API vẫn bị từ chối nếu không authorize.
 4. Onboarding staff: gate displayName (§2.1), chỗ gắn gate 2FA (giai đoạn 2, chưa cài đặt).
-5. Privileged-operation workflow: phê duyệt và thực thi thao tác vận hành nhạy cảm, audit append-only.
+5. Privileged-operation workflow: phê duyệt và thực thi thao tác vận hành nhạy cảm, audit append-only. **Trạng thái M1: target-đang-mở, chưa hiện thực** — backoffice M1 sở hữu operator-surface staff/administrator (#182, #191) và audit read; workflow phê duyệt privileged operation chưa có route hay UI nào và không thuộc checklist chấp nhận M1 (xem [feature doc remote-cache rotation/retention](../../features/remote-cache/project-scoped-build-cache.md) — các exclusion tương tự).
 
 ### 2.1 Onboarding staff và gate displayName
 

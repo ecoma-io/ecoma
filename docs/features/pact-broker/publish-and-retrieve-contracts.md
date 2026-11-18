@@ -20,7 +20,7 @@ Contract của consumer trở thành một artifact có địa chỉ ổn địn
 - Publish hàng loạt (nhiều contract trong một request) kiểm tra **toàn bộ trước khi ghi**: một contract sai cấu trúc thì không contract nào được ghi.
 - Đọc lại được theo version chính xác, theo content SHA, theo `latest` có hoặc không kèm tag, và theo danh sách selector dùng cho verification.
 - Mọi truy vấn bị giới hạn theo tenant của credential gọi nó; tenant khác không thấy gì.
-- Phản hồi mang HAL link để client đi tiếp được (publish verification result, publish contract). **Giới hạn hiện tại** (cập nhật 2026-11-15): HAL index **chưa** phát link `pb:latest-provider-pacts` mà verifier mặc định của Pact CLI cần để khám phá pact — lệnh publish-verification chuẩn trả 404 trên đường mặc định; gap được theo dõi ở [#294](https://github.com/ecoma-io/ecoma/issues/294). Các HAL link khác (`pb:latest-pact-versions`, `pb:latest-pact-version`, …) đã phát (`libs/pact-broker-api-domain/src/hal.ts`).
+- Phản hồi mang HAL link để client đi tiếp được (publish verification result, publish contract). HAL index phát link `pb:latest-provider-pacts` mà verifier mặc định của Pact CLI cần để khám phá pact (cập nhật 2026-11-18 sau #294/#315; hiện thực tại `libs/pact-broker-api-domain/src/hal.ts:45`). Các HAL link khác (`pb:latest-pact-versions`, `pb:latest-pact-version`, …) đã phát trước đó.
 
 ## 3. Scope
 
@@ -114,7 +114,7 @@ Thì  nhận 401 với cùng một hình dạng phản hồi
 
 ## 6. Verification Mapping
 
-Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers; cộng thêm browser regression cho trang đọc của portal. **Không có system E2E** nào chạy Pact CLI hay gọi broker từ ngoài.
+Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.request()` trong process, PostgreSQL 17 thật qua testcontainers; cộng thêm browser regression cho trang đọc của portal. System E2E chạy Pact CLI thật (`@pact-foundation/pact-cli@18.10.9`) tồn tại tại `system-tests/e2e/cross-product-journey-e2e` (#27): suite publish/verify/can-i-deploy qua CLI thật trên lane local, và đã chạy xanh trên CI main (schedule run 44297959838, 2026-11-18).
 
 | Scenario                                                                                                | Test file / suite                                           | Loại test          | Nx target          |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------ | ------------------ |
@@ -136,5 +136,5 @@ Toàn bộ bằng chứng nằm ở tầng integration app-owned: Hono `app.requ
 
 **Giới hạn của verification hiện tại:**
 
-- Không có test nào chạy Pact CLI thật; tương thích với CLI chỉ được suy ra từ hình dạng route và `compatibility version 2.107.0` trong HAL index.
+- Pact CLI thật được chạy trong system E2E (#27): `pact-broker publish`, `pact-verifier` và `can-i-deploy` qua npm `@pact-foundation/pact-cli@18.10.9` trên lane local (`system-tests/e2e/cross-product-journey-e2e/e2e/cross-product-chain.spec.ts`). Tương thích CLI không còn chỉ là suy từ hình dạng route.
 - Sự tồn tại của các spec trên không chứng minh chúng đã chạy và pass. Kết luận `Verified` cần kết quả chạy của `test` và `test-integration`.
