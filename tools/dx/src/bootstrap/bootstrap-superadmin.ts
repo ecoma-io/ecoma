@@ -26,7 +26,9 @@
  * kết quả `resolved`, không có lần ghi nào trên nhánh này, bất kỳ thất bại
  * nào fail-closed. Môi trường mới (`no_bootstrap_account`) ủy quyền cho toàn
  * bộ procedure dưới đây, không đổi: A1 → A2 → S1 → S2 → S3 với bộ điều khiển
- * đã đo lường giữ nguyên, `mode_mismatch` vẫn kết thúc bằng `guard_denied`.
+ * đã đo lường giữ nguyên: `mode_mismatch` kết thúc bằng `guard_denied` khi S3
+ * chỉ đọc không xác thực được chủ thể, hoặc `converged` khi xác thực được (mất
+ * race với resolver khác đã hoàn tất bootstrap).
  * `mode: 'bootstrap'` là procedure được ghi lại ở đây, từng byte một.
  */
 
@@ -89,9 +91,17 @@ export type BootstrapStageRunner = (request: BootstrapStageRequest) => Bootstrap
  * Không giống `guard_denied`, đây là trạng thái hoàn tất — nó dựa trên bằng
  * chứng chỉ đọc như S3 của procedure dùng, gắn với `sub` của chính tài khoản
  * bootstrap.
+ *
+ * `converged` chỉ có trên nhánh guard-denied của procedure: guard đã từ chối
+ * S1 hoặc S2 vì đã có administrator (mất race với resolver khác), và một lần
+ * xác thực chỉ đọc duy nhất (S3 resolve-only, không `correlation_id`) đã xác
+ * nhận quản trị viên của đúng chủ thể A2 đã xác nhận. Khác `resolved`, lần
+ * chạy này CÓ ghi: A1 luôn, và S1 khi bị từ chối ở S2 — nhưng không bước ghi
+ * nào của lần chạy sau điểm từ chối, và quyền administrator không phải do lần
+ * chạy này cấp. Đây là trạng thái hoàn tất cho người tiêu dùng exit code.
  */
 export interface BootstrapRunResult {
-  readonly outcome: 'bootstrapped' | 'resolved' | 'guard_denied' | 'failed';
+  readonly outcome: 'bootstrapped' | 'resolved' | 'converged' | 'guard_denied' | 'failed';
   readonly correlationId: string;
   readonly sub?: string;
   readonly staffId?: string;
@@ -441,18 +451,25 @@ function runBootstrapProcedure(options: BootstrapRunOptions): BootstrapRunResult
 /**
  * Nhánh "guard từ chối". Guard từ chối (`mode_mismatch`) là hành vi đúng khi
  * environment đã từng có administrator (ADR-0022 Quyết định 3): procedure
- * không có nhánh cấp lại quyền. Bước bị từ chối không ghi dữ liệu nghiệp vụ,
- * nên procedure chạy S3 để trả bằng chứng đọc được rồi báo `guard_denied` —
- * không báo `bootstrapped`, vì không có bước ghi nào đã thành công.
+ * không có nhánh cấp lại quyền. Bước bị từ chối không ghi dữ liệu nghiệp vụ.
  *
- * S3 ở đây chỉ là **chẩn đoán**: sau một lần bị từ chối, phép đọc lại có thể
- * thấy trạng thái administrator hiện có, hoặc cũng có thể fail. Fail vì lần chạy
- * của chúng ta chưa từng ghi gì là kết quả *bình thường* của nhánh này; fail vì
- * lỗi thực thi (`database_unreachable`, `stage_timeout`) thì **không** phải một
- * lần từ chối — nhật ký phải ghi `failed`, nếu không người vận hành đọc log sẽ
- * nhầm lỗi hạ tầng với kết luận của guard (cùng lý do với `failed` ở trên).
- * Cả hai trường hợp đều không đổi kết luận `guard_denied`, vì từ chối của guard
- * mới là lý do dừng.
+ * Vì `mode_mismatch` đo được `admins_ever > 0`, administrator đã tồn tại —
+ * thường là resolver khác thắng race bootstrap trên môi trường mới (#341).
+ * Nhánh này hội tụ có giới hạn: đúng MỘT lần xác thực chỉ đọc (S3 resolve-only,
+ * không `correlation_id`, cùng hình với nhánh resolve) trên đúng chủ thể A2 đã
+ * xác nhận. Thành công → `converged`; không cấp provision/assign nào chạy ở
+ * đây, và một administrator không liên quan không thể gây hội tụ giả vì kiểm 1
+ * của S3 đọc staff theo `sub` này. Thất bại theo kết luận (không phải lỗi hạ
+ * tầng) → `guard_denied`, fail-closed như trước; lỗi hạ tầng cũng fail-closed
+ * nhưng được log `failed` để người vận hành phân biệt lỗi hạ tầng với kết luận
+ * của guard. Không bao giờ retry A1/S1/S2 hay chạy lại procedure.
+ *
+ * KHÔNG truyền `correlation_id` cho S3: kiểm 5 của `staff.verify` đòi audit row
+ * `staff.provision`/`staff.assign` success của chính lần chạy mang correlation
+ * id đó — lần chạy thua race không bao giờ có các row đó (bước bị từ chối không
+ * ghi gì), nên truyền correlation id sẽ fail `audit_trail_missing` vĩnh viễn
+ * ngay cả trên môi trường đã hội tụ đúng. Vắng nó, S3 bỏ kiểm 5 theo hợp đồng
+ * của service và vẫn xác thực staff/role/assignment/permissions (kiểm 1–4).
  */
 function finishGuardDenied(
   stages: BootstrapStageLogEntry[],
@@ -469,21 +486,29 @@ function finishGuardDenied(
   const verification = runStage({
     service: 'staff-access',
     action: 'staff-verify',
-    input: { correlation_id: correlationId, sub },
+    input: { sub },
   });
   if (verification.ok) {
     stages.push({ stage: verification.stage, outcome: verification.status });
-  } else {
-    // Chẩn đoán chạy được nhưng không xác nhận được trạng thái (ví dụ lần chạy
-    // này chưa từng ghi gì) — đó là quan sát, không phải lỗi thực thi. Tách hai
-    // trường hợp bằng những mã chỉ lỗi hạ tầng mới sinh ra.
-    const infrastructureFailure = isInfrastructureFailure(verification.reason);
-    stages.push({
-      stage: verification.stage,
-      outcome: infrastructureFailure ? 'failed' : 'denied',
-      detail: verification.reason,
-    });
+    const staffId = asString(verification.payload['staff_id']);
+    return {
+      outcome: 'converged',
+      correlationId,
+      sub,
+      ...(staffId === undefined ? {} : { staffId }),
+      stages,
+    };
   }
+  // Chẩn đoán chạy được nhưng không xác nhận được trạng thái (ví dụ S3 chạy
+  // giữa S1 và S2 của bên thắng, assignment chưa commit) — đó là quan sát,
+  // không phải lỗi thực thi. Tách hai trường hợp bằng những mã chỉ lỗi hạ tầng
+  // mới sinh ra; cả hai đều fail-closed dưới `guard_denied`.
+  const infrastructureFailure = isInfrastructureFailure(verification.reason);
+  stages.push({
+    stage: verification.stage,
+    outcome: infrastructureFailure ? 'failed' : 'denied',
+    detail: verification.reason,
+  });
   return { outcome: 'guard_denied', correlationId, sub, stages };
 }
 

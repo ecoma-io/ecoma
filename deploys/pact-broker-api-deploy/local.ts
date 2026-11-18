@@ -216,7 +216,7 @@ function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
     );
   }
   const outcome = envelope['outcome'];
-  if (outcome !== 'bootstrapped' && outcome !== 'resolved') {
+  if (outcome !== 'bootstrapped' && outcome !== 'resolved' && outcome !== 'converged') {
     // outcome/failedStage/reason là mã máy đọc — an toàn để nêu trong lỗi.
     throw new Error(
       `superadmin resolution failed: outcome=${outcome ?? '<missing>'} failedStage=${envelope['failedStage'] ?? '<none>'} reason=${envelope['reason'] ?? '<none>'} — lane up is fail-closed`,
@@ -227,7 +227,13 @@ function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
     throw new Error(`superadmin resolution succeeded without a subject (outcome=${outcome})`);
   }
   console.error(
-    `[pact-broker-api-deploy] superadmin ${outcome === 'resolved' ? 'resolved (read-only)' : 'bootstrapped'}: tenant ecoma owner sub resolved`,
+    `[pact-broker-api-deploy] superadmin ${
+      outcome === 'resolved'
+        ? 'resolved (read-only)'
+        : outcome === 'converged'
+          ? 'converged (guard-denied race)'
+          : 'bootstrapped'
+    }: tenant ecoma owner sub resolved`,
   );
   return sub;
 }

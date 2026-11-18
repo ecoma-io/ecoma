@@ -930,6 +930,92 @@ describe('measured guard and concurrency', () => {
       await second.end();
     }
   });
+
+  it('loser converges through read-only S3 after denial', async () => {
+    // Đường hội tụ của runner sau guard denial (#341): bên thua cuộc không ghi
+    // gì thêm — một lần verify resolve-mode (không correlationId) phải xác thực
+    // được trạng thái mà bên thắng cuộc đã commit, và S3 tự nó phải read-only.
+    await resetBusinessRows(db);
+    const input = bootstrapInput();
+    const first = await db.connectAsMigrator();
+    const second = await db.connectAsMigrator();
+    const superuser = await db.connect();
+    try {
+      // S1: cả hai đều fulfilled — lần sau hội tụ trên staff đã tồn tại.
+      const provisionResults = await Promise.allSettled([
+        provisionBootstrapStaff(first, input),
+        provisionBootstrapStaff(second, input),
+      ]);
+      expect(provisionResults.every((result) => result.status === 'fulfilled')).toBe(true);
+
+      // S2: đúng một bên thắng, bên còn lại bị guard từ chối mode_mismatch.
+      const assignResults = await Promise.allSettled([
+        assignBootstrapAdministrator(first, input),
+        assignBootstrapAdministrator(second, input),
+      ]);
+      const fulfilled = assignResults.filter((result) => result.status === 'fulfilled');
+      const rejected = assignResults.filter((result) => result.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+        reason: 'mode_mismatch',
+      });
+      const winnerStaffId = (fulfilled[0] as PromiseFulfilledResult<{ staffId: string }>).value
+        .staffId;
+
+      const snapshotBefore = await superuser.query<{ snapshot: Record<string, string> }>(
+        `SELECT jsonb_build_object(
+                  'staff', (SELECT count(*) FROM staff_access.staff),
+                  'roles', (SELECT count(*) FROM staff_access.roles),
+                  'assignments', (SELECT count(*) FROM staff_access.role_assignments),
+                  'permissions', (SELECT count(*) FROM staff_access.permissions),
+                  'role_permissions', (SELECT count(*) FROM staff_access.role_permissions),
+                  'staff_updated_at', (SELECT max(updated_at)::text FROM staff_access.staff),
+                  'audit', (SELECT count(*) FROM staff_access.authorization_audit)
+                ) AS snapshot`,
+      );
+
+      // Bên thua cuộc verify resolve-mode: không có correlationId của lần ghi
+      // nào của mình, nên kiểm audit bị bỏ — xác thực qua kiểm 1–4.
+      const verification = await verifyBootstrapStaff(first, { sub: input.sub });
+      expect(verification.ok).toBe(true);
+      expect(verification.staffId).toBe(winnerStaffId);
+      expect(verification.checks.map((check) => check.check)).not.toContain('audit');
+      expect(verification.reasons).toEqual([]);
+
+      const snapshotAfter = await superuser.query<{ snapshot: Record<string, string> }>(
+        `SELECT jsonb_build_object(
+                  'staff', (SELECT count(*) FROM staff_access.staff),
+                  'roles', (SELECT count(*) FROM staff_access.roles),
+                  'assignments', (SELECT count(*) FROM staff_access.role_assignments),
+                  'permissions', (SELECT count(*) FROM staff_access.permissions),
+                  'role_permissions', (SELECT count(*) FROM staff_access.role_permissions),
+                  'staff_updated_at', (SELECT max(updated_at)::text FROM staff_access.staff),
+                  'audit', (SELECT count(*) FROM staff_access.authorization_audit)
+                ) AS snapshot`,
+      );
+      expect(snapshotAfter.rows[0]?.snapshot).toEqual(snapshotBefore.rows[0]?.snapshot);
+
+      // Trạng thái cuối của cả chuỗi: đúng 1 staff và đúng 1 assignment còn live.
+      expect(await countRows(db, 'staff')).toBe(1);
+      expect(await countRows(db, 'role_assignments')).toBe(1);
+      const live = await db.connect();
+      try {
+        const { rows } = await live.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM staff_access.role_assignments
+            WHERE staff_id = $1 AND role_id = $2 AND revoked_at IS NULL`,
+          [winnerStaffId, 'eeb3abcb-31ef-479f-9dd1-198a9d520b1b'],
+        );
+        expect(rows[0]?.count).toBe('1');
+      } finally {
+        await live.end();
+      }
+    } finally {
+      await superuser.end();
+      await first.end();
+      await second.end();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
