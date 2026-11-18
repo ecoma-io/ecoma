@@ -247,15 +247,24 @@ function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
     throw new Error(`superadmin resolution succeeded without a subject (outcome=${outcome})`);
   }
   console.error(
-    `[llm-api-deploy] superadmin ${
-      outcome === 'resolved'
-        ? 'resolved (read-only)'
-        : outcome === 'converged'
-          ? 'converged (guard-denied race)'
-          : 'bootstrapped'
-    }: tenant ecoma owner sub resolved`,
+    `[llm-api-deploy] superadmin ${superadminOutcomeLabel(outcome)}: tenant ecoma owner sub resolved`,
   );
   return sub;
+}
+
+/**
+ * Nhãn hiển thị của từng outcome bootstrap — lookup thay vì ternary lồng để
+ * thêm outcome mới không phải sửa biểu thức điều kiện.
+ */
+function superadminOutcomeLabel(outcome: string): string {
+  switch (outcome) {
+    case 'resolved':
+      return 'resolved (read-only)';
+    case 'converged':
+      return 'converged (guard-denied race)';
+    default:
+      return 'bootstrapped';
+  }
 }
 
 /**
