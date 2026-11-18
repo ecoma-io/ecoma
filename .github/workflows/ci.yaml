@@ -88,9 +88,9 @@ jobs:
     # Target `test` chạy spec colocated với subject trong project sở hữu
     # (contract `docs/architecture/06-testing.md` §4); suite app-owned dưới `tests/`
     # chạy qua target `test-integration` ở job `integration-test` bên dưới.
-    # Lưu ý: một số project vẫn giữ spec phụ thuộc dependency thật colocated
-    # trong `src/`, nên chúng đang chạy dưới `test` ngay ở job này; dời về tầng
-    # đúng thuộc migration theo issue #357. Tách job để hai tầng test chạy song
+    # Suite app-owned dưới `tests/` đã chuyển hết sang tier đúng (validator
+    # `test-target-check` cho phép allowlist rỗng kể từ #385), nên target `test`
+    # chỉ chứa spec colocated hợp lệ. Tách job để hai tầng test chạy song
     # song trên hai runner thay vì nối tiếp trong cùng một job.
     steps:
       - name: Start runner resource monitoring
@@ -204,10 +204,9 @@ jobs:
   system-test:
     name: system-test
     runs-on: ubuntu-26.04
-    # Deploy lane 7 unit build image home/account/auth/backoffice/platform/
-    # staff-access/transactional-mail khi cache Docker của runner lạnh; tests
-    # bổ sung gate retry + chromium thật. 60 phút là trần đo từ budget 15 phút
-    # deploy + 4 suite chạy tuần tự (mỗi suite ~1 phút đo thực tế), không phải
+    # Deploy lane các deploy unit build image khi cache Docker của runner lạnh;
+    # tests bổ sung gate retry + chromium thật. 60 phút là trần đo từ budget
+    # deploy + các suite chạy tuần tự (mỗi suite ~1 phút đo thực tế), không phải
     # mục tiêu: job xanh điển hình kết thúc sớm hơn nhiều, và PR docs-only
     # kết thúc gần như ngay lập tức (0 task).
     timeout-minutes: 60
@@ -233,7 +232,7 @@ jobs:
       # Nếu race/deploy lock xuất hiện, phải sửa ở nguồn (container init, stack
       # lock mồ côi) thay vì che bằng retry. `retries` giữ mặc định 1 (không
       # retry) của action; `retry-command` không truyền.
-      # `threads: '1'`: cả 4 suite chia sẻ MỘT stack trên runner (grants, mail
+      # `threads: '1'`: các suite chia sẻ MỘT stack trên runner (grants, mail
       # sink D1, OTP rate-limit, Traefik) — chạy song song tái tạo đúng xung đột
       # chéo suite mà per-file identities đã xử lý trong phạm vi một suite, nên
       # thực thi tuần tự theo quyết định của user.
