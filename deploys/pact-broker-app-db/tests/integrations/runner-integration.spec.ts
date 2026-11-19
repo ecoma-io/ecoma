@@ -25,7 +25,8 @@ import {
  * - chạy lần 2 KHÔNG apply lại (journal dùng CREATE TABLE không idempotent —
  *   replay là lỗi, exit 0 là bằng chứng không-replay);
  * - fail giữa batch → rollback toàn bộ lần chạy (kit atomic per-run — hành vi
- *   thật của drizzle-orm 0.45.4, divergence đã báo #373) → retry sau đó xanh;
+ *   thật của drizzle-orm 0.45.4, verified thực nghiệm #374 comment 7015719641)
+ *   → retry sau đó xanh;
  * - advisory lock: runner khác đang giữ lock là runner bị chặn, không apply;
  * - stamp: ghi history mà KHÔNG thực thi SQL; migrate sau stamp skip đúng;
  * - guard `current_database()`: sai database là fail closed.

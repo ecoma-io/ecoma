@@ -27,7 +27,9 @@ import { Client } from 'pg';
  * Hành vi `drizzle-kit migrate` thật (drizzle-orm 0.45.4 `PgDialect.migrate`):
  * một transaction duy nhất cho toàn bộ pending set của lần chạy — fail giữa
  * chừng rollback toàn bộ, retry chỉ apply phần chưa ghi history. Checkpoint
- * là per-run, không per-file (divergence đã báo #373, comment 2026-11-19).
+ * là per-run, không per-file. ĐÃ VERIFIED THỰC NGHIỆM 2026-11-19 (kit
+ * 0.31.11 + PostgreSQL 17: E1–E6 — bằng chứng #374 comment 7015719641);
+ * hợp đồng §3a.3/§3a.5 đã sửa theo cùng bằng chứng — không còn divergence.
  *
  * Chạy: `npx tsx --tsconfig tsconfig.db.json runner.mts [migrate|stamp]
  * [--config <path>]`. Cần `DATABASE_URL` của role `_migrator`.
