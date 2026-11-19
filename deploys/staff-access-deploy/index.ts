@@ -36,8 +36,9 @@
  * sinh và truyền qua stack config `--config` (stdin, không argv), rồi đi vào
  * script qua kênh `environment` của `command.local.Command` — command text và
  * argv không chứa credential nào (chi tiết ở `scripts.ts`). Migration chạy **đường
- * canonical** (`apps/staff-access/db/apply.mts` — advisory lock
- * `hashtext('db-staff-access')`) bằng container node pin chạy tsx binary của
+ * canonical** (`deploys/staff-access-db` runner — chuỗi `adopt && migrate` cutover
+ * #375; advisory lock giữ nguyên khóa `hashtext('db-staff-access')`) bằng
+ * container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock). KHÔNG có bước seed dữ liệu riêng: dữ liệu seed duy nhất của context
  * này là permission catalog (3 permission read) và nó nằm trong migration
@@ -74,8 +75,8 @@ import {
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (`applyAllMigrations` của
- * `apps/staff-access/db/apply.mts`) — deploy không tự viết lại vòng migration.
+ * là đúng một đường code canonical (runner `deploys/staff-access-db` — deploy
+ * không tự viết lại vòng migration).
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
@@ -224,9 +225,10 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx db/apply.mts` của repo (`apps/staff-access/db/apply.mts` —
- * advisory lock `hashtext('db-staff-access')`, mọi DDL idempotent). Repo mount
- * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
+ * chạy runner thật của `deploys/staff-access-db` (chuỗi `adopt && migrate` —
+ * advisory lock giữ nguyên khóa `hashtext('db-staff-access')`, `drizzle-kit
+ * migrate` atomic). Repo mount read-only. KHÔNG chạy qua binding Hyperdrive
+ * (HD6: advisory lock).
  *
  * Kênh credential: `DATABASE_URL` (chứa password migrator) đi vào tiến trình
  * shell qua map `environment` của command resource (giá trị bọc `pulumi.secret`),

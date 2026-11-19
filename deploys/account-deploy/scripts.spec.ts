@@ -153,11 +153,14 @@ describe('buildMigrateScript', () => {
     expect(script).toContain('--network ecoma-x-network');
     expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
     expect(script).toContain(`-v '/repo/worktrees/x'/node_modules:/repo/node_modules`);
-    expect(script).toContain('-w /repo/apps/account');
+    expect(script).toContain('-w /repo/deploys/account-db');
     expect(script).toContain(NODE_IMAGE);
     expect(script).toContain(
-      '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts',
+      "sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'",
     );
+    // Cutover #375: invoke script KHÔNG còn trỏ vào runner cũ đã retire.
+    expect(script).not.toContain('apps/account');
+    expect(script).not.toContain('apply.mts');
   });
 
   it('is deterministic for the same inputs', () => {

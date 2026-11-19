@@ -69,16 +69,34 @@ describe('withStatementTimeout', () => {
     expect(parsed.pathname).toBe('/db-backoffice');
   });
 
-  it('preserves existing options and query parameters', () => {
+  it('preserves query parameters of the URL that already carries them', () => {
     const url = withStatementTimeout(
-      'postgresql://migrator@localhost/db?application_name=migrator&options=-c search_path%3Dpublic',
+      'postgresql://migrator@localhost/db?application_name=migrator',
       1_000,
     );
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get('application_name')).toBe('migrator');
-    expect(parsed.searchParams.get('options')).toBe(
-      '-c search_path=public -c statement_timeout=1000',
+    expect(url.startsWith('postgresql://migrator@localhost/db?application_name=migrator')).toBe(
+      true,
     );
+    expect(url).toContain('&options=');
+  });
+
+  it('refuses to guess merge semantics when options is already present', () => {
+    // Production không bao giờ ghép `options` vào URL (deploy units chỉ ghép
+    // DATABASE_URL trần), nên có `options=` sẵn là hình lạ — fail closed thay
+    // vì đoán thứ tự merge của các directive `-c`.
+    expect(() =>
+      withStatementTimeout('postgresql://migrator@localhost/db?options=-c x', 1_000),
+    ).toThrow(/options parameter/u);
+  });
+
+  it('keeps a raw password with URL-reserved characters untouched', () => {
+    // Deploy units ghép DATABASE_URL trần (không percent-encode) — mật khẩu có
+    // thể chứa `% @ : / ? #`. `new URL` ném lỗi "Invalid URL" trên những ký tự
+    // đó; node-postgres thì nhận nguyên. Ghép chuỗi phải giữ mọi ký tự.
+    const raw = `postgresql://migrator:S3nt1n3l-Bo'x1%@:/?#@localhost:5432/db-x`;
+    const url = withStatementTimeout(raw, 300_000);
+    expect(url.startsWith(raw)).toBe(true);
+    expect(url.endsWith(`options=-c%20statement_timeout%3D${STATEMENT_TIMEOUT_MS}`)).toBe(true);
   });
 });
 

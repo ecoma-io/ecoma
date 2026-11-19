@@ -21,6 +21,7 @@ import * as pulumi from '@pulumi/pulumi';
 import {
   MIGRATOR_PASSWORD_ENV_VAR,
   RUNTIME_PASSWORD_ENV_VAR,
+  buildMigrateScript,
   buildProvisionScript,
 } from './scripts.js';
 import {
@@ -35,6 +36,13 @@ import {
 } from '@ecoma-io/deployment';
 
 const BACKOFFICE_INTERNAL_PORT = 3000;
+
+/**
+ * Image Node pin theo DIGEST dùng cho container migrate ephemeral — cùng pin
+ * với các deploy unit khác (một image Node duy nhất chạy tsx của repo).
+ */
+const NODE_IMAGE =
+  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
 
 /**
  * Cổng HTTP nội bộ của worker `ecoma-auth` trong WIC của auth-deploy — GIÁ TRỊ
@@ -160,11 +168,11 @@ const image = new dockerBuild.Image(dockerResourceName(ns, 'backoffice-image'), 
 });
 
 /**
- * Provision `db-backoffice` + hai role + migration, chạy trên host qua `docker exec`
- * vào container PostgreSQL của platform (không publish host port).
+ * Provision `db-backoffice` + hai role, chạy trên host qua `docker exec` vào
+ * container PostgreSQL của platform (không publish host port). Migration KHÔNG
+ * đi cùng provision nữa (cutover #375) — nó là container `migrate` riêng dưới.
  *
- * Idempotent: mỗi câu SQL guard bằng `IF NOT EXISTS`/`\gexec`. Chạy cả
- * `create` và `update` để redeploy cũng áp migration mới.
+ * Idempotent: role/database guard bằng shell `if`, password ALTER idempotent.
  *
  * Kênh credential: script do `scripts.ts` dựng (hàm thuần, test được tĩnh) —
  * mật khẩu hai role đi vào tiến trình shell qua map `environment` của command
@@ -175,7 +183,7 @@ const image = new dockerBuild.Image(dockerResourceName(ns, 'backoffice-image'), 
  * environment ở tầng host.
  */
 const postgresContainerName = dockerResourceName(ns, 'postgres');
-const provisionScript = buildProvisionScript({ postgresContainerName, worktreeRoot });
+const provisionScript = buildProvisionScript({ postgresContainerName });
 // Map môi trường của provision — MỌI giá trị secret được bọc `pulumi.secret`:
 // state/diff chỉ thấy `[secret]`, và key khớp đúng TÊN biến mà script đọc.
 const provisionEnvironment = {
@@ -191,10 +199,51 @@ const provision = new command.local.Command(
     // Trigger vẫn đổi khi password đổi, nhưng giá trị được `pulumi.secret` bọc —
     // state/diff chỉ thấy `[secret]`, không bao giờ thấy mật khẩu plaintext
     // (trigger được lưu trong state Pulumi).
-    triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword), worktreeRoot],
+    triggers: [pulumi.secret(runtimePassword), pulumi.secret(migratorPassword)],
     environment: provisionEnvironment,
   },
   { dependsOn: [image] },
+);
+
+/**
+ * Migration qua **đường canonical** (cutover #375): container ephemeral trên
+ * platform network chạy runner thật của `deploys/backoffice-db` (wrapper
+ * §3a.3 — guard `current_database()` fail-closed, advisory lock giữ nguyên khóa
+ * `hashtext('db-backoffice')` của pipe cũ, `drizzle-kit migrate` atomic
+ * per-run). Chuỗi `adopt && migrate`: trên stack legacy (đã có bảng schema
+ * `backoffice`, chưa có history Drizzle) adopt stamp toàn bộ journal để
+ * migrate KHÔNG replay; stack trắng migrate apply lần đầu; stack đã-cutover
+ * adopt là no-op.
+ *
+ * Kênh `DATABASE_URL`: script text là ĐẦU RA của hàm thuần `buildMigrateScript`
+ * (`scripts.ts`) và chỉ mang `-e DATABASE_URL` — CHỈ TÊN biến, không
+ * `=giá trị` — nên URL (chứa password) không nằm trong argv của `sh -c`, của
+ * `docker run`, của tsx bên trong container, hay trong script text nào. Giá trị
+ * đi vào environ của tiến trình shell qua map `environment` của provider, rồi
+ * docker CLI đọc từ environ của chính nó và chuyển vào container env. Trigger
+ * gồm password migrator + worktreeRoot (cùng bọc secret): đổi mật khẩu là chạy
+ * lại migration với credential mới.
+ */
+const migratorDatabaseUrl = pulumi.interpolate`postgresql://ecoma_backoffice_migrator:${pulumi.secret(migratorPassword)}@ecoma-postgres:5432/db-backoffice`;
+
+const migrateScript = networkName.apply((net) =>
+  buildMigrateScript({
+    networkName: net,
+    worktreeRoot,
+    nodeImage: NODE_IMAGE,
+  }),
+);
+
+const migrate = new command.local.Command(
+  dockerResourceName(ns, 'backoffice') + '-migrate',
+  {
+    create: migrateScript,
+    update: migrateScript,
+    triggers: [pulumi.secret(migratorPassword), worktreeRoot],
+    // Giá trị bọc secret: provider đặt vào environ của tiến trình script.
+    environment: { DATABASE_URL: migratorDatabaseUrl },
+  },
+  { dependsOn: [provision] },
 );
 
 const backoffice = new docker.Container(
@@ -317,7 +366,9 @@ const backoffice = new docker.Container(
       startPeriod: '30s',
     },
   },
-  { dependsOn: [provision] },
+  // Container chỉ lên sau khi schema sẵn sàng: migrate (và gián tiếp provision
+  // qua nó) — thứ tự provision → migrate → container của các deploy unit khác.
+  { dependsOn: [migrate] },
 );
 
 export const imageDigest = image.digest;

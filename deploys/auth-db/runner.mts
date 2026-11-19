@@ -102,11 +102,18 @@ export function parseArgs(argv: readonly string[]): RunnerArgs {
  * đã có `options`, nối thêm thay vì ghi đè.
  */
 export function withStatementTimeout(databaseUrl: string, timeoutMs: number): string {
-  const url = new URL(databaseUrl);
-  const directive = `-c statement_timeout=${timeoutMs}`;
-  const existing = url.searchParams.get('options');
-  url.searchParams.set('options', existing === null ? directive : `${existing} ${directive}`);
-  return url.toString();
+  // Không parse bằng `new URL`: production ghép URL TRẦN (không percent-encode)
+  // qua `pulumi.interpolate` — mật khẩu có thể chứa `% @ : / ? #` mà API URL
+  // chuẩn ném lỗi "Invalid URL", trong khi node-postgres (parser riêng, tự
+  // encode lúc connect) nhận nguyên. Ghép chuỗi giữ mọi ký tự khác nguyên;
+  // directive được encode để không đụng ký tự dành riêng của query.
+  if (/([?&])options=/u.test(databaseUrl)) {
+    throw new Error(
+      'DATABASE_URL already carries an options parameter — statement_timeout injection refuses to guess merge semantics',
+    );
+  }
+  const separator = databaseUrl.includes('?') ? '&' : '?';
+  return `${databaseUrl}${separator}options=${encodeURIComponent(`-c statement_timeout=${timeoutMs}`)}`;
 }
 
 export interface JournalEntry {

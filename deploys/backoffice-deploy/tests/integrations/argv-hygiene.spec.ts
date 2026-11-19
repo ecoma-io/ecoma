@@ -2,10 +2,11 @@
  * Suite argv-hygiene của `backoffice-deploy` (target `test-integration`) —
  * bằng chứng tự động cho bất biến bảo mật của unit: **không giá trị secret nào
  * vào argv của process host, vào script text, vào output bắt được** trong lúc
- * provision chạy THẬT (provision của unit này bao gồm cả pipe migration qua
- * psql — đi qua shim và sweep y hệt); đồng thời provision đúng (guard-create
- * database + 2 role, grant, hardening, migration thật trong `db-backoffice`) và
- * rotation + idempotency giữ nguyên hành vi.
+ * provision chạy THẬT (đi qua shim và sweep y hệt); đồng thời provision đúng
+ * (guard-create database + 2 role, grant, hardening), migrate đúng đường canonical
+ * mới (cutover #375 — runner thật của `deploys/backoffice-db`, chuỗi `adopt &&
+ * migrate`, trong container ephemeral trên network của suite) và rotation +
+ * idempotency giữ nguyên hành vi.
  *
  * Thiết kế (06-testing.md §2/§4 — app-owned suite, Docker là phụ thuộc cứng,
  * vắng Docker là suite ĐỎ theo §6):
@@ -26,11 +27,11 @@
  *    mật khẩu mới phải thành công và bằng mật khẩu cũ phải bị từ chối — chứng
  *    minh ALTER áp giá trị mới (rotation đúng) chứ không chỉ idempotent.
  * 4. **Assert hai chiều** — không sentinel ở bất kỳ kênh nào (argv log, sweep,
- *    stdout/stderr, script text) VÀ trạng thái database sau provision vẫn đúng:
- *    role/db/owner (`ecoma_local` — unit này không có owner role riêng)/grant
- *    (migrator CONNECT+CREATE+TEMPORARY), schema `backoffice` + bảng do
- *    migration thật tạo ra, login bằng mật khẩu sentinel qua host auth scram
- *    (`-e PGPASSWORD` chỉ TÊN biến — giá trị không bao giờ trong argv),
+ *    stdout/stderr, script text) VÀ trạng thái database sau provision + migrate
+ *    vẫn đúng: role/db/owner (`ecoma_local` — unit này không có owner role
+ *    riêng)/grant (migrator CONNECT+CREATE+TEMPORARY), schema `backoffice` +
+ *    bảng do migrate thật tạo ra, login bằng mật khẩu sentinel qua host auth
+ *    scram (`-e PGPASSWORD` chỉ TÊN biến — giá trị không bao giờ trong argv),
  *    ON_ERROR_STOP dừng SQL hỏng mà không in câu SQL chứa secret.
  *
  * Mọi thông điệp lỗi nêu KÊNH rò rỉ, không bao giờ in giá trị sentinel.
@@ -43,6 +44,7 @@ import { createArgvHarness, type ArgvHarness, type RunResult } from './argv-harn
 import {
   MIGRATOR_PASSWORD_ENV_VAR,
   RUNTIME_PASSWORD_ENV_VAR,
+  buildMigrateScript,
   buildProvisionScript,
 } from '../../scripts.ts';
 
@@ -56,14 +58,15 @@ const POSTGRES_IMAGE =
   'timescale/timescaledb@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2';
 
 /**
- * Hai sentinel — dữ liệu giả, mỗi role MỘT giá trị, phủ các edge case escape
- * của đường STDIN: nháy đơn (SQL quoting), `% @ : / ? #` (dành riêng của URL —
- * không được biến đổi trên đường nào), backslash (literal dưới
- * standard_conforming_strings), `$` và backtick (mở rộng shell nếu giá trị bị
- * tái phân tích), `;`, khoảng trắng, unicode.
+ * Hai sentinel — dữ liệu giả, mỗi role MỘT giá trị. Sentinel migrator TRÁNH
+ * `% @ : / ? #` (kể từ cutover #375 unit này ghép DATABASE_URL trần cho
+ * container migrate — production dùng `generatePostgresPassword()` base64url
+ * vốn URL-safe, nên suite dựng URL y hệt hình đó; nháy đơn vẫn được giữ cho
+ * edge SQL-quoting của đường STDIN provision). Sentinel runtime phủ nhóm shell
+ * (` backslash $ ; khoảng trắng, unicode) cho đường STDIN.
  */
 const SENTINELS = {
-  [MIGRATOR_PASSWORD_ENV_VAR]: `S3nt1n3l-Bo-Mig'x1%@:/?#`,
+  [MIGRATOR_PASSWORD_ENV_VAR]: `S3nt1n3l-Bo-Mig'x1;â`,
   [RUNTIME_PASSWORD_ENV_VAR]: `S3nt1n3l-Bo-Run\`x2\\ bâ$;`,
 } as const;
 
@@ -83,13 +86,20 @@ const ALL_ROTATED: ReadonlyArray<{ channel: string; value: string }> = ALL_CHANN
 );
 
 /**
- * Gốc repo thật — pipe migration `cat` file SQL từ
- * `<worktreeRoot>/apps/backoffice/db/migrations/*.sql`, y hệt production. Bốn
+ * Gốc repo thật — mount `/repo` của script migrate, y hệt production. Container
+ * migrate chạy runner thật của `deploys/backoffice-db` từ gốc repo này. Bốn
  * lần `dirname` từ `tests/integrations/`: integrations → tests →
- * backoffice-deploy → deploys → gốc repo. Sai một cấp là glob không khớp file
- * nào và pipe chết (cat lỗi — fail-loud đúng như baseline).
+ * backoffice-deploy → deploys → gốc repo. Sai một cấp là project directory
+ * không tồn tại trong mount và migrate chết ngay (fail-loud đúng như baseline).
  */
 const WORKTREE_ROOT = resolve(dirname(dirname(dirname(dirname(import.meta.dirname)))));
+
+/** Alias DNS của PostgreSQL platform trong network nội bộ của suite. */
+const POSTGRES_HOST = 'ecoma-postgres';
+
+/** Image Node pin của migrate — cùng DIGEST với hằng `NODE_IMAGE` của `index.ts`. */
+const NODE_IMAGE =
+  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
 
 /** Một lần chạy script đã ghi nhận; stdout/stderr giữ lại để assert không rò. */
 interface RecordedRun {
@@ -108,6 +118,8 @@ interface FlowArtifacts {
   readonly provisionRun1: RecordedRun;
   readonly provisionRun2: RecordedRun;
   readonly provisionRun3Rotated: RecordedRun;
+  readonly migrateScriptText: string;
+  readonly migrateRun: RecordedRun;
   readonly onStopFailure: RecordedRun;
   readonly catalog: Record<string, RunResult>;
   readonly logins: LoginCheck[];
@@ -148,14 +160,14 @@ beforeAll(async () => {
     });
     await created.startPostgres(POSTGRES_IMAGE);
 
-    // --- 1. Provision: script text từ chính hàm build mà index.ts dùng. Mỗi
-    //     lần chạy BAO GỒM cả pipe migration (provision-migrate một script).
+    // --- 1. Provision: script text từ chính hàm build mà index.ts dùng.
+    //     Migration KHÔNG đi cùng provision nữa (cutover #375) — provision chỉ
+    //     database + role + grant.
     const provisionScriptText = buildProvisionScript({
       postgresContainerName: created.containerName,
-      worktreeRoot: WORKTREE_ROOT,
     });
     const provisionRun1: RecordedRun = {
-      name: 'provision #1 (create + migrate)',
+      name: 'provision #1 (create)',
       result: await created.runScript(provisionScriptText, { ...SENTINELS }),
     };
     if (provisionRun1.result.code !== 0) {
@@ -165,7 +177,7 @@ beforeAll(async () => {
       );
     }
     const provisionRun2: RecordedRun = {
-      name: 'provision #2 (idempotency + migrate re-run)',
+      name: 'provision #2 (idempotency)',
       result: await created.runScript(provisionScriptText, { ...SENTINELS }),
     };
     if (provisionRun2.result.code !== 0) {
@@ -181,6 +193,25 @@ beforeAll(async () => {
     if (provisionRun3Rotated.result.code !== 0) {
       throw new Error(
         `provision #3 (rotation) exited non-zero — stdout:\n${provisionRun3Rotated.result.stdout}\nstderr:\n${provisionRun3Rotated.result.stderr}`,
+      );
+    }
+
+    // --- 1b. Migrate — script text từ chính hàm build mà index.ts dùng, chạy
+    //     SAU provision #3 (DATABASE_URL ghép y hệt production với mật khẩu
+    //     migrator SAU rotation). Stack trắng: adopt no-op + migrate apply.
+    const migrateScriptText = buildMigrateScript({
+      networkName: created.networkName,
+      worktreeRoot: WORKTREE_ROOT,
+      nodeImage: NODE_IMAGE,
+    });
+    const databaseUrl = `postgresql://ecoma_backoffice_migrator:${ROTATED_SENTINELS[MIGRATOR_PASSWORD_ENV_VAR]}@${POSTGRES_HOST}:5432/db-backoffice`;
+    const migrateRun: RecordedRun = {
+      name: 'migrate db-backoffice',
+      result: await created.runScript(migrateScriptText, { DATABASE_URL: databaseUrl }),
+    };
+    if (migrateRun.result.code !== 0) {
+      throw new Error(
+        `migrate exited non-zero — stdout:\n${migrateRun.result.stdout}\nstderr:\n${migrateRun.result.stderr}`,
       );
     }
 
@@ -305,6 +336,8 @@ printf '%s\\n' "ALTER ROLE argv_hygiene_missing_role WITH PASSWORD '$quoted';" |
       provisionRun1,
       provisionRun2,
       provisionRun3Rotated,
+      migrateScriptText,
+      migrateRun,
       onStopFailure,
       catalog,
       logins,
@@ -332,10 +365,10 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
   it('docker argv log recorded the real flows and carries none of the sentinels', () => {
     const flowState = requireFlow();
     // Recording phải chạy thật: shim đã ghi lại lời gọi `docker exec` của
-    // provision (kể cả pipe migration qua `docker exec -i` — TÊN role migrator
-    // là MỘT argv element standalone của psql `-U`; log ghi NUL-separated nên
-    // tìm bằng `\0element\0`; còn SQL advisory-lock đi qua STDIN, không argv)
-    // — log rỗng là harness hỏng, không phải pass.
+    // provision (TÊN role migrator là MỘT argv element standalone của psql
+    // `-U` trong các login check; log ghi NUL-separated nên tìm bằng
+    // `\0element\0`) lẫn `docker run` của migrate — log rỗng là harness hỏng,
+    // không phải pass.
     expect(flowState.argvLog.includes(Buffer.from('ON_ERROR_STOP', 'utf8'))).toBe(true);
     expect(
       flowState.argvLog.includes(
@@ -345,7 +378,7 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
           Buffer.from([0]),
         ]),
       ),
-      'migration pipe never reached docker — the flow is broken',
+      'psql with the migrator role never reached docker — the flow is broken',
     ).toBe(true);
     for (const { channel, value } of [...ALL_SENTINELS, ...ALL_ROTATED]) {
       expect(
@@ -372,6 +405,7 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
       flowState.provisionRun1,
       flowState.provisionRun2,
       flowState.provisionRun3Rotated,
+      flowState.migrateRun,
       flowState.onStopFailure,
       ...flowState.logins.map((login) => ({
         name: `login ${login.role}`,
@@ -396,18 +430,19 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
     }
   });
 
-  it('rendered script text carries none of the sentinels', () => {
+  it('rendered script texts carry none of the sentinels', () => {
     const flowState = requireFlow();
-    for (const { channel, value } of [...ALL_SENTINELS, ...ALL_ROTATED]) {
-      expect(
-        flowState.provisionScriptText.includes(value),
-        `sentinel ${channel} found in rendered script text`,
-      ).toBe(false);
+    for (const text of [flowState.provisionScriptText, flowState.migrateScriptText]) {
+      for (const { channel, value } of [...ALL_SENTINELS, ...ALL_ROTATED]) {
+        expect(text.includes(value), `sentinel ${channel} found in rendered script text`).toBe(
+          false,
+        );
+      }
+      // Script không ghép giá trị mật khẩu vào bất kỳ đường argv nào: không
+      // PGPASSWORD=, không URI có password.
+      expect(text).not.toMatch(/PGPASSWORD=/u);
+      expect(text).not.toMatch(/postgresql:\/\/[^:]+:[^@]*@/u);
     }
-    // Script không ghép giá trị mật khẩu vào bất kỳ đường argv nào: không
-    // PGPASSWORD=, không URI có password.
-    expect(flowState.provisionScriptText).not.toMatch(/PGPASSWORD=/u);
-    expect(flowState.provisionScriptText).not.toMatch(/postgresql:\/\/[^:]+:[^@]*@/u);
   });
 
   it('ON_ERROR_STOP aborts bad SQL without echoing the secret-bearing statement', () => {
@@ -422,7 +457,7 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
 });
 
 describe('provision state: create, rotation and idempotency', () => {
-  it('provision create, idempotent re-run and rotation all exit zero (migration pipe included)', () => {
+  it('provision create, idempotent re-run and rotation all exit zero', () => {
     const flowState = requireFlow();
     expect(flowState.provisionRun1.result.code).toBe(0);
     expect(flowState.provisionRun2.result.code).toBe(0);
@@ -459,22 +494,22 @@ describe('provision state: create, rotation and idempotency', () => {
   });
 });
 
-describe('migration state: applied by the inline pipe inside provision', () => {
+describe('migration state: applied by the canonical migrate container (cutover #375)', () => {
+  it('migrate ran the real runner: adopt no-op on a fresh stack, then applied for real', () => {
+    const flowState = requireFlow();
+    expect(flowState.migrateRun.result.code).toBe(0);
+    // stdout của runner mới: adopt trên stack trắng in 'adopt no-op: fresh
+    // database'; migrate kết thúc bằng 'migrate complete: history covers every
+    // journal entry'.
+    expect(flowState.migrateRun.result.stdout).toContain('adopt no-op: fresh database');
+    expect(flowState.migrateRun.result.stdout).toContain('migrate complete');
+  });
+
   it('migration created the backoffice schema and tables in db-backoffice', () => {
     const flowState = requireFlow();
     expect(flowState.catalog.backofficeSchema?.stdout.trim()).toBe('1');
     const tables = Number(flowState.catalog.backofficeTables?.stdout.trim() ?? '0');
     expect(Number.isNaN(tables)).toBe(false);
     expect(tables).toBeGreaterThan(0);
-  });
-
-  it('migration re-run inside provision #2 stayed idempotent (same table count)', () => {
-    const flowState = requireFlow();
-    // provision #2 đã chạy lại toàn bộ pipe migration — nó phải exit 0 (assert
-    // ở trên) và không nhân đôi gì: bảng đếm được sau lần chạy cuối vẫn là tập
-    // idempotent của baseline (IF NOT EXISTS/ON CONFLICT), số lượng ổn định
-    // giữa hai lần chạy liên tiếp.
-    expect(flowState.provisionRun2.result.code).toBe(0);
-    expect(flowState.provisionRun3Rotated.result.code).toBe(0);
   });
 });
