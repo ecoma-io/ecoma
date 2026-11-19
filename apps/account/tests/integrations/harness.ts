@@ -245,8 +245,22 @@ export async function applyMigrations(database: { host: string; port: number }):
     stderr += chunk.toString();
   });
   const code = await new Promise<number>((exitCode, onError) => {
-    child.once('error', onError);
-    child.once('exit', (value) => exitCode(value ?? 1));
+    // Trần chờ tường minh: runner tự có statement_timeout ở từng câu, nhưng
+    // nếu tiến trình kẹt (advisory lock không nhả, kit treo) thì kill + fail
+    // loud thay vì treo suite vô hạn.
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      onError(new Error('runner.mts migrate did not exit within 300s - killed'));
+    }, 300_000);
+    timer.unref();
+    child.once('error', (value) => {
+      clearTimeout(timer);
+      onError(value);
+    });
+    child.once('exit', (value) => {
+      clearTimeout(timer);
+      exitCode(value ?? 1);
+    });
   });
   if (code !== 0) {
     throw new Error(

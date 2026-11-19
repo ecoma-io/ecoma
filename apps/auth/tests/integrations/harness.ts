@@ -229,8 +229,22 @@ async function applyMigrations(database: { host: string; port: number }): Promis
     stderr += chunk.toString();
   });
   const code = await new Promise<number>((exitCode, onError) => {
-    child.once('error', onError);
-    child.once('exit', (value) => exitCode(value ?? 1));
+    // Tran cho tuong minh: runner tu co statement_timeout o tung cau, nhung
+    // neu tien trinh ket (advisory lock khong nha, kit treo) thi kill + fail
+    // loud thay vi treo suite vo han.
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      onError(new Error('runner.mts migrate did not exit within 300s - killed'));
+    }, 300_000);
+    timer.unref();
+    child.once('error', (value) => {
+      clearTimeout(timer);
+      onError(value);
+    });
+    child.once('exit', (value) => {
+      clearTimeout(timer);
+      exitCode(value ?? 1);
+    });
   });
   if (code !== 0) {
     throw new Error(

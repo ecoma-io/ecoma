@@ -56,7 +56,7 @@ describe('MIGRATION_LOCK_KEY', () => {
   it('pins the hashtext value the legacy runner computed server-side', () => {
     // Runner cũ `apps/account/db/apply.mts` khóa bằng
     // `pg_advisory_lock(hashtext('db-account'))` — PostgreSQL 17 trả
-    // -1206903334. Đổi khóa khi cutover là phá mutual exclusion với stack cũ.
+    // 153835401. Đổi khóa khi cutover là phá mutual exclusion với stack cũ.
     expect(MIGRATION_LOCK_KEY).toBe(153_835_401n);
   });
 });
