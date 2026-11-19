@@ -22,13 +22,7 @@
   },
   "plugins": [],
   "release": {
-    "//": [
-      "Membership rule (#360, doc archi 02-delivery.md §7.2): `release.projects` PHẢI bằng tập",
-      "staging-`releaseable` của tools/delivery/config/deploy-eligibility.jsonc — hai nơi khai",
-      "cùng một danh sách là hai nơi trôi lệch; thêm/bỏ unit phải sửa CẢ HAI. Unit vào đây khi",
-      "và chỉ khi `env.staging` của nó tồn tại thật trong wrangler.jsonc và không bị readiness",
-      "gate chặn (devOrigin placeholder)."
-    ],
+    "//": "Membership rule (#360, doc archi 02-delivery.md §7.2): `release.projects` PHẢI bằng tập staging-`releaseable` của tools/delivery/config/deploy-eligibility.jsonc — hai nơi khai cùng một danh sách là hai nơi trôi lệch; thêm/bỏ unit phải sửa CẢ HAI. Unit vào đây khi và chỉ khi `env.staging` của nó tồn tại thật trong wrangler.jsonc và không bị readiness gate chặn (devOrigin placeholder).",
     "projects": ["@ecoma-io/home", "@ecoma-io/auth-nonce-prune-job"],
     "projectsRelationship": "independent",
     "version": {
