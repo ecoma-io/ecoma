@@ -288,9 +288,13 @@ jobs:
         id: verify
         if: steps.ocr.outcome == 'success'
         shell: bash
+        env:
+          # Truyền qua env thay vì nội suy tường minh trong lệnh: đường dẫn file
+          # numstat là dữ liệu của workflow, không phải nguồn tin cậy.
+          NUMSTAT_PATH: ${{ steps.numstat.outputs.numstat_path }}
         run: |
           node "$GITHUB_WORKSPACE/ocr-gate/tools/dx/scripts/ocr-result-gate.mjs" \
             --result /tmp/ocr-result.json \
             --stderr /tmp/ocr-stderr.log \
             --rule "$GITHUB_WORKSPACE/ocr-gate/.github/ocr-rules.json" \
-            --numstat "${{ steps.numstat.outputs.numstat_path }}"
+            --numstat "$NUMSTAT_PATH"
