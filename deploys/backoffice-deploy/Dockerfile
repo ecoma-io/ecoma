@@ -1,58 +1,50 @@
 # Image Docker cho `apps/backoffice` ở LAN LOCAL deployment.
 #
-# Preset Nitro của app là `cloudflare-module` (staging/production trên
-# Cloudflare Workers). Local deployment chạy preset `node-server`: override qua
-# build-time flag `--preset=node-server` của Nuxt CLI, không sửa nitro.config.ts.
+# (#386) Image KHÔNG còn build Nuxt trong image — build stage cũ (corepack,
+# `pnpm install --frozen-lockfile`, cache mount pnpm store, `nuxt build
+# --preset=node-server`) đã bị xoá toàn bộ. Nguồn sự thật của image là
+# artifact `build:development` mà Nx build trước trong worktree:
 #
-# Build context là REPO ROOT. Hai stage: build + runtime slim.
+#   pnpm nx run @ecoma-io/backoffice:build:development
+#
+# — preset `node-server` (khối `$env['node-docker']` trong `nuxt.config.ts`),
+# artifact `.output-node/` standalone: `server/index.mjs` + traced runtime
+# deps nằm NGAY TRONG artifact (`server/node_modules/`, được mở lại tường
+# minh trong `.dockerignore` vì blacklist `**/node_modules` gốc cắt nó).
+# Target `local-build` của deploy project chạy lệnh trên trước khi image
+# build; nó là `dependsOn` của `local-up` nên Nx ghim thứ tự.
+#
+# Build context vẫn là REPO ROOT: Dockerfile nằm ở `deploys/backoffice-deploy`
+# nhưng mọi path COPY là path tương đối với context root. Thiếu artifact
+# phải ĐỎ ngay ở docker build (`RUN test -f`), không phải lúc container chạy.
+#
+# Preset Nitro `cloudflare-module` của app (`apps/backoffice/nitro.config.ts`) là
+# đường staging/production trên Cloudflare Workers — image này KHÔNG đụng
+# tới và artifact `.output` của nó không vào image.
 
+# Ghim theo DIGEST, không theo tag — cùng lý do với Traefik/PostgreSQL trong
+# `deploys/platform-deploy/index.ts`: tag trôi biến thay đổi toolchain thành
+# thay đổi hạ tầng ngoài ý muốn, image không tái lập được.
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
-FROM ${NODE_IMAGE} AS build
-
-RUN corepack enable
-
-WORKDIR /repo
-
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY tools/dx/package.json ./tools/dx/
-COPY apps/backoffice/package.json ./apps/backoffice/
-COPY apps/backoffice/.npmrc ./apps/backoffice/.npmrc
-COPY libs/account-contracts/package.json ./libs/account-contracts/
-COPY libs/internal-auth-contracts/package.json ./libs/internal-auth-contracts/
-COPY libs/backoffice-domain/package.json ./libs/backoffice-domain/
-COPY libs/backoffice-application/package.json ./libs/backoffice-application/
-COPY libs/backoffice-infrastructure/package.json ./libs/backoffice-infrastructure/
-COPY libs/ui-app-shell/package.json ./libs/ui-app-shell/
-COPY libs/ui-ecoma-logo/package.json ./libs/ui-ecoma-logo/
-COPY libs/staff-access-contracts/package.json ./libs/staff-access-contracts/
-
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile
-
-COPY apps/backoffice/ ./apps/backoffice/
-COPY libs/account-contracts/ ./libs/account-contracts/
-COPY libs/internal-auth-contracts/ ./libs/internal-auth-contracts/
-COPY libs/backoffice-domain/ ./libs/backoffice-domain/
-COPY libs/backoffice-application/ ./libs/backoffice-application/
-COPY libs/backoffice-infrastructure/ ./libs/backoffice-infrastructure/
-COPY libs/ui-app-shell/ ./libs/ui-app-shell/
-COPY libs/ui-ecoma-logo/ ./libs/ui-ecoma-logo/
-COPY libs/staff-access-contracts/ ./libs/staff-access-contracts/
-COPY tsconfig.base.json ./
-
-ENV NODE_ENV=production
-RUN cd apps/backoffice && pnpm exec nuxt build --preset=node-server
-
-FROM ${NODE_IMAGE} AS runtime
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
 
-COPY --from=build --chown=node:node /repo/apps/backoffice/.output/ ./
+# Artifact đã build trước: entrypoint + static assets + traced deps.
+COPY apps/backoffice/.output-node/ ./
+
+# Fail-loud khi artifact thiếu/chưa build: đỏ tại docker build, không chờ boot.
+RUN test -f ./server/index.mjs
 
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Không `EXPOSE` cổng host nào: container chỉ nghe trong Docker network của
+# platform, Traefik route tới nó qua alias. `EXPOSE` chỉ là tài liệu metadata.
 EXPOSE 3000
 
+# `node:24` đã có user `node` (uid 1000) sẵn; chạy non-root để container không
+# cần quyền ghi gì ngoài filesystem của chính nó.
 USER node
 
 CMD ["node", "/app/server/index.mjs"]
