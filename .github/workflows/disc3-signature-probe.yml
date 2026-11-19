@@ -77,17 +77,19 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          payload_pr="$(jq -n --arg head "$BRANCH" \
-            '{title: "[EXP] DISC3 signature probe - scratch, never merge", head: $head, base: "main", body: "Temporary measurement PR for issue #347; closed immediately after reading rule evaluation. Never merged."}')"
-          pr="$(gh api --method POST "repos/$REPO/pulls" --input - <<<"$payload_pr" --jq '.number')"
+          # Draft PR: OCR bỏ qua draft, và draft không thể merge — an toàn hai lớp.
+          pr_url="$(gh pr create --draft --head "$BRANCH" --base main \
+            --title '[EXP] DISC3 signature probe - scratch, never merge' \
+            --body 'Temporary measurement PR for issue 347; closed immediately after reading rule evaluation. Never merged.')"
+          pr="$(basename "$pr_url")"
           printf 'probe_pr=%s\n' "$pr" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
           # mergeability cần thời gian tính; poll có chặn thời gian
           for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
             sleep 10
-            observed="$(gh api "repos/$REPO/pulls/$pr" --jq '{mergeable, mergeable_state}')"
+            observed="$(gh pr view "$pr" --json mergeStateStatus,mergeable --jq '{mergeStateStatus, mergeable}')"
             printf '%s\n' "$observed" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
-            state="$(jq -r '.mergeable_state' <<<"$observed")"
-            [ "$state" != "unknown" ] && break
+            state="$(jq -r '.mergeStateStatus' <<<"$observed")"
+            [ "$state" != "UNKNOWN" ] && break
           done || true
           gh api --method PATCH "repos/$REPO/pulls/$pr" -F state='closed' --jq '.state'
           printf 'pr_closed=true\n' | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
