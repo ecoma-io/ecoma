@@ -159,7 +159,7 @@ export function applyMigrations(databaseUrl: string): void {
   );
   if (result.error !== undefined || result.status !== 0) {
     const detail =
-      `migration runner failed (exit ${String(result.status ?? 'spawn-error')}` +
+      `migration runner failed (exit ${String(result.status ?? result.signal ?? 'spawn-error')}` +
       `${result.error ? `: ${result.error.message}` : ''}):\n` +
       `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
     throw new Error(
