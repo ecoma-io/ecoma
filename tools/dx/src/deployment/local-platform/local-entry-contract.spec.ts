@@ -29,6 +29,15 @@ const JOB_ONLY_PROJECTS = [
   'web-push-notification-job-deploy',
 ] as const;
 
+/**
+ * Migration lifecycle projects (`deploys/*-db`, quyết định #373/#374): không
+ * build image, không local lane — coordinator invoke `db-generate`/`db-check`/
+ * `db-migrate` qua nx target theo hợp đồng migration §3a. Cùng exemption
+ * marker `ecoma.deployment.status: "scaffold"` với job-only ở
+ * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
+ */
+const DATABASE_PROJECTS = ['pact-broker-app-db'] as const;
+
 function packageJson(project: string): Record<string, unknown> {
   return JSON.parse(
     readFileSync(join(ROOT_DIR, 'deploys', project, 'package.json'), 'utf8'),
@@ -55,7 +64,9 @@ describe('local lane colocated entry contract', () => {
       existsSync(join(deploysDir, name, 'package.json')),
     );
     const laneProjects = allProjects.filter(
-      (project) => !(JOB_ONLY_PROJECTS as readonly string[]).includes(project),
+      (project) =>
+        !(JOB_ONLY_PROJECTS as readonly string[]).includes(project) &&
+        !(DATABASE_PROJECTS as readonly string[]).includes(project),
     );
     expect(new Set(laneProjects)).toEqual(new Set(LANE_PROJECTS));
     for (const project of laneProjects) {

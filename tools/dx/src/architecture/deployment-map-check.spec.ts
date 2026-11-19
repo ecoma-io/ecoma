@@ -287,6 +287,18 @@ describe('validateDeploymentMap — owner validity', () => {
     expect(violations[0].detail).toContain(PLATFORM_DEPLOY_PROJECT);
   });
 
+  it('exempts a scaffold-marked lifecycle project from the reverse ownership rule', () => {
+    // Quyết định #373/#374: `deploys/*-db` là lifecycle project (coordinator
+    // invoke qua nx target) — không sở hữu app, không có entry trong map.
+    // Marker `scaffold` trên đĩa thật của project là bằng chứng exemption;
+    // `pact-broker-app-db` là case thật đầu tiên của repo.
+    const state = goodState();
+    state.projects.set('pact-broker-app-db', deployNode('pact-broker-app-db'));
+    (state.deploysOnDisk as string[]).push('pact-broker-app-db');
+    const violations = validateDeploymentMap(state);
+    expect(violations.filter((v) => v.project === 'pact-broker-app-db')).toEqual([]);
+  });
+
   it('exempts platform-deploy from the reverse ownership rule', () => {
     // platform là prerequisite chung, không sở hữu app nào — đã được assert
     // trong baseline; test này neo hành vi đúng chỗ nếu ai đổi rule.

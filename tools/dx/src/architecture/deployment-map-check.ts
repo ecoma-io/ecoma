@@ -252,11 +252,27 @@ export function validateDeploymentMap(input: {
   );
   for (const name of deployProjects) {
     if (name === PLATFORM_DEPLOY_PROJECT) continue;
-    if (!owners.has(name)) {
+    if (owners.has(name)) continue;
+    // Exemption lifecycle job/migration (quyết định #373/#374): deploy project
+    // không sở hữu app nào nhưng tự khai marker `ecoma.deployment.status:
+    // "scaffold"` là lifecycle project thuần (job deploy, `deploys/*-db`) —
+    // được coordinator invoke qua nx target theo hợp đồng migration §3a,
+    // không provision runtime app nên không có entry trong DEPLOYMENT_MAP.
+    // Cùng cơ chế marker với local-lifecycle-graph (scaffold ⇔ không có
+    // local.ts, fail-closed hai chiều); thiếu marker là vẫn vi phạm như cũ.
+    let scaffoldMarked = false;
+    try {
+      scaffoldMarked =
+        readDeploymentStatusMarker(join(ROOT_DIR, DEPLOYMENT_DIR, name, 'package.json')) ===
+        'scaffold';
+    } catch {
+      // package.json không đọc được — coi như không có marker, vẫn báo thiếu owner.
+    }
+    if (!scaffoldMarked) {
       violations.push({
         project: name,
         kind: 'invalid-map-owner',
-        detail: `${DEPLOYMENT_TYPE} project owns no app in DEPLOYMENT_MAP; every deploy project except ${PLATFORM_DEPLOY_PROJECT} must own at least one entry`,
+        detail: `${DEPLOYMENT_TYPE} project owns no app in DEPLOYMENT_MAP; every deploy project except ${PLATFORM_DEPLOY_PROJECT} and scaffold-marked lifecycle projects must own at least one entry`,
       });
     }
   }

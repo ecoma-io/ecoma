@@ -740,7 +740,10 @@
       // Block này đứng SAU override `apps/**` nên exemption có hiệu lực, và glob
       // hẹp theo `db/**` chứ không phải cả app — Worker code của app vẫn chịu
       // ràng buộc `runtime:edge`.
-      "files": ["apps/*/db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+      "files": [
+        "apps/*/db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
+        "deploys/*-db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"
+      ],
       "rules": {
         "no-console": "off",
         "no-restricted-imports": "off",
