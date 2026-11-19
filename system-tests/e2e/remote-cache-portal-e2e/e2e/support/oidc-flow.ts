@@ -215,7 +215,38 @@ export async function performBrowserLogin(
     await retryButton.click();
     await expect(continueTarget).toBeVisible({ timeout: 30_000 });
   } else if (continueOrRetry === 'none') {
-    await expect(continueTarget).toBeVisible({ timeout: 0 });
+    // Cả target lẫn retry vắng mặt 30s: hop điều hướng vào `/login/continue`
+    // chết tầng mạng (ERR_NETWORK_CHANGED family, run 44639848365) — page.url()
+    // còn giữ URL đích kèm `handle`. Điều hướng lại chính URL đó:
+    // `completeHandoff` fire lúc mount và push idempotent (`event_id` từ
+    // `session_ref`, auth trả `already_processed` nếu đã xử lý) — không tiêu
+    // OTP/challenge mới. Chỉ MỘT lượt: cạn lần hai là lỗi thật.
+    const stuckUrl = page.url();
+    if (new URL(stuckUrl).pathname === '/login/continue') {
+      await page.goto(stuckUrl, { waitUntil: 'load' });
+      const secondChance = await Promise.race([
+        continueTarget
+          .waitFor({ state: 'visible', timeout: 30_000 })
+          .then(() => 'continue' as const)
+          .catch(() => 'none' as const),
+        retryButton
+          .waitFor({ state: 'visible', timeout: 30_000 })
+          .then(() => 'retry' as const)
+          .catch(() => 'none' as const),
+      ]);
+      if (secondChance === 'retry') {
+        await retryButton.click();
+        await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+      } else if (secondChance === 'none') {
+        throw new Error(
+          `/login/continue rendered no card even after re-navigation (${await describeStuckState(page)})`,
+        );
+      }
+    } else {
+      throw new Error(
+        `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
+      );
+    }
   }
   await continueTarget.click();
 
