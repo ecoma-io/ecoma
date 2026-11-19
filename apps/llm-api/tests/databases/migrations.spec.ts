@@ -230,6 +230,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     }
   });
 
+  // Budget 30s: hai tsx cold-start + migrate + chờ lock serialization dưới tải parallel nhiều suite testcontainers.
   it('serializes two concurrent migrate runs on the advisory lock (both exit 0)', async () => {
     // Cùng advisory lock `hashtext('db-llm-gateway')` — hai tiến trình chồng
     // nhau phải hoàn thành mà không deadlock; checkpoint của kit làm lần chạy
@@ -243,7 +244,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     expect(second.stdout).toContain('migrate complete');
     expect(await countUserTables('gateway')).toBe(GATEWAY_TABLES.length);
     expect(await historyRows('gateway')).toBe(JOURNAL_ENTRIES.gateway);
-  });
+  }, 30_000);
 
   it('creates exactly the business tables of each domain slice (gateway 11 seller + 5 gateway-runtime + 9 financial, tenant 3, marketplace 5 offering)', async () => {
     // Gateway: đúng tập bảng `llm_seller` của Issue #23 + `llm_gateway` của
