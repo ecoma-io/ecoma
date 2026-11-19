@@ -249,20 +249,27 @@ jobs:
       # bước chỉ ĐỌC git object, không thực thi nội dung nào từ PR head. Mọi
       # trường hợp không tạo được file (repo/thiếu object) chỉ làm mất nhánh cấp
       # qua deletion-only — cổng vẫn fail-closed như trước, không có nhánh xanh
-      # mới nào phụ thuộc vào việc bước này thành công.
+      # mới nào phụ thuộc vào việc bước này thành công; vì vậy lỗi bất ngờ của
+      # bước cũng chỉ vậy (continue-on-error), không làm đỏ cả job. Đường dẫn
+      # file là mktemp riêng của từng job: file numstat còn sót từ job trước
+      # (runner tự host dùng chung /tmp) không bao giờ được cổng đọc lại.
       - name: Record the PR diff numstat for the gate
+        id: numstat
         if: steps.ocr.outcome == 'success'
+        continue-on-error: true
         shell: bash
         env:
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
           set -euo pipefail
+          numstat_path="$(mktemp /tmp/ocr-diff-numstat.XXXXXX.txt)"
+          echo "numstat_path=$numstat_path" >> "$GITHUB_OUTPUT"
           if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
             && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null \
             && git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
-            git diff --numstat --no-renames "$BASE_SHA" "$HEAD_SHA" > /tmp/ocr-diff-numstat.txt
-            wc -l < /tmp/ocr-diff-numstat.txt
+            git diff --numstat --no-renames "$BASE_SHA" "$HEAD_SHA" > "$numstat_path"
+            wc -l < "$numstat_path"
           else
             echo '::warning::PR diff objects are unavailable in this workspace; the deletion-only pass cannot be granted' >&2
           fi
@@ -286,4 +293,4 @@ jobs:
             --result /tmp/ocr-result.json \
             --stderr /tmp/ocr-stderr.log \
             --rule "$GITHUB_WORKSPACE/ocr-gate/.github/ocr-rules.json" \
-            --numstat /tmp/ocr-diff-numstat.txt
+            --numstat "${{ steps.numstat.outputs.numstat_path }}"
