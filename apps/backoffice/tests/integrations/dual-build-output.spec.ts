@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Hợp đồng hai configuration của target `build` (#385) — assert trên
- * **artifact thật** của `apps/account`.
+ * **artifact thật** của `apps/backoffice`.
  *
  * Target `build` có hai configuration:
  *
@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest';
  *
  * ⚠️ Suite tự chạy `nx run @ecoma-io/backoffice:build:development` qua tiến trình
  * con: Nx cache làm lần chạy ấm gần như free, còn lần lạnh thì build thật
- * (~1 phút). `testTimeout` 120s của config integration đủ cho lần lạnh.
+ * (~1 phút). `testTimeout` 120s khai trong `vitest.integration.config.mts` của app đủ cho lần lạnh (cả năm app cùng khai).
  */
 
 const APP_DIR = resolve(import.meta.dirname, '..', '..');
