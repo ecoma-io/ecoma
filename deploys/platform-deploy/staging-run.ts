@@ -215,7 +215,14 @@ export function readGitHeadSha(
   cwd: string,
   deps: StagingExecDeps = defaultDeps,
 ): string | undefined {
-  const result = deps.execFn('git', ['rev-parse', 'HEAD'], cwd, { ...process.env });
+  // Least privilege (§6/§7.4.1): `git rev-parse` không cần credential nào —
+  // truyền env tối thiểu thay vì passthrough toàn bộ process.env (passphrase/
+  // token chỉ được đi đúng đường env của process Pulumi, không rò sang
+  // subprocess metadata).
+  const result = deps.execFn('git', ['rev-parse', 'HEAD'], cwd, {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+  });
   if (result.status !== 0) return undefined;
   const sha = result.stdout.trim();
   return /^[0-9a-f]{40}$/u.test(sha) ? sha : undefined;

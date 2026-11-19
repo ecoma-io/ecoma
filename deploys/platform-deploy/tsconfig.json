@@ -7,8 +7,6 @@
   //
   // Pulumi runtime `nodejs` chạy thẳng `index.ts` qua ts-node/esm hooks
   // (automatic ESM mode: package khai `"type": "module"`, và ts-node hiện đại
-  // Pulumi runtime `nodejs` chạy thẳng `index.ts` qua ts-node/esm hooks
-  // (automatic ESM mode: package khai `"type": "module"`, và ts-node hiện đại
   // được resolve từ peer của `@pulumi/pulumi` — devDependency `ts-node` của repo
   // root; không có nó, Pulumi rơi về ts-node 7.0.1 vendored, không có ESM loader
   // và không remap specifier `.js` sang `.ts`) — không có bước build nào chạy
