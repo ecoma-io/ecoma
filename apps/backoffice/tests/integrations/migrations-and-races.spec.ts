@@ -31,10 +31,39 @@
  * thay vì lần này chạy xong trước lần kia kịp bắt đầu.
  */
 
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { BACKOFFICE_DATABASE } from '../../db/migrate.mts';
 import { type BackofficeDatabase, applyMigrations, startBackofficeDatabase } from './harness.ts';
+
+/** Bản migration hợp đồng của `deploys/backoffice-db` (cutover #375). */
+const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'backoffice-db',
+  'migrations',
+);
+
+/**
+ * Chạy lại SQL của `0003` trực tiếp — sau cutover #375, re-apply qua runner là
+ * kit no-op (history đã phủ journal), nên khôi phục catalog sau `truncateData`
+ * phải chạy đúng nội dung file seed: thuộc tính idempotent
+ * (`ON CONFLICT (id) DO NOTHING`) nằm ở FILE, không ở runner.
+ */
+async function reseedCatalog(db: BackofficeDatabase): Promise<void> {
+  const client = await db.connect();
+  try {
+    await client.query(
+      readFileSync(join(MIGRATIONS_DIR, '0003_permission_catalog_seed.sql'), 'utf8'),
+    );
+  } finally {
+    await client.end();
+  }
+}
 
 /**
  * Account ID hợp lệ theo định dạng `libs/backoffice-domain` (`sub_` + 32 ký tự
@@ -118,11 +147,12 @@ describe('double-apply no-op and assignment races on db-backoffice (#85)', () =>
   beforeEach(async () => {
     await db.truncateData();
     // ⚠️ `truncateData()` xoá cả `backoffice.permissions` — catalog seeded ở
-    // `0003`. Khôi phục bằng cách apply lại (idempotent) — cùng cách
-    // `self-elevation-guard.spec.ts` làm, giữ nguồn sự thật của catalog là seed
-    // migration thay vì fixture tự INSERT permission.
-    // Runner tự mở connection bằng credential migrator thật.
-    await applyMigrations(db);
+    // `0003`. Khôi phục bằng chạy lại SQL seed trực tiếp — sau cutover #375,
+    // re-apply qua runner là kit no-op (history đã phủ journal) nên không còn
+    // seed lại được; thuộc tính idempotent nằm ở FILE (cùng cách
+    // `self-elevation-guard.spec.ts` làm — `reseedCatalog`), giữ nguồn sự thật
+    // của catalog là seed migration thay vì fixture tự INSERT permission.
+    await reseedCatalog(db);
   });
 
   // ---------------------------------------------------------------------------
