@@ -6,7 +6,8 @@
  *
  * Bản sao pattern của `deploys/llm-api-deploy/tests/integrations/argv-hygiene.spec.ts`
  * (06-testing.md §6: không shared test-support giữa các deploy unit), mở rộng
- * đúng BỐN đường mà unit này có: provision (hai role), migrate (`db/apply.mts`),
+ * đúng BỐN đường mà unit này có: provision (hai role), migrate
+ * (`deploys/pact-broker-db/runner.mts` — cutover #378),
  * bootstrap tenant canonical (`db/bootstrap-tenant.mts`). Script provision
  * token máy của BFF đã bị retire (ADR-0031 §5, #206) — không còn step nào để
  * đo ở đây; hành vi script `db/provision-machine-token.mts` (còn là công cụ
@@ -515,15 +516,15 @@ describe('provision creates, applies idempotently and rotates for real', () => {
 });
 
 describe('migrate runs the canonical runner against the right database', () => {
-  it('applies all migrations through db/apply.mts with the rotated credential', () => {
+  it('applies all migrations through the canonical runner with the rotated credential', () => {
     const flowState = requireFlow();
     const { result } = flowState.migrateRun;
     expect(result.code).toBe(0);
-    // stdout của `db/apply.mts`: "applied <file>" + "done N file(s) applied; M
-    // tables in schema pact" — số bảng tính trên DATABASE ĐANG KẾT NỐI, nên
-    // dòng này là bằng chứng migrate nối đúng db-pact-broker.
-    expect(result.stdout).toContain('file(s) applied');
-    expect(result.stdout).toMatch(/tables in schema pact/u);
+    // stdout của `deploys/pact-broker-db/runner.mts` (cutover #378): dòng
+    // "migrate complete" chỉ in sau khi guard `current_database()` và
+    // post-verify history đã qua — bằng chứng migrate nối đúng db-pact-broker
+    // và ghi đủ history (bảng `pact` được kiểm chứng riêng ở test dưới).
+    expect(result.stdout).toContain('migrate complete: history covers every journal entry');
   });
 
   it('lands the pact tables inside db-pact-broker', () => {

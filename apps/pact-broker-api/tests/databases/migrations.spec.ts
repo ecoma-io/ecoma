@@ -8,7 +8,6 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { applyAllMigrations } from '../../db/apply.mts';
 import {
   type PactBrokerDatabase,
   PACT_BROKER_DATABASE,
@@ -59,55 +58,12 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
   });
 
   it('applies every migration file from an empty database', async () => {
+    // Schema do harness apply qua runner thật của authority
+    // (`deploys/pact-broker-db/runner.mts` — cutover #378); assertion này đo
+    // HÌNH ĐẠNNG schema sau apply. Semantics của runner (no-replay, checkpoint,
+    // stamp, lock) thuộc suite integration của chính authority.
     expect(await tableNames(db)).toEqual(EXPECTED_TABLES);
   });
-
-  it('is repeatable: re-applying every file changes nothing', async () => {
-    // Gọi applyAllMigrations THÊM HAI LẦN trên database đã apply. KHÔNG có
-    // ledger: runner áp dụng mọi file mỗi lần và idempotency là tính chất của
-    // từng câu DDL (CREATE IF NOT EXISTS, grant lặp được) — nên `applied` luôn
-    // đếm số file xử lý, không phải số file "mới". Điều phải giữ nguyên là
-    // trạng thái database, đo bằng danh sách bảng.
-    const migrator = await db.connectAsMigrator();
-    try {
-      const first = await applyAllMigrations(migrator);
-      expect(first.applied).toBe(6);
-      const second = await applyAllMigrations(migrator);
-      expect(second.applied).toBe(6);
-    } finally {
-      await migrator.end();
-    }
-
-    expect(await tableNames(db)).toEqual(EXPECTED_TABLES);
-  });
-
-  it(
-    'reports zero applied on a fresh database only through the real runner',
-    // Thân test start MỘT container PostgreSQL mới (testcontainers + provision +
-    // apply migrations) — cùng chi phí mà `beforeAll` chịu và `beforeAll` được
-    // cấp 180s. testTimeout mặc định 5s chỉ đủ cho thao tác DB thuần; trên CI
-    // 4 vCPU đang chạy song song các worker khác, start container vượt 5s và
-    // test đỏ vì hết giờ chứ không phải vì counter sai.
-    { timeout: 180_000 },
-    async () => {
-      // `applied` đếm file chạy trong lần gọi: lần đầu trên database trống phải
-      // là số file migration, chứng minh counter không phải luôn 0 — nếu counter
-      // hỏng thì CLI in "0 file(s) applied" trong khi schema có mặt.
-      const fresh = await startPactBrokerDatabase();
-      try {
-        const migrator = await fresh.connectAsMigrator();
-        try {
-          const result = await applyAllMigrations(migrator);
-          expect(result.applied).toBe(6);
-          expect(result.tablesInPactSchema).toBe(EXPECTED_TABLES.length);
-        } finally {
-          await migrator.end();
-        }
-      } finally {
-        await fresh.stop();
-      }
-    },
-  );
 
   it('leaves the runtime role able to do DML and nothing else', async () => {
     const runtime = await db.asRuntime();

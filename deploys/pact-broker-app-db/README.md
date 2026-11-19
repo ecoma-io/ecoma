@@ -33,10 +33,10 @@ pattern tái dụng được cho 11 database PostgreSQL còn lại qua các cuto
 - **Không bao giờ `drizzle-kit push`** trong pipeline (§3a.2); application vẫn
   truy PostgreSQL qua Hyperdrive + `pg` — layer này chạy như tiến trình Node
   (`runtime:native`), không bundle vào Worker nào.
-- **Không đụng lane cũ:** migration `0001_pact_broker_app_bff_sessions.sql`
-  vẫn thuộc `apps/pact-broker-app/db/` (runner cũ). Move-in + baseline stamp +
-  retire runner cũ là **cutover #378** — một database không bao giờ có hai
-  runner sống; foundation không đụng lane cũ (local lane M1 giữ nguyên behavior).
+- **Move-in #378:** migration `0001_pact_broker_app_bff_sessions.sql` đã vào
+  journal (`0000_pact_broker_app_bff_sessions.sql`) giữ nguyên nội dung từng
+  byte; runner cũ `apps/pact-broker-app/db/apply.mts` retired trong cùng PR
+  cutover #378 — một database không bao giờ có hai runner sống.
 - Semantics thật của kit migrate (divergence đã báo #373): toàn bộ pending set
   chạy trong **một transaction của lần chạy** — fail giữa chừng rollback toàn
   bộ, không per-file; retry chỉ apply phần chưa ghi history.
@@ -49,15 +49,16 @@ pattern tái dụng được cho 11 database PostgreSQL còn lại qua các cuto
 | `db-check`    | `drizzle-kit check`                                      | ✓     | journal hợp lệ, không stale; không chạm database                                   |
 | `db-migrate`  | `npx tsx --tsconfig tsconfig.db.json runner.mts migrate` | ✗     | cần `DATABASE_URL` role `_migrator`; mutate state thật                             |
 
-Chế độ **stamp** (chỉ chạy khi cutover #378, không phải target riêng):
+Chế độ **stamp** (cutover 2 bước §3a.3 mục D — dùng khi một environment đã có
+schema từ runner cũ nhưng chưa có ledger; không phải target riêng):
 
 ```
 npx tsx --tsconfig tsconfig.db.json runner.mts stamp
 ```
 
 statement_timeout mặc định 300s (§3a.5), inject vào cả connection lock lẫn
-`DATABASE_URL` của child kit. Journal hiện **rỗng** — chưa move-in migration
-nào (cutover #378 làm).
+`DATABASE_URL` của child kit. Journal mang 1 entry sau move-in #378
+(`0000_pact_broker_app_bff_sessions`).
 
 **Đăng ký arch-check:** `deployment-map-check` đòi mọi `type:deployment`
 project sở hữu một app entry trong `DEPLOYMENT_MAP`, nhưng lifecycle project

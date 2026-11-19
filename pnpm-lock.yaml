@@ -997,6 +997,21 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/pact-broker-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
   deploys/platform-deploy:
     dependencies:
       '@ecoma-io/deployment':

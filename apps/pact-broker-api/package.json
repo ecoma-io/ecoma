@@ -19,9 +19,11 @@
     "testcontainers": "^12.2.1"
   },
   "//": [
-    "`pg` giữ ở dependencies cho `db/apply.mts` + `db/migrate.mts` — migration",
-    "runner chạy ở CI runner (Node), không thuộc bundle Worker. Nguồn `pg`",
-    "runtime của app là `@ecoma-io/pact-broker-api-infrastructure`."
+    "`pg` giữ ở dependencies cho `db/bootstrap-tenant.mts` +",
+    "`db/provision-machine-token.mts` — script DB chạy ở CI runner/lane (Node),",
+    "không thuộc bundle Worker. Nguồn `pg` runtime của app là",
+    "`@ecoma-io/pact-broker-api-infrastructure`. Migration runner đã về",
+    "`deploys/pact-broker-db` (cutover #378)."
   ],
   "nx": {
     "tags": [
@@ -86,14 +88,6 @@
           }
         }
       },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/pact-broker-api",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
-        }
-      },
       "db:bootstrap": {
         "executor": "nx:run-commands",
         "cache": false,
@@ -133,7 +127,7 @@
           "build thì `listen()` ném ngay, đỏ thay vì pass rỗng (tiền lệ llm-seller).",
           "",
           "Các suite integration còn lại (`api.spec`, `revoke-isolation`, `tests/databases`)",
-          "import thẳng TS nguồn — `../../src/main` (`buildApp`), `../../db/apply.mts`,",
+          "import thẳng TS nguồn — `../../src/main` (`buildApp`), `deploys/pact-broker-db/runner.mts` (harness),",
           "các lib qua export `./src/index.ts` của workspace; bundle esbuild không tiêu",
           "thụ ở đó nên `dependsOn` chỉ là chi phí build thêm một lần cho file."
         ]

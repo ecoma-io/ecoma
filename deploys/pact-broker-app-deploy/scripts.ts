@@ -141,10 +141,15 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy đúng
- * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts` của
- * `apps/pact-broker-app` (advisory lock riêng của database này, mọi DDL
- * idempotent). Repo mount read-only. Kênh `DATABASE_URL` như migrate script của
- * `pact-broker-api-deploy`: `docker run -e DATABASE_URL` chỉ mang TÊN biến.
+ * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
+ * của migration authority `deploys/pact-broker-app-db` (cutover #378 — §3a.3
+ * mục E: command đổi từ runner cũ `apps/pact-broker-app/db/apply.mts` sang
+ * wrapper `runner.mts` giữ advisory lock
+ * `pg_advisory_lock(hashtext('db-pact-broker-app'))` rồi spawn
+ * `drizzle-kit migrate`). `cwd` của container là thư mục project db —
+ * `runner.mts` resolve `drizzle.config.ts` + `migrations/` từ đó. Kênh
+ * `DATABASE_URL` như migrate script của `pact-broker-api-deploy`: `docker run
+ * -e DATABASE_URL` chỉ mang TÊN biến.
  */
 export function buildMigrateScript(inputs: MigrateScriptInputs): string {
   return `set -e
@@ -152,9 +157,9 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/pact-broker-app \\
+  -w /repo/deploys/pact-broker-app-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate
 `;
 }

@@ -25,7 +25,7 @@ Nx project `@ecoma-io/pact-broker-api`, tags `type:composition`, `scope:pact`, `
 - API-only: không phục vụ dashboard — UI/BFF là Worker riêng `apps/pact-broker-app`; CORS chỉ mở cho origin dashboard được khai, mặc định không ACAO nào được phát.
 - Không có endpoint đọc public nào: mọi Pact data theo tenant, auth middleware chạy trước mọi lookup nghiệp vụ.
 - Database duy nhất `db-pact-broker`; không đọc database của service khác — dữ liệu entitlement đến qua Queue event, không qua shared database access.
-- Migration và bootstrap chạy ở CI runner, không qua Hyperdrive (`db/apply.mts`, `db/bootstrap-tenant.mts`); consumer entitlement của `staff-access-relay` là producer phía đối diện của cùng Queue.
+- Migration và bootstrap chạy ở CI runner, không qua Hyperdrive (`deploys/pact-broker-db/runner.mts` — cutover #378, `db/bootstrap-tenant.mts`); consumer entitlement của `staff-access-relay` là producer phía đối diện của cùng Queue.
 
 ## Development
 
@@ -34,7 +34,7 @@ pnpm nx run @ecoma-io/pact-broker-api:build                        # esbuild →
 pnpm nx run @ecoma-io/pact-broker-api:lint
 pnpm nx run @ecoma-io/pact-broker-api:typecheck                    # tsc --build (phần TS)
 pnpm nx run @ecoma-io/pact-broker-api:typecheck-db                 # tsc --noEmit -p tsconfig.db.json
-pnpm nx run @ecoma-io/pact-broker-api:db:migrate                   # db/apply.mts — cần DATABASE_URL migrator
+pnpm nx run pact-broker-db:db-migrate                              # deploys/pact-broker-db/runner.mts — cần DATABASE_URL migrator (cutover #378)
 pnpm nx run @ecoma-io/pact-broker-api:db:bootstrap                 # db/bootstrap-tenant.mts — tenant canonical `ecoma`
 pnpm nx run @ecoma-io/pact-broker-api:db:provision-machine-token   # db/provision-machine-token.mts
 ```

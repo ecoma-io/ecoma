@@ -21,8 +21,8 @@ Consumer: `apps/pact-broker-api` — composition root `src/main.ts` dựng pool 
 ## Boundaries
 
 - Không import app entry, không Hono, không mở kết nối nào tự động — caller sở hữu lifecycle của `Pool`: tạo pool trong invocation mình sở hữu và `end()` trong `finally` khi invocation kết thúc (issue #118: Pool không được cache ở module scope — socket driver gắn với request context tạo ra nó); pool có thể mất bất cứ lúc nào, mọi truy vấn tự chịu retry phía caller.
-- Migration không đi qua client này: Hyperdrive không hỗ trợ advisory lock (invariant 13, [`docs/architecture/01-architecture.md`](../../docs/architecture/01-architecture.md) §9) — migration chạy từ CI runner bằng `db/apply.mts` với chuỗi kết nối trực tiếp.
-- SQL nằm trong các repo là bản chép của schema trong `apps/pact-broker-api/db/migrations/`; không có logic authorization nào ở đây — scope/tenant check thuộc application layer.
+- Migration không đi qua client này: Hyperdrive không hỗ trợ advisory lock (invariant 13, [`docs/architecture/01-architecture.md`](../../docs/architecture/01-architecture.md) §9) — migration chạy từ CI runner qua `deploys/pact-broker-db/runner.mts` (cutover #378) với chuỗi kết nối trực tiếp.
+- SQL nằm trong các repo là bản chép của schema trong `deploys/pact-broker-db/migrations/`; không có logic authorization nào ở đây — scope/tenant check thuộc application layer.
 - Binding Hyperdrive `HYPERDRIVE` được khai trong `apps/pact-broker-api/wrangler.jsonc` của app consumer, không phải trong thư viện này.
 
 ## Development

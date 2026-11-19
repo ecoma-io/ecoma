@@ -83,6 +83,9 @@
     },
     {
       "path": "./deploys/auth-db"
+    },
+    {
+      "path": "./deploys/pact-broker-db"
     }
   ]
 }

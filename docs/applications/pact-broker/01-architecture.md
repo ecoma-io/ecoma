@@ -22,7 +22,7 @@ apps/pact-broker-app   (Cloudflare Worker, Nuxt 4 + Nitro preset cloudflare_modu
     userId/sub/role/permission do client gửi
 ```
 
-- Migration chạy từ **CI runner** bằng credential `_migrator` qua `nx run pact-broker-api:db:migrate` — **không bao giờ** chạy DDL từ Worker (HD6: Hyperdrive không hỗ trợ advisory lock; runner cần `pg_advisory_lock`).
+- Migration chạy từ **CI runner** bằng credential `_migrator` qua `nx run pact-broker-db:db-migrate` (cutover #378) — **không bao giờ** chạy DDL từ Worker (HD6: Hyperdrive không hỗ trợ advisory lock; runner cần `pg_advisory_lock`).
 - Không chạy advisory lock, `LISTEN/NOTIFY`, `PREPARE` qua Hyperdrive ở serving path (HD6).
 
 ## 3. Data model — `db-pact-broker`
