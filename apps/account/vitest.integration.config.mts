@@ -40,6 +40,12 @@ export default defineConfig(() => ({
     fileParallelism: false,
     reporters: ['default'],
     globalSetup: ['./tests/integrations/docker-probe.global-setup.ts'],
+    // `hookTimeout` 300s: probe Docker + các hook dựng stack thật không nằm
+    // trong giây thứ 5 mặc định. `testTimeout` 120s cho từng it() spawn build
+    // thật (`dual-build-output` chạy `nx run ... build:development` qua tiến
+    // trình con — lần lạnh ở CI là cả phút).
+    hookTimeout: 300_000,
+    testTimeout: 120_000,
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
