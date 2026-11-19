@@ -35,6 +35,10 @@ export default defineConfig(() => ({
     // file là oversubscription nhân.
     fileParallelism: false,
     reporters: ['default'],
+    // `testTimeout` 120s cho từng it() spawn build thật (`dual-build-output`
+    // chạy `nx run ... build:development` qua tiến trình con — lần lạnh ở CI
+    // là cả phút, không nằm trong giây thứ 5 mặc định).
+    testTimeout: 120_000,
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
