@@ -97,14 +97,6 @@ deploys/*
 # nguy cơ bundle dữ liệu cũ (`.data` là sqlite local của Nuxt Content, `.nuxt`
 # là metadata dev) vào image.
 **/node_modules
-# Artifact `build:development` (#386) mang traced runtime deps NGAY TRONG
-# `.output-node/server/node_modules` — blacklist phía trên cắt chúng khỏi
-# context là COPY ra image thiếu dependency, container chết lúc boot. Mở lại
-# ĐÚNG dir đó: line `!` khớp chính thư mục `node_modules` của artifact (cha của
-# nó không bị loại nên negation có hiệu lực — đo thật: bỏ dòng này image còn
-# 0 package, có dòng thì đúng bằng 36 package của artifact), còn mọi
-# `node_modules` của workspace thì vẫn bị dập.
-!apps/*/.output-node/server/node_modules
 **/dist
 **/out-tsc
 **/.output
@@ -117,6 +109,19 @@ deploys/*
 **/*.log
 **/.eslintcache
 **/*.tsbuildinfo
+
+# Artifact `build:development` (#386) mang traced runtime deps NGAY TRONG
+# `.output-node/server/node_modules` — hai blacklist `**/node_modules` và
+# `**/dist` phía trên đều cắt chúng (đo thật: không có negation thì image còn
+# 0 package, container chết ERR_MODULE_NOT_FOUND; chỉ mở dir mà không mở
+# `**` con thì `unhead/dist` mất theo `**/dist`). Mở lại TRỌN subtree: line
+# thứ nhất khớp chính thư mục `node_modules` của artifact (cha không bị loại
+# nên negation có hiệu lực), line `/**` khớp mọi file bên trong để thắng mọi
+# blacklist phía trên theo last-match-wins. `node_modules` của workspace vẫn
+# bị dập — negation chỉ chạm subtree artifact. Khối `.env*`/`.dev.vars*` bên
+# dưới CỐ Ý đứng SAU để secret luôn thắng, kể cả trong traced deps.
+!apps/*/.output-node/server/node_modules
+!apps/*/.output-node/server/node_modules/**
 
 # Env file chứa secret/địa chỉ local — không bao giờ vào context, ở bất kỳ độ
 # sâu nào (`.env`, `.env.local`...). `.dev.vars*` cùng lớp với `.env*`: repo
