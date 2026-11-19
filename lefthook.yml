@@ -37,7 +37,7 @@ pre-commit:
         docker run --rm \
           --volume "$root:/src" \
           --workdir /src \
-          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+          'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
           semgrep --test --config .github/semgrep .github/semgrep
 
 # Gate chặn thật cho commit vừa tạo: `pre-push` KHÔNG đủ, vì lefthook bỏ qua mọi
@@ -156,7 +156,7 @@ pre-push:
           --volume "$report_dir:/out" \
           --workdir /src \
           $mounts \
-          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+          'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
           bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.sarif .github/semgrep/accepted-shapes.json' || status=$?
         # `--timeout 60` thay default 5s per file: rule taint trên file domain lớn
         # (`llm-financial-domain`) nằm sát ngưỡng khi host đang tải cao — bị trượt
