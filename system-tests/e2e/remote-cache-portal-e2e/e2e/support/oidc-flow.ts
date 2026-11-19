@@ -51,6 +51,25 @@ const NAVIGATION_BUDGET_MS = 45_000;
 const LANDED_PATH_PATTERN = /\/$/u;
 
 /**
+ * Cửa sổ quan sát callback lần đầu — ngắn để phân biệt nhanh "chậm" với
+ * "chết"; các lượt re-entry sau dùng cửa sổ dài hơn.
+ */
+const CALLBACK_FIRST_WINDOW_MS = 5_000;
+/**
+ * Cửa sổ quan sát callback mỗi lượt re-entry — BFF/auth lạnh trên CI runner
+ * hosted (`ubuntu-26.04`, VM mới mỗi run) có thể chậm hơn 5s mà KHÔNG chết.
+ */
+const CALLBACK_REENTRY_WINDOW_MS = 15_000;
+/**
+ * Tổng số lượt chốt landing callback (1 lần đầu + 3 lượt re-entry qua
+ * `goto(origin)`). Mỗi re-entry đi path granted auto — grant đã persist,
+ * KHÔNG tiêu OTP/challenge mới, không đụng rate limit — nên thêm lượt là an
+ * toàn; vẫn fail thật khi cả 4 lượt đều không thấy callback (run
+ * 44543816898 chứng minh 2 lượt không đủ dưới churn docker của CI).
+ */
+const CALLBACK_LANDING_ATTEMPTS = 4;
+
+/**
  * Trang chết "chưa sẵn sàng" mà browser đang đứng — đọc từ status của response
  * ĐÍCH và nội dung body.
  *
@@ -282,14 +301,17 @@ export async function performBrowserLogin(
   // render, khi hop auth→callback cuối chết `-1 net::ERR_NETWORK_CHANGED` —
   // callback không bao giờ xảy ra dù URL trông "hợp lệ".
   const origin = resolveStackOrigin();
-  let waited = await waitForCallbackOrTimeout(page, () => finalHop, 5_000);
-  if (!waited) {
-    // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
-    // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
-    // portal `/` đi path granted auto và callback xảy ra. Retry ĐÚNG MỘT LẦN;
-    // lần hai fail thật (finalHop vẫn undefined ⇒ throw ở dưới).
+  let waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_FIRST_WINDOW_MS);
+  // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
+  // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
+  // portal `/` đi path granted auto và callback xảy ra. Re-entry là idempotent
+  // (không OTP mới, không challenge, không rate limit) nên vòng bị chặn trên
+  // CALLBACK_LANDING_ATTEMPTS lượt thay vì đúng một: dưới churn docker của CI
+  // hosted (VM mới mỗi run), HAI lượt liên tiếp chết là xác suất thực (run
+  // 44543816898). Cạn vòng vẫn throw — lỗi thật không bị che.
+  for (let attempt = 1; !waited && attempt < CALLBACK_LANDING_ATTEMPTS; attempt += 1) {
     await page.goto(origin, { waitUntil: 'load' });
-    waited = await waitForCallbackOrTimeout(page, () => finalHop, 15_000);
+    waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_REENTRY_WINDOW_MS);
   }
   if (!waited) {
     throw new Error('login flow finished but no /api/auth/callback response was observed');
