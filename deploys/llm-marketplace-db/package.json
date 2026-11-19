@@ -1,0 +1,305 @@
+{
+  "name": "llm-marketplace-db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "testcontainers": "12.2.1"
+  },
+  "//": [
+    "Migration authority của database `db-llm-marketplace` — hợp đồng",
+    "`docs/architecture/02-delivery.md` §3a (Modelling #373, foundation #374,",
+    "cutover #376). Cutover từ runner cũ `apps/llm-api/db/apply.mts` (một",
+    "runner ba target): history 4 file subdir `marketplace/` của `llm-api`",
+    "được adopt không replay",
+    "theo mục D của §3a.3 — SQL giữ nguyên nội dung, vào journal với `when`",
+    "tăng đơn điệu (giá trị cố định 1700000000xxx, thấp hơn mọi timestamp",
+    "`generate --custom` tương lai); `apply.mts` retire trong cùng PR cutover.",
+    "",
+    "SQL-first (§3a.2): canonical schema là SQL + journal, `drizzle-orm` KHÔNG",
+    "được thêm vào schema layer của project này. `drizzle-orm@0.45.4` là pin",
+    "root package.json — runtime dependency của runner (kit gọi",
+    "assertPackages(\"drizzle-orm\") trước khi migrate), không phải dependency",
+    "của schema definition.",
+    "",
+    "`pg` + `@types/pg` ở devDependencies: driver chỉ dùng bởi `runner.mts`",
+    "(advisory lock + guard `current_database()`) và suite test — không bundle",
+    "vào Worker nào (`runtime:native`). `testcontainers` chỉ cho suite",
+    "`test-integration` (Docker bắt buộc, fail-loud — 06-testing.md §6).",
+    "",
+    "⚠️ Đăng ký arch-check: cùng marker `scaffold` với exemplar",
+    "`deploys/pact-broker-app-db` — deployment project không có `local.ts`",
+    "phải khai marker scaffold-only; database không tham gia lane local-up",
+    "(postgres thuộc platform-deploy), migrate chạy qua `db-migrate` thay thế.",
+    "",
+    "History table `llm_marketplace.__drizzle_migrations` — schema history là",
+    "schema runtime `llm_marketplace` của chính database (tạo sẵn bởi kit qua",
+    "CREATE SCHEMA IF NOT EXISTS trước migration đầu tiên), không bao giờ",
+    "`public`/`drizzle` ngầm (§3a.3)."
+  ],
+  "ecoma": {
+    "deployment": {
+      "status": "scaffold"
+    }
+  },
+  "nx": {
+    "implicitDependencies": [
+      "platform-deploy"
+    ],
+    "tags": [
+      "npm:private",
+      "type:deployment",
+      "scope:llm-api",
+      "runtime:native"
+    ],
+    "targets": {
+      "db-generate": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/drizzle.config.ts"
+          },
+          {
+            "fileset": "{projectRoot}/migrations/meta/_journal.json"
+          },
+          {
+            "externalDependencies": [
+              "drizzle-kit"
+            ]
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/migrations/**"
+        ],
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "npx drizzle-kit generate --custom"
+        },
+        "configurations": {},
+        "//": [
+          "§3a.2 mục C: dev-time, cache được — output là file SQL mới + entry",
+          "journal. SQL-first nên mọi migration đi qua `generate --custom`",
+          "(file rỗng để viết DDL như GUC/grant, vẫn vào journal). Truyền tên",
+          "bằng `pnpm nx run llm-marketplace-db:db-generate -- --name=<tên>`.",
+          "Migration đã apply là bất biến — regenerate/edit bị cấm (invariant 10)."
+        ]
+      },
+      "db-check": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/drizzle.config.ts"
+          },
+          {
+            "fileset": "{projectRoot}/migrations/**"
+          },
+          {
+            "externalDependencies": [
+              "drizzle-kit"
+            ]
+          }
+        ],
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "npx drizzle-kit check"
+        },
+        "configurations": {},
+        "//": [
+          "§3a.2 mục C: dev + CI — journal hợp lệ, không stale. Không chạm database."
+        ]
+      },
+      "db-migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "npx tsx --tsconfig tsconfig.db.json runner.mts migrate"
+        },
+        "configurations": {},
+        "//": [
+          "§3a.2/§3a.3: không cache — mutate state thật, cùng policy với local-up.",
+          "Runner wrapper giữ advisory lock `pg_advisory_lock(hashtext('db-llm-marketplace'))`",
+          "trên kết nối thẳng (không Hyperdrive — HD6), assert `current_database()`",
+          "trước khi lock, rồi spawn `drizzle-kit migrate` giữ connection lock sống",
+          "suốt lần chạy. Cần `DATABASE_URL` của role `ecoma_llm_marketplace_migrator`",
+          "(CI job contract §3.1). Chế độ `stamp` (cutover 2 bước, §3a.3 mục D)",
+          "chạy trực tiếp: `npx tsx --tsconfig tsconfig.db.json runner.mts stamp`."
+        ]
+      },
+      "lint": {
+        "executor": "@nx/oxlint:lint",
+        "cache": true,
+        "inputs": [
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
+          "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/deploys/.eslintignore",
+          "{workspaceRoot}/deploys/.gitignore",
+          "{workspaceRoot}/.eslintignore",
+          "{workspaceRoot}/.gitignore",
+          {
+            "externalDependencies": [
+              "oxlint"
+            ]
+          }
+        ],
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
+        },
+        "configurations": {},
+        "options": {}
+      },
+      "typecheck": {
+        "dependsOn": [
+          "^typecheck"
+        ],
+        "cache": true,
+        "inputs": [
+          "production",
+          {
+            "dependentTasksOutputFiles": "**/*.{d.ts,d.cts,d.mts,tsbuildinfo}",
+            "transitive": true
+          },
+          {
+            "fileset": "{projectRoot}/**/*.{d.ts,d.cts,d.mts}",
+            "dependencies": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
+          "{projectRoot}/bin/tsconfig.tsbuildinfo"
+        ],
+        "metadata": {
+          "technologies": [
+            "typescript"
+          ],
+          "description": "Runs type-checking for the project.",
+          "help": {
+            "command": "pnpm exec tsc --build --help",
+            "example": {
+              "args": [
+                "--force"
+              ]
+            }
+          }
+        },
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+        },
+        "configurations": {},
+        "parallelism": true
+      },
+      "test": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "fileset": "{projectRoot}/tsconfig.spec.json",
+            "dependencies": true
+          },
+          {
+            "json": "{workspaceRoot}/tsconfig.json",
+            "fields": [
+              "compilerOptions"
+            ]
+          },
+          {
+            "externalDependencies": [
+              "vitest"
+            ]
+          },
+          {
+            "env": "CI"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*.js",
+            "transitive": true
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "metadata": {
+          "technologies": [
+            "vitest"
+          ],
+          "description": "Run Vitest tests",
+          "help": {
+            "command": "pnpm exec vitest --help",
+            "example": {
+              "options": {
+                "bail": 1,
+                "coverage": true
+              }
+            }
+          }
+        },
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "vitest"
+        },
+        "configurations": {},
+        "parallelism": true,
+        "//": [
+          "Target `test` = unit colocated của project (06-testing.md §4):",
+          "`runner.spec.ts` — hàm thuần của wrapper (args, timeout URL, journal)",
+          "không Docker. Suite integration chạy Docker + PostgreSQL thật ở target",
+          "`test-integration` với config riêng."
+        ]
+      },
+      "test-integration": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "dependsOn": [],
+        "options": {
+          "cwd": "deploys/llm-marketplace-db",
+          "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
+        },
+        "configurations": {},
+        "//": [
+          "Suite integration app-owned (06-testing.md §2/§4): runner migration",
+          "thật trên PostgreSQL thật (testcontainers) — apply/no-replay/advisory",
+          "lock mutual exclusion/interrupted-migration/stamp. Bắt buộc Docker:",
+          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip.",
+          "Target không cacheable vì mutate database thật."
+        ]
+      }
+    }
+  }
+}

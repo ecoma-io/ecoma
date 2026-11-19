@@ -132,9 +132,9 @@ describe('buildMigrateScript', () => {
     expect(script).toContain('--network ecoma-x-network');
     expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
     expect(script).toContain(`-v '/repo/worktrees/x'/node_modules:/repo/node_modules`);
-    expect(script).toContain('-w /repo/apps/llm-api');
+    expect(script).toContain('-w /repo/deploys/llm-gateway-db');
     expect(script).toContain(NODE_IMAGE);
-    expect(script).toContain('npx tsx --tsconfig tsconfig.db.json db/apply.mts gateway');
+    expect(script).toContain('npx tsx --tsconfig tsconfig.db.json runner.mts migrate');
   });
 
   it('is deterministic for the same inputs', () => {

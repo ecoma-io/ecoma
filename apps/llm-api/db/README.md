@@ -1,59 +1,40 @@
-# Migration `db-llm-gateway`, `db-llm-tenant`, `db-llm-marketplace` — `llm-api`
+# `db/` của `llm-api` — bootstrap/seed runner
 
-Thư mục này là **nguồn sự thật duy nhất** cho migration của ba database LLM mà deploy unit
-`llm-api` sở hữu (A2). Không có ORM, không có `drizzle-kit`, không có generate step:
-migration là file SQL thuần, áp dụng bằng runner tự sở hữu của unit.
+Sau cutover #376 (hợp đồng `02-delivery.md` §3a), thư mục này **không còn** là
+nguồn sự thật migration nữa: schema migration của ba database mà deploy unit
+sở hữu đã chuyển về ba migration authority riêng — một database một authority
+(§3a.1):
 
-| Đường dẫn                      | Vai trò                                                                                |
-| ------------------------------ | -------------------------------------------------------------------------------------- |
-| `apply.mts`                    | CLI runner — chọn target `gateway` \| `tenant` \| `marketplace`, chạy trong CI         |
-| `migrate.mts`                  | Hằng số target → database + thư mục migration, helper dùng chung                       |
-| `migrations/gateway/*.sql`     | Migration của `db-llm-gateway` (schema `llm_financial`, `llm_seller`)                  |
-| `migrations/tenant/*.sql`      | Migration của `db-llm-tenant` (schema `llm_tenant`)                                    |
-| `migrations/marketplace/*.sql` | Migration của `db-llm-marketplace` (schema `llm_marketplace` + quyền — bảng thuộc #24) |
+| Database             | Migration authority          | Lệnh migrate                                |
+| -------------------- | ---------------------------- | ------------------------------------------- |
+| `db-llm-gateway`     | `deploys/llm-gateway-db`     | `pnpm nx run llm-gateway-db:db-migrate`     |
+| `db-llm-tenant`      | `deploys/llm-tenant-db`      | `pnpm nx run llm-tenant-db:db-migrate`      |
+| `db-llm-marketplace` | `deploys/llm-marketplace-db` | `pnpm nx run llm-marketplace-db:db-migrate` |
 
-## Hợp đồng runner (`02-delivery.md` §3)
+Mỗi project `deploys/llm-*-db` sở hữu SQL + journal + runner wrapper
+(`runner.mts migrate`, advisory lock `hashtext('<database>')`, engine
+`drizzle-kit migrate` với history `__drizzle_migrations`). Một database không
+bao giờ có hai runner sống — `db/apply.mts` cũ đã retire trong PR cutover
+#376.
 
-- **Mỗi database một lần gọi riêng** — target chọn DB đích và thư mục migration tương ứng;
-  `DATABASE_URL` là credential **migrator** của đúng DB đó. Không có đường chạy "cả ba DB
-  một lượt": rollout độc lập từng database.
-- **Verify `current_database()` trước khi DDL** — URL trỏ nhầm database là fail-loud, không
-  chạy nửa chừng trên nhầm đích.
-- **Advisory lock per-DB**: `pg_advisory_lock(hashtext('<db-name>'))` — hash tính phía server
-  theo tên database, serialize nhiều runner trên cùng DB; hai DB khác nhau không tranh khóa.
-- **Idempotent, không ledger, không down-migration** — DDL `IF NOT EXISTS`; apply lại thành
-  công mà không đổi gì; catalog PostgreSQL sau apply là nguồn sự thật (ADR-0025 §6:
-  môi trường chưa phát hành, forward-fix).
-- **Chỉ credential migrator** — role runtime chỉ có DML; migration **không bao giờ** qua
-  Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory lock — runner chạy ở CI runner, không
-  thuộc bundle Worker; `docs/applications/llm-api/README.md` §Persistence implementation).
+Còn lại trong thư mục này, đúng ranh giới bootstrap/seed §3.2 (chi tiết ranh
+giới: #352):
 
-## Gọi từng database
+- `bootstrap-seller-governance.mts` — bước 8a (seed seller governance, Issue #23).
+- `bootstrap-marketplace.mts` — bước 8b (seed marketplace offering + upstream
+  credential hash, Issue #23).
+- `bootstrap-consumer-tenant.mts` — bước 9 (seed tenant `ecoma` + owner
+  membership + API key đầu tiên; ghi hai database trong một lần chạy, #24).
+- `bootstrap-financial.mts` — bước 10 (seed sponsor funding ADR-0028 trên
+  `db-llm-gateway`, #24).
+- `bootstrap-shared.mts` — helper dùng chung của bốn runner.
 
-Từ thư mục `apps/llm-api` (hoặc qua Nx, đối số đi qua sau `--`):
+Đây là **seed biến thiên theo environment hoặc phụ thuộc dữ liệu runtime**
+(superadmin, tenant `ecoma`, upstream credential) — không bao giờ chuyển vào
+migration projects; seed catalog sealed là trường hợp duy nhất được phép nằm
+trong migration (§3a.5).
 
-```sh
-# db-llm-gateway (schema llm_financial + llm_seller)
-DATABASE_URL=<gateway-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- gateway
-
-# db-llm-tenant (schema llm_tenant)
-DATABASE_URL=<tenant-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- tenant
-
-# db-llm-marketplace (schema llm_marketplace; bảng nghiệp vụ thuộc #24)
-DATABASE_URL=<marketplace-migrator-url> pnpm nx run @ecoma-io/llm-api:db:migrate -- marketplace
-```
-
-Thiếu target, target lạ hoặc thiếu `DATABASE_URL` là exit khác 0 kèm hướng dẫn — coi im
-lặng là đã apply là cách làm một lần migration biến mất.
-
-## Slice này không có bảng nghiệp vụ
-
-`0001` của cả ba DB chỉ tạo **schema namespace đã đặt tên** trong
-[`docs/applications/llm-api/README.md`](../../../docs/applications/llm-api/README.md)
-§Persistence implementation + default privileges `migrator → runtime`
-(`ALTER DEFAULT PRIVILEGES ... GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES`).
-Riêng `db-llm-marketplace`: schema `llm_marketplace` được tạo ở `0002` (forward-fix
-sau `0001_privileges`), và `0003` thu hồi default privilege db-wide của `0001` —
-quyền DML `migrator → runtime` chỉ còn theo schema `llm_marketplace` (scope chặt
-đúng schema sở hữu). Các DB này chưa có bảng nghiệp vụ nào — bảng marketplace
-thuộc Issue #24; bảng nghiệp vụ của gateway/tenant thuộc slice sau của #22 (#23/#24).
+Lane local (`deploys/llm-api-deploy`) gọi migration qua container ephemeral
+chạy `runner.mts migrate` của từng project db, và bootstrap qua container
+ephemeral chạy đúng các script này — thứ tự provision → migrate → bootstrap
+không đổi.

@@ -1,0 +1,20 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000010000,
+      "tag": "0000_create_fail_probe",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000015000,
+      "tag": "0001_raise_error",
+      "breakpoints": true
+    }
+  ]
+}

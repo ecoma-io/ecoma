@@ -53,8 +53,8 @@
  *   cancellation một mình.
  *
  * ⚠️ Migration KHÔNG đi qua đường này (Hyperdrive không hỗ trợ advisory
- * lock); migration chạy từ CI runner bằng `db/apply.mts` với credential
- * migrator.
+ * lock); migration chạy từ CI runner bằng runner của `deploys/llm-*-db`
+ * (cutover #376) với credential migrator.
  *
  * Bất biến platform: KHÔNG BAO GIỜ log connection string hay credential.
  */

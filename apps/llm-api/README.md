@@ -15,7 +15,7 @@ Nx project `@ecoma-io/llm-api`, tags `type:composition`, `scope:llm-api`, `runti
 - **Liveness** `GET /health` — không chạm database, trả lời cả khi mọi binding xuống.
 - **Readiness** `GET /ready` — probe cả ba Hyperdrive binding; kết quả per-binding nằm trong `src/readiness.ts`.
 - **Catalog endpoint** `GET /v1/models` và `GET /llm/v1/models` — cùng handler; 200 `application/json` với catalogue model `active` thật từ marketplace, owner là tên tenant ánh xạ từ gateway (Issue #23; danh sách rỗng `{"object":"list","data":[]}` là hợp lệ khi chưa có offer nào `active`), 503 fail-closed khi DB chưa ready, catalogue lỗi hay một offer không ánh xạ được owner.
-- **Persistence**: `db/` là nguồn sự thật migration của ba database mà deploy unit sở hữu — `db-llm-gateway` (schema `llm_financial`, `llm_seller`), `db-llm-tenant` (schema `llm_tenant`), `db-llm-marketplace` (schema `llm_marketplace`); runner `db/apply.mts` chọn đúng một target mỗi lần gọi.
+- **Persistence**: ba database mà deploy unit sở hữu — `db-llm-gateway` (schema `llm_financial`, `llm_seller`, `llm_gateway`), `db-llm-tenant` (schema `llm_tenant`), `db-llm-marketplace` (schema `llm_marketplace`); migration authority là ba project `deploys/llm-gateway-db`, `deploys/llm-tenant-db`, `deploys/llm-marketplace-db` (cutover #376, một database một authority theo §3a.1), còn `db/` chỉ giữ bootstrap/seed runner (§3.2).
 - Ba Hyperdrive binding khai trong `wrangler.jsonc` với id chuỗi rỗng: `DB_LLM_GATEWAY`, `DB_LLM_TENANT`, `DB_LLM_MARKETPLACE`; connection string local đi qua biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`, thiếu biến lúc `wrangler dev` là lỗi boot tường minh.
 - Runtime TypeScript khai `nodejs_compat` (driver `pg` cần `node:buffer`, `node:events`, `node:stream`). Mỗi phép gọi SQL mở một `pg.Client` mới rồi đóng (`src/connections.ts`) — không pool: pg Pool tái dùng client idle qua workerd không ổn định (đo trực tiếp), còn runtime Rust bị thay thế cũng mở một socket mới cho mỗi câu SQL, nên lifecycle per-operation là bản port trung thực.
 - Log chỉ cấu trúc tối thiểu; không bao giờ log prompt/response body, connection string hay credential.
@@ -34,11 +34,11 @@ pnpm nx run @ecoma-io/llm-api:build          # esbuild bundle → build/index.js
 pnpm nx run @ecoma-io/llm-api:lint           # oxlint
 pnpm nx run @ecoma-io/llm-api:typecheck      # tsc --build cho solution (app src/ + spec)
 pnpm nx run @ecoma-io/llm-api:typecheck-db   # tsc --noEmit -p tsconfig.db.json
-pnpm nx run @ecoma-io/llm-api:db:migrate -- gateway   # hoặc tenant | marketplace, cần DATABASE_URL migrator của DB đó
+pnpm nx run llm-gateway-db:db-migrate        # cần DATABASE_URL của ecoma_llm_gateway_migrator (tương tự llm-tenant-db | llm-marketplace-db)
 ```
 
 - Artifact `build/index.js` là entry mà `wrangler.jsonc` `main` trỏ vào; bundle external `node:buffer`, `node:events`, `node:stream` (do `nodejs_compat` cấp khi chạy).
-- `db:migrate` mutate database thật và luôn không cacheable; target chạy ở runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
+- `db-migrate` của các project `deploys/llm-*-db` mutate database thật và luôn không cacheable; runner chạy ở máy có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
 
 ## Testing
 
