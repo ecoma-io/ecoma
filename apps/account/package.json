@@ -98,14 +98,6 @@
           "`test-integration` bên dưới, nơi `build` được giữ lại."
         ]
       },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/account",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
-        }
-      },
       "test-integration": {
         "executor": "nx:run-commands",
         "dependsOn": [

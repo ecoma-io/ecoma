@@ -12,7 +12,7 @@ Nx project `account-deploy`, tags `type:deployment`, `scope:account`, `runtime:n
 ## Responsibilities
 
 - **Secret lifecycle** (`local.ts`): khi `up`, sinh và persist vào stack config của chính stack — `internalHmacSecret` (`auth` đọc lại qua StackReference), `mailInternalAuthSecret` (`transactional-mail-deploy` đọc lại), `otpHmacSecret`, và mật khẩu bốn role PostgreSQL (owner/runtime/migrator/pruner, xoay mỗi lần `up`).
-- **Provisioning** (`index.ts`): tạo `db-account` + bộ 4 role chuẩn bằng SQL chạy qua `docker exec` psql trong container PostgreSQL của platform (platform không publish host port); chạy migration theo đường canonical `apps/account/db/apply.mts` trong container ephemeral gắn platform network.
+- **Provisioning** (`index.ts`): tạo `db-account` + bộ 4 role chuẩn bằng SQL chạy qua `docker exec` psql trong container PostgreSQL của platform (platform không publish host port); chạy migration qua runner thật của `deploys/account-db` (chuỗi `adopt && migrate` của cutover #375) trong container ephemeral gắn platform network.
 - **Image + container** (`Dockerfile`, `index.ts`): image COPY artifact `build:development` (preset `node-server`) do Nx build sẵn qua target `local-build`, từ repo root, Node base image pin theo digest; container với alias `ecoma-account`, router Traefik `Host(account.<rootHostname>)` TLS, healthcheck `GET /ready` và `wait: true` — `pulumi up` chỉ xanh khi healthcheck `healthy`.
 - **Platform dependency**: đọc outputs của platform qua `StackReference` (`networkName`, `namespace`, `rootHostname`, `traefikHostPort`); target `local-up` dependsOn `platform-deploy:local-up` ở tầng task graph.
 - **Multi-worktree**: mọi Docker resource mang namespace theo worktree và ownership labels để `pnpm dx local-cleanup` phân loại được.

@@ -41,6 +41,10 @@ const DATABASE_PROJECTS = [
   'llm-gateway-db',
   'llm-tenant-db',
   'llm-marketplace-db',
+  'account-db',
+  'auth-db',
+  'backoffice-db',
+  'staff-access-db',
 ] as const;
 
 function packageJson(project: string): Record<string, unknown> {

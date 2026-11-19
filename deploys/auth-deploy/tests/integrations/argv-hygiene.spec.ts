@@ -290,7 +290,14 @@ printf '%s\\n' "ALTER ROLE argv_hygiene_missing_role WITH PASSWORD '$quoted';" |
       'db-auth',
       `SELECT count(*) FROM pg_namespace WHERE nspname = 'auth'`,
     );
-    await psqlAsLocal('migrationHistory', 'db-auth', `SELECT count(*) FROM auth.schema_migrations`);
+    await psqlAsLocal(
+      'migrationHistory',
+      'db-auth',
+      // History của runner mới (cutover #375): bảng Drizzle `auth.__drizzle_migrations`
+      // do runner stamp/migrate ghi — KHÔNG phải ledger cũ `auth.schema_migrations`
+      // (chỉ tồn tại trên stack legacy thật, không nằm trong đường stack trắng).
+      `SELECT count(*) FROM auth.__drizzle_migrations`,
+    );
 
     // --- 6. Login bằng sentinel SAU rotation (password verify THẬT qua scram).
     //    pg_hba của image: các dòng loopback trust của initdb đứng TRƯỚC,
@@ -493,8 +500,11 @@ describe('migration state: connected to the right database through the canonical
   it('migration applied on db-auth and the auth schema is present there', () => {
     const flowState = requireFlow();
     expect(flowState.migrateRun.result.code).toBe(0);
-    // stdout của `db/apply.mts`: "applied <file>" + "done N file(s) applied, ...".
-    expect(flowState.migrateRun.result.stdout).toContain('file(s) applied');
+    // stdout của runner mới: adopt trên stack trắng in 'adopt no-op: fresh
+    // database'; migrate kết thúc bằng 'migrate complete: history covers every
+    // journal entry'.
+    expect(flowState.migrateRun.result.stdout).toContain('adopt no-op: fresh database');
+    expect(flowState.migrateRun.result.stdout).toContain('migrate complete');
     expect(flowState.catalog.authSchema?.stdout.trim()).toBe('1');
   });
 

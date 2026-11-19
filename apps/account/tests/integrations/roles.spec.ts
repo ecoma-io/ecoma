@@ -239,6 +239,12 @@ describe('roles and grants on db-account', () => {
         ]),
       );
 
+      // Bảng history của migration runner (`__drizzle_migrations`, cutover
+      // #375): hạ tầng của kit, chỉ role `_migrator` chạm tới — runtime không
+      // được grant gì nên danh sách rỗng là điều ĐÚNG, không phải thiếu sót.
+      // Phải nằm trong tập kiểm: một `GRANT` thừa nhắm vào nó cũng phải bị bắt.
+      expected['__drizzle_migrations'] = [];
+
       // So sánh theo từng bảng **và** theo tập bảng: một bảng lạ xuất hiện trong
       // schema cũng phải làm test đỏ, chứ không bị lọc nhầm.
       expect(Object.keys(actual).toSorted()).toEqual(Object.keys(expected).toSorted());

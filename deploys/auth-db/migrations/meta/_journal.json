@@ -1,0 +1,104 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0001_schema_and_oauth_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000001000,
+      "tag": "0002_authorization_transactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000002000,
+      "tag": "0003_consent_and_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7.1.0",
+      "when": 1700000003000,
+      "tag": "0004_authorization_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7.1.0",
+      "when": 1700000004000,
+      "tag": "0005_refresh_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7.1.0",
+      "when": 1700000005000,
+      "tag": "0006_token_revocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7.1.0",
+      "when": 1700000006000,
+      "tag": "0007_signing_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7.1.0",
+      "when": 1700000007000,
+      "tag": "0008_append_only_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7.1.0",
+      "when": 1700000008000,
+      "tag": "0009_grants_and_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7.1.0",
+      "when": 1700000009000,
+      "tag": "0010_internal_nonces",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7.1.0",
+      "when": 1700000010000,
+      "tag": "0011_authorization_transaction_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7.1.0",
+      "when": 1700000011000,
+      "tag": "0012_rename_authn_level_to_acr",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7.1.0",
+      "when": 1700000012000,
+      "tag": "0013_oidc_provider_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7.1.0",
+      "when": 1700000013000,
+      "tag": "0014_nonce_pruner_role",
+      "breakpoints": true
+    }
+  ]
+}

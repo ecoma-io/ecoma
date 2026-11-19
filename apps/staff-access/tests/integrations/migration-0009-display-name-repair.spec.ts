@@ -4,10 +4,11 @@
  *
  * Môi trường mô phỏng đúng một môi trường **đã bootstrap trước khi nâng code**: apply
  * migrations (pass 1) tạo schema + seed canonical, seed hàng "legacy" bằng superuser,
- * rồi `applyAllMigrations` lần 2 với credential migrator thật — đúng runner production
- * (`db:migrate`) — và 0009 chạy giữa các file. Pass 3 chứng minh idempotency trên runner
- * không ledger. Trên môi trường thật, các hàng legacy chỉ có thể sinh ra từ S1 cũ vì
- * bootstrap là writer production duy nhất của `staff_access.staff`.
+ * rồi chạy lại SQL của `0009` lần 2 bằng credential migrator thật để sửa hàng legacy.
+ * Pass 3 chứng minh idempotency của chính file SQL. Cutover #375 đổi runner sang
+ * drizzle-kit — history đã phủ journal thì runner-kit no-op, nên đường "chạy lại file"
+ * là đường kiểm duy nhất còn tồn tại. Trên môi trường thật, các hàng legacy chỉ có thể
+ * sinh ra từ S1 cũ vì bootstrap là writer production duy nhất của `staff_access.staff`.
  *
  * Comment tiếng Việt; test title tiếng Anh; dữ liệu mẫu tiếng Việt được phép (fixture).
  */
@@ -18,13 +19,31 @@ import {
   validateStaffListResponse,
   type StaffStatus,
 } from '@ecoma-io/staff-access-contracts';
-import { applyAllMigrations } from '../../db/apply.mts';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { applyMigrations, type StaffAccessDatabase, startStaffAccessDatabase } from './harness.ts';
+
 import {
   BOOTSTRAP_STAFF_DISPLAY_NAME,
   CANONICAL_ROLE_KIND,
   CANONICAL_ROLE_NAME,
 } from '../../db/bootstrap.mts';
-import { type StaffAccessDatabase, startStaffAccessDatabase } from './harness.ts';
+
+/** Bản migration hợp đồng của `deploys/staff-access-db` (cutover #375). */
+const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'staff-access-db',
+  'migrations',
+);
+
+/** Chạy lại SQL của `0009` trực tiếp — repair predicate nằm trong file, không ở runner. */
+function reapply0009(client: import('pg').Client): Promise<unknown> {
+  return client.query(
+    readFileSync(join(MIGRATIONS_DIR, '0009_bootstrap_staff_display_name.sql'), 'utf8'),
+  );
+}
 
 interface StaffRow {
   id: string;
@@ -55,13 +74,8 @@ let auditCountAfterRepair = 0;
 
 beforeAll(async () => {
   db = await startStaffAccessDatabase();
-  const migrator = await db.connectAsMigrator();
-  try {
-    // Pass 1: schema + seed canonical — trạng thái "môi trường đã bootstrap cũ".
-    await applyAllMigrations(migrator);
-  } finally {
-    await migrator.end();
-  }
+  // Pass 1: schema + seed canonical — trạng thái "môi trường đã bootstrap cũ".
+  await applyMigrations({ host: db.host, port: db.port });
 }, 180_000);
 afterAll(async () => {
   await db?.stop();
@@ -154,10 +168,10 @@ describe('migration 0009 repairs legacy bootstrap display_name rows on a real Po
       await superuser.end();
     }
 
-    // Pass 2: đúng runner production; 0009 sửa hàng legacy giữa các file.
+    // Pass 2: chạy lại SQL `0009` — file sửa hàng legacy theo predicate rỗng.
     const migrator = await db.connectAsMigrator();
     try {
-      await applyAllMigrations(migrator);
+      await reapply0009(migrator);
     } finally {
       await migrator.end();
     }
@@ -247,14 +261,14 @@ describe('migration 0009 repairs legacy bootstrap display_name rows on a real Po
     expect(auditCountAfterRepair).toBe(1);
   });
 
-  it('re-applying the migrations leaves repaired rows untouched (idempotent, no ledger)', async () => {
+  it('re-executing the 0009 SQL leaves repaired rows untouched (idempotent)', async () => {
     expect(afterRepair.length).toBeGreaterThan(0);
 
-    // Pass 3: runner chạy LẠI mọi file; 0009 không được sửa thêm gì — hàng đã sửa
-    // không còn khớp predicate, nên cả `updated_at` phải đứng yên.
+    // Pass 3: file chạy LẠI; 0009 không được sửa thêm gì — hàng đã sửa không còn
+    // khớp predicate, nên cả `updated_at` phải đứng yên.
     const migrator = await db.connectAsMigrator();
     try {
-      await applyAllMigrations(migrator);
+      await reapply0009(migrator);
     } finally {
       await migrator.end();
     }

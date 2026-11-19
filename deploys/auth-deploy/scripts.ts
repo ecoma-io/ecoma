@@ -117,10 +117,15 @@ export interface MigrateScriptInputs {
 }
 
 /**
- * Script migrate: container ephemeral trên platform network chạy đúng
- * `tsx db/apply.mts` của repo (`apps/auth/db/apply.mts` — advisory lock
- * `hashtext('db-auth')`, history `auth.schema_migrations`, checksum
- * drift-abort, thứ tự tên file — giữ nguyên).
+ * Script migrate: container ephemeral trên platform network chạy runner thật
+ * của `deploys/auth-db` (wrapper §3a.3 — guard `current_database()` fail-closed,
+ * advisory lock giữ nguyên khóa `hashtext('db-auth')` của runner cũ,
+ * statement_timeout, `drizzle-kit migrate` atomic per-run). Chuỗi
+ * `adopt && migrate` là hợp đồng cutover #375: trên stack legacy, adopt verify
+ * checksum ledger `auth.schema_migrations` khớp tuyệt đối với file trong repo
+ * rồi stamp toàn bộ journal (lệch là fail closed, không ghi gì) để migrate
+ * không replay; stack trắng thì adopt no-op và migrate apply lần đầu; stack
+ * đã-cutover adopt là no-op.
  *
  * Kênh chuỗi kết nối: `DATABASE_URL` của migrator đến từ biến môi trường của
  * tiến trình shell (kênh `environment` của command.local.Command), rồi
@@ -135,9 +140,9 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/auth \\
+  -w /repo/deploys/auth-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
+  sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'
 `;
 }

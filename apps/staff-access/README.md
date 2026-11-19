@@ -34,11 +34,11 @@ pnpm nx run @ecoma-io/staff-access:build          # esbuild → dist/main.js
 pnpm nx run @ecoma-io/staff-access:lint
 pnpm nx run @ecoma-io/staff-access:typecheck      # tsc --build (phần TS)
 pnpm nx run @ecoma-io/staff-access:typecheck-db   # tsc --noEmit -p tsconfig.db.json
-pnpm nx run @ecoma-io/staff-access:db:migrate     # db/apply.mts — cần DATABASE_URL migrator
+pnpm nx run @ecoma-io/staff-access-db:migrate     # runner.mts adopt && migrate — cần DATABASE_URL migrator
 ```
 
 - Dev server dùng port khai trong `dev` của `wrangler.jsonc` (4206); Hyperdrive binding khai id chuỗi rỗng, connection string local đi qua biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_STAFF_ACCESS`.
-- `db:migrate` mutate database thật và chạy từ runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
+- Migration mutate database thật và chạy từ runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
 
 ## Testing
 

@@ -4,8 +4,9 @@
  *
  * PR database isolation (issue #181): stack này provision `db-auth` + bộ 4 role
  * chuẩn (owner/migrator/runtime/pruner) trên PostgreSQL của platform, chạy
- * migration qua **đường canonical** (`apps/auth/db/apply.mts` — advisory lock
- * `hashtext('db-auth')`, history `auth.schema_migrations`, checksum), rồi seed
+ * migration qua **đường canonical** (`deploys/auth-db` runner — chuỗi `adopt &&
+ * migrate` cutover #375; advisory lock giữ nguyên khóa `hashtext('db-auth')`,
+ * verify checksum ledger `auth.schema_migrations` trước khi stamp), rồi seed
  * client public `backoffice` cho lane local (issue #194 — seed per-environment
  * vì redirect URI exact-match phải mang port động của platform).
  *
@@ -91,8 +92,8 @@ import {
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (`applyAllMigrations` của
- * `apps/auth/db/apply.mts`) — deploy không tự viết lại vòng migration.
+ * là đúng một đường code canonical (runner `deploys/auth-db` — deploy không tự
+ * viết lại vòng migration).
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
@@ -253,9 +254,9 @@ const provision = new command.local.Command(dockerResourceName(ns, 'auth') + '-p
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx db/apply.mts` của repo (`apps/auth/db/apply.mts` — advisory
- * lock `hashtext('db-auth')`, history `auth.schema_migrations`, checksum
- * drift-abort, thứ tự tên file). Repo mount read-only.
+ * chạy runner thật của `deploys/auth-db` (chuỗi `adopt && migrate` — advisory
+ * lock giữ nguyên khóa `hashtext('db-auth')`, verify checksum ledger trước khi
+ * stamp, `drizzle-kit migrate` atomic). Repo mount read-only.
  *
  * Kênh `DATABASE_URL`: script text là ĐẦU RA của hàm thuần `buildMigrateScript`
  * (`scripts.ts`) và chỉ mang `-e DATABASE_URL` — CHỈ TÊN biến, không
