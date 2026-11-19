@@ -74,7 +74,7 @@ jobs:
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/src" \
             --workdir /src \
-            'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+            'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
             semgrep --test --config .github/semgrep .github/semgrep
       # Luôn quét, không có điều kiện chạy: một lần scan bị bỏ qua ở đây là
       # required check xanh trong khi chưa quét gì (hook pre-push mới có điều
@@ -85,7 +85,7 @@ jobs:
             --volume "$GITHUB_WORKSPACE:/src" \
             --volume /tmp:/out \
             --workdir /src \
-            'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d' \
+            'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
             bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.sarif .github/semgrep/accepted-shapes.json'
           echo "Semgrep scan passed: $(python3 -c 'import json; print(len(json.load(open("/tmp/semgrep.sarif"))["runs"][0].get("results") or []))') finding(s), all accepted by the allowlist."
       # Hai bước cuối của job này dùng chung một định nghĩa "finding được chấp
@@ -122,7 +122,7 @@ jobs:
           --volume "$GITHUB_WORKSPACE:/src"
           --volume /tmp:/out
           --workdir /src
-          'semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d'
+          'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1'
           bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.gate.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.gate.sarif .github/semgrep/accepted-shapes.json'
           && python3 .github/semgrep/filter-accepted.py gate
           /tmp/semgrep.gate.sarif .github/semgrep/accepted-shapes.json
