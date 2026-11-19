@@ -117,7 +117,7 @@ Taxonomy (`apps`/`libs`/`system-tests`) và cấu trúc Nx project → [`05-code
 
 - Migration là file `.sql` trong `migrations/` top-level của service, áp dụng bằng `wrangler d1 migrations apply`; bảng `d1_migrations` của chính DB ghi tập đã chạy (`04` DB8 — Verified với tài liệu Cloudflare D1, 2026-11-19; `migrations_dir`/`migrations_pattern` mặc định không đổi).
 - Tuân thủ expand → compatible rollout → contract (`01` invariant 10); không down-migrate.
-- Chạy trong CI runner với Wrangler token scoped theo môi trường — **không** qua Hyperdrive, **không** qua PostgreSQL migration runner. Contract tooling tương đương `drizzle-broker` cho D1 vẫn mở ở §12 (không chặn cutover #382).
+- Chạy trong CI runner với `ECOMA_CLOUDFLARE_API_TOKEN` — một token duy nhất cho toàn bộ pipeline (§6.12; map vào `CLOUDFLARE_API_TOKEN` chỉ trong step Wrangler), **không** scoped theo environment — **không** qua Hyperdrive, **không** qua PostgreSQL migration runner. Ranh giới staging/production nằm ở Worker identity tách biệt + `--env` tường minh + GitHub Environment riêng (§6.12). Contract tooling tương đương `drizzle-broker` cho D1 vẫn mở ở §12 (không chặn cutover #382).
 
 ### 3.1 Migration runner phải độc lập topology
 
@@ -194,12 +194,15 @@ vì đây là orchestration hạ tầng chạy như tiến trình Node, không p
 
 - **Rejected alternative — schema-as-code với `drizzle-orm` TypeScript làm canonical schema:** đòi viết lại 71 file hiện có
   thành schema TS (không biện minh được ở quy mô này), và dịch chuyển nguồn sự thật schema từ SQL đã-review sang TS — trong khi
-  giá trị lớn nhất Drizzle Kit mang lại cho repo này là journal + check, không phải TS schema. `drizzle-orm` vẫn được pin (root
-  `package.json`, §3a.3) để runner chạy, và một `drizzle-orm` schema TS **suy ra từ SQL** có thể bổ sung sau cho type-safety
-  phía consumer nếu cần — không phải điều kiện của cutover.
-- **Pin (Verified):** `drizzle-kit@0.31.11` (root `package.json:53`, latest stable trên npm — dist-tag `latest` đúng 0.31.11,
-  publish 2026-09-21; các tag khác đều 1.0.0-beta/rc — không chọn prerelease). `drizzle-orm` pin `0.45.4` (latest stable,
-  publish 2026-10-08, cùng dòng 0.45.x với kit 0.31.11 — kit yêu cầu `drizzle-orm ≥ 0.30.x` cho đường migrate này).
+  giá trị lớn nhất Drizzle Kit mang lại cho repo này là journal + check, không phải TS schema. `drizzle-orm` sẽ được pin làm
+  runner dependency (mục Pin dưới đây, thêm bởi #374) để runner chạy, và một `drizzle-orm` schema TS **suy ra từ SQL** có thể
+  bổ sung sau cho type-safety phía consumer nếu cần — không phải điều kiện của cutover.
+- **Pin (`drizzle-kit` Verified trên cây; `drizzle-orm` quyết định cho delivery):** `drizzle-kit@0.31.11` đã là direct
+  dependency ở root `package.json:53` (latest stable trên npm — dist-tag `latest` đúng 0.31.11, publish 2026-09-21; các tag
+  khác đều 1.0.0-beta/rc — không chọn prerelease). `drizzle-orm` **chưa có trong cây** — lockfile chỉ ghi nó như optional peer
+  dependency của kit (specifier `*`), không có package entry nào; vì migrator của kit runtime-require `drizzle-orm` (§3a.3),
+  delivery #374 phải thêm direct pin **`drizzle-orm@0.45.4`** (latest stable, publish 2026-10-08, cùng dòng 0.45.x với kit
+  0.31.11 — kit yêu cầu `drizzle-orm ≥ 0.30.x` cho đường migrate này) trước khi lane `db-migrate` đầu tiên chạy.
   Prerelease 1.0.0-beta của cả hai bị loại: pin này là hạ tầng delivery, chọn dòng beta là tự đặt vào đường thay đổi hành vi
   không cần thiết.
 - **`drizzle-orm` không được phép ở `runtime:edge`:** schema/migration layer chỉ chạy ở CI runner và local (`runtime:native`);
