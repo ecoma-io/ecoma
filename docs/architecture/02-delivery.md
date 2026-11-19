@@ -15,7 +15,7 @@
 > | **Delivery runner** (`tools/delivery/`, deploy gate, promotion gate, guard binding, audit) | ❌ Không có thư mục này. `tools/` chỉ có `dx/` và `account-bridge/`                                                                                                                                                                                                                                                                                                       |
 > | **Nhóm deployment** (`deploys/`)                                                           | ✅ Có — 17 Pulumi deployment project (recount 2026-11-18; số 13 trước đây đã stale), `platform-deploy` là tầng prerequisite. `platform-deploy` + `home-deploy` hiện thực local platform (managed resource thật, lifecycle local điều phối qua Nx target `local-up`/`local-down` của từng deploy project); 15 project có lane local, 2 project job-deploy chỉ log (§7.4.1) |
 > | **Release machinery** (`nx.json` `release.projects` + Nx Release config)                   | ✅ Có — khai trong `nx.json`, `projectsRelationship: independent`                                                                                                                                                                                                                                                                                                         |
-> | **Migration runner** (§3)                                                                  | ❌ Không có job nào; migration PostgreSQL là **CI job theo thiết kế**, chưa dựng                                                                                                                                                                                                                                                                                          |
+> | **Migration runner** (§3, §3a)                                                             | ❌ Không có job nào; migration PostgreSQL là **CI job theo thiết kế** (hợp đồng đầy đủ ở §3a — quyết định A–H của #373), chưa dựng. `deploys/<name>-db` per-DB cũng chưa có — foundation #374 dựng exemplar đầu tiên                                                                                                                                                      |
 >
 > Hệ quả cách đọc: các mục §7.2–§7.5 và §9.1 viết ở thì hiện tại ("đang chạy", "đã hiện thực", "repo không còn…") mô tả
 > **mục tiêu đã chốt trong một thời điểm trước đó**, không phải trạng thái của cây code hôm nay. Đừng đọc chúng như bằng
@@ -103,21 +103,21 @@ Taxonomy (`apps`/`libs`/`system-tests`) và cấu trúc Nx project → [`05-code
 - Lifecycle: **publish → verification → compatibility (`can-i-deploy`) → promotion.** Breaking change bị chặn trước khi deploy bởi Contracts Registry.
 - `<bc>-contracts` là boundary artifact, không phải DDD layer → `05-code-architecture.md`. Contracts Registry chỉ là thành phần delivery gate, không phải specification ở đây.
 
-**Track PostgreSQL** (`db-account`, `db-auth`, `db-payment`, `db-llm-gateway`, `db-llm-tenant`, `db-llm-marketplace`):
+**Track PostgreSQL — migration project `deploys/<name>-db` per logical database (hợp đồng đầy đủ: §3a, §3.1):**
 
-- Migration từ **CI runner**, pin `drizzle-kit`; normalize snapshot → `schema.contract.json`; mỗi app version khai báo `[minSchema, maxSchema]`; registry ghi version đang chạy và rollback window (toàn bộ là Worker version).
+- Migration từ **CI runner**, pin `drizzle-kit` (đã có trên cây) + `drizzle-orm` (pin blocking do #374 thêm — §3a.2); normalize snapshot → `schema.contract.json`; mỗi app version khai báo `[minSchema, maxSchema]`; registry ghi version đang chạy và rollback window (toàn bộ là Worker version).
 - Migration chạy **một lần trong CI runner**, kết nối thẳng database bằng PostgreSQL client, giữ **advisory lock**, dùng role _migrator_ của DB đó (role runtime của app chỉ có DML).
 - **Mỗi database có migration history độc lập** — `db-account` và `db-auth` thuộc hai deploy unit khác nhau, rollout độc lập (`01` invariant 18). Dùng chung một bảng migration là cách buộc hai service vào một release, đúng thứ tách deploy unit sinh ra để tránh.
 - Phân loại Safe/Unsafe. **Expand** chạy trước rollout; **contract** chỉ chạy sau rollback window và khi bản cũ nhất không còn live.
-- Không down-migration → **forward-fix**. Backfill là job idempotent riêng, có checkpoint và resume.
-- Trước migration production: on-demand base backup, ghi mốc thời gian/LSN vào release record (`03` §3.1).
+- Không down-migration → **forward-fix**. Backfill là job idempotent riêng, có checkpoint và resume (§3.2 — ranh giới với bootstrap/seed).
+- Trước migration production: on-demand base backup, ghi mốc thời gian/LSN vào release record (`03` §3.1). Baseline identity + restore-verification cho Release Validation → §3a.6.
 - `can-i-deploy --force` chỉ qua GitHub Environment approval + audit log.
 
-**Track D1** (`push`, `push-job`, `mail`, `mail-job` — mỗi service một D1):
+**Track D1 (`mail`, `mail-job`, `push`, `push-job`) — authority per-D1-database qua app unit, contract đầy đủ §3a.4:**
 
-- Migration là file `.sql` trong `migrations/` của service, áp dụng bằng `wrangler d1 migrations apply`; bảng `d1_migrations` của chính DB ghi tập đã chạy (`04` DB8).
+- Migration là file `.sql` trong `migrations/` top-level của service, áp dụng bằng `wrangler d1 migrations apply`; bảng `d1_migrations` của chính DB ghi tập đã chạy (`04` DB8 — Verified với tài liệu Cloudflare D1, 2026-11-19; `migrations_dir`/`migrations_pattern` mặc định không đổi).
 - Tuân thủ expand → compatible rollout → contract (`01` invariant 10); không down-migrate.
-- Chạy trong CI runner với Wrangler token scoped theo môi trường — **không** qua Hyperdrive, **không** qua PostgreSQL migration runner. Contract tooling riêng cho D1 chưa chốt (§12).
+- Chạy trong CI runner với `ECOMA_CLOUDFLARE_API_TOKEN` — một token duy nhất cho toàn bộ pipeline (§6.12; map vào `CLOUDFLARE_API_TOKEN` chỉ trong step Wrangler), **không** scoped theo environment — **không** qua Hyperdrive, **không** qua PostgreSQL migration runner. Trade-off blast radius của token dùng chung (đủ quyền cho cả Worker production) đã ghi tường minh ở §6.12 — reviewer D1 đọc §6.12 trước khi chạm credential; ranh giới staging/production nằm ở Worker identity tách biệt + `--env` tường minh + GitHub Environment riêng, không ở cấp credential. Contract tooling tương đương `drizzle-broker` cho D1 vẫn mở ở §12 (không chặn cutover #382).
 
 ### 3.1 Migration runner phải độc lập topology
 
@@ -125,6 +125,234 @@ Taxonomy (`apps`/`libs`/`system-tests`) và cấu trúc Nx project → [`05-code
 - Loại trừ mọi đường chạy migration từ trong Worker: Hyperdrive **không hỗ trợ advisory lock** (`04` HD6) nên không giữ được lock chống chạy chồng; `cloudflare:sockets` chỉ plaintext TCP (`04` VP2) — không có TLS cho credential; Worker cron chạy migration nghĩa là migration phụ thuộc application plane.
 - Dọc đường đó, một Worker cron **có thể** chạy DML có chọn lọc qua Hyperdrive — khác loại với migration: không cần advisory lock và không đổi schema. Job hiện tại là `auth-nonce-prune-job` (cron DELETE nonce hết hạn bằng role DML hẹp của từng database — `docs/applications/auth-nonce-prune-job/01-architecture.md`); đường sự vụ này KHÔNG mở cửa cho migration từ Worker, rule loại trừ ở bullet trên vẫn giữ nguyên.
 - Đường vào database này là **admin path** riêng cho CI, không phải application access path (`01` §1.1). Credential `_migrator` chỉ tồn tại trong CI secret store, không bao giờ là Worker secret (§6).
+
+### 3a Hợp đồng database migration và deployment — quyết định A–H (Modelling #373)
+
+> Phần dưới là hợp đồng chốt của issue [#373](https://github.com/ecoma-io/ecoma/issues/373). Mỗi quyết định kèm rejected
+> alternative và bằng chứng; phân loại **Verified** (đo trên cây hoặc tài liệu provider), **Inferred** (suy ra từ decision
+> đã ghi), **Unknown** (chưa kiểm được). Mỗi Delivery issue downstream tham chiếu được mục cụ thể: foundation #374 → §3a.1–§3a.3;
+> cutover PostgreSQL #375–#378 → §3a.1, §3a.3, mục D; cutover D1 #382 → §3a.4, mục G+; baseline #379 → mục G; compatibility
+> #380 → mục G; bootstrap/seed #352 → §3.2 + mục F. Quyết định không thuộc #373 (topology, provenance, system-test) giữ nguyên
+> vị trí cũ của tài liệu này.
+
+#### §3a.1 Database inventory và ownership (mục A và A+)
+
+**Inventory — 15 logical database, hai technology, không gộp:**
+
+| Database              | Technology | Người sở hữu dữ liệu (deploy unit)         | Consumer                                                                                   | Migration authority sau hợp đồng này  |
+| --------------------- | ---------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `db-account`          | PostgreSQL | `account`                                  | account                                                                                    | `deploys/account-db` (#375)           |
+| `db-auth`             | PostgreSQL | `auth`                                     | auth, backoffice (OAuth client seed đọc qua bootstrap step của auth), auth-nonce-prune-job | `deploys/auth-db` (#375)              |
+| `db-backoffice`       | PostgreSQL | `backoffice`                               | backoffice                                                                                 | `deploys/backoffice-db` (#375)        |
+| `db-staff-access`     | PostgreSQL | `staff-access`                             | staff-access, staff-access-relay                                                           | `deploys/staff-access-db` (#375)      |
+| `db-llm-gateway`      | PostgreSQL | `llm-api` (BC llm-financial, llm-seller-*) | llm-api                                                                                    | `deploys/llm-gateway-db` (#376)       |
+| `db-llm-tenant`       | PostgreSQL | `llm-api` (BC llm-consumer-tenant)         | llm-api                                                                                    | `deploys/llm-tenant-db` (#376)        |
+| `db-llm-marketplace`  | PostgreSQL | `llm-api` (BC llm-marketplace)             | llm-api                                                                                    | `deploys/llm-marketplace-db` (#376)   |
+| `db-pact-broker`      | PostgreSQL | `pact-broker-api`                          | pact-broker-api, pact-broker-app                                                           | `deploys/pact-broker-db` (#378)       |
+| `db-pact-broker-app`  | PostgreSQL | `pact-broker-app`                          | pact-broker-app                                                                            | `deploys/pact-broker-app-db` (#378)   |
+| `db-remote-cache`     | PostgreSQL | `remote-cache-api`                         | remote-cache-api, remote-cache-app                                                         | `deploys/remote-cache-db` (#377)      |
+| `db-remote-cache-app` | PostgreSQL | `remote-cache-app`                         | remote-cache-app                                                                           | `deploys/remote-cache-app-db` (#377)  |
+| `mail`                | D1         | `transactional-mail`                       | transactional-mail                                                                         | authority qua app unit (§3a.4) (#382) |
+| `mail-job`            | D1         | `transactional-mailer-job`                 | transactional-mailer-job                                                                   | authority qua app unit (§3a.4) (#382) |
+| `push`                | D1         | `push-notification`                        | push-notification                                                                          | authority qua app unit (§3a.4) (#382) |
+| `push-job`            | D1         | `web-push-notification-job`                | web-push-notification-job                                                                  | authority qua app unit (§3a.4) (#382) |
+
+**Verified:** 9 PostgreSQL runner file tồn tại trong cây — `apps/{account,auth,backoffice,llm-api,pact-broker-api,pact-broker-app,remote-cache-api,remote-cache-app,staff-access}/db/apply.mts`; `llm-api` một runner cho 3 target gateway/tenant/marketplace; `auth` có runner tại `apps/auth/db/apply.mts` nhưng trỏ vào thư mục legacy `apps/auth/migrations/` (`MIGRATIONS_DIR = ../migrations`), còn 8 runner kia đọc `db/migrations/` của chính app; `apps/account/db/migrations` 13 file `.sql`, auth 14, backoffice 6, llm-api 11 (5+2+4 theo 3 subdir), pact-broker-api 6, pact-broker-app 1, remote-cache-api 8, remote-cache-app 1, staff-access 11; 4 D1 apps dùng top-level `migrations/` không khai `migrations_dir` (`apps/transactional-mail` 8 file, `transactional-mailer-job` 5, `push-notification` 3, `web-push-notification-job` 1). Không có `deploys/*-db` nào; không có CI migration job nào. Số file trên là inventory code, **không** phải trạng thái đã-apply của database nào — trạng thái thực đo trên từng environment khi cutover (mục D).
+
+**Bảng trên không định nghĩa quan hệ deploy unit ↔ database mới** — cột "Người sở hữu dữ liệu" phản chiếu A2 và bảng data ownership của `01` §1/§2 (đã chốt). `db-payment` vẫn là target đã khai trong `01` §1 nhưng chưa có runner, migration hay deploy unit; nó được cấp migration project khi service `payment` hiện thực, theo đúng cùng hợp đồng — không cutover riêng ở M2.
+
+**Cấu trúc project (A) — một Nx project `deploys/<name>-db` cho mỗi logical PostgreSQL database.** Tên project: `<db-slug>-db`
+(`account-db`, `auth-db`, `backoffice-db`, `staff-access-db`, `llm-gateway-db`, `llm-tenant-db`, `llm-marketplace-db`,
+`pact-broker-db`, `pact-broker-app-db`, `remote-cache-db`, `remote-cache-app-db`) — slug suy từ tên database, **không** từ tên
+app, vì quy mô là database chứ không phải app (`llm-api` một app, ba authority). Cấu trúc: `drizzle.config.ts` + `migrations/`
+(journal + SQL do `drizzle-kit generate` sinh) + runner entry (§3a.3) + `schema/` (§3a.2) + test migration-runner (`06-testing.md`
+tầng integration). Tags: `type:deployment` + `scope:<bc>` + `runtime:native` — cùng dimension với `deploys/*-deploy` hiện có,
+vì đây là orchestration hạ tầng chạy như tiến trình Node, không phải adapter trong ứng dụng (`05` §6.1).
+
+- **Rejected alternative — gộp migration vào `deploys/<unit>-deploy` (Pulumi program):** vi phạm ranh giới §0 — deploy project tạo resource, không sở hữu schema; hợp nhất hai vòng đời trigger (đổi schema sẽ re-run Pulumi plan) và một language (Pulumi index.ts không phải nơi review SQL). §9.1 nguyên tắc 4 đã chốt tách 5 lớp PostgreSQL; project riêng là hình hài project-level của ranh giới đó.
+- **Rejected alternative — giữ migration trong `apps/<unit>/db/` không tách project:** một app có thể sở hữu nhiều database (`llm-api` 3), và app consumer khác đọc cùng database (`pact-broker-app` với `pact-broker-api`; `auth-nonce-prune-job` với `auth`) — đặt authority theo app làm mờ "một database một authority" và buộc dependency ngược. Vị trí trong cây đổi, runner pattern hiện có giữ lại làm nền (§3a.3).
+- **Dependency graph:** một chiều — app consumer → `deploys/<name>-db` (để lane `local-up` và gate đọc trạng thái migrate); `deploys/<name>-db` → `platform-deploy` (prerequisite), **không bao giờ** → `apps/*`. App vẫn là người sở hữu business schema về mặt domain, nhưng migration SQL + history thuộc project db — đổi schema đi qua PR chạm `deploys/<name>-db`, review một nơi.
+- **A+ (D1):** bốn D1 database **không** được cấp Nx project riêng dưới `deploys/`. Lý do bằng bằng chứng, không phải mặc định: (1) execution tool của D1 là `wrangler d1 migrations apply`, đọc thư mục `migrations/` **từ project của app** — tách project ra ngoài app unit thì phải khai `migrations_dir` trỏ chéo cây và Wrangler vẫn cần config của một project nào đó để chạy, tạo một project chỉ làm container path; (2) inventory đã xác nhận mỗi D1 database có đúng một app unit sở hữu và không có consumer nào khác (khác PostgreSQL, nơi `db-auth` có ba consumer) — không có nhu cầu tách authority khỏi app; (3) bảng §9.1 đã gán "D1 app schema (migrations)" cho migration runner và `d1_migrations` cho chính tooling — cùng một app unit giữ cả hai là nhất quán. **Cơ chế bảo đảm tính duy nhất của authority:** `migrations/` top-level của app unit là thư mục migration **duy nhất** của D1 database đó; `wrangler d1 migrations apply` chạy từ đúng một call site per app (cutover #382); không migration D1 nào nằm ở nơi khác — kiểm bằng audit cutover (#382) + review. Điểm tái đánh giá: nếu một D1 database sau này có ≥ 2 app consumer, tách `deploys/<name>-db` theo mẫu PostgreSQL trở thành bắt buộc.
+
+#### §3a.2 Schema ownership — SQL-first, `drizzle-kit` làm journal runner (mục B và B+)
+
+**Quyết định (B+): canonical schema là SQL-first — migration viết tay hoặc SQL do `drizzle-kit generate` sinh từ snapshot;
+`drizzle-orm` không trở thành dependency bắt buộc của schema layer.** Lý do trên bằng chứng cây:
+
+- Toàn bộ 71 file migration PostgreSQL hiện có là SQL idempotent thuần, nhiều file mang contract tinh vi mà schema-as-code
+  không regenerate lại được: GUC `ecoma.auth_database` đọc tên database lúc chạy (`apps/account/db/migrations`), `REVOKE CONNECT`
+  chéo theo instance, grant tối thiểu liệt kê từng bảng (`apps/auth/migrations/0009`), catalog sealed — đây là DDL về **ranh giới
+  quyền**, không phải hình dạng bảng.
+- Drizzle Kit hoạt động tốt với SQL-first: `drizzle-kit check` + introspection không cần `drizzle-orm` schema; `drizzle-kit
+  migrate` chỉ đọc thư mục SQL + journal (kit tự chạy được mà không khai schema — đường `drizzle-kit migrate` đọc
+  `migrationsFolder`, không bắt buộc `schema` trong config; kit **runtime-yêu cầu** package `drizzle-orm` tồn tại để import
+  migrator, nhưng đó là dependency của runner entry, không phải dependency của definition schema — Verified trên bundle
+  `drizzle-kit@0.31.11`: `assertPackages("drizzle-orm")` chạy trước `migrate`).
+- **Mọi migration mới đi qua `drizzle-kit generate` từ đây** (không còn SQL viết tay trừ custom migration có chủ đích —
+  `drizzle-kit generate --custom` sinh file SQL rỗng để viết DDL như GUC/grant, vẫn vào journal). Kết quả là: schema definition
+  đơn nhất nằm trong **SQL + snapshot** của `deploys/<name>-db`, không trong TypeScript.
+
+- **Rejected alternative — schema-as-code với `drizzle-orm` TypeScript làm canonical schema:** đòi viết lại 71 file hiện có
+  thành schema TS (không biện minh được ở quy mô này), và dịch chuyển nguồn sự thật schema từ SQL đã-review sang TS — trong khi
+  giá trị lớn nhất Drizzle Kit mang lại cho repo này là journal + check, không phải TS schema. `drizzle-orm` sẽ được pin làm
+  runner dependency (mục Pin dưới đây, thêm bởi #374) để runner chạy, và một `drizzle-orm` schema TS **suy ra từ SQL** có thể
+  bổ sung sau cho type-safety phía consumer nếu cần — không phải điều kiện của cutover.
+- **Pin (`drizzle-kit` Verified trên cây; `drizzle-orm` quyết định cho delivery):** `drizzle-kit@0.31.11` đã là direct
+  dependency ở root `package.json:53` (latest stable trên npm — dist-tag `latest` đúng 0.31.11, publish 2026-09-21; các tag
+  khác đều 1.0.0-beta/rc — không chọn prerelease). `drizzle-orm` **chưa có trong cây** — lockfile chỉ ghi nó như optional peer
+  dependency của kit (specifier `*`), không có package entry nào; vì migrator của kit runtime-require `drizzle-orm` (§3a.3),
+  delivery #374 phải thêm direct pin **`drizzle-orm@0.45.4`** (latest stable, publish 2026-10-08, cùng dòng 0.45.x với kit
+  0.31.11 — kit yêu cầu `drizzle-orm ≥ 0.30.x` cho đường migrate này) — **blocking dependency của #374**: không lane
+  `db-migrate` nào chạy được cho tới khi pin vào cây, vì vậy mục này thuộc critical path của #374, không phải ghi chú tuỳ chọn.
+  Prerelease 1.0.0-beta của cả hai bị loại: pin này là hạ tầng delivery, chọn dòng beta là tự đặt vào đường thay đổi hành vi
+  không cần thiết.
+- **`drizzle-orm` không được phép ở `runtime:edge`:** schema/migration layer chỉ chạy ở CI runner và local (`runtime:native`);
+  application serving vẫn truy PostgreSQL qua Hyperdrive bằng `pg` hiện có. Không bundled vào Worker nào.
+- **Vai trò từng lệnh (mục C — lifecycle):** `db-generate` = `drizzle-kit generate` (dev-time, cache được — output là file mới
+  trong journal); `db-check` = `drizzle-kit check` (dev + CI: journal hợp lệ, không stale); `db-migrate` = runner (§3a.3,
+  **không cache** — mutate state thật, cùng policy với `local-up`); **`drizzle-kit push` bị cấm trong mọi pipeline** (nó diff
+  schema trực tiếp vào database mà không qua journal — không review, không history, không gate; chỉ có thể xuất hiện trong
+  sandbox testcontainers). Migration đã apply là **bất biến**: không regenerate, không edit — sai thì forward-fix (invariant 10).
+  Folder layout: `migrations/<n>_<name>/migration.sql` + `meta/_journal.json` — layout chuẩn của `drizzle-kit generate`;
+  identity của một migration là **thứ tự trong journal**, không phải timestamp trong tên.
+
+#### §3a.3 Execution model — `drizzle-kit migrate` dưới wrapper runner tự giữ advisory lock (mục C+ và E)
+
+**Quyết định (C+): dùng `drizzle-kit migrate` làm engine apply, không viết lại vòng lặp psql; nhưng nó chỉ chạy sau khi một
+**wrapper runner** (script TS trong `deploys/<name>-db`, cùng pattern `apply.mts` hiện có) đã giữ được advisory lock
+`pg_advisory_lock(hashtext('<database>'))` trên một kết nối PostgreSQL thẳng, và giữ connection đó sống suốt lần migrate.**
+Runner entry **không chạy được cho tới khi `drizzle-orm` được pin vào cây** (§3a.2 — blocking dependency của #374): kit gọi
+`assertPackages("drizzle-orm")` trước khi migrate nên thiếu package là fail ngay tại import, không phải lỗi giữa chừng.
+Ai sở hữu history table: **Drizzle Kit** — bảng `__drizzle_migrations` (schema có thể cấu hình qua `drizzle.config.ts`; mặc định
+chọn schema riêng của database đó, không dùng `public`/`drizzle` ngầm — giá trị ghi tường minh trong config của từng project).
+Advisory lock: **thuộc wrapper**, không thuộc kit — kit không giữ bất kỳ lock nào (Verified trên bundle 0.31.11: không call site
+`pg_advisory*` nào). Transaction boundary: **mỗi file migration là một `BEGIN`/`COMMIT` riêng** (Verified trên migrator của
+kit: từng batch SQL chạy trong transactionProxy riêng), thất bại giữa chừng để lại các file trước đã commit + history cập nhật
+đến file cuối cùng thành công — đúng ngữ nghĩa checkpoint/retry mà mục F đòi hỏi: run lại chỉ apply các file chưa ghi trong
+history table, không apply lại cái đã commit.
+
+- **Vì sao không (a) `drizzle-kit migrate` gọi trực tiếp không wrapper:** mất advisory lock — hai runner song song trên cùng
+  database là trạng thái serialization mà `02` §3.1 và `04` HD6 cấm; mất guard `current_database()` (verify kết nối đúng DB
+  trước khi DDL chạm đúng — pattern đã có trong runner hiện có); mất điểm gắn role/credential contract. Wrapper giữ toàn bộ ba.
+- **Vì sao không (b) generate SQL rồi psql/`pg` runner tự apply với ledger tự quản:** phải tự chế lại đúng những gì kit đã làm
+  (so journal ↔ history, checkpoint per-file), và tạo ra **hai** history schema (ledger tự viết vs `__drizzle_migrations` của
+  kit khi `db-check`/công cụ khác đọc) — một database hai nguồn sự thật history đi ngược "một authority". Chi phí duy nhất của
+  wrapper là script ~50 dòng giữ lock — rẻ hơn nhiều so với sở hữu protocol history.
+- **Hệ quả cutover (mục D):** history hiện tại của 9 runner là **không ledger** — catalog `pg_class` sau apply là nguồn sự thật
+  (Verified: `apply.mts` mỗi app tự đếm bảng, không bảng history). Cutover không thể "adopt" một ledger không tồn tại, nên
+  cutover theo 2 bước tường minh cho từng database: **(1) baseline stamp** — chạy runner mới ở chế độ stamp: giữ lock, tạo
+  `__drizzle_migrations`, ghi toàn bộ file hiện có vào history mà **không thực thi SQL** (file đã idempotent-apply từ trước,
+  chạy lại là no-op nhưng vẫn không chạy — điều kiện cutover là không chạm dữ liệu); **(2) verify** — so schema thực
+  (introspection: số bảng per schema) với kỳ vọng từ file; lệch → dừng, fail closed, không tự sửa. Trên environment chưa từng
+  migrate (environment thật tương lai, CI testcontainers), bước (1) bị bỏ qua — apply toàn bộ từ đầu như thường. File SQL hiện
+  có **không đổi nội dung, không di chuyển file** khi cutover: runner mới đọc chúng theo layout `drizzle-kit` (mỗi file hiện có
+  bọc thành một entry journal `migration.sql` giữ nguyên nội dung — một lần move-in qua cutover PR của nhóm domain đó), rồi từ
+  đó mọi migration mới đi qua `drizzle-kit generate`. `apply.mts` cũ bị **retire trong cùng PR cutover** (xóa cùng target
+  `db:migrate` cũ) — một database không bao giờ có hai runner sống (chặn của #375–#378).
+- **Local lane (mục E):** giữ nguyên behavior M1 — `local-up` của `deploys/<unit>-deploy` vẫn gọi migration qua container
+  ephemeral (`command.local.Command`, Verified `deploys/account-deploy/index.ts:332`), nhưng command đổi từ `tsx db/apply.mts`
+  sang `tsx <path project db>/runner` với cùng `DATABASE_URL` của role `_migrator`. Thứ tự provision → migrate → image →
+  container không đổi (`local-development/02-account-auth-topology.md:72`). Lane local là nơi duy nhất runner chạy **ngoài** CI
+  job — cùng code path, environment khác.
+- **Staging/Release Validation (mục E):** cùng CI job contract §3.1 — trực tiếp bằng PostgreSQL client, `_migrator` per-DB,
+  credential chỉ trong GitHub Environment secret của job; staging database và Release Validation database là state + credential
+  riêng biệt (§4.1 điều 1; candidate isolation theo #345). Không migration nào chạy từ app startup/runtime — giữ nguyên §3.1.
+- **Cấm chạy qua Hyperdrive** — giữ nguyên HD6; note đã đo bổ sung (2026-11-19, tài liệu Hyperdrive chính thức): Hyperdrive
+  **không hỗ trợ session-level advisory lock** (`pg_advisory_lock*`) vì transaction pooling, **nhưng hỗ trợ** transaction-level
+  (`pg_advisory_xact_lock`). Fact này **không** mở đường migration qua Hyperdrive: DDL migration cần phiên kết nối dài và
+  transaction của chính migration (statement `CREATE INDEX CONCURRENTLY` không được phép chạy trong transaction), và đường
+  admin path §3.1 phải là đường kết nối thẳng — số phận của rule không đổi, chỉ bổ sung chi tiết platform vào `04` HD6.
+
+#### §3a.4 D1 execution, history, baseline (mục A+, G+; thực thi #382)
+
+- **History:** `d1_migrations` nội tại của chính D1 database — không tự chế ledger song song (Verified `04` DB8; tài liệu
+  Cloudflare D1: "Creating migrations will keep a record of applied migrations in the `d1_migrations` table"). `migrations_dir`
+  và `migrations_pattern` **giữ mặc định** (top-level `migrations/`) — Verified cây: cả 4 app dùng mặc định, không khai override.
+- **Execution:** `wrangler d1 migrations apply <DATABASE_NAME>` (dùng **database name**, không binding name — khuyến nghị chính
+  thức của Cloudflare vì binding có thể đổi) từ **một call site duy nhất per app** sau cutover #382, trong CI runner với
+  `CLOUDFLARE_API_TOKEN` (token contract §6.12 — một token duy nhất cho pipeline, **không** scoped theo environment; trade-off
+  blast radius và boundary thay thế đã ghi ở §6.12, implementer #382 đọc §6.12 trước khi chạm credential). Chạy **explicit step**
+  của pipeline, không side effect của deploy (§7.4.2 — Wrangler là tool chạy D1 migration, không tự compete infra lifecycle).
+- **Ngữ nghĩa fail/retry (Verified — tài liệu Wrangler `d1 migrations apply`):** một migration lỗi được **rollback migration đó**
+  và các migration trước đó giữ nguyên trạng thái đã apply — checkpoint per-file, retry an toàn. `d1_migrations` ghi theo tên
+  file path — apply lại là no-op cho file đã ghi.
+- **Cutover (mục D cho D1):** trạng thái hiện tại đã là "file đã apply nằm trong `d1_migrations`" — không có gì để adopt,
+  vì thế cutover D1 chỉ gồm: (1) chốt **một** call site apply per app (hiện không có call site CI nào — Verified: chưa có
+  workflow nào chạy `d1 migrations apply`; nếu môi trường đã apply tay thì verify `wrangler d1 migrations list` trả rỗng
+  unapplied trước khi mở lane); (2) retire mọi đường apply khác nếu xuất hiện. Không replay là hệ quả tự nhiên của
+  `d1_migrations` — file đã ghi không chạy lại.
+- **Baseline + restore-verification (G+):** PostgreSQL baseline = restorable snapshot per logical DB (mục G dưới). D1 baseline =
+  **Time Travel bookmark** (`wrangler d1 time-travel info --timestamp` → bookmark, ghi vào evidence của candidate; restore =
+  `wrangler d1 time-travel restore --bookmark`), với hai đặc tính platform ghi nhận: restore **destructive** (đè database hiện
+  có — chỉ chạy trên database validation cô lập, không bao giờ trên serving) và bookmark hết hạn theo cửa sổ PITR (30 ngày Paid
+  — Verified `04` DB5 và tài liệu D1, 2026-11-19). **Restore-verification bắt buộc** giống PostgreSQL: restore vào slot
+  validation, đọc lại `d1_migrations` + smoke schema, pass mới được dùng làm baseline — "bookmark hợp lệ" không phải bằng chứng
+  restorable. Không dùng `d1 export` làm baseline chính (export chặn request trong lúc chạy và không phải PITR — giữ làm
+  biện pháp phụ khi cần giữ trạng thái > 30 ngày).
+
+#### §3a.5 Migration execution semantics — ba lifecycle phân tách, checkpoint, timeout (mục F)
+
+**Ba lifecycle, không trộn:**
+
+1. **Schema DDL** — mọi DDL schema/index/role-grant đi qua migration project (§3a.2–§3a.3), transaction per file, checkpoint
+   như trên.
+2. **Data backfill** — dữ liệu lớn/đáng checkpoint không bao giờ nằm trong DDL migration. Backfill là job idempotent riêng có
+   checkpoint + resume (giữ nguyên dòng §3 hiện hành). Điểm chốt mới: **Drizzle Kit custom migration (SQL thuần) không chạy
+   TypeScript tùy ý được** — script backfill TypeScript không thể được thực thi bởi `drizzle-kit migrate`, vì thế backfill giữ
+   lifecycle riêng (script TS do deploy unit sở hữu, chạy như job, không phải migration file). Backfill chỉ được chạy khi schema
+   đã expand xong, trước contract.
+3. **Bootstrap/seed** — ranh giới với §3.2 giữ nguyên trừ một điểm được làm rõ: file **catalog sealed** trong migration
+   (`staff_access.permissions`, mail template seed `0009_mail_templates_seed.sql` — Verified) **được phép** nằm trong migration,
+   vì chúng là schema-adjacent sealed catalog, idempotent, không biến thiên theo environment; mọi seed **biến thiên theo
+   environment hoặc phụ thuộc dữ liệu runtime** (superadmin, tenant `ecoma`, OAuth client, seed tài finance) vẫn thuộc bootstrap
+   steps §3.2. Mỗi seed dữ liệu có đúng một nguồn: một catalog thuộc migration **hoặc** bootstrap, không cả hai.
+
+**Mutual exclusion, timeout, partial failure (PostgreSQL):**
+
+- Advisory lock là cơ chế duy nhất chống chạy chồng per-database; khóa `hashtext('<database-name>')` session-scoped trên
+  kết nối thẳng — session chết thì lock tự nhả. Wrapper (§3a.3) giữ kết nối lock mở suốt migrate; nếu tiến trình chết giữa
+  chừng: PostgreSQL tự nhả lock khi connection đóng, `__drizzle_migrations` giữ trạng thái các file đã commit — run lại là
+  resume, không replay. Đây là câu trả lời cho open item "crash protection" ở §12: **không cần cơ chế bảo vệ ngoài — resume
+  từ history table + lock tự nhả** là thiết kế; open item chuyển thành verify test (#374: interrupted-migration test ở tầng
+  integration).
+- Statement timeout: **không đặt 60s (HD10)** — đường migration không qua Hyperdrive nên HD10 không áp dụng; wrapper đặt
+  `statement_timeout` per-project trong config runner với giá trị lớn hơn migration dài nhất dự kiến (mặc định khuyến nghị
+  5 phút, project được phép override có lý do trong `drizzle.config.ts` / runner config). Migration cần lâu hơn → tách file.
+- Partial failure across multiple databases (một release chạm N database): mỗi database migrate độc lập, không transaction
+  xuyên database; trạng thái sau fail là "một số DB đã migrate, một số chưa" — coi là **trạng thái hợp lệ biết được**, recovery
+  là chạy lại pipeline (mỗi DB tự resume); không tự rollback DB đã migrate (invariant 10/11). Ordering giữa các database khi
+  có dependency schema: chấp nhận qua **thứ tự khai trong pipeline** (list tường minh của batch release), không tự suy từ graph.
+
+#### §3a.6 Release baseline và compatibility (mục G — thực thi #379, #380)
+
+- **Baseline identity (PostgreSQL):** một baseline per logical database per release candidate = **restorable snapshot**: base
+  backup on-demand trước khi candidate migrate (giữ dòng §3), kèm mốc LSN/timestamp ghi vào release record. "Backup job thành
+  công" không phải bằng chứng — **restore-verification bắt buộc** trước khi baseline được coi là dùng được: restore snapshot
+  vào instance tạm (không đè serving), verify invariants + `__drizzle_migrations` khớp expected history, mới gán nhãn
+  baseline-verified. Cơ chế restore per-database theo `03` §3.1 (lớp dump theo database cho `account`/`auth` — `pg_dumpall` là
+  cluster-level, PG1).
+- **Candidate từ baseline:** candidate migrations của release chạy từ baseline-verified, không từ database live của staging —
+  đây là điều kiện để old-app ↔ expanded-schema test được và để fail được mà không hỏng Continuous Staging.
+- **Ma trận compatibility (thực thi #380):** ba ô bắt buộc cho mọi release có migration — (old app, old schema) đã verify trước
+  đó; (old app, expanded schema sau candidate migration); (candidate app, expanded schema). Old app chạy là Worker version từ
+  previous release manifest (#346 provenance), không rebuild. Chỉ consumer thật của Ecoma (identity stack + 3 product), không
+  framework chung.
+- **Delayed contract migration policy:** contract-phase migration (drop cột/bảng/constraint) chỉ chạy sau khi (a) rollback
+  window đóng, (b) ma trận compatibility chứng minh old app không còn phụ thuộc, (c) nhất quán với `[minSchema, maxSchema]`
+  registry. Enforcement mức M2 là review checklist + gate đọc evidence (#380), không dựng automation framework.
+- **Không down-migrate, không rollback database** — invariant 10/11 giữ nguyên; baseline tồn tại để DR và để validation, không
+  phải đường rollback ứng dụng.
+
+#### §3a.7 Canonical documentation (mục H)
+
+- **Hợp đồng này sống ở `02-delivery.md` §3a** (mục này). Không tài liệu nào khác lặp lại hợp đồng — tài liệu khác tham chiếu
+  `02-delivery.md` §3a. `03-operations.md` giữ ownership backup/restore/DR; `04-platform-facts.md` giữ platform facts (HD6, DB5,
+  DB7, DB8 — update chi tiết session/transaction-level advisory lock đã đo 2026-11-19 thuộc về bản update tiếp theo của `04`,
+  **không** sửa trong PR này); ADR không cần — các quyết định ở đây là delivery-contract, không thay đổi bounded context nào
+  của `01-architecture.md`.
+- **Update phải làm ở `04` (theo dõi, không thuộc PR này):** HD6 hiện ghi "không hỗ trợ advisory locks" — cần phân biệt
+  session-level (không hỗ trợ) và transaction-level (`pg_advisory_xact_lock` — hỗ trợ, Verified tài liệu Hyperdrive
+  2026-11-19). Không ảnh hưởng hợp đồng §3a.3.
 
 ### 3.2 Hợp đồng bootstrap / seed
 
@@ -203,7 +431,7 @@ Bước 3 và bước 4 ghi hai database khác nhau và **không** nằm trong m
 | OAuth client `ecoma-backoffice-local` trong `deploys/auth-deploy`                           | Bootstrap/seed (system-owned) | **Giữ**, phân loại là bootstrap/seed trên bề mặt provisioning; redirect URI là output của stack nên không thể nằm trong migration (thực hiện/kiểm lại ở #25)                                                                                                                                                                                                            |
 | `apps/pact-broker-api/db/bootstrap-tenant.mts` (đổi tên từ `bootstrap-internal-tenant.mts`) | Bootstrap/seed (system-owned) | **Nối vào bề mặt (b)** của `pact-broker` — `db:bootstrap`, chạy thêm trong provisioning lane local sau `migrate` (thực hiện ở #21)                                                                                                                                                                                                                                      |
 
-Không có seed nào khác được thêm vào migration ngoài ba catalog trên, cộng hai seed mới của `db-staff-access` mà [ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) yêu cầu: permission thứ tư `audit.read` (Quyết định 8) và role system administrator cùng `role_permissions` của nó (Quyết định 4). Cả hai là catalog sealed cùng lớp, không phải credential, không biến thiên theo environment.
+Không có seed nào khác được thêm vào migration ngoài ba catalog trên, cộng hai seed mới của `db-staff-access` mà [ADR-0021](../domains/staff-access/adr/0021-first-admin-bootstrap-path.md) yêu cầu: permission thứ tư `audit.read` (Quyết định 8) và role system administrator cùng `role_permissions` của nó (Quyết định 4). Cả hai là catalog sealed cùng lớp, không phải credential, không biến thiên theo environment. Ranh giới đầy đủ giữa ba lifecycle schema-DDL / backfill / bootstrap-seed (quyết định của #373 mục F) nằm ở §3a.5 — nguyên tắc điều phối của mục này: mỗi seed dữ liệu có đúng một nguồn (catalog sealed trong migration **hoặc** bootstrap step, không cả hai), và migration project `deploys/<name>-db` không sở hữu dữ liệu bootstrap nào.
 
 Việc đổi tenant `local` → `ecoma` không cần migration dữ liệu: bước seed hiện có chỉ chạy trên lane local (`docker exec` vào container PostgreSQL của worktree), và dữ liệu local là dữ liệu dùng một lần (`local-down` xoá volume PostgreSQL — `local-development/03-operations.md`). Sau khi #21 đổi hằng số, một worktree local đang chạy phải được dựng lại bằng `local-down` rồi `local-up`, không phải bằng cách chạy seed hai lần trên cùng database. Environment thật dựng tenant lần đầu bằng chính bước bootstrap này; riêng một hàng `ecoma-internal` do writer nội bộ trước #21 để lại (nếu có) được migration 0004 đổi tên thành `ecoma` theo nguồn gốc — fail-closed khi mơ hồ (Quyết định 9, [ADR-0020](../domains/staff-access/adr/0020-bootstrap-seed-contract.md)).
 
@@ -470,7 +698,7 @@ Hai điểm dễ sai, cả hai đều làm approval là hình thức:
 - Mỗi deployment có file cấu hình riêng để rollout độc lập. Không có bước bất đồng bộ nào — `wrangler deploy` trả về khi deploy xong. Lỗi **transport tạm thời** của Cloudflare API được thử lại trong chính lần chạy đó ([Retry quanh `wrangler deploy`](#retry-quanh-wrangler-deploy)).
 - Thứ tự khi thêm unit mới: **Provisioning** (`deploys/<unit>-deploy` — tài nguyên hạ tầng của unit, sau `platform-deploy`) → storage expand → `llm-api` → Workers → Router → promotion gate. Sau đó mỗi release chỉ rollout unit bị ảnh hưởng. Đây là **thứ tự phụ thuộc**, không phải một bước tự động trong pipeline: nó được ràng buộc ở tầng project graph (`05-code-architecture.md` §2.1) và ở execution contract (§7.4.1), còn workflow nối hai vế thì chưa có.
 - **Rollback tại release:** chọn Worker version đã publish, không rebuild, không revert Git (`04` WV1–WV3); chi tiết → §8.
-- Chuỗi storage: **expand → deploy → migrate (nếu cần) → verify → enable → contract** — contract chỉ chạy sau rollback window (§3).
+- Chuỗi storage: **expand → deploy → migrate (nếu cần) → verify → enable → contract** — contract chỉ chạy sau rollback window (§3). Database sequencing của chuỗi này (migration nào chạy trước Worker nào, baseline per database lấy ở đâu, partial failure giữa các database) là hợp đồng §3a.3 (execution model), §3a.5 (semantics per-file checkpoint, không transaction xuyên database) và §3a.6 (baseline/compatibility) — vị trí hợp đồng là §3a, mục này không lặp lại.
 
 ### 7.1 Làn Worker và promotion gate runtime
 
@@ -1061,7 +1289,7 @@ contract); trạng thái hiện thực của từng target trong cây code đư�
 | Backoffice browser regression | Playwright — suite app-owned dưới `apps/backoffice/e2e/` (phạm vi UI của backoffice, không phải system E2E — phân loại theo `06-testing.md`) | PR, chạy qua target `e2e` và job CI `e2e` chuyên dụng                                              |
 | Preview E2E                   | Playwright                                                                                                                                   | Preview                                                                                            |
 | Serve-mode UI preview         | mock adapter qua data-mode seam (`nuxt dev` only) — chi tiết: `05-code-architecture.md` §5                                                   | Dev workstation — KHÔNG chạy ở CI gate                                                             |
-| Staging E2E                   | OTP mailbox + OAuth nightly                                                                                                                  | Staging                                                                                            |
+| Staging E2E                   | Playwright — 8 suite e2e hiện có qua adapter origin/seed, OTP qua mail sink candidate slot (§10.1)                                           | Release PR — gate chống candidate slot; nightly chống Continuous Staging                           |
 | `llm-api` load/soak           | k6 + mock upstream                                                                                                                           | Ngoài giờ cao điểm hoặc host riêng                                                                 |
 | Restore test PostgreSQL       | Restore backup vào instance tạm trên host riêng                                                                                              | Định kỳ (`03` §3.4)                                                                                |
 | Nx remote cache compatibility | GET/PUT cache artifact, auth, immutable entry / 409, local → CI cache hit                                                                    | PR ([`applications/remote-cache/03-operations.md`](../applications/remote-cache/03-operations.md)) |
@@ -1075,6 +1303,72 @@ worker reliability (lease, idempotency, retry, DLQ — `06-testing.md` §7) đư
 Queue/DLQ (retry cạn vào `dead_letter_queue`) nằm ngoài phạm vi các harness này — nếu cần, đòi một quyết định riêng về
 runner mô phỏng Queue. Thiết kế mail quarantine: drain/redrive là năng lực tương lai; bảng `quarantine` được consumer
 ghi và test đọc, không có đường vận hành drain trong thiết kế hiện tại.
+
+### 10.1 Staging system-test gate — hợp đồng (#348)
+
+Gate merge của Release PR chạy chống **candidate slot cô lập** của Release Validation (#381 — Worker `stg-cand-<tên
+Worker production>`, hostname `<sub>-cand.ecoma.io.vn`, DB/D1 `*-cand`, seed riêng trong slot; §4.2), KHÔNG chạy chống
+Continuous Staging và không mutate lane đó. Taxonomy, target contract và semantics phân loại kết quả → `06-testing.md`
+(§6, §8); mục này chốt policy thực thi.
+
+**Định nghĩa** — chi tiết đầy đủ → `06-testing.md` §6, §8: **readiness gate** là probe đúng contract serving của unit mà
+suite nhắm tới, với retry budget chỉ áp cho dấu hiệu "chưa sẵn sàng" thật sự; **test-red** là assertion thất bại sau khi
+readiness đã xanh (lỗi mã nguồn/candidate); **staging-not-ready** là failure trước readiness, kể cả candidate identity
+chưa khớp (slot/hạ tầng chưa đủ điều kiện để đánh giá).
+
+**Bảng suite — tái dụng / adapter / xây mới.** Logic journey của cả 8 suite giữ nguyên; cái phải thích nghi là
+**harness local** (origin resolution, seed/cleanup bằng SQL trực tiếp, TLS pin, container mock) — không suite nào phải
+viết lại:
+
+| Suite                           | Verdict                   | Lý do (evidence)                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `home-public-e2e`               | Adapter nhẹ               | Chỉ origin resolution — không auth, không OTP, không SQL trực tiếp (`system-tests/e2e/home-public-e2e/global-setup.ts:80–107`)                                                                                                                                                    |
+| `identity-login-e2e`            | Adapter                   | Origin + OTP retrieval qua sink của slot + credential test account; seed/cleanup `otp_challenges` bằng SQL trực tiếp là đường local, thay bằng seed trong slot (`…/identity-login-e2e/e2e/support/local-stack.ts:232,421`)                                                        |
+| `identity-oidc-e2e`             | Adapter                   | Origin + OIDC client staging thật; redirect URI của hostname `-cand` phải được OAuth client seed chấp nhận — requirement đầu vào cho #352/#381 (`…/identity-oidc-e2e/global-setup.ts:81–150`)                                                                                     |
+| `backoffice-access-control-e2e` | Adapter đậm               | Origin + seed staff/admin theo §3.2 trong slot; các đường SQL trực tiếp (grants — `ci.yaml:235`) là local-only, thay bằng dữ liệu seed sẵn (`…/backoffice-access-control-e2e/e2e/support/stack-fixtures.ts`)                                                                      |
+| `cross-product-journey-e2e`     | Adapter                   | Origin nhiều unit + seed liên unit trong slot; sibling hostname suy theo scheme `-cand`, không qua `localServiceHostname` (`…/cross-product-journey-e2e/global-setup.ts:245–247`)                                                                                                 |
+| `llm-inference-e2e`             | Adapter đậm, có điều kiện | Phụ thuộc container mock upstream + SQL trực tiếp vào `llm_marketplace` + container logs — chỉ vào gate khi slot provision mock upstream; nếu không, suite nằm ngoài scope gate v1 và việc quyết định thuộc #363 (`…/llm-inference-e2e/e2e/02-serving-and-ledger.spec.ts:29,102`) |
+| `pact-broker-portal-e2e`        | Adapter                   | Origin + seed tenant trong slot; đường SQL trực tiếp là local-only (`…/pact-broker-portal-e2e/global-setup.ts:88–114,299`)                                                                                                                                                        |
+| `remote-cache-portal-e2e`       | Adapter                   | Origin + OIDC flow (cùng issuer `auth`) + seed tenant; OTP qua sink slot (`…/remote-cache-portal-e2e/e2e/support/oidc-flow.ts`)                                                                                                                                                   |
+
+**Xây mới** không thuộc suite nào: gate orchestration, candidate identity verification, seed-in-slot — sở hữu bởi
+#363/#381/#352.
+
+**Origin resolution.** Gate nạp cho mỗi suite biến `E2E_TARGET_ORIGIN` (HTTPS origin chính của luồng suite, vd
+`https://home-cand.ecoma.io.vn`); sibling hostname suy từ origin chính bằng thay thế phần `<sub>` theo scheme `-cand`
+của §4.2 — KHÔNG qua `localServiceHostname` (phép dò Docker namespace là local-only). Thứ tự resolve, fail-loud và quy
+tắc placeholder của `playwright.config.ts` → `06-testing.md` §6.
+
+**Candidate identity.** Điều kiện tiên quyết của gate: slot đang phục vụ đúng candidate — (head SHA, artifact digest)
+khớp `build-manifest.json` đóng gói theo §7.2, qua evidence identity của #346/#381. Identity mismatch là
+**staging-not-ready**, không phải test-red: gate chưa đánh giá được candidate nào cả.
+
+**Auth bootstrap / seed.** Hợp đồng dữ liệu không đổi giữa các environment: danh tính canonical là hằng trong code
+(§3.2, ADR-0020/0021) và procedure từ chối input khác hằng. Staging chạy đúng procedure đó với endpoint + credential
+riêng (#352 orchestration); candidate slot seed riêng trong slot từ baseline đã restore (#381). Gate chỉ tiêu thụ test
+account đã seed — không tự seed, không đụng database trực tiếp.
+
+**OTP delivery.** Candidate slot chạy `transactional-mail` với provider `fake` + D1 sink — cùng cơ chế local
+(`…/identity-login-e2e/e2e/support/local-stack.ts:23,421`), đọc qua credential read-only scoped đúng slot. Chân
+delivery provider thật được verify trên Continuous Staging (#355), không phải trong slot: chân đó không đổi theo release
+candidate, còn mailbox ngoài (IMAP) bị loại vì nondeterministic latency — nguồn flake mới không chấp nhận được cho gate.
+
+**Ranh giới credential của gate job.** Workflow gate chạy trên Release PR (PR-triggered build) — invariant "secrets
+không vào PR builds" áp dụng nguyên văn, giới hạn ở **credential test-purpose**. Được phép: credential test account đã
+seed trong slot; access read-only scoped đúng D1 sink của slot. Bị cấm: `ECOMA_CLOUDFLARE_API_TOKEN` và mọi
+control-plane token deploy (§6.12); mọi credential production; credential `_migrator`/admin của database ngoài slot;
+mọi quyền có thể ghi đè state candidate ngoài đường provisioning của slot (#381).
+
+**Retry / phân loại kết quả.** `test-red` (assertion fail sau khi readiness đã xanh): **không retry** — giữ nguyên
+semantics no-retry của job system-test (`ci.yaml:230–234`). `staging-not-ready` (readiness/identity chưa đạt): được
+retry trong budget readiness gate (`06-testing.md` §6); hết budget → kết quả gate là `staging-not-ready` — candidate
+chưa được verify, không tính là test đỏ của mã nguồn và không tính là PASS.
+
+**Platform services staging bắt buộc cho gate** — đã có issue sở hữu, không phát hành follow-up mới: Router
+non-production + DNS/Hyperdrive (#350, hiện thực §4.2), bootstrap/seed orchestration (#352), transactional-mail +
+mailer-job với OTP path (#355), identity stack account/auth/staff-access + OAuth clients (#354), product stack theo
+suite (#353 home, #357 remote-cache, #358 pact-broker, #359 llm-marketplace, #354 backoffice), candidate slot (#381),
+gate runner (#363). Push-notification (#356) không bắt buộc cho gate v1 — không suite nào trong 8 dùng push.
 
 ---
 
@@ -1108,8 +1402,8 @@ thay đổi ở §0 và hợp đồng bootstrap/seed ở §3.2.
 | Cơ chế dọn **certificate residual** sau teardown Custom Domain — bước vận hành tay có runbook, hay certificate mô hình hoá thành resource riêng (§9.1)                                                                                                                                                                                | Trước lần teardown Custom Domain đầu           |
 | Canary theo trọng số cho Worker (Version Override + phân tách traffic)                                                                                                                                                                                                                                                                | Khi có đủ lưu lượng để chia                    |
 | Dedicated Preview Workflow                                                                                                                                                                                                                                                                                                            | Khi dùng Workflow                              |
-| Contract tooling cho D1 (tương đương `drizzle-broker`, §3)                                                                                                                                                                                                                                                                            | Trước khi schema D1 production                 |
-| Cơ chế bảo vệ khi migration runner chết giữa chừng (mất advisory lock)                                                                                                                                                                                                                                                                | Trước migration production đầu                 |
+| Contract tooling cho D1 (tương đương `drizzle-broker`, §3) — execution contract D1 đã chốt ở §3a.4, mục này chỉ còn tool compatibility gate                                                                                                                                                                                           | Trước khi schema D1 production                 |
+| Verify cơ chế crash-protection của migration runner — hợp đồng đã chốt ở §3a.5 (lock tự nhả khi connection đóng + resume từ `__drizzle_migrations`); cần test interrupted-migration chứng minh (thuộc #374)                                                                                                                           | Trước migration production đầu                 |
 | **Reconciliation execution contract** (§7.4.1)                                                                                                                                                                                                                                                                                        | Trước Phase 2 reconcile                        |
 | **Bucket R2 state cho `staging`/`production`:** sự tồn tại thật, tên bucket, Cloudflare account id và jurisdiction của bucket (quyết định tiền tố endpoint — `04` R22) — **không** suy ra tên từ môi trường hay từ stack                                                                                                              | Trước bootstrap state backend                  |
 | **Xác nhận R2 nhận `s3ForcePathStyle=true`** trên backend thật: contract đã bắt buộc path-style theo dạng endpoint duy nhất Cloudflare công bố (`04` PU9, R22), nhưng đường `s3://` **chưa** được chạy lần nào từ máy này                                                                                                             | Trước bootstrap state backend                  |

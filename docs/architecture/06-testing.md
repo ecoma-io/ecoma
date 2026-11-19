@@ -153,6 +153,14 @@ Phân biệt ba khái niệm Nx hay bị lẫn:
   trình test) phải theo cùng một contract: env trước, fallback parse `.env` repo-root **tại thời điểm gọi**; fail-loud kèm
   hướng dẫn chạy `nx affected -t system-test -c local` khi cả hai nguồn đều vắng. Riêng layer `playwright.config.ts` (được
   eval khi build project graph — trước deploy) không đọc `.env`, dùng placeholder-host để không đỏ oan job CI khác.
+- **Origin staging/candidate là target riêng, không tái dụng đường local.** Khi suite chạy chống staging — candidate slot
+  của Release Validation (policy: `02-delivery.md` §10.1) — origin được nạp bằng biến môi trường `E2E_TARGET_ORIGIN`
+  (HTTPS origin chính của luồng suite, vd `https://home-cand.ecoma.io.vn`); hostname sibling của luồng suy từ origin chính
+  bằng thay thế phần `<sub>` theo scheme `-cand` đã chốt (`02-delivery.md` §4.2), KHÔNG qua `localServiceHostname` — phép
+  dò Docker namespace là local-only. Thứ tự resolve: `E2E_TARGET_ORIGIN` trước; khi nó tồn tại, mọi bước dò local
+  (Docker probe, namespace, SPKI pin, port Traefik) bị bỏ qua — TLS staging là cert công khai, không pin. Suite được chọn
+  cho lần chạy staging mà thiếu biến thì fail-loud như đường local; quy tắc placeholder của `playwright.config.ts` áp
+  dụng cho biến này y như `ROOT_HOST`.
 
 ## 7. Minimum requirements by responsibility and risk
 
@@ -189,6 +197,11 @@ từng suite.
 
 CI chạy target nào trên PR là **delivery policy**, sở hữu bởi `02-delivery.md` (§1 pipeline, §10 test execution) — tài liệu
 này chỉ chốt **semantics**: target canonical nào phủ suite nào.
+
+Staging system-test gate thêm một ranh giới semantics cho kết quả suite: **test-red** (assertion thất bại sau khi suite
+readiness gate đã xanh — lỗi mã nguồn/candidate) khác **staging-not-ready** (failure trước readiness, kể cả candidate
+identity chưa khớp — hạ tầng/slot chưa đủ điều kiện để đánh giá). Phân loại quyết định tại thời điểm readiness gate
+(§6), KHÔNG theo message lỗi; policy retry và hậu quả merge/verify của từng loại → `02-delivery.md` §10.1.
 
 ## 9. Naming conventions and anti-patterns
 
