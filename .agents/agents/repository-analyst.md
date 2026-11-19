@@ -55,19 +55,19 @@ run them, never write to GitHub.
 
 ## Start points by question
 
-| Question                                | First stop, then                                                                                                                                                                                                                          |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Who owns X / which context              | `docs/domains/README.md` catalog → context `domain-model.md`; `architecture/05-code-architecture.md` for code structure                                                                                                                   |
-| How does component Y behave             | `docs/applications/README.md` → component docs → implementing `apps/` code (check DEPLOYMENT_MAP for implemented vs scaffold)                                                                                                             |
-| Term meaning                            | `docs/domains/glossary.md` → owning context                                                                                                                                                                                               |
-| What has been decided / why             | `architecture/01-architecture.md` decisions section → `domains/<context>/adr/` indexes (ADR number alone is ambiguous across contexts)                                                                                                    |
-| Dependency or contract between projects | contract lib source under `libs/<x>-contracts/` + workspace-dep grep (recipes below)                                                                                                                                                      |
-| Database ownership / migrations         | the app's migrations directory (location varies: `db/migrations/`, bare `migrations/`, per-database subdirectories) → per-app db README where present → `architecture/05-code-architecture.md` and the delivery document's warning header |
-| Runtime configuration / secrets         | Nuxt apps: the app's `nuxt.config.ts` runtimeConfig; Worker-only apps: `wrangler.jsonc` bindings; plus deploy project scripts                                                                                                             |
-| Deployment ownership                    | `DEPLOYMENT_MAP` in `tools/dx/src/architecture/deployment-map.ts` (machine-readable app → deploy-project ownership with implemented/scaffold status) → `deploys/<unit>-deploy/`                                                           |
-| Test ownership / targets                | `architecture/06-testing.md` test-placement and canonical-target sections → the project's `nx` block in its `package.json`                                                                                                                |
-| Docs vs implementation                  | both sides: the canonical doc AND the implementing code/config; check whether the doc side is under `docs/changes/` (a Change Specification is design-ahead proposal, never current target)                                               |
-| Cross-cutting / unknown                 | `docs/README.md` view map to pick the right view first                                                                                                                                                                                    |
+| Question                                | First stop, then                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Who owns X / which context              | `docs/domains/README.md` catalog → context `domain-model.md`; `docs/architecture/05-code-architecture.md` for code structure                                                                                                                   |
+| How does component Y behave             | `docs/applications/README.md` → component docs → implementing `apps/` code (check DEPLOYMENT_MAP for implemented vs scaffold)                                                                                                                  |
+| Term meaning                            | `docs/domains/glossary.md` → owning context                                                                                                                                                                                                    |
+| What has been decided / why             | `docs/architecture/01-architecture.md` decisions section → `docs/domains/<context>/adr/` indexes (ADR number alone is ambiguous across contexts)                                                                                               |
+| Dependency or contract between projects | contract lib source under `libs/<x>-contracts/` + workspace-dep grep (recipes below)                                                                                                                                                           |
+| Database ownership / migrations         | the app's migrations directory (location varies: `db/migrations/`, bare `migrations/`, per-database subdirectories) → per-app db README where present → `docs/architecture/05-code-architecture.md` and the delivery document's warning header |
+| Runtime configuration / secrets         | Nuxt apps: the app's `nuxt.config.ts` runtimeConfig; Worker-only apps: `wrangler.jsonc` bindings; plus deploy project scripts                                                                                                                  |
+| Deployment ownership                    | `DEPLOYMENT_MAP` in `tools/dx/src/architecture/deployment-map.ts` (machine-readable app → deploy-project ownership with implemented/scaffold status) → `deploys/<unit>-deploy/`                                                                |
+| Test ownership / targets                | `docs/architecture/06-testing.md` test-placement and canonical-target sections → the project's `nx` block in its `package.json`                                                                                                                |
+| Docs vs implementation                  | both sides: the canonical doc AND the implementing code/config; check whether the doc side is under `docs/changes/` (a Change Specification is design-ahead proposal, never current target)                                                    |
+| Cross-cutting / unknown                 | `docs/README.md` view map to pick the right view first                                                                                                                                                                                         |
 
 ## Blast-radius recipes
 
@@ -114,7 +114,7 @@ Never claim: observed or executed runtime behaviour, CI run outcomes, `nx`
 CLI graph output, git history, generated build artifacts, external or live
 state (`.env` values, Pulumi state, Cloudflare config, broker data). Reading
 source stays verifiable — behaviour derivable from code is your core job.
-When a flow touches `architecture/02-delivery.md`, read its warning header
+When a flow touches `docs/architecture/02-delivery.md`, read its warning header
 first and state explicitly which delivery lanes exist versus are
 decided-but-unbuilt; absence of a CI workflow is evidence a lane is not wired.
 
