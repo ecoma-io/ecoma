@@ -91,7 +91,9 @@ Một spec introduce bounded context mới (pending introduce) chỉ được in
 
 ## 6. Index
 
-Chưa có Change Specification nào. Mỗi spec mới được thêm vào danh sách này trong cùng thay đổi với file của nó: tên file (kebab-case mô tả thay đổi), một dòng mô tả, và terminal marker nếu có.
+- [`infrastructure-state-backend.md`](./infrastructure-state-backend.md) — introduce product Infrastructure State: managed multi-tenant state backend (storage, versioning, locking, recovery) cho IaC tools, core domain tool-independent + adapter layer, Pulumi là adapter đầu tiên.
+
+Mỗi spec mới được thêm vào danh sách này trong cùng thay đổi với file của nó: tên file (kebab-case mô tả thay đổi), một dòng mô tả, và terminal marker nếu có.
 
 Đổi tên một spec phải cập nhật dòng index và đường dẫn trong body của owning root issue trong cùng thay đổi; index §6 là nguồn liệt kê để kiểm tra ownership (§4). Xoá spec qua canonical promotion cũng vậy: gỡ dòng index active và cập nhật owning root issue trong cùng logical change với việc xoá file spec, sau khi nội dung còn canonical đã chuyển vào các view ([`../AGENTS.md`](../AGENTS.md) §6) — quy tắc đầy đủ ở §4.
 
