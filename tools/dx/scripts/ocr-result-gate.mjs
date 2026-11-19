@@ -20,13 +20,22 @@
  *   đối chiếu các file bị bỏ: file khớp `include` mà không khớp `exclude` nào thì
  *   đáng lẽ phải được review, nên việc bỏ nó nghĩa là rule không còn hiệu lực.
  *
- * Hợp đồng: exit 0 = chứng minh được một trong hai điều: (a) review đã hoàn tất
+ * Hợp đồng: exit 0 = chứng minh được một trong các điều: (a) review đã hoàn tất
  * trên ít nhất một file, hoặc (b) review bị bỏ qua (`terminal_state: "skipped"`)
  * mà TOÀN BỘ file thay đổi đều nằm ngoài phạm vi review (issue #391: rule chỉ
  * include Markdown còn PR chỉ đổi `*.spec.ts` — không có gì để review theo
- * policy, không phải xanh giả #239). Exit 1 = không chứng minh được
- * (fail-closed, mọi trường hợp thiếu dữ liệu đều rơi vào đây); exit 2 = dùng
- * sai tham số.
+ * policy, không phải xanh giả #239), hoặc (c) review bị bỏ qua và diff của PR
+ * so với base chỉ xoá nội dung — không có dòng added nào nên không có gì để
+ * review một cách cấu trúc (issue #456: PR gỡ artifact thuần deletion). Exit 1 =
+ * không chứng minh được (fail-closed, mọi trường hợp thiếu dữ liệu đều rơi vào
+ * đây); exit 2 = dùng sai tham số.
+ *
+ * Bằng chứng cho nhánh (c) là file numstat (`git diff --numstat --no-renames
+ * <base> <head>`) mà workflow tạo sẵn và truyền qua `--numstat` — cổng không tự
+ * chạy git vì nó chạy trên base checkout không có object của head. Nhánh (c) chỉ
+ * mở khi numstat đọc được, parse sạch, không có entry binary (`-` — không chứng
+ * minh được added bằng 0), coverage hoàn toàn rỗng và tổng added đúng bằng 0;
+ * mọi trường hợp khác (file thiếu, dòng hỏng, added > 0) giữ nguyên fail-closed.
  */
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
@@ -37,6 +46,13 @@ const EXIT_USAGE = 2;
 
 const DEFAULT_RESULT_PATH = '/tmp/ocr-result.json';
 const DEFAULT_STDERR_PATH = '/tmp/ocr-stderr.log';
+/**
+ * Không có mặc định cho numstat: nhánh deletion-only (#456) chỉ mở khi workflow
+ * truyền `--numstat` tường minh. Nếu dùng đường dẫn mặc định thì một file rác
+ * còn sót trong /tmp của runner có thể kích hoạt nhánh cấp qua trong test hay
+ * chạy lẻ — phải tắt mặc định để hành vi luôn xác định.
+ */
+const DEFAULT_NUMSTAT_PATH = '';
 /**
  * Project rule mà `ocr` đọc để mở rộng phạm vi review (Markdown). Đường dẫn này
  * nằm trong base checkout mà workflow đã có sẵn, nên cổng soát được các file bị
@@ -88,27 +104,30 @@ const SIZE_ROLLUP_LINE = /^\[ocr\] Pre-filtered \d+ file\(s\) exceeding 80% of m
 const SELECTION_LINE =
   /^\[ocr\] (?<changed>\d+) file\(s\) changed, reviewing (?<selected>\d+) in /mu;
 
-const USAGE = `Usage: node ocr-result-gate.mjs [--result <path>] [--stderr <path>] [--rule <path>]
+const USAGE = `Usage: node ocr-result-gate.mjs [--result <path>] [--stderr <path>] [--rule <path>] [--numstat <path>]
 
 Reads the OpenCodeReview result and fails unless the review is proven complete.
   --result <path>  ocr-result.json path (default: ${DEFAULT_RESULT_PATH})
   --stderr <path>  ocr-stderr.log path (default: ${DEFAULT_STDERR_PATH})
   --rule <path>    project rule path (default: ${DEFAULT_RULE_PATH})
+  --numstat <path> git diff --numstat file enabling the deletion-only pass (issue 456);
+                   optional, disabled unless provided
 `;
 
 /**
  * Đọc tham số dòng lệnh; chỉ nhận các cờ đường dẫn.
  * @param {string[]} argv
- * @returns {{ resultPath: string, stderrPath: string, rulePath: string }}
+ * @returns {{ resultPath: string, stderrPath: string, rulePath: string, numstatPath: string }}
  */
 function parseArgs(argv) {
   let resultPath = DEFAULT_RESULT_PATH;
   let stderrPath = DEFAULT_STDERR_PATH;
   let rulePath = DEFAULT_RULE_PATH;
+  let numstatPath = DEFAULT_NUMSTAT_PATH;
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (flag !== '--result' && flag !== '--stderr' && flag !== '--rule') {
+    if (flag !== '--result' && flag !== '--stderr' && flag !== '--rule' && flag !== '--numstat') {
       throw new UsageError(`unknown argument ${JSON.stringify(flag)}`);
     }
     if (value === undefined || value.startsWith('--')) {
@@ -118,12 +137,14 @@ function parseArgs(argv) {
       resultPath = value;
     } else if (flag === '--stderr') {
       stderrPath = value;
+    } else if (flag === '--numstat') {
+      numstatPath = value;
     } else {
       rulePath = value;
     }
     index += 1;
   }
-  return { resultPath, stderrPath, rulePath };
+  return { resultPath, stderrPath, rulePath, numstatPath };
 }
 
 class UsageError extends Error {}
@@ -369,6 +390,98 @@ function nothingInScopeEvidence(skips, selected, changedCount, coverage, rulePat
 }
 
 /**
+ * Cột số trong numstat: số nguyên không âm, hoặc `-` cho file binary (null).
+ * @param {number | null} value
+ * @returns {boolean}
+ */
+const isNumstatCount = (value) => value === null || (Number.isInteger(value) && value >= 0);
+
+/**
+ * Đọc file numstat (`git diff --numstat --no-renames <base> <head>`) mà workflow
+ * tạo sẵn. Mỗi dòng là `added<TAB>deleted<TAB>path`; file binary cho `-` thay vì
+ * số. Một dòng hỏng làm toàn bộ file vô giá trị — không chấp nhận parse từng
+ * phần, vì nhánh cấp qua #456 cần tổng added của TOÀN BỘ diff.
+ * @param {{ enabled: boolean, available: boolean, path: string, text: string }} numstatLog
+ * @returns {{ enabled: boolean, available: boolean, path: string, files: {added: number | null, deleted: number | null, path: string}[], error: string | null }}
+ */
+function readNumstat(numstatLog) {
+  if (!numstatLog.enabled) {
+    return { enabled: false, available: false, path: numstatLog.path, files: [], error: null };
+  }
+  const unusable = (error) => ({
+    enabled: true,
+    available: false,
+    path: numstatLog.path,
+    files: [],
+    error,
+  });
+  if (!numstatLog.available) {
+    return unusable('unreadable');
+  }
+  const files = [];
+  for (const [index, line] of numstatLog.text.split('\n').entries()) {
+    if (line === '') {
+      continue;
+    }
+    const fields = line.split('\t');
+    if (fields.length !== 3) {
+      return unusable(`malformed line ${index + 1}`);
+    }
+    const [addedRaw, deletedRaw, path] = fields;
+    const added = addedRaw === '-' ? null : Number(addedRaw);
+    const deleted = deletedRaw === '-' ? null : Number(deletedRaw);
+    if (path === '' || !isNumstatCount(added) || !isNumstatCount(deleted)) {
+      return unusable(`malformed line ${index + 1}`);
+    }
+    files.push({ added, deleted, path });
+  }
+  return { enabled: true, available: true, path: numstatLog.path, files, error: null };
+}
+
+/**
+ * Bằng chứng "deletion-only" cho một run `skipped` (issue #456): diff của PR so
+ * với base không có dòng added nào → không có nội dung mới để review một cách
+ * cấu trúc, `skipped` là kết quả đúng chứ không phải xanh giả.
+ *
+ * Mỗi điều kiện chặn một kiểu cấp qua nhầm:
+ * - numstat phải đọc được và parse sạch — thiếu dữ liệu thì không chứng minh được.
+ * - file binary (`-`) không được phép xuất hiện: numstat không nói được added của
+ *   binary là 0, nên một diff thêm file binary sẽ trông giống deletion-only.
+ * - coverage phải hoàn toàn rỗng: manifest tự mâu thuẫn (skipped nhưng có item)
+ *   thì dữ liệu không đáng tin, đúng chốt của đường #391.
+ * - ít nhất một file thay đổi: diff rỗng không phải bằng chứng deletion-only.
+ * - tổng added đúng bằng 0: đây là mệnh đề duy nhất nhánh này chứng minh.
+ * @param {ReturnType<typeof readNumstat>} numstat
+ * @param {{ failed: number, selected: number, completed: number, reused: number }} coverage số lượng item trong manifest
+ * @returns {string | null} ghi chú tiếng Anh khi đủ bằng chứng, `null` nếu không
+ */
+function deletionOnlyEvidence(numstat, coverage) {
+  if (!numstat.enabled || !numstat.available || numstat.files.length === 0) {
+    return null;
+  }
+  if (
+    coverage.selected !== 0 ||
+    coverage.completed !== 0 ||
+    coverage.reused !== 0 ||
+    coverage.failed !== 0
+  ) {
+    return null;
+  }
+  let addedTotal = 0;
+  for (const file of numstat.files) {
+    // Binary entry: numstat không chứng minh được added = 0 → không cấp qua.
+    if (file.added === null) {
+      return null;
+    }
+    addedTotal += file.added;
+  }
+  if (addedTotal !== 0) {
+    return null;
+  }
+  return `deletion-only: nothing to review (0 added line(s) across ${numstat.files.length} changed file(s) vs the PR base)`;
+}
+
+/**
  * Đọc và parse JSON kết quả.
  * @param {string} resultPath
  * @returns {{ read: true, value: unknown } | { read: false, error: string }}
@@ -437,13 +550,27 @@ function auditAgainstRule(paths, rule, fallback) {
  * @param {unknown} result
  * @param {{ text: string, available: boolean, path: string }} stderrLog
  * @param {string} rulePath
+ * @param {{ enabled: boolean, available: boolean, path: string, text: string }} numstatLog
  * @returns {{ failures: string[], notes: string[], facts: string[] }}
  */
-function evaluate(result, stderrLog, rulePath) {
+function evaluate(result, stderrLog, rulePath, numstatLog) {
   const failures = [];
   const notes = [];
   const facts = [];
   let reusedCount = 0;
+  // Parse numstat một lần ở đầu để facts luôn có mặt khi `--numstat` được truyền,
+  // kể cả khi các nhánh kết thúc sớm phía dưới.
+  const numstat = readNumstat(numstatLog);
+  if (numstatLog.enabled) {
+    facts.push(
+      numstat.available
+        ? `diff_numstat=${numstat.files.length} file(s)`
+        : `diff_numstat unusable: ${numstat.error}`,
+    );
+  }
+  // Nhánh cấp qua deletion-only (#456): chỉ tính khi coverage parse thành công —
+  // đặt trong nhánh coverage bên dưới, không tính trước.
+  let deletionOnlyGrant = null;
 
   if (!isRecord(result)) {
     failures.push('result is not a JSON object');
@@ -500,6 +627,14 @@ function evaluate(result, stderrLog, rulePath) {
         selectedManifestCount = selected.length;
         completedManifestCount = completed.length;
         reusedManifestCount = reused.length;
+        if (terminalStateSkipped) {
+          deletionOnlyGrant = deletionOnlyEvidence(numstat, {
+            failed: failedCoverageCount,
+            selected: selectedManifestCount,
+            completed: completedManifestCount,
+            reused: reusedManifestCount,
+          });
+        }
         facts.push(
           `coverage: selected=${selected.length} completed=${completed.length} ` +
             `reused=${reused.length} failed=${failed.length}`,
@@ -587,6 +722,12 @@ function evaluate(result, stderrLog, rulePath) {
     if (terminalStateComplete) {
       failures.push(`cannot rule out size-gated skips: ${stderrLog.path} is ${stderrState}`);
     } else if (terminalStateSkipped) {
+      if (deletionOnlyGrant !== null) {
+        // Bằng chứng deletion-only (#456) độc lập với log: diff không có dòng
+        // added nào thì không có gì để review, kể cả khi log rỗng/thiếu.
+        notes.push(deletionOnlyGrant);
+        return { failures, notes, facts };
+      }
       // Log thiếu/rỗng = không có bằng chứng "mọi file đều ngoài phạm vi" → không
       // cấp qua, đường `skipped` fail-closed đúng như đường `complete`.
       failures.push(...terminalStateFailures);
@@ -695,7 +836,14 @@ function evaluate(result, stderrLog, rulePath) {
         // Cấp qua có điều kiện: chỉ lỗi `terminal_state` được bỏ, mọi lỗi khác
         // (ví dụ budget_exceeded, mismatch coverage) vẫn đỏ như thường.
         notes.push(grant);
-      } else {
+      }
+      if (deletionOnlyGrant !== null) {
+        // Nhánh cấp qua thứ hai (#456): diff thuần xoá không có gì để review.
+        // Cả hai grant có thể cùng đúng (file ngoài phạm vi VÀ chỉ xoá nội
+        // dung) — ghi cả hai ghi chú, số phận lỗi hoãn vẫn là pass.
+        notes.push(deletionOnlyGrant);
+      }
+      if (grant === null && deletionOnlyGrant === null) {
         failures.push(...terminalStateFailures);
       }
     } else {
@@ -734,6 +882,18 @@ function main() {
     stderrAvailable = false;
   }
 
+  let numstatText = '';
+  let numstatAvailable = false;
+  const numstatEnabled = args.numstatPath !== '';
+  if (numstatEnabled) {
+    try {
+      numstatText = readFileSync(args.numstatPath, 'utf8');
+      numstatAvailable = true;
+    } catch {
+      numstatAvailable = false;
+    }
+  }
+
   const { failures, notes, facts } = evaluate(
     read.value,
     {
@@ -742,6 +902,12 @@ function main() {
       path: args.stderrPath,
     },
     args.rulePath,
+    {
+      text: numstatText,
+      available: numstatAvailable,
+      path: args.numstatPath,
+      enabled: numstatEnabled,
+    },
   );
   for (const fact of facts) {
     process.stdout.write(`[ocr-gate] ${fact}\n`);
@@ -760,10 +926,13 @@ function main() {
     return EXIT_UNVERIFIED;
   }
   const nothingInScope = notes.some((note) => note.startsWith('0 in-scope file(s):'));
+  const deletionOnly = notes.some((note) => note.startsWith('deletion-only:'));
   process.stdout.write(
     nothingInScope
       ? '[ocr-gate] VERIFIED: no in-scope file to review under the project rule\n'
-      : '[ocr-gate] VERIFIED: the review completed on the selected files\n',
+      : deletionOnly
+        ? '[ocr-gate] VERIFIED: deletion-only diff, nothing to review\n'
+        : '[ocr-gate] VERIFIED: the review completed on the selected files\n',
   );
   return EXIT_VERIFIED;
 }
