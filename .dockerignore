@@ -22,7 +22,12 @@
 # `deploys/account-deploy/Dockerfile`, `deploys/auth-deploy/Dockerfile`,
 # `deploys/pact-broker-app-deploy/Dockerfile`,
 # `deploys/pact-broker-api-deploy/Dockerfile`,
-# `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace:
+# `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace,
+# CỘNG artifact đóng gói sẵn của năm image Nuxt (#386): năm Dockerfile
+# `home/account/backoffice/pact-broker-app/remote-cache-app-deploy` không còn
+# build trong image nữa mà COPY `apps/<app>/.output-node/` — artifact
+# `build:development` build trước bởi Nx, gồm traced runtime deps tại
+# `server/node_modules` (được mở lại tường minh dưới đây):
 # `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`,
 # `tools/dx/package.json`, `apps/home/**`, `apps/backoffice/**`,
 # `apps/account/**`, `apps/pact-broker-app/**`, `apps/llm-console/**`,
@@ -104,6 +109,19 @@ deploys/*
 **/*.log
 **/.eslintcache
 **/*.tsbuildinfo
+
+# Artifact `build:development` (#386) mang traced runtime deps NGAY TRONG
+# `.output-node/server/node_modules` — hai blacklist `**/node_modules` và
+# `**/dist` phía trên đều cắt chúng (đo thật: không có negation thì image còn
+# 0 package, container chết ERR_MODULE_NOT_FOUND; chỉ mở dir mà không mở
+# `**` con thì `unhead/dist` mất theo `**/dist`). Mở lại TRỌN subtree: line
+# thứ nhất khớp chính thư mục `node_modules` của artifact (cha không bị loại
+# nên negation có hiệu lực), line `/**` khớp mọi file bên trong để thắng mọi
+# blacklist phía trên theo last-match-wins. `node_modules` của workspace vẫn
+# bị dập — negation chỉ chạm subtree artifact. Khối `.env*`/`.dev.vars*` bên
+# dưới CỐ Ý đứng SAU để secret luôn thắng, kể cả trong traced deps.
+!apps/*/.output-node/server/node_modules
+!apps/*/.output-node/server/node_modules/**
 
 # Env file chứa secret/địa chỉ local — không bao giờ vào context, ở bất kỳ độ
 # sâu nào (`.env`, `.env.local`...). `.dev.vars*` cùng lớp với `.env*`: repo
