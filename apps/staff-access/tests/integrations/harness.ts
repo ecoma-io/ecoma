@@ -8,15 +8,24 @@
  * từ `globalSetup` trước khi worker nào kịp báo xanh giả. Cùng luật với
  * `apps/account/tests/integrations/harness.ts` — pattern tham chiếu.
  *
- * Apply đi qua **runner production** (`db/apply.mts` `applyAllMigrations`) —
- * đúng hàm mà CLI `db:migrate` chạy, gồm advisory lock và assert
- * `current_database()`. Viết vòng apply riêng ở đây là tạo runner thứ hai:
- * "repeatable" sẽ chỉ chứng minh cho bản sao trong khi runner production hỏng —
- * lỗi đã từng xảy ra ở `apps/account` và được ghi trong JSDoc của runner.
+ * Apply đi qua **runner migration hợp đồng của `deploys/staff-access-db`**
+ * (cutover #375) — spawn `runner.mts migrate`, đúng đường mà production đi,
+ * gồm guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây
+ * là tạo runner thứ hai không có lock.
  */
 
-import { applyAllMigrations } from '../../db/apply.mts';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+
 import { STAFF_ACCESS_DATABASE } from '../../db/migrate.mts';
+
+const STAFF_ACCESS_DB_PROJECT = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'staff-access-db',
+);
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -235,6 +244,53 @@ export interface StaffAccessDatabaseOptions {
  * lỗi mà `provision()` chú ý — migrator thiếu `CREATE` sẽ chết ngay ở
  * `CREATE SCHEMA`, nhưng `SET ROLE` thì không.
  */
+/**
+ * Apply migration qua runner thật của `deploys/staff-access-db` — spawn
+ * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
+ *
+ * Tách riêng khỏi `startStaffAccessDatabase` để test "apply lại là no-op"
+ * gọi lại được đúng hàm mà lần apply đầu đã gọi — chỉ một đường code duy nhất
+ * qua runner, gồm cả advisory lock. History đã phủ journal thì runner-kit
+ * no-op, nên gọi lại nhiều lần vẫn an toàn.
+ */
+export async function applyMigrations(database: { host: string; port: number }): Promise<void> {
+  // Credential migrator thật — cùng vai mà production dùng; URL phẳng, mọi
+  // thành phần test đều an toàn trong URL (chữ/số, không ký tự dành riêng).
+  const databaseUrl =
+    `postgresql://ecoma_staff_access_migrator:${ROLE_PASSWORD}` +
+    `@${database.host}:${database.port}/${STAFF_ACCESS_DATABASE}`;
+  const child = spawn(
+    process.execPath,
+    [
+      createRequire(import.meta.url).resolve('tsx/cli'),
+      resolve(STAFF_ACCESS_DB_PROJECT, 'runner.mts'),
+      'migrate',
+    ],
+    {
+      cwd: STAFF_ACCESS_DB_PROJECT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const code = await new Promise<number>((exitCode, onError) => {
+    child.once('error', onError);
+    child.once('exit', (value) => exitCode(value ?? 1));
+  });
+  if (code !== 0) {
+    throw new Error(
+      `deploys/staff-access-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+    );
+  }
+}
+
 export async function startStaffAccessDatabase(
   databaseOptions: StaffAccessDatabaseOptions = {},
 ): Promise<StaffAccessDatabase> {
@@ -276,18 +332,10 @@ export async function startStaffAccessDatabase(
       throw error;
     }
 
-    const connectAsMigrator = (): Promise<Client> =>
-      open({ user: 'ecoma_staff_access_migrator', password: ROLE_PASSWORD });
-
-    // Apply bằng credential migrator thật qua runner production — xem JSDoc
-    // của hàm này và của `applyAllMigrations`.
+    // Apply bằng credential migrator thật qua runner thật — xem JSDoc của
+    // `applyMigrations`.
     if (shouldMigrate) {
-      const migrator = await connectAsMigrator();
-      try {
-        await applyAllMigrations(migrator);
-      } finally {
-        await migrator.end().catch(() => undefined);
-      }
+      await applyMigrations({ host, port });
     }
 
     const asRole = async (

@@ -2,7 +2,7 @@
  * Hai khoảng trống AC của issue #85 mà các suite còn lại của `db-backoffice`
  * chưa phủ:
  *
- *  1. **Apply migration hai lần là no-op ở tầng dữ liệu.** `apply.mts` cam kết
+ *  1. **Apply migration hai lần là no-op ở tầng dữ liệu.** Runner cam kết
  *     "mọi DDL ở dạng idempotent, apply lại là no-op"; `tests/databases/
  *     migrations.spec.ts` đã chứng minh lần apply lại không sinh thêm **bảng**.
  *     Test này pin thêm ở tầng **hàng**: seed dữ liệu RBAC thật, apply lại qua
@@ -121,12 +121,8 @@ describe('double-apply no-op and assignment races on db-backoffice (#85)', () =>
     // `0003`. Khôi phục bằng cách apply lại (idempotent) — cùng cách
     // `self-elevation-guard.spec.ts` làm, giữ nguồn sự thật của catalog là seed
     // migration thay vì fixture tự INSERT permission.
-    const migrator = await db.asMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // Runner tự mở connection bằng credential migrator thật.
+    await applyMigrations(db);
   });
 
   // ---------------------------------------------------------------------------
@@ -168,15 +164,12 @@ describe('double-apply no-op and assignment races on db-backoffice (#85)', () =>
     const catalogBefore = await catalogIds(db);
 
     // Đúng đường code mà lần apply đầu đã đi: `applyMigrations` →
-    // `applyAllMigrations` với advisory lock (`harness.ts` giữ wrapper đúng vì
+    // runner với advisory lock (`harness.ts` giữ wrapper đúng vì
     // lý do đó). Phải không ném — lỗi ở lần apply lại là mất idempotence.
-    const migrator = await db.asMigrator();
-    try {
-      await applyMigrations(migrator);
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // Runner tự mở connection bằng credential migrator thật; lần 2 đi qua
+    // history đã phủ journal nên runner-kit no-op.
+    await applyMigrations(db);
+    await applyMigrations(db);
 
     expect(await rowCountPerTable(db)).toEqual(before);
     expect(await catalogIds(db)).toEqual(catalogBefore);
@@ -186,14 +179,10 @@ describe('double-apply no-op and assignment races on db-backoffice (#85)', () =>
   });
 
   it('releases the advisory lock after a re-apply, so another runner can take it right away', async () => {
-    const migrator = await db.asMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // Runner tự mở connection bằng credential migrator thật.
+    await applyMigrations(db);
 
-    // Lock là session-scoped (`pg_advisory_lock`, `apply.mts`), nhả khi
+    // Lock là session-scoped (`pg_advisory_lock` của runner), nhả khi
     // connection đóng — test này pin hành vi đầu-cuối: sau khi runner apply xong
     // và ngắt kết nối, runner khác phải lấy được lock NGAY (lock_timeout ngắn).
     // Nếu một thay đổi sau này giữ lock ở cơ chế khác (vd pool connection còn

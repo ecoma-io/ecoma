@@ -6,12 +6,12 @@ thuần và migration là file SQL thuần. Cấu trúc và quy ước mirror
 [`apps/account/db/`](../../account/db/README.md) — pattern tham chiếu, không sao
 chép mù.
 
-| Đường dẫn                | Vai trò                                                              |
-| ------------------------ | -------------------------------------------------------------------- |
-| `migrations/*.sql`       | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.mts`            | Hằng số và helper dùng chung cho runner và test harness              |
-| `apply.mts`              | CLI runner, chạy trong CI                                            |
-| `../tests/integrations/` | Test integration trên PostgreSQL thật (testcontainers)               |
+| Đường dẫn                                                                       | Vai trò                                                              |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `migrations/*.sql`                                                              | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.mts`                                                                   | Hằng số và helper dùng chung cho runner và test harness              |
+| (`apply.mts` đã retire — cutover #375 chuyển runner về `deploys/backoffice-db`) |
+| `../tests/integrations/`                                                        | Test integration trên PostgreSQL thật (testcontainers)               |
 
 ## Thứ tự migration hiện tại
 
@@ -100,7 +100,7 @@ HD6), nên không thể giữ `pg_advisory_lock` qua đường đi của Worker.
 dùng `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-backoffice' pnpm nx run @ecoma-io/backoffice:db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-backoffice' pnpm nx run @ecoma-io/backoffice-db:migrate
 ```
 
 | Biến           | Bắt buộc | Ý nghĩa                                                   |
@@ -215,7 +215,7 @@ mềm: enforce thật của SR-014 nằm ở scrubbing tầng app + test (workst
 apps/backoffice/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
-├── apply.mts             # CLI runner cho CI
+├── (runner migrate hợp đồng sống ở `deploys/backoffice-db` — cutover #375)
 └── migrations/
     ├── 0001_backoffice_domain.sql        # staff, permissions, roles, assignments, audit
     ├── 0002_roles_and_grants.sql         # hai role + grant từng bảng + guard CONNECT

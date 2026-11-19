@@ -16,8 +16,17 @@
  * và chúng đã bị xoá cùng lý do.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { join, resolve } from 'node:path';
+
+/**
+ * Runner migration hợp đồng của `deploys/auth-db` (cutover #375): harness
+ * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
+ * guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây
+ * (đọc file `.sql` rồi bắn từng file) là tạo runner thứ hai không có lock.
+ */
+const AUTH_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'deploys', 'auth-db');
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -184,29 +193,49 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Áp mọi file migration, theo thứ tự tên file, vào database vừa provision.
+ * Áp migration qua runner thật của `deploys/auth-db` — spawn `runner.mts
+ * migrate` bằng credential migrator thật (không `SET ROLE`).
  *
- * ⚠️ **Không kiểm "schema đã có" trước khi áp** — khác với hình thức cũ của các
- * suite. Container là của riêng spec file này, sinh ra từ `docker create` nên
- * chắc chắn chưa có schema `auth`; một nhánh "nếu đã có thì bỏ qua" ở đây chỉ
- * có thể chạy đúng một lần trong đời container và không còn gì để bỏ qua.
- * Migration không dùng `CREATE TABLE IF NOT EXISTS` (README giải thích vì sao),
- * nên re-runnable thật nằm ở runner nhớ lịch sử — điều mà container một lần
- * làm bằng cách sống đúng một lần chạy test.
- *
- * ⚠️ Client truyền vào đây phải là **migrator**, không phải superuser, và phải
- * là session đơn (`max: 1`). Đó là điều kiện để các test về grant có ý nghĩa:
- * migration phải chạy được bằng đúng credential production được cấp quyền.
+ * ⚠️ Lần chạy đầu trên database **trắng**: kit ghi history rồi áp toàn bộ
+ * journal; history đã phủ journal thì runner-kit no-op, nên gọi lại nhiều lần
+ * vẫn an toàn. Container là của riêng spec file này, sinh ra từ `docker create`
+ * nên chắc chắn chưa có schema `auth` — luôn đi kịch bản trắng.
  */
-async function applyMigrations(migrator: Sql): Promise<void> {
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((name) => name.endsWith('.sql'))
-    // Thứ tự số trong tên file là thứ tự áp dụng; so chuỗi là đủ vì tất cả
-    // đều gốc 4 chữ số.
-    .toSorted();
-
-  for (const file of files) {
-    await migrator.unsafe(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'));
+async function applyMigrations(database: { host: string; port: number }): Promise<void> {
+  // Credential migrator thật — cùng vai mà production dùng; URL phẳng, mọi
+  // thành phần test đều an toàn trong URL (chữ/số, không ký tự dành riêng).
+  const databaseUrl =
+    `postgresql://ecoma_auth_migrator:${ROLE_PASSWORD}` +
+    `@${database.host}:${database.port}/${AUTH_DATABASE}`;
+  const child = spawn(
+    process.execPath,
+    [
+      createRequire(import.meta.url).resolve('tsx/cli'),
+      resolve(AUTH_DB_PROJECT, 'runner.mts'),
+      'migrate',
+    ],
+    {
+      cwd: AUTH_DB_PROJECT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const code = await new Promise<number>((exitCode, onError) => {
+    child.once('error', onError);
+    child.once('exit', (value) => exitCode(value ?? 1));
+  });
+  if (code !== 0) {
+    throw new Error(
+      `deploys/auth-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+    );
   }
 }
 
@@ -294,17 +323,12 @@ export async function startAuthDatabase(): Promise<AuthDatabase> {
       await superuser.end({ timeout: 1 });
     }
 
-    const migrator = postgres({
-      ...base,
-      user: 'ecoma_auth_migrator',
-      password: ROLE_PASSWORD,
-      max: 1,
-    });
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end({ timeout: 1 });
-    }
+    // Apply bằng credential migrator thật — runner tự mở connection với
+    // credential đó, không phải `SET ROLE` từ superuser: `SET ROLE` không kiểm
+    // chứng quyền **kết nối thật** và giấu đúng lỗi mà `provision()` chú ý —
+    // migrator thiếu `CREATE` sẽ chết ngay ở `CREATE SCHEMA`, nhưng `SET ROLE`
+    // thì không.
+    await applyMigrations({ host, port });
 
     return {
       host,

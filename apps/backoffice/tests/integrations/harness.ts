@@ -10,8 +10,24 @@
  * — pattern tham chiếu.
  */
 
-import { applyAllMigrations } from '../../db/apply.mts';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+
 import { BACKOFFICE_DATABASE } from '../../db/migrate.mts';
+
+/**
+ * Runner migration hợp đồng của `deploys/backoffice-db` (cutover #375): harness
+ * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
+ * guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây là
+ * tạo runner thứ hai không có lock.
+ */
+const BACKOFFICE_DB_PROJECT = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'backoffice-db',
+);
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -176,17 +192,50 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Apply mọi file migration, theo thứ tự tên file, vào database đã có sẵn.
+ * Apply migration qua runner thật của `deploys/backoffice-db` — spawn
+ * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * Tách riêng khỏi `startBackofficeDatabase` để test "apply lại là no-op" gọi
  * lại được đúng hàm mà lần apply đầu đã gọi — chỉ một đường code duy nhất qua
- * {@link applyAllMigrations}, gồm cả advisory lock.
- *
- * ⚠️ Client truyền vào đây phải là **migrator**, không phải superuser. Xem
- * `provision()` để biết vì sao đó là điều kiện để test có ý nghĩa.
+ * runner, gồm cả advisory lock. History đã phủ journal thì runner-kit no-op,
+ * nên gọi lại nhiều lần vẫn an toàn.
  */
-export async function applyMigrations(client: Client): Promise<void> {
-  await applyAllMigrations(client);
+export async function applyMigrations(database: { host: string; port: number }): Promise<void> {
+  // Credential migrator thật — cùng vai mà production dùng; URL phẳng, mọi
+  // thành phần test đều an toàn trong URL (chữ/số, không ký tự dành riêng).
+  const databaseUrl =
+    `postgresql://ecoma_backoffice_migrator:${ROLE_PASSWORD}` +
+    `@${database.host}:${database.port}/${BACKOFFICE_DATABASE}`;
+  const child = spawn(
+    process.execPath,
+    [
+      createRequire(import.meta.url).resolve('tsx/cli'),
+      resolve(BACKOFFICE_DB_PROJECT, 'runner.mts'),
+      'migrate',
+    ],
+    {
+      cwd: BACKOFFICE_DB_PROJECT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const code = await new Promise<number>((exitCode, onError) => {
+    child.once('error', onError);
+    child.once('exit', (value) => exitCode(value ?? 1));
+  });
+  if (code !== 0) {
+    throw new Error(
+      `deploys/backoffice-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+    );
+  }
 }
 
 /**
@@ -199,7 +248,7 @@ export async function applyMigrations(client: Client): Promise<void> {
  *  2. `GRANT CREATE ON DATABASE` — `CREATE SCHEMA` cần `CREATE` trên database,
  *     `PUBLIC` không có.
  *
- * ⚠️ Bỏ bước 1 hoặc 2 thì `apply.mts` chết ngay ở `0001` với
+ * ⚠️ Bỏ bước 1 hoặc 2 thì runner migration chết ngay ở `0001` với
  * `permission denied` — đó là case các test "provisioning step 1" kiểm chứng,
  * không phải việc harness len lỏi đi qua. Test có ý nghĩa vì apply chạy bằng
  * **credential migrator thật** ngay sau đây, không phải `SET ROLE` từ
@@ -263,26 +312,15 @@ export async function startBackofficeDatabase(): Promise<BackofficeDatabase> {
     const connect = (): Promise<Client> =>
       open({ user: SUPERUSER, password: SUPERUSER_PASSWORD, database: BACKOFFICE_DATABASE });
 
-    const connectAsMigrator = (): Promise<Client> =>
-      open({
-        user: 'ecoma_backoffice_migrator',
-        password: ROLE_PASSWORD,
-        database: BACKOFFICE_DATABASE,
-      });
-
     const superuser = await connect();
 
     await provision(superuser);
 
-    // Apply bằng **credential migrator thật**, không phải `SET ROLE` từ
-    // superuser: `SET ROLE` không kiểm chứng được quyền **kết nối thật**, và nó
-    // giấu đúng loại lỗi mà `provision()` ở trên phục vụ để bắt.
-    const migrator = await connectAsMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // Apply bằng **credential migrator thật** (runner tự mở connection với
+    // credential đó), không phải `SET ROLE` từ superuser: `SET ROLE` không
+    // kiểm chứng được quyền **kết nối thật**, và nó giấu đúng loại lỗi mà
+    // `provision()` ở trên phục vụ để bắt.
+    await applyMigrations({ host, port });
     await superuser.end();
 
     const asRole = async (

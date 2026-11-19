@@ -9,10 +9,20 @@
  * `apps/auth/tests/integrations/harness.ts` — pattern tham chiếu.
  */
 
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 
-import { applyAllMigrations } from '../../db/apply.mts';
 import { ACCOUNT_DATABASE, AUTH_DATABASE } from '../../db/migrate.mts';
+
+/**
+ * Runner migration hợp đồng của `deploys/account-db` (cutover #375): harness
+ * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
+ * guard `current_database()`, advisory lock và GUC `ecoma.auth_database`.
+ * Viết vòng apply riêng ở đây là tạo runner thứ hai không có lock.
+ */
+const ACCOUNT_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'deploys', 'account-db');
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -195,22 +205,54 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Apply mọi file migration, theo thứ tự tên file, vào database đã có sẵn.
+ * Apply migration qua runner thật của `deploys/account-db` — spawn
+ * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * Tách riêng khỏi `startAccountDatabase` để test "apply lại là no-op" gọi lại
  * được đúng hàm mà lần apply đầu đã gọi — nếu có hai đường code cho cùng một việc
- * thì "repeatable" chỉ chứng minh cho một trong hai.
+ * thì "repeatable" chỉ chứng minh cho một trong hai. History đã phủ journal thì
+ * runner-kit no-op, nên gọi lại nhiều lần vẫn an toàn.
  *
- * ⚠️ Đây chỉ là **dải băng** gọi {@link applyAllMigrations} (`db/apply.mts`) —
- * đúng hàm mà CLI `db:migrate` chạy, gồm cả advisory lock và GUC. Viết lại vòng
- * apply ở đây (điều đã từng xảy ra) là tạo một runner thứ hai không có lock:
- * test "repeatable" xanh với bản sao trong khi runner production hỏng.
- *
- * ⚠️ Client truyền vào đây phải là **migrator**, không phải superuser. Xem
- * `provision()` để biết vì sao đó là điều kiện để test có ý nghĩa.
+ * ⚠️ Lần chạy đầu sau cutover trên stack **trắng**: database rỗng → adopt/migrate
+ * apply đúng nghĩa lần đầu. Harness luôn start từ container mới nên đi đúng
+ * kịch bản đó.
  */
-export async function applyMigrations(client: Client): Promise<void> {
-  await applyAllMigrations(client);
+export async function applyMigrations(database: { host: string; port: number }): Promise<void> {
+  // Credential migrator thật — cùng vai mà production dùng; URL phẳng, mọi
+  // thành phần test đều an toàn trong URL (chữ/số, không ký tự dành riêng).
+  const databaseUrl =
+    `postgresql://ecoma_account_migrator:${ROLE_PASSWORD}` +
+    `@${database.host}:${database.port}/${ACCOUNT_DATABASE}`;
+  const child = spawn(
+    process.execPath,
+    [
+      createRequire(import.meta.url).resolve('tsx/cli'),
+      resolve(ACCOUNT_DB_PROJECT, 'runner.mts'),
+      'migrate',
+    ],
+    {
+      cwd: ACCOUNT_DB_PROJECT,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const code = await new Promise<number>((exitCode, onError) => {
+    child.once('error', onError);
+    child.once('exit', (value) => exitCode(value ?? 1));
+  });
+  if (code !== 0) {
+    throw new Error(
+      `deploys/account-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+    );
+  }
 }
 
 /**
@@ -227,7 +269,7 @@ export async function applyMigrations(client: Client): Promise<void> {
  *  3. `CREATE DATABASE db-auth` — để `REVOKE CONNECT` trong `0002` có đối tượng
  *     thật.
  *
- * Bỏ bước 1 hoặc 2 thì `apply.ts` dừng ở `0001` với `permission denied`; bỏ bước
+ * Bỏ bước 1 hoặc 2 thì runner migration dừng ở `0001` với `permission denied`; bỏ bước
  * 3 thì AC-012 pass vì lý do sai (guard bỏ qua chứ không phải chặn thật).
  */
 async function provision(superuser: Client): Promise<void> {
@@ -303,31 +345,20 @@ export async function startAccountDatabase(): Promise<AccountDatabase> {
     const connect = (): Promise<Client> =>
       open({ user: SUPERUSER, password: SUPERUSER_PASSWORD, database: ACCOUNT_DATABASE });
 
-    const connectAsMigrator = (): Promise<Client> =>
-      open({
-        user: 'ecoma_account_migrator',
-        password: ROLE_PASSWORD,
-        database: ACCOUNT_DATABASE,
-      });
-
     const superuser = await connect();
 
     await provision(superuser);
 
-    // Apply bằng **credential migrator thật**, không phải `SET ROLE` từ superuser:
-    // `SET ROLE` không kiểm chứng được quyền **kết nối thật**, và nó giấu đúng cái
-    // lỗi mà `provision()` ở trên chú ý — migrator thiếu `CREATE` sẽ chết ngay ở
-    // `CREATE SCHEMA`, nhưng `SET ROLE` thì không.
+    // Apply bằng **credential migrator thật** (runner tự mở connection với
+    // credential đó), không phải `SET ROLE` từ superuser: `SET ROLE` không kiểm
+    // chứng được quyền **kết nối thật**, và nó giấu đúng cái lỗi mà `provision()`
+    // ở trên chú ý — migrator thiếu `CREATE` sẽ chết ngay ở `CREATE SCHEMA`,
+    // nhưng `SET ROLE` thì không.
     //
-    // GUC `ecoma.auth_database` do `applyMigrations` tự `SET` trên chính connection
-    // đó, nên không cần `ALTER ROLE … IN DATABASE … SET` (và đặt ở connection
-    // superuser cũng vô nghĩa: nó không áp dụng sang connection của migrator).
-    const migrator = await connectAsMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // GUC `ecoma.auth_database` do runner inject vào startup packet của kit
+    // (hợp đồng của `0002_roles_and_grants.sql`), nên không cần
+    // `ALTER ROLE … IN DATABASE … SET`.
+    await applyMigrations({ host, port });
     await superuser.end();
 
     const asRole = async (

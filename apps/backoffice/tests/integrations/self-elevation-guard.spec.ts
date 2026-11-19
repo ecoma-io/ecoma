@@ -53,12 +53,8 @@ describe('self-elevation guard on db-backoffice (0004)', () => {
     // Cách này giữ đúng **nguồn sự thật** của catalog là seed migration, thay
     // vì fixture tự INSERT permission trong test — một permission do test tự
     // chế ra không chứng minh được catalog thật cũng qua guard.
-    const migrator = await db.asMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // Runner tự mở connection bằng credential migrator thật.
+    await applyMigrations(db);
   });
 
   /**

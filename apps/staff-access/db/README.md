@@ -4,12 +4,12 @@ Thư mục này là **nguồn sự thật duy nhất** cho schema của `db-staf
 không có `drizzle-kit`, không có generate step: `db-staff-access` là PostgreSQL thuần và
 migration là file SQL thuần.
 
-| Đường dẫn          | Vai trò                                                              |
-| ------------------ | -------------------------------------------------------------------- |
-| `migrations/*.sql` | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.mts`      | Hằng số và helper dùng chung cho runner và test harness              |
-| `apply.mts`        | CLI runner, chạy trong CI                                            |
-| `bootstrap.mts`    | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                 |
+| Đường dẫn                                                                         | Vai trò                                                              |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `migrations/*.sql`                                                                | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.mts`                                                                     | Hằng số và helper dùng chung cho runner và test harness              |
+| (`apply.mts` đã retire — cutover #375 chuyển runner về `deploys/staff-access-db`) |
+| `bootstrap.mts`                                                                   | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                 |
 
 ## `db-staff-access` là greenfield provisioning
 
@@ -49,7 +49,7 @@ không thể giữ `pg_advisory_lock` qua đường đi của Worker. Worker ch�
 `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-staff-access' pnpm nx run @ecoma-io/staff-access:db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-staff-access' pnpm nx run @ecoma-io/staff-access-db:migrate
 ```
 
 | Biến           | Bắt buộc | Mặc định | Ý nghĩa                                                     |
@@ -224,7 +224,7 @@ echo '{"correlation_id":"…","sub":"sub_…"}' \
 apps/staff-access/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
-├── apply.mts             # CLI runner cho CI
+├── (runner migrate hợp đồng sống ở `deploys/staff-access-db` — cutover #375)
 ├── bootstrap.mts         # CLI bootstrap S1/S2/S3
 └── migrations/
     ├── 0001_staff_access_domain.sql   # schema + tables + triggers

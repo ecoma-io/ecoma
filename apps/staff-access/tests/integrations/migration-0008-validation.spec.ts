@@ -3,10 +3,12 @@
  * trên PostgreSQL thật, tập trung vào Deliverable C (section 2 xác thực index từ
  * catalog, section 4 khóa seal catalog).
  *
- * Mỗi trường hợp sabotage DDL bằng superuser client, rồi re-apply qua
- * `applyAllMigrations` với credential migrator thật (đúng runner production).
- * Sau mỗi trường hợp, drop index sai và khôi phục index đúng để các test sau
- * không bị ảnh hưởng.
+ * Mỗi trường hợp sabotage DDL bằng superuser client, rồi chạy lại SQL của
+ * `0008` trực tiếp bằng credential migrator thật. Cutover #375 đổi runner sang
+ * drizzle-kit — history đã phủ journal thì runner-kit no-op, nên đường
+ * "re-apply" của runner không còn; các DO-block seal/validation nằm trong
+ * **chính file SQL** và được kiểm bằng chạy lại file đó. Sau mỗi trường hợp,
+ * drop index sai và khôi phục index đúng để các test sau không bị ảnh hưởng.
  *
  * Comment bằng tiếng Việt; test title bằng tiếng Anh; mọi chuỗi runtime
  * (RAISE EXCEPTION message) là tiếng Anh.
@@ -14,9 +16,29 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { applyAllMigrations } from '../../db/apply.mts';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { type StaffAccessDatabase, startStaffAccessDatabase } from './harness.ts';
 import { CANONICAL_ROLE_NAME } from '../../db/bootstrap.mts';
+
+type Client = import('pg').Client;
+
+/** Bản migration hợp đồng của `deploys/staff-access-db` (cutover #375). */
+const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'staff-access-db',
+  'migrations',
+);
+
+/** Chạy lại SQL của `0008` trực tiếp — seal/validation nằm trong file, không ở runner. */
+function reapply0008(client: Client): Promise<unknown> {
+  return client.query(
+    readFileSync(join(MIGRATIONS_DIR, '0008_role_identity_and_assignment_uniqueness.sql'), 'utf8'),
+  );
+}
 
 let db: StaffAccessDatabase;
 
@@ -36,7 +58,7 @@ const REQUIRED_AM = 'btree';
 const REQUIRED_PREDICATE_NORMALIZED = 'revoked_at is null';
 
 /** Lấy toàn bộ thuộc tính index từ catalog PostgreSQL. */
-async function getIndexProperties(client: Parameters<typeof applyAllMigrations>[0]): Promise<{
+async function getIndexProperties(client: Client): Promise<{
   tableName: string;
   indexName: string;
   amName: string;
@@ -193,11 +215,10 @@ describe('migration 0008 index and catalog validation', () => {
     }
   });
 
-  it('re-applying all migrations is idempotent (no ledger, DDL is no-op)', async () => {
+  it('re-executing the 0008 SQL is a no-op on data and keeps the sealed index', async () => {
     const migrator = await db.connectAsMigrator();
     try {
-      const result = await applyAllMigrations(migrator);
-      expect(result.applied).toBeGreaterThan(0);
+      await reapply0008(migrator);
 
       const properties = await getIndexProperties(migrator);
       expect(properties).not.toBeNull();
@@ -219,7 +240,7 @@ describe('migration 0008 index and catalog validation', () => {
 
     const migrator = await db.connectAsMigrator();
     try {
-      await expect(applyAllMigrations(migrator)).rejects.toThrow(
+      await expect(reapply0008(migrator)).rejects.toThrow(
         /key columns|staff_id.*role_id|role_id.*staff_id/iu,
       );
     } finally {
@@ -238,7 +259,7 @@ describe('migration 0008 index and catalog validation', () => {
 
     const migrator = await db.connectAsMigrator();
     try {
-      await expect(applyAllMigrations(migrator)).rejects.toThrow(/indisunique/iu);
+      await expect(reapply0008(migrator)).rejects.toThrow(/indisunique/iu);
     } finally {
       await migrator.end();
       await restoreCorrectIndex(superuser);
@@ -254,7 +275,7 @@ describe('migration 0008 index and catalog validation', () => {
 
     const migrator = await db.connectAsMigrator();
     try {
-      await expect(applyAllMigrations(migrator)).rejects.toThrow(/predicate|revoked_at is null/iu);
+      await expect(reapply0008(migrator)).rejects.toThrow(/predicate|revoked_at is null/iu);
     } finally {
       await migrator.end();
       await restoreCorrectIndex(superuser);
@@ -271,7 +292,7 @@ describe('migration 0008 index and catalog validation', () => {
 
     const migrator = await db.connectAsMigrator();
     try {
-      await expect(applyAllMigrations(migrator)).rejects.toThrow(/predicate/iu);
+      await expect(reapply0008(migrator)).rejects.toThrow(/predicate/iu);
     } finally {
       await migrator.end();
       await restoreCorrectIndex(superuser);
@@ -289,7 +310,7 @@ describe('migration 0008 index and catalog validation', () => {
 
     const migrator = await db.connectAsMigrator();
     try {
-      await expect(applyAllMigrations(migrator)).rejects.toThrow(/indnatts/iu);
+      await expect(reapply0008(migrator)).rejects.toThrow(/indnatts/iu);
     } finally {
       await migrator.end();
       await restoreCorrectIndex(superuser);

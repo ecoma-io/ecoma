@@ -133,14 +133,6 @@
         ],
         "executor": "nx:noop"
       },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/auth",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
-        }
-      },
       "typecheck-db": {
         "executor": "nx:run-commands",
         "options": {
