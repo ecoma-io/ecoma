@@ -247,9 +247,20 @@ export interface LegacyLedgerRow {
 }
 
 /**
+ * Chìa khoá join giữa ledger cũ và journal: runner cũ lưu filename **kèm**
+ * `.sql`, journal tag thì **không** — so sánh phẳng lệch từng dòng và fail
+ * closed trên stack legacy thật. Đo được trên lane (chi tiết #375).
+ */
+export function ledgerFileKey(filename: string): string {
+  return filename.replace(/\.sql$/u, '');
+}
+
+/**
  * Verify checksum ledger cũ trước khi adopt — THUẦN, spec-pin được. Thuật toán
  * checksum của runner cũ là sha256-hex của nội dung file (đã đối chiếu nguồn
  * `checksumMigration`), trùng thuật toán hash mà stamp ghi vào history Drizzle.
+ *
+ * `contentOf` nhận **tag** đã chuẩn hoá (không `.sql`) — cùng chìa khoá join.
  *
  * Fail closed khi: ledger có row mà journal không có entry tương ứng (file đã
  * bị xoá/đổi tên), journal có entry mà ledger không có (file mới không thể có
@@ -260,20 +271,19 @@ export interface LegacyLedgerRow {
 export function verifyLedgerChecksums(inputs: {
   entries: readonly JournalEntry[];
   ledger: readonly LegacyLedgerRow[];
-  contentOf: (filename: string) => string;
+  contentOf: (tag: string) => string;
 }): void {
   const problems: string[] = [];
   const byTag = new Map(inputs.entries.map((entry) => [entry.tag, entry]));
-  const ledgerByFile = new Map(inputs.ledger.map((row) => [row.filename, row]));
+  const ledgerByFile = new Map(inputs.ledger.map((row) => [ledgerFileKey(row.filename), row]));
   for (const row of inputs.ledger) {
-    const entry = byTag.get(row.filename);
+    const tag = ledgerFileKey(row.filename);
+    const entry = byTag.get(tag);
     if (entry === undefined) {
       problems.push(`${row.filename}: ledger row has no journal entry`);
       continue;
     }
-    const actual = createHash('sha256')
-      .update(inputs.contentOf(row.filename), 'utf-8')
-      .digest('hex');
+    const actual = createHash('sha256').update(inputs.contentOf(tag), 'utf-8').digest('hex');
     if (actual !== row.checksum) {
       problems.push(
         `${row.filename}: checksum mismatch (ledger ${row.checksum} vs file ${actual})`,
@@ -413,8 +423,8 @@ async function main(): Promise<void> {
         verifyLedgerChecksums({
           entries,
           ledger: ledger.rows,
-          contentOf: (filename) =>
-            readFileSync(resolve(workspaceRoot, migrationsFolder, `${filename}.sql`), 'utf-8'),
+          contentOf: (tag) =>
+            readFileSync(resolve(workspaceRoot, migrationsFolder, `${tag}.sql`), 'utf-8'),
         });
         const inserted = await stampHistory(client, cfg, workspaceRoot, migrationsFolder);
         console.log(

@@ -179,7 +179,8 @@ describe(
       await recreateContractDatabase(db.adminUrl);
 
       // Dựng stack LEGACY đúng hình runner cũ: ledger `auth.schema_migrations`
-      // với checksum sha256-hex TRÙNG THUẬT TOÁN của runner cũ
+      // với filename KÈM `.sql` (đo được trên lane thật — chi tiết #375) và
+      // checksum sha256-hex TRÙNG THUẬT TOÁN của runner cũ
       // (`checksumMigration` — sha256 utf8 của nội dung file), trỏ vào chính
       // fixture SQL của suite. Chưa hề có history Drizzle.
       const seeder = new (await import('pg')).Client({ connectionString: db.databaseUrl });
@@ -200,7 +201,7 @@ describe(
           );
           await seeder.query(
             'insert into auth.schema_migrations (filename, checksum) values ($1, $2)',
-            [tag, createHash('sha256').update(content, 'utf-8').digest('hex')],
+            [`${tag}.sql`, createHash('sha256').update(content, 'utf-8').digest('hex')],
           );
         }
       } finally {

@@ -148,6 +148,19 @@ describe('verifyLedgerChecksums', () => {
     ).not.toThrow();
   });
 
+  it('joins a ledger filename stored with its .sql suffix against the bare journal tag', () => {
+    // Hình thật của lane (chi tiết #375): runner cũ ghi `auth.schema_migrations`
+    // với filename kèm `.sql`, journal tag thì không — join phẳng fail closed
+    // trên toàn bộ 14 dòng. Chìa khoá phải bỏ suffix; checksum vẫn so theo tag.
+    const ledger = entries.map((entry) => ({
+      filename: `${entry.tag}.sql`,
+      checksum: checksumOf(entry.tag),
+    }));
+    expect(() =>
+      verifyLedgerChecksums({ entries, ledger, contentOf: (f) => contents[f] }),
+    ).not.toThrow();
+  });
+
   it('fails closed on a checksum mismatch without writing anything', () => {
     const ledger = [
       { filename: '0001_a', checksum: checksumOf('0001_a') },
