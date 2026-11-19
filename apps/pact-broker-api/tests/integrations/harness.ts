@@ -160,7 +160,7 @@ export function applyMigrations(databaseUrl: string): void {
   if (result.error !== undefined || result.status !== 0) {
     const detail =
       `migration runner failed (exit ${String(result.status ?? 'spawn-error')}` +
-      `${result.error === undefined ? '' : `: ${result.error.message}`}):\n` +
+      `${result.error ? `: ${result.error.message}` : ''}):\n` +
       `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
     throw new Error(
       // DATABASE_URL chứa mật khẩu migrator — mask trước khi vào output test.

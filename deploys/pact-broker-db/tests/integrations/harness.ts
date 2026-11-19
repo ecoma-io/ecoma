@@ -135,14 +135,12 @@ export async function probeDocker(): Promise<void> {
     );
   }
   let container: StartedPostgreSqlContainer | undefined;
-  let available = false;
   try {
     container = await new PostgreSqlContainer(POSTGRES_IMAGE)
       .withUsername(SUPERUSER)
       .withPassword(SUPERUSER_PASSWORD)
       .withExposedPorts(POSTGRES_PORT)
       .start();
-    available = true;
   } catch (error: unknown) {
     // Chỉ start() thất bại mới là "Docker không dùng được" (pattern account/API).
     process.env[DOCKER_PROBE_ENV] = 'unavailable';
@@ -151,7 +149,5 @@ export async function probeDocker(): Promise<void> {
     // stop() ném cũng phải dọn container — không để orphan PostgreSQL (#459).
     await container?.stop().catch(() => undefined);
   }
-  if (available) {
-    process.env[DOCKER_PROBE_ENV] = 'available';
-  }
+  process.env[DOCKER_PROBE_ENV] = 'available';
 }
