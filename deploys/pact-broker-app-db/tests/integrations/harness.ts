@@ -59,10 +59,8 @@ export async function recreateContractDatabase(adminUrl: string): Promise<void> 
   const client = new Client({ connectionString: adminUrl });
   await client.connect();
   try {
-    await client.query(
-      `DROP DATABASE IF EXISTS ${JSON.stringify(CONTRACT_DATABASE).replace(/"/gu, '"')} WITH (FORCE)`,
-    );
-    await client.query(`CREATE DATABASE ${JSON.stringify(CONTRACT_DATABASE).replace(/"/gu, '"')}`);
+    await client.query(`DROP DATABASE IF EXISTS ${JSON.stringify(CONTRACT_DATABASE)} WITH (FORCE)`);
+    await client.query(`CREATE DATABASE ${JSON.stringify(CONTRACT_DATABASE)}`);
   } finally {
     await client.end();
   }
@@ -78,7 +76,7 @@ export async function historyRows(databaseUrl: string, schema: string): Promise<
   await client.connect();
   try {
     const { rows } = await client.query<{ n: string }>(
-      `select count(*)::text as n from ${JSON.stringify(schema).replace(/"/gu, '"')}.__drizzle_migrations`,
+      `select count(*)::text as n from ${JSON.stringify(schema)}.__drizzle_migrations`,
     );
     return Number(rows[0]?.n ?? '0');
   } catch (error: unknown) {
