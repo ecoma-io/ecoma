@@ -157,7 +157,7 @@ Taxonomy (`apps`/`libs`/`system-tests`) và cấu trúc Nx project → [`05-code
 | `push`                | D1         | `push-notification`                        | push-notification                                                                          | authority qua app unit (§3a.4) (#382) |
 | `push-job`            | D1         | `web-push-notification-job`                | web-push-notification-job                                                                  | authority qua app unit (§3a.4) (#382) |
 
-**Verified:** 11 PostgreSQL runner tồn tại trong cây — `apps/{account,auth,backoffice,llm-api,pact-broker-api,pact-broker-app,remote-cache-api,remote-cache-app,staff-access}/db/apply.mts` (9 runner; `llm-api` một runner cho 3 target gateway/tenant/marketplace, `auth` dùng thư mục legacy `apps/auth/migrations/`); `apps/account/db/migrations` 13 file `.sql`, auth 14, backoffice 6, llm-api 11 (5+2+4 theo 3 subdir), pact-broker-api 6, pact-broker-app 1, remote-cache-api 8, remote-cache-app 1, staff-access 11; 4 D1 apps dùng top-level `migrations/` không khai `migrations_dir` (`apps/transactional-mail` 8 file, `transactional-mailer-job` 5, `push-notification` 3, `web-push-notification-job` 1). Không có `deploys/*-db` nào; không có CI migration job nào. Số file trên là inventory code, **không** phải trạng thái đã-apply của database nào — trạng thái thực đo trên từng environment khi cutover (mục D).
+**Verified:** 9 PostgreSQL runner file tồn tại trong cây — `apps/{account,auth,backoffice,llm-api,pact-broker-api,pact-broker-app,remote-cache-api,remote-cache-app,staff-access}/db/apply.mts`; `llm-api` một runner cho 3 target gateway/tenant/marketplace; `auth` có runner tại `apps/auth/db/apply.mts` nhưng trỏ vào thư mục legacy `apps/auth/migrations/` (`MIGRATIONS_DIR = ../migrations`), còn 8 runner kia đọc `db/migrations/` của chính app; `apps/account/db/migrations` 13 file `.sql`, auth 14, backoffice 6, llm-api 11 (5+2+4 theo 3 subdir), pact-broker-api 6, pact-broker-app 1, remote-cache-api 8, remote-cache-app 1, staff-access 11; 4 D1 apps dùng top-level `migrations/` không khai `migrations_dir` (`apps/transactional-mail` 8 file, `transactional-mailer-job` 5, `push-notification` 3, `web-push-notification-job` 1). Không có `deploys/*-db` nào; không có CI migration job nào. Số file trên là inventory code, **không** phải trạng thái đã-apply của database nào — trạng thái thực đo trên từng environment khi cutover (mục D).
 
 **Bảng trên không định nghĩa quan hệ deploy unit ↔ database mới** — cột "Người sở hữu dữ liệu" phản chiếu A2 và bảng data ownership của `01` §1/§2 (đã chốt). `db-payment` vẫn là target đã khai trong `01` §1 nhưng chưa có runner, migration hay deploy unit; nó được cấp migration project khi service `payment` hiện thực, theo đúng cùng hợp đồng — không cutover riêng ở M2.
 
@@ -221,6 +221,8 @@ vì đây là orchestration hạ tầng chạy như tiến trình Node, không p
 **Quyết định (C+): dùng `drizzle-kit migrate` làm engine apply, không viết lại vòng lặp psql; nhưng nó chỉ chạy sau khi một
 **wrapper runner** (script TS trong `deploys/<name>-db`, cùng pattern `apply.mts` hiện có) đã giữ được advisory lock
 `pg_advisory_lock(hashtext('<database>'))` trên một kết nối PostgreSQL thẳng, và giữ connection đó sống suốt lần migrate.**
+Runner entry **không chạy được cho tới khi `drizzle-orm` được pin vào cây** (§3a.2 — blocking dependency của #374): kit gọi
+`assertPackages("drizzle-orm")` trước khi migrate nên thiếu package là fail ngay tại import, không phải lỗi giữa chừng.
 Ai sở hữu history table: **Drizzle Kit** — bảng `__drizzle_migrations` (schema có thể cấu hình qua `drizzle.config.ts`; mặc định
 chọn schema riêng của database đó, không dùng `public`/`drizzle` ngầm — giá trị ghi tường minh trong config của từng project).
 Advisory lock: **thuộc wrapper**, không thuộc kit — kit không giữ bất kỳ lock nào (Verified trên bundle 0.31.11: không call site
@@ -268,7 +270,8 @@ history table, không apply lại cái đã commit.
   và `migrations_pattern` **giữ mặc định** (top-level `migrations/`) — Verified cây: cả 4 app dùng mặc định, không khai override.
 - **Execution:** `wrangler d1 migrations apply <DATABASE_NAME>` (dùng **database name**, không binding name — khuyến nghị chính
   thức của Cloudflare vì binding có thể đổi) từ **một call site duy nhất per app** sau cutover #382, trong CI runner với
-  `CLOUDFLARE_API_TOKEN` (cùng token contract §6 — một token, ranh giới ở Worker identity + Environment). Chạy **explicit step**
+  `CLOUDFLARE_API_TOKEN` (token contract §6.12 — một token duy nhất cho pipeline, **không** scoped theo environment; trade-off
+  blast radius và boundary thay thế đã ghi ở §6.12, implementer #382 đọc §6.12 trước khi chạm credential). Chạy **explicit step**
   của pipeline, không side effect của deploy (§7.4.2 — Wrangler là tool chạy D1 migration, không tự compete infra lifecycle).
 - **Ngữ nghĩa fail/retry (Verified — tài liệu Wrangler `d1 migrations apply`):** một migration lỗi được **rollback migration đó**
   và các migration trước đó giữ nguyên trạng thái đã apply — checkpoint per-file, retry an toàn. `d1_migrations` ghi theo tên
