@@ -36,7 +36,12 @@ const JOB_ONLY_PROJECTS = [
  * marker `ecoma.deployment.status: "scaffold"` với job-only ở
  * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
  */
-const DATABASE_PROJECTS = ['pact-broker-app-db'] as const;
+const DATABASE_PROJECTS = [
+  'pact-broker-app-db',
+  'llm-gateway-db',
+  'llm-tenant-db',
+  'llm-marketplace-db',
+] as const;
 
 function packageJson(project: string): Record<string, unknown> {
   return JSON.parse(

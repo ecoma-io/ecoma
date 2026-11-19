@@ -874,11 +874,56 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/llm-gateway-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
+  deploys/llm-marketplace-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
   deploys/llm-seller-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
+
+  deploys/llm-tenant-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/pact-broker-api-deploy:
     dependencies:
