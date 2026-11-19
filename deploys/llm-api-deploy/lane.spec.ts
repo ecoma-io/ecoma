@@ -22,21 +22,26 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  CANONICAL_E2E_MODEL_ID,
   CONSUMER_HANDOFF_LINE_PREFIX,
   CONSUMER_TENANT_ID,
   MOCK_BIND_HOST,
   MOCK_UPSTREAM_PORT,
   activeConsumerApiKeyRowCount,
+  activeOfferServingCount,
   buildLaneStateLine,
   buildMockContainerInvocation,
   buildMockHealthcheckCommand,
   buildMockWaiterInvocation,
+  consumerApiKeyRowDeleteArgs,
   consumerApiKeyRowProbeArgs,
+  divergedUpstreamEndpointDeleteArgs,
   extractConsumerApiKeyRecordedStdout,
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
   mockUpstreamEndpointUrl,
+  offerServingProbeArgs,
   shouldSkipLaneUp,
 } from './lane-invocation.js';
 
@@ -256,26 +261,33 @@ describe('shouldSkipLaneUp', () => {
   /** Stdout ghi nhận kiểu create-run: mang dòng plaintext (giá trị giả). */
   const recordedWithKey = `${CONSUMER_HANDOFF_LINE_PREFIX}sk-test-lane-consumer-key\n`;
 
-  it('honors the skip when the recorded stdout carries the key line and an active row exists', () => {
-    expect(shouldSkipLaneUp(recordedWithKey, 1)).toBe(true);
+  it('honors the skip when the key line, an active api_keys row, and an active offer all exist', () => {
+    expect(shouldSkipLaneUp(recordedWithKey, 1, 1)).toBe(true);
   });
 
   it('does NOT honor the skip when the recorded stdout carries the key line but no active row exists', () => {
     // Nghịch "output còn — row mất" (database reset ngoài vòng đời lane): phải
     // đi đường converge đầy đủ để bootstrap phát key mới, không skip trên key
     // đã chết.
-    expect(shouldSkipLaneUp(recordedWithKey, 0)).toBe(false);
+    expect(shouldSkipLaneUp(recordedWithKey, 0, 1)).toBe(false);
+  });
+
+  it('does NOT honor the skip when the canonical model offer is not active', () => {
+    // Issue #436: fresh volume bootstrap lần đầu chạy với default upstream
+    // `.invalid` — offer kẹt `draft`. Skip ở ca đó là che mất việc bootstrap
+    // chưa từng probe upstream thành công; lane phải chạy lại `local.ts up`.
+    expect(shouldSkipLaneUp(recordedWithKey, 1, 0)).toBe(false);
   });
 
   it('does not skip on the first run before any recorded stdout exists', () => {
-    expect(shouldSkipLaneUp(undefined, 1)).toBe(false);
-    expect(shouldSkipLaneUp(undefined, 0)).toBe(false);
+    expect(shouldSkipLaneUp(undefined, 1, 1)).toBe(false);
+    expect(shouldSkipLaneUp(undefined, 0, 0)).toBe(false);
   });
 
   it('does not skip when the recorded stdout lost the plaintext line (replaced stdout)', () => {
     // Stdout ghi nhận bị thay mà không còn plaintext (runner hội tụ `existing`)
     // — skip phải không diễn ra kể cả khi row vẫn sống.
-    expect(shouldSkipLaneUp('CONSUMER_TENANT_RESULT={"outcome":"no-op"}\n', 1)).toBe(false);
+    expect(shouldSkipLaneUp('CONSUMER_TENANT_RESULT={"outcome":"no-op"}\n', 1, 1)).toBe(false);
   });
 });
 
@@ -304,6 +316,19 @@ describe('consumerApiKeyRowProbeArgs', () => {
     expect(sql).not.toMatch(/INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE/iu);
   });
 
+  it('deletes only the canonical consumer tenant row with no free-form input', () => {
+    // Recovery show-once (#436): SQL xoá cố định theo id tenant hằng — cùng
+    // hình argv với probe, không ghép input tự do nào.
+    const delArgs = consumerApiKeyRowDeleteArgs(NS);
+    expect(delArgs[0]).toBe('exec');
+    expect(delArgs[1]).toBe(`ecoma-${NS}-postgres`);
+    expect(delArgs[delArgs.indexOf('-d') + 1]).toBe('db-llm-gateway');
+    expect(delArgs[delArgs.indexOf('-tAc') + 1]).toBe(
+      `DELETE FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}'`,
+    );
+    expect(() => consumerApiKeyRowDeleteArgs('W_UPPER')).toThrow(/invalid namespace/u);
+  });
+
   it('rejects a namespace that is not a Docker-safe name', () => {
     expect(() => consumerApiKeyRowProbeArgs('W_UPPER')).toThrow(/invalid namespace/u);
   });
@@ -330,6 +355,88 @@ describe('activeConsumerApiKeyRowCount', () => {
   });
 });
 
+describe('offerServingProbeArgs', () => {
+  const args = offerServingProbeArgs(NS);
+
+  it('execs a read-only psql probe inside the namespace postgres container', () => {
+    expect(args[0]).toBe('exec');
+    expect(args[1]).toBe(`ecoma-${NS}-postgres`);
+    expect(args.slice(2)).toEqual([
+      'psql',
+      '-U',
+      'ecoma_local',
+      '-d',
+      'db-llm-marketplace',
+      '-tAc',
+      expect.stringContaining('SELECT count(*)'),
+    ]);
+  });
+
+  it('counts active rows of the canonical E2E model only', () => {
+    const sql = args[args.indexOf('-tAc') + 1];
+    expect(sql).toBe(
+      `SELECT count(*) FROM llm_marketplace.model_offers WHERE normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' AND status = 'active'`,
+    );
+    expect(sql).not.toMatch(/INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE/iu);
+  });
+
+  it('rejects a namespace that is not a Docker-safe name', () => {
+    expect(() => offerServingProbeArgs('W_UPPER')).toThrow(/invalid namespace/u);
+  });
+});
+
+describe('activeOfferServingCount', () => {
+  it('parses the single count cell with the same contract as the api key probe', () => {
+    expect(activeOfferServingCount('1\n')).toBe(1);
+    expect(activeOfferServingCount('0\n')).toBe(0);
+  });
+
+  it('fails closed on a non-integer cell without echoing the raw output', () => {
+    let message = '';
+    try {
+      activeOfferServingCount('garbage SECRET-MARKER-VALUE\n');
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain('non-integer');
+    expect(message).not.toContain('SECRET-MARKER-VALUE');
+  });
+});
+
+describe('divergedUpstreamEndpointDeleteArgs', () => {
+  it('targets only the canonical offer and only endpoints diverging from the configured URL', () => {
+    const args = divergedUpstreamEndpointDeleteArgs(NS, mockUpstreamEndpointUrl(NS));
+    expect(args[0]).toBe('exec');
+    expect(args[1]).toBe(`ecoma-${NS}-postgres`);
+    expect(args[args.indexOf('-d') + 1]).toBe('db-llm-marketplace');
+    const sql = args[args.indexOf('-tAc') + 1];
+    expect(sql).toBe(
+      `DELETE FROM llm_marketplace.upstream_endpoints e ` +
+        `USING llm_marketplace.endpoint_pools p, llm_marketplace.model_offers o ` +
+        `WHERE e.pool_id = p.id AND p.offer_id = o.id ` +
+        `AND o.normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' ` +
+        `AND e.url <> '${mockUpstreamEndpointUrl(NS)}'`,
+    );
+  });
+
+  it('refuses to build the cleanup argv for a URL outside the lane mock endpoint shape', () => {
+    // Fail-closed: SQL ghép từ `configuredUrl` — giá trị tự do là bề mặt inject,
+    // nên hình endpoint mock của lane là điều kiện bắt buộc trước khi ghép.
+    expect(() => divergedUpstreamEndpointDeleteArgs(NS, 'http://llm-upstream.invalid')).toThrow(
+      /lane mock endpoint shape/u,
+    );
+    expect(() =>
+      divergedUpstreamEndpointDeleteArgs(NS, "http://mock:8787/v1/chat/completions'; DROP TABLE x"),
+    ).toThrow(/lane mock endpoint shape/u);
+  });
+
+  it('rejects a namespace that is not a Docker-safe name', () => {
+    expect(() =>
+      divergedUpstreamEndpointDeleteArgs('W_UPPER', mockUpstreamEndpointUrl(NS)),
+    ).toThrow(/invalid namespace/u);
+  });
+});
+
 describe('lane entry source contract (skip guard wiring)', () => {
   // Entry `lane.ts` tự chạy `main()` lúc load nên spec không import được — dây
   // nối guard được ghim theo NGUỒN (tiền lệ `wic-state-init.spec.ts`). Marker
@@ -345,7 +452,21 @@ describe('lane entry source contract (skip guard wiring)', () => {
     return source.slice(start, end + endMarker.length);
   }
 
-  it('runs the api key row probe before honoring the skip in up()', () => {
+  it('automates the documented show-once recovery when a forced re-converge loses the plaintext', () => {
+    // #436: xoay password role mỗi `local.ts up` làm MỌI Command re-run — runner
+    // bước 9 hội tụ `existing` và thay stdout ghi nhận, mất plaintext. Recovery
+    // tài liệu của guard (xoá row consumer + `local.ts up` lần nữa) phải được
+    // tự động hoá trong entry, không phải exit 1 cho người chạy.
+    const recoveryBlock = sliceBetween(
+      'extractConsumerApiKeyRecordedStdout(afterUp);',
+      'lane up complete',
+    );
+    expect(recoveryBlock).toContain('deleteConsumerApiKeyRow(foundation)');
+    expect(recoveryBlock).toContain('runLaneUp(foundation)');
+    expect(recoveryBlock).toContain('hasConsumerApiKeyLine(afterRecovery)');
+  });
+
+  it('runs both convergence probes before honoring the skip in up()', () => {
     // Đoạn skip-converged của `up()`: từ lần đọc output ĐẦU TIÊN tới `return 0`
     // ĐẦU TIÊN (đường skip). `state()` cũng chứa marker mở nhưng `indexOf`
     // chạm phần `up()` trước — thứ tự khai báo của file ghim điều đó.
@@ -355,6 +476,11 @@ describe('lane entry source contract (skip guard wiring)', () => {
     );
     expect(skipBlock).toContain('hasConsumerApiKeyLine(recorded)');
     expect(skipBlock).toContain('probeConsumerApiKeyRowCount(foundation)');
-    expect(skipBlock).toContain('shouldSkipLaneUp(recorded, activeRowCount)');
+    // #436: probe offer phải chạy trước phán skip, và URL vừa đổi thì skip
+    // không được diễn ra (cleanup endpoint đã chạy, bootstrap phải re-run).
+    expect(skipBlock).toContain('probeOfferServingCount(foundation)');
+    expect(skipBlock).toContain(
+      '!upstreamBaseUrlChanged && shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)',
+    );
   });
 });
