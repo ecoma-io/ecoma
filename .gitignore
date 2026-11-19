@@ -55,8 +55,10 @@ CLAUDE.md
 
 # Output của Nuxt dev/build
 .output
+.output-node
 .data
 .nuxt
+.nuxt-node
 .nitro
 .cache
 vitest.config.*.timestamp*

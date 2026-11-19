@@ -1,18 +1,17 @@
 // Nitro config riêng cho `home`.
 //
-// Nuxt 4 chuyển cấu hình Nitro ra khỏi `nuxt.config.ts`: docs của Nuxt khuyến
-// nghị dùng key `nitro` ở đó, nhưng `@nuxt/schema` 4.5.2 đã gỡ `nitro` khỏi
-// `NuxtConfig` (`Omit<ConfigSchema, ... | "nitro">` + `nitro?: never`), nên khai
-// báo kiểu sẽ hỏng:
-//     error TS2353: 'nitro' does not exist in type 'InputConfig<NuxtConfig, ...>'
-// Vì `typescript.typeCheck: true` trong nuxt.config.ts và `.nuxt/tsconfig.node.json`
-// có `include: ["../nuxt.config.*"]`, lỗi đó lộ ra ngay trong `nuxt build`.
-// File riêng này tránh được cả hai.
+// File này còn tồn tại vì lịch sử: `@nuxt/schema` 4.5.2 từng gỡ `nitro` khỏi
+// `NuxtConfig` (`nitro?: never`), khiến khai `nitro:` trong `nuxt.config.ts`
+// nổ TS2353 dưới `typescript.typeCheck: true`. Từ 4.6.4 key `nitro` ĐÃ được
+// trả lại vào `NuxtConfig` (có type đầy đủ), nên nội dung file này hoàn toàn
+// có thể chuyển thành key `nitro` trong `nuxt.config.ts` cho khớp docs của
+// Nuxt — chưa làm vì không nằm trong phạm vi #385. Nuxt hiện cảnh báo B5004
+// khi thấy `nitro.config.ts` — chỉ dev mode, không ảnh hưởng build.
 //
-// Đây là lựa chọn tạm: khi `@nuxt/schema` trả `nitro` vào `NuxtConfig`, chuyển
-// nội dung file này thành key `nitro` trong `nuxt.config.ts` cho khớp docs. Nuxt
-// hiện cảnh báo B5004 khi thấy `nitro.config.ts` — chỉ dev mode, không ảnh hưởng
-// build.
+// LƯU Ý PRECEDENCE (#385): khối `$env['node-docker']` trong `nuxt.config.ts`
+// đè `preset` của file này khi build `--envName=node-docker` —
+// `nuxt.options.nitro` đi vào Nitro ở vị trí overrides, cao hơn config file
+// trong precedence của c12. File này giữ preset production cho build thường.
 //
 // Trang này là deploy unit Workers: docs/architecture/02-delivery.md §1 xếp `apps`
 // vào làn Workers, deploy bằng Wrangler. Không có preset này thì Nuxt build cho

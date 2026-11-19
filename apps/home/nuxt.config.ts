@@ -55,4 +55,42 @@ export default defineNuxtConfig({
     server: { allowedHosts: true },
     plugins: [tailwindcss()],
   },
+
+  // Prototype #385: cấu hình build cho runtime Node standalone (Docker) qua
+  // khối `$env['node-docker']` — chỉ kích hoạt khi envName đúng bằng
+  // `node-docker`, tức `nuxt build --envName=node-docker` (c12 xử lý các khối
+  // `$development`/`$env` trong `loadNuxtConfig`; envName tuỳ ý phải nằm trong
+  // `$env`, còn `$development`/`$production` là key riêng có type). Đây là
+  // cơ chế duy nhất cần thiết: nitro preset và output dir đều đặt được từ đây
+  // vì `@nuxt/schema` 4.6.4 đã trả `nitro` vào `NuxtConfig` (không còn TS2353).
+  //
+  // TÊN BẮT BUỘC KHÁC `development`/`production`: `nuxt dev` tự đặt
+  // envName = `development` (@nuxt/cli `overrideEnv("development")`, và c12
+  // fallback theo NODE_ENV), nên khối `$development` sẽ kích hoạt cả trong
+  // `nuxt dev` — buildDir `.nuxt-node` làm dev server hỏng trên fresh checkout
+  // (không tìm thấy `.nuxt/tsconfig.*`). envName riêng (`node-docker`) tách
+  // `nuxt dev` ra hoàn toàn. Tên Nx configuration vẫn là `development`
+  // (contract của target build), chỉ command bên trong mới mang envName.
+  //
+  // `buildDir` được resolve theo `rootDir` (không phải `workspaceDir`), nên
+  // `.nuxt-node`/`.output-node` nằm trong `apps/home/`, không đụng
+  // `.nuxt`/`.output` của production — hai build chạy song song an toàn.
+  // Lưu ý: build này vẫn cần `.nuxt` tồn tại (project `tsconfig.json`
+  // reference `./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi
+  // `typescript.typeCheck: true`) — target Nx `build` `dependsOn`
+  // `nuxt-prepare` đã đảm bảo điều đó.
+  $env: {
+    'node-docker': {
+      buildDir: '.nuxt-node',
+      nitro: {
+        // Preset Node server standalone — artifact `.output-node/server/index.mjs`
+        // chạy trực tiếp bằng `node`, phục vụ preview/local; không đụng contract
+        // wrangler của production (`.output/server/index.mjs` + `.output/public`).
+        preset: 'node-server',
+        output: {
+          dir: '.output-node',
+        },
+      },
+    },
+  },
 });
