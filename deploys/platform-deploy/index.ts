@@ -15,6 +15,15 @@
  *   thúc bình thường sau warn (KHÔNG `process.exit` — exit giữa chừng dưới
  *   Pulumi runtime bị tính là chương trình lỗi, promises leaked);
  * - khác — fail-closed: không stack lạ nào được phép khai Docker resource.
+ *
+ * Stack outputs của lane local là `export const` của `local-program.ts`
+ * (traefikHostPort, namespace...). Pulumi language host (`cmd/run/run.js`)
+ * lấy **default export duy nhất** của entry làm kết quả program = stack
+ * outputs, nên entry forward nguyên namespace của local-program qua
+ * `export default` — đảm bảo outputs của lane local KHÔNG ĐỔI so với thời
+ * thân chương trình nằm ngay trong entry; lane staging trả `undefined`
+ * (stack không có output nào, đúng hợp đồng marker-only). Entry vì thế chỉ
+ * được phép có ĐÚNG MỘT export: `default`.
  */
 
 import * as pulumi from '@pulumi/pulumi';
@@ -30,18 +39,19 @@ if (platformStackLane === 'unknown') {
       'this program declares namespace-scoped Docker resources and must never run on another stack',
   );
 }
-if (platformStackLane === 'staging-marker') {
-  // Báo rõ marker-only thay vì im lặng: operator đọc log phải thấy ngay đây
-  // là hành vi chủ đích, không phải chương trình hỏng.
-  pulumi.log.warn(
-    'platform-deploy staging stack intentionally declares NO resources — ' +
-      'staging resources are owned by #349/#350/#351; this run only exercises ' +
-      'the stack lifecycle (backend, credentials, evidence record).',
-  );
-} else {
-  // Lane local: nạp thân chương trình resource. Dynamic import (không phải
-  // import tĩnh) đảm bảo thân KHÔNG BAO GIỜ được evaluate khi lane không phải
-  // local — specifier `.js` resolvable qua ts-node/esm hooks như mọi import
-  // nội bộ của package (`type: "module"`).
-  await import('./local-program.js');
-}
+// Báo rõ marker-only thay vì im lặng: operator đọc log phải thấy ngay đây
+// là hành vi chủ đích, không phải chương trình hỏng.
+const stagingProgramResult =
+  platformStackLane === 'staging-marker'
+    ? (pulumi.log.warn(
+        'platform-deploy staging stack intentionally declares NO resources — ' +
+          'staging resources are owned by #349/#350/#351; this run only exercises ' +
+          'the stack lifecycle (backend, credentials, evidence record).',
+      ),
+      undefined)
+    : // Lane local: nạp thân chương trình resource và forward nguyên namespace
+      // làm kết quả program — specifier `.js` resolvable qua ts-node/esm hooks
+      // như mọi import nội bộ của package (`type: "module"`).
+      await import('./local-program.js');
+
+export default stagingProgramResult;
