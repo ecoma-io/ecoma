@@ -266,6 +266,33 @@ export const CONSUMER_TENANT_ID = 'consumer-tenant-ecoma';
 export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`;
 
 /**
+ * Dựng argv `docker exec ... psql -tAc` chạy TRONG container PostgreSQL platform
+ * của namespace — một chỗ duy nhất cho hình argv psql của lane (probe chỉ đọc
+ * lẫn cleanup). argv chỉ chứa tên container, flag và SQL do caller dựng từ
+ * hằng — KHÔNG có giá trị secret nào đi qua argv. Namespace sai hình là throw —
+ * cùng luật `dockerResourceName` của lib.
+ */
+export function buildPsqlArgs(namespace: string, database: string, sql: string): string[] {
+  // Fail-closed sớm như namespace/URL shape của các builder cùng file: database
+  // hoặc SQL rỗng là lỗi cấu hình caller, không để trôi xuống psql thành lỗi
+  // exec khó đọc. Caller hiện tại truyền hằng — guard này chặn caller tương lai.
+  if (database.length === 0 || sql.length === 0) {
+    throw new Error('buildPsqlArgs requires a non-empty database and SQL');
+  }
+  return [
+    'exec',
+    dockerResourceName(namespace, 'postgres'),
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    database,
+    '-tAc',
+    sql,
+  ];
+}
+
+/**
  * Dựng argv `docker exec` của probe row api_keys — chạy psql TRONG container
  * PostgreSQL platform của namespace, cùng cơ chế chỉ đọc mà suite dùng
  * (`psqlQuery` của `lane.mts`: `-tAc` trả ô thô). argv chỉ chứa tên container,
@@ -274,49 +301,131 @@ export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.
  * `dockerResourceName` của lib.
  */
 export function consumerApiKeyRowProbeArgs(namespace: string): string[] {
-  return [
-    'exec',
-    dockerResourceName(namespace, 'postgres'),
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    GATEWAY_DATABASE,
-    '-tAc',
-    CONSUMER_API_KEY_ROW_PROBE_SQL,
-  ];
+  return buildPsqlArgs(namespace, GATEWAY_DATABASE, CONSUMER_API_KEY_ROW_PROBE_SQL);
+}
+
+/**
+ * SQL xoá row `api_keys` của đúng tenant consumer canonical — recovery được
+ * tài liệu trên chính thông điệp guard show-once của entry (`lane.ts`): sau
+ * một lần `local.ts up` ép chạy lại, runner bước 9 hội tụ `existing` trên row
+ * cũ và stdout ghi nhận mất plaintext; xoá row rồi cho `local.ts up` chạy lại
+ * là đường phát key mới có ghi nhận plaintext. Chỉ `DELETE` đúng tenant id
+ * hằng; không có input tự do nào ghép vào chuỗi này.
+ */
+export const CONSUMER_API_KEY_ROW_DELETE_SQL = `DELETE FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}'`;
+
+/**
+ * Dựng argv `docker exec` xoá row api_keys của tenant consumer — cùng cơ chế
+ * với {@link consumerApiKeyRowProbeArgs}; namespace sai hình là throw.
+ */
+export function consumerApiKeyRowDeleteArgs(namespace: string): string[] {
+  return buildPsqlArgs(namespace, GATEWAY_DATABASE, CONSUMER_API_KEY_ROW_DELETE_SQL);
 }
 
 /**
  * Parse ô count của probe (`-tAc` in một ô, kết thúc `\n`). Số âm hoặc không
  * phải số nguyên là hợp đồng SQL gãy — fail-closed kèm message KHÔNG ghép raw
- * output (cùng luật không-leak của parser stdout ghi nhận phía trên).
+ * output (cùng luật không-leak của parser stdout ghi nhận phía trên). Một chỗ
+ * duy nhất cho hợp đồng parse; `probeName` chỉ gọi định danh probe trong
+ * message (hằng tại call site, không ghép raw output).
  */
-export function activeConsumerApiKeyRowCount(probeStdout: string): number {
+export function parseProbeCount(probeStdout: string, probeName: string): number {
   const value = Number.parseInt(probeStdout.trim(), 10);
   if (!Number.isInteger(value) || value < 0) {
-    throw new Error(
-      'the api key row probe returned a non-integer count; the SQL contract is broken',
-    );
+    throw new Error(`${probeName} probe returned a non-integer count; the SQL contract is broken`);
   }
   return value;
+}
+
+export function activeConsumerApiKeyRowCount(probeStdout: string): number {
+  return parseProbeCount(probeStdout, 'the api key row');
+}
+
+/** Database vật lý chứa schema `llm_marketplace` — đối chiếu migration drizzle. */
+export const MARKETPLACE_DATABASE = 'db-llm-marketplace';
+
+/**
+ * Model E2E canonical của lane — cùng model id suite inference dùng
+ * (`DRONIE_MODEL_ID` của cross-product journey). Lane hội tụ E2E khi offer của
+ * model này `active`: activation là verdict của domain (`activateModelOffer`
+ * đòi pool + endpoint healthy), nên offer active là bằng chứng đủ rằng chuỗi
+ * bootstrap 8b đã probe upstream thành công.
+ */
+export const CANONICAL_E2E_MODEL_ID = 'dronie-flash';
+
+/**
+ * Probe offer E2E canonical đã `active` chưa — cửa sổ hội tụ serving của lane
+ * (issue #436). Đếm 0 nghĩa là bootstrap chưa từng probe upstream thành công
+ * (đúng ca fresh volume với default `.invalid`): lane KHÔNG được skip khi đó,
+ * phải chạy `local.ts up` để bootstrap re-run với URL mock đã ghi đè.
+ */
+export const OFFER_SERVING_PROBE_SQL = `SELECT count(*) FROM llm_marketplace.model_offers WHERE normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' AND status = 'active'`;
+
+/**
+ * Dựng argv `docker exec` của probe offer serving — cùng cơ chế chỉ đọc với
+ * {@link consumerApiKeyRowProbeArgs}: psql trong container postgres của
+ * namespace, `-tAc` trả ô thô, không secret qua argv, namespace sai hình là
+ * throw.
+ */
+export function offerServingProbeArgs(namespace: string): string[] {
+  return buildPsqlArgs(namespace, MARKETPLACE_DATABASE, OFFER_SERVING_PROBE_SQL);
+}
+
+/** Parse ô count của probe offer — cùng hợp đồng parse với api key probe. */
+export function activeOfferServingCount(probeStdout: string): number {
+  return parseProbeCount(probeStdout, 'the offer serving');
+}
+
+/**
+ * Dựng argv xoá các row endpoint ĐÃ LỆCH khỏi URL upstream vừa được cấu hình
+ * — recovery được tài liệu của chính bootstrap (endpoint target là bất biến
+ * qua bootstrap; đổi target phải xoá row rồi cho bootstrap chạy lại). Chỉ xoá
+ * endpoint của offer canonical có url KHÁC URL mới; offer/pool giữ nguyên vì
+ * 8b rerun tự tái tạo endpoint theo natural key. `configuredUrl` bắt buộc khớp
+ * hình endpoint mock của lane (host DNS + port + đường chat) — lệch hình là
+ * throw trước khi SQL nào được ghép, nên argv không mang giá trị tự do.
+ */
+export function divergedUpstreamEndpointDeleteArgs(
+  namespace: string,
+  configuredUrl: string,
+): string[] {
+  if (!/^http:\/\/[a-z0-9.-]+:\d+\/v1\/chat\/completions$/u.test(configuredUrl)) {
+    throw new Error(
+      `the configured upstream URL does not match the lane mock endpoint shape; refusing to build the diverged-endpoint cleanup argv for "${configuredUrl}"`,
+    );
+  }
+  const sql =
+    `DELETE FROM llm_marketplace.upstream_endpoints e ` +
+    `USING llm_marketplace.endpoint_pools p, llm_marketplace.model_offers o ` +
+    `WHERE e.pool_id = p.id AND p.offer_id = o.id ` +
+    `AND o.normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' ` +
+    `AND e.url <> '${configuredUrl}'`;
+  return buildPsqlArgs(namespace, MARKETPLACE_DATABASE, sql);
 }
 
 /**
  * Quyết định skip-converged của `up`: skip CHỈ khi đồng thời (1) stdout ghi
  * nhận trong stack output còn mang dòng plaintext key (show-once của bước 9 —
- * chạy `local.ts up` thêm sẽ xoay password role và thay stdout, mất plaintext)
- * và (2) probe database thấy ÍT NHẤT MỘT row `api_keys` active của tenant
- * consumer. Output còn mà row mất (database bị reset ngoài vòng đời) là NGHỊCH
+ * chạy `local.ts up` thêm sẽ xoay password role và thay stdout, mất plaintext),
+ * (2) probe database thấy ÍT NHẤT MỘT row `api_keys` active của tenant
+ * consumer, và (3) offer E2E canonical đã `active` (serving E2E hội tụ —
+ * issue #436: fresh volume bootstrap lần đầu chạy với default `.invalid` để
+ * offer kẹt `draft`; skip ở ca đó là che mất việc bootstrap chưa từng chạm
+ * upstream thành công). Output còn mà row/offer mất (database bị reset ngoài
+ * vòng đời) là NGHỊCH
  * — không skip, chạy `local.ts up` đầy đủ để bootstrap phát key mới qua hợp
  * đồng converge-on-empty của runner bước 9.
  */
 export function shouldSkipLaneUp(
   recordedStdout: string | undefined,
   activeRowCount: number,
+  activeOfferRowCount: number,
 ): boolean {
   return (
-    recordedStdout !== undefined && hasConsumerApiKeyLine(recordedStdout) && activeRowCount > 0
+    recordedStdout !== undefined &&
+    hasConsumerApiKeyLine(recordedStdout) &&
+    activeRowCount > 0 &&
+    activeOfferRowCount > 0
   );
 }
 
