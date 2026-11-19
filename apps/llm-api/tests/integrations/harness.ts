@@ -11,10 +11,13 @@
  * từ `globalSetup` trước khi worker nào kịp báo xanh giả. Pattern
  * `apps/remote-cache-api/tests/integrations/harness.ts` — tham chiếu.
  *
- * Apply đi qua **runner production** (`db/apply.mts`) chạy bằng `tsx` qua
- * `child_process` với `DATABASE_URL` của credential migrator từng target —
- * đúng lệnh mà `db:migrate` chạy trong CI, gồm assert `current_database()` và
- * advisory lock. Viết vòng apply riêng ở đây là tạo runner thứ hai.
+ * Apply đi qua **runner production của migration authority**
+ * (`deploys/llm-<target>-db` `runner.mts migrate` — cutover #376) chạy bằng
+ * `tsx` qua `child_process` với `DATABASE_URL` của credential migrator từng
+ * target — đúng lệnh mà target `db-migrate` của project db chạy, gồm guard
+ * `current_database()`, advisory lock và engine `drizzle-kit migrate` (history
+ * `__drizzle_migrations` thuộc kit). Viết vòng apply riêng ở đây là tạo runner
+ * thứ hai.
  */
 
 import { execFile } from 'node:child_process';
@@ -58,7 +61,7 @@ const DATABASES: Readonly<Record<LlmDatabaseKey, string>> = {
   marketplace: 'db-llm-marketplace',
 };
 
-/** Role migrator của một DB — credential mà runner CLI `db/apply.mts` dùng. */
+/** Role migrator của một DB — credential mà runner CLI `runner.mts` dùng. */
 export function migratorRole(key: LlmDatabaseKey): string {
   return `ecoma_llm_${key}_migrator`;
 }
@@ -218,11 +221,20 @@ async function startPostgresContainer(
 }
 
 // ---------------------------------------------------------------------------
-// Runner production qua CLI — `db/apply.mts` chạy bằng tsx, một tiến trình riêng
+// Runner production qua CLI — `runner.mts migrate` của `deploys/llm-*-db`
+// chạy bằng tsx, một tiến trình riêng
 // ---------------------------------------------------------------------------
 
 /** Thư mục gốc của app, tính từ file harness này (`tests/integrations/` — đi lên hai cấp). */
 const APP_DIR = dirname(dirname(import.meta.dirname));
+
+/** Gốc repo, tính từ file harness này (đi lên bốn cấp) — mount của project db. */
+const REPO_ROOT = dirname(dirname(dirname(dirname(import.meta.dirname))));
+
+/** Thư mục migration authority của một target (cutover #376). */
+function dbProjectDir(target: LlmDatabaseKey): string {
+  return join(REPO_ROOT, 'deploys', `llm-${target}-db`);
+}
 
 const requireFromHere = createRequire(import.meta.url);
 
@@ -232,8 +244,8 @@ export interface ApplyCliResult {
 }
 
 /**
- * Chạy **đúng lệnh** mà target `db:migrate` chạy trong CI: `npx tsx
- * --tsconfig tsconfig.db.json db/apply.mts <target>` với `DATABASE_URL`
+ * Chạy **đúng lệnh** mà target `db-migrate` của `deploys/llm-<target>-db` chạy:
+ * `npx tsx --tsconfig tsconfig.db.json runner.mts migrate` với `DATABASE_URL`
  * migrator. Exit khác 0 là NÉM kèm stderr — provisioning/test phải đỏ, không
  * nuốt im lặng.
  */
@@ -244,9 +256,9 @@ export function runApplyCli(target: LlmDatabaseKey, databaseUrl: string): Promis
   return new Promise<ApplyCliResult>((resolve, reject) => {
     execFile(
       process.execPath,
-      [tsxCli, '--tsconfig', 'tsconfig.db.json', join('db', 'apply.mts'), target],
+      [tsxCli, '--tsconfig', 'tsconfig.db.json', 'runner.mts', 'migrate'],
       {
-        cwd: APP_DIR,
+        cwd: dbProjectDir(target),
         encoding: 'utf8',
         timeout: 120_000,
         // DATABASE_URL chỉ đi qua env của tiến trình con — không argv, không log.
@@ -256,7 +268,7 @@ export function runApplyCli(target: LlmDatabaseKey, databaseUrl: string): Promis
         if (error !== null) {
           reject(
             new Error(
-              `db/apply.mts ${target} exited non-zero: ${(error as Error).message}\nstdout: ${stdout}\nstderr: ${stderr}`,
+              `runner migrate for llm-${target}-db exited non-zero: ${(error as Error).message}\nstdout: ${stdout}\nstderr: ${stderr}`,
             ),
           );
           return;
@@ -368,7 +380,8 @@ export interface LlmApiDatabaseOptions {
  *
  * ⚠️ Apply **bằng credential migrator thật** qua tiến trình `tsx` riêng (không
  * phải `SET ROLE` từ superuser): `SET ROLE` không kiểm chứng quyền **kết nối
- * thật**; chạy qua CLI còn kiểm chứng đúng đường code mà `db:migrate` chạy.
+ * thật**; chạy qua CLI còn kiểm chứng đúng đường code mà target `db-migrate`
+ * của project db chạy.
  */
 export async function startLlmApiDatabase(
   databaseOptions: LlmApiDatabaseOptions = {},
@@ -445,7 +458,8 @@ export async function startLlmApiDatabase(
       throw error;
     }
 
-    // Apply ba target qua runner production — đúng lệnh `db:migrate` chạy trong CI.
+    // Apply ba target qua runner production — đúng lệnh target `db-migrate`
+    // của `deploys/llm-<target>-db` chạy.
     for (const key of Object.keys(DATABASES) as LlmDatabaseKey[]) {
       await runApplyCli(key, migratorUrl(key, host, port));
     }

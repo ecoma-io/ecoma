@@ -16,12 +16,13 @@
  * script chỉ chứa TÊN biến môi trường, và SQL `ALTER ROLE ... PASSWORD` được
  * dựng trong shell rồi nạp vào psql qua **STDIN** (`docker exec -i`, không
  * `-c`) — chi tiết kênh ở `scripts.ts`. Migration chạy **đường canonical**
- * (`apps/llm-api/db/apply.mts <target>` — advisory lock
- * `hashtext('db-llm-<target>')`, mọi DDL idempotent) bằng container node pin
- * chạy tsx của repo trên platform network, KHÔNG qua binding Hyperdrive
- * (HD6: Hyperdrive không hỗ trợ advisory lock); `DATABASE_URL` của migrator
- * cũng đi bằng kênh `environment` — `docker run -e DATABASE_URL` chỉ mang
- * TÊN biến trong argv, giá trị được docker CLI đọc từ environ của chính nó.
+ * (`deploys/llm-<target>-db` — `runner.mts migrate`, cutover #376: advisory
+ * lock `hashtext('db-llm-<target>')` + guard `current_database()` trên wrapper,
+ * engine `drizzle-kit migrate` + history `__drizzle_migrations` thuộc kit) bằng
+ * container node pin chạy tsx của repo trên platform network, KHÔNG qua binding
+ * Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory lock); `DATABASE_URL` của
+ * migrator cũng đi bằng kênh `environment` — `docker run -e DATABASE_URL` chỉ
+ * mang TÊN biến trong argv, giá trị được docker CLI đọc từ environ của chính nó.
  *
  * WIC: MỘT worker `wrangler dev` (alias DNS `ecoma-llm-api`, cổng nội bộ 4211 —
  * `dev.port` của `apps/llm-api/wrangler.jsonc`) trên platform network, ba biến
@@ -78,8 +79,8 @@ import { environmentTriggers } from './environment-triggers.js';
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (`apps/llm-api/db/apply.mts`) — deploy không
- * tự viết lại vòng migration.
+ * là đúng một đường code canonical (`deploys/llm-<target>-db` `runner.mts`) —
+ * deploy không tự viết lại vòng migration.
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
@@ -215,11 +216,11 @@ const provision = new command.local.Command(dockerResourceName(ns, 'llm-api') + 
 
 /**
  * Migration qua **đường canonical**, MỘT command cho MỖI database: container
- * ephemeral trên platform network chạy đúng `npx tsx --tsconfig tsconfig.db.json
- * db/apply.mts <target>` của repo (advisory lock `hashtext('db-llm-<target>')`,
- * verify `current_database()` khớp DB đích — chống chạy nhầm credential; cả hai
- * giữ nguyên trong `apps/llm-api/db/apply.mts`). KHÔNG chạy qua binding
- * Hyperdrive (HD6: advisory lock).
+ * ephemeral trên platform network chạy đúng runner của migration authority
+ * `deploys/llm-<target>-db` — `npx tsx --tsconfig tsconfig.db.json runner.mts
+ * migrate` (cutover #376; advisory lock `hashtext('db-llm-<target>')` và verify
+ * `current_database()` khớp DB đích nằm trong wrapper, chống chạy nhầm
+ * credential). KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
  *
  * Kênh `DATABASE_URL`: giá trị (đã percent-encode password trước khi ghép vào
  * userinfo — an toàn khi mật khẩu chứa `@ : / ? #`; kết quả bọc `pulumi.secret`)

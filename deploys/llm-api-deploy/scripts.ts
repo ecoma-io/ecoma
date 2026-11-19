@@ -171,7 +171,7 @@ export interface MigrateScriptInputs {
   readonly networkName: string;
   /** Đường dẫn worktree — mount `/repo` read-only + `node_modules` RW. */
   readonly worktreeRoot: string;
-  /** Target database cần apply — đối số của `db/apply.mts`. */
+  /** Target database cần apply — chọn migration authority `deploys/llm-<target>-db`. */
   readonly target: Database;
   /** Image Node pin theo digest dùng để chạy tsx của repo. */
   readonly nodeImage: string;
@@ -179,9 +179,11 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate cho MỘT target: container ephemeral trên platform network chạy
- * đúng `npx tsx --tsconfig tsconfig.db.json db/apply.mts <target>` của repo
- * (advisory lock `hashtext('db-llm-<target>')`, verify `current_database()`
- * khớp DB đích — chống chạy nhầm credential, giữ nguyên trong `db/apply.mts`).
+ * đúng runner của migration authority `deploys/llm-<target>-db` —
+ * `npx tsx --tsconfig tsconfig.db.json runner.mts migrate` (cutover #376, hợp
+ * đồng §3a.3: wrapper giữ advisory lock `hashtext('db-llm-<target>')` trên kết
+ * nối thẳng, verify `current_database()` khớp DB đích, rồi spawn
+ * `drizzle-kit migrate`; engine + history `__drizzle_migrations` thuộc kit).
  * KHÔNG chạy qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock).
  *
@@ -200,10 +202,10 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/llm-api \\
+  -w /repo/deploys/llm-${inputs.target}-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
-  npx tsx --tsconfig tsconfig.db.json db/apply.mts ${inputs.target}
+  npx tsx --tsconfig tsconfig.db.json runner.mts migrate
 `;
 }
 
