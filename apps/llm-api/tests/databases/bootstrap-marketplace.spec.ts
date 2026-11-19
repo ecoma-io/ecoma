@@ -212,6 +212,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       await resetMarketplace(db);
     });
 
+    // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
     it('seeds offer, pool and credential hash-only, stays draft and degraded when the probe cannot connect', async () => {
       const result = await runMarketplace(marketplaceEnv('http://127.0.0.1:1'));
       expect(stdoutLine(result.stdout, 'MARKETPLACE_RESULT')).toContain(
@@ -231,7 +232,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       // Fence không lộ: so sánh qua boolean — assertion đỏ chỉ in `true !==
       // false`, không in lại stderr (kể cả plaintext nằm trong đó) vào report.
       expect(result.stderr.includes(PLAINTEXT_ONE)).toBe(false);
-    });
+    }, 30_000);
   });
 
   describe('activation chain on a credential-checking mock', () => {
@@ -274,6 +275,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       expectNoPlaintextLeak([activationRun], [mock]);
     });
 
+    // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
     it('reruns as a no-op without a new credential row or a re-activation', async () => {
       const before = await fetchCredentials();
       const result = await runMarketplace(marketplaceEnv(mock.url));
@@ -283,8 +285,9 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       );
       expect(await fetchCredentials()).toEqual(before);
       expectNoPlaintextLeak([result], [mock]);
-    });
+    }, 30_000);
 
+    // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
     it('rotates the credential when the upstream key changes: new row active, old row revoked, nothing deleted', async () => {
       const before = await fetchCredentials();
       expect(before).toHaveLength(1);
@@ -308,8 +311,9 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       // buộc một instance); bằng chứng probe gửi đúng giá trị env nằm ở group
       // activation và group /v1 — mỗi group đó khóa expected về đúng một giá trị.
       expectNoPlaintextLeak([result], [mock]);
-    });
+    }, 30_000);
 
+    // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
     it('refuses to reactivate a revoked credential when configuration reverts to an old key', async () => {
       const before = await fetchCredentials();
       // Quay về PLAINTEXT_ONE — key đã bị revoke ở bước rotation. Rotation là
@@ -320,8 +324,9 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
       );
       expect(await fetchCredentials()).toEqual(before);
       expect((await fetchOffer()).status).toBe('active');
-    });
+    }, 30_000);
 
+    // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
     it('rejects a verdict belonging to another seller tenant fail-closed before touching state', async () => {
       const credentialsBefore = await fetchCredentials();
       await expect(
@@ -332,7 +337,7 @@ describe('bootstrap runner 8b (marketplace) on real PostgreSQL with the shared u
         ),
       ).rejects.toThrow(/does not belong to the canonical seller tenant/u);
       expect(await fetchCredentials()).toEqual(credentialsBefore);
-    });
+    }, 30_000);
 
     it('keeps credentials tenant-scoped on the access path: other tenant is rejected, no provider-only lookup exists', async () => {
       const credentials = await fetchCredentials();

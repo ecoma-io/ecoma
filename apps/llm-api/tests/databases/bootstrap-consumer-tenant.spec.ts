@@ -155,6 +155,7 @@ function countApiKeyLines(stdout: string): number {
 }
 
 describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('seeds tenant, owner membership and one hash-only API key, emitting the plaintext exactly once', async () => {
     const result = await runConsumerTenant(consumerEnv());
     const resultLine = stdoutLine(result.stdout, 'CONSUMER_TENANT_RESULT');
@@ -212,8 +213,9 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
       await db.connectAsMigrator('gateway')
     ).query<{ outcome: string }>('SELECT outcome FROM llm_gateway.bootstrap_audit ORDER BY id');
     expect(gatewayAudit.rows.map((row) => row.outcome)).toEqual(['created']);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('keeps no tenant named ecoma-internal and rejects the name as divergent provisioning state', async () => {
     // Sau một run sạch: không tồn tại tenant nào tên `ecoma-internal`
     // (ADR-0020 Quyết định 9 — biến thể đó không bao giờ được tồn tại).
@@ -238,8 +240,9 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
       await planter.end();
     }
     await expect(runConsumerTenant(consumerEnv())).rejects.toThrow(/ecoma-internal/u);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('reruns as a no-op without new rows and without emitting any plaintext', async () => {
     const first = await runConsumerTenant(consumerEnv());
     const plaintext = stdoutLine(first.stdout, API_KEY_LINE_KEY);
@@ -273,8 +276,9 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
       await db.connectAsMigrator('gateway')
     ).query<{ outcome: string }>('SELECT outcome FROM llm_gateway.bootstrap_audit ORDER BY id');
     expect(gatewayAudit.rows.map((row) => row.outcome)).toEqual(['created', 'no-op']);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent owner sub fail-closed on rerun (ownership is immutable)', async () => {
     await runConsumerTenant(consumerEnv());
     await expect(
@@ -287,24 +291,27 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
     expect(memberships).toEqual([
       { id: CONSUMER_OWNER_MEMBERSHIP_ID, actor: OWNER_SUB, status: 'active' },
     ]);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a tenant database URL pointing at another database (current_database guard)', async () => {
     await expect(
       runConsumerTenant(
         consumerEnv({ ECOMA_TENANT_DATABASE_URL: migratorUrl('marketplace', db.host, db.port) }),
       ),
     ).rejects.toThrow(/DATABASE_URL points to database/u);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a gateway database URL pointing at another database (current_database guard)', async () => {
     await expect(
       runConsumerTenant(
         consumerEnv({ ECOMA_GATEWAY_DATABASE_URL: migratorUrl('tenant', db.host, db.port) }),
       ),
     ).rejects.toThrow(/DATABASE_URL points to database/u);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('fails closed when every stored key was revoked outside the provisioning surface', async () => {
     await runConsumerTenant(consumerEnv());
     const revoker = await db.connectAsMigrator('gateway');
@@ -322,8 +329,9 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
     const keys = await fetchApiKeys();
     expect(keys).toHaveLength(1);
     expect(keys[0].revoked_at).not.toBeNull();
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('converges on an empty key surface when the tenant predates the API key contract', async () => {
     // DB được seed bởi runner bước 9 cũ hơn hợp đồng key: tenant + membership
     // còn nguyên, bảng key rỗng. Trạng thái này không phân biệt được với
@@ -352,5 +360,5 @@ describe('bootstrap runner step 9 (consumer tenant) on real PostgreSQL', () => {
     const keys = await fetchApiKeys();
     expect(keys).toHaveLength(1);
     expect(keys[0].tenant_id).toBe(CONSUMER_TENANT_ID);
-  });
+  }, 30_000);
 });
