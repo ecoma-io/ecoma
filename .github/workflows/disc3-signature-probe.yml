@@ -84,7 +84,9 @@ jobs:
         run: |
           set -euo pipefail
           # Draft PR: OCR bỏ qua draft, và draft không thể merge — an toàn hai lớp.
-          pr_url="$(gh pr create --draft --head "$BRANCH" --base main \
+          # Không có checkout trong workflow này, gh không tự suy ra repo từ
+          # git — mọi lệnh pr phải truyền --repo tường minh.
+          pr_url="$(gh pr create --repo "$REPO" --draft --head "$BRANCH" --base main \
             --title '[EXP] DISC3 signature probe - scratch, never merge' \
             --body 'Temporary measurement PR for issue 347; closed immediately after reading rule evaluation. Never merged.')"
           pr="$(basename "$pr_url")"
@@ -96,7 +98,7 @@ jobs:
           errs=0
           for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
             sleep 10
-            if observed="$(gh pr view "$pr" --json mergeStateStatus,mergeable --jq '{mergeStateStatus, mergeable}')"; then
+            if observed="$(gh pr view "$pr" --repo "$REPO" --json mergeStateStatus,mergeable --jq '{mergeStateStatus, mergeable}')"; then
               printf '%s\n' "$observed" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
               state="$(jq -r '.mergeStateStatus' <<<"$observed")"
             else
