@@ -1,4 +1,4 @@
-import { expect, type Page, type Response } from '@playwright/test';
+import { expect, type Locator, type Page, type Response } from '@playwright/test';
 
 import { resolveStackOrigin } from './local-origin';
 
@@ -358,20 +358,48 @@ export async function performBrowserLogin(
  */
 async function resumeStuckLoginState(page: Page): Promise<string | undefined> {
   const continueRetry = page.getByTestId('login-continue-retry');
-  if (await continueRetry.isVisible().catch(() => false)) {
+  if (await isVisibleSafe(continueRetry)) {
     await continueRetry.click();
-    await expect(page.getByTestId('login-continue-target')).toBeVisible({ timeout: 30_000 });
+    await waitForContinueOrLanded(page, page.getByTestId('login-continue-target'));
     return 'clicked login-continue-retry';
   }
   const consentCard = page.getByTestId('consent-card');
-  if (await consentCard.isVisible().catch(() => false)) {
+  if (await isVisibleSafe(consentCard)) {
     await page.getByTestId('consent-approve').click();
     const consentContinue = page.getByTestId('consent-continue');
-    await expect(consentContinue).toBeVisible({ timeout: 30_000 });
-    await consentContinue.click();
+    if (await waitForContinueOrLanded(page, consentContinue)) {
+      await consentContinue.click();
+    }
     return 're-approved undecided consent';
   }
   return undefined;
+}
+
+/** isVisible không ném khi element biến mất giữa chờ — trả `false`. */
+async function isVisibleSafe(locator: Locator): Promise<boolean> {
+  return locator.isVisible().catch(() => false);
+}
+
+/**
+ * Race giữa nút continue mount và trang tự về đích — cùng transition flow
+ * chính đã guard bằng `Promise.race` (L262-268): auth resolve grant ngay sau
+ * khi render card là hành vi thật, callback có thể xảy ra TRƯỚC khi nút mount;
+ * chờ nút một-mình sẽ timeout 30s dù luồng đã thành công. Trả `true` khi nút
+ * mount để bấm tiếp, `false` khi đã landed hoặc cả hai chết trong budget —
+ * trường hợp sau do vòng landing quyết định (tiếp tục quan sát hoặc throw
+ * kèm `describeStuckState`), không che lỗi.
+ */
+async function waitForContinueOrLanded(page: Page, target: Locator): Promise<boolean> {
+  return Promise.race([
+    target
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false),
+    page
+      .waitForURL(LANDED_PATH_PATTERN, { timeout: 30_000 })
+      .then(() => false)
+      .catch(() => false),
+  ]);
 }
 
 /** Mô tả trạng thái trang lúc cạn vòng — dữ liệu đo được cho instance sau. */
@@ -379,12 +407,7 @@ async function describeStuckState(page: Page): Promise<string> {
   const states = ['consent-card', 'login-continue-retry', 'login-email-form', 'login-code-form'];
   const visible: string[] = [];
   for (const testId of states) {
-    if (
-      await page
-        .getByTestId(testId)
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await isVisibleSafe(page.getByTestId(testId))) {
       visible.push(testId);
     }
   }
