@@ -16,6 +16,8 @@
  * - `deploy-labels` — Docker ownership labels cho `dx local-cleanup`.
  * - `local-auth-contract` — `client_id` OAuth share giữa auth/backoffice.
  * - `platform-outputs-contract` — hình dạng outputs platform stack + key `.env`.
+ * - `deploy-environment` — adapter seam environment local↔staging + hợp đồng
+ *   state isolation/stack selection (§7.4.1, quyết định #345).
  * - `pulumi-context` — CLI/backend context Pulumi cô lập theo worktree.
  * - `local-entry` — nền tảng entry lifecycle colocated (`up`/`down` mỗi unit).
  * - `local-env` — secret primitives dùng chung + đọc `ROOT_HOST` từ `.env`.
@@ -52,6 +54,28 @@ export {
 export { LOCAL_BACKOFFICE_CLIENT_ID } from './local-auth-contract.js';
 
 export {
+  DEPLOYMENT_ENVIRONMENT_IDS,
+  DEPLOYMENT_LIFECYCLE_PHASES,
+  STAGING_SLOTS,
+  STAGING_STATE_URL_ENV_KEY,
+  type DeploymentEnvironmentAdapter,
+  type DeploymentEnvironmentId,
+  type DeploymentLifecyclePhase,
+  type DeploymentNamespaceMode,
+  type DeploymentPassphraseSource,
+  type DeploymentRoutingKind,
+  type DeploymentRuntimeKind,
+  type DeploymentStackSelectionOptions,
+  type StagingSlot,
+  type StackSelection,
+  deploymentEnvironmentAdapter,
+  localDeploymentAdapter,
+  resolveStagingStateUrl,
+  stagingDeploymentAdapter,
+  validateStackBackendPairing,
+} from './deploy-environment.js';
+
+export {
   LOCAL_ENV_OWNED_KEYS,
   LOCAL_ENV_RETIRED_KEYS,
   LOCAL_ROOT_HOSTNAME,
@@ -84,6 +108,7 @@ export {
   pulumiRun,
   resolveContext,
   resolveLocalPassphrase,
+  stackRef,
   writeWorktreePassphrase,
 } from './pulumi-context.js';
 
