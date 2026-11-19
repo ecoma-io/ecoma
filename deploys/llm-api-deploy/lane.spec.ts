@@ -309,7 +309,9 @@ describe('consumerApiKeyRowProbeArgs', () => {
   });
 
   it('counts active api_keys rows of the canonical consumer tenant only', () => {
-    const sql = args[args.indexOf('-tAc') + 1];
+    const tAcIndex = args.indexOf('-tAc');
+    expect(tAcIndex).toBeGreaterThanOrEqual(0);
+    const sql = args[tAcIndex + 1];
     expect(sql).toBe(
       `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`,
     );
@@ -322,8 +324,12 @@ describe('consumerApiKeyRowProbeArgs', () => {
     const delArgs = consumerApiKeyRowDeleteArgs(NS);
     expect(delArgs[0]).toBe('exec');
     expect(delArgs[1]).toBe(`ecoma-${NS}-postgres`);
-    expect(delArgs[delArgs.indexOf('-d') + 1]).toBe('db-llm-gateway');
-    expect(delArgs[delArgs.indexOf('-tAc') + 1]).toBe(
+    const dIndex = delArgs.indexOf('-d');
+    expect(dIndex).toBeGreaterThanOrEqual(0);
+    expect(delArgs[dIndex + 1]).toBe('db-llm-gateway');
+    const tAcIndex = delArgs.indexOf('-tAc');
+    expect(tAcIndex).toBeGreaterThanOrEqual(0);
+    expect(delArgs[tAcIndex + 1]).toBe(
       `DELETE FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}'`,
     );
     expect(() => consumerApiKeyRowDeleteArgs('W_UPPER')).toThrow(/invalid namespace/u);
@@ -373,7 +379,9 @@ describe('offerServingProbeArgs', () => {
   });
 
   it('counts active rows of the canonical E2E model only', () => {
-    const sql = args[args.indexOf('-tAc') + 1];
+    const tAcIndex = args.indexOf('-tAc');
+    expect(tAcIndex).toBeGreaterThanOrEqual(0);
+    const sql = args[tAcIndex + 1];
     expect(sql).toBe(
       `SELECT count(*) FROM llm_marketplace.model_offers WHERE normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' AND status = 'active'`,
     );
@@ -408,8 +416,12 @@ describe('divergedUpstreamEndpointDeleteArgs', () => {
     const args = divergedUpstreamEndpointDeleteArgs(NS, mockUpstreamEndpointUrl(NS));
     expect(args[0]).toBe('exec');
     expect(args[1]).toBe(`ecoma-${NS}-postgres`);
-    expect(args[args.indexOf('-d') + 1]).toBe('db-llm-marketplace');
-    const sql = args[args.indexOf('-tAc') + 1];
+    const dIndex = args.indexOf('-d');
+    expect(dIndex).toBeGreaterThanOrEqual(0);
+    expect(args[dIndex + 1]).toBe('db-llm-marketplace');
+    const tAcIndex = args.indexOf('-tAc');
+    expect(tAcIndex).toBeGreaterThanOrEqual(0);
+    const sql = args[tAcIndex + 1];
     expect(sql).toBe(
       `DELETE FROM llm_marketplace.upstream_endpoints e ` +
         `USING llm_marketplace.endpoint_pools p, llm_marketplace.model_offers o ` +
@@ -476,11 +488,14 @@ describe('lane entry source contract (skip guard wiring)', () => {
     );
     expect(skipBlock).toContain('hasConsumerApiKeyLine(recorded)');
     expect(skipBlock).toContain('probeConsumerApiKeyRowCount(foundation)');
-    // #436: probe offer phải chạy trước phán skip, và URL vừa đổi thì skip
-    // không được diễn ra (cleanup endpoint đã chạy, bootstrap phải re-run).
+    // #436: probe offer phải chạy trước phán skip. URL vừa đổi thì KHÔNG probe
+    // lẫn skip — đường đó nhất định chạy `local.ts up` (cleanup endpoint đã
+    // chạy trước đó), probe chỉ thêm một lỗi hạ tầng không cần thiết.
     expect(skipBlock).toContain('probeOfferServingCount(foundation)');
-    expect(skipBlock).toContain(
-      '!upstreamBaseUrlChanged && shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)',
+    expect(skipBlock).toContain('if (plaintextRecorded && upstreamBaseUrlChanged)');
+    expect(skipBlock).toContain('shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)');
+    expect(skipBlock.indexOf('upstreamBaseUrlChanged')).toBeLessThan(
+      skipBlock.indexOf('probeConsumerApiKeyRowCount(foundation)'),
     );
   });
 });

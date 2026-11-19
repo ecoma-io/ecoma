@@ -276,30 +276,45 @@ function awaitMockReadiness(
 }
 
 /**
- * Chạy probe chỉ đọc đếm row `api_keys` ACTIVE của tenant consumer trong
- * db-llm-gateway — `docker exec` psql trong container PostgreSQL platform, argv
- * dựng bởi `consumerApiKeyRowProbeArgs` (SQL hằng, không secret trên argv).
- * Fail-closed: lỗi spawn hoặc exit != 0 của docker/psql là THROW — một lỗi hạ
- * tầng của probe KHÔNG BAO GIỜ được đọc thành "không còn row", vì chạy
- * `local.ts up` khi key thật vẫn sống sẽ xoay password role và thay stdout ghi
- * nhận (mất plaintext show-once của bước 9).
+ * Chạy một câu `docker exec ... psql` của lane (probe chỉ đọc lẫn cleanup) với
+ * fail-closed thống nhất: lỗi spawn hoặc exit != 0 của docker/psql là THROW —
+ * một lỗi hạ tầng KHÔNG BAO GIỜ được đọc thành "không còn row/cleanup xong",
+ * vì chạy `local.ts up` khi state thật vẫn sống sẽ xoay password role và thay
+ * stdout ghi nhận (mất plaintext show-once của bước 9). `label` và `note` là
+ * hằng tại call site — chỉ gọi định danh trong message, không ghép raw output.
  */
-function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
-  const probe = exec(
-    'docker',
-    consumerApiKeyRowProbeArgs(foundation.ctx.namespace),
-    foundation.ctx.worktreeRoot,
-    foundation.env,
-  );
-  if (probe.error !== undefined) {
-    throw new Error(`starting the api key row probe failed: ${describeSpawnFailure(probe)}`);
+function runPsqlExec(
+  foundation: EntryFoundation,
+  args: string[],
+  label: string,
+  note: string,
+): string {
+  const result = exec('docker', args, foundation.ctx.worktreeRoot, foundation.env);
+  if (result.error !== undefined) {
+    throw new Error(`starting the ${label} failed: ${describeSpawnFailure(result)}`);
   }
-  if (probe.status !== 0) {
+  if (result.status !== 0) {
     throw new Error(
-      `the api key row probe failed (exit ${String(probe.status)}) — verify the postgres container of this namespace is running, then re-run (the probe is a read-only SELECT count)`,
+      `the ${label} failed (exit ${String(result.status)}) — verify the postgres container of this namespace is running, then re-run (${note})`,
     );
   }
-  return activeConsumerApiKeyRowCount(probe.stdout);
+  return result.stdout;
+}
+
+/**
+ * Chạy probe chỉ đọc đếm row `api_keys` ACTIVE của tenant consumer trong
+ * db-llm-gateway — argv dựng bởi `consumerApiKeyRowProbeArgs` (SQL hằng, không
+ * secret trên argv), fail-closed qua {@link runPsqlExec}.
+ */
+function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
+  return activeConsumerApiKeyRowCount(
+    runPsqlExec(
+      foundation,
+      consumerApiKeyRowProbeArgs(foundation.ctx.namespace),
+      'api key row probe',
+      'the probe is a read-only SELECT count',
+    ),
+  );
 }
 
 /**
@@ -309,21 +324,14 @@ function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
  * bảng tồn tại), nên psql exit ≠ 0 là lỗi thật, không phải "chưa có bảng".
  */
 function probeOfferServingCount(foundation: EntryFoundation): number {
-  const probe = exec(
-    'docker',
-    offerServingProbeArgs(foundation.ctx.namespace),
-    foundation.ctx.worktreeRoot,
-    foundation.env,
+  return activeOfferServingCount(
+    runPsqlExec(
+      foundation,
+      offerServingProbeArgs(foundation.ctx.namespace),
+      'offer serving probe',
+      'the probe is a read-only SELECT count',
+    ),
   );
-  if (probe.error !== undefined) {
-    throw new Error(`starting the offer serving probe failed: ${describeSpawnFailure(probe)}`);
-  }
-  if (probe.status !== 0) {
-    throw new Error(
-      `the offer serving probe failed (exit ${String(probe.status)}) — verify the postgres container of this namespace is running, then re-run (the probe is a read-only SELECT count)`,
-    );
-  }
-  return activeOfferServingCount(probe.stdout);
 }
 
 /**
@@ -333,22 +341,12 @@ function probeOfferServingCount(foundation: EntryFoundation): number {
  * offer canonical mang url khác URL mới, nên chạy lặp là no-op an toàn.
  */
 function clearDivergedUpstreamEndpoints(foundation: EntryFoundation, configuredUrl: string): void {
-  const clear = exec(
-    'docker',
+  runPsqlExec(
+    foundation,
     divergedUpstreamEndpointDeleteArgs(foundation.ctx.namespace, configuredUrl),
-    foundation.ctx.worktreeRoot,
-    foundation.env,
+    'diverged endpoint cleanup',
+    'the cleanup deletes only endpoint rows whose url differs from the configured upstream target',
   );
-  if (clear.error !== undefined) {
-    throw new Error(
-      `starting the diverged endpoint cleanup failed: ${describeSpawnFailure(clear)}`,
-    );
-  }
-  if (clear.status !== 0) {
-    throw new Error(
-      `the diverged endpoint cleanup failed (exit ${String(clear.status)}) — verify the postgres container of this namespace is running, then re-run (the cleanup deletes only endpoint rows whose url differs from the configured upstream target)`,
-    );
-  }
   console.error(
     '[llm-api-deploy-lane] upstream base URL changed — cleared diverged endpoint rows so the marketplace bootstrap can re-seed against the new target',
   );
@@ -361,22 +359,12 @@ function clearDivergedUpstreamEndpoints(foundation: EntryFoundation, configuredU
  * role xoay mỗi lần up nên trigger của bước 9 chắc chắn đổi — rerun là deterministic).
  */
 function deleteConsumerApiKeyRow(foundation: EntryFoundation): void {
-  const del = exec(
-    'docker',
+  runPsqlExec(
+    foundation,
     consumerApiKeyRowDeleteArgs(foundation.ctx.namespace),
-    foundation.ctx.worktreeRoot,
-    foundation.env,
+    'consumer api key row deletion',
+    'the deletion removes only the canonical consumer tenant api_keys row',
   );
-  if (del.error !== undefined) {
-    throw new Error(
-      `starting the consumer api key row deletion failed: ${describeSpawnFailure(del)}`,
-    );
-  }
-  if (del.status !== 0) {
-    throw new Error(
-      `the consumer api key row deletion failed (exit ${String(del.status)}) — verify the postgres container of this namespace is running, then re-run (the deletion removes only the canonical consumer tenant api_keys row)`,
-    );
-  }
   console.error(
     '[llm-api-deploy-lane] consumer api_keys row deleted — local.ts up will re-issue the key with a recorded plaintext',
   );
@@ -452,22 +440,30 @@ async function up(foundation: EntryFoundation): Promise<number> {
   // re-converge duy nhất của bootstrap. Quyết định skip đi qua
   // `shouldSkipLaneUp` (module thuần) — spec colocated ghim hợp đồng đó.
   const recorded = readConsumerApiKeyStackOutput(foundation);
-  if (recorded !== undefined && hasConsumerApiKeyLine(recorded)) {
+  const plaintextRecorded = recorded !== undefined && hasConsumerApiKeyLine(recorded);
+  if (plaintextRecorded && upstreamBaseUrlChanged) {
+    console.error(
+      '[llm-api-deploy-lane] upstream base URL changed — running local.ts up so the bootstrap re-converges against the new target (its stdout is withheld)',
+    );
+  } else if (plaintextRecorded) {
+    // Chỉ probe khi URL GIỮ NGUYÊN: URL vừa đổi thì skip chắc chắn bị từ chối,
+    // probe chỉ thêm một lỗi hạ tầng có thể có trên đường nhất định chạy up.
     const activeRowCount = probeConsumerApiKeyRowCount(foundation);
     const activeOfferCount = probeOfferServingCount(foundation);
-    if (!upstreamBaseUrlChanged && shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)) {
+    if (shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)) {
       console.error(
         '[llm-api-deploy-lane] lane converged — skipping local.ts up (api key plaintext stays in stack state; active api_keys row and active model offer verified)',
       );
       return 0;
     }
     console.error(
-      '[llm-api-deploy-lane] lane not fully converged (api key row, model offer, or upstream target out of sync) — running local.ts up to re-converge (its stdout is withheld)',
+      '[llm-api-deploy-lane] lane not fully converged (api key row or model offer out of sync) — running local.ts up to re-converge (its stdout is withheld)',
+    );
+  } else {
+    console.error(
+      '[llm-api-deploy-lane] running local.ts up (first lane convergence; its stdout is withheld)',
     );
   }
-  console.error(
-    '[llm-api-deploy-lane] running local.ts up (first lane convergence; its stdout is withheld)',
-  );
   runLaneUp(foundation);
 
   // Bằng chứng kết thúc: plaintext key giờ phải đọc được từ stack output.

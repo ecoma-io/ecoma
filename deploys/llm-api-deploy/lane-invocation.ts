@@ -266,6 +266,27 @@ export const CONSUMER_TENANT_ID = 'consumer-tenant-ecoma';
 export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.api_keys WHERE tenant_id = '${CONSUMER_TENANT_ID}' AND revoked_at IS NULL`;
 
 /**
+ * Dựng argv `docker exec ... psql -tAc` chạy TRONG container PostgreSQL platform
+ * của namespace — một chỗ duy nhất cho hình argv psql của lane (probe chỉ đọc
+ * lẫn cleanup). argv chỉ chứa tên container, flag và SQL do caller dựng từ
+ * hằng — KHÔNG có giá trị secret nào đi qua argv. Namespace sai hình là throw —
+ * cùng luật `dockerResourceName` của lib.
+ */
+export function buildPsqlArgs(namespace: string, database: string, sql: string): string[] {
+  return [
+    'exec',
+    dockerResourceName(namespace, 'postgres'),
+    'psql',
+    '-U',
+    'ecoma_local',
+    '-d',
+    database,
+    '-tAc',
+    sql,
+  ];
+}
+
+/**
  * Dựng argv `docker exec` của probe row api_keys — chạy psql TRONG container
  * PostgreSQL platform của namespace, cùng cơ chế chỉ đọc mà suite dùng
  * (`psqlQuery` của `lane.mts`: `-tAc` trả ô thô). argv chỉ chứa tên container,
@@ -274,17 +295,7 @@ export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.
  * `dockerResourceName` của lib.
  */
 export function consumerApiKeyRowProbeArgs(namespace: string): string[] {
-  return [
-    'exec',
-    dockerResourceName(namespace, 'postgres'),
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    GATEWAY_DATABASE,
-    '-tAc',
-    CONSUMER_API_KEY_ROW_PROBE_SQL,
-  ];
+  return buildPsqlArgs(namespace, GATEWAY_DATABASE, CONSUMER_API_KEY_ROW_PROBE_SQL);
 }
 
 /**
@@ -302,32 +313,26 @@ export const CONSUMER_API_KEY_ROW_DELETE_SQL = `DELETE FROM llm_gateway.api_keys
  * với {@link consumerApiKeyRowProbeArgs}; namespace sai hình là throw.
  */
 export function consumerApiKeyRowDeleteArgs(namespace: string): string[] {
-  return [
-    'exec',
-    dockerResourceName(namespace, 'postgres'),
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    GATEWAY_DATABASE,
-    '-tAc',
-    CONSUMER_API_KEY_ROW_DELETE_SQL,
-  ];
+  return buildPsqlArgs(namespace, GATEWAY_DATABASE, CONSUMER_API_KEY_ROW_DELETE_SQL);
 }
 
 /**
  * Parse ô count của probe (`-tAc` in một ô, kết thúc `\n`). Số âm hoặc không
  * phải số nguyên là hợp đồng SQL gãy — fail-closed kèm message KHÔNG ghép raw
- * output (cùng luật không-leak của parser stdout ghi nhận phía trên).
+ * output (cùng luật không-leak của parser stdout ghi nhận phía trên). Một chỗ
+ * duy nhất cho hợp đồng parse; `probeName` chỉ gọi định danh probe trong
+ * message (hằng tại call site, không ghép raw output).
  */
-export function activeConsumerApiKeyRowCount(probeStdout: string): number {
+export function parseProbeCount(probeStdout: string, probeName: string): number {
   const value = Number.parseInt(probeStdout.trim(), 10);
   if (!Number.isInteger(value) || value < 0) {
-    throw new Error(
-      'the api key row probe returned a non-integer count; the SQL contract is broken',
-    );
+    throw new Error(`${probeName} probe returned a non-integer count; the SQL contract is broken`);
   }
   return value;
+}
+
+export function activeConsumerApiKeyRowCount(probeStdout: string): number {
+  return parseProbeCount(probeStdout, 'the api key row');
 }
 
 /** Database vật lý chứa schema `llm_marketplace` — đối chiếu migration drizzle. */
@@ -357,28 +362,12 @@ export const OFFER_SERVING_PROBE_SQL = `SELECT count(*) FROM llm_marketplace.mod
  * throw.
  */
 export function offerServingProbeArgs(namespace: string): string[] {
-  return [
-    'exec',
-    dockerResourceName(namespace, 'postgres'),
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    MARKETPLACE_DATABASE,
-    '-tAc',
-    OFFER_SERVING_PROBE_SQL,
-  ];
+  return buildPsqlArgs(namespace, MARKETPLACE_DATABASE, OFFER_SERVING_PROBE_SQL);
 }
 
 /** Parse ô count của probe offer — cùng hợp đồng parse với api key probe. */
 export function activeOfferServingCount(probeStdout: string): number {
-  const value = Number.parseInt(probeStdout.trim(), 10);
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(
-      'the offer serving probe returned a non-integer count; the SQL contract is broken',
-    );
-  }
-  return value;
+  return parseProbeCount(probeStdout, 'the offer serving');
 }
 
 /**
@@ -405,17 +394,7 @@ export function divergedUpstreamEndpointDeleteArgs(
     `WHERE e.pool_id = p.id AND p.offer_id = o.id ` +
     `AND o.normalized_model_id = '${CANONICAL_E2E_MODEL_ID}' ` +
     `AND e.url <> '${configuredUrl}'`;
-  return [
-    'exec',
-    dockerResourceName(namespace, 'postgres'),
-    'psql',
-    '-U',
-    'ecoma_local',
-    '-d',
-    MARKETPLACE_DATABASE,
-    '-tAc',
-    sql,
-  ];
+  return buildPsqlArgs(namespace, MARKETPLACE_DATABASE, sql);
 }
 
 /**
