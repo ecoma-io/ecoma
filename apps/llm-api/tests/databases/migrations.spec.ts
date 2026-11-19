@@ -193,6 +193,7 @@ async function historyRows(key: LlmDatabaseKey): Promise<number> {
 }
 
 describe('llm-api migration runner on real PostgreSQL', () => {
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a DATABASE_URL pointing at another database (current_database guard, non-zero exit)', async () => {
     // Guard fail-closed của wrapper (pattern exemplar #374): `DATABASE_URL`
     // trỏ nhầm `postgres` database phải bị từ chối TRƯỚC khi một DDL nào chạm
@@ -204,8 +205,9 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     await expect(runApplyCli('gateway', url)).rejects.toThrow(
       /refusing to touch the wrong database/u,
     );
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('applies the gateway set again as a no-op (kit checkpoint reads history, nothing replays)', async () => {
     // Kit đọc `max(created_at)` của history rồi chỉ apply entry mới hơn — lần
     // chạy thứ hai KHÔNG thực thi lại adopted DDL. Snapshot
@@ -217,7 +219,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     const after = await countUserTables('gateway');
     expect(after).toBe(before);
     expect(await historyRows('gateway')).toBe(JOURNAL_ENTRIES.gateway);
-  });
+  }, 30_000);
 
   it('records the adopted journal exactly once per entry on every database (gateway 5, tenant 2, marketplace 4)', async () => {
     // History của kit là ledger mới sau cutover — sau lần migrate đầu tiên của
@@ -384,6 +386,7 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     }
   });
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('keeps the per-database advisory lock distinct from other databases', async () => {
     // Khóa là `hashtext('<ten database>')` phía server — giữ khóa db-llm-gateway
     // ở session này, chạy migrate db-llm-tenant từ một tiến trình khác vẫn thành
@@ -398,5 +401,5 @@ describe('llm-api migration runner on real PostgreSQL', () => {
       await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['db-llm-gateway']);
       await client.end();
     }
-  });
+  }, 30_000);
 });

@@ -190,6 +190,7 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     await resetFinancial(db);
   });
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('seeds sponsor, billing account, authorization and one credited grant on a fresh database', async () => {
     const result = await runFinancial(financialEnv());
     // Result line: đúng shape, đúng per-step outcome.
@@ -248,8 +249,9 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
 
     // Audit: ba transaction đã commit, đúng thứ tự seed → register → credit.
     expect(await fetchAuditOutcomes()).toEqual(['created', 'created', 'created']);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('reruns as a no-op without new rows', async () => {
     await runFinancial(financialEnv());
     const before = {
@@ -281,8 +283,9 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
       'no-op',
       'no-op',
     ]);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent sponsor ceiling on rerun without touching state', async () => {
     await runFinancial(financialEnv());
     await expect(runFinancial(financialEnv({ ECOMA_SPONSOR_CEILING: '2000000' }))).rejects.toThrow(
@@ -291,16 +294,18 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     // Fail-closed: state giữ nguyên — grant vẫn `credited`, vẫn đúng 4 row.
     expect(await fetchGrants()).toHaveLength(1);
     expect((await fetchGrants())[0]?.state).toBe('credited');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent authorization ceiling on rerun', async () => {
     await runFinancial(financialEnv());
     await expect(
       runFinancial(financialEnv({ ECOMA_SPONSOR_AUTHORIZATION_CEILING: '600000' })),
     ).rejects.toThrow(/ceiling differs from the configured input/u);
     expect((await fetchGrants())[0]?.state).toBe('credited');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent evidence_ref on rerun', async () => {
     await runFinancial(financialEnv());
     await expect(
@@ -309,8 +314,9 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
       ),
     ).rejects.toThrow(/evidence_ref is "budget-decision:2026-Q4" but bootstrap seeds/u);
     expect((await fetchGrants())[0]?.state).toBe('credited');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent grant amount on rerun (a registered grant is immutable history)', async () => {
     await runFinancial(financialEnv());
     await expect(
@@ -318,8 +324,9 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     ).rejects.toThrow(/immutable history/u);
     expect(await fetchGrants()).toHaveLength(1);
     expect((await fetchGrants())[0]?.amount_minor).toBe('250000');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('refuses a sponsor id env that differs from the code constant', async () => {
     // Định danh sponsor nằm trong code (ADR-0020 Quyết định 12): env chỉ
     // assert — giá trị khác bị từ chối trước khi một row nào được ghi.
@@ -327,16 +334,18 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
       runFinancial(financialEnv({ ECOMA_SPONSOR_ID: 'sponsor_someone_else' })),
     ).rejects.toThrow(/the environment asserts the identity, it never defines it/u);
     expect(await fetchSponsors()).toEqual([]);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('fails closed when a mandatory env is missing', async () => {
     const { ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF: _omitted, ...rest } = financialEnv();
     await expect(runFinancial(rest)).rejects.toThrow(
       /missing required environment variable ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF/u,
     );
     expect(await fetchSponsors()).toEqual([]);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('accepts the literal null as an explicit no per-account ceiling', async () => {
     const result = await runFinancial(
       financialEnv({ ECOMA_SPONSOR_AUTHORIZATION_CEILING: 'null' }),
@@ -348,8 +357,9 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     expect(authorizations[0]?.ceiling_denomination).toBeNull();
     // Grant vẫn credit được: sponsor ceiling là phép kiểm còn hiệu lực.
     expect((await fetchGrants())[0]?.state).toBe('credited');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('keeps the grant pending and exits non-zero when the amount exceeds the sponsor ceiling', async () => {
     // Trần sponsor 1000 < grant 250000: credit bị từ chối với đúng mã
     // canonical; seed + register đã commit nên grant tồn tại ở state `pending`
@@ -361,15 +371,17 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     expect(grants).toHaveLength(1);
     expect(grants[0]?.state).toBe('pending');
     expect(await fetchAuditOutcomes()).toEqual(['created', 'created']);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('keeps the grant pending when the amount exceeds the authorization ceiling', async () => {
     await expect(
       runFinancial(financialEnv({ ECOMA_SPONSOR_AUTHORIZATION_CEILING: '1000' })),
     ).rejects.toThrow(/rejected by creditGrant: authorization_ceiling_exceeded/u);
     expect((await fetchGrants())[0]?.state).toBe('pending');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('converges on rerun after the administrator raises the authorization ceiling', async () => {
     // Chuỗi recovery của ADR-0028 §6: run đầu fail vì trần per-account thấp hơn
     // grant (grant stays pending durable). Rerun với env trần ĐÃ SỬA nhưng state
@@ -422,13 +434,14 @@ describe('bootstrap runner step 10 (sponsor funding) on real PostgreSQL', () => 
     expect(grants).toHaveLength(1);
     expect(grants[0]?.state).toBe('credited');
     expect(grants[0]?.amount_minor).toBe('600000');
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a gateway database URL pointing at another database (current_database guard)', async () => {
     await expect(
       runFinancial(
         financialEnv({ ECOMA_GATEWAY_DATABASE_URL: migratorUrl('tenant', db.host, db.port) }),
       ),
     ).rejects.toThrow(/DATABASE_URL points to database/u);
-  });
+  }, 30_000);
 });
