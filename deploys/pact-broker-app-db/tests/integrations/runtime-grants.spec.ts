@@ -87,8 +87,12 @@ describe(`${CONTRACT_DATABASE} runtime role grants (migration 0000)`, { timeout:
       timeout: 120_000,
     });
     expect(
+      result.signal,
+      `runner killed by signal ${String(result.signal)}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+    ).toBeNull();
+    expect(
       result.status,
-      `runner exited ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+      `runner exited ${String(result.status)}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     ).toBe(0);
 
     // Runtime là role thật (không SET ROLE): đúng kênh kết nối mà BFF dùng.
@@ -109,7 +113,8 @@ describe(`${CONTRACT_DATABASE} runtime role grants (migration 0000)`, { timeout:
       );
       // UPDATE sliding expiry cũng được — guard trigger cho phép cột này.
       await runtime.query(
-        `UPDATE pact_broker_app.bff_sessions SET expires_at = now() + interval '2 hours'`,
+        `UPDATE pact_broker_app.bff_sessions SET expires_at = now() + interval '2 hours'
+           WHERE id_hash = repeat('a', 64)`,
       );
 
       // DDL bị từ chối: runtime không sở hữu schema, không có CREATE.
