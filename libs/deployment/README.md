@@ -20,7 +20,8 @@ Module xuất khẩu (mỗi module một trách nhiệm, spec colocated):
 - **Ownership labels** (`deploy-labels.ts`): `LABEL_MANAGED_BY`, `LABEL_PREFIX`, `OWNERSHIP_LABELS`, `classifyOwnership`, `labelsFromInspect`, `ownershipLabels` — dữ liệu cho `pnpm dx local-cleanup`.
 - **Contract OAuth local** (`local-auth-contract.ts`): `LOCAL_BACKOFFICE_CLIENT_ID` — `client_id` share giữa `auth`/`backoffice` trên lane local.
 - **Contract outputs platform** (`platform-outputs-contract.ts`): `PlatformOutputs` và key `.env` (`ROOT_HOST_ENV_KEY`, `POSTGRES_PASSWORD_ENV_KEY`, `LOCAL_ENV_OWNED_KEYS`, `LOCAL_ENV_RETIRED_KEYS`, `LOCAL_ROOT_HOSTNAME`, `TRAEFIK_INTERNAL_PORT`, `buildRootHost`, `extractTraefikHostPort`).
-- **Context Pulumi** (`pulumi-context.ts`): `resolveContext`, `ensureStack`, `pulumiRun`, `pulumiEnv`, `fullStackRef`, `hasPulumiState`, `localStateDir`, `localPassphrasePath`, `resolveLocalPassphrase`, `writeWorktreePassphrase`, `exec`/`execStreaming`, kiểu `LocalDeployContext`, `LocalPassphrase`, `ExecOptions`/`ExecResult`.
+- **Adapter seam environment** (`deploy-environment.ts`): `DEPLOYMENT_ENVIRONMENT_IDS`, `DEPLOYMENT_LIFECYCLE_PHASES`, `deploymentEnvironmentAdapter`, `localDeploymentAdapter`, `stagingDeploymentAdapter`, `StackSelection`, `validateStackBackendPairing`, `resolveStagingStateUrl`, `STAGING_STATE_URL_ENV_KEY`, `STAGING_SLOTS` — hợp đồng lifecycle dùng chung + bốn chiều môi trường (runtime/routing/namespace/passphrase) và lựa chọn stack local↔staging theo `02-delivery.md` §4.2, §7.4.1.
+- **Context Pulumi** (`pulumi-context.ts`): `resolveContext`, `ensureStack`, `pulumiRun`, `pulumiEnv`, `fullStackRef`, `stackRef`, `hasPulumiState`, `localStateDir`, `localPassphrasePath`, `resolveLocalPassphrase`, `writeWorktreePassphrase`, `exec`/`execStreaming`, kiểu `LocalDeployContext`, `LocalPassphrase`, `ExecOptions`/`ExecResult`.
 - **Entry lifecycle colocated** (`local-entry.ts`): `EntryFoundation`, `resolveEntryFoundation`, `ensureStackForEntry`, `pulumiUpForEntry`, `pulumiDestroyForEntry`, `setStackConfig`, `deployProjectDir`.
 - **Secret primitives** (`local-env.ts`): `generateAppSecret`, `generateInternalHmacSecret`, `generatePostgresPassword`, `isConfigKeyMissing`, `readRootHostFromEnv`.
 
@@ -51,6 +52,7 @@ Spec colocated phủ từng module, trong đó `dependency-direction.spec.ts` đ
 
 ## Related Documentation
 
+- [`docs/architecture/02-delivery.md`](../../docs/architecture/02-delivery.md) — §4.2 topology Staging (quyết định #345) và §7.4.1 state isolation/stack selection mà `deploy-environment` khóa.
 - [`docs/architecture/05-code-architecture.md`](../../docs/architecture/05-code-architecture.md) — §3 "Lib deployment dùng chung", §6.1 `type:tooling` vs `type:deployment`, §6.2 `runtime:native`.
 - [`docs/architecture/local-development/01-platform.md`](../../docs/architecture/local-development/01-platform.md) — namespace, contract outputs và cách lib được dùng khi provision platform local.
 - [`docs/architecture/local-development/03-operations.md`](../../docs/architecture/local-development/03-operations.md) — lifecycle deploy/teardown/cleanup mà `deploy-labels` và `local-entry` phục vụ.

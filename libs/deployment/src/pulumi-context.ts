@@ -493,7 +493,17 @@ export function pulumiEnv(ctx: LocalDeployContext, passphrase: LocalPassphrase):
  * thuộc selected-stack toàn cục.
  */
 export function fullStackRef(projectName: string, ctx: LocalDeployContext): string {
-  return `organization/${projectName}/${ctx.stackName}`;
+  return stackRef(projectName, ctx.stackName);
+}
+
+/**
+ * Ref đầy đủ `organization/<project>/<stack>` cho một cặp project/stack bất kỳ
+ * — hình chữ U của MỌI backend DIY (`file://` local lẫn `s3://` R2 staging).
+ * Một bản duy nhất: local lẫn staging ghép ref từ đây, không nối chuỗi riêng
+ * từng nơi cho hai lane trôi lệch hình dạng ref.
+ */
+export function stackRef(projectName: string, stackName: string): string {
+  return `organization/${projectName}/${stackName}`;
 }
 
 /**
