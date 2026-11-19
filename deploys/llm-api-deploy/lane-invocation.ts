@@ -45,6 +45,29 @@ export function mockContainerName(namespace: string): string {
   return dockerResourceName(namespace, MOCK_KIND_SEGMENT);
 }
 
+/**
+ * Args của lệnh xoá container mock trong vòng down — `docker rm -f` trên ĐÚNG
+ * tên namespace-scoped của unit này, không bao giờ lệnh rộng. Container mock
+ * nằm NGOÀI pulumi stack (tạo bởi `test-lane-up`), nên destroy của stack không
+ * chạm tới: vòng `local-down` phải tự xoá theo hợp đồng "mỗi deploy project
+ * tự xoá resource Docker của mình" (nx.json targetDefaults `local-down`) — nếu
+ * không, container còn gắn network platform khiến `platform-deploy:local-down`
+ * fail-loud với "active endpoints" và KHÔNG bao giờ hội tụ khi chạy lại (#444).
+ */
+export function mockContainerRemoveArgs(namespace: string): readonly string[] {
+  return ['rm', '-f', mockContainerName(namespace)];
+}
+
+/**
+ * Phân loại "container vắng mặt" trên stderr của docker — cùng pattern phân
+ * loại vắng mặt với platform-down: docker in thông điệp khác nhau theo phiên
+ * bản, vắng mặt là thành công idempotent (down hai lần liền, hoặc down khi
+ * chưa từng lane up), MỌI non-zero khác là thất bại thật không được nuốt.
+ */
+export function isMockContainerAbsent(stderr: string): boolean {
+  return /no such container/iu.test(stderr);
+}
+
 /** URL upstream mà worker serving sẽ dùng — DNS nội bộ của platform network. */
 export function mockUpstreamBaseUrl(namespace: string): string {
   return `http://${mockContainerName(namespace)}:${MOCK_UPSTREAM_PORT}`;

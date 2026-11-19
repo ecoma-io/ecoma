@@ -39,7 +39,9 @@ import {
   divergedUpstreamEndpointDeleteArgs,
   extractConsumerApiKeyRecordedStdout,
   hasConsumerApiKeyLine,
+  isMockContainerAbsent,
   mockContainerName,
+  mockContainerRemoveArgs,
   mockUpstreamBaseUrl,
   mockUpstreamEndpointUrl,
   offerServingProbeArgs,
@@ -62,6 +64,36 @@ describe('mockContainerName', () => {
     expect(() => mockContainerName('W_UPPER')).toThrow(/invalid namespace/u);
     expect(() => mockContainerName('')).toThrow(/invalid namespace/u);
     expect(() => mockContainerName('has space')).toThrow(/invalid namespace/u);
+  });
+});
+
+describe('mockContainerRemoveArgs', () => {
+  it('builds docker rm -f for exactly the namespace-scoped mock container', () => {
+    // `rm -f` là idempotent ở tầng docker (chạy khi chưa có container vẫn exit
+    // 0 ở một số phiên bản) nhưng phân loại vắng mặt chính thức nằm ở
+    // `isMockContainerAbsent`; args phải chỉ xoá ĐÚNG container của unit.
+    expect(mockContainerRemoveArgs(NS)).toEqual(['rm', '-f', `ecoma-${NS}-llm-upstream-mock`]);
+  });
+});
+
+describe('isMockContainerAbsent', () => {
+  it('classifies docker absence messages as absent', () => {
+    expect(isMockContainerAbsent('Error response from daemon: No such container: ecoma-w0\n')).toBe(
+      true,
+    );
+    expect(isMockContainerAbsent('no such container\n')).toBe(true);
+  });
+
+  it('does not classify real failures as absence', () => {
+    expect(
+      isMockContainerAbsent('Cannot connect to the Docker daemon at unix:///var/run/docker.sock\n'),
+    ).toBe(false);
+    expect(
+      isMockContainerAbsent(
+        'permission denied while trying to connect to the Docker daemon socket\n',
+      ),
+    ).toBe(false);
+    expect(isMockContainerAbsent('')).toBe(false);
   });
 });
 
