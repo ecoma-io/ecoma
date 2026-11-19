@@ -97,19 +97,20 @@ export function parseArgs(argv: readonly string[]): RunnerArgs {
  * node-postgres nhận `options` từ query string của connection string. Nếu URL
  * đã có `options`, nối thêm thay vì ghi đè.
  */
-export function withStatementTimeout(databaseUrl: string, timeoutMs: number): string {
+export function withConnectionOptions(databaseUrl: string, directives: readonly string[]): string {
+  if (directives.length === 0) return databaseUrl;
   // Không parse bằng `new URL`: production ghép URL TRẦN (không percent-encode)
   // qua `pulumi.interpolate` — mật khẩu có thể chứa `% @ : / ? #` mà API URL
   // chuẩn ném lỗi "Invalid URL", trong khi node-postgres (parser riêng, tự
   // encode lúc connect) nhận nguyên. Ghép chuỗi giữ mọi ký tự khác nguyên;
-  // directive được encode để không đụng ký tự dành riêng của query.
+  // danh sách directive được encode để không đụng ký tự dành riêng của query.
   if (/([?&])options=/u.test(databaseUrl)) {
     throw new Error(
-      'DATABASE_URL already carries an options parameter — statement_timeout injection refuses to guess merge semantics',
+      'DATABASE_URL already carries an options parameter — connection-option injection refuses to guess merge semantics',
     );
   }
   const separator = databaseUrl.includes('?') ? '&' : '?';
-  return `${databaseUrl}${separator}options=${encodeURIComponent(`-c statement_timeout=${timeoutMs}`)}`;
+  return `${databaseUrl}${separator}options=${encodeURIComponent(directives.join(' '))}`;
 }
 
 export interface JournalEntry {
@@ -307,10 +308,9 @@ function runKitMigrate(workspaceRoot: string, configPath: string): Promise<numbe
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        DATABASE_URL: withStatementTimeout(
-          process.env.DATABASE_URL as string,
-          STATEMENT_TIMEOUT_MS,
-        ),
+        DATABASE_URL: withConnectionOptions(process.env.DATABASE_URL as string, [
+          `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+        ]),
       },
       stdio: 'inherit',
     },

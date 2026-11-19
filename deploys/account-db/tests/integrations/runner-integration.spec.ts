@@ -94,13 +94,13 @@ describe(
 
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'first migrate');
       expect(await tableExists(db.databaseUrl, 'account', 'demo_items')).toBe(true);
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
 
       // Lần 2: `0000_create_demo_items.sql` dùng CREATE TABLE không idempotent —
       // nếu runner apply lại thì kit lỗi và exit ≠ 0. Exit 0 + history vẫn 2
       // entry là bằng chứng "adopt, không replay" (điều kiện hoàn thành #375).
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'second migrate');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
     });
 
     it('rolls back the whole run when a migration fails midway, then a retry applies everything', async () => {
@@ -116,7 +116,7 @@ describe(
 
       // Retry trên cùng database: lastDbMigration không tồn tại → apply toàn bộ.
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'retry after failure');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
     });
 
     it('blocks while another session holds the advisory lock, then proceeds after release', async () => {
@@ -152,7 +152,7 @@ describe(
 
         await holder.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
         expect(await exited).toBe(0);
-        expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+        expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
       } finally {
         await holder.end();
       }
@@ -162,14 +162,14 @@ describe(
       await recreateContractDatabase(db.adminUrl);
 
       expectRunnerOk(runRunner('stamp', okConfigPath, db.databaseUrl), 'stamp');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
       // Stamp KHÔNG thực thi SQL — điều kiện cutover "không chạm dữ liệu".
       expect(await tableExists(db.databaseUrl, 'account', 'demo_items')).toBe(false);
 
       // Migrate sau stamp: skip rule của kit là created_at — mọi entry đã được
       // stamp nên không SQL nào chạy, bảng vẫn không tồn tại.
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'migrate after stamp');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
       expect(await tableExists(db.databaseUrl, 'account', 'demo_items')).toBe(false);
     });
 
@@ -192,12 +192,12 @@ describe(
       // Adopt: stamp toàn bộ journal, KHÔNG chạy SQL.
       const adopted = expectRunnerOk(runRunner('adopt', okConfigPath, db.databaseUrl), 'adopt');
       expect(adopted.stdout).toContain('stamped from legacy state');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
 
       // Migrate sau adopt: skip toàn bộ — không replay SQL (điều kiện "history
       // adopt không replay" của #375).
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'migrate after adopt');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
     });
 
     it('adopt no-ops on a fresh database and after the journal is already covered', async () => {
@@ -211,7 +211,7 @@ describe(
 
       // Migrate thật vẫn apply đầy đủ sau adopt no-op.
       expectRunnerOk(runRunner('migrate', okConfigPath, db.databaseUrl), 'migrate');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
 
       // Stack đã-cutover: adopt lần 2 là no-op.
       const covered = expectRunnerOk(
@@ -219,7 +219,7 @@ describe(
         'covered adopt',
       );
       expect(covered.stdout).toContain('already covers');
-      expect(await historyRows(db.databaseUrl, 'account')).toBe(2);
+      expect(await historyRows(db.databaseUrl, 'account')).toBe(3);
     });
 
     it('refuses to run against a database other than the contract one', async () => {

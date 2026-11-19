@@ -21,9 +21,11 @@ import { Client } from 'pg';
  *    database là trạng thái serialization bị cấm (02 §3.1, 04 HD6);
  * 3. chặn statement_timeout mặc định cho cả kết nối lock lẫn kết nối của kit
  *    (§3a.5 — injecting `-c statement_timeout` vào `DATABASE_URL` của child);
- * 4. chế độ `stamp` cho cutover 2 bước (§3a.3 mục D): ghi history mà KHÔNG
+ * 4. set GUC `ecoma.auth_database` cho session của kit (hợp đồng của runner cũ
+ *    — `0002_roles_and_grants.sql` đọc GUC này và cố ý no-op khi thiếu);
+ * 5. chế độ `stamp` cho cutover 2 bước (§3a.3 mục D): ghi history mà KHÔNG
  *    thực thi SQL;
- * 5. chế độ `adopt` (cutover #375): trên stack đã-migrate-cũ BỞI runner cũ
+ * 6. chế độ `adopt` (cutover #375): trên stack đã-migrate-cũ BỞI runner cũ
  *    (`apps/account/db/apply.mts` — catalog `information_schema` là ledger,
  *    mọi DDL idempotent), ghi history cho toàn bộ journal để lần `migrate`
  *    đầu sau cutover KHÔNG replay; trên stack trắng hoặc đã-cutover là no-op.
@@ -49,6 +51,24 @@ export const MIGRATION_LOCK_KEY = 153_835_401n;
 
 /** §3a.5 — statement_timeout mặc định của migration execution. */
 export const STATEMENT_TIMEOUT_MS = 300_000;
+
+/**
+ * GUC mà `0002_roles_and_grants.sql` đọc (`current_setting(..., true)`) để
+ * assert quyền CONNECT của `ecoma_account_runtime` — hợp đồng của runner cũ,
+ * tự `SET` GUC này trên connection migrate trước khi chạy file. Thiếu GUC thì
+ * file cố ý no-op ("không có mặc định im lặng" — comment của chính file), nên
+ * runner mới phải set đúng giá trị đó cho session của kit, không phải tùy chọn.
+ */
+export const AUTH_DATABASE_GUC = 'ecoma.auth_database';
+export const AUTH_DATABASE_NAME = 'db-auth';
+
+/** Danh sách directive `-c` gắn vào startup packet của connection migrate. */
+export function kitConnectionDirectives(): readonly string[] {
+  return [
+    `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+    `-c ${AUTH_DATABASE_GUC}=${AUTH_DATABASE_NAME}`,
+  ];
+}
 
 const HISTORY_TABLE_DEFAULT = '__drizzle_migrations';
 
@@ -97,19 +117,20 @@ export function parseArgs(argv: readonly string[]): RunnerArgs {
  * node-postgres nhận `options` từ query string của connection string. Nếu URL
  * đã có `options`, nối thêm thay vì ghi đè.
  */
-export function withStatementTimeout(databaseUrl: string, timeoutMs: number): string {
+export function withConnectionOptions(databaseUrl: string, directives: readonly string[]): string {
+  if (directives.length === 0) return databaseUrl;
   // Không parse bằng `new URL`: production ghép URL TRẦN (không percent-encode)
   // qua `pulumi.interpolate` — mật khẩu có thể chứa `% @ : / ? #` mà API URL
   // chuẩn ném lỗi "Invalid URL", trong khi node-postgres (parser riêng, tự
   // encode lúc connect) nhận nguyên. Ghép chuỗi giữ mọi ký tự khác nguyên;
-  // directive được encode để không đụng ký tự dành riêng của query.
+  // danh sách directive được encode để không đụng ký tự dành riêng của query.
   if (/([?&])options=/u.test(databaseUrl)) {
     throw new Error(
-      'DATABASE_URL already carries an options parameter — statement_timeout injection refuses to guess merge semantics',
+      'DATABASE_URL already carries an options parameter — connection-option injection refuses to guess merge semantics',
     );
   }
   const separator = databaseUrl.includes('?') ? '&' : '?';
-  return `${databaseUrl}${separator}options=${encodeURIComponent(`-c statement_timeout=${timeoutMs}`)}`;
+  return `${databaseUrl}${separator}options=${encodeURIComponent(directives.join(' '))}`;
 }
 
 export interface JournalEntry {
@@ -307,9 +328,9 @@ function runKitMigrate(workspaceRoot: string, configPath: string): Promise<numbe
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        DATABASE_URL: withStatementTimeout(
+        DATABASE_URL: withConnectionOptions(
           process.env.DATABASE_URL as string,
-          STATEMENT_TIMEOUT_MS,
+          kitConnectionDirectives(),
         ),
       },
       stdio: 'inherit',

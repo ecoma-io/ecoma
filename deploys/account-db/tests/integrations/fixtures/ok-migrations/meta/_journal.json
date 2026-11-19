@@ -15,6 +15,13 @@
       "when": 1700000005000,
       "tag": "0001_add_demo_items_rank",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000010000,
+      "tag": "0002_assert_auth_database_guc",
+      "breakpoints": true
     }
   ]
 }

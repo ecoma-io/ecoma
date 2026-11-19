@@ -11,7 +11,7 @@ import {
   decideAdoption,
   parseArgs,
   readJournalEntries,
-  withStatementTimeout,
+  withConnectionOptions,
 } from './runner.mts';
 
 /**
@@ -58,21 +58,18 @@ describe('MIGRATION_LOCK_KEY', () => {
   });
 });
 
-describe('withStatementTimeout', () => {
-  it('injects statement_timeout into a bare connection URL', () => {
-    const url = withStatementTimeout(
-      'postgresql://migrator:pw@db.internal:5432/db-staff-access',
-      300_000,
-    );
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get('options')).toBe(`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`);
-    expect(parsed.pathname).toBe('/db-staff-access');
+describe('withConnectionOptions', () => {
+  it('appends the statement_timeout directive as an encoded options parameter', () => {
+    const url = withConnectionOptions('postgresql://migrator:pw@db.internal:5432/db-staff-access', [
+      `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+    ]);
+    expect(url.endsWith(`options=-c%20statement_timeout%3D${STATEMENT_TIMEOUT_MS}`)).toBe(true);
   });
 
-  it('preserves query parameters of the URL that already carries them', () => {
-    const url = withStatementTimeout(
+  it('uses & as the separator when the URL already carries a query string', () => {
+    const url = withConnectionOptions(
       'postgresql://migrator@localhost/db?application_name=migrator',
-      1_000,
+      [`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`],
     );
     expect(url.startsWith('postgresql://migrator@localhost/db?application_name=migrator')).toBe(
       true,
@@ -80,12 +77,17 @@ describe('withStatementTimeout', () => {
     expect(url).toContain('&options=');
   });
 
+  it('passes through unchanged when there is no directive to inject', () => {
+    const raw = 'postgresql://migrator@localhost/db';
+    expect(withConnectionOptions(raw, [])).toBe(raw);
+  });
+
   it('refuses to guess merge semantics when options is already present', () => {
     // Production không bao giờ ghép `options` vào URL (deploy units chỉ ghép
     // DATABASE_URL trần), nên có `options=` sẵn là hình lạ — fail closed thay
     // vì đoán thứ tự merge của các directive `-c`.
     expect(() =>
-      withStatementTimeout('postgresql://migrator@localhost/db?options=-c x', 1_000),
+      withConnectionOptions('postgresql://migrator@localhost/db?options=-c x', ['-c x=1']),
     ).toThrow(/options parameter/u);
   });
 
@@ -94,7 +96,7 @@ describe('withStatementTimeout', () => {
     // thể chứa `% @ : / ? #`. `new URL` ném lỗi "Invalid URL" trên những ký tự
     // đó; node-postgres thì nhận nguyên. Ghép chuỗi phải giữ mọi ký tự.
     const raw = `postgresql://migrator:S3nt1n3l-Bo'x1%@:/?#@localhost:5432/db-x`;
-    const url = withStatementTimeout(raw, 300_000);
+    const url = withConnectionOptions(raw, [`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`]);
     expect(url.startsWith(raw)).toBe(true);
     expect(url.endsWith(`options=-c%20statement_timeout%3D${STATEMENT_TIMEOUT_MS}`)).toBe(true);
   });

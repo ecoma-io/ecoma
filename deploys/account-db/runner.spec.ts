@@ -11,7 +11,10 @@ import {
   decideAdoption,
   parseArgs,
   readJournalEntries,
-  withStatementTimeout,
+  AUTH_DATABASE_GUC,
+  AUTH_DATABASE_NAME,
+  kitConnectionDirectives,
+  withConnectionOptions,
 } from './runner.mts';
 
 /**
@@ -58,21 +61,23 @@ describe('MIGRATION_LOCK_KEY', () => {
   });
 });
 
-describe('withStatementTimeout', () => {
-  it('injects statement_timeout into a bare connection URL', () => {
-    const url = withStatementTimeout(
-      'postgresql://migrator:pw@db.internal:5432/db-account',
-      300_000,
-    );
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get('options')).toBe(`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`);
-    expect(parsed.pathname).toBe('/db-account');
+describe('withConnectionOptions', () => {
+  it('appends the statement_timeout directive as an encoded options parameter', () => {
+    const url = withConnectionOptions('postgresql://migrator:pw@db.internal:5432/db-account', [
+      `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+    ]);
+    expect(url.endsWith(`options=-c%20statement_timeout%3D${STATEMENT_TIMEOUT_MS}`)).toBe(true);
+  });
+
+  it('passes through unchanged when there is no directive to inject', () => {
+    const raw = 'postgresql://migrator@localhost/db';
+    expect(withConnectionOptions(raw, [])).toBe(raw);
   });
 
   it('preserves query parameters of the URL that already carries them', () => {
-    const url = withStatementTimeout(
+    const url = withConnectionOptions(
       'postgresql://migrator@localhost/db?application_name=migrator',
-      1_000,
+      [`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`],
     );
     expect(url.startsWith('postgresql://migrator@localhost/db?application_name=migrator')).toBe(
       true,
@@ -85,7 +90,7 @@ describe('withStatementTimeout', () => {
     // DATABASE_URL trần), nên có `options=` sẵn là hình lạ — fail closed thay
     // vì đoán thứ tự merge của các directive `-c`.
     expect(() =>
-      withStatementTimeout('postgresql://migrator@localhost/db?options=-c x', 1_000),
+      withConnectionOptions('postgresql://migrator@localhost/db?options=-c x', ['-c x=1']),
     ).toThrow(/options parameter/u);
   });
 
@@ -94,9 +99,23 @@ describe('withStatementTimeout', () => {
     // thể chứa `% @ : / ? #`. `new URL` ném lỗi "Invalid URL" trên những ký tự
     // đó; node-postgres thì nhận nguyên. Ghép chuỗi phải giữ mọi ký tự.
     const raw = `postgresql://migrator:S3nt1n3l-Bo'x1%@:/?#@localhost:5432/db-x`;
-    const url = withStatementTimeout(raw, 300_000);
+    const url = withConnectionOptions(raw, [`-c statement_timeout=${STATEMENT_TIMEOUT_MS}`]);
     expect(url.startsWith(raw)).toBe(true);
     expect(url.endsWith(`options=-c%20statement_timeout%3D${STATEMENT_TIMEOUT_MS}`)).toBe(true);
+  });
+});
+
+describe('kitConnectionDirectives', () => {
+  it('injects the auth_database GUC beside statement_timeout — the contract of the legacy runner', () => {
+    // `0002_roles_and_grants.sql` đọc GUC này (`current_setting(..., true)`) và
+    // cố ý no-op khi thiếu ("không có mặc định im lặng"). Runner cũ tự `SET`
+    // trên connection migrate; runner mới phải chuyển đúng hợp đồng đó sang
+    // startup packet của kit, nếu không assertion fail-closed của 0002 mất
+    // tác dụng lặng lẽ trên stack trắng.
+    expect(kitConnectionDirectives()).toEqual([
+      `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+      `-c ${AUTH_DATABASE_GUC}=${AUTH_DATABASE_NAME}`,
+    ]);
   });
 });
 
