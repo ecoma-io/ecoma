@@ -29,21 +29,38 @@
           }
         ],
         "outputs": [
-          "{workspaceRoot}/.nuxt",
-          "{projectRoot}/.output"
+          "{projectRoot}/.nuxt",
+          "{projectRoot}/.output",
+          "{projectRoot}/.nuxt-node",
+          "{projectRoot}/.output-node"
         ],
         "executor": "nx:run-commands",
+        "defaultConfiguration": "production",
         "options": {
           "cwd": "apps/home",
           "command": "nuxt build"
         },
-        "configurations": {},
+        "configurations": {
+          "production": {},
+          "development": {
+            "command": "nuxt build --envName=development"
+          }
+        },
         "parallelism": true,
         "//": [
           "`dependsOn` gồm `^build` và `nuxt-prepare`: mọi đường vào build đều đã",
           "qua `nuxt prepare` để `.nuxt` types sẵn sàng, không còn phụ thuộc thứ tự",
           "task trong graph. `test` dependsOn `build`, nên chuỗi test → build →",
-          "nuxt-prepare được đảm bảo trọn vẹn."
+          "nuxt-prepare được đảm bảo trọn vẹn. `nuxt-prepare` cũng là điều kiện cần",
+          "cho configuration `development`: project `tsconfig.json` reference",
+          "`./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi typeCheck bật",
+          "(build development đặt `buildDir` sang `.nuxt-node`, không sinh `.nuxt`).",
+          "Hai configuration tách bạch qua khối `$development` trong `nuxt.config.ts`",
+          "(`--envName=development`): production giữ preset `cloudflare-module` artifact",
+          "`.output` (contract wrangler), development preset `node-server` artifact",
+          "`.output-node` — buildDir/output dir riêng nên chạy song song an toàn;",
+          "`defaultConfiguration: production` để `nx build` không config vẫn ra",
+          "artifact wrangler như cũ."
         ]
       },
       "nuxt-prepare": {

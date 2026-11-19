@@ -55,4 +55,29 @@ export default defineNuxtConfig({
     server: { allowedHosts: true },
     plugins: [tailwindcss()],
   },
+
+  // Prototype #385: cấu hình build development (Node server standalone) qua
+  // khối `$development` — chỉ kích hoạt khi `nuxt build --envName=development`
+  // (c12 xử lý các khối `$development`/`$env` trong `loadNuxtConfig`). Đây là
+  // cơ chế duy nhất cần thiết: nitro preset và output dir đều đặt được từ đây
+  // vì `@nuxt/schema` 4.6.4 đã trả `nitro` vào `NuxtConfig` (không còn TS2353).
+  // `buildDir` được resolve theo `rootDir` (không phải `workspaceDir`), nên
+  // `.nuxt-node`/`.output-node` nằm trong `apps/home/`, không đụng
+  // `.nuxt`/`.output` của production — hai build chạy song song an toàn.
+  // Lưu ý: build development vẫn cần `.nuxt` tồn tại (project `tsconfig.json`
+  // reference `./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi
+  // `typescript.typeCheck: true`) — target Nx `build` `dependsOn`
+  // `nuxt-prepare` đã đảm bảo điều đó.
+  $development: {
+    buildDir: '.nuxt-node',
+    nitro: {
+      // Preset Node server standalone — artifact `.output-node/server/index.mjs`
+      // chạy trực tiếp bằng `node`, phục vụ preview/local; không đụng contract
+      // wrangler của production (`.output/server/index.mjs` + `.output/public`).
+      preset: 'node-server',
+      output: {
+        dir: '.output-node',
+      },
+    },
+  },
 });
