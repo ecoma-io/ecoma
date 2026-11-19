@@ -63,7 +63,7 @@ run them, never write to GitHub.
 | What has been decided / why             | `architecture/01-architecture.md` decisions section → `domains/<context>/adr/` indexes (ADR number alone is ambiguous across contexts)                                                                                                    |
 | Dependency or contract between projects | contract lib source under `libs/<x>-contracts/` + workspace-dep grep (recipes below)                                                                                                                                                      |
 | Database ownership / migrations         | the app's migrations directory (location varies: `db/migrations/`, bare `migrations/`, per-database subdirectories) → per-app db README where present → `architecture/05-code-architecture.md` and the delivery document's warning header |
-| Runtime configuration / secrets         | the app's `nuxt.config.ts` runtimeConfig + `wrangler.jsonc` bindings + deploy project scripts                                                                                                                                             |
+| Runtime configuration / secrets         | Nuxt apps: the app's `nuxt.config.ts` runtimeConfig; Worker-only apps: `wrangler.jsonc` bindings; plus deploy project scripts                                                                                                             |
 | Deployment ownership                    | `DEPLOYMENT_MAP` in `tools/dx/src/architecture/deployment-map.ts` (machine-readable app → deploy-project ownership with implemented/scaffold status) → `deploys/<unit>-deploy/`                                                           |
 | Test ownership / targets                | `architecture/06-testing.md` test-placement and canonical-target sections → the project's `nx` block in its `package.json`                                                                                                                |
 | Docs vs implementation                  | both sides: the canonical doc AND the implementing code/config; check whether the doc side is under `docs/changes/` (a Change Specification is design-ahead proposal, never current target)                                               |
@@ -72,16 +72,20 @@ run them, never write to GitHub.
 ## Blast-radius recipes
 
 - **File → project:** workspace globs in `pnpm-workspace.yaml` (`apps/*`,
-  `libs/*`, `deploys/*`, `system-tests/**`) — every file belongs to exactly
-  one project.
-- **Import consumers of project X:** grep `"@ecoma-io/x": "workspace:*"`
-  across `**/package.json` — imports are package-name-based (no tsconfig
-  paths), exports are barrel `src/index.ts`.
+  `libs/*`, `deploys/*`, `tools/*`, `docs`, `system-tests/e2e/*`,
+  `system-tests/local-smoke`) — inside these package directories each file
+  belongs to exactly one project; root and config files belong to none.
+- **Import consumers of project X:** grep `"@ecoma-io/x"` plus `workspace:`
+  (not the exact `workspace:*` — a dep may be `workspace:^`) across
+  `**/package.json` — imports are package-name-based, no tsconfig paths
+  today; exports default to the barrel `src/index.ts` but some libs add
+  subpath `exports` entries — check the lib's `exports` map.
 - **Graph-only edges:** `implicitDependencies` in `package.json` — they carry
   provisioning and task-graph edges, never import consumption; deployment
   ownership comes only from DEPLOYMENT_MAP.
 - **Symbol → owning lib:** grep the symbol under `libs/*/src/index.ts`
-  barrels, then grep `from '@ecoma-io/<pkg>'` for import sites.
+  barrels, then grep `from '@ecoma-io/<pkg>` for import sites — omit the
+  closing quote so subpath import sites match too.
 - **Legality cross-check:** the dependency constraints in `.oxlintrc.json`
   (`@nx/enforce-module-boundaries`) state which edges are legal — a legality
   reference, never proof an edge does not exist; grep is the existence source.
