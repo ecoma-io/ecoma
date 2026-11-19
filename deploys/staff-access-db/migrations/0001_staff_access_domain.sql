@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS staff_access.entitlements (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT entitlements_pk PRIMARY KEY (staff_id, product),
-  CONSTRAINT entitlements_product_check CHECK (product IN ('staff_access', 'pact-broker', 'remote-cache')),
+  CONSTRAINT entitlements_product_check CHECK (product IN ('backoffice', 'pact-broker', 'remote-cache')),
   CONSTRAINT entitlements_status_check CHECK (status IN ('entitled', 'revoked')),
   CONSTRAINT entitlements_revision_positive_check CHECK (revision >= 1)
 );
