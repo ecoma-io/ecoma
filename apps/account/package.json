@@ -203,7 +203,8 @@
       "build": {
         "cache": true,
         "dependsOn": [
-          "^build"
+          "^build",
+          "nuxt-prepare"
         ],
         "inputs": [
           "production",
@@ -215,16 +216,40 @@
           }
         ],
         "outputs": [
-          "{workspaceRoot}/.nuxt",
-          "{projectRoot}/.output"
+          "{projectRoot}/.nuxt",
+          "{projectRoot}/.output",
+          "{projectRoot}/.nuxt-node",
+          "{projectRoot}/.output-node"
         ],
         "executor": "nx:run-commands",
+        "defaultConfiguration": "production",
         "options": {
           "cwd": "apps/account",
           "command": "nuxt build"
         },
-        "configurations": {},
-        "parallelism": true
+        "configurations": {
+          "production": {},
+          "development": {
+            "command": "nuxt build --envName=node-docker"
+          }
+        },
+        "parallelism": true,
+        "//": [
+          "`dependsOn` thêm `nuxt-prepare` (trước đây chỉ `^build`): build",
+          "configuration `development` cần `.nuxt` tồn tại — project",
+          "`tsconfig.json` reference `./.nuxt/tsconfig.*.json` mà",
+          "`vite-plugin-checker` đọc khi `typescript.typeCheck: true`, trong khi",
+          "build đó đặt `buildDir` sang `.nuxt-node` (không sinh `.nuxt`).",
+          "Hai configuration tách bạch qua khối `$env['node-docker']` trong",
+          "`nuxt.config.ts` (`--envName=node-docker` — tên envName riêng, KHÁC",
+          "`development`/`production`, vì `nuxt dev` tự kích hoạt envName",
+          "`development` nên khối `$development` sẽ lọt vào mọi lần `nx serve`):",
+          "production giữ preset `cloudflare-module` artifact `.output` (contract",
+          "wrangler), development preset `node-server` artifact `.output-node` —",
+          "buildDir/output dir riêng nên chạy song song an toàn;",
+          "`defaultConfiguration: production` để `nx build` không config vẫn ra",
+          "artifact wrangler như cũ."
+        ]
       },
       "serve": {
         "continuous": true,

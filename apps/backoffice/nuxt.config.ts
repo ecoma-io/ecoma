@@ -211,4 +211,43 @@ export default defineNuxtConfig({
       enabled: false,
     },
   },
+
+  // #385: cấu hình build cho runtime Node standalone (Docker) qua khối
+  // `$env['node-docker']` — chỉ kích hoạt khi envName đúng bằng `node-docker`,
+  // tức `nuxt build --envName=node-docker` (c12 xử lý khối `$env` trong
+  // `loadNuxtConfig`; envName tuỳ ý phải nằm trong `$env` — key `$development`
+  // có type riêng nhưng KHÔNG được dùng: `nuxt dev` tự đặt envName =
+  // `development`, nên khối đó sẽ kích hoạt cả trong `nuxt dev` và làm dev
+  // server hỏng trên fresh checkout. Tên Nx configuration vẫn là
+  // `development` (contract của target build), chỉ command bên trong mới mang
+  // envName.)
+  //
+  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của
+  // `nitro.config.ts` VÀ merge đè lên khối `nitro` inline (plugins shim
+  // staff-access phía trên): `nuxt.options.nitro` (đã merge xong `$env`) đi
+  // vào Nitro ở vị trí overrides, cao hơn config file trong precedence của
+  // c12 — kiểm chứng bằng build thật, see
+  // tests/integrations/dual-build-output.spec.ts.
+  //
+  // `buildDir` resolve theo `rootDir`, nên `.nuxt-node`/`.output-node` nằm
+  // trong thư mục app, không đụng `.nuxt`/`.output` của production — hai build
+  // chạy song song an toàn. Build này vẫn cần `.nuxt` tồn tại (project
+  // `tsconfig.json` reference `./.nuxt/tsconfig.*.json` mà vite-plugin-checker
+  // đọc khi `typescript.typeCheck: true`) — target Nx `build` `dependsOn`
+  // `nuxt-prepare` đảm bảo điều đó. Cấu hình PWA/manifest/i18n được kế thừa
+  // nguyên vẹn (c12 merge sâu, không thay thế).
+  $env: {
+    'node-docker': {
+      buildDir: '.nuxt-node',
+      nitro: {
+        // Preset Node server standalone — artifact `.output-node/server/index.mjs`
+        // chạy trực tiếp bằng `node`, phục vụ preview/local; không đụng contract
+        // wrangler của production.
+        preset: 'node-server',
+        output: {
+          dir: '.output-node',
+        },
+      },
+    },
+  },
 });
