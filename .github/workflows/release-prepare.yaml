@@ -1,0 +1,117 @@
+name: Release prepare
+
+# Phase B của vòng đời release (02-delivery.md §7.2/§7.3): nguồn DUY NHẤT của
+# thay đổi version/CHANGELOG. Dispatch hai job — job `plan` không secret (audit
+# membership + phân loại batch), job `release` chỉ chạy khi batch khác rỗng và
+# là nơi duy nhất nạp App token. Trigger là workflow_dispatch (không privileged
+# như pull_request_target), nhưng checkout vẫn tường minh và
+# persist-credentials: false theo cùng chuẩn của repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      projects:
+        description: 'Comma-separated Nx projects; empty = every project in nx.json release.projects'
+        type: string
+        required: false
+        default: ''
+      bump:
+        description: 'Explicit semver bump; empty = consume version plan files'
+        type: choice
+        required: false
+        default: ''
+        options:
+          - ''
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+  pull-requests: none
+
+# Một batch release không được hai run đè nhau giữa chừng: run sau xếp hàng,
+# không cancel run đang ghi branch.
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Audit and classify the batch
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      has_batch: ${{ steps.plan.outputs.has_batch }}
+      base_sha: ${{ steps.plan.outputs.base_sha }}
+      branch: ${{ steps.plan.outputs.branch }}
+      batch_json: ${{ steps.plan.outputs.batch_json }}
+      excluded_json: ${{ steps.plan.outputs.excluded_json }}
+      project_roots_json: ${{ steps.plan.outputs.project_roots_json }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Audit membership and classify the batch
+        id: plan
+        env:
+          # Truyền input qua env thay vì nội suy tường minh trong lệnh (cùng
+          # shape mà semgrep accepted-shapes của repo yêu cầu).
+          INPUT_PROJECTS: ${{ inputs.projects }}
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: node tools/dx/scripts/release/release-pr.mjs plan
+
+  release:
+    name: Prepare the release commit and PR
+    needs: plan
+    if: needs.plan.outputs.has_batch == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Checkout đúng base SHA đã plan (không phải live main): commit release
+      # luôn dựng trên cây đã audit; main tiến giữa chừng thì run sau rebuild
+      # trên base mới — không bao giờ ghi đè branch bằng cây chưa qua plan.
+      - name: Check out the planned base SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.base_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      # App installation token là đường ký đã đo ở DISC3 (#347): commit tạo qua
+      # git-database REST bằng token này được GitHub tự ký server-side
+      # (verified=true, reason="valid"). Token minted cho đúng repo với đúng
+      # quyền mutation cần; không job nào khác thấy nó.
+      - name: Mint the GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ secrets.ECOMA_APP_ID }}
+          private-key: ${{ secrets.ECOMA_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Commit and open or update the Release PR
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ needs.plan.outputs.base_sha }}
+          BRANCH: ${{ needs.plan.outputs.branch }}
+          BATCH_JSON: ${{ needs.plan.outputs.batch_json }}
+          PROJECT_ROOTS_JSON: ${{ needs.plan.outputs.project_roots_json }}
+          EXCLUDED_JSON: ${{ needs.plan.outputs.excluded_json }}
+          BUMP: ${{ inputs.bump }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node tools/dx/scripts/release/release-pr.mjs prepare
