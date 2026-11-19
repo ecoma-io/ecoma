@@ -1083,6 +1083,11 @@ Worker production>`, hostname `<sub>-cand.ecoma.io.vn`, DB/D1 `*-cand`, seed ri�
 Continuous Staging và không mutate lane đó. Taxonomy, target contract và semantics phân loại kết quả → `06-testing.md`
 (§6, §8); mục này chốt policy thực thi.
 
+**Định nghĩa** — chi tiết đầy đủ → `06-testing.md` §6, §8: **readiness gate** là probe đúng contract serving của unit mà
+suite nhắm tới, với retry budget chỉ áp cho dấu hiệu "chưa sẵn sàng" thật sự; **test-red** là assertion thất bại sau khi
+readiness đã xanh (lỗi mã nguồn/candidate); **staging-not-ready** là failure trước readiness, kể cả candidate identity
+chưa khớp (slot/hạ tầng chưa đủ điều kiện để đánh giá).
+
 **Bảng suite — tái dụng / adapter / xây mới.** Logic journey của cả 8 suite giữ nguyên; cái phải thích nghi là
 **harness local** (origin resolution, seed/cleanup bằng SQL trực tiếp, TLS pin, container mock) — không suite nào phải
 viết lại:
