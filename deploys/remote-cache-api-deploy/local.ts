@@ -248,7 +248,9 @@ function parseResultEnvelope(stdout: string): Record<string, string> | undefined
  *
  * `--resolve-if-bootstrapped`: môi trường đã có administrator → chỉ đọc
  * (outcome `resolved`, không ghi gì); môi trường mới → procedure bootstrap
- * đầy đủ có guard đo được; bất kỳ thất bại nào → exit khác 0. Lane fail-closed:
+ * đầy đủ có guard đo được; khi guard từ chối vì resolver khác thắng race, một
+ * lần xác thực chỉ đọc hội tụ (outcome `converged`); bất kỳ thất bại nào →
+ * exit khác 0. Lane fail-closed:
  * không có `sub` thì không có `tenantOwnerSub` và `pulumi up` không được chạy —
  * tenant canonical không bao giờ được gán owner tùy ý.
  */
@@ -287,7 +289,7 @@ function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
     );
   }
   const outcome = envelope['outcome'];
-  if (outcome !== 'bootstrapped' && outcome !== 'resolved') {
+  if (outcome !== 'bootstrapped' && outcome !== 'resolved' && outcome !== 'converged') {
     // outcome/failedStage/reason là mã máy đọc — an toàn để nêu trong lỗi.
     throw new Error(
       `superadmin resolution failed: outcome=${outcome ?? '<missing>'} failedStage=${envelope['failedStage'] ?? '<none>'} reason=${envelope['reason'] ?? '<none>'} — lane up is fail-closed`,
@@ -298,9 +300,28 @@ function resolveSuperadminOwnerSub(foundation: EntryFoundation): string {
     throw new Error(`superadmin resolution succeeded without a subject (outcome=${outcome})`);
   }
   console.error(
-    `[remote-cache-api-deploy] superadmin ${outcome === 'resolved' ? 'resolved (read-only)' : 'bootstrapped'}: tenant ecoma owner sub resolved`,
+    `[remote-cache-api-deploy] superadmin ${superadminOutcomeLabel(outcome as SuperadminOutcome)}: tenant ecoma owner sub resolved`,
   );
   return sub;
+}
+
+/**
+ * Nhãn hiển thị của từng outcome bootstrap — lookup thay vì ternary lồng để
+ * thêm outcome mới không phải sửa biểu thức điều kiện. Bản sao đồng bộ ở cả
+ * ba deploy unit (llm-api, pact-broker-api, remote-cache-api): sửa cả ba khi
+ * thêm outcome mới (mỗi unit là composition root độc lập, không import chéo).
+ */
+type SuperadminOutcome = 'resolved' | 'converged' | 'bootstrapped';
+
+function superadminOutcomeLabel(outcome: SuperadminOutcome): string {
+  switch (outcome) {
+    case 'resolved':
+      return 'resolved (read-only)';
+    case 'converged':
+      return 'converged (guard-denied race)';
+    default:
+      return 'bootstrapped';
+  }
 }
 
 async function prepare(foundation: EntryFoundation): Promise<void> {

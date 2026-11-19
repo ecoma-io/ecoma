@@ -235,14 +235,18 @@ describe('runBootstrapSuperadmin', () => {
     expect(result.reason).toBe('sub_mismatch');
   });
 
-  it('reports guard_denied — not bootstrapped — when the measured guard rejects the run', () => {
+  it('converges with outcome converged when the guard denies S1 but read-only S3 verifies the subject', () => {
+    // Mất race (#341): guard từ chối S1 vì administrator đã tồn tại (resolver
+    // khác thắng), S3 resolve-only xác nhận đúng chủ thể → hoàn tất, không cấp
+    // lại quyền. Đúng MỘT lần S3, KHÔNG có correlation_id (kiểm 5 của
+    // staff.verify đòi audit row của lần chạy thua race — luôn vĩnh viễn thiếu).
     let verifyCalls = 0;
-    const runner: BootstrapStageRunner = (request) => {
+    const recorded = recordStages((request) => {
       if (request.action === 'verify') {
         verifyCalls += 1;
         return verifyCalls === 1
           ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
-          : success('account.verify', 'verified', { sub: `sub_${'d'.repeat(32)}` });
+          : success('account.verify', 'converged', { sub: `sub_${'d'.repeat(32)}` });
       }
       if (request.action === 'provision') {
         return success('account.provision', 'created', { sub: `sub_${'d'.repeat(32)}` });
@@ -251,31 +255,77 @@ describe('runBootstrapSuperadmin', () => {
         return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
       }
       return success('staff.verify', 'verified', { staff_id: 'staff-1' });
-    };
+    });
 
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-5',
       operatorRef: 'CHG-TEST',
       mode: 'bootstrap',
-      runStage: runner,
+      runStage: recorded.runStage,
     });
 
-    expect(result.outcome).toBe('guard_denied');
-    expect(result.stages.map((s) => s.outcome)).toContain('denied');
-    // Không bước ghi nào được báo thành công sau khi guard từ chối.
-    expect(result.staffId).toBeUndefined();
+    expect(result.outcome).toBe('converged');
+    expect(result.sub).toBe(`sub_${'d'.repeat(32)}`);
+    expect(result.staffId).toBe('staff-1');
     expect(result.assignmentId).toBeUndefined();
-    // Chi tiết của bước bị từ chối chỉ nói về **bước đó**: A1 đã commit một
-    // Account hợp lệ, nên "no writes were performed" là một câu sai.
-    expect(result.stages.map((s) => s.detail)).not.toContain(expect.stringContaining('No writes'));
+    // Đúng một S3 duy nhất sau khi guard từ chối — không retry A1/S1/S2.
+    const s3Calls = recorded.requests.filter((r) => r.action === 'staff-verify');
+    expect(s3Calls).toHaveLength(1);
+    expect(recorded.requests.map((r) => r.action)).toEqual([
+      'verify',
+      'provision',
+      'verify',
+      'staff-provision',
+      'staff-verify',
+    ]);
+    // S3 resolve-only: đúng chủ thể A2 đã xác nhận, không correlation_id.
+    expect(s3Calls[0]?.input['sub']).toBe(`sub_${'d'.repeat(32)}`);
+    expect(s3Calls[0]?.input['correlation_id']).toBeUndefined();
     const deniedEntry = result.stages.find((s) => s.outcome === 'denied');
     expect(deniedEntry?.detail).toContain('this step wrote nothing');
   });
 
-  it('keeps guard_denied as the outcome when the diagnostic read-back concludes normally', () => {
-    // Sau khi guard từ chối, S3 chỉ là chẩn đoán. Nó có thể fail vì lần chạy này
-    // chưa từng ghi gì (`staff_missing_or_ambiguous`) — đó là kết luận, không
-    // phải lỗi thực thi — nên kết quả vẫn là `guard_denied` và exit code khác 0.
+  it('converges with outcome converged when the guard denies S2 (S1 already committed)', () => {
+    let verifyCalls = 0;
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls === 1
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'verified', { sub: `sub_${'v'.repeat(32)}` });
+      }
+      if (request.action === 'provision') {
+        return success('account.provision', 'created', { sub: `sub_${'v'.repeat(32)}` });
+      }
+      if (request.action === 'staff-provision') {
+        return success('staff.provision', 'created', { staff_id: 'staff-1' });
+      }
+      if (request.action === 'staff-assign') {
+        return { ok: false, stage: 'staff.assign', reason: 'mode_mismatch' };
+      }
+      return success('staff.verify', 'verified', { staff_id: 'staff-1' });
+    });
+
+    const result = runBootstrapSuperadmin({
+      correlationId: 'corr-5b',
+      operatorRef: 'CHG-TEST',
+      mode: 'bootstrap',
+      runStage: recorded.runStage,
+    });
+
+    expect(result.outcome).toBe('converged');
+    expect(result.sub).toBe(`sub_${'v'.repeat(32)}`);
+    expect(result.staffId).toBe('staff-1');
+    // S3 là bước duy nhất sau khi bị từ chối, không có bước ghi nào nữa.
+    expect(recorded.requests.slice(-1)[0]?.action).toBe('staff-verify');
+    expect(recorded.requests.filter((r) => r.action === 'staff-verify')).toHaveLength(1);
+  });
+
+  it('keeps guard_denied — not converged — when the read-back concludes the subject is not an administrator', () => {
+    // Sau khi guard từ chối, S3 chỉ là chẩn đoán hội tụ. Nó có thể fail vì lần
+    // chạy này chưa từng ghi gì và administrator của chủ thể không tồn tại
+    // (`staff_missing_or_ambiguous`) — kết luận, không phải lỗi thực thi — nên
+    // kết quả vẫn là `guard_denied` và exit code khác 0.
     let verifyCalls = 0;
     const runner: BootstrapStageRunner = (request) => {
       if (request.action === 'verify') {
@@ -302,6 +352,7 @@ describe('runBootstrapSuperadmin', () => {
 
     expect(result.outcome).toBe('guard_denied');
     expect(result.failedStage).toBeUndefined();
+    expect(result.staffId).toBeUndefined();
     expect(result.stages.map((s) => s.outcome)).toEqual([
       'fresh',
       'created',
@@ -311,10 +362,11 @@ describe('runBootstrapSuperadmin', () => {
     ]);
   });
 
-  it('logs an infrastructure failure of the diagnostic read-back as failed, not as a denial', () => {
+  it('logs an infrastructure failure of the read-back as failed and stays guard_denied', () => {
     // `failed` và `denied` là hai kết luận khác nhau: một `database_unreachable`
     // ở S3 không phải guard từ chối có chủ đích. Kết luận tổng vẫn là
-    // `guard_denied` (guard mới là lý do dừng), nhưng dòng nhật ký phải đúng.
+    // `guard_denied` fail-closed (không hội tụ giả từ một lỗi hạ tầng), nhưng
+    // dòng nhật ký phải đúng.
     let verifyCalls = 0;
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-7b',
@@ -551,34 +603,38 @@ describe('runBootstrapSuperadmin in resolve-or-bootstrap mode', () => {
     ]);
   });
 
-  it('keeps the measured guard intact on the fresh path (mode_mismatch still denies)', () => {
+  it('keeps the measured guard intact on the fresh path: a denial converges only through read-only verification, never a re-grant', () => {
     let verifyCalls = 0;
+    const recorded = recordStages((request) => {
+      if (request.action === 'verify') {
+        verifyCalls += 1;
+        return verifyCalls <= 2
+          ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
+          : success('account.verify', 'converged', { sub: `sub_${'u'.repeat(32)}` });
+      }
+      if (request.action === 'provision') {
+        return success('account.provision', 'created', { sub: `sub_${'u'.repeat(32)}` });
+      }
+      if (request.action === 'staff-provision') {
+        return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
+      }
+      return success('staff.verify', 'verified', { staff_id: 'staff-1' });
+    });
     const result = runBootstrapSuperadmin({
       correlationId: 'corr-resolve-guard',
       operatorRef: 'CHG-TEST',
       mode: 'resolve-or-bootstrap',
-      runStage: (request) => {
-        if (request.action === 'verify') {
-          verifyCalls += 1;
-          return verifyCalls <= 2
-            ? { ok: false, stage: 'account.verify', reason: 'no_bootstrap_account' }
-            : success('account.verify', 'converged', { sub: `sub_${'u'.repeat(32)}` });
-        }
-        if (request.action === 'provision') {
-          return success('account.provision', 'created', { sub: `sub_${'u'.repeat(32)}` });
-        }
-        if (request.action === 'staff-provision') {
-          return { ok: false, stage: 'staff.provision', reason: 'mode_mismatch' };
-        }
-        return success('staff.verify', 'verified', { staff_id: 'staff-1' });
-      },
+      runStage: recorded.runStage,
     });
 
     // Chế độ giải quyết KHÔNG thêm lối tắt qua guard: môi trường mới vẫn đi qua
-    // bộ điều khiển đã đo lường, và một sự từ chối vẫn là từ chối (#17/#22).
-    expect(result.outcome).toBe('guard_denied');
-    expect(result.staffId).toBeUndefined();
+    // bộ điều khiển đã đo lường (#17/#22). Khi guard từ chối và S3 chỉ đọc xác
+    // nhận chủ thể, lần chạy hội tụ (`converged`) — nhưng không có staff-assign
+    // nào chạy sau khi bị từ chối: quyền không bao giờ được cấp lại ở đây.
+    expect(result.outcome).toBe('converged');
     expect(result.assignmentId).toBeUndefined();
+    expect(recorded.requests.map((r) => r.action)).not.toContain('staff-assign');
+    expect(recorded.requests.filter((r) => r.action === 'staff-verify')).toHaveLength(1);
   });
 
   it('demands the operator reference only when the fresh path needs to write', () => {

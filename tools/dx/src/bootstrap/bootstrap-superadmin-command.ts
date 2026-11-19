@@ -131,9 +131,15 @@ export default defineCommand({
     } else {
       printResult(result);
     }
-    // `resolved` là lần chạy hoàn tất đối với người tiêu dùng mã thoát: môi
-    // trường đã hội tụ và không có gì cần ghi.
-    process.exitCode = result.outcome === 'bootstrapped' || result.outcome === 'resolved' ? 0 : 1;
+    // `resolved` và `converged` là các lần chạy hoàn tất đối với người tiêu dùng
+    // mã thoát: môi trường đã hội tụ — chỉ đọc (resolved) hoặc sau khi guard từ
+    // chối một lần ghi do resolver khác thắng race (converged, #341).
+    process.exitCode =
+      result.outcome === 'bootstrapped' ||
+      result.outcome === 'resolved' ||
+      result.outcome === 'converged'
+        ? 0
+        : 1;
   },
 });
 
@@ -179,9 +185,15 @@ function printResult(result: BootstrapRunResult): void {
         '[bootstrap-superadmin] the environment was already bootstrapped; this run verified the existing administrator read-only and performed no write.',
       );
       return;
+    case 'converged':
+      console.log(`[bootstrap-superadmin] converged: sub ${result.sub ?? '<unknown>'}`);
+      console.log(
+        '[bootstrap-superadmin] the measured guard denied a write step because an administrator already exists; one read-only verification confirmed the administrator of the intended subject. This run did not grant any privilege.',
+      );
+      return;
     case 'guard_denied':
       console.log(
-        '[bootstrap-superadmin] denied by the measured guard: measured administrators are non-zero, so this step wrote nothing. This is not a completed bootstrap.',
+        '[bootstrap-superadmin] denied by the measured guard: measured administrators are non-zero, so this step wrote nothing, and the read-only verification did not confirm the administrator of the intended subject. This is not a completed bootstrap.',
       );
       return;
     case 'failed':
