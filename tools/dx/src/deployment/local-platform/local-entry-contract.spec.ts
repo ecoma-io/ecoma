@@ -56,9 +56,10 @@ function readEntry(project: string): string {
 }
 
 /**
- * Năm deploy unit đóng gói app Nuxt bằng artifact dựng trước (#386): image
- * COPY `apps/<app>/.output-node/` thay vì build trong image. Các unit khác
- * (WIC, llm-* build in-image, job) không tham gia contract này.
+ * Bảy deploy unit đóng gói app Nuxt bằng artifact dựng trước (#386, mở rộng
+ * cho hai app LLM còn lại qua #427): image COPY `apps/<app>/.output-node/`
+ * thay vì build trong image. Các unit khác (WIC, job) không tham gia contract
+ * này.
  */
 const ARTIFACT_DEPLOY_PROJECTS = {
   'home-deploy': '@ecoma-io/home',
@@ -66,6 +67,8 @@ const ARTIFACT_DEPLOY_PROJECTS = {
   'backoffice-deploy': '@ecoma-io/backoffice',
   'pact-broker-app-deploy': '@ecoma-io/pact-broker-app',
   'remote-cache-app-deploy': '@ecoma-io/remote-cache-app',
+  'llm-console-deploy': '@ecoma-io/llm-console',
+  'llm-seller-deploy': '@ecoma-io/llm-seller',
 } as const;
 
 describe('local lane colocated entry contract', () => {
