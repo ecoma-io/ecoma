@@ -226,16 +226,20 @@ Runner entry **không chạy được cho tới khi `drizzle-orm` được pin v
 Ai sở hữu history table: **Drizzle Kit** — bảng `__drizzle_migrations` (schema có thể cấu hình qua `drizzle.config.ts`; mặc định
 chọn schema riêng của database đó, không dùng `public`/`drizzle` ngầm — giá trị ghi tường minh trong config của từng project).
 Advisory lock: **thuộc wrapper**, không thuộc kit — kit không giữ bất kỳ lock nào (Verified trên bundle 0.31.11: không call site
-`pg_advisory*` nào). Transaction boundary: **mỗi file migration là một `BEGIN`/`COMMIT` riêng** (Verified trên migrator của
-kit: từng batch SQL chạy trong transactionProxy riêng), thất bại giữa chừng để lại các file trước đã commit + history cập nhật
-đến file cuối cùng thành công — đúng ngữ nghĩa checkpoint/retry mà mục F đòi hỏi: run lại chỉ apply các file chưa ghi trong
-history table, không apply lại cái đã commit.
+`pg_advisory*` nào; xác nhận thêm bằng runtime ở verify thực nghiệm bên dưới). Transaction boundary: **một transaction duy nhất
+cho toàn bộ pending set của một lần chạy** (Verified thực nghiệm 2026-11-19 trên kit 0.31.11 + orm 0.45.4, PostgreSQL 17 —
+bằng chứng [#374 comment 7015719641](https://github.com/ecoma-io/ecoma/issues/374#issuecomment-7015719641); mã nguồn
+`PgDialect.migrate`: history table tạo NGOÀI transaction, toàn bộ vòng lặp pending nằm trong một `session.transaction`).
+Checkpoint là **per-run**, không per-file: kit đọc `max(created_at)` từ history rồi apply mọi entry có `folderMillis` lớn hơn
+— vì thế entry journal phải có `when` tăng đơn điệu (`drizzle-kit generate` bảo đảm điều này). Thất bại giữa chừng rollback
+toàn bộ DDL + history của lần chạy (chỉ còn lại history table rỗng vì được tạo ngoài transaction) — run lại apply toàn bộ
+pending set: resume đúng ngữ nghĩa checkpoint/retry mà mục F đòi hỏi, tự nhiên không replay cái đã commit từ lần chạy trước.
 
 - **Vì sao không (a) `drizzle-kit migrate` gọi trực tiếp không wrapper:** mất advisory lock — hai runner song song trên cùng
   database là trạng thái serialization mà `02` §3.1 và `04` HD6 cấm; mất guard `current_database()` (verify kết nối đúng DB
   trước khi DDL chạm đúng — pattern đã có trong runner hiện có); mất điểm gắn role/credential contract. Wrapper giữ toàn bộ ba.
 - **Vì sao không (b) generate SQL rồi psql/`pg` runner tự apply với ledger tự quản:** phải tự chế lại đúng những gì kit đã làm
-  (so journal ↔ history, checkpoint per-file), và tạo ra **hai** history schema (ledger tự viết vs `__drizzle_migrations` của
+  (so journal ↔ history, checkpoint per-run), và tạo ra **hai** history schema (ledger tự viết vs `__drizzle_migrations` của
   kit khi `db-check`/công cụ khác đọc) — một database hai nguồn sự thật history đi ngược "một authority". Chi phí duy nhất của
   wrapper là script ~50 dòng giữ lock — rẻ hơn nhiều so với sở hữu protocol history.
 - **Hệ quả cutover (mục D):** history hiện tại của 9 runner là **không ledger** — catalog `pg_class` sau apply là nguồn sự thật
@@ -294,8 +298,8 @@ history table, không apply lại cái đã commit.
 
 **Ba lifecycle, không trộn:**
 
-1. **Schema DDL** — mọi DDL schema/index/role-grant đi qua migration project (§3a.2–§3a.3), transaction per file, checkpoint
-   như trên.
+1. **Schema DDL** — mọi DDL schema/index/role-grant đi qua migration project (§3a.2–§3a.3), transaction per run + checkpoint
+   per-run như trên (sửa 2026-11-19 sau verify thực nghiệm — bằng chứng #374).
 2. **Data backfill** — dữ liệu lớn/đáng checkpoint không bao giờ nằm trong DDL migration. Backfill là job idempotent riêng có
    checkpoint + resume (giữ nguyên dòng §3 hiện hành). Điểm chốt mới: **Drizzle Kit custom migration (SQL thuần) không chạy
    TypeScript tùy ý được** — script backfill TypeScript không thể được thực thi bởi `drizzle-kit migrate`, vì thế backfill giữ
@@ -311,10 +315,12 @@ history table, không apply lại cái đã commit.
 
 - Advisory lock là cơ chế duy nhất chống chạy chồng per-database; khóa `hashtext('<database-name>')` session-scoped trên
   kết nối thẳng — session chết thì lock tự nhả. Wrapper (§3a.3) giữ kết nối lock mở suốt migrate; nếu tiến trình chết giữa
-  chừng: PostgreSQL tự nhả lock khi connection đóng, `__drizzle_migrations` giữ trạng thái các file đã commit — run lại là
-  resume, không replay. Đây là câu trả lời cho open item "crash protection" ở §12: **không cần cơ chế bảo vệ ngoài — resume
+  chừng: PostgreSQL tự nhả lock khi connection đóng, và lần chạy chết giữa transaction **không để lại gì** (rollback toàn bộ
+  DDL + history của lần chạy — Verified thực nghiệm #374: kill -9 giữa migrate để lại history 0 hàng, không bảng nào);
+  `__drizzle_migrations` giữ checkpoint của các lần chạy ĐÃ commit — run lại là resume toàn bộ pending set, không replay cái
+  đã commit trước đó. Đây là câu trả lời cho open item "crash protection" ở §12: **không cần cơ chế bảo vệ ngoài — resume
   từ history table + lock tự nhả** là thiết kế; open item chuyển thành verify test (#374: interrupted-migration test ở tầng
-  integration).
+  integration — đã có trong suite, khớp bằng chứng thực nghiệm).
 - Statement timeout: **không đặt 60s (HD10)** — đường migration không qua Hyperdrive nên HD10 không áp dụng; wrapper đặt
   `statement_timeout` per-project trong config runner với giá trị lớn hơn migration dài nhất dự kiến (mặc định khuyến nghị
   5 phút, project được phép override có lý do trong `drizzle.config.ts` / runner config). Migration cần lâu hơn → tách file.
@@ -698,7 +704,7 @@ Hai điểm dễ sai, cả hai đều làm approval là hình thức:
 - Mỗi deployment có file cấu hình riêng để rollout độc lập. Không có bước bất đồng bộ nào — `wrangler deploy` trả về khi deploy xong. Lỗi **transport tạm thời** của Cloudflare API được thử lại trong chính lần chạy đó ([Retry quanh `wrangler deploy`](#retry-quanh-wrangler-deploy)).
 - Thứ tự khi thêm unit mới: **Provisioning** (`deploys/<unit>-deploy` — tài nguyên hạ tầng của unit, sau `platform-deploy`) → storage expand → `llm-api` → Workers → Router → promotion gate. Sau đó mỗi release chỉ rollout unit bị ảnh hưởng. Đây là **thứ tự phụ thuộc**, không phải một bước tự động trong pipeline: nó được ràng buộc ở tầng project graph (`05-code-architecture.md` §2.1) và ở execution contract (§7.4.1), còn workflow nối hai vế thì chưa có.
 - **Rollback tại release:** chọn Worker version đã publish, không rebuild, không revert Git (`04` WV1–WV3); chi tiết → §8.
-- Chuỗi storage: **expand → deploy → migrate (nếu cần) → verify → enable → contract** — contract chỉ chạy sau rollback window (§3). Database sequencing của chuỗi này (migration nào chạy trước Worker nào, baseline per database lấy ở đâu, partial failure giữa các database) là hợp đồng §3a.3 (execution model), §3a.5 (semantics per-file checkpoint, không transaction xuyên database) và §3a.6 (baseline/compatibility) — vị trí hợp đồng là §3a, mục này không lặp lại.
+- Chuỗi storage: **expand → deploy → migrate (nếu cần) → verify → enable → contract** — contract chỉ chạy sau rollback window (§3). Database sequencing của chuỗi này (migration nào chạy trước Worker nào, baseline per database lấy ở đâu, partial failure giữa các database) là hợp đồng §3a.3 (execution model), §3a.5 (semantics checkpoint per-run, không transaction xuyên database) và §3a.6 (baseline/compatibility) — vị trí hợp đồng là §3a, mục này không lặp lại.
 
 ### 7.1 Làn Worker và promotion gate runtime
 
