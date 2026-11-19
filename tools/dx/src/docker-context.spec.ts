@@ -172,6 +172,47 @@ describe('root .dockerignore: matcher semantics', () => {
   });
 });
 
+describe('root .dockerignore: prebuilt development artifact (#386)', () => {
+  // Năm image Nuxt (#386) không build trong image nữa — COPY thẳng artifact
+  // `build:development` của app. Điểm chết đã ĐO THẬT: blacklist
+  // `**/node_modules` cắt `.output-node/server/node_modules` (traced runtime
+  // deps của Nitro) khỏi context, COPY ra image thiếu dependency và container
+  // chết lúc boot; dòng `!apps/*/.output-node/server/node_modules` sau
+  // blacklist mở lại đúng thư mục đó (cha của nó không bị loại nên negation
+  // có hiệu lực). Assertion dưới đây chạy trên matcher thuần khớp ngữ nghĩa
+  // prune của Docker, ghim cả hai chiều.
+  it.each(['home', 'account', 'backoffice', 'pact-broker-app', 'remote-cache-app'] as const)(
+    '%s artifact and its traced server/node_modules enter the context',
+    (app) => {
+      expect(isExcluded(`apps/${app}/.output-node/server/index.mjs`)).toBe(false);
+      // Thư mục traced deps phải được mở lại tường minh (không chỉ "không rule
+      // nào khớp"): `**/node_modules` khớp chính nó, dòng `!` đứng sau mới là
+      // verdict cuối.
+      expect(isExcluded(`apps/${app}/.output-node/server/node_modules`)).toBe(false);
+      expect(isExcluded(`apps/${app}/.output-node/nitro.json`)).toBe(false);
+    },
+  );
+
+  it('account traced pg enters the context while workspace node_modules stay out', () => {
+    // pg là package bị Nitro externalize (đo thật ở #386: artifact account
+    // mang `server/node_modules/pg`; `jose`/`@simplewebauthn` thì được bundle
+    // vào chunk nên không tồn tại dạng file). Negation phải mở tới file sâu.
+    expect(isExcluded('apps/account/.output-node/server/node_modules/pg/package.json')).toBe(false);
+    // `node_modules` của workspace — KHÔNG phải artifact — vẫn bị dập bởi
+    // blacklist; negation chỉ chạm đúng dir `server/node_modules` của artifact.
+    expect(isExcluded('apps/account/node_modules/pg/index.js')).toBe(true);
+    expect(isExcluded('node_modules/x/index.js')).toBe(true);
+  });
+
+  it('production artifact .output stays excluded from every image context', () => {
+    // `.output` (preset `cloudflare-module`, đường Wrangler) không phải input
+    // của image local nào; `.output-node` vào context nhờ TÊN khác, không nhờ
+    // nới lỏng blacklist `.output`.
+    expect(isExcluded('apps/home/.output/server/index.mjs')).toBe(true);
+    expect(isExcluded('apps/account/.output/server/index.mjs')).toBe(true);
+  });
+});
+
 describe('root .dockerignore: sensitive paths are excluded', () => {
   it('env files and pulumi state never enter the context', () => {
     expect(isExcluded('.env')).toBe(true);

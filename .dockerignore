@@ -22,7 +22,12 @@
 # `deploys/account-deploy/Dockerfile`, `deploys/auth-deploy/Dockerfile`,
 # `deploys/pact-broker-app-deploy/Dockerfile`,
 # `deploys/pact-broker-api-deploy/Dockerfile`,
-# `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace:
+# `deploys/staff-access-deploy/Dockerfile` và `pnpm install` của workspace,
+# CỘNG artifact đóng gói sẵn của năm image Nuxt (#386): năm Dockerfile
+# `home/account/backoffice/pact-broker-app/remote-cache-app-deploy` không còn
+# build trong image nữa mà COPY `apps/<app>/.output-node/` — artifact
+# `build:development` build trước bởi Nx, gồm traced runtime deps tại
+# `server/node_modules` (được mở lại tường minh dưới đây):
 # `pnpm-workspace.yaml`, `package.json`, `pnpm-lock.yaml`,
 # `tools/dx/package.json`, `apps/home/**`, `apps/backoffice/**`,
 # `apps/account/**`, `apps/pact-broker-app/**`, `apps/llm-console/**`,
@@ -92,6 +97,14 @@ deploys/*
 # nguy cơ bundle dữ liệu cũ (`.data` là sqlite local của Nuxt Content, `.nuxt`
 # là metadata dev) vào image.
 **/node_modules
+# Artifact `build:development` (#386) mang traced runtime deps NGAY TRONG
+# `.output-node/server/node_modules` — blacklist phía trên cắt chúng khỏi
+# context là COPY ra image thiếu dependency, container chết lúc boot. Mở lại
+# ĐÚNG dir đó: line `!` khớp chính thư mục `node_modules` của artifact (cha của
+# nó không bị loại nên negation có hiệu lực — đo thật: bỏ dòng này image còn
+# 0 package, có dòng thì đúng bằng 36 package của artifact), còn mọi
+# `node_modules` của workspace thì vẫn bị dập.
+!apps/*/.output-node/server/node_modules
 **/dist
 **/out-tsc
 **/.output
