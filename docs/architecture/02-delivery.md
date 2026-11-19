@@ -719,7 +719,7 @@ apps hay puts DBs at mercy of routine app release.
 để chạy contract/end-to-end mà không chạm tài nguyên thật, và contract từ chối mọi tổ hợp stack↔backend khác (local chỉ đi
 với `file://`, staging/production chỉ đi với `s3://`). Mỗi stack thật (`staging`, `production`) có một bucket R2 state, một
 credential và một passphrase riêng. **Stack mapping staging — đã chốt (#345): một stack `staging` cho mỗi Pulumi project
-trong `deploys/`, chạy trên backend R2 của staging qua `ECOMA_PULUMI_STATE_URL_STAGING`.** Layout project giữ nguyên sự
+trong `deploys/`, chạy trên backend R2 của staging qua `ECOMA_PULUMI_STATE_URL_STAGING` (biến này chưa khai báo ở bất kỳ nơi nào trong repo — phải bổ sung làm bootstrap prerequisite, ví dụ secret GitHub Environment staging, trước khi apply stack đầu tiên).** Layout project giữ nguyên sự
 chia theo **deploy unit** (mỗi `<unit>-deploy` một project, `platform-deploy` cho tài nguyên dùng chung): stack ánh xạ
 1:1 theo project — 17 project, 17 stack `staging`, trong đó hai project job-deploy (scaffold, hiện trạng ở đầu mục này)
 có stack `staging` nhưng chỉ chứa marker `ecoma.deployment.status: scaffold`, chưa khai resource nào. `platform-deploy`
@@ -733,11 +733,11 @@ so với layout per-unit sẵn có mà vẫn tách state của một unit thành
 
 **State + credentials isolation Local ↔ Staging — đã chốt (#345).** Ba hệ cách ly tuyệt đối, không bao giờ chia sẻ:
 
-| Hệ                | Local (mỗi worktree)                                                                         | Staging                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| State backend     | `file://<worktree>/.pulumi-local-state`                                                      | `s3://` R2 qua `ECOMA_PULUMI_STATE_URL_STAGING` — bucket riêng của staging                     |
-| Passphrase        | tự sinh per worktree, file `.pulumi-local-passphrase` (`local-development/03-operations.md`) | per-stack, GitHub Environment secret của stack đó (§6.13) — không tái sử dụng passphrase local |
-| Cloudflare access | không dùng Cloudflare API (Docker local, tunnel nội bộ máy developer)                        | control-plane token đã chấp nhận (§4.1 điều 7), chỉ ở job được bảo vệ                          |
+| Hệ                | Local (mỗi worktree)                                                                         | Staging                                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State backend     | `file://<worktree>/.pulumi-local-state`                                                      | `s3://` R2 qua `ECOMA_PULUMI_STATE_URL_STAGING` (chưa khai báo trong repo — bổ sung làm bootstrap prerequisite; token R2 scope một bucket staging theo `04` R23) — bucket riêng của staging |
+| Passphrase        | tự sinh per worktree, file `.pulumi-local-passphrase` (`local-development/03-operations.md`) | per-stack, GitHub Environment secret của stack đó (§6.13) — không tái sử dụng passphrase local                                                                                              |
+| Cloudflare access | không dùng Cloudflare API (Docker local, tunnel nội bộ máy developer)                        | control-plane token đã chấp nhận (§4.1 điều 7), chỉ ở job được bảo vệ                                                                                                                       |
 
 Contract từ chối tổ hợp stack↔backend sai ngay trên là enforcement của cùng nguyên tắc: stack `local` chỉ hợp lệ trên
 `file://`, stack `staging`/`staging-candidate` chỉ hợp lệ trên `s3://` staging — một stack không bao giờ "mượn" backend
