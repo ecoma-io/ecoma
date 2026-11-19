@@ -12,6 +12,12 @@ on:
 
 permissions: {}
 
+concurrency:
+  # Dispatch liên tiếp trên cùng nhánh scratch xếp hàng thay vì đè run
+  # đang đo — không cancel: một run đo bị giữa chừng là mất bằng chứng.
+  group: disc3-probe-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   probe:
     name: Measure App-token commit verification
@@ -25,7 +31,7 @@ jobs:
           app-id: ${{ secrets.ECOMA_APP_ID }}
           private-key: ${{ secrets.ECOMA_APP_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ecoma
+          repositories: ${{ github.event.repository.name }}
 
       - name: Record active rulesets on main (evidence context)
         env:
@@ -45,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           base="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          printf 'base_sha=%s\n' "$base" | tee "$GITHUB_STEP_SUMMARY" > /dev/null
+          printf 'base_sha=%s\n' "$base" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
           tree_base="$(gh api "repos/$REPO/git/commits/$base" --jq '.tree.sha')"
           blob="$(gh api --method POST "repos/$REPO/git/blobs" \
             -f content='disc3 signature probe' -f encoding='utf-8' --jq '.sha')"
@@ -83,13 +89,25 @@ jobs:
             --body 'Temporary measurement PR for issue 347; closed immediately after reading rule evaluation. Never merged.')"
           pr="$(basename "$pr_url")"
           printf 'probe_pr=%s\n' "$pr" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
-          # mergeability cần thời gian tính; poll có chặn thời gian
+          # mergeability cần thời gian tính; poll có chặn thời gian. Lỗi API
+          # từng lượt được ghi ra summary (không nuốt); chỉ thoát lỗi khi
+          # KHÔNG lượt nào đọc được mergeStateStatus — thiếu bằng chứng là đỏ.
+          state="UNKNOWN"
+          errs=0
           for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
             sleep 10
-            observed="$(gh pr view "$pr" --json mergeStateStatus,mergeable --jq '{mergeStateStatus, mergeable}')"
-            printf '%s\n' "$observed" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
-            state="$(jq -r '.mergeStateStatus' <<<"$observed")"
-            [ "$state" != "UNKNOWN" ] && break
-          done || true
+            if observed="$(gh pr view "$pr" --json mergeStateStatus,mergeable --jq '{mergeStateStatus, mergeable}')"; then
+              printf '%s\n' "$observed" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
+              state="$(jq -r '.mergeStateStatus' <<<"$observed")"
+            else
+              errs=$((errs + 1))
+              printf 'poll_error_count=%s\n' "$errs" | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
+            fi
+            if [ "$state" != "UNKNOWN" ]; then break; fi
+          done
+          if [ "$state" = "UNKNOWN" ]; then
+            echo '::error::mergeStateStatus never resolved; rule-evaluation evidence is incomplete' >&2
+            exit 1
+          fi
           gh api --method PATCH "repos/$REPO/pulls/$pr" -F state='closed' --jq '.state'
           printf 'pr_closed=true\n' | tee -a "$GITHUB_STEP_SUMMARY" > /dev/null
