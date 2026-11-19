@@ -123,6 +123,28 @@
           "//": "Xem entry `local-up`: lane local duy nhất, không bao giờ cacheable. Mỗi smoke chỉ kiểm ĐÚNG unit của nó (platform-deploy smoke HTTPS qua Traefik với dependsOn `home-deploy:local-up`; remote-cache-api-deploy smoke data plane object storage qua alias nội bộ với dependsOn `local-up` của chính nó — #19), nên `dependsOn` là prerequisite THẬT của giá trị smoke của từng unit, KHÔNG cạnh chỉ-tạo-thứ-tự. Là node lá của lane."
         }
       }
+    ],
+    "staging-preview": [
+      {
+        "filter": {
+          "projects": ["tag:type:deployment"]
+        },
+        "cache": false,
+        "metadata": {
+          "//": "Lane staging (#368, `deploys/*/staging.ts`): cùng CONTRACT `cache: false` như lane local — target mutate Pulumi state staging THẬT trên backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), cache hit là bỏ một lần provision/reconcile có evidence. Lane là DUY NHẤT của các target này (configuration `staging`), không khóa lane, serialization thật là state lock của Pulumi. Quy ước cạnh liên-project chưa tồn tại ở lane này: executor ĐẦU TIÊN là platform-deploy (§7.4.1); wiring mở rộng theo #350."
+        }
+      }
+    ],
+    "staging-up": [
+      {
+        "filter": {
+          "projects": ["tag:type:deployment"]
+        },
+        "cache": false,
+        "metadata": {
+          "//": "Xem entry `staging-preview`: cùng lane staging, không bao giờ cacheable; `up` là bước mutate thật nên contract `cache: false` càng bắt buộc."
+        }
+      }
     ]
   }
 }

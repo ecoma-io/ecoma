@@ -119,3 +119,10 @@ test-results/
 playwright-report/
 # Output của Playwright CLI (có thể chứa credentials)
 .playwright-cli/
+# Evidence records của lane provisioning staging (#368) — mỗi lần
+# `staging-preview`/`staging-up` ghi MỘT file JSON mới (append-only theo
+# thời gian chạy). Nằm ngoài Git có chủ đích: record chứa identity môi trường
+# (stack ref, revision, backend bucket) và là evidence vận hành của operator;
+# wiring CI (#350+) sẽ upload record vào provenance store thay vị trí này.
+# Entry tường minh: đổi tên thư mục không âm thầm đưa evidence vào Git.
+deploys/*/.staging-evidence/

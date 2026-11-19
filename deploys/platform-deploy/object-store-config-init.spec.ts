@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, 'index.ts'), 'utf8');
+const source = readFileSync(join(here, 'local-program.ts'), 'utf8');
 
 /**
  * Cắt vùng source giữa hai marker (bao gồm cả marker kết thúc). Fail tường
