@@ -29,25 +29,34 @@
           }
         ],
         "outputs": [
-          "{projectRoot}/.nuxt",
-          "{projectRoot}/.output",
-          "{projectRoot}/.nuxt-node",
-          "{projectRoot}/.output-node"
+          "{projectRoot}/{options.buildDirName}",
+          "{projectRoot}/{options.buildOutputDirName}"
         ],
         "executor": "nx:run-commands",
         "defaultConfiguration": "production",
         "options": {
           "cwd": "apps/home",
-          "command": "nuxt build"
+          "command": "nuxt build",
+          "buildDirName": ".nuxt",
+          "buildOutputDirName": ".output"
         },
         "configurations": {
           "production": {},
           "development": {
-            "command": "nuxt build --envName=node-docker"
+            "command": "nuxt build --envName=node-docker",
+            "buildDirName": ".nuxt-node",
+            "buildOutputDirName": ".output-node"
           }
         },
         "parallelism": true,
         "//": [
+          "`outputs` dùng `{options.*}` interpolation với option theo configuration:",
+          "production khai `.nuxt`+`.output` (contract wrangler), development khai",
+          "`.nuxt-node`+`.output-node`. Lý do BẮT BUỘC phải tách: Nx XOÁ mọi thư",
+          " mục nằm trong `outputs` của task trước khi chạy (và trước khi restore",
+          "cache) — nếu task development khai cả `.output` thì mỗi lần",
+          "`build:development` xoá mất artifact production mà test-integration đang",
+          "đọc.",
           "`dependsOn` gồm `^build` và `nuxt-prepare`: mọi đường vào build đều đã",
           "qua `nuxt prepare` để `.nuxt` types sẵn sàng, không còn phụ thuộc thứ tự",
           "task trong graph. `test` dependsOn `build`, nên chuỗi test → build →",
@@ -55,15 +64,13 @@
           "cho configuration `development`: project `tsconfig.json` reference",
           "`./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi typeCheck bật",
           "(build development đặt `buildDir` sang `.nuxt-node`, không sinh `.nuxt`).",
-          "Hai configuration tách bạch qua khối `$node-docker` trong `nuxt.config.ts`",
-          "(`--envName=node-docker` — tên envName riêng, KHÁC `development`/`production`,",
-          "vì `nuxt dev` tự kích hoạt envName `development` nên khối `$development`",
-          "sẽ lọt vào mọi lần `nx serve`; chi tiết ở nuxt.config.ts): production giữ",
-          "preset `cloudflare-module` artifact",
-          "`.output` (contract wrangler), development preset `node-server` artifact",
-          "`.output-node` — buildDir/output dir riêng nên chạy song song an toàn;",
-          "`defaultConfiguration: production` để `nx build` không config vẫn ra",
-          "artifact wrangler như cũ."
+          "Hai configuration tách bạch qua khối `$env['node-docker']` trong",
+          "`nuxt.config.ts` (`--envName=node-docker` — tên envName riêng, KHÁC",
+          "`development`/`production`, vì `nuxt dev` tự kích hoạt envName",
+          "`development` nên khối `$development` sẽ lọt vào mọi lần `nx serve`;",
+          "chi tiết ở nuxt.config.ts): production giữ preset `cloudflare-module`,",
+          "development preset `node-server`; `defaultConfiguration: production`",
+          "để `nx build` không config vẫn ra artifact wrangler như cũ."
         ]
       },
       "nuxt-prepare": {
