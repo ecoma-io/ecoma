@@ -76,14 +76,20 @@ describe(
   'migration runner (drizzle-kit migrate under advisory-lock wrapper)',
   { timeout: 180_000 },
   () => {
+    // undefined khi beforeAll ném (Docker hỏng, port chiếm...) — afterAll phải
+    // không ném TypeError che mất lỗi gốc.
     let db: PactDatabase;
+    // Copy container ra biến nullable: startPactDatabase ném (Docker hỏng,
+    // port chiếm...) thì afterAll không ném TypeError che mất lỗi gốc.
+    let dbContainer: PactDatabase['container'] | undefined;
 
     beforeAll(async () => {
       db = await startPactDatabase();
+      dbContainer = db.container;
     });
 
     afterAll(async () => {
-      await db.container.stop({ timeout: 10_000 });
+      await dbContainer?.stop({ timeout: 10_000 });
     });
 
     it('applies the whole journal once and does not replay it on the second run', async () => {
