@@ -134,16 +134,24 @@ export async function probeDocker(): Promise<void> {
       'Docker is unavailable: the migration-runner integration suite requires a running Docker daemon; refusing to skip.',
     );
   }
+  let container: StartedPostgreSqlContainer | undefined;
+  let available = false;
   try {
-    const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
+    container = await new PostgreSqlContainer(POSTGRES_IMAGE)
       .withUsername(SUPERUSER)
       .withPassword(SUPERUSER_PASSWORD)
       .withExposedPorts(POSTGRES_PORT)
       .start();
-    await container.stop();
+    available = true;
   } catch (error: unknown) {
+    // Chỉ start() thất bại mới là "Docker không dùng được" (pattern account/API).
     process.env[DOCKER_PROBE_ENV] = 'unavailable';
     throw error;
+  } finally {
+    // stop() ném cũng phải dọn container — không để orphan PostgreSQL (#459).
+    await container?.stop().catch(() => undefined);
   }
-  process.env[DOCKER_PROBE_ENV] = 'available';
+  if (available) {
+    process.env[DOCKER_PROBE_ENV] = 'available';
+  }
 }

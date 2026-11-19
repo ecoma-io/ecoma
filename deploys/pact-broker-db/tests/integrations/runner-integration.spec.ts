@@ -121,19 +121,16 @@ describe(
 
       const holder = new (await import('pg')).Client({ connectionString: db.databaseUrl });
       await holder.connect();
+      let child: ReturnType<typeof spawn> | undefined;
       try {
         await holder.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
-        const child = spawn(
-          process.execPath,
-          [tsxCli, runnerPath, 'migrate', '--config', okConfigPath],
-          {
-            cwd: projectRoot,
-            env: { ...process.env, DATABASE_URL: db.databaseUrl },
-            stdio: 'ignore',
-          },
-        );
+        child = spawn(process.execPath, [tsxCli, runnerPath, 'migrate', '--config', okConfigPath], {
+          cwd: projectRoot,
+          env: { ...process.env, DATABASE_URL: db.databaseUrl },
+          stdio: 'ignore',
+        });
         const exited = new Promise<number | null>((done) => {
-          child.once('exit', (code) => {
+          child?.once('exit', (code) => {
             done(code);
           });
         });
@@ -151,6 +148,9 @@ describe(
         expect(await exited).toBe(0);
         expect(await historyRows(db.databaseUrl, 'pact_broker')).toBe(2);
       } finally {
+        // Assertion ném giữa chừng: kill runner trước khi end() holder nhả
+        // advisory lock, tránh mồ côi tiến trình apply tiếp trên DB test.
+        child?.kill('SIGTERM');
         await holder.end();
       }
     }, 30_000);

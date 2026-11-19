@@ -1,7 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -17,8 +16,6 @@ import {
  * Behavior chạy thật (kit + PostgreSQL) thuộc `tests/integrations/` và target
  * `test-integration`.
  */
-
-const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 
 describe('parseArgs', () => {
   it('defaults to migrate mode with the project config', () => {
@@ -91,7 +88,15 @@ describe('readJournalEntries', () => {
   });
 
   it('fails closed when the journal file is missing', () => {
-    expect(() => readJournalEntries(projectRoot, 'does-not-exist')).toThrow(/journal not found/u);
+    // meta/ tồn tại nhưng thiếu _journal.json — phân biệt với nhánh
+    // "thư mục không tồn tại" của cùng lỗi fail-closed.
+    const dir = mkdtempSync(join(tmpdir(), 'journal-file-missing-'));
+    try {
+      mkdirSync(join(dir, 'meta'), { recursive: true });
+      expect(() => readJournalEntries(dir, dir)).toThrow(/journal not found/u);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('fails closed when an entry lacks tag or when', () => {

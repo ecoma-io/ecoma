@@ -61,9 +61,11 @@ const PRE_0004_MIGRATIONS = [
   'entitlement_sync_state',
   'tenant_members_entitlement_provenance',
 ].map(readMigrationBySlug);
-const MIGRATION_0004 = readMigrationBySlug('tenant_classification_and_plan');
+// "Migration đang xét" của suite existing-data: file `0003_tenant_classification_and_plan.sql`
+// — entry số 4 của journal (tên file prefix 0003, không phải 0004).
+const MIGRATION_UNDER_TEST = readMigrationBySlug('tenant_classification_and_plan');
 
-const ALL_KNOWN_MIGRATIONS = [...PRE_0004_MIGRATIONS, MIGRATION_0004];
+const ALL_KNOWN_MIGRATIONS = [...PRE_0004_MIGRATIONS, MIGRATION_UNDER_TEST];
 
 function findMigrationByName(name: string): { name: string; sql: string } {
   const migration = ALL_KNOWN_MIGRATIONS.find((entry) => entry.name === name);
@@ -236,7 +238,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       try {
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
 
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         const tenants = await queryAllTenants(db);
         expect(tenants).toHaveLength(1);
@@ -249,7 +251,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         });
 
         // Replay (runner thật chạy lại mọi file): idempotent, không đổi.
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
         expect(await queryAllTenants(db)).toEqual(tenants);
         expect(await queryTenantClassification(db, 'ecoma')).toEqual({
           classification: 'first_party',
@@ -272,7 +274,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         // Tên 'ecoma' thôi không phải bằng chứng nguồn gốc first_party:
         // chuyển đổi chỉ gate trên tên legacy 'ecoma-internal', nên hàng này
         // vẫn NULL và guard fail-closed chặn migration, nêu tên hàng.
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
           /migration 0004.*ecoma.*local-down.*local-up/su,
         );
 
@@ -297,7 +299,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       try {
         await insertLegacyTenant(db, 'local', 'sub-owner-local');
 
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
           /migration 0004.*local.*local-down.*local-up/su,
         );
 
@@ -322,7 +324,9 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         await insertLegacyTenant(db, 'ecoma', 'sub-owner-canonical');
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
 
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(/ambiguous/u);
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
+          /ambiguous/u,
+        );
 
         // Không đổi tên gì, không phân loại gì: transaction đã rollback.
         expect(await classificationColumnExists(db)).toBe(false);
@@ -343,7 +347,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       const db = await startLegacyDatabase();
       try {
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         // Hàng customer hợp lệ sinh SAU `0004`: classification và plan được
         // writer customer ghi tường minh theo schema mới.
@@ -370,7 +374,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         // Replay (runner thật chạy lại mọi file) khi dữ liệu customer đã tồn
         // tại: không đường nào dựa trên tên được bắn lại — classification,
         // plan, name và owner của cả hai hàng bất đổi.
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         expect(await queryAllTenants(db)).toEqual(tenantsBefore);
         expect(await queryTenantClassification(db, 'ecoma')).toEqual({
