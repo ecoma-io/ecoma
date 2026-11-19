@@ -71,6 +71,18 @@
     },
     {
       "path": "./deploys/llm-tenant-db"
+    },
+    {
+      "path": "./deploys/backoffice-db"
+    },
+    {
+      "path": "./deploys/staff-access-db"
+    },
+    {
+      "path": "./deploys/account-db"
+    },
+    {
+      "path": "./deploys/auth-db"
     }
   ]
 }

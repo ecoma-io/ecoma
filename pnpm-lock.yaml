@@ -838,17 +838,62 @@ importers:
         specifier: workspace:*
         version: link:../../libs/web-push-notification-job-infrastructure
 
+  deploys/account-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
   deploys/account-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/auth-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
   deploys/auth-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
+
+  deploys/backoffice-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/backoffice-deploy:
     dependencies:
@@ -975,6 +1020,21 @@ importers:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
+
+  deploys/staff-access-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/staff-access-deploy:
     dependencies:

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "Config runtime cho tsx (target `db-migrate` và `adopt`/`stamp` trực tiếp): không emit, resolve bundler cho import './drizzle.config.ts' bằng phần mở rộng thật. Lane local gọi runner qua container ephemeral với cwd chính là project này.",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "types": ["node"],
+    "lib": ["es2023"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["drizzle.config.ts", "runner.mts"]
+}
