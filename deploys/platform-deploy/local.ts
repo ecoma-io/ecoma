@@ -179,7 +179,7 @@ async function main(command: string): Promise<number> {
     // hostname. worktreeRoot là config canonical của platform stack.
     const namespace = worktreeNamespace(foundation?.ctx.worktreeRoot ?? WORKSPACE_ROOT);
     const rootHostname = rootHost.split(':')[0];
-    const portalArgs = ['account', 'pact', 'remote-cache-app'].flatMap((sub) => [
+    const portalArgs = ['account', 'api', 'remote-cache-app'].flatMap((sub) => [
       '--portal',
       `${sub}=${localServiceHostname(sub, rootHostname, namespace)}`,
     ]);
