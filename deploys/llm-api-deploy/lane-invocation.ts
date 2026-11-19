@@ -273,6 +273,12 @@ export const CONSUMER_API_KEY_ROW_PROBE_SQL = `SELECT count(*) FROM llm_gateway.
  * cùng luật `dockerResourceName` của lib.
  */
 export function buildPsqlArgs(namespace: string, database: string, sql: string): string[] {
+  // Fail-closed sớm như namespace/URL shape của các builder cùng file: database
+  // hoặc SQL rỗng là lỗi cấu hình caller, không để trôi xuống psql thành lỗi
+  // exec khó đọc. Caller hiện tại truyền hằng — guard này chặn caller tương lai.
+  if (database.length === 0 || sql.length === 0) {
+    throw new Error('buildPsqlArgs requires a non-empty database and SQL');
+  }
   return [
     'exec',
     dockerResourceName(namespace, 'postgres'),

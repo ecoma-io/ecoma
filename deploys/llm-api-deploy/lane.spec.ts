@@ -30,6 +30,7 @@ import {
   activeConsumerApiKeyRowCount,
   activeOfferServingCount,
   buildLaneStateLine,
+  buildPsqlArgs,
   buildMockContainerInvocation,
   buildMockHealthcheckCommand,
   buildMockWaiterInvocation,
@@ -288,6 +289,13 @@ describe('shouldSkipLaneUp', () => {
     // Stdout ghi nhận bị thay mà không còn plaintext (runner hội tụ `existing`)
     // — skip phải không diễn ra kể cả khi row vẫn sống.
     expect(shouldSkipLaneUp('CONSUMER_TENANT_RESULT={"outcome":"no-op"}\n', 1, 1)).toBe(false);
+  });
+});
+
+describe('buildPsqlArgs', () => {
+  it('fails closed on an empty database or SQL instead of exec-ing an opaque psql error', () => {
+    expect(() => buildPsqlArgs(NS, '', 'select 1')).toThrow(/non-empty database and SQL/u);
+    expect(() => buildPsqlArgs(NS, 'db-llm-gateway', '')).toThrow(/non-empty database and SQL/u);
   });
 });
 
