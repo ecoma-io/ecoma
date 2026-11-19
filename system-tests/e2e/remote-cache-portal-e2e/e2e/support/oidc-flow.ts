@@ -304,17 +304,25 @@ export async function performBrowserLogin(
   let waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_FIRST_WINDOW_MS);
   // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
   // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
-  // portal `/` đi path granted auto và callback xảy ra. Re-entry là idempotent
-  // (không OTP mới, không challenge, không rate limit) nên vòng bị chặn trên
+  // portal `/` đi path granted auto và callback xảy ra. Mỗi lượt re-entry còn
+  // tiến hoá trạng thái treo trước khi điều hướng (consent undecided, handoff
+  // chưa xong — `resumeStuckLoginState`); goto bị bỏ qua ở lượt vừa resume để
+  // không cắt ngang redirect chain đang chạy. Re-entry là idempotent (không OTP
+  // mới, không challenge, không rate limit) nên vòng bị chặn trên
   // CALLBACK_LANDING_ATTEMPTS lượt thay vì đúng một: dưới churn docker của CI
   // hosted (VM mới mỗi run), HAI lượt liên tiếp chết là xác suất thực (run
   // 44543816898). Cạn vòng vẫn throw — lỗi thật không bị che.
   for (let attempt = 1; !waited && attempt < CALLBACK_LANDING_ATTEMPTS; attempt += 1) {
-    await page.goto(origin, { waitUntil: 'load' });
+    const resumed = await resumeStuckLoginState(page);
+    if (resumed === undefined) {
+      await page.goto(origin, { waitUntil: 'load' });
+    }
     waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_REENTRY_WINDOW_MS);
   }
   if (!waited) {
-    throw new Error('login flow finished but no /api/auth/callback response was observed');
+    throw new Error(
+      `login flow finished but no /api/auth/callback response was observed (${await describeStuckState(page)})`,
+    );
   }
   if (finalHop === undefined) {
     // Không thể xảy ra sau `waited === true` — bước kiểm cho TS thu hẹp kiểu.
@@ -323,6 +331,64 @@ export async function performBrowserLogin(
   // Callback đã xảy ra — browser đứng ở `/`.
   await expect(page).toHaveURL(LANDED_PATH_PATTERN, { timeout: 5_000 });
   return { finalHop, finalPath: new URL(page.url()).pathname };
+}
+
+/**
+ * Tiến hoá một trạng thái treo của browser về phía callback — trả mô tả hành
+ * động đã làm, hoặc `undefined` khi trang không ở trạng thái treo nào nhận
+ * diện được (browser đang đi path granted auto, chỉ cần điều hướng lại).
+ *
+ * Root cause của chữ ký `oidc-flow.ts:317` (5 instance, #461): vòng re-entry
+ * cũ chỉ `goto(origin)` — hữu ích duy nhất khi auth-session + grant còn nguyên
+ * (path granted auto). Hai trạng thái treo khiến chain KHÔNG BAO GIỜ tự tới
+ * callback dù lặp bao nhiêu lượt:
+ *
+ * 1. Consent chưa decided: POST decide chết ngầm trước khi commit mà UI không
+ *    kịp render thẻ lỗi (cửa sổ decideFailed 5s của flow chính bỏ lỡ) —
+ *    `/authorize` thấy transaction còn `awaiting_consent` và render lại consent
+ *    card; không ai bấm ⇒ mỗi lượt goto lặp đúng cảnh đó.
+ * 2. Handoff push chưa xong: trang `/login/continue` render thẻ lỗi với nút
+ *    retry sau khi cửa sổ retry 5s của flow chính đã qua.
+ *
+ * Cả hai action đều idempotent, cùng nền tảng với các retry một-lượt của flow
+ * chính: handoff push idempotent theo `event_id`; decide replay an toàn —
+ * `event_id` deterministic `consent:<decision>:<transaction_id>` của auth
+ * (`apps/auth/src/consent-handler.ts`) nhận ra quyết định đã commit qua
+ * `replayOrReject`, không double-grant.
+ */
+async function resumeStuckLoginState(page: Page): Promise<string | undefined> {
+  const continueRetry = page.getByTestId('login-continue-retry');
+  if (await continueRetry.isVisible().catch(() => false)) {
+    await continueRetry.click();
+    await expect(page.getByTestId('login-continue-target')).toBeVisible({ timeout: 30_000 });
+    return 'clicked login-continue-retry';
+  }
+  const consentCard = page.getByTestId('consent-card');
+  if (await consentCard.isVisible().catch(() => false)) {
+    await page.getByTestId('consent-approve').click();
+    const consentContinue = page.getByTestId('consent-continue');
+    await expect(consentContinue).toBeVisible({ timeout: 30_000 });
+    await consentContinue.click();
+    return 're-approved undecided consent';
+  }
+  return undefined;
+}
+
+/** Mô tả trạng thái trang lúc cạn vòng — dữ liệu đo được cho instance sau. */
+async function describeStuckState(page: Page): Promise<string> {
+  const states = ['consent-card', 'login-continue-retry', 'login-email-form', 'login-code-form'];
+  const visible: string[] = [];
+  for (const testId of states) {
+    if (
+      await page
+        .getByTestId(testId)
+        .isVisible()
+        .catch(() => false)
+    ) {
+      visible.push(testId);
+    }
+  }
+  return `url=${page.url()} visible=[${visible.join(', ')}]`;
 }
 
 /** Chờ callback `/api/auth/callback` được quan sát trong `budgetMs`. */
