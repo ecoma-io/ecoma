@@ -41,7 +41,7 @@ const EXPECTED_DATABASE = 'db-pact-broker-app';
  * runner cũ `apps/pact-broker-app/db/apply.mts` — một database một lock identity,
  * không đổi khóa khi cutover.
  */
-const MIGRATION_LOCK_KEY = 12_884_501n;
+export const MIGRATION_LOCK_KEY = 12_884_501n;
 
 /** §3a.5 — statement_timeout mặc định của migration execution. */
 export const STATEMENT_TIMEOUT_MS = 300_000;
@@ -122,7 +122,7 @@ export function readJournalEntries(
   });
 }
 
-function pgIdentifier(name: string): string {
+export function pgIdentifier(name: string): string {
   return `"${name.replace(/"/gu, '""')}"`;
 }
 

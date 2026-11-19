@@ -59,11 +59,12 @@ statement_timeout mặc định 300s (§3a.5), inject vào cả connection lock 
 `DATABASE_URL` của child kit. Journal hiện **rỗng** — chưa move-in migration
 nào (cutover #378 làm).
 
-⚠️ **Đăng ký arch-check:** `deployment-map-check` đòi mọi `type:deployment`
-project sở hữu một app entry trong `DEPLOYMENT_MAP`, nhưng shape map chưa có
-concept database. Gap hợp đồng đã báo #373 (comment 2026-11-19) — foundation
-không tự quyết convention; chờ Modelling chốt hướng trước khi
-`pnpm dx arch-check` xanh.
+**Đăng ký arch-check:** `deployment-map-check` đòi mọi `type:deployment`
+project sở hữu một app entry trong `DEPLOYMENT_MAP`, nhưng lifecycle project
+database không sở hữu app nào. Quyết định #373/#374: `deploys/*-db` là
+lifecycle project (coordinator invoke qua nx target), được miễn qua marker
+`scaffold` trên đĩa — gap hợp đồng đã đóng, `pnpm dx arch-check` xanh trên
+HEAD này.
 
 ## Testing
 

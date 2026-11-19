@@ -12,6 +12,8 @@
 import { Client } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
+import { pgIdentifier } from '../../runner.mts';
+
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
  * Cùng image với harness của `apps/account` — một chuẩn container cho toàn bộ
@@ -59,8 +61,8 @@ export async function recreateContractDatabase(adminUrl: string): Promise<void> 
   const client = new Client({ connectionString: adminUrl });
   await client.connect();
   try {
-    await client.query(`DROP DATABASE IF EXISTS ${JSON.stringify(CONTRACT_DATABASE)} WITH (FORCE)`);
-    await client.query(`CREATE DATABASE ${JSON.stringify(CONTRACT_DATABASE)}`);
+    await client.query(`DROP DATABASE IF EXISTS ${pgIdentifier(CONTRACT_DATABASE)} WITH (FORCE)`);
+    await client.query(`CREATE DATABASE ${pgIdentifier(CONTRACT_DATABASE)}`);
   } finally {
     await client.end();
   }
@@ -76,7 +78,7 @@ export async function historyRows(databaseUrl: string, schema: string): Promise<
   await client.connect();
   try {
     const { rows } = await client.query<{ n: string }>(
-      `select count(*)::text as n from ${JSON.stringify(schema)}.__drizzle_migrations`,
+      `select count(*)::text as n from ${pgIdentifier(schema)}.__drizzle_migrations`,
     );
     return Number(rows[0]?.n ?? '0');
   } catch (error: unknown) {

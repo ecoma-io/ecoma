@@ -248,7 +248,7 @@ describe('validateDeploymentMap — owner validity', () => {
     // Tag đúng trên graph nhưng thư mục đã đổi tên/xóa: map vẫn phải đỏ —
     // graph và đĩa là hai nguồn, lệch nhau ở chiều nào cũng là lỗi.
     const state = goodState();
-    state.deploysOnDisk = (state.deploysOnDisk as string[]).filter((d) => d !== 'home-deploy');
+    state.deploysOnDisk = state.deploysOnDisk?.filter((d) => d !== 'home-deploy');
     const violations = validateDeploymentMap(state);
     // Chỉ owner check của entry `home` báo; marker check bỏ qua home-deploy
     // (thư mục không có trên đĩa thì marker check đã bị owner check bắt
@@ -280,7 +280,7 @@ describe('validateDeploymentMap — owner validity', () => {
   it('reports a deploy project that owns no app (reverse ownership)', () => {
     const state = goodState();
     state.projects.set('orphan-deploy', deployNode('orphan-deploy'));
-    (state.deploysOnDisk as string[]).push('orphan-deploy');
+    state.deploysOnDisk = [...(state.deploysOnDisk ?? []), 'orphan-deploy'];
     const violations = validateDeploymentMap(state);
     expect(kinds(violations)).toEqual(['invalid-map-owner']);
     expect(violations[0].project).toBe('orphan-deploy');
@@ -294,7 +294,7 @@ describe('validateDeploymentMap — owner validity', () => {
     // `pact-broker-app-db` là case thật đầu tiên của repo.
     const state = goodState();
     state.projects.set('pact-broker-app-db', deployNode('pact-broker-app-db'));
-    (state.deploysOnDisk as string[]).push('pact-broker-app-db');
+    state.deploysOnDisk = [...(state.deploysOnDisk ?? []), 'pact-broker-app-db'];
     const violations = validateDeploymentMap(state);
     expect(violations.filter((v) => v.project === 'pact-broker-app-db')).toEqual([]);
   });
@@ -352,7 +352,7 @@ describe('validateDeploymentMap — status markers', () => {
 
   it('reports an unreadable package.json instead of crashing the check', () => {
     const state = goodState();
-    (state.deploysOnDisk as string[]).push('ghost-deploy');
+    state.deploysOnDisk = [...(state.deploysOnDisk ?? []), 'ghost-deploy'];
     const entry = DEPLOYMENT_MAP.home as { owner: string | null };
     const original = entry.owner;
     entry.owner = 'ghost-deploy';

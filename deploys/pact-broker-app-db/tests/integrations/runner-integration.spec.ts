@@ -5,8 +5,8 @@ import process from 'node:process';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { MIGRATION_LOCK_KEY } from '../../runner.mts';
 import {
-  CONTRACT_DATABASE,
   historyRows,
   recreateContractDatabase,
   startPactDatabase,
@@ -121,7 +121,7 @@ describe(
       const holder = new (await import('pg')).Client({ connectionString: db.databaseUrl });
       await holder.connect();
       try {
-        await holder.query('select pg_advisory_lock($1)', [12_884_501n]);
+        await holder.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
         const child = spawn(
           process.execPath,
           [tsxCli, runnerPath, 'migrate', '--config', okConfigPath],
@@ -146,7 +146,7 @@ describe(
         expect(child.exitCode).toBeNull();
         expect(await historyRows(db.databaseUrl, 'pact_broker_app')).toBe(0);
 
-        await holder.query('select pg_advisory_unlock($1)', [12_884_501n]);
+        await holder.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
         expect(await exited).toBe(0);
         expect(await historyRows(db.databaseUrl, 'pact_broker_app')).toBe(2);
       } finally {
@@ -176,7 +176,6 @@ describe(
       const result = runRunner('migrate', okConfigPath, wrongDbUrl);
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain('refusing to touch the wrong database');
-      expect(CONTRACT_DATABASE).toBe('db-pact-broker-app');
     });
   },
 );

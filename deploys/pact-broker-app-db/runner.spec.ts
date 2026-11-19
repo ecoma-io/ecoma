@@ -18,7 +18,7 @@ import {
  * `test-integration`.
  */
 
-const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
+const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 
 describe('parseArgs', () => {
   it('defaults to migrate mode with the project config', () => {
