@@ -1061,7 +1061,7 @@ contract); trạng thái hiện thực của từng target trong cây code đư�
 | Backoffice browser regression | Playwright — suite app-owned dưới `apps/backoffice/e2e/` (phạm vi UI của backoffice, không phải system E2E — phân loại theo `06-testing.md`) | PR, chạy qua target `e2e` và job CI `e2e` chuyên dụng                                              |
 | Preview E2E                   | Playwright                                                                                                                                   | Preview                                                                                            |
 | Serve-mode UI preview         | mock adapter qua data-mode seam (`nuxt dev` only) — chi tiết: `05-code-architecture.md` §5                                                   | Dev workstation — KHÔNG chạy ở CI gate                                                             |
-| Staging E2E                   | OTP mailbox + OAuth nightly                                                                                                                  | Staging                                                                                            |
+| Staging E2E                   | Playwright — 8 suite e2e hiện có qua adapter origin/seed, OTP qua mail sink candidate slot (§10.1)                                           | Release PR — gate chống candidate slot; nightly chống Continuous Staging                           |
 | `llm-api` load/soak           | k6 + mock upstream                                                                                                                           | Ngoài giờ cao điểm hoặc host riêng                                                                 |
 | Restore test PostgreSQL       | Restore backup vào instance tạm trên host riêng                                                                                              | Định kỳ (`03` §3.4)                                                                                |
 | Nx remote cache compatibility | GET/PUT cache artifact, auth, immutable entry / 409, local → CI cache hit                                                                    | PR ([`applications/remote-cache/03-operations.md`](../applications/remote-cache/03-operations.md)) |
@@ -1075,6 +1075,67 @@ worker reliability (lease, idempotency, retry, DLQ — `06-testing.md` §7) đư
 Queue/DLQ (retry cạn vào `dead_letter_queue`) nằm ngoài phạm vi các harness này — nếu cần, đòi một quyết định riêng về
 runner mô phỏng Queue. Thiết kế mail quarantine: drain/redrive là năng lực tương lai; bảng `quarantine` được consumer
 ghi và test đọc, không có đường vận hành drain trong thiết kế hiện tại.
+
+### 10.1 Staging system-test gate — hợp đồng (#348)
+
+Gate merge của Release PR chạy chống **candidate slot cô lập** của Release Validation (#381 — Worker `stg-cand-<tên
+Worker production>`, hostname `<sub>-cand.ecoma.io.vn`, DB/D1 `*-cand`, seed riêng trong slot; §4.2), KHÔNG chạy chống
+Continuous Staging và không mutate lane đó. Taxonomy, target contract và semantics phân loại kết quả → `06-testing.md`
+(§6, §8); mục này chốt policy thực thi.
+
+**Bảng suite — tái dụng / adapter / xây mới.** Logic journey của cả 8 suite giữ nguyên; cái phải thích nghi là
+**harness local** (origin resolution, seed/cleanup bằng SQL trực tiếp, TLS pin, container mock) — không suite nào phải
+viết lại:
+
+| Suite                           | Verdict                   | Lý do (evidence)                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `home-public-e2e`               | Adapter nhẹ               | Chỉ origin resolution — không auth, không OTP, không SQL trực tiếp (`system-tests/e2e/home-public-e2e/global-setup.ts:80–107`)                                                                                                                                                    |
+| `identity-login-e2e`            | Adapter                   | Origin + OTP retrieval qua sink của slot + credential test account; seed/cleanup `otp_challenges` bằng SQL trực tiếp là đường local, thay bằng seed trong slot (`…/identity-login-e2e/e2e/support/local-stack.ts:232,421`)                                                        |
+| `identity-oidc-e2e`             | Adapter                   | Origin + OIDC client staging thật; redirect URI của hostname `-cand` phải được OAuth client seed chấp nhận — requirement đầu vào cho #352/#381 (`…/identity-oidc-e2e/global-setup.ts:81–150`)                                                                                     |
+| `backoffice-access-control-e2e` | Adapter đậm               | Origin + seed staff/admin theo §3.2 trong slot; các đường SQL trực tiếp (grants — `ci.yaml:235`) là local-only, thay bằng dữ liệu seed sẵn (`…/backoffice-access-control-e2e/e2e/support/stack-fixtures.ts`)                                                                      |
+| `cross-product-journey-e2e`     | Adapter                   | Origin nhiều unit + seed liên unit trong slot; sibling hostname suy theo scheme `-cand`, không qua `localServiceHostname` (`…/cross-product-journey-e2e/global-setup.ts:245–247`)                                                                                                 |
+| `llm-inference-e2e`             | Adapter đậm, có điều kiện | Phụ thuộc container mock upstream + SQL trực tiếp vào `llm_marketplace` + container logs — chỉ vào gate khi slot provision mock upstream; nếu không, suite nằm ngoài scope gate v1 và việc quyết định thuộc #363 (`…/llm-inference-e2e/e2e/02-serving-and-ledger.spec.ts:29,102`) |
+| `pact-broker-portal-e2e`        | Adapter                   | Origin + seed tenant trong slot; đường SQL trực tiếp là local-only (`…/pact-broker-portal-e2e/global-setup.ts:88–114,299`)                                                                                                                                                        |
+| `remote-cache-portal-e2e`       | Adapter                   | Origin + OIDC flow (cùng issuer `auth`) + seed tenant; OTP qua sink slot (`…/remote-cache-portal-e2e/e2e/support/oidc-flow.ts`)                                                                                                                                                   |
+
+**Xây mới** không thuộc suite nào: gate orchestration, candidate identity verification, seed-in-slot — sở hữu bởi
+#363/#381/#352.
+
+**Origin resolution.** Gate nạp cho mỗi suite biến `E2E_TARGET_ORIGIN` (HTTPS origin chính của luồng suite, vd
+`https://home-cand.ecoma.io.vn`); sibling hostname suy từ origin chính bằng thay thế phần `<sub>` theo scheme `-cand`
+của §4.2 — KHÔNG qua `localServiceHostname` (phép dò Docker namespace là local-only). Thứ tự resolve, fail-loud và quy
+tắc placeholder của `playwright.config.ts` → `06-testing.md` §6.
+
+**Candidate identity.** Điều kiện tiên quyết của gate: slot đang phục vụ đúng candidate — (head SHA, artifact digest)
+khớp `build-manifest.json` đóng gói theo §7.2, qua evidence identity của #346/#381. Identity mismatch là
+**staging-not-ready**, không phải test-red: gate chưa đánh giá được candidate nào cả.
+
+**Auth bootstrap / seed.** Hợp đồng dữ liệu không đổi giữa các environment: danh tính canonical là hằng trong code
+(§3.2, ADR-0020/0021) và procedure từ chối input khác hằng. Staging chạy đúng procedure đó với endpoint + credential
+riêng (#352 orchestration); candidate slot seed riêng trong slot từ baseline đã restore (#381). Gate chỉ tiêu thụ test
+account đã seed — không tự seed, không đụng database trực tiếp.
+
+**OTP delivery.** Candidate slot chạy `transactional-mail` với provider `fake` + D1 sink — cùng cơ chế local
+(`…/identity-login-e2e/e2e/support/local-stack.ts:23,421`), đọc qua credential read-only scoped đúng slot. Chân
+delivery provider thật được verify trên Continuous Staging (#355), không phải trong slot: chân đó không đổi theo release
+candidate, còn mailbox ngoài (IMAP) bị loại vì nondeterministic latency — nguồn flake mới không chấp nhận được cho gate.
+
+**Ranh giới credential của gate job.** Workflow gate chạy trên Release PR (PR-triggered build) — invariant "secrets
+không vào PR builds" áp dụng nguyên văn, giới hạn ở **credential test-purpose**. Được phép: credential test account đã
+seed trong slot; access read-only scoped đúng D1 sink của slot. Bị cấm: `ECOMA_CLOUDFLARE_API_TOKEN` và mọi
+control-plane token deploy (§6.12); mọi credential production; credential `_migrator`/admin của database ngoài slot;
+mọi quyền có thể ghi đè state candidate ngoài đường provisioning của slot (#381).
+
+**Retry / phân loại kết quả.** `test-red` (assertion fail sau khi readiness đã xanh): **không retry** — giữ nguyên
+semantics no-retry của job system-test (`ci.yaml:230–234`). `staging-not-ready` (readiness/identity chưa đạt): được
+retry trong budget readiness gate (`06-testing.md` §6); hết budget → kết quả gate là `staging-not-ready` — candidate
+chưa được verify, không tính là test đỏ của mã nguồn và không tính là PASS.
+
+**Platform services staging bắt buộc cho gate** — đã có issue sở hữu, không phát hành follow-up mới: Router
+non-production + DNS/Hyperdrive (#350, hiện thực §4.2), bootstrap/seed orchestration (#352), transactional-mail +
+mailer-job với OTP path (#355), identity stack account/auth/staff-access + OAuth clients (#354), product stack theo
+suite (#353 home, #357 remote-cache, #358 pact-broker, #359 llm-marketplace, #354 backoffice), candidate slot (#381),
+gate runner (#363). Push-notification (#356) không bắt buộc cho gate v1 — không suite nào trong 8 dùng push.
 
 ---
 
