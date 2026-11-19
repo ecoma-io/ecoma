@@ -39,11 +39,14 @@ import { Client } from 'pg';
 const EXPECTED_DATABASE = 'db-pact-broker-app';
 
 /**
- * `hashtext('db-pact-broker-app')` trên PostgreSQL 17. Giữ nguyên giá trị của
- * runner cũ `apps/pact-broker-app/db/apply.mts` — một database một lock identity,
- * không đổi khóa khi cutover.
+ * `hashtext('db-pact-broker-app')` đo thật trên PostgreSQL 17
+ * (`SELECT hashtext('db-pact-broker-app')` = 1217305581, 2026-11-20) — đúng
+ * contract §3a.3: lock identity là hashtext của TÊN database. Runner cũ
+ * `apps/pact-broker-app/db/apply.mts` tính `hashtext($1)` lúc chạy với cùng
+ * tên nên cùng giá trị; giá trị 12_884_501 trước đây của foundation #374 là
+ * lệch (issue #459) và đã sửa về giá trị đo thật này.
  */
-export const MIGRATION_LOCK_KEY = 12_884_501n;
+export const MIGRATION_LOCK_KEY = 1_217_305_581n;
 
 /** §3a.5 — statement_timeout mặc định của migration execution. */
 export const STATEMENT_TIMEOUT_MS = 300_000;

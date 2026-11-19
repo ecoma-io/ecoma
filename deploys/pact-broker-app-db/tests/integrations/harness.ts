@@ -134,16 +134,27 @@ export async function probeDocker(): Promise<void> {
       'Docker is unavailable: the migration-runner integration suite requires a running Docker daemon; refusing to skip.',
     );
   }
+  let container: StartedPostgreSqlContainer | undefined;
+  let available = false;
   try {
-    const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
+    container = await new PostgreSqlContainer(POSTGRES_IMAGE)
       .withUsername(SUPERUSER)
       .withPassword(SUPERUSER_PASSWORD)
       .withExposedPorts(POSTGRES_PORT)
       .start();
-    await container.stop();
-  } catch (error: unknown) {
-    process.env[DOCKER_PROBE_ENV] = 'unavailable';
-    throw error;
+    available = true;
+  } catch {
+    available = false;
+  } finally {
+    // `stop()` là cleanup và có thể tự ném — nuốt để không leak container khi
+    // stop lỗi và không che nhãn probe (chỉ `start()` thất bại mới nghĩa là
+    // Docker unavailable; cùng pattern `apps/account`/API harness).
+    await container?.stop().catch(() => undefined);
   }
-  process.env[DOCKER_PROBE_ENV] = 'available';
+  process.env[DOCKER_PROBE_ENV] = available ? 'available' : 'unavailable';
+  if (!available) {
+    throw new Error(
+      'Docker is unavailable: the migration-runner integration suite requires a running Docker daemon; refusing to skip.',
+    );
+  }
 }
