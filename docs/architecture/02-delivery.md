@@ -239,6 +239,90 @@ Baseline VPS database-only của ecoma — quyết định của ecoma, không p
 - Load test (k6) chạy ngoài giờ cao điểm hoặc trên host staging riêng.
 - Khi contention xảy ra production được ưu tiên; tách host staging là **operational trigger** (`03` §6), không phải phase roadmap.
 
+### 4.2 Topology Staging — quyết định Modelling #345
+
+Các quyết định dưới đây chốt topology provisioning cho Staging để các Delivery issue tiêu thụ (#349, #350, #351, #362,
+#368, #381) không phải quyết định lại. Toàn bộ là **thiết kế đã chốt, chưa provision lần nào** trên environment thật —
+hộp trạng thái ở đầu tài liệu vẫn áp dụng cho vế hiện thực.
+
+**Chia sẻ PostgreSQL host — chấp nhận tường minh điều 2, cho cả M2 lẫn M3.** Điều 2 được xác nhận lại ở đây với bằng
+chứng, không phải mặc định lặng lẽ: (a) chi phí — Tier 0 là một VPS tự host (A3, `03` §6.1), hosting hai instance là
+gấp đôi chi phí cố định trước khi có load production nào; (b) isolation mà các điều 1/3/5 yêu cầu nằm ở identity,
+binding, credential — không ở host, nên host riêng không mua thêm invariant nào; (c) cơ chế đảo ngược đã tồn tại —
+tách host là **operational trigger** có điều kiện đo được (`03` §6.2: contention staging/production). Ranh giới
+M2/M3 trên chính host đó: **M2 provision host + PostgreSQL install/cluster + Tunnel path + staging databases/roles;
+M3 thêm production databases/roles trên cùng host qua provisioning stacks production** — M2 không provision resource
+production nào và M3 vào bằng expand-only (invariant 10), không rework staging. Chia sẻ host **không bao giờ** có nghĩa
+là chia sẻ những thứ sau — guarantees cách ly bắt buộc:
+
+- **Database + role per-unit:** 11 logical databases theo inventory từ `deploys/*/index.ts` — `db-account`, `db-auth`,
+  `db-backoffice`, `db-staff-access`, `db-llm-gateway`, `db-llm-tenant`, `db-llm-marketplace`, `db-pact-broker`,
+  `db-pact-broker-app`, `db-remote-cache`, `db-remote-cache-app`; mỗi DB một cặp role `_migrator`/`_runtime` riêng,
+  không chung password, không `CONNECT` chéo (A2, invariant 5/25).
+- **Hyperdrive config per-database, per-lane:** không config dùng chung giữa các unit; candidate slot (dưới) có config
+  riêng trỏ candidate database (§7.4.1).
+- **Runtime identity ≠ control-plane credential:** `ECOMA_CLOUDFLARE_API_TOKEN` dùng chung là **control-plane
+  credential** (điều 7, §6.12) — nó không phải runtime credential và không được đọc như "shared runtime identity".
+  Runtime credentials (DB password, signing key) là Worker Secrets per-Worker, per-environment, không bao giờ trùng
+  giữa hai unit hay hai lane.
+
+Rejected alternative: **tách host PostgreSQL riêng cho staging ngay từ M2** — không có trigger nào đo được (`03` §6.2),
+chi phí gấp đôi không mua thêm điều kiện môi trường nào vì mọi guarantee cách ly nằm ở database/role/credential; việc
+tách vẫn mở như operational trigger.
+
+**Hostname scheme — theo A13: Router non-production trên zone `ecoma.io.vn`.** Staging public hostname là **subdomain
+của `ecoma.io.vn`**, mirror production hostname scheme của `01` §7 (`account.ecoma.io.vn` ↔ `account.ecoma.io`, …); apex
+`ecoma.io.vn` phục vụ public web (home). Một **Router Worker non-production** — deploy unit riêng, chưa tồn tại trong
+cây, hiện thực thuộc Delivery — sở hữu route table: nhận request trên zone qua route pattern `ecoma.io.vn/*` và
+`*.ecoma.io.vn/*` (Workers route hỗ trợ wildcard, most-specific wins — Cloudflare Workers docs, fetch 2026-11-19) rồi
+dispatch theo hostname qua Service Binding tới Worker `stg-<unit>`. Worker internal-only (push, mail, relay, job) giữ
+mô hình hiện hành: không hostname public, `workers_dev: false`, chỉ Service Binding (`01` §6) — ở cả hai lane. Phương
+án đã loại:
+
+- **Per-unit Custom Domain gắn trực tiếp** (mỗi Worker một `<unit>.ecoma.io.vn`): mỗi Custom Domain sinh Advanced
+  Certificate **không tự xoá khi detach** — đã verify với Cloudflare Custom Domains docs, fetch 2026-11-19, và §9.1
+  "Teardown Custom Domain" đã ghi cùng hiện tượng; hàng chục cert residual cần runbook dọn tay, và nó là deviation A13
+  cần ADR mà không có lợi ích đo được bù đắp.
+- **`*.workers.dev` cho public surface:** subdomain `workers.dev` không cho phép kiểm soát hostname theo zone
+  non-production (mục đích định danh của `ecoma.io.vn` theo A13), và không có tiền tố môi trường nhất quán để route/dispatch
+  tập trung như Router.
+
+**Gap hiện trạng phải sửa khi hiện thực:** `apps/home/wrangler.jsonc` env `staging` gắn apex `ecoma.io.vn` trực tiếp
+vào `stg-ecoma-home` qua `"custom_domain": true` (`apps/home/wrangler.jsonc:22`) — lệch A13 và chiếm đúng hostname
+apex của Router. Quyết định này **giữ A13** (không cần ADR deviation): việc sửa — bỏ `routes` staging của home, đưa
+apex về Router — thuộc Delivery (#350/#362), phải xong trước khi làn staging đầu tiên chạy.
+
+**Cloudflare account riêng cho Staging — rejected, giữ A12.** Đánh giá bằng bằng chứng, không giữ mặc định baseline.
+Một account riêng cho staging sẽ cho cách ly credential tuyệt đối (token staging không chạm production resource) và
+tách billing. Bị loại vì: (1) credential không phải ranh giới isolation theo hợp đồng đã chốt (điều 7 — một token
+shared; ranh giới là Worker identity + `--env` tường minh + GitHub Environment), và token chỉ sống trong CI secret
+store, không bao giờ vào Git hay PR builds; (2) account riêng nhân đôi toàn bộ platform surface cần vận hành — zone
+DNS, state backend, Hyperdrive/Tunnel config, backup policy — mỗi account một bộ, trong khi mọi fact/tooling hiện có
+đo trên giả định một account (A12, §6.12); (3) điều kiện đảo ngược của A12 đã ghi sẵn (`01` §8: "xem lại khi ngân sách
+cho phép tách account") — cơ chế revisit tồn tại, không cần quyết mới hôm nay.
+
+**Hai execution lanes trên cùng staging infra:**
+
+- **Continuous Staging — persistent:** merge `main` → migrate forward → deploy `stg-*` (§1.1, §7.4); state là state
+  tích luỹ dài hạn của staging.
+- **Release Validation (candidate slot, #381) — isolated per run:** deploy exact candidate artifact vào Worker identity
+  riêng `stg-cand-<tên Worker production>` (vd `stg-cand-ecoma-home`), hostname candidate riêng **`<sub>-cand.ecoma.io.vn`**
+  qua cùng Router (route entry ephemeral của slot; single-level subdomain giữ coverage wildcard), logical databases
+  `db-<name>-cand` + roles riêng trên cùng staging PG host (restore baseline + candidate migration), D1 instance riêng
+  (tên có đuôi `-cand`) cho unit có D1, Hyperdrive config riêng trỏ candidate DB, test data seed riêng trong slot.
+  Cleanup theo TTL xoá toàn bộ resource `*-cand` — không đụng Continuous Staging. Prefer candidate isolation hơn
+  serialize continuous lane (yêu cầu #381).
+
+**Resource không isolate được → concurrency/locking contract:**
+
+1. **Staging PostgreSQL host** — isolation ở mức database/role; capacity contention giữa hai lane khống chế bằng
+   **một candidate slot tại một thời điểm** (claim/lock — cơ chế thuộc #346/#381) cộng điều kiện load test hiện có
+   (điều 2). Trigger tách host (`03` §6.2) giữ nguyên hiệu lực cho cả hai lane.
+2. **Router route table** — entry của continuous lane là persistent, entry `*-cand` là ephemeral theo slot; mutation
+   route table chạy serialized (một mutation tại một thời điểm) để deploy continuous và cleanup slot không ghi đè nhau.
+3. **Pulumi state backend** — bucket per-environment; stack `staging` và `staging-candidate` là hai state key rời nhau
+   (§7.4.1), và Pulumi tự khóa state per-stack nên hai lane reconcile song song không chạm state của nhau.
+
 ---
 
 ## 5. Preview (Worker Preview)
@@ -634,11 +718,47 @@ apps hay puts DBs at mercy of routine app release.
 để xác minh cục bộ, không phải environment. `local` **không** phải môi trường: nó là stack dùng một lần trên backend `file://`
 để chạy contract/end-to-end mà không chạm tài nguyên thật, và contract từ chối mọi tổ hợp stack↔backend khác (local chỉ đi
 với `file://`, staging/production chỉ đi với `s3://`). Mỗi stack thật (`staging`, `production`) có một bucket R2 state, một
-credential và một passphrase riêng. **Còn chưa quyết:** số stack và cách ánh xạ stack → project `deploys/`. Layout hiện tại
-chia theo **deploy unit** (mỗi `<unit>-deploy` một project) với `platform-deploy` cho tài nguyên dùng chung, nên stack
-split theo unit hay theo environment lại là một quyết định chưa chốt — state backend thật (bucket R2) và credential
-**chưa tồn tại** vì chúng là bootstrap prerequisite, không phải thứ stack tự tạo (§9.1 nguyên tắc 4). Ngoài ba category
-local platform đã khai (nêu trên), các conceptual category còn lại **chưa** có resource nào được khai báo.
+credential và một passphrase riêng. **Stack mapping staging — đã chốt (#345): một stack `staging` cho mỗi Pulumi project
+trong `deploys/`, chạy trên backend R2 của staging qua `ECOMA_PULUMI_STATE_URL_STAGING` (biến này chưa khai báo ở bất kỳ nơi nào trong repo — phải bổ sung làm bootstrap prerequisite, ví dụ secret GitHub Environment staging, trước khi apply stack đầu tiên).** Layout project giữ nguyên sự
+chia theo **deploy unit** (mỗi `<unit>-deploy` một project, `platform-deploy` cho tài nguyên dùng chung): stack ánh xạ
+1:1 theo project — 17 project, 17 stack `staging`, trong đó hai project job-deploy (scaffold, hiện trạng ở đầu mục này)
+có stack `staging` nhưng chỉ chứa marker `ecoma.deployment.status: scaffold`, chưa khai resource nào. `platform-deploy`
+giữ stack `staging` riêng (đối xứng với local lane, nơi nó cũng giữ stack riêng). Tinh chỉnh so với câu "một bucket per
+stack" ở trên: bucket R2 state là **per-environment** (một bucket cho mọi stack của staging), còn **passphrase là
+per-stack** — bucket dùng chung giữa các stack cùng environment là chủ đích: state isolation đến từ state key per-stack,
+và bootstrap credential (R2 token scope một bucket, `04` R23) không nhân lên theo số stack. Rejected: **một stack
+environment-level gộp nhiều project** — giant stack couples unrelated apps và puts DBs at mercy of routine app release,
+đúng điều tiêu chí grouping ở trên cấm; **stack per resource category tách khỏi unit** — không mua thêm isolation nào
+so với layout per-unit sẵn có mà vẫn tách state của một unit thành nhiều state phải reconcile cùng lúc.
+
+**State + credentials isolation Local ↔ Staging — đã chốt (#345).** Ba hệ cách ly tuyệt đối, không bao giờ chia sẻ:
+
+| Hệ                | Local (mỗi worktree)                                                                         | Staging                                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State backend     | `file://<worktree>/.pulumi-local-state`                                                      | `s3://` R2 qua `ECOMA_PULUMI_STATE_URL_STAGING` (chưa khai báo trong repo — bổ sung làm bootstrap prerequisite; token R2 scope một bucket staging theo `04` R23) — bucket riêng của staging |
+| Passphrase        | tự sinh per worktree, file `.pulumi-local-passphrase` (`local-development/03-operations.md`) | per-stack, GitHub Environment secret của stack đó (§6.13) — không tái sử dụng passphrase local                                                                                              |
+| Cloudflare access | không dùng Cloudflare API (Docker local, tunnel nội bộ máy developer)                        | control-plane token đã chấp nhận (§4.1 điều 7), chỉ ở job được bảo vệ                                                                                                                       |
+
+Contract từ chối tổ hợp stack↔backend sai ngay trên là enforcement của cùng nguyên tắc: stack `local` chỉ hợp lệ trên
+`file://`, stack `staging`/`staging-candidate` chỉ hợp lệ trên `s3://` staging — một stack không bao giờ "mượn" backend
+của hệ kia. Candidate slot (#381) thêm stack `staging-candidate` per project trên **cùng backend R2 staging** (state
+isolation bằng state key, passphrase riêng theo quy tắc per-stack) — nó là một stack của environment staging, không
+phải một environment thứ tư.
+
+**Resource inventory staging — target của provisioning, chưa provision lần nào (owner theo §9.1):**
+
+| Project                                                                                                                                                                                                 | Pulumi provision cho staging                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform-deploy`                                                                                                                                                                                       | VPS PostgreSQL host + install/cluster/server config (§9.1 nguyên tắc 4a–d); DNS zone `ecoma.io.vn`. Bootstrap bucket state + R2 token là một lần, ngoài stack (contract phía trên)                                    |
+| `account-deploy`, `auth-deploy`, `backoffice-deploy`, `staff-access-deploy`, `llm-api-deploy`, `pact-broker-api-deploy`, `pact-broker-app-deploy`, `remote-cache-api-deploy`, `remote-cache-app-deploy` | logical PostgreSQL database + cặp role `_migrator`/`_runtime` trên shared host (§4.2); Hyperdrive config per-database (llm-api: ba config cho ba DB); `remote-cache-api-deploy` thêm R2 bucket object storage staging |
+| `push-notification-deploy`, `transactional-mail-deploy`                                                                                                                                                 | D1 database (§9.1 dòng "D1 database"); Queue + DLQ theo registry `queue-resources.jsonc` — ownership suy từ registry, không suy từ deploy project                                                                     |
+| `transactional-mailer-job-deploy`, `web-push-notification-job-deploy`                                                                                                                                   | stack chỉ chứa scaffold marker — D1/Queue của job được khai khi project ra khỏi scaffold                                                                                                                              |
+| `home-deploy`, `llm-console-deploy`, `llm-seller-deploy`                                                                                                                                                | không có resource riêng nào — Worker deploy bằng Wrangler, assets đi kèm Worker                                                                                                                                       |
+
+Hyperdrive config gắn **per-database**, không gộp per-unit, và **per-lane**: stack `staging` và `staging-candidate`
+không bao giờ trỏ chung một config (candidate trỏ candidate DB, §4.2). Worker, Worker Secrets và attachment hostname là
+của Wrangler theo §9.1 — Pulumi không deploy Worker nào; Router Worker cũng vậy (deploy unit mới, hiện thực thuộc
+Delivery — §4.2). VPS production databases/roles trên shared host thuộc M3 production stacks — ngoài phạm vi M2.
 
 **Bootstrap contract (không circular):**
 
