@@ -323,8 +323,9 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
     expect(sw.contentType).toContain('javascript');
     // vite-pwa v2 (unplugin-pwa + fork workbox-build) minify mất tên symbol
     // `precacheAndRoute` — assert hành vi thay vì tên: SW nạp runtime workbox
-    // và manifest precache liệt kê asset build thật.
-    expect(sw.body).toContain('importScripts("./workbox-');
+    // (prefix `./` và tên file hash do generator quyết định, không pin) và
+    // manifest precache liệt kê asset build thật.
+    expect(sw.body).toMatch(/importScripts\(["'`][^"'`]*workbox-/u);
     expect(sw.body).toContain('_nuxt/');
     // vite-pwa v2 minify toàn bộ tên handler (`registerRoute`/`NetworkOnly`/
     // `CacheFirst` thành symbol một chữ), nên invariant "API không cache"
