@@ -10,13 +10,15 @@
  * hai bản copy phải được xoá cùng lúc; mọi sửa engine từ bây giờ phải đối
  * chiếu cả hai bản để không trôi lệch.
  *
- * ⚠️ Lệch có chủ đích so với bản `platform-deploy` từ slice #350: bản này
- * thêm `CLOUDFLARE_API_TOKEN` vào inventory bắt buộc và lane staging chạy
- * chương trình khai bucket R2 thật (`staging-program.ts`), vì resource staging
- * của surface này đã có trong code; bản `platform-deploy` vẫn marker
- * 0-resource (resource staging của nó thuộc #349). Khi tổng quát hoá, hai
- * khác biệt này phải thành tham số tường minh của engine dùng chung, không
- * phải điều kiện rải rác.
+ * ⚠️ Hai lệch có chủ đích so với bản `platform-deploy` ghi ở slice #350 — bản
+ * này thêm `CLOUDFLARE_API_TOKEN` vào inventory bắt buộc, và lane staging chạy
+ * chương trình khai bucket R2 thật (`staging-program.ts`) — ĐÃ KHÔNG CÒN là
+ * lệch: từ #349 bản `platform-deploy` cũng khai resource thật (DNS zone
+ * `ecoma.io.vn` qua `staging-program.ts`) và inventory của nó cũng bắt buộc
+ * token này. Hai bản copy hiện thẳng hàng trên hai điểm đó; phần còn khác chỉ
+ * là bề mặt domain — resource mỗi program khai (bucket R2 ở đây, DNS zone ở
+ * `platform-deploy`). Khi tổng quát hoá, phần domain đó là tham số tường minh
+ * của engine dùng chung, không phải điều kiện rải rác.
  *
  * Tách bạch hai lifecycle (§7.4.1): module này chỉ provision infrastructure
  * Pulumi — deploy Worker là Wrangler (#362/#350), migration là `deploys/*-db`
@@ -344,9 +346,9 @@ export function backendBucket(backendUrl: string): string {
 /**
  * Chạy MỘT phase (`preview` hoặc `up`) trên stack staging của project, trả
  * record evidence. `--json` thay progress hiển thị: record phải mang diff đủ
- * nguyên vẹn, và trên stack marker hiện tại mỗi phase chạy trong vài giây — khi
- * #350 khai bucket R2 thật, entry có thể đổi sang stream + `stack history` mà
- * không đổi hợp đồng record.
+ * nguyên vẹn; với scope resource hiện tại của stack — bucket R2 thật khai từ
+ * #350, không còn marker — mỗi phase chạy trong vài giây; khi scope rộng ra,
+ * entry có thể đổi sang stream + `stack history` mà không đổi hợp đồng record.
  *
  * `pulumiRun` reuse: tự ghép `--stack <fullRef>` và xử lý lỗi spawn/exit đúng
  * cơ chế chung; `prepareStack` để false vì `ensureStack` của local có `mkdir`

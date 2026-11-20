@@ -281,7 +281,9 @@ jobs:
   # kết thúc. Nhưng rule không suy diễn — trigger privileged cộng ref lấy từ
   # head là shape nó chặn, và message của rule yêu cầu đúng một việc: viết
   # lại thành base ref để an toàn là thuộc tính của YAML, không phải của người
-  # đọc. `.github/workflows/staging.yaml` (job `audit`) làm đúng điều đó.
+  # đọc. (Trên main hiện chưa có workflow nào dùng trigger `workflow_run`, nên
+  # chưa có mẫu thật nào để dẫn — case này là hình chuẩn cho lane privileged
+  # `workflow_run` đầu tiên khi được wire.)
   workflow-run-default-branch-checkout:
     runs-on: ubuntu-26.04
     steps:
@@ -296,7 +298,7 @@ jobs:
       - run: npx tsx tools/delivery/src/deploy-unit-audit.mts
 
   # Đối lập trực tiếp với case trên: cùng trigger `workflow_run`, cùng một job,
-  # nhưng checkout theo head. Đây là shape staging.yaml từng mắc và phải sửa.
+  # nhưng checkout theo head — đúng shape mà hai rule privileged chặn.
   workflow-run-head-sha-checkout:
     runs-on: ubuntu-26.04
     steps:
