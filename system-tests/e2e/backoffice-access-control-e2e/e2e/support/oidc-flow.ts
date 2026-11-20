@@ -269,20 +269,32 @@ export async function performBrowserLogin(
   // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
   // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
   const retryButton = page.getByTestId('login-continue-retry');
-  const continueOrRetry = await Promise.race([
-    continueTarget
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .then(() => 'continue' as const)
-      .catch(() => 'none' as const),
-    retryButton
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .then(() => 'retry' as const)
-      .catch(() => 'none' as const),
-  ]);
-  if (continueOrRetry === 'retry') {
-    await retryButton.click();
-    await expect(continueTarget).toBeVisible({ timeout: 30_000 });
-  } else if (continueOrRetry === 'none') {
+  // Flake `ERR_NETWORK_CHANGED` ở POST verify OTP (#461 round 2: 4 instance
+  // ngày 2026-11-20 — run 44677226226 và 44678063176 trên main, cùng trang
+  // `account` với suite này): verify chết tầng mạng trước khi tới server →
+  // trang giữ nguyên form mã và render `login-request-failed`; mã CHƯA tiêu
+  // thụ (chính trang `login/index.vue` bảo đảm điều đó cho lỗi ném), nên bấm
+  // `login-code-submit` lại ĐÚNG MỘT LẦN rồi lặp đúng pha chờ này — cùng hình
+  // với nhánh recovery email ở trên. Lỗi lần hai là lỗi thật — không che defect.
+  for (let verifyAttempt = 1; ; verifyAttempt += 1) {
+    const continueOrRetry = await Promise.race([
+      continueTarget
+        .waitFor({ state: 'visible', timeout: 30_000 })
+        .then(() => 'continue' as const)
+        .catch(() => 'none' as const),
+      retryButton
+        .waitFor({ state: 'visible', timeout: 30_000 })
+        .then(() => 'retry' as const)
+        .catch(() => 'none' as const),
+    ]);
+    if (continueOrRetry === 'retry') {
+      await retryButton.click();
+      await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+      break;
+    }
+    if (continueOrRetry === 'continue') {
+      break;
+    }
     // Cả target lẫn retry vắng mặt 30s: hop điều hướng vào `/login/continue`
     // chết tầng mạng (ERR_NETWORK_CHANGED family — instance thật ở
     // `remote-cache-portal-e2e` run 44639848365, #498; cùng trang `account`)
@@ -311,11 +323,21 @@ export async function performBrowserLogin(
           `/login/continue rendered no card even after re-navigation (${await describeStuckState(page)})`,
         );
       }
-    } else {
-      throw new Error(
-        `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
-      );
+      break;
     }
+    // Browser vẫn đứng trên trang login: `login-request-failed` còn hiển thị
+    // nghĩa là POST verify vừa chết tầng mạng — bấm submit lại ĐÚNG MỘT LẦN
+    // (mã chưa tiêu, recovery thứ hai của pha này). Hai trạng thái mã khác
+    // KHÔNG có recovery: `login-code-invalid` (OTP sai) và `login-code-accepted`
+    // (verify OK nhưng hop confirm chết) — lần hai chết là lỗi thật, cạn vòng
+    // vẫn throw kèm `describeStuckState`.
+    if (verifyAttempt === 1 && (await isVisibleSafe(requestFailed))) {
+      await page.getByTestId('login-code-submit').click();
+      continue;
+    }
+    throw new Error(
+      `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
+    );
   }
   await continueTarget.click();
 
@@ -465,7 +487,20 @@ async function waitForContinueOrLanded(page: Page, target: Locator): Promise<boo
 
 /** Mô tả trạng thái trang lúc cạn vòng — dữ liệu đo được cho instance sau. */
 async function describeStuckState(page: Page): Promise<string> {
-  const states = ['consent-card', 'login-continue-retry', 'login-email-form', 'login-code-form'];
+  const states = [
+    'consent-card',
+    'login-continue-retry',
+    'login-email-form',
+    'login-code-form',
+    // Ba trạng thái kết quả của submit mã — instance round-2 của #461 (6–10)
+    // chỉ báo được `login-code-form` nên không phân loại được nguyên nhân; thêm
+    // để log stuck-state phân biệt ngay: request-failed (verify chết tầng mạng,
+    // mã chưa tiêu), code-invalid (OTP sai), code-accepted (verify OK nhưng
+    // hop confirm chết).
+    'login-request-failed',
+    'login-code-invalid',
+    'login-code-accepted',
+  ];
   const visible: string[] = [];
   for (const testId of states) {
     if (await isVisibleSafe(page.getByTestId(testId))) {
