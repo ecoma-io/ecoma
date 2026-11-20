@@ -159,7 +159,11 @@
     },
     "production": {
       "name": "ecoma-remote-cache-app",
-      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
+      // Production eligibility là scope M3 (`deploy-eligibility.jsonc`:
+      // `production` excluded toàn workspace) nên origin smoke của lane này
+      // còn là placeholder fail-closed — hostname production của unit chưa
+      // được chốt ở docs đích; điền khi M3 mở production eligibility, không
+      // bịa giá trị trước đó.
       "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
       // Cùng quy tắc với staging; production trỏ control plane production.
       "hyperdrive": [
