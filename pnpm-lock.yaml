@@ -1541,6 +1541,12 @@ importers:
 
   tools/account-bridge: {}
 
+  tools/delivery:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
+
   tools/dx:
     dependencies:
       '@commitlint/load':
