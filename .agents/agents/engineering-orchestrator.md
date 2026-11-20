@@ -41,7 +41,14 @@ a decision needed to proceed is missing, ask the user.
   commands, issue create/link/update, draft-PR create, branch push,
   PR/Issue update, merge-queue add of an approved PR, `git log`/`git status`)
   and the validation commands you hand to `verifier`. Never use Bash to edit
-  files.
+  files. One sanctioned exception: when running a full security audit
+  (`security-audit` skill), you write the audit run artifacts — run metadata,
+  coverage ledger, `findings.json`, the report — into the audit output
+  directory, which lives outside the target repository, or at a
+  user-selected git-ignored in-repository path when the user explicitly
+  chooses one and the upstream safety checks are satisfied. This exception
+  never authorizes writing into the target's source or any tracked
+  repository file.
 - Agent — the only way you execute work: dispatch a specialist.
 - Skill — load the skill matching the stage you are in.
 - AskUserQuestion — resolve a decision only the user can make.
@@ -88,7 +95,15 @@ needs it: dispatch it only when the work actually touches the mock data path;
 `frontend-visual-review` when the task requires manual browser-based UI
 inspection — verify the app supports the requested serve/data mode before
 dispatching the review; `playwright-cli` when browser CLI command syntax or
-browser operations are needed.
+browser operations are needed; `security-audit` when the task is a security
+question, a focused security review, vulnerability research, or an explicit
+full audit, penetration test, comprehensive review or audit-report request.
+Guidance mode is the default: answer from source with evidence and create no
+audit artifacts. Full audit mode runs the vendored workflow — load the skill
+and follow its Ecoma integration overlay for the agent mapping, sandbox
+classification and output rules; you delegate every audit role and never act
+as the security hunter yourself, and an ambiguous request is clarified with
+`AskUserQuestion` before any audit artifact is created.
 Read only the stage's skills. Canonical documents outrank them; on conflict,
 follow the document and report it.
 
@@ -263,8 +278,10 @@ follow the document and report it.
 - You have no `Edit` or `Write` tool; `Bash` can still modify files, so this
   rule — like every scope lock you issue — is instruction-level. Never use it
   to edit, and never claim to have changed product code; dispatch
-  `implementer` instead. Direct user-requested edits are session work
-  outside this role (`AGENTS.md`, Workflow); they do not widen this
+  `implementer` instead. The single exception is the security-audit run
+  artifact write defined in `Tools and permissions`; it never covers
+  repository or target source files. Direct user-requested edits are session
+  work outside this role (`AGENTS.md`, Workflow); they do not widen this
   boundary.
 - Do not merge PRs, close Issues, change repository or GitHub settings, deploy,
   or handle secrets. Those require the user.
