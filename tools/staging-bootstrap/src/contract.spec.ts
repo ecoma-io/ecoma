@@ -9,8 +9,20 @@ import {
 } from './contract.ts';
 
 describe('bootstrap step table', () => {
-  it('matches the canonical §3.2 order 3–12 with unique ids', () => {
+  it('follows the canonical §3.2 bootstrap/seed rows 3-10 in runner sequence with unique ids', () => {
     expect(BOOTSTRAP_STEPS.map((step) => step.order)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(BOOTSTRAP_STEPS.map((step) => step.canonicalRow)).toEqual([
+      '3',
+      '4',
+      '5a',
+      '5b',
+      '6',
+      '7',
+      '8a',
+      '8b',
+      '9',
+      '10',
+    ]);
     expect(new Set(BOOTSTRAP_STEPS.map((step) => step.id)).size).toBe(BOOTSTRAP_STEPS.length);
   });
 
