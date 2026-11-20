@@ -83,15 +83,17 @@ describe('wrangler.jsonc env.staging (lane #358)', () => {
     expect(staging?.['workers_dev']).toBe(false);
   });
 
-  it('redeclares the DB_PACT_BROKER_APP binding for the env with a hex-32 id shape', () => {
+  it('redeclares the DB_PACT_BROKER_APP binding for the env in the deliberately-unwired empty-id state', () => {
     // Binding KHÔNG inherit từ top-level vào env.staging — thiếu khai lại là
-    // deploy lỗi định danh. `id` hex-32 là convention placeholder của lane
-    // chờ operator fill id thật từ stack output `hyperdriveConfigId` (#358);
-    // empty string / garbage là trôi khỏi convention.
+    // deploy lỗi định danh. `id` rỗng cố ý theo wiring contract #539: trạng
+    // thái "chưa wire" trung thực, operator fill id thật từ stack output
+    // `hyperdriveConfigId` sau lần `up` xanh (#358); audit `resource-bindings`
+    // (#362) chặn id rỗng khi flip eligibility — id giả đủ shape sẽ qua mặt
+    // gate đó nên KHÔNG được phép xuất hiện ở đây.
     const hyperdrive = staging?.['hyperdrive'] as HyperdriveBinding[] | undefined;
     expect(Array.isArray(hyperdrive) && hyperdrive.length === 1).toBe(true);
     expect(hyperdrive?.[0]?.binding).toBe('DB_PACT_BROKER_APP');
-    expect(hyperdrive?.[0]?.id).toMatch(/^[0-9a-f]{32}$/u);
+    expect(hyperdrive?.[0]?.id).toBe('');
   });
 
   it('pins the deterministic MOD1 origin as devOrigin', () => {

@@ -113,21 +113,23 @@
       // cùng trạng thái đã merge của home #535).
       "workers_dev": false,
       // Hyperdrive binding tới `db-pact-broker-app` — database của chính app
-      // này (xem ghi chú binding ở top-level). `id` là placeholder toàn số 0 —
-      // deploy layer sẽ thay.
+      // này (xem ghi chú binding ở top-level). `id` rỗng CỐ Ý — trạng thái
+      // "chưa wire" trung thực theo wiring contract #539: id thật đọc từ stack
+      // output `hyperdriveConfigId` của `deploys/pact-broker-app-deploy` sau
+      // lần `up` xanh đầu tiên (#358) — operator fill; audit
+      // `resource-bindings` (#362) chặn id rỗng khi flip eligibility cho tới
+      // khi id thật vào, còn id giả đủ shape sẽ qua mặt gate đó.
       //
       // ⚠️ **QUERY CACHE OFF — bắt buộc.** Cache được đặt ở **config
       // Hyperdrive**, không phải ở file này, nên không có key nào ở đây tắt
       // được nó; việc tắt là thao tác vận hành trên `db-pact-broker-app`.
       // Lý do: cache bật mặc định + cache **không** invalidate khi ghi ⇒ một
       // phiên vừa bị revoke vẫn được đọc là còn sống trong tối đa 60s. Đây là
-      // đường correctness (ADR-0031 §3) nên không có ngoại lệ nào. Nguồn id
-      // thật: stack output `hyperdriveConfigId` của
-      // `deploys/pact-broker-app-deploy` sau lần `up` xanh đầu tiên (#358).
+      // đường correctness (ADR-0031 §3) nên không có ngoại lệ nào.
       "hyperdrive": [
         {
           "binding": "DB_PACT_BROKER_APP",
-          "id": "00000000000000000000000000000000",
+          "id": "",
         },
       ],
       // Origin tất định cho delivery tooling (smoke check) — KHÔNG phải thuộc

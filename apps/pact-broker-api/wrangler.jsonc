@@ -79,19 +79,19 @@
       "workers_dev": false,
       // Hyperdrive binding `HYPERDRIVE` khai lại TƯỜNG MINH cho env này —
       // Wrangler KHÔNG inherit binding top-level vào `env.<lane>` (§4.1 điều 1,
-      // đo trên `wrangler` 4.151.0). `id` là placeholder hex-32 theo convention
-      // đã có của `auth-nonce-prune-job`/`pact-broker-app` (deploy layer thay
-      // khi provision): id thật do Pulumi cấp qua stack output
-      // `hyperdriveConfigId` của `deploys/pact-broker-api-deploy` sau lần `up`
-      // xanh đầu tiên (`nx run pact-broker-api-deploy:staging-up -c staging`,
-      // #358) — operator fill id thật vào đây; deploy với placeholder là lỗi
-      // định danh (guard `resource-bindings` chặn, §9.1). Origin/config
+      // đo trên `wrangler` 4.151.0). `id` rỗng CỐ Ý — trạng thái "chưa wire"
+      // trung thực theo wiring contract #539: id thật do Pulumi cấp qua stack
+      // output `hyperdriveConfigId` của `deploys/pact-broker-api-deploy` sau
+      // lần `up` xanh đầu tiên (`nx run pact-broker-api-deploy:staging-up
+      // -c staging`, #358) — operator fill id thật vào đây; audit
+      // `resource-bindings` (#362) chặn id rỗng khi flip eligibility cho tới
+      // khi id thật vào, còn id giả đủ shape sẽ qua mặt gate đó. Origin/config
       // Hyperdrive là tài sản Pulumi (§9.1); query
       // cache giữ mặc định server-side (HD3) — không key nào ở đây tắt được nó.
       "hyperdrive": [
         {
           "binding": "HYPERDRIVE",
-          "id": "00000000000000000000000000000000",
+          "id": "",
         },
       ],
       // Origin tất định cho delivery tooling (smoke check) — KHÔNG phải thuộc
