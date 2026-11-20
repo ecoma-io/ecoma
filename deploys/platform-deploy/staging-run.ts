@@ -283,11 +283,15 @@ export function runStagingPhase(
   deps: StagingExecDeps = defaultDeps,
 ): { record: StagingProvisioningRecord; recordPath: string } {
   const projectDir = deployProjectDir(project);
+  // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
+  // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
+  // đó adapter tự fallback đọc env khi `backendUrl` undefined — đường lỗi kép
+  // đã được OCR chỉ ra).
+  const { backendUrl, env } = resolveStagingRunEnv(sourceEnv);
   const selection = stagingDeploymentAdapter.stackSelection(project, {
     slot: STAGING_SLOT,
-    backendUrl: sourceEnv[STAGING_STATE_URL_ENV_KEY],
+    backendUrl,
   });
-  const { backendUrl, env } = resolveStagingRunEnv(sourceEnv);
   const startedAt = new Date().toISOString();
   const gitSha = readGitHeadSha(projectDir, deps);
   ensureStagingStack(projectDir, selection, env, deps);
