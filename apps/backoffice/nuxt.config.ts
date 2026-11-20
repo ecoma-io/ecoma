@@ -166,7 +166,7 @@ export default defineNuxtConfig({
   },
   pwa: {
     registerType: 'prompt',
-    workbox: {
+    generateSW: {
       globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
       runtimeCaching: [
         {

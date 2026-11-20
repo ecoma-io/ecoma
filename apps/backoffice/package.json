@@ -16,8 +16,7 @@
     "@nuxtjs/i18n": "10.6.0",
     "@testcontainers/postgresql": "12.2.1",
     "@types/pg": "^8.23.1",
-    "@vite-pwa/assets-generator": "1.0.4",
-    "@vite-pwa/nuxt": "1.1.1",
+    "@vite-pwa/nuxt": "2.0.2",
     "pg": "^8.23.1",
     "testcontainers": "12.2.1"
   },
