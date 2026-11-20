@@ -13,9 +13,8 @@
   // KHÔNG có `routes`/`hostname` public — service chỉ có internal API,
   // gọi qua Service Binding từ Worker cùng account (architecture `01` §6).
   //
-  // CHƯA khai `env.staging`/`env.production`: chưa có Worker identity cho làn
-  // nào của hai làn deploy (thiết kế `02-delivery.md` §7.2, chưa hiện thực),
-  // nên app nằm ngoài deploy matrix. Binding khai ở khối top level dưới đây
+  // `env.staging` đã khai (lane #355, Worker `stg-ecoma-transactional-mail`);
+  // `env.production` chưa khai ở M2. Binding khai ở khối top level dưới đây
   // KHÔNG được Wrangler kế thừa vào named environment — mỗi `env.<lane>` phải
   // khai lại binding của nó tường minh, và điều kiện readiness trước khi vào
   // matrix nằm ở overview `02` §4.1/§5.2 + 03-operations.md §2.
@@ -72,5 +71,40 @@
         "binding": "QUEUE",
       },
     ],
+  },
+
+  // --- Staging lane (#355) — Worker `stg-ecoma-transactional-mail` ---
+  //
+  // Worker internal-only: `workers_dev: false` là điều kiện readiness
+  // (03-operations.md §2), không có hostname public nào. Wrangler KHÔNG kế
+  // thừa binding top-level vào `env.<lane>` (02-delivery.md §4.1 điều 1), nên
+  // D1 và Queue producer của làn được khai lại TƯỜNG MINH tại đây.
+  //
+  // Resource là quyền provision của Pulumi (§9.1): D1 `stg-mail` do
+  // `deploys/transactional-mail-deploy` stack staging tạo và cấp `database_id`
+  // qua stack output `mailDatabaseId` sau lần `staging-up` xanh đầu tiên —
+  // `database_id` CỐ Ý KHÔNG khai ở đây (trạng thái "chưa wiring" trung thực;
+  // điền id đoán sẽ qua mặt guard `resource-bindings` khi flip eligibility).
+  // Queue tham chiếu theo TÊN với chuỗi bốn Queue staging do cùng program
+  // provision (`STAGING_QUEUE_NAMES`). Cron kế thừa `triggers` top-level.
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-transactional-mail",
+      "workers_dev": false,
+      "d1_databases": [
+        {
+          "binding": "mail",
+          "database_name": "stg-mail",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "queue": "stg-ecoma-mail-delivery",
+            "binding": "QUEUE",
+          },
+        ],
+      },
+    },
   },
 }
