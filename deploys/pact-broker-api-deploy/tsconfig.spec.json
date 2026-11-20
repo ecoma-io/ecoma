@@ -9,6 +9,7 @@
     "rootDir": ".",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "lib": ["es2023"],
     "allowImportingTsExtensions": true,
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
     "forceConsistentCasingInFileNames": true,
@@ -21,11 +22,16 @@
     "vitest.config.ts",
     "vitest.config.mts",
     "vitest.integration.config.mts",
+    "index.spec.ts",
+    "index.ts",
+    "local-program.ts",
     "scripts.ts",
     "scripts.spec.ts",
+    "staging-program.ts",
     "staging-run.spec.ts",
     "staging-run.ts",
     "superadmin-resolver.spec.ts",
+    "superadmin-resolver.ts",
     "tests/**/*.ts"
   ]
 }
