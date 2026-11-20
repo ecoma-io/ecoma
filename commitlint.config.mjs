@@ -49,7 +49,15 @@ export default {
     },
   ],
   rules: {
-    'scope-enum': async (ctx) => [2, 'always', [...(await nxScopes.utils.getProjects(ctx))]],
+    'scope-enum': async (ctx) => [
+      2,
+      'always',
+      // Scope `release` là ngoại lệ whitelist duy nhất: commit release do runner
+      // tạo (#361, 02-delivery.md §7.2) mang scope `release` vì một batch có thể
+      // chứa nhiều Nx project, trong khi scope của commit phải là một project
+      // đơn. Mọi scope khác vẫn phải là một Nx project thật.
+      [...(await nxScopes.utils.getProjects(ctx)), 'release'],
+    ],
     'breaking-change-allowed-types': [2, 'always'],
     'ascii-only-message': [2, 'always'],
   },

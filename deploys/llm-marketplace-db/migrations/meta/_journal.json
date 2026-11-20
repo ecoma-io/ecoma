@@ -1,0 +1,34 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0001_privileges",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000001000,
+      "tag": "0002_marketplace_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000002000,
+      "tag": "0003_narrow_default_privileges",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7.1.0",
+      "when": 1700000003000,
+      "tag": "0004_marketplace_offering",
+      "breakpoints": true
+    }
+  ]
+}

@@ -472,11 +472,11 @@ describe('local-smoke.mjs portal probes (#26)', () => {
     const result = await run([
       ...fixtureArgs(port),
       '--portal',
-      'pact=pact-abc123456789.fbi.com',
+      'api=pact-abc123456789.fbi.com',
       ...FAST,
     ]);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("portal 'pact'");
+    expect(result.stderr).toContain("portal 'api'");
     expect(result.stderr).toContain('expected 2xx, got 500');
     expect(result.stderr).not.toContain('smoke RETRY');
     expect(result.stdout).not.toContain('smoke OK');

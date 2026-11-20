@@ -11,7 +11,8 @@
  *
  * Script độc lập với deploy pipeline: chạy trực tiếp từ CI runner / ops box
  * bằng PostgreSQL client với credential hợp lệ (runtime role), không bao giờ
- * chạy từ Worker — cùng lý do `db/apply.mts` (HD6: Hyperdrive không hỗ trợ
+ * chạy từ Worker — cùng lý do runner migration `deploys/pact-broker-db/runner.mts`
+ * (HD6: Hyperdrive không hỗ trợ
  * advisory lock; script này chỉ DML nên không cần lock, nhưng ranh giới
  * runner/Worker vẫn giữ nguyên).
  *
@@ -128,8 +129,8 @@ type MembershipOutcome = 'created' | 'verified';
 /**
  * Bootstrap tenant canonical — core logic dùng chung bởi CLI và integration
  * test (một đường code duy nhất, đúng pattern runner-canonical của
- * `db/apply.mts`: vòng apply viết riêng trong test là test bản sao, không
- * test runner).
+ * `deploys/pact-broker-db/runner.mts` — cutover #378: vòng apply viết riêng
+ * trong test là test bản sao, không test runner).
  *
  * Client truyền vào phải có quyền INSERT/SELECT trên `pact.tenants`,
  * `pact.tenant_members` và `pact.audit_events` (runtime role). Hàm KHÔNG tự

@@ -14,7 +14,7 @@ Nx project `@ecoma-io/auth`, tags `type:composition`, `scope:auth`, `runtime:edg
 
 - **Route surface hai lớp** (`src/main.ts`): Hono giữ `/health`, `/ready`, hai route discovery, `/authorize`, `/authorize/confirm` và năm route internal POST `/internal/session/verified`, `/internal/consent/context`, `/internal/consent/decide`, `/internal/connected-applications`, `/internal/connected-applications/revoke`; pipeline của provider giữ `/auth`, `/auth/:uid` (resume), `/token`, `/jwks.json`, `/revocation`, `/session/end` qua bảng chuyển tiếp `PROVIDER_ROUTES`. Feature `userinfo` của provider bị tắt trong `src/oidc/provider.ts` nên không có route nào cho nó.
 - **Readiness fail-closed** `GET /ready`: kiểm đủ hai binding (`HYPERDRIVE`, `ACCOUNT_SERVICE`), nạp cấu hình signing, probe `db-auth` và probe `account` qua đúng Service Binding mà mọi request thật đi; `GET /health` chỉ protocol-only.
-- **Schema `db-auth`**: 14 migration SQL dưới `migrations/` (`0001`…`0014`), áp dụng theo thứ tự tên file bằng `db/apply.mts` (advisory lock, history `auth.schema_migrations`); driver PostgreSQL đi qua lớp adapter trong `libs/auth-infrastructure`, không import thẳng trong app.
+- **Schema `db-auth`**: 14 migration SQL dưới `migrations/` (`0001`…`0014`), hợp đồng chạy trong `deploys/auth-db`; driver PostgreSQL đi qua lớp adapter trong `libs/auth-infrastructure`, không import thẳng trong app.
 - **Cấu hình secret** (`src/config.ts`): `AUTH_SIGNING_KEY` + `AUTH_SIGNING_KEY_ID` (PKCS#8 PEM), `AUTH_HANDLE_KEY` + `AUTH_HANDLE_KEY_VERSION`, `AUTH_INTERNAL_SECRET` với slot verify-only `AUTH_INTERNAL_PREVIOUS_SECRET`/`AUTH_INTERNAL_PREVIOUS_KID`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_RESOURCES`, `AUTH_COOKIE_KEYS`, `AUTH_ACCOUNT_BASE_URL` — không biến nào có default; thiếu là lỗi nạp tường minh.
 - **Binding** khai trong `wrangler.jsonc`: Hyperdrive `HYPERDRIVE` (→ `db-auth`) và Service Binding `ACCOUNT_SERVICE` (→ shim Worker `ecoma-account-bridge` trên lane local; shim chuyển tiếp HTTP tới container account qua `BRIDGE_TARGET_ORIGIN` do `deploys/auth-deploy` inject).
 
@@ -32,7 +32,7 @@ pnpm nx run @ecoma-io/auth:lint
 pnpm nx run @ecoma-io/auth:typecheck      # tsc --build --emitDeclarationOnly
 pnpm nx run @ecoma-io/auth:typecheck-db   # tsc cho db/
 pnpm nx run @ecoma-io/auth:build          # esbuild bundle → dist/main.js (conditions workerd)
-pnpm nx run @ecoma-io/auth:db:migrate     # áp migration — cần kết nối tới PostgreSQL với credential migrator
+pnpm nx run @ecoma-io/auth-db:migrate     # áp migration (runner.mts adopt && migrate) — cần DATABASE_URL credential migrator
 ```
 
 - Connection string thật của Hyperdrive trên lane local đến từ biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` trong container env (`platform facts` PF3/PF4), không nằm trong `wrangler.jsonc` — `id` của binding là chuỗi rỗng có chủ ý.

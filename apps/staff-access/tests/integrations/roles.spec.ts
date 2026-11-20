@@ -46,6 +46,11 @@ const RUNTIME = 'ecoma_staff_access_runtime';
  *   lẫn CHECK; DELETE không nằm trong vòng đời (outbox chỉ append + đánh dấu).
  */
 const EXPECTED_PRIVILEGES: Record<string, readonly string[]> = {
+  // Bảng history của migration runner (`__drizzle_migrations`, cutover #375):
+  // hạ tầng của kit, chỉ role `_migrator` chạm tới — runtime không được grant
+  // gì nên danh sách rỗng là điều ĐÚNG. Phải nằm trong tập kiểm để một
+  // `GRANT` thừa nhắm vào nó cũng bị bắt.
+  __drizzle_migrations: [],
   authorization_audit: ['INSERT', 'SELECT'],
   entitlement_outbox_events: ['INSERT', 'SELECT'],
   entitlements: ['INSERT', 'SELECT', 'UPDATE'],

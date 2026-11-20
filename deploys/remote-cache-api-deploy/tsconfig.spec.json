@@ -24,6 +24,7 @@
     "scripts.ts",
     "scripts.spec.ts",
     "object-storage-env.spec.ts",
+    "staging-run.spec.ts",
     "superadmin-resolver.spec.ts",
     "tests/**/*.ts"
   ]

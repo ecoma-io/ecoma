@@ -29,6 +29,25 @@ const JOB_ONLY_PROJECTS = [
   'web-push-notification-job-deploy',
 ] as const;
 
+/**
+ * Migration lifecycle projects (`deploys/*-db`, quyết định #373/#374): không
+ * build image, không local lane — coordinator invoke `db-generate`/`db-check`/
+ * `db-migrate` qua nx target theo hợp đồng migration §3a. Cùng exemption
+ * marker `ecoma.deployment.status: "scaffold"` với job-only ở
+ * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
+ */
+const DATABASE_PROJECTS = [
+  'pact-broker-app-db',
+  'pact-broker-db',
+  'llm-gateway-db',
+  'llm-tenant-db',
+  'llm-marketplace-db',
+  'account-db',
+  'auth-db',
+  'backoffice-db',
+  'staff-access-db',
+] as const;
+
 function packageJson(project: string): Record<string, unknown> {
   return JSON.parse(
     readFileSync(join(ROOT_DIR, 'deploys', project, 'package.json'), 'utf8'),
@@ -46,6 +65,22 @@ function readEntry(project: string): string {
   return readFileSync(join(ROOT_DIR, 'deploys', project, 'local.ts'), 'utf8');
 }
 
+/**
+ * Bảy deploy unit đóng gói app Nuxt bằng artifact dựng trước (#386, mở rộng
+ * cho hai app LLM còn lại qua #427): image COPY `apps/<app>/.output-node/`
+ * thay vì build trong image. Các unit khác (WIC, job) không tham gia contract
+ * này.
+ */
+const ARTIFACT_DEPLOY_PROJECTS = {
+  'home-deploy': '@ecoma-io/home',
+  'account-deploy': '@ecoma-io/account',
+  'backoffice-deploy': '@ecoma-io/backoffice',
+  'pact-broker-app-deploy': '@ecoma-io/pact-broker-app',
+  'remote-cache-app-deploy': '@ecoma-io/remote-cache-app',
+  'llm-console-deploy': '@ecoma-io/llm-console',
+  'llm-seller-deploy': '@ecoma-io/llm-seller',
+} as const;
+
 describe('local lane colocated entry contract', () => {
   it('every tagged deployment project has a local.ts entry and local-up/local-down targets (fail-closed on new lanes)', () => {
     // Ghim CẤU TRÚC: project `tag:type:deployment` mà thiếu entry/target local là
@@ -55,7 +90,9 @@ describe('local lane colocated entry contract', () => {
       existsSync(join(deploysDir, name, 'package.json')),
     );
     const laneProjects = allProjects.filter(
-      (project) => !(JOB_ONLY_PROJECTS as readonly string[]).includes(project),
+      (project) =>
+        !(JOB_ONLY_PROJECTS as readonly string[]).includes(project) &&
+        !(DATABASE_PROJECTS as readonly string[]).includes(project),
     );
     expect(new Set(laneProjects)).toEqual(new Set(LANE_PROJECTS));
     for (const project of laneProjects) {
@@ -67,6 +104,53 @@ describe('local lane colocated entry contract', () => {
       expect(targets['local-up'], `${project} must declare a local-up target`).toBeDefined();
       expect(targets['local-down'], `${project} must declare a local-down target`).toBeDefined();
     }
+  });
+
+  it('every Nuxt-app deploy unit wraps build:development and pins it before local-up (#386)', () => {
+    // Contract artifact packaging (#386): image COPY `.output-node/` dựng
+    // sẵn, nên `local-up` PHẢI chạy `build:development` trước. `dependsOn`
+    // không ghim được configuration (`TargetDependencyConfig` Nx 23.3.2 không
+    // có field `configuration`), nên cạnh graph trỏ vào wrapper
+    // `local-build` — target chạy lệnh với configuration tường minh.
+    // `cache: false` là CONTRACT lane (target mutate Docker resource thật qua
+    // image build; cache hit là bỏ một lần build thật) — tự khai ở target vì
+    // nx.json targetDefaults chỉ enumerate local-up/local-down/local-smoke.
+    const violations: string[] = [];
+    for (const [deploy, appProject] of Object.entries(ARTIFACT_DEPLOY_PROJECTS)) {
+      const targets = nxTargets(deploy);
+      const localBuild = targets['local-build'] as
+        | {
+            cache?: unknown;
+            options?: { cwd?: string; command?: string };
+            configurations?: Record<string, unknown>;
+          }
+        | undefined;
+      if (localBuild === undefined) {
+        violations.push(`${deploy}: missing local-build target`);
+        continue;
+      }
+      if (localBuild.cache !== false) {
+        violations.push(`${deploy}: local-build must not be cacheable (lane contract)`);
+      }
+      if (localBuild.configurations?.['local'] === undefined) {
+        violations.push(`${deploy}: local-build must declare configurations.local`);
+      }
+      const command = localBuild.options?.command;
+      if (command !== `pnpm nx run ${appProject}:build:development`) {
+        violations.push(
+          `${deploy}: local-build must run ${appProject}:build:development, got ${String(command)}`,
+        );
+      }
+      if (localBuild.options?.cwd !== `deploys/${deploy}`) {
+        violations.push(`${deploy}: local-build must run from the project directory`);
+      }
+      const localUp = targets['local-up'] as { dependsOn?: ReadonlyArray<unknown> } | undefined;
+      const dependsOn = localUp?.dependsOn ?? [];
+      if (!dependsOn.some((entry) => entry === 'local-build')) {
+        violations.push(`${deploy}: local-up must dependOn local-build (build before image)`);
+      }
+    }
+    expect(violations, 'artifact packaging contract (#386)').toEqual([]);
   });
 
   it('every local-up runs the colocated entry, not a DX command', () => {

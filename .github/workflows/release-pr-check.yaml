@@ -1,0 +1,51 @@
+name: Release PR check
+
+# CI identification của Release PR (#361): PR với head branch `release/*` được
+# phân loại, re-verify file-shape metadata-only và kiểm manifest (base SHA +
+# head SHA + artifact digests) — phòng trường hợp commit được tạo ngoài đường
+# chuẩn release-prepare. Đây là check mà gate AUTO4 (#363) sẽ đọc làm metadata
+# đầu vào. pull_request_target là trigger privileged: workflow chạy từ BASE ref
+# và checkout được trỏ tường minh vào base SHA — không có nội dung nào từ PR
+# head được checkout hay thực thi; dữ liệu PR (files, body) chỉ đi qua REST API.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: release-pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  metadata-only:
+    name: metadata-only
+    # Classification nội bộ theo pattern code-review.yml: chỉ PR của repo này,
+    # head branch đúng convention `release/*`; PR khác được bỏ qua (job-level
+    # if để run bị skip không cấp phát runner).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the base SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Verify the file shape and the manifest
+        env:
+          # Truyền qua env thay vì nội suy tường minh trong lệnh (cùng shape mà
+          # semgrep accepted-shapes của repo yêu cầu).
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: node tools/dx/scripts/release/release-pr.mjs verify-pr

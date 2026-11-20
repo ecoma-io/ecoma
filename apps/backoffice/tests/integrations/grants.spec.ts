@@ -63,6 +63,11 @@ const PAST_VALID_SUB = accountId('g');
  *     **không** UPDATE: consume bằng DELETE là toàn bộ vòng đời (single-use).
  */
 const EXPECTED_RUNTIME_PRIVILEGES: Record<string, string[]> = {
+  // Bảng history của migration runner (`__drizzle_migrations`, cutover #375):
+  // hạ tầng của kit, chỉ role `_migrator` chạm tới — runtime không được grant
+  // gì nên danh sách rỗng là điều ĐÚNG. Phải nằm trong tập kiểm để một
+  // `GRANT` thừa nhắm vào nó cũng bị bắt.
+  __drizzle_migrations: [],
   authorization_audit: ['INSERT', 'SELECT'],
   bff_login_flows: ['DELETE', 'INSERT', 'SELECT'],
   bff_sessions: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],

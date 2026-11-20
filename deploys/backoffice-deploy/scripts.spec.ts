@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MIGRATOR_PASSWORD_ENV_VAR,
   RUNTIME_PASSWORD_ENV_VAR,
+  buildMigrateScript,
   buildProvisionScript,
 } from './scripts.ts';
 
@@ -26,6 +27,9 @@ import {
 // hàm build — assert dưới chỉ chứng minh text sinh ra không bao giờ chứa nó,
 // tức script không thể rò secret kể cả khi ai đó tái nhúng interpolation.
 const SENTINEL = `S3nt1n3l-Bo'x1%@:/?#`;
+
+const NODE_IMAGE =
+  'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
 
 /** Tên role và TÊN biến môi trường tương ứng — cặp không thể lệch giữa hai phía. */
 const PASSWORD_ROLES: ReadonlyArray<readonly [string, string]> = [
@@ -45,10 +49,7 @@ describe('password env var names', () => {
 });
 
 /** Script provision dùng cho các assert phía dưới. */
-const provisionScript = buildProvisionScript({
-  postgresContainerName: 'ecoma-x-postgres',
-  worktreeRoot: '/repo/worktrees/x',
-});
+const provisionScript = buildProvisionScript({ postgresContainerName: 'ecoma-x-postgres' });
 
 function literalRoleAlterLines(): string[] {
   return provisionScript
@@ -139,29 +140,60 @@ describe('buildProvisionScript', () => {
     }
   });
 
-  it('keeps the migrator grant, public hardening and the inline migration pipe, verbatim', () => {
+  it('keeps the migrator grant and public hardening, and no longer pipes migrations inline', () => {
     expect(provisionScript).toContain(
       `GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-backoffice" TO ecoma_backoffice_migrator;`,
     );
     expect(provisionScript).toContain(`REVOKE ALL ON SCHEMA public FROM PUBLIC`);
-    // Pipe migration — baseline giữ nguyên: advisory lock bao quanh, cat toàn
-    // bộ file SQL qua shellQuote(worktreeRoot), ON_ERROR_STOP dừng.
-    expect(provisionScript).toContain(`SELECT pg_advisory_lock(hashtext('db-backoffice'));`);
-    expect(provisionScript).toContain(`SELECT pg_advisory_unlock(hashtext('db-backoffice'));`);
-    expect(provisionScript).toContain(`'/repo/worktrees/x'/apps/backoffice/db/migrations/*.sql`);
-    expect(provisionScript).toContain(
-      `| docker exec -i "$PG" psql -U ecoma_backoffice_migrator -d db-backoffice -v ON_ERROR_STOP=1`,
-    );
-    // Pipe mang đúng TÊN role migrator — không giá trị mật khẩu nào trong nó.
+    // Cutover #375: migration KHÔNG còn đi cùng provision — pipe cũ (advisory
+    // lock + cat SQL qua psql) đã retired, migrate là container riêng.
+    expect(provisionScript).not.toContain(`pg_advisory_lock`);
+    expect(provisionScript).not.toContain(`apps/backoffice`);
     expect(provisionScript).not.toMatch(/PGPASSWORD/u);
   });
 
   it('is deterministic for the same inputs', () => {
+    expect(buildProvisionScript({ postgresContainerName: 'ecoma-x-postgres' })).toBe(
+      provisionScript,
+    );
+  });
+});
+
+describe('buildMigrateScript', () => {
+  const script = buildMigrateScript({
+    networkName: 'ecoma-x-network',
+    worktreeRoot: '/repo/worktrees/x',
+    nodeImage: NODE_IMAGE,
+  });
+
+  it('passes DATABASE_URL to docker run by NAME only, never as a value', () => {
+    expect(script).toContain('-e DATABASE_URL \\');
+    expect(script).not.toContain('DATABASE_URL=postgresql://');
+    expect(script).not.toContain(SENTINEL);
+    expect(script).not.toMatch(/PGPASSWORD/u);
+  });
+
+  it('keeps the canonical runner invocation, mounts and network', () => {
+    expect(script).toContain('--network ecoma-x-network');
+    expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
+    expect(script).toContain(`-v '/repo/worktrees/x'/node_modules:/repo/node_modules`);
+    expect(script).toContain('-w /repo/deploys/backoffice-db');
+    expect(script).toContain(NODE_IMAGE);
+    expect(script).toContain(
+      "sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'",
+    );
+    // Cutover #375: invoke script KHÔNG còn trỏ vào runner cũ đã retire.
+    expect(script).not.toContain('apps/backoffice');
+    expect(script).not.toContain('apply.mts');
+  });
+
+  it('is deterministic for the same inputs', () => {
     expect(
-      buildProvisionScript({
-        postgresContainerName: 'ecoma-x-postgres',
+      buildMigrateScript({
+        networkName: 'ecoma-x-network',
         worktreeRoot: '/repo/worktrees/x',
+        nodeImage: NODE_IMAGE,
       }),
-    ).toBe(provisionScript);
+    ).toBe(script);
   });
 });

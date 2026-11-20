@@ -43,7 +43,7 @@ không thể giữ `pg_advisory_lock` qua đường đi của Worker. Worker ch�
 `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-account' pnpm nx run @ecoma-io/account:db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-account' pnpm nx run @ecoma-io/account-db:migrate
 ```
 
 | Biến                  | Bắt buộc | Mặc định  | Ý nghĩa                                                |
@@ -249,7 +249,7 @@ rồi hỏng dưới tải đồng thời.
 apps/account/db/
 ├── README.md
 ├── migrate.mts           # hằng số + helper dùng chung
-├── apply.mts             # CLI runner cho CI
+├── (runner migrate hợp đồng sống ở `deploys/account-db` — cutover #375)
 ├── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
 └── migrations/
     ├── 0001_identity_core.sql      # users, sessions, handoffs, audit, outbox

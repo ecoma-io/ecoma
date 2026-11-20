@@ -77,12 +77,16 @@ import {
   buildLaneStateLine,
   buildMockContainerInvocation,
   buildMockWaiterInvocation,
+  activeOfferServingCount,
+  consumerApiKeyRowDeleteArgs,
   consumerApiKeyRowProbeArgs,
+  divergedUpstreamEndpointDeleteArgs,
   extractConsumerApiKeyRecordedStdout,
   hasConsumerApiKeyLine,
   mockContainerName,
   mockUpstreamBaseUrl,
   mockUpstreamEndpointUrl,
+  offerServingProbeArgs,
   shouldSkipLaneUp,
 } from './lane-invocation.js';
 
@@ -272,30 +276,98 @@ function awaitMockReadiness(
 }
 
 /**
- * Chạy probe chỉ đọc đếm row `api_keys` ACTIVE của tenant consumer trong
- * db-llm-gateway — `docker exec` psql trong container PostgreSQL platform, argv
- * dựng bởi `consumerApiKeyRowProbeArgs` (SQL hằng, không secret trên argv).
- * Fail-closed: lỗi spawn hoặc exit != 0 của docker/psql là THROW — một lỗi hạ
- * tầng của probe KHÔNG BAO GIỜ được đọc thành "không còn row", vì chạy
- * `local.ts up` khi key thật vẫn sống sẽ xoay password role và thay stdout ghi
- * nhận (mất plaintext show-once của bước 9).
+ * Chạy một câu `docker exec ... psql` của lane (probe chỉ đọc lẫn cleanup) với
+ * fail-closed thống nhất: lỗi spawn hoặc exit != 0 của docker/psql là THROW —
+ * một lỗi hạ tầng KHÔNG BAO GIỜ được đọc thành "không còn row/cleanup xong",
+ * vì chạy `local.ts up` khi state thật vẫn sống sẽ xoay password role và thay
+ * stdout ghi nhận (mất plaintext show-once của bước 9). `label` và `note` là
+ * hằng tại call site — chỉ gọi định danh trong message, không ghép raw output.
  */
-function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
-  const probe = exec(
-    'docker',
-    consumerApiKeyRowProbeArgs(foundation.ctx.namespace),
-    foundation.ctx.worktreeRoot,
-    foundation.env,
-  );
-  if (probe.error !== undefined) {
-    throw new Error(`starting the api key row probe failed: ${describeSpawnFailure(probe)}`);
+function runPsqlExec(
+  foundation: EntryFoundation,
+  args: string[],
+  label: string,
+  note: string,
+): string {
+  const result = exec('docker', args, foundation.ctx.worktreeRoot, foundation.env);
+  if (result.error !== undefined) {
+    throw new Error(`starting the ${label} failed: ${describeSpawnFailure(result)}`);
   }
-  if (probe.status !== 0) {
+  if (result.status !== 0) {
     throw new Error(
-      `the api key row probe failed (exit ${String(probe.status)}) — verify the postgres container of this namespace is running, then re-run (the probe is a read-only SELECT count)`,
+      `the ${label} failed (exit ${String(result.status)}) — verify the postgres container of this namespace is running, then re-run (${note})`,
     );
   }
-  return activeConsumerApiKeyRowCount(probe.stdout);
+  return result.stdout;
+}
+
+/**
+ * Chạy probe chỉ đọc đếm row `api_keys` ACTIVE của tenant consumer trong
+ * db-llm-gateway — argv dựng bởi `consumerApiKeyRowProbeArgs` (SQL hằng, không
+ * secret trên argv), fail-closed qua {@link runPsqlExec}.
+ */
+function probeConsumerApiKeyRowCount(foundation: EntryFoundation): number {
+  return activeConsumerApiKeyRowCount(
+    runPsqlExec(
+      foundation,
+      consumerApiKeyRowProbeArgs(foundation.ctx.namespace),
+      'api key row probe',
+      'the probe is a read-only SELECT count',
+    ),
+  );
+}
+
+/**
+ * Đếm offer E2E canonical đang `active` trong db-llm-marketplace — điều kiện
+ * hội tụ serving thứ ba của skip (issue #436). Chỉ chạy sau khi stdout ghi
+ * nhận tồn tại (bootstrap đã từng chạy ⇒ migration marketplace đã chạy ⇒
+ * bảng tồn tại), nên psql exit ≠ 0 là lỗi thật, không phải "chưa có bảng".
+ */
+function probeOfferServingCount(foundation: EntryFoundation): number {
+  return activeOfferServingCount(
+    runPsqlExec(
+      foundation,
+      offerServingProbeArgs(foundation.ctx.namespace),
+      'offer serving probe',
+      'the probe is a read-only SELECT count',
+    ),
+  );
+}
+
+/**
+ * Xoá row endpoint diverged khỏi db-llm-marketplace — recovery tài liệu của
+ * bootstrap khi endpoint target đổi (bất biến qua bootstrap). Chỉ chạy khi URL
+ * cấu hình THAY ĐỔI so với lần up trước; câu DELETE chỉ khớp endpoint của
+ * offer canonical mang url khác URL mới, nên chạy lặp là no-op an toàn.
+ */
+function clearDivergedUpstreamEndpoints(foundation: EntryFoundation, configuredUrl: string): void {
+  runPsqlExec(
+    foundation,
+    divergedUpstreamEndpointDeleteArgs(foundation.ctx.namespace, configuredUrl),
+    'diverged endpoint cleanup',
+    'the cleanup deletes only endpoint rows whose url differs from the configured upstream target',
+  );
+  console.error(
+    '[llm-api-deploy-lane] upstream base URL changed — cleared diverged endpoint rows so the marketplace bootstrap can re-seed against the new target',
+  );
+}
+
+/**
+ * Xoá row api_keys của tenant consumer — nửa đầu của recovery show-once được
+ * tài liệu trên guard (`lane.ts` up): xoá row rồi cho `local.ts up` chạy lại,
+ * runner bước 9 phát key mới VÀ ghi nhận plaintext vào stack output (password
+ * role xoay mỗi lần up nên trigger của bước 9 chắc chắn đổi — rerun là deterministic).
+ */
+function deleteConsumerApiKeyRow(foundation: EntryFoundation): void {
+  runPsqlExec(
+    foundation,
+    consumerApiKeyRowDeleteArgs(foundation.ctx.namespace),
+    'consumer api key row deletion',
+    'the deletion removes only the canonical consumer tenant api_keys row',
+  );
+  console.error(
+    '[llm-api-deploy-lane] consumer api_keys row deleted — local.ts up will re-issue the key with a recorded plaintext',
+  );
 }
 
 async function up(foundation: EntryFoundation): Promise<number> {
@@ -325,13 +397,16 @@ async function up(foundation: EntryFoundation): Promise<number> {
   // mock match hậu tố (README mock) nên probe vẫn chạm models. Giá trị không
   // secret. LƯU Ý đổi giá trị: bootstrap coi endpoint target là BẤT BIẾN
   // (fail-closed khi diverge) — phục hồi bằng xoá row `upstream_endpoints` rồi
-  // cho bootstrap chạy lại (xem README, mục Lane E2E).
-  setStackConfig(
-    LANE_PROJECT,
-    UPSTREAM_BASE_URL_CONFIG_KEY,
-    mockUpstreamEndpointUrl(foundation.ctx.namespace),
-    foundation,
-  );
+  // cho bootstrap chạy lại (xem README, mục Lane E2E). Vì URL cũ được đọc
+  // TRƯỚC khi ghi đè (dòng `previousUpstreamBaseUrl` dưới), một lần up đầu
+  // trên volume mới (local.ts đã bootstrap với default `.invalid` trước khi
+  // lane chạy) là phát hiện được: URL lệch → xoá row diverged + bắt buộc
+  // chạy lại bootstrap (issue #436).
+  const previousUpstreamBaseUrl = readStackConfig(foundation, UPSTREAM_BASE_URL_CONFIG_KEY);
+  const nextUpstreamBaseUrl = mockUpstreamEndpointUrl(foundation.ctx.namespace);
+  const upstreamBaseUrlChanged =
+    previousUpstreamBaseUrl !== undefined && previousUpstreamBaseUrl !== nextUpstreamBaseUrl;
+  setStackConfig(LANE_PROJECT, UPSTREAM_BASE_URL_CONFIG_KEY, nextUpstreamBaseUrl, foundation);
 
   // Giá trị Authorization mà mock chấp nhận là header ĐẦY ĐỦ worker gửi —
   // `Bearer ${upstreamCredential}` (dispatch ở `apps/llm-api/src/upstream.ts`).
@@ -343,6 +418,14 @@ async function up(foundation: EntryFoundation): Promise<number> {
   awaitMockReadiness(foundation, networkName, expectedAuthorization);
   console.error('[llm-api-deploy-lane] mock upstream is serving inside the platform network');
 
+  // URL vừa đổi: bootstrap ghi endpoint target là bất biến — xoá row endpoint
+  // diverged TRƯỚC khi chạy lại `local.ts up`, đúng recovery tài liệu (README,
+  // mục Lane E2E). Không xoá khi URL giữ nguyên: trigger của runner 8b không
+  // đổi thì bootstrap không re-run, xoá row chỉ tạo orphan.
+  if (upstreamBaseUrlChanged) {
+    clearDivergedUpstreamEndpoints(foundation, nextUpstreamBaseUrl);
+  }
+
   // Skip-converged: stack output đã mang plaintext key → mọi thứ hội tụ, và
   // chạy `local.ts up` thêm lần nữa CHỈ xoay password + thay stdout ghi nhận
   // (mất plaintext) — skip nguyên vòng. NHƯNG output cũ không phải bằng chứng
@@ -351,24 +434,36 @@ async function up(foundation: EntryFoundation): Promise<number> {
   // `api_keys` ACTIVE của tenant consumer trong db-llm-gateway; đếm 0 là NGHỊCH
   // — KHÔNG skip, chạy `local.ts up` đầy đủ để bootstrap phát key mới qua hợp
   // đồng converge-on-empty của runner bước 9 (bảng còn row nhưng tất cả revoked
-  // thì runner tự fail-closed đúng hợp đồng của nó). Quyết định skip đi qua
+  // thì runner tự fail-closed đúng hợp đồng của nó). Điều kiện thứ ba (issue
+  // #436): offer E2E canonical phải `active` — fresh volume bootstrap lần đầu
+  // với default `.invalid` là offer kẹt `draft`, skip ở ca đó là bỏ đường
+  // re-converge duy nhất của bootstrap. Quyết định skip đi qua
   // `shouldSkipLaneUp` (module thuần) — spec colocated ghim hợp đồng đó.
   const recorded = readConsumerApiKeyStackOutput(foundation);
-  if (recorded !== undefined && hasConsumerApiKeyLine(recorded)) {
+  const plaintextRecorded = recorded !== undefined && hasConsumerApiKeyLine(recorded);
+  if (plaintextRecorded && upstreamBaseUrlChanged) {
+    console.error(
+      '[llm-api-deploy-lane] upstream base URL changed — running local.ts up so the bootstrap re-converges against the new target (its stdout is withheld)',
+    );
+  } else if (plaintextRecorded) {
+    // Chỉ probe khi URL GIỮ NGUYÊN: URL vừa đổi thì skip chắc chắn bị từ chối,
+    // probe chỉ thêm một lỗi hạ tầng có thể có trên đường nhất định chạy up.
     const activeRowCount = probeConsumerApiKeyRowCount(foundation);
-    if (shouldSkipLaneUp(recorded, activeRowCount)) {
+    const activeOfferCount = probeOfferServingCount(foundation);
+    if (shouldSkipLaneUp(recorded, activeRowCount, activeOfferCount)) {
       console.error(
-        '[llm-api-deploy-lane] lane converged — skipping local.ts up (api key plaintext stays in stack state; active api_keys row verified)',
+        '[llm-api-deploy-lane] lane converged — skipping local.ts up (api key plaintext stays in stack state; active api_keys row and active model offer verified)',
       );
       return 0;
     }
     console.error(
-      '[llm-api-deploy-lane] stack state holds the recorded api key but db-llm-gateway has no active api_keys row for the canonical consumer tenant — running local.ts up to re-converge (its stdout is withheld)',
+      '[llm-api-deploy-lane] lane not fully converged (api key row or model offer out of sync) — running local.ts up to re-converge (its stdout is withheld)',
+    );
+  } else {
+    console.error(
+      '[llm-api-deploy-lane] running local.ts up (first lane convergence; its stdout is withheld)',
     );
   }
-  console.error(
-    '[llm-api-deploy-lane] running local.ts up (first lane convergence; its stdout is withheld)',
-  );
   runLaneUp(foundation);
 
   // Bằng chứng kết thúc: plaintext key giờ phải đọc được từ stack output.
@@ -384,10 +479,25 @@ async function up(foundation: EntryFoundation): Promise<number> {
   try {
     extractConsumerApiKeyRecordedStdout(afterUp);
   } catch {
-    throw new Error(
-      'local.ts up converged but the api key plaintext was never recorded: the step-9 runner converged to an existing api_keys row whose plaintext this stack state never saw — ' +
-        'recover by deleting the row (docker exec psql on db-llm-gateway) or by a full local-down then test-lane-up again',
+    // Mất plaintext show-once: lần `local.ts up` ÉP chạy lại (converge chưa
+    // xong — issue #436) khiến runner bước 9 hội tụ `existing` trên row cũ và
+    // thay stdout ghi nhận mà không in lại plaintext. Recovery được tài liệu
+    // trên chính guard này: xoá row consumer rồi `local.ts up` lần nữa — xoay
+    // password role mỗi lần up làm trigger bước 9 đổi chắc chắn, runner phát
+    // key mới và ghi nhận plaintext. Vẫn thiếu plaintext sau recovery là lỗi
+    // thật — fail-closed với chính thông điệp guard cũ.
+    console.error(
+      '[llm-api-deploy-lane] recorded stdout lost the show-once plaintext — deleting the consumer api_keys row and re-running local.ts up so step 9 re-issues the key',
     );
+    deleteConsumerApiKeyRow(foundation);
+    runLaneUp(foundation);
+    const afterRecovery = readConsumerApiKeyStackOutput(foundation);
+    if (afterRecovery === undefined || !hasConsumerApiKeyLine(afterRecovery)) {
+      throw new Error(
+        'the show-once plaintext recovery failed: after deleting the consumer api_keys row and re-running local.ts up, the step-9 runner still did not record a plaintext api key — ' +
+          'inspect the bootstrap consumer-tenant runner output before retrying',
+      );
+    }
   }
   console.error(
     '[llm-api-deploy-lane] lane up complete — consumer api key retrievable from stack state',

@@ -1,0 +1,181 @@
+{
+  "//": [
+    "Deploy eligibility contract - issue #360 (AUTO1), canonical path per docs/architecture/02-delivery.md 7.2.",
+    "",
+    "This file answers ONE question for every Nx project in the workspace: may this project",
+    "participate in deployment, per lane? It splits three memberships that 7.2 used to mix:",
+    "  1. deployment ownership  -> tools/dx/src/architecture/deployment-map.ts (source of truth, do not duplicate here)",
+    "  2. deployment eligibility -> this file (per lane)",
+    "  3. release eligibility   -> nx.json release.projects",
+    "",
+    "Schema (environment-split, decision #360):",
+    "  - `production` (top level): one uniform decision for M2 - every project is `excluded`;",
+    "    production eligibility is M3 scope. Per-project overrides become necessary only in M3.",
+    "  - `rules`: ordered pattern rules for groups that share one reason (libraries, deploy",
+    "    provisioning projects, test suites, future migration projects). First match wins.",
+    "  - `projects`: explicit entries. An explicit entry always overrides any rule; every app",
+    "    in the deployment map has an explicit entry so app drift is reviewable line by line.",
+    "",
+    "Evaluation semantics (binding for the future audit in tools/delivery - #362):",
+    "  1. Start from the full Nx project list (`nx show projects`).",
+    "  2. An explicit entry in `projects` wins over every rule.",
+    "  3. Otherwise the FIRST matching rule in `rules` applies (`*` matches any substring).",
+    "  4. A project matched by neither is `unclassified` and is a BLOCKING error - never a",
+    "     warning: silently skipping a project is the failure mode 7.2 forbids.",
+    "  5. The staging `releaseable` set MUST equal `nx.json -> release.projects`. Two places",
+    "     declaring one list drift; the audit compares them and blocks on drift (#362).",
+    "",
+    "Reasons are English because tooling emits them verbatim into logs and gate output.",
+  ],
+  "schemaVersion": 1,
+  "production": {
+    "status": "excluded",
+    "reason": "production eligibility is M3 scope; no project may claim a production target at M2 (02-delivery.md 7.2 environment-split definition)",
+  },
+  "rules": [
+    {
+      "match": "*-db",
+      "staging": "excluded",
+      "reason": "database migration project (#373/#374 exemplar deploys/<name>-db): owns schema migration, not a deployable runtime; it has no independent versioning - the release contract versions the owning deploy unit's artifact",
+    },
+    {
+      "match": "@ecoma-io/*-domain",
+      "staging": "excluded",
+      "reason": "domain library: ships inside the owning deploy unit's artifact; no independent deployment or versioning",
+    },
+    {
+      "match": "@ecoma-io/*-application",
+      "staging": "excluded",
+      "reason": "application library: ships inside the owning deploy unit's artifact; no independent deployment or versioning",
+    },
+    {
+      "match": "@ecoma-io/*-infrastructure",
+      "staging": "excluded",
+      "reason": "infrastructure library: ships inside the owning deploy unit's artifact; no independent deployment or versioning",
+    },
+    {
+      "match": "@ecoma-io/*-contracts",
+      "staging": "excluded",
+      "reason": "contract artifact: consumed through the contracts registry, not deployed; no independent deployment or versioning",
+    },
+    {
+      "match": "@ecoma-io/ui-*",
+      "staging": "excluded",
+      "reason": "UI library: consumed by app builds; ships inside the owning deploy unit's artifact",
+    },
+    {
+      "match": "*-deploy",
+      "staging": "excluded",
+      "reason": "provisioning project (Pulumi): provisions infrastructure for its deploy unit; the runtime versioning belongs to the app project of the same unit",
+    },
+    {
+      "match": "@ecoma-io/*-e2e",
+      "staging": "excluded",
+      "reason": "system-test suite: runs in the local lane and, from the #363 gate, against the candidate slot; it is verification, not a deployable unit",
+    },
+  ],
+  "projects": {
+    "//": [
+      "Every app of the deployment map (tools/dx/src/architecture/deployment-map.ts) has an",
+      "explicit entry. Non-app projects are classified by the rules above.",
+    ],
+    "@ecoma-io/home": {
+      "staging": "releaseable",
+    },
+    "@ecoma-io/auth-nonce-prune-job": {
+      "staging": "releaseable",
+    },
+    "@ecoma-io/account": {
+      "staging": "excluded",
+      "reason": "env.staging exists but devOrigin is a placeholder in both lanes - the readiness gate blocks it before deploy; hyperdrive binding is declared top level and is NOT inherited into env.staging (02-delivery.md 4.1, 12). Re-add together with backoffice once both are fixed.",
+    },
+    "@ecoma-io/backoffice": {
+      "staging": "excluded",
+      "reason": "env.staging exists but devOrigin is a placeholder in both lanes - the readiness gate blocks it before deploy. Re-add together with account once filled.",
+    },
+    "@ecoma-io/llm-console": {
+      "staging": "excluded",
+      "reason": "scaffold composition app; env.staging exists but devOrigin is a placeholder - readiness gate blocks before deploy.",
+    },
+    "@ecoma-io/llm-seller": {
+      "staging": "excluded",
+      "reason": "scaffold composition app; env.staging exists but devOrigin is a placeholder - readiness gate blocks before deploy.",
+    },
+    "@ecoma-io/pact-broker-app": {
+      "staging": "excluded",
+      "reason": "env.staging exists but devOrigin is a placeholder - readiness gate blocks before deploy.",
+    },
+    "@ecoma-io/remote-cache-app": {
+      "staging": "excluded",
+      "reason": "env.staging exists but devOrigin is a placeholder - readiness gate blocks before deploy.",
+    },
+    "@ecoma-io/auth": {
+      "staging": "excluded",
+      "reason": "no env.staging yet - staging delivery is owned by issue #354 (identity stack to staging).",
+    },
+    "@ecoma-io/llm-api": {
+      "staging": "excluded",
+      "reason": "no env.staging yet - staging delivery is owned by issue #359 (LLM Marketplace to staging).",
+    },
+    "@ecoma-io/pact-broker-api": {
+      "staging": "excluded",
+      "reason": "no env.staging yet - staging delivery is owned by issue #358 (Pact Broker to staging).",
+    },
+    "@ecoma-io/remote-cache-api": {
+      "staging": "excluded",
+      "reason": "no env.staging yet - staging delivery is owned by issue #357 (Remote Cache to staging).",
+    },
+    "@ecoma-io/staff-access": {
+      "staging": "excluded",
+      "reason": "no env.staging yet - staging delivery is owned by issue #354 (identity stack to staging).",
+    },
+    "@ecoma-io/transactional-mail": {
+      "staging": "excluded",
+      "reason": "scaffold; no env.staging yet - owned by issue #355. Per the #348 gate contract the candidate slot runs provider fake + D1 sink, real provider delivery is verified on continuous staging.",
+    },
+    "@ecoma-io/transactional-mailer-job": {
+      "staging": "excluded",
+      "reason": "scaffold; no env.staging yet - owned by issue #355 (OTP delivery path), same fake-provider decision as transactional-mail.",
+    },
+    "@ecoma-io/push-notification": {
+      "staging": "excluded",
+      "reason": "scaffold; no env.staging yet - owned by issue #356, conditional on the M2 gate; the #348 gate contract does not require push for gate v1.",
+    },
+    "@ecoma-io/web-push-notification-job": {
+      "staging": "excluded",
+      "reason": "scaffold; no env.staging yet - owned by issue #356, conditional on the M2 gate; not required by the #348 gate contract.",
+    },
+    "@ecoma-io/staff-access-relay": {
+      "staging": "excluded",
+      "reason": "wrangler-only cron/queue Worker (deployment map: no Pulumi owner); no env.staging yet - owned by issue #356, conditional on the M2 gate.",
+    },
+    "platform-deploy": {
+      "staging": "excluded",
+      "reason": "platform prerequisite (deployment map kind: platform): provisions shared infrastructure for every deploy unit; owns no runtime of its own to version",
+    },
+    "@ecoma-io/local-smoke": {
+      "staging": "excluded",
+      "reason": "local platform smoke suite (02-delivery.md local lane): verification, not a deployable unit",
+    },
+    "@ecoma-io/llm-upstream-mock": {
+      "staging": "excluded",
+      "reason": "local-only mock upstream container used by llm-inference-e2e; never deployed to any lane",
+    },
+    "@ecoma-io/dx": {
+      "staging": "excluded",
+      "reason": "internal developer tooling; runs on workstations and CI, not a deployable runtime",
+    },
+    "@ecoma-io/project-management": {
+      "staging": "excluded",
+      "reason": "internal tooling; not a deployable runtime",
+    },
+    "@ecoma-io/deployment": {
+      "staging": "excluded",
+      "reason": "shared deployment library (localServiceHostname and friends); ships inside consuming artifacts",
+    },
+    "@ecoma-io/account-bridge": {
+      "staging": "excluded",
+      "reason": "bridge library: ships inside the owning deploy unit's artifact; no independent deployment or versioning",
+    },
+  },
+}

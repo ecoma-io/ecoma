@@ -254,11 +254,12 @@ Mỗi product có một pipeline `M1 → M2 → Feature Discovery` **độc lậ
 
 **Product Registry.** Danh sách Product ID hợp lệ cho dòng `Product:` — portfolio vocabulary do tài liệu này sở hữu:
 
-| Product ID        | Product         |
-| ----------------- | --------------- |
-| `llm-marketplace` | LLM Marketplace |
-| `pact-broker`     | Pact Broker     |
-| `remote-cache`    | Remote Cache    |
+| Product ID             | Product              |
+| ---------------------- | -------------------- |
+| `infrastructure-state` | Infrastructure State |
+| `llm-marketplace`      | LLM Marketplace      |
+| `pact-broker`          | Pact Broker          |
+| `remote-cache`         | Remote Cache         |
 
 - **Registry là nguồn duy nhất của Product ID.** Đây là vocabulary portfolio, không phải một knowledge view; không suy Product identity từ tên thư mục Feature, tên bounded context, tên Nx project, tên application, tên deploy unit, số Issue hay tên Milestone.
 - **Hợp lệ không phụ thuộc Features view.** Một Product ID vẫn hợp lệ khi [`../features/README.md`](../features/README.md) chưa có Feature document nào đã hiện thực; không thêm Feature document target-only chỉ để làm Product ID hợp lệ.

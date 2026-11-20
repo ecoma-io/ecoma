@@ -5,10 +5,10 @@
  * (`index.ts`) gọi đúng hàm này nên script chạy thật và script được test là
  * MỘT nguồn sự thật.
  *
- * Unit này KHÔNG có script migrate riêng: migration đi cùng provision — pipe
- * các file SQL thẳng vào psql qua socket trust trong container (advisory lock
- * `hashtext('db-backoffice')` bao quanh, ON_ERROR_STOP dừng) — giữ nguyên hình
- * baseline, chỉ kênh mật khẩu đổi.
+ * Script migrate tách khỏi provision kể từ cutover #375: provision chỉ tạo
+ * database + role + grant; migration chạy container ephemeral riêng qua runner
+ * thật của `deploys/backoffice-db` (wrapper §3a.3 + chế độ `adopt` của cutover),
+ * thay thế pipe SQL cũ qua socket trust trong container.
  *
  * Bất biến bảo mật: giá trị secret (mật khẩu role) KHÔNG BAO GIỜ nằm trong
  * script text — tức không nằm trong argv của `sh -c` mà provider dùng để chạy
@@ -39,12 +39,6 @@ export const RUNTIME_PASSWORD_ENV_VAR = 'BACKOFFICE_PW_RUNTIME';
 export interface ProvisionScriptInputs {
   /** Tên container PostgreSQL của platform mà `docker exec` nhắm vào. */
   readonly postgresContainerName: string;
-  /**
-   * Đường dẫn worktree chứa `apps/backoffice/db/migrations/*.sql` cho pipe
-   * migration — dữ liệu thô vô secret, được `shellQuote` trước khi nối vào
-   * script (không nối trần).
-   */
-  readonly worktreeRoot: string;
 }
 
 /**
@@ -95,10 +89,44 @@ apply_password ecoma_backoffice_runtime "$${RUNTIME_PASSWORD_ENV_VAR}"
 docker exec "$PG" psql -U ecoma_local -d postgres -v ON_ERROR_STOP=1 -c 'GRANT CONNECT, CREATE, TEMPORARY ON DATABASE "db-backoffice" TO ecoma_backoffice_migrator;'
 # Hardening schema public — chạy bằng owner mới revoke được; migration statement là no-op trên PG15+.
 docker exec "$PG" psql -U ecoma_local -d db-backoffice -v ON_ERROR_STOP=1 -c 'REVOKE ALL ON SCHEMA public FROM PUBLIC'
-# 5. Migration qua socket trong container (trust local) — dùng runner SQL thật.
-#    worktreeRoot do người dùng truyền — shellQuote, không nối trần vào script.
-#    Pipe này KHÔNG chứa secret: chỉ SQL migration (dữ liệu public của repo) và
-#    tên role migrator.
-{ echo "SELECT pg_advisory_lock(hashtext('db-backoffice'));"; cat ${shellQuote(inputs.worktreeRoot)}/apps/backoffice/db/migrations/*.sql; echo "SELECT pg_advisory_unlock(hashtext('db-backoffice'));"; } | docker exec -i "$PG" psql -U ecoma_backoffice_migrator -d db-backoffice -v ON_ERROR_STOP=1
+`;
+}
+
+/** Input của {@link buildMigrateScript}. */
+export interface MigrateScriptInputs {
+  /** Tên Docker network của platform mà container migration gia nhập. */
+  readonly networkName: string;
+  /** Đường dẫn worktree — mount `/repo` read-only + `node_modules` RW. */
+  readonly worktreeRoot: string;
+  /** Image Node pin theo digest dùng để chạy tsx của repo. */
+  readonly nodeImage: string;
+}
+
+/**
+ * Script migrate: container ephemeral trên platform network chạy runner thật
+ * của `deploys/backoffice-db` (wrapper §3a.3 — guard `current_database()`
+ * fail-closed, advisory lock giữ nguyên khóa `hashtext('db-backoffice')` của
+ * pipe cũ, statement_timeout, `drizzle-kit migrate` atomic per-run). Chuỗi
+ * `adopt && migrate` là hợp đồng cutover #375: trên stack legacy, adopt stamp
+ * history cho toàn bộ journal để migrate không replay; stack trắng thì adopt
+ * no-op và migrate apply lần đầu; stack đã-cutover adopt là no-op.
+ *
+ * Kênh chuỗi kết nối: `DATABASE_URL` của migrator đến từ biến môi trường của
+ * tiến trình shell (kênh `environment` của command.local.Command), rồi
+ * `docker run -e DATABASE_URL` — CHỈ TÊN biến, không `=giá trị` — bảo docker
+ * CLI đọc giá trị từ environ của chính nó và chuyển vào container env. Do đó
+ * URL (chứa password) không nằm trong argv của `sh -c`, của `docker run`, của
+ * tsx bên trong container, hay trong script text nào.
+ */
+export function buildMigrateScript(inputs: MigrateScriptInputs): string {
+  return `set -e
+docker run --rm \\
+  --network ${inputs.networkName} \\
+  -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
+  -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
+  -w /repo/deploys/backoffice-db \\
+  -e DATABASE_URL \\
+  ${inputs.nodeImage} \\
+  sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'
 `;
 }

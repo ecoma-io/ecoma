@@ -23,25 +23,30 @@ afterEach(() => {
 });
 
 /**
- * Dựng `ocr-result.json` + `ocr-stderr.log` (và tùy chọn `rule.json`) trong thư
- * mục tạm riêng.
+ * Dựng `ocr-result.json` + `ocr-stderr.log` (và tùy chọn `rule.json`,
+ * `numstat.txt`) trong thư mục tạm riêng.
  * @param result nội dung JSON (object) hoặc chuỗi thô để test JSON hỏng
  * @param stderr nội dung log stderr
  * @param rule project rule, hoặc `null` để không tạo file rule
+ * @param numstat nội dung file numstat (`git diff --numstat`), hoặc `null` để
+ *   không tạo file (cờ `--numstat` vẫn trỏ tới đường dẫn không tồn tại khi
+ *   `numstatPath` được bật qua `withNumstat`)
  */
 function writeCase(
   result: unknown,
   stderr: string,
   rule: unknown = null,
-): { result: string; stderr: string; rule?: string } {
+  numstat: string | null = null,
+): { result: string; stderr: string; rule?: string; numstat?: string } {
   const dir = mkdtempSync(join(tmpdir(), 'ocr-gate-'));
   workdirs.push(dir);
   const resultPath = join(dir, 'ocr-result.json');
   const stderrPath = join(dir, 'ocr-stderr.log');
   const rulePath = join(dir, 'rule.json');
+  const numstatPath = join(dir, 'numstat.txt');
   writeFileSync(resultPath, typeof result === 'string' ? result : JSON.stringify(result, null, 2));
   writeFileSync(stderrPath, stderr);
-  const paths: { result: string; stderr: string; rule?: string } = {
+  const paths: { result: string; stderr: string; rule?: string; numstat?: string } = {
     result: resultPath,
     stderr: stderrPath,
   };
@@ -49,10 +54,14 @@ function writeCase(
     writeFileSync(rulePath, typeof rule === 'string' ? rule : JSON.stringify(rule, null, 2));
     paths.rule = rulePath;
   }
+  if (numstat !== null) {
+    writeFileSync(numstatPath, numstat);
+    paths.numstat = numstatPath;
+  }
   return paths;
 }
 
-function runGate(paths: { result: string; stderr?: string; rule?: string }): {
+function runGate(paths: { result: string; stderr?: string; rule?: string; numstat?: string }): {
   status: number | null;
   stdout: string;
   stderr: string;
@@ -63,6 +72,9 @@ function runGate(paths: { result: string; stderr?: string; rule?: string }): {
   }
   if (paths.rule !== undefined) {
     args.push('--rule', paths.rule);
+  }
+  if (paths.numstat !== undefined) {
+    args.push('--numstat', paths.numstat);
   }
   const proc = spawnSync(process.execPath, [GATE, ...args], { encoding: 'utf8' });
   return { status: proc.status, stdout: proc.stdout, stderr: proc.stderr };
@@ -839,5 +851,156 @@ describe('ocr-result-gate', () => {
     const proc = spawnSync(process.execPath, [GATE, '--bogus', paths.result], { encoding: 'utf8' });
     expect(proc.status).toBe(2);
     expect(proc.stderr).toContain('unknown argument');
+  });
+
+  it('passes when a skipped review meets a deletion-only diff (issue 456)', () => {
+    // Đúng hình dạng của PR #455 (run 44586860876): review skipped với 0 item,
+    // stderr không giải thích được từng file (không có dòng skip), nhưng numstat
+    // chứng minh diff chỉ xoá nội dung — không có gì để review là kết quả đúng.
+    const paths = writeCase(
+      skippedResult(),
+      '[ocr] 2 file(s) changed, reviewing 0 in /repo\n[ocr] No supported files changed. Skipping review.\n',
+      null,
+      '0\t11\t.github/workflows/disc3-signature-probe.yml\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(0);
+    expect(stdout).toContain('VERIFIED');
+    expect(stdout).toContain('deletion-only: nothing to review');
+    expect(stdout).not.toContain('::error::');
+    expect(stdout).not.toContain('NOT VERIFIED');
+  });
+
+  it('passes the deletion-only grant even when the stderr log is missing', () => {
+    // Bằng chứng deletion-only độc lập với log: diff không có dòng added nào thì
+    // không có gì để review, kể cả khi không log để giải thích từng file.
+    const paths = writeCase(skippedResult(), CLEAN_STDERR, null, '0\t5\tdocs/old.md\n');
+    const { status, stdout } = runGate({
+      result: paths.result,
+      stderr: '/nonexistent.log',
+      numstat: paths.numstat,
+    });
+    expect(status).toBe(0);
+    expect(stdout).toContain('deletion-only: nothing to review');
+  });
+
+  it('fails when the diff adds lines although the review was skipped', () => {
+    // `skipped` với code mới trong diff là đúng trường hợp phải đỏ: có added
+    // line nghĩa là có nội dung đáng lẽ phải được review (điều kiện chặt #456).
+    const paths = writeCase(
+      skippedResult(),
+      '[ocr] 2 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      '4\t1\tapps/api/x.ts\n0\t2\tdocs/old.md\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+    expect(stdout).toContain('::error::');
+  });
+
+  it('fails when a binary numstat entry blocks the deletion-only grant', () => {
+    // Numstat không nói được added của file binary là 0: một diff thêm binary
+    // sẽ trông giống deletion-only nếu tin cột `-` — không được tin.
+    const paths = writeCase(
+      skippedResult(),
+      '[ocr] 1 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      '-\t-\tassets/logo.png\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+  });
+
+  it('fails when the numstat file is unreadable for a skipped review', () => {
+    // Thiếu numstat = mất nhánh cấp qua deletion-only, đường skipped giữ nguyên
+    // fail-closed — không có nhánh xanh mới nào phụ thuộc dữ liệu thiếu.
+    const paths = writeCase(skippedResult(), '[ocr] 1 file(s) changed, reviewing 0 in /repo\n');
+    const { status, stdout } = runGate({ ...paths, numstat: '/nonexistent/numstat.txt' });
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+    expect(stdout).toContain('::error::');
+  });
+
+  it('fails when the numstat file is malformed', () => {
+    // Một dòng hỏng làm cả file vô giá trị: nhánh #456 cần tổng added của toàn
+    // bộ diff, không chấp nhận parse từng phần.
+    const paths = writeCase(
+      skippedResult(),
+      '[ocr] 1 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      'x\ty\tz\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+  });
+
+  it('ignores the numstat file unless the flag is passed', () => {
+    // Nhánh #456 phải tắt theo mặc định: numstat tồn tại trên đĩa nhưng không
+    // truyền `--numstat` thì không được dùng — hành vi cũ không đổi, deterministic.
+    const paths = writeCase(
+      skippedResult(),
+      '[ocr] 1 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      '0\t5\tdocs/old.md\n',
+    );
+    const { status, stdout } = runGate({ result: paths.result, stderr: paths.stderr });
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+    expect(stdout).not.toContain('deletion-only');
+    expect(stdout).not.toContain('diff_numstat');
+  });
+
+  it('keeps other failures red on a deletion-only diff', () => {
+    // Grant chỉ bỏ lỗi `terminal_state` đã hoãn: budget_exceeded và mọi lỗi khác
+    // vẫn đỏ như thường.
+    const paths = writeCase(
+      ocrResult({
+        status: 'skipped',
+        message: 'Review skipped: no items were selected.',
+        summary: {
+          files_reviewed: 0,
+          comments: 0,
+          total_tokens: 9,
+          elapsed: '0s',
+          budget_exceeded: true,
+        },
+        manifest: {
+          schema_version: 'ocr.run-manifest/v1',
+          terminal_state: 'skipped',
+          coverage: { selected: [], completed: [], reused: [], failed: [], waived: [] },
+        },
+      }),
+      '[ocr] 1 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      '0\t5\tdocs/old.md\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(1);
+    expect(stdout).toContain('token budget was reached');
+  });
+
+  it('fails when coverage contradicts the skipped state on a deletion-only diff', () => {
+    // Manifest nói skipped nhưng coverage có item — dữ liệu mâu thuẫn không được
+    // dùng làm bằng chứng trong bất kỳ nhánh cấp qua nào.
+    const contradiction = skippedResult();
+    const base = contradiction.manifest as Record<string, unknown>;
+    const coverage = base.coverage as Record<string, unknown>;
+    contradiction.manifest = {
+      ...base,
+      coverage: { ...coverage, selected: [item('docs/a.md')] },
+    };
+    const paths = writeCase(
+      contradiction,
+      '[ocr] 1 file(s) changed, reviewing 0 in /repo\n',
+      null,
+      '0\t5\tdocs/old.md\n',
+    );
+    const { status, stdout } = runGate(paths);
+    expect(status).toBe(1);
+    expect(stdout).toContain('terminal_state is "skipped"');
+    expect(stdout).toContain('::error::');
   });
 });

@@ -28,6 +28,9 @@
       "path": "./deploys/pact-broker-app-deploy"
     },
     {
+      "path": "./deploys/pact-broker-app-db"
+    },
+    {
       "path": "./deploys/llm-api-deploy"
     },
     {
@@ -59,6 +62,30 @@
     },
     {
       "path": "./deploys/remote-cache-app-deploy"
+    },
+    {
+      "path": "./deploys/llm-marketplace-db"
+    },
+    {
+      "path": "./deploys/llm-gateway-db"
+    },
+    {
+      "path": "./deploys/llm-tenant-db"
+    },
+    {
+      "path": "./deploys/backoffice-db"
+    },
+    {
+      "path": "./deploys/staff-access-db"
+    },
+    {
+      "path": "./deploys/account-db"
+    },
+    {
+      "path": "./deploys/auth-db"
+    },
+    {
+      "path": "./deploys/pact-broker-db"
     }
   ]
 }

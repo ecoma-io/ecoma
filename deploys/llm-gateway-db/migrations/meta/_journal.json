@@ -1,0 +1,41 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0001_schemas",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000001000,
+      "tag": "0002_seller_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000002000,
+      "tag": "0003_gateway_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7.1.0",
+      "when": 1700000003000,
+      "tag": "0004_sponsor_funding",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7.1.0",
+      "when": 1700000004000,
+      "tag": "0005_chat_completions_serving",
+      "breakpoints": true
+    }
+  ]
+}

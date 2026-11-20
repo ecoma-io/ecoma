@@ -14,8 +14,8 @@
   },
   "//": [
     "`pg` + `@types/pg` ở devDependencies: driver PostgreSQL chỉ dùng ở",
-    "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
-    "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
+    "`server/auth/session.ts` (pool) — bundle Worker kéo `pg` qua preset",
+    "`cloudflare-module`",
     "(không external). `jose` ở dependencies: verify access token offline trong",
     "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice`.",
     "",
@@ -87,14 +87,6 @@
         "options": {
           "cwd": "apps/pact-broker-app",
           "command": "npx tsc --project tsconfig.db.json"
-        }
-      },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/pact-broker-app",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
         }
       },
       "test": {

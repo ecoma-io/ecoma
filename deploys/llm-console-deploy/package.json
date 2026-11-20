@@ -34,6 +34,7 @@
           "local": {}
         },
         "dependsOn": [
+          "local-build",
           {
             "projects": [
               "platform-deploy"
@@ -143,6 +144,30 @@
         },
         "configurations": {},
         "parallelism": true
+      },
+      "local-build": {
+        "//": [
+          "Wrapper chạy artifact build TRƯỚC image build: `local-up` dependsOn target này,",
+          "Nx Task Graph ghim thứ tự `build:development` -> `local.ts up` (Pulumi) -> image",
+          "build COPY `.output-node/`. Wrapper là cách native DUY NHẤT ghim configuration:",
+          "`TargetDependencyConfig` (Nx 23.3.2) không có field `configuration` nên",
+          "`dependsOn` không viết được `build:development` (string bị parse thành literal",
+          "target name), còn propagation qua `defaultConfiguration` của app build là",
+          "`production` — artifact `cloudflare-module`, không chạy được bằng `node`.",
+          "`cache: false` là CONTRACT của lane local (nx.json targetDefaults",
+          "`tag:type:deployment`): target mutate Docker resource thật, cache hit là bỏ",
+          "một lần build thật. Target build thật của app (`@ecoma-io/llm-console:build`) vẫn là",
+          "cache unit của riêng nó — wrapper chỉ gọi, không cache kết quả."
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/llm-console-deploy",
+          "command": "pnpm nx run @ecoma-io/llm-console:build:development"
+        },
+        "configurations": {
+          "local": {}
+        },
+        "cache": false
       }
     }
   }

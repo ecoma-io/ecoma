@@ -10,7 +10,10 @@
  * — pattern tham chiếu.
  */
 
-import { applyAllMigrations } from '../../db/apply.mts';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import process from 'node:process';
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -44,7 +47,7 @@ type Pool = import('pg').Pool;
 export interface PactBrokerDatabase {
   readonly host: string;
   readonly port: number;
-  /** Chuỗi kết nối của migrator — đúng shape mà CLI `db:migrate` nhận. */
+  /** Chuỗi kết nối của migrator — đúng shape mà runner CLI `db-migrate` nhận. */
   readonly migratorUrl: string;
   /** Client superuser cho assertion về grant/ACL. */
   connect(): Promise<Client>;
@@ -128,19 +131,42 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Apply mọi file migration, theo thứ tự tên file, vào database đã có sẵn.
+ * Apply migration qua **runner thật của authority** — spawn CLI
+ * `deploys/pact-broker-db/runner.mts migrate` (cutover #378: runner cũ
+ * `db/apply.mts` đã retire; đây là cùng runner mà lane chạy, gồm advisory lock
+ * + guard `current_database()` + `drizzle-kit migrate`). Viết vòng apply riêng
+ * ở đây là tạo runner thứ hai không có lock — lỗi đã từng xảy ra ở
+ * `apps/account`.
  *
- * ⚠️ Đây là dải băng gọi {@link applyAllMigrations} — đúng hàm mà CLI
- * `db:migrate` chạy, gồm cả advisory lock. Viết vòng apply riêng ở đây là tạo
- * runner thứ hai không có lock: test "repeatable" xanh với bản sao trong khi
- * runner production hỏng (lỗi đã từng xảy ra ở `apps/account`).
- *
- * ⚠️ Client truyền vào phải là **migrator** bằng credential thật (không
- * `SET ROLE`): quyền `CREATE` trên database là điều kiện để `0001` chạy, và
- * `SET ROLE` không kiểm chứng được quyền kết nối thật.
+ * ⚠️ `databaseUrl` phải là credential **migrator** thật (không `SET ROLE`):
+ * quyền `CREATE` trên database là điều kiện để `0001` chạy, và `SET ROLE`
+ * không kiểm chứng được quyền kết nối thật.
  */
-export async function applyMigrations(client: Client): Promise<void> {
-  await applyAllMigrations(client);
+export function applyMigrations(databaseUrl: string): void {
+  const repoRoot = resolve(import.meta.dirname, '../../../..');
+  const dbProjectRoot = resolve(repoRoot, 'deploys/pact-broker-db');
+  const require = createRequire(import.meta.url);
+  const tsxCli = require.resolve('tsx/cli');
+  const result = spawnSync(
+    process.execPath,
+    [tsxCli, resolve(dbProjectRoot, 'runner.mts'), 'migrate'],
+    {
+      cwd: dbProjectRoot,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      encoding: 'utf-8',
+      timeout: 120_000,
+    },
+  );
+  if (result.error !== undefined || result.status !== 0) {
+    const detail =
+      `migration runner failed (exit ${String(result.status ?? result.signal ?? 'spawn-error')}` +
+      `${result.error ? `: ${result.error.message}` : ''}):\n` +
+      `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
+    throw new Error(
+      // DATABASE_URL chứa mật khẩu migrator — mask trước khi vào output test.
+      detail.replace(/:[^:@/]+@/gu, ':****@').slice(-2000),
+    );
+  }
 }
 
 /**
@@ -231,16 +257,9 @@ export async function startPactBrokerDatabase(): Promise<PactBrokerDatabase> {
     // Apply bằng credential migrator thật (không SET ROLE) — provision() ở
     // trên cấp CONNECT+CREATE cho đúng role đó; thiếu quyền thì chết ngay ở
     // CREATE SCHEMA, và test phải thấy nó chết chứ không phải giấu đi.
-    const migrator = await open({
-      user: MIGRATOR_ROLE,
-      password: ROLE_PASSWORD,
-      database: PACT_BROKER_DATABASE,
-    });
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    applyMigrations(
+      `postgres://${MIGRATOR_ROLE}:${ROLE_PASSWORD}@${host}:${port}/${PACT_BROKER_DATABASE}`,
+    );
 
     const connectAsMigrator = (): Promise<Client> =>
       open({ user: MIGRATOR_ROLE, password: ROLE_PASSWORD, database: PACT_BROKER_DATABASE });

@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "Composite cho emitDeclarationOnly của graph typecheck — spec unit colocated (`runner.spec.ts`), config vitest và suite integration. `allowImportingTsExtensions` + `moduleResolution: bundler`: spec import subject bằng phần mở rộng thật, vitest tự resolve lúc chạy. Suite integration (tests/integrations) nằm ở đây để typecheck cùng graph, nhưng CHẠY qua target `test-integration` (Docker bắt buộc).",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
+  },
+  "include": [
+    "vitest.config.mts",
+    "vitest.integration.config.mts",
+    "runner.mts",
+    "runner.spec.ts",
+    "drizzle.config.spec.ts",
+    "tests/integrations/**/*.ts"
+  ]
+}

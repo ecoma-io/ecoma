@@ -1,0 +1,48 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0001_backoffice_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000001000,
+      "tag": "0002_roles_and_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000002000,
+      "tag": "0003_permission_catalog_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7.1.0",
+      "when": 1700000003000,
+      "tag": "0004_self_elevation_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7.1.0",
+      "when": 1700000004000,
+      "tag": "0005_permission_catalog_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7.1.0",
+      "when": 1700000005000,
+      "tag": "0006_bff_sessions",
+      "breakpoints": true
+    }
+  ]
+}

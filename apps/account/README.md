@@ -34,11 +34,11 @@ pnpm nx run @ecoma-io/account:lint
 pnpm nx run @ecoma-io/account:typecheck      # nuxt typecheck (vue-tsc)
 pnpm nx run @ecoma-io/account:typecheck-db   # tsc cho db/
 pnpm nx run @ecoma-io/account:build          # nuxt build — preset cloudflare-module
-pnpm nx run @ecoma-io/account:db:migrate     # áp dụng migration — cần kết nối tới PostgreSQL
+pnpm nx run @ecoma-io/account-db:migrate     # áp dụng migration (runner.mts adopt && migrate) — cần DATABASE_URL migrator
 ```
 
 - Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4202); binding khai trong `wrangler.jsonc`.
-- Trên lane local, `db:migrate` thường do `account-deploy` chạy trong container gắn platform network (platform PostgreSQL không publish host port); target này dành cho runner có kết nối trực tiếp.
+- Trên lane local, migration do `account-deploy` chạy trong container gắn platform network (platform PostgreSQL không publish host port).
 
 ## Testing
 

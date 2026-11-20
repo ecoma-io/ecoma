@@ -17,20 +17,43 @@
  * assert nội dung. Nên một seed file hỏng (sai `status`, thiếu một row, thêm
  * một row thừa) vẫn cho suite xanh. Test này assert **nội dung** (`EXPECTED_SEEDED`
  * so sánh element-by-element, không phải so số lượng) và kiểm tra cả đường
- * tự phục hồi: xoá một row seed rồi `applyMigrations()` ⇒ row đó phải quay lại.
+ * tự phục hồi: xoá một row seed rồi chạy lại SQL `0003` ⇒ row đó phải quay lại.
  *
  * ⚠️ Docker là phụ thuộc cứng: probe Docker ở `harness.ts` (qua `globalSetup`)
  * ném lỗi khi vắng Docker, làm **toàn bộ** lần chạy đỏ thay vì skip — chính
  * sách fail-loud của 06-testing.md §6.
  */
 
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  type BackofficeDatabase,
-  applyMigrations,
-  startBackofficeDatabase,
-} from '../integrations/harness';
+import { type BackofficeDatabase, startBackofficeDatabase } from '../integrations/harness';
+
+type Client = import('pg').Client;
+
+/** Bản migration hợp đồng của `deploys/backoffice-db` (cutover #375). */
+const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'backoffice-db',
+  'migrations',
+);
+
+/**
+ * Chạy lại SQL của `0003` trực tiếp bằng client truyền vào — đúng nội dung file,
+ * không qua runner. Cutover #375 đổi runner sang drizzle-kit: history đã phủ
+ * journal thì runner-kit no-op, nên đường "re-apply để tự phục hồi" của runner
+ * không còn tồn tại; thuộc tính đang assert nằm ở **chính file SQL** idempotent
+ * (`ON CONFLICT DO NOTHING`) và được kiểm bằng chạy lại file.
+ */
+function reapplySeed(client: Client): Promise<unknown> {
+  return client.query(
+    readFileSync(join(MIGRATIONS_DIR, '0003_permission_catalog_seed.sql'), 'utf8'),
+  );
+}
 
 const EXPECTED_SEEDED = [
   { id: 'audit.read', domain: 'audit', action: 'read', status: 'active' },
@@ -78,8 +101,8 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
   it('is idempotent: re-applying migrations neither duplicates rows nor changes content', async () => {
     const client = await db.connect();
     try {
-      await applyMigrations(client);
-      await applyMigrations(client);
+      await reapplySeed(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }
@@ -105,7 +128,7 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
         EXPECTED_SEEDED[3],
       ]);
 
-      await applyMigrations(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }
@@ -135,7 +158,7 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
         `UPDATE backoffice.permissions SET status = 'retired' WHERE id = 'staff.read'`,
       );
 
-      await applyMigrations(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }
@@ -154,7 +177,7 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
     const restore = await db.connect();
     try {
       await restore.query(`DELETE FROM backoffice.permissions WHERE id = 'staff.read'`);
-      await applyMigrations(restore);
+      await reapplySeed(restore);
     } finally {
       await restore.end();
     }
@@ -250,8 +273,8 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
 
     const client = await db.connect();
     try {
-      await applyMigrations(client);
-      await applyMigrations(client);
+      await reapplySeed(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }
@@ -295,8 +318,8 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
 
     const client = await db.connect();
     try {
-      await expect(applyMigrations(client)).resolves.toBeUndefined();
-      await expect(applyMigrations(client)).resolves.toBeUndefined();
+      await reapplySeed(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }
@@ -349,7 +372,7 @@ describe('permission catalog seed (0003) on a real PostgreSQL', () => {
       );
       expect(rows[0]?.count).toBe('0');
 
-      await applyMigrations(client);
+      await reapplySeed(client);
     } finally {
       await client.end();
     }

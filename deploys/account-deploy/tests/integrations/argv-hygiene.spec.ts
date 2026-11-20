@@ -501,8 +501,11 @@ describe('migration state: connected to the right database through the canonical
   it('migration applied on db-account and the schema is present there', () => {
     const flowState = requireFlow();
     expect(flowState.migrateRun.result.code).toBe(0);
-    // stdout của `db/apply.mts`: "applied <file>" + "done N file(s) applied; ...".
-    expect(flowState.migrateRun.result.stdout).toContain('file(s) applied');
+    // stdout của runner mới: adopt trên stack trắng in 'adopt no-op: fresh
+    // database'; migrate kết thúc bằng 'migrate complete: history covers every
+    // journal entry'.
+    expect(flowState.migrateRun.result.stdout).toContain('adopt no-op: fresh database');
+    expect(flowState.migrateRun.result.stdout).toContain('migrate complete');
     expect(flowState.catalog.accountSchema?.stdout.trim()).toBe('1');
   });
 

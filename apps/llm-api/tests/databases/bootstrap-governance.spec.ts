@@ -595,6 +595,7 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     }
   });
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('reruns as a no-op without touching decided state', async () => {
     const before = await db.connectAsMigrator('gateway');
     const decidedBefore = await before.query<{ decided_at: string | null }>(
@@ -628,14 +629,16 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     } finally {
       await client.end();
     }
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a divergent owner sub fail-closed (ownership is immutable)', async () => {
     await expect(
       runGovernance(governanceEnv({ ECOMA_SELLER_TENANT_OWNER_SUB: 'bootstrap-someone-else' })),
     ).rejects.toThrow(/owner differs/u);
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('re-provisions the owner membership when the seeded gateway predates the membership contract (converge on empty membership state)', async () => {
     const teardown = await db.connectAsMigrator('gateway');
     try {
@@ -667,8 +670,9 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     } finally {
       await client.end();
     }
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('fails closed when membership rows exist but none is canonical and the owner has no active membership', async () => {
     const teardown = await db.connectAsMigrator('gateway');
     try {
@@ -700,8 +704,9 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     } finally {
       await client.end();
     }
-  });
+  }, 30_000);
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('flips eligibility to false under a new restriction and never exempts the first_party classification', async () => {
     const now = Date.now();
     const client = await db.connectAsMigrator('gateway');
@@ -733,7 +738,7 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     }
     const recovery = await runGovernance(governanceEnv());
     expect(stdoutLine(recovery.stdout, 'SELLER_GOVERNANCE_RESULT')).toContain('"outcome":"no-op"');
-  });
+  }, 30_000);
 
   it('flips eligibility false on expired verification, then false on a new principal revision, then true after a new approved case', async () => {
     const now = Date.now();
@@ -899,6 +904,7 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
     expect(recoveredVerdict.blockers).toEqual([]);
   });
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('blocks reseeding after the tenant row is removed while its principal governance state remains (name stays reserved)', async () => {
     // Xoá memberships + association + tenant nhưng GIỮ principal/cases/evidence —
     // đúng kịch bản "xoá rồi seed lại": bootstrap phải chặn, không resurrect.
@@ -919,5 +925,5 @@ describe('bootstrap runner 8a (seller governance) on real PostgreSQL', () => {
       await teardown.end();
     }
     await expect(runGovernance(governanceEnv())).rejects.toThrow(/stays reserved/u);
-  });
+  }, 30_000);
 });

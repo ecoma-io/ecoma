@@ -528,6 +528,18 @@ describe('checkPullRequest', () => {
     expect(result).toMatchObject({ problems: [expect.stringContaining('scope-enum')] });
   });
 
+  it('accepts a release title in the reserved release scope', async () => {
+    // Scope `release` là ngoại lệ whitelist duy nhất của `scope-enum` (#361):
+    // title của Release PR — cũng là subject của squash merge — mang scope
+    // `release` vì một batch có thể chứa nhiều Nx project. Số lượng scope vẫn
+    // là một: scope ghép như `release,dx` vẫn bị chặn ở test khác.
+    const result = await checkPullRequest({
+      env: prEnv('chore(release): release @ecoma-io/home 0.0.2'),
+    });
+
+    expect(result).toEqual({ ok: true, title: 'chore(release): release @ecoma-io/home 0.0.2' });
+  });
+
   it('accepts a chore title that carries no feat or fix', async () => {
     const result = await checkPullRequest({ env: prEnv('chore(dx): tidy up') });
 

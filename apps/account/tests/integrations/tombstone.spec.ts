@@ -330,6 +330,11 @@ describe('users and the tombstone', () => {
               column_name LIKE '%_at'
               OR column_name IN ('expires_at', 'revoked_at', 'deleted_at', 'bound_at', 'published_at')
             )
+            -- Ngoại lệ có chủ đích: bảng history của migration runner
+            -- (cutover #375), created_at bigint là semantics của kit (epoch
+            -- millisecond do kit tự ghi) chứ không phải timestamp domain —
+            -- NFR-001 chỉ cai các timestamp của schema product.
+            AND table_name <> '__drizzle_migrations'
           ORDER BY table_name, column_name`,
       );
 

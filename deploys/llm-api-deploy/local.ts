@@ -60,6 +60,11 @@ import {
   STAFF_ACCESS_DATABASE,
   STAFF_ACCESS_MIGRATOR_ROLE,
 } from './superadmin-resolver.js';
+import {
+  isMockContainerAbsent,
+  mockContainerName,
+  mockContainerRemoveArgs,
+} from './lane-invocation.js';
 
 /** Stack account + staff-access — credential migrator được đọc cross-stack. */
 const ACCOUNT_DEPLOY_PROJECT = 'account-deploy';
@@ -341,6 +346,33 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
   }
 }
 
+/**
+ * Xoá container mock của namespace trong vòng down — `test-lane-up` tạo nó
+ * NGOÀI pulumi stack nên destroy của stack này không chạm tới. Idempotent:
+ * vắng mặt ("no such container") là thành công — down hai lần liền hoặc down
+ * khi chưa từng lane up đều hợp lệ; MỌI lỗi khác (daemon down, tên sai...) là
+ * lỗi của down, không nuốt. Xoá mock TRƯỚC destroy: container còn gắn network
+ * platform là thứ khiến `platform-deploy:local-down` fail-loud với
+ * "active endpoints" và không bao giờ hội tụ khi chạy lại (#444).
+ */
+function removeMockContainer(foundation: EntryFoundation): void {
+  const rm = exec(
+    'docker',
+    [...mockContainerRemoveArgs(foundation.ctx.namespace)],
+    foundation.ctx.worktreeRoot,
+    foundation.env,
+  );
+  if (rm.error !== undefined) {
+    throw new Error(`removing the mock container failed: ${describeSpawnFailure(rm)}`);
+  }
+  if (rm.status !== 0 && !isMockContainerAbsent(rm.stderr)) {
+    throw new Error(`removing the mock container failed (exit ${String(rm.status)}): ${rm.stderr}`);
+  }
+  console.error(
+    `[llm-api-deploy] mock container removed: ${mockContainerName(foundation.ctx.namespace)}`,
+  );
+}
+
 async function main(command: string): Promise<number> {
   if (command === 'up') {
     const foundation = resolveEntryFoundation(true);
@@ -370,6 +402,7 @@ async function main(command: string): Promise<number> {
       return 0;
     }
     try {
+      removeMockContainer(foundation);
       pulumiDestroyForEntry('llm-api-deploy', foundation);
       return 0;
     } catch (error) {

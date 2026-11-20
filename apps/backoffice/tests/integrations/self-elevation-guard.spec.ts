@@ -15,9 +15,40 @@
  * Mỗi guard có **mutation evidence** — xem mục "Mutation evidence" ở cuối file.
  */
 
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { type BackofficeDatabase, applyMigrations, startBackofficeDatabase } from './harness.ts';
+import { type BackofficeDatabase, startBackofficeDatabase } from './harness.ts';
+
+/** Bản migration hợp đồng của `deploys/backoffice-db` (cutover #375). */
+const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../..',
+  'deploys',
+  'backoffice-db',
+  'migrations',
+);
+
+/**
+ * Chạy lại SQL của `0003` trực tiếp — đúng nội dung file, không qua runner.
+ * Cutover #375 đổi runner sang drizzle-kit: history đã phủ journal thì
+ * runner-kit no-op, nên đường "re-apply để tự phục hồi" không còn thực thi gì.
+ * Thuộc tính idempotent (`ON CONFLICT (id) DO NOTHING`) nằm ở FILE — chạy lại
+ * trực tiếp là cách khôi phục catalog sau `truncateData()` mà vẫn giữ đúng
+ * nguồn sự thật là seed migration.
+ */
+async function reseedCatalog(db: BackofficeDatabase): Promise<void> {
+  const client = await db.connect();
+  try {
+    await client.query(
+      readFileSync(join(MIGRATIONS_DIR, '0003_permission_catalog_seed.sql'), 'utf8'),
+    );
+  } finally {
+    await client.end();
+  }
+}
 
 /**
  * Account ID hợp lệ theo định dạng `libs/backoffice-domain` (`sub_` + 32 ký tự
@@ -48,17 +79,14 @@ describe('self-elevation guard on db-backoffice (0004)', () => {
   beforeEach(async () => {
     await db.truncateData();
     // ⚠️ `truncateData()` của harness xoá **cả** `backoffice.permissions` — mà
-    // đó là catalog seeded ở migration `0003`. Khôi phục nó bằng cách apply
-    // lại migration (idempotent: `0003` dùng `ON CONFLICT (id) DO NOTHING`).
-    // Cách này giữ đúng **nguồn sự thật** của catalog là seed migration, thay
-    // vì fixture tự INSERT permission trong test — một permission do test tự
-    // chế ra không chứng minh được catalog thật cũng qua guard.
-    const migrator = await db.asMigrator();
-    try {
-      await applyMigrations(migrator);
-    } finally {
-      await migrator.end();
-    }
+    // đó là catalog seeded ở migration `0003`. Khôi phục bằng chạy lại SQL seed
+    // trực tiếp (idempotent: `0003` dùng `ON CONFLICT (id) DO NOTHING`) — sau
+    // cutover #375, re-apply qua runner là kit no-op nên không còn seed lại
+    // được (reseedCatalog ở đầu file). Giữ đúng **nguồn sự thật** của catalog
+    // là seed migration, thay vì fixture tự INSERT permission trong test —
+    // một permission do test tự chế ra không chứng minh được catalog thật
+    // cũng qua guard.
+    await reseedCatalog(db);
   });
 
   /**
@@ -890,6 +918,9 @@ describe('self-elevation guard on db-backoffice (0004)', () => {
       // SELECT/INSERT/DELETE — consume bằng DELETE, không UPDATE) — sweep này
       // vẫn ghim rằng `0004`+guard không **nới** gì so với bộ grant đã chốt.
       expect(actual).toEqual({
+        // Bảng history của migration runner: hạ tầng của kit, chỉ role
+        // `_migrator` chạm tới — runtime không được grant gì (cutover #375).
+        __drizzle_migrations: [],
         authorization_audit: ['INSERT', 'SELECT'],
         bff_login_flows: ['DELETE', 'INSERT', 'SELECT'],
         bff_sessions: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'],

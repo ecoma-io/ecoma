@@ -129,14 +129,6 @@
           "nuxt-prepare"
         ]
       },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/backoffice",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
-        }
-      },
       "test-integration": {
         "executor": "nx:run-commands",
         "cache": true,

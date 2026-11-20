@@ -4,7 +4,8 @@
  *
  * Đủ vòng đời theo `02-account-auth.md` §Dependency graph: provision `db-account`
  * + bộ 4 role chuẩn (owner/migrator/runtime/pruner) → migration đường canonical
- * (`apps/account/db/apply.mts`) → image `node-server` → container trên platform
+ * (`deploys/account-db` runner — `adopt && migrate` cutover #375) → image
+ * `node-server` → container trên platform
  * network với Traefik router `Host(account-<ns>.<rootHostname>)` → readiness qua
  * `GET /ready` (chạm DB thật, không phải `/health`).
  *
@@ -301,8 +302,8 @@ const provision = new command.local.Command(dockerResourceName(ns, 'account') + 
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx db/apply.mts` của repo (`apps/account/db/apply.mts` — advisory
- * lock `hashtext('db-account')`, GUC, danh sách file theo thứ tự tên). Repo
+ * chạy runner thật của `deploys/account-db` (chuỗi `adopt && migrate` — advisory
+ * lock giữ nguyên khóa `hashtext('db-account')`, `drizzle-kit migrate` atomic). Repo
  * mount READ-ONLY; node_modules của repo mount riêng (rw) vì `tsx` cần binary
  * đã cài — mount read-only cả repo thì `tsx` vẫn chạy được vì chỉ ĐỌC binary,
  * nhưng pnpm đặt binary là symlink xuyên node_modules → mount cả hai điểm, vẫn

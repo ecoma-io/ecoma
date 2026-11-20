@@ -1,113 +1,50 @@
 # Image Docker cho `apps/remote-cache-app` ở LAN LOCAL deployment.
 #
-# Preset Nitro của app là `cloudflare-module` (`apps/remote-cache-app/nitro.config.ts`)
-# — đường deploy staging/production trên Cloudflare Workers qua Wrangler, và file
-# Dockerfile này KHÔNG đụng tới nó. Local deployment chạy app trong Docker với
-# preset `node-server`: override qua **build-time flag** `--preset=node-server`
-# của Nuxt CLI (thắng giá trị `preset` trong config file), không sửa
-# `nitro.config.ts` — cùng cách `pact-broker-app-deploy` đã làm.
+# (#386) Image KHÔNG còn build Nuxt trong image — build stage cũ (corepack,
+# `pnpm install --frozen-lockfile`, cache mount pnpm store, `nuxt build
+# --preset=node-server`) đã bị xoá toàn bộ. Nguồn sự thật của image là
+# artifact `build:development` mà Nx build trước trong worktree:
 #
-# Build context là REPO ROOT (không phải thư mục chứa Dockerfile): monorepo
-# pnpm workspace có `libs/ui-app-shell` và `libs/ui-ecoma-logo` là workspace
-# dependency của app, và `pnpm-workspace.yaml` + `pnpm-lock.yaml`
-# đều nằm ở root. `deploys/remote-cache-app-deploy` sở hữu việc đóng gói image
-# nhưng mọi path COPY bên dưới là path tương đối với context root.
+#   pnpm nx run @ecoma-io/remote-cache-app:build:development
 #
-# Closure của app (đối chiếu `.dockerignore` ở root): `libs/ui-app-shell` (alias
-# `@ecoma-io/ui-app-shell` trong `nuxt.config.ts` trỏ thẳng vào `src/index.ts`;
-# CSS entry `src/styles/app-shell.css` được import qua relative path từ
-# `app/assets/css/styles.css`), `libs/ui-ecoma-logo` (alias
-# `@ecoma-io/ui-ecoma-logo` + `@source` của Tailwind) và
-# `libs/internal-auth-contracts` (alias `@ecoma-io/internal-auth-contracts` —
-# BFF ký envelope HMAC nội bộ qua `signRequest`, #180). Hai lib UI là LÁ;
-# `internal-auth-contracts` cũng là LÁ (chỉ chuẩn hoá type + WebCrypto).
+# — preset `node-server` (khối `$env['node-docker']` trong `nuxt.config.ts`),
+# artifact `.output-node/` standalone: `server/index.mjs` + traced runtime
+# deps nằm NGAY TRONG artifact (`server/node_modules/`, được mở lại tường
+# minh trong `.dockerignore` vì blacklist `**/node_modules` gốc cắt nó).
+# Target `local-build` của deploy project chạy lệnh trên trước khi image
+# build; nó là `dependsOn` của `local-up` nên Nx ghim thứ tự.
 #
-# App là SPA admin + BFF server routes (`/api/**` qua Nitro) của Remote Cache:
-# phiên BFF nằm trong database riêng `db-remote-cache-app` (provision/migrate
-# thuộc chương trình Pulumi của unit, không thuộc image). Secret không bao giờ
-# vào image — mọi config runtime qua env của container trong `index.ts`.
+# Build context vẫn là REPO ROOT: Dockerfile nằm ở `deploys/remote-cache-app-deploy`
+# nhưng mọi path COPY là path tương đối với context root. Thiếu artifact
+# phải ĐỎ ngay ở docker build (`RUN test -f`), không phải lúc container chạy.
 #
-# Hai stage:
-#   1. `build` — cài dependency, build Nuxt ra `.output`.
-#   2. `runtime` — chỉ copy `.output` sang image slim, không mang
-#      `node_modules`, toolchain hay source. Bề mặt tấn công ở runtime hẹp.
+# Preset Nitro `cloudflare-module` của app (`apps/remote-cache-app/nitro.config.ts`) là
+# đường staging/production trên Cloudflare Workers — image này KHÔNG đụng
+# tới và artifact `.output` của nó không vào image.
 
-# --- Stage 1: build ---------------------------------------------------------
-# Ghim theo DIGEST — cùng digest mà `deploys/pact-broker-app-deploy/Dockerfile`
-# ghim (tag `24-bookworm-slim` tại thời điểm ghim): tag trôi biến thay đổi
-# toolchain thành thay đổi hạ tầng ngoài ý muốn. ARG để một nơi duy nhất cho cả
-# hai stage.
+# Ghim theo DIGEST, không theo tag — cùng lý do với Traefik/PostgreSQL trong
+# `deploys/platform-deploy/index.ts`: tag trôi biến thay đổi toolchain thành
+# thay đổi hạ tầng ngoài ý muốn, image không tái lập được.
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
-FROM ${NODE_IMAGE} AS build
-
-# pnpm là package manager của repo (field `packageManager` trong package.json).
-# `corepack` đi kèm image Node và tự ĐỌC `packageManager` từ package.json đã
-# COPY ở dưới — không hard-code version pnpm ở đây.
-RUN corepack enable
-
-WORKDIR /repo
-
-# Lớp cache đầu chỉ copy manifest: đổi source không làm mất `pnpm install`.
-# (Không cần copy `patches/`: repo không còn `patchedDependencies` nào trong
-# `pnpm-workspace.yaml` kể khi gỡ bản vá nitropack.)
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY tools/dx/package.json ./tools/dx/
-COPY apps/remote-cache-app/package.json ./apps/remote-cache-app/
-COPY apps/remote-cache-app/.npmrc ./apps/remote-cache-app/.npmrc
-COPY libs/ui-app-shell/package.json ./libs/ui-app-shell/
-COPY libs/ui-ecoma-logo/package.json ./libs/ui-ecoma-logo/
-COPY libs/internal-auth-contracts/package.json ./libs/internal-auth-contracts/
-
-# `apps/remote-cache-app/.npmrc` (`shamefully-hoist`) phải CÓ MẶT TRƯỚC
-# `pnpm install` (đã COPY ở khối manifest phía trên) — config chỉ có tác dụng
-# đúng lúc install đọc config và dựng layout `node_modules`.
-#
-# Cache mount + cờ install: giữ nguyên contract của `pact-broker-app-deploy` —
-# `--ignore-scripts` khớp allowlist `allowBuilds` trong `pnpm-workspace.yaml`,
-# `--trust-lockfile` bỏ bước verify thuần CPU đã chạy ở máy developer và CI.
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile
-
-# Nguồn app đầy đủ + hai workspace package mà app import qua alias trong
-# `nuxt.config.ts` (`@ecoma-io/ui-app-shell`, `@ecoma-io/ui-ecoma-logo`).
-# Test và config test bị `.dockerignore` loại ở tầng context (mục
-# `apps/remote-cache-app/tests`), không cần exclude lại ở đây.
-COPY apps/remote-cache-app/ ./apps/remote-cache-app/
-COPY libs/ui-app-shell/ ./libs/ui-app-shell/
-COPY libs/ui-ecoma-logo/ ./libs/ui-ecoma-logo/
-COPY libs/internal-auth-contracts/ ./libs/internal-auth-contracts/
-
-# CHỈ copy `tsconfig.base.json`, KHÔNG copy `tsconfig.json` ở root — cùng lý do
-# với `pact-broker-app-deploy`: `tsconfig.json` ở root là manifest project
-# references của monorepo, copy vào là Vite dừng ở `/repo/tsconfig.json` rồi thử
-# nạp từng project được tham chiếu mà image không chứa, build fail.
-# `nuxt.config.ts` khai `typescript.tsConfig.extends: '../../../tsconfig.base.json'`
-# nên base là thứ duy nhất app cần.
-COPY tsconfig.base.json ./
-
-# Override preset `cloudflare-module` của `nitro.config.ts`: cờ `--preset`
-# truyền thành `overrides.nitro.preset`, thắng giá trị trong config file.
-# `NODE_ENV=production` để Nuxt build theo chế độ production.
-ENV NODE_ENV=production
-RUN cd apps/remote-cache-app && pnpm exec nuxt build --preset=node-server
-
-# --- Stage 2: runtime -------------------------------------------------------
-FROM ${NODE_IMAGE} AS runtime
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
 
-# `node:24` đã có user `node` (uid 1000) sẵn; chạy non-root. CHỈ `.output` được
-# copy: nó đã bundle server + client + dependency runtime, nên image không cần
-# `node_modules` của monorepo hay toolchain build.
-COPY --from=build --chown=node:node /repo/apps/remote-cache-app/.output/ ./
+# Artifact đã build trước: entrypoint + static assets + traced deps.
+COPY apps/remote-cache-app/.output-node/ ./
+
+# Fail-loud khi artifact thiếu/chưa build: đỏ tại docker build, không chờ boot.
+RUN test -f ./server/index.mjs
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Không publish cổng host nào: container chỉ nghe trong Docker network của
+# Không `EXPOSE` cổng host nào: container chỉ nghe trong Docker network của
 # platform, Traefik route tới nó qua alias. `EXPOSE` chỉ là tài liệu metadata.
 EXPOSE 3000
 
+# `node:24` đã có user `node` (uid 1000) sẵn; chạy non-root để container không
+# cần quyền ghi gì ngoài filesystem của chính nó.
 USER node
 
 CMD ["node", "/app/server/index.mjs"]

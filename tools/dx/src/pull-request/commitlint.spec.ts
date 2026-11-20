@@ -56,6 +56,21 @@ describe('commitlint config: scope policy', () => {
     expect(result.report).toContain('scope-enum');
   });
 
+  it('accepts the release scope reserved for release-runner commits', async () => {
+    // Ngoại lệ whitelist duy nhất của `scope-enum`: commit release do runner
+    // tạo (#361) mang scope `release` vì một batch có thể chứa nhiều Nx
+    // project, trong khi scope của commit phải là một project đơn. Đúng format
+    // subject mà `buildReleaseSubject` sinh ra cho batch một và nhiều project.
+    for (const message of [
+      'chore(release): release @ecoma-io/home 0.0.2',
+      'chore(release): release @ecoma-io/home 0.1.0, @ecoma-io/auth-nonce-prune-job 0.0.2',
+    ]) {
+      const result = lint(message);
+
+      expect(result.ok, `${message}\n${result.report}`).toBe(true);
+    }
+  });
+
   it('rejects every part of a multi-part scope', async () => {
     // `scope-enum` tách scope theo `,` `/` `\` rồi kiểm từng phần, nên một
     // multi-scope chỉ qua được khi MỌI phần là Nx project. Đây là giới hạn của

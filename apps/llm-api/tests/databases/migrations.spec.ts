@@ -1,21 +1,23 @@
 /**
  * Apply migration `db-llm-gateway`, `db-llm-tenant`, `db-llm-marketplace` qua
- * **runner canonical** (`db/apply.mts` được gọi bằng `tsx` qua `child_process`)
- * trên PostgreSQL thật.
+ * **runner canonical của migration authority** (`deploys/llm-<target>-db`
+ * `runner.mts migrate` — cutover #376, được gọi bằng `tsx` qua
+ * `child_process`) trên PostgreSQL thật.
  *
- * ⚠️ Đường code được test là đúng hàm mà CLI `db:migrate` chạy: assert
- * `current_database()`, advisory lock, apply theo thứ tự tên file, DDL
- * idempotent, không ledger, không down-migration (ADR-0025 §6,
- * `02-delivery.md` §3). Tất cả invocation đều đi qua credential migrator thật
- * (proxy `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
+ * ⚠️ Đường code được test là đúng lệnh mà target `db-migrate` của project db
+ * chạy: guard `current_database()`, advisory lock
+ * `pg_advisory_lock(hashtext('<database>'))`, engine `drizzle-kit migrate` với
+ * history `__drizzle_migrations` (checkpoint per-run — chạy lại là no-op,
+ * không replay). Tất cả invocation đều đi qua credential migrator thật (proxy
+ * `DATABASE_URL`), không `SET ROLE` — đúng hình CI runner.
  *
- * Suite này chạy migration hiện tại trên ba database — gateway có `0001`–`0003`
+ * Suite này chạy adopted journal trên ba database — gateway `0001`–`0005`
  * (schema namespace + bảng nghiệp vụ `llm_seller` của bootstrap Issue #23 +
  * schema `llm_gateway` với bảng `api_keys` của bootstrap Issue #24), tenant có
- * `0001`–`0002` (namespace + bảng nghiệp vụ `llm_tenant` của bước 9, Issue #24),
- * marketplace có `0001`–`0004` (schema `llm_marketplace`, thu hẹp default
+ * `0001`–`0002` (namespace + bảng nghiệp vụ `llm_tenant` của bước 9, Issue
+ * #24), marketplace có `0001`–`0004` (schema `llm_marketplace`, thu hẹp default
  * privileges, bảng nghiệp vụ offering của Issue #23) — catalog PostgreSQL là
- * nguồn sự thật.
+ * nguồn sự thật, history là bằng chứng adopt-đúng-số-entry.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -23,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type LlmApiDatabase,
   type LlmDatabaseKey,
+  databaseName,
   migratorUrl,
   runApplyCli,
   startLlmApiDatabase,
@@ -80,6 +83,20 @@ const MARKETPLACE_TABLES: readonly string[] = [
   'bootstrap_audit',
 ];
 
+/** Số entry journal adopted của một DB — bằng chứng history đầy đủ sau migrate. */
+const JOURNAL_ENTRIES: Readonly<Record<LlmDatabaseKey, number>> = {
+  gateway: 5,
+  tenant: 2,
+  marketplace: 4,
+};
+
+/** Schema history của một DB — trùng schema runtime trỏ trong `drizzle.config.ts`. */
+const HISTORY_SCHEMA: Readonly<Record<LlmDatabaseKey, string>> = {
+  gateway: 'llm_gateway',
+  tenant: 'llm_tenant',
+  marketplace: 'llm_marketplace',
+};
+
 let db: LlmApiDatabase;
 
 beforeAll(async () => {
@@ -91,7 +108,10 @@ afterAll(async () => {
 });
 
 /**
- * Số hàng `information_schema.tables` của một DB — snapshot idempotency.
+ * Số hàng `information_schema.tables` của một DB — snapshot idempotency. Bảng
+ * `__drizzle_migrations` (ledger của kit, cutover #376) là hạ tầng migration —
+ * loại ra để đếm đúng bảng nghiệp vụ; sự tồn tại và số entry của nó được assert
+ * riêng qua {@link historyRows}.
  *
  * ⚠️ `information_schema.tables` là catalog per-database: phải kết nối ĐÚNG DB
  * đang hỏi, không phải DB mặc định của harness.
@@ -102,7 +122,8 @@ async function countUserTables(key: LlmDatabaseKey): Promise<number> {
     const { rows } = await client.query<{ count: string }>(
       `SELECT count(*)::text AS count
          FROM information_schema.tables
-        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')`,
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+          AND table_name <> '__drizzle_migrations'`,
     );
     return Number(rows[0]?.count ?? '0');
   } finally {
@@ -126,7 +147,7 @@ async function listNonSystemSchemas(key: LlmDatabaseKey): Promise<string[]> {
   }
 }
 
-/** Tên mọi bảng user (mọi schema service) của một DB, đã sort. */
+/** Tên mọi bảng user (mọi schema service) của một DB, đã sort — trừ ledger của kit. */
 async function listUserTables(key: LlmDatabaseKey): Promise<string[]> {
   const client = await db.connect(key);
   try {
@@ -134,6 +155,7 @@ async function listUserTables(key: LlmDatabaseKey): Promise<string[]> {
       `SELECT table_name
          FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+          AND table_name <> '__drizzle_migrations'
         ORDER BY table_name`,
     );
     return rows.map((row) => row.table_name);
@@ -156,44 +178,75 @@ async function schemaExists(key: LlmDatabaseKey, name: string): Promise<boolean>
   }
 }
 
+/** Số hàng history `__drizzle_migrations` của một DB — cửa sổ vào ledger của kit. */
+async function historyRows(key: LlmDatabaseKey): Promise<number> {
+  const client = await db.connectAsMigrator(key);
+  try {
+    const { rows } = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM ${HISTORY_SCHEMA[key]}.__drizzle_migrations`,
+    );
+    return Number(rows[0]?.count ?? '0');
+  } finally {
+    await client.end();
+  }
+}
+
 describe('llm-api migration runner on real PostgreSQL', () => {
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('rejects a DATABASE_URL pointing at another database (current_database guard, non-zero exit)', async () => {
-    // Guard #101 (pattern remote-cache): runner pin tên database — `DATABASE_URL`
-    // trỏ nhầm `postgres` database phải fail-loud trước khi một DDL nào chạm đích.
-    // `postgres` có sẵn trong mọi image PostgreSQL và migrator có CONNECT mặc định
-    // PUBLIC ở đó — nên kết nối thành công mà `current_database()` khác, chạy được
-    // cho đến khi guard từ chối.
+    // Guard fail-closed của wrapper (pattern exemplar #374): `DATABASE_URL`
+    // trỏ nhầm `postgres` database phải bị từ chối TRƯỚC khi một DDL nào chạm
+    // đích. `postgres` có sẵn trong mọi image PostgreSQL và migrator có CONNECT
+    // mặc định PUBLIC ở đó — nên kết nối thành công mà `current_database()`
+    // khác, guard phải chặn ngay.
     const { host, port, rolePassword } = db;
     const url = `postgresql://ecoma_llm_gateway_migrator:${rolePassword}@${host}:${port}/postgres`;
     await expect(runApplyCli('gateway', url)).rejects.toThrow(
-      /expected database "db-llm-gateway"/u,
+      /refusing to touch the wrong database/u,
     );
-  });
+  }, 30_000);
 
-  it('applies the gateway set again as a no-op (idempotent DDL, no ledger)', async () => {
-    // Runner không có ledger — nó chạy LẠI mỗi file. Tính idempotent của DDL
-    // (`IF NOT EXISTS`) là thứ làm lần chạy thứ hai thành công mà không đổi
-    // catalog: snapshot `information_schema.tables` trước và sau phải bằng nhau.
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
+  it('applies the gateway set again as a no-op (kit checkpoint reads history, nothing replays)', async () => {
+    // Kit đọc `max(created_at)` của history rồi chỉ apply entry mới hơn — lần
+    // chạy thứ hai KHÔNG thực thi lại adopted DDL. Snapshot
+    // `information_schema.tables` trước và sau phải bằng nhau, history vẫn đủ
+    // 5 entry: bằng chứng "adopt, không replay" (§3a.3 mục D).
     const before = await countUserTables('gateway');
     const result = await runApplyCli('gateway', migratorUrl('gateway', db.host, db.port));
-    expect(result.stdout).toContain('done     5 file(s) applied');
+    expect(result.stdout).toContain('migrate complete');
     const after = await countUserTables('gateway');
     expect(after).toBe(before);
+    expect(await historyRows('gateway')).toBe(JOURNAL_ENTRIES.gateway);
+  }, 30_000);
+
+  it('records the adopted journal exactly once per entry on every database (gateway 5, tenant 2, marketplace 4)', async () => {
+    // History của kit là ledger mới sau cutover — sau lần migrate đầu tiên của
+    // setup, mọi entry journal phải có đúng một hàng history (không mất, không
+    // nhân đôi) trên cả ba database.
+    for (const key of ['gateway', 'tenant', 'marketplace'] as LlmDatabaseKey[]) {
+      expect(await historyRows(key), `history rows of ${databaseName(key)}`).toBe(
+        JOURNAL_ENTRIES[key],
+      );
+    }
   });
 
-  it('serializes two concurrent apply runs on the advisory lock (both exit 0)', async () => {
+  // Budget 30s: hai tsx cold-start + migrate + chờ lock serialization dưới tải parallel nhiều suite testcontainers.
+  it('serializes two concurrent migrate runs on the advisory lock (both exit 0)', async () => {
     // Cùng advisory lock `hashtext('db-llm-gateway')` — hai tiến trình chồng
-    // nhau phải hoàn thành mà không deadlock; mỗi run vẫn là đủ file apply,
-    // catalog không đổi.
+    // nhau phải hoàn thành mà không deadlock; checkpoint của kit làm lần chạy
+    // thứ hai thành no-op, catalog không đổi.
     const url = migratorUrl('gateway', db.host, db.port);
     const [first, second] = await Promise.all([
       runApplyCli('gateway', url),
       runApplyCli('gateway', url),
     ]);
-    expect(first.stdout).toContain('done     5 file(s) applied');
-    expect(second.stdout).toContain('done     5 file(s) applied');
+    expect(first.stdout).toContain('migrate complete');
+    expect(second.stdout).toContain('migrate complete');
     expect(await countUserTables('gateway')).toBe(GATEWAY_TABLES.length);
-  });
+    expect(await historyRows('gateway')).toBe(JOURNAL_ENTRIES.gateway);
+  }, 30_000);
 
   it('creates exactly the business tables of each domain slice (gateway 11 seller + 5 gateway-runtime + 9 financial, tenant 3, marketplace 5 offering)', async () => {
     // Gateway: đúng tập bảng `llm_seller` của Issue #23 + `llm_gateway` của
@@ -333,18 +386,20 @@ describe('llm-api migration runner on real PostgreSQL', () => {
     }
   });
 
+  // Budget 30s: spawn tsx cold-start + migrate/bootstrap thật dưới tải parallel nhiều suite testcontainers.
   it('keeps the per-database advisory lock distinct from other databases', async () => {
     // Khóa là `hashtext('<ten database>')` phía server — giữ khóa db-llm-gateway
-    // ở session này, chạy apply db-llm-tenant từ một tiến trình khác vẫn thành công:
-    // hai database không tranh cùng một khóa.
+    // ở session này, chạy migrate db-llm-tenant từ một tiến trình khác vẫn thành
+    // công: hai database không tranh cùng một khóa (khóa hard-code của runner
+    // tenant bằng đúng `hashtext('db-llm-tenant')`, khác khóa gateway).
     const client = await db.connect();
     try {
       await client.query('SELECT pg_advisory_lock(hashtext($1))', ['db-llm-gateway']);
       const result = await runApplyCli('tenant', migratorUrl('tenant', db.host, db.port));
-      expect(result.stdout).toContain('done     2 file(s) applied');
+      expect(result.stdout).toContain('migrate complete');
     } finally {
       await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['db-llm-gateway']);
       await client.end();
     }
-  });
+  }, 30_000);
 });

@@ -72,6 +72,7 @@ test.describe.serial('remote-cache portal developer journey', () => {
     page,
     identity,
   }, testInfo) => {
+    testInfo.setTimeout(120_000);
     projectName = `e2e-portal-${testInfo.workerIndex}-${Date.now().toString(36)}`;
 
     await page.goto('/');
@@ -81,8 +82,28 @@ test.describe.serial('remote-cache portal developer journey', () => {
     });
 
     // Trang chủ portal: danh sách project của tenant mà membership của phiên
-    // resolve tới (`ecoma`).
-    await expect(page.getByTestId('remote-cache-app-projects-table')).toBeVisible();
+    // resolve tới (`ecoma`). Bootstrap luôn dựng host project nên bảng là
+    // trạng thái đích. Trên CI runner hosted (VM mới mỗi run, `ubuntu-26.04`)
+    // SPA hydrate + fetch list có thể vượt 15s mặc định, và một 5xx thoáng qua
+    // render ErrorState DỨT ĐIỂM (không tự retry) — chờ bảng hoặc lỗi trong
+    // 30s, bấm retry CỦA APP đúng MỘT lần (cùng triết lý một-retry của helper
+    // `oidc-flow`), lỗi lần hai là lỗi thật (run 44546061134).
+    const projectsTable = page.getByTestId('remote-cache-app-projects-table');
+    const errorRetry = page.getByTestId('remote-cache-app-error-retry');
+    const tableOrTimeout = await Promise.race([
+      projectsTable
+        .waitFor({ state: 'visible', timeout: 30_000 })
+        .then(() => true)
+        .catch(() => false),
+      errorRetry
+        .waitFor({ state: 'visible', timeout: 30_000 })
+        .then(() => false)
+        .catch(() => false),
+    ]);
+    if (!tableOrTimeout && (await errorRetry.isVisible())) {
+      await errorRetry.click();
+    }
+    await expect(projectsTable).toBeVisible({ timeout: 30_000 });
 
     await page.getByTestId('remote-cache-app-create-project-link').click();
     await page.getByTestId('remote-cache-app-create-project-name').fill(projectName);
@@ -101,7 +122,10 @@ test.describe.serial('remote-cache portal developer journey', () => {
   test('A30: first key is shown exactly once and A29 metadata carries no secrets', async ({
     page,
     identity,
-  }) => {
+  }, testInfo) => {
+    // Cùng ngân sách A27/A31: helper login có vòng landing callback nhiều lượt
+    // (oidc-flow) — 60s mặc định cắt ngắn tolerance đó dưới CI hosted.
+    testInfo.setTimeout(120_000);
     await page.goto('/');
     await performBrowserLogin(page, {
       email: identity.email,

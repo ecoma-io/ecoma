@@ -1,6 +1,6 @@
 # Home Deploy
 
-Pulumi deployment project provision **deploy unit của `apps/home` trên lane LOCAL**: image (Nuxt preset `node-server` build trong Docker) và container phía sau Traefik. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, image ở `Dockerfile`.
+Pulumi deployment project provision **deploy unit của `apps/home` trên lane LOCAL**: image đóng gói artifact `build:development` (Nuxt preset `node-server`) do Nx build sẵn, và container phía sau Traefik. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, image ở `Dockerfile`.
 
 Nx project `home-deploy`, tags `type:deployment`, `scope:public`, `runtime:native`. Chỉ có lane local (`configurations: local`); staging/production của app khai trong `apps/home/wrangler.jsonc` và thuộc delivery lane — không nằm trong chương trình này.
 
@@ -11,7 +11,7 @@ Nx project `home-deploy`, tags `type:deployment`, `scope:public`, `runtime:nativ
 
 ## Responsibilities
 
-- **Image + container** (`Dockerfile`, `index.ts`): image multi-stage build Nuxt từ repo root (builder `default`, `load: true`, `push: false`); container ghim `tag@sha256:<digest>` nên mỗi rebuild thành thay đổi input thấy được, `restart: unless-stopped`, alias DNS `ecoma-home`, router Traefik `Host(<rootHostname>)` TLS, healthcheck HTTP `GET /` (chấp nhận `status < 500` vì `/` trả 302 sang `/en`) và `wait: true` — `pulumi up` chỉ xanh khi healthcheck `healthy`.
+- **Image + container** (`Dockerfile`, `index.ts`): image COPY artifact `.output-node/` do `local-build` (→ `@ecoma-io/home:build:development`) build sẵn, từ repo root, fail-loud kiểm entrypoint (builder `default`, `load: true`, `push: false`); container ghim `tag@sha256:<digest>` nên mỗi rebuild thành thay đổi input thấy được, `restart: unless-stopped`, alias DNS `ecoma-home`, router Traefik `Host(<rootHostname>)` TLS, healthcheck HTTP `GET /` (chấp nhận `status < 500` vì `/` trả 302 sang `/en`) và `wait: true` — `pulumi up` chỉ xanh khi healthcheck `healthy`.
 - **Env inject** (`index.ts`): chỉ `PORT=3000` và `NODE_ENV=production`; không có `ROOT_HOST` (không consumer runtime nào đọc biến này) và không có endpoint PostgreSQL — home không sở hữu database, tiêm endpoint DB của platform vào là vi phạm invariant data ownership.
 - **Platform dependency**: đọc outputs platform qua `StackReference` (`networkName`, `namespace`, `rootHostname`) fail-closed; không đọc `traefikHostPort`/`postgresHost`/`postgresPort` vì container không publish cổng và không dùng DB; so namespace platform với worktree namespace, lệch là lỗi deploy; target `local-up` dependsOn duy nhất `platform-deploy:local-up`.
 - **Multi-worktree**: mọi Docker resource mang namespace theo worktree và ownership labels để `pnpm dx local-cleanup` phân loại được; `traefik.docker.network` khai network cho router để Traefik của worktree khác không đăng ký nhầm.

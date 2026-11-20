@@ -81,6 +81,7 @@ jobs:
             });
 
             core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('base_sha', pr.base.sha);
             core.setOutput('head_sha', pr.head.sha);
             core.setOutput('title', pr.title);
             core.setOutput('body', pr.body);
@@ -130,7 +131,7 @@ jobs:
         # (scale +50 rph/repo trên 20 repos, +50 rph/user trên 20 users, trần
         # 12,500 rph) — cao hơn 1,000 rph/repo của `github.token` và không dùng
         # chung băng với các workflow khác.
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.ECOMA_APP_ID }}
           private-key: ${{ secrets.ECOMA_APP_KEY }}
@@ -193,7 +194,7 @@ jobs:
       - name: Review the pull request
         id: ocr
         if: steps.pr.outputs.skip_review != 'true'
-        uses: alibaba/open-code-review@f921d6a0de3b71befce15d8edf589cd3609968fa # v1.13.12
+        uses: alibaba/open-code-review@445ad9dea3057346986197385858a1a281253cc9 # v1.13.13
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           base_ref: ${{ steps.pr.outputs.base_ref }}
@@ -239,6 +240,40 @@ jobs:
           persist-credentials: false
           path: ocr-gate
 
+      # Numstat của diff PR cho cổng OCR (issue #456): PR chỉ xoá nội dung thì
+      # `skipped` với 0 item là kết quả ĐÚNG (không có dòng added nào = không có
+      # gì để review một cách cấu trúc), nhưng cổng phải chứng minh được điều đó
+      # từ dữ liệu chứ không phải tin vào trạng thái skipped. Dữ liệu là đầu vào
+      # injectable: cổng chạy trên base checkout không có object của head nên
+      # không tự chạy git. Diff hai chấm base→head theo SHA của event payload;
+      # bước chỉ ĐỌC git object, không thực thi nội dung nào từ PR head. Mọi
+      # trường hợp không tạo được file (repo/thiếu object) chỉ làm mất nhánh cấp
+      # qua deletion-only — cổng vẫn fail-closed như trước, không có nhánh xanh
+      # mới nào phụ thuộc vào việc bước này thành công; vì vậy lỗi bất ngờ của
+      # bước cũng chỉ vậy (continue-on-error), không làm đỏ cả job. Đường dẫn
+      # file là mktemp riêng của từng job: file numstat còn sót từ job trước
+      # (runner tự host dùng chung /tmp) không bao giờ được cổng đọc lại.
+      - name: Record the PR diff numstat for the gate
+        id: numstat
+        if: steps.ocr.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          numstat_path="$(mktemp /tmp/ocr-diff-numstat.XXXXXX.txt)"
+          echo "numstat_path=$numstat_path" >> "$GITHUB_OUTPUT"
+          if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+            && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null \
+            && git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
+            git diff --numstat --no-renames "$BASE_SHA" "$HEAD_SHA" > "$numstat_path"
+            wc -l < "$numstat_path"
+          else
+            echo '::warning::PR diff objects are unavailable in this workspace; the deletion-only pass cannot be granted' >&2
+          fi
+
       # Action kết thúc thành công ngay cả khi không file nào được chọn để review
       # (`status: skipped`, `summary.files_reviewed: 0`), nên bước này đọc kết quả
       # thật rồi fail-closed — ngoại trừ trường hợp `skipped` mà cổng chứng minh
@@ -253,8 +288,13 @@ jobs:
         id: verify
         if: steps.ocr.outcome == 'success'
         shell: bash
+        env:
+          # Truyền qua env thay vì nội suy tường minh trong lệnh: đường dẫn file
+          # numstat là dữ liệu của workflow, không phải nguồn tin cậy.
+          NUMSTAT_PATH: ${{ steps.numstat.outputs.numstat_path }}
         run: |
           node "$GITHUB_WORKSPACE/ocr-gate/tools/dx/scripts/ocr-result-gate.mjs" \
             --result /tmp/ocr-result.json \
             --stderr /tmp/ocr-stderr.log \
-            --rule "$GITHUB_WORKSPACE/ocr-gate/.github/ocr-rules.json"
+            --rule "$GITHUB_WORKSPACE/ocr-gate/.github/ocr-rules.json" \
+            --numstat "$NUMSTAT_PATH"
