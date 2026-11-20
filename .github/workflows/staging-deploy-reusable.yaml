@@ -11,10 +11,13 @@ name: Staging deploy (reusable)
 #
 # Caller duy nhất hiện tại: `.github/workflows/staging-home.yaml`. Trigger của
 # lane (workflow_run sau CI / dispatch trên main) thuộc caller. Vì MỌI caller
-# tương lai đều gọi được workflow này, nó TỰ guard `inputs.ref` trước khi
-# checkout (CodeQL actions/cache-poisoning): ref phải là commit 40-hex VÀ
-# reachable từ default branch — một caller tùy ý không thể đẩy revision rời
-# main vào job có quyền ghi status / secret Environment.
+# tương lai đều gọi được workflow này, nó TỰ guard `inputs.ref` ở job
+# `context` (checkout default branch — ref tin cậy — rồi xác minh ref là
+# commit 40-hex VÀ reachable từ default branch) trước khi job nào khác chạy;
+# build/deploy checkout `needs.context.outputs.verified_sha` — cùng shape
+# checkout-từ-output-đã-guard mà `release-prepare.yaml` dùng. Một caller tùy
+# ý không thể đẩy revision rời main vào job có quyền ghi status / secret
+# Environment.
 
 on:
   workflow_call:
@@ -63,25 +66,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build the deploy unit
+  context:
+    name: Verify the requested revision
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      verified_sha: ${{ steps.guard.outputs.verified_sha }}
     steps:
       - name: Start runner resource monitoring
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
-      # Guard trust TRƯỚC mọi checkout của `inputs.ref`: checkout default
-      # branch (ref tin cậy), xác minh ref là 40-hex và là ancestor của default
-      # branch — cùng doctrine với caller guard, nhưng nằm ở workflow để MỌI
-      # caller kế thừa. Không qua đủ guard là job đỏ trước khi code nào của
-      # ref được chạy hay cache nào được ghi.
-      - name: Check out the default branch for the trust guard
+      # Job này chỉ chạy code của default branch (ref tin cậy): xác minh
+      # `inputs.ref` là 40-hex và là ancestor của default branch. Không qua đủ
+      # guard là lane đỏ trước khi bất kỳ checkout nào khác hay step
+      # ghi-cache nào chạy — và MỌI caller tương lai kế thừa guard này.
+      - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
       - name: Guard the verified revision
+        id: guard
         env:
           REF_SHA: ${{ inputs.ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -95,10 +102,22 @@ jobs:
             echo "::error::ref $REF_SHA is not reachable from origin/$DEFAULT_BRANCH — the lane deploys only revisions merged into the default branch, regardless of caller" >&2
             exit 1
           fi
+          echo "verified_sha=$REF_SHA" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build the deploy unit
+    needs: context
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Checkout SHA ĐÃ VERIFY ở job context — không checkout `inputs.ref`
+      # trực tiếp ở bất kỳ job nào của workflow này.
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.context.outputs.verified_sha }}
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
@@ -143,7 +162,7 @@ jobs:
 
   deploy:
     name: Deploy and smoke the staging worker
-    needs: build
+    needs: [context, build]
     runs-on: ubuntu-26.04
     # Trần job phải VƯỢT worst case của lớp retry §7.4: 3 lần thử × 4 phút +
     # backoff 45s ≈ 13 phút, cộng smoke budget 90s và install — 25 phút là
@@ -160,34 +179,14 @@ jobs:
     steps:
       - name: Start runner resource monitoring
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
-      # Cùng trust guard với job build: job này MANG QUYỀN (statuses: write +
-      # secret Environment) nên guard phải chạy trước checkout `inputs.ref` và
-      # trước setup-node-pnpm (setup-node ghi pnpm cache ở cuối job — bước có
-      # khả năng poison-cache chỉ được với tới sau khi ref đã verify).
-      - name: Check out the default branch for the trust guard
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Guard the verified revision
-        env:
-          REF_SHA: ${{ inputs.ref }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          if ! printf '%s' "$REF_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "::error::ref is not a full 40-hex commit SHA: \"$REF_SHA\" — the lane records evidence against the exact SHA only (§7.3)" >&2
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor "$REF_SHA" "origin/$DEFAULT_BRANCH"; then
-            echo "::error::ref $REF_SHA is not reachable from origin/$DEFAULT_BRANCH — the lane deploys only revisions merged into the default branch, regardless of caller" >&2
-            exit 1
-          fi
+      # Job này MANG QUYỀN (statuses: write + secret Environment): checkout
+      # SHA đã verify của job context, không bao giờ `inputs.ref` trực tiếp —
+      # mọi step ghi-cache (setup-node pnpm cache) chỉ chạy trên revision đã
+      # qua guard.
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.context.outputs.verified_sha }}
           persist-credentials: false
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
