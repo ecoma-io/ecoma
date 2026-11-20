@@ -46,17 +46,9 @@ function stripJsonc(source: string): string {
       }
       continue;
     }
-    // Ký tự quyết định đầu sau comma: `}`/`]` → comma là trailing (bỏ); ký tự
-    // khác (kể cả `"` mở string) → comma là thật (flush). Whitespace giữ trạng thái.
-    if (pendingComma && /\S/u.test(char)) {
-      if (char !== '}' && char !== ']') out += ',';
-      pendingComma = false;
-    }
-    if (char === '"') {
-      inString = true;
-      out += char;
-      continue;
-    }
+    // Opener comment phải được xử lý TRƯỚC quyết định flush comma: comma giữ
+    // pending qua comment (`1, // c\n}` vẫn phải bỏ comma; `1, // c\n"b":2}`
+    // vẫn giữ comma) — coi comment như whitespace, không phải ký tự quyết định.
     if (char === '/' && source[i + 1] === '/') {
       while (i < source.length && source[i] !== '\n') {
         i += 1;
@@ -70,6 +62,17 @@ function stripJsonc(source: string): string {
         throw new Error('unterminated block comment in wrangler.jsonc');
       }
       i = end + 1;
+      continue;
+    }
+    // Ký tự quyết định đầu sau comma: `}`/`]` → comma là trailing (bỏ); ký tự
+    // khác (kể cả `"` mở string) → comma là thật (flush). Whitespace giữ trạng thái.
+    if (pendingComma && /\S/u.test(char)) {
+      if (char !== '}' && char !== ']') out += ',';
+      pendingComma = false;
+    }
+    if (char === '"') {
+      inString = true;
+      out += char;
       continue;
     }
     if (char === ',') {
@@ -161,5 +164,12 @@ describe('stripJsonc', () => {
     expect(JSON.parse(stripJsonc('{"a":1 , }'))).toEqual({ a: 1 });
     expect(JSON.parse(stripJsonc('[1,2,]'))).toEqual([1, 2]);
     expect(JSON.parse(stripJsonc('{"a":1,\n  "b":2}'))).toEqual({ a: 1, b: 2 });
+  });
+
+  it('treats a comment between the comma and the closing brace as whitespace, not a flush trigger', () => {
+    expect(JSON.parse(stripJsonc('{"a":1, // line comment\n}'))).toEqual({ a: 1 });
+    expect(JSON.parse(stripJsonc('{"a":1, /* block comment */ }'))).toEqual({ a: 1 });
+    // Comma trước comment KHÔNG phải trailing: phải sống sót qua comment.
+    expect(JSON.parse(stripJsonc('{"a":1, // comment\n"b":2}'))).toEqual({ a: 1, b: 2 });
   });
 });
