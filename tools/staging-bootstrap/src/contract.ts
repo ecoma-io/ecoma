@@ -5,7 +5,8 @@ import { resolve } from 'node:path';
  * Bảng bước bootstrap/seed canonical — nguồn duy nhất là
  * `docs/architecture/02-delivery.md` §3.2 (hợp đồng vận hành), quyết định
  * đường chạy ở ADR-0020 (staff-access). Runner chỉ thực thi các dòng
- * bootstrap/seed (3–12 của bảng §3.2): dòng 1 (provision) thuộc #349/#368,
+ * bootstrap/seed của bảng §3.2 (dòng 3, 4, 5a, 5b, 6, 7, 8a, 8b, 9, 10):
+ * dòng 1 (provision) thuộc #349/#368,
  * dòng 2 (migrate schemas) thuộc các migration project `deploys/*-db`
  * (#374, #375–#378) — runner không execute DDL, chỉ yêu cầu evidence hoàn
  * tất của hai dòng đó trước khi chạy (§3a.5 mục F: ba lifecycle không trộn).
@@ -25,16 +26,18 @@ export const CANONICAL_SELLER_TENANT = 'dronie';
 export interface StepValues {
   /** `sub` của Superadmin — sinh ở bước account, tiêu thụ từ bước staff trở đi. */
   sub?: string;
-  /** `tenant_id` của Consumer tenant `ecoma` — sinh ở bước 9, tiêu thụ ở bước 10 (ADR-0028 §6). */
+  /** `tenant_id` của Consumer tenant `ecoma` — sinh ở dòng §3.2 số 9 (bước `llm-consumer-tenant`), tiêu thụ ở dòng 10 (bước `llm-financial`, ADR-0028 §6). */
   tenantId?: string;
 }
 
-/** Một dòng của bảng bước §3.2 (chỉ các dòng bootstrap/seed 3–12). */
+/** Một dòng của bảng bước §3.2 (chỉ các dòng bootstrap/seed 3–10, gồm cả 5a/5b và 8a/8b). */
 export interface BootstrapStep {
   /** Định danh ổn định của bước — dùng cho `--from` và evidence. */
   readonly id: string;
-  /** Số dòng trong bảng §3.2 — thứ tự bắt buộc của runner. */
+  /** Sequence chạy của runner (monotonic) — KHÔNG phải số dòng §3.2 (bảng canonical dùng 5a/5b, 8a/8b). */
   readonly order: number;
+  /** Số dòng thực trong bảng §3.2 — tham chiếu truy vết cho evidence. */
+  readonly canonicalRow: string;
   /** Service sở hữu bước — một bước chỉ được một service ghi (§3.2). */
   readonly service: string;
   /** Database bị ghi — một bước chỉ được ghi đúng một database (ADR-0020 Q4). */
@@ -60,6 +63,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'account',
     order: 3,
+    canonicalRow: '3',
     service: 'account',
     database: 'db-account',
     argv: ['pnpm', '--filter', '@ecoma-io/account', 'exec', 'node', 'db/bootstrap.mts'],
@@ -69,6 +73,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'staff',
     order: 4,
+    canonicalRow: '4',
     service: 'staff-access',
     database: 'db-staff-access',
     argv: ['pnpm', '--filter', '@ecoma-io/staff-access', 'exec', 'node', 'db/bootstrap.mts'],
@@ -78,6 +83,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'pact-tenant',
     order: 5,
+    canonicalRow: '5a',
     service: 'pact-broker',
     database: 'db-pact-broker',
     argv: [
@@ -94,6 +100,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'remote-cache-tenant',
     order: 6,
+    canonicalRow: '5b',
     service: 'remote-cache',
     database: 'db-remote-cache',
     argv: [
@@ -110,6 +117,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'pact-machine-token',
     order: 7,
+    canonicalRow: '6',
     service: 'pact-broker',
     database: 'db-pact-broker',
     argv: [
@@ -126,6 +134,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'auth-oauth-client',
     order: 8,
+    canonicalRow: '7',
     service: 'auth',
     database: 'db-auth',
     // TODO(352/blocking): script bootstrap OAuth client của `auth` CHƯA TỒN TẠI
@@ -139,6 +148,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'llm-seller-governance',
     order: 9,
+    canonicalRow: '8a',
     service: 'llm-api',
     database: 'db-llm-gateway',
     argv: [
@@ -155,6 +165,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'llm-marketplace',
     order: 10,
+    canonicalRow: '8b',
     service: 'llm-api',
     database: 'db-llm-marketplace',
     argv: ['pnpm', '--filter', '@ecoma-io/llm-api', 'exec', 'node', 'db/bootstrap-marketplace.mts'],
@@ -163,6 +174,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'llm-consumer-tenant',
     order: 11,
+    canonicalRow: '9',
     service: 'llm-api',
     database: 'db-llm-tenant',
     argv: [
@@ -179,6 +191,7 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
   {
     id: 'llm-financial',
     order: 12,
+    canonicalRow: '10',
     service: 'llm-api',
     database: 'db-llm-gateway',
     argv: ['pnpm', '--filter', '@ecoma-io/llm-api', 'exec', 'node', 'db/bootstrap-financial.mts'],
