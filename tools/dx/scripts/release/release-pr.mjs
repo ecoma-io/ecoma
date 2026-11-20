@@ -250,6 +250,23 @@ export function classifyChangedFiles(changedFiles, allowlist, batchRoots) {
 }
 
 /**
+ * Đọc version của từng project trong batch từ package.json trên working tree.
+ * `batch` và `batchRoots` là hai mảng song song cùng thứ tự (outputs của job
+ * plan); `readFile` là tham số inject để spec chấm logic mà không chạm đĩa.
+ */
+export function readBatchUnits(batch, batchRoots, readFile = (path) => readFileSync(path, 'utf8')) {
+  if (batch.length !== batchRoots.length) {
+    throw new Error(
+      `batch (${batch.length}) and batchRoots (${batchRoots.length}) length mismatch; refusing to map versions onto the wrong projects`,
+    );
+  }
+  return batch.map((project, index) => {
+    const manifest = JSON.parse(readFile(`${batchRoots[index]}/package.json`));
+    return { project, version: manifest.version };
+  });
+}
+
+/**
  * Manifest identity của batch (bản sửa 2026-11-19): release base/source SHA +
  * Release PR head SHA + artifact digests per unit. Ở Phase B artifact chưa
  * được build nên `artifact_digest` là `null` tường minh — field PHẢI có mặt;
@@ -311,10 +328,17 @@ export function validateManifestShape(manifest) {
         missing.push(`units[${index}].project`);
       if (typeof unit?.version !== 'string' || unit.version === '')
         missing.push(`units[${index}].version`);
-      if (unit === null || !('artifact_digest' in unit)) {
+      // `in` ném TypeError trên primitive thay vì thêm vào missing — kiểm kiểu
+      // object tường minh để mọi manifest hỏng đều trả về danh sách, không crash.
+      if (unit === null || typeof unit !== 'object' || !('artifact_digest' in unit)) {
         missing.push(`units[${index}].artifact_digest (key must exist; null until Phase C)`);
       }
     });
+  }
+  if (!Array.isArray(manifest.batch_roots) || manifest.batch_roots.length === 0) {
+    missing.push('batch_roots (non-empty array of project roots)');
+  } else if (manifest.batch_roots.some((root) => typeof root !== 'string' || root === '')) {
+    missing.push('batch_roots (every entry must be a non-empty string)');
   }
   return { ok: missing.length === 0, missing };
 }
@@ -682,12 +706,7 @@ async function modePrepare() {
     );
   }
 
-  const units = batch.map((project) => {
-    const manifest = JSON.parse(
-      readFileSync(`${projectRoots[batch.indexOf(project)]}/package.json`, 'utf8'),
-    );
-    return { project, version: manifest.version };
-  });
+  const units = readBatchUnits(batch, batchRoots);
   const files = changedFiles.map((path) => ({ path, content: readFileSync(path, 'utf8') }));
   const subject = buildReleaseSubject(units);
 
@@ -773,8 +792,10 @@ async function modePrepare() {
 async function modeVerifyPr() {
   const env = requireEnv(['GH_TOKEN', 'PR_NUMBER', 'BASE_SHA', 'HEAD_SHA', 'REPO']);
   const { projects, projectRoots } = readReleaseConfig();
-  const roots = projects.map((project) => projectRoots.get(project));
-  const allowlist = computeAllowlist(roots);
+  // Tập roots hợp lệ = projectRoot của MỌI project trong release.projects: bộ
+  // batch_roots khai trong manifest phải nằm TRONG tập này — khai roots ngoài
+  // tập là manifest bị chế tạo ngoài đường chuẩn.
+  const allowedRoots = new Set(projects.map((project) => projectRoots.get(project)));
 
   const files = [];
   let page = 1;
@@ -789,11 +810,6 @@ async function modeVerifyPr() {
   }
 
   const failures = [];
-  const { violations } = classifyChangedFiles(files, allowlist, roots);
-  if (violations.length > 0) {
-    failures.push(`Changed file(s) outside the release allowlist: ${violations.join(', ')}`);
-  }
-
   const pr = await ghApi(env.GH_TOKEN, `/repos/${env.REPO}/pulls/${env.PR_NUMBER}`);
   const manifest = extractManifest(pr.body);
   if (manifest === null) {
@@ -813,6 +829,27 @@ async function modeVerifyPr() {
       failures.push(
         `Manifest head ${manifest.head_sha} does not match PR head ${env.HEAD_SHA}; the commit may have been created outside the standard path`,
       );
+    }
+    // Allowlist của check CI tính từ BATCH trong manifest (bản sửa 2026-11-19:
+    // "từ version plan của batch, tính danh sách file dự kiến") — không phải
+    // hợp của mọi project releaseable. Batch roots khai ngoài release.projects
+    // là fail closed; manifest không hợp lệ thì không có allowlist đáng tin để
+    // so, file-shape check bị bỏ qua vì mọi failure khác đã làm check đỏ.
+    if (shape.ok) {
+      const batchRootsOk = manifest.batch_roots.every((root) => allowedRoots.has(root));
+      if (!batchRootsOk) {
+        failures.push(
+          `Manifest batch_roots contains root(s) outside release.projects: ${manifest.batch_roots
+            .filter((root) => !allowedRoots.has(root))
+            .join(', ')}`,
+        );
+      } else {
+        const allowlist = computeAllowlist(manifest.batch_roots);
+        const { violations } = classifyChangedFiles(files, allowlist, manifest.batch_roots);
+        if (violations.length > 0) {
+          failures.push(`Changed file(s) outside the batch allowlist: ${violations.join(', ')}`);
+        }
+      }
     }
   }
 

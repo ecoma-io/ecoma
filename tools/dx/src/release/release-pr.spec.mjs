@@ -12,6 +12,7 @@ import {
   parseDryRun,
   parseJsonc,
   projectSlug,
+  readBatchUnits,
   releaseBranchName,
   resolveBatch,
   validateManifestShape,
@@ -240,6 +241,35 @@ describe('manifest identity — the 2026-11-19 binding', () => {
     expect(missing.missing).toContain(
       'units[0].artifact_digest (key must exist; null until Phase C)',
     );
+    expect(missing.missing).toContain('batch_roots (non-empty array of project roots)');
+  });
+
+  it('reports a primitive unit as missing fields instead of crashing on the in operator', () => {
+    const missing = validateManifestShape({
+      spec: 1,
+      release_base_sha: 'a'.repeat(40),
+      head_sha: 'b'.repeat(40),
+      batch_roots: ['apps/home'],
+      units: ['garbage'],
+    });
+
+    expect(missing.ok).toBe(false);
+    expect(missing.missing).toContain(
+      'units[0].artifact_digest (key must exist; null until Phase C)',
+    );
+  });
+
+  it('rejects non-string batch_roots entries', () => {
+    const missing = validateManifestShape({
+      spec: 1,
+      release_base_sha: 'a'.repeat(40),
+      head_sha: 'b'.repeat(40),
+      batch_roots: [42],
+      units: [{ project: 'p', version: '1', artifact_digest: null }],
+    });
+
+    expect(missing.ok).toBe(false);
+    expect(missing.missing).toContain('batch_roots (every entry must be a non-empty string)');
   });
 
   it('rejects a manifest without units, with a short SHA, or not an object', () => {
@@ -274,6 +304,33 @@ describe('manifest identity — the 2026-11-19 binding', () => {
     expect(extractManifest(body)).toEqual(manifest);
     expect(extractManifest('no block here')).toBeNull();
     expect(extractManifest('```release-manifest\nnot json\n```')).toBeNull();
+  });
+});
+
+const readBatchUnitFile = (path) => {
+  if (path === 'apps/home/package.json') return JSON.stringify({ version: '0.0.2' });
+  if (path === 'apps/account/package.json') return JSON.stringify({ version: '1.4.0' });
+  throw new Error(`unexpected path: ${path}`);
+};
+
+describe('readBatchUnits — the batch/roots zip', () => {
+  it('maps each project to the version of the package.json at the same position', () => {
+    expect(
+      readBatchUnits(
+        ['@ecoma-io/home', '@ecoma-io/account'],
+        ['apps/home', 'apps/account'],
+        readBatchUnitFile,
+      ),
+    ).toEqual([
+      { project: '@ecoma-io/home', version: '0.0.2' },
+      { project: '@ecoma-io/account', version: '1.4.0' },
+    ]);
+  });
+
+  it('refuses to zip when batch and batchRoots lengths differ', () => {
+    expect(() =>
+      readBatchUnits(['@ecoma-io/home', '@ecoma-io/account'], ['apps/home'], readBatchUnitFile),
+    ).toThrow(/length mismatch/u);
   });
 });
 
