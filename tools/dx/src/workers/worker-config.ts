@@ -694,6 +694,10 @@ function runWrangler(
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
     timeout: 5 * 60 * 1000, // không chờ wrangler treo vô hạn
+    // Thứ tự có chủ đích: extraEnv spread SAU cùng nên có thể override key
+    // của allowlist trong sanitizedWranglerEnv — caller KHÔNG được đưa key
+    // allowlisted vào extraEnv. Hiện chỉ CLOUDFLARE_API_TOKEN (không thuộc
+    // allowlist), comment này chặn misuse trong tương lai.
     env: { ...sanitizedWranglerEnv(options.persistTo), ...options.extraEnv },
   });
   if (result.error) {
@@ -892,6 +896,9 @@ export function buildD1MigrationsApplyArgs(options: {
   remote: boolean;
   envLane?: string;
 }): string[] {
+  if (options.envLane !== undefined && options.envLane.trim().length === 0) {
+    throw new Error(`--env lane must be a non-empty string, got '${options.envLane}'`);
+  }
   return [
     'd1',
     'migrations',

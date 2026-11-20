@@ -664,6 +664,19 @@ describe('buildD1MigrationsApplyArgs (#382 — argv shape, token không qua argv
     expect(args).not.toContain('--env');
     expect(args).not.toContain('--persist-to');
   });
+
+  it('rejects an empty env lane instead of forwarding a bare --env', () => {
+    for (const lane of ['', '   ']) {
+      expect(() =>
+        buildD1MigrationsApplyArgs({
+          databaseName: 'mail',
+          configPath: '/tmp/some-app/wrangler.jsonc',
+          remote: true,
+          envLane: lane,
+        }),
+      ).toThrow(/non-empty/u);
+    }
+  });
 });
 
 describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () => {

@@ -66,8 +66,11 @@ export default defineCommand({
       return;
     }
     const envLane = args['env'];
-    if (typeof envLane !== 'string' && envLane !== undefined) {
-      console.error('[d1-migrate] --env must be a lane name string');
+    if (
+      (typeof envLane !== 'string' && envLane !== undefined) ||
+      (typeof envLane === 'string' && envLane.trim().length === 0)
+    ) {
+      console.error('[d1-migrate] --env must be a non-empty lane name string');
       process.exitCode = 1;
       return;
     }
@@ -95,7 +98,7 @@ export default defineCommand({
       const databaseName = requireSingleD1DatabaseName(configPath);
       const stdout = applyRemoteD1Migrations({
         configPath,
-        envLane: envLane === undefined ? undefined : envLane,
+        envLane,
       });
       // Output wrangler giữ nguyên làm bằng chứng apply (bảng file ✅/no-op);
       // không log gì thêm quanh token — token không bao giờ vào stdout/stderr.
