@@ -117,7 +117,9 @@ export async function startPostgres(): Promise<PgContainer> {
     throw new Error(`docker port failed: ${portOutput.stderr.trim()}`);
   }
   const portLine = portOutput.stdout.trim().split('\n').at(-1) ?? '';
-  const hostPort = Number(portLine.match(/:(\d+)$/u)?.[1]);
+  // Cổng nằm sau `:` cuối, có hoặc không có đuôi `->5432/tcp` (dạng `docker
+  // ps`); `[::]:32768` (IPv6) cũng khớp — số sai là NaN, throw ngay dưới.
+  const hostPort = Number(portLine.match(/:(\d+)(?:->\S+)?$/u)?.[1]);
   if (!Number.isInteger(hostPort) || hostPort <= 0) {
     docker(['rm', '-f', name]);
     throw new Error(`cannot parse the mapped host port from ${JSON.stringify(portOutput.stdout)}`);
