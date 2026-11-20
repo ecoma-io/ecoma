@@ -69,10 +69,13 @@ function parseJsonc(path: string): Record<string, unknown> {
   // bỏ; `,` bên trong string literal giữ nguyên (giá trị chứa `,}` không bị
   // biến đổi như replace regex nguyên thủy từng làm).
   let json = '';
-  inString = false;
+  // Trạng thái string của pass hai là biến riêng, không tái dùng `inString`
+  // của pass một — hai pass quét hai text khác nhau, chia sẻ biến chỉ tạo
+  // rủi ro regression khi một pass đổi mà quên pass kia.
+  let inJsonString = false;
   for (let i = 0; i < out.length; i += 1) {
     const char = out[i];
-    if (inString) {
+    if (inJsonString) {
       json += char;
       // `\"` escape là phần của string, không đóng string.
       if (char === '\\' && i + 1 < out.length) {
@@ -81,12 +84,12 @@ function parseJsonc(path: string): Record<string, unknown> {
         continue;
       }
       if (char === '"') {
-        inString = false;
+        inJsonString = false;
       }
       continue;
     }
     if (char === '"') {
-      inString = true;
+      inJsonString = true;
       json += char;
       continue;
     }
@@ -195,5 +198,26 @@ describe('parseJsonc', () => {
     const parsed = parseJsonc(file);
     expect(parsed['vars']).toEqual({ NOTE: 'keep ,} intact,},' });
     expect(parsed['list']).toEqual([1, 2]);
+  });
+
+  it('a block comment containing `, }` is stripped without touching string values', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wrangler-jsonc-spec-'));
+    cleanup.push(dir);
+    const file = join(dir, 'wrangler.jsonc');
+    // Block comment chứa `, }` phải bị strip ở pass một — nếu sót, pass hai
+    // nhìn thấy `,` kế cận `}` và hành vi trailing-comma lệch khỏi contract.
+    writeFileSync(
+      file,
+      [
+        '{',
+        '  /* comment containing , } and a comma, */',
+        '  "vars": { "NOTE": "keep ,} intact,}," },',
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const parsed = parseJsonc(file);
+    expect(parsed['vars']).toEqual({ NOTE: 'keep ,} intact,},' });
   });
 });

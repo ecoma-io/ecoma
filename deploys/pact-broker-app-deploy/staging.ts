@@ -27,10 +27,11 @@
  * ghi-deploy-time. Id không đọc được (lỗi/placeholder) → cảnh báo, KHÔNG biến
  * một lần provision thành công thành thất bại.
  *
- * Credential fail-closed (xem `resolveStagingRunEnv`): thiếu bất kỳ khóa
+ * Credential fail-closed (xem `runStagingPhase`): thiếu bất kỳ khóa
  * environment bắt buộc nào là từ chối TRƯỚC KHI đụng Pulumi — đặc biệt
  * `ECOMA_PULUMI_STATE_URL_STAGING` thiếu nghĩa là staging chưa được bootstrap,
- * tuyệt đối không fallback sang backend khác.
+ * tuyệt đối không fallback sang backend khác. Env được resolve một lần trong
+ * `runStagingPhase` và tái dùng qua `runEnv` cho cả phase lẫn bước đọc output.
  */
 
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
