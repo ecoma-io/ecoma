@@ -1,0 +1,20 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0000_rvl_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000000001,
+      "tag": "0001_rvl_slow",
+      "breakpoints": true
+    }
+  ]
+}
