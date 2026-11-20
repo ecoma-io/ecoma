@@ -357,7 +357,15 @@ export async function performBrowserLogin(
   // chứng `remote-cache-portal-e2e` run 44543816898, #461/#498). Cạn vòng vẫn
   // throw — lỗi thật không bị che.
   for (let attempt = 1; !waited && attempt < CALLBACK_LANDING_ATTEMPTS; attempt += 1) {
-    const resumed = await resumeStuckLoginState(page);
+    // Element có thể detach giữa isVisible và click khi redirect chain hoàn tất
+    // đúng lúc đó — lỗi đó do vòng xử lý: callback sắp được quan sát, còn nếu
+    // không thì cạn vòng vẫn throw kèm describeStuckState (không che lỗi thật).
+    let resumed: string | undefined;
+    try {
+      resumed = await resumeStuckLoginState(page);
+    } catch {
+      resumed = undefined;
+    }
     if (resumed === undefined) {
       await page.goto(params.entryUrl ?? '/api/auth/login', { waitUntil: 'load' });
     }
@@ -406,7 +414,11 @@ async function resumeStuckLoginState(page: Page): Promise<string | undefined> {
   const continueRetry = page.getByTestId('login-continue-retry');
   if (await isVisibleSafe(continueRetry)) {
     await continueRetry.click();
-    await waitForContinueOrLanded(page, page.getByTestId('login-continue-target'));
+    if (await waitForContinueOrLanded(page, page.getByTestId('login-continue-target'))) {
+      // Target mount ⇒ push đã thành công và đang chờ nút của người dùng —
+      // bấm để chain chạy tiếp tới callback; landed thắng ⇒ callback đã xảy ra.
+      await page.getByTestId('login-continue-target').click();
+    }
     return 'clicked login-continue-retry';
   }
   const consentCard = page.getByTestId('consent-card');
