@@ -37,9 +37,8 @@ check that enforces impact verdicts.
   describe the effect on a dependent spec, reconciliation classes describe
   the delta between target and reality.
 - [`docs/engineering/work-management.md`](../../../docs/engineering/work-management.md)
-  — §2.2 (record kinds and their Issue Types), §3 (root issues own outcomes
-  and carry Project membership; verdicts land on Issues, and the owning root
-  issue is where a spec's verdict belongs).
+  — §2.2 (record kinds and their Issue Types; verdicts land on Issues, and
+  the owning root issue is where a spec's verdict belongs).
 - [`docs/changes/_template.md`](../../../docs/changes/_template.md) — the
   Baseline references and Dependencies sections a dependent-candidate set is
   read from.

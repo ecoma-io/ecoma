@@ -16,7 +16,7 @@ and write the title and body. This skill introduces no competing process.
 
 Sources of truth, in order of authority: `docs/engineering/work-management.md`
 (policy — §2.2 record kinds and their Issue Types, §2.3 how the Issue Type is
-recorded, §3 Project membership, §4 product attribution, Milestone delivery
+recorded, §4 product attribution, Milestone delivery
 commitments and horizons, §4.2 completion/activation/release independence),
 `docs/engineering/evolution-process.md` §4.1 (the five Issue Type values and
 the priority order), `AGENTS.md` (workflow, language), `docs/AGENTS.md` §2
@@ -37,10 +37,6 @@ gh issue list --repo ecoma-io/ecoma --state all --search "<keywords>" --limit 20
 gh pr list --repo ecoma-io/ecoma --state all --search "<keywords>" --limit 20
 ```
 
-Project fields need the `read:project` token scope. If `gh project` fails,
-report the limitation — do not assume a Project exists, does not exist, or
-has particular field values.
-
 Repository conventions that are not machine-enforced (re-verify before
 asserting):
 
@@ -52,20 +48,13 @@ asserting):
 - Titles conventionally carry a Conventional-Commit-style prefix
   `type(scope): summary`. The scope is free-form; the one-Nx-project scope
   restriction and PR rules do not apply to Issues.
-- The **Issue Type is native metadata**, not a label, not a Project field,
+- The **Issue Type is native metadata**, not a label,
   not a form field value — see the next section. Do not create any of those
   as a parallel channel.
-- The Project's `Work kind` single-select predates the current policy and
-  is **frozen**: set no new value in it (`work-management.md` §2.3, §3.4).
-  The form's `Loại công việc` dropdown is the form-side surface of the
+- The form's `Loại công việc` dropdown is the form-side surface of the
   interim `## Loại công việc` body channel — it writes that body line and
   stays usable until transition step 3 removes it (`work-management.md`
   §2.3).
-- `project:track` is **retired** — never apply it to any issue, new or
-  existing (`work-management.md` §3.2–§3.3). Root-issue Project admission is
-  automatic: the reconciliation pipeline adds every root issue at its next
-  run. Every label, Project field, Milestone and assignee follows the
-  verified-value rule below.
 
 ## Decide whether an Issue should exist
 
@@ -190,32 +179,20 @@ For ledgers, precondition trackers, experiment records and decision Issues,
 use free structure. Every heading must carry information — no empty
 placeholders.
 
-## Root issue, sub-issue and Project membership
+## Root issue and sub-issue
 
 Native parent/child is the only source of the hierarchy — no label, field or
-Milestone carries it (`work-management.md` §2.1, §3.2).
+Milestone carries it (`work-management.md` §2.1).
 
-- **Root issues own outcomes and belong to the Project.** A root issue that
+- **Root issues own outcomes.** A root issue that
   needs decomposition takes sub-issues; one that does not acts as its own
   unit. It closes when its outcome is met and reconciled
   (`work-management.md` §2.6). A root issue may be product-specific or
   cross-product: a cross-product root describes the overall outcome and each
   participating product's scope, with no single global product ID or horizon
   (`work-management.md` §4).
-- **Sub-issues own work units and never join the Project.** They are visible
-  through the root issue's native sub-issues progress. A sub-issue never
-  inherits Project membership from its parent, and never carries
-  `project:track`.
-- **Admission is automatic:** the reconciliation pipeline derives desired
-  membership from native parent/child and admits every root issue at its
-  next run (`work-management.md` §3.2–§3.3). The creating agent does nothing
-  for admission; `project:track` is retired and is never applied
-  (`work-management.md` §3.3).
-- Membership lifecycle belongs to the Project coordinator. When reviewing,
-  report drift — a sub-issue inside the Project, a labeled Issue with no
-  item, an item with no label — only after re-reading the Project state to
-  rule out a workflow race, and never archive, remove or add a Project item
-  yourself (`work-management.md` §3.3).
+- **Sub-issues own work units.** They are visible
+  through the root issue's native sub-issues progress.
 - **A root issue that owns a Change Specification references the spec by its
   path in the body** (the `change-spec` form input writes it); sub-issues
   may reference a spec but never co-own it. Exactly one open root issue may
@@ -248,7 +225,7 @@ Two clearly separated cases — never mix them (`work-management.md` §2.3):
 **Current stage — before transition step 2 (the five Issue Types are not
 org-configured yet).** Classification is carried by the `## Loại công việc`
 body line (the form dropdown writes it; the two must match) — never in a
-label or Project field. Do **not** pass `--type` here: the only values it
+label. Do **not** pass `--type` here: the only values it
 could carry are GitHub's default Task/Bug/Feature types, which are not the
 five canonical values and must not substitute for them. This command is the
 executable one today:
@@ -273,9 +250,8 @@ gh issue create --repo ecoma-io/ecoma \
 ```
 
 - Set only verified, existing values. Prefer no label over an invented one.
-  Never set a milestone, Project field or assignee that you have not confirmed
-  exists — and never set one as a placeholder. `project:track` is retired —
-  never apply it.
+  Never set a milestone or assignee that you have not confirmed
+  exists — and never set one as a placeholder.
 - Include verified references to related Issues, PRs, documents and evidence
   as exact links (`#N`, paths).
 - If the user asks only for a draft, return the title and body without
@@ -292,7 +268,7 @@ gh issue create --repo ecoma-io/ecoma \
   create without explicit authorization. Add a comment instead of editing.
 - Do not close another unit's Issue; closure conditions belong to that unit
   (`work-management.md` §2.6).
-- Do not create Projects, Milestones, labels, custom fields, Issue types or
+- Do not create Milestones, labels, custom fields, Issue types or
   Issue templates as part of writing an Issue. Propose such changes as their
   own work unit.
 - Never bulk-apply changes to existing Issues.
@@ -307,17 +283,14 @@ gh issue create --repo ecoma-io/ecoma \
    the `## Loại công việc` body line, matching the dropdown when one was
    used, with no duplicate channel once native types exist — and does it
    match the body rather than the issue category?
-6. Does Project membership follow the root-issue rule (automatic admission,
-   no label, sub-issues never members)?
-7. Is this a work item — not accidentally a ledger, tracker or record? And if
+6. Is this a work item — not accidentally a ledger, tracker or record? And if
    it is a record, does it carry the Issue Type §2.2 assigns it — or none,
    for a legitimate untyped root issue?
-8. Is the Issue genuinely new, properly linked, or correctly reused?
-9. Is a sub-issue placed under the right root issue, and never marked for
-   Project membership?
-10. Does every heading add necessary information?
-11. Are technical terms and identifiers accurate?
-12. Does the content comply with repository policy and the task's
+7. Is the Issue genuinely new, properly linked, or correctly reused?
+8. Is a sub-issue placed under the right root issue?
+9. Does every heading add necessary information?
+10. Are technical terms and identifiers accurate?
+11. Does the content comply with repository policy and the task's
     authorization?
 
 ## Escalation
@@ -330,14 +303,14 @@ Stop and report instead of guessing when:
   not substitute a classification (`work-management.md` §2.3).
 - A decision the Issue needs — scope, ownership, acceptance — is missing and
   no canonical document or accepted record supplies it.
-- GitHub state needed to write the Issue cannot be read: token lacks
-  `read:project`, the API fails, or search cannot cover closed Issues.
+- GitHub state needed to write the Issue cannot be read: the API fails, or
+  search cannot cover closed Issues.
 - Two canonical documents disagree about the Issue Type, the closure
   condition or the Issue's owner, and no authoritative source resolves it.
 - The requested Issue would exceed the unit you were asked to handle, or
   would duplicate work already tracked.
 - The task would require changing GitHub state — closing, relabelling,
-  retagging, creating a Project or Milestone — that the request did not
+  retagging, creating a Milestone — that the request did not
   authorize.
 
 State what is blocked, what was verified, and what decision is needed. Do not
@@ -349,10 +322,8 @@ substitute an invented value.
   outcome and a body grounded in inspected evidence.
 - The Issue Type is set in native metadata, or carried by the interim
   `## Loại công việc` body line when the type is not configurable yet — never
-  in a label or Project field; the body line matches the dropdown, and after
+  in a label; the body line matches the dropdown, and after
   native types exist the Issue carries no duplicate body line.
 - Search results and the reuse/link/create decision are accounted for.
-- Project membership follows the root-issue rule; a sub-issue was never
-  marked for membership.
 - GitHub state used in the Issue was read from GitHub, not assumed.
 - No GitHub state outside the task was changed.

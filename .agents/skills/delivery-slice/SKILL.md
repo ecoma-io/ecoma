@@ -200,7 +200,7 @@ disagree, the document wins.
   as a current one.
 - Declaring `Released` without a deployment record and a post-deploy
   environment check.
-- Creating a Project, Milestone, label, assignee or project field.
+- Creating a Milestone, label or assignee.
 - Bypassing hooks, pushing an unsigned commit, or working around unavailable
   signing.
 - Changing test taxonomy or inventing target names; `test`, `test-integration`
@@ -243,7 +243,7 @@ disagree, the document wins.
   reconciliation or follow-up record.
 - The branch is rebased, CI is green and conversations are resolved before
   ready for review.
-- No Project, Milestone, label or field was created as a side effect.
+- No Milestone, label or field was created as a side effect.
 
 ## Escalation
 
