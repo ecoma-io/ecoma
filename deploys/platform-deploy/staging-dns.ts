@@ -30,9 +30,6 @@ export const STAGING_ROOT_ZONE_NAME = 'ecoma.io.vn';
 /** Placeholder originless theo docs Cloudflare (RFC 5737 TEST-NET-1), proxied. */
 export const STAGING_RECORD_PLACEHOLDER_IPV4 = '192.0.2.0';
 
-/** TTL 1 = "auto" của Cloudflare (provider v6 bắt buộc khai `ttl` tường minh). */
-export const STAGING_RECORD_TTL = 1;
-
 /**
  * Unit sở hữu apex theo scheme MOD1 — apex của zone non-production mirror
  * production apex `ecoma.io` (`01` §7: public web = home).
@@ -65,6 +62,8 @@ export interface StagingDnsRecordSpec {
   urnSlug: string;
   /** FQDN của record: apex là chính zone name, unit public là `<slug>.<zone>`. */
   hostname: string;
+  /** TTL 1 = "auto" của Cloudflare (provider v6 bắt buộc khai `ttl` tường minh). */
+  ttl: 1;
   /** Comment ghi vào record trên Cloudflare (giới hạn dashboard ~100 ký tự). */
   comment: string;
 }
@@ -72,6 +71,53 @@ export interface StagingDnsRecordSpec {
 /** Unit internal-only theo scheme MOD1 → không hostname public, không record. */
 export function isInternalOnlyUnit(slug: string): boolean {
   return slug.endsWith('-job') || MOD1_INTERNAL_ONLY_UNIT_SLUGS.includes(slug);
+}
+
+/**
+ * Validate shape config eligibility đọc từ file JSONC trước khi dùng — thay
+ * cast mù `as StagingEligibilityConfig`: dữ liệu sai shape là lỗi chặn với
+ * danh sách đầy đủ vấn đề (không đoán, không im lặng bỏ qua). Chỉ các field
+ * thực sự được tiêu thụ được kiểm: `projects` và `staging` của từng entry.
+ */
+export function parseStagingEligibilityConfig(value: unknown): StagingEligibilityConfig {
+  const problems: string[] = [];
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(
+      `deploy-eligibility.jsonc must parse to a JSON object, got: ${describeValue(value)}`,
+    );
+  }
+  const projects = (value as { projects?: unknown }).projects;
+  if (projects !== undefined) {
+    if (typeof projects !== 'object' || projects === null || Array.isArray(projects)) {
+      problems.push(
+        `projects must be an object of project entries, got: ${describeValue(projects)}`,
+      );
+    } else {
+      for (const [project, entry] of Object.entries(projects)) {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+          problems.push(`projects["${project}"] must be an object, got: ${describeValue(entry)}`);
+          continue;
+        }
+        const staging = (entry as { staging?: unknown }).staging;
+        if (staging !== undefined && typeof staging !== 'string') {
+          problems.push(
+            `projects["${project}"].staging must be a string, got: ${describeValue(staging)}`,
+          );
+        }
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(`deploy-eligibility.jsonc has an invalid shape: ${problems.join('; ')}`);
+  }
+  return value as StagingEligibilityConfig;
+}
+
+/** Mô tả ngắn kiểu giá trị đọc được cho thông điệp lỗi fail-closed. */
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
 
 /**
@@ -119,8 +165,11 @@ export function stagingDnsRecordSpecs(config: StagingEligibilityConfig): Staging
       urnSlug: slug,
       hostname:
         slug === MOD1_APEX_UNIT_SLUG ? STAGING_ROOT_ZONE_NAME : `${slug}.${STAGING_ROOT_ZONE_NAME}`,
+      ttl: 1 as const,
+      // Comment cố ý không mang số Issue: provenance thuộc PR/Issue, record
+      // DNS chỉ mô tả mục đích vận hành của hostname.
       comment:
-        'MOD1 staging hostname; originless placeholder 192.0.2.0 for the non-production Router (#350)',
+        'MOD1 staging hostname; originless placeholder 192.0.2.0 for the non-production Router',
     }));
 }
 

@@ -14,6 +14,7 @@ import {
   STAGING_RECORD_PLACEHOLDER_IPV4,
   STAGING_ROOT_ZONE_NAME,
   isInternalOnlyUnit,
+  parseStagingEligibilityConfig,
   stagingDnsRecordSpecs,
   stagingReleaseableSlugs,
   stripEligibilityJsonc,
@@ -115,6 +116,41 @@ describe('isInternalOnlyUnit', () => {
   });
 });
 
+describe('parseStagingEligibilityConfig', () => {
+  it('accepts a valid config unchanged', () => {
+    const config = eligibilityConfig({ '@ecoma-io/home': { staging: 'releaseable' } });
+    expect(parseStagingEligibilityConfig(config)).toEqual(config);
+  });
+
+  it('throws listing every problem for a non-object root and wrong entry shapes', () => {
+    expect(() => parseStagingEligibilityConfig(null)).toThrow(
+      /must parse to a JSON object.*null/su,
+    );
+    expect(() => parseStagingEligibilityConfig([1])).toThrow(
+      /must parse to a JSON object.*array/su,
+    );
+  });
+
+  it('throws for a non-object projects block', () => {
+    expect(() => parseStagingEligibilityConfig({ projects: 'nope' })).toThrow(
+      /projects must be an object.*string/su,
+    );
+  });
+
+  it('throws for non-object entries and non-string staging values, all listed at once', () => {
+    const bad = {
+      projects: {
+        '@ecoma-io/home': { staging: 'releaseable' },
+        '@ecoma-io/broken-entry': 'not-an-object',
+        '@ecoma-io/broken-type': { staging: 42 },
+      },
+    };
+    expect(() => parseStagingEligibilityConfig(bad)).toThrow(
+      /broken-entry.*must be an object.*broken-type.*must be a string.*number/su,
+    );
+  });
+});
+
 describe('stagingDnsRecordSpecs', () => {
   it('maps the apex unit home to the zone apex hostname', () => {
     const specs = stagingDnsRecordSpecs(
@@ -153,10 +189,20 @@ describe('stagingDnsRecordSpecs', () => {
       }),
     );
     for (const spec of specs) {
+      expect(spec.ttl).toBe(1);
       expect(spec.comment).toMatch(/MOD1 staging hostname/su);
       expect(spec.comment.length).toBeLessThanOrEqual(100);
       // Comment phải nhắc placeholder để dashboard đọc được gốc giá trị.
       expect(spec.comment).toContain(STAGING_RECORD_PLACEHOLDER_IPV4);
+    }
+  });
+
+  it('keeps issue provenance out of the record comments', () => {
+    const specs = stagingDnsRecordSpecs(
+      eligibilityConfig({ '@ecoma-io/home': { staging: 'releaseable' } }),
+    );
+    for (const spec of specs) {
+      expect(spec.comment).not.toMatch(/#\d+/u);
     }
   });
 });

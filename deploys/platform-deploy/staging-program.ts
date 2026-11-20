@@ -36,11 +36,10 @@ import * as cloudflare from '@pulumi/cloudflare';
 
 import {
   STAGING_RECORD_PLACEHOLDER_IPV4,
-  STAGING_RECORD_TTL,
   STAGING_ROOT_ZONE_NAME,
+  parseStagingEligibilityConfig,
   stagingDnsRecordSpecs,
   stripEligibilityJsonc,
-  type StagingEligibilityConfig,
 } from './staging-dns.js';
 
 // Provider control-plane duy nhất của lane staging (một account — A12, §6.12).
@@ -91,9 +90,9 @@ const eligibilityPath = join(
   import.meta.dirname,
   '../../tools/delivery/config/deploy-eligibility.jsonc',
 );
-const eligibility = JSON.parse(
-  stripEligibilityJsonc(readFileSync(eligibilityPath, 'utf8')),
-) as StagingEligibilityConfig;
+const eligibility = parseStagingEligibilityConfig(
+  JSON.parse(stripEligibilityJsonc(readFileSync(eligibilityPath, 'utf8'))),
+);
 
 // Placeholder originless proxied theo docs Cloudflare ("Create DNS records
 // → Originless setups", fetch 2026-11-20): request bị Cloudflare chặn ở
@@ -112,7 +111,7 @@ export const stagingDnsRecords = stagingDnsRecordSpecs(eligibility).map(
         type: 'A',
         content: STAGING_RECORD_PLACEHOLDER_IPV4,
         proxied: true,
-        ttl: STAGING_RECORD_TTL,
+        ttl: record.ttl,
         comment: record.comment,
       },
       { provider },

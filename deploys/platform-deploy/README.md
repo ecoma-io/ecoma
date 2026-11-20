@@ -31,7 +31,7 @@ Trên stack `staging`, thân chương trình `staging-program.ts` (được entr
 
 ### Config và credential bắt buộc (fail-closed)
 
-Thiếu bất kỳ mục nào dưới đây, `staging-preview`/`staging-up` bị chặn trước khi Pulumi chạy — không đoán, không fallback:
+Cả sáu mục dưới đây đều được code kiểm fail-closed tại hai chỗ tường minh — hai khóa Pulumi config tại thân chương trình `staging-program.ts` (`config.require`/`requireBoolean`, fail trong lúc preview), năm khóa env tại engine `staging-run.ts` (`resolveStagingRunEnv`, chặn TRƯỚC khi Pulumi chạy kèm danh sách ĐẦY ĐỦ khóa thiếu). Thiếu bất kỳ mục nào, lần chạy bị từ chối — không đoán, không fallback:
 
 | Mục                                           | Kênh          | Cách đặt                                                                                                                                                                                                                                                                  |
 | --------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
