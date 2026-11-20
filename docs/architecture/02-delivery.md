@@ -593,14 +593,19 @@ vào `stg-ecoma-home` qua `"custom_domain": true` (`apps/home/wrangler.jsonc:22`
 apex của Router. Quyết định này **giữ A13** (không cần ADR deviation): việc sửa — bỏ `routes` staging của home, đưa
 apex về Router — thuộc Delivery (#350/#362), phải xong trước khi làn staging đầu tiên chạy.
 
-**Cloudflare account riêng cho Staging — rejected, giữ A12.** Đánh giá bằng bằng chứng, không giữ mặc định baseline.
-Một account riêng cho staging sẽ cho cách ly credential tuyệt đối (token staging không chạm production resource) và
-tách billing. Bị loại vì: (1) credential không phải ranh giới isolation theo hợp đồng đã chốt (điều 7 — một token
-shared; ranh giới là Worker identity + `--env` tường minh + GitHub Environment), và token chỉ sống trong CI secret
-store, không bao giờ vào Git hay PR builds; (2) account riêng nhân đôi toàn bộ platform surface cần vận hành — zone
-DNS, state backend, Hyperdrive/Tunnel config, backup policy — mỗi account một bộ, trong khi mọi fact/tooling hiện có
-đo trên giả định một account (A12, §6.12); (3) điều kiện đảo ngược của A12 đã ghi sẵn (`01` §8: "xem lại khi ngân sách
-cho phép tách account") — cơ chế revisit tồn tại, không cần quyết mới hôm nay.
+**Cloudflare account riêng cho Staging — đã chấp nhận (đảo quyết định 2026-11-20, #548; A12 mới qua #553).** Đánh giá
+bằng bằng chứng, không giữ mặc định baseline. Trạng thái cũ của mục này là **rejected, giữ A12**: bị loại vì (1)
+credential không phải ranh giới isolation theo hợp đồng khi đó (điều 7 — một token shared; ranh giới là Worker
+identity + `--env` tường minh + GitHub Environment), và token chỉ sống trong CI secret store, không bao giờ vào Git
+hay PR builds; (2) account riêng nhân đôi toàn bộ platform surface cần vận hành — zone DNS, state backend,
+Hyperdrive/Tunnel config, backup policy — mỗi account một bộ, trong khi mọi fact/tooling hiện có đo trên giả định
+một account; (3) điều kiện đảo ngược của A12 đã ghi sẵn (`01` §8: "xem lại khi ngân sách cho phép tách account").
+**Lý do đảo:** blast radius đo được của credential dùng chung — token đủ quyền production resource, một lộ token ở
+lane staging là lộ production — đủ nặng để trả chi phí vận hành kép của lý do (2). Hiện tại: staging và production
+là hai Cloudflare account riêng; mỗi lane đọc đúng cặp org secret của lane mình (`ECOMA_CLOUDFLARE_STAGING_*` /
+`ECOMA_CLOUDFLARE_PRODUCTION_*` — `ACCOUND` là tên thật trên org) và không bao giờ đọc cặp lane khác
+(§6.12 mục 12; A12 mới — `01` §8). Chi phí vận hành kép là cái giá đã chấp nhận, không phải lý do đảo lại: việc
+provisioning nhân đôi surface thuộc các delivery slice hạ tầng tương ứng.
 
 **Hai execution lanes trên cùng staging infra:**
 
