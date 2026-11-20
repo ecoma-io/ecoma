@@ -146,8 +146,26 @@ export function stripJsoncComments(text: string): string {
       continue;
     }
     if (char === ',') {
+      // Lookahead bỏ qua CẢ whitespace LẪN comment: JSONC cho phép comment nằm
+      // giữa dấu phẩy cuối và `}`/`]` — đúng hình dạng thật của
+      // apps/account/wrangler.jsonc (#546). Comment được nhảy nguyên khối (đến
+      // hết dòng hoặc tới `*/`), không ký tự-đơn, nên một `}`/`]` NẰM TRONG
+      // comment không bao giờ bị nhầm là ký tự đóng thật.
       let lookahead = index + 1;
-      while (lookahead < len && /\s/u.test(text[lookahead] as string)) lookahead += 1;
+      for (;;) {
+        while (lookahead < len && /\s/u.test(text[lookahead] as string)) lookahead += 1;
+        if (text[lookahead] === '/' && text[lookahead + 1] === '/') {
+          while (lookahead < len && text[lookahead] !== '\n') lookahead += 1;
+          continue;
+        }
+        if (text[lookahead] === '/' && text[lookahead + 1] === '*') {
+          const end = text.indexOf('*/', lookahead + 2);
+          if (end === -1) throw new Error('unterminated block comment in JSONC config');
+          lookahead = end + 2;
+          continue;
+        }
+        break;
+      }
       const next = text[lookahead];
       if (next === '}' || next === ']') {
         index += 1; // Bỏ dấu phẩy thừa, giữ ký tự đóng.
