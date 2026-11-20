@@ -361,14 +361,6 @@ const bootstrapTenant = new command.local.Command(
  * Docker) vì remote-cache runtime là `wrangler dev`, không phải process Node
  * đóng gói — image chỉ là "phòng chạy" (pattern auth).
  */
-/**
- * Image WIC — image MỎNG: chỉ image Node pin + `ca-certificates` (PF2) +
- * entrypoint script. KHÔNG build gì bên trong: repo (kèm bundle `dist/` đã
- * build từ target `build` của Nx trên host) được mount lúc runtime, và
- * `wrangler dev` chạy từ mount đó. Khác account image (runtime build trong
- * Docker) vì remote-cache runtime là `wrangler dev`, không phải process Node
- * đóng gói — image chỉ là "phòng chạy" (pattern auth).
- */
 const wicImageTag = dockerResourceName(ns, 'remote-cache-api-wic') + ':local';
 const wicImage = new dockerBuild.Image(dockerResourceName(ns, 'remote-cache-api-wic-image'), {
   context: { location: worktreeRoot },
