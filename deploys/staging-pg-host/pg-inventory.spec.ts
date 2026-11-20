@@ -73,6 +73,15 @@ describe('createRolesSql', () => {
     // rộng thành PID, nên builder không được phát ra ký tự đó.
     expect(sql).not.toContain('$$');
   });
+
+  it('escapes single quotes in password values so no literal can break out of the SQL string', () => {
+    const sql = createRolesSql('db-auth', "can't-break", 'quo"te-stays');
+    // `'` nháy đơn được nhân đôi (chuỗi SQL escape chuẩn) — không đường chèn
+    // nào thoát ra ngoài literal.
+    expect(sql).toContain(`ALTER ROLE "auth_runtime" WITH LOGIN PASSWORD 'can''t-break';`);
+    // `"` bên trong chuỗi nháy đơn là ký tự dữ liệu — giữ nguyên.
+    expect(sql).toContain(`ALTER ROLE "auth_migrator" WITH LOGIN PASSWORD 'quo"te-stays';`);
+  });
 });
 
 describe('grantsSql', () => {

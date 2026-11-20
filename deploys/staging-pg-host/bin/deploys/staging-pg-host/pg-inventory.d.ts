@@ -39,22 +39,6 @@ export declare function migratorRoleName(db: StagingPgDatabase): string;
  * LUÔN double-quote (tên DB có `-` — unquoted là lỗi cú pháp).
  */
 export declare function createDatabaseSql(db: StagingPgDatabase): string;
-/**
- * SQL tạo cặp role của MỘT database IDEMPOTENT: `CREATE ROLE` chỉ khi chưa
- * tồn tại (qua `\gexec`), rồi `ALTER ROLE ... PASSWORD` chạy VÔ ĐIỀU KIỆN —
- * chạy lại chỉ xoay password, không bao giờ lỗi vì role đã có.
- *
- * Đối số password là VĂN BẢN chèn trực tiếp vào script — caller (#349) truyền
- * tham chiếu biến shell (`$PW_...`) sinh bằng `openssl rand` TRÊN HOST, nên
- * password chưa từng xuất hiện trong text script (state Pulumi lưu script
- * không password; giá trị thật chỉ về qua stdout của command, quấn
- * `pulumi.secret()` ở caller). Giá trị hex/an toàn-đặt-tên biến không cần
- * escape dấu nháy đơn.
- *
- * CỐTÝNH dùng `\gexec` thay vì `DO $$ ... $$`: script chạy trong heredoc
- * shell KHÔNG quote, `$$` bị shell mở rộng thành PID — `\gexec` không có ký
- * tự nào shell chạm vào.
- */
 export declare function createRolesSql(
   db: StagingPgDatabase,
   runtimePassword: string,

@@ -87,8 +87,9 @@ export interface StagingRunEnv {
  *   (`04` R23): backend s3 đọc credential chain của AWS env ở MỌI lệnh.
  *
  * - `CLOUDFLARE_API_TOKEN` — provider control-plane Cloudflare của
- *   `staging-program.ts` (`Provider` + `Zone` root #349/#350): provider đọc env,
- *   nên thiếu token chỉ thất bại sâu trong Pulumi thay vì fail-closed ở đây.
+ *   `staging-program.ts` (`Provider` + `Zone` root #349/#350). NẰM TRONG
+ *   inventory bắt buộc: thiếu token bị chặn TẠI ENGINE (throw dưới đây, trước
+ *   khi Pulumi chạy) — không để provider thất bại sâu bên trong Pulumi.
  *   Ranh giới giữ nguyên: env-only, không argv, không Git.
  *
  * Thiếu bất kỳ khóa nào → throw với danh sách ĐẦY ĐỦ khóa thiếu (không dừng ở

@@ -87,13 +87,26 @@ const PATHS = {
  * Connection SSH dùng chung cho mọi command — ở `@pulumi/command` v1.3,
  * `connection` là args object (`inputs.remote.ConnectionArgs`), KHÔNG phải
  * resource `remote.Connection` (biểu mẫu đó của bản cũ). Private key đọc từ
- * đường dẫn config (file ngoài Git) tại lúc chạy chương trình.
+ * đường dẫn config (file ngoài Git) tại lúc chạy chương trình — lỗi đọc file
+ * được bọc thành lỗi tường minh với đúng khóa config cần sửa; vật liệu key
+ * tất yếu nằm trong bộ nhớ tiến trình suốt vòng đời (yêu cầu của connection
+ * args, không có hình thay thế trong `@pulumi/command` v1.3).
  */
-const connection = {
-  host: hostAddress,
-  user: sshUser,
-  privateKey: readFileSync(sshPrivateKeyPath, 'utf8'),
-};
+const connection = ((): { host: string; user: string; privateKey: string } => {
+  try {
+    return {
+      host: hostAddress,
+      user: sshUser,
+      privateKey: readFileSync(sshPrivateKeyPath, 'utf8'),
+    };
+  } catch (error) {
+    throw new Error(
+      `cannot read the SSH private key at "sshPrivateKeyPath=${sshPrivateKeyPath}" — ` +
+        `check the path exists and is readable outside Git (${error instanceof Error ? error.message : String(error)})`,
+      { cause: error },
+    );
+  }
+})();
 
 /**
  * Bọc một script SQL vào `psql` qua heredoc KHÔNG quote (cần cho `$PW_*`).
@@ -104,7 +117,12 @@ const connection = {
 const runPsql = (sql: string): string =>
   `sudo -u postgres psql -q -v ON_ERROR_STOP=1 <<PSQL_END >/dev/null\n${sql}\nPSQL_END`;
 
-/** Cài cluster PostgreSQL + openssl (sinh password trên host) — idempotent. */
+/**
+ * Cài cluster PostgreSQL + openssl (sinh password trên host) — idempotent.
+ * CỐTÝNH không có `triggers` (script tĩnh, create-once): cài đặt chạy một lần
+ * tại provision; đổi script (vd hardening TODO) phải taint tường minh thay
+ * vì chạy lại âm thầm trên mọi lần `up`.
+ */
 const pgInstall = new command.remote.Command(
   'pg-install',
   {
@@ -122,58 +140,18 @@ const pgInstall = new command.remote.Command(
 );
 
 /**
- * Tạo 22 role (11 cặp) — password `openssl rand` TRÊN HOST, chưa từng xuất
- * hiện trong text script; stdout là TSV `role<TAB>password` được export
- * secret ở cuối file. Chạy lại resource (taint/recreate) = xoay password.
- */
-const pgRoles = new command.remote.Command(
-  'pg-roles',
-  {
-    connection,
-    create: [
-      'set -eu',
-      ...STAGING_PG_DATABASES.flatMap((db) => {
-        const runtimeVar = `PW_${runtimeRoleName(db)}`;
-        const migratorVar = `PW_${migratorRoleName(db)}`;
-        return [
-          `${runtimeVar}=$(openssl rand -hex 24)`,
-          `${migratorVar}=$(openssl rand -hex 24)`,
-          runPsql(createRolesSql(db, `$${runtimeVar}`, `$${migratorVar}`)),
-          `printf '${runtimeRoleName(db)}\\t%s\\n' "$${runtimeVar}"`,
-          `printf '${migratorRoleName(db)}\\t%s\\n' "$${migratorVar}"`,
-        ];
-      }),
-    ].join('\n'),
-  },
-  { dependsOn: pgInstall },
-);
-
-/** Tạo 11 database idempotent — OWNER là role migrator của chính DB đó. */
-const pgDatabases = new command.remote.Command(
-  'pg-databases',
-  {
-    connection,
-    create: ['set -eu', ...STAGING_PG_DATABASES.map((db) => runPsql(createDatabaseSql(db)))].join(
-      '\n',
-    ),
-  },
-  { dependsOn: pgRoles },
-);
-
-/** Isolation per-DB: REVOKE CONNECT public, grant đúng cặp role của DB đó. */
-export const pgGrants = new command.remote.Command(
-  'pg-grants',
-  {
-    connection,
-    create: ['set -eu', ...STAGING_PG_DATABASES.map((db) => runPsql(grantsSql(db)))].join('\n'),
-  },
-  { dependsOn: pgDatabases },
-);
-
-/**
  * Prerequisite backup (§3.1, §6.1 Required): WAL archive bật ở mức cluster —
  * `archive_mode` + `archive_command` đẩy segment vào thư mục local (hàng đợi
  * push), `archive_timeout` chặn cửa sổ WAL im lặng dài.
+ *
+ * Khối này đứng TRƯỚC `pg-roles` trong đồ thị (`pg-roles` dependsOn nó): nó
+ * restart PostgreSQL, nên mọi lệnh SQL sau đó phải đợi restart xong — nếu
+ * chạy song song, psql có thể thất bại giữa chừng restart.
+ *
+ * CỐTÝNH không có `triggers`: resource là create-once — script chỉ chạy lại
+ * khi taint/recreate, restart chỉ xảy ra một lần tại provision (không phải
+ * mỗi `pulumi up`). Đổi script hardening sau này phải taint tường minh, không
+ * restart âm thầm.
  *
  * TODO(349/tool): cơ chế base + WAL → R2 ở đây là PLACEHOLDER built-ins
  * (`pg_basebackup` + `archive_command` + `rclone`) — công cụ backup cuối
@@ -206,6 +184,65 @@ const pgBackupPrereq = new command.remote.Command(
     ].join('\n'),
   },
   { dependsOn: pgInstall },
+);
+
+/**
+ * Tạo 22 role (11 cặp) — password `openssl rand` TRÊN HOST, chưa từng xuất
+ * hiện trong text script; stdout là TSV `role<TAB>password` được export
+ * secret ở cuối file. Chạy lại resource (taint/recreate) = xoay password.
+ *
+ * `triggers: [script]` (đúng chỗ CommandArgs): đổi inventory (thêm DB) đổi
+ * script sinh ra — resource PHẢI chạy lại, vì `@pulumi/command` KHÔNG tự chạy
+ * lại khi text `create` đổi (gotcha chính thức của provider).
+ */
+const pgRolesScript = [
+  'set -eu',
+  ...STAGING_PG_DATABASES.flatMap((db) => {
+    const runtimeVar = `PW_${runtimeRoleName(db)}`;
+    const migratorVar = `PW_${migratorRoleName(db)}`;
+    return [
+      `${runtimeVar}=$(openssl rand -hex 24)`,
+      `${migratorVar}=$(openssl rand -hex 24)`,
+      runPsql(createRolesSql(db, `$${runtimeVar}`, `$${migratorVar}`)),
+      `printf '${runtimeRoleName(db)}\\t%s\\n' "$${runtimeVar}"`,
+      `printf '${migratorRoleName(db)}\\t%s\\n' "$${migratorVar}"`,
+    ];
+  }),
+].join('\n');
+const pgRoles = new command.remote.Command(
+  'pg-roles',
+  { connection, create: pgRolesScript, triggers: [pgRolesScript] },
+  { dependsOn: pgBackupPrereq },
+);
+
+/**
+ * Tạo 11 database idempotent — OWNER là role migrator của chính DB đó.
+ * `triggers: [script]` cùng lý do `pg-roles`: thêm DB vào inventory phải chạy
+ * lại script, provider không tự chạy lại theo text.
+ */
+const pgDatabasesScript = [
+  'set -eu',
+  ...STAGING_PG_DATABASES.map((db) => runPsql(createDatabaseSql(db))),
+].join('\n');
+const pgDatabases = new command.remote.Command(
+  'pg-databases',
+  { connection, create: pgDatabasesScript, triggers: [pgDatabasesScript] },
+  { dependsOn: pgRoles },
+);
+
+/**
+ * Isolation per-DB: REVOKE CONNECT public, grant đúng cặp role của DB đó.
+ * `triggers: [script]` cùng lý hai resource trên — inventory đổi là grant
+ * phải chạy lại, không kẹt state cũ.
+ */
+const pgGrantsScript = [
+  'set -eu',
+  ...STAGING_PG_DATABASES.map((db) => runPsql(grantsSql(db))),
+].join('\n');
+export const pgGrants = new command.remote.Command(
+  'pg-grants',
+  { connection, create: pgGrantsScript, triggers: [pgGrantsScript] },
+  { dependsOn: pgDatabases },
 );
 
 /**

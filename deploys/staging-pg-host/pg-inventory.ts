@@ -61,13 +61,18 @@ export function createDatabaseSql(db: StagingPgDatabase): string {
  * tham chiếu biến shell (`$PW_...`) sinh bằng `openssl rand` TRÊN HOST, nên
  * password chưa từng xuất hiện trong text script (state Pulumi lưu script
  * không password; giá trị thật chỉ về qua stdout của command, quấn
- * `pulumi.secret()` ở caller). Giá trị hex/an toàn-đặt-tên biến không cần
- * escape dấu nháy đơn.
+ * `pulumi.secret()` ở caller). Giá trị vẫn được escape dấu nháy đơn (`'` →
+ * `''`) ở builder: caller hôm nay chỉ truyền tham chiếu biến shell, nhưng hợp
+ * đồng của builder là SQL hợp lệ với MỌI giá trị text — không đường chèn nào
+ * phá cú pháp ngay cả khi nguồn mật khẩu đổi sau này.
  *
  * CỐTÝNH dùng `\gexec` thay vì `DO $$ ... $$`: script chạy trong heredoc
  * shell KHÔNG quote, `$$` bị shell mở rộng thành PID — `\gexec` không có ký
  * tự nào shell chạm vào.
  */
+/** Chuỗi SQL literal: nhân đôi nháy đơn (`'` → `''`) theo escape chuẩn. */
+const sqlString = (value: string): string => value.replaceAll("'", "''");
+
 export function createRolesSql(
   db: StagingPgDatabase,
   runtimePassword: string,
@@ -77,9 +82,9 @@ export function createRolesSql(
   const migrator = migratorRoleName(db);
   return [
     `SELECT 'CREATE ROLE "${runtime}" LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${runtime}')\\gexec`,
-    `ALTER ROLE "${runtime}" WITH LOGIN PASSWORD '${runtimePassword}';`,
+    `ALTER ROLE "${runtime}" WITH LOGIN PASSWORD '${sqlString(runtimePassword)}';`,
     `SELECT 'CREATE ROLE "${migrator}" LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${migrator}')\\gexec`,
-    `ALTER ROLE "${migrator}" WITH LOGIN PASSWORD '${migratorPassword}';`,
+    `ALTER ROLE "${migrator}" WITH LOGIN PASSWORD '${sqlString(migratorPassword)}';`,
   ].join('\n');
 }
 

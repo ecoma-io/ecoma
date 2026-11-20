@@ -25,7 +25,6 @@
  * Hardening `pg_hba` là việc còn lại — xem README.
  */
 import type * as pulumi from '@pulumi/pulumi';
-/** Isolation per-DB: REVOKE CONNECT public, grant đúng cặp role của DB đó. */
 export declare const pgGrants: import('@pulumi/command/remote/command.js').Command;
 /**
  * Jobs backup (§3.1: base hằng ngày, WAL liên tục): unit systemd oneshot +
