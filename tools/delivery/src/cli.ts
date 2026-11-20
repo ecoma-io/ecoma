@@ -21,13 +21,35 @@
  * - `npx tsx src/cli.ts staging-manifest --config <wrangler.jsonc> --sha <sha>`
  *   In build-manifest JSON (`{sha, worker}`) ra stdout — job build của workflow
  *   ghi vào artifact để job deploy đối chiếu (§7.4).
+ * - `npx tsx src/cli.ts staging-plan --sha <sha> --base <sha>`
+ *   Audit workspace (eligibility toàn project + drift release.projects) rồi map
+ *   affected thành batch units + migration steps — NƠI DUY NHẤT sinh matrix
+ *   deploy của coordinator (#362, §7.5 mục 1–2, 16–18). In JSON ra stdout.
+ * - `npx tsx src/cli.ts staging-unit-gate --project <nx-name> --config <wrangler.jsonc>
+ *   --ref-sha <sha>`
+ *   Cổng per-unit (§7.4.3): evaluateDeployGate + audit bindings lane staging.
+ *   Deny in từng lý do machine-readable rồi exit 1.
+ * - `npx tsx src/cli.ts staging-guard --point <coalesce|before-deploy|before-status>
+ *   --run-id <n> --head-sha <sha>`
+ *   Stale-run guard tại một điểm (§7.4): tra cứu run MỚI bằng `gh api` rồi
+ *   decide. Mọi đường in dòng marker cuối `staging-guard action=<tên>`;
+ *   abort là exit 1 (abort-main-advanced = ĐÃ ghi failure status ở phía caller).
  * - `npx tsx src/cli.ts staging-deploy --config <wrangler.jsonc> --project <nx-name>
- *   --slug <slug> --manifest <build-manifest.json> --expect-sha <sha>`
+ *   --slug <slug> --manifest <build-manifest.json> --expect-sha <sha>
+ *   [--guard-run-id <n> --guard-head-sha <sha>]`
  *   Preflight fail-closed (identity, eligibility, manifest, token) rồi
  *   `wrangler deploy --env staging` qua lớp retry §7.4 — glue của job deploy.
+ *   Guard `before-deploy` bật qua cặp cờ `--guard-*` (bật cùng lúc cả hai).
  * - `npx tsx src/cli.ts staging-smoke <origin> [--redirect <from>=<to>]...
- *   [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n]`
+ *   [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n]
+ *   [--guard-run-id <n> --guard-head-sha <sha>]`
  *   Smoke HTTP thật sau deploy, khai theo khả năng của app (§7.5 mục 9).
+ *   Guard `before-status` chạy NGAY SAU khi toàn bộ kiểm pass (§7.4).
+ *
+ * Hợp đồng marker machine-readable của guard (`staging-guard.ts`): lệnh
+ * staging-deploy / staging-smoke / staging-guard LUÔN in đúng MỘT dòng
+ * `staging-guard action=<tên>` cuối stdout — step của workflow đọc vào
+ * GITHUB_OUTPUT để quyết định việc ghi commit status.
  *
  * CLI mỏng: mọi logic nằm trong module có spec; file này chỉ parse argv, đọc
  * stdin và map kết quả ra exit code.
@@ -36,11 +58,23 @@
 import { readFileSync, readSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { exec } from '@ecoma-io/deployment';
+
 import {
   createStagingVpcService,
   type VpcAppProtocol,
   type VpcServiceInput,
 } from './staging-connectivity.ts';
+import {
+  GUARD_MARKER_PREFIX,
+  GuardAbortError,
+  defaultGuardQueryDeps,
+  parseGuardInputs,
+  runGuardAtPoint,
+  type GuardInputs,
+} from './staging-guard.ts';
+import { planStagingBatch, type StagingPlanDeps } from './staging-plan.ts';
+import { evaluateStagingUnitGate } from './staging-unit-gate.ts';
 import {
   defaultGhApiDeps,
   ensureStagingEnvironments,
@@ -73,8 +107,11 @@ const USAGE =
   '  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)\n' +
   '  npx tsx src/cli.ts vpc-service create <NAME> --tunnel-id <uuid> --hostname <host> [--tcp-port 5432] [--app-protocol postgresql|mysql]\n' +
   '  npx tsx src/cli.ts staging-manifest --config <wrangler.jsonc> --sha <sha>\n' +
-  '  npx tsx src/cli.ts staging-deploy --config <wrangler.jsonc> --project <nx-name> --slug <slug> --manifest <build-manifest.json> --expect-sha <sha>\n' +
-  '  npx tsx src/cli.ts staging-smoke <origin> [--redirect <from>=<to>]... [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n]';
+  '  npx tsx src/cli.ts staging-plan --sha <commit-sha> --base <commit-sha>\n' +
+  '  npx tsx src/cli.ts staging-unit-gate --project <nx-name> --config <wrangler.jsonc> --ref-sha <sha>\n' +
+  '  npx tsx src/cli.ts staging-guard --point <coalesce|before-deploy|before-status> --run-id <n> --head-sha <sha>\n' +
+  '  npx tsx src/cli.ts staging-deploy --config <wrangler.jsonc> --project <nx-name> --slug <slug> --manifest <build-manifest.json> --expect-sha <sha> [--guard-run-id <n> --guard-head-sha <sha>]\n' +
+  '  npx tsx src/cli.ts staging-smoke <origin> [--redirect <from>=<to>]... [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n] [--guard-run-id <n> --guard-head-sha <sha>]';
 
 /** Shape tối thiểu khi parse argv `worker-secret`. */
 export type ParsedWorkerSecretArgv =
@@ -177,12 +214,96 @@ export function parseStagingManifestArgv(argv: readonly string[]): ParsedStaging
   return { kind: 'ok', configPath, sha };
 }
 
+/** Shape argv đã parse của lệnh `staging-plan`. */
+export type ParsedStagingPlanArgv =
+  | { kind: 'ok'; deploySha: string; baseSha: string }
+  | { kind: 'usage'; message: string };
+
+/** Parse argv `staging-plan` — hai SHA 40-hex đầy đủ, thiếu là lỗi dùng-lệnh. */
+export function parseStagingPlanArgv(argv: readonly string[]): ParsedStagingPlanArgv {
+  const deploySha = readRequiredFlag(argv, '--sha');
+  if (deploySha === undefined) {
+    return { kind: 'usage', message: 'missing --sha <commit-sha> value' };
+  }
+  const baseSha = readRequiredFlag(argv, '--base');
+  if (baseSha === undefined) {
+    return { kind: 'usage', message: 'missing --base <commit-sha> value' };
+  }
+  return { kind: 'ok', deploySha, baseSha };
+}
+
+/** Shape argv đã parse của lệnh `staging-unit-gate`. */
+export type ParsedStagingUnitGateArgv =
+  | { kind: 'ok'; project: string; configPath: string; refSha: string }
+  | { kind: 'usage'; message: string };
+
+/** Parse argv `staging-unit-gate` — ba flag bắt buộc, thiếu là lỗi dùng-lệnh. */
+export function parseStagingUnitGateArgv(argv: readonly string[]): ParsedStagingUnitGateArgv {
+  const project = readRequiredFlag(argv, '--project');
+  if (project === undefined) {
+    return { kind: 'usage', message: 'missing --project <nx-project-name> value' };
+  }
+  const configPath = readRequiredFlag(argv, '--config');
+  if (configPath === undefined) {
+    return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
+  }
+  const refSha = readRequiredFlag(argv, '--ref-sha');
+  if (refSha === undefined) {
+    return { kind: 'usage', message: 'missing --ref-sha <commit-sha> value' };
+  }
+  return { kind: 'ok', project, configPath, refSha };
+}
+
+const GUARD_POINTS = ['coalesce', 'before-deploy', 'before-status'] as const;
+
+/** Shape argv đã parse của lệnh `staging-guard`. */
+export type ParsedStagingGuardArgv =
+  | { kind: 'ok'; input: GuardInputs }
+  | { kind: 'usage'; message: string };
+
+/**
+ * Parse argv `staging-guard` — lệnh này LUÔN bật guard (khác cặp cờ tùy chọn
+ * của staging-deploy/staging-smoke): thiếu --run-id/--head-sha là dùng-lệnh sai.
+ */
+export function parseStagingGuardArgv(argv: readonly string[]): ParsedStagingGuardArgv {
+  const pointRaw = readRequiredFlag(argv, '--point');
+  if (pointRaw === undefined) {
+    return { kind: 'usage', message: 'missing --point <coalesce|before-deploy|before-status>' };
+  }
+  if (!(GUARD_POINTS as readonly string[]).includes(pointRaw)) {
+    return {
+      kind: 'usage',
+      message: `--point must be one of ${GUARD_POINTS.join('|')}: ${pointRaw}`,
+    };
+  }
+  const runIdRaw = readRequiredFlag(argv, '--run-id');
+  if (runIdRaw === undefined) {
+    return { kind: 'usage', message: 'missing --run-id <n> value' };
+  }
+  const headSha = readRequiredFlag(argv, '--head-sha');
+  if (headSha === undefined) {
+    return { kind: 'usage', message: 'missing --head-sha <commit-sha> value' };
+  }
+  try {
+    const input = parseGuardInputs(runIdRaw, headSha, pointRaw as GuardInputs['point']);
+    if (input === undefined) {
+      return { kind: 'usage', message: 'guard inputs are required for the staging-guard command' };
+    }
+    return { kind: 'ok', input };
+  } catch (error) {
+    return { kind: 'usage', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 /** Tham số lệnh `staging-deploy` sau khi parse argv. */
 export type ParsedStagingDeployArgv =
   | { kind: 'ok'; params: StagingDeployParams }
   | { kind: 'usage'; message: string };
 
-/** Parse argv `staging-deploy` — đủ năm flag là điều kiện dùng-lệnh đúng. */
+/**
+ * Parse argv `staging-deploy` — đủ năm flag là điều kiện dùng-lệnh đúng; cặp
+ * `--guard-*` tùy chọn nhưng phải có mặt CÙNG NHIÊU (bật một nửa là usage).
+ */
 export function parseStagingDeployArgv(argv: readonly string[]): ParsedStagingDeployArgv {
   const configPath = readRequiredFlag(argv, '--config');
   if (configPath === undefined) {
@@ -204,7 +325,20 @@ export function parseStagingDeployArgv(argv: readonly string[]): ParsedStagingDe
   if (expectSha === undefined) {
     return { kind: 'usage', message: 'missing --expect-sha <commit-sha> value' };
   }
-  return { kind: 'ok', params: { configPath, project, slug, manifestPath, expectSha } };
+  let guard: StagingDeployParams['guard'];
+  try {
+    const inputs = parseGuardInputs(
+      readRequiredFlag(argv, '--guard-run-id'),
+      readRequiredFlag(argv, '--guard-head-sha'),
+      'before-deploy',
+    );
+    if (inputs !== undefined) {
+      guard = { runId: inputs.runId, contextSha: inputs.contextSha };
+    }
+  } catch (error) {
+    return { kind: 'usage', message: error instanceof Error ? error.message : String(error) };
+  }
+  return { kind: 'ok', params: { configPath, project, slug, manifestPath, expectSha, guard } };
 }
 
 /** Shape argv đã parse của lệnh `staging-smoke`. */
@@ -220,6 +354,8 @@ export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmo
   const noindexPaths: string[] = [];
   let budgetMs = SMOKE_BUDGET_MS_DEFAULT;
   let requestTimeoutMs = SMOKE_REQUEST_TIMEOUT_MS_DEFAULT;
+  let guardRunId: string | undefined;
+  let guardHeadSha: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const takeValue = (): string | undefined => {
@@ -232,6 +368,15 @@ export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmo
       index += 1;
       return value;
     };
+    if (flag === '--guard-run-id' || flag === '--guard-head-sha') {
+      const value = takeValue();
+      if (value === undefined) {
+        return { kind: 'usage', message: `missing value for ${flag}` };
+      }
+      if (flag === '--guard-run-id') guardRunId = value;
+      else guardHeadSha = value;
+      continue;
+    }
     if (flag === '--redirect' || flag === '--health' || flag === '--noindex') {
       const value = takeValue();
       if (value === undefined) {
@@ -275,9 +420,19 @@ export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmo
   if (origin === undefined || origin.trim().length === 0) {
     return { kind: 'usage', message: 'missing <origin> positional argument' };
   }
+  // Guard `before-status` bật qua cặp cờ — bật một nửa là usage error.
+  let guard: StagingSmokeOptions['guard'];
+  try {
+    const inputs = parseGuardInputs(guardRunId, guardHeadSha, 'before-status');
+    if (inputs !== undefined) {
+      guard = { runId: inputs.runId, contextSha: inputs.contextSha };
+    }
+  } catch (error) {
+    return { kind: 'usage', message: error instanceof Error ? error.message : String(error) };
+  }
   return {
     kind: 'ok',
-    options: { origin, redirects, healthPaths, noindexPaths, budgetMs, requestTimeoutMs },
+    options: { origin, redirects, healthPaths, noindexPaths, budgetMs, requestTimeoutMs, guard },
   };
 }
 
@@ -393,6 +548,53 @@ export function printReports(
   return failed;
 }
 
+/** Chạy `nx <args...>` và trả danh sách dòng output — lỗi exec là blocking throw. */
+function nxLines(args: string[]): string[] {
+  const result = exec('npx', ['nx', ...args], process.cwd(), process.env);
+  if (result.status !== 0 || result.error !== undefined) {
+    throw new Error(
+      `nx ${args.join(' ')} failed: ` +
+        `${result.error?.message ?? (result.stderr.trim() === '' ? 'no output' : result.stderr.trim())}`,
+    );
+  }
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+/** Deps mặc định của `staging-plan`: file thật + `nx show projects` thật. */
+const defaultPlanDeps: StagingPlanDeps = {
+  readTextFile: (path) => readFileSync(path, 'utf8'),
+  listProjects: () => nxLines(['show', 'projects']),
+  affectedProjects: (base, head) =>
+    nxLines(['show', 'projects', '--affected', `--base=${base}`, '--head', head]),
+};
+
+/**
+ * Map MỘT lệnh có thể ném `GuardAbortError` ra exit code theo hợp đồng marker:
+ * abort in stderr + marker đúng action rồi exit 1; lỗi khác rethrow để catch-all
+ * cuối cùng xử lý (exit 1 không marker — step fail với mặc định fail-closed).
+ */
+async function runGuardable(
+  run: () => Promise<{
+    guardAction: 'proceed' | 'skip' | 'abort-query-failed' | 'abort-main-advanced';
+  }>,
+): Promise<number> {
+  try {
+    const result = await run();
+    process.stdout.write(`${GUARD_MARKER_PREFIX}${result.guardAction}\n`);
+    return 0;
+  } catch (error) {
+    if (error instanceof GuardAbortError) {
+      process.stderr.write(`error: ${error.message}\n`);
+      process.stdout.write(`${GUARD_MARKER_PREFIX}${error.action}\n`);
+      return 1;
+    }
+    throw error;
+  }
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const command = argv[0];
   if (command === 'ensure-staging-environments') {
@@ -476,14 +678,77 @@ async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify(manifest)}\n`);
     return 0;
   }
+  if (command === 'staging-plan') {
+    const parsed = parseStagingPlanArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    const plan = planStagingBatch(
+      { deploySha: parsed.deploySha, baseSha: parsed.baseSha },
+      defaultPlanDeps,
+    );
+    process.stdout.write(`${JSON.stringify(plan)}\n`);
+    return 0;
+  }
+  if (command === 'staging-unit-gate') {
+    const parsed = parseStagingUnitGateArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    const result = evaluateStagingUnitGate(parsed, {
+      readTextFile: (path) => readFileSync(path, 'utf8'),
+    });
+    // Mọi lý do machine-readable in verbatim TRƯỚC khi chốt exit — caller đọc
+    // được đầy đủ trạng thái trong MỘT lần chạy, không chỉ lỗi đầu tiên.
+    for (const reason of result.decision.reasons) {
+      process.stdout.write(`staging-unit-gate deny ${reason.code}: ${reason.message}\n`);
+    }
+    for (const problem of result.bindingProblems) {
+      const binding = problem.binding === undefined ? '' : ` (${problem.binding})`;
+      process.stdout.write(
+        `staging-unit-gate binding-problem ${problem.kind}${binding}: ${problem.message}\n`,
+      );
+    }
+    if (!result.allowed) {
+      process.stderr.write(
+        `staging-unit-gate: ${result.decision.project} denied — fix the reasons above before deploying\n`,
+      );
+      return 1;
+    }
+    process.stdout.write(
+      `staging-unit-gate allow: ${result.decision.project} passed the staging gate\n`,
+    );
+    return 0;
+  }
+  if (command === 'staging-guard') {
+    const parsed = parseStagingGuardArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    try {
+      const { action, decision } = runGuardAtPoint(parsed.input, defaultGuardQueryDeps());
+      process.stdout.write(`staging guard ${decision.code}: ${decision.message}\n`);
+      process.stdout.write(`${GUARD_MARKER_PREFIX}${action}\n`);
+      return 0;
+    } catch (error) {
+      if (error instanceof GuardAbortError) {
+        process.stderr.write(`error: ${error.message}\n`);
+        process.stdout.write(`${GUARD_MARKER_PREFIX}${error.action}\n`);
+        return 1;
+      }
+      throw error;
+    }
+  }
   if (command === 'staging-deploy') {
     const parsed = parseStagingDeployArgv(argv.slice(1));
     if (parsed.kind === 'usage') {
       process.stderr.write(`${parsed.message}\n${USAGE}\n`);
       return 2;
     }
-    await runStagingDeploy(parsed.params);
-    return 0;
+    return runGuardable(() => runStagingDeploy(parsed.params));
   }
   if (command === 'staging-smoke') {
     const parsed = parseStagingSmokeArgv(argv.slice(1));
@@ -491,8 +756,7 @@ async function main(argv: readonly string[]): Promise<number> {
       process.stderr.write(`${parsed.message}\n${USAGE}\n`);
       return 2;
     }
-    await runStagingSmoke(parsed.options);
-    return 0;
+    return runGuardable(() => runStagingSmoke(parsed.options));
   }
   process.stderr.write(`${USAGE}\n`);
   return 2;

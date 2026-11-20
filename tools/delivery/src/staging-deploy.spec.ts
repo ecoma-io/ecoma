@@ -13,6 +13,7 @@ import {
   verifyBuildManifest,
   type StagingDeployDeps,
 } from './staging-deploy.ts';
+import { GuardAbortError, type RunListQueryResult } from './staging-guard.ts';
 import type { DeployStagingWorkerOptions } from './wrangler-deploy.ts';
 
 /** Config wrangler giả với identity staging khai tường minh. */
@@ -23,14 +24,24 @@ const ELIGIBILITY_RELEASEABLE =
   '{ "projects": { "@ecoma-io/home": { "staging": "releaseable" } } }\n';
 const ELIGIBILITY_BLOCKED = '{ "projects": { "@ecoma-io/home": { "staging": "excluded" } } }\n';
 
+/** Default queryRuns NÉM ngay — guard tắt thì KHÔNG được có lượt tra cứu nào. */
+function neverQueryRuns(): RunListQueryResult {
+  throw new Error('queryRuns must not be called without guard inputs');
+}
+
 /** Deps giả: phân phối nội dung file theo path, ghi lại lời gọi deploy. */
 function fakeDeps(files: Record<string, string>): {
   deps: StagingDeployDeps;
   deployCalls: DeployStagingWorkerOptions[];
   lines: string[];
+  /** Gán kết quả lượt tra cứu run MỚI cho guard — chỉ test có guard mới dùng. */
+  setQueryRuns: (result: RunListQueryResult) => void;
 } {
   const deployCalls: DeployStagingWorkerOptions[] = [];
   const lines: string[] = [];
+  // Ném ngay: test KHÔNG bật guard mà chạm truy cứu run là lỗi wiring —
+  // mọi test cũ (guard tắt) xác nhận đường cũ không tra cứu gì.
+  let queryRunsImpl: () => RunListQueryResult = neverQueryRuns;
   const deps: StagingDeployDeps = {
     readTextFile: (path) => {
       const text = files[path];
@@ -41,13 +52,30 @@ function fakeDeps(files: Record<string, string>): {
       deployCalls.push(options);
       return Promise.resolve({ attempts: 1, stdoutTail: '' });
     },
+    queryRuns: () => queryRunsImpl(),
     out: { write: (text) => (lines.push(text), lines.length) },
   };
-  return { deps, deployCalls, lines };
+  return {
+    deps,
+    deployCalls,
+    lines,
+    setQueryRuns: (result) => {
+      queryRunsImpl = () => result;
+    },
+  };
 }
 
 const HOME_CONFIG = '/repo/apps/home/wrangler.jsonc';
 const HOME_MANIFEST = '/repo/build-manifest.json';
+
+/** Bộ file "mọi preflight pass" — dùng chung cho test deploy và test guard. */
+function happyFiles(): Record<string, string> {
+  return {
+    [HOME_CONFIG]: CONFIG_TEXT,
+    [HOME_MANIFEST]: JSON.stringify({ sha: SHA, worker: 'stg-ecoma-home' }),
+    [deployEligibilityPath()]: ELIGIBILITY_RELEASEABLE,
+  };
+}
 
 describe('isFullCommitSha', () => {
   it('accepts exactly 40 lowercase hex characters', () => {
@@ -204,14 +232,6 @@ describe('runStagingDeploy', () => {
     expectSha: SHA,
   };
 
-  function happyFiles(): Record<string, string> {
-    return {
-      [HOME_CONFIG]: CONFIG_TEXT,
-      [HOME_MANIFEST]: JSON.stringify({ sha: SHA, worker: 'stg-ecoma-home' }),
-      [deployEligibilityPath()]: ELIGIBILITY_RELEASEABLE,
-    };
-  }
-
   it('runs the full preflight in order and then deploys once with the resolved env', async () => {
     const { deps, deployCalls, lines } = fakeDeps(happyFiles());
     const sourceEnv = { ECOMA_CLOUDFLARE_API_TOKEN: 'cf-token-value', PATH: '/usr/bin' };
@@ -265,5 +285,91 @@ describe('runStagingDeploy', () => {
       /ECOMA_CLOUDFLARE_API_TOKEN is not set/u,
     );
     expect(deployCalls).toHaveLength(0);
+  });
+});
+
+describe('runStagingDeploy guard before-deploy (§7.4)', () => {
+  const params = {
+    configPath: HOME_CONFIG,
+    project: '@ecoma-io/home',
+    slug: 'home',
+    manifestPath: HOME_MANIFEST,
+    expectSha: SHA,
+    guard: { runId: 7, contextSha: SHA },
+  };
+
+  function freshRunState(): RunListQueryResult {
+    return { ok: true, mainSha: SHA, runs: [{ id: 7, status: 'completed' }] };
+  }
+
+  it('deploys once when the run is still the newest and main has not advanced', async () => {
+    const { deps, deployCalls, lines, setQueryRuns } = fakeDeps(happyFiles());
+    setQueryRuns(freshRunState());
+    const result = await runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps);
+    expect(result).toEqual({ deployed: true, guardAction: 'proceed' });
+    expect(deployCalls).toHaveLength(1);
+    expect(lines.join('')).toContain('proceed-newest-run');
+  });
+
+  it('skips WITHOUT deploying when a newer run already completed', async () => {
+    const { deps, deployCalls, lines, setQueryRuns } = fakeDeps(happyFiles());
+    setQueryRuns({
+      ok: true,
+      mainSha: SHA,
+      runs: [
+        { id: 7, status: 'completed' },
+        { id: 9, status: 'completed' },
+      ],
+    });
+    const result = await runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps);
+    expect(result).toEqual({ deployed: false, guardAction: 'skip' });
+    expect(deployCalls).toHaveLength(0);
+    expect(lines.join('')).toContain('superseded-by-newer-completed-run');
+  });
+
+  it('aborts WITHOUT deploying and without touching evidence when the query fails', async () => {
+    const { deps, deployCalls, setQueryRuns } = fakeDeps(happyFiles());
+    setQueryRuns({ ok: false, error: 'gh api exploded' });
+    const error = await runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(GuardAbortError);
+    expect((error as GuardAbortError).action).toBe('abort-query-failed');
+    expect((error as GuardAbortError).message).toContain('gh api exploded');
+    expect(deployCalls).toHaveLength(0);
+  });
+
+  it('aborts WITH a failure status when main has advanced past the run SHA', async () => {
+    const { deps, deployCalls, setQueryRuns } = fakeDeps(happyFiles());
+    setQueryRuns({ ok: true, mainSha: 'b'.repeat(40), runs: [{ id: 7, status: 'completed' }] });
+    const error = await runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(GuardAbortError);
+    expect((error as GuardAbortError).action).toBe('abort-main-advanced');
+    expect(deployCalls).toHaveLength(0);
+  });
+
+  it('never queries runs when the guard is disabled (old contract unchanged)', async () => {
+    const { deps, deployCalls } = fakeDeps(happyFiles());
+    // queryRuns giả NÉM nếu bị gọi — giữ nguyên contract cũ cho caller không bật guard.
+    const result = await runStagingDeploy(
+      { ...params, guard: undefined },
+      { ECOMA_CLOUDFLARE_API_TOKEN: 't' },
+      deps,
+    );
+    expect(result).toEqual({ deployed: true, guardAction: 'proceed' });
+    expect(deployCalls).toHaveLength(1);
+  });
+
+  it('runs the guard AFTER the full preflight — a bad manifest means no query at all', async () => {
+    const files = happyFiles();
+    files[HOME_MANIFEST] = JSON.stringify({ sha: 'b'.repeat(40), worker: 'stg-ecoma-home' });
+    const { deps, setQueryRuns } = fakeDeps(files);
+    // Ném nếu bị gọi — preflight fail phải dừng TRƯỚC guard.
+    setQueryRuns(freshRunState());
+    await expect(
+      runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps),
+    ).rejects.toThrowError(/refusing to deploy an artifact/u);
   });
 });

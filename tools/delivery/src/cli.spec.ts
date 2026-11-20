@@ -7,8 +7,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   isCliEntry,
   parseStagingDeployArgv,
+  parseStagingGuardArgv,
   parseStagingManifestArgv,
+  parseStagingPlanArgv,
   parseStagingSmokeArgv,
+  parseStagingUnitGateArgv,
   parseWorkerSecretArgv,
   printReports,
   readStdinFrom,
@@ -240,6 +243,32 @@ describe('parseStagingDeployArgv', () => {
       message: 'missing --expect-sha <commit-sha> value',
     });
   });
+
+  it('enables before-deploy guard only when both guard flags are given', () => {
+    const sha = 'a'.repeat(40);
+    const withGuard = parseStagingDeployArgv([
+      ...fullArgv,
+      '--guard-run-id',
+      '12',
+      '--guard-head-sha',
+      sha,
+    ]);
+    expect(withGuard).toEqual({
+      kind: 'ok',
+      params: expect.objectContaining({
+        guard: { runId: 12, contextSha: sha },
+      }),
+    });
+    // Bật một nửa là usage error của caller — không phải guard tắt ngầm.
+    expect(parseStagingDeployArgv([...fullArgv, '--guard-run-id', '12'])).toEqual({
+      kind: 'usage',
+      message: expect.stringContaining('together'),
+    });
+    expect(parseStagingDeployArgv([...fullArgv, '--guard-head-sha', sha])).toEqual({
+      kind: 'usage',
+      message: expect.stringContaining('together'),
+    });
+  });
 });
 
 describe('parseStagingSmokeArgv', () => {
@@ -340,6 +369,130 @@ describe('parseStagingSmokeArgv', () => {
     expect(parseStagingSmokeArgv(['https://a', '--budget-ms', '--health', '/health'])).toEqual({
       kind: 'usage',
       message: 'missing value for --budget-ms',
+    });
+  });
+
+  it('enables before-status guard only when both guard flags are given', () => {
+    const sha = 'a'.repeat(40);
+    expect(
+      parseStagingSmokeArgv([
+        'https://a',
+        '--health',
+        '/health',
+        '--guard-run-id',
+        '5',
+        '--guard-head-sha',
+        sha,
+      ]),
+    ).toEqual({
+      kind: 'ok',
+      options: expect.objectContaining({
+        guard: { runId: 5, contextSha: sha },
+      }),
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--guard-run-id', '5'])).toEqual({
+      kind: 'usage',
+      message: expect.stringContaining('together'),
+    });
+  });
+});
+
+describe('parseStagingPlanArgv', () => {
+  it('parses both SHAs', () => {
+    expect(parseStagingPlanArgv(['--sha', 'a'.repeat(40), '--base', 'b'.repeat(40)])).toEqual({
+      kind: 'ok',
+      deploySha: 'a'.repeat(40),
+      baseSha: 'b'.repeat(40),
+    });
+  });
+
+  it('refuses a missing SHA flag', () => {
+    expect(parseStagingPlanArgv(['--base', 'b'.repeat(40)])).toEqual({
+      kind: 'usage',
+      message: 'missing --sha <commit-sha> value',
+    });
+    expect(parseStagingPlanArgv(['--sha', 'a'.repeat(40)])).toEqual({
+      kind: 'usage',
+      message: 'missing --base <commit-sha> value',
+    });
+  });
+});
+
+describe('parseStagingUnitGateArgv', () => {
+  it('parses the three required flags', () => {
+    expect(
+      parseStagingUnitGateArgv([
+        '--project',
+        '@ecoma-io/home',
+        '--config',
+        'apps/home/wrangler.jsonc',
+        '--ref-sha',
+        'a'.repeat(40),
+      ]),
+    ).toEqual({
+      kind: 'ok',
+      project: '@ecoma-io/home',
+      configPath: 'apps/home/wrangler.jsonc',
+      refSha: 'a'.repeat(40),
+    });
+  });
+
+  it('refuses each missing flag with its own usage message', () => {
+    const sha = 'a'.repeat(40);
+    expect(parseStagingUnitGateArgv(['--config', 'c.jsonc', '--ref-sha', sha])).toEqual({
+      kind: 'usage',
+      message: 'missing --project <nx-project-name> value',
+    });
+    expect(parseStagingUnitGateArgv(['--project', 'p', '--ref-sha', sha])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+    expect(parseStagingUnitGateArgv(['--project', 'p', '--config', 'c.jsonc'])).toEqual({
+      kind: 'usage',
+      message: 'missing --ref-sha <commit-sha> value',
+    });
+  });
+});
+
+describe('parseStagingGuardArgv', () => {
+  const sha = 'a'.repeat(40);
+
+  it('parses point, run id and head sha into guard inputs', () => {
+    expect(
+      parseStagingGuardArgv(['--point', 'coalesce', '--run-id', '9', '--head-sha', sha]),
+    ).toEqual({
+      kind: 'ok',
+      input: { runId: 9, contextSha: sha, point: 'coalesce' },
+    });
+  });
+
+  it('refuses an unknown point', () => {
+    expect(
+      parseStagingGuardArgv(['--point', 'mid-deploy', '--run-id', '9', '--head-sha', sha]),
+    ).toEqual({
+      kind: 'usage',
+      message: '--point must be one of coalesce|before-deploy|before-status: mid-deploy',
+    });
+  });
+
+  it('refuses missing flags and a non-integer run id', () => {
+    expect(parseStagingGuardArgv(['--run-id', '9', '--head-sha', sha])).toEqual({
+      kind: 'usage',
+      message: 'missing --point <coalesce|before-deploy|before-status>',
+    });
+    expect(parseStagingGuardArgv(['--point', 'coalesce', '--head-sha', sha])).toEqual({
+      kind: 'usage',
+      message: 'missing --run-id <n> value',
+    });
+    expect(parseStagingGuardArgv(['--point', 'coalesce', '--run-id', '9'])).toEqual({
+      kind: 'usage',
+      message: 'missing --head-sha <commit-sha> value',
+    });
+    expect(
+      parseStagingGuardArgv(['--point', 'coalesce', '--run-id', 'x', '--head-sha', sha]),
+    ).toEqual({
+      kind: 'usage',
+      message: expect.stringContaining('positive integer'),
     });
   });
 });
