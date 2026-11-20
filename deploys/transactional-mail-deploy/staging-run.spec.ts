@@ -7,11 +7,11 @@
  * `staging-candidate` để từ chối (tên tài nguyên slot `-cand` thuộc #381).
  */
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
@@ -30,10 +30,23 @@ import {
   readDatabaseId,
   readStagingRevision,
   resolveStagingRunEnv,
+  runStagingPhase,
   stagingEvidencePath,
   type StagingExecDeps,
   type StagingProvisioningRecord,
 } from './staging-run.js';
+
+// `runStagingPhase` dùng `pulumiRun` thật của lib — mock RIÊNG nó thành throw
+// để spec lỗi phase không đụng Pulumi thật; `deployProjectDir` trỏ về tmpdir
+// của spec (engine ghi evidence theo projectDir). Mọi export khác giữ nguyên.
+// vi.mock được hoist lên đầu module bởi vitest nên đứng sau import là đúng.
+vi.mock('@ecoma-io/deployment', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
+  pulumiRun: () => {
+    throw new Error('pulumi up failed: simulated phase error');
+  },
+  deployProjectDir: (project: string) => join(tmpdir(), `staging-run-spec-${project}`),
+}));
 
 const cleanup: string[] = [];
 afterEach(() => {
@@ -507,5 +520,30 @@ describe('staging resource name constants', () => {
     }
     expect(STAGING_QUEUE_NAMES[1]).toBe(`${STAGING_QUEUE_NAMES[0]}-dlq`);
     expect(STAGING_QUEUE_NAMES[3]).toBe(`${STAGING_QUEUE_NAMES[2]}-dlq`);
+  });
+});
+
+describe('runStagingPhase', () => {
+  it('a failed phase keeps the original provisioning error even when writing the evidence record fails', () => {
+    // Cùng tmpdir mà `deployProjectDir` (mocked) trả về — engine ghi evidence
+    // theo projectDir, không theo cwd của spec.
+    const projectDir = join(tmpdir(), 'staging-run-spec-transactional-mail-deploy');
+    cleanup.push(projectDir);
+    mkdirSync(projectDir, { recursive: true });
+    // `.staging-evidence` là FILE (không phải thư mục) — mkdirSync của
+    // `appendStagingRecord` ném EEXIST, mô phỏng disk-full/quyền hạn.
+    writeFileSync(join(projectDir, '.staging-evidence'), 'not a dir');
+    const deps: StagingExecDeps = { execFn: () => execResult() };
+    // Lỗi gốc của phase phải được ném lại nguyên văn — KHÔNG phải EEXIST của
+    // lần ghi evidence.
+    expect(() => runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps)).toThrow(
+      /pulumi up failed: simulated phase error/u,
+    );
+    expect(() => runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps)).toThrow(
+      /staging up failed on organization\/transactional-mail-deploy\/staging/u,
+    );
+    expect(() =>
+      runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps),
+    ).not.toThrow(/evidence/u);
   });
 });

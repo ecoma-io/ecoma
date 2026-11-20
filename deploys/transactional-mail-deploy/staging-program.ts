@@ -71,11 +71,12 @@ const stagingMailDatabase = new cloudflare.D1Database(STAGING_MAIL_DATABASE_NAME
 // Wrangler tham chiếu Queue theo TÊN nên id không cần output; biến chỉ để
 // tuân thủ `no-new` — resource đã được đăng ký với Pulumi lúc `new` chạy.
 for (const queueName of STAGING_QUEUE_NAMES) {
-  const queue = new cloudflare.Queue(queueName, {
+  // Resource được đăng ký với Pulumi tại `new` — câu lệnh biểu thức thuần,
+  // không cần biến giữ kết quả (Pulumi wrap constructor, không phải `no-new`).
+  void new cloudflare.Queue(queueName, {
     accountId: stagingAccountId,
     queueName,
   });
-  void queue;
 }
 
 export default { mailDatabaseId: stagingMailDatabase.uuid };
