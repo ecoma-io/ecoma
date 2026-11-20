@@ -153,6 +153,10 @@
       "staging": "excluded",
       "reason": "platform prerequisite (deployment map kind: platform): provisions shared infrastructure for every deploy unit; owns no runtime of its own to version",
     },
+    "staging-pg-host": {
+      "staging": "excluded",
+      "reason": "provisioning lifecycle project (#349, Pulumi over SSH): provisions the shared staging PostgreSQL host; owns no runtime of its own to version - deployment-only, excluded from release versioning",
+    },
     "@ecoma-io/local-smoke": {
       "staging": "excluded",
       "reason": "local platform smoke suite (02-delivery.md local lane): verification, not a deployable unit",
