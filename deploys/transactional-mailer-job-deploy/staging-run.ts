@@ -455,12 +455,19 @@ export function runStagingPhase(
   } catch (error) {
     outcome.record.outcome = 'failed';
     outcome.record.finishedAt = new Date().toISOString();
-    const path = appendStagingRecord(projectDir, outcome.record);
+    // Ghi evidence thất bại (disk full, quyền hạn…) KHÔNG được nuốt lỗi
+    // provisioning thật — record path chỉ là chú thích, không phải nguyên nhân.
+    let recordPath: string | undefined;
+    try {
+      recordPath = appendStagingRecord(projectDir, outcome.record);
+    } catch {
+      // giữ nguyên lỗi gốc của phase
+    }
     throw Object.assign(
       new Error(
         `staging ${phase} failed on ${outcome.record.stackRef}: ${error instanceof Error ? error.message : String(error)}`,
       ),
-      { recordPath: path },
+      { recordPath },
     );
   }
   outcome.record.finishedAt = new Date().toISOString();

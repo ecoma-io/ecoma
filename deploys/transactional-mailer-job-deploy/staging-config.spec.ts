@@ -28,14 +28,34 @@ const STAGING_LIFECYCLE_DLQ = 'stg-ecoma-mail-lifecycle-events-dlq';
 const STAGING_CONTROL_PLANE_WORKER = 'stg-ecoma-transactional-mail';
 
 /** Shape tối thiểu của wrangler.jsonc dùng trong audit — structural typing. */
+interface D1Binding {
+  binding: string;
+  database_name: string;
+  database_id?: string;
+}
+interface QueueConsumerBinding {
+  binding: string;
+  queue: string;
+  max_retries?: number;
+  dead_letter_queue?: string;
+}
+interface ServiceBinding {
+  binding: string;
+  service: string;
+}
+interface SendEmailBinding {
+  name: string;
+  allowed_sender_addresses: string[];
+}
+
 interface WranglerConfig {
   name?: string;
   workers_dev?: boolean;
   triggers?: { crons?: string[] };
-  d1_databases?: Array<Record<string, unknown>>;
-  queues?: { consumers?: Array<Record<string, unknown>> };
-  services?: Array<Record<string, unknown>>;
-  send_email?: Array<Record<string, unknown>>;
+  d1_databases?: D1Binding[];
+  queues?: { consumers?: QueueConsumerBinding[] };
+  services?: ServiceBinding[];
+  send_email?: SendEmailBinding[];
   vars?: Record<string, string>;
   env?: Record<string, WranglerConfig>;
 }
