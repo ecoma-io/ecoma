@@ -23,7 +23,8 @@
     "staging-run.ts",
     "staging-run.spec.ts",
     "staging-config.spec.ts",
-    "wrangler-jsonc.ts"
+    "wrangler-jsonc.ts",
+    "wrangler-jsonc.spec.ts"
   ],
   "references": [
     {

@@ -23,9 +23,11 @@
  * `staging-program.ts` — nguồn định danh wiring `env.staging.d1_databases` của
  * `apps/transactional-mail/wrangler.jsonc` (§9.1: id do Pulumi cung cấp,
  * Wrangler không tự tạo resource). Pulumi language host (`cmd/run/run.js`)
- * lấy **default export duy nhất** của entry làm kết quả program = stack
- * outputs, nên entry forward nguyên kết quả của lane được nạp qua
- * `export default`. Entry vì thế chỉ được phép có ĐÚNG MỘT export: `default`.
+ * import entry, unwrap `.default` của ENTRY đúng MỘT lần rồi lấy từng property
+ * của kết quả làm stack output — nên lane local (named exports) forward nguyên
+ * namespace, còn lane staging (default export) phải unwrap thêm tầng
+ * `.default`: forwarding cả namespace sẽ sinh output `default` thay vì
+ * `mailDatabaseId`. Entry vì thế chỉ được phép có ĐÚNG MỘT export: `default`.
  */
 
 import * as pulumi from '@pulumi/pulumi';
@@ -44,10 +46,12 @@ if (mailDeployStackLane === 'unknown' || mailDeployStackLane === 'staging-candid
   );
 }
 // Nạp thân theo lane — specifier `.js` resolvable qua ts-node/esm hooks như
-// mọi import nội bộ của package (`type: "module"`).
-const laneProgram =
-  mailDeployStackLane === 'staging'
-    ? await import('./staging-program.js')
-    : await import('./local-program.js');
-
-export default laneProgram;
+// mọi import nội bộ của package (`type: "module"`). Host unwrap `.default`
+// của entry ĐÚNG MỘT LẦN (cmd/run/run.js) rồi lấy từng property của kết quả
+// làm stack output: namespace của lane local (named exports) forward nguyên
+// vẹn; default export của lane staging phải unwrap thêm một tầng — forwarding
+// cả namespace sẽ sinh output `default`, không phải `mailDatabaseId` mà
+// `readDatabaseId` đọc sau `up`.
+export default mailDeployStackLane === 'staging'
+  ? (await import('./staging-program.js')).default
+  : await import('./local-program.js');
