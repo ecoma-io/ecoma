@@ -853,20 +853,28 @@ export function applyLocalD1Migrations(options: ApplyLocalMigrationsOptions): st
 export function requireSingleD1DatabaseName(configPath: string): string {
   const { config } = loadCommittedWranglerConfig(configPath);
   const databases = Array.isArray(config.d1_databases) ? config.d1_databases : [];
-  const names = databases
-    .map((entry) =>
-      typeof entry === 'object' && entry !== null
-        ? (entry as { database_name?: unknown }).database_name
-        : undefined,
-    )
-    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
-  if (names.length !== 1) {
+  // Cardinality đếm trên TẤT CẢ entry, kể cả entry thiếu database_name: một
+  // config nhiều hơn một entry là lỗi cấu trúc (A+), không được âm thầm bỏ qua
+  // entry dư chỉ vì nó không đặt tên (OCR #511 run 44675214799).
+  if (databases.length !== 1) {
     throw new Error(
-      `expected exactly one D1 database with a database_name in ${configPath}, found ${names.length}` +
-        (names.length > 0 ? ` (${names.join(', ')})` : ''),
+      `expected exactly one D1 database entry in ${configPath}, found ${databases.length}`,
     );
   }
-  return names[0] as string;
+  const entry = databases[0] as { database_name?: unknown } | null;
+  const databaseName =
+    typeof entry === 'object' &&
+    entry !== null &&
+    typeof entry.database_name === 'string' &&
+    entry.database_name.trim().length > 0
+      ? entry.database_name
+      : undefined;
+  if (databaseName === undefined) {
+    throw new Error(
+      `expected exactly one D1 database with a non-empty database_name in ${configPath}`,
+    );
+  }
+  return databaseName;
 }
 
 /**

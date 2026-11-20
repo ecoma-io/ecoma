@@ -635,6 +635,16 @@ describe('requireSingleD1DatabaseName (#382 — §3a.4 database_name, A+ một D
     });
     expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database/u);
   });
+
+  it('rejects a second unnamed entry instead of silently ignoring it', () => {
+    // OCR #511 run 44675214799: cardinality phải đếm mọi entry — một config hai
+    // entry (một entry không có database_name) không được coi là "đúng một".
+    const dir = makeWorktreeFixture('d1-name-extra-unnamed');
+    const configPath = writeCommittedConfig(dir, {
+      d1_databases: [{ binding: 'mail', database_name: 'mail' }, { binding: 'mail-ghost' }],
+    });
+    expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database entry/u);
+  });
 });
 
 describe('buildD1MigrationsApplyArgs (#382 — argv shape, token không qua argv)', () => {
