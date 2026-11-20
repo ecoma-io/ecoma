@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import {
   BOOTSTRAP_STEPS,
   CANONICAL_SELLER_TENANT,
@@ -56,13 +56,25 @@ export function parseArgs(args: readonly string[]): { environment: string } {
 
 function execStep(argv: readonly string[], env: NodeJS.ProcessEnv): ExecResult {
   const [command, ...rest] = argv;
-  const result = spawnSync(command ?? '', rest, {
-    env,
-    // stdout bắt lại để rút giá trị xuyên bước; stderr đi thẳng console cho
-    // operator nhìn thấy lỗi thật của script sở hữu.
-    stdio: ['inherit', 'pipe', 'inherit'],
-    encoding: 'utf8',
-  });
+  if (command === undefined || command === '') {
+    return {
+      status: 1,
+      stdout: '',
+      stderr: 'staging-bootstrap: refusing to exec an empty command\n',
+    };
+  }
+  let result: SpawnSyncReturns<string>;
+  try {
+    result = spawnSync(command, rest, {
+      env,
+      // stdout bắt lại để rút giá trị xuyên bước; stderr đi thẳng console cho
+      // operator nhìn thấy lỗi thật của script sở hữu.
+      stdio: ['inherit', 'pipe', 'inherit'],
+      encoding: 'utf8',
+    });
+  } catch (error) {
+    return { status: 1, stdout: '', stderr: `${(error as Error).message}\n` };
+  }
   return { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 

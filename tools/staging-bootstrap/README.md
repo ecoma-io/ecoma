@@ -30,6 +30,7 @@ ADR-0020 (`docs/domains/staff-access/adr/0020-bootstrap-seed-contract.md`):
 ## Chạy
 
 ```bash
+# Yêu cầu Node ≥ 22.6 (type-stripping để chạy trực tiếp file .ts)
 node tools/staging-bootstrap/src/cli.ts staging
 ```
 

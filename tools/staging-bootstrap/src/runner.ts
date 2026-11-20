@@ -33,7 +33,8 @@ export interface StepEvidence {
   readonly id: string;
   readonly service: string;
   readonly database: string;
-  readonly exit: number;
+  /** `null` khi bước bị skip (chưa chạy tới) — không phải mã thoát thật. */
+  readonly exit: number | null;
   readonly durationMs: number;
   readonly skipped: boolean;
 }
@@ -56,7 +57,7 @@ export function runBootstrapContract(steps: readonly BootstrapStep[], deps: Runn
         id: step.id,
         service: step.service,
         database: step.database,
-        exit: -1,
+        exit: null,
         durationMs: 0,
         skipped: true,
       });
@@ -100,7 +101,16 @@ export function runBootstrapContract(steps: readonly BootstrapStep[], deps: Runn
 export function absorbStepValues(stepId: string, stdout: string, values: StepValues): void {
   for (const match of stdout.matchAll(/^bootstrap-value\s+([a-z_]+)=(\S+)\s*$/gmu)) {
     const [, key, value] = match;
-    if (key === 'sub' && stepId === 'account') values.sub = value;
-    if (key === 'tenant_id' && stepId === 'llm-consumer-tenant') values.tenantId = value;
+    if (key === 'sub' && stepId === 'account') {
+      values.sub = value;
+      continue;
+    }
+    if (key === 'tenant_id' && stepId === 'llm-consumer-tenant') {
+      values.tenantId = value;
+      continue;
+    }
+    process.stderr.write(
+      `staging-bootstrap: ignoring bootstrap-value ${key} emitted by step ${stepId} — no consumer at this step\n`,
+    );
   }
 }

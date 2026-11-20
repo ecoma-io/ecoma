@@ -12,7 +12,8 @@ export interface StepAuditEntry {
   readonly id: string;
   readonly service: string;
   readonly database: string;
-  readonly exit: number;
+  /** `null` khi bước bị skip (chưa chạy tới) — không phải mã thoát thật. */
+  readonly exit: number | null;
   readonly durationMs: number;
   readonly skipped: boolean;
 }

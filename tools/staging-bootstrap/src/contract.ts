@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
  * Bảng bước bootstrap/seed canonical — nguồn duy nhất là
  * `docs/architecture/02-delivery.md` §3.2 (hợp đồng vận hành), quyết định
  * đường chạy ở ADR-0020 (staff-access). Runner chỉ thực thi các dòng
- * bootstrap/seed (3–10 của bảng §3.2): dòng 1 (provision) thuộc #349/#368,
+ * bootstrap/seed (3–12 của bảng §3.2): dòng 1 (provision) thuộc #349/#368,
  * dòng 2 (migrate schemas) thuộc các migration project `deploys/*-db`
  * (#374, #375–#378) — runner không execute DDL, chỉ yêu cầu evidence hoàn
  * tất của hai dòng đó trước khi chạy (§3a.5 mục F: ba lifecycle không trộn).
@@ -29,7 +29,7 @@ export interface StepValues {
   tenantId?: string;
 }
 
-/** Một dòng của bảng bước §3.2 (chỉ các dòng bootstrap/seed 3–10). */
+/** Một dòng của bảng bước §3.2 (chỉ các dòng bootstrap/seed 3–12). */
 export interface BootstrapStep {
   /** Định danh ổn định của bước — dùng cho `--from` và evidence. */
   readonly id: string;
@@ -216,11 +216,12 @@ export function unresolvedBlockers(): readonly string[] {
 export function existsScript(argv: readonly string[]): boolean {
   const script = argv.at(-1);
   if (script === undefined) return false;
-  return existsSync(`${WORKSPACE_ROOT}/apps/${appNameOf(argv)}/${script}`);
+  return existsSync(resolve(WORKSPACE_ROOT, 'apps', appNameOf(argv), script));
 }
 
 /** Suy tên app Nx từ argv `pnpm --filter <name> ...` — phục vụ kiểm script tồn tại. */
 function appNameOf(argv: readonly string[]): string {
-  const filter = argv.at(2) ?? '';
+  const filterIndex = argv.indexOf('--filter');
+  const filter = filterIndex === -1 ? '' : (argv.at(filterIndex + 1) ?? '');
   return filter.replace(/^@ecoma-io\//u, '');
 }
