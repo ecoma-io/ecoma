@@ -1,27 +1,29 @@
 # Backoffice Deploy
 
-Pulumi deployment project provision **deploy unit của `apps/backoffice` trên lane LOCAL**: database `db-backoffice`, hai role PostgreSQL, migration, image đóng gói artifact `build:development` (Nuxt preset `node-server`) do Nx build sẵn, và container phía sau Traefik. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, image ở `Dockerfile`.
+Pulumi deployment project provision **deploy unit của `apps/backoffice`**: lane LOCAL (database `db-backoffice`, hai role PostgreSQL, migration, image và container phía sau Traefik) và lane STAGING (HyperdriveConfig của `db-backoffice`). Đây là deploy project (`type:deployment`), không phải application hay bounded context. Entry chương trình Pulumi ở `index.ts` (lane guard), thân lane local ở `local-program.ts`, thân lane staging ở `staging-program.ts`; entry lifecycle local ở `local.ts`, entry lifecycle staging ở `staging.ts`; image ở `Dockerfile`.
 
-Nx project `backoffice-deploy`, tags `type:deployment`, `scope:backoffice`, `runtime:native`. Chỉ có lane local (`configurations: local`); staging/production của app khai trong `apps/backoffice/wrangler.jsonc` và thuộc delivery lane — không nằm trong chương trình này.
+Nx project `backoffice-deploy`, tags `type:deployment`, `scope:backoffice`, `runtime:native`. Worker staging/production của app khai trong `apps/backoffice/wrangler.jsonc` và thuộc delivery lane — không nằm trong chương trình này.
 
 ## Purpose
 
 - Đưa `apps/backoffice` (composition + UI/BFF vận hành nội bộ) lên local platform với đủ vòng đời: provision database → migration → image → container → readiness.
+- Cấp HyperdriveConfig staging của `db-backoffice` (`db-backoffice-staging`, §9.1) cho lane staging — id thật đọc từ stack output `hyperdriveConfigId` sau lần `up` xanh đầu tiên và fill vào `env.staging.hyperdrive` của `apps/backoffice/wrangler.jsonc` (id do Pulumi cung cấp, Wrangler không tự tạo config).
 - Ghim đúng cấu hình OIDC BFF và hai đường fetch nội bộ (auth, staff-access) để middleware authn của app hoạt động fail-closed ngay trên lane local.
 
 ## Responsibilities
 
 - **Secret lifecycle** (`local.ts`): khi `up`, sinh và persist vào stack config — mật khẩu hai role PostgreSQL (migrator/runtime, xoay mỗi lần `up`) và `internalHmacSecret` ĐỌC LẠI từ stack config của `staff-access-deploy` (staff-access sở hữu, hai stack dùng chung một giá trị để ký/verify envelope HMAC của management API).
-- **Provisioning** (`index.ts`): tạo `db-backoffice` + hai role `ecoma_backoffice_{migrator,runtime}` (guard-create bằng shell `if`, password `ALTER` idempotent mỗi lần up), grant migrator, hardening schema public, không áp migration tại đây (cutover #375 tách migrate khỏi provision).
-- **Image + container** (`Dockerfile`, `index.ts`): image COPY artifact `.output-node/` do `local-build` (→ `@ecoma-io/backoffice:build:development`) build sẵn, từ repo root, fail-loud kiểm entrypoint (builder `default`, `load: true`, `push: false`), container ghim `tag@sha256:<digest>`; alias `ecoma-backoffice`, router Traefik `Host(office.<rootHostname>)` TLS, healthcheck `GET /health` và `wait: true` — `pulumi up` chỉ xanh khi healthcheck `healthy`.
-- **Env inject** (`index.ts`): `NITRO_BACKOFFICE_DATABASE_URL` (role runtime qua network nội bộ); bộ OIDC `NUXT_BACKOFFICE_AUTH_ISSUER`/`AUDIENCE` dựng từ `rootHostname` + `traefikHostPort` của platform (ghim cùng chuỗi mà `auth-deploy` cấp cho provider — phép so `iss`/`aud` exact khớp theo cấu trúc) và `NUXT_BACKOFFICE_AUTH_CLIENT_ID` là hằng dùng chung với client public mà `auth-deploy` seed; `AUTH_INTERNAL_SECRET` (secret envelope staff-access ↔ backoffice, bọc `pulumi.secret`); `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL=http://ecoma-staff-access:4206` — Nitro plugin `server/plugins/staff-access-service-shim.ts` của app biến URL này thành binding `STAFF_ACCESS_SERVICE` lúc runtime; `NUXT_BACKOFFICE_AUTH_INTERNAL_ORIGIN=http://ecoma-<ns>-auth:4203` cho fetch JWKS/token exchange server-side; `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`.
+- **Provisioning lane local** (`local-program.ts`): tạo `db-backoffice` + hai role `ecoma_backoffice_{migrator,runtime}` (guard-create bằng shell `if`, password `ALTER` idempotent mỗi lần up), grant migrator, hardening schema public, không áp migration tại đây (cutover #375 tách migrate khỏi provision).
+- **Image + container** (`Dockerfile`, `local-program.ts`): image COPY artifact `.output-node/` do `local-build` (→ `@ecoma-io/backoffice:build:development`) build sẵn, từ repo root, fail-loud kiểm entrypoint (builder `default`, `load: true`, `push: false`), container ghim `tag@sha256:<digest>`; alias `ecoma-backoffice`, router Traefik `Host(office.<rootHostname>)` TLS, healthcheck `GET /health` và `wait: true` — `pulumi up` chỉ xanh khi healthcheck `healthy`.
+- **Env inject** (`local-program.ts`): `NITRO_BACKOFFICE_DATABASE_URL` (role runtime qua network nội bộ); bộ OIDC `NUXT_BACKOFFICE_AUTH_ISSUER`/`AUDIENCE` dựng từ `rootHostname` + `traefikHostPort` của platform (ghim cùng chuỗi mà `auth-deploy` cấp cho provider — phép so `iss`/`aud` exact khớp theo cấu trúc) và `NUXT_BACKOFFICE_AUTH_CLIENT_ID` là hằng dùng chung với client public mà `auth-deploy` seed; `AUTH_INTERNAL_SECRET` (secret envelope staff-access ↔ backoffice, bọc `pulumi.secret`); `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL=http://ecoma-staff-access:4206` — Nitro plugin `server/plugins/staff-access-service-shim.ts` của app biến URL này thành binding `STAFF_ACCESS_SERVICE` lúc runtime; `NUXT_BACKOFFICE_AUTH_INTERNAL_ORIGIN=http://ecoma-<ns>-auth:4203` cho fetch JWKS/token exchange server-side; `NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype`.
+- **Provisioning lane staging** (`staging-program.ts`, `staging-run.ts`, `staging.ts`): `preview`/`up` trên stack `staging` backend R2 khai HyperdriveConfig `db-backoffice-staging` — origin đọc từ stack config và FAIL CLOSED khi chưa có (đường tới origin private là Tunnel/VPC Service của #349); cache OFF tường minh theo yêu cầu documented của `db-backoffice` (HD3/HD4 — role bị revoke không được đọc từ cache hợp lệ); inventory credential fail-closed với danh sách đầy đủ khóa thiếu; evidence record JSON append-only mỗi lần chạy trong `.staging-evidence/`; KHÔNG có phase down/destroy.
 - **Platform dependency**: đọc outputs platform qua `StackReference` (`networkName`, `namespace`, `rootHostname`, `traefikHostPort`) fail-closed; so namespace platform với worktree namespace, lệch là lỗi deploy; target `local-up` dependsOn `platform-deploy:local-up` và `staff-access-deploy:local-up` (secret cross-stack).
 - **Multi-worktree**: mọi Docker resource mang namespace theo worktree và ownership labels để `pnpm dx local-cleanup` phân loại được.
-- Stack exports: `imageDigest`, `containerName`, `containerId`, `namespaceVerified`.
+- Stack exports lane local: `imageDigest`, `containerName`, `containerId`, `namespaceVerified`; lane staging: `hyperdriveConfigId`.
 
 ## Boundaries
 
-- Không provision hạ tầng Cloudflare (Hyperdrive, Worker, route) — chương trình này chỉ phủ lane local.
+- Lane local không provision hạ tầng Cloudflare; lane staging chỉ khai HyperdriveConfig (owner Pulumi theo §9.1) — KHÔNG deploy Worker, KHÔNG khai route/DNS (Worker deploy là Wrangler, hostname staging thuộc Router non-production A13/MOD1).
 - Không sở hữu code của `apps/backoffice` — image build từ source của app; sửa hành vi app thì sửa `apps/backoffice`.
 - Không gọi `auth` hay `staff-access` trực tiếp ngoài hai origin khai trong env — mọi contract liên unit là trách nhiệm của app, deploy chỉ cấp origin.
 - Thiết kế composition và ranh giới BFF không được restatement ở đây → `docs/applications/backoffice/`.
@@ -33,24 +35,28 @@ pnpm nx run backoffice-deploy:lint
 pnpm nx run backoffice-deploy:typecheck
 ```
 
-Lifecycle mutate Docker/Pulumi state thật — chỉ chạy khi chủ đích thay đổi stack local:
+Lifecycle mutate Docker/Pulumi state thật — chỉ chạy khi chủ đích thay đổi stack:
 
 ```bash
-pnpm nx run backoffice-deploy:local-up -c local    # provision unit này (kéo platform + staff-access chạy trước)
-pnpm nx run backoffice-deploy:local-down -c local  # destroy của riêng project; no-op exit 0 nếu worktree chưa từng deploy
+pnpm nx run backoffice-deploy:local-up -c local        # lane local: provision unit này (kéo platform + staff-access chạy trước)
+pnpm nx run backoffice-deploy:local-down -c local      # lane local: destroy của riêng project; no-op exit 0 nếu worktree chưa từng deploy
+pnpm nx run backoffice-deploy:staging-preview -c staging  # lane staging: pulumi preview --json trên stack staging (fail-closed khi thiếu credential/origin)
+pnpm nx run backoffice-deploy:staging-up -c staging       # lane staging: pulumi up --yes --json; sau khi xanh surface output hyperdriveConfigId
 ```
 
 ## Testing
 
-Project không có target `test` — targets đã xác nhận từ project graph: `local-up`, `local-down`, `lint`, `typecheck`.
+Targets đã xác nhận từ project graph: `local-up`, `local-down`, `staging-preview`, `staging-up`, `test`, `lint`, `typecheck`.
 
 - Kiểm tĩnh: `lint` + `typecheck`.
-- Kiểm vòng đời thật: các system-test suite khai `backoffice-deploy:local-up` làm prerequisite — `system-tests/e2e/backoffice-access-control-e2e` (đường gọi có chữ ký tới staff-access) và `system-tests/e2e/identity-oidc-e2e` (flow OIDC backoffice ↔ auth).
+- Kiểm unit (`test`): `scripts.spec.ts` và `staging-run.spec.ts` — engine staging dạng pure functions + exec inject: fail-closed inventory credential, origin fail-closed (#349), id thật vs placeholder, tên config per-database, phân loại stack theo lane.
+- Kiểm vòng đời thật: các system-test suite khai `backoffice-deploy:local-up` làm prerequisite — `system-tests/e2e/backoffice-access-control-e2e` (đường gọi có chữ ký tới staff-access) và `system-tests/e2e/identity-oidc-e2e` (flow OIDC backoffice ↔ auth); smoke của cả platform là target `local-smoke` của `platform-deploy`.
 
 ## Related Documentation
 
 - [`docs/architecture/local-development/README.md`](../../docs/architecture/local-development/README.md) — nền tảng local platform.
 - [`docs/architecture/local-development/01-platform.md`](../../docs/architecture/local-development/01-platform.md) — ownership, cách ly worktree, contract outputs mà stack này đọc.
 - [`docs/architecture/local-development/03-operations.md`](../../docs/architecture/local-development/03-operations.md) — vận hành lane, teardown, data-volume lifecycle.
+- [`docs/architecture/02-delivery.md`](../../docs/architecture/02-delivery.md) — §4.2 topology staging, §7.4.1 Pulumi stack & lifecycle, §9.1 bảng sở hữu resource (Hyperdrive config owner Pulumi).
 - [`docs/applications/backoffice/README.md`](../../docs/applications/backoffice/README.md) — application được deploy và composition của nó.
 - [`docs/applications/backoffice/01-architecture.md`](../../docs/applications/backoffice/01-architecture.md) — kiến trúc runtime của app mà env inject ở trên phục vụ.

@@ -98,7 +98,7 @@ async function prepare(foundation: EntryFoundation): Promise<void> {
     // envelope HMAC để ký envelope gọi staff-access management API.
     ['namespace:internalHmacSecret', internalHmacSecret],
     // Secret cặp backoffice ↔ account — đọc lại từ account-deploy, KHÁC giá
-    // trị staff-access bên trên (mỗi stack sinh secret độc lập). index.ts
+    // trị staff-access bên trên (mỗi stack sinh secret độc lập). local-program.ts
     // đặt vào biến container `ACCOUNT_INTERNAL_SECRET` của backoffice.
     ['namespace:accountInternalHmacSecret', accountInternalHmacSecret],
   ];
@@ -122,7 +122,7 @@ async function main(command: string): Promise<number> {
       );
       return 1;
     }
-    // Readiness đã thuộc container resource (`wait: true` trong index.ts):
+    // Readiness đã thuộc container resource (`wait: true` trong local-program.ts):
     // `pulumi up` xanh đồng nghĩa healthcheck Docker của unit đã `healthy` —
     // DX không biết Docker health tồn tại.
     return 0;
