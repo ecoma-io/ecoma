@@ -23,6 +23,7 @@
     "vitest.integration.config.mts",
     "scripts.ts",
     "scripts.spec.ts",
+    "peer-ports.spec.ts",
     "tests/**/*.ts"
   ]
 }

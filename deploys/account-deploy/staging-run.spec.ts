@@ -220,6 +220,16 @@ describe('resolveStagingRunEnv', () => {
       }),
     ).toThrow(/staging.*requires an s3:\/\/ backend/su);
   });
+
+  it('returns the adapter selection so a run never consults stackSelection twice', () => {
+    // OCR round 2: selection cấp ngay trong `resolveStagingRunEnv` — caller
+    // (`runStagingPhase`) dùng lại, không gọi adapter lần hai.
+    const { selection } = resolveStagingRunEnv(fullSourceEnv());
+    expect(selection.environment).toBe('staging');
+    expect(selection.stackName).toBe('staging');
+    expect(selection.backendUrl).toBe(R2_BACKEND_URL);
+    expect(selection.fullStackRef).toBe('organization/account-deploy/staging');
+  });
 });
 
 describe('resolveStagingHyperdriveOrigin', () => {
