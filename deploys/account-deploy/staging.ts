@@ -35,13 +35,13 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
+import { deployProjectDir } from '@ecoma-io/deployment';
 
 import {
   parseStagingPhaseArg,
   readHyperdriveConfigId,
-  resolveStagingRunEnv,
   runStagingPhase,
+  stagingEvidencePath,
 } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
@@ -64,21 +64,16 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'account-deploy');
+    const { record, recordPath, env, selection } = runStagingPhase(parsed.phase, 'account-deploy');
     console.log(
       `[account-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[account-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
-      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
-      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
+      // Đọc output id bằng CÙNG inventory + selection + env của lần `up` vừa
+      // xanh — `runStagingPhase` trả nguyên bộ đó, KHÔNG resolve lại lần hai.
       const projectDir = deployProjectDir('account-deploy');
-      const { backendUrl, env } = resolveStagingRunEnv();
-      const selection = stagingDeploymentAdapter.stackSelection('account-deploy', {
-        slot: 'staging',
-        backendUrl,
-      });
       const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
       if (hyperdriveConfigId === undefined) {
         console.error(
@@ -100,6 +95,12 @@ function main(argv: readonly string[]): number {
     console.error(
       `[account-deploy] staging failed: ${error instanceof Error ? error.message : String(error)}`,
     );
+    // Một lần chạy thất bại đã ghi evidence append-only trước khi throw (lỗi
+    // mang `recordPath`) — in đường để operator tìm được file, không drop nó.
+    const evidencePath = stagingEvidencePath(error);
+    if (evidencePath !== undefined) {
+      console.error(`[account-deploy] evidence record: ${evidencePath}`);
+    }
     return 1;
   }
 }

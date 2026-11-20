@@ -34,7 +34,7 @@ describe('no-index middleware', () => {
     vi.resetModules();
     // Stub auto-import `useRuntimeConfig` thành global trước khi import
     // module — middleware gọi nó như một định nghĩa tự do (Nitro inject).
-    (globalThis as { useRuntimeConfig?: unknown }).useRuntimeConfig = () => ({
+    (globalThis as { useRuntimeConfig?: unknown }).useRuntimeConfig = (_event?: H3Event) => ({
       public: { noIndex: noIndexValue },
     });
   });

@@ -54,4 +54,10 @@ const stagingProgramResult =
     ? await import('./staging-program.js')
     : await import('./local-program.js');
 
-export default stagingProgramResult;
+// Language host (`cmd/run/run.js`) unwrap ĐÚNG MỘT LẦN ở entry: nếu entry có
+// default export thì lấy giá trị đó làm program result. Forward nguyên namespace
+// của lane staging sẽ lồng outputs dưới khóa `default` (`pulumi stack output
+// hyperdriveConfigId` không tìm thấy) — lane staging có default export nên
+// forward đúng object đó; lane local chỉ có named exports (`default` undefined)
+// nên forward nguyên namespace. OCR head 7c145f3b #354.
+export default (stagingProgramResult as { default?: unknown }).default ?? stagingProgramResult;

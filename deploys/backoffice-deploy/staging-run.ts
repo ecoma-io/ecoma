@@ -131,7 +131,13 @@ export function resolveStagingHyperdriveOrigin(
   if (config.originHost === undefined || config.originHost.trim().length === 0) {
     missing.push(`namespace:${STAGING_ORIGIN_HOST_CONFIG_KEY}`);
   }
-  if (config.originPassword === undefined) {
+  // Password cùng đường fail-closed với host: rỗng/toàn-trắng counted thiếu.
+  // Output của `conf.getSecret` không phải string — chỉ trim-kiểm khi là string
+  // (pattern #549).
+  if (
+    config.originPassword === undefined ||
+    (typeof config.originPassword === 'string' && config.originPassword.trim().length === 0)
+  ) {
     missing.push(`namespace:${STAGING_ORIGIN_PASSWORD_CONFIG_KEY}`);
   }
   if (missing.length > 0) {
@@ -500,7 +506,12 @@ export function runStagingPhase(
   project: string,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingExecDeps = defaultDeps,
-): { record: StagingProvisioningRecord; recordPath: string } {
+): {
+  record: StagingProvisioningRecord;
+  recordPath: string;
+  env: NodeJS.ProcessEnv;
+  selection: StackSelection;
+} {
   const projectDir = deployProjectDir(project);
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
   // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
@@ -536,6 +547,8 @@ export function runStagingPhase(
       finishedAt: '',
     },
     recordPath: '',
+    env,
+    selection,
   };
   try {
     const stdout = pulumiRun(projectDir, project, phaseArgs, ctx, env) ?? '';
@@ -556,6 +569,18 @@ export function runStagingPhase(
   outcome.record.finishedAt = new Date().toISOString();
   outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
   return outcome;
+}
+
+/**
+ * Đường evidence của một lần chạy thất bại — lỗi `runStagingPhase` ném mang
+ * `recordPath` (file append-only đã ghi trước khi throw); entry CLI đọc qua
+ * đây để in đường cho operator. Lỗi khác (inventory thiếu, usage) không mang
+ * evidence → `undefined` (pattern #551).
+ */
+export function stagingEvidencePath(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('recordPath' in error)) return undefined;
+  const path = (error as { recordPath?: unknown }).recordPath;
+  return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
 /**

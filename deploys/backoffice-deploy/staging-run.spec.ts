@@ -29,6 +29,7 @@ import {
   readHyperdriveConfigId,
   readStagingRevision,
   resolveStagingHyperdriveOrigin,
+  stagingEvidencePath,
   resolveStagingRunEnv,
   type StagingExecDeps,
   type StagingProvisioningRecord,
@@ -283,6 +284,16 @@ describe('resolveStagingHyperdriveOrigin', () => {
   });
 });
 
+it('an empty or whitespace-only password counts as missing, same as the host', () => {
+  expect(() =>
+    resolveStagingHyperdriveOrigin({
+      originHost: 'h',
+      originPort: undefined,
+      originPassword: '   ',
+    }),
+  ).toThrow(/namespace:originPassword/su);
+});
+
 describe('isProvisionedHyperdriveConfigId', () => {
   it('accepts a non-placeholder UUID id', () => {
     expect(isProvisionedHyperdriveConfigId('0af52597-051b-4cba-90c9-e0f6ff6cd5d5')).toBe(true);
@@ -460,6 +471,16 @@ describe('appendStagingRecord', () => {
     expect(files).toHaveLength(2);
     const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
     expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed', revision: 7 });
+  });
+});
+
+describe('stagingEvidencePath', () => {
+  it('surfaces the recordPath a failed runStagingPhase attaches and ignores other errors', () => {
+    expect(stagingEvidencePath(Object.assign(new Error('x'), { recordPath: '/tmp/r.json' }))).toBe(
+      '/tmp/r.json',
+    );
+    expect(stagingEvidencePath(new Error('no path'))).toBeUndefined();
+    expect(stagingEvidencePath('boom')).toBeUndefined();
   });
 });
 
