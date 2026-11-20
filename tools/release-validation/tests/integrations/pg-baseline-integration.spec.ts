@@ -75,6 +75,9 @@ function validateArgs(options: {
   readonly baselineDir?: string;
   readonly migrationsConfig: string;
 }): string[] {
+  // URL mang credential test-only đi vào argv CLI con — contract của CLI
+  // bắt buộc flag argv, không có fallback env (cửa sổ phơi nhiễm: bảng tiến
+  // trình runner-local của suite, chi tiết ở harness.ts).
   return [
     'validate',
     '--database',
@@ -114,7 +117,10 @@ function writeTamperedBaseline(
   writeFileSync(join(targetDir, `${CONTRACT_DATABASE}.sql`), dump);
   const tamperedIdentity: BaselineIdentity = {
     ...identity,
+    // Cả hai trường suy từ dump đã biến đổi, đúng cách captureBaseline ghi
+    // (sha256 + Buffer.byteLength) — integrity so dumpBytes thấy data thống nhất.
     dumpSha256: createHash('sha256').update(dump).digest('hex'),
+    dumpBytes: Buffer.byteLength(dump),
   };
   writeFileSync(join(targetDir, 'baseline.json'), `${JSON.stringify(tamperedIdentity, null, 2)}\n`);
   return targetDir;
@@ -146,6 +152,7 @@ describe(
 
       // Capture MỘT lần cho cả suite — mọi test validate tiêu thụ đúng artifact này.
       captureDir = join(outRoot, 'capture');
+      // --source-url cũng đi argv vì contract (lý do chấp nhận ở harness.ts).
       const capture = runCli([
         'capture',
         '--database',
@@ -311,17 +318,40 @@ describe(
       }
       expect(sawSleep, 'pg_sleep migration never started — poll window too short').toBe(true);
 
+      // pid undefined nghĩa là CLI đã chết trước cả khi kill được gọi — test
+      // kỳ vọng nó đang chạy, fail ngay thay vì chờ `exited` treo tới timeout.
+      if (child.pid === undefined) {
+        throw new Error('CLI child pid is undefined — it was expected to be running at kill time');
+      }
       // kill -9 cả nhóm: CLI, runner wrapper và kit con cùng chết; server
       // rollback transaction khi connection chết (§3a.5 — crash protection).
       try {
-        if (child.pid !== undefined) process.kill(-child.pid, 'SIGKILL');
+        process.kill(-child.pid, 'SIGKILL');
       } catch {
-        // Nhóm đã chết trước khi kill — kết quả như ý.
+        // Nhóm đã chết trước khi kill (ESRCH) — kết quả như ý.
       }
       await exited;
-      await new Promise<void>((done) => {
-        setTimeout(done, 500);
-      });
+
+      // Server cần một lúc để nhận ra peer TCP chết rồi mới rollback (mốc đó
+      // không định trước dưới CI load) — poll backend pg_sleep biến mất tới
+      // deadline thay vì sleep cố định; quá hạn là fail, không nuốt.
+      const deadBackendGone = (): boolean =>
+        target
+          .runSql(
+            "select count(*) from pg_stat_activity where query ilike '%pg_sleep%' and pid <> pg_backend_pid()",
+          )
+          .stdout.trim() === '0';
+      const settleDeadline = Date.now() + 10_000;
+      while (!deadBackendGone()) {
+        if (Date.now() >= settleDeadline) {
+          throw new Error(
+            'pg_sleep backend still alive 10s after SIGKILL — server never noticed the dead TCP peer',
+          );
+        }
+        await new Promise<void>((done) => {
+          setTimeout(done, 250);
+        });
+      }
 
       // Defined recoverable state = chính baseline đã restore: fingerprint
       // khớp từng trường, không DDL một phần, history không thêm entry.
