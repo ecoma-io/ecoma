@@ -1,13 +1,23 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
- * Số lượt chờ tối đa của pha sau khi bấm `login-code-submit` — 1 lượt verify
- * đầu + tối đa 2 recovery, MỖI LOẠI ĐÚNG MỘT LẦN (re-click `login-code-submit`
- * cho `login-request-failed`, resend + OTP mới cho `login-code-invalid`). Cứng
- * thay vì vòng tự do: mọi nhánh trong vòng chỉ được `return` (thành công) hoặc
- * throw; cạn ngân sách là lỗi thật.
+ * Ngân sách recovery MỖI LOẠI của vòng chờ: resend cho `login-code-invalid` và
+ * re-click cho `login-request-failed` — mỗi loại ĐÚNG MỘT lần. Hai nhánh
+ * recovery trong vòng là nơi ngân sách này được tiêu (cờ `invalidRecovered`
+ * và điều kiện lượt verify đầu).
  */
-export const MAX_VERIFY_ATTEMPTS = 3;
+export const MAX_RECOVERY_PER_TYPE = 1;
+
+/**
+ * Số lượt chờ tối đa của pha sau khi bấm `login-code-submit` = 1 lượt verify
+ * đầu + mỗi loại recovery đúng một lần (derivation dưới). Cứng thay vì vòng
+ * tự do: mọi nhánh trong vòng chỉ được `return` (thành công) hoặc throw; cạn
+ * ngân sách là lỗi thật.
+ */
+export const MAX_VERIFY_ATTEMPTS = 1 + 2 * MAX_RECOVERY_PER_TYPE;
+
+/** Lượt verify đầu — duy nhất cho phép nhánh re-click `login-request-failed`. */
+const INITIAL_VERIFY_ATTEMPT = 1;
 
 /** isVisible không ném khi element biến mất giữa chờ — trả `false`. */
 function isVisibleSafe(locator: Locator): Promise<boolean> {
@@ -34,14 +44,17 @@ export function isNavigationRaceError(error: unknown): boolean {
 /**
  * Trang chết của browser — UI product mất hẳn (instance 11 #461: run
  * 44693545849, `url=chrome-error://chromewebdata/ visible=[]` khi navigation
- * chết tầng mạng). Mọi scheme ngoài http/https, kể cả chuỗi không parse được,
- * được coi là chết: chờ tiếp trên trang đó KHÔNG BAO GIỜ mount được element
- * nào; giá trị URL vẫn đi vào `describeStuckState` ở nhánh throw.
+ * chết tầng mạng). CHỈ `chrome-error:` và `data:` (trang rỗng lì) được coi là
+ * chết; `about:blank` là trạng thái mid-navigation nhất thời giữa các redirect
+ * và VẪN có thể mount element — nhầm nó thành chết chỉ tốn một re-login
+ * bounded, nhưng phân loại đúng thì vòng chờ tự settle. Chuỗi không parse được
+ * coi là chết (không xác định ⇒ không chờ mù); URL vẫn vào `describeStuckState`
+ * ở nhánh throw.
  */
 function isDeadBrowserPage(url: string): boolean {
   try {
     const protocol = new URL(url).protocol;
-    return protocol !== 'http:' && protocol !== 'https:';
+    return protocol === 'chrome-error:' || protocol === 'data:';
   } catch {
     return true;
   }
@@ -76,11 +89,11 @@ export interface OtpVerifyRecoveryParams {
    */
   readonly readOtp?: () => Promise<string>;
   /**
-   * Recovery re-login đầy đủ cho trang chết (`chrome-error://…`, `about:blank`)
-   * — suite sở hữu vì chỉ nó biết entry URL tuyệt đối và tham số login. Hợp
-   * đồng: đưa browser trở lại trạng thái `continueTarget` ĐÃ mount nhưng CHƯA
-   * bấm — caller tiếp tục bằng hành động kế tiếp vốn có của mình (click target).
-   * Vắng mặt ⇒ trang chết không có recovery (hành vi cũ).
+   * Recovery re-login đầy đủ cho trang chết (`chrome-error://…`, `data:`, URL
+   * không parse được) — suite sở hữu vì chỉ nó biết entry URL tuyệt đối và tham
+   * số login. Hợp đồng: đưa browser trở lại trạng thái `continueTarget` ĐÃ
+   * mount nhưng CHƯA bấm — caller tiếp tục bằng hành động kế tiếp vốn có của
+   * mình (click target). Vắng mặt ⇒ trang chết không có recovery (hành vi cũ).
    */
   readonly recoverFromDeadPage?: () => Promise<void>;
 }
@@ -121,7 +134,8 @@ export interface OtpVerifyRecoveryParams {
  *    tiêu thụ cho lỗi ném (chính trang `login/index.vue` bảo đảm điều đó) nên
  *    bấm `login-code-submit` lại ĐÚNG MỘT LẦN rồi lặp pha chờ (bằng chứng
  *    #461 round 2: instances 6–10). Lượt hai chết là lỗi thật.
- * 5. URL không còn http/https (`chrome-error://…`) VÀ có `recoverFromDeadPage`
+ * 5. URL là trang chết (`chrome-error://…`, `data:`, không parse được) VÀ có
+ *    `recoverFromDeadPage`
  *    — UI product mất hẳn, không element nào chờ được nữa (instance 11 #461):
  *    gọi recovery re-login ĐÚNG MỘT LẦN rồi kết thúc pha (caller tự click
  *    target theo hợp đồng của closure).
@@ -143,11 +157,16 @@ export async function waitForContinueTargetAfterOtpVerify(
   // lặp kế tiếp vẫn chờ trên element mới); timeout (form không rời DOM trong
   // 15s — POST chết lần hai) và mọi lỗi khác surfaced ngay tại đây.
   const codeForm = page.getByTestId('login-code-form');
+  // Số race điều hướng đã nuốt ở round-trip — không tự throw nhưng KHÔNG được
+  // ẩn: cạn ngân sách mà counter > 0 nghĩa là navigation phá submit lặp lại,
+  // count đi vào message throw kèm stuck state để chẩn đoán flake.
+  let swallowedRoundTripRaces = 0;
   const awaitSubmitRoundTrip = async (): Promise<void> => {
     await codeForm.waitFor({ state: 'hidden', timeout: 15_000 }).catch((error: unknown) => {
       if (!isNavigationRaceError(error)) {
         throw error;
       }
+      swallowedRoundTripRaces += 1;
     });
   };
   let invalidRecovered = false;
@@ -202,7 +221,7 @@ export async function waitForContinueTargetAfterOtpVerify(
       await awaitSubmitRoundTrip();
       continue;
     }
-    if (verifyAttempt === 1 && (await isVisibleSafe(requestFailed))) {
+    if (verifyAttempt === INITIAL_VERIFY_ATTEMPT && (await isVisibleSafe(requestFailed))) {
       await page.getByTestId('login-code-submit').click();
       await awaitSubmitRoundTrip();
       continue;
@@ -211,8 +230,12 @@ export async function waitForContinueTargetAfterOtpVerify(
       await params.recoverFromDeadPage();
       return;
     }
+    const raceNote =
+      swallowedRoundTripRaces > 0
+        ? `; swallowed submit round-trip races: ${swallowedRoundTripRaces}`
+        : '';
     throw new Error(
-      `login continue page never appeared after OTP verify (${await describeStuckState()})`,
+      `login continue page never appeared after OTP verify${raceNote} (${await describeStuckState()})`,
     );
   }
 }

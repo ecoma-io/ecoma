@@ -13,8 +13,8 @@ Theo `docs/architecture/06-testing.md` §2, support chung ở root `system-tests
 ## Responsibilities
 
 - **`src/otp-verify-recovery.ts`** — `waitForContinueTargetAfterOtpVerify(page, params)`: chờ `login-continue-target`/`login-continue-retry` trong cửa sổ 30s; cả hai vắng mặt thì phân ba nhánh recovery (re-navigate hop `/login/continue` chết tầng mạng, re-click `login-code-submit` khi `login-request-failed` hiển thị, throw cho trạng thái mã không có recovery). Hợp đồng recovery đầy đủ, kèm bằng chứng run CI của từng nhánh, sống ở JSDoc của hàm này.
-- **`MAX_VERIFY_ATTEMPTS`** — ngân sách lượt của vòng chờ (1 lượt verify đầu + 1 lượt recovery duy nhất); cạn ngân sách là lỗi thật.
-- **`src/otp-verify-recovery.spec.ts`** — unit test các nhánh trên bằng locator giả theo kịch bản; `vi.mock('@playwright/test')` thay `expect` của Playwright để unit test không kéo Playwright runtime.
+- **`MAX_VERIFY_ATTEMPTS` / `MAX_RECOVERY_PER_TYPE`** — ngân sách lượt của vòng chờ: 1 lượt verify đầu + mỗi loại recovery đúng một lượt (re-click cho `login-request-failed`, resend cho `login-code-invalid`); tổng được dẫn xuất từ `MAX_RECOVERY_PER_TYPE`, cạn ngân sách là lỗi thật.
+- **`src/otp-verify-recovery.spec.ts`** — unit test các nhánh trên bằng locator giả theo kịch bản; `vi.mock('@playwright/test')` thay `expect` của Playwright nhưng giữ nguyên ngữ nghĩa assertion (`toBeVisible` hỏi `isVisible` của fake locator) để unit test không kéo Playwright runtime mà vẫn bắt được assert sai.
 - **`src/index.ts`** — bề mặt public duy nhất của gói; consumer không import sâu vào module riêng lẻ.
 
 ## Boundaries

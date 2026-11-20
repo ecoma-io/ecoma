@@ -8,9 +8,18 @@ import {
 } from './login-recovery.js';
 
 // Cùng quy ước với `otp-verify-recovery.spec.ts`: mock `expect` của
-// @playwright/test — assert chỉ cần resolve, unit test không kéo runtime.
+// @playwright/test nhưng GIỮ nguyên ngữ nghĩa assertion — `toBeVisible` phải
+// hỏi `isVisible` của fake locator và throw khi chưa hiện, nếu không assert
+// của implementation trở thành vacuous và che bug.
 vi.mock('@playwright/test', () => ({
-  expect: () => ({ toBeVisible: async () => undefined }),
+  expect: (locator: unknown) => ({
+    toBeVisible: async () => {
+      const visible = await (locator as { isVisible?: () => Promise<boolean> }).isVisible?.();
+      if (visible !== true) {
+        throw new Error('expected element to be visible, fake locator reports not visible');
+      }
+    },
+  }),
 }));
 
 /** Kết quả một lượt `waitFor` — element mount thật hay chết trong cửa sổ. */
@@ -50,6 +59,12 @@ function makeHarness(options: HarnessOptions) {
   const submitClicks: string[] = [];
   const codeFills: string[] = [];
   const otpReads: string[] = [];
+  // Mô hình mount của form mã: 1 click submit email đủ khi challenge sống;
+  // challenge chết cần re-click (click thứ 2) thì form mới mount — assert
+  // `expect(codeForm).toBeVisible` của impl chạy trên state thật của fake.
+  let emailSubmitCount = 0;
+  const codeFormMounted = () =>
+    (options.challengeRequestFailed ?? false) ? emailSubmitCount >= 2 : emailSubmitCount >= 1;
   const page = {
     url: () => 'https://account.local/login',
     goto: async (url: string) => {
@@ -72,6 +87,7 @@ function makeHarness(options: HarnessOptions) {
         case 'login-submit':
           return {
             click: async () => {
+              emailSubmitCount += 1;
               submitClicks.push(testId);
             },
           };
@@ -91,6 +107,7 @@ function makeHarness(options: HarnessOptions) {
           // Scenario challenge chết: form mã không mount — waitFor chết trên
           // macrotask để `challengeFailed` thắng race như thời gian thật.
           return {
+            isVisible: async () => codeFormMounted(),
             waitFor: async () => {
               if (options.challengeRequestFailed ?? false) {
                 await new Promise((resolve) => {
@@ -140,8 +157,9 @@ function makeDeps(options: { continueSequence?: Outcome[] }): RunReloginDeps {
   const page = {
     url: () => 'https://account.local/login',
     getByTestId: (testId: string) => ({
-      // Form email "đã hiển thị" — re-login chạy in-place, không cần goto.
-      isVisible: async () => testId === 'login-email-form',
+      // Form email "đã hiển thị" — re-login chạy in-place, không cần goto;
+      // form mã cũng mounted để assert `toBeVisible` của impl đi qua.
+      isVisible: async () => testId === 'login-email-form' || testId === 'login-code-form',
       waitFor: async () => undefined,
       fill: sink,
       click: sink,

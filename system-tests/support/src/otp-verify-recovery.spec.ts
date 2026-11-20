@@ -3,18 +3,35 @@ import type { Locator, Page } from '@playwright/test';
 import { MAX_VERIFY_ATTEMPTS, waitForContinueTargetAfterOtpVerify } from './otp-verify-recovery.js';
 
 // Helper thật assert "retry đã sửa" bằng `expect(continueTarget).toBeVisible`
-// của @playwright/test; với fake locator dưới đây assert đó chỉ cần resolve,
-// nên mock cả module — unit test không kéo Playwright runtime vào. vitest tự
-// hoist `vi.mock` lên trước mọi import.
+// của @playwright/test. Mock giữ NGUYÊN ngữ nghĩa assertion: `toBeVisible`
+// phải hỏi `isVisible` của fake locator và throw khi chưa hiện — mock no-op
+// sẽ biến assert của implementation thành vacuous và che bug. vitest tự hoist
+// `vi.mock` lên trước mọi import.
 vi.mock('@playwright/test', () => ({
-  expect: () => ({ toBeVisible: async () => undefined }),
+  expect: (locator: unknown) => ({
+    toBeVisible: async () => {
+      const visible = await (locator as { isVisible?: () => Promise<boolean> }).isVisible?.();
+      if (visible !== true) {
+        throw new Error('expected element to be visible, fake locator reports not visible');
+      }
+    },
+  }),
 }));
 
 /** Kết quả một lượt `waitFor` — element mount thật hay chết trong cửa sổ. */
 type Outcome = 'visible' | 'missing';
 
-/** Locator giả theo kịch bản: mỗi lượt `waitFor` đọc tiếp một outcome. */
-function scriptedLocator(sequence: Outcome[], clickSink: string[], label: string): Locator {
+/**
+ * Locator giả theo kịch bản: mỗi lượt `waitFor` đọc tiếp một outcome. Khi
+ * `visibleAfter` có mặt, `isVisible` hỏi predicate ngoài — mô hình "bấm retry
+ * sửa xong, target thật sự mount" cho assert `toBeVisible` của impl.
+ */
+function scriptedLocator(
+  sequence: Outcome[],
+  clickSink: string[],
+  label: string,
+  visibleAfter?: () => boolean,
+): Locator {
   let call = 0;
   return {
     waitFor: () => {
@@ -34,7 +51,7 @@ function scriptedLocator(sequence: Outcome[], clickSink: string[], label: string
     click: async () => {
       clickSink.push(label);
     },
-    isVisible: async () => false,
+    isVisible: async () => visibleAfter?.() ?? false,
   } as unknown as Locator;
 }
 
@@ -53,6 +70,16 @@ interface HarnessOptions {
   readonly readOtp?: () => Promise<string>;
   /** Có wiring closure recovery dead-page hay không (độ phủ tùy chọn). */
   readonly wireDeadPageRecovery?: boolean;
+  /**
+   * Round-trip submit chết bởi race điều hướng (waitFor ném signature race
+   * thay vì resolve) — mock cho đường nuốt race của impl.
+   */
+  readonly roundTripRace?: boolean;
+  /**
+   * `continueTarget` mount sau khi bấm retry — bật cho test assert
+   * `expect(continueTarget).toBeVisible` của impl trên đường sửa lỗi handoff.
+   */
+  readonly continueVisibleAfterRetryClick?: boolean;
 }
 
 function makeHarness(options: HarnessOptions) {
@@ -75,10 +102,15 @@ function makeHarness(options: HarnessOptions) {
       }
       if (testId === 'login-code-form') {
         return {
+          isVisible: async () => true,
           // `waitFor({ state: 'hidden' })` của vòng đợi round-trip submit —
-          // resolve như element đã rời DOM, ghi nhận để test assert bước chờ.
+          // resolve như element đã rời DOM, ghi nhận để test assert bước chờ;
+          // khi `roundTripRace`, ném đúng signature race của navigation chết.
           waitFor: async () => {
             codeFormHiddenWaits.push(codeFormHiddenWaits.length + 1);
+            if (options.roundTripRace ?? false) {
+              throw new Error('element was detached from the DOM, retrying');
+            }
             return undefined;
           },
         };
@@ -108,7 +140,13 @@ function makeHarness(options: HarnessOptions) {
     },
   } as unknown as Page;
   const params = {
-    continueTarget: scriptedLocator(options.continueSequence ?? [], [], 'continue-target'),
+    continueTarget: scriptedLocator(
+      options.continueSequence ?? [],
+      [],
+      'continue-target',
+      // Target mount SAU khi retry click xong — state thật mà assert của impl hỏi.
+      options.continueVisibleAfterRetryClick === true ? () => retryClicks.length > 0 : undefined,
+    ),
     retryButton: scriptedLocator(options.retrySequence ?? [], retryClicks, 'login-continue-retry'),
     requestFailed: {
       isVisible: async () => options.requestFailedVisible ?? false,
@@ -199,7 +237,10 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
   });
 
   it('clicks the handoff retry button once and waits for the target afterwards', async () => {
-    const harness = makeHarness({ retrySequence: ['visible'] });
+    const harness = makeHarness({
+      retrySequence: ['visible'],
+      continueVisibleAfterRetryClick: true,
+    });
     await expect(harness.run()).resolves.toBeUndefined();
     expect(harness.retryClicks).toEqual(['login-continue-retry']);
     expect(harness.submitClicks).toHaveLength(0);
@@ -273,5 +314,27 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
       'login continue page never appeared after OTP verify',
     );
     expect(harness.recoverCalls).toHaveLength(0);
+  });
+
+  it('treats about:blank as a live page — transient mid-navigation must not trigger re-login', async () => {
+    const harness = makeHarness({
+      pageUrl: 'about:blank',
+      wireDeadPageRecovery: true,
+      continueSequence: ['missing'],
+    });
+    await expect(harness.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(harness.recoverCalls).toHaveLength(0);
+  });
+
+  it('surfaces swallowed round-trip races in the exhausted-budget throw', async () => {
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing'],
+      requestFailedVisible: true,
+      roundTripRace: true,
+    });
+    await expect(harness.run()).rejects.toThrow('swallowed submit round-trip races: 1');
+    expect(harness.submitClicks).toHaveLength(1);
   });
 });
