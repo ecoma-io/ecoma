@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   isCliEntry,
+  parseStagingDeployArgv,
+  parseStagingManifestArgv,
+  parseStagingSmokeArgv,
   parseWorkerSecretArgv,
   printReports,
   readStdinFrom,
@@ -95,6 +98,213 @@ describe('parseWorkerSecretArgv', () => {
     expect(parseWorkerSecretArgv(['put', 'AXIOM_TOKEN', '--config', '  '])).toEqual({
       kind: 'usage',
       message: 'missing --config <wrangler.jsonc> path',
+    });
+  });
+});
+
+describe('parseStagingManifestArgv', () => {
+  it('parses a well-formed manifest command', () => {
+    expect(
+      parseStagingManifestArgv(['--config', 'apps/home/wrangler.jsonc', '--sha', 'a'.repeat(40)]),
+    ).toEqual({
+      kind: 'ok',
+      configPath: 'apps/home/wrangler.jsonc',
+      sha: 'a'.repeat(40),
+    });
+  });
+
+  it('refuses a missing or valueless --config and --sha', () => {
+    expect(parseStagingManifestArgv(['--sha', 'abc'])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+    expect(parseStagingManifestArgv(['--config', 'c.jsonc', '--sha'])).toEqual({
+      kind: 'usage',
+      message: 'missing --sha <commit-sha> value',
+    });
+  });
+});
+
+describe('parseStagingDeployArgv', () => {
+  const fullArgv = [
+    '--config',
+    'apps/home/wrangler.jsonc',
+    '--project',
+    '@ecoma-io/home',
+    '--slug',
+    'home',
+    '--manifest',
+    'build-manifest.json',
+    '--expect-sha',
+    'a'.repeat(40),
+  ];
+
+  it('parses the five required flags into params', () => {
+    expect(parseStagingDeployArgv(fullArgv)).toEqual({
+      kind: 'ok',
+      params: {
+        configPath: 'apps/home/wrangler.jsonc',
+        project: '@ecoma-io/home',
+        slug: 'home',
+        manifestPath: 'build-manifest.json',
+        expectSha: 'a'.repeat(40),
+      },
+    });
+  });
+
+  it('refuses each missing flag with its own usage message', () => {
+    // Mỗi argv dựng tường minh thiếu ĐÚNG một flag-value — argv tự dồn cờ sẽ
+    // biến flag kế tiếp thành giá trị của flag trước (không còn thiếu gì).
+    const sha = 'a'.repeat(40);
+    const head = [
+      '--config',
+      'apps/home/wrangler.jsonc',
+      '--project',
+      '@ecoma-io/home',
+      '--slug',
+      'home',
+      '--manifest',
+      'build-manifest.json',
+    ];
+    expect(
+      parseStagingDeployArgv([
+        '--project',
+        '@ecoma-io/home',
+        '--slug',
+        'home',
+        '--manifest',
+        'm.json',
+        '--expect-sha',
+        sha,
+      ]),
+    ).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+    expect(
+      parseStagingDeployArgv([
+        '--config',
+        'c.jsonc',
+        '--slug',
+        'home',
+        '--manifest',
+        'm.json',
+        '--expect-sha',
+        sha,
+      ]),
+    ).toEqual({
+      kind: 'usage',
+      message: 'missing --project <nx-project-name> value',
+    });
+    expect(
+      parseStagingDeployArgv([
+        '--config',
+        'c.jsonc',
+        '--project',
+        '@ecoma-io/home',
+        '--manifest',
+        'm.json',
+        '--expect-sha',
+        sha,
+      ]),
+    ).toEqual({
+      kind: 'usage',
+      message: 'missing --slug <slug> value',
+    });
+    expect(
+      parseStagingDeployArgv([
+        '--config',
+        'c.jsonc',
+        '--project',
+        '@ecoma-io/home',
+        '--slug',
+        'home',
+        '--expect-sha',
+        sha,
+      ]),
+    ).toEqual({
+      kind: 'usage',
+      message: 'missing --manifest <build-manifest.json> path',
+    });
+    expect(parseStagingDeployArgv(head)).toEqual({
+      kind: 'usage',
+      message: 'missing --expect-sha <commit-sha> value',
+    });
+  });
+});
+
+describe('parseStagingSmokeArgv', () => {
+  it('parses the origin, repeated check flags and budget overrides', () => {
+    expect(
+      parseStagingSmokeArgv([
+        'https://ecoma.io.vn',
+        '--redirect',
+        '/=/en',
+        '--health',
+        '/health',
+        '--noindex',
+        '/en',
+        '--budget-ms',
+        '120000',
+        '--request-timeout-ms',
+        '5000',
+      ]),
+    ).toEqual({
+      kind: 'ok',
+      options: {
+        origin: 'https://ecoma.io.vn',
+        redirects: [{ from: '/', to: '/en' }],
+        healthPaths: ['/health'],
+        noindexPaths: ['/en'],
+        budgetMs: 120000,
+        requestTimeoutMs: 5000,
+      },
+    });
+  });
+
+  it('defaults the budget and request timeout when the flags are absent', () => {
+    const parsed = parseStagingSmokeArgv(['https://ecoma.io.vn', '--health', '/health']);
+    if (parsed.kind !== 'ok') throw new Error('expected an ok parse for a well-formed argv');
+    expect(parsed.options.budgetMs).toBeGreaterThan(0);
+    expect(parsed.options.requestTimeoutMs).toBeGreaterThan(0);
+    expect(parsed.options.redirects).toEqual([]);
+    expect(parsed.options.noindexPaths).toEqual([]);
+  });
+
+  it('refuses a missing origin and an unexpected second positional', () => {
+    expect(parseStagingSmokeArgv([])).toEqual({
+      kind: 'usage',
+      message: 'missing <origin> positional argument',
+    });
+    expect(parseStagingSmokeArgv(['https://a', 'https://b'])).toEqual({
+      kind: 'usage',
+      message: 'unexpected argument: https://b',
+    });
+  });
+
+  it('refuses a redirect without the from=to form and unknown flags', () => {
+    expect(parseStagingSmokeArgv(['https://a', '--redirect', '/en'])).toEqual({
+      kind: 'usage',
+      message: '--redirect must be in <from>=<to> form: /en',
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--smoke-all'])).toEqual({
+      kind: 'usage',
+      message: 'unsupported flag: --smoke-all',
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--health'])).toEqual({
+      kind: 'usage',
+      message: 'missing value for --health',
+    });
+  });
+
+  it('refuses a non-positive or non-integer budget', () => {
+    expect(parseStagingSmokeArgv(['https://a', '--budget-ms', '0'])).toEqual({
+      kind: 'usage',
+      message: '--budget-ms must be a positive integer: 0',
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--request-timeout-ms', 'abc'])).toEqual({
+      kind: 'usage',
+      message: '--request-timeout-ms must be a positive integer: abc',
     });
   });
 });
