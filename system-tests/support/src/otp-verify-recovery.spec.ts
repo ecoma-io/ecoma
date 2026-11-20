@@ -39,33 +39,61 @@ function scriptedLocator(sequence: Outcome[], clickSink: string[], label: string
 }
 
 interface HarnessOptions {
-  /** Pathname mà `page.url()` trả — mặc định `/login` (đang đứng trang login). */
-  readonly pathname?: string;
+  /** URL đầy đủ mà `page.url()` trả — mặc định trang login (sống, http). */
+  readonly pageUrl?: string;
   /** `login-request-failed` có đang hiển thị hay không. */
   readonly requestFailedVisible?: boolean;
+  /** `login-code-invalid` có đang hiển thị hay không. */
+  readonly codeInvalidVisible?: boolean;
   /** Kịch bản mount của `login-continue-target`, đọc theo lượt waitFor. */
   readonly continueSequence?: Outcome[];
   /** Kịch bản mount của `login-continue-retry`, đọc theo lượt waitFor. */
   readonly retrySequence?: Outcome[];
+  /** Đọc OTP của recovery code-invalid — vắng mặt ⇒ không bật recovery đó. */
+  readonly readOtp?: () => Promise<string>;
+  /** Có wiring closure recovery dead-page hay không (độ phủ tùy chọn). */
+  readonly wireDeadPageRecovery?: boolean;
 }
 
 function makeHarness(options: HarnessOptions) {
   const submitClicks: string[] = [];
+  const resendClicks: string[] = [];
+  const codeFills: string[] = [];
   const retryClicks: string[] = [];
   const gotoCalls: string[] = [];
+  const recoverCalls: string[] = [];
   const page = {
-    url: () => `https://account.local${options.pathname ?? '/login'}`,
+    url: () => options.pageUrl ?? 'https://account.local/login',
     goto: async (url: string) => {
       gotoCalls.push(url);
       return null;
     },
     getByTestId: (testId: string) => {
-      if (testId !== 'login-code-submit') {
+      if (testId === 'login-code-invalid') {
+        return { isVisible: async () => options.codeInvalidVisible ?? false };
+      }
+      if (testId === 'login-code') {
+        return {
+          click: async () => {
+            submitClicks.push(testId);
+          },
+          fill: async (value: string) => {
+            codeFills.push(value);
+          },
+        };
+      }
+      const sink =
+        testId === 'login-code-submit'
+          ? submitClicks
+          : testId === 'login-resend'
+            ? resendClicks
+            : undefined;
+      if (sink === undefined) {
         throw new Error(`unexpected getByTestId: ${testId}`);
       }
       return {
         click: async () => {
-          submitClicks.push(testId);
+          sink.push(testId);
         },
       };
     },
@@ -79,12 +107,21 @@ function makeHarness(options: HarnessOptions) {
       click: async () => undefined,
     } as unknown as Locator,
     describeStuckState: async () => 'url=https://account.local/login visible=[login-code-form]',
+    readOtp: options.readOtp,
+    recoverFromDeadPage: options.wireDeadPageRecovery
+      ? async () => {
+          recoverCalls.push('dead-page');
+        }
+      : undefined,
   };
   return {
     run: () => waitForContinueTargetAfterOtpVerify(page, params),
     submitClicks,
+    resendClicks,
+    codeFills,
     retryClicks,
     gotoCalls,
+    recoverCalls,
   };
 }
 
@@ -117,7 +154,7 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
       'login continue page never appeared after OTP verify',
     );
     expect(harness.submitClicks).toHaveLength(1);
-    expect(MAX_VERIFY_ATTEMPTS).toBe(2);
+    expect(MAX_VERIFY_ATTEMPTS).toBe(3);
   });
 
   it('throws immediately when the login page shows a no-recovery code state', async () => {
@@ -130,7 +167,7 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
 
   it('re-navigates a dead /login/continue hop once and accepts the second chance', async () => {
     const harness = makeHarness({
-      pathname: '/login/continue',
+      pageUrl: 'https://account.local/login/continue',
       continueSequence: ['missing', 'visible'],
     });
     await expect(harness.run()).resolves.toBeUndefined();
@@ -140,7 +177,7 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
 
   it('throws when the re-navigated continue page still renders no card', async () => {
     const harness = makeHarness({
-      pathname: '/login/continue',
+      pageUrl: 'https://account.local/login/continue',
       continueSequence: ['missing', 'missing'],
       retrySequence: ['missing', 'missing'],
     });
@@ -155,5 +192,74 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
     await expect(harness.run()).resolves.toBeUndefined();
     expect(harness.retryClicks).toEqual(['login-continue-retry']);
     expect(harness.submitClicks).toHaveLength(0);
+  });
+
+  it('recovers a rejected verify by resending and reading a fresh OTP, then succeeds (instance 13)', async () => {
+    const harness = makeHarness({
+      continueSequence: ['missing', 'visible'],
+      requestFailedVisible: true,
+      codeInvalidVisible: true,
+      readOtp: async () => '88776655',
+    });
+    await expect(harness.run()).resolves.toBeUndefined();
+    expect(harness.resendClicks).toEqual(['login-resend']);
+    expect(harness.codeFills).toEqual(['88776655']);
+    // Code-invalid wins over the bare request-failed branch: the server already
+    // answered 400, so re-submitting the old code would be futile.
+    expect(harness.submitClicks).toEqual(['login-code-submit']);
+    expect(harness.recoverCalls).toHaveLength(0);
+  });
+
+  it('falls back to the request-failed re-click when the code state has no reader wired', async () => {
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing'],
+      requestFailedVisible: true,
+      codeInvalidVisible: true,
+    });
+    await expect(harness.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(harness.resendClicks).toHaveLength(0);
+    expect(harness.codeFills).toHaveLength(0);
+    // Backward-compatible: without readOtp the helper keeps the #520 behavior —
+    // one re-click on the request-failed branch, then throw.
+    expect(harness.submitClicks).toHaveLength(1);
+  });
+
+  it('throws after the resend recovery spent its single shot and the next verify dies again', async () => {
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing'],
+      requestFailedVisible: true,
+      codeInvalidVisible: true,
+      readOtp: async () => '88776655',
+    });
+    await expect(harness.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(harness.resendClicks).toEqual(['login-resend']);
+    expect(harness.codeFills).toEqual(['88776655']);
+    expect(harness.submitClicks).toEqual(['login-code-submit']);
+  });
+
+  it('delegates a dead browser page to the re-login recovery exactly once', async () => {
+    const harness = makeHarness({
+      pageUrl: 'chrome-error://chromewebdata/',
+      wireDeadPageRecovery: true,
+    });
+    await expect(harness.run()).resolves.toBeUndefined();
+    expect(harness.recoverCalls).toEqual(['dead-page']);
+    expect(harness.submitClicks).toHaveLength(0);
+    expect(harness.resendClicks).toHaveLength(0);
+  });
+
+  it('throws on a dead browser page when no recovery closure is wired', async () => {
+    const harness = makeHarness({
+      pageUrl: 'chrome-error://chromewebdata/',
+      continueSequence: ['missing'],
+    });
+    await expect(harness.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(harness.recoverCalls).toHaveLength(0);
   });
 });

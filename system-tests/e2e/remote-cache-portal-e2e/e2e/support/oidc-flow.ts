@@ -1,5 +1,8 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test';
-import { waitForContinueTargetAfterOtpVerify } from '@ecoma-io/system-tests-support';
+import {
+  recoverLoginByRelogin,
+  waitForContinueTargetAfterOtpVerify,
+} from '@ecoma-io/system-tests-support';
 
 import { resolveStackOrigin } from './local-origin';
 
@@ -204,11 +207,35 @@ export async function performBrowserLogin(
   const retryButton = page.getByTestId('login-continue-retry');
   // Hợp đồng recovery của pha chờ sau verify (#461 round 2) — dùng chung của
   // 4 suite, tài liệu đầy đủ sống ở `@ecoma-io/system-tests-support`.
+  // Recovery re-login của #461 — phủ hai mode không cơ chế nào khác đạt được:
+  // chrome-error (instance 11) và stuck-on-login/no-callback (instance 12, tái
+  // phát trên main sau fix #520). Ngân sách: đúng MỘT lượt re-login cho cả lượt
+  // performBrowserLogin; challenge cấp thêm ≤ 1 (tổng 2 ≤ 3/15 phút của
+  // account); chết lần hai trong re-login là lỗi thật — helper dùng chung tự
+  // throw, không recovery lồng nhau.
+  let reloginUsed = false;
+  const runRelogin = async (): Promise<void> => {
+    if (reloginUsed) {
+      throw new Error('relogin recovery budget already spent');
+    }
+    reloginUsed = true;
+    await recoverLoginByRelogin(page, {
+      loginEntryUrl: new URL('/api/auth/login', resolveStackOrigin()).toString(),
+      email: params.email,
+      readOtp: params.readOtp,
+      requestFailed,
+      continueTarget,
+      retryButton,
+      describeStuckState: () => describeStuckState(page),
+    });
+  };
   await waitForContinueTargetAfterOtpVerify(page, {
     continueTarget,
     retryButton,
     requestFailed,
     describeStuckState: () => describeStuckState(page),
+    readOtp: params.readOtp,
+    recoverFromDeadPage: runRelogin,
   });
   await continueTarget.click();
 
@@ -316,7 +343,20 @@ export async function performBrowserLogin(
       resumed = undefined;
     }
     if (resumed === undefined) {
-      await page.goto(origin, { waitUntil: 'load' });
+      // Browser đứng lại trang login với form email (`/login?handle=…`) —
+      // instance 12 #461: re-entry `goto` chỉ tái tạo interaction login mới,
+      // callback KHÔNG BAO GIỜ tự xảy ra; recovery re-login đúng một lượt
+      // (ngưỡng ở comment của `runRelogin`) rồi click target để chain chạy
+      // tiếp sang consent/granted → callback.
+      if (!reloginUsed && (await isVisibleSafe(page.getByTestId('login-email-form')))) {
+        await runRelogin();
+        // Click có thể thua race khi navigation tự hoàn tất đúng lúc đó —
+        // callback sắp được quan sát, vòng kế tiếp vẫn chờ; lỗi đó không phải
+        // lỗi thật, nuốt im lặng đúng như nhánh resume phía trên.
+        await continueTarget.click().catch(() => undefined);
+      } else {
+        await page.goto(origin, { waitUntil: 'load' });
+      }
     }
     waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_REENTRY_WINDOW_MS);
   }
