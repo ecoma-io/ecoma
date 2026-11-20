@@ -1,14 +1,21 @@
-# `db-remote-cache` — schema, migration và test integration
+# `db/` của `remote-cache-api` — bootstrap tenant vận hành
 
-Thư mục này là **nguồn sự thật duy nhất** cho schema của `db-remote-cache`. Không có ORM,
-không có `drizzle-kit`, không có generate step: `db-remote-cache` là PostgreSQL thuần và
-migration là file SQL thuần.
+**Cutover #377** (hợp đồng `02-delivery.md` §3a): schema và migration của
+`db-remote-cache` đã chuyển sang migration authority
+[`deploys/remote-cache-db`](../../../deploys/remote-cache-db/README.md) — một
+database một runner sống ở đó (runner.mts + drizzle-kit + journal). Thư mục này
+không còn runner bản sao; nó giữ lại duy nhất CLI bootstrap tenant vận hành
+(`bootstrap-tenant.mts`), đường DML idempotent chạy sau migration trong CI và
+không bao giờ chạy trên Worker serving path.
 
-| Đường dẫn          | Vai trò                                                              |
-| ------------------ | -------------------------------------------------------------------- |
-| `migrations/*.sql` | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.mts`      | Hằng số và helper dùng chung cho runner và test harness              |
-| `apply.mts`        | CLI runner, chạy trong CI                                            |
+| Đường dẫn              | Vai trò                                                                |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `bootstrap-tenant.mts` | CLI bootstrap tenant canonical `ecoma` (ADR-0020), idempotent, CI-only |
+
+Trạng thái schema sau apply được đo ở tầng app bởi
+`tests/databases/migrations.spec.ts` (harness spawn runner của authority);
+semantics của runner (no-replay, checkpoint, stamp, advisory lock) thuộc suite
+integration của chính authority `deploys/remote-cache-db`.
 
 ## `db-remote-cache` là greenfield provisioning
 
@@ -26,7 +33,7 @@ không bao giờ nghĩa cùng entity trên hai context.
 Migration history **độc lập** với các database khác: mỗi deploy unit rollout độc lập,
 dùng chung bảng migration là cách buộc các service vào một release.
 
-## Migrations hiện có
+## Migrations hiện có (sống ở `deploys/remote-cache-db/migrations/`)
 
 | File                                      | Nội dung                                                                                                                                                                                                                                                                                                                |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -52,6 +52,11 @@ const RUNTIME = 'ecoma_remote_cache_runtime';
  *   dùng `RETURNING id` cần SELECT; không UPDATE/DELETE trên runtime (append-only, R15).
  */
 const EXPECTED_PRIVILEGES: Record<string, readonly string[]> = {
+  // Bảng history của migration authority (`__drizzle_migrations`, cutover
+  // #377): hạ tầng của kit, chỉ role migrator chạm tới — runtime không được
+  // grant gì nên danh sách rỗng là điều ĐÚNG. Phải nằm trong tập kiểm để một
+  // `GRANT` thừa nhắm vào nó cũng bị bắt.
+  __drizzle_migrations: [],
   api_keys: ['INSERT', 'SELECT'],
   audit_log: ['INSERT', 'SELECT'],
   cache_entries: ['INSERT', 'SELECT'],
@@ -327,11 +332,20 @@ describe('roles and grants on db-remote-cache', () => {
 
   it('ADR-0015: no migration executes a foreign data wrapper, dblink, or foreign table', async () => {
     // Query `pg_extension` chỉ thấy extension **đã cài**; một câu bị comment
-    // hay một `dblink` trong migration không lộ ở đó — phải đọc file.
-    const { listMigrations } = await import('../../db/migrate.mts');
-    for (const migration of listMigrations()) {
-      const sql = executableSql(migration.sql);
-      expect({ file: migration.name, sql }).not.toMatchObject({
+    // hay một `dblink` trong migration không lộ ở đó — phải đọc file SQL của
+    // authority (cutover #377: migrations sống ở `deploys/remote-cache-db`).
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const migrationsDir = resolve(
+      import.meta.dirname,
+      '../../../../deploys/remote-cache-db/migrations',
+    );
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith('.sql'))
+      .toSorted();
+    for (const file of files) {
+      const sql = executableSql(readFileSync(resolve(migrationsDir, file), 'utf8'));
+      expect({ file, sql }).not.toMatchObject({
         sql: expect.stringMatching(
           /postgres_fdw|dblink|foreign\s+table|foreign\s+data\s+wrapper/iu,
         ),

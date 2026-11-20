@@ -138,11 +138,12 @@ export interface MigrateScriptInputs {
 }
 
 /**
- * Script migrate: container ephemeral trên platform network chạy đúng
- * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts` của
- * repo (advisory lock `hashtext('db-remote-cache')`, mọi DDL idempotent).
- * KHÔNG chạy qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
- * lock).
+ * Script migrate: container ephemeral trên platform network chạy đúng runner
+ * của migration authority `/repo/deploys/remote-cache-db`:
+ * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
+ * (advisory lock `hashtext('db-remote-cache')` pin `-2037959451`, mọi DDL
+ * idempotent). KHÔNG chạy qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ
+ * advisory lock).
  *
  * Kênh chuỗi kết nối: `DATABASE_URL` đến từ biến môi trường của tiến trình
  * shell (kênh `environment` của command.local.Command), rồi `docker run -e
@@ -157,9 +158,9 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/remote-cache-api \\
+  -w /repo/deploys/remote-cache-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate
 `;
 }

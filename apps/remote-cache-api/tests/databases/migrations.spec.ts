@@ -1,29 +1,31 @@
 /**
- * Apply migration `db-remote-cache` qua **runner canonical** (`db/apply.mts`)
- * trên PostgreSQL thật.
+ * Apply migration `db-remote-cache` qua **runner thật của migration authority**
+ * (`deploys/remote-cache-db/runner.mts` — cutover #377) trên PostgreSQL thật,
+ * rồi đo trạng thái database sau apply.
  *
  * ⚠️ Không dùng `describe.skipIf`: suite PG của repo đã đổi sang fail-loud —
  * `globalSetup` probe Docker một lần mỗi lần chạy và vắng Docker là lỗi thật,
  * không phải nửa suite skip với exit 0.
  *
- * ⚠️ Đường code được test là ĐÚNG hàm mà CLI `db:migrate` chạy —
- * `applyAllMigrations` của `db/apply.mts`, gồm advisory lock, assert
- * `current_database()` và đếm bảng sau apply. Runner này không có bảng ledger:
- * tính idempotent của DDL là thứ làm re-apply thành no-op, và catalog sau apply
- * là nguồn sự thật.
+ * ⚠️ Suite này đo **HÌNH DẠNG schema** sau khi authority apply (catalog, CHECK,
+ * ownership). Semantics của runner (no-replay, checkpoint per-run, stamp,
+ * advisory-lock mutual exclusion, guard wrong-database) thuộc suite integration
+ * của chính authority — `deploys/remote-cache-db/tests/integrations/`.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { applyAllMigrations } from '../../db/apply.mts';
-import { REMOTE_CACHE_DATABASE, listMigrations } from '../../db/migrate.mts';
-import { type RemoteCacheDatabase, startRemoteCacheDatabase } from '../integrations/harness.ts';
+import {
+  REMOTE_CACHE_DATABASE,
+  type RemoteCacheDatabase,
+  startRemoteCacheDatabase,
+} from '../integrations/harness.ts';
 
 let db: RemoteCacheDatabase;
 
 // Tên bảng trong schema `remote_cache` sau khi áp xong toàn bộ migrations:
 // 5 bảng data (P4.1/P4.2) + 3 bảng P4.3 (quota_limits, usage_counters, audit_log)
-// + internal_nonces (portal authorization #202) = 9 bảng. Dùng chung cho cả hai
+// + internal_nonces (portal authorization #202) = 9 bảng. Dùng chung cho các
 // test assertions để tổng số bảng không bị hardcode riêng lẻ.
 const EXPECTED_REMOTE_CACHE_TABLES = [
   'api_keys',
@@ -45,134 +47,26 @@ afterAll(async () => {
   await db?.stop();
 });
 
-describe('remote-cache-api migration runner on a real PostgreSQL', () => {
+describe(`${REMOTE_CACHE_DATABASE} migrations on a real PostgreSQL`, () => {
   it('applies every migration file from an empty database, leaving the catalog as truth', async () => {
-    const migrator = await db.connectAsMigrator();
+    const client = await db.connect();
     try {
-      const files = listMigrations();
-      const result = await applyAllMigrations(migrator);
-
-      expect(result.applied).toBe(files.length);
-
-      // Không có bảng lịch sử để đối chiếu: catalog là nguồn sự thật duy nhất —
-      // đếm bảng `CREATE TABLE remote_cache.*` qua catalog thật. Danh sách bên
-      // dưới cũng dùng để tính tổng số bảng asserts cho result.
-      const { rows } = await migrator.query<{ relname: string }>(
+      // Đếm bảng `CREATE TABLE remote_cache.*` qua catalog thật. Bảng history
+      // `__drizzle_migrations` của authority (cutover #377) cũng nằm trong
+      // schema — loại nó ra trước so sánh; sự hiện diện của nó là bằng chứng
+      // runner đã ghi checkpoint, không phải bảng nghiệp vụ.
+      const { rows } = await client.query<{ relname: string }>(
         `SELECT c.relname
            FROM pg_class c
            JOIN pg_namespace n ON n.oid = c.relnamespace
           WHERE n.nspname = 'remote_cache' AND c.relkind IN ('r', 'p')
           ORDER BY c.relname`,
       );
-      expect(rows.map((row) => row.relname)).toEqual(EXPECTED_REMOTE_CACHE_TABLES);
-      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
+      expect(
+        rows.map((row) => row.relname).filter((name) => name !== '__drizzle_migrations'),
+      ).toEqual(EXPECTED_REMOTE_CACHE_TABLES);
     } finally {
-      await migrator.end();
-    }
-  });
-
-  it('re-running applies every file again as a no-op (idempotent DDL, no ledger)', async () => {
-    // Runner không có ledger — nó chạy LẠI mọi file. Tính idempotent của DDL
-    // (`IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`) là thứ
-    // làm lần chạy thứ hai thành công mà không đổi gì: applied = số file,
-    // schema vẫn 9 bảng. Một migration mất idempotency lộ ngay ở đây.
-    const migrator = await db.connectAsMigrator();
-    try {
-      const result = await applyAllMigrations(migrator);
-      expect(result.applied).toBe(listMigrations().length);
-      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
-    } finally {
-      await migrator.end();
-    }
-  });
-
-  it('takes the advisory lock keyed to db-remote-cache, distinct from the db-staff-access key', async () => {
-    // Khóa là `hashtext('db-remote-cache')` phía server — test giữ chính khóa
-    // đó ở session khác; runner lấy đúng key ⇒ apply bị chặn bởi lock, và
-    // `lock_timeout` ngắn biến chỗ bị chặn thành lỗi đo được thay vì treo suite.
-    const holder = await db.connect();
-    const runner = await db.connectAsMigrator();
-    try {
-      await holder.query('SELECT pg_advisory_lock(hashtext($1))', [REMOTE_CACHE_DATABASE]);
-
-      await runner.query(`SET lock_timeout = '500ms'`);
-      await expect(applyAllMigrations(runner)).rejects.toThrow(/lock timeout/iu);
-
-      // Khóa đối xứng: hai database khác nhau không tranh cùng một khóa —
-      // giữ khóa db-remote-cache xong, khóa db-staff-access vẫn lấy được.
-      await holder.query('SELECT pg_advisory_lock(hashtext($1))', ['db-staff-access']);
-      await holder.query('SELECT pg_advisory_unlock(hashtext($1))', ['db-staff-access']);
-    } finally {
-      await runner.query('RESET lock_timeout').catch(() => undefined);
-      await holder.query('SELECT pg_advisory_unlock(hashtext($1))', [REMOTE_CACHE_DATABASE]);
-      await holder.end();
-      await runner.end();
-    }
-  });
-
-  it('re-runs every file row-safely after 0008-vocabulary audit rows exist (the 0007 regression)', async () => {
-    // Đúng tình huống escalated của lane local: runner không có ledger nên
-    // re-apply chạy lại 0007 với DROP + re-ADD constraint. Trên DB đã có audit
-    // rows mang vocabulary 0008 (project_created/api_key_created/
-    // api_key_revoked — do 0008 nới rộng trước đó), bản 0007 chỉ có 5 action
-    // re-ADD constraint NGẸN hơn các hàng đang tồn tại ⇒ ADD CONSTRAINT chết
-    // với check violation ⇒ remote-cache-api-deploy:local-up đỏ trên mọi
-    // worktree có dữ liệu suite cũ. 0007 giờ khai đúng tập 0008 nên re-run
-    // row-safe; 0008 vẫn là mệnh đề chốt (narrowest) cuối chuỗi.
-    const migrator = await db.connectAsMigrator();
-    try {
-      // Hàng audit mang ĐẦY ĐỦ vocabulary 0008 — cả ba action mà 0007 bản cũ
-      // bỏ sót, kèm tenant_bootstrap của chính 0007.
-      await migrator.query(
-        `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
-         VALUES ('project_created', 'portal', 'project:rerun-proof', 'allowed'),
-                ('api_key_created', 'portal', 'project:rerun-proof', 'allowed'),
-                ('api_key_revoked', 'portal', 'api-key:rerun-proof', 'allowed'),
-                ('tenant_bootstrap', 'bootstrap', 'tenant:ecoma', 'allowed')`,
-      );
-
-      const result = await applyAllMigrations(migrator);
-      expect(result.applied).toBe(listMigrations().length);
-      expect(result.tablesInRemoteCacheSchema).toBe(EXPECTED_REMOTE_CACHE_TABLES.length);
-
-      // Constraint sống sót qua re-run và giữ đúng vocabulary: các action
-      // 0008 vẫn hợp lệ, action lạ vẫn bị chặn (vocabulary KHÔNG bị nới lỏng).
-      await migrator.query(
-        `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
-         VALUES ('project_created', 'portal', 'project:rerun-proof-2', 'allowed')`,
-      );
-      await expect(
-        migrator.query(
-          `INSERT INTO remote_cache.audit_log (action, actor, target, outcome)
-           VALUES ('nonexistent_action', 'portal', 'project:rerun-proof', 'allowed')`,
-        ),
-      ).rejects.toThrow(/audit_log_action_check|violates check constraint/iu);
-    } finally {
-      await migrator.end();
-    }
-  });
-
-  it('refuses to run against a different database (current_database guard)', async () => {
-    // Guard #101 (pattern staff-access): runner pin tên database — `DATABASE_URL`
-    // trỏ nhầm database khác phải fail-loud trước khi một DDL nào chạm đích.
-    // `postgres` database có sẵn trong mọi image PostgreSQL và KHÔNG phải
-    // `db-remote-cache` — đúng hình "URL trỏ sai".
-    const pg = (await import('pg')).default;
-    const wrongDb = new pg.Client({
-      host: db.host,
-      port: db.port,
-      user: 'ecoma_remote_cache_migrator',
-      password: db.rolePassword,
-      database: 'postgres',
-      application_name: 'ecoma-remote-cache-api-itest-wrongdb',
-    });
-    await wrongDb.connect();
-    try {
-      await expect(applyAllMigrations(wrongDb)).rejects.toThrow(
-        /expected database "db-remote-cache"/u,
-      );
-    } finally {
-      await wrongDb.end();
+      await client.end();
     }
   });
 
@@ -204,8 +98,6 @@ describe('remote-cache-api migration runner on a real PostgreSQL', () => {
           ORDER BY con.conname`,
       );
       const constraints = constraintRows.map((row) => row.conname);
-      // CHECK định nghĩa khả năng của schema — tập đầy đủ phải khớp đúng
-      // migration, CHECK lạ xuất hiện cũng phải đỏ như CHECK thiếu.
       // CHECK định nghĩa khả năng của schema — tập đầy đủ phải khớp đúng
       // migration, CHECK lạ xuất hiện cũng phải đỏ như CHECK thiếu. (Index
       // unique từng phần `tenants_one_free_per_owner_key` KHÔNG nằm trong

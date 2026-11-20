@@ -17,6 +17,26 @@ import { defineConfig } from 'drizzle-kit';
  * thẳng PostgreSQL, không qua Hyperdrive (HD6). `db-generate`/`db-check` không
  * cần database thật; chỉ `db-migrate`/`stamp` đọc URL.
  */
+
+/**
+ * Guard fail-fast #496: lệnh kit chạm database thật cần DATABASE_URL có mặt
+ * ngay khi config được evaluate — thiếu/rỗng là throw với message tường minh
+ * thay vì `?? ''` cho kit fail mờ ở bước kết nối khó đọc. `generate`, `check`,
+ * `up`, `drop`, `export` thuần file (offline) giữ nguyên hành vi cũ — đường CI
+ * `db-generate`/`db-check` không secret vẫn chạy. Runner.mts (đường chính thức)
+ * đã validate DATABASE_URL trước khi spawn `drizzle-kit migrate` (§3a); guard
+ * này là lớp trong cùng cho lệnh kit gọi tay.
+ */
+const DATABASE_COMMANDS = new Set(['migrate', 'push', 'pull', 'introspect', 'studio']);
+const kitCommand = process.argv[2];
+if (kitCommand !== undefined && DATABASE_COMMANDS.has(kitCommand) && !process.env.DATABASE_URL) {
+  throw new Error(
+    `DATABASE_URL is required for "drizzle-kit ${kitCommand}" - this command connects to ` +
+      'the database; set the _migrator connection URL first (contract 02-delivery.md section 3.1). ' +
+      'Offline commands (generate, check) do not need it.',
+  );
+}
+
 export default defineConfig({
   dialect: 'postgresql',
   out: 'migrations',
