@@ -50,6 +50,17 @@ import {
   type EnvironmentReport,
 } from './staging-environments.ts';
 import {
+  buildStagingManifest,
+  runStagingDeploy,
+  type StagingDeployParams,
+} from './staging-deploy.ts';
+import {
+  runStagingSmoke,
+  SMOKE_BUDGET_MS_DEFAULT,
+  SMOKE_REQUEST_TIMEOUT_MS_DEFAULT,
+  type StagingSmokeOptions,
+} from './staging-smoke.ts';
+import {
   putWorkerSecret,
   stripJsoncComments,
   trimTrailingNewline,
@@ -382,7 +393,7 @@ export function printReports(
   return failed;
 }
 
-function main(argv: readonly string[]): number {
+async function main(argv: readonly string[]): Promise<number> {
   const command = argv[0];
   if (command === 'ensure-staging-environments') {
     const check = argv.includes('--check');
@@ -518,10 +529,15 @@ if (isCliEntry(process.argv[1], fileURLToPath(import.meta.url))) {
   // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack
   // trace. Dùng exitCode + drain tự nhiên thay vì process.exit: exit ngay sau
   // write có thể cắt ngang stdout/stderr chưa flush (đặc biệt khi pipe).
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (error) {
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  }
+  // main bất đồng bộ (deploy/smoke await network) — promise rejection thay cho
+  // try/catch, semantics exit code giữ nguyên.
+  main(process.argv.slice(2))
+    .then((code) => {
+      process.exitCode = code;
+      return code;
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    });
 }
