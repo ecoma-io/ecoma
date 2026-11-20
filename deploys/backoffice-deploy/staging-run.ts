@@ -580,6 +580,9 @@ export function runStagingPhase(
   ensureStagingStack(projectDir, selection, env, deps);
   const ctx = {
     worktreeRoot: projectDir,
+    // Staging là shared lane, không namespace worktree — `pulumiRun` chỉ đọc
+    // `stackName`/`stateUrl` của ctx (`fullStackRef` không đụng `namespace`),
+    // chuỗi rỗng là placeholder vô hình, không phải giá trị bị mất.
     namespace: '',
     stackName: selection.stackName,
     stateUrl: backendUrl,
@@ -618,10 +621,13 @@ export function runStagingPhase(
     try {
       path = appendStagingRecord(projectDir, outcome.record);
     } catch (recordError) {
+      // `cause` giữ nguyên lỗi Pulumi gốc (ES2022): caller cần phân loại theo
+      // lỗi gốc vẫn unwrap được; message gộp CẢ HAI nguyên nhân cho operator.
       throw Object.assign(
         new Error(
           `staging ${phase} failed on ${outcome.record.stackRef}: ${error instanceof Error ? error.message : String(error)} ` +
             `(evidence write failed: ${recordError instanceof Error ? recordError.message : String(recordError)})`,
+          { cause: error },
         ),
         { recordPath: undefined },
       );
