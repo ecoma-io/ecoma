@@ -71,6 +71,12 @@ validate
   --confirm-disposable-target  required consent: the target contract database WILL BE DROPPED
   --docker <container>       run psql/pg_dump inside this container via docker exec`;
 
+/**
+ * Timeout spawn runner migration candidate (ms) — statement_timeout mặc định
+ * 5 phút (§3a.5), nên run cần lớn hơn đáng kể để chứa cả cold start tsx/kit.
+ */
+export const VALIDATION_MIGRATION_TIMEOUT_MS = 600_000;
+
 const SUBCOMMANDS = ['capture', 'validate'] as const;
 type Subcommand = (typeof SUBCOMMANDS)[number];
 
@@ -167,9 +173,7 @@ function spawnCandidateRunner(
       cwd: projectPath,
       env: { ...process.env, DATABASE_URL: migratorUrl },
       encoding: 'utf8',
-      // §3a.5: statement_timeout mặc định 5 phút — timeout run gồm cả cold
-      // start tsx/kit nên đặt lớn hơn đáng kể.
-      timeout: 600_000,
+      timeout: VALIDATION_MIGRATION_TIMEOUT_MS,
     },
   );
   return {
