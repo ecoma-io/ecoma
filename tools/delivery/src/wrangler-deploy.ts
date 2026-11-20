@@ -173,7 +173,8 @@ export async function deployStagingWorker(
       throw new Error(`wrangler deploy failed (attempt ${attempt}): ${reason}`);
     }
     if (attempt < WRANGLER_DEPLOY_MAX_ATTEMPTS) {
-      const backoff = WRANGLER_DEPLOY_BACKOFF_MS[attempt - 1] ?? 0;
+      // attempt chỉ chạy tới MAX_ATTEMPTS - 1 nên chỉ số luôn trong mảng.
+      const backoff = WRANGLER_DEPLOY_BACKOFF_MS[attempt - 1];
       await deps.sleepFn(backoff);
     }
   }
