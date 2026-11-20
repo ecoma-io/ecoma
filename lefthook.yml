@@ -19,14 +19,15 @@ pre-commit:
     'commit signing config':
       run: ./tools/dx/check-signing-config.sh
     # Rule semgrep chỉ được kiểm bằng fixture ở CI hiện tại, tức một rule viết
-    # sai vẫn đi qua được commit rồi mới đỏ ở `analysis-gate`. Chạy `--test` ngay
+    # sai vẫn đi qua được commit rồi mới đỏ ở check `security-analysis`. Chạy `--test` ngay
     # khi commit chạm bộ rule để lỗi hiện ra tại chỗ. Glob dưới đây chỉ quyết
     # định **có chạy hay không** — khi chạy thì kiểm toàn bộ bộ rule, giống cách
     # lệnh scan pre-push quyết định có chạy theo file đã đổi.
     #
-    # Image ghim theo digest, đúng bằng image job `semgrep` của CI dùng
-    # (`.github/workflows/code-analysis.yml`); spec `security-tool-pins.spec.ts`
-    # assert hai bên bằng nhau nên nâng một bên quên bên kia là đỏ.
+    # Image ghim theo digest, đúng bằng image các step Semgrep của job
+    # `security-analysis` trong CI dùng (`.github/workflows/code-analysis.yml`);
+    # spec `security-tool-pins.spec.ts` assert hai bên bằng nhau nên nâng một bên
+    # quên bên kia là đỏ.
     # `unset GIT_*`: lefthook export `GIT_DIR` khi chạy hook, và giá trị đó thắng
     # cwd của `git rev-parse`.
     'semgrep rule fixtures':
@@ -59,8 +60,9 @@ pre-push:
   commands:
     'commit signing':
       run: pnpm dx commit-signing --check push
-    # Image ghim theo digest, đúng bằng image job `gitleaks` của CI dùng
-    # (`.github/workflows/code-analysis.yml`); spec `security-tool-pins.spec.ts`
+    # Image ghim theo digest, đúng bằng image step Gitleaks của job
+    # `security-analysis` trong CI dùng (`.github/workflows/code-analysis.yml`);
+    # spec `security-tool-pins.spec.ts`
     # assert hai bên bằng nhau. Mount `.git` chỉ khi nó tồn tại (worktree mang
     # một file `.git`, không phải thư mục đầy đủ). Chế độ `dir` không cần lịch
     # sử git; mount `.git` khi có là để gitleaks nhận ra ngữ cảnh repository.
@@ -76,7 +78,7 @@ pre-push:
           dir --config gitleaks.toml --no-banner --redact --verbose --exit-code 1
     # Rule của chính repository này, chạy bằng docker và gate bằng đúng script mà
     # CI dùng (`filter-accepted.py`, bên trong container), nên một lần push xanh
-    # không có nghĩa khác với một lần `analysis-gate` xanh. Logic nằm ngay tại
+    # không có nghĩa khác với một lần check `security-analysis` xanh. Logic nằm ngay tại
     # đây theo quyết định của owner (issue #217): lệnh scanner tách khỏi DX, pin
     # phiên bản do Renovate quét trực tiếp trên file YAML này.
     #
