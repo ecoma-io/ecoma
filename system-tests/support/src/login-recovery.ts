@@ -7,6 +7,19 @@ function isVisibleSafe(locator: Locator): Promise<boolean> {
   return locator.isVisible().catch(() => false);
 }
 
+/**
+ * Lỗi race điều hướng — element/context bị navigation đang chạy phá giữa chừng
+ * (redirect chain hoàn tất đúng lúc click). ChỈ các chữ ký này được nuốt khi
+ * retry path đã có vòng phía sau xử lý; mọi lỗi khác (timeout, element không
+ * tìm thấy, frame detached...) là lỗi thật và phải surfaced.
+ */
+export function isNavigationRaceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /element was detached from the DOM|Execution context was destroyed|Target page, context or browser has been closed|Target closed/u.test(
+    message,
+  );
+}
+
 /** Tham số của một lượt re-login recovery — suite sở hữu dữ liệu login. */
 export interface LoginRecoveryParams {
   /**
@@ -81,20 +94,25 @@ export async function recoverLoginByRelogin(
   await page.getByTestId('login-submit').click();
 
   const codeForm = page.getByTestId('login-code-form');
-  const challengeShown = codeForm
-    .waitFor({ state: 'visible', timeout: 15_000 })
-    .then(() => true)
-    .catch(() => false);
-  const challengeFailed = params.requestFailed
-    .waitFor({ state: 'visible', timeout: 15_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (await Promise.race([challengeShown, challengeFailed])) {
-    if (!(await challengeShown)) {
-      // Challenge chưa cấp (POST chết tầng mạng) — re-click một lượt, cùng hình
-      // với flow chính; lỗi lần hai là lỗi thật.
-      await page.getByTestId('login-submit').click();
-    }
+  // Hai promise luôn tự settle qua `.catch` — thua race chỉ resolve muộn hơn,
+  // KHÔNG bao giờ reject, và KHÔNG được `await` lần hai sau race: await kép vào
+  // promise thua là chờ thêm tới 15s vô nghĩa trước re-click. Chỉ khi thẻ lỗi
+  // hiện THẬT mới re-click (challenge chưa được cấp — rate limit không tiêu);
+  // form mã tự timeout một mình là lỗi thật, nhánh `expect` dưới sẽ throw.
+  const challengeOutcome = await Promise.race([
+    codeForm
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => 'shown' as const)
+      .catch(() => 'timeout' as const),
+    params.requestFailed
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => 'failed' as const)
+      .catch(() => 'timeout' as const),
+  ]);
+  if (challengeOutcome === 'failed') {
+    // Challenge chưa cấp (POST chết tầng mạng) — re-click một lượt, cùng hình
+    // với flow chính; lỗi lần hai là lỗi thật.
+    await page.getByTestId('login-submit').click();
   }
   await expect(codeForm).toBeVisible();
   const otp = await params.readOtp();
@@ -107,4 +125,44 @@ export async function recoverLoginByRelogin(
     requestFailed: params.requestFailed,
     describeStuckState: params.describeStuckState,
   });
+}
+
+/** Dependency mà consumer inject vào factory re-login — page + dữ liệu của suite. */
+export interface RunReloginDeps extends LoginRecoveryParams {
+  /** Trang browser đang chết — consumer nắm và truyền vào. */
+  readonly page: Page;
+}
+
+/** Ngân sách re-login một lượt của `performBrowserLogin` (#461). */
+export interface ReloginBudget {
+  /**
+   * Chạy re-login đúng một lượt. Ngân sách đếm ATTEMPT: cờ flip TRƯỚC khi gọi
+   * — attempt chết cũng tiêu ngân sách, nhưng throw của nó làm test abort nên
+   * cạn ngân sách không có hậu quả thêm; semantics này là thứ chặn re-entry
+   * vô hạn qua hai hook (dead-page + landing).
+   */
+  readonly run: () => Promise<void>;
+  /** Ngân sách còn nguyên — điều kiện kích hoạt recovery trong landing loop. */
+  readonly available: () => boolean;
+}
+
+/**
+ * Factory ngân sách re-login của #461 — trừu hoá phần copy-paste giữa 4
+ * consumer: mỗi suite chỉ inject dữ liệu của mình (entry URL tuyệt đối, email,
+ * `readOtp`, locators) và nhận lại handle `run`/`available` dùng cho cả hai
+ * hook (dead-page trong helper pha chờ, landing loop).
+ */
+export function makeRunRelogin(deps: RunReloginDeps): ReloginBudget {
+  let used = false;
+  return {
+    available: () => !used,
+    run: async () => {
+      if (used) {
+        throw new Error('relogin recovery budget already spent');
+      }
+      used = true;
+      const { page, ...params } = deps;
+      await recoverLoginByRelogin(page, params);
+    },
+  };
 }

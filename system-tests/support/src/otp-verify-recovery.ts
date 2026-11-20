@@ -17,12 +17,26 @@ function isVisibleSafe(locator: Locator): Promise<boolean> {
 /**
  * Trang chết của browser — UI product mất hẳn (instance 11 #461: run
  * 44693545849, `url=chrome-error://chromewebdata/ visible=[]` khi navigation
- * chết tầng mạng). Mọi scheme ngoài http/https được coi là chết: chờ tiếp trên
- * trang đó KHÔNG BAO GIỜ mount được element nào.
+ * chết tầng mạng). Mọi scheme ngoài http/https, kể cả chuỗi không parse được,
+ * được coi là chết: chờ tiếp trên trang đó KHÔNG BAO GIỜ mount được element
+ * nào; giá trị URL vẫn đi vào `describeStuckState` ở nhánh throw.
  */
 function isDeadBrowserPage(url: string): boolean {
-  const protocol = new URL(url).protocol;
-  return protocol !== 'http:' && protocol !== 'https:';
+  try {
+    const protocol = new URL(url).protocol;
+    return protocol !== 'http:' && protocol !== 'https:';
+  } catch {
+    return true;
+  }
+}
+
+/** Pathname của URL, trả `undefined` khi chuỗi không parse được — không crash. */
+function safePathname(url: string): string | undefined {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Các element và dữ liệu chẩn đoán mà pha chờ cần từ suite sở hữu trang. */
@@ -105,6 +119,16 @@ export async function waitForContinueTargetAfterOtpVerify(
 ): Promise<void> {
   const { continueTarget, retryButton, requestFailed, describeStuckState } = params;
   const codeInvalid = page.getByTestId('login-code-invalid');
+  // Chờ vòng đời submit kết thúc sau mỗi lần bấm `login-code-submit` lại:
+  // form mã rời DOM khi navigation bắt đầu — không có bước này, lặp kế tiếp có
+  // thể đọc DOM cũ của POST trước trong khi POST mới còn đang xử lý. Lỗi tại
+  // đây chỉ là context bị navigation phá giữa chừng — vô hại, lặp kế tiếp vẫn
+  // chờ trên element mới; form KHÔNG rời DOM trong 15s (POST chết lần hai)
+  // cũng là trạng thái đo được — lặp kế tiếp sẽ throw đúng hạn kèm stuck state.
+  const codeForm = page.getByTestId('login-code-form');
+  const awaitSubmitRoundTrip = async (): Promise<void> => {
+    await codeForm.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => undefined);
+  };
   let invalidRecovered = false;
   for (let verifyAttempt = 1; verifyAttempt <= MAX_VERIFY_ATTEMPTS; verifyAttempt += 1) {
     const continueOrRetry = await Promise.race([
@@ -126,7 +150,7 @@ export async function waitForContinueTargetAfterOtpVerify(
       return;
     }
     const stuckUrl = page.url();
-    if (new URL(stuckUrl).pathname === '/login/continue') {
+    if (safePathname(stuckUrl) === '/login/continue') {
       await page.goto(stuckUrl, { waitUntil: 'load' });
       const secondChance = await Promise.race([
         continueTarget
@@ -154,10 +178,12 @@ export async function waitForContinueTargetAfterOtpVerify(
       const freshOtp = await params.readOtp();
       await page.getByTestId('login-code').fill(freshOtp);
       await page.getByTestId('login-code-submit').click();
+      await awaitSubmitRoundTrip();
       continue;
     }
     if (verifyAttempt === 1 && (await isVisibleSafe(requestFailed))) {
       await page.getByTestId('login-code-submit').click();
+      await awaitSubmitRoundTrip();
       continue;
     }
     if (params.recoverFromDeadPage !== undefined && isDeadBrowserPage(stuckUrl)) {

@@ -62,6 +62,7 @@ function makeHarness(options: HarnessOptions) {
   const retryClicks: string[] = [];
   const gotoCalls: string[] = [];
   const recoverCalls: string[] = [];
+  const codeFormHiddenWaits: number[] = [];
   const page = {
     url: () => options.pageUrl ?? 'https://account.local/login',
     goto: async (url: string) => {
@@ -72,11 +73,19 @@ function makeHarness(options: HarnessOptions) {
       if (testId === 'login-code-invalid') {
         return { isVisible: async () => options.codeInvalidVisible ?? false };
       }
-      if (testId === 'login-code') {
+      if (testId === 'login-code-form') {
         return {
-          click: async () => {
-            submitClicks.push(testId);
+          // `waitFor({ state: 'hidden' })` của vòng đợi round-trip submit —
+          // resolve như element đã rời DOM, ghi nhận để test assert bước chờ.
+          waitFor: async () => {
+            codeFormHiddenWaits.push(codeFormHiddenWaits.length + 1);
+            return undefined;
           },
+        };
+      }
+      if (testId === 'login-code') {
+        // Impl chỉ `fill()` ô nhập mã — không có click; fixture phải khớp impl.
+        return {
           fill: async (value: string) => {
             codeFills.push(value);
           },
@@ -122,6 +131,7 @@ function makeHarness(options: HarnessOptions) {
     retryClicks,
     gotoCalls,
     recoverCalls,
+    codeFormHiddenWaits,
   };
 }
 
@@ -141,6 +151,7 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
     });
     await expect(harness.run()).resolves.toBeUndefined();
     expect(harness.submitClicks).toHaveLength(1);
+    expect(harness.codeFormHiddenWaits).toHaveLength(1);
     expect(harness.retryClicks).toHaveLength(0);
     expect(harness.gotoCalls).toHaveLength(0);
   });
@@ -207,6 +218,7 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
     // Code-invalid wins over the bare request-failed branch: the server already
     // answered 400, so re-submitting the old code would be futile.
     expect(harness.submitClicks).toEqual(['login-code-submit']);
+    expect(harness.codeFormHiddenWaits).toHaveLength(1);
     expect(harness.recoverCalls).toHaveLength(0);
   });
 

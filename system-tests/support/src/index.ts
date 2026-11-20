@@ -3,4 +3,11 @@ export {
   waitForContinueTargetAfterOtpVerify,
   type OtpVerifyRecoveryParams,
 } from './otp-verify-recovery.js';
-export { recoverLoginByRelogin, type LoginRecoveryParams } from './login-recovery.js';
+export {
+  isNavigationRaceError,
+  makeRunRelogin,
+  recoverLoginByRelogin,
+  type LoginRecoveryParams,
+  type ReloginBudget,
+  type RunReloginDeps,
+} from './login-recovery.js';

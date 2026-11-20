@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Locator, Page } from '@playwright/test';
-import { recoverLoginByRelogin } from './login-recovery.js';
+import {
+  isNavigationRaceError,
+  makeRunRelogin,
+  recoverLoginByRelogin,
+  type RunReloginDeps,
+} from './login-recovery.js';
 
 // Cùng quy ước với `otp-verify-recovery.spec.ts`: mock `expect` của
 // @playwright/test — assert chỉ cần resolve, unit test không kéo runtime.
@@ -128,6 +133,40 @@ function makeHarness(options: HarnessOptions) {
   };
 }
 
+const sink = async () => undefined;
+
+/** Dependency tối giản cho factory `makeRunRelogin` — đủ để chạy re-login fake. */
+function makeDeps(options: { continueSequence?: Outcome[] }): RunReloginDeps {
+  const page = {
+    url: () => 'https://account.local/login',
+    getByTestId: (testId: string) => ({
+      // Form email "đã hiển thị" — re-login chạy in-place, không cần goto.
+      isVisible: async () => testId === 'login-email-form',
+      waitFor: async () => undefined,
+      fill: sink,
+      click: sink,
+    }),
+  } as unknown as Page;
+  return {
+    page,
+    loginEntryUrl: 'https://portal.local/api/auth/login',
+    email: 'user@example.test',
+    readOtp: async () => '11223344',
+    requestFailed: {
+      isVisible: async () => false,
+      waitFor: () =>
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('timeout'));
+          }, 0);
+        }),
+    } as unknown as Locator,
+    continueTarget: scriptedLocator(options.continueSequence ?? ['visible']),
+    retryButton: scriptedLocator([]),
+    describeStuckState: async () => 'stuck',
+  };
+}
+
 describe('recoverLoginByRelogin', () => {
   it('re-drives the login in place when the email form is already mounted', async () => {
     const harness = makeHarness({ emailFormVisible: true, continueSequence: ['visible'] });
@@ -161,5 +200,49 @@ describe('recoverLoginByRelogin', () => {
     await expect(harness.run()).rejects.toThrow(
       'login continue page never appeared after OTP verify',
     );
+  });
+});
+
+describe('makeRunRelogin', () => {
+  it('spends the budget on the attempt and reports availability accordingly', async () => {
+    const budget = makeRunRelogin(makeDeps({ continueSequence: ['visible'] }));
+    expect(budget.available()).toBe(true);
+    await expect(budget.run()).resolves.toBeUndefined();
+    expect(budget.available()).toBe(false);
+  });
+
+  it('throws on a second run after the budget is spent — attempt counts, not success', async () => {
+    const budget = makeRunRelogin(makeDeps({ continueSequence: ['missing'] }));
+    await expect(budget.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(budget.available()).toBe(false);
+    await expect(budget.run()).rejects.toThrow('relogin recovery budget already spent');
+  });
+});
+
+describe('isNavigationRaceError', () => {
+  it('accepts the navigation-race signatures', () => {
+    expect(isNavigationRaceError(new Error('element was detached from the DOM, retrying'))).toBe(
+      true,
+    );
+    expect(
+      isNavigationRaceError(
+        new Error('Execution context was destroyed, most likely because of a navigation'),
+      ),
+    ).toBe(true);
+    expect(
+      isNavigationRaceError(new Error('Target page, context or browser has been closed')),
+    ).toBe(true);
+    expect(isNavigationRaceError(new Error('Target closed'))).toBe(true);
+  });
+
+  it('rejects real failures — timeouts, missing elements, non-error values', () => {
+    expect(isNavigationRaceError(new Error('Timeout 30000ms exceeded waiting for locator'))).toBe(
+      false,
+    );
+    expect(isNavigationRaceError(new Error('element is not visible'))).toBe(false);
+    expect(isNavigationRaceError('element was detached from the DOM, retrying')).toBe(true);
+    expect(isNavigationRaceError(undefined)).toBe(false);
   });
 });
