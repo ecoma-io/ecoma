@@ -155,6 +155,12 @@ describe('isValidRepoIdentifier', () => {
     expect(isValidRepoIdentifier('owner name/x')).toBe(false);
     expect(isValidRepoIdentifier('owner/name extra')).toBe(false);
     expect(isValidRepoIdentifier('owner/../etc')).toBe(false);
+    // Segment đúng bằng "." hoặc ".." là path traversal khi ghép vào path API.
+    expect(isValidRepoIdentifier('../evil')).toBe(false);
+    expect(isValidRepoIdentifier('./evil')).toBe(false);
+    expect(isValidRepoIdentifier('owner/..')).toBe(false);
+    expect(isValidRepoIdentifier('owner/.')).toBe(false);
+    expect(isValidRepoIdentifier('../..')).toBe(false);
   });
 });
 
@@ -299,10 +305,47 @@ describe('ensureStagingEnvironments', () => {
       },
     };
     const [report] = ensureStagingEnvironments([unit], 'ecoma-io/ecoma', deps, 'ensure');
-    expect(report.policyFixed).toBe(true);
+    // Repair không đạt (re-read vẫn non-custom) → policyFixed phải FALSE:
+    // cờ là kết quả đã xác nhận, không phải ý định mutation.
+    expect(report.policyFixed).toBe(false);
     expect(
       report.violations.some((violation) => violation.includes('still not custom after repair')),
     ).toBe(true);
+  });
+
+  it('does not claim the "main" pattern was added when the re-read does not confirm it', () => {
+    // POST "thành công" nhưng GET sau mutation vẫn không thấy "main" —
+    // branchPolicyAdded phải FALSE và violation phải báo state cuối.
+    const deps: GhApiDeps = {
+      ghApi: (args) => {
+        const method = args[0] === '-X' ? (args[1] as string) : 'GET';
+        const path = method === 'GET' ? (args[0] as string) : (args[2] as string);
+        if (path === 'repos/ecoma-io/ecoma/environments/staging-home') {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+              protection_rules: [],
+            }),
+            stderr: '',
+          };
+        }
+        if (path === 'repos/ecoma-io/ecoma/environments/staging-home/deployment-branch-policies') {
+          if (method === 'POST') return { status: 0, stdout: '{}', stderr: '' };
+          return {
+            status: 0,
+            stdout: JSON.stringify({ branch_policies: [] }),
+            stderr: '',
+          };
+        }
+        return { status: 1, stdout: '', stderr: 'gh: unexpected call (HTTP 500)' };
+      },
+    };
+    const [report] = ensureStagingEnvironments([unit], 'ecoma-io/ecoma', deps, 'ensure');
+    expect(report.branchPolicyAdded).toBe(false);
+    expect(report.violations.some((violation) => violation.includes('does not allow "main"'))).toBe(
+      true,
+    );
   });
 
   it('fails closed on API errors other than 404', () => {

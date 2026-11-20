@@ -27,6 +27,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
 import { exec, type ExecResult } from '@ecoma-io/deployment';
 
@@ -74,8 +75,10 @@ export function resolveSecretRunEnv(source: NodeJS.ProcessEnv = process.env): {
     );
   }
   const env: NodeJS.ProcessEnv = {
-    PATH: source.PATH,
-    HOME: source.HOME,
+    // PATH/HOME fallback về process hiện tại: source env của caller (spec,
+    // harness) có thể không mang hai biến này mà wrangler vẫn cần để chạy.
+    PATH: source.PATH ?? process.env.PATH,
+    HOME: source.HOME ?? process.env.HOME,
     CI: '1',
     CLOUDFLARE_API_TOKEN: token,
   };
@@ -224,17 +227,21 @@ export function putWorkerSecret(
     throw new Error('secret value is empty — pipe a non-empty value via stdin');
   }
   const { env } = resolveSecretRunEnv(sourceEnv);
-  const worker = stagingWorkerNameFromConfig(deps.readTextFile(configPath));
+  // Resolve config path MỘT lần: cwd của wrangler là thư mục chứa config và
+  // `--config` là đường tuyệt đối — relative path hoạt động từ mọi thư mục
+  // gọi CLI, relative path trong config (schema, assets) cũng không vỡ.
+  const configAbs = resolve(configPath);
+  const worker = stagingWorkerNameFromConfig(deps.readTextFile(configAbs));
   if (classifyWorkerName(worker) !== 'staging') {
     throw new Error(
       `resolved worker "${worker}" is not a staging identity (expected prefix "stg-") — ` +
         'refusing to write secrets outside the staging scope',
     );
   }
-  const args = buildWranglerSecretArgs(action, secretName, configPath);
+  const args = buildWranglerSecretArgs(action, secretName, configAbs);
   // Giá trị cho wrangler đã cắt newline cuối — 'echo value |' và printf phải
   // cho ra cùng một secret, bất kể cách pipe của operator.
-  const result = deps.execFn('npx', ['wrangler', ...args], process.cwd(), env, {
+  const result = deps.execFn('npx', ['wrangler', ...args], dirname(configAbs), env, {
     input: trimTrailingNewline(value),
   });
   if (result.status !== 0) {

@@ -1,3 +1,5 @@
+import { dirname, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
@@ -35,19 +37,26 @@ const TOKEN = 'cf-token-value';
 const okDeps = (
   configText = SAMPLE_CONFIG,
 ): WorkerSecretDeps & {
-  calls: Array<{ command: string; args: string[]; env: NodeJS.ProcessEnv; input?: string }>;
+  calls: Array<{
+    command: string;
+    args: string[];
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    input?: string;
+  }>;
 } => {
   const calls: Array<{
     command: string;
     args: string[];
+    cwd: string;
     env: NodeJS.ProcessEnv;
     input?: string;
   }> = [];
   return {
     calls,
     readTextFile: () => configText,
-    execFn: (command, args, _cwd, env, options = {}) => {
-      calls.push({ command, args, env, input: options.input });
+    execFn: (command, args, cwd, env, options = {}) => {
+      calls.push({ command, args, cwd, env, input: options.input });
       const result: ExecResult = { status: 0, stdout: '', stderr: '' };
       return result;
     },
@@ -116,6 +125,13 @@ describe('resolveSecretRunEnv', () => {
     expect(env.CI).toBe('1');
     expect(Object.keys(env).toSorted()).toEqual(['CI', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH']);
   });
+
+  it('falls back to the current process PATH/HOME when the source env lacks them', () => {
+    const { env } = resolveSecretRunEnv({ [CONTROL_PLANE_TOKEN_ENV_KEY]: TOKEN });
+    expect(env.PATH).toBe(process.env.PATH);
+    expect(env.HOME).toBe(process.env.HOME);
+    expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN);
+  });
 });
 
 describe('buildWranglerSecretArgs', () => {
@@ -173,6 +189,10 @@ describe('putWorkerSecret', () => {
     expect(call.env.CLOUDFLARE_API_TOKEN).toBe(TOKEN);
     // Token KHÔNG BAO GIỜ nằm trong argv (/proc/<pid>/cmdline đọc được).
     expect(call.args.join(' ')).not.toContain(TOKEN);
+    // --config và cwd của wrangler đều là đường tuyệt đối khớp nhau —
+    // relative config path hoạt động từ mọi thư mục gọi CLI.
+    expect(call.args).toContain(resolve('apps/home/wrangler.jsonc'));
+    expect(call.cwd).toBe(dirname(resolve('apps/home/wrangler.jsonc')));
   });
 
   it('stages a rotation through versions secret put without deploying', () => {

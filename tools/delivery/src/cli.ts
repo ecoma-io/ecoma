@@ -17,12 +17,13 @@
  * stdin và map kết quả ra exit code.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync, readSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import {
   defaultGhApiDeps,
   ensureStagingEnvironments,
+  isValidRepoIdentifier,
   repoFromGh,
   stagingUnits,
   type EnvironmentReport,
@@ -60,17 +61,55 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
   return { kind: 'ok', action, secretName, configPath };
 }
 
+/** Trần dung lượng stdin của giá trị secret — 1 MiB là dư cho mọi secret hiện có. */
+export const STDIN_MAX_BYTES = 1024 * 1024;
+
+/**
+ * Đọc toàn bộ fd cho tới EOF theo khối, chặn ở trần dung lượng — không bao giờ
+ * buffer vô hạn. fd là tham số để spec đọc từ file thật mà không đụng stdin.
+ */
+export function readStdinFrom(fd: number, maxBytes: number = STDIN_MAX_BYTES): string {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  const buffer = Buffer.alloc(64 * 1024);
+  // EAGAIN là "chưa có dữ liệu" trên fd non-blocking (stdin pipe mặc định của
+  // node), không phải lỗi — chờ 1ms (sleep sync qua Atomics) rồi đọc lại.
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  for (;;) {
+    let read: number;
+    try {
+      read = readSync(fd, buffer);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'EAGAIN') {
+        Atomics.wait(sleeper, 0, 0, 1);
+        continue;
+      }
+      throw error;
+    }
+    if (read === 0) break;
+    total += read;
+    if (total > maxBytes) {
+      throw new Error(
+        `stdin value exceeds the ${maxBytes}-byte cap — refusing to buffer an unbounded value`,
+      );
+    }
+    // Copy từng khối: `buffer` được dùng lại ở lần đọc kế nên subarray là view.
+    chunks.push(Buffer.from(buffer.subarray(0, read)));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 /** Đọc giá trị secret từ stdin (fd 0) — KHÔNG bao giờ qua argv. */
 function readStdinValue(): string {
-  // TTY là fail-closed: readFileSync(0) trên TTY sẽ treo vô hạn chờ gõ tay —
-  // từ chối ngay thay vì treo pipeline.
+  // TTY là fail-closed: read trên TTY sẽ treo vô hạn chờ gõ tay — từ chối ngay
+  // thay vì treo pipeline.
   if (process.stdin.isTTY) {
     throw new Error(
       'secret value must be piped via stdin (echo "..." | npx tsx src/cli.ts worker-secret ...)',
     );
   }
   try {
-    return trimTrailingNewline(readFileSync(0, 'utf8'));
+    return trimTrailingNewline(readStdinFrom(0));
   } catch (error) {
     throw new Error(
       `cannot read the secret value from stdin: ${error instanceof Error ? error.message : String(error)}`,
@@ -116,6 +155,14 @@ function main(argv: readonly string[]): number {
       return 2;
     }
     const repo = repoArg ?? process.env.GITHUB_REPOSITORY ?? repoFromGh();
+    // repoFromGh tự validate; `--repo` và GITHUB_REPOSITORY là input ngoài
+    // không tin được — repo này được ghép thẳng vào path API của gh.
+    if (!isValidRepoIdentifier(repo)) {
+      process.stderr.write(
+        `invalid repository identifier "${repo}" — expected exactly two owner/name segments without "." or ".."\n`,
+      );
+      return 2;
+    }
     const configPath = fileURLToPath(
       new URL('../config/deploy-eligibility.jsonc', import.meta.url),
     );
@@ -158,8 +205,17 @@ function main(argv: readonly string[]): number {
 }
 
 // Chỉ exit khi được thực thi trực tiếp qua `npx tsx`; khi bị import (spec)
-// không chạy main — argv[1] là file entry này mới là đường chạy thật.
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// không chạy main. So sánh realpath HAI BÊN: argv[1] có thể là symlink hoặc
+// đường tương đối (bin shim) — so nguyên chuỗi sẽ lệch và main không chạy.
+let isMainEntry = false;
+if (process.argv[1] !== undefined) {
+  try {
+    isMainEntry = realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    isMainEntry = false;
+  }
+}
+if (isMainEntry) {
   // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack trace.
   try {
     process.exit(main(process.argv.slice(2)));

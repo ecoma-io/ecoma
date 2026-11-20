@@ -161,9 +161,12 @@ export interface EnvironmentReport {
   exists: boolean;
   /** Environment được tạo bởi lần chạy này. */
   created: boolean;
-  /** `deployment_branch_policy` được đặt/sửa bởi lần chạy này. */
+  /**
+   * `deployment_branch_policy` được đặt/sửa bởi lần chạy này VÀ re-read sau
+   * mutation đã xác nhận — cờ là kết quả đã xác nhận, không phải ý định.
+   */
   policyFixed: boolean;
-  /** Pattern `main` được thêm bởi lần chạy này. */
+  /** Pattern `main` được thêm bởi lần chạy này VÀ re-read đã thấy nó. */
   branchPolicyAdded: boolean;
   /**
    * Protection còn thiếu/sai SAU khi ensure — rỗng nghĩa là Environment đạt.
@@ -236,6 +239,7 @@ function ensureOne(
   let payload = getEnvironment(envPath, deps);
   if (payload !== null) report.exists = true;
   let policyCustom = false;
+  let policyMutated = false;
   if (payload === null) {
     if (mode === 'check') {
       report.violations.push(
@@ -249,7 +253,7 @@ function ensureOne(
     putEnvironment(envPath, deps);
     report.created = true;
     report.exists = true;
-    report.policyFixed = true;
+    policyMutated = true;
     // Đọc LẠI sau mutation — không tin response của PUT tự chứng minh state.
     payload = getEnvironment(envPath, deps);
   } else {
@@ -269,16 +273,17 @@ function ensureOne(
         );
       } else {
         putEnvironment(envPath, deps);
-        report.policyFixed = true;
+        policyMutated = true;
         payload = getEnvironment(envPath, deps);
       }
     }
   }
-  if (report.policyFixed) {
-    // Sau repair, đọc lại policy từ payload mới: PUT mà vẫn không custom là
-    // API không nhận mutation — báo thay vì giả định thành công. `payload`
-    // về mặt type vẫn nullable (getEnvironment) — optional chain cho state
-    // đọc không được là fail-closed về violation, không phải crash.
+  if (policyMutated) {
+    // Sau mutation, đọc lại policy từ payload mới: PUT mà vẫn không custom là
+    // API không nhận mutation — báo thay vì giả định thành công. `policyFixed`
+    // chỉ đặt TRUE khi re-read XÁC NHẬN state, không phải ngay sau khi PUT.
+    // `payload` về mặt type vẫn nullable (getEnvironment) — optional chain cho
+    // state đọc không được là fail-closed về violation, không phải crash.
     const repaired = payload?.deployment_branch_policy;
     policyCustom =
       typeof repaired === 'object' &&
@@ -290,6 +295,8 @@ function ensureOne(
         'deployment_branch_policy is still not custom after repair — the GitHub API did ' +
           'not accept the mutation (§6.13)',
       );
+    } else {
+      report.policyFixed = true;
     }
   }
 
@@ -298,9 +305,10 @@ function ensureOne(
     if (policies === null) {
       report.violations.push('branch policy list has an unreadable shape (§6.13)');
     } else {
+      let addedMain = false;
       if (!policies.names.includes('main') && mode === 'ensure') {
         addBranchPolicy(envPath, deps);
-        report.branchPolicyAdded = true;
+        addedMain = true;
       }
       // Đọc lại danh sách SAU mutations để violations phản ánh state cuối.
       const current = getBranchPolicyNames(envPath, deps);
@@ -312,6 +320,10 @@ function ensureOne(
             'deployment branch policy does not allow "main" — the staging lane deploys ' +
               'only from main after CI (§7.4)',
           );
+        } else if (addedMain) {
+          // Đặt TRUE chỉ khi POST đã chạy VÀ re-read thấy "main" — cờ báo kết
+          // quả đã xác nhận, không phải ý định mutation.
+          report.branchPolicyAdded = true;
         }
         const extras = current.names.filter((name) => name !== 'main');
         if (extras.length > 0) {
@@ -356,10 +368,12 @@ export function ensureStagingEnvironments(
 /**
  * `owner/name` hợp lệ: ĐÚNG HAI segment, mỗi segment chỉ chữ/số/_/./- — anchor
  * cả hai đầu nên path `a/b/c`, ký tự trắng hay trailing slash đều bị từ chối.
+ * Lookahead loại segment đúng bằng `.`/`..`: identifier này được ghép vào path
+ * API `repos/<repo>/...` nên `../evil` là path traversal chứ không phải tên.
  * (`\w` của JS luôn là ASCII nên hai segment này đủ chặn mọi ký tự ngoài.)
  */
 export function isValidRepoIdentifier(repo: string): boolean {
-  return /^[\w.-]+\/[\w.-]+$/u.test(repo);
+  return /^(?!\.\.?(?:\/|$))[\w.-]+\/(?!\.\.?(?:\/|$))[\w.-]+$/u.test(repo);
 }
 
 /**
