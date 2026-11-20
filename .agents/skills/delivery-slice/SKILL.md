@@ -243,7 +243,7 @@ disagree, the document wins.
   reconciliation or follow-up record.
 - The branch is rebased, CI is green and conversations are resolved before
   ready for review.
-- No Milestone, label or field was created as a side effect.
+- No Milestone or label was created as a side effect.
 
 ## Escalation
 
