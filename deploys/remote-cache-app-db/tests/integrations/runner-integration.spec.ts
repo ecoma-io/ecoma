@@ -143,16 +143,16 @@ describe(
           });
         });
 
-        // Poll exitCode trong cửa sổ ~3s thay sleep cứng 1.5s: cửa sổ dài chịu
-        // được CI chậm, exit sớm bất thường vẫn bắt được ngay (fix OCR #503).
-        // pg_advisory_lock block indefinitely nên exit trong cửa sổ là thất bại
-        // của chính bất đồng bị kiểm.
-        const blockedDeadline = Date.now() + 3_000;
-        while (Date.now() < blockedDeadline && child.exitCode === null) {
-          await new Promise((done) => {
-            setTimeout(done, 100);
-          });
-        }
+        // Promise.race giữa exit và timer 3s thay vòng poll 100ms: pg_advisory_lock
+        // block indefinitely nên exit trong cửa sổ là thất bại của chính bất đồng
+        // bộ đang kiểm; đủ 3s vẫn block là điều kiện mong muốn (fix OCR #503).
+        const outcome = await Promise.race([
+          exited.then(() => 'exited' as const),
+          new Promise<'blocked'>((done) => {
+            setTimeout(() => done('blocked'), 3_000);
+          }),
+        ]);
+        expect(outcome).toBe('blocked');
         expect(child.exitCode).toBeNull();
         expect(await historyRows(db.databaseUrl, 'remote_cache_app')).toBe(0);
 

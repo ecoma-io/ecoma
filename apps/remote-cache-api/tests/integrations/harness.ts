@@ -96,7 +96,9 @@ export function applyMigrations(databaseUrl: string): void {
       cwd: dbProjectRoot,
       env: { ...process.env, DATABASE_URL: databaseUrl },
       encoding: 'utf-8',
-      timeout: 120_000,
+      // Mặc định 300s: CI chậm (start container + apply toàn bộ journal) từng
+      // vượt 120s cũ; ECOMA_MIGRATION_TIMEOUT_MS cho lần chạy cần dài hơn nữa.
+      timeout: Number(process.env.ECOMA_MIGRATION_TIMEOUT_MS ?? 300_000),
     },
   );
   if (result.error !== undefined || result.status !== 0) {

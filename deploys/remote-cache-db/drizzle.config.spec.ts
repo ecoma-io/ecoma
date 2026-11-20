@@ -46,7 +46,7 @@ describe('drizzle.config DATABASE_URL guard', () => {
 
   it('fails fast for every other database-touching command as well', async () => {
     delete process.env.DATABASE_URL;
-    for (const command of ['pull', 'introspect', 'studio', 'up', 'drop', 'export']) {
+    for (const command of ['pull', 'introspect', 'studio', 'drop']) {
       await expect(loadConfig(command)).rejects.toThrow(
         `DATABASE_URL is required for "drizzle-kit ${command}"`,
       );
@@ -57,6 +57,9 @@ describe('drizzle.config DATABASE_URL guard', () => {
     delete process.env.DATABASE_URL;
     expect((await loadConfig('generate')).dbCredentials.url).toBe('');
     expect((await loadConfig('check')).dbCredentials.url).toBe('');
+    // `up`/`export` đo được là thuần file trên kit 0.31.11 — không URL vẫn load.
+    expect((await loadConfig('up')).dbCredentials.url).toBe('');
+    expect((await loadConfig('export')).dbCredentials.url).toBe('');
   });
 
   it('passes the configured URL through when a database-touching command has it', async () => {

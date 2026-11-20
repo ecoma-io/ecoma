@@ -23,25 +23,18 @@ import { defineConfig } from 'drizzle-kit';
  * ngay khi config được evaluate — thiếu/rỗng là throw với message tường minh
  * thay vì `?? ''` cho kit fail mờ ở bước kết nối khó đọc. Chỉ `generate` và
  * `check` là thuần file (offline) giữ nguyên hành vi cũ — đường CI
- * `db-generate`/`db-check` không secret vẫn chạy; mọi lệnh còn lại (kể cả
- * `up`/`drop`/`export` — xem ghi chú dưới) đều chạm database hoặc chưa chứng
- * minh được offline. Runner.mts (đường chính thức)
+ * `db-generate`/`db-check` không secret vẫn chạy; lệnh còn lại trong guard chỉ
+ * `drop` (xem ghi chú dưới). Runner.mts (đường chính thức)
  * đã validate DATABASE_URL trước khi spawn `drizzle-kit migrate` (§3a); guard
  * này là lớp trong cùng cho lệnh kit gọi tay.
  */
-// `up`/`drop` chạm database thật như migrate; `export` xếp vào đây fail-closed
-// (tài liệu kit chưa chốt nó thuần file ở phiên bản hiện hành — yêu cầu URL
-// chẳng bao giờ chặn đường CI vì không target nào gọi export có URL).
-const DATABASE_COMMANDS = new Set([
-  'migrate',
-  'push',
-  'pull',
-  'introspect',
-  'studio',
-  'up',
-  'drop',
-  'export',
-]);
+// Khác mirror `deploys/account-db/drizzle.config.ts` là có chủ đích: `up` và
+// `export` đo được là thuần file trên kit 0.31.11 (chạy không DATABASE_URL —
+// `up` chỉ nâng meta snapshot, `export` in SQL từ schema) nên KHÔNG nằm trong
+// guard; chỉ `drop` chưa chứng minh được offline (kit yêu cầu TTY tương tác)
+// nên xếp fail-closed. Đồng bộ mirror account-db là follow-up của project đó
+// (không sửa file ngoài PR này).
+const DATABASE_COMMANDS = new Set(['migrate', 'push', 'pull', 'introspect', 'studio', 'drop']);
 const kitCommand = process.argv[2];
 if (kitCommand !== undefined && DATABASE_COMMANDS.has(kitCommand) && !process.env.DATABASE_URL) {
   throw new Error(

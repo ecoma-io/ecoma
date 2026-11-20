@@ -90,6 +90,7 @@ import {
  * `REMOTE_CACHE_INTERNAL_PORT` — wrangler đổi port là healthcheck fail ngay (fail
  * qua vòng đời container, không qua assertion compile-time).
  */
+// PHẢI đồng bộ với dev.port của apps/remote-cache-api/wrangler.jsonc
 const REMOTE_CACHE_INTERNAL_PORT = 4207;
 
 /**

@@ -343,11 +343,23 @@ describe('roles and grants on db-remote-cache', () => {
     const files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
       .toSorted();
-    // Quét rỗng pass false-negative: thiếu assert này, một đường dẫn sai làm
-    // cả vòng for không chạy mà test vẫn xanh (fix OCR #503).
-    expect(files.length, 'authority migration files must be present for the scan').toBeGreaterThan(
-      0,
-    );
+    // Quét rỗng pass false-negative: pin tường minh tám file authority — thiếu
+    // file nào (rename ở authority, đường dẫn sai) là đỏ ngay đây, không để
+    // vòng quét FDW lặng lẽ bỏ sót (fix OCR #503).
+    for (const expected of [
+      '0001_control_plane.sql',
+      '0002_roles_and_grants.sql',
+      '0003_cache_entries.sql',
+      '0004_api_key_trusted_ci.sql',
+      '0005_quota_usage_audit.sql',
+      '0006_usage_counter_sync.sql',
+      '0007_tenant_classification_and_plan.sql',
+      '0008_portal_authorization.sql',
+    ]) {
+      expect(files, `authority migration ${expected} must exist for the FDW scan`).toContain(
+        expected,
+      );
+    }
     for (const file of files) {
       const sql = executableSql(readFileSync(resolve(migrationsDir, file), 'utf8'));
       expect({ file, sql }).not.toMatchObject({
