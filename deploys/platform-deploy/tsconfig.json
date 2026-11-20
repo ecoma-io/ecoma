@@ -26,7 +26,7 @@
   // các entry colocated (`local.ts`, `staging.ts`) và các module sở hữu của
   // platform (`platform-down` teardown volume, `platform-env` quản lý
   // `.env`/mật khẩu, `platform-status` đọc-trắng trạng thái, `staging-run`
-  // engine lane staging #368).
+  // engine lane staging #368, `staging-dns` suy record set staging #350).
   //
   // Output của `tsc --build` nằm ở `bin/deploys/platform-deploy/`. Pulumi không
   // dùng output này — runtime `nodejs` chạy thẳng `index.ts`.
@@ -66,6 +66,7 @@
     "staging.ts",
     "staging-run.ts",
     "staging-program.ts",
+    "staging-dns.ts",
     "platform-down.ts",
     "platform-env.ts",
     "platform-status.ts"
