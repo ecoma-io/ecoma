@@ -34,17 +34,20 @@ const REFUSAL_MESSAGE = (verb: string): string =>
   'teardown is a manual operator procedure (checklist runbook, issue #364), ' +
   'never an ad-hoc CLI verb.';
 
+// Toàn thân main nằm trong MỘT try: mọi throw bất ngờ (từ parse, chạy pulumi,
+// ghi evidence) vẫn ra message hợp đồng trên stderr + exit 1, không bao giờ
+// để Node in stack trace thay message cho operator.
 function main(argv: readonly string[]): number {
-  const parsed = parseStagingPhaseArg(argv);
-  if (parsed.kind === 'missing') {
-    console.error('[remote-cache-api-deploy] usage: npx tsx staging.ts <preview|up>');
-    return 1;
-  }
-  if (parsed.kind === 'refused') {
-    console.error(REFUSAL_MESSAGE(parsed.verb));
-    return 1;
-  }
   try {
+    const parsed = parseStagingPhaseArg(argv);
+    if (parsed.kind === 'missing') {
+      console.error('[remote-cache-api-deploy] usage: npx tsx staging.ts <preview|up>');
+      return 1;
+    }
+    if (parsed.kind === 'refused') {
+      console.error(REFUSAL_MESSAGE(parsed.verb));
+      return 1;
+    }
     const { record, recordPath } = runStagingPhase(parsed.phase, 'remote-cache-api-deploy');
     console.log(
       `[remote-cache-api-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
@@ -54,7 +57,7 @@ function main(argv: readonly string[]): number {
     return 0;
   } catch (error) {
     console.error(
-      `[remote-cache-api-deploy] staging ${parsed.phase} failed: ${error instanceof Error ? error.message : String(error)}`,
+      `[remote-cache-api-deploy] staging failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     return 1;
   }
