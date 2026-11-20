@@ -48,6 +48,15 @@ const DATABASE_PROJECTS = [
   'staff-access-db',
 ] as const;
 
+/**
+ * Provisioning lifecycle project (#349): chỉ có lane staging — KHÔNG có local
+ * lane (PostgreSQL local cho worktree thuộc lane local của `platform-deploy`,
+ * không nhân bản), không build image, không migration target. Cùng exemption
+ * marker `ecoma.deployment.status: "scaffold"` với job-only/database ở
+ * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
+ */
+const PROVISIONING_PROJECTS = ['staging-pg-host'] as const;
+
 function packageJson(project: string): Record<string, unknown> {
   return JSON.parse(
     readFileSync(join(ROOT_DIR, 'deploys', project, 'package.json'), 'utf8'),
@@ -92,7 +101,8 @@ describe('local lane colocated entry contract', () => {
     const laneProjects = allProjects.filter(
       (project) =>
         !(JOB_ONLY_PROJECTS as readonly string[]).includes(project) &&
-        !(DATABASE_PROJECTS as readonly string[]).includes(project),
+        !(DATABASE_PROJECTS as readonly string[]).includes(project) &&
+        !(PROVISIONING_PROJECTS as readonly string[]).includes(project),
     );
     expect(new Set(laneProjects)).toEqual(new Set(LANE_PROJECTS));
     for (const project of laneProjects) {
