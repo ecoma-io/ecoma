@@ -257,7 +257,7 @@ export function classifyPactBrokerApiDeployStack(
 export interface StagingRunEnv {
   /** URL backend R2 đã qua kiểm tra tổ hợp stack↔backend. */
   backendUrl: string;
-  /** Env ĐẦY ĐỦ cho subprocess Pulumi (đã set/cắt biến theo inventory). */
+  /** Env ĐẦY ĐỦ cho subprocess Pulumi (allowlist: khóa inventory + PATH/HOME). */
   env: NodeJS.ProcessEnv;
 }
 
@@ -306,15 +306,22 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
     slot: STAGING_SLOT,
     backendUrl,
   });
+  // Least privilege: env của subprocess Pulumi là ALLOWLIST tường minh — đúng
+  // các khóa inventory phía trên + PATH/HOME (pulumi/git cần để chạy); không
+  // passthrough toàn bộ process.env — credential khác trong môi trường operator
+  // không được rò sang metadata của subprocess. Hệ quả: file-passphrase variant
+  // (`PULUMI_CONFIG_PASSPHRASE_FILE`) không bao giờ lọt vào env này.
   const env: NodeJS.ProcessEnv = {
-    ...source,
+    PATH: source.PATH,
+    HOME: source.HOME,
+    [STAGING_STATE_URL_ENV_KEY]: source[STAGING_STATE_URL_ENV_KEY],
+    AWS_ACCESS_KEY_ID: source.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: source.AWS_SECRET_ACCESS_KEY,
+    CLOUDFLARE_API_TOKEN: source.CLOUDFLARE_API_TOKEN,
     PULUMI_BACKEND_URL: backendUrl,
     PULUMI_SKIP_UPDATE_CHECK: '1',
     PULUMI_CONFIG_PASSPHRASE: source.PULUMI_CONFIG_PASSPHRASE as string,
   };
-  // Cắt file-passphrase variant: env là nguồn passphrase duy nhất của lane
-  // staging (per-stack secret), để biến còn sót là CLI đổi thứ tự ưu tiên im lặng.
-  delete env.PULUMI_CONFIG_PASSPHRASE_FILE;
   return { backendUrl, env };
 }
 
@@ -483,19 +490,21 @@ export function backendBucket(backendUrl: string): string {
 
 /**
  * Chạy MỘT phase (`preview` hoặc `up`) trên stack staging của project, trả
- * record evidence. `--json` thay progress hiển thị: record phải mang diff đủ
- * nguyên vẹn, và trên stack này mỗi phase chạy trong vài giây khi resource
- * duy nhất là HyperdriveConfig. `pulumiRun` reuse: tự ghép `--stack <fullRef>`
- * và xử lý lỗi spawn/exit đúng cơ chế chung; `prepareStack` để false vì
- * `ensureStack` của local có `mkdir` file:// — stack staging được chuẩn bị bởi
- * `ensureStagingStack` ở trên.
+ * record evidence kèm env đã resolve (`runEnv`) — inventory credential chỉ
+ * chạy MỘT lần ở đây; entry (staging.ts) tái dùng `runEnv` cho mọi bước đọc
+ * sau phase thay vì resolve lại. `--json` thay progress hiển thị: record phải
+ * mang diff đủ nguyên vẹn, và trên stack này mỗi phase chạy trong vài giây khi
+ * resource duy nhất là HyperdriveConfig. `pulumiRun` reuse: tự ghép
+ * `--stack <fullRef>` và xử lý lỗi spawn/exit đúng cơ chế chung; `prepareStack`
+ * để false vì `ensureStack` của local có `mkdir` file:// — stack staging được
+ * chuẩn bị bởi `ensureStagingStack` ở trên.
  */
 export function runStagingPhase(
   phase: StagingPhase,
   project: string,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingExecDeps = defaultDeps,
-): { record: StagingProvisioningRecord; recordPath: string } {
+): { record: StagingProvisioningRecord; recordPath: string; runEnv: StagingRunEnv } {
   const projectDir = deployProjectDir(project);
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
   // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
@@ -531,6 +540,7 @@ export function runStagingPhase(
       finishedAt: '',
     },
     recordPath: '',
+    runEnv: { backendUrl, env } satisfies StagingRunEnv,
   };
   try {
     const stdout = pulumiRun(projectDir, project, phaseArgs, ctx, env) ?? '';

@@ -38,12 +38,7 @@
 
 import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
 
-import {
-  parseStagingPhaseArg,
-  readHyperdriveConfigId,
-  resolveStagingRunEnv,
-  runStagingPhase,
-} from './staging-run.js';
+import { parseStagingPhaseArg, readHyperdriveConfigId, runStagingPhase } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
   `[pact-broker-api-deploy] staging refused: "${verb}" is not a staging lifecycle phase — ` +
@@ -65,22 +60,21 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'pact-broker-api-deploy');
+    const { record, recordPath, runEnv } = runStagingPhase(parsed.phase, 'pact-broker-api-deploy');
     console.log(
       `[pact-broker-api-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[pact-broker-api-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
-      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
-      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
+      // Đọc output id bằng ĐÚNG env đã resolve MỘT lần trong `runStagingPhase`
+      // — inventory fail-closed chạy đúng một lần cho cả phase lẫn bước đọc.
       const projectDir = deployProjectDir('pact-broker-api-deploy');
-      const { backendUrl, env } = resolveStagingRunEnv();
       const selection = stagingDeploymentAdapter.stackSelection('pact-broker-api-deploy', {
         slot: 'staging',
-        backendUrl,
+        backendUrl: runEnv.backendUrl,
       });
-      const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
+      const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, runEnv.env);
       if (hyperdriveConfigId === undefined) {
         console.error(
           '[pact-broker-api-deploy] staging up OK but the hyperdrive config id could not be ' +

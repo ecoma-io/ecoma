@@ -24,10 +24,14 @@
  * `local-program.ts`; lane staging trả `{ hyperdriveConfigId }` của
  * `staging-program.ts` — nguồn định danh để wiring `env.staging.hyperdrive`
  * của `apps/pact-broker-api/wrangler.jsonc` (§9.1: id do Pulumi cung cấp,
- * Wrangler KHÔNG tạo config). Pulumi language host (`cmd/run/run.js`) lấy
- * **default export duy nhất** của entry làm kết quả program = stack outputs,
- * nên entry forward nguyên kết quả của lane được nạp qua `export default`.
- * Entry vì thế chỉ được phép có ĐÚNG MỘT export: `default`.
+ * Wrangler KHÔNG tạo config). Pulumi language host (`cmd/run/run.js`) unwrap
+ * **default export duy nhất** của entry làm kết quả program = stack outputs
+ * top-level, nên entry forward đúng surface đó — KHÔNG forward nguyên module
+ * namespace của lane (outputs sẽ lồng dưới khoá `default` và
+ * `pulumi stack output hyperdriveConfigId` không đọc được): lane staging có
+ * default riêng (`{ hyperdriveConfigId }`) thì forward default đó; lane local
+ * không có default thì namespace phẳng của các `export const` đã là surface.
+ * Entry vì thế vẫn chỉ được phép có ĐÚNG MỘT export: `default`.
  */
 
 import * as pulumi from '@pulumi/pulumi';
@@ -47,9 +51,13 @@ if (pactBrokerApiDeployStackLane === 'unknown') {
 }
 // Nạp thân theo lane — specifier `.js` resolvable qua ts-node/esm hooks như
 // mọi import nội bộ của package (`type: "module"`).
-const stagingProgramResult =
+const laneModule =
   pactBrokerApiDeployStackLane === 'staging'
     ? await import('./staging-program.js')
     : await import('./local-program.js');
 
-export default stagingProgramResult;
+// Language host lấy default export của entry làm stack outputs: forward đúng
+// surface phẳng — default của thân staging (`{ hyperdriveConfigId }`), hoặc
+// nguyên namespace khi thân không có default (lane local, các `export const`
+// phẳng). Forward nguyên namespace staging là lồng outputs dưới khoá `default`.
+export default 'default' in laneModule ? laneModule.default : laneModule;
