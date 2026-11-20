@@ -275,7 +275,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks-scan
         continue-on-error: true
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && steps.gitleaks-scope.outcome == 'success'
         env:
           SCAN_LOG_OPTS: ${{ steps.gitleaks-scope.outputs.log-opts }}
         run: |
@@ -339,7 +339,7 @@ jobs:
           echo 'gitleaks scan passed: no secrets detected in the scanned range.'
       - name: Upload the findings report
         id: gitleaks-upload
-        if: always()
+        if: always() && github.event_name != 'merge_group'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
