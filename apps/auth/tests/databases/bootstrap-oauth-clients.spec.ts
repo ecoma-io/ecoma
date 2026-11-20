@@ -31,7 +31,11 @@ import {
   parseBootstrapEnv,
   type BootstrapOAuthClientInput,
 } from '../../db/bootstrap-oauth-clients.mts';
-import { startAuthDatabase, type AuthDatabase } from '../integrations/harness.ts';
+import {
+  createThrowawayDatabase,
+  startAuthDatabase,
+  type AuthDatabase,
+} from '../integrations/harness.ts';
 
 const CLIENT_ID = 'ecoma-backoffice-staging';
 const CLIENT_NAME = 'Backoffice (staging)';
@@ -133,6 +137,30 @@ async function resetTables(db: AuthDatabase): Promise<void> {
     // riêng của spec này.
     await client.query('DELETE FROM auth.client_redirect_uris');
     await client.query('DELETE FROM auth.oauth_clients');
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Khôi phục đúng baseline schema của migration 0001 sau khi test đã tháo CHECK
+ * parity để dựng hàng lệch: xoá hàng lệch rồi dựng lại constraint **đã
+ * validate** (không NOT VALID — với bảng rỗng, validation luôn qua). Gọi trong
+ * `finally` để mọi nhánh thoát — gồm cả nhánh assert đỏ — đều để lại baseline
+ * thật, vì `resetTables` chỉ xoá hàng, không sửa được schema trôi.
+ */
+async function restoreSecretParityBaseline(db: AuthDatabase): Promise<void> {
+  const client = await migratorClient(db);
+  try {
+    await client.query('DELETE FROM auth.oauth_clients');
+    await client.query(
+      'ALTER TABLE auth.oauth_clients DROP CONSTRAINT IF EXISTS oauth_clients_secret_parity_check',
+    );
+    await client.query(
+      `ALTER TABLE auth.oauth_clients ADD CONSTRAINT oauth_clients_secret_parity_check
+       CHECK ((client_type = 'public' AND client_secret_hash IS NULL)
+              OR (client_type = 'confidential' AND client_secret_hash IS NOT NULL))`,
+    );
   } finally {
     await client.end();
   }
@@ -310,6 +338,7 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
     // một migration sau nới lỏng parity): bỏ CHECK, dựng hàng lệch, thêm lại
     // NOT VALID — các ghi tiếp theo vẫn bị ràng buộc như thường.
     const diverger = await migratorClient(db);
+    let bodyError: unknown;
     try {
       await diverger.query(
         'ALTER TABLE auth.oauth_clients DROP CONSTRAINT oauth_clients_secret_parity_check',
@@ -325,19 +354,40 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
                 OR (client_type = 'confidential' AND client_secret_hash IS NOT NULL))
          NOT VALID`,
       );
+
+      // Guard phải chặn trước khi một câu ghi nào chạy: không URI được thêm.
+      await expect(runBootstrapped(db, bootstrapInput())).rejects.toThrow(
+        /carries a client_secret_hash/u,
+      );
+      expect(await queryRedirectUris(db)).toEqual([]);
+      const rows = await queryClientRows(db);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.client_type).toBe('public');
+      expect(rows[0]?.client_secret_hash).toBe('deadbeef');
+    } catch (error) {
+      bodyError = error;
     } finally {
       await diverger.end();
     }
-
-    // Guard phải chặn trước khi một câu ghi nào chạy: không URI được thêm.
-    await expect(runBootstrapped(db, bootstrapInput())).rejects.toThrow(
-      /carries a client_secret_hash/u,
+    // Repair DUY NHẤT cho mọi nhánh thoát — cả nhánh assert đỏ: hàng lệch bị
+    // xoá, constraint dựng lại đã validate, suite sau test này luôn thấy
+    // baseline của 0001. Lỗi repair không được nuốt: nó làm hỏng baseline của
+    // mọi test sau, nên đứng trước lỗi thân test khi cả hai cùng hỏng.
+    // (Repair nằm ngoài `finally`: oxlint `no-unsafe-finally` cấm control flow
+    // trong finally — đúng đắn, vì throw ở đó sẽ ghi đè lỗi thân test.)
+    const repairError = await restoreSecretParityBaseline(db).then(
+      () => undefined,
+      (error: unknown) => error,
     );
-    expect(await queryRedirectUris(db)).toEqual([]);
-    const rows = await queryClientRows(db);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.client_type).toBe('public');
-    expect(rows[0]?.client_secret_hash).toBe('deadbeef');
+    if (repairError !== undefined) {
+      throw bodyError === undefined
+        ? repairError
+        : new AggregateError(
+            [bodyError, repairError],
+            'the test body failed and restoring the secret-parity baseline failed too',
+          );
+    }
+    if (bodyError !== undefined) throw bodyError;
   });
 
   it('rejects an invalid input shape without touching the database', async () => {
@@ -360,37 +410,26 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
   });
 
   it('rejects a connection string pointing at a different database (current_database guard)', async () => {
-    // Guard server-side: dùng một database vứt tạo bằng superuser thay vì mặc
-    // định `postgres` của image — assertion luôn chạm current_database(), không
-    // phụ thuộc image có sẵn database mặc định nào.
-    const probeDatabase = 'bootstrap_probe_not_auth';
-    const admin = new Client({
-      host: db.host,
-      port: db.port,
-      database: db.database,
-      user: db.superuserUser,
-      password: db.superuserPassword,
-      application_name: 'ecoma-auth-bootstrap-oauth-clients-itest-admin',
-    });
+    // Guard server-side: database probe do helper của harness tạo bằng
+    // superuser (credential nằm trong module harness, không lộ qua handle) —
+    // assertion luôn chạm current_database(), không phụ thuộc image có sẵn
+    // database mặc định nào; tên random suffix nên không va chạm giữa các lần
+    // chạy, và drop() là cleanup trung thực, không nuốt lỗi dọn.
+    const probe = await createThrowawayDatabase(db, 'bootstrap_probe');
     const wrongDb = new Client({
       host: db.host,
       port: db.port,
       user: db.migratorUser,
       password: db.migratorPassword,
-      database: probeDatabase,
+      database: probe.name,
       application_name: 'ecoma-auth-bootstrap-oauth-clients-itest-wrongdb',
     });
-    await admin.connect();
     try {
-      await admin.query(`CREATE DATABASE "${probeDatabase}"`);
       await wrongDb.connect();
       await expect(assertBootstrapDatabase(wrongDb)).rejects.toThrow(/only bootstraps db-auth/u);
     } finally {
-      // Ngắt kết nối probe trước khi DROP DATABASE (không cho phép kết nối
-      // còn sống); DROP nuốt lỗi để lỗi thật của assert không bị che.
-      await wrongDb.end();
-      await admin.query(`DROP DATABASE "${probeDatabase}"`).catch(() => undefined);
-      await admin.end();
+      await wrongDb.end().catch(() => undefined);
+      await probe.drop();
     }
 
     // Đối chiếu dương: đúng database thì guard qua và trả về tên.

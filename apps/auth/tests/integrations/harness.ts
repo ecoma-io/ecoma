@@ -17,6 +17,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
@@ -80,14 +81,68 @@ export interface AuthDatabase {
   readonly runtimePassword: string;
   readonly migratorUser: string;
   readonly migratorPassword: string;
-  /**
-   * Superuser của container test — dữ liệu thô như các trường trên, chỉ cho
-   * những suite phải dựng trạng thái ngoài runbook provision/migration (ví dụ
-   * `CREATE DATABASE` một database vứt để probe guard nhìn thấy database khác).
-   */
-  readonly superuserUser: string;
-  readonly superuserPassword: string;
   stop(): Promise<void>;
+}
+
+/** Một database vứt tạo bằng superuser — tên có random suffix, tự dọn bằng `drop()`. */
+export interface ThrowawayDatabase {
+  /** Tên database đã tạo — đưa thẳng vào connection string của client probe. */
+  readonly name: string;
+  /**
+   * Kết thúc mọi kết nối còn dang vào database rồi DROP nó. Lỗi DROP chỉ được
+   * nuốt đúng khi database không tồn tại (`3D000` — CREATE đã hỏng trước đó,
+   * không còn gì để dọn); lỗi khác — permission, khoá connection còn sống —
+   * được ném lại nguyên trạng: dọn hỏng là sự cố thật, không nuốt im lặng.
+   */
+  drop(): Promise<void>;
+}
+
+/**
+ * Tạo một database vứt bằng superuser cho những test cần một database **khác**
+ * `db-auth` — ví dụ probe guard `current_database()` mà không phụ thuộc image
+ * có database mặc định nào. Credential superuser ở trong module này (cùng
+ * pattern với harness của `auth-nonce-prune-job`: superuser không lộ trên
+ * handle), tên mang random suffix để hai lần chạy không va chạm tên cũ.
+ */
+export async function createThrowawayDatabase(
+  target: { host: string; port: number },
+  namePrefix: string,
+): Promise<ThrowawayDatabase> {
+  const { Client } = await import('pg');
+  const name = `${namePrefix}_${randomUUID()}`;
+  const admin = new Client({
+    host: target.host,
+    port: target.port,
+    database: AUTH_DATABASE,
+    user: SUPERUSER,
+    password: SUPERUSER_PASSWORD,
+    application_name: 'ecoma-auth-test-throwaway-db',
+  });
+  await admin.connect();
+  await admin.query(`CREATE DATABASE "${name}"`);
+  let dropped = false;
+  return {
+    name,
+    drop: async () => {
+      if (dropped) return;
+      dropped = true;
+      try {
+        // Ngắt mọi kết nối còn dang trước khi DROP — DROP DATABASE từ chối chạy
+        // khi còn connection sống, và terminate là cách xác định chứ không phải
+        // chờ ngẫu nhiên.
+        await admin.query(
+          `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+           WHERE datname = $1 AND pid <> pg_backend_pid()`,
+          [name],
+        );
+        await admin.query(`DROP DATABASE "${name}"`);
+      } catch (error) {
+        if ((error as { code?: string }).code !== '3D000') throw error;
+      } finally {
+        await admin.end();
+      }
+    },
+  };
 }
 
 /**
@@ -359,8 +414,6 @@ export async function startAuthDatabase(): Promise<AuthDatabase> {
       runtimePassword: ROLE_PASSWORD,
       migratorUser: 'ecoma_auth_migrator',
       migratorPassword: ROLE_PASSWORD,
-      superuserUser: SUPERUSER,
-      superuserPassword: SUPERUSER_PASSWORD,
       stop: async () => {
         await container.stop();
       },
