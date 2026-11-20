@@ -10,9 +10,11 @@ name: Staging deploy (reusable)
 # đúng thứ phải sửa, KHÔNG có lệnh nào chạy nửa vời.
 #
 # Caller duy nhất hiện tại: `.github/workflows/staging-home.yaml`. Trigger của
-# lane (workflow_run sau CI / dispatch trên main) thuộc caller; workflow này
-# chỉ nhận `ref` là full 40-hex SHA đã qua guard của caller — nó không tự suy
-# SHA từ event nào cả.
+# lane (workflow_run sau CI / dispatch trên main) thuộc caller. Vì MỌI caller
+# tương lai đều gọi được workflow này, nó TỰ guard `inputs.ref` trước khi
+# checkout (CodeQL actions/cache-poisoning): ref phải là commit 40-hex VÀ
+# reachable từ default branch — một caller tùy ý không thể đẩy revision rời
+# main vào job có quyền ghi status / secret Environment.
 
 on:
   workflow_call:
@@ -68,6 +70,31 @@ jobs:
     steps:
       - name: Start runner resource monitoring
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Guard trust TRƯỚC mọi checkout của `inputs.ref`: checkout default
+      # branch (ref tin cậy), xác minh ref là 40-hex và là ancestor của default
+      # branch — cùng doctrine với caller guard, nhưng nằm ở workflow để MỌI
+      # caller kế thừa. Không qua đủ guard là job đỏ trước khi code nào của
+      # ref được chạy hay cache nào được ghi.
+      - name: Check out the default branch for the trust guard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard the verified revision
+        env:
+          REF_SHA: ${{ inputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$REF_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::ref is not a full 40-hex commit SHA: \"$REF_SHA\" — the lane records evidence against the exact SHA only (§7.3)" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$REF_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::ref $REF_SHA is not reachable from origin/$DEFAULT_BRANCH — the lane deploys only revisions merged into the default branch, regardless of caller" >&2
+            exit 1
+          fi
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -133,6 +160,30 @@ jobs:
     steps:
       - name: Start runner resource monitoring
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Cùng trust guard với job build: job này MANG QUYỀN (statuses: write +
+      # secret Environment) nên guard phải chạy trước checkout `inputs.ref` và
+      # trước setup-node-pnpm (setup-node ghi pnpm cache ở cuối job — bước có
+      # khả năng poison-cache chỉ được với tới sau khi ref đã verify).
+      - name: Check out the default branch for the trust guard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard the verified revision
+        env:
+          REF_SHA: ${{ inputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$REF_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::ref is not a full 40-hex commit SHA: \"$REF_SHA\" — the lane records evidence against the exact SHA only (§7.3)" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$REF_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::ref $REF_SHA is not reachable from origin/$DEFAULT_BRANCH — the lane deploys only revisions merged into the default branch, regardless of caller" >&2
+            exit 1
+          fi
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
