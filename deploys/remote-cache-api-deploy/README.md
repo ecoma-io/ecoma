@@ -23,7 +23,7 @@ Trên stack `staging`, entry guard `index.ts` nạp `staging-program.ts` khai đ
 
 ### Config và credential bắt buộc (fail-closed)
 
-Bốn khóa env được engine `staging-run.ts` kiểm fail-closed TRƯỚC khi Pulumi chạy (danh sách ĐẦY ĐỦ khóa thiếu, không fallback); hai khóa stack config được thân chương trình kiểm tại lúc preview:
+Bốn khóa env được engine `staging-run.ts` kiểm fail-closed TRƯỚC khi Pulumi chạy (danh sách ĐẦY ĐỦ khóa thiếu, không fallback); ba khóa stack config được thân chương trình kiểm tại lúc preview:
 
 | Mục                                                                          | Kênh          | Cách đặt                                                                                                                                                       |
 | ---------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
