@@ -451,4 +451,20 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
     // cũng không được bọc thành stuck-state.
     expect(harness.submitClicks).toHaveLength(1);
   });
+
+  it('rethrows the raw timeout when only login-request-failed is shown — no completion evidence, no swallow', async () => {
+    // OCR thread #4646321765: `login-request-failed` một mình chỉ chứng tỏ POST
+    // CHƯA có response (chết tầng mạng thật ở lượt verify đầu) — `login/index.vue`
+    // render nó cả khi fetch ném lẫn khi request chết; nuốt timeout khi đó là che
+    // lỗi mạng thật. Chỉ `login-code-invalid` là bằng chứng POST hoàn tất bằng
+    // 400 (trang render nó ở mọi reason 400).
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing'],
+      requestFailedVisible: true,
+      roundTripHangs: true,
+    });
+    await expect(harness.run()).rejects.toThrow('Timeout 15000ms exceeded');
+    expect(harness.resendClicks).toHaveLength(0);
+    expect(harness.submitClicks).toHaveLength(1);
+  });
 });

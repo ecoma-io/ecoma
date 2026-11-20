@@ -17,13 +17,16 @@ export const MAX_RECOVERY_PER_TYPE = 1;
 export const MAX_VERIFY_ATTEMPTS = 1 + 2 * MAX_RECOVERY_PER_TYPE;
 
 /**
- * Số lượt resend TỐI ĐA của nhánh `login-code-invalid` — một resend THÀNH CÔNG
- * (challenge mới + mail mới) cộng các lượt bị cooldown chặn im lặng. Product
- * chặn resend trong 60s kể từ challenge gần nhất (`OTP_RESEND_COOLDOWN_SECONDS`,
+ * Số vòng chờ resend TỐI ĐA của nhánh `login-code-invalid` — mỗi vòng là một
+ * resend + một gap đợi. Tổng số lần bấm `login-resend` là
+ * `MAX_RESEND_ATTEMPTS + 1` (lượt cuối force-return sau khi cạn ngân sách chờ).
+ * Worst-case thời gian chờ: `MAX_RESEND_ATTEMPTS × RESEND_RETRY_GAP_MS` = 60s —
+ * đúng trần cooldown resend của product. Product chặn resend trong 60s kể từ
+ * challenge gần nhất (`OTP_RESEND_COOLDOWN_SECONDS`,
  * `apps/account/server/lib/otp.ts` — chặn về 204, không mail mới, không tiêu
- * rate limit); 6 lượt với gap 10s cầu được trần 60s đó từ mọi thời điểm nhập
- * nhánh. Challenge THẬT được cấp tối đa 2 (lượt đầu + resend khi cooldown đã
- * hết) — ≤ `OTP_RATE_LIMIT_SHORT_MAX` = 3/15 phút; các lượt bị chặn không đếm.
+ * rate limit); 6 gap × 10s cầu được trần đó từ mọi thời điểm nhập nhánh.
+ * Challenge THẬT được cấp tối đa 2 (lượt đầu + resend khi cooldown đã hết) —
+ * ≤ `OTP_RATE_LIMIT_SHORT_MAX` = 3/15 phút; các lượt bị chặn không đếm.
  */
 export const MAX_RESEND_ATTEMPTS = 6;
 
@@ -183,22 +186,21 @@ export async function waitForContinueTargetAfterOtpVerify(
 ): Promise<void> {
   const { continueTarget, retryButton, requestFailed, describeStuckState } = params;
   const codeInvalid = page.getByTestId('login-code-invalid');
-  /** isVisible không ném khi element biến mất giữa chờ — trả `false`. */
-  const errorRendered = async (): Promise<boolean> =>
-    (await isVisibleSafe(codeInvalid)) || (await isVisibleSafe(requestFailed));
-  // Chờ vòng đời submit kết thúc sau mỗi lần bấm `login-code-submit` lại:
+  // Chờ vòng lifecycle submit kết thúc sau mỗi lần bấm `login-code-submit` lại:
   // form mã rời DOM khi navigation bắt đầu — không có bước này, lặp kế tiếp có
   // thể đọc DOM cũ của POST trước trong khi POST mới còn đang xử lý. Ba lối ra:
   // (1) form ẩn — navigation bắt đầu, round-trip xong; (2) lỗi race điều hướng
   // được nuốt (context bị navigation phá giữa chừng — vô hại, lặp kế tiếp vẫn
-  // chờ trên element mới); (3) timeout NHƯNG thẻ lỗi đang render — POST đã
-  // hoàn tất bằng 400 (`no_active_challenge`/`code_mismatch` — run 44784071601,
-  // PR #549: verify đầu chết -1 sau khi server consume challenge, re-click của
-  // nhánh 4 nhận 400 và trang chủ động GIỮ form kèm `login-code-invalid`,
-  // KHÔNG có navigation nào để ẩn form) — nuốt để vòng lặp phân loại (branch
-  // resend / throw stuck-state), không phải chết bằng TimeoutError trước khi
-  // recovery kịp chạy. Không thẻ lỗi nào ⇒ POST chưa hoàn tất — timeout là lỗi
-  // thật, rethrow.
+  // chờ trên element mới); (3) timeout NHƯNG `login-code-invalid` đang render —
+  // dấu hiệu DUY NHẤT tin cậy rằng POST đã hoàn tất bằng 400 và trang chủ động
+  // GIỮ form (`no_active_challenge`/`code_mismatch` — run 44784071601, PR #549:
+  // verify đầu chết -1 sau khi server consume challenge, re-click của nhánh 4
+  // nhận 400, trang giữ form kèm `login-code-invalid`, KHÔNG có navigation nào
+  // để ẩn form) — nuốt để vòng lặp phân loại (nhánh resend / throw stuck-state),
+  // không phải chết bằng TimeoutError trước khi recovery kịp chạy.
+  // `login-request-failed` MỘT MÌNH KHÔNG đủ làm dấu hiệu hoàn tất: nó render cả
+  // khi POST chưa nhận response (chết tầng mạng thật) — nuốt timeout khi đó là
+  // che lỗi mạng thật, nên phải rethrow.
   const codeForm = page.getByTestId('login-code-form');
   // Số race điều hướng đã nuốt ở round-trip — không tự throw nhưng KHÔNG được
   // ẩn: cạn ngân sách mà counter > 0 nghĩa là navigation phá submit lặp lại,
@@ -210,7 +212,10 @@ export async function waitForContinueTargetAfterOtpVerify(
         swallowedRoundTripRaces += 1;
         return;
       }
-      if (await errorRendered()) {
+      // Chỉ `login-code-invalid` là bằng chứng POST đã hoàn tất (400 luôn render
+      // nó — `login/index.vue`); `login-request-failed` một mình là trạng thái
+      // "POST chưa có response" — timeout khi đó là lỗi mạng thật, rethrow.
+      if (await isVisibleSafe(codeInvalid)) {
         return;
       }
       throw error;
@@ -231,6 +236,8 @@ export async function waitForContinueTargetAfterOtpVerify(
       if (otp !== params.submittedOtp || resendAttempt >= MAX_RESEND_ATTEMPTS) {
         return otp;
       }
+      // Worst-case tổng chờ: MAX_RESEND_ATTEMPTS × RESEND_RETRY_GAP_MS = 60s —
+      // đúng trần cooldown resend của product (xem JSDoc của MAX_RESEND_ATTEMPTS).
       await page.waitForTimeout(RESEND_RETRY_GAP_MS);
     }
   };
