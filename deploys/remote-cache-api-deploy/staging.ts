@@ -13,11 +13,21 @@
  * Mỗi lần chạy ghi MỘT bản ghi evidence JSON mới vào `.staging-evidence/`
  * của project (ngoài Git, `.gitignore`) — hợp đồng provenance §7.3: stack,
  * revision, resource changes, outcome, timestamp. Stack khai R2 bucket object
- * storage thật từ slice #350 (`staging-program.ts`; tên bucket là đề xuất
- * chờ duyệt trong PR) — một lần chạy hiện vẫn dừng TRƯỚC Pulumi khi thiếu
- * prerequisite vận hành (bootstrap backend state + credential, inventory
- * fail-closed của `staging-run.ts`); khi đã đủ điều kiện, evidence ghi kèm
- * resource changes của bucket.
+ * storage (`staging-program.ts`, #514) và HyperdriveConfig của `db-remote-cache`
+ * (scope #350, pattern pilot #539; origin đọc từ stack config và fail-closed
+ * khi chưa có — đường tới origin private là Tunnel/VPC Service của #349) —
+ * một lần chạy hiện vẫn dừng TRƯỚC Pulumi khi thiếu prerequisite vận hành
+ * (bootstrap backend state + credential, inventory fail-closed của
+ * `staging-run.ts`); khi đã đủ điều kiện, evidence ghi kèm resource changes.
+ *
+ * Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` — nguồn
+ * định danh để wiring `env.staging.hyperdrive` của
+ * `apps/remote-cache-api/wrangler.jsonc` (§9.1: id do Pulumi cung cấp,
+ * Wrangler không tạo config; guard `resource-bindings` chặn placeholder). Id
+ * đọc được là surface KẾT QUẢ cho operator fill vào wrangler.jsonc — entry
+ * không tự sửa file đó: wrangler config là tài sản review-able trong Git,
+ * không phải ghi-deploy-time. Id không đọc được (lỗi/placeholder) → cảnh báo,
+ * KHÔNG biến một lần provision thành công thành thất bại.
  *
  * Credential fail-closed (xem `resolveStagingRunEnv`): thiếu bất kỳ khóa
  * environment bắt buộc nào là từ chối TRƯỚC KHI đụng Pulumi — đặc biệt
@@ -28,7 +38,14 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { runStagingPhase, parseStagingPhaseArg } from './staging-run.js';
+import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
+
+import {
+  parseStagingPhaseArg,
+  readHyperdriveConfigId,
+  resolveStagingRunEnv,
+  runStagingPhase,
+} from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
   `[remote-cache-api-deploy] staging refused: "${verb}" is not a staging lifecycle phase — ` +
@@ -56,6 +73,31 @@ function main(argv: readonly string[]): number {
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[remote-cache-api-deploy] evidence record: ${recordPath}`);
+    if (parsed.phase === 'up') {
+      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
+      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
+      const projectDir = deployProjectDir('remote-cache-api-deploy');
+      const { backendUrl, env } = resolveStagingRunEnv();
+      const selection = stagingDeploymentAdapter.stackSelection('remote-cache-api-deploy', {
+        slot: 'staging',
+        backendUrl,
+      });
+      const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
+      if (hyperdriveConfigId === undefined) {
+        console.error(
+          '[remote-cache-api-deploy] staging up OK but the hyperdrive config id could not be read from ' +
+            'stack output `hyperdriveConfigId` (missing, unreadable, or placeholder-shaped) — ' +
+            'do NOT fill a guessed id into apps/remote-cache-api/wrangler.jsonc; inspect the stack and ' +
+            're-read `pulumi stack output hyperdriveConfigId` manually',
+        );
+      } else {
+        console.log(
+          `[remote-cache-api-deploy] hyperdrive config id: ${hyperdriveConfigId} — wiring step: fill it as ` +
+            '`env.staging.hyperdrive[0].id` (binding DB_REMOTE_CACHE) in apps/remote-cache-api/wrangler.jsonc; ' +
+            'never a placeholder (review guard refuses all-zeros/empty ids) (#350)',
+        );
+      }
+    }
     return 0;
   } catch (error) {
     console.error(

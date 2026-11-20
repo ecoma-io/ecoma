@@ -88,7 +88,7 @@
         ]
       },
       "staging-preview": {
-        "//": "Lane staging #350 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (port của pattern đã merge #453). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Chương trình trên stack staging khai R2 bucket object storage của remote-cache (#350, `staging-program.ts`); tên bucket `ecoma-remote-cache-staging` là ĐỀ XUẤT chờ duyệt trong PR của slice. Chạy thật còn chặn prerequisite vận hành: bootstrap backend state (một lần ngoài mọi stack) + token Cloudflare + R2 token bucket-scoped + passphrase per-stack. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
+        "//": "Lane staging #350 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (pattern copy #453; tổng quát hoá là follow-up #543). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Chương trình trên stack staging khai R2 bucket object storage của remote-cache (#350/#514, `staging-program.ts`) và HyperdriveConfig của `db-remote-cache` (pattern pilot #539, query cache OFF theo contract của app); origin đọc từ stack config và FAIL CLOSED khi chưa có — đường tới origin private là Tunnel/VPC Service của #349. Chạy thật còn chặn prerequisite vận hành: bootstrap backend state (một lần ngoài mọi stack) + token Cloudflare + R2 token bucket-scoped + passphrase per-stack. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -99,7 +99,7 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh.",
+        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` và surface id thật để wiring `env.staging.hyperdrive` của `apps/remote-cache-api/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
