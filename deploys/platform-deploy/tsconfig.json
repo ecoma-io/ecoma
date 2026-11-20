@@ -38,7 +38,10 @@
     "outDir": "bin",
     "rootDir": "../..",
     "target": "es2020",
-    "lib": ["es2022"],
+    // lib es2023: rule lint unicorn/no-array-sort bắt buộc `toSorted()` (ES2023)
+    // trong khi base ghim es2022 — project không extends base nên khai lại ở
+    // đây; target vẫn es2020 nên emit không đổi.
+    "lib": ["es2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "sourceMap": true,
