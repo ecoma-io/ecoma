@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
@@ -34,6 +34,7 @@ import {
   resolveStagingRunEnv,
   type StagingExecDeps,
   type StagingProvisioningRecord,
+  stagingHyperdriveWiringExit,
 } from './staging-run.js';
 
 const cleanup: string[] = [];
@@ -413,6 +414,23 @@ describe('resolveStagingHyperdriveOrigin', () => {
     ).toThrow(/namespace:originHost/su);
   });
 
+  it('an empty or whitespace-only password counts as missing, mirroring the host check', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '   ',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+  });
+
   it('defaults a missing port to 5432 and keeps the per-database identity constants', () => {
     const origin = resolveStagingHyperdriveOrigin({
       originHost: 'db-remote-cache-staging.ecoma.internal',
@@ -509,6 +527,45 @@ describe('readHyperdriveConfigId', () => {
   it('a malformed output yields undefined instead of a fabricated id', () => {
     const { deps } = recordingExec([execResult({ stdout: 'junk' })]);
     expect(readHyperdriveConfigId('/tmp/pd', selection, {}, deps)).toBeUndefined();
+  });
+});
+
+describe('stagingHyperdriveWiringExit', () => {
+  const selection = {
+    environment: 'staging' as const,
+    stackName: 'staging',
+    fullStackRef: 'organization/remote-cache-api-deploy/staging',
+    backendUrl: R2_BACKEND_URL,
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns 0 and prints the wiring guidance when the stack output carries a real id', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { deps } = recordingExec([
+      execResult({ stdout: '0af52597-051b-4cba-90c9-e0f6ff6cd5d5\n' }),
+    ]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(0);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('hyperdrive config id'));
+  });
+
+  it('fails loud with a non-zero exit naming the missing target id and the blocked wiring step', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { deps } = recordingExec([execResult({ stdout: `${HYPERDRIVE_PLACEHOLDER_ID}\n` })]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('hyperdriveConfigId'));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('env.staging.hyperdrive[0].id'));
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('also fails loud when the stack output read fails outright', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { deps } = recordingExec([execResult({ status: 1 })]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('hyperdriveConfigId'));
   });
 });
 
