@@ -4,8 +4,8 @@
 
 ## Migration
 
-- Thư mục: `apps/pact-broker-api/db/migrations/*.sql` — thứ tự tên file, idempotent (apply lại là no-op), **không down-migration**, mọi file bọc `BEGIN`/`COMMIT` (`migration-transaction-wrap-required`).
-- Chạy: `pnpm nx run pact-broker-api:db:migrate` với `DATABASE_URL` của role `ecoma_pact_broker_migrator` từ CI secret store. Runner lấy `pg_advisory_lock(hashtext('db-pact-broker'))` — cùng một đường code `applyAllMigrations` cho CLI và integration test (một đường apply duy nhất, pattern `apps/account/db/apply.mts`).
+- Thư mục authority: `deploys/pact-broker-db/migrations/*.sql` + journal `meta/_journal.json` (Drizzle Kit, cutover #378; `apps/pact-broker-api/db/migrations/` cũ đã chuyển vào, `apply.mts`/`migrate.mts` đã retire). Migration `db-pact-broker-app` của BFF nằm ở `deploys/pact-broker-app-db/`.
+- Chạy: `pnpm nx run pact-broker-db:db-migrate` (resp. `pact-broker-app-db:db-migrate`) với `DATABASE_URL` của role `ecoma_pact_broker_migrator` (resp. `ecoma_pact_broker_app_migrator`) từ CI secret store. Runner `deploys/pact-broker-db/runner.mts` lấy advisory lock `hashtext('db-pact-broker')` (đo thật, ghim hằng), guard `current_database()`, chạy `drizzle-kit migrate`, rồi post-verify history; cùng một đường code cho lane local và integration test (một đường apply duy nhất).
 - Role: ba tầng như mọi service — `ecoma_owner` (hạ tầng, không chạy trong Worker), `ecoma_pact_broker_migrator` (chỉ CI secret), `ecoma_pact_broker_runtime` (Worker secret, chỉ DML schema `pact`).
 - Provisioning step 1 (admin/owner, ngoài migration): `CREATE DATABASE db-pact-broker`, `GRANT CREATE` database cho migrator, `REVOKE CONNECT` chéo giữa `db-pact-broker` và các database khác cho runtime role. Migration chỉ **assert** kết quả provisioning, không tự revoke database khác.
 - Hyperdrive binding của Worker là placeholder cho tới khi provisioning thật — Worker fail-closed khi thiếu binding, đúng pattern `db-account`/`db-auth`.

@@ -15,19 +15,20 @@
  * đó áp mọi migration ngay từ đầu, và sau `0004` chính schema chặn hàng chưa
  * phân loại, nên không thể dựng trạng thái pre-0004 ở đó. Vì vậy mỗi test tự
  * chạy một PostgreSQL dùng một lần rồi vứt (cùng chi phí với test "reports
- * zero applied" của `migrations.spec.ts`), áp `0001`–`0003` bằng các helper
- * thứ tự/render của chính runner, chèn các hàng legacy, rồi áp `0004` — file
- * đang xét — theo cách runner thật thực thi một file (một câu query render
- * cho mỗi file). Replay full-runner trên mọi file vẫn do `migrations.spec.ts`
- * đảm nhận.
+ * zero applied" của `migrations.spec.ts`), áp `0001`–`0003` từ file SQL của
+ * authority `deploys/pact-broker-db` (cutover #378) theo thứ tự tên file,
+ * chèn các hàng legacy, rồi áp `0004` — file đang xét — từng file một. Replay
+ * full-runner trên mọi file vẫn do `migrations.spec.ts` đảm nhận.
  *
  * ⚠️ Suite cần Docker: probe hỏng làm cả run đỏ (fail-loud, 06-testing.md §6)
  * — skip với exit 0 không phải kết quả được chấp nhận.
  */
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { listMigrations, renderMigration } from '../../db/migrate.mts';
 import { POSTGRES_IMAGE } from '../integrations/harness';
 
 const SUPERUSER = 'ecoma_test_superuser';
@@ -37,11 +38,41 @@ const MIGRATOR_PASSWORD = 'ecoma_test_role_pw';
 const RUNTIME_ROLE = 'ecoma_pact_broker_runtime';
 const DATABASE_NAME = 'db-pact-broker';
 
-const PRE_0004_MIGRATIONS = listMigrations().filter((migration) => migration.name < '0004_');
-const MIGRATION_0004 = listMigrations().find((migration) => migration.name.startsWith('0004_'));
+/**
+ * Nguồn SQL duy nhất của migration là authority `deploys/pact-broker-db`
+ * (cutover #378). Test đọc file theo slug cuối của tag journal — idx có thể
+ * đổi khi move-in/generate lại, slug là định danh ổn định của nội dung.
+ */
+const DB_MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../../deploys/pact-broker-db/migrations',
+);
 
-if (MIGRATION_0004 === undefined) {
-  throw new Error('migration 0004 not found in db/migrations');
+function readMigrationBySlug(slug: string): { name: string; sql: string } {
+  const file = readdirSync(DB_MIGRATIONS_DIR).find((entry) => entry.endsWith(`_${slug}.sql`));
+  if (file === undefined) {
+    throw new Error(`migration file not found in ${DB_MIGRATIONS_DIR}: *_${slug}.sql`);
+  }
+  return { name: file, sql: readFileSync(resolve(DB_MIGRATIONS_DIR, file), 'utf8') };
+}
+
+const PRE_0004_MIGRATIONS = [
+  'tenant_and_pact_domain',
+  'entitlement_sync_state',
+  'tenant_members_entitlement_provenance',
+].map(readMigrationBySlug);
+// "Migration đang xét" của suite existing-data: file `0003_tenant_classification_and_plan.sql`
+// — entry số 4 của journal (tên file prefix 0003, không phải 0004).
+const MIGRATION_UNDER_TEST = readMigrationBySlug('tenant_classification_and_plan');
+
+const ALL_KNOWN_MIGRATIONS = [...PRE_0004_MIGRATIONS, MIGRATION_UNDER_TEST];
+
+function findMigrationByName(name: string): { name: string; sql: string } {
+  const migration = ALL_KNOWN_MIGRATIONS.find((entry) => entry.name === name);
+  if (migration === undefined) {
+    throw new Error(`migration file not found: ${name}`);
+  }
+  return migration;
 }
 
 interface LegacyDatabase {
@@ -101,16 +132,13 @@ async function startLegacyDatabase(): Promise<LegacyDatabase> {
 
     const migrator = await connectAs(MIGRATOR_ROLE, MIGRATOR_PASSWORD);
     for (const migration of PRE_0004_MIGRATIONS) {
-      await migrator.query(renderMigration(migration.sql));
+      await migrator.query(migration.sql);
     }
 
     return {
       applyMigrationFile: async (name: string) => {
-        const migration = listMigrations().find((entry) => entry.name === name);
-        if (migration === undefined) {
-          throw new Error(`migration file not found: ${name}`);
-        }
-        await migrator.query(renderMigration(migration.sql));
+        const migration = findMigrationByName(name);
+        await migrator.query(migration.sql);
       },
       connect: () => connectAs(SUPERUSER, SUPERUSER_PASSWORD),
       stop: async () => {
@@ -210,7 +238,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       try {
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
 
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         const tenants = await queryAllTenants(db);
         expect(tenants).toHaveLength(1);
@@ -223,7 +251,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         });
 
         // Replay (runner thật chạy lại mọi file): idempotent, không đổi.
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
         expect(await queryAllTenants(db)).toEqual(tenants);
         expect(await queryTenantClassification(db, 'ecoma')).toEqual({
           classification: 'first_party',
@@ -246,7 +274,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         // Tên 'ecoma' thôi không phải bằng chứng nguồn gốc first_party:
         // chuyển đổi chỉ gate trên tên legacy 'ecoma-internal', nên hàng này
         // vẫn NULL và guard fail-closed chặn migration, nêu tên hàng.
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
           /migration 0004.*ecoma.*local-down.*local-up/su,
         );
 
@@ -271,7 +299,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       try {
         await insertLegacyTenant(db, 'local', 'sub-owner-local');
 
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
           /migration 0004.*local.*local-down.*local-up/su,
         );
 
@@ -296,7 +324,9 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         await insertLegacyTenant(db, 'ecoma', 'sub-owner-canonical');
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
 
-        await expect(db.applyMigrationFile(MIGRATION_0004.name)).rejects.toThrow(/ambiguous/u);
+        await expect(db.applyMigrationFile(MIGRATION_UNDER_TEST.name)).rejects.toThrow(
+          /ambiguous/u,
+        );
 
         // Không đổi tên gì, không phân loại gì: transaction đã rollback.
         expect(await classificationColumnExists(db)).toBe(false);
@@ -317,7 +347,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
       const db = await startLegacyDatabase();
       try {
         await insertLegacyTenant(db, 'ecoma-internal', 'sub-owner-legacy');
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         // Hàng customer hợp lệ sinh SAU `0004`: classification và plan được
         // writer customer ghi tường minh theo schema mới.
@@ -344,7 +374,7 @@ describe(`${DATABASE_NAME} migration 0004 over pre-0004 data`, () => {
         // Replay (runner thật chạy lại mọi file) khi dữ liệu customer đã tồn
         // tại: không đường nào dựa trên tên được bắn lại — classification,
         // plan, name và owner của cả hai hàng bất đổi.
-        await db.applyMigrationFile(MIGRATION_0004.name);
+        await db.applyMigrationFile(MIGRATION_UNDER_TEST.name);
 
         expect(await queryAllTenants(db)).toEqual(tenantsBefore);
         expect(await queryTenantClassification(db, 'ecoma')).toEqual({

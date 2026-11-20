@@ -38,6 +38,7 @@ const JOB_ONLY_PROJECTS = [
  */
 const DATABASE_PROJECTS = [
   'pact-broker-app-db',
+  'pact-broker-db',
   'llm-gateway-db',
   'llm-tenant-db',
   'llm-marketplace-db',
