@@ -275,6 +275,40 @@ describe('putWorkerSecret', () => {
     ).toThrowError(/Cloudflare API/u);
   });
 
+  it('redacts the secret value if third-party error output echoes it', () => {
+    // stderr là text third-party (wrangler/Cloudflare) — nếu giá trị stdin bị
+    // echo vào error text, giá trị gốc không được lọt ra log.
+    const deps: WorkerSecretDeps = {
+      readTextFile: () => SAMPLE_CONFIG,
+      execFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: '[ERROR] Cloudflare API rejected value s3cr3t-t0ken for secret',
+      }),
+    };
+    // Capture để các expect chạy vô điều kiện sau try/catch (vitest
+    // no-conditional-expect) — nếu hàm không throw, `thrown` giữ undefined
+    // và các expect dưới đây đỏ.
+    let thrown: unknown;
+    try {
+      putWorkerSecret(
+        'put',
+        'AXIOM_TOKEN',
+        'apps/home/wrangler.jsonc',
+        's3cr3t-t0ken\n',
+        envSource,
+        deps,
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    // Message phải còn chẩn đoán Cloudflare, đã redact giá trị gốc.
+    expect((thrown as Error).message).toContain('Cloudflare API');
+    expect((thrown as Error).message).not.toContain('s3cr3t-t0ken');
+    expect((thrown as Error).message).toContain('[redacted]');
+  });
+
   it('names the config path when the config file cannot be read', () => {
     const deps: WorkerSecretDeps = {
       readTextFile: () => {

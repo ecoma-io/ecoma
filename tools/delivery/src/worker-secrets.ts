@@ -262,13 +262,19 @@ export function putWorkerSecret(
     input: trimTrailingNewline(value),
   });
   if (result.status !== 0) {
-    const reason =
+    const rawReason =
       result.error?.message ??
       (result.signal !== undefined && result.signal !== null
         ? `killed by signal ${result.signal}`
         : result.stderr.trim() === ''
           ? 'no output'
           : result.stderr.trim());
+    // Lớp redaction rẻ: stderr là text third-party (wrangler/Cloudflare API) —
+    // nếu một version sau echo giá trị stdin vào error text thì giá trị gốc
+    // không được phép lọt ra log. Chuỗi rỗng/whitespace bị bỏ qua để replaceAll
+    // không biến mọi ký tự thành marker.
+    const trimmed = value.trim();
+    const reason = trimmed === '' ? rawReason : rawReason.replaceAll(trimmed, '[redacted]');
     throw new Error(`wrangler ${action} ${secretName} on ${worker} failed: ${reason}`);
   }
   return { worker, args };
