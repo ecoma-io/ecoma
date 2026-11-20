@@ -26,6 +26,20 @@ thật chưa chạy).
   `ECOMA_CLOUDFLARE_API_TOKEN` (§6.12) — thiếu là từ chối trước khi wrangler
   chạy; token chỉ tồn tại trong env của subprocess, không bao giờ qua argv.
 
+## Responsibilities
+
+- Sở hữu điểm vào Nx + docs cho lane: target `staging-vpc-service-create`
+  (một lần tạo VPC service, đối số operator append sau `--`) và README này.
+- Thực thi lane nằm ở `@ecoma-io/delivery`: module
+  `tools/delivery/src/staging-connectivity.ts` (guard fail-closed, parse
+  `service_id`) và surface CLI `tools/delivery/src/cli.ts vpc-service create`
+  — project này KHÔNG chứa TS source, chỉ invoke CLI qua target.
+- Đảm bảo output contract: stdout dòng `service_id=<uuid>` cho wiring
+  Hyperdrive #350; không khai tay `service_id` vào `wrangler.jsonc`.
+- Áp dụng ranh giới credential: token control-plane duy nhất §6.12 qua
+  `resolveSecretRunEnv`, identity `stg-` qua `classifyWorkerName` — tái sử
+  dụng đúng helper của `worker-secrets.ts`, không nhân bản logic guard.
+
 ## Prerequisites (mỗi prerequisite một owner khác)
 
 - Host PostgreSQL staging + cluster (#349, Pulumi `staging-pg-host`) đã
@@ -62,9 +76,18 @@ pnpm nx run staging-connectivity:staging-vpc-service-create -- \
 Credential bắt buộc (env-only, không argv, không Git):
 `ECOMA_CLOUDFLARE_API_TOKEN`.
 
-Unit test của lane chạy trong target `test` của `@ecoma-io/delivery`
-(`staging-connectivity.spec.ts` — fake-wrangler, không cần token thật); project
-này không có TS source nên không có target `test` riêng.
+## Testing
+
+- Unit test của lane chạy trong target `test` của `@ecoma-io/delivery`:
+  `tools/delivery/src/staging-connectivity.spec.ts` — fake-wrangler theo kỹ
+  thuật `worker-secrets.spec.ts` (gate identity, validate
+  tunnel-id/hostname/port, shape argv, parse `service_id` khỏi stdout thật
+  của wrangler 4.165.0, fail-closed khi thiếu token hoặc line). Chạy:
+  `pnpm nx run @ecoma-io/delivery:test`.
+- Project này không có TS source nên không có target `test` riêng; hợp đồng
+  cấu trúc được kiểm bằng `pnpm dx arch-check` và `pnpm dx readme-check`.
+- Test runtime refusal đã chạy thật (không credential): sai usage exit 2,
+  tên không `stg-` bị từ chối exit 1 trước khi wrangler chạy.
 
 ## Status
 
