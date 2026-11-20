@@ -1,5 +1,7 @@
 export {
+  MAX_RESEND_ATTEMPTS,
   MAX_VERIFY_ATTEMPTS,
+  RESEND_RETRY_GAP_MS,
   waitForContinueTargetAfterOtpVerify,
   type OtpVerifyRecoveryParams,
 } from './otp-verify-recovery.js';
