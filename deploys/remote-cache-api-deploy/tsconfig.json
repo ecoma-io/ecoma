@@ -64,11 +64,14 @@
   // `index.ts`/`smoke.ts` import phải nằm trong danh sách.
   "files": [
     "index.ts",
+    "local-program.ts",
     "local.ts",
     "smoke.ts",
     "node-image.ts",
     "object-storage-env.ts",
     "scripts.ts",
+    "staging-run.ts",
+    "staging.ts",
     "superadmin-resolver.ts"
   ]
 }
