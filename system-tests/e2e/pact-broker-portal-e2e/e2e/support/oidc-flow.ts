@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test';
+import { waitForContinueTargetAfterOtpVerify } from '@ecoma-io/system-tests-support';
 
 import { resolvePortalOrigin } from './local-origin';
 
@@ -202,54 +203,14 @@ export async function performBrowserLogin(
   // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
   // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
   const retryButton = page.getByTestId('login-continue-retry');
-  const continueOrRetry = await Promise.race([
-    continueTarget
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .then(() => 'continue' as const)
-      .catch(() => 'none' as const),
-    retryButton
-      .waitFor({ state: 'visible', timeout: 30_000 })
-      .then(() => 'retry' as const)
-      .catch(() => 'none' as const),
-  ]);
-  if (continueOrRetry === 'retry') {
-    await retryButton.click();
-    await expect(continueTarget).toBeVisible({ timeout: 30_000 });
-  } else if (continueOrRetry === 'none') {
-    // Cả target lẫn retry vắng mặt 30s: hop điều hướng vào `/login/continue`
-    // chết tầng mạng (ERR_NETWORK_CHANGED family — instance thật ở
-    // `remote-cache-portal-e2e` run 44639848365, #498; cùng trang `account`)
-    // — page.url() còn giữ URL đích kèm `handle`. Điều hướng lại chính URL
-    // đó: `completeHandoff` fire lúc mount và push idempotent (`event_id` từ
-    // `session_ref`, auth trả `already_processed` nếu đã xử lý) — không tiêu
-    // OTP/challenge mới. Chỉ MỘT lượt: cạn lần hai là lỗi thật.
-    const stuckUrl = page.url();
-    if (new URL(stuckUrl).pathname === '/login/continue') {
-      await page.goto(stuckUrl, { waitUntil: 'load' });
-      const secondChance = await Promise.race([
-        continueTarget
-          .waitFor({ state: 'visible', timeout: 30_000 })
-          .then(() => 'continue' as const)
-          .catch(() => 'none' as const),
-        retryButton
-          .waitFor({ state: 'visible', timeout: 30_000 })
-          .then(() => 'retry' as const)
-          .catch(() => 'none' as const),
-      ]);
-      if (secondChance === 'retry') {
-        await retryButton.click();
-        await expect(continueTarget).toBeVisible({ timeout: 30_000 });
-      } else if (secondChance === 'none') {
-        throw new Error(
-          `/login/continue rendered no card even after re-navigation (${await describeStuckState(page)})`,
-        );
-      }
-    } else {
-      throw new Error(
-        `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
-      );
-    }
-  }
+  // Hợp đồng recovery của pha chờ sau verify (#461 round 2) — dùng chung của
+  // 4 suite, tài liệu đầy đủ sống ở `@ecoma-io/system-tests-support`.
+  await waitForContinueTargetAfterOtpVerify(page, {
+    continueTarget,
+    retryButton,
+    requestFailed,
+    describeStuckState: () => describeStuckState(page),
+  });
   await continueTarget.click();
 
   // BFF cold start có thể làm push handoff lỗi ở lần bấm đầu: trang render
@@ -451,7 +412,20 @@ async function waitForContinueOrLanded(page: Page, target: Locator): Promise<boo
 
 /** Mô tả trạng thái trang lúc cạn vòng — dữ liệu đo được cho instance sau. */
 async function describeStuckState(page: Page): Promise<string> {
-  const states = ['consent-card', 'login-continue-retry', 'login-email-form', 'login-code-form'];
+  const states = [
+    'consent-card',
+    'login-continue-retry',
+    'login-email-form',
+    'login-code-form',
+    // Ba trạng thái kết quả của submit mã — instance round-2 của #461 (6–10)
+    // chỉ báo được `login-code-form` nên không phân loại được nguyên nhân; thêm
+    // để log stuck-state phân biệt ngay: request-failed (verify chết tầng mạng,
+    // mã chưa tiêu), code-invalid (OTP sai), code-accepted (verify OK nhưng
+    // hop confirm chết).
+    'login-request-failed',
+    'login-code-invalid',
+    'login-code-accepted',
+  ];
   const visible: string[] = [];
   for (const testId of states) {
     if (await isVisibleSafe(page.getByTestId(testId))) {
