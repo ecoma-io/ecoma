@@ -21,9 +21,11 @@ import { defineConfig } from 'drizzle-kit';
 /**
  * Guard fail-fast #496: lệnh kit chạm database thật cần DATABASE_URL có mặt
  * ngay khi config được evaluate — thiếu/rỗng là throw với message tường minh
- * thay vì `?? ''` cho kit fail mờ ở bước kết nối khó đọc. `generate`, `check`,
- * `up`, `drop`, `export` thuần file (offline) giữ nguyên hành vi cũ — đường CI
- * `db-generate`/`db-check` không secret vẫn chạy. Runner.mts (đường chính thức)
+ * thay vì `?? ''` cho kit fail mờ ở bước kết nối khó đọc. Chỉ `generate` và
+ * `check` là thuần file (offline) giữ nguyên hành vi cũ — đường CI
+ * `db-generate`/`db-check` không secret vẫn chạy; mọi lệnh còn lại (kể cả
+ * `up`/`drop`/`export` — xem ghi chú dưới) đều chạm database hoặc chưa chứng
+ * minh được offline. Runner.mts (đường chính thức)
  * đã validate DATABASE_URL trước khi spawn `drizzle-kit migrate` (§3a); guard
  * này là lớp trong cùng cho lệnh kit gọi tay.
  */
