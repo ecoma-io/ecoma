@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "//": "Composite cho emitDeclarationOnly của graph typecheck (cùng hình `deploys/transactional-mail-deploy/tsconfig.spec.json`). Spec import subject bằng specifier tương đối `.js` — substitution `.js` → `.ts` chuẩn của tsc vẫn resolve được dưới nodenext.",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./out-tsc/vitest",
+    "rootDir": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
+  },
+  "include": [
+    "vite.config.ts",
+    "vite.config.mts",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
+    "staging-config.spec.ts",
+    "wrangler-jsonc.ts"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
+}
