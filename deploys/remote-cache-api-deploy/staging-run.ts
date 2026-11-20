@@ -3,22 +3,20 @@
  * engine đã merge của `platform-deploy` (#453), chạy trên nền adapter seam
  * `@ecoma-io/deployment` (#367).
  *
- * ⚠️ Bản copy có chủ đích của engine `platform-deploy`: tổng quát hoá engine
- * lên `@ecoma-io/deployment` là follow-up tường minh khi unit staging THỨ BA
- * wire lane của nó (hai bản copy là đủ để thấy hình chung, chưa đủ để chốt
- * seam) — không đưa vào slice này vì lib nằm ngoài scope. Khi tổng quát hoá,
- * hai bản copy phải được xoá cùng lúc; mọi sửa engine từ bây giờ phải đối
- * chiếu cả hai bản để không trôi lệch.
+ * ⚠️ Bản copy có chủ đích của engine `platform-deploy`; tổng quát hoá engine
+ * lên `@ecoma-io/deployment` kèm XOÁ CÙNG LÚC các bản copy là follow-up đã có
+ * Issue riêng: #543 — không đưa vào slice này vì lib nằm ngoài scope. Mọi sửa
+ * engine từ bây giờ phải đối chiếu cả các bản copy để không trôi lệch.
  *
  * ⚠️ Hai lệch có chủ đích so với bản `platform-deploy` ghi ở slice #350 — bản
  * này thêm `CLOUDFLARE_API_TOKEN` vào inventory bắt buộc, và lane staging chạy
- * chương trình khai bucket R2 thật (`staging-program.ts`) — ĐÃ KHÔNG CÒN là
+ * chương trình khai resource thật (`staging-program.ts`) — ĐÃ KHÔNG CÒN là
  * lệch: từ #349 bản `platform-deploy` cũng khai resource thật (DNS zone
  * `ecoma.io.vn` qua `staging-program.ts`) và inventory của nó cũng bắt buộc
  * token này. Hai bản copy hiện thẳng hàng trên hai điểm đó; phần còn khác chỉ
- * là bề mặt domain — resource mỗi program khai (bucket R2 ở đây, DNS zone ở
- * `platform-deploy`). Khi tổng quát hoá, phần domain đó là tham số tường minh
- * của engine dùng chung, không phải điều kiện rải rác.
+ * là bề mặt domain — resource mỗi program khai (bucket R2 + Hyperdrive config
+ * ở đây, DNS zone ở `platform-deploy`). Khi tổng quát hoá (#543), phần domain
+ * đó là tham số tường minh của engine dùng chung, không phải điều kiện rải rác.
  *
  * Tách bạch hai lifecycle (§7.4.1): module này chỉ provision infrastructure
  * Pulumi — deploy Worker là Wrangler (#362/#350), migration là `deploys/*-db`
@@ -37,15 +35,20 @@
  * — #350 — tuyệt đối không "dùng local tạm").
  *
  * Chương trình Pulumi trên stack staging khai R2 bucket object storage của
- * remote-cache (inventory §7.4.1) từ slice #350 — thân nằm ở
- * `staging-program.ts`, tên bucket là đề xuất chờ duyệt trong PR của slice.
- * Việc chạy thật vẫn chặn prerequisite vận hành fail-closed ở inventory dưới
- * đây: bootstrap backend state (một lần, NGOÀI mọi stack) + token Cloudflare
- * + R2 token bucket-scoped + passphrase per-stack.
+ * remote-cache (inventory §7.4.1, tên đã duyệt qua #514) và HyperdriveConfig
+ * của `db-remote-cache` (inventory §9.1 — config per-database per-lane, scope
+ * #350/#539) — thân nằm ở `staging-program.ts`. Origin của Hyperdrive đọc từ
+ * stack config và fail-closed khi chưa có: đường tới origin private là
+ * Tunnel/VPC Service của #349, chưa provision lần nào. Việc chạy thật vẫn chặn
+ * prerequisite vận hành fail-closed ở inventory dưới đây: bootstrap backend
+ * state (một lần, NGOÀI mọi stack) + token Cloudflare + R2 token
+ * bucket-scoped + passphrase per-stack.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import type { Input } from '@pulumi/pulumi';
 
 import {
   deployProjectDir,
@@ -68,6 +71,120 @@ const STAGING_SLOT = 'staging' as const;
  * thật thì đổi tên là tạo-mới + sao chép + xoá-củ, không phải một lần `up`.
  */
 export const STAGING_REMOTE_CACHE_BUCKET_NAME = 'ecoma-remote-cache-staging';
+
+/**
+ * Tên HyperdriveConfig của `db-remote-cache` trên staging — per-database
+ * (`db-remote-cache`, §4.2) và per-lane (§7.4.1: stack `staging` và
+ * `staging-candidate` không bao giờ trỏ chung một config). Tên candidate slot
+ * có đuôi `-cand` theo §4.2 — khi #381 wire slot đó, tên là tham số của
+ * chương trình, không phải hằng ở đây.
+ */
+export const STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME = 'db-remote-cache-staging';
+
+/** Logical database staging của unit `remote-cache-api` trên shared host (§4.2). */
+export const STAGING_REMOTE_CACHE_DATABASE = 'db-remote-cache';
+
+/**
+ * Role runtime của `db-remote-cache` — Hyperdrive kết nối origin bằng role
+ * này, KHÔNG bao giờ bằng migrator/owner (§4.2: cặp role `_migrator`/`_runtime`;
+ * serving path dùng đúng role hẹp của nó).
+ */
+export const STAGING_REMOTE_CACHE_RUNTIME_ROLE = 'ecoma_remote_cache_runtime';
+
+/**
+ * Origin keys trên stack config của stack staging — tên ngắn trong namespace
+ * `namespace:` của project (đọc bằng `pulumi.Config('namespace')`; key đầy đủ
+ * mà operator set là `namespace:<tên>`).
+ */
+export const STAGING_ORIGIN_HOST_CONFIG_KEY = 'originHost';
+export const STAGING_ORIGIN_PORT_CONFIG_KEY = 'originPort';
+export const STAGING_ORIGIN_PASSWORD_CONFIG_KEY = 'originPassword';
+
+/**
+ * Origin Hyperdrive đã resolve — hình dạng cấu trúc khớp
+ * `HyperdriveConfigOriginArgs` của `@pulumi/cloudflare` (v6: `database`,
+ * `host`, `password`, `port`, `scheme`, `user`) mà KHÔNG import provider vào
+ * engine (engine thuần, chỉ cần structural typing).
+ */
+export interface StagingHyperdriveOrigin {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  scheme: string;
+  password: Input<string>;
+}
+
+/** Đầu vào resolve origin — giá trị thô đọc từ stack config của program. */
+export interface StagingHyperdriveOriginConfig {
+  originHost: string | undefined;
+  originPort: string | undefined;
+  originPassword: Input<string> | undefined;
+}
+
+/**
+ * Resolve origin của HyperdriveConfig từ stack config — FAIL CLOSED khi
+ * origin chưa tồn tại: đường tới origin private là Tunnel/VPC Service của
+ * #349, chưa provision lần nào, nên thiếu `namespace:originHost` hoặc
+ * `namespace:originPassword` là trạng thái ĐÚNG của hiện tại và phải dừng với
+ * lỗi nêu rõ #349 — tuyệt đối không bịa hostname, không trỏ origin local,
+ * không đặt placeholder (placeholder origin = config staging trỏ nhầm origin).
+ *
+ * `originPort` thiếu là default 5432 (HD của Cloudflare: default Postgres);
+ * giá trị present mà không parse được thành port hợp lệ là lỗi cấu hình
+ * fail-closed, không đoán. Password giữ nguyên `Input` — program bọc
+ * `conf.getSecret` nên giá trị KHÔNG BAO GIỜ nằm plaintext trong state/log.
+ */
+export function resolveStagingHyperdriveOrigin(
+  config: StagingHyperdriveOriginConfig,
+): StagingHyperdriveOrigin {
+  const missing: string[] = [];
+  if (config.originHost === undefined || config.originHost.trim().length === 0) {
+    missing.push(`namespace:${STAGING_ORIGIN_HOST_CONFIG_KEY}`);
+  }
+  if (config.originPassword === undefined) {
+    missing.push(`namespace:${STAGING_ORIGIN_PASSWORD_CONFIG_KEY}`);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `staging hyperdrive origin is not configured: missing stack config ${missing.join(', ')} — ` +
+        `set them on the remote-cache-api-deploy staging stack before running this program. The private route ` +
+        `to the staging PostgreSQL origin (Cloudflare Tunnel / Workers VPC Service) is issue #349 ` +
+        `and is not provisioned yet; refusing to guess or fake an origin (#350)`,
+    );
+  }
+  const port = config.originPort?.trim();
+  const resolvedPort = port === undefined || port.length === 0 ? 5432 : Number(port);
+  if (!Number.isInteger(resolvedPort) || resolvedPort < 1 || resolvedPort > 65535) {
+    throw new Error(
+      `staging hyperdrive origin port "${config.originPort}" is not a valid TCP port — ` +
+        `fix namespace:${STAGING_ORIGIN_PORT_CONFIG_KEY} on the remote-cache-api-deploy staging stack`,
+    );
+  }
+  return {
+    host: config.originHost as string,
+    port: resolvedPort,
+    database: STAGING_REMOTE_CACHE_DATABASE,
+    user: STAGING_REMOTE_CACHE_RUNTIME_ROLE,
+    // 'postgres' — scheme enum của Cloudflare Hyperdrive cho Postgres; TLS tới
+    // origin bắt buộc theo HD2 (sslmode default `require`, không hỗ trợ none).
+    scheme: 'postgres',
+    password: config.originPassword as Input<string>,
+  };
+}
+
+/**
+ * Id HyperdriveConfig thật — UUID non-empty, không phải placeholder toàn số 0
+ * (cùng invariant với guard `resource-bindings` của `tools/delivery`: id
+ * thiếu/toàn-zeros là placeholder). Hằng so khớp đặt tên để test đọc đúng ý.
+ */
+export const HYPERDRIVE_PLACEHOLDER_ID = '00000000-0000-0000-0000-000000000000';
+
+const HYPERDRIVE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+export function isProvisionedHyperdriveConfigId(value: string): boolean {
+  return HYPERDRIVE_ID_PATTERN.test(value) && value !== HYPERDRIVE_PLACEHOLDER_ID;
+}
 
 /**
  * Rút account id Cloudflare từ state URL staging theo `04` R22: endpoint
@@ -286,6 +403,32 @@ export function readStagingRevision(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Id HyperdriveConfig từ stack output `hyperdriveConfigId` — nguồn ĐỊNH DANH
+ * cho wiring `env.staging.hyperdrive` của `apps/remote-cache-api/wrangler.jsonc`
+ * (§9.1: id do Pulumi cung cấp, Wrangler không tự tạo). Chỉ đọc SAU một lần
+ * `up` thành công (trước đó output chưa tồn tại là lỗi dùng-lệnh, không phải
+ * dữ liệu). Đọc lỗi/parse lỗi/id không qua kiểm `isProvisionedHyperdriveConfigId`
+ * (placeholder toàn-zeros) → `undefined`: evidence không bịa id, entry in cảnh
+ * báo wiring thay vì chặn một lần provision đã thành công.
+ */
+export function readHyperdriveConfigId(
+  projectDir: string,
+  selection: StackSelection,
+  env: NodeJS.ProcessEnv,
+  deps: StagingExecDeps = defaultDeps,
+): string | undefined {
+  const output = deps.execFn(
+    'pulumi',
+    ['stack', 'output', 'hyperdriveConfigId', '--stack', selection.fullStackRef],
+    projectDir,
+    env,
+  );
+  if (output.status !== 0) return undefined;
+  const id = output.stdout.trim();
+  return isProvisionedHyperdriveConfigId(id) ? id : undefined;
 }
 
 /** SHA của workspace HEAD tại thời điểm chạy — revision của PROGRAM được apply. */

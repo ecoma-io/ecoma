@@ -2,7 +2,7 @@
 
 Pulumi deployment project của `apps/remote-cache-api` — service Remote Cache (API cache protocol + control plane tenant/project/API key) — trên lane local, dạng WIC container một worker. Provision database `db-remote-cache` + hai role PostgreSQL, migration và bootstrap tenant đi đúng đường canonical của app. Chương trình Pulumi ở `index.ts`, entry lifecycle ở `local.ts`, smoke ở `smoke.ts`.
 
-Nx project `remote-cache-api-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`. Target lifecycle chỉ có configuration `local` — lane duy nhất của chương trình.
+Nx project `remote-cache-api-deploy`, tags `type:deployment`, `scope:remote-cache`, `runtime:native`. Hai lane: local (`-c local`) và staging (`-c staging` — xem §Staging lane).
 
 ## Purpose
 
@@ -16,6 +16,30 @@ Nx project `remote-cache-api-deploy`, tags `type:deployment`, `scope:remote-cach
 - **Secret lifecycle** (`local.ts`): hai mật khẩu role xoay mỗi lần up; `objectStorageSecretKey` đọc cross-stack từ stack config platform (`objectStorage:remoteCacheSecretKey`) rồi copy vào stack config của unit; `tenantOwnerSub` được giải trước khi up qua dx runner `bootstrap-superadmin --resolve-if-bootstrapped` (đọc `db-account` + `db-staff-access` bằng credential migrator cross-stack); `ciKeyPlaintext` set-if-absent — bootstrap chỉ lưu SHA-256 hash.
 - **Image + container WIC** (`Dockerfile`, `wic-entrypoint.sh`, `index.ts`): một worker `ecoma-remote-cache-api` port 4207 (`dev.port` của app), alias `ecoma-remote-cache-api`; env gồm Hyperdrive local connection string (binding `DB_REMOTE_CACHE`, role runtime) và bộ `S3_*` của object storage; healthcheck `GET /health`, `wait: true` nên `pulumi up` xanh là bằng chứng serving; không route Traefik, không publish port ra host.
 - Stack exports: `provisionCommandName`, `migrateCommandName`, `bootstrapTenantCommandName`, `imageDigest`, `containerName`, `containerId`, `stateVolumeName`, `namespaceVerified`.
+
+## Staging lane (#350)
+
+Trên stack `staging`, entry guard `index.ts` nạp `staging-program.ts` khai đúng hai resource theo inventory §7.4.1/§9.1: **R2 bucket object storage** `ecoma-remote-cache-staging` (#514) và **HyperdriveConfig** `db-remote-cache-staging` của `db-remote-cache` (pattern pilot #539 — config per-database, per-lane; tổng quát hoá engine staging là follow-up #543). Query cache của config PHẢI OFF (`caching.disabled = true`) — cache không invalidate khi ghi, một API key đã revoke trả về từ cache là lần cấp quyền thứ hai (contract của app). Origin của config đọc từ stack config và fail-closed khi chưa có: đường tới origin private là Tunnel/VPC Service của #349, chưa provision lần nào — `pulumi preview` đỏ cho tới khi #349 cấp origin, không có đường "origin giả".
+
+### Config và credential bắt buộc (fail-closed)
+
+Bốn khóa env được engine `staging-run.ts` kiểm fail-closed TRƯỚC khi Pulumi chạy (danh sách ĐẦY ĐỦ khóa thiếu, không fallback); hai khóa stack config được thân chương trình kiểm tại lúc preview:
+
+| Mục                                                                          | Kênh          | Cách đặt                                                                                                                                                       |
+| ---------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `namespace:originHost` / `namespace:originPort` / `namespace:originPassword` | Pulumi config | origin PostgreSQL staging cho Hyperdrive (`originPort` thiếu là default 5432; password qua `set --secret`) — thiếu host/password là preview fail-closed (#349) |
+| `CLOUDFLARE_API_TOKEN`                                                       | env           | token Cloudflare quyền provision resource account (`04` R24) — env-only, không bao giờ vào provider config (state ghi lại config provider)                     |
+| `ECOMA_PULUMI_STATE_URL_STAGING`                                             | env           | URL backend R2 của stack staging — thiếu nghĩa là staging chưa bootstrap (#350), tuyệt đối không fallback backend khác                                         |
+| `PULUMI_CONFIG_PASSPHRASE`                                                   | env           | passphrase per-stack                                                                                                                                           |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`                                | env           | token R2 scope một bucket cho backend s3 (`04` R23)                                                                                                            |
+
+### Wiring sau lần `up` xanh đầu tiên
+
+`staging-up` xong đọc stack output `hyperdriveConfigId`, kiểm id thật (UUID không-phải-toàn-zeros — cùng invariant với guard `resource-bindings`) và surface id cho operator điền vào `env.staging.hyperdrive[].id` của `apps/remote-cache-api/wrangler.jsonc` — entry không tự sửa file đó (wrangler config là tài sản review-able trong Git). Secrets `S3_ENDPOINT`/`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` của Worker `stg-ecoma-remote-cache-api` đặt qua `wrangler secret put` (giá trị gắn account — endpoint path-style R2 `04` R22 — và token R2 scope một bucket `04` R23); `S3_BUCKET` đã là `var` thật trong wrangler.jsonc trỏ đúng bucket do stack này provision.
+
+### Không có destroy
+
+Lane staging chỉ có hai phase `preview`/`up` (`staging.ts`); mọi đối số khác bị từ chối tường minh — teardown staging KHÔNG có workflow, checklist tay thuộc runbook #364. Mỗi lần chạy ghi một bản ghi evidence JSON vào `.staging-evidence/` (ngoài Git).
 
 ## Boundaries
 
