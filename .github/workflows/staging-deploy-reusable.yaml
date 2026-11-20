@@ -119,8 +119,19 @@ jobs:
         with:
           ref: ${{ needs.context.outputs.verified_sha }}
           persist-credentials: false
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
+      # Cùng pnpm ghim trong packageManager và cùng Node như setup-node-pnpm,
+      # nhưng KHÔNG `cache: pnpm`: cache-save sau job là sink mà CodeQL
+      # cache-poisoning gắn vào mọi step đọc dữ liệu từ checkout do caller chỉ
+      # định. Job build không ghi cache nào; deploy job giữ action chuẩn vì
+      # checkout của nó là SHA đã qua guard ở job context.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Locate the project root
         id: locate
         env:
