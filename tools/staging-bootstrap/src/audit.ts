@@ -12,6 +12,8 @@ export interface StepAuditEntry {
   readonly id: string;
   readonly service: string;
   readonly database: string;
+  /** Số dòng thực trong bảng §3.2 — tham chiếu truy vết cho evidence. */
+  readonly canonicalRow: string;
   /** `null` khi bước bị skip (chưa chạy tới) — không phải mã thoát thật. */
   readonly exit: number | null;
   readonly durationMs: number;

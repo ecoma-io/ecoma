@@ -6,7 +6,7 @@ thực thi được và cố ý fail-closed.
 ## Purpose
 
 Thực thi đúng bảng bước bootstrap/seed canonical của
-`docs/architecture/02-delivery.md` §3.2 (dòng 3–12), theo hợp đồng
+`docs/architecture/02-delivery.md` §3.2 (dòng 3, 4, 5a, 5b, 6, 7, 8a, 8b, 9, 10), theo hợp đồng
 ADR-0020 (`docs/domains/staff-access/adr/0020-bootstrap-seed-contract.md`).
 
 ## Responsibilities

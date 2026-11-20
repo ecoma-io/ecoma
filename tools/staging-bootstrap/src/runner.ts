@@ -33,6 +33,8 @@ export interface StepEvidence {
   readonly id: string;
   readonly service: string;
   readonly database: string;
+  /** Số dòng thực trong bảng §3.2 — tham chiếu truy vết cho evidence. */
+  readonly canonicalRow: string;
   /** `null` khi bước bị skip (chưa chạy tới) — không phải mã thoát thật. */
   readonly exit: number | null;
   readonly durationMs: number;
@@ -57,6 +59,7 @@ export function runBootstrapContract(steps: readonly BootstrapStep[], deps: Runn
         id: step.id,
         service: step.service,
         database: step.database,
+        canonicalRow: step.canonicalRow,
         exit: null,
         durationMs: 0,
         skipped: true,
@@ -75,6 +78,7 @@ export function runBootstrapContract(steps: readonly BootstrapStep[], deps: Runn
       id: step.id,
       service: step.service,
       database: step.database,
+      canonicalRow: step.canonicalRow,
       exit: result.status,
       durationMs: Date.now() - startedAt,
       skipped: false,
