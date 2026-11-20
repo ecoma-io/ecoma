@@ -14,6 +14,7 @@ import {
   projectSlug,
   readBatchUnits,
   releaseBranchName,
+  releaseCommandArgs,
   resolveBatch,
   validateManifestShape,
 } from '../../scripts/release/release-pr.mjs';
@@ -167,6 +168,41 @@ describe('release identity', () => {
       'release/auth-nonce-prune-job+home',
     );
     expect(() => projectSlug('@ecoma-io/bad/slug!')).toThrow('safe slug');
+  });
+});
+
+describe('releaseCommandArgs — the nx release argv', () => {
+  it('passes the explicit bump specifier through to nx', () => {
+    expect(releaseCommandArgs('patch', ['@ecoma-io/home'])).toEqual([
+      'nx',
+      'release',
+      'patch',
+      '-p',
+      '@ecoma-io/home',
+    ]);
+  });
+
+  it('omits the specifier on the version-plans path so nx consumes plan files', () => {
+    expect(releaseCommandArgs('', ['@ecoma-io/home'])).toEqual([
+      'nx',
+      'release',
+      '-p',
+      '@ecoma-io/home',
+    ]);
+  });
+
+  it('adds one -p pair per batch project in order', () => {
+    expect(
+      releaseCommandArgs('minor', ['@ecoma-io/home', '@ecoma-io/auth-nonce-prune-job']),
+    ).toEqual([
+      'nx',
+      'release',
+      'minor',
+      '-p',
+      '@ecoma-io/home',
+      '-p',
+      '@ecoma-io/auth-nonce-prune-job',
+    ]);
   });
 });
 

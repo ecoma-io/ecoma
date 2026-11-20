@@ -206,6 +206,18 @@ export function buildReleaseSubject(units) {
   return `chore(release): release ${units.map((unit) => `${unit.project} ${unit.version}`).join(', ')}`;
 }
 
+/**
+ * Argv của `pnpm nx release`: specifier chỉ được thêm khi bump khác rỗng —
+ * thiếu specifier là chạy chế độ version-plans (no-op khi không có plan file),
+ * nguyên nhân dispatch thật 44658123404 ra no-op.
+ */
+export function releaseCommandArgs(bump, batch) {
+  const args = ['nx', 'release'];
+  if (bump !== '') args.push(bump);
+  for (const project of batch) args.push('-p', project);
+  return args;
+}
+
 /** Slug an toàn cho tên project (`@ecoma-io/home` → `home`). */
 export function projectSlug(projectName) {
   const slug = projectName.replace(/^@[^/]+\//u, '');
@@ -677,9 +689,19 @@ async function modePrepare() {
   if (!Array.isArray(batch) || batch.length === 0)
     throw new Error('BATCH_JSON must be a non-empty array');
 
-  const releaseArgs = ['nx', 'release'];
-  if (VALID_BUMPS.includes(env.BUMP)) releaseArgs.push(env.BUMP);
-  for (const project of batch) releaseArgs.push('-p', project);
+  // BUMP đọc trực tiếp từ process.env, không qua requireEnv: chuỗi rỗng là
+  // đường version-plans hợp lệ, mà requireEnv chặn chuỗi rỗng. Bỏ sót chỗ này
+  // là bug đã đo được ở dispatch thật (run 44658123404): env.BUMP undefined →
+  // specifier không bao giờ được push → nx release chạy không specifier →
+  // no-op → check metadata-only tự fail-closed đúng như thiết kế.
+  const bump = process.env.BUMP ?? '';
+  if (bump !== '' && !VALID_BUMPS.includes(bump)) {
+    throw new Error(
+      `Invalid BUMP env: ${JSON.stringify(bump)} (expected empty, patch, minor or major)`,
+    );
+  }
+
+  const releaseArgs = releaseCommandArgs(bump, batch);
   run('pnpm', releaseArgs);
 
   const changedFiles = run('git', ['status', '--porcelain=v1'])
