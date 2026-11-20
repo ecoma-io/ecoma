@@ -20,11 +20,17 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-/** Strip line/block comments outside string literals, then drop trailing commas. */
-function parseJsonc(path: string): Record<string, unknown> {
-  const source = readFileSync(path, 'utf8');
+// Bản copy cục bộ của cả hai spec cùng lane — dedupe thành helper dùng chung đợi #546.
+
+/**
+ * Strip comment + trailing comma TRONG MỘT lượt duyệt, nhận biết chuỗi
+ * (string-aware): một giá trị chứa `//` (vd URL) hay `,}` (vd mô tả) không
+ * bị hỏng (cùng pattern `apps/account/tests/wrangler-services.spec.ts`).
+ */
+function stripJsonc(source: string): string {
   let out = '';
   let inString = false;
+  let pendingComma = false;
   for (let i = 0; i < source.length; i += 1) {
     const char = source[i];
     if (inString) {
@@ -38,6 +44,12 @@ function parseJsonc(path: string): Record<string, unknown> {
         inString = false;
       }
       continue;
+    }
+    // Ký tự quyết định đầu sau comma: `}`/`]` → comma là trailing (bỏ); ký tự
+    // khác (kể cả `"` mở string) → comma là thật (flush). Whitespace giữ trạng thái.
+    if (pendingComma && /\S/u.test(char)) {
+      if (char !== '}' && char !== ']') out += ',';
+      pendingComma = false;
     }
     if (char === '"') {
       inString = true;
@@ -59,9 +71,18 @@ function parseJsonc(path: string): Record<string, unknown> {
       i = end + 1;
       continue;
     }
+    if (char === ',') {
+      pendingComma = true;
+      continue;
+    }
     out += char;
   }
-  return JSON.parse(out.replace(/,(\s*[}\]])/gu, '$1')) as Record<string, unknown>;
+  return out;
+}
+
+/** Parse JSONC của wrangler.jsonc — strip comment + trailing comma string-aware. */
+function parseJsonc(path: string): Record<string, unknown> {
+  return JSON.parse(stripJsonc(readFileSync(path, 'utf8'))) as Record<string, unknown>;
 }
 
 /** Hyperdrive id hợp lệ: rỗng (chỗ dành), toàn số 0 (placeholder), hoặc UUID thật sau khi operator điền. */
@@ -123,5 +144,23 @@ describe('remote-cache-api wrangler.jsonc staging env', () => {
   it('leaves no REPLACE-WITH placeholder anywhere in the staging scope', () => {
     const serialized = JSON.stringify(staging);
     expect(serialized).not.toContain('REPLACE-WITH');
+  });
+});
+
+describe('stripJsonc', () => {
+  it('keeps a string value containing ,} intact instead of corrupting the parse', () => {
+    const parsed = JSON.parse(stripJsonc('{"description":"a,} weird","count":1,}')) as {
+      description: string;
+      count: number;
+    };
+    expect(parsed.description).toBe('a,} weird');
+    expect(parsed.count).toBe(1);
+  });
+
+  it('still drops a real trailing comma before a closing brace or bracket', () => {
+    expect(JSON.parse(stripJsonc('{"a":1,}'))).toEqual({ a: 1 });
+    expect(JSON.parse(stripJsonc('{"a":1 , }'))).toEqual({ a: 1 });
+    expect(JSON.parse(stripJsonc('[1,2,]'))).toEqual([1, 2]);
+    expect(JSON.parse(stripJsonc('{"a":1,\n  "b":2}'))).toEqual({ a: 1, b: 2 });
   });
 });
