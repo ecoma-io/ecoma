@@ -20,6 +20,7 @@ import {
   STAGING_STAFF_ACCESS_RUNTIME_ROLE,
   appendStagingRecord,
   backendBucket,
+  readGitHeadSha,
   classifyStaffAccessDeployStack,
   ensureStagingStack,
   isProvisionedHyperdriveConfigId,
@@ -64,7 +65,16 @@ function recordingExec(results: ExecResult[]): {
     deps: {
       execFn: (command, args) => {
         calls.push({ command, args });
-        const result = results[index] ?? execResult();
+        // Quá số kết quả giả là lỗi test, KHÔNG phải thành công ngầm: lệnh
+        // Pulumi mới thêm vào engine mà spec chưa cập nhật phải làm test ĐỎ,
+        // không được lặng lẽ nhận execResult() status 0 (OCR round 3).
+        const result = results[index];
+        if (result === undefined) {
+          throw new Error(
+            `unexpected exec call #${index + 1} (${command} ${args.join(' ')}) — ` +
+              'the spec mock exhausted its scripted results; update the test',
+          );
+        }
         index += 1;
         return result;
       },
@@ -296,16 +306,16 @@ describe('resolveStagingHyperdriveOrigin', () => {
       }),
     ).toThrow(/origin port/su);
   });
-});
 
-it('an empty or whitespace-only password counts as missing, same as the host', () => {
-  expect(() =>
-    resolveStagingHyperdriveOrigin({
-      originHost: 'h',
-      originPort: undefined,
-      originPassword: '   ',
-    }),
-  ).toThrow(/namespace:originPassword/su);
+  it('an empty or whitespace-only password counts as missing, same as the host', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '   ',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+  });
 });
 
 describe('isProvisionedHyperdriveConfigId', () => {
@@ -393,14 +403,23 @@ describe('ensureStagingStack', () => {
     expect(calls[1]?.args).toEqual(['stack', 'select', 'organization/staff-access-deploy/staging']);
   });
 
+  it('an init failure without an already-exists stderr fails loudly instead of a select fallback', () => {
+    // OCR round 3: lỗi thật của `stack init` (mạng/backend/credential) không
+    // được che giấu bởi một lần `stack select` thành công trên stack trùng tên.
+    const { deps, calls } = recordingExec([execResult({ status: 1, stderr: 'network boom' })]);
+    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(/network boom/u);
+    expect(calls).toHaveLength(1);
+  });
+
   it('both init and select failing throws with both stderr bodies', () => {
-    const { deps } = recordingExec([
-      execResult({ status: 1, stderr: 'init boom' }),
+    const { deps, calls } = recordingExec([
+      execResult({ status: 1, stderr: 'already exists but select also fails' }),
       execResult({ status: 1, stderr: 'select boom' }),
     ]);
     expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(
-      /init boom[\s\S]*select boom/u,
+      /already exists[\s\S]*select boom/u,
     );
+    expect(calls).toHaveLength(2);
   });
 });
 
@@ -441,7 +460,7 @@ describe('readStagingRevision', () => {
       execResult({ status: 0, stdout: JSON.stringify([{ version: 12 }, { version: 11 }]) }),
     ]);
     expect(readStagingRevision('/tmp/pd', selection, {}, deps)).toBe(12);
-    const { deps: deps2, calls } = recordingExec([]);
+    const { deps: deps2, calls } = recordingExec([execResult()]);
     readStagingRevision('/tmp/pd', selection, {}, deps2);
     expect(calls[0]?.args).toEqual([
       'stack',
@@ -488,6 +507,32 @@ describe('appendStagingRecord', () => {
   });
 });
 
+describe('readGitHeadSha', () => {
+  it('runs git with the PATH/HOME of the injected source env, never process.env', () => {
+    let capturedEnv: NodeJS.ProcessEnv | undefined;
+    const deps: StagingExecDeps = {
+      execFn: (_command, _args, _cwd, env) => {
+        capturedEnv = env;
+        return execResult({ stdout: `${'a'.repeat(40)}\n` });
+      },
+    };
+    const sha = readGitHeadSha('/tmp/pd', { PATH: '/injected/bin', HOME: '/injected/home' }, deps);
+    expect(sha).toBe('a'.repeat(40));
+    expect(capturedEnv).toEqual({ PATH: '/injected/bin', HOME: '/injected/home' });
+  });
+
+  it('a failing or non-SHA output yields undefined instead of a fabricated sha', () => {
+    const failing: StagingExecDeps = {
+      execFn: () => execResult({ status: 1 }),
+    };
+    expect(readGitHeadSha('/tmp/pd', {}, failing)).toBeUndefined();
+    const junk: StagingExecDeps = {
+      execFn: () => execResult({ stdout: 'not-a-sha' }),
+    };
+    expect(readGitHeadSha('/tmp/pd', {}, junk)).toBeUndefined();
+  });
+});
+
 describe('stagingEvidencePath', () => {
   it('surfaces the recordPath a failed runStagingPhase attaches and ignores other errors', () => {
     expect(stagingEvidencePath(Object.assign(new Error('x'), { recordPath: '/tmp/r.json' }))).toBe(
@@ -495,6 +540,9 @@ describe('stagingEvidencePath', () => {
     );
     expect(stagingEvidencePath(new Error('no path'))).toBeUndefined();
     expect(stagingEvidencePath('boom')).toBeUndefined();
+    expect(
+      stagingEvidencePath(Object.assign(new Error('x'), { recordPath: undefined })),
+    ).toBeUndefined();
   });
 });
 

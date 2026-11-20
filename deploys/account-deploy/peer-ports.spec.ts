@@ -27,7 +27,16 @@ import { describe, expect, it } from 'vitest';
 /** Đọc text nguồn và extract giá trị hằng `const NAME = <số>;` — thiếu là lỗi test. */
 function readProgramConstant(file: string, name: string): number {
   const source = readFileSync(file, 'utf8');
-  const match = source.match(new RegExp(`^const ${name} = (\\d+);$`, 'mu'));
+  // Chấp nhận biến thể khai báo tường minh (OCR round 3): `export` tuỳ chọn,
+  // khoảng trắng tuỳ ý, type annotation tuỳ chọn — DRIFT GIÁ TRỊ vẫn bắt được
+  // vì số trong khai báo là nhóm bắt duy nhất; khai báo đổi hình ngoài các
+  // biến thể này phải sửa regex một cách tường minh (fail-loud, không đoán).
+  const match = source.match(
+    new RegExp(
+      `^(?:export )?const[ \\t]+${name}(?:[ \\t]*:[^=;\\n]+)?[ \\t]*=[ \\t]*(\\d+)[ \\t]*;[ \\t]*$`,
+      'mu',
+    ),
+  );
   if (match === null) {
     throw new Error(`constant ${name} not found in ${file}`);
   }
@@ -72,11 +81,14 @@ function parseJsonc(path: string): Record<string, unknown> {
   return JSON.parse(out.replace(/,(\s*[}\]])/gu, '$1')) as Record<string, unknown>;
 }
 
+/** Parse `dev.port` thuần — throw với message rõ, KHÔNG chạm vitest (OCR round 3). */
 function readWranglerDevPort(file: string): number {
   const config = parseJsonc(file);
   const dev = config['dev'] as { port?: unknown } | undefined;
-  expect(dev?.port, `dev.port not found in ${file}`).toBeTypeOf('number');
-  return dev?.port as number;
+  if (typeof dev?.port !== 'number') {
+    throw new Error(`dev.port not found (or not a number) in ${file}`);
+  }
+  return dev.port;
 }
 
 const programSource = resolve(import.meta.dirname, 'local-program.ts');

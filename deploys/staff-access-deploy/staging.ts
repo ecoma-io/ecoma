@@ -35,8 +35,6 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { deployProjectDir } from '@ecoma-io/deployment';
-
 import {
   parseStagingPhaseArg,
   readHyperdriveConfigId,
@@ -64,7 +62,7 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath, env, selection } = runStagingPhase(
+    const { record, recordPath, env, selection, projectDir } = runStagingPhase(
       parsed.phase,
       'staff-access-deploy',
     );
@@ -73,6 +71,13 @@ function main(argv: readonly string[]): number {
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[staff-access-deploy] evidence record: ${recordPath}`);
+    if (recordPath === '') {
+      // Evidence bị mất sau một lần provision xanh (lỗi filesystem đã bị nuốt
+      // trong engine) — operator phải biết provenance không được ghi.
+      console.warn(
+        '[staff-access-deploy] warning: the provision succeeded but the evidence record could not be written to .staging-evidence/ — provenance for this run is not recorded',
+      );
+    }
     if (record.gitSha === null) {
       // Provenance mờ: `git rev-parse HEAD` thất bại hoặc trả non-SHA — bản
       // provision vẫn chạy, nhưng evidence không ghim được revision (§7.3 cho
@@ -85,7 +90,8 @@ function main(argv: readonly string[]): number {
     if (parsed.phase === 'up') {
       // Đọc output id bằng CÙNG inventory + selection + env của lần `up` vừa
       // xanh — `runStagingPhase` trả nguyên bộ đó, KHÔNG resolve lại lần hai.
-      const projectDir = deployProjectDir('staff-access-deploy');
+      // projectDir tái dùng kết quả của engine (một lần `deployProjectDir`
+      // duy nhất trên một lần chạy — OCR round 3), cùng đường evidence đã ghi.
       const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
       if (hyperdriveConfigId === undefined) {
         console.error(

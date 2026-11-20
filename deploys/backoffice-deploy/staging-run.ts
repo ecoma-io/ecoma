@@ -348,7 +348,10 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
  * Đối xứng `ensureStack` của lane local TRỪ bước `mkdir`: backend s3 không đòi
  * thư mục local, và tạo thư mục state local trong một lần chạy staging là
  * mutation sai lane. `stack init` exit 0 khi vừa tạo; exit != 0 khi đã có
- * (hoặc lỗi thật) — phân biệt bằng `stack select` (đúng cơ chế `ensureStack`).
+ * (hoặc lỗi thật) — stderr của `init` phải mang "already exists" mới được
+ * fallback sang `stack select` (OCR round 3: lỗi mạng/backend/credential của
+ * `init` không được che bằng một lần `select` thành công trùng tên stack); khi
+ * `select` cũng thất bại, stderr của CẢ HAI lệnh vào cùng một lỗi.
  */
 export function ensureStagingStack(
   projectDir: string,
@@ -358,6 +361,9 @@ export function ensureStagingStack(
 ): void {
   const init = deps.execFn('pulumi', ['stack', 'init', selection.stackName], projectDir, env);
   if (init.status !== 0) {
+    if (!/already exists/iu.test(init.stderr)) {
+      throw new Error(`pulumi stack init ${selection.stackName} failed:\n${init.stderr}`);
+    }
     const select = deps.execFn(
       'pulumi',
       ['stack', 'select', selection.fullStackRef],
@@ -375,30 +381,61 @@ export function ensureStagingStack(
 /** Đếm resource change từ stdout `--json` của `pulumi preview`/`up`. */
 export type StagingResourceChanges = Record<string, number>;
 
+// oxlint-disable no-console -- parse-fail của evidence phải báo VỚI operator
+// (OCR round 3: format Pulumi CLI đổi là provenance lặng lẽ degrade); hàm thuần
+// nên chỉ warn, không throw — record vẫn ghi thiếu phần này thay vì run chết.
+
 /**
  * Parse summary resourceChanges từ stdout `--json`.
  *
  * Defensive: CLI đổi shape hoặc in thêm dòng nào đó → `undefined` (record ghi
  * thiếu phần này, KHÔNG chết) — evidence không được biến parse-fail thành run
- * fail, và cũng không được bịa số 0.
+ * fail, và cũng không được bịa số 0. Lần parse-fail được warn ra stderr để
+ * khoảng trống provenance nhìn thấy được, không âm thầm.
+ */
+/** Warn một lần cho khoảng trống provenance khi resourceChanges không parse được. */
+const warnResourceChangesUnparseable = (): void => {
+  console.warn(
+    '[backoffice-deploy] evidence resourceChanges could not be parsed from the Pulumi --json output — the record will omit them (provenance gap, not a run failure)',
+  );
+};
+
+/**
+ * Parse summary resourceChanges từ stdout `--json`.
+ *
+ * Defensive: CLI đổi shape hoặc in thêm dòng nào đó → `undefined` (record ghi
+ * thiếu phần này, KHÔNG chết) — evidence không được biến parse-fail thành run
+ * fail, và cũng không được bịa số 0. Lần parse-fail được warn ra stderr để
+ * khoảng trống provenance nhìn thấy được, không âm thầm.
  */
 export function parseResourceChanges(stdout: string): StagingResourceChanges | undefined {
   const start = stdout.indexOf('{');
-  if (start < 0) return undefined;
+  if (start < 0) {
+    warnResourceChangesUnparseable();
+    return undefined;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout.slice(start));
   } catch {
+    warnResourceChangesUnparseable();
     return undefined;
   }
   const summary = (parsed as { summary?: { resourceChanges?: unknown } }).summary;
   const changes = summary?.resourceChanges;
-  if (typeof changes !== 'object' || changes === null) return undefined;
+  if (typeof changes !== 'object' || changes === null) {
+    warnResourceChangesUnparseable();
+    return undefined;
+  }
   const out: StagingResourceChanges = {};
   for (const [key, value] of Object.entries(changes)) {
     if (typeof value === 'number') out[key] = value;
   }
-  return Object.keys(out).length > 0 ? out : undefined;
+  if (Object.keys(out).length === 0) {
+    warnResourceChangesUnparseable();
+    return undefined;
+  }
+  return out;
 }
 
 /** Revision hiện hành của stack từ `pulumi stack history --json`. */
@@ -453,15 +490,17 @@ export function readHyperdriveConfigId(
 /** SHA của workspace HEAD tại thời điểm chạy — revision của PROGRAM được apply. */
 export function readGitHeadSha(
   cwd: string,
+  sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingExecDeps = defaultDeps,
 ): string | undefined {
   // Least privilege (§6/§7.4.1): `git rev-parse` không cần credential nào —
-  // truyền env tối thiểu thay vì passthrough toàn bộ process.env (passphrase/
-  // token chỉ được đi đúng đường env của process Pulumi, không rò sang
-  // subprocess metadata).
+  // truyền env tối thiểu từ NGUỒN ĐƯỢC TRUYỀN vào (không đọc process.env trực
+  // tiếp: unit test với sourceEnv mock phải bất định, và không passthrough toàn
+  // bộ env — passphrase/token chỉ được đi đúng đường env của process Pulumi,
+  // không rò sang subprocess metadata).
   const result = deps.execFn('git', ['rev-parse', 'HEAD'], cwd, {
-    PATH: process.env.PATH,
-    HOME: process.env.HOME,
+    PATH: sourceEnv.PATH,
+    HOME: sourceEnv.HOME,
   });
   if (result.status !== 0) return undefined;
   const sha = result.stdout.trim();
@@ -524,6 +563,8 @@ export function runStagingPhase(
   recordPath: string;
   env: NodeJS.ProcessEnv;
   selection: StackSelection;
+  /** projectDir đã resolve — caller tái dùng, KHÔNG gọi deployProjectDir lần hai. */
+  projectDir: string;
 } {
   const projectDir = deployProjectDir(project);
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
@@ -535,7 +576,7 @@ export function runStagingPhase(
   // stackRef/pulumiRun của chính bản copy này.
   const { backendUrl, env, selection } = resolveStagingRunEnv(sourceEnv);
   const startedAt = new Date().toISOString();
-  const gitSha = readGitHeadSha(projectDir, deps);
+  const gitSha = readGitHeadSha(projectDir, sourceEnv, deps);
   ensureStagingStack(projectDir, selection, env, deps);
   const ctx = {
     worktreeRoot: projectDir,
@@ -561,6 +602,7 @@ export function runStagingPhase(
     recordPath: '',
     env,
     selection,
+    projectDir,
   };
   try {
     const stdout = pulumiRun(projectDir, project, phaseArgs, ctx, env) ?? '';
@@ -570,7 +612,20 @@ export function runStagingPhase(
   } catch (error) {
     outcome.record.outcome = 'failed';
     outcome.record.finishedAt = new Date().toISOString();
-    const path = appendStagingRecord(projectDir, outcome.record);
+    // Ghi evidence trong try riêng: lỗi filesystem không được THAY lỗi Pulumi
+    // gốc (operator cần nguyên nhân thật), cũng như không được nuốt lỗi thật.
+    let path: string | undefined;
+    try {
+      path = appendStagingRecord(projectDir, outcome.record);
+    } catch (recordError) {
+      throw Object.assign(
+        new Error(
+          `staging ${phase} failed on ${outcome.record.stackRef}: ${error instanceof Error ? error.message : String(error)} ` +
+            `(evidence write failed: ${recordError instanceof Error ? recordError.message : String(recordError)})`,
+        ),
+        { recordPath: undefined },
+      );
+    }
     throw Object.assign(
       new Error(
         `staging ${phase} failed on ${outcome.record.stackRef}: ${error instanceof Error ? error.message : String(error)}`,
@@ -579,7 +634,14 @@ export function runStagingPhase(
     );
   }
   outcome.record.finishedAt = new Date().toISOString();
-  outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
+  // Pulumi đã THÀNH CÔNG — lỗi filesystem ở đây không được biến một lần
+  // provision xanh thành throw; evidence bị thiếu là tổn hao provenance, được
+  // báo qua recordPath rỗng (entry CLI in cảnh báo, không fake đường file).
+  try {
+    outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
+  } catch {
+    outcome.recordPath = '';
+  }
   return outcome;
 }
 
