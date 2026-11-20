@@ -16,8 +16,8 @@
  * bằng PostgreSQL client với credential **migrator** (runtime role không có
  * INSERT trên `tenant_members` — grant trong `0002_roles_and_grants.sql` — và
  * bootstrap là đường duy nhất ghi membership), không bao giờ chạy từ Worker —
- * cùng ranh giới runner/Worker với `db/apply.mts` (HD6: Hyperdrive không hỗ trợ
- * advisory lock; script này chỉ DML nên không cần lock).
+ * cùng ranh giới runner/Worker với migration authority `deploys/remote-cache-db`
+ * (HD6: Hyperdrive không hỗ trợ advisory lock; script này chỉ DML nên không cần lock).
  *
  * Hành vi (ADR-0020 Quyết định 5, 6, 9, 13; domain model §2.1–§2.4, §2.9;
  * ADR-0026 §1, §4, §5), tất cả nằm trong MỘT transaction do caller quản lý:
@@ -81,10 +81,8 @@ import { pathToFileURL } from 'node:url';
 
 import { Client } from 'pg';
 
-import { REMOTE_CACHE_DATABASE } from './migrate.mts';
-
-/** Tên database mà service này sở hữu; re-export cho assert của CLI và test. */
-export { REMOTE_CACHE_DATABASE };
+/** Tên database mà service này sở hữu — hợp đồng sở hữu dữ liệu của remote-cache. */
+export const REMOTE_CACHE_DATABASE = 'db-remote-cache';
 
 /** Tenant canonical first-party duy nhất mà script này được phép bootstrap. */
 export const CANONICAL_TENANT_NAME = 'ecoma';
@@ -247,8 +245,8 @@ export function parseBootstrapEnv(env: NodeJS.ProcessEnv): BootstrapTenantInput 
 /**
  * Bootstrap tenant canonical — core logic dùng chung bởi CLI và integration
  * test (một đường code duy nhất, đúng pattern runner-canonical của
- * `db/apply.mts`: vòng apply viết riêng trong test là test bản sao, không test
- * runner).
+ * authority `deploys/remote-cache-db/runner.mts`: vòng apply viết riêng trong
+ * test là test bản sao, không test runner).
  *
  * Client truyền vào phải là credential **migrator** (owner của schema sau khi
  * migration chạy): runtime role không có INSERT trên `tenant_members`, và

@@ -151,9 +151,9 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/apps/remote-cache-app \\
+  -w /repo/deploys/remote-cache-app-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
-  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts
+  /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate
 `;
 }

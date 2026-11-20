@@ -733,11 +733,17 @@ export async function startRemoteCacheStack(): Promise<RemoteCacheStack> {
       `postgres://${APP_RUNTIME_ROLE}:${ROLE_PASSWORD}@127.0.0.1:${String(postgres.port)}/` +
       APP_DATABASE;
 
-    runCliScript('apps/remote-cache-api/db/apply.mts', { DATABASE_URL: apiMigratorUrl });
+    // Cutover #377: apply qua runner của migration authority (advisory lock +
+    // guard current_database()); app không còn runner bản sao.
     runCliScript(
-      'apps/remote-cache-app/db/apply.mts',
+      'deploys/remote-cache-db/runner.mts',
+      { DATABASE_URL: apiMigratorUrl },
+      { cwd: resolve(REPO_ROOT, 'deploys/remote-cache-db'), tsconfig: 'tsconfig.db.json' },
+    );
+    runCliScript(
+      'deploys/remote-cache-app-db/runner.mts',
       { DATABASE_URL: appMigratorUrl },
-      { cwd: APP_DIR, tsconfig: 'tsconfig.db.json' },
+      { cwd: resolve(REPO_ROOT, 'deploys/remote-cache-app-db'), tsconfig: 'tsconfig.db.json' },
     );
     runCliScript('apps/remote-cache-api/db/bootstrap-tenant.mts', {
       DATABASE_URL: apiMigratorUrl,

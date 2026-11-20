@@ -8,13 +8,25 @@
  * từ `globalSetup` trước khi worker nào kịp báo xanh giả. Pattern
  * `apps/staff-access/tests/integrations/harness.ts` — tham chiếu.
  *
- * Apply đi qua **runner production** (`db/apply.mts` `applyAllMigrations`) —
- * đúng hàm mà CLI `db:migrate` chạy, gồm advisory lock và assert
- * `current_database()`. Viết vòng apply riêng ở đây là tạo runner thứ hai.
+ * Apply đi qua **runner thật của migration authority** — spawn CLI
+ * `deploys/remote-cache-db/runner.mts migrate` (cutover #377: runner cũ
+ * `db/apply.mts` đã retire; đây là cùng runner mà lane chạy, gồm advisory lock
+ * + guard `current_database()` + `drizzle-kit migrate`). Viết vòng apply riêng
+ * ở đây là tạo runner thứ hai không có lock — lỗi đã từng xảy ra ở
+ * `apps/account`.
  */
 
-import { applyAllMigrations } from '../../db/apply.mts';
-import { REMOTE_CACHE_DATABASE } from '../../db/migrate.mts';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+import process from 'node:process';
+
+/**
+ * Tên database hợp đồng mà service này sở hữu — phải khớp
+ * `REMOTE_CACHE_DATABASE`; authority pin cùng giá trị qua guard
+ * `current_database()` (`deploys/remote-cache-db/runner.mts`).
+ */
+export const REMOTE_CACHE_DATABASE = 'db-remote-cache';
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -62,6 +74,43 @@ export interface RemoteCacheDatabase {
   /** Xoá sạch dữ liệu giữa các test mà không đụng DDL, grant hay trigger. */
   truncateData(): Promise<void>;
   stop(): Promise<void>;
+}
+
+/**
+ * Apply migration qua **runner thật của authority** — spawn CLI
+ * `deploys/remote-cache-db/runner.mts migrate` với credential migrator thật.
+ *
+ * ⚠️ `databaseUrl` phải là credential **migrator** thật (không `SET ROLE`):
+ * quyền `CREATE` trên database là điều kiện để `0001` chạy, và `SET ROLE`
+ * không kiểm chứng được quyền kết nối thật.
+ */
+export function applyMigrations(databaseUrl: string): void {
+  const repoRoot = resolve(import.meta.dirname, '../../../..');
+  const dbProjectRoot = resolve(repoRoot, 'deploys/remote-cache-db');
+  const require = createRequire(import.meta.url);
+  const tsxCli = require.resolve('tsx/cli');
+  const result = spawnSync(
+    process.execPath,
+    [tsxCli, resolve(dbProjectRoot, 'runner.mts'), 'migrate'],
+    {
+      cwd: dbProjectRoot,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      encoding: 'utf-8',
+      // Mặc định 300s: CI chậm (start container + apply toàn bộ journal) từng
+      // vượt 120s cũ; ECOMA_MIGRATION_TIMEOUT_MS cho lần chạy cần dài hơn nữa.
+      timeout: Number(process.env.ECOMA_MIGRATION_TIMEOUT_MS ?? 300_000),
+    },
+  );
+  if (result.error !== undefined || result.status !== 0) {
+    const detail =
+      `migration runner failed (exit ${String(result.status ?? result.signal ?? 'spawn-error')}` +
+      `${result.error ? `: ${result.error.message}` : ''}):\n` +
+      `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
+    throw new Error(
+      // DATABASE_URL chứa mật khẩu migrator — mask trước khi vào output test.
+      detail.replace(/:[^:@/]+@/gu, ':****@').slice(-2000),
+    );
+  }
 }
 
 async function pgModule(): Promise<typeof import('pg')> {
@@ -257,17 +306,13 @@ export async function startRemoteCacheDatabase(): Promise<RemoteCacheDatabase> {
       throw error;
     }
 
-    const connectAsMigrator = (): Promise<Client> =>
-      open({ user: 'ecoma_remote_cache_migrator', password: ROLE_PASSWORD });
-
-    // Apply bằng credential migrator thật qua runner production — xem JSDoc
-    // của hàm này và của `applyAllMigrations`.
-    const migrator = await connectAsMigrator();
-    try {
-      await applyAllMigrations(migrator);
-    } finally {
-      await migrator.end().catch(() => undefined);
-    }
+    // Apply bằng credential migrator thật (không SET ROLE) qua runner của
+    // authority — provision() ở trên cấp CONNECT+CREATE cho đúng role đó;
+    // thiếu quyền thì chết ngay ở CREATE SCHEMA, và test phải thấy nó chết
+    // chứ không phải giấu đi.
+    applyMigrations(
+      `postgres://ecoma_remote_cache_migrator:${ROLE_PASSWORD}@${host}:${port}/${REMOTE_CACHE_DATABASE}`,
+    );
 
     const asRole = async (
       role: 'ecoma_remote_cache_runtime' | 'ecoma_remote_cache_migrator',

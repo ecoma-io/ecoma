@@ -1,0 +1,62 @@
+{
+  "version": "7.1.0",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7.1.0",
+      "when": 1700000000000,
+      "tag": "0001_control_plane",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7.1.0",
+      "when": 1700000001000,
+      "tag": "0002_roles_and_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7.1.0",
+      "when": 1700000002000,
+      "tag": "0003_cache_entries",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7.1.0",
+      "when": 1700000003000,
+      "tag": "0004_api_key_trusted_ci",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7.1.0",
+      "when": 1700000004000,
+      "tag": "0005_quota_usage_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7.1.0",
+      "when": 1700000005000,
+      "tag": "0006_usage_counter_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7.1.0",
+      "when": 1700000006000,
+      "tag": "0007_tenant_classification_and_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7.1.0",
+      "when": 1700000007000,
+      "tag": "0008_portal_authorization",
+      "breakpoints": true
+    }
+  ]
+}

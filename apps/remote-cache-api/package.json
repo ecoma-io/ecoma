@@ -16,8 +16,9 @@
     "testcontainers": "12.2.1"
   },
   "//": [
-    "`pg` giu o dependencies cho `db/apply.mts` + `db/migrate.mts` — migration",
-    "runner chay o CI runner (Node), khong thuoc bundle Worker. Nguon `pg`",
+    "`pg` giu o dependencies cho bootstrap CLI (`db/bootstrap-tenant.mts`) va suite",
+    "integration (harness pg Client) — chay o CI runner (Node), khong thuoc bundle",
+    "Worker. Nguon `pg`",
     "runtime cua app la `@ecoma-io/remote-cache-infrastructure` (postgres.js",
     "qua Hyperdrive).",
     "`hono` la runtime HTTP cua Worker; control-plane routes skeleton P4.1.",
@@ -88,14 +89,6 @@
           }
         }
       },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/remote-cache-api",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
-        }
-      },
       "typecheck-db": {
         "executor": "nx:run-commands",
         "options": {
@@ -142,7 +135,7 @@
           "command": "npx vitest run -c vitest.integration.config.mts"
         },
         "//": [
-          "KHONG `build`: suite integration import thang TS nguon — `../../db/apply.mts`,",
+          "KHONG `build`: suite integration import thang TS nguon — harness spawn runner",
           "cac lib qua export workspace. Khong spec nao doc `dist/` hay type do wrangler",
           "sinh ra; esbuild bundle chi tieu thu o lan deploy. Go `build` khoi dependsOn",
           "bo chi phi bundle ma khong doi ca suite chay."

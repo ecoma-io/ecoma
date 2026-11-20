@@ -31,8 +31,11 @@ import {
   parseDatabaseUrl,
   REMOTE_CACHE_DATABASE,
 } from '../../db/bootstrap-tenant.mts';
-import { REMOTE_CACHE_DATABASE as HARNESS_DATABASE } from '../../db/migrate.mts';
-import { type RemoteCacheDatabase, startRemoteCacheDatabase } from '../integrations/harness.ts';
+import {
+  REMOTE_CACHE_DATABASE as HARNESS_DATABASE,
+  type RemoteCacheDatabase,
+  startRemoteCacheDatabase,
+} from '../integrations/harness.ts';
 
 const OWNER = 'sub-owner-bootstrap';
 const HOST_PROJECT = 'ecoma-ci';

@@ -1030,11 +1030,41 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
+  deploys/remote-cache-app-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+
   deploys/remote-cache-app-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
+
+  deploys/remote-cache-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.1
+        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/staff-access-db:
     devDependencies:

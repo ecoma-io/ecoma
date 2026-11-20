@@ -7,7 +7,7 @@
  * Bản sao pattern của `deploys/llm-api-deploy/tests/integrations/argv-hygiene.spec.ts`
  * (06-testing.md §6: không shared test-support giữa các deploy unit), rút còn
  * đúng hai bước mà unit này có: provision (hai role) và migrate (đường canonical
- * `db/apply.mts`).
+ * `runner.mts migrate` của authority `deploys/remote-cache-db` — cutover #377).
  *
  * Thiết kế (06-testing.md §2/§4 — app-owned suite, Docker là phụ thuộc cứng,
  * vắng Docker là suite ĐỎ theo §6):
@@ -459,15 +459,15 @@ describe('provision creates, applies idempotently and rotates for real', () => {
 });
 
 describe('migrate runs the canonical runner against the right database', () => {
-  it('applies all migrations through db/apply.mts with the rotated credential', () => {
+  it('applies all migrations through the authority runner with the rotated credential', () => {
     const flowState = requireFlow();
     const { result } = flowState.migrateRun;
     expect(result.code).toBe(0);
-    // stdout của `db/apply.mts`: "applied <file>" + "done N file(s) applied; M
-    // tables in schema remote_cache" — số bảng tính trên DATABASE ĐANG KẾT NỐI,
-    // nên dòng này là bằng chứng migrate nối đúng db-remote-cache.
-    expect(result.stdout).toContain('file(s) applied');
-    expect(result.stdout).toMatch(/tables in schema remote_cache/u);
+    // stdout của runner `deploys/remote-cache-db`: kit apply + dòng xác nhận
+    // của wrapper "migrate complete: history covers every journal entry" —
+    // bằng chứng migrate chạy hết adopted set trên DATABASE ĐANG KẾT NỐI
+    // (guard current_database() của wrapper đã chốt đúng db-remote-cache).
+    expect(result.stdout).toContain('migrate complete');
   });
 
   it('lands the remote_cache tables inside db-remote-cache', () => {

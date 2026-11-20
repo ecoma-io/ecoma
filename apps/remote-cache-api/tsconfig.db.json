@@ -14,5 +14,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["db/**/*.mts"]
+  "include": ["db/bootstrap-tenant.mts"]
 }

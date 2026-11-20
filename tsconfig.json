@@ -89,6 +89,12 @@
     },
     {
       "path": "./deploys/staging-pg-host"
+    },
+    {
+      "path": "./deploys/remote-cache-db"
+    },
+    {
+      "path": "./deploys/remote-cache-app-db"
     }
   ]
 }
