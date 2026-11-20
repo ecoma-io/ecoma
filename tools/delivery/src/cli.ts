@@ -35,9 +35,10 @@ import {
   type SecretAction,
 } from './worker-secrets.ts';
 
-const USAGE = `usage:
-  npx tsx src/cli.ts ensure-staging-environments [--check] [--repo owner/name]
-  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)`;
+const USAGE =
+  'usage:\n' +
+  '  npx tsx src/cli.ts ensure-staging-environments [--check] [--repo owner/name]\n' +
+  '  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)';
 
 /** Shape tối thiểu khi parse argv `worker-secret`. */
 export type ParsedWorkerSecretArgv =
@@ -68,12 +69,17 @@ export const STDIN_MAX_BYTES = 1024 * 1024;
  * Đọc toàn bộ fd cho tới EOF theo khối, chặn ở trần dung lượng — không bao giờ
  * buffer vô hạn. fd là tham số để spec đọc từ file thật mà không đụng stdin.
  */
+/** Trần thời gian chờ dữ liệu stdin khi fd non-blocking — không chờ vô hạn. */
+export const STDIN_EAGAIN_DEADLINE_MS = 10_000;
+
 export function readStdinFrom(fd: number, maxBytes: number = STDIN_MAX_BYTES): string {
   const chunks: Buffer[] = [];
   let total = 0;
   const buffer = Buffer.alloc(64 * 1024);
+  const deadline = Date.now() + STDIN_EAGAIN_DEADLINE_MS;
   // EAGAIN là "chưa có dữ liệu" trên fd non-blocking (stdin pipe mặc định của
-  // node), không phải lỗi — chờ 1ms (sleep sync qua Atomics) rồi đọc lại.
+  // node), không phải lỗi — chờ 1ms (sleep sync qua Atomics) rồi đọc lại, trong
+  // trần thời gian để một pipe không bao giờ đóng không treo CLI vô hạn.
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
   for (;;) {
     let read: number;
@@ -81,6 +87,12 @@ export function readStdinFrom(fd: number, maxBytes: number = STDIN_MAX_BYTES): s
       read = readSync(fd, buffer);
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === 'EAGAIN') {
+        if (Date.now() > deadline) {
+          throw new Error(
+            `stdin produced no data within ${STDIN_EAGAIN_DEADLINE_MS}ms — aborting the bounded read`,
+            { cause: error },
+          );
+        }
         Atomics.wait(sleeper, 0, 0, 1);
         continue;
       }
@@ -109,7 +121,12 @@ function readStdinValue(): string {
     );
   }
   try {
-    return trimTrailingNewline(readStdinFrom(0));
+    const value = trimTrailingNewline(readStdinFrom(0));
+    // Chặn sớm giá trị rỗng trước khi putWorkerSecret — lỗi rõ ngay tại lớp đọc.
+    if (value.length === 0) {
+      throw new Error('secret value must not be empty — pipe a non-empty value via stdin');
+    }
+    return value;
   } catch (error) {
     throw new Error(
       `cannot read the secret value from stdin: ${error instanceof Error ? error.message : String(error)}`,
@@ -211,16 +228,29 @@ let isMainEntry = false;
 if (process.argv[1] !== undefined) {
   try {
     isMainEntry = realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
+  } catch (error) {
+    // realpath không resolve được — fallback so raw string; nếu path khớp CHÍNH
+    // entry mà vẫn không quyết định được mode là state không thể phân loại →
+    // rethrow fail-closed thay vì im lặng không chạy gì.
+    const selfPath = fileURLToPath(import.meta.url);
+    if (process.argv[1] === selfPath) {
+      throw new Error(
+        `cannot determine whether this process is the CLI entry (${process.argv[1]}): ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
     isMainEntry = false;
   }
 }
 if (isMainEntry) {
-  // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack trace.
+  // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack
+  // trace. Dùng exitCode + drain tự nhiên thay vì process.exit: exit ngay sau
+  // write có thể cắt ngang stdout/stderr chưa flush (đặc biệt khi pipe).
   try {
-    process.exit(main(process.argv.slice(2)));
+    process.exitCode = main(process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }

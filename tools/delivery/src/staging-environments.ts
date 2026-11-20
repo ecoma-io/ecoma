@@ -85,7 +85,12 @@ export interface GhApiDeps {
 
 /** Env tối thiểu cho subprocess `gh` — không passthrough toàn bộ process.env. */
 export function ghProcessEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { PATH: source.PATH, HOME: source.HOME };
+  // PATH/HOME fallback về process hiện tại: source env của caller (spec,
+  // harness) có thể không mang hai biến này mà `gh` vẫn cần để chạy.
+  const env: NodeJS.ProcessEnv = {
+    PATH: source.PATH ?? process.env.PATH,
+    HOME: source.HOME ?? process.env.HOME,
+  };
   for (const key of ['GH_TOKEN', 'GH_HOST', 'GH_REPO'] as const) {
     if (source[key] !== undefined) env[key] = source[key];
   }
@@ -138,6 +143,16 @@ function parseJson<T>(stdout: string, label: string): T {
 export interface DeploymentBranchPolicyShape {
   protected_branches?: boolean;
   custom_branch_policies?: boolean;
+}
+
+/** Policy là custom chỉ khi shape đọc được VÀ `custom_branch_policies` bật. */
+function isCustomPolicy(policy: DeploymentBranchPolicyShape | null | undefined): boolean {
+  return (
+    typeof policy === 'object' &&
+    policy !== null &&
+    !Array.isArray(policy) &&
+    policy.custom_branch_policies === true
+  );
 }
 
 /** Shape payload `GET /environments/{name}` mà preflight đọc (§6.13). */
@@ -258,11 +273,7 @@ function ensureOne(
     payload = getEnvironment(envPath, deps);
   } else {
     const policy = payload.deployment_branch_policy;
-    policyCustom =
-      typeof policy === 'object' &&
-      policy !== null &&
-      !Array.isArray(policy) &&
-      policy.custom_branch_policies === true;
+    policyCustom = isCustomPolicy(policy);
     if (!policyCustom) {
       if (mode === 'check') {
         // §6.13 fail-closed: check mode PHẢI báo policy sai, không chỉ ensure —
@@ -284,12 +295,7 @@ function ensureOne(
     // chỉ đặt TRUE khi re-read XÁC NHẬN state, không phải ngay sau khi PUT.
     // `payload` về mặt type vẫn nullable (getEnvironment) — optional chain cho
     // state đọc không được là fail-closed về violation, không phải crash.
-    const repaired = payload?.deployment_branch_policy;
-    policyCustom =
-      typeof repaired === 'object' &&
-      repaired !== null &&
-      !Array.isArray(repaired) &&
-      repaired.custom_branch_policies === true;
+    policyCustom = isCustomPolicy(payload?.deployment_branch_policy);
     if (!policyCustom) {
       report.violations.push(
         'deployment_branch_policy is still not custom after repair — the GitHub API did ' +

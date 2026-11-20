@@ -132,6 +132,13 @@ describe('ghProcessEnv', () => {
       GH_HOST: 'github.com',
     });
   });
+
+  it('falls back to the current process PATH/HOME when the source env lacks them', () => {
+    const env = ghProcessEnv({ GH_TOKEN: 't' });
+    expect(env.PATH).toBe(process.env.PATH);
+    expect(env.HOME).toBe(process.env.HOME);
+    expect(env.GH_TOKEN).toBe('t');
+  });
 });
 
 describe('isNotFound', () => {

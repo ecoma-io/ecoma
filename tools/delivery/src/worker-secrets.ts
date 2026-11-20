@@ -157,6 +157,11 @@ export function stripJsoncComments(text: string): string {
     out += char;
     index += 1;
   }
+  // Vẫn đang trong chuỗi khi hết input là config JSONC hỏng — fail-closed thay
+  // vì trả về JSON lệch để JSON.parse ném lỗi khó hiểu phía sau.
+  if (inString) {
+    throw new Error('unterminated string literal in JSONC config');
+  }
   return out;
 }
 
@@ -231,7 +236,19 @@ export function putWorkerSecret(
   // `--config` là đường tuyệt đối — relative path hoạt động từ mọi thư mục
   // gọi CLI, relative path trong config (schema, assets) cũng không vỡ.
   const configAbs = resolve(configPath);
-  const worker = stagingWorkerNameFromConfig(deps.readTextFile(configAbs));
+  let configText: string;
+  try {
+    configText = deps.readTextFile(configAbs);
+  } catch (error) {
+    // Lỗi IO (ENOENT, permission…) ném tên path — operator nhìn là biết sửa gì,
+    // không để stack raw nổ lên đường chạy CLI.
+    throw new Error(
+      `cannot read wrangler config at ${configAbs}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  const worker = stagingWorkerNameFromConfig(configText);
   if (classifyWorkerName(worker) !== 'staging') {
     throw new Error(
       `resolved worker "${worker}" is not a staging identity (expected prefix "stg-") — ` +

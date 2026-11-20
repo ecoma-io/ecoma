@@ -88,6 +88,13 @@ describe('stripJsoncComments', () => {
     expect(parsed.routes[0]?.comment_url).toBe('https://example.com/a//b');
     expect(stripped).not.toContain('Staging');
   });
+
+  it('fails closed on an unterminated string literal instead of returning broken JSON', () => {
+    expect(() => stripJsoncComments('{"a": "unclosed}')).toThrowError(
+      /unterminated string literal/u,
+    );
+    expect(() => stripJsoncComments('{"a": "line"}')).not.toThrow();
+  });
 });
 
 describe('stagingWorkerNameFromConfig', () => {
@@ -243,5 +250,17 @@ describe('putWorkerSecret', () => {
     expect(() =>
       putWorkerSecret('put', 'AXIOM_TOKEN', 'apps/home/wrangler.jsonc', 'value', envSource, deps),
     ).toThrowError(/Cloudflare API/u);
+  });
+
+  it('names the config path when the config file cannot be read', () => {
+    const deps: WorkerSecretDeps = {
+      readTextFile: () => {
+        throw new Error('ENOENT: no such file or directory');
+      },
+      execFn: () => ({ status: 0, stdout: '', stderr: '' }),
+    };
+    expect(() =>
+      putWorkerSecret('put', 'AXIOM_TOKEN', 'missing/wrangler.jsonc', 'value', envSource, deps),
+    ).toThrowError(/cannot read wrangler config at .*missing\/wrangler\.jsonc/u);
   });
 });
