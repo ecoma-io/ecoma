@@ -8,6 +8,7 @@ import {
   type StagingSmokeDeps,
   type StagingSmokeOptions,
 } from './staging-smoke.ts';
+import { GuardAbortError, type RunListQueryResult } from './staging-guard.ts';
 
 /** Response giả tối thiểu — module chỉ đọc status và headers.get. */
 function res(status: number, headers: Record<string, string> = {}): SmokeResponse {
@@ -22,17 +23,26 @@ interface FetchCall {
   redirect: string;
 }
 
+/** Default queryRuns NÉM ngay — guard tắt thì KHÔNG được có lượt tra cứu nào. */
+function neverQueryRuns(): RunListQueryResult {
+  throw new Error('queryRuns must not be called without guard inputs');
+}
+
 /** Deps giả: script trả response/throw theo lượt, ghi lại URL và cờ redirect. */
 function fakeFetch(script: Array<SmokeResponse | Error>): {
   deps: StagingSmokeDeps;
   calls: FetchCall[];
   sleeps: number[];
   lines: string[];
+  /** Gán kết quả lượt tra cứu run MỚI cho guard — chỉ test có guard mới dùng. */
+  setQueryRuns: (result: RunListQueryResult) => void;
 } {
   const calls: FetchCall[] = [];
   const sleeps: number[] = [];
   const lines: string[] = [];
   let index = 0;
+  // Ném ngay: smoke KHÔNG bật guard mà chạm tra cứu run là lỗi wiring.
+  let queryRunsImpl: () => RunListQueryResult = neverQueryRuns;
   const deps: StagingSmokeDeps = {
     fetchImpl: (url, init) => {
       calls.push({ url, redirect: init.redirect });
@@ -45,9 +55,18 @@ function fakeFetch(script: Array<SmokeResponse | Error>): {
       sleeps.push(ms);
       return Promise.resolve();
     },
+    queryRuns: () => queryRunsImpl(),
     out: { write: (text) => (lines.push(text), lines.length) },
   };
-  return { deps, calls, sleeps, lines };
+  return {
+    deps,
+    calls,
+    sleeps,
+    lines,
+    setQueryRuns: (result) => {
+      queryRunsImpl = () => result;
+    },
+  };
 }
 
 /** Lỗi transport mang `code` — đúng shape undici ném qua `cause`. */
@@ -105,8 +124,9 @@ describe('validateCheckPath', () => {
 describe('runStagingSmoke', () => {
   it('passes when every declared check holds and prints OK exactly once', async () => {
     const { deps, calls, lines } = fakeFetch(passingScript());
-    const results = await runStagingSmoke(HOME_OPTIONS, deps);
-    expect(results).toHaveLength(3);
+    const outcome = await runStagingSmoke(HOME_OPTIONS, deps);
+    expect(outcome.checks).toHaveLength(3);
+    expect(outcome.guardAction).toBe('proceed');
     expect(calls.map((call) => call.url)).toEqual([
       'https://ecoma.io.vn/',
       'https://ecoma.io.vn/health',
@@ -142,8 +162,8 @@ describe('runStagingSmoke', () => {
       res(200),
       res(200, { 'x-robots-tag': 'noindex' }),
     ]);
-    const results = await runStagingSmoke(HOME_OPTIONS, deps);
-    expect(results).toHaveLength(3);
+    const outcome = await runStagingSmoke(HOME_OPTIONS, deps);
+    expect(outcome.checks).toHaveLength(3);
     expect(calls).toHaveLength(4);
     expect(sleeps.length).toBeGreaterThanOrEqual(1);
     expect(lines.join('')).toContain('RETRY');
@@ -155,22 +175,22 @@ describe('runStagingSmoke', () => {
       res(302, { location: '/en' }),
     ];
     const { deps, calls } = fakeFetch(script);
-    const results = await runStagingSmoke(
+    const outcome = await runStagingSmoke(
       { ...HOME_OPTIONS, healthPaths: [], noindexPaths: [] },
       deps,
     );
-    expect(results).toHaveLength(1);
+    expect(outcome.checks).toHaveLength(1);
     expect(calls).toHaveLength(2);
   });
 
   it('treats a request timeout as not-ready and retries', async () => {
     const timeout = Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' });
     const { deps } = fakeFetch([timeout, res(302, { location: '/en' })]);
-    const results = await runStagingSmoke(
+    const outcome = await runStagingSmoke(
       { ...HOME_OPTIONS, healthPaths: [], noindexPaths: [] },
       deps,
     );
-    expect(results).toHaveLength(1);
+    expect(outcome.checks).toHaveLength(1);
   });
 
   it('fails immediately on an unclassified transport error', async () => {
@@ -235,5 +255,63 @@ describe('runStagingSmoke', () => {
       runStagingSmoke({ ...HOME_OPTIONS, redirects: [], noindexPaths: [] }, deps),
     ).rejects.toThrowError(/malformed response object/u);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('runStagingSmoke guard before-status (§7.4)', () => {
+  const guardOptions: StagingSmokeOptions = {
+    ...HOME_OPTIONS,
+    guard: { runId: 11, contextSha: 'c'.repeat(40) },
+  };
+
+  it('proceeds when the run is still the newest — caller may write the success status', async () => {
+    const { deps, lines, setQueryRuns } = fakeFetch(passingScript());
+    setQueryRuns({ ok: true, mainSha: 'c'.repeat(40), runs: [{ id: 11, status: 'completed' }] });
+    const outcome = await runStagingSmoke(guardOptions, deps);
+    expect(outcome.guardAction).toBe('proceed');
+    expect(lines.join('')).toContain('proceed-newest-run');
+  });
+
+  it('skips WITHOUT failing when a newer run completed — caller must write nothing', async () => {
+    const { deps, lines, setQueryRuns } = fakeFetch(passingScript());
+    setQueryRuns({
+      ok: true,
+      mainSha: 'c'.repeat(40),
+      runs: [
+        { id: 11, status: 'completed' },
+        { id: 12, status: 'completed' },
+      ],
+    });
+    const outcome = await runStagingSmoke(guardOptions, deps);
+    expect(outcome.guardAction).toBe('skip');
+    expect(outcome.checks).toHaveLength(3);
+    expect(lines.join('')).toContain('superseded-by-newer-completed-run');
+    expect(lines.join('')).toContain('staging smoke OK');
+  });
+
+  it('aborts without a failure status when the fresh query fails', async () => {
+    const { deps, setQueryRuns } = fakeFetch(passingScript());
+    setQueryRuns({ ok: false, error: 'rate limited' });
+    const error = await runStagingSmoke(guardOptions, deps).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(GuardAbortError);
+    expect((error as GuardAbortError).action).toBe('abort-query-failed');
+    expect((error as GuardAbortError).message).toContain('rate limited');
+  });
+
+  it('aborts WITH a failure status when main advanced past the run SHA', async () => {
+    const { deps, setQueryRuns } = fakeFetch(passingScript());
+    setQueryRuns({ ok: true, mainSha: 'd'.repeat(40), runs: [{ id: 11, status: 'completed' }] });
+    const error = await runStagingSmoke(guardOptions, deps).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(GuardAbortError);
+    expect((error as GuardAbortError).action).toBe('abort-main-advanced');
+  });
+
+  it('never queries runs when the guard is disabled — the smoke-failure path bypasses the guard', async () => {
+    const { deps } = fakeFetch([res(500)]);
+    // queryRuns giả NÉM nếu bị gọi: smoke đỏ là red SDL, guard không đổi điều đó.
+    // 500 là fail-fast (không qua retry budget) — message không mang chữ FAILED-after.
+    await expect(runStagingSmoke(HOME_OPTIONS, deps)).rejects.toThrowError(
+      /expected status 302, got 500/u,
+    );
   });
 });
