@@ -155,6 +155,17 @@
           "service": "stg-ecoma-staff-access",
         },
       ],
+      // `NITRO_PUBLIC_NO_INDEX` bật cờ noindex staging (điều 1 §4: bề mặt
+      // staging không được index — smoke `root-noindex` của flat app theo
+      // `02-delivery.md` assert header này) — middleware
+      // `server/middleware/no-index.ts` đặt header `X-Robots-Tag: noindex`
+      // khi và chỉ khi giá trị là boolean `true` (`"true"` chuỗi được
+      // `applyEnv` parse qua `destr()` thành `true`); production không khai
+      // biến này nên giữ `false` mặc định. Cơ chế như `apps/backoffice`
+      // (commit #354) và `apps/home`.
+      "vars": {
+        "NITRO_PUBLIC_NO_INDEX": "true",
+      },
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
       // bo qua nó; nó tồn tại để pipeline delivery (§7.2) có một origin tất
       // định cho deploy unit. Giá trị theo scheme hostname MOD1
