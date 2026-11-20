@@ -5,6 +5,7 @@
     "outDir": "./out-tsc/vitest",
     "rootDir": "../..",
     "declaration": true,
+    "lib": ["es2023"],
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
