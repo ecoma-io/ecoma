@@ -268,7 +268,7 @@ gh issue create --repo ecoma-io/ecoma \
   create without explicit authorization. Add a comment instead of editing.
 - Do not close another unit's Issue; closure conditions belong to that unit
   (`work-management.md` §2.6).
-+- Do not create Milestones, labels, Issue types or
+  +- Do not create Milestones, labels, Issue types or
   Issue templates as part of writing an Issue. Propose such changes as their
   own work unit.
 - Never bulk-apply changes to existing Issues.
