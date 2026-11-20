@@ -41,10 +41,12 @@ import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment
 
 import { DATABASES, type Database } from './scripts.js';
 import {
+  STAGING_SLOT,
   parseStagingPhaseArg,
   readHyperdriveConfigId,
   resolveStagingRunEnv,
   runStagingPhase,
+  stagingEvidencePath,
 } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
@@ -86,7 +88,7 @@ function main(argv: readonly string[]): number {
       const projectDir = deployProjectDir('llm-api-deploy');
       const { backendUrl, env } = resolveStagingRunEnv();
       const selection = stagingDeploymentAdapter.stackSelection('llm-api-deploy', {
-        slot: 'staging',
+        slot: STAGING_SLOT,
         backendUrl,
       });
       for (const target of DATABASES) {
@@ -114,6 +116,12 @@ function main(argv: readonly string[]): number {
     console.error(
       `[llm-api-deploy] staging failed: ${error instanceof Error ? error.message : String(error)}`,
     );
+    // Một lần chạy thất bại đã ghi evidence append-only trước khi throw (lỗi
+    // mang `recordPath`) — in đường để operator tìm được file, không drop nó.
+    const evidencePath = stagingEvidencePath(error);
+    if (evidencePath !== undefined) {
+      console.error(`[llm-api-deploy] evidence record: ${evidencePath}`);
+    }
     return 1;
   }
 }

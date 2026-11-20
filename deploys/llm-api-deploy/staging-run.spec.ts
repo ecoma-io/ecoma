@@ -29,6 +29,7 @@ import {
   readStagingRevision,
   resolveStagingHyperdriveOrigin,
   resolveStagingRunEnv,
+  stagingEvidencePath,
   stagingHyperdriveConfigName,
   stagingHyperdriveOutputName,
   type StagingExecDeps,
@@ -135,7 +136,7 @@ describe('classifyLlmApiDeployStack', () => {
 });
 
 describe('resolveStagingRunEnv', () => {
-  it('builds the child env from the full inventory and strips the file-passphrase variant', () => {
+  it('builds the child env from the full inventory and never carries the file-passphrase variant', () => {
     const { backendUrl, env } = resolveStagingRunEnv({
       ...fullSourceEnv(),
       PULUMI_CONFIG_PASSPHRASE_FILE: '/tmp/should-not-win',
@@ -150,6 +151,37 @@ describe('resolveStagingRunEnv', () => {
     // lại config provider, token thì không).
     expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+  });
+
+  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
+    const { env } = resolveStagingRunEnv({
+      ...fullSourceEnv(),
+      PATH: '/usr/bin:/bin',
+      HOME: '/home/operator',
+      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
+      GITHUB_TOKEN: 'decoy-github-token',
+    });
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/operator');
+    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
+    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
+    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
+    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
+    expect(Object.keys(env).toSorted()).toEqual([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'ECOMA_PULUMI_STATE_URL_STAGING',
+      'HOME',
+      'PATH',
+      'PULUMI_BACKEND_URL',
+      'PULUMI_CONFIG_PASSPHRASE',
+      'PULUMI_SKIP_UPDATE_CHECK',
+    ]);
   });
 
   it('fails closed listing every missing key at once', () => {
@@ -559,5 +591,24 @@ describe('r2AccountIdFromStateUrl', () => {
 
   it('a malformed state URL refuses', () => {
     expect(() => r2AccountIdFromStateUrl('not a url')).toThrow(/valid staging state URL/u);
+  });
+});
+
+describe('stagingEvidencePath', () => {
+  it('surfaces the recordPath a failed runStagingPhase attaches so the operator can find the evidence file', () => {
+    const error = Object.assign(new Error('staging up failed'), {
+      recordPath: '/pd/.staging-evidence/2026-11-20T01-02-03-000Z-up-failed.json',
+    });
+    expect(stagingEvidencePath(error)).toBe(
+      '/pd/.staging-evidence/2026-11-20T01-02-03-000Z-up-failed.json',
+    );
+  });
+
+  it('errors without a string recordPath carry no evidence path', () => {
+    expect(stagingEvidencePath(new Error('inventory missing'))).toBeUndefined();
+    expect(stagingEvidencePath('plain string failure')).toBeUndefined();
+    expect(stagingEvidencePath(null)).toBeUndefined();
+    expect(stagingEvidencePath(Object.assign(new Error('x'), { recordPath: 42 }))).toBeUndefined();
+    expect(stagingEvidencePath(Object.assign(new Error('x'), { recordPath: '' }))).toBeUndefined();
   });
 });
