@@ -34,6 +34,11 @@ const POSTGRES_IMAGE = 'postgres:17-alpine';
  */
 export const CONTRACT_DATABASE = 'db-remote-cache';
 
+// Credential test-only của container dùng-đi (localhost-only, xoá cùng run):
+// URL mang chúng vào argv CLI con (`--target-url`/`--migrator-url`…) vì tool
+// contract bắt buộc flag argv (không có fallback env) — cửa sổ phơi nhiễm chỉ
+// là bảng tiến trình runner-local trong lúc suite chạy, chấp nhận được; sẽ
+// không log raw URL và evidence vẫn qua `maskSecrets`.
 const SUPERUSER = 'ecoma_rv_superuser';
 const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 

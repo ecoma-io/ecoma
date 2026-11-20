@@ -16,6 +16,9 @@ import type { ValidationOutcome } from './runner.ts';
  * Mask password trong connection string (pattern harness `apps/*`):
  * `postgres://user:secret@host` → `postgres://user:****@host`. Mọi stderr
  * của psql/runner có thể lặp lại URL — mask trước khi vào evidence hay console.
+ * Hạn chế đã biết: regex chỉ khớp password thuần, KHÔNG khớp password
+ * URL-encoded (ví dụ `pass%40word`) — mask là best-effort defense-in-depth,
+ * control chính là secret không bao giờ vào đường ra evidence.
  */
 export function maskSecrets(text: string): string {
   return text.replace(/:[^:@/]+@/gu, ':****@');
