@@ -209,3 +209,21 @@ describe('the committed apps/account/wrangler.jsonc contract (real file)', () =>
     },
   );
 });
+
+describe('auditResourceBindings — null lane env block (fail closed, no crash)', () => {
+  it('reports the malformed null lane block instead of crashing on it', () => {
+    // `env: { staging: null }` từng xuyên qua điều kiện shape (typeof null
+    // === 'object') và gán scope lane = null, làm audit crash khi đọc binding.
+    // Phải là problem machine-readable, không phải throw.
+    const config = {
+      kv_namespaces: [{ binding: 'KV_APP', id: 'top-id' }],
+      env: { staging: null },
+    } as unknown as ResourceBindingConfig;
+    const problems = auditResourceBindings(config, 'staging');
+    expect(problems.map((problem) => problem.kind)).toEqual([
+      'entry-shape-invalid',
+      'top-level-not-redeclared',
+    ]);
+    expect(problems[0]?.message).toContain('env.staging');
+  });
+});

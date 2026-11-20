@@ -248,8 +248,13 @@ export function auditResourceBindings(
     // Vẫn audit định danh top level ở dưới: placeholder top level là vi phạm
     // báo được dù khối lane thiếu.
   }
+  // `null` khai cho khối lane cũng là hình dạng hỏng (problem đã push ở trên)
+  // — loại ra khỏi scope để audit không đọc property trên null rồi crash.
   const laneScope: ResourceBindingGroups =
-    laneRaw !== undefined && typeof laneRaw === 'object' && !Array.isArray(laneRaw)
+    laneRaw !== undefined &&
+    laneRaw !== null &&
+    typeof laneRaw === 'object' &&
+    !Array.isArray(laneRaw)
       ? (laneRaw as ResourceBindingGroups)
       : {};
   problems.push(...checkTopLevelReDeclaration(config, laneScope, lane));

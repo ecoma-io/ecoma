@@ -29,7 +29,7 @@ import type { EligibilityDecision } from './release-allowlist.ts';
 /** Lane của đường chạy trực tiếp. */
 export type DeployLane = 'staging' | 'production';
 
-/** Input của cổng — mọi field trừ `project` đều có thể thiếu và thiếu là deny. */
+/** Input của cổng — mọi field đều có thể thiếu/rỗng lúc runtime và thiếu/rỗng là deny. */
 export interface DeployGateInput {
   /** Nx project name của deploy unit được yêu cầu deploy. */
   project: string;
@@ -48,6 +48,7 @@ export interface DeployGateInput {
 /** Lý do deny machine-readable — caller in verbatim vào log/gate output. */
 export interface DeployGateReason {
   code:
+    | 'project-missing'
     | 'lane-missing'
     | 'lane-invalid'
     | 'production-lane-forbidden'
@@ -67,10 +68,23 @@ export interface DeployGateReason {
 export interface DeployGateDecision {
   allowed: boolean;
   project: string;
-  /** Lane đã chuẩn hoá — chỉ có khi lane hợp lệ. */
+  /**
+   * Lane đã chuẩn hoá — được set khi giá trị lane hợp lệ về hình dạng, kể cả
+   * khi decision là deny (trường `production` hợp lệ về hình dạng nhưng bị
+   * deny vì `production-lane-forbidden`).
+   */
   lane?: DeployLane;
   /** Rỗng khi và chỉ khi `allowed` — mọi lý do deny được gom cùng lúc. */
   reasons: DeployGateReason[];
+}
+
+/**
+ * Input thiếu (`undefined`) hoặc chỉ toàn whitespace — cùng một hình dạng
+ * deny. Type predicate để nhánh `else` sau kiểm thu được `string` (giữ
+ * narrowing cho `classifyWorkerName`/`isFullCommitSha`).
+ */
+function isMissingOrEmpty(value: string | undefined): value is undefined | '' {
+  return value === undefined || value.trim().length === 0;
 }
 
 /**
@@ -83,8 +97,18 @@ export function evaluateDeployGate(input: DeployGateInput): DeployGateDecision {
   const reasons: DeployGateReason[] = [];
   let lane: DeployLane | undefined;
 
+  // Project: định danh của yêu cầu deploy — thiếu/rỗng là deny ngay từ đầu.
+  if (isMissingOrEmpty(input.project)) {
+    reasons.push({
+      code: 'project-missing',
+      message:
+        'no project was provided — the gate refuses to evaluate a deploy request that does ' +
+        'not name the deploy unit',
+    });
+  }
+
   // Lane: bắt buộc tường minh, sai giá trị là deny — không có lane mặc định.
-  if (input.lane === undefined || input.lane.trim().length === 0) {
+  if (isMissingOrEmpty(input.lane)) {
     reasons.push({
       code: 'lane-missing',
       message:
@@ -142,7 +166,7 @@ export function evaluateDeployGate(input: DeployGateInput): DeployGateDecision {
   }
 
   // Unit identity `stg-<name>`: bắt buộc, đúng hình dạng identity staging.
-  if (input.unitIdentity === undefined || input.unitIdentity.trim().length === 0) {
+  if (isMissingOrEmpty(input.unitIdentity)) {
     reasons.push({
       code: 'unit-identity-missing',
       message:
@@ -157,7 +181,7 @@ export function evaluateDeployGate(input: DeployGateInput): DeployGateDecision {
   }
 
   // Ref SHA: bằng chứng exact-SHA của lane — 40-hex đầy đủ (§7.3).
-  if (input.refSha === undefined || input.refSha.trim().length === 0) {
+  if (isMissingOrEmpty(input.refSha)) {
     reasons.push({
       code: 'ref-sha-missing',
       message:

@@ -75,26 +75,6 @@ describe('evaluateRunnerGuard', () => {
     expect(decision.action).toBe('proceed');
   });
 
-  it('coalesces at admission when a newer run is pending for the group', () => {
-    const decision = evaluateRunnerGuard(
-      input({ point: 'coalesce' }),
-      query({ runs: [{ id: 42, status: 'queued' }] }),
-    );
-    expect(decision).toMatchObject({
-      action: 'skip',
-      code: 'coalesced-into-newer-pending-run',
-    });
-    expect(decision.writeFailureStatus).toBeUndefined();
-  });
-
-  it('does not coalesce before-deploy on a pending newer run — deployment still serves its own revision', () => {
-    const decision = evaluateRunnerGuard(
-      input({ point: 'before-deploy' }),
-      query({ runs: [{ id: 42, status: 'queued' }] }),
-    );
-    expect(decision.action).toBe('proceed');
-  });
-
   it('aborts with a failure write when main advanced past the run SHA — stale direction', () => {
     for (const point of POINTS) {
       const decision = evaluateRunnerGuard(input({ point }), query({ mainSha: NEWER_SHA }));
@@ -118,6 +98,41 @@ describe('evaluateRunnerGuard', () => {
       code: 'main-advanced',
       writeFailureStatus: true,
     });
+  });
+
+  it('aborts with a failure write when main advanced AND a newer run is pending — off-edge is never coalesced silently', () => {
+    // Cả hai điều kiện cùng hold: phân kỳ thắng coalesce — revision off-edge
+    // phải abort VÀ ghi failure, không được nuốt vào một skip (§7.2).
+    const decision = evaluateRunnerGuard(
+      input({ point: 'coalesce' }),
+      query({ mainSha: NEWER_SHA, runs: [{ id: 42, status: 'queued' }] }),
+    );
+    expect(decision).toMatchObject({
+      action: 'abort',
+      code: 'main-advanced',
+      writeFailureStatus: true,
+    });
+    expect(decision.code).not.toBe('coalesced-into-newer-pending-run');
+  });
+
+  it('coalesces at admission when a newer run is pending for the group', () => {
+    const decision = evaluateRunnerGuard(
+      input({ point: 'coalesce' }),
+      query({ runs: [{ id: 42, status: 'queued' }] }),
+    );
+    expect(decision).toMatchObject({
+      action: 'skip',
+      code: 'coalesced-into-newer-pending-run',
+    });
+    expect(decision.writeFailureStatus).toBeUndefined();
+  });
+
+  it('does not coalesce before-deploy on a pending newer run — deployment still serves its own revision', () => {
+    const decision = evaluateRunnerGuard(
+      input({ point: 'before-deploy' }),
+      query({ runs: [{ id: 42, status: 'queued' }] }),
+    );
+    expect(decision.action).toBe('proceed');
   });
 
   it('checks supersession BEFORE sha divergence — a not-newest run writes nothing', () => {

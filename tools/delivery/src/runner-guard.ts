@@ -91,9 +91,11 @@ function expectGuardInput(input: RunnerGuardInput): void {
  * 1. tra cứu lỗi → abort, không đụng evidence;
  * 2. run mới hơn đã hoàn thành → skip không ghi gì (evidence mới hơn đã
  *    tồn tại — ghi đè là phá bằng chứng);
- * 3. điểm `coalesce`: run mới hơn đang chờ → skip không ghi gì (nhường —
+ * 3. main tiến vượt SHA của run → abort VÀ ghi failure (SHA phân kỳ thật —
+ *    phân kỳ được kiểm TRƯỚC coalesce để revision off-edge không bị nuốt
+ *    vào một skip chỉ vì có run mới hơn đang chờ, §7.2);
+ * 4. điểm `coalesce`: run mới hơn đang chờ → skip không ghi gì (nhường —
  *    run đó sẽ phục vụ SHA mới hơn);
- * 4. main tiến vượt SHA của run → abort VÀ ghi failure (SHA phân kỳ thật);
  * 5. còn lại → proceed: run này là mới nhất và SHA vẫn là edge.
  */
 export function evaluateRunnerGuard(
@@ -122,6 +124,16 @@ export function evaluateRunnerGuard(
         'the newest and must not overwrite newer evidence; exiting without writing status (§7.4)',
     };
   }
+  if (query.mainSha !== input.contextSha) {
+    return {
+      action: 'abort',
+      code: 'main-advanced',
+      message:
+        `main is at ${query.mainSha} but this run started at ${input.contextSha} — the revision ` +
+        'is off-edge; aborting and recording the failure for this SHA (§7.4)',
+      writeFailureStatus: true,
+    };
+  }
   if (input.point === 'coalesce') {
     const newerPending = newerRuns.find((run) => PENDING_RUN_STATUSES.has(run.status));
     if (newerPending !== undefined) {
@@ -133,16 +145,6 @@ export function evaluateRunnerGuard(
           'skips so the newer run serves the newer revision (§7.2 coalescing)',
       };
     }
-  }
-  if (query.mainSha !== input.contextSha) {
-    return {
-      action: 'abort',
-      code: 'main-advanced',
-      message:
-        `main is at ${query.mainSha} but this run started at ${input.contextSha} — the revision ` +
-        'is off-edge; aborting and recording the failure for this SHA (§7.4)',
-      writeFailureStatus: true,
-    };
   }
   return {
     action: 'proceed',

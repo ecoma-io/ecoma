@@ -34,6 +34,13 @@ describe('evaluateDeployGate', () => {
     expect(decision).toMatchObject({ allowed: true, lane: 'staging', reasons: [] });
   });
 
+  it('denies an empty project name instead of producing a confusing quoted-empty message', () => {
+    // eligibility trùng project rỗng để project-missing là lý do duy nhất.
+    expect(CODES(fullInput({ project: '', eligibility: { ...RELEASEABLE, project: '' } }))).toEqual(
+      ['project-missing'],
+    );
+  });
+
   it('denies when the lane parameter is missing — no default lane may exist', () => {
     expect(CODES(fullInput({ lane: undefined }))).toEqual(['lane-missing']);
   });
@@ -74,6 +81,19 @@ describe('evaluateDeployGate', () => {
     expect(decision.allowed).toBe(false);
     expect(decision.reasons.map((reason) => reason.code)).toEqual(['project-not-releaseable']);
     expect(decision.reasons[0]?.message).toContain('devOrigin placeholder in both lanes');
+  });
+
+  it('degrades cleanly when a non-releaseable decision carries no reason', () => {
+    const decision = evaluateDeployGate(
+      fullInput({
+        project: '@ecoma-io/account',
+        eligibility: { project: '@ecoma-io/account', status: 'excluded', source: 'explicit' },
+      }),
+    );
+    expect(decision.reasons.map((reason) => reason.code)).toEqual(['project-not-releaseable']);
+    const message = decision.reasons[0]?.message ?? '';
+    expect(message.endsWith('in deploy-eligibility.jsonc')).toBe(true);
+    expect(message).not.toContain('undefined');
   });
 
   it('denies a project not confirmed in nx.json release.projects', () => {
