@@ -190,7 +190,7 @@ disagree, the document wins.
   one.
 - Writing a specification that prescribes implementation, schema, endpoints,
   or Nx project layout — those belong to other views.
-- Creating a Project, Milestone, label or field as part of this work.
+- Creating a Milestone, label or field as part of this work.
 
 ## Evidence to collect
 
