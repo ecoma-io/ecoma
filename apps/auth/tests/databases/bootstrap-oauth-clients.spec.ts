@@ -302,6 +302,44 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
     expect(await queryRedirectUris(db)).toEqual([]);
   });
 
+  it('fails closed when a public client row carries a client_secret_hash', async () => {
+    await resetTables(db);
+
+    // CHECK `oauth_clients_secret_parity_check` cấm trạng thái này qua SQL hợp
+    // lệ, nên guard của bootstrap là phòng thủ sâu cho schema đã trôi (ví dụ
+    // một migration sau nới lỏng parity): bỏ CHECK, dựng hàng lệch, thêm lại
+    // NOT VALID — các ghi tiếp theo vẫn bị ràng buộc như thường.
+    const diverger = await migratorClient(db);
+    try {
+      await diverger.query(
+        'ALTER TABLE auth.oauth_clients DROP CONSTRAINT oauth_clients_secret_parity_check',
+      );
+      await diverger.query(
+        `INSERT INTO auth.oauth_clients (client_id, client_name, client_type, client_secret_hash)
+         VALUES ($1, $2, 'public', $3)`,
+        [CLIENT_ID, CLIENT_NAME, 'deadbeef'],
+      );
+      await diverger.query(
+        `ALTER TABLE auth.oauth_clients ADD CONSTRAINT oauth_clients_secret_parity_check
+         CHECK ((client_type = 'public' AND client_secret_hash IS NULL)
+                OR (client_type = 'confidential' AND client_secret_hash IS NOT NULL))
+         NOT VALID`,
+      );
+    } finally {
+      await diverger.end();
+    }
+
+    // Guard phải chặn trước khi một câu ghi nào chạy: không URI được thêm.
+    await expect(runBootstrapped(db, bootstrapInput())).rejects.toThrow(
+      /carries a client_secret_hash/u,
+    );
+    expect(await queryRedirectUris(db)).toEqual([]);
+    const rows = await queryClientRows(db);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.client_type).toBe('public');
+    expect(rows[0]?.client_secret_hash).toBe('deadbeef');
+  });
+
   it('rejects an invalid input shape without touching the database', async () => {
     const fakeClient = { query: async () => ({ rows: [] }) } as unknown as Client;
     await expect(
@@ -322,21 +360,37 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
   });
 
   it('rejects a connection string pointing at a different database (current_database guard)', async () => {
-    // Guard server-side: `postgres` database có sẵn trong mọi image PostgreSQL
-    // và KHÔNG phải `db-auth` — đúng hình "URL trỏ sai".
+    // Guard server-side: dùng một database vứt tạo bằng superuser thay vì mặc
+    // định `postgres` của image — assertion luôn chạm current_database(), không
+    // phụ thuộc image có sẵn database mặc định nào.
+    const probeDatabase = 'bootstrap_probe_not_auth';
+    const admin = new Client({
+      host: db.host,
+      port: db.port,
+      database: db.database,
+      user: db.superuserUser,
+      password: db.superuserPassword,
+      application_name: 'ecoma-auth-bootstrap-oauth-clients-itest-admin',
+    });
     const wrongDb = new Client({
       host: db.host,
       port: db.port,
       user: db.migratorUser,
       password: db.migratorPassword,
-      database: 'postgres',
+      database: probeDatabase,
       application_name: 'ecoma-auth-bootstrap-oauth-clients-itest-wrongdb',
     });
-    await wrongDb.connect();
+    await admin.connect();
     try {
+      await admin.query(`CREATE DATABASE "${probeDatabase}"`);
+      await wrongDb.connect();
       await expect(assertBootstrapDatabase(wrongDb)).rejects.toThrow(/only bootstraps db-auth/u);
     } finally {
+      // Ngắt kết nối probe trước khi DROP DATABASE (không cho phép kết nối
+      // còn sống); DROP nuốt lỗi để lỗi thật của assert không bị che.
       await wrongDb.end();
+      await admin.query(`DROP DATABASE "${probeDatabase}"`).catch(() => undefined);
+      await admin.end();
     }
 
     // Đối chiếu dương: đúng database thì guard qua và trả về tên.

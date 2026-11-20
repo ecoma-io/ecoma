@@ -80,6 +80,13 @@ export interface AuthDatabase {
   readonly runtimePassword: string;
   readonly migratorUser: string;
   readonly migratorPassword: string;
+  /**
+   * Superuser của container test — dữ liệu thô như các trường trên, chỉ cho
+   * những suite phải dựng trạng thái ngoài runbook provision/migration (ví dụ
+   * `CREATE DATABASE` một database vứt để probe guard nhìn thấy database khác).
+   */
+  readonly superuserUser: string;
+  readonly superuserPassword: string;
   stop(): Promise<void>;
 }
 
@@ -352,6 +359,8 @@ export async function startAuthDatabase(): Promise<AuthDatabase> {
       runtimePassword: ROLE_PASSWORD,
       migratorUser: 'ecoma_auth_migrator',
       migratorPassword: ROLE_PASSWORD,
+      superuserUser: SUPERUSER,
+      superuserPassword: SUPERUSER_PASSWORD,
       stop: async () => {
         await container.stop();
       },
