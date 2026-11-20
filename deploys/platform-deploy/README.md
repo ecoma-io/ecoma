@@ -25,6 +25,27 @@ Nx project `platform-deploy`, tags `type:deployment`, `scope:platform`, `runtime
 - Không sở hữu database nghiệp vụ: mỗi deploy unit sở hữu database + role riêng do deploy project của nó provision; `ecoma_local` chỉ là database bootstrap của platform.
 - Volume PostgreSQL chỉ bị xoá trong luồng down của chính project này — xoá vô điều kiện sau destroy, không có tuỳ chọn giữ dữ liệu local.
 
+## Staging lane (#350)
+
+Trên stack `staging`, thân chương trình `staging-program.ts` (được entry guard `index.ts` nạp qua dynamic import) khai resource DNS thật: zone non-production `ecoma.io.vn` theo A13 và tập record suy theo scheme hostname MOD1 (`02-delivery.md`) từ inventory eligibility staging — nguồn sự thật duy nhất là `tools/delivery/config/deploy-eligibility.jsonc` (entry `staging: "releaseable"`), cùng nguồn với inventory GitHub Environments của `tools/delivery`. Unit internal-only (push, mail, relay, job) không có hostname public nên không có record; record public là A placeholder originless `192.0.2.0` proxied theo hướng dẫn Cloudflare (Originless setups) — sẵn sàng cho route của Router non-production.
+
+### Config và credential bắt buộc (fail-closed)
+
+Thiếu bất kỳ mục nào dưới đây, `staging-preview`/`staging-up` bị chặn trước khi Pulumi chạy — không đoán, không fallback:
+
+| Mục                                           | Kênh          | Cách đặt                                                                                                                                                                                                                                                                  |
+| --------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cloudflare:accountId`                        | Pulumi config | `pulumi config set --secret cloudflare:accountId <account-id>` (config ngoài Git theo ops model §6.12; khi CI nối vào, đặt làm secret của GitHub Environment stack — #350)                                                                                                |
+| `platform-deploy:stagingZoneAdoption`         | Pulumi config | `pulumi config set platform-deploy:stagingZoneAdoption true\|false` — quyết định tường minh zone: `true` = adopt zone đã tồn tại (data source `getZone`, Pulumi không own), `false` = create-own (`cloudflare.Zone`). Không có mặc định: chưa khai là preview fail-closed |
+| `CLOUDFLARE_API_TOKEN`                        | env           | token control-plane Cloudflare của provider (env-only, không argv, không Git)                                                                                                                                                                                             |
+| `ECOMA_PULUMI_STATE_URL_STAGING`              | env           | URL backend R2 của stack staging — thiếu nghĩa là staging chưa bootstrap (#350), tuyệt đối không fallback backend khác                                                                                                                                                    |
+| `PULUMI_CONFIG_PASSPHRASE`                    | env           | passphrase per-stack                                                                                                                                                                                                                                                      |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | env           | token R2 scope một bucket cho backend s3                                                                                                                                                                                                                                  |
+
+### Không có destroy
+
+Lane staging chỉ có hai phase `preview`/`up` (`staging.ts`); mọi đối số khác bị từ chối tường minh — teardown staging KHÔNG có workflow, checklist tay thuộc runbook #364. Mỗi lần chạy ghi một bản ghi evidence JSON vào `.staging-evidence/` (ngoài Git).
+
 ## Development
 
 ```bash
