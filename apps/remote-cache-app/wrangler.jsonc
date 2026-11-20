@@ -97,13 +97,19 @@
   // ⚠️ Không có target `deploy` nào trong `package.json`: đường deploy trực
   // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
   //
-  // Staging chưa có custom domain: theo §5.4 hostname ưu tiên `workers.dev`.
+  // Staging dùng hostname scheme MOD1 — subdomain của zone non-production
+  // `ecoma.io.vn` qua Router non-production (A13), KHÔNG phải `workers.dev`
+  // (đã loại cho public surface): record `remote-cache-app.ecoma.io.vn` do
+  // `platform-deploy` suy từ inventory eligibility staging, route thuộc Router.
   "env": {
     "staging": {
       "name": "stg-ecoma-remote-cache-app",
       // Hyperdrive binding tới `db-remote-cache-app` — database của chính app
       // này (xem ghi chú binding ở top-level). `id` là placeholder toàn số 0 —
-      // deploy layer sẽ thay.
+      // operator điền id thật sau lần `staging-up` xanh đầu tiên của
+      // `remote-cache-app-deploy` (stack output `hyperdriveConfigId`, hợp đồng
+      // wiring #539); guard `resource-bindings` chặn id placeholder trước khi
+      // deploy nên không bao giờ là giá trị bịa trong Git.
       //
       // ⚠️ **QUERY CACHE OFF — bắt buộc.** Cache được đặt ở **config
       // Hyperdrive**, không phải ở file này, nên không có key nào ở đây tắt
@@ -118,31 +124,30 @@
         },
       ],
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
-      // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
-      // deploy unit mà không phải suy đoán từ `account_id` (subdomain
-      // `workers.dev` là cấu hình riêng của Cloudflare account, không suy ra
-      // được từ `account_id`).
-      //
-      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
-      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
-      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
-      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // bỏ qua nó; nó tồn tại để delivery tooling có một origin tất định cho
+      // deploy unit. Giá trị là hostname MOD1 của unit trên zone
+      // `ecoma.io.vn` — tất định từ tên unit, không suy đoán từ `account_id`
+      // (subdomain `workers.dev` là cấu hình riêng của Cloudflare account,
+      // không suy ra được từ `account_id`).
+      "devOrigin": "https://remote-cache-app.ecoma.io.vn",
       // Base URL của control plane mà BFF gọi qua HMAC (ADR-0034). `vars`
       // KHÔNG inherit từ top-level, nên khai tường minh cho từng env. Giá trị
-      // `https://` này là placeholder **có cấu trúc hợp lệ** — BFF chấp nhận
-      // nó (origin parse được) nhưng API ở đó chưa tồn tại. Issuer/audience
-      // của OIDC, `client_id` và `INTERNAL_AUTH_SECRET` đi qua Worker Secrets
-      // (`REMOTE_CACHE_AUTH_*`, `INTERNAL_AUTH_SECRET`) — deploy layer cấp.
+      // là hostname MOD1 của unit `remote-cache-api` trên staging. Issuer/
+      // audience của OIDC, `client_id` và `INTERNAL_AUTH_SECRET` đi qua Worker
+      // Secrets (`REMOTE_CACHE_AUTH_*`, `INTERNAL_AUTH_SECRET`) — deploy layer cấp.
       "vars": {
-        "NITRO_REMOTE_CACHE_API_BASE_URL": "https://stg-ecoma-remote-cache-api.workers.dev",
+        "NITRO_REMOTE_CACHE_API_BASE_URL": "https://remote-cache-api.ecoma.io.vn",
       },
       // Bề mặt public — xem ghi chú cùng khoá ở `apps/backoffice`.
       "smokeSurface": {},
     },
     "production": {
       "name": "ecoma-remote-cache-app",
-      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa tay.
+      // Production eligibility là scope M3 (`deploy-eligibility.jsonc`:
+      // `production` excluded toàn workspace) nên origin smoke của lane này
+      // còn là placeholder fail-closed — hostname production của unit chưa
+      // được chốt ở docs đích; điền khi M3 mở production eligibility, không
+      // bịa giá trị trước đó.
       "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
       // Cùng quy tắc với staging; production trỏ control plane production.
       "hyperdrive": [
