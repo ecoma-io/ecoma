@@ -47,8 +47,6 @@ const RUNTIME_ROLE = 'ecoma_remote_cache_app_runtime';
 /** Role không được grant gì — chứng minh `REVOKE CONNECT FROM PUBLIC` có tác dụng thật. */
 const CONNECT_PROBE_ROLE = 'ecoma_remote_cache_app_connect_probe';
 
-type Client = import('pg').Client;
-
 export interface RemoteCacheAppDatabase {
   readonly host: string;
   readonly port: number;
