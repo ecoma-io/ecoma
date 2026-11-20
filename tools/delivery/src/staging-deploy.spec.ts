@@ -136,6 +136,12 @@ describe('resolveStagingWorkerIdentity', () => {
       resolveStagingWorkerIdentity('{ "name": "ecoma-home" }', 'home', HOME_CONFIG),
     ).toThrowError(/declares no env\.staging\.name/u);
   });
+
+  it('propagates the canonical invalid-JSON error with a single parse', () => {
+    expect(() => resolveStagingWorkerIdentity('not json', 'home', HOME_CONFIG)).toThrowError(
+      /wrangler config is not valid JSON\(C\)/u,
+    );
+  });
 });
 
 describe('buildStagingManifest', () => {

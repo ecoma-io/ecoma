@@ -63,6 +63,19 @@ describe('classifyWranglerFailure', () => {
     expect(classifyWranglerFailure('... HTTP 404 ...')).toBe('fatal');
   });
 
+  it('classifies by the LAST HTTP status — the API error block sits at the end of stderr', () => {
+    // Mã HTTP trong log tiến trình/body HTML in lại phía trước là nhiễu, không
+    // được quyết định phân loại — khối lỗi API luôn ở cuối stderr.
+    expect(
+      classifyWranglerFailure('a progress log mentioned HTTP 500\nAPIError: HTTP 401: rejected'),
+    ).toBe('fatal');
+    expect(
+      classifyWranglerFailure(
+        'an early line cited HTTP 401\nA request to the API failed: HTTP 504',
+      ),
+    ).toBe('transient');
+  });
+
   it('classifies the observed malformed-response and transport signatures as transient', () => {
     expect(classifyWranglerFailure('Received a malformed response from the API')).toBe('transient');
     expect(classifyWranglerFailure('fetch failed')).toBe('transient');
@@ -143,6 +156,35 @@ describe('deployStagingWorker', () => {
     const { deps, execCalls } = recordingDeps([fakeResult({ status: 0 })]);
     await deployStagingWorker(options, deps);
     expect(execCalls[0]?.options.timeout).toBe(WRANGLER_ATTEMPT_TIMEOUT_MS);
+  });
+
+  it('stops after the max attempts even when every attempt dies on the timeout signal', async () => {
+    // Timeout là transient và MỖI lần chết vì timeout tính một attempt — vòng
+    // lặp vẫn chấm dứt sau đúng 3 lần (không retry vô hạn).
+    const { deps, execCalls, sleeps } = recordingDeps([
+      fakeResult({ status: null, signal: 'SIGTERM' }),
+    ]);
+    await expect(deployStagingWorker(options, deps)).rejects.toThrowError(
+      new RegExp(`after ${WRANGLER_DEPLOY_MAX_ATTEMPTS} attempts.*killed by signal SIGTERM`, 'u'),
+    );
+    expect(execCalls).toHaveLength(WRANGLER_DEPLOY_MAX_ATTEMPTS);
+    expect(sleeps).toEqual([...WRANGLER_DEPLOY_BACKOFF_MS]);
+  });
+
+  it('bounds the stderr tail in the thrown message — the log keeps the cause, not the whole log', async () => {
+    const { deps } = recordingDeps([
+      fakeResult({
+        status: 1,
+        stderr: `${'a'.repeat(3000)}APIError: HTTP 401: Unauthorized`,
+      }),
+    ]);
+    const message = await deployStagingWorker(options, deps).then(
+      () => 'deploy unexpectedly succeeded',
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(message).toContain('APIError: HTTP 401');
+    expect(message.length).toBeLessThan(1100);
+    expect(message).not.toContain('a'.repeat(1001));
   });
 
   it('runs wrangler from the config directory with the config passed explicitly', async () => {

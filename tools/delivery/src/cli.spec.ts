@@ -139,6 +139,15 @@ describe('parseStagingDeployArgv', () => {
     'a'.repeat(40),
   ];
 
+  it('treats a flag-looking token as a missing value, not a consumed one', () => {
+    // indexOf có thể trúng tên cờ xuất hiện làm giá trị của cờ trước — token
+    // bắt đầu '--' là thiếu giá trị, không phải giá trị.
+    expect(parseStagingDeployArgv(['--config', '--sha', 'a'.repeat(40)])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+  });
+
   it('parses the five required flags into params', () => {
     expect(parseStagingDeployArgv(fullArgv)).toEqual({
       kind: 'ok',
@@ -305,6 +314,32 @@ describe('parseStagingSmokeArgv', () => {
     expect(parseStagingSmokeArgv(['https://a', '--request-timeout-ms', 'abc'])).toEqual({
       kind: 'usage',
       message: '--request-timeout-ms must be a positive integer: abc',
+    });
+    // Chỉ số nguyên dương thập phân thuần: Number() còn nhận hex, mũ và
+    // khoảng trắng — tất cả đều bị chặn ở đây.
+    expect(parseStagingSmokeArgv(['https://a', '--budget-ms', '0x10'])).toEqual({
+      kind: 'usage',
+      message: '--budget-ms must be a positive integer: 0x10',
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--request-timeout-ms', '1e2'])).toEqual({
+      kind: 'usage',
+      message: '--request-timeout-ms must be a positive integer: 1e2',
+    });
+    const padded = ' 12 ';
+    expect(parseStagingSmokeArgv(['https://a', '--budget-ms', padded])).toEqual({
+      kind: 'usage',
+      message: `--budget-ms must be a positive integer: ${padded}`,
+    });
+  });
+
+  it('reports a missing numeric-flag value instead of a number error', () => {
+    expect(parseStagingSmokeArgv(['https://a', '--budget-ms'])).toEqual({
+      kind: 'usage',
+      message: 'missing value for --budget-ms',
+    });
+    expect(parseStagingSmokeArgv(['https://a', '--budget-ms', '--health', '/health'])).toEqual({
+      kind: 'usage',
+      message: 'missing value for --budget-ms',
     });
   });
 });

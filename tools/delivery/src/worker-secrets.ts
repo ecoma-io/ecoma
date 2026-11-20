@@ -165,13 +165,15 @@ export function stripJsoncComments(text: string): string {
   return out;
 }
 
-/**
- * Đọc Worker identity staging từ config wrangler: BẮT BUỘC khối
- * `env.staging.name` — config không khai tên staging là từ chối, KHÔNG rơi về
- * tên top-level (WS3: dùng nhầm tên top-level là deploy secret lên đúng
- * Worker production-env hoặc Worker không env, hai khả năng đều sai).
- */
-export function stagingWorkerNameFromConfig(configText: string): string {
+/** Shape tối thiểu của wrangler config sau MỘT lần parse — caller đọc thêm
+ *  field khác (vd top-level `name`) từ CÙNG object, không parse lại. */
+export interface ParsedWranglerConfig {
+  name?: unknown;
+  env?: { staging?: { name?: unknown } };
+}
+
+/** Parse wrangler config JSON(C) đúng MỘT lần với message lỗi chuẩn của module. */
+export function parseWranglerConfig(configText: string): ParsedWranglerConfig {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripJsoncComments(configText));
@@ -181,8 +183,17 @@ export function stagingWorkerNameFromConfig(configText: string): string {
       { cause: error },
     );
   }
-  const staging = (parsed as { env?: { staging?: { name?: unknown } } }).env?.staging;
-  const name = staging?.name;
+  return parsed as ParsedWranglerConfig;
+}
+
+/**
+ * Đọc Worker identity staging từ config wrangler ĐÃ parse: BẮT BUỘC khối
+ * `env.staging.name` — config không khai tên staging là từ chối, KHÔNG rơi về
+ * tên top-level (WS3: dùng nhầm tên top-level là deploy secret lên đúng
+ * Worker production-env hoặc Worker không env, hai khả năng đều sai).
+ */
+export function stagingWorkerNameFromParsed(parsed: ParsedWranglerConfig): string {
+  const name = parsed.env?.staging?.name;
   if (typeof name !== 'string' || name.trim().length === 0) {
     throw new Error(
       'wrangler config declares no env.staging.name — refusing to resolve a worker name ' +
@@ -190,6 +201,11 @@ export function stagingWorkerNameFromConfig(configText: string): string {
     );
   }
   return name;
+}
+
+/** Đọc Worker identity staging từ text config — wrapper tiện cho caller chỉ có text. */
+export function stagingWorkerNameFromConfig(configText: string): string {
+  return stagingWorkerNameFromParsed(parseWranglerConfig(configText));
 }
 
 /** Đối số wrangler cho một hành động secret — `--env staging` luôn tường minh. */

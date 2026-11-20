@@ -34,8 +34,10 @@ import { resolve } from 'node:path';
 
 import {
   classifyWorkerName,
+  parseWranglerConfig,
   resolveSecretRunEnv,
   stagingWorkerNameFromConfig,
+  stagingWorkerNameFromParsed,
   stripJsoncComments,
 } from './worker-secrets.ts';
 import {
@@ -84,7 +86,7 @@ export function isFullCommitSha(value: string): boolean {
 export function readEligibilityDecision(
   project: string,
   deps: Pick<StagingDeployDeps, 'readTextFile'>,
-): 'releaseable' | 'blocked' {
+): 'releaseable' {
   const path = deployEligibilityPath();
   let config: { projects?: Record<string, { staging?: string }> };
   try {
@@ -127,21 +129,17 @@ export function resolveStagingWorkerIdentity(
   slug: string,
   configPath: string,
 ): string {
-  const staging = stagingWorkerNameFromConfig(configText);
+  // MỘT lần parse cho CẢ hai tên: production và staging đọc từ cùng object
+  // đã parse — không có chỗ nào sửa một bên quên bên kia.
+  const parsed = parseWranglerConfig(configText);
+  const staging = stagingWorkerNameFromParsed(parsed);
   if (classifyWorkerName(staging) !== 'staging') {
     throw new Error(
       `resolved worker "${staging}" from ${configPath} is not a staging identity ` +
         '(expected prefix "stg-") — refusing to deploy outside the staging scope',
     );
   }
-  let production: unknown;
-  try {
-    production = (JSON.parse(stripJsoncComments(configText)) as { name?: unknown }).name;
-  } catch {
-    // stagingWorkerNameFromConfig đã parse cùng text thành công — không thể vào
-    // đây; coi là lỗi nội bộ fail-closed thay vì đoán tiếp.
-    throw new Error(`wrangler config at ${configPath} is not valid JSON(C)`);
-  }
+  const production = parsed.name;
   if (typeof production !== 'string' || production.trim().length === 0) {
     throw new Error(
       `wrangler config at ${configPath} declares no top-level "name" — the staging identity ` +

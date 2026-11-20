@@ -212,4 +212,27 @@ describe('runStagingSmoke', () => {
     ).rejects.toThrowError(/must be https/u);
     expect(calls).toHaveLength(0);
   });
+
+  it('validates every check path before issuing any request — even without the CLI', async () => {
+    const { deps, calls } = fakeFetch([]);
+    await expect(
+      runStagingSmoke({ ...HOME_OPTIONS, healthPaths: ['nope'] }, deps),
+    ).rejects.toThrowError(/absolute path/u);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('fails closed — no retry — when fetchImpl violates the response contract', async () => {
+    const { deps, calls } = fakeFetch([null as unknown as SmokeResponse]);
+    await expect(runStagingSmoke(HOME_OPTIONS, deps)).rejects.toThrowError(
+      /malformed response object/u,
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it('fails closed when the response carries no headers — not a TypeError', async () => {
+    const { deps } = fakeFetch([{ status: 200 } as unknown as SmokeResponse]);
+    await expect(
+      runStagingSmoke({ ...HOME_OPTIONS, redirects: [], noindexPaths: [] }, deps),
+    ).rejects.toThrowError(/malformed response object/u);
+  });
 });

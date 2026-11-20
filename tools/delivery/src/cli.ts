@@ -79,9 +79,8 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
   if (secretName === undefined || secretName.trim().length === 0) {
     return { kind: 'usage', message: 'missing SECRET_NAME argument' };
   }
-  const configFlag = argv.indexOf('--config');
-  const configPath = configFlag >= 0 ? argv[configFlag + 1] : undefined;
-  if (configPath === undefined || configPath.trim().length === 0) {
+  const configPath = readRequiredFlag(argv, '--config');
+  if (configPath === undefined) {
     return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
   }
   return { kind: 'ok', action, secretName, configPath };
@@ -135,13 +134,17 @@ export function parseVpcServiceArgv(
 /**
  * Đọc giá trị của MỘT flag yêu cầu giá trị; `undefined` khi flag vắng mặt
  * HOẶC có mặt mà không mang giá trị — caller dịch cả hai thành cùng một lỗi
- * usage của flag đó (dùng-lệnh sai là lỗi, không đoán).
+ * usage của flag đó (dùng-lệnh sai là lỗi, không đoán). Giá trị bắt đầu bằng
+ * '--' cũng là thiếu: đó là cờ kế đi lạc vào chỗ giá trị (indexOf có thể trúng
+ * tên một cờ xuất hiện làm giá trị của cờ trước), không ăn nhầm.
  */
 function readRequiredFlag(argv: readonly string[], flag: string): string | undefined {
   const index = argv.indexOf(flag);
   if (index < 0) return undefined;
   const value = argv[index + 1];
-  if (value === undefined || value.trim().length === 0) return undefined;
+  if (value === undefined || value.trim().length === 0 || value.startsWith('--')) {
+    return undefined;
+  }
   return value;
 }
 
@@ -207,10 +210,14 @@ export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmo
   let budgetMs = SMOKE_BUDGET_MS_DEFAULT;
   let requestTimeoutMs = SMOKE_REQUEST_TIMEOUT_MS_DEFAULT;
   for (let index = 0; index < argv.length; index += 1) {
-    const flag = argv[index] as string;
+    const flag = argv[index];
     const takeValue = (): string | undefined => {
       const value = argv[index + 1];
-      if (value === undefined || value.trim().length === 0) return undefined;
+      // Giá trị bắt đầu '--' là cờ kế, không phải giá trị — trả undefined để
+      // flag hiện tại báo thiếu giá trị và cờ kế được parse bình thường.
+      if (value === undefined || value.trim().length === 0 || value.startsWith('--')) {
+        return undefined;
+      }
       index += 1;
       return value;
     };
@@ -233,9 +240,14 @@ export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmo
     }
     if (flag === '--budget-ms' || flag === '--request-timeout-ms') {
       const value = takeValue();
-      const parsed = value === undefined ? Number.NaN : Number(value);
+      if (value === undefined) {
+        return { kind: 'usage', message: `missing value for ${flag}` };
+      }
+      // Chỉ nhận số nguyên dương thập phân thuần: Number() còn nhận '0x10',
+      // '1e2', ' 12 ' — vượt hợp đồng cờ; NaN rơi vào cùng nhánh usage.
+      const parsed = /^\d+$/u.test(value) ? Number(value) : Number.NaN;
       if (!Number.isInteger(parsed) || parsed <= 0) {
-        return { kind: 'usage', message: `${flag} must be a positive integer: ${String(value)}` };
+        return { kind: 'usage', message: `${flag} must be a positive integer: ${value}` };
       }
       if (flag === '--budget-ms') budgetMs = parsed;
       else requestTimeoutMs = parsed;

@@ -47,7 +47,10 @@ const RETRYABLE_STATUSES = new Set([404, 502, 503, 504]);
 // khác: ngoài danh sách này là fail-closed, không đoán thêm.
 const RETRYABLE_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ETIMEDOUT']);
 
-/** Shape tối thiểu của response mà module đọc — không ràng buộc fetch toàn phần. */
+/** Shape tối thiểu của response mà module đọc — không ràng buộc fetch toàn phần.
+ *  `headers.get` phải insensitive hoa/thường như WHATWG `Headers` (tên header
+ *  HTTP insensitive): production dùng `fetch` thật nên tự đảm bảo; fetchImpl
+ *  tùy chỉnh (spec) phải tuân cùng hợp đồng. */
 export interface SmokeResponse {
   status: number;
   headers: { get(name: string): string | null };
@@ -60,7 +63,7 @@ export interface StagingSmokeDeps {
     init: { redirect: 'manual'; signal: AbortSignal },
   ) => Promise<SmokeResponse>;
   sleepFn: (ms: number) => Promise<void>;
-  out: { write(text: string): unknown };
+  out: { write(text: string): void };
 }
 
 const defaultDeps: StagingSmokeDeps = {
@@ -136,8 +139,9 @@ async function requestStep(
   deps: StagingSmokeDeps,
 ): Promise<SmokeResponse> {
   const url = `${options.origin}${pathname}`;
+  let response: SmokeResponse;
   try {
-    return await deps.fetchImpl(url, {
+    response = await deps.fetchImpl(url, {
       redirect: 'manual',
       signal: AbortSignal.timeout(options.requestTimeoutMs),
     });
@@ -164,6 +168,20 @@ async function requestStep(
       `GET ${pathname}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+  // fetchImpl vi phạm hợp đồng SmokeResponse là lỗi lớp smoke, không phải lỗi
+  // origin — SmokeFailure fail-closed, KHÔNG retry (retry chỉ dành cho origin
+  // chưa sẵn sàng), và không để TypeError thoát ra ngoài phân lớp.
+  if (
+    response === null ||
+    response === undefined ||
+    typeof response.status !== 'number' ||
+    typeof response.headers?.get !== 'function'
+  ) {
+    throw new SmokeFailure(
+      `GET ${pathname}: malformed response object — the smoke response contract is violated`,
+    );
+  }
+  return response;
 }
 
 /** Một kết quả kiểm đã pass — log line cho job đọc. */
@@ -239,6 +257,18 @@ export async function runStagingSmoke(
   deps: StagingSmokeDeps = defaultDeps,
 ): Promise<SmokeCheckResult[]> {
   validateSmokeOrigin(options.origin);
+  // Validate mọi path TRƯỚC vòng retry: path được nối thẳng vào URL, dữ liệu
+  // lạ là lỗi usage — dừng trước cả request đầu tiên kể cả khi options dựng
+  // trực tiếp mà không qua CLI.
+  for (const redirect of options.redirects) {
+    validateCheckPath(redirect.from, '--redirect from');
+  }
+  for (const path of options.healthPaths) {
+    validateCheckPath(path, '--health');
+  }
+  for (const path of options.noindexPaths) {
+    validateCheckPath(path, '--noindex');
+  }
   const totalChecks =
     options.redirects.length + options.healthPaths.length + options.noindexPaths.length;
   if (totalChecks === 0) {

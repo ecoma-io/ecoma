@@ -82,8 +82,10 @@ const defaultDeps: WranglerDeployDeps = {
 export function classifyWranglerFailure(text: string): 'transient' | 'fatal' {
   // HTTP status mà Cloudflare API trả kèm trong stderr của wrangler: 5xx và
   // 429 là tạm thời; 4xx còn lại (401/403/404...) là cấu hình/quyền — fatal.
-  const statusMatch = /HTTP (\d{3})/u.exec(text);
-  if (statusMatch !== null) {
+  // Lấy MATCH CUỐI: khối lỗi API của wrangler luôn nằm cuối stderr, còn mã
+  // HTTP đứng trước (trong log tiến trình, body HTML in lại...) là nhiễu.
+  const statusMatch = [...text.matchAll(/HTTP (\d{3})/gu)].at(-1);
+  if (statusMatch !== undefined) {
     const status = Number(statusMatch[1]);
     if (status >= 500 || status === 429) return 'transient';
     return 'fatal';
@@ -181,12 +183,22 @@ export async function deployStagingWorker(
   );
 }
 
-/** Nguyên nhân một lần thử thất bại — signal/error/executability trước, stderr sau. */
+/** Trần độ dài stderr đưa vào message — giữ nguyên nhân thật, không cả log. */
+const ATTEMPT_FAILURE_STDERR_TAIL_CHARS = 1_000;
+
+/** Nguyên nhân một lần thử thất bại — signal/error/executability trước, stderr sau.
+ *  Token KHÔNG thể nằm ở đây qua argv (wrangler chỉ nhận nó qua env của
+ *  subprocess, `deployStagingWorker` không truyền giá trị env nào vào argv)
+ *  và stderr bị giới hạn đuôi 1000 ký tự để không phình log job. */
 function describeAttemptFailure(result: ExecResult): string {
   if (result.error !== undefined && result.error !== null) return result.error.message;
   if (result.signal !== undefined && result.signal !== null) {
     return `killed by signal ${result.signal}`;
   }
-  if (result.stderr.trim() === '') return 'no output';
-  return result.stderr.trim();
+  const trimmed = result.stderr.trim();
+  if (trimmed === '') return 'no output';
+  // Khối lỗi thật của wrangler nằm CUỐI stderr — chỉ giữ đuôi.
+  return trimmed.length > ATTEMPT_FAILURE_STDERR_TAIL_CHARS
+    ? trimmed.slice(-ATTEMPT_FAILURE_STDERR_TAIL_CHARS)
+    : trimmed;
 }

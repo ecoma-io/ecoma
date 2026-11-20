@@ -123,4 +123,4 @@ jobs:
       ref: ${{ needs.context.outputs.deploy_sha }}
       smoke-args: '--redirect /=/en --health /health --noindex /en'
     secrets:
-      cloudflare-api-token: ${{ secrets.ECOMA_CLOUDFLARE_API_TOKEN }}
+      cloudflare_api_token: ${{ secrets.ECOMA_CLOUDFLARE_API_TOKEN }}

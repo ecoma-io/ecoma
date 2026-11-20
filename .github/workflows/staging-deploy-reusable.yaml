@@ -269,3 +269,21 @@ jobs:
             -f context="release/staging-verified/$SLUG" \
             -f description="deploy or staging smoke failed" \
             -f target_url="$RUN_URL" > /dev/null
+      # Cancel (tay, runner mất, timeout hàng đợi) là KHÔNG verified — commit
+      # không được treo không evidence. Guard !failure(): khi một step đã đỏ,
+      # đường failure ở trên đã ghi kết quả thật và giữ nguyên nó.
+      - name: Record the staging-verified status (cancelled)
+        if: cancelled() && !failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.ref }}
+          SLUG: ${{ inputs.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=error \
+            -f context="release/staging-verified/$SLUG" \
+            -f description="deploy or staging smoke cancelled" \
+            -f target_url="$RUN_URL" > /dev/null
