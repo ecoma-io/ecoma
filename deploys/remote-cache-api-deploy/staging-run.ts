@@ -142,7 +142,12 @@ export function resolveStagingHyperdriveOrigin(
   if (config.originHost === undefined || config.originHost.trim().length === 0) {
     missing.push(`namespace:${STAGING_ORIGIN_HOST_CONFIG_KEY}`);
   }
-  if (config.originPassword === undefined) {
+  // Password cùng đường fail-closed với host: rỗng/toàn-trắng counted thiếu.
+  // Output của `conf.getSecret` không phải string — chỉ trim-kiểm khi là string.
+  if (
+    config.originPassword === undefined ||
+    (typeof config.originPassword === 'string' && config.originPassword.trim().length === 0)
+  ) {
     missing.push(`namespace:${STAGING_ORIGIN_PASSWORD_CONFIG_KEY}`);
   }
   if (missing.length > 0) {
@@ -411,8 +416,9 @@ export function readStagingRevision(
  * (§9.1: id do Pulumi cung cấp, Wrangler không tự tạo). Chỉ đọc SAU một lần
  * `up` thành công (trước đó output chưa tồn tại là lỗi dùng-lệnh, không phải
  * dữ liệu). Đọc lỗi/parse lỗi/id không qua kiểm `isProvisionedHyperdriveConfigId`
- * (placeholder toàn-zeros) → `undefined`: evidence không bịa id, entry in cảnh
- * báo wiring thay vì chặn một lần provision đã thành công.
+ * (placeholder toàn-zeros) → `undefined`: evidence không bịa id; entry biến
+ * `undefined` thành exit != 0 fail-loud qua `stagingHyperdriveWiringExit` —
+ * một `up` thành công PHẢI sinh id thật.
  */
 export function readHyperdriveConfigId(
   projectDir: string,
@@ -429,6 +435,49 @@ export function readHyperdriveConfigId(
   if (output.status !== 0) return undefined;
   const id = output.stdout.trim();
   return isProvisionedHyperdriveConfigId(id) ? id : undefined;
+}
+
+// oxlint-disable no-console -- báo cáo operator của entry staging chạy qua hàm
+// này để spec unit-test được; console là kênh duy nhất như `staging.ts`.
+
+/**
+ * Bước wiring sau một lần `up` xanh — TRẢ EXIT CODE cho entry: id đọc được →
+ * in hướng dẫn fill và 0; id không đọc được (stack output thiếu, đọc lỗi, hoặc
+ * placeholder toàn-zeros) → in lỗi tường minh nêu đúng target id thiếu
+ * (`hyperdriveConfigId`) và wiring step bị chặn, rồi 1. Một `up` thành công
+ * PHẢI sinh id thật — exit 0 im lặng sẽ giấu wiring debt khỏi operator (#350);
+ * đọc id bằng đúng `selection` + `env` của lần phase vừa chạy nên không resolve
+ * lại inventory.
+ */
+export function stagingHyperdriveWiringExit(
+  project: string,
+  selection: StackSelection,
+  env: NodeJS.ProcessEnv,
+  deps: StagingExecDeps = defaultDeps,
+): number {
+  const hyperdriveConfigId = readHyperdriveConfigId(
+    deployProjectDir(project),
+    selection,
+    env,
+    deps,
+  );
+  if (hyperdriveConfigId === undefined) {
+    console.error(
+      `[${project}] staging up OK but the hyperdrive config id is MISSING — stack output ` +
+        '`hyperdriveConfigId` (the target id this lane provisions for HyperdriveConfig) was absent, ' +
+        'unreadable, or placeholder-shaped. A successful up MUST produce a real id: the wiring step it ' +
+        'feeds — filling `env.staging.hyperdrive[0].id` in the unit wrangler.jsonc — is BLOCKED until the ' +
+        'stack output carries a real id. Inspect the stack and re-run `pulumi stack output ' +
+        'hyperdriveConfigId` manually; refusing to exit 0 so the wiring debt is not silently missed (#350)',
+    );
+    return 1;
+  }
+  console.log(
+    `[${project}] hyperdrive config id: ${hyperdriveConfigId} — wiring step: fill it as ` +
+      '`env.staging.hyperdrive[0].id` (binding DB_REMOTE_CACHE) in apps/remote-cache-api/wrangler.jsonc; ' +
+      'never a placeholder (review guard refuses all-zeros/empty ids) (#350)',
+  );
+  return 0;
 }
 
 /** SHA của workspace HEAD tại thời điểm chạy — revision của PROGRAM được apply. */
@@ -496,13 +545,22 @@ export function backendBucket(backendUrl: string): string {
  * `pulumiRun` reuse: tự ghép `--stack <fullRef>` và xử lý lỗi spawn/exit đúng
  * cơ chế chung; `prepareStack` để false vì `ensureStack` của local có `mkdir`
  * file:// — stack staging được chuẩn bị bởi `ensureStagingStack` ở trên.
+ *
+ * Trả kèm `selection` + `env` đã resolve: entry (staging.ts) dùng lại đúng
+ * inventory + selection của lần phase vừa chạy cho bước đọc output id sau
+ * `up` — `resolveStagingRunEnv` chạy ĐÚNG MỘT lần, không gọi lại ở entry.
  */
 export function runStagingPhase(
   phase: StagingPhase,
   project: string,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingExecDeps = defaultDeps,
-): { record: StagingProvisioningRecord; recordPath: string } {
+): {
+  record: StagingProvisioningRecord;
+  recordPath: string;
+  selection: StackSelection;
+  env: NodeJS.ProcessEnv;
+} {
   const projectDir = deployProjectDir(project);
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
   // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
@@ -557,7 +615,7 @@ export function runStagingPhase(
   }
   outcome.record.finishedAt = new Date().toISOString();
   outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
-  return outcome;
+  return { ...outcome, selection, env };
 }
 
 /**
