@@ -115,7 +115,7 @@ async function main(command: string): Promise<number> {
       );
       return 1;
     }
-    // Readiness đã thuộc container resource (`wait: true` trong index.ts):
+    // Readiness đã thuộc container resource (`wait: true` trong local-program.ts):
     // `pulumi up` xanh đồng nghĩa healthcheck Docker của unit đã `healthy` —
     // DX không biết Docker health tồn tại.
     return 0;

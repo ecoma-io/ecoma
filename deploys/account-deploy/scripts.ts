@@ -2,7 +2,7 @@
  * Xây script shell cho provision và migrate của `account-deploy` — HÀM THUẦN,
  * input là dữ liệu thô (tên container, tên network, đường dẫn worktree, tên
  * image, TÊN biến môi trường), output là script text KHÔNG chứa giá trị secret
- * nào. Chương trình Pulumi (`index.ts`) gọi đúng các hàm này nên script chạy
+ * nào. Chương trình Pulumi (`local-program.ts`) gọi đúng các hàm này nên script chạy
  * thật và script được test là MỘT nguồn sự thật.
  *
  * Bất biến bảo mật của cả hai script: giá trị secret (mật khẩu role, chuỗi
@@ -19,7 +19,7 @@ import { shellQuote } from '@ecoma-io/deployment';
 
 /**
  * TÊN biến môi trường chứa mật khẩu của từng role. Script provision đọc mật
- * khẩu bằng đúng tên này, và wiring Pulumi (`index.ts`) dựng map `environment`
+ * khẩu bằng đúng tên này, và wiring Pulumi (`local-program.ts`) dựng map `environment`
  * với cùng hằng — tên biến không thể lệch giữa hai phía. Giá trị KHÔNG đi qua
  * đây: giá trị được bọc `pulumi.secret` trong `environment` của provider.
  */
