@@ -68,6 +68,61 @@ Mỗi deploy unit đi qua hai làn với nhịp khác nhau (§4, §7.2):
 
 Hai làn dùng hai Worker identity tách biệt (staging `stg-*`, production — §4); không có cơ chế promote version xuyên identity — production deploy lại từ source revision đã verify với cấu hình environment của nó.
 
+### 1.2 Làn staging M2 — luồng end-to-end (Discovery #194)
+
+Chuỗi dưới đây **lắp ráp** các hợp đồng đã chốt của M2 thành một luồng duy nhất; từng mắt xích trỏ về mục hợp đồng
+canonical, không nhân bản. Hộp trạng thái ở đầu tài liệu áp dụng nguyên văn cho cả mục này: workflow và runner của
+làn **chưa có trên `main`** trừ khi ghi ngược lại; hiện thực thuộc Delivery issue ghi tại mỗi mắt xích.
+
+**Provisioning chạy tách biệt** với chuỗi dưới đây — hạ tầng staging qua Pulumi `deploys/*` theo §7.4.1, workflow
+provisioning (#368) là phụ thuộc riêng; chuỗi per-merge không chạy `pulumi up` (§0).
+
+Continuous Staging — merge `main` → deploy (hợp đồng §7.4, §7.5):
+
+```text
+merge `main`
+  → CI xanh (`.github/workflows/ci.yaml`, hiện có — pipeline CI duy nhất của lane deploy)
+  → deploy coordinator kích bằng `workflow_run` sau CI, đọc `workflow_run.head_sha` qua env (§7.4 — `staging.yaml`, #362)
+      audit → plan (không secret, `nx affected` ∩ eligibility) → build + `build-manifest.json` → deploy matrix per unit
+  → migrate forward trên database staging theo sequencing §3a (§4.2 — làn continuous)
+  → deploy `stg-<unit>` với `--env staging`, credential chỉ ở job deploy, Environment `staging-<slug>` (§7.4)
+  → smoke theo `smokeSurface` (§7.5 mục 9) + stale-run guard kiểm ở hai thời điểm (§7.4)
+  → ghi evidence (bảng dưới)
+```
+
+Release chain — Release PR → release-ready (hợp đồng §7.2 Phase A–B, §7.3):
+
+```text
+dispatch `release-prepare` (#361 — `release-prepare.yaml` đã có trên `main` qua PR #490)
+  → Release PR `release/*`: một batch một commit có chữ ký, allowlist metadata-only (§7.3)
+  → CI nhận diện Release PR và kiểm manifest (`release-pr-check.yaml` — #361)
+  → candidate validation lane: candidate slot #381, orchestration #389, system-test gate (§10.1, #363)
+  → merge queue squash → release commit SHA mới
+  → post-merge: chính SHA đó đi qua Continuous Staging → status verified gắn đúng SHA (§7.3, pha 2)
+  → release-ready; promotion production là scope M3 (§7.2 Phase C–D)
+```
+
+**Evidence của làn staging — sống ở đâu, shape gì** (canonical: §7.2 provenance store, §7.3 hai pha exact-SHA;
+mục này chỉ phát biểu fact + liên kết, không lặp reasoning):
+
+| Evidence                                        | Nơi sống                                                                                                    | Shape                                                                                                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commit status `release/staging-verified/<slug>` | Commit object của repo — durable index sống theo lịch sử Git; promotion gate đọc lớp này (§7.2 điều kiện 5) | State success/failure gắn **exact SHA**; job URL trong mô tả status; context suy ra từ slug của project, gate tự tính (§7.5 mục 3)            |
+| Deployment record (provenance store)            | Workflow artifact của run đã deploy — không phải step summary (lý do ở §7.2)                                | JSON **append-only per (SHA, slug, lane)**: SHA, version, slug, lane, kết quả smoke per check, run URL, timestamp, hash `build-manifest.json` |
+
+Claim `release/staging-testing/<slug>` không phải kết quả — nó là serialization-lock của làn continuous và marker
+"đang chạy" của làn validation, phân biệt bởi lớp SHA nó gắn (§7.3 quyết định 3 và bảng status mục 9). Một run stale
+không ghi success đè bằng chứng (§7.4).
+
+**Phụ thuộc đang mở tại thời điểm viết** — ghi là phụ thuộc, không khẳng định trạng thái cuối:
+
+- PR #453 (#368): workflow provisioning staging (`preview`/`up`); trigger, Environment và ranh giới credential của nó
+  còn là mục mở ở §12.
+- #361: Phase B Release PR automation **đã có trên `main`** (PR #490 — `release-prepare.yaml`, `release-pr-check.yaml`,
+  runner `tools/dx/scripts/release/release-pr.mjs`); issue #361 còn mở cho verification sau merge (dispatch thật).
+- #362: hai workflow làn deploy và runner `tools/delivery/src/` (cây hiện tại chỉ có
+  `tools/delivery/config/deploy-eligibility.jsonc`).
+
 ---
 
 ## 2. Git and Nx
@@ -701,6 +756,7 @@ Hai điểm dễ sai, cả hai đều làm approval là hình thức:
 
 ## 7. Release và rollout
 
+- Luồng end-to-end lắp ráp các hợp đồng của làn staging M2 thành một chuỗi, kèm nơi sống và shape của evidence → §1.2.
 - Mỗi deployment có file cấu hình riêng để rollout độc lập. Không có bước bất đồng bộ nào — `wrangler deploy` trả về khi deploy xong. Lỗi **transport tạm thời** của Cloudflare API được thử lại trong chính lần chạy đó ([Retry quanh `wrangler deploy`](#retry-quanh-wrangler-deploy)).
 - Thứ tự khi thêm unit mới: **Provisioning** (`deploys/<unit>-deploy` — tài nguyên hạ tầng của unit, sau `platform-deploy`) → storage expand → `llm-api` → Workers → Router → promotion gate. Sau đó mỗi release chỉ rollout unit bị ảnh hưởng. Đây là **thứ tự phụ thuộc**, không phải một bước tự động trong pipeline: nó được ràng buộc ở tầng project graph (`05-code-architecture.md` §2.1) và ở execution contract (§7.4.1), còn workflow nối hai vế thì chưa có.
 - **Rollback tại release:** chọn Worker version đã publish, không rebuild, không revert Git (`04` WV1–WV3); chi tiết → §8.
