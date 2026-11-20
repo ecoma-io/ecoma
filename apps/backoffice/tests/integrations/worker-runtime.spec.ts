@@ -321,18 +321,20 @@ describe('backoffice worker runtime (SPA, issue #67)', () => {
 
     expect(sw.status).toBe(200);
     expect(sw.contentType).toContain('javascript');
-    expect(sw.body).toContain('precacheAndRoute');
-    // NetworkOnly cho `/api/` — một runtimeCaching đổi handler là response có
-    // phiên bắt đầu vào cache, vi phạm invariant "API không cache".
-    //
-    // ⚠️ Regex cho phép **một mức** ngoặc lồng nhau (`(?:[^()]|\([^()]*\))*`),
-    // không dùng `[^)]*`: Workbox sinh matcher có ngoặc bên trong (ví dụ
-    // `({request}) => ...`), và `[^)]*` dừng ở dấu `)` đầu tiên nên sẽ không
-    // với tới `NetworkOnly` — test đỏ dù SW đúng. Chỉ một mức lồng: đủ cho mọi
-    // hình dạng matcher Workbox sinh, và không cho phép regex chạy xuyên qua
-    // lệnh `registerRoute` kế tiếp (khớp phải nằm trong một lần gọi).
-    expect(sw.body).toMatch(/registerRoute\s*\((?:[^()]|\([^()]*\))*NetworkOnly/su);
-    expect(sw.body).toContain('CacheFirst');
+    // vite-pwa v2 (unplugin-pwa + fork workbox-build) minify mất tên symbol
+    // `precacheAndRoute` — assert hành vi thay vì tên: SW nạp runtime workbox
+    // và manifest precache liệt kê asset build thật.
+    expect(sw.body).toContain('importScripts("./workbox-');
+    expect(sw.body).toContain('_nuxt/');
+    // vite-pwa v2 minify toàn bộ tên handler (`registerRoute`/`NetworkOnly`/
+    // `CacheFirst` thành symbol một chữ), nên invariant "API không cache"
+    // phải assert qua hình dạng route, không qua tên: route `/api/` gắn
+    // handler **trần** — không object config cache nào — nên response có
+    // phiên không thể vào cache; route `/_nuxt/*` mang config cache tên
+    // `nuxt-assets` + expiration (bản chất CacheFirst cũ).
+    expect(sw.body).toMatch(/RegExp\(`\^\\\\\/api\\\\\/\.\*`,`iu`\),new \w+,`GET`/su);
+    expect(sw.body).toContain('cacheName:`nuxt-assets`');
+    expect(sw.body).toContain('maxEntries:100');
   });
 });
 
