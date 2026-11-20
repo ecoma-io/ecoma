@@ -454,6 +454,7 @@ test.describe.serial('cross-product chained MVP journey', () => {
     const sinceMs = Date.now();
 
     await performBrowserLogin(page, {
+      entryUrl: `${BACKOFFICE_ORIGIN}/api/auth/login`,
       email: SUPERADMIN_EMAIL,
       readOtp: () => readOtpFromMailSink(mailWic, { recipient: SUPERADMIN_EMAIL, sinceMs }),
     });
