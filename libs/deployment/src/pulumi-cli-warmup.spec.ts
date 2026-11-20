@@ -141,6 +141,10 @@ describe('warmPulumiCli', () => {
     // (2s/lượt) nên fake timers + advanceTimersByTime giúp 30 lượt retry chạy
     // trong vài ms thay vì ~58s wall-clock.
     vi.doMock('node:child_process', () => ({ execFile: execFileMock }));
+    // vitest không tự xoá call history giữa các test (clearMocks mặc định false):
+    // mock dùng chung còn đọng 1 call từ test promise-cache phía trên, nên phải
+    // xoá tay trước khi đếm 30 lượt retry.
+    execFileMock.mockClear();
     execFileMock.mockImplementation((_file, _args, _opts, cb) => cb(new Error('spawn ETXTBSY')));
     vi.useFakeTimers();
     try {
@@ -153,8 +157,7 @@ describe('warmPulumiCli', () => {
       // Kéo hết 30 lượt retry (2s delay mỗi lượt) mà không chờ wall-clock.
       await vi.advanceTimersByTimeAsync(31 * 2_000);
       await expect(firstAttempt).rejects.toThrow(/after 30 attempts/u);
-      // 30 lượt của module fail. vitest 5 mặc định `clearMocks: true` nên call
-      // của test trước không còn đọng lại trên mock dùng chung như với vitest 4.
+      // 30 lượt của module fail, lịch sử call đã được mockClear ở đầu test.
       expect(execFileMock).toHaveBeenCalledTimes(30);
 
       execFileMock.mockImplementation((_file, _args, _opts, cb) =>
