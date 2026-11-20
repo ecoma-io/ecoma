@@ -70,6 +70,20 @@ const backupR2AccessKey = config.requireSecret('backupR2AccessKey');
 const backupR2SecretKey = config.requireSecret('backupR2SecretKey');
 
 /**
+ * Đường dẫn hệ thống dùng chung mọi script — một nguồn sự thật, không hardcode
+ * rải rác. Giả định layout Debian/Ubuntu + PostgreSQL từ apt là CỐ ĐỊNH của
+ * unit này (`pg-install` cài qua `apt-get`); đổi distro/PostgreSQL-from-source
+ * là đổi giả định provision, phải sửa khối này cùng `pg-install`.
+ */
+const PATHS = {
+  walArchiveDir: '/var/lib/postgresql/wal-archive',
+  pgBaseDir: '/var/backups/pg-base',
+  backupEnvFile: '/etc/pg-backup.env',
+  rclone: '/usr/bin/rclone',
+  pgBaseBackup: '/usr/bin/pg_basebackup',
+} as const;
+
+/**
  * Connection SSH dùng chung cho mọi command — ở `@pulumi/command` v1.3,
  * `connection` là args object (`inputs.remote.ConnectionArgs`), KHÔNG phải
  * resource `remote.Connection` (biểu mẫu đó của bản cũ). Private key đọc từ
@@ -170,11 +184,15 @@ const pgBackupPrereq = new command.remote.Command(
       'set -eu',
       'export DEBIAN_FRONTEND=noninteractive',
       'sudo apt-get install -y -qq rclone',
-      'sudo install -d -o postgres -g postgres /var/lib/postgresql/wal-archive /var/backups/pg-base',
+      `sudo install -d -o postgres -g postgres ${PATHS.walArchiveDir} ${PATHS.pgBaseDir}`,
       runPsql(
         [
           `ALTER SYSTEM SET archive_mode = 'on';`,
-          `ALTER SYSTEM SET archive_command = 'test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f';`,
+          // Atomic copy (`.part` + `mv`): segment bán phần không bao giờ bị
+          // `test ! -f` nhận nhầm là đã archive xong — lỗi đó tạo lỗ PITR thầm
+          // lặng. cp thất bại trả exit != 0 → PostgreSQL giữ segment và retry
+          // + log, đúng hành vi WAL archiving chuẩn.
+          `ALTER SYSTEM SET archive_command = 'test ! -f ${PATHS.walArchiveDir}/%f && cp %p ${PATHS.walArchiveDir}/%f.part && mv ${PATHS.walArchiveDir}/%f.part ${PATHS.walArchiveDir}/%f';`,
           `ALTER SYSTEM SET archive_timeout = '60s';`,
         ].join('\n'),
       ),
@@ -203,16 +221,23 @@ export const pgBackupJobs = new command.remote.Command(
       .apply(([bucket, endpoint, accessKey, secretKey]) =>
         [
           'set -eu',
-          'sudo install -m 0600 -o root -g root /dev/null /etc/pg-backup.env',
-          `sudo tee /etc/pg-backup.env >/dev/null <<'ENV_END'\nRCLONE_CONFIG_R2_TYPE=s3\nRCLONE_CONFIG_R2_ENDPOINT=${endpoint}\nRCLONE_CONFIG_R2_ACCESS_KEY_ID=${accessKey}\nRCLONE_CONFIG_R2_SECRET_ACCESS_KEY=${secretKey}\nENV_END`,
-          `sudo tee /etc/systemd/system/pg-wal-push.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Push PostgreSQL WAL archive to R2\n[Service]\nType=oneshot\nEnvironmentFile=/etc/pg-backup.env\nExecStart=/usr/bin/rclone sync /var/lib/postgresql/wal-archive r2:${bucket}/wal\nUNIT_END`,
+          `sudo install -m 0600 -o root -g root /dev/null ${PATHS.backupEnvFile}`,
+          `sudo tee ${PATHS.backupEnvFile} >/dev/null <<'ENV_END'\nRCLONE_CONFIG_R2_TYPE=s3\nRCLONE_CONFIG_R2_ENDPOINT=${endpoint}\nRCLONE_CONFIG_R2_ACCESS_KEY_ID=${accessKey}\nRCLONE_CONFIG_R2_SECRET_ACCESS_KEY=${secretKey}\nENV_END`,
+          // `rclone copy` (KHÔNG `sync`): không bao giờ xoá phía R2 — retention
+          // WAL thuộc lifecycle rule của bucket (§3.1), xoá cục bộ không được
+          // phép lan sang remote (PITR).
+          `sudo tee /etc/systemd/system/pg-wal-push.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Push PostgreSQL WAL archive to R2\n[Service]\nType=oneshot\nEnvironmentFile=${PATHS.backupEnvFile}\nExecStart=${PATHS.rclone} copy ${PATHS.walArchiveDir} r2:${bucket}/wal\nUNIT_END`,
           `sudo tee /etc/systemd/system/pg-wal-push.timer >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Push PostgreSQL WAL archive every 5 minutes\n[Timer]\nOnCalendar=*:0/5\nPersistent=true\n[Install]\nWantedBy=timers.target\nUNIT_END`,
-          `sudo tee /etc/systemd/system/pg-base-backup.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Daily PostgreSQL base backup to R2\n[Service]\nType=oneshot\nEnvironmentFile=/etc/pg-backup.env\nExecStart=/bin/bash -c 'DIR=/var/backups/pg-base/$$(date +%%Y%%m%%dT%%H%%M%%S) && sudo -u postgres /usr/bin/pg_basebackup -D "$$DIR" -Fp -Xs -P && /usr/bin/rclone sync "$$DIR" "r2:${bucket}/base/$$(basename "$$DIR")"'\nUNIT_END`,
+          `sudo tee /etc/systemd/system/pg-base-backup.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Daily PostgreSQL base backup to R2\n[Service]\nType=oneshot\nEnvironmentFile=${PATHS.backupEnvFile}\nExecStart=/bin/bash -c 'DIR=${PATHS.pgBaseDir}/$$(date +%%Y%%m%%dT%%H%%M%%S) && sudo -u postgres ${PATHS.pgBaseBackup} -D "$$DIR" -Fp -Xs -P && ${PATHS.rclone} copy "$$DIR" "r2:${bucket}/base/$$(basename "$$DIR")"'\nUNIT_END`,
           `sudo tee /etc/systemd/system/pg-base-backup.timer >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Run PostgreSQL base backup daily\n[Timer]\nOnCalendar=*-*-* 02:30:00\nPersistent=true\n[Install]\nWantedBy=timers.target\nUNIT_END`,
           'sudo systemctl daemon-reload',
           'sudo systemctl enable --now pg-wal-push.timer pg-base-backup.timer',
         ].join('\n'),
       ),
+    // Xoay credential R2 hoặc đổi bucket/endpoint phải REWRITE env file + unit
+    // systemd — triggers (CommandArgs) thay thế resource khi config đổi; script
+    // chạy lại idempotent, secret mới chắc chắn tới `/etc/pg-backup.env`.
+    triggers: [backupBucketName, backupR2Endpoint, backupR2AccessKey, backupR2SecretKey],
   },
   { dependsOn: pgBackupPrereq },
 );
