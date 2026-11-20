@@ -10,9 +10,9 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.23.1",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "//": "Relay outbox entitlement (P2.2, issue #449): claim staff_access.entitlement_outbox_events FOR UPDATE SKIP LOCKED, publish vào Cloudflare Queues với idempotency key = event_id. Hai lib tách bạch theo DDD: application giữ thuật toán relay (claim/publish/retry/DLQ) qua port, infrastructure cài port bằng driver pg. Composition root chỉ dựng pool từ Hyperdrive binding + adapter Queue từ binding Cloudflare Queues.",
   "nx": {

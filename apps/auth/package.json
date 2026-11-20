@@ -13,9 +13,9 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.23.1",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "nx": {
     "tags": [

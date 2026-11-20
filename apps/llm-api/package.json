@@ -14,9 +14,9 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.15.6",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "//": [
     "Deploy unit `llm-api` — data plane LLM tren Cloudflare Workers, runtime",
