@@ -102,11 +102,9 @@ describe('classifyPlatformStack', () => {
     expect(classifyPlatformStack('organization/platform-deploy/local-john')).toBe('local');
   });
 
-  it('staging and staging-candidate slugs route to the staging marker lane', () => {
-    expect(classifyPlatformStack('organization/platform-deploy/staging')).toBe('staging-marker');
-    expect(classifyPlatformStack('organization/platform-deploy/staging-candidate')).toBe(
-      'staging-marker',
-    );
+  it('staging and staging-candidate slugs route to the staging lane', () => {
+    expect(classifyPlatformStack('organization/platform-deploy/staging')).toBe('staging');
+    expect(classifyPlatformStack('organization/platform-deploy/staging-candidate')).toBe('staging');
   });
 
   it('a bare local word without the local- prefix is unknown', () => {

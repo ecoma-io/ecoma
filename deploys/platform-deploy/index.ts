@@ -37,6 +37,6 @@ if (platformStackLane === 'unknown') {
 // specifier `.js` resolvable qua ts-node/esm hooks như mọi import nội bộ của
 // package (`type: "module"`). Dynamic import (không phải import tĩnh) đảm bảo
 // thân KHÔNG BAO GIỜ được evaluate khi lane không tương ứng.
-export default platformStackLane === 'staging-marker'
+export default platformStackLane === 'staging'
   ? await import('./staging-program.js')
   : await import('./local-program.js');
