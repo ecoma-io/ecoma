@@ -1,0 +1,43 @@
+{
+  "name": "staging-connectivity",
+  "private": true,
+  "type": "module",
+  "ecoma": {
+    "deployment": {
+      "status": "scaffold"
+    }
+  },
+  "nx": {
+    "//": [
+      "Lane connectivity staging #349: Workers VPC Service TCP tới origin PostgreSQL",
+      "staging qua Cloudflare Tunnel — quyền sở hữu §9.1 `02-delivery.md` (hàng",
+      "\"Workers VPC Service + Tunnel\" thuộc Wrangler). Thực thi nằm ở CLI của",
+      "`@ecoma-io/delivery` (`tools/delivery/src/staging-connectivity.ts` +",
+      "`cli.ts vpc-service create`) — reuse ở TẦNG LỆNH CLI như staging-pg-host",
+      "reuse engine platform-deploy, KHÔNG import module sang project này;",
+      "project này chỉ là điểm vào Nx + docs cho operator. Logic + unit test",
+      "sống trong target `test` của `@ecoma-io/delivery`. Marker",
+      "`ecoma.deployment.status: \"scaffold\"`: lifecycle project thuần, không",
+      "sở hữu app nào (lần tạo service thật chưa chạy — đợi host #349 +",
+      "tunnel UUID + Spike S1)."
+    ],
+    "tags": [
+      "type:deployment",
+      "scope:platform",
+      "runtime:native"
+    ],
+    "implicitDependencies": [
+      "platform-deploy",
+      "@ecoma-io/delivery"
+    ],
+    "targets": {
+      "staging-vpc-service-create": {
+        "//": "Một lần tạo VPC service staging: đối số của operator được Nx append sau `--`. Yêu cầu ECOMA_CLOUDFLARE_API_TOKEN trong env (fail-closed); name bắt buộc prefix `stg-`; --tunnel-id bắt buộc (wrangler 4.165.0). Output dòng `service_id=<uuid>` là contract cho wiring Hyperdrive #350. KHÔNG có target down/delete: xoá service là bước vận hành tường minh qua `wrangler vpc service delete` theo runbook, không phải lane mutate ngầm. nx:run-commands chạy ở workspace root nên path là ref repo-root-relative `tools/delivery/src/cli.ts` (cùng hình dạng arch-check resolveCommandBase kiểm).",
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "npx tsx tools/delivery/src/cli.ts vpc-service create"
+        }
+      }
+    }
+  }
+}

@@ -57,7 +57,7 @@ const DATABASE_PROJECTS = [
  * marker `ecoma.deployment.status: "scaffold"` với job-only/database ở
  * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
  */
-const PROVISIONING_PROJECTS = ['staging-pg-host'] as const;
+const PROVISIONING_PROJECTS = ['staging-pg-host', 'staging-connectivity'] as const;
 
 function packageJson(project: string): Record<string, unknown> {
   return JSON.parse(
