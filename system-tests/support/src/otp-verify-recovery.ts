@@ -15,6 +15,23 @@ function isVisibleSafe(locator: Locator): Promise<boolean> {
 }
 
 /**
+ * Lỗi race điều hướng — element/context bị navigation đang chạy phá giữa chừng
+ * (redirect chain hoàn tất đúng lúc click). ChỈ giá trị `Error` (hoặc kế thừa
+ * Error, ví dụ DOMException) có message khớp chữ ký được nhận; giá trị thô
+ * non-Error luôn bị loại — truyền nhầm đối số phải surfaced, không được nuốt.
+ * Chỉ các chữ ký này được nuốt khi retry path đã có vòng phía sau xử lý; mọi
+ * lỗi khác (timeout, element không tìm thấy, frame detached...) là lỗi thật.
+ */
+export function isNavigationRaceError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /element was detached from the DOM|Execution context was destroyed|Target page, context or browser has been closed|Target closed/u.test(
+      error.message,
+    )
+  );
+}
+
+/**
  * Trang chết của browser — UI product mất hẳn (instance 11 #461: run
  * 44693545849, `url=chrome-error://chromewebdata/ visible=[]` khi navigation
  * chết tầng mạng). Mọi scheme ngoài http/https, kể cả chuỗi không parse được,
@@ -121,13 +138,17 @@ export async function waitForContinueTargetAfterOtpVerify(
   const codeInvalid = page.getByTestId('login-code-invalid');
   // Chờ vòng đời submit kết thúc sau mỗi lần bấm `login-code-submit` lại:
   // form mã rời DOM khi navigation bắt đầu — không có bước này, lặp kế tiếp có
-  // thể đọc DOM cũ của POST trước trong khi POST mới còn đang xử lý. Lỗi tại
-  // đây chỉ là context bị navigation phá giữa chừng — vô hại, lặp kế tiếp vẫn
-  // chờ trên element mới; form KHÔNG rời DOM trong 15s (POST chết lần hai)
-  // cũng là trạng thái đo được — lặp kế tiếp sẽ throw đúng hạn kèm stuck state.
+  // thể đọc DOM cũ của POST trước trong khi POST mới còn đang xử lý. CHỈ lỗi
+  // race điều hướng được nuốt (context bị navigation phá giữa chừng — vô hại,
+  // lặp kế tiếp vẫn chờ trên element mới); timeout (form không rời DOM trong
+  // 15s — POST chết lần hai) và mọi lỗi khác surfaced ngay tại đây.
   const codeForm = page.getByTestId('login-code-form');
   const awaitSubmitRoundTrip = async (): Promise<void> => {
-    await codeForm.waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => undefined);
+    await codeForm.waitFor({ state: 'hidden', timeout: 15_000 }).catch((error: unknown) => {
+      if (!isNavigationRaceError(error)) {
+        throw error;
+      }
+    });
   };
   let invalidRecovered = false;
   for (let verifyAttempt = 1; verifyAttempt <= MAX_VERIFY_ATTEMPTS; verifyAttempt += 1) {

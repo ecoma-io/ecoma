@@ -7,18 +7,7 @@ function isVisibleSafe(locator: Locator): Promise<boolean> {
   return locator.isVisible().catch(() => false);
 }
 
-/**
- * Lỗi race điều hướng — element/context bị navigation đang chạy phá giữa chừng
- * (redirect chain hoàn tất đúng lúc click). ChỈ các chữ ký này được nuốt khi
- * retry path đã có vòng phía sau xử lý; mọi lỗi khác (timeout, element không
- * tìm thấy, frame detached...) là lỗi thật và phải surfaced.
- */
-export function isNavigationRaceError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /element was detached from the DOM|Execution context was destroyed|Target page, context or browser has been closed|Target closed/u.test(
-    message,
-  );
-}
+export { isNavigationRaceError } from './otp-verify-recovery.js';
 
 /** Tham số của một lượt re-login recovery — suite sở hữu dữ liệu login. */
 export interface LoginRecoveryParams {

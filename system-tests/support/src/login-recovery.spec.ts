@@ -242,7 +242,8 @@ describe('isNavigationRaceError', () => {
       false,
     );
     expect(isNavigationRaceError(new Error('element is not visible'))).toBe(false);
-    expect(isNavigationRaceError('element was detached from the DOM, retrying')).toBe(true);
+    expect(isNavigationRaceError('element was detached from the DOM, retrying')).toBe(false);
+    expect(isNavigationRaceError({ message: 'Target closed' })).toBe(false);
     expect(isNavigationRaceError(undefined)).toBe(false);
   });
 });
