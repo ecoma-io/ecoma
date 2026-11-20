@@ -112,10 +112,46 @@ thuẫn, database ngoài inventory, authority project thiếu trên cây).
 - `sourceLsn` là mốc provenance ghi vào release record (`02` §12), KHÔNG
   phải điều kiện restorable — điều kiện là integrity check.
 
+## Testing
+
+```bash
+pnpm nx run @ecoma-io/release-validation:test                # unit, không Docker
+pnpm nx run @ecoma-io/release-validation:test-integration    # Docker bắt buộc, fail-loud
+```
+
+Specs unit `src/*.spec.ts` (vitest, 23 test) phủ: resolve inventory `02`
+§3a.1 và refuse database ngoài danh sách, resolve danh tính candidate
+(manifest/flags/mâu thuẫn/thiếu), blocker pre-flight, stage machine
+fail-closed (restore lỗi → skip, integrity lệch → migration không chạy,
+first-release → integrity `not-applicable`), mask secret và hình dạng
+evidence, parseArgs strict (flag lạ/trùng/thiếu value).
+
+Specs integration `tests/integrations/pg-baseline-integration.spec.ts`
+(6 test) chạy CLI thật trên hai container PostgreSQL thật qua docker-CLI
+harness (`docker run` + `docker exec`, không @testcontainers; Docker
+thiếu là suite ĐỎ — probe fail-loud từ globalSetup, không skip): capture
+fingerprint đúng state; validate restore + candidate migration tiến
+(history 1 → 2, data sống qua restore); integrity fail closed khi dump
+bị biến đổi; truncated dump fail closed; interrupted migration (kill -9
+giữa `pg_sleep`) để lại đúng baseline đã restore và retry hoàn tất;
+first-release fresh-install.
+
+## Related Documentation
+
+- `docs/architecture/02-delivery.md` §3a.6 — mục G: baseline restorable
+  per logical database, restore-verification bắt buộc (restore +
+  integrity + migration apply), không down-migrate.
+- `docs/architecture/02-delivery.md` §3a.1 — inventory logical database
+  → migration authority `deploys/<slug>-db`.
+- `docs/architecture/03-operations.md` §3.1 — lớp dump per-database
+  (pg_dumpall là cluster-level) và chính sách backup/PITR production.
+- `docs/architecture/06-testing.md` — placement target `test` /
+  `test-integration` và quy tắc Docker fail-loud.
+- Issue #379 (previous-release baseline restore + candidate migration
+  validation), #346 (provenance store), #349 (slot provisioning).
+
 ## Development
 
 ```bash
-pnpm nx run release-validation:test                # unit (không Docker)
-pnpm nx run release-validation:test-integration    # Docker bắt buộc, fail-loud
 pnpm nx run release-validation:lint && pnpm nx run release-validation:typecheck
 ```
