@@ -122,7 +122,12 @@ export function resolveStagingHyperdriveOrigin(
   if (config.originHost === undefined || config.originHost.trim().length === 0) {
     missing.push(`namespace:${STAGING_ORIGIN_HOST_CONFIG_KEY}`);
   }
-  if (config.originPassword === undefined) {
+  // Password cùng đường fail-closed với host: rỗng/toàn-trắng counted thiếu.
+  // Output của `conf.getSecret` không phải string — chỉ trim-kiểm khi là string.
+  if (
+    config.originPassword === undefined ||
+    (typeof config.originPassword === 'string' && config.originPassword.trim().length === 0)
+  ) {
     missing.push(`namespace:${STAGING_ORIGIN_PASSWORD_CONFIG_KEY}`);
   }
   if (missing.length > 0) {
@@ -293,15 +298,22 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
     slot: STAGING_SLOT,
     backendUrl,
   });
+  // Least privilege: env của subprocess Pulumi là ALLOWLIST tường minh — đúng
+  // các khóa inventory phía trên + PATH/HOME (pulumi/git cần để chạy); không
+  // passthrough toàn bộ process.env — credential khác trong môi trường operator
+  // không được rò sang metadata của subprocess. Hệ quả: file-passphrase variant
+  // (`PULUMI_CONFIG_PASSPHRASE_FILE`) không bao giờ lọt vào env này.
   const env: NodeJS.ProcessEnv = {
-    ...source,
+    PATH: source.PATH,
+    HOME: source.HOME,
+    [STAGING_STATE_URL_ENV_KEY]: source[STAGING_STATE_URL_ENV_KEY],
+    AWS_ACCESS_KEY_ID: source.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: source.AWS_SECRET_ACCESS_KEY,
+    CLOUDFLARE_API_TOKEN: source.CLOUDFLARE_API_TOKEN,
     PULUMI_BACKEND_URL: backendUrl,
     PULUMI_SKIP_UPDATE_CHECK: '1',
     PULUMI_CONFIG_PASSPHRASE: source.PULUMI_CONFIG_PASSPHRASE as string,
   };
-  // Cắt file-passphrase variant: env là nguồn passphrase duy nhất của lane
-  // staging (per-stack secret), để biến còn sót là CLI đổi thứ tự ưu tiên im lặng.
-  delete env.PULUMI_CONFIG_PASSPHRASE_FILE;
   return { backendUrl, env };
 }
 

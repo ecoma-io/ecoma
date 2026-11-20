@@ -161,6 +161,37 @@ describe('resolveStagingRunEnv', () => {
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
   });
 
+  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
+    const { env } = resolveStagingRunEnv({
+      ...fullSourceEnv(),
+      PATH: '/usr/bin:/bin',
+      HOME: '/home/operator',
+      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
+      GITHUB_TOKEN: 'decoy-github-token',
+    });
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/operator');
+    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
+    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
+    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
+    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
+    expect(Object.keys(env).toSorted()).toEqual([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'ECOMA_PULUMI_STATE_URL_STAGING',
+      'HOME',
+      'PATH',
+      'PULUMI_BACKEND_URL',
+      'PULUMI_CONFIG_PASSPHRASE',
+      'PULUMI_SKIP_UPDATE_CHECK',
+    ]);
+  });
+
   it('fails closed listing every missing key at once', () => {
     const source = fullSourceEnv();
     delete source.PULUMI_CONFIG_PASSPHRASE;
@@ -219,6 +250,23 @@ describe('resolveStagingHyperdriveOrigin', () => {
         originPassword: 'pw',
       }),
     ).toThrow(/namespace:originHost/su);
+  });
+
+  it('an empty or whitespace-only password counts as missing, mirroring the host check', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '   ',
+      }),
+    ).toThrow(/namespace:originPassword/su);
   });
 
   it('defaults a missing port to 5432 and keeps the per-database identity constants', () => {
